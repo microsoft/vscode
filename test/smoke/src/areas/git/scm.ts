@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Viewlet } from '../workbench/viewlet';
-import { API, findElement, findElements } from '../../api';
 import { Commands } from '../workbench/workbench';
 import { IElement } from '../../vscode/driver';
+import { findElement, findElements, Code } from '../../vscode/code';
 
 const VIEWLET = 'div[id="workbench.view.scm"]';
 const SCM_INPUT = `${VIEWLET} .scm-editor textarea`;
@@ -41,44 +41,44 @@ function toChange(element: IElement): Change {
 
 export class SCM extends Viewlet {
 
-	constructor(api: API, private commands: Commands) {
-		super(api);
+	constructor(code: Code, private commands: Commands) {
+		super(code);
 	}
 
 	async openSCMViewlet(): Promise<any> {
 		await this.commands.runCommand('workbench.view.scm');
-		await this.api.waitForElement(SCM_INPUT);
+		await this.code.waitForElement(SCM_INPUT);
 	}
 
 	async waitForChange(name: string, type?: string): Promise<void> {
 		const func = (change: Change) => change.name === name && (!type || change.type === type);
-		await this.api.waitForElements(SCM_RESOURCE, true, elements => elements.some(e => func(toChange(e))));
+		await this.code.waitForElements(SCM_RESOURCE, true, elements => elements.some(e => func(toChange(e))));
 	}
 
 	async refreshSCMViewlet(): Promise<any> {
-		await this.api.waitAndClick(REFRESH_COMMAND);
+		await this.code.waitAndClick(REFRESH_COMMAND);
 	}
 
 	async openChange(name: string): Promise<void> {
-		await this.api.waitAndClick(SCM_RESOURCE_CLICK(name));
+		await this.code.waitAndClick(SCM_RESOURCE_CLICK(name));
 	}
 
 	async stage(name: string): Promise<void> {
-		await this.api.waitAndClick(SCM_RESOURCE_ACTION_CLICK(name, 'Stage Changes'));
+		await this.code.waitAndClick(SCM_RESOURCE_ACTION_CLICK(name, 'Stage Changes'));
 	}
 
 	async stageAll(): Promise<void> {
-		await this.api.waitAndClick(SCM_RESOURCE_GROUP_COMMAND_CLICK('Stage All Changes'));
+		await this.code.waitAndClick(SCM_RESOURCE_GROUP_COMMAND_CLICK('Stage All Changes'));
 	}
 
 	async unstage(name: string): Promise<void> {
-		await this.api.waitAndClick(SCM_RESOURCE_ACTION_CLICK(name, 'Unstage Changes'));
+		await this.code.waitAndClick(SCM_RESOURCE_ACTION_CLICK(name, 'Unstage Changes'));
 	}
 
 	async commit(message: string): Promise<void> {
-		await this.api.waitAndClick(SCM_INPUT);
-		await this.api.waitForActiveElement(SCM_INPUT);
-		await this.api.setValue(SCM_INPUT, message);
-		await this.api.waitAndClick(COMMIT_COMMAND);
+		await this.code.waitAndClick(SCM_INPUT);
+		await this.code.waitForActiveElement(SCM_INPUT);
+		await this.code.setValue(SCM_INPUT, message);
+		await this.code.waitAndClick(COMMIT_COMMAND);
 	}
 }

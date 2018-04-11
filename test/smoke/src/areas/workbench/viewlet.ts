@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { API } from '../../api';
+'use strict';
+
+import { Code } from '../../vscode/code';
 
 export abstract class Viewlet {
 
-	constructor(protected api: API) {
+	constructor(protected code: Code) {
 		// noop
 	}
 
 	async getTitle(): Promise<string> {
-		return this.api.waitForTextContent('.monaco-workbench-container .part.sidebar > .title > .title-label > span');
+		return this.code.waitForTextContent('.monaco-workbench-container .part.sidebar > .title > .title-label > span');
 	}
 }

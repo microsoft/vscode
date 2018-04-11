@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { API } from '../../api';
+import { Code } from '../../vscode/code';
 
 export enum StatusBarElement {
 	BRANCH_STATUS = 0,
@@ -23,23 +23,22 @@ export class StatusBar {
 	private readonly leftSelector = '.statusbar-item.left';
 	private readonly rightSelector = '.statusbar-item.right';
 
-	constructor(private api: API) {
-	}
+	constructor(private code: Code) { }
 
 	async waitForStatusbarElement(element: StatusBarElement): Promise<void> {
-		await this.api.waitForElement(this.getSelector(element));
+		await this.code.waitForElement(this.getSelector(element));
 	}
 
 	async clickOn(element: StatusBarElement): Promise<void> {
-		await this.api.waitAndClick(this.getSelector(element));
+		await this.code.waitAndClick(this.getSelector(element));
 	}
 
 	async waitForEOL(eol: string): Promise<string> {
-		return this.api.waitForTextContent(this.getSelector(StatusBarElement.EOL_STATUS), eol);
+		return this.code.waitForTextContent(this.getSelector(StatusBarElement.EOL_STATUS), eol);
 	}
 
 	async getStatusbarTextByTitle(title: string): Promise<string> {
-		return await this.api.waitForTextContent(`${this.mainSelector} span[title="smoke test"]`);
+		return await this.code.waitForTextContent(`${this.mainSelector} span[title="smoke test"]`);
 	}
 
 	private getSelector(element: StatusBarElement): string {

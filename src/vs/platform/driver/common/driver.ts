@@ -34,7 +34,7 @@ export interface IDriver {
 	setValue(windowId: number, selector: string, text: string): TPromise<void>;
 	getTitle(windowId: number): TPromise<string>;
 	isActiveElement(windowId: number, selector: string): TPromise<boolean>;
-	getElements(windowId: number, selector: string, recursive: boolean): TPromise<IElement[]>;
+	getElements(windowId: number, selector: string, recursive?: boolean): TPromise<IElement[]>;
 	typeInEditor(windowId: number, selector: string, text: string): TPromise<void>;
 	getTerminalBuffer(windowId: number, selector: string): TPromise<string[]>;
 }

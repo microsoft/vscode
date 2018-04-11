@@ -14,11 +14,11 @@ export function setup() {
 			const app = this.app as Application;
 
 			await app.workbench.explorer.openFile('app.js');
-			await app.api.waitForElements('.line-numbers', false, elements => !!elements.length);
+			await app.code.waitForElements('.line-numbers', false, elements => !!elements.length);
 
 			await app.workbench.settingsEditor.addUserSetting('editor.lineNumbers', '"off"');
 			await app.workbench.editors.selectTab('app.js');
-			await app.api.waitForElements('.line-numbers', false, result => !result || result.length === 0);
+			await app.code.waitForElements('.line-numbers', false, result => !result || result.length === 0);
 		});
 
 		it(`changes 'workbench.action.toggleSidebarPosition' command key binding and verifies it`, async function () {
@@ -27,7 +27,7 @@ export function setup() {
 
 			await app.workbench.keybindingsEditor.updateKeybinding('workbench.action.toggleSidebarPosition', 'ctrl+u', 'Control+U');
 
-			await app.api.dispatchKeybinding('ctrl+u');
+			await app.code.dispatchKeybinding('ctrl+u');
 			assert.ok(await app.workbench.activitybar.getActivityBar(ActivityBarPosition.RIGHT), 'Activity bar was not moved to right after toggling its position.');
 		});
 

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { API } from '../../api';
 import { Commands } from '../workbench/workbench';
+import { Code } from '../../vscode/code';
 
 export enum ProblemSeverity {
 	WARNING = 0,
@@ -15,7 +15,7 @@ export class Problems {
 
 	static PROBLEMS_VIEW_SELECTOR = '.panel.markers-panel';
 
-	constructor(private api: API, private commands: Commands) {
+	constructor(private code: Code, private commands: Commands) {
 		// noop
 	}
 
@@ -29,16 +29,16 @@ export class Problems {
 	public async hideProblemsView(): Promise<any> {
 		if (await this.isVisible()) {
 			await this.commands.runCommand('workbench.actions.view.problems');
-			await this.api.waitForElement(Problems.PROBLEMS_VIEW_SELECTOR, el => !el);
+			await this.code.waitForElement(Problems.PROBLEMS_VIEW_SELECTOR, el => !el);
 		}
 	}
 
 	isVisible(): Promise<boolean> {
-		return this.api.doesElementExist(Problems.PROBLEMS_VIEW_SELECTOR);
+		return this.code.doesElementExist(Problems.PROBLEMS_VIEW_SELECTOR);
 	}
 
 	public async waitForProblemsView(): Promise<void> {
-		await this.api.waitForElement(Problems.PROBLEMS_VIEW_SELECTOR);
+		await this.code.waitForElement(Problems.PROBLEMS_VIEW_SELECTOR);
 	}
 
 	public static getSelectorInProblemsView(problemType: ProblemSeverity): string {

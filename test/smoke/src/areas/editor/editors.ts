@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { API } from '../../api';
 import { Commands } from '../workbench/workbench';
+import { Code } from '../../vscode/code';
 
 export class Editors {
 
-	constructor(private api: API, private commands: Commands) { }
+	constructor(private code: Code, private commands: Commands) { }
 
 	async saveOpenedFile(): Promise<any> {
 		await this.commands.runCommand('workbench.action.files.save');
 	}
 
 	async selectTab(tabName: string, untitled: boolean = false): Promise<void> {
-		await this.api.waitAndClick(`.tabs-container div.tab[aria-label="${tabName}, tab"]`);
+		await this.code.waitAndClick(`.tabs-container div.tab[aria-label="${tabName}, tab"]`);
 		await this.waitForEditorFocus(tabName, untitled);
 	}
 
 	async waitForActiveEditor(filename: string): Promise<any> {
 		const selector = `.editor-container .monaco-editor[data-uri$="${filename}"] textarea`;
-		return this.api.waitForActiveElement(selector);
+		return this.code.waitForActiveElement(selector);
 	}
 
 	async waitForEditorFocus(fileName: string, untitled: boolean = false): Promise<void> {
@@ -30,11 +30,11 @@ export class Editors {
 	}
 
 	async waitForActiveTab(fileName: string, isDirty: boolean = false): Promise<void> {
-		await this.api.waitForElement(`.tabs-container div.tab.active${isDirty ? '.dirty' : ''}[aria-selected="true"][aria-label="${fileName}, tab"]`);
+		await this.code.waitForElement(`.tabs-container div.tab.active${isDirty ? '.dirty' : ''}[aria-selected="true"][aria-label="${fileName}, tab"]`);
 	}
 
 	async waitForTab(fileName: string, isDirty: boolean = false): Promise<void> {
-		await this.api.waitForElement(`.tabs-container div.tab${isDirty ? '.dirty' : ''}[aria-label="${fileName}, tab"]`);
+		await this.code.waitForElement(`.tabs-container div.tab${isDirty ? '.dirty' : ''}[aria-label="${fileName}, tab"]`);
 	}
 
 	async newUntitledFile(): Promise<void> {

@@ -27,7 +27,7 @@ export function setup() {
 
 		it('shows workspace name in title', async function () {
 			const app = this.app as Application;
-			const title = await app.api.getTitle();
+			const title = await app.code.getTitle();
 			assert.ok(title.indexOf('smoketest (Workspace)') >= 0);
 		});
 	});

@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Viewlet } from '../workbench/viewlet';
-import { API } from '../../api';
 import { Editors } from '../editor/editors';
 import { Commands } from '../workbench/workbench';
+import { Code } from '../../vscode/code';
 
 export class Explorer extends Viewlet {
 
 	private static readonly EXPLORER_VIEWLET = 'div[id="workbench.view.explorer"]';
 	private static readonly OPEN_EDITORS_VIEW = `${Explorer.EXPLORER_VIEWLET} .split-view-view:nth-child(1) .title`;
 
-	constructor(api: API, private commands: Commands, private editors: Editors) {
-		super(api);
+	constructor(code: Code, private commands: Commands, private editors: Editors) {
+		super(code);
 	}
 
 	openExplorerView(): Promise<any> {
@@ -22,11 +22,11 @@ export class Explorer extends Viewlet {
 	}
 
 	getOpenEditorsViewTitle(): Promise<string> {
-		return this.api.waitForTextContent(Explorer.OPEN_EDITORS_VIEW);
+		return this.code.waitForTextContent(Explorer.OPEN_EDITORS_VIEW);
 	}
 
 	async openFile(fileName: string): Promise<any> {
-		await this.api.waitAndDoubleClick(`div[class="monaco-icon-label file-icon ${fileName}-name-file-icon ${this.getExtensionSelector(fileName)} explorer-item"]`);
+		await this.code.waitAndDoubleClick(`div[class="monaco-icon-label file-icon ${fileName}-name-file-icon ${this.getExtensionSelector(fileName)} explorer-item"]`);
 		await this.editors.waitForEditorFocus(fileName);
 	}
 

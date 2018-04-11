@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { API } from '../../api';
+import { Code } from '../../vscode/code';
 
 export enum ActivityBarPosition {
 	LEFT = 0,
@@ -12,11 +12,9 @@ export enum ActivityBarPosition {
 
 export class ActivityBar {
 
-	constructor(private api: API) {
-		// noop
-	}
+	constructor(private code: Code) { }
 
-	public async getActivityBar(position: ActivityBarPosition): Promise<void> {
+	async getActivityBar(position: ActivityBarPosition): Promise<void> {
 		let positionClass: string;
 
 		if (position === ActivityBarPosition.LEFT) {
@@ -27,6 +25,6 @@ export class ActivityBar {
 			throw new Error('No such position for activity bar defined.');
 		}
 
-		return this.api.waitForElement(`.part.activitybar.${positionClass}`);
+		await this.code.waitForElement(`.part.activitybar.${positionClass}`);
 	}
 }

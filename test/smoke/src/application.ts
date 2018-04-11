@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { API, CodeDriver } from './api';
 import { Workbench } from './areas/workbench/workbench';
 import * as fs from 'fs';
 import * as cp from 'child_process';
@@ -25,9 +24,8 @@ export interface ApplicationOptions extends SpawnOptions {
 
 export class Application {
 
-	private _api: API;
+	private _code: Code | undefined;
 	private _workbench: Workbench;
-	private codeInstance: Code | undefined;
 	private keybindings: any[];
 	private stopLogCollection: (() => Promise<void>) | undefined;
 
@@ -37,8 +35,8 @@ export class Application {
 		return this.options.quality;
 	}
 
-	get api(): API {
-		return this._api;
+	get code(): Code {
+		return this._code!;
 	}
 
 	get workbench(): Workbench {
@@ -97,14 +95,14 @@ export class Application {
 			this.stopLogCollection = undefined;
 		}
 
-		if (this.codeInstance) {
-			this.codeInstance.dispose();
-			this.codeInstance = undefined;
+		if (this._code) {
+			this._code.dispose();
+			this._code = undefined;
 		}
 	}
 
 	private async startApplication(workspaceOrFolder: string, extraArgs: string[] = []): Promise<any> {
-		this.codeInstance = await spawn({
+		this._code = await spawn({
 			codePath: this.options.codePath,
 			workspacePath: workspaceOrFolder,
 			userDataDir: this.options.userDataDir,
@@ -113,13 +111,11 @@ export class Application {
 			extraArgs
 		});
 
-		const driver = new CodeDriver(this.codeInstance.driver, this.options.verbose);
-		this._api = new API(driver, this.options.waitTime);
-		this._workbench = new Workbench(this._api, this.keybindings, this.userDataPath);
+		this._workbench = new Workbench(this._code, this.keybindings, this.userDataPath);
 	}
 
 	private async checkWindowReady(): Promise<any> {
-		if (!this.codeInstance) {
+		if (!this._code) {
 			console.error('No code instance found');
 			return;
 		}
@@ -127,7 +123,7 @@ export class Application {
 		let retries = 0;
 
 		while (++retries < 300) { // 30 seconds
-			const ids = await this.codeInstance.driver.getWindowIds();
+			const ids = await this._code.getWindowIds();
 
 			if (ids.length > 0) {
 				break;
@@ -136,12 +132,12 @@ export class Application {
 			await new Promise(c => setTimeout(c, 100));
 		}
 
-		await this.api.waitForElement('.monaco-workbench');
+		await this.code.waitForElement('.monaco-workbench');
 	}
 
 	private async waitForWelcome(): Promise<any> {
-		await this.api.waitForElement('.explorer-folders-view');
-		await this.api.waitForElement(`.editor-container[id="workbench.editor.walkThroughPart"] .welcomePage`);
+		await this.code.waitForElement('.explorer-folders-view');
+		await this.code.waitForElement(`.editor-container[id="workbench.editor.walkThroughPart"] .welcomePage`);
 	}
 
 	private retrieveKeybindings(): Promise<void> {

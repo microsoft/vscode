@@ -21,10 +21,10 @@ export function setup() {
 			await app.workbench.quickopen.openFile('style.css');
 			await app.workbench.editor.waitForTypeInEditor('style.css', '.foo{}');
 
-			await app.api.waitForElement(Problems.getSelectorInEditor(ProblemSeverity.WARNING));
+			await app.code.waitForElement(Problems.getSelectorInEditor(ProblemSeverity.WARNING));
 
 			await app.workbench.problems.showProblemsView();
-			await app.api.waitForElement(Problems.getSelectorInProblemsView(ProblemSeverity.WARNING));
+			await app.code.waitForElement(Problems.getSelectorInProblemsView(ProblemSeverity.WARNING));
 			await app.workbench.problems.hideProblemsView();
 		});
 
@@ -34,11 +34,11 @@ export function setup() {
 			await app.workbench.quickopen.openFile('style.css');
 			await app.workbench.editor.waitForTypeInEditor('style.css', '.foo{}');
 
-			await app.api.waitForElement(Problems.getSelectorInEditor(ProblemSeverity.ERROR));
+			await app.code.waitForElement(Problems.getSelectorInEditor(ProblemSeverity.ERROR));
 
-			const problems = new Problems(app.api, app.workbench);
+			const problems = new Problems(app.code, app.workbench);
 			await problems.showProblemsView();
-			await app.api.waitForElement(Problems.getSelectorInProblemsView(ProblemSeverity.ERROR));
+			await app.code.waitForElement(Problems.getSelectorInProblemsView(ProblemSeverity.ERROR));
 			await problems.hideProblemsView();
 		});
 	});

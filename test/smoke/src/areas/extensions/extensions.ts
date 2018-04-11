@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Viewlet } from '../workbench/viewlet';
-import { API } from '../../api';
 import { Commands } from '../workbench/workbench';
+import { Code } from '../../vscode/code';
 
 const SEARCH_BOX = 'div.extensions-viewlet[id="workbench.view.extensions"] input.search-box';
 
 export class Extensions extends Viewlet {
 
-	constructor(api: API, private commands: Commands) {
-		super(api);
+	constructor(code: Code, private commands: Commands) {
+		super(code);
 	}
 
 	async openExtensionsViewlet(): Promise<any> {
@@ -21,19 +21,19 @@ export class Extensions extends Viewlet {
 	}
 
 	async waitForExtensionsViewlet(): Promise<any> {
-		await this.api.waitForActiveElement(SEARCH_BOX);
+		await this.code.waitForActiveElement(SEARCH_BOX);
 	}
 
 	async searchForExtension(name: string): Promise<any> {
-		await this.api.waitAndClick(SEARCH_BOX);
-		await this.api.waitForActiveElement(SEARCH_BOX);
-		await this.api.setValue(SEARCH_BOX, name);
+		await this.code.waitAndClick(SEARCH_BOX);
+		await this.code.waitForActiveElement(SEARCH_BOX);
+		await this.code.setValue(SEARCH_BOX, name);
 	}
 
 	async installExtension(name: string): Promise<void> {
 		await this.searchForExtension(name);
 
-		await this.api.waitAndClick(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[aria-label="${name}"] .extension li[class='action-item'] .extension-action.install`);
-		await this.api.waitForElement(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[aria-label="${name}"] .extension li[class='action-item'] .extension-action.reload`);
+		await this.code.waitAndClick(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[aria-label="${name}"] .extension li[class='action-item'] .extension-action.install`);
+		await this.code.waitForElement(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[aria-label="${name}"] .extension li[class='action-item'] .extension-action.reload`);
 	}
 }

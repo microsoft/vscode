@@ -5,7 +5,7 @@
 
 import { Viewlet } from '../workbench/viewlet';
 import { Commands } from '../workbench/workbench';
-import { API, findElement } from '../../api';
+import { Code, findElement } from '../../vscode/code';
 import { Editors } from '../editor/editors';
 import { Editor } from '../editor/editor';
 import { IElement } from '../../vscode/driver';
@@ -50,30 +50,30 @@ function toStackFrame(element: IElement): IStackFrame {
 
 export class Debug extends Viewlet {
 
-	constructor(api: API, private commands: Commands, private editors: Editors, private editor: Editor) {
-		super(api);
+	constructor(code: Code, private commands: Commands, private editors: Editors, private editor: Editor) {
+		super(code);
 	}
 
 	async openDebugViewlet(): Promise<any> {
 		await this.commands.runCommand('workbench.view.debug');
-		await this.api.waitForElement(DEBUG_VIEW);
+		await this.code.waitForElement(DEBUG_VIEW);
 	}
 
 	async configure(): Promise<any> {
-		await this.api.waitAndClick(CONFIGURE);
+		await this.code.waitAndClick(CONFIGURE);
 		await this.editors.waitForEditorFocus('launch.json');
 	}
 
 	async setBreakpointOnLine(lineNumber: number): Promise<any> {
-		await this.api.waitForElement(`${GLYPH_AREA}(${lineNumber})`);
-		await this.api.waitAndClick(`${GLYPH_AREA}(${lineNumber})`, 5, 5);
-		await this.api.waitForElement(BREAKPOINT_GLYPH);
+		await this.code.waitForElement(`${GLYPH_AREA}(${lineNumber})`);
+		await this.code.waitAndClick(`${GLYPH_AREA}(${lineNumber})`, 5, 5);
+		await this.code.waitForElement(BREAKPOINT_GLYPH);
 	}
 
 	async startDebugging(): Promise<number> {
 		await this.commands.runCommand('workbench.action.debug.start');
-		await this.api.waitForElement(PAUSE);
-		await this.api.waitForElement(DEBUG_STATUS_BAR);
+		await this.code.waitForElement(PAUSE);
+		await this.code.waitForElement(DEBUG_STATUS_BAR);
 		const portPrefix = 'Port: ';
 
 		const output = await this.waitForOutput(output => output.some(line => line.indexOf(portPrefix) >= 0));
@@ -83,60 +83,60 @@ export class Debug extends Viewlet {
 	}
 
 	async stepOver(): Promise<any> {
-		await this.api.waitAndClick(STEP_OVER);
+		await this.code.waitAndClick(STEP_OVER);
 	}
 
 	async stepIn(): Promise<any> {
-		await this.api.waitAndClick(STEP_IN);
+		await this.code.waitAndClick(STEP_IN);
 	}
 
 	async stepOut(): Promise<any> {
-		await this.api.waitAndClick(STEP_OUT);
+		await this.code.waitAndClick(STEP_OUT);
 	}
 
 	async continue(): Promise<any> {
-		await this.api.waitAndClick(CONTINUE);
+		await this.code.waitAndClick(CONTINUE);
 		await this.waitForStackFrameLength(0);
 	}
 
 	async stopDebugging(): Promise<any> {
-		await this.api.waitAndClick(STOP);
-		await this.api.waitForElement(TOOLBAR_HIDDEN);
-		await this.api.waitForElement(NOT_DEBUG_STATUS_BAR);
+		await this.code.waitAndClick(STOP);
+		await this.code.waitForElement(TOOLBAR_HIDDEN);
+		await this.code.waitForElement(NOT_DEBUG_STATUS_BAR);
 	}
 
 	async waitForStackFrame(func: (stackFrame: IStackFrame) => boolean, message: string): Promise<IStackFrame> {
-		const elements = await this.api.waitForElements(STACK_FRAME, true, elements => elements.some(e => func(toStackFrame(e))));
+		const elements = await this.code.waitForElements(STACK_FRAME, true, elements => elements.some(e => func(toStackFrame(e))));
 		return elements.map(toStackFrame).filter(s => func(s))[0];
 	}
 
 	async waitForStackFrameLength(length: number): Promise<any> {
-		await this.api.waitForElements(STACK_FRAME, false, result => result.length === length);
+		await this.code.waitForElements(STACK_FRAME, false, result => result.length === length);
 	}
 
 	async focusStackFrame(name: string, message: string): Promise<any> {
-		await this.api.waitAndClick(SPECIFIC_STACK_FRAME(name));
+		await this.code.waitAndClick(SPECIFIC_STACK_FRAME(name));
 		await this.editors.waitForTab(name);
 	}
 
 	async waitForReplCommand(text: string, accept: (result: string) => boolean): Promise<void> {
 		await this.commands.runCommand('Debug: Focus Debug Console');
-		await this.api.waitForActiveElement(REPL_FOCUSED);
-		await this.api.setValue(REPL_FOCUSED, text);
+		await this.code.waitForActiveElement(REPL_FOCUSED);
+		await this.code.setValue(REPL_FOCUSED, text);
 
 		// Wait for the keys to be picked up by the editor model such that repl evalutes what just got typed
 		await this.editor.waitForEditorContents('debug:input', s => s.indexOf(text) >= 0);
-		await this.api.dispatchKeybinding('enter');
-		await this.api.waitForElement(CONSOLE_INPUT_OUTPUT);
+		await this.code.dispatchKeybinding('enter');
+		await this.code.waitForElement(CONSOLE_INPUT_OUTPUT);
 		await this.waitForOutput(output => accept(output[output.length - 1] || ''));
 	}
 
-	async getLocalVariableCount(): Promise<number> {
-		return await this.api.getElementCount(VARIABLE);
+	async waitForVariableCount(count: number): Promise<void> {
+		await this.code.waitForElements(VARIABLE, false, els => els.length === count);
 	}
 
 	private async waitForOutput(fn: (output: string[]) => boolean): Promise<string[]> {
-		const elements = await this.api.waitForElements(CONSOLE_OUTPUT, false, elements => fn(elements.map(e => e.textContent)));
+		const elements = await this.code.waitForElements(CONSOLE_OUTPUT, false, elements => fn(elements.map(e => e.textContent)));
 		return elements.map(e => e.textContent);
 	}
 }
