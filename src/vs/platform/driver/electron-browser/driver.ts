@@ -43,6 +43,14 @@ class WindowDriver implements IWindowDriver {
 	constructor() { }
 
 	async click(selector: string, xoffset?: number, yoffset?: number): TPromise<void> {
+		return this._click(selector, 1, xoffset, yoffset);
+	}
+
+	doubleClick(selector: string): TPromise<void> {
+		return this._click(selector, 2);
+	}
+
+	private async _click(selector: string, clickCount: number, xoffset?: number, yoffset?: number): TPromise<void> {
 		const element = document.querySelector(selector);
 
 		if (!element) {
@@ -65,14 +73,10 @@ class WindowDriver implements IWindowDriver {
 		y = Math.round(y);
 
 		const webContents = electron.remote.getCurrentWebContents();
-		webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount: 1 } as any);
-		webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount: 1 } as any);
+		webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount } as any);
+		webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount } as any);
 
 		await TPromise.timeout(100);
-	}
-
-	doubleClick(selector: string): TPromise<void> {
-		throw new Error('Method not implemented.');
 	}
 
 	move(selector: string): TPromise<void> {
