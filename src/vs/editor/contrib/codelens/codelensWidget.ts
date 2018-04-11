@@ -221,7 +221,7 @@ export class CodeLens {
 		helper: CodeLensHelper,
 		viewZoneChangeAccessor: editorBrowser.IViewZoneChangeAccessor,
 		commandService: ICommandService, notificationService: INotificationService,
-		updateCallabck: Function
+		updateCallback: Function
 	) {
 		this._editor = editor;
 		this._data = data;
@@ -244,7 +244,7 @@ export class CodeLens {
 		});
 
 		this._contentWidget = new CodeLensContentWidget(editor, range, commandService, notificationService);
-		this._viewZone = new CodeLensViewZone(range.startLineNumber - 1, updateCallabck);
+		this._viewZone = new CodeLensViewZone(range.startLineNumber - 1, updateCallback);
 
 		this._viewZoneId = viewZoneChangeAccessor.addZone(this._viewZone);
 		this._editor.addContentWidget(this._contentWidget);
