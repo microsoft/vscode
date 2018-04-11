@@ -1689,7 +1689,7 @@ declare namespace monaco.editor {
 		 */
 		getLinesDecorations(startLineNumber: number, endLineNumber: number, ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
 		/**
-		 * Gets all the deocorations in a range as an array. Only `startLineNumber` and `endLineNumber` from `range` are used for filtering.
+		 * Gets all the decorations in a range as an array. Only `startLineNumber` and `endLineNumber` from `range` are used for filtering.
 		 * So for now it returns all the decorations on the same line as `range`.
 		 * @param range The range to search in
 		 * @param ownerId If set, it will ignore decorations belonging to other owners.
