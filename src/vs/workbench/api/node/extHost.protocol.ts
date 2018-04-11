@@ -267,7 +267,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerOutlineSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerCodeLensSupport(handle: number, selector: ISerializedDocumentFilter[], eventHandle: number): void;
 	$emitCodeLensEvent(eventHandle: number, event?: any): void;
-	$registerDeclaractionSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerDeclarationSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerImplementationSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerTypeDefinitionSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerHoverProvider(handle: number, selector: ISerializedDocumentFilter[]): void;

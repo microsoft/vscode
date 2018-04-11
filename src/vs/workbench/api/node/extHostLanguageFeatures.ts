@@ -947,7 +947,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	registerDefinitionProvider(selector: vscode.DocumentSelector, provider: vscode.DefinitionProvider): vscode.Disposable {
 		const handle = this._addNewAdapter(new DefinitionAdapter(this._documents, provider));
-		this._proxy.$registerDeclaractionSupport(handle, this._transformDocumentSelector(selector));
+		this._proxy.$registerDeclarationSupport(handle, this._transformDocumentSelector(selector));
 		return this._createDisposable(handle);
 	}
 
