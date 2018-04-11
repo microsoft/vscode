@@ -78,7 +78,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 	) {
 		super({
 			...(options as IViewOptions),
-			ariaHeaderLabel: nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"),
+			ariaHeaderLabel: nls.localize({ key: 'openEditorsSection', comment: ['Open is an adjective'] }, "Open Editors Section"),
 		}, keybindingService, contextMenuService, configurationService);
 
 		this.model = editorGroupService.getStacksModel();
