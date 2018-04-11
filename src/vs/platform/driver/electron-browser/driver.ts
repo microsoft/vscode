@@ -10,6 +10,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IWindowDriver, IElement, WindowDriverChannel, WindowDriverRegistryChannelClient } from 'vs/platform/driver/common/driver';
 import { IPCClient } from 'vs/base/parts/ipc/common/ipc';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { getTopLeftOffset, getClientArea } from 'vs/base/browser/dom';
+import * as electron from 'electron';
 
 function serializeElement(element: Element, recursive: boolean): IElement {
 	const attributes = Object.create(null);
@@ -40,8 +42,31 @@ class WindowDriver implements IWindowDriver {
 
 	constructor() { }
 
-	click(selector: string, xoffset?: number, yoffset?: number): TPromise<void> {
-		throw new Error('Method not implemented.');
+	async click(selector: string, xoffset?: number, yoffset?: number): TPromise<void> {
+		const element = document.querySelector(selector);
+
+		if (!element) {
+			throw new Error('Element not found');
+		}
+
+		await TPromise.timeout(500);
+		const { left, top } = getTopLeftOffset(element as HTMLElement);
+		const { width, height } = getClientArea(element as HTMLElement);
+		let x: number, y: number;
+
+		if ((typeof xoffset === 'number') || (typeof yoffset === 'number')) {
+			x = left + xoffset;
+			y = top + yoffset;
+		} else {
+			x = left + (width / 2);
+			y = top + (height / 2);
+		}
+
+		const webContents = electron.remote.getCurrentWebContents();
+		webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount: 1 } as any);
+		webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount: 1 } as any);
+
+		await TPromise.timeout(100);
 	}
 
 	doubleClick(selector: string): TPromise<void> {

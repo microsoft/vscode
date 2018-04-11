@@ -11,8 +11,7 @@ export class Editors {
 	constructor(private api: API, private commands: Commands) { }
 
 	async saveOpenedFile(): Promise<any> {
-		await this.api.waitForElement('.tabs-container div.tab.active.dirty');
-		await this.commands.runCommand('File: Save');
+		await this.commands.runCommand('workbench.action.files.save');
 	}
 
 	async selectTab(tabName: string, untitled: boolean = false): Promise<void> {
