@@ -115,23 +115,12 @@ export class Application {
 	}
 
 	private async checkWindowReady(): Promise<any> {
-		if (!this._code) {
+		if (!this.code) {
 			console.error('No code instance found');
 			return;
 		}
 
-		let retries = 0;
-
-		while (++retries < 300) { // 30 seconds
-			const ids = await this._code.getWindowIds();
-
-			if (ids.length > 0) {
-				break;
-			}
-
-			await new Promise(c => setTimeout(c, 100));
-		}
-
+		await this.code.waitForWindowIds(ids => ids.length > 0);
 		await this.code.waitForElement('.monaco-workbench');
 	}
 

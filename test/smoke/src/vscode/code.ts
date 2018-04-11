@@ -158,6 +158,10 @@ export class Code {
 		}
 	}
 
+	async waitForWindowIds(fn: (windowIds: number[]) => boolean): Promise<void> {
+		await this.poll(() => this.driver.getWindowIds(), fn, `get window ids`);
+	}
+
 	async dispatchKeybinding(keybinding: string): Promise<void> {
 		const windowId = await this.getActiveWindowId();
 		await this.driver.dispatchKeybinding(windowId, keybinding);
@@ -166,75 +170,68 @@ export class Code {
 	async waitForTextContent(selector: string, textContent?: string, accept?: (result: string) => boolean): Promise<string> {
 		const windowId = await this.getActiveWindowId();
 		accept = accept || (result => textContent !== void 0 ? textContent === result : !!result);
-		return await this.poll(() => this.driver.getElements(windowId, selector).then(els => els[0].textContent), s => accept!(typeof s === 'string' ? s : ''), `getTextContent with selector ${selector}`);
+		return await this.poll(() => this.driver.getElements(windowId, selector).then(els => els[0].textContent), s => accept!(typeof s === 'string' ? s : ''), `get text content '${selector}'`);
 	}
 
 	async waitAndClick(selector: string, xoffset?: number, yoffset?: number): Promise<void> {
 		const windowId = await this.getActiveWindowId();
-		await this.poll(() => this.driver.click(windowId, selector, xoffset, yoffset), () => true);
+		await this.poll(() => this.driver.click(windowId, selector, xoffset, yoffset), () => true, `click '${selector}'`);
 	}
 
 	async waitAndDoubleClick(selector: string): Promise<void> {
 		const windowId = await this.getActiveWindowId();
-		await this.poll(() => this.driver.doubleClick(windowId, selector), () => true);
+		await this.poll(() => this.driver.doubleClick(windowId, selector), () => true, `double click '${selector}'`);
 	}
 
 	async waitAndMove(selector: string): Promise<void> {
 		const windowId = await this.getActiveWindowId();
-		await this.poll(() => this.driver.move(windowId, selector), () => true);
+		await this.poll(() => this.driver.move(windowId, selector), () => true, `move '${selector}'`);
 	}
 
 	async waitForSetValue(selector: string, value: string): Promise<void> {
 		const windowId = await this.getActiveWindowId();
-		await this.poll(() => this.driver.setValue(windowId, selector, value), () => true);
+		await this.poll(() => this.driver.setValue(windowId, selector, value), () => true, `set value '${selector}'`);
 	}
 
 	async waitForElements(selector: string, recursive: boolean, accept: (result: IElement[]) => boolean = result => result.length > 0): Promise<IElement[]> {
 		const windowId = await this.getActiveWindowId();
-		return await this.poll(() => this.driver.getElements(windowId, selector, recursive), accept, `elements with selector ${selector}`);
+		return await this.poll(() => this.driver.getElements(windowId, selector, recursive), accept, `get elements '${selector}'`);
 	}
 
 	async waitForElement(selector: string, accept: (result: IElement | undefined) => boolean = result => !!result): Promise<IElement> {
 		const windowId = await this.getActiveWindowId();
-		return await this.poll<IElement>(() => this.driver.getElements(windowId, selector).then(els => els[0]), accept, `element with selector ${selector}`);
+		return await this.poll<IElement>(() => this.driver.getElements(windowId, selector).then(els => els[0]), accept, `get element '${selector}'`);
 	}
 
 	async waitForActiveElement(selector: string): Promise<void> {
 		const windowId = await this.getActiveWindowId();
-		await this.poll(() => this.driver.isActiveElement(windowId, selector), undefined, `wait for active element: ${selector}`);
+		await this.poll(() => this.driver.isActiveElement(windowId, selector), r => r, `is active element '${selector}'`);
 	}
 
 	async waitForTitle(fn: (title: string) => boolean): Promise<void> {
 		const windowId = await this.getActiveWindowId();
-		await this.poll(() => this.driver.getTitle(windowId), fn, 'wait for title: ${}');
+		await this.poll(() => this.driver.getTitle(windowId), fn, `get title`);
 	}
 
-	// TODO make into waitForTypeInEditor
 	async waitForTypeInEditor(selector: string, text: string): Promise<void> {
 		const windowId = await this.getActiveWindowId();
-		await this.poll(() => this.driver.typeInEditor(windowId, selector, text), () => true, 'wait for title: ${}');
+		await this.poll(() => this.driver.typeInEditor(windowId, selector, text), () => true, `type in editor '${selector}'`);
 	}
 
-	// waitFor calls should not take more than 200 * 100 = 20 seconds to complete, excluding
-	// the time it takes for the actual retry call to complete
-	private readonly retryCount: number = 200;
-	private readonly retryDuration = 100; // in milliseconds
+	private static PollRetryCount: number = 200;
+	private static PollInterval = 100; // millis
 
-	// TODO: clean function interface
-	// TODO: if accept function is missing, just dont use one, rely on exceptions
-	private async poll<T>(func: () => T | Promise<T | undefined>, accept?: (result: T) => boolean | Promise<boolean>, timeoutMessage?: string, retryCount?: number): Promise<T>;
-	private async poll<T>(func: () => T | Promise<T>, accept: (result: T) => boolean | Promise<boolean> = result => !!result, timeoutMessage?: string, retryCount?: number): Promise<T> {
+	private async poll<T>(fn: () => Promise<T>, accept: (result: T) => boolean, timeoutMessage: string): Promise<T> {
 		let trial = 1;
-		retryCount = typeof retryCount === 'number' ? retryCount : this.retryCount;
 
 		while (true) {
-			if (trial > retryCount) {
-				throw new Error(`${timeoutMessage}: Timed out after ${(retryCount * this.retryDuration) / 1000} seconds.`);
+			if (trial > Code.PollRetryCount) {
+				throw new Error(`Timeout: ${timeoutMessage} after ${(Code.PollRetryCount * Code.PollInterval) / 1000} seconds.`);
 			}
 
 			let result;
 			try {
-				result = await func();
+				result = await fn();
 
 				if (accept(result)) {
 					return result;
@@ -247,14 +244,9 @@ export class Code {
 				}
 			}
 
-			await new Promise(resolve => setTimeout(resolve, this.retryDuration));
+			await new Promise(resolve => setTimeout(resolve, Code.PollInterval));
 			trial++;
 		}
-	}
-
-	// TODO: replace with waitForWindows
-	async getWindowIds(): Promise<number[]> {
-		return await this.driver.getWindowIds();
 	}
 
 	private async getActiveWindowId(): Promise<number> {
