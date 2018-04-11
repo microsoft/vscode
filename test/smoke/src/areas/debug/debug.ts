@@ -72,7 +72,7 @@ export class Debug extends Viewlet {
 	}
 
 	async startDebugging(): Promise<number> {
-		await this.api.waitAndClick(START);
+		await this.commands.runCommand('workbench.action.debug.start');
 		await this.api.waitForElement(PAUSE);
 		await this.api.waitForElement(DEBUG_STATUS_BAR);
 		const portPrefix = 'Port: ';
