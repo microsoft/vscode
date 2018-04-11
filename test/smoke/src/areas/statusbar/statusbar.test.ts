@@ -8,10 +8,6 @@ import { StatusBarElement } from './statusbar';
 
 export function setup() {
 	describe('Statusbar', () => {
-		before(function () {
-			this.app.suiteName = 'Statusbar';
-		});
-
 		it('verifies presence of all default status bar elements', async function () {
 			const app = this.app as SpectronApplication;
 

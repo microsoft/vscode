@@ -28,7 +28,6 @@ export function setup(userDataDir: string, createApp: ICreateAppFn) {
 			}
 
 			await stableApp.start();
-			stableApp.suiteName = 'Data Migration';
 
 			const textToType = 'Very dirty file';
 
@@ -46,7 +45,6 @@ export function setup(userDataDir: string, createApp: ICreateAppFn) {
 			}
 
 			await app.start(false);
-			app.suiteName = 'Data Migration';
 
 			assert.ok(await app.workbench.editors.waitForActiveTab('Untitled-1', true), `Untitled-1 tab is not present after migration.`);
 
@@ -64,7 +62,6 @@ export function setup(userDataDir: string, createApp: ICreateAppFn) {
 			}
 
 			await stableApp.start();
-			stableApp.suiteName = 'Data Migration';
 
 			const fileName = 'app.js';
 			const textPart = 'This is going to be an unsaved file';
@@ -84,7 +81,6 @@ export function setup(userDataDir: string, createApp: ICreateAppFn) {
 			}
 
 			await app.start(false);
-			app.suiteName = 'Data Migration';
 
 			assert.ok(await app.workbench.editors.waitForActiveTab(fileName), `dirty file tab is not present after migration.`);
 			await app.workbench.editor.waitForEditorContents(fileName, c => c.indexOf(textPart) > -1);
@@ -101,7 +97,6 @@ export function setup(userDataDir: string, createApp: ICreateAppFn) {
 			}
 
 			await stableApp.start();
-			stableApp.suiteName = 'Data Migration';
 
 			const fileName1 = 'app.js', fileName2 = 'jsconfig.json', fileName3 = 'readme.md';
 
@@ -119,7 +114,6 @@ export function setup(userDataDir: string, createApp: ICreateAppFn) {
 			}
 
 			await app.start(false);
-			app.suiteName = 'Data Migration';
 
 			assert.ok(await app.workbench.editors.waitForTab(fileName1), `${fileName1} tab was not restored after migration.`);
 			assert.ok(await app.workbench.editors.waitForTab(fileName2), `${fileName2} tab was not restored after migration.`);

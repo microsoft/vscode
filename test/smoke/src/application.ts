@@ -71,12 +71,6 @@ export class SpectronApplication {
 		return this.options.workspaceFilePath;
 	}
 
-	private _suiteName: string = 'Init';
-
-	set suiteName(suiteName: string) {
-		this._suiteName = suiteName;
-	}
-
 	async start(waitForWelcome: boolean = true): Promise<any> {
 		await this._start();
 

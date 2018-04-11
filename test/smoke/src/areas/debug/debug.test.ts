@@ -12,11 +12,6 @@ import { SpectronApplication } from '../../application';
 
 export function setup() {
 	describe('Debug', () => {
-		before(async function () {
-			const app = this.app as SpectronApplication;
-			app.suiteName = 'Debug';
-		});
-
 		it('configure launch json', async function () {
 			const app = this.app as SpectronApplication;
 

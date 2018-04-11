@@ -7,10 +7,6 @@ import { SpectronApplication } from '../../application';
 
 export function setup() {
 	describe('Explorer', () => {
-		before(function () {
-			this.app.suiteName = 'Explorer';
-		});
-
 		it('quick open search produces correct result', async function () {
 			const app = this.app as SpectronApplication;
 			const expectedNames = [

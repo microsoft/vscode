@@ -11,7 +11,6 @@ export function setup() {
 	describe('Localization', () => {
 		before(async function () {
 			const app = this.app as SpectronApplication;
-			this.app.suiteName = 'Localization';
 
 			if (app.quality === Quality.Dev) {
 				return;

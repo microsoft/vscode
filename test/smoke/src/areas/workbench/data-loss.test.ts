@@ -7,10 +7,6 @@ import { SpectronApplication } from '../../application';
 
 export function setup() {
 	describe('Dataloss', () => {
-		before(function () {
-			this.app.suiteName = 'Dataloss';
-		});
-
 		it(`verifies that 'hot exit' works for dirty files`, async function () {
 			const app = this.app as SpectronApplication;
 			await app.workbench.editors.newUntitledFile();

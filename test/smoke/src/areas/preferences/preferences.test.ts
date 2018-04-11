@@ -10,10 +10,6 @@ import { ActivityBarPosition } from '../activitybar/activityBar';
 
 export function setup() {
 	describe('Preferences', () => {
-		before(function () {
-			this.app.suiteName = 'Preferences';
-		});
-
 		it('turns off editor line numbers and verifies the live change', async function () {
 			const app = this.app as SpectronApplication;
 

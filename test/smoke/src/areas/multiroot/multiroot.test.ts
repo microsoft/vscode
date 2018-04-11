@@ -10,8 +10,6 @@ export function setup() {
 	describe('Multiroot', () => {
 
 		before(async function () {
-			this.app.suiteName = 'Multiroot';
-
 			const app = this.app as SpectronApplication;
 
 			// restart with preventing additional windows from restoring
