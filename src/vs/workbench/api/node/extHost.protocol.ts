@@ -572,7 +572,7 @@ export interface ExtHostFileSystemShape {
 
 	$move(handle: number, resource: UriComponents, target: UriComponents): TPromise<IStat>;
 	$mkdir(handle: number, resource: UriComponents): TPromise<IStat>;
-	$readdir(handle: number, resource: UriComponents): TPromise<[UriComponents, IStat][]>;
+	$readdir(handle: number, resource: UriComponents): TPromise<[string, IStat][]>;
 
 	$delete(handle: number, resource: UriComponents): TPromise<void>;
 

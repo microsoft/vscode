@@ -42,7 +42,11 @@ function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse
 			// dir -> resolve
 			return provider.readdir(resource).then(entries => {
 				// resolve children if requested
-				return TPromise.join(entries.map(stat => toIFileStat(provider, stat, recurse))).then(children => {
+				return TPromise.join(entries.map(tuple => {
+					const [name, stat] = tuple;
+					const childResource = resource.with({ path: posix.join(resource.path, name) });
+					return toIFileStat(provider, [childResource, stat], recurse);
+				})).then(children => {
 					fileStat.children = children;
 					return fileStat;
 				});

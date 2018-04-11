@@ -251,7 +251,7 @@ declare module 'vscode' {
 	// todo@joh add open/close calls?
 	export interface FileSystemProvider2 {
 
-		_version: 3;
+		_version: 4;
 
 		/**
 		 * An event to signal that a resource has been created, changed, or deleted.
@@ -273,9 +273,9 @@ declare module 'vscode' {
 		 *
 		 * @param uri The uri of the folder.
 		 * @param token A cancellation token.
-		 * @return A thenable that resolves to an array of tuples of resources and files stats.
+		 * @return A thenable that resolves to an array of tuples of file names and files stats.
 		 */
-		readDirectory(uri: Uri, token: CancellationToken): Thenable<[Uri, FileStat2][]>;
+		readDirectory(uri: Uri, token: CancellationToken): Thenable<[string, FileStat2][]>;
 
 		/**
 		 * Read the entire contents of a file.
@@ -313,7 +313,7 @@ declare module 'vscode' {
 		delete(uri: Uri, token: CancellationToken): Thenable<void>;
 
 		// todo@remote
-		create(uri: Uri, options: { type: FileType }, token: CancellationToken): Thenable<FileStat2>;
+		create(uri: Uri, options: { type: FileType2 }, token: CancellationToken): Thenable<FileStat2>;
 	}
 
 	export namespace workspace {

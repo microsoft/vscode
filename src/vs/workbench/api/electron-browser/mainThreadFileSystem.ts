@@ -116,10 +116,8 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 	mkdir(resource: URI): TPromise<IStat, any> {
 		return this._proxy.$mkdir(this._handle, resource);
 	}
-	readdir(resource: URI): TPromise<[URI, IStat][], any> {
-		return this._proxy.$readdir(this._handle, resource).then(data => {
-			return data.map(tuple => <[URI, IStat]>[URI.revive(tuple[0]), tuple[1]]);
-		});
+	readdir(resource: URI): TPromise<[string, IStat][], any> {
+		return this._proxy.$readdir(this._handle, resource);
 	}
 }
 

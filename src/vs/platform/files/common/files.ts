@@ -174,7 +174,7 @@ export interface IFileSystemProvider {
 	writeFile(resource: URI, content: Uint8Array): TPromise<void>;
 	move(from: URI, to: URI): TPromise<IStat>;
 	mkdir(resource: URI): TPromise<IStat>;
-	readdir(resource: URI): TPromise<[URI, IStat][]>;
+	readdir(resource: URI): TPromise<[string, IStat][]>;
 	delete(resource: URI): TPromise<void>;
 }
 

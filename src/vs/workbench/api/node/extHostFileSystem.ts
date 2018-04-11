@@ -10,6 +10,7 @@ import { Event, mapEvent } from 'vs/base/common/event';
 import { MainContext, IMainContext, ExtHostFileSystemShape, MainThreadFileSystemShape } from './extHost.protocol';
 import * as vscode from 'vscode';
 import * as files from 'vs/platform/files/common/files';
+import * as path from 'path';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { IPatternInfo } from 'vs/platform/search/common/search';
@@ -59,7 +60,7 @@ class FsLinkProvider implements vscode.DocumentLinkProvider {
 
 class FileSystemProviderShim implements vscode.FileSystemProvider2 {
 
-	_version: 3;
+	_version: 4;
 
 	onDidChange: vscode.Event<vscode.FileChange2[]>;
 
@@ -77,9 +78,9 @@ class FileSystemProviderShim implements vscode.FileSystemProvider2 {
 	rename(oldUri: vscode.Uri, newUri: vscode.Uri): Thenable<vscode.FileStat2> {
 		return this._delegate.move(oldUri, newUri).then(stat => FileSystemProviderShim._modernizeFileStat(stat));
 	}
-	readDirectory(resource: vscode.Uri): Thenable<[vscode.Uri, vscode.FileStat2][]> {
+	readDirectory(resource: vscode.Uri): Thenable<[string, vscode.FileStat2][]> {
 		return this._delegate.readdir(resource).then(tuples => {
-			return tuples.map(tuple => <[vscode.Uri, vscode.FileStat2]>[tuple[0], FileSystemProviderShim._modernizeFileStat(tuple[1])]);
+			return tuples.map(tuple => <[string, vscode.FileStat2]>[path.posix.basename(tuple[0].path), FileSystemProviderShim._modernizeFileStat(tuple[1])]);
 		});
 	}
 
@@ -131,8 +132,8 @@ class FileSystemProviderShim implements vscode.FileSystemProvider2 {
 			}
 		});
 	}
-	create(resource: vscode.Uri, options: { type: vscode.FileType; }): Thenable<vscode.FileStat2> {
-		if (options.type === FileType.Dir) {
+	create(resource: vscode.Uri, options: { type: vscode.FileType2; }): Thenable<vscode.FileStat2> {
+		if (options.type === FileType2.Directory) {
 			return this._delegate.mkdir(resource).then(stat => FileSystemProviderShim._modernizeFileStat(stat));
 		} else {
 			return this._delegate.write(resource, Buffer.from([]))
@@ -173,10 +174,12 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	}
 
 	registerFileSystemProvider(scheme: string, provider: vscode.FileSystemProvider, newProvider: vscode.FileSystemProvider2) {
-		if (newProvider && newProvider._version === 3) {
+		if (newProvider && newProvider._version === 4) {
 			return this._doRegisterFileSystemProvider(scheme, newProvider);
-		} else {
+		} else if (provider) {
 			return this._doRegisterFileSystemProvider(scheme, new FileSystemProviderShim(provider));
+		} else {
+			throw new Error('IGNORED both provider');
 		}
 	}
 
@@ -234,7 +237,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	$stat(handle: number, resource: UriComponents): TPromise<files.IStat, any> {
 		return asWinJsPromise(token => this._fsProvider.get(handle).stat(URI.revive(resource), token));
 	}
-	$readdir(handle: number, resource: UriComponents): TPromise<[UriComponents, files.IStat][], any> {
+	$readdir(handle: number, resource: UriComponents): TPromise<[string, files.IStat][], any> {
 		return asWinJsPromise(token => this._fsProvider.get(handle).readDirectory(URI.revive(resource), token));
 	}
 	$readFile(handle: number, resource: UriComponents): TPromise<string> {
@@ -254,7 +257,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		return asWinJsPromise(token => this._fsProvider.get(handle).rename(URI.revive(oldUri), URI.revive(newUri), token));
 	}
 	$mkdir(handle: number, resource: UriComponents): TPromise<files.IStat, any> {
-		return asWinJsPromise(token => this._fsProvider.get(handle).create(URI.revive(resource), { type: FileType.Dir }, token));
+		return asWinJsPromise(token => this._fsProvider.get(handle).create(URI.revive(resource), { type: FileType2.Directory }, token));
 	}
 
 	$provideFileSearchResults(handle: number, session: number, query: string): TPromise<void> {
