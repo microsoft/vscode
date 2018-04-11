@@ -51,12 +51,10 @@ export class ExtHostTerminal implements vscode.Terminal {
 	}
 
 	public get name(): string {
-		this._checkDisposed();
 		return this._name;
 	}
 
 	public get processId(): Thenable<number> {
-		this._checkDisposed();
 		return this._pidPromise;
 	}
 
