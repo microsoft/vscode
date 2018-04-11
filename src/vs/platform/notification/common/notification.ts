@@ -171,19 +171,19 @@ export interface INotificationService {
 	notify(notification: INotification): INotificationHandle;
 
 	/**
-	 * A convinient way of reporting infos. Use the `INotificationService.notify`
+	 * A convenient way of reporting infos. Use the `INotificationService.notify`
 	 * method if you need more control over the notification.
 	 */
 	info(message: NotificationMessage | NotificationMessage[]): void;
 
 	/**
-	 * A convinient way of reporting warnings. Use the `INotificationService.notify`
+	 * A convenient way of reporting warnings. Use the `INotificationService.notify`
 	 * method if you need more control over the notification.
 	 */
 	warn(message: NotificationMessage | NotificationMessage[]): void;
 
 	/**
-	 * A convinient way of reporting errors. Use the `INotificationService.notify`
+	 * A convenient way of reporting errors. Use the `INotificationService.notify`
 	 * method if you need more control over the notification.
 	 */
 	error(message: NotificationMessage | NotificationMessage[]): void;

@@ -317,17 +317,17 @@ export interface ITextFileService extends IDisposable {
 	confirmSave(resources?: URI[]): TPromise<ConfirmResult>;
 
 	/**
-	 * Convinient fast access to the current auto save mode.
+	 * Convenient fast access to the current auto save mode.
 	 */
 	getAutoSaveMode(): AutoSaveMode;
 
 	/**
-	 * Convinient fast access to the raw configured auto save settings.
+	 * Convenient fast access to the raw configured auto save settings.
 	 */
 	getAutoSaveConfiguration(): IAutoSaveConfiguration;
 
 	/**
-	 * Convinient fast access to the hot exit file setting.
+	 * Convenient fast access to the hot exit file setting.
 	 */
 	isHotExitEnabled: boolean;
 }
