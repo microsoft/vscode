@@ -67,7 +67,7 @@ async function showPreview(
 
 	telemetryReporter.sendTelemetryEvent('openPreview', {
 		where: previewSettings.sideBySide ? 'sideBySide' : 'inPlace',
-		how: (uri instanceof vscode.Uri) ? 'action' : 'pallete'
+		how: (uri instanceof vscode.Uri) ? 'action' : 'palette'
 	});
 }
 
