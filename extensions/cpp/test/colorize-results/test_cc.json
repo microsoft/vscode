@@ -814,7 +814,7 @@
 		}
 	},
 	{
-		"c": "not hilighted as string",
+		"c": "not highlighted as string",
 		"t": "source.cpp meta.block.c meta.function-call.c string.quoted.double.cpp",
 		"r": {
 			"dark_plus": "string: #CE9178",

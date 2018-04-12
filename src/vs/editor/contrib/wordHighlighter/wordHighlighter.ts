@@ -409,10 +409,10 @@ class WordHighlighterContribution implements editorCommon.IEditorContribution {
 		return editor.getContribution<WordHighlighterContribution>(WordHighlighterContribution.ID);
 	}
 
-	private wordHighligher: WordHighlighter;
+	private wordHighlighter: WordHighlighter;
 
 	constructor(editor: ICodeEditor, @IContextKeyService contextKeyService: IContextKeyService) {
-		this.wordHighligher = new WordHighlighter(editor, contextKeyService);
+		this.wordHighlighter = new WordHighlighter(editor, contextKeyService);
 	}
 
 	public getId(): string {
@@ -420,28 +420,28 @@ class WordHighlighterContribution implements editorCommon.IEditorContribution {
 	}
 
 	public saveViewState(): boolean {
-		if (this.wordHighligher.hasDecorations()) {
+		if (this.wordHighlighter.hasDecorations()) {
 			return true;
 		}
 		return false;
 	}
 
 	public moveNext() {
-		this.wordHighligher.moveNext();
+		this.wordHighlighter.moveNext();
 	}
 
 	public moveBack() {
-		this.wordHighligher.moveBack();
+		this.wordHighlighter.moveBack();
 	}
 
 	public restoreViewState(state: boolean | undefined): void {
 		if (state) {
-			this.wordHighligher.restore();
+			this.wordHighlighter.restore();
 		}
 	}
 
 	public dispose(): void {
-		this.wordHighligher.dispose();
+		this.wordHighlighter.dispose();
 	}
 }
 
