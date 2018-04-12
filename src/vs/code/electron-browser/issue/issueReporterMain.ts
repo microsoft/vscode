@@ -312,7 +312,7 @@ export class IssueReporter extends Disposable {
 			label.addEventListener('click', (e) => {
 				e.stopPropagation();
 
-				// Stop propgagation not working as expected in this case https://bugs.chromium.org/p/chromium/issues/detail?id=809801
+				// Stop propagation not working as expected in this case https://bugs.chromium.org/p/chromium/issues/detail?id=809801
 				// preventDefault does prevent outer details tag from toggling, so use that and manually toggle the checkbox
 				e.preventDefault();
 				const containingDiv = (<HTMLLabelElement>e.target).parentElement;
