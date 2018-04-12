@@ -108,7 +108,7 @@ export class MoveLinesCommand implements ICommand {
 						let newIndentation = IndentUtil.generateIndent(newSpaceCnt, tabSize, insertSpaces);
 						insertingText = newIndentation + this.trimLeft(movingLineText);
 					} else {
-						// no enter rule matches, let's check indentatin rules then.
+						// no enter rule matches, let's check indentation rules then.
 						virtualModel.getLineContent = (lineNumber: number) => {
 							if (lineNumber === s.startLineNumber) {
 								return model.getLineContent(movingLineNumber);
