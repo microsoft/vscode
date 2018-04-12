@@ -13,7 +13,7 @@ import { Node, build, find } from './tokenTree';
 import { Position } from 'vs/editor/common/core/position';
 
 /**
- * Interface used to compute a hierachry of logical ranges.
+ * Interface used to compute a hierarchy of logical ranges.
  */
 export interface ILogicalSelectionEntry {
 	type: string;
