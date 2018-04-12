@@ -15,7 +15,7 @@
     "*"
   ],
   "extensionDependencies": [
-      "vscode.git"
+    "vscode.git"
   ],
   "main": "./out/extension",
   "contributes": {
@@ -47,15 +47,12 @@
       }
     },
     "views": {
-      "explorer": [
-        {
-          "id": "pr",
-          "name": "Pull Requests"
-        }
-      ]
+      "explorer": [{
+        "id": "pr",
+        "name": "Pull Requests"
+      }]
     },
-    "commands": [
-      {
+    "commands": [{
         "command": "pr.refreshList",
         "title": "Refresh",
         "icon": {
@@ -64,38 +61,32 @@
         }
       },
       {
-          "command": "pr.pick",
-          "title": "Checkout & Review"
+        "command": "pr.pick",
+        "title": "Checkout & Review"
       },
       {
-          "command": "review.openFile",
-          "title": "Open File",
-          "icon": {
+        "command": "review.openFile",
+        "title": "Open File",
+        "icon": {
           "light": "resources/icons/light/open-file.svg",
           "dark": "resources/icons/dark/open-file.svg"
         }
       }
     ],
     "menus": {
-      "view/title": [
-        {
-          "command": "pr.refreshList",
-          "when": "view == pr"
-        }
-      ],
-      "view/item/context": [
-        {
-          "command": "pr.pick",
-          "when": "view == pr && viewItem == pullrequest"
-        }
-      ],
-      "editor/title": [
-        {
-          "command": "review.openFile",
-          "group": "navigation",
-          "when": "resourceScheme =~ /^review$/"
-        }
-      ]
+      "view/title": [{
+        "command": "pr.refreshList",
+        "when": "view == pr"
+      }],
+      "view/item/context": [{
+        "command": "pr.pick",
+        "when": "view == pr && viewItem == pullrequest"
+      }],
+      "editor/title": [{
+        "command": "review.openFile",
+        "group": "navigation",
+        "when": "resourceScheme =~ /^review$/"
+      }]
     }
   },
   "scripts": {
