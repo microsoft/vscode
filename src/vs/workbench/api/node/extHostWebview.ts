@@ -192,7 +192,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 
 	private readonly _proxy: MainThreadWebviewsShape;
 
-	private readonly _webviews = new Map<WebviewHandle, ExtHostWebviewPanel>();
+	private readonly _webviewPanels = new Map<WebviewHandle, ExtHostWebviewPanel>();
 	private readonly _serializers = new Map<string, vscode.WebviewPanelSerializer>();
 
 	constructor(
@@ -211,9 +211,9 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		const handle = ExtHostWebviews.webviewHandlePool++ + '';
 		this._proxy.$createWebview(handle, viewType, title, typeConverters.fromViewColumn(viewColumn), options, extensionFolderPath);
 
-		const webview = new ExtHostWebviewPanel(handle, this._proxy, viewType, title, viewColumn, options, options);
-		this._webviews.set(handle, webview);
-		return webview;
+		const panel = new ExtHostWebviewPanel(handle, this._proxy, viewType, title, viewColumn, options, options);
+		this._webviewPanels.set(handle, panel);
+		return panel;
 	}
 
 	registerWebviewPanelSerializer(
@@ -234,29 +234,29 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 	}
 
 	$onMessage(handle: WebviewHandle, message: any): void {
-		const webview = this.getWebview(handle);
-		if (webview) {
-			webview.webview.onMessageEmitter.fire(message);
+		const panel = this.getWebviewPanel(handle);
+		if (panel) {
+			panel.webview.onMessageEmitter.fire(message);
 		}
 	}
 
 	$onDidChangeWeviewViewState(handle: WebviewHandle, active: boolean, position: Position): void {
-		const webview = this.getWebview(handle);
-		if (webview) {
+		const panel = this.getWebviewPanel(handle);
+		if (panel) {
 			const viewColumn = typeConverters.toViewColumn(position);
-			if (webview.active !== active || webview.viewColumn !== viewColumn) {
-				webview.active = active;
-				webview.viewColumn = viewColumn;
-				webview.onDidChangeViewStateEmitter.fire({ active, viewColumn });
+			if (panel.active !== active || panel.viewColumn !== viewColumn) {
+				panel.active = active;
+				panel.viewColumn = viewColumn;
+				panel.onDidChangeViewStateEmitter.fire({ active, viewColumn });
 			}
 		}
 	}
 
 	$onDidDisposeWeview(handle: WebviewHandle): Thenable<void> {
-		const webview = this.getWebview(handle);
-		if (webview) {
-			webview.onDisposeEmitter.fire();
-			this._webviews.delete(handle);
+		const panel = this.getWebviewPanel(handle);
+		if (panel) {
+			panel.onDisposeEmitter.fire();
+			this._webviewPanels.delete(handle);
 		}
 		return TPromise.as(void 0);
 	}
@@ -274,28 +274,28 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 			return TPromise.wrapError(new Error(`No serializer found for '${viewType}'`));
 		}
 
-		const revivedWebview = new ExtHostWebviewPanel(webviewHandle, this._proxy, viewType, title, typeConverters.toViewColumn(position), options as vscode.WebviewPanelOptions, options as vscode.WebviewOptions);
-		this._webviews.set(webviewHandle, revivedWebview);
-		return serializer.deserializeWebviewPanel(revivedWebview, state);
+		const revivedPanel = new ExtHostWebviewPanel(webviewHandle, this._proxy, viewType, title, typeConverters.toViewColumn(position), options as vscode.WebviewPanelOptions, options as vscode.WebviewOptions);
+		this._webviewPanels.set(webviewHandle, revivedPanel);
+		return serializer.deserializeWebviewPanel(revivedPanel, state);
 	}
 
 	$serializeWebview(
 		webviewHandle: WebviewHandle
 	): Thenable<any> {
-		const webview = this.getWebview(webviewHandle);
-		if (!webview) {
+		const panel = this.getWebviewPanel(webviewHandle);
+		if (!panel) {
 			return TPromise.as(undefined);
 		}
 
-		const serialzer = this._serializers.get(webview.viewType);
+		const serialzer = this._serializers.get(panel.viewType);
 		if (!serialzer) {
 			return TPromise.as(undefined);
 		}
 
-		return serialzer.serializeWebviewPanel(webview);
+		return serialzer.serializeWebviewPanel(panel);
 	}
 
-	private getWebview(handle: WebviewHandle): ExtHostWebviewPanel | undefined {
-		return this._webviews.get(handle);
+	private getWebviewPanel(handle: WebviewHandle): ExtHostWebviewPanel | undefined {
+		return this._webviewPanels.get(handle);
 	}
 }
