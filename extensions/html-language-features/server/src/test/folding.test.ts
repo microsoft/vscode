@@ -224,6 +224,17 @@ suite('HTML Folding', () => {
 		assertRanges(input, [r(0, 3)]);
 	});
 
+	test('Fold intersecting region 2', () => {
+		let input = [
+			/*0*/'<!-- #region -->',
+			/*1*/'<body>',
+			/*2*/'Hello',
+			/*3*/'<!-- #endregion -->',
+			/*4*/'<div></div>',
+			/*5*/'</body>',
+		];
+		assertRanges(input, [r(0, 3, 'region')]);
+	});
 
 	test('Test limit', () => {
 		let input = [
