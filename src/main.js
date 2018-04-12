@@ -494,7 +494,7 @@ app.once('ready', function () {
 				process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
 				require('./bootstrap-amd').bootstrap('vs/code/electron-main/main');
 			};
-			// We recevied a valid nlsConfig from a user defined locale
+			// We received a valid nlsConfig from a user defined locale
 			if (nlsConfig) {
 				boot(nlsConfig);
 			} else {
