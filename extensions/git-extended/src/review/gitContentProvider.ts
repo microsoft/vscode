@@ -5,9 +5,9 @@
 'use strict';
 
 import * as vscode from 'vscode';
-import { Repository } from './common/models/repository';
-import { fromGitUri } from './common/uri';
-import { show } from './common/operation';
+import { Repository } from '../common/models/repository';
+import { fromGitUri } from '../common/uri';
+import { show } from '../common/operation';
 
 export class GitContentProvider implements vscode.TextDocumentContentProvider {
 	private _onDidChange = new vscode.EventEmitter<vscode.Uri>();

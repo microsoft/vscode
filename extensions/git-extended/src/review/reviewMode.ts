@@ -11,7 +11,7 @@ import { FileChange, PullRequest } from '../common/treeItems';
 import { diff, fetch, checkout } from '../common/operation';
 import { mapCommentsToHead } from '../common/diff';
 import * as _ from 'lodash';
-import { GitContentProvider } from '../contentProvider';
+import { GitContentProvider } from './gitContentProvider';
 import { parseCommitDiff } from './fileComments';
 import { Comment } from '../common/models/comment';
 

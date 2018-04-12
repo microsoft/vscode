@@ -5,7 +5,7 @@
 'use strict';
 
 import * as vscode from 'vscode';
-import { PRProvider } from './prProvider';
+import { PRProvider } from './prView/prProvider';
 import { Repository } from './common/models/repository';
 import { Configuration } from './configuration';
 import { Resource } from './common/resources';
@@ -61,6 +61,6 @@ export async function activate(context: vscode.ExtensionContext) {
 		repositoryInitialized = true;
 		let credentialStore = new CredentialStore(configuration);
 		let reviewMode = new ReviewMode(repository, credentialStore, context.workspaceState, repo);
-		await (new PRProvider(configuration, credentialStore, reviewMode)).activate(context, rootPath, repository);
+		await (new PRProvider(context, configuration, credentialStore, reviewMode)).activate(repository);
 	});
 }

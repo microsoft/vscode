@@ -4,38 +4,40 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { parseDiff } from './common/diff';
-import { Repository } from './common//models/repository';
-import { Comment } from './common/models/comment';
+import { parseDiff } from '../common/diff';
+import { Repository } from '../common//models/repository';
+import { Comment } from '../common/models/comment';
 import * as _ from 'lodash';
-import { Configuration } from './configuration';
-import { CredentialStore } from './credentials';
-import { parseComments } from './common/comment';
-import { PRGroup, PullRequest, FileChange, PRGroupType } from './common/treeItems';
-import { Resource } from './common/resources';
-import { ReviewMode } from './review/reviewMode';
+import { Configuration } from '../configuration';
+import { CredentialStore } from '../credentials';
+import { parseComments } from '../common/comment';
+import { PRGroup, PullRequest, FileChange, PRGroupType } from '../common/treeItems';
+import { Resource } from '../common/resources';
+import { ReviewMode } from '../review/reviewMode';
+import { toPRUri } from '../common/uri';
+import * as fs from 'fs';
 
-export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest | FileChange> {
+export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest | FileChange>, vscode.TextDocumentContentProvider {
 	private context: vscode.ExtensionContext;
-	private workspaceRoot: string;
 	private repository: Repository;
 	private crendentialStore: CredentialStore;
 	private configuration: Configuration;
 	private reviewMode: ReviewMode;
 	private _onDidChangeTreeData = new vscode.EventEmitter<PRGroup | PullRequest | FileChange | undefined>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
+	private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
+	get onDidChange(): vscode.Event<vscode.Uri> { return this._onDidChange.event; }
 
-	constructor(configuration: Configuration, crendentialStore: CredentialStore, reviewMode: ReviewMode) {
+	constructor(context: vscode.ExtensionContext, configuration: Configuration, crendentialStore: CredentialStore, reviewMode: ReviewMode) {
+		this.context = context;
 		this.configuration = configuration;
 		this.crendentialStore = crendentialStore;
 		this.reviewMode = reviewMode;
+		vscode.workspace.registerTextDocumentContentProvider('pr', this);
 	}
 
-	async activate(context: vscode.ExtensionContext, workspaceRoot: string, repository: Repository) {
-		this.context = context;
-		this.workspaceRoot = workspaceRoot;
+	async activate(repository: Repository) {
 		this.repository = repository;
-
 		this.context.subscriptions.push(vscode.window.registerTreeDataProvider<PRGroup | PullRequest | FileChange>('pr', this));
 		this.context.subscriptions.push(vscode.commands.registerCommand('pr.pick', async (pr: PullRequest) => {
 			await this.reviewMode.switch(pr);
@@ -99,7 +101,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 			let richContentChanges = await parseDiff(data, this.repository, element.prItem.base.sha);
 			const commentsCache = new Map<String, Comment[]>();
 			let fileChanges = richContentChanges.map(change => {
-				let changedItem = new FileChange(element.prItem, change.fileName, change.status, this.context, change.fileName, vscode.Uri.file(change.filePath), vscode.Uri.file(change.originalFilePath), this.workspaceRoot);
+				let changedItem = new FileChange(element.prItem, change.fileName, change.status, this.context, change.fileName, toPRUri(vscode.Uri.file(change.filePath), true), toPRUri(vscode.Uri.file(change.originalFilePath), false), this.repository.path);
 				changedItem.comments = comments.filter(comment => comment.path === changedItem.fileName);
 				commentsCache.set(changedItem.filePath.toString(), changedItem.comments);
 				return changedItem;
@@ -255,4 +257,15 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 
 		return `is:open ${filter} type:pr repo:${owner}/${repo}`;
 	}
+
+	async provideTextDocumentContent(uri: vscode.Uri, token: vscode.CancellationToken): Promise<string> {
+		let { path, base } = JSON.parse(uri.query);
+		try {
+			let content = fs.readFileSync(path);
+			return content.toString();
+		} catch (e) {
+			return '';
+		}
+	}
+
 }

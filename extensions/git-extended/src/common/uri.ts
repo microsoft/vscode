@@ -44,3 +44,21 @@ export function toGitUri(uri: Uri, ref: string, commit: string, options: GitUriO
 		query: JSON.stringify(params)
 	});
 }
+
+export function toPRUri(uri: Uri, base: boolean): Uri {
+	const params = {
+		path: uri.path,
+		base: base
+	};
+
+	let path = uri.path;
+
+	// path = `${path}.git`;
+
+	return uri.with({
+		scheme: 'pr',
+		path,
+		query: JSON.stringify(params)
+	});
+}
+
