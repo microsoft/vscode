@@ -78,7 +78,7 @@ export interface IFilter<T> {
 	isVisible(entry: T): boolean;
 }
 
-export interface IAccessiblityProvider<T> {
+export interface IAccessibilityProvider<T> {
 	getAriaLabel(entry: T): string;
 }
 
@@ -92,5 +92,5 @@ export interface IModel<T> {
 	renderer: IRenderer<T>;
 	runner: IRunner<T>;
 	filter?: IFilter<T>;
-	accessibilityProvider?: IAccessiblityProvider<T>;
+	accessibilityProvider?: IAccessibilityProvider<T>;
 }
