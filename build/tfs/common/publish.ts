@@ -195,7 +195,7 @@ async function publish(commit: string, quality: string, platform: string, type: 
 		assertContainer(mooncakeBlobService, quality)
 	]);
 
-	const [blobExists, moooncakeBlobExists] = await Promise.all([
+	const [blobExists, mooncakeBlobExists] = await Promise.all([
 		doesAssetExist(blobService, quality, blobName),
 		doesAssetExist(mooncakeBlobService, quality, blobName)
 	]);
@@ -206,7 +206,7 @@ async function publish(commit: string, quality: string, platform: string, type: 
 		promises.push(uploadBlob(blobService, quality, blobName, file));
 	}
 
-	if (!moooncakeBlobExists) {
+	if (!mooncakeBlobExists) {
 		promises.push(uploadBlob(mooncakeBlobService, quality, blobName, file));
 	}
 
