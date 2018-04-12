@@ -68,7 +68,7 @@ export interface INotificationActions {
 export interface INotificationProgress {
 
 	/**
-	 * Causes the progress bar to spin infinitley.
+	 * Causes the progress bar to spin infinitely.
 	 */
 	infinite(): void;
 
