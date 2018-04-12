@@ -2057,7 +2057,7 @@ declare module 'vscode' {
 		 * The list of kinds may be generic, such as `CodeActionKind.Refactor`, or the provider
 		 * may list our every specific kind they provide, such as `CodeActionKind.Refactor.Extract.append('function`)`
 		 */
-		readonly providedCodeActionKinds?: CodeActionKind[];
+		readonly providedCodeActionKinds?: ReadonlyArray<CodeActionKind>;
 	}
 
 	/**
