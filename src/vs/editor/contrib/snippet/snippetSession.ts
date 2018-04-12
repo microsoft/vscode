@@ -284,7 +284,7 @@ export class SnippetSession {
 		let firstBeforeText = model.getValueInRange(SnippetSession.adjustSelection(model, editor.getSelection(), overwriteBefore, 0));
 		let firstAfterText = model.getValueInRange(SnippetSession.adjustSelection(model, editor.getSelection(), 0, overwriteAfter));
 
-		// sort selections by their start position but remeber
+		// sort selections by their start position but remember
 		// the original index. that allows you to create correct
 		// offset-based selection logic without changing the
 		// primary selection
