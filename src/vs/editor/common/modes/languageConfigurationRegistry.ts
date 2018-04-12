@@ -400,7 +400,7 @@ export class LanguageConfigurationRegistryImpl {
 			// it doesn't increase indent of following lines
 			// it doesn't increase just next line
 			// so current line is not affect by precedingUnIgnoredLine
-			// and then we should get a correct inheritted indentation from above lines
+			// and then we should get a correct inherited indentation from above lines
 			if (precedingUnIgnoredLine === 1) {
 				return {
 					indentation: strings.getLeadingWhitespace(model.getLineContent(precedingUnIgnoredLine)),
