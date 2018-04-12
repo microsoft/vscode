@@ -417,7 +417,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 	private onEditorsChanged(): void {
 
-		// Make sure that we layout properly in case we detect that the sidebar or panel is large enought to cause
+		// Make sure that we layout properly in case we detect that the sidebar or panel is large enough to cause
 		// multiple opened editors to go below minimal size. The fix is to trigger a layout for any editor
 		// input change that falls into this category.
 		if (this.workbenchSize && (this.sidebarWidth || this.panelHeight)) {
