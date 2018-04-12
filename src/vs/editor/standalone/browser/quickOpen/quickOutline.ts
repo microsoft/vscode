@@ -167,6 +167,10 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 		});
 	}
 
+	private symbolEntry(name: string, type: string, description: string, range: Range, highlights: IHighlight[], editor: ICodeEditor, decorator: IDecorator): SymbolEntry {
+		return new SymbolEntry(name, type, description, range, highlights, editor, decorator);
+	}
+
 	private toQuickOpenEntries(editor: ICodeEditor, flattened: SymbolInformation[], searchValue: string): SymbolEntry[] {
 		const controller = this.getController(editor);
 
@@ -193,7 +197,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 				}
 
 				// Add
-				results.push(new SymbolEntry(label, symbolKindToCssClass(element.kind), description, Range.lift(element.location.range), highlights, editor, controller));
+				results.push(this.symbolEntry(label, symbolKindToCssClass(element.kind), description, Range.lift(element.location.range), highlights, editor, controller));
 			}
 		}
 
