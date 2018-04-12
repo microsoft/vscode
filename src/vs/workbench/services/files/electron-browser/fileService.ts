@@ -769,7 +769,7 @@ export class FileService implements IFileService {
 					// that only the mtime is an indicator for a file that has changed on disk.
 					//
 					// Second, if the mtime has advanced, we compare the size of the file on disk with our previous
-					// one using the etag() function. Relying only on the mtime check has prooven to produce false
+					// one using the etag() function. Relying only on the mtime check has proven to produce false
 					// positives due to file system weirdness (especially around remote file systems). As such, the
 					// check for size is a weaker check because it can return a false negative if the file has changed
 					// but to the same length. This is a compromise we take to avoid having to produce checksums of
