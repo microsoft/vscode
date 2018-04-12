@@ -3630,7 +3630,7 @@ declare module 'vscode' {
 		 * The *effective* value (returned by [`get`](#WorkspaceConfiguration.get))
 		 * is computed like this: `defaultValue` overwritten by `globalValue`,
 		 * `globalValue` overwritten by `workspaceValue`. `workspaceValue` overwritten by `workspaceFolderValue`.
-		 * Refer to [Settings Inheritence](https://code.visualstudio.com/docs/getstarted/settings)
+		 * Refer to [Settings Inheritance](https://code.visualstudio.com/docs/getstarted/settings)
 		 * for more information.
 		 *
 		 * *Note:* The configuration name must denote a leaf in the configuration tree
@@ -3655,7 +3655,7 @@ declare module 'vscode' {
 		 * has no observable effect in that workspace, but in others. Setting a workspace value
 		 * in the presence of a more specific folder value has no observable effect for the resources
 		 * under respective [folder](#workspace.workspaceFolders), but in others. Refer to
-		 * [Settings Inheritence](https://code.visualstudio.com/docs/getstarted/settings) for more information.
+		 * [Settings Inheritance](https://code.visualstudio.com/docs/getstarted/settings) for more information.
 		 *
 		 * *Note 2:* To remove a configuration value use `undefined`, like so: `config.update('somekey', undefined)`
 		 *
