@@ -270,8 +270,8 @@ var XLF = /** @class */ (function () {
 }());
 exports.XLF = XLF;
 var Limiter = /** @class */ (function () {
-    function Limiter(maxDegreeOfParalellism) {
-        this.maxDegreeOfParalellism = maxDegreeOfParalellism;
+    function Limiter(maxDegreeOfParallelism) {
+        this.maxDegreeOfParallelism = maxDegreeOfParallelism;
         this.outstandingPromises = [];
         this.runningPromises = 0;
     }
@@ -284,7 +284,7 @@ var Limiter = /** @class */ (function () {
     };
     Limiter.prototype.consume = function () {
         var _this = this;
-        while (this.outstandingPromises.length && this.runningPromises < this.maxDegreeOfParalellism) {
+        while (this.outstandingPromises.length && this.runningPromises < this.maxDegreeOfParallelism) {
             var iLimitedTask = this.outstandingPromises.shift();
             this.runningPromises++;
             var promise = iLimitedTask.factory();
