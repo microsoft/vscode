@@ -317,7 +317,7 @@ export class LanguageConfigurationRegistryImpl {
 	}
 
 	/**
-	 * Get nearest preceiding line which doesn't match unIndentPattern or contains all whitespace.
+	 * Get nearest preceding line which doesn't match unIndentPattern or contains all whitespace.
 	 * Result:
 	 * -1: run into the boundary of embedded languages
 	 * 0: every line above are invalid
