@@ -486,11 +486,11 @@ export var globalfunctions: IEntries = {
 		signature: '(mixed $left , mixed $right [, int $lcid [, int $flags ]]): int'
 	},
 	variant_date_to_timestamp: {
-		description: 'Converts variant from a VT_DATE (or similar) value into a Unix timestamp. This allows easier interopability between the Unix-ish parts of PHP and COM.',
+		description: 'Converts variant from a VT_DATE (or similar) value into a Unix timestamp. This allows easier interoperability between the Unix-ish parts of PHP and COM.',
 		signature: '(variant $variant): int'
 	},
 	variant_date_from_timestamp: {
-		description: 'Converts timestamp from a unix timestamp value into a variant of type VT_DATE. This allows easier interopability between the unix-ish parts of PHP and COM.',
+		description: 'Converts timestamp from a unix timestamp value into a variant of type VT_DATE. This allows easier interoperability between the unix-ish parts of PHP and COM.',
 		signature: '(int $timestamp): variant'
 	},
 	variant_get_type: {
