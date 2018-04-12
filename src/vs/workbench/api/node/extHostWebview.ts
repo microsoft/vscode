@@ -97,7 +97,7 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 	private readonly _proxy: MainThreadWebviewsShape;
 	private _isDisposed: boolean = false;
 	private _viewColumn: vscode.ViewColumn;
-	private _active: boolean;
+	private _visible: boolean;
 
 	public readonly onDisposeEmitter = new Emitter<void>();
 	public readonly onDidDispose: Event<void> = this.onDisposeEmitter.event;
@@ -155,9 +155,9 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 		return this._viewColumn;
 	}
 
-	get active(): boolean {
+	get visible(): boolean {
 		this.assertNotDisposed();
-		return this._active;
+		return this._visible;
 	}
 
 	set viewColumn(value: vscode.ViewColumn) {
@@ -167,7 +167,7 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 
 	set active(value: boolean) {
 		this.assertNotDisposed();
-		this._active = value;
+		this._visible = value;
 	}
 
 	public postMessage(message: any): Thenable<boolean> {
@@ -247,7 +247,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 			if (panel.active !== active || panel.viewColumn !== viewColumn) {
 				panel.active = active;
 				panel.viewColumn = viewColumn;
-				panel.onDidChangeViewStateEmitter.fire({ active, viewColumn });
+				panel.onDidChangeViewStateEmitter.fire({ webviewPanel: panel });
 			}
 		}
 	}

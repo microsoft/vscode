@@ -692,6 +692,11 @@ declare module 'vscode' {
 		readonly viewColumn?: ViewColumn;
 
 		/**
+		 * Is the panel current visible?
+		 */
+		readonly visible: boolean;
+
+		/**
 		 * Fired when the panel's view state changes.
 		 */
 		readonly onDidChangeViewState: Event<WebviewPanelOnDidChangeViewStateEvent>;
@@ -724,9 +729,14 @@ declare module 'vscode' {
 		dispose(): any;
 	}
 
+	/**
+	 * Event fired when a webview panel's view state changes.
+	 */
 	export interface WebviewPanelOnDidChangeViewStateEvent {
-		readonly viewColumn: ViewColumn;
-		readonly active: boolean;
+		/**
+		 * Webview panel who's view state changed.
+		 */
+		readonly webviewPanel: WebviewPanel;
 	}
 
 	/**
