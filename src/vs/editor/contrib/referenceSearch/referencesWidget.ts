@@ -536,7 +536,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		private _instantiationService: IInstantiationService,
 		private _environmentService: IEnvironmentService
 	) {
-		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true });
+		super(editor, { showFrame: false, showArrow: true, isResizable: true, isAccessible: true });
 
 		this._applyTheme(themeService.getTheme());
 		this._callOnDispose.push(themeService.onThemeChange(this._applyTheme.bind(this)));
