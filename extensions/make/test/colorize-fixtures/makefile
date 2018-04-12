@@ -26,7 +26,7 @@ clean:
 	rm *o hello
 
 define defined
-  $(info Checking existance of $(1) $(flavor $(1)))
+  $(info Checking existence of $(1) $(flavor $(1)))
   $(if $(filter undefined,$(flavor $(1))),0,1)
 endef
 

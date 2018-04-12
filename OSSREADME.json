@@ -77,7 +77,7 @@
 //   "isLicense": true
 //   "name": string
 //   "licenseDetail": string[]
-// Furthermore, each license entry should contain a clear reason for existance.
+// Furthermore, each license entry should contain a clear reason for existence.
 
 {
 	// Reason: Added here because the repo at https://github.com/paulmillr/async-each
