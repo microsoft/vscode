@@ -44,7 +44,7 @@ suite('CodeAction', () => {
 		markerService.dispose();
 	});
 
-	test('Orcale -> marker added', done => {
+	test('Oracle -> marker added', done => {
 
 		const oracle = new CodeActionOracle(editor, markerService, e => {
 			assert.equal(e.trigger.type, 'auto');
@@ -68,7 +68,7 @@ suite('CodeAction', () => {
 
 	});
 
-	test('Orcale -> position changed', () => {
+	test('Oracle -> position changed', () => {
 
 		markerService.changeOne('fake', uri, [{
 			startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6,
