@@ -31,7 +31,7 @@ export default class TypeScriptDocumentHighlightProvider implements DocumentHigh
 			if (response && response.body) {
 				return response.body
 					.filter(x => !x.isInString)
-					.map(documentHighlightFromOccurance);
+					.map(documentHighlightFromOccurrence);
 			}
 		} catch {
 			// noop
@@ -41,7 +41,7 @@ export default class TypeScriptDocumentHighlightProvider implements DocumentHigh
 	}
 }
 
-function documentHighlightFromOccurance(occurrence: Proto.OccurrencesResponseItem): DocumentHighlight {
+function documentHighlightFromOccurrence(occurrence: Proto.OccurrencesResponseItem): DocumentHighlight {
 	return new DocumentHighlight(
 		typeConverters.Range.fromTextSpan(occurrence),
 		occurrence.isWriteAccess ? DocumentHighlightKind.Write : DocumentHighlightKind.Read);
