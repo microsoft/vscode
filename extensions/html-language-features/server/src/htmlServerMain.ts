@@ -363,15 +363,15 @@ connection.onReferences((referenceParams, token) => {
 	}, [], `Error while computing references for ${referenceParams.textDocument.uri}`, token);
 });
 
-connection.onSignatureHelp((signatureHelpParms, token) => {
+connection.onSignatureHelp((signatureHelpParams, token) => {
 	return runSafe(() => {
-		let document = documents.get(signatureHelpParms.textDocument.uri);
-		let mode = languageModes.getModeAtPosition(document, signatureHelpParms.position);
+		let document = documents.get(signatureHelpParams.textDocument.uri);
+		let mode = languageModes.getModeAtPosition(document, signatureHelpParams.position);
 		if (mode && mode.doSignatureHelp) {
-			return mode.doSignatureHelp(document, signatureHelpParms.position);
+			return mode.doSignatureHelp(document, signatureHelpParams.position);
 		}
 		return null;
-	}, null, `Error while computing signature help for ${signatureHelpParms.textDocument.uri}`, token);
+	}, null, `Error while computing signature help for ${signatureHelpParams.textDocument.uri}`, token);
 });
 
 connection.onDocumentRangeFormatting(async (formatParams, token) => {
@@ -404,9 +404,9 @@ connection.onDocumentLinks((documentLinkParam, token) => {
 	}, [], `Error while document links for ${documentLinkParam.textDocument.uri}`, token);
 });
 
-connection.onDocumentSymbol((documentSymbolParms, token) => {
+connection.onDocumentSymbol((documentSymbolParams, token) => {
 	return runSafe(() => {
-		let document = documents.get(documentSymbolParms.textDocument.uri);
+		let document = documents.get(documentSymbolParams.textDocument.uri);
 		let symbols: SymbolInformation[] = [];
 		languageModes.getAllModesInDocument(document).forEach(m => {
 			if (m.findDocumentSymbols) {
@@ -414,7 +414,7 @@ connection.onDocumentSymbol((documentSymbolParms, token) => {
 			}
 		});
 		return symbols;
-	}, [], `Error while computing document symbols for ${documentSymbolParms.textDocument.uri}`, token);
+	}, [], `Error while computing document symbols for ${documentSymbolParams.textDocument.uri}`, token);
 });
 
 connection.onRequest(DocumentColorRequest.type, (params, token) => {
