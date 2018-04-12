@@ -91,10 +91,15 @@ export class OrganizeImportsContextManager {
 
 
 export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvider {
+	private static readonly organizeImportsKind = vscode.CodeActionKind.Source.append('organizeImports');
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient
 	) { }
+
+	public readonly metadata: vscode.CodeActionProviderMetadata = {
+		providedCodeActionKinds: [OrganizeImportsCodeActionProvider.organizeImportsKind]
+	};
 
 	public provideCodeActions(
 		document: vscode.TextDocument,
@@ -110,7 +115,7 @@ export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvi
 			return [];
 		}
 
-		const action = new vscode.CodeAction(localize('oraganizeImportsAction.title', "Organize Imports"), vscode.CodeActionKind.Source.append('organizeImports'));
+		const action = new vscode.CodeAction(localize('oraganizeImportsAction.title', "Organize Imports"), OrganizeImportsCodeActionProvider.organizeImportsKind);
 		action.command = { title: '', command: OrganizeImportsCommand.Ids[0] };
 		return [action];
 	}

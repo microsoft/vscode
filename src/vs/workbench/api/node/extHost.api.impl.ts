@@ -271,8 +271,8 @@ export function createApiFactory(
 			match(selector: vscode.DocumentSelector, document: vscode.TextDocument): number {
 				return score(toLanguageSelector(selector), document.uri, document.languageId, true);
 			},
-			registerCodeActionsProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerCodeActionProvider(checkSelector(selector), provider);
+			registerCodeActionsProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider, metadata?: vscode.CodeActionProviderMetadata): vscode.Disposable {
+				return extHostLanguageFeatures.registerCodeActionProvider(checkSelector(selector), provider, metadata);
 			},
 			registerCodeLensProvider(selector: vscode.DocumentSelector, provider: vscode.CodeLensProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerCodeLensProvider(checkSelector(selector), provider);

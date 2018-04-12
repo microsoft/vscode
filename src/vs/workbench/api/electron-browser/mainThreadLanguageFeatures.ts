@@ -191,11 +191,12 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- quick fix
 
-	$registerQuickFixSupport(handle: number, selector: ISerializedDocumentFilter[]): void {
+	$registerQuickFixSupport(handle: number, selector: ISerializedDocumentFilter[], providedCodeActionKinds?: string[]): void {
 		this._registrations[handle] = modes.CodeActionProviderRegistry.register(toLanguageSelector(selector), <modes.CodeActionProvider>{
 			provideCodeActions: (model: ITextModel, range: EditorRange, context: modes.CodeActionContext, token: CancellationToken): Thenable<modes.CodeAction[]> => {
 				return this._heapService.trackRecursive(wireCancellationToken(token, this._proxy.$provideCodeActions(handle, model.uri, range, context))).then(MainThreadLanguageFeatures._reviveCodeActionDto);
-			}
+			},
+			providedCodeActionKinds
 		});
 	}
 
