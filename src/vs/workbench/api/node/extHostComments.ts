@@ -6,14 +6,12 @@
 'use strict';
 
 import { asWinJsPromise } from 'vs/base/common/async';
-import { values } from 'vs/base/common/map';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import * as extHostTypeConverter from 'vs/workbench/api/node/extHostTypeConverters';
 import * as vscode from 'vscode';
-import { flatten } from '../../../base/common/arrays';
 import { ExtHostCommentsShape, IMainContext, MainContext, MainThreadCommentsShape } from './extHost.protocol';
 import { CommandsConverter } from './extHostCommands';
 

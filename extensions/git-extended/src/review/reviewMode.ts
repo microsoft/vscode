@@ -5,15 +5,15 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { Repository } from './repository';
-import { CredentialStore } from '../../credentials';
-import { FileChange } from '../treeItems';
-import { Comment } from './comment';
-import { parseCommitDiff } from '../../review';
-import { populatePRDiagnostics, clearPRDiagnostics } from '../../review/FileComments';
-import { diff } from '../operation';
-import { mapCommentsToHead } from '../diff';
+import { Repository } from '../common/models/repository';
+import { CredentialStore } from '../credentials';
+import { FileChange, PullRequest } from '../common/treeItems';
+import { diff, fetch, checkout } from '../common/operation';
+import { mapCommentsToHead } from '../common/diff';
 import * as _ from 'lodash';
+import { GitContentProvider } from '../contentProvider';
+import { parseCommitDiff } from './fileComments';
+import { Comment } from '../common/models/comment';
 
 const REVIEW_STATE = 'git-extended.state';
 
@@ -32,6 +32,7 @@ export class ReviewMode {
 	private _command: vscode.Disposable;
 	private _prNumber: number;
 	private _resourceGroups: vscode.SourceControlResourceGroup[] = [];
+	private _gitContentProvider: vscode.Disposable;
 
 	constructor(
 		private _repository: Repository,
@@ -44,19 +45,20 @@ export class ReviewMode {
 		_repository.onDidRunGitStatus(e => {
 			this.validateState();
 		});
+		this._gitContentProvider = vscode.workspace.registerTextDocumentContentProvider('review', new GitContentProvider(_repository));
 		this.validateState();
 	}
 
 	async validateState() {
 		let branch = this._repository.HEAD.name;
 		if (!branch) {
-			this.dispose();
+			this.clear();
 			return;
 		}
 
 		let state = this._workspaceState.get(`${REVIEW_STATE}:${branch}`) as ReviewState;
 		if (!state) { // not in review state
-			this.dispose();
+			this.clear();
 			return;
 		}
 
@@ -64,7 +66,7 @@ export class ReviewMode {
 		let remote = this._repository.remotes.find(remote => remote.remoteName === remoteName);
 
 		if (!remote) {
-			this.dispose();
+			this.clear();
 			return;
 		}
 
@@ -75,7 +77,7 @@ export class ReviewMode {
 		this._prNumber = state.prNumber;
 
 		// we switch to another PR, let's clean up first.
-		this.dispose();
+		this.clear();
 		let fileChanges: FileChange[] = state.fileChanges;
 		let comments: Comment[] = state.comments;
 		let otcokit = await this._credentialStore.getOctokit(remote);
@@ -106,7 +108,6 @@ export class ReviewMode {
 		];
 
 		let localFileChanges = parseCommitDiff(this._repository, state.head.sha, state.base.sha, fileChanges);
-		populatePRDiagnostics(this._repository.path, localFileChanges, comments);
 
 		const commentsCache = new Map<String, Comment[]>();
 		localFileChanges.forEach(changedItem => {
@@ -189,7 +190,38 @@ export class ReviewMode {
 		prGroup.resourceStates = prChangeResources;
 	}
 
-	dispose() {
+	async switch(pr: PullRequest) {
+		try {
+			await fetch(this._repository, pr.remote.remoteName, `pull/${pr.prItem.number}/head:pull-request-${pr.prItem.number}`);
+			await checkout(this._repository, `pull-request-${pr.prItem.number}`);
+		} catch (e) {
+			vscode.window.showErrorMessage(e);
+			return;
+		}
+
+		this._workspaceState.update(`${REVIEW_STATE}:pull-request-${pr.prItem.number}`, {
+			remote: pr.remote.remoteName,
+			prNumber: pr.prItem.number,
+			branch: `pull-request-${pr.prItem.number}`,
+			head: pr.prItem.head,
+			base: pr.prItem.base,
+			fileChanges: pr.fileChanges.map(filechange => (
+				{
+					fileName: filechange.fileName,
+					parentFilePath: filechange.parentFilePath,
+					filePath: filechange.filePath
+				})),
+			comments: pr.comments
+		}).then(async e => {
+			if (!pr.fileChanges || !pr.comments) {
+				return;
+			}
+
+			await this._repository.status();
+		});
+	}
+
+	clear() {
 		if (this._command) {
 			this._command.dispose();
 		}
@@ -198,10 +230,13 @@ export class ReviewMode {
 			this._commentProvider.dispose();
 		}
 
-		clearPRDiagnostics();
-
 		this._resourceGroups.forEach(group => {
 			group.dispose();
 		});
+	}
+
+	dispose() {
+		this.clear();
+		this._gitContentProvider.dispose();
 	}
 }

@@ -11,34 +11,34 @@ import * as _ from 'lodash';
 import { Configuration } from './configuration';
 import { CredentialStore } from './credentials';
 import { parseComments } from './common/comment';
-import { enterReviewMode } from './review';
 import { PRGroup, PullRequest, FileChange, PRGroupType } from './common/treeItems';
 import { Resource } from './common/resources';
+import { ReviewMode } from './review/reviewMode';
 
 export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest | FileChange> {
 	private context: vscode.ExtensionContext;
 	private workspaceRoot: string;
 	private repository: Repository;
-	private gitRepo: any;
 	private crendentialStore: CredentialStore;
 	private configuration: Configuration;
-=	private _onDidChangeTreeData = new vscode.EventEmitter<PRGroup | PullRequest | FileChange | undefined>();
+	private reviewMode: ReviewMode;
+	private _onDidChangeTreeData = new vscode.EventEmitter<PRGroup | PullRequest | FileChange | undefined>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-	constructor(configuration: Configuration, crendentialStore: CredentialStore) {
+	constructor(configuration: Configuration, crendentialStore: CredentialStore, reviewMode: ReviewMode) {
 		this.configuration = configuration;
 		this.crendentialStore = crendentialStore;
+		this.reviewMode = reviewMode;
 	}
 
-	async activate(context: vscode.ExtensionContext, workspaceRoot: string, repository: Repository, gitRepo: any) {
+	async activate(context: vscode.ExtensionContext, workspaceRoot: string, repository: Repository) {
 		this.context = context;
 		this.workspaceRoot = workspaceRoot;
 		this.repository = repository;
-		this.gitRepo = gitRepo;
 
 		this.context.subscriptions.push(vscode.window.registerTreeDataProvider<PRGroup | PullRequest | FileChange>('pr', this));
 		this.context.subscriptions.push(vscode.commands.registerCommand('pr.pick', async (pr: PullRequest) => {
-			await enterReviewMode(context.workspaceState, this.repository, this.crendentialStore, pr, this.gitRepo);
+			await this.reviewMode.switch(pr);
 		}));
 		this.context.subscriptions.push(this.configuration.onDidChange(e => {
 			this._onDidChangeTreeData.fire();

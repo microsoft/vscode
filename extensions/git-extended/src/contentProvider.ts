@@ -13,9 +13,7 @@ export class GitContentProvider implements vscode.TextDocumentContentProvider {
 	private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
 	get onDidChange(): vscode.Event<vscode.Uri> { return this._onDidChange.event; }
 
-	constructor(private repository: Repository) {
-		vscode.workspace.registerTextDocumentContentProvider('review', this);
-	}
+	constructor(private repository: Repository) { }
 
 	async provideTextDocumentContent(uri: vscode.Uri, token: vscode.CancellationToken): Promise<string> {
 		let { path, commit } = fromGitUri(uri);

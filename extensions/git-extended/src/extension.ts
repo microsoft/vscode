@@ -9,8 +9,7 @@ import { PRProvider } from './prProvider';
 import { Repository } from './common/models/repository';
 import { Configuration } from './configuration';
 import { Resource } from './common/resources';
-import { GitContentProvider } from './contentProvider';
-import { ReviewMode } from './common/models/reviewMode';
+import { ReviewMode } from './review/reviewMode';
 import { CredentialStore } from './credentials';
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -53,7 +52,6 @@ export async function activate(context: vscode.ExtensionContext) {
 		repo = repos[0];
 	}
 
-
 	const repository = new Repository(rootPath, context.workspaceState);
 	let repositoryInitialized = false;
 	repository.onDidRunGitStatus(async e => {
@@ -63,8 +61,6 @@ export async function activate(context: vscode.ExtensionContext) {
 		repositoryInitialized = true;
 		let credentialStore = new CredentialStore(configuration);
 		let reviewMode = new ReviewMode(repository, credentialStore, context.workspaceState, repo);
-		// tslint:disable-next-line:no-unused-expression
-		new GitContentProvider(repository);
-		await (new PRProvider(configuration, credentialStore)).activate(context, rootPath, repository, repo);
+		await (new PRProvider(configuration, credentialStore, reviewMode)).activate(context, rootPath, repository);
 	});
 }

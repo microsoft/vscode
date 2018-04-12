@@ -6,11 +6,10 @@
 
 import 'vs/css!./review';
 import * as nls from 'vs/nls';
-import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
 import * as modes from 'vs/editor/common/modes';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType, IViewZone, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { $ } from 'vs/base/browser/builder';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -32,7 +31,6 @@ import { Color } from 'vs/base/common/color';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Widget } from 'vs/base/browser/ui/widget';
 import { ReviewModel, ReviewStyle } from 'vs/editor/contrib/review/reviewModel';
 import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 
@@ -259,40 +257,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 }
 
-export class ReviewSwitchWidget extends Widget implements IOverlayWidget {
-	private _domNode: HTMLElement;
-
-	constructor(reviewModel: ReviewModel) {
-		super();
-		this._domNode = document.createElement('div');
-		this._domNode.className = 'review-switch-widget';
-		this._domNode.textContent = 'Review';
-
-		this._domNode.onclick = e => {
-			dom.toggleClass(this._domNode, 'inactive');
-			if (dom.hasClass(this._domNode, 'inactive')) {
-				reviewModel.setStyle(ReviewStyle.Gutter);
-			} else {
-				reviewModel.setStyle(ReviewStyle.Inline);
-			}
-		};
-	}
-
-	getId(): string {
-		return 'editor.contrib.reviewSwitch';
-	}
-
-	getDomNode(): HTMLElement {
-		return this._domNode;
-	}
-
-	getPosition(): IOverlayWidgetPosition {
-		return {
-			preference: OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER
-		};
-	}
-}
-
 export class ReviewController implements IEditorContribution {
 	private globalToDispose: IDisposable[];
 	private localToDispose: IDisposable[];
@@ -300,7 +264,6 @@ export class ReviewController implements IEditorContribution {
 	private decorationIDs: string[];
 	private newCommentHintDecoration: string[];
 	private _domNode: HTMLElement;
-	private _reviewSwitch: ReviewSwitchWidget;
 	private _zoneWidget: ReviewZoneWidget;
 	private _zoneWidgets: ReviewZoneWidget[];
 	private _reviewPanelVisible: IContextKey<boolean>;
@@ -322,7 +285,6 @@ export class ReviewController implements IEditorContribution {
 		this._commentThreads = [];
 		this._zoneWidgets = [];
 		this._zoneWidget = null;
-		this._reviewSwitch = null;
 
 		this._reviewPanelVisible = ctxReviewPanelVisible.bindTo(contextKeyService);
 		this._domNode = document.createElement('div');
@@ -532,11 +494,6 @@ export class ReviewController implements IEditorContribution {
 		if (this._commentThreads.length === 0) {
 			return;
 		}
-
-		// if (!this._reviewSwitch) {
-		// 	this._reviewSwitch = new ReviewSwitchWidget(this._reviewModel);
-		// 	this.editor.addOverlayWidget(this._reviewSwitch);
-		// }
 
 		if (this._reviewModel.style === ReviewStyle.Gutter) {
 			this.editor.changeDecorations(accessor => {
