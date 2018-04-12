@@ -42,7 +42,7 @@ export interface IFileService {
 	onAfterOperation: Event<FileOperationEvent>;
 
 	/**
-	 * Registeres a file system provider for a certain scheme.
+	 * Registers a file system provider for a certain scheme.
 	 */
 	registerProvider?(scheme: string, provider: IFileSystemProvider): IDisposable;
 
