@@ -29,7 +29,7 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 	private _dragSelection: Selection;
 	private _dndDecorationIds: string[];
 	private _mouseDown: boolean;
-	private _modiferPressed: boolean;
+	private _modifierPressed: boolean;
 	static TRIGGER_MODIFIER = isMacintosh ? 'altKey' : 'ctrlKey';
 	static TRIGGER_KEY_VALUE = isMacintosh ? KeyCode.Alt : KeyCode.Ctrl;
 
@@ -48,7 +48,7 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 		this._toUnhook.push(this._editor.onKeyUp((e: IKeyboardEvent) => this.onEditorKeyUp(e)));
 		this._dndDecorationIds = [];
 		this._mouseDown = false;
-		this._modiferPressed = false;
+		this._modifierPressed = false;
 		this._dragSelection = null;
 	}
 
@@ -58,7 +58,7 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 		}
 
 		if (e[DragAndDropController.TRIGGER_MODIFIER]) {
-			this._modiferPressed = true;
+			this._modifierPressed = true;
 		}
 
 		if (this._mouseDown && e[DragAndDropController.TRIGGER_MODIFIER]) {
@@ -74,7 +74,7 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 		}
 
 		if (e[DragAndDropController.TRIGGER_MODIFIER]) {
-			this._modiferPressed = false;
+			this._modifierPressed = false;
 		}
 
 		if (this._mouseDown && e.keyCode === DragAndDropController.TRIGGER_KEY_VALUE) {
@@ -148,13 +148,13 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 				(
 					(
 						mouseEvent.event[DragAndDropController.TRIGGER_MODIFIER] ||
-						this._modiferPressed
+						this._modifierPressed
 					) && (
 						this._dragSelection.getEndPosition().equals(newCursorPosition) || this._dragSelection.getStartPosition().equals(newCursorPosition)
 					) // we allow users to paste content beside the selection
 				)) {
 				this._editor.pushUndoStop();
-				this._editor.executeCommand(DragAndDropController.ID, new DragAndDropCommand(this._dragSelection, newCursorPosition, mouseEvent.event[DragAndDropController.TRIGGER_MODIFIER] || this._modiferPressed));
+				this._editor.executeCommand(DragAndDropController.ID, new DragAndDropCommand(this._dragSelection, newCursorPosition, mouseEvent.event[DragAndDropController.TRIGGER_MODIFIER] || this._modifierPressed));
 				this._editor.pushUndoStop();
 			}
 		}
@@ -205,7 +205,7 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 		this._removeDecoration();
 		this._dragSelection = null;
 		this._mouseDown = false;
-		this._modiferPressed = false;
+		this._modifierPressed = false;
 		this._toUnhook = dispose(this._toUnhook);
 	}
 }
