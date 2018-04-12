@@ -7,89 +7,143 @@
 import { Readable, Writable } from 'stream';
 import { UTF8 } from 'vs/base/node/encoding';
 import URI from 'vs/base/common/uri';
-import { IFileSystemProvider, ITextSnapshot } from 'vs/platform/files/common/files';
+import { IFileSystemProvider, ITextSnapshot, ISimpleReadWriteProvider, IReadWriteProvider } from 'vs/platform/files/common/files';
 
 export function createWritableOfProvider(provider: IFileSystemProvider, resource: URI): Writable {
+	switch (provider._type) {
+		case 'simple': return createSimpleWritable(provider, resource);
+		case 'chunked': return createWritable(provider, resource);
+	}
+}
+
+function createSimpleWritable(provider: ISimpleReadWriteProvider, resource: URI): Writable {
 	return new class extends Writable {
-
 		_chunks: Buffer[] = [];
-
 		constructor(opts?) {
 			super(opts);
-			this.once('finish', () => this._finish());
 		}
 		_write(chunk: Buffer, encoding: string, callback: Function) {
 			this._chunks.push(chunk);
 			callback(null);
 		}
-		_finish() {
-			provider.writeFile(resource, Buffer.concat(this._chunks)).then(undefined, err => this.emit('error', err));
+		end(chunk?, encoding?, callback?) {
+			super.end(chunk, encoding, err => {
+				provider.writeFile(resource, Buffer.concat(this._chunks)).then(_ => {
+					if (callback) {
+						callback(null);
+					}
+				}, err => {
+					if (callback) {
+						callback(err);
+					} else {
+						this.emit('error', err);
+					}
+				});
+			});
+		}
+	};
+}
+
+function createWritable(provider: IReadWriteProvider, resource: URI): Writable {
+	return new class extends Writable {
+		_fd: number;
+		_pos: number;
+		constructor(opts?) {
+			super(opts);
+		}
+		_write(chunk: Buffer, encoding, callback: Function) {
+			this._doWrite(chunk).then(() => callback(null), err => callback(err));
+		}
+		async _doWrite(chunk: Buffer) {
+			if (typeof this._fd !== 'number') {
+				this._fd = await provider.open(resource, { mode: 'w+' });
+			}
+			let bytesWritten = await provider.write(this._fd, this._pos, chunk, 0, chunk.length);
+			this._pos += bytesWritten;
+		}
+		end(chunk?, encoding?, callback?) {
+			provider.close(this._fd).then(_ => {
+				if (callback) {
+					callback();
+				}
+			}, err => {
+				if (callback) {
+					callback(err);
+				} else {
+					this.emit('error', err);
+				}
+			});
 		}
 	};
 }
 
 export function createReadableOfProvider(provider: IFileSystemProvider, resource: URI): Readable {
-	if (provider._type === 'simple') {
-		return new class extends Readable {
-			_readOperation: Thenable<any>;
-			_read(size?: number): void {
-				if (this._readOperation) {
-					return;
-				}
-				this._readOperation = provider.readFile(resource).then(data => {
-					this.push(data);
-					this.push(null);
-				}, err => {
-					this.emit('error', err);
-					this.push(null);
-				});
-			}
-		};
-	} else {
-		return new class extends Readable {
-			_fd: number;
-			_pos: number = 0;
-			_reading: boolean = false;
-
-			constructor(opts?) {
-				super(opts);
-				this.once('close', _ => this._final());
-			}
-
-			async _read(size?: number) {
-				if (this._reading) {
-					return;
-				}
-				this._reading = true;
-				try {
-					if (typeof this._fd !== 'number') {
-						this._fd = await provider.open(resource, { mode: 'r' });
-					}
-					let buffer = Buffer.allocUnsafe(64 * 1024);
-
-					while (this._reading) {
-						let bytesRead = await provider.read(this._fd, this._pos, buffer, 0, buffer.length);
-						if (bytesRead === 0) {
-							this._reading = false;
-							this.push(null);
-						} else {
-							this._reading = this.push(buffer.slice(0, bytesRead));
-							this._pos += bytesRead;
-						}
-					}
-				} catch (err) {
-					//
-					this.emit('error', err);
-				}
-			}
-
-			async _final() {
-				if (typeof this._fd === 'number') {
-					await provider.close(this._fd);
-				}
-			}
-		};
+	switch (provider._type) {
+		case 'simple': return createSimpleReadable(provider, resource);
+		case 'chunked': return createReadable(provider, resource);
 	}
+}
+
+function createReadable(provider: IReadWriteProvider, resource: URI): Readable {
+	return new class extends Readable {
+		_fd: number;
+		_pos: number = 0;
+		_reading: boolean = false;
+		constructor(opts?) {
+			super(opts);
+			this.once('close', _ => this._final());
+		}
+		async _read(size?: number) {
+			if (this._reading) {
+				return;
+			}
+			this._reading = true;
+			try {
+				if (typeof this._fd !== 'number') {
+					this._fd = await provider.open(resource, { mode: 'r' });
+				}
+				let buffer = Buffer.allocUnsafe(64 * 1024);
+				while (this._reading) {
+					let bytesRead = await provider.read(this._fd, this._pos, buffer, 0, buffer.length);
+					if (bytesRead === 0) {
+						this._reading = false;
+						this.push(null);
+					}
+					else {
+						this._reading = this.push(buffer.slice(0, bytesRead));
+						this._pos += bytesRead;
+					}
+				}
+			}
+			catch (err) {
+				//
+				this.emit('error', err);
+			}
+		}
+		async _final() {
+			if (typeof this._fd === 'number') {
+				await provider.close(this._fd);
+			}
+		}
+	};
+}
+
+function createSimpleReadable(provider: ISimpleReadWriteProvider, resource: URI): Readable {
+	return new class extends Readable {
+		_readOperation: Thenable<any>;
+		_read(size?: number): void {
+			if (this._readOperation) {
+				return;
+			}
+			this._readOperation = provider.readFile(resource).then(data => {
+				this.push(data);
+				this.push(null);
+			}, err => {
+				this.emit('error', err);
+				this.push(null);
+			});
+		}
+	};
 }
 
 export function createReadableOfSnapshot(snapshot: ITextSnapshot): Readable {

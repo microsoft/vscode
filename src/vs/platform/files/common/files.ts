@@ -182,8 +182,7 @@ export interface IReadWriteProvider {
 	open(resource: URI, options: { mode: string }): TPromise<number>;
 	close(fd: number): TPromise<void>;
 	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
-	// write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
-	writeFile(resource: URI, content: Uint8Array): TPromise<void>;
+	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
 }
 
 export type IFileSystemProvider = (IFileSystemProviderBase & ISimpleReadWriteProvider) | (IFileSystemProviderBase & IReadWriteProvider);
