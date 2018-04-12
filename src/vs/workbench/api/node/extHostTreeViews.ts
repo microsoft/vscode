@@ -120,7 +120,7 @@ class ExtHostTreeView<T> extends Disposable {
 
 	reveal(element: T, options?: { select?: boolean }): TPromise<void> {
 		if (typeof this.dataProvider.getParent !== 'function') {
-			return TPromise.wrapError(new Error(`Required registered TreeDataProvider to implement 'getParent' method to access 'reveal' mehtod`));
+			return TPromise.wrapError(new Error(`Required registered TreeDataProvider to implement 'getParent' method to access 'reveal' method`));
 		}
 		return this.resolveUnknownParentChain(element)
 			.then(parentChain => this.resolveTreeNode(element, parentChain[parentChain.length - 1])
