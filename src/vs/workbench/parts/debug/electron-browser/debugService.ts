@@ -362,7 +362,7 @@ export class DebugService implements debug.IDebugService {
 				return;
 			}
 
-			// Make sure to append output in the correct order by properly waiting on preivous promises #33822
+			// Make sure to append output in the correct order by properly waiting on previous promises #33822
 			const waitFor = outputPromises.slice();
 			const source = event.body.source ? {
 				lineNumber: event.body.line,
