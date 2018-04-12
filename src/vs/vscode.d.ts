@@ -1599,7 +1599,7 @@ declare module 'vscode' {
 	 *
 	 * * Note 1: A dialog can select files, folders, or both. This is not true for Windows
 	 * which enforces to open either files or folder, but *not both*.
-	 * * Note 2: Explictly setting `canSelectFiles` and `canSelectFolders` to `false` is futile
+	 * * Note 2: Explicitly setting `canSelectFiles` and `canSelectFolders` to `false` is futile
 	 * and the editor then silently adjusts the options to select files.
 	 */
 	export interface OpenDialogOptions {
