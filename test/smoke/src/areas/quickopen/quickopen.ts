@@ -35,7 +35,7 @@ export class QuickOpen {
 	async openFile(fileName: string): Promise<void> {
 		await this.openQuickOpen(fileName);
 
-		await this.waitForQuickOpenElements(names => names.some(n => n === fileName));
+		await this.waitForQuickOpenElements(names => names[0] === fileName);
 		await this.code.dispatchKeybinding('enter');
 		await this.editors.waitForActiveTab(fileName);
 		await this.editors.waitForEditorFocus(fileName);
