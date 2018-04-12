@@ -449,7 +449,7 @@ export interface ExternalTaskRunnerConfiguration extends BaseTaskRunnerConfigura
 	osx?: BaseTaskRunnerConfiguration;
 
 	/**
-	 * Linux speciif task configuration
+	 * Linux specific task configuration
 	 */
 	linux?: BaseTaskRunnerConfiguration;
 }
