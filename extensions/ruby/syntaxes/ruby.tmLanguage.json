@@ -215,7 +215,7 @@
 					"name": "punctuation.definition.parameters.ruby"
 				}
 			},
-			"comment": "the method pattern comes from the symbol pattern, see there for a explaination",
+			"comment": "the method pattern comes from the symbol pattern, see there for a explanation",
 			"end": "\\)",
 			"endCaptures": {
 				"0": {
