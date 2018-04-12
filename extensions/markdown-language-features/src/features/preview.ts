@@ -223,8 +223,8 @@ export class MarkdownPreview {
 		}
 	}
 
-	public get viewColumn(): vscode.ViewColumn | undefined {
-		return this.editor.viewColumn;
+	public get position(): vscode.ViewColumn | undefined {
+		return this.editor.position;
 	}
 
 	public isPreviewOf(resource: vscode.Uri): boolean {
@@ -237,10 +237,10 @@ export class MarkdownPreview {
 
 	public matchesResource(
 		otherResource: vscode.Uri,
-		otherViewColumn: vscode.ViewColumn | undefined,
+		otherPosition: vscode.ViewColumn | undefined,
 		otherLocked: boolean
 	): boolean {
-		if (this.viewColumn !== otherViewColumn) {
+		if (this.position !== otherPosition) {
 			return false;
 		}
 
@@ -252,7 +252,7 @@ export class MarkdownPreview {
 	}
 
 	public matches(otherPreview: MarkdownPreview): boolean {
-		return this.matchesResource(otherPreview._resource, otherPreview.viewColumn, otherPreview.locked);
+		return this.matchesResource(otherPreview._resource, otherPreview.position, otherPreview.locked);
 	}
 
 	public reveal(viewColumn: vscode.ViewColumn) {
