@@ -75,7 +75,7 @@ suite('Extfs', () => {
 
 	test('stat link', function (done) {
 		if (isWindows) {
-			// Symlinks are not the same on win, and we can not create them programitically without admin privileges
+			// Symlinks are not the same on win, and we can not create them programmatically without admin privileges
 			return done();
 		}
 
