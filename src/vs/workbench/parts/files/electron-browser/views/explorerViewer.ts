@@ -99,9 +99,12 @@ export class FileDataSource implements IDataSource {
 				const modelDirStat = ExplorerItem.create(dirStat, stat.root);
 
 				// Add children to folder
-				modelDirStat.getChildrenArray().forEach(child => {
-					stat.addChild(child);
-				});
+				const children = modelDirStat.getChildrenArray();
+				if (children) {
+					children.forEach(child => {
+						stat.addChild(child);
+					});
+				}
 
 				stat.isDirectoryResolved = true;
 
