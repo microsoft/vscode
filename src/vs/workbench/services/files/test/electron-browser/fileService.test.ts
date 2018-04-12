@@ -11,7 +11,7 @@ import * as os from 'os';
 import * as assert from 'assert';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { FileService, IEncodingOverride } from 'vs/workbench/services/files/electron-browser/fileService';
+import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
 import { FileOperation, FileOperationEvent, FileChangesEvent, FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
 import uri from 'vs/base/common/uri';
 import * as uuid from 'vs/base/common/uuid';
@@ -22,6 +22,7 @@ import { TestEnvironmentService, TestContextService, TestTextResourceConfigurati
 import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TextModel } from 'vs/editor/common/model/textModel';
+import { IEncodingOverride } from 'vs/workbench/services/files/electron-browser/encoding';
 
 suite('FileService', () => {
 	let service: FileService;

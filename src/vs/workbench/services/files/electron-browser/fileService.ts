@@ -44,8 +44,8 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import product from 'vs/platform/node/product';
-import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { shell } from 'electron';
+import { IEncodingOverride, ResourceEncodings } from 'vs/workbench/services/files/electron-browser/encoding';
 
 class BufferPool {
 
@@ -70,12 +70,6 @@ class BufferPool {
 			this._free.push(buf);
 		}
 	}
-}
-
-export interface IEncodingOverride {
-	parent?: uri;
-	extension?: string;
-	encoding: string;
 }
 
 export interface IFileServiceTestOptions {
@@ -106,7 +100,7 @@ export class FileService implements IFileService {
 	private fileChangesWatchDelayer: ThrottledDelayer<void>;
 	private undeliveredRawFileChangesEvents: IRawFileChange[];
 
-	private encodingOverride: IEncodingOverride[];
+	private _encoding: ResourceEncodings;
 
 	constructor(
 		private contextService: IWorkspaceContextService,
@@ -130,9 +124,13 @@ export class FileService implements IFileService {
 		this.fileChangesWatchDelayer = new ThrottledDelayer<void>(FileService.FS_EVENT_DELAY);
 		this.undeliveredRawFileChangesEvents = [];
 
-		this.encodingOverride = this.options.encodingOverride || this.getEncodingOverrides();
+		this._encoding = new ResourceEncodings(textResourceConfigurationService, environmentService, contextService, this.options.encodingOverride);
 
 		this.registerListeners();
+	}
+
+	public get encoding(): ResourceEncodings {
+		return this._encoding;
 	}
 
 	private registerListeners(): void {
@@ -149,30 +147,8 @@ export class FileService implements IFileService {
 			}
 		}));
 
-		// Workspace Folder Change
-		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => {
-			this.encodingOverride = this.getEncodingOverrides();
-		}));
-
 		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);
-	}
-
-	private getEncodingOverrides(): IEncodingOverride[] {
-		const encodingOverride: IEncodingOverride[] = [];
-
-		// Global settings
-		encodingOverride.push({ parent: uri.file(this.environmentService.appSettingsHome), encoding: encoding.UTF8 });
-
-		// Workspace files
-		encodingOverride.push({ extension: WORKSPACE_EXTENSION, encoding: encoding.UTF8 });
-
-		// Folder Settings
-		this.contextService.getWorkspace().folders.forEach(folder => {
-			encodingOverride.push({ parent: uri.file(paths.join(folder.uri.fsPath, '.vscode')), encoding: encoding.UTF8 });
-		});
-
-		return encodingOverride;
 	}
 
 	private handleError(error: string | Error): void {
@@ -548,7 +524,7 @@ export class FileService implements IFileService {
 									));
 
 								} else {
-									result.encoding = this.getEncoding(resource, this.getPeferredEncoding(resource, options, detected));
+									result.encoding = this._encoding.getReadEncoding(resource, options, detected);
 									result.stream = decoder = encoding.decodeStream(result.encoding);
 									resolve(result);
 									handleChunk(bytesRead);
@@ -590,7 +566,7 @@ export class FileService implements IFileService {
 
 			// 2.) create parents as needed
 			return createParentsPromise.then(() => {
-				const encodingToWrite = this.getEncoding(resource, options.encoding);
+				const encodingToWrite = this._encoding.getWriteEncoding(resource, options.encoding);
 				let addBomPromise: TPromise<boolean> = TPromise.as(false);
 
 				// UTF_16 BE and LE as well as UTF_8 with BOM always have a BOM
@@ -700,7 +676,7 @@ export class FileService implements IFileService {
 		return this.checkFileBeforeWriting(absolutePath, options, options.overwriteReadonly /* ignore readonly if we overwrite readonly, this is handled via sudo later */).then(exists => {
 			const writeOptions: IUpdateContentOptions = objects.assign(Object.create(null), options);
 			writeOptions.writeElevated = false;
-			writeOptions.encoding = this.getEncoding(resource, options.encoding);
+			writeOptions.encoding = this._encoding.getWriteEncoding(resource, options.encoding);
 
 			// 2.) write to a temporary file to be able to copy over later
 			const tmpPath = paths.join(os.tmpdir(), `code-elevated-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 6)}`);
@@ -997,69 +973,6 @@ export class FileService implements IFileService {
 		return pfs.statLink(absolutePath).then(({ isSymbolicLink, stat }) => {
 			return new StatResolver(resource, isSymbolicLink, stat.isDirectory(), stat.mtime.getTime(), stat.size, this.environmentService.verbose ? err => this.handleError(err) : void 0);
 		});
-	}
-
-	protected getPeferredEncoding(resource: uri, options: IResolveContentOptions, detected: encoding.IDetectedEncodingResult): string {
-		let preferredEncoding: string;
-		if (options && options.encoding) {
-			if (detected.encoding === encoding.UTF8 && options.encoding === encoding.UTF8) {
-				preferredEncoding = encoding.UTF8_with_bom; // indicate the file has BOM if we are to resolve with UTF 8
-			} else {
-				preferredEncoding = options.encoding; // give passed in encoding highest priority
-			}
-		} else if (detected.encoding) {
-			if (detected.encoding === encoding.UTF8) {
-				preferredEncoding = encoding.UTF8_with_bom; // if we detected UTF-8, it can only be because of a BOM
-			} else {
-				preferredEncoding = detected.encoding;
-			}
-		} else if (this.configuredEncoding(resource) === encoding.UTF8_with_bom) {
-			preferredEncoding = encoding.UTF8; // if we did not detect UTF 8 BOM before, this can only be UTF 8 then
-		}
-		return preferredEncoding;
-	}
-
-	public getEncoding(resource: uri, preferredEncoding?: string): string {
-		let fileEncoding: string;
-
-		const override = this.getEncodingOverride(resource);
-		if (override) {
-			fileEncoding = override;
-		} else if (preferredEncoding) {
-			fileEncoding = preferredEncoding;
-		} else {
-			fileEncoding = this.configuredEncoding(resource);
-		}
-
-		if (!fileEncoding || !encoding.encodingExists(fileEncoding)) {
-			fileEncoding = encoding.UTF8; // the default is UTF 8
-		}
-
-		return fileEncoding;
-	}
-
-	private configuredEncoding(resource: uri): string {
-		return this.textResourceConfigurationService.getValue(resource, 'files.encoding');
-	}
-
-	private getEncodingOverride(resource: uri): string {
-		if (resource && this.encodingOverride && this.encodingOverride.length) {
-			for (let i = 0; i < this.encodingOverride.length; i++) {
-				const override = this.encodingOverride[i];
-
-				// check if the resource is child of encoding override path
-				if (override.parent && isParent(resource.fsPath, override.parent.fsPath, !isLinux /* ignorecase */)) {
-					return override.encoding;
-				}
-
-				// check if the resource extension is equal to encoding override
-				if (override.extension && paths.extname(resource.fsPath) === `.${override.extension}`) {
-					return override.encoding;
-				}
-			}
-		}
-
-		return null;
 	}
 
 	public watchFileChanges(resource: uri): void {

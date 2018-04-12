@@ -268,8 +268,7 @@ export class RemoteFileService extends FileService {
 				const decodeStreamOpts: IDecodeStreamOptions = {
 					guessEncoding: options.autoGuessEncoding,
 					overwriteEncoding: detected => {
-						const prefered = this.getPeferredEncoding(resource, options, { encoding: detected, seemsBinary: false });
-						return this.getEncoding(resource, prefered);
+						return this.encoding.getReadEncoding(resource, options, { encoding: detected, seemsBinary: false });
 					}
 				};
 
@@ -332,7 +331,7 @@ export class RemoteFileService extends FileService {
 	}
 
 	private _writeFile(provider: IFileSystemProvider, resource: URI, content: string | ITextSnapshot, options: IUpdateContentOptions): TPromise<IFileStat> {
-		const encoding = this.getEncoding(resource, options.encoding);
+		const encoding = this.encoding.getWriteEncoding(resource, options.encoding);
 		// TODO@Joh support streaming API for remote file system writes
 		return provider.writeFile(resource, encode(typeof content === 'string' ? content : snapshotToString(content), encoding)).then(() => {
 			return this.resolveFile(resource);

@@ -18,8 +18,17 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
+export interface IResourceEncodings {
+	getWriteEncoding(resource: URI, preferredEncoding?: string): string;
+}
+
 export interface IFileService {
 	_serviceBrand: any;
+
+	/**
+	 * Helper to determine read/write encoding for resources.
+	 */
+	encoding: IResourceEncodings;
 
 	/**
 	 * Allows to listen for file changes. The event will fire for every file within the opened workspace
@@ -134,11 +143,6 @@ export interface IFileService {
 	 * Allows to stop a watcher on the provided resource or absolute fs path.
 	 */
 	unwatchFileChanges(resource: URI): void;
-
-	/**
-	 * Returns the preferred encoding to use for a given resource.
-	 */
-	getEncoding(resource: URI, preferredEncoding?: string): string;
 
 	/**
 	 * Frees up any resources occupied by this service.
