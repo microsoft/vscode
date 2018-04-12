@@ -6,11 +6,9 @@
 
 import * as assert from 'assert';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { Builder } from 'vs/base/browser/builder';
-import mockBrowserService = require('vs/base/test/browser/mockBrowserService');
 
-suite("ProgressBar", () => {
-	var fixture: HTMLElement;
+suite('ProgressBar', () => {
+	let fixture: HTMLElement;
 
 	setup(() => {
 		fixture = document.createElement('div');
@@ -21,11 +19,8 @@ suite("ProgressBar", () => {
 		document.body.removeChild(fixture);
 	});
 
-	test("Progress Bar", function() {
-		var b = new Builder(fixture);
-
-		var bar = new ProgressBar(b);
-		assert(bar.getContainer());
+	test('Progress Bar', function () {
+		const bar = new ProgressBar(fixture);
 		assert(bar.infinite());
 		assert(bar.total(100));
 		assert(bar.worked(50));

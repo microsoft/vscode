@@ -6,15 +6,12 @@
 'use strict';
 
 import 'vs/css!./toolbar';
-import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {Builder, $} from 'vs/base/browser/builder';
-import types = require('vs/base/common/types');
-import {Action, IActionRunner, IAction} from 'vs/base/common/actions';
-import {ActionBar, ActionsOrientation, IActionItemProvider, BaseActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
-import {IContextMenuProvider, DropdownMenu, IActionProvider, ILabelRenderer, IDropdownMenuOptions} from 'vs/base/browser/ui/dropdown/dropdown';
-import {ListenerUnbind} from 'vs/base/common/eventEmitter';
+import * as nls from 'vs/nls';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Action, IActionRunner, IAction } from 'vs/base/common/actions';
+import { ActionBar, ActionsOrientation, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IContextMenuProvider, DropdownMenuActionItem } from 'vs/base/browser/ui/dropdown/dropdown';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 
 export const CONTEXT = 'context.toolbar';
 
@@ -22,6 +19,8 @@ export interface IToolBarOptions {
 	orientation?: ActionsOrientation;
 	actionItemProvider?: IActionItemProvider;
 	ariaLabel?: string;
+	getKeyBinding?: (action: IAction) => ResolvedKeybinding;
+	actionRunner?: IActionRunner;
 }
 
 /**
@@ -33,18 +32,22 @@ export class ToolBar {
 	private toggleMenuAction: ToggleMenuAction;
 	private toggleMenuActionItem: DropdownMenuActionItem;
 	private hasSecondaryActions: boolean;
+	private lookupKeybindings: boolean;
 
 	constructor(container: HTMLElement, contextMenuProvider: IContextMenuProvider, options: IToolBarOptions = { orientation: ActionsOrientation.HORIZONTAL }) {
 		this.options = options;
+		this.lookupKeybindings = typeof this.options.getKeyBinding === 'function';
+
 		this.toggleMenuAction = new ToggleMenuAction(() => this.toggleMenuActionItem && this.toggleMenuActionItem.show());
 
 		let element = document.createElement('div');
 		element.className = 'monaco-toolbar';
 		container.appendChild(element);
 
-		this.actionBar = new ActionBar($(element), {
+		this.actionBar = new ActionBar(element, {
 			orientation: options.orientation,
 			ariaLabel: options.ariaLabel,
+			actionRunner: options.actionRunner,
 			actionItemProvider: (action: Action) => {
 
 				// Return special action item for the toggle menu action
@@ -62,8 +65,10 @@ export class ToolBar {
 						contextMenuProvider,
 						this.options.actionItemProvider,
 						this.actionRunner,
+						this.options.getKeyBinding,
 						'toolbar-toggle-more'
 					);
+					this.toggleMenuActionItem.setActionContext(this.actionBar.context);
 
 					return this.toggleMenuActionItem;
 				}
@@ -81,8 +86,23 @@ export class ToolBar {
 		return this.actionBar.actionRunner;
 	}
 
-	public getContainer(): Builder {
+	public set context(context: any) {
+		this.actionBar.context = context;
+		if (this.toggleMenuActionItem) {
+			this.toggleMenuActionItem.setActionContext(context);
+		}
+	}
+
+	public getContainer(): HTMLElement {
 		return this.actionBar.getContainer();
+	}
+
+	public getItemsWidth(): number {
+		let itemsWidth = 0;
+		for (let i = 0; i < this.actionBar.length(); i++) {
+			itemsWidth += this.actionBar.getWidth(i);
+		}
+		return itemsWidth;
 	}
 
 	public setAriaLabel(label: string): void {
@@ -101,22 +121,31 @@ export class ToolBar {
 			}
 
 			this.actionBar.clear();
-			this.actionBar.push(primaryActionsToSet, { icon: true, label: false });
+
+			primaryActionsToSet.forEach(action => {
+				this.actionBar.push(action, { icon: true, label: false, keybinding: this.getKeybindingLabel(action) });
+			});
 		};
 	}
 
-	public addPrimaryAction(primaryActions: IAction): () => void {
+	private getKeybindingLabel(action: IAction): string {
+		const key = this.lookupKeybindings ? this.options.getKeyBinding(action) : void 0;
+
+		return key ? key.getLabel() : void 0;
+	}
+
+	public addPrimaryAction(primaryAction: IAction): () => void {
 		return () => {
 
 			// Add after the "..." action if we have secondary actions
 			if (this.hasSecondaryActions) {
 				let itemCount = this.actionBar.length();
-				this.actionBar.push(primaryActions, { icon: true, label: false, index: itemCount });
+				this.actionBar.push(primaryAction, { icon: true, label: false, index: itemCount, keybinding: this.getKeybindingLabel(primaryAction) });
 			}
 
 			// Otherwise just add to the end
 			else {
-				this.actionBar.push(primaryActions, { icon: true, label: false });
+				this.actionBar.push(primaryAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(primaryAction) });
 			}
 		};
 	}
@@ -133,7 +162,7 @@ export class ToolBar {
 
 class ToggleMenuAction extends Action {
 
-	public static ID = 'toolbar.toggle.more';
+	public static readonly ID = 'toolbar.toggle.more';
 
 	private _menuActions: IAction[];
 	private toggleDropdownMenu: () => void;
@@ -156,77 +185,5 @@ class ToggleMenuAction extends Action {
 
 	public set menuActions(actions: IAction[]) {
 		this._menuActions = actions;
-	}
-}
-
-export class DropdownMenuActionItem extends BaseActionItem {
-	private menuActionsOrProvider: any;
-	private dropdownMenu: DropdownMenu;
-	private toUnbind: ListenerUnbind;
-	private contextMenuProvider: IContextMenuProvider;
-	private actionItemProvider: IActionItemProvider;
-	private clazz: string;
-
-	constructor(action: IAction, menuActions: IAction[], contextMenuProvider: IContextMenuProvider, actionItemProvider: IActionItemProvider, actionRunner: IActionRunner, clazz: string);
-	constructor(action: IAction, actionProvider: IActionProvider, contextMenuProvider: IContextMenuProvider, actionItemProvider: IActionItemProvider, actionRunner: IActionRunner, clazz: string);
-	constructor(action: IAction, menuActionsOrProvider: any, contextMenuProvider: IContextMenuProvider, actionItemProvider: IActionItemProvider, actionRunner: IActionRunner, clazz: string) {
-		super(null, action);
-
-		this.menuActionsOrProvider = menuActionsOrProvider;
-		this.contextMenuProvider = contextMenuProvider;
-		this.actionItemProvider = actionItemProvider;
-		this.actionRunner = actionRunner;
-		this.clazz = clazz;
-	}
-
-	public render(container: HTMLElement): void {
-		let labelRenderer: ILabelRenderer = (el: HTMLElement): IDisposable => {
-			this.builder = $('a.action-label').attr({
-				tabIndex: '0',
-				role: 'button',
-				'aria-haspopup': 'true',
-				title: this._action.label || '',
-				class: this.clazz
-			});
-
-			this.builder.appendTo(el);
-
-			return null;
-		};
-
-		let options: IDropdownMenuOptions = {
-			contextMenuProvider: this.contextMenuProvider,
-			labelRenderer: labelRenderer
-		};
-
-		// Render the DropdownMenu around a simple action to toggle it
-		if (types.isArray(this.menuActionsOrProvider)) {
-			options.actions = this.menuActionsOrProvider;
-		} else {
-			options.actionProvider = this.menuActionsOrProvider;
-		}
-
-		this.dropdownMenu = new DropdownMenu(container, options);
-
-		this.dropdownMenu.menuOptions = {
-			actionItemProvider: this.actionItemProvider,
-			actionRunner: this.actionRunner
-		};
-
-		// Reemit events for running actions
-		this.toUnbind = this.addEmitter(this.dropdownMenu);
-	}
-
-	public show(): void {
-		if (this.dropdownMenu) {
-			this.dropdownMenu.show();
-		}
-	}
-
-	public dispose(): void {
-		this.toUnbind();
-		this.dropdownMenu.dispose();
-
-		super.dispose();
 	}
 }

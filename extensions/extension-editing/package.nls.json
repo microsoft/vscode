@@ -1,0 +1,4 @@
+{
+	"displayName": "Package File Editing",
+	"description": "Provides IntelliSense for VS Code extension points and linting capabilities in package.json files."
+}

@@ -10,11 +10,37 @@ export namespace Schemas {
 	 * A schema that is used for models that exist in memory
 	 * only and that have no correspondence on a server or such.
 	 */
-	export var inMemory:string = 'inmemory';
+	export const inMemory: string = 'inmemory';
 
-	export var http:string = 'http';
+	/**
+	 * A schema that is used for setting files
+	 */
+	export const vscode: string = 'vscode';
 
-	export var https:string = 'https';
+	/**
+	 * A schema that is used for internal private files
+	 */
+	export const internal: string = 'private';
 
-	export var file:string = 'file';
+	/**
+	 * A walk-through document.
+	 */
+	export const walkThrough: string = 'walkThrough';
+
+	/**
+	 * An embedded code snippet.
+	 */
+	export const walkThroughSnippet: string = 'walkThroughSnippet';
+
+	export const http: string = 'http';
+
+	export const https: string = 'https';
+
+	export const file: string = 'file';
+
+	export const mailto: string = 'mailto';
+
+	export const untitled: string = 'untitled';
+
+	export const data: string = 'data';
 }

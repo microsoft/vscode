@@ -5,16 +5,20 @@
 
 'use strict';
 
-export interface IIterator<T> {
+export interface IIterator<E> {
+	next(): { readonly done: boolean, readonly value: E };
+}
+
+export interface INextIterator<T> {
 	next(): T;
 }
 
-export class ArrayIterator<T> implements IIterator<T> {
+export class ArrayIterator<T> implements INextIterator<T> {
 
 	private items: T[];
-	private start: number;
-	private end: number;
-	private index: number;
+	protected start: number;
+	protected end: number;
+	protected index: number;
 
 	constructor(items: T[], start: number = 0, end: number = items.length) {
 		this.items = items;
@@ -23,10 +27,18 @@ export class ArrayIterator<T> implements IIterator<T> {
 		this.index = start - 1;
 	}
 
+	public first(): T {
+		this.index = this.start;
+		return this.current();
+	}
+
 	public next(): T {
 		this.index = Math.min(this.index + 1, this.end);
+		return this.current();
+	}
 
-		if (this.index === this.end) {
+	protected current(): T {
+		if (this.index === this.start - 1 || this.index === this.end) {
 			return null;
 		}
 
@@ -34,26 +46,58 @@ export class ArrayIterator<T> implements IIterator<T> {
 	}
 }
 
-export class MappedIterator<T, R> implements IIterator<R> {
+export class ArrayNavigator<T> extends ArrayIterator<T> implements INavigator<T> {
 
-	constructor(protected iterator: IIterator<T>, protected fn: (item:T)=>R) {
+	constructor(items: T[], start: number = 0, end: number = items.length) {
+		super(items, start, end);
+	}
+
+	public current(): T {
+		return super.current();
+	}
+
+	public previous(): T {
+		this.index = Math.max(this.index - 1, this.start - 1);
+		return this.current();
+	}
+
+	public first(): T {
+		this.index = this.start;
+		return this.current();
+	}
+
+	public last(): T {
+		this.index = this.end - 1;
+		return this.current();
+	}
+
+	public parent(): T {
+		return null;
+	}
+
+}
+
+export class MappedIterator<T, R> implements INextIterator<R> {
+
+	constructor(protected iterator: INextIterator<T>, protected fn: (item: T) => R) {
 		// noop
 	}
 
 	next() { return this.fn(this.iterator.next()); }
 }
 
-export interface INavigator<T> extends IIterator<T> {
+export interface INavigator<T> extends INextIterator<T> {
 	current(): T;
 	previous(): T;
 	parent(): T;
 	first(): T;
 	last(): T;
+	next(): T;
 }
 
 export class MappedNavigator<T, R> extends MappedIterator<T, R> implements INavigator<R> {
 
-	constructor(protected navigator: INavigator<T>, fn: (item:T)=>R) {
+	constructor(protected navigator: INavigator<T>, fn: (item: T) => R) {
 		super(navigator, fn);
 	}
 
@@ -62,4 +106,5 @@ export class MappedNavigator<T, R> extends MappedIterator<T, R> implements INavi
 	parent() { return this.fn(this.navigator.parent()); }
 	first() { return this.fn(this.navigator.first()); }
 	last() { return this.fn(this.navigator.last()); }
+	next() { return this.fn(this.navigator.next()); }
 }

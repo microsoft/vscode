@@ -4,75 +4,42 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as strings from 'vs/base/common/strings';
-import * as modes from 'vs/editor/common/modes';
-import {handleEvent, ignoreBracketsInToken} from 'vs/editor/common/modes/supports';
-import {BracketsUtils} from 'vs/editor/common/modes/supports/richEditBrackets';
+import { ScopedLineTokens, ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
+import { BracketsUtils, RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
+import { IAutoClosingPairConditional, IBracketElectricCharacterContribution, StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
 
 /**
- * Definition of documentation comments (e.g. Javadoc/JSdoc)
+ * Interface used to support electric characters
+ * @internal
  */
-export interface IDocComment {
-	scope: string; // What tokens should be used to detect a doc comment (e.g. 'comment.documentation').
-	open: string; // The string that starts a doc comment (e.g. '/**')
-	lineStart: string; // The string that appears at the start of each line, except the first and last (e.g. ' * ').
-	close?: string; // The string that appears on the last line and closes the doc comment (e.g. ' */').
+export interface IElectricAction {
+	// Only one of the following properties should be defined:
+
+	// The line will be indented at the same level of the line
+	// which contains the matching given bracket type.
+	matchOpenBracket?: string;
+
+	// The text will be appended after the electric character.
+	appendText?: string;
 }
 
-export interface IBracketElectricCharacterContribution {
-	docComment?: IDocComment;
-	caseInsensitive?: boolean;
-	embeddedElectricCharacters?: string[];
-}
+export class BracketElectricCharacterSupport {
 
-export class BracketElectricCharacterSupport implements modes.IRichEditElectricCharacter {
+	private readonly _richEditBrackets: RichEditBrackets;
+	private readonly _complexAutoClosePairs: StandardAutoClosingPairConditional[];
 
-	private _modeId: string;
-	private contribution: IBracketElectricCharacterContribution;
-	private brackets: Brackets;
-
-	constructor(modeId: string, brackets: modes.IRichEditBrackets, contribution: IBracketElectricCharacterContribution) {
-		this._modeId = modeId;
-		this.contribution = contribution || {};
-		this.brackets = new Brackets(modeId, brackets, this.contribution.docComment, this.contribution.caseInsensitive);
-	}
-
-	public getElectricCharacters(): string[]{
-		if (Array.isArray(this.contribution.embeddedElectricCharacters)) {
-			return this.contribution.embeddedElectricCharacters.concat(this.brackets.getElectricCharacters());
-		}
-		return this.brackets.getElectricCharacters();
-	}
-
-	public onElectricCharacter(context:modes.ILineContext, offset:number): modes.IElectricAction {
-		return handleEvent(context, offset, (nestedMode:modes.IMode, context:modes.ILineContext, offset:number) => {
-			if (this._modeId === nestedMode.getId()) {
-				return this.brackets.onElectricCharacter(context, offset);
-			} else if (nestedMode.richEditSupport && nestedMode.richEditSupport.electricCharacter) {
-				return nestedMode.richEditSupport.electricCharacter.onElectricCharacter(context, offset);
-			} else {
-				return null;
-			}
-		});
-	}
-}
-
-
-
-export class Brackets {
-
-	private _modeId: string;
-	private _richEditBrackets: modes.IRichEditBrackets;
-	private _docComment: IDocComment;
-
-	constructor(modeId: string, richEditBrackets: modes.IRichEditBrackets, docComment: IDocComment = null, caseInsensitive: boolean = false) {
-		this._modeId = modeId;
+	constructor(richEditBrackets: RichEditBrackets, autoClosePairs: IAutoClosingPairConditional[], contribution: IBracketElectricCharacterContribution) {
+		contribution = contribution || {};
 		this._richEditBrackets = richEditBrackets;
-		this._docComment = docComment ? docComment : null;
+		this._complexAutoClosePairs = autoClosePairs.filter(pair => pair.open.length > 1 && !!pair.close).map(el => new StandardAutoClosingPairConditional(el));
+		if (contribution.docComment) {
+			// IDocComment is legacy, only partially supported
+			this._complexAutoClosePairs.push(new StandardAutoClosingPairConditional({ open: contribution.docComment.open, close: contribution.docComment.close }));
+		}
 	}
 
-	public getElectricCharacters():string[] {
-		var result: string[] = [];
+	public getElectricCharacters(): string[] {
+		let result: string[] = [];
 
 		if (this._richEditBrackets) {
 			for (let i = 0, len = this._richEditBrackets.brackets.length; i < len; i++) {
@@ -82,9 +49,9 @@ export class Brackets {
 			}
 		}
 
-		// Doc comments
-		if (this._docComment){
-			result.push(this._docComment.open.charAt(this._docComment.open.length - 1));
+		// auto close
+		for (let pair of this._complexAutoClosePairs) {
+			result.push(pair.open.charAt(pair.open.length - 1));
 		}
 
 		// Filter duplicate entries
@@ -95,88 +62,85 @@ export class Brackets {
 		return result;
 	}
 
-	public onElectricCharacter(context: modes.ILineContext, offset: number): modes.IElectricAction {
-		if (context.getTokenCount() === 0) {
-			return null;
-		}
-
-		return (this._onElectricCharacterDocComment(context, offset) ||
-			this._onElectricCharacterStandardBrackets(context, offset));
+	public onElectricCharacter(character: string, context: ScopedLineTokens, column: number): IElectricAction {
+		return (this._onElectricAutoClose(character, context, column) ||
+			this._onElectricAutoIndent(character, context, column));
 	}
 
-	private containsTokenTypes(fullTokenSpec: string, tokensToLookFor: string): boolean {
-		var array = tokensToLookFor.split('.');
-		for (var i = 0; i < array.length; ++i) {
-			if (fullTokenSpec.indexOf(array[i]) < 0) {
-				return false;
-			}
-		}
-		return true;
-	}
-
-	private _onElectricCharacterStandardBrackets(context: modes.ILineContext, offset: number): modes.IElectricAction {
+	private _onElectricAutoIndent(character: string, context: ScopedLineTokens, column: number): IElectricAction {
 
 		if (!this._richEditBrackets || this._richEditBrackets.brackets.length === 0) {
 			return null;
 		}
 
-		let reversedBracketRegex = this._richEditBrackets.reversedRegex;
-
-		let lineText = context.getLineContent();
-		let tokenIndex = context.findIndexOfOffset(offset);
-		let tokenStart = context.getTokenStartIndex(tokenIndex);
-		let tokenEnd = offset + 1;
-
-		var firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(context.getLineContent());
-		if (firstNonWhitespaceIndex !== -1 && firstNonWhitespaceIndex < tokenStart) {
+		let tokenIndex = context.findTokenIndexAtOffset(column - 1);
+		if (ignoreBracketsInToken(context.getStandardTokenType(tokenIndex))) {
 			return null;
 		}
 
-		if (!ignoreBracketsInToken(context.getTokenType(tokenIndex))) {
-			let r = BracketsUtils.findPrevBracketInToken(reversedBracketRegex, 1, lineText, tokenStart, tokenEnd);
-			if (r) {
-				let text = lineText.substring(r.startColumn - 1, r.endColumn - 1);
-				let isOpen = this._richEditBrackets.textIsOpenBracket[text];
-				if (!isOpen) {
-					return {
-						matchOpenBracket: text
-					};
-				}
+		let reversedBracketRegex = this._richEditBrackets.reversedRegex;
+		let text = context.getLineContent().substring(0, column - 1) + character;
+
+		let r = BracketsUtils.findPrevBracketInToken(reversedBracketRegex, 1, text, 0, text.length);
+		if (!r) {
+			return null;
+		}
+
+		let bracketText = text.substring(r.startColumn - 1, r.endColumn - 1);
+		bracketText = bracketText.toLowerCase();
+
+		let isOpen = this._richEditBrackets.textIsOpenBracket[bracketText];
+		if (isOpen) {
+			return null;
+		}
+
+		let textBeforeBracket = text.substring(0, r.startColumn - 1);
+		if (!/^\s*$/.test(textBeforeBracket)) {
+			// There is other text on the line before the bracket
+			return null;
+		}
+
+		return {
+			matchOpenBracket: bracketText
+		};
+	}
+
+	private _onElectricAutoClose(character: string, context: ScopedLineTokens, column: number): IElectricAction {
+		if (!this._complexAutoClosePairs.length) {
+			return null;
+		}
+
+		let line = context.getLineContent();
+
+		for (let i = 0, len = this._complexAutoClosePairs.length; i < len; i++) {
+			let pair = this._complexAutoClosePairs[i];
+
+			// See if the right electric character was pressed
+			if (character !== pair.open.charAt(pair.open.length - 1)) {
+				continue;
 			}
+
+			// check if the full open bracket matches
+			let actual = line.substring(line.length - pair.open.length + 1) + character;
+			if (actual !== pair.open) {
+				continue;
+			}
+
+			let lastTokenIndex = context.findTokenIndexAtOffset(column - 1);
+			let lastTokenStandardType = context.getStandardTokenType(lastTokenIndex);
+			// If we're in a scope listed in 'notIn', do nothing
+			if (!pair.isOK(lastTokenStandardType)) {
+				continue;
+			}
+
+			// If this line already contains the closing tag, do nothing.
+			if (line.indexOf(pair.close, column - 1) >= 0) {
+				continue;
+			}
+
+			return { appendText: pair.close };
 		}
 
 		return null;
-	}
-
-	private _onElectricCharacterDocComment(context: modes.ILineContext, offset: number): modes.IElectricAction {
-		// We only auto-close, so do nothing if there is no closing part.
-		if (!this._docComment || !this._docComment.close) {
-			return null;
-		}
-
-		var line = context.getLineContent();
-		var char: string = line[offset];
-
-		// See if the right electric character was pressed
-		if (char !== this._docComment.open.charAt(this._docComment.open.length - 1)) {
-			return null;
-		}
-
-		// If this line already contains the closing tag, do nothing.
-		if (line.indexOf(this._docComment.close, offset) >= 0) {
-			return null;
-		}
-
-		// If we're not in a documentation comment, do nothing.
-		var lastTokenIndex = context.findIndexOfOffset(offset);
-		if (! this.containsTokenTypes(context.getTokenType(lastTokenIndex), this._docComment.scope)) {
-			return null;
-		}
-
-		if (line.substring(context.getTokenStartIndex(lastTokenIndex), offset+1/* include electric char*/) !== this._docComment.open) {
-			return null;
-		}
-
-		return { appendText: this._docComment.close};
 	}
 }

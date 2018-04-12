@@ -5,77 +5,90 @@
 
 'use strict';
 
-export interface IHTMLContentElementCode {
-	language: string;
+import { equals } from 'vs/base/common/arrays';
+
+export interface IMarkdownString {
 	value: string;
+	isTrusted?: boolean;
 }
 
-export interface IHTMLContentElement {
-	/**
-	 * supports **bold**, __italics__, and [[actions]]
-	 */
-	formattedText?:string;
-	text?: string;
-	className?: string;
-	style?: string;
-	customStyle?: any;
-	tagName?: string;
-	children?: IHTMLContentElement[];
-	isText?: boolean;
-	role?: string;
-	markdown?: string;
-	code?: IHTMLContentElementCode;
+export class MarkdownString implements IMarkdownString {
+
+	value: string;
+	isTrusted?: boolean;
+
+	constructor(value: string = '') {
+		this.value = value;
+	}
+
+	appendText(value: string): MarkdownString {
+		// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
+		this.value += value.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&');
+		return this;
+	}
+
+	appendMarkdown(value: string): MarkdownString {
+		this.value += value;
+		return this;
+	}
+
+	appendCodeblock(langId: string, code: string): MarkdownString {
+		this.value += '\n```';
+		this.value += langId;
+		this.value += '\n';
+		this.value += code;
+		this.value += '\n```\n';
+		return this;
+	}
 }
 
-function htmlContentElementCodeEqual(a:IHTMLContentElementCode, b:IHTMLContentElementCode): boolean {
-	if (!a && !b) {
+export function isEmptyMarkdownString(oneOrMany: IMarkdownString | IMarkdownString[]): boolean {
+	if (isMarkdownString(oneOrMany)) {
+		return !oneOrMany.value;
+	} else if (Array.isArray(oneOrMany)) {
+		return oneOrMany.every(isEmptyMarkdownString);
+	} else {
 		return true;
 	}
-	if (!a || !b) {
-		return false;
+}
+
+export function isMarkdownString(thing: any): thing is IMarkdownString {
+	if (thing instanceof MarkdownString) {
+		return true;
+	} else if (thing && typeof thing === 'object') {
+		return typeof (<IMarkdownString>thing).value === 'string'
+			&& (typeof (<IMarkdownString>thing).isTrusted === 'boolean' || (<IMarkdownString>thing).isTrusted === void 0);
 	}
-	return (
-		a.language === b.language
-		&& a.value === b.value
-	);
+	return false;
 }
 
-function htmlContentElementEqual(a:IHTMLContentElement, b:IHTMLContentElement): boolean {
-	return (
-		a.formattedText === b.formattedText
-		&& a.text === b.text
-		&& a.className === b.className
-		&& a.style === b.style
-		&& a.customStyle === b.customStyle
-		&& a.tagName === b.tagName
-		&& a.isText === b.isText
-		&& a.role === b.role
-		&& a.markdown === b.markdown
-		&& htmlContentElementCodeEqual(a.code, b.code)
-		&& htmlContentElementArrEquals(a.children, b.children)
-	);
-}
-
-export function htmlContentElementArrEquals(a:IHTMLContentElement[], b:IHTMLContentElement[]): boolean {
+export function markedStringsEquals(a: IMarkdownString | IMarkdownString[], b: IMarkdownString | IMarkdownString[]): boolean {
 	if (!a && !b) {
 		return true;
-	}
-	if (!a || !b) {
+	} else if (!a || !b) {
+		return false;
+	} else if (Array.isArray(a) && Array.isArray(b)) {
+		return equals(a, b, markdownStringEqual);
+	} else if (isMarkdownString(a) && isMarkdownString(b)) {
+		return markdownStringEqual(a, b);
+	} else {
 		return false;
 	}
+}
 
-	let aLen = a.length,
-		bLen = b.length;
-
-	if (aLen !== bLen) {
+function markdownStringEqual(a: IMarkdownString, b: IMarkdownString): boolean {
+	if (a === b) {
+		return true;
+	} else if (!a || !b) {
 		return false;
+	} else {
+		return a.value === b.value && a.isTrusted === b.isTrusted;
 	}
+}
 
-	for (let i = 0; i < aLen; i++) {
-		if (!htmlContentElementEqual(a[i], b[i])) {
-			return false;
-		}
+export function removeMarkdownEscapes(text: string): string {
+	if (!text) {
+		return text;
 	}
-
-	return true;
+	return text.replace(/\\([\\`*_{}[\]()#+\-.!])/g, '$1');
 }

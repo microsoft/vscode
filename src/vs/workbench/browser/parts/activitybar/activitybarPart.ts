@@ -5,277 +5,227 @@
 
 'use strict';
 
-import 'vs/css!./media/activityBarPart';
-import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {Builder, $} from 'vs/base/browser/builder';
-import {Action} from 'vs/base/common/actions';
-import errors = require('vs/base/common/errors');
-import {ActionsOrientation, ActionBar, IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
-import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
-import {Registry} from 'vs/platform/platform';
-import {CompositeEvent, EventType} from 'vs/workbench/common/events';
-import {ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions} from 'vs/workbench/browser/viewlet';
-import {Part} from 'vs/workbench/browser/part';
-import {ActivityAction, ActivityActionItem} from 'vs/workbench/browser/parts/activitybar/activityAction';
-import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
-import {IActivityService, IBadge} from 'vs/workbench/services/activity/common/activityService';
-import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {IEventService} from 'vs/platform/event/common/event';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import 'vs/css!./media/activitybarpart';
+import * as nls from 'vs/nls';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { illegalArgument } from 'vs/base/common/errors';
+import { $ } from 'vs/base/browser/builder';
+import { Action } from 'vs/base/common/actions';
+import { ActionsOrientation, ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { GlobalActivityExtensions, IGlobalActivityRegistry } from 'vs/workbench/common/activity';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Part } from 'vs/workbench/browser/part';
+import { GlobalActivityActionItem, GlobalActivityAction, ViewletActivityAction, ToggleViewletAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { IBadge } from 'vs/workbench/services/activity/common/activity';
+import { IPartService, Parts, Position as SideBarPosition } from 'vs/workbench/services/part/common/partService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/toggleActivityBarVisibility';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
+import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { CompositeBar } from 'vs/workbench/browser/parts/compositebar/compositeBar';
+import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
+import { Dimension } from 'vs/base/browser/dom';
 
-export class ActivitybarPart extends Part implements IActivityService {
-	public serviceId = IActivityService;
-	private viewletSwitcherBar: ActionBar;
-	private globalToolBar: ToolBar;
-	private activityActionItems: { [actionId: string]: IActionItem; };
-	private viewletIdToActions: { [viewletId: string]: ActivityAction; };
-	private instantiationService: IInstantiationService;
+export class ActivitybarPart extends Part {
+
+	private static readonly PINNED_VIEWLETS = 'workbench.activity.pinnedViewlets';
+	private static readonly COLORS = {
+		backgroundColor: ACTIVITY_BAR_FOREGROUND,
+		badgeBackground: ACTIVITY_BAR_BADGE_BACKGROUND,
+		badgeForeground: ACTIVITY_BAR_BADGE_FOREGROUND,
+		dragAndDropBackground: ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND
+	};
+	private static readonly ACTION_HEIGHT = 50;
+
+	public _serviceBrand: any;
+
+	private dimension: Dimension;
+
+	private globalActionBar: ActionBar;
+	private globalActivityIdToActions: { [globalActivityId: string]: GlobalActivityAction; };
+
+	private compositeBar: CompositeBar;
 
 	constructor(
-		private viewletService: IViewletService,
-		private messageService: IMessageService,
-		private telemetryService: ITelemetryService,
-		private eventService: IEventService,
-		private contextMenuService: IContextMenuService,
-		private keybindingService: IKeybindingService,
-		id: string
+		id: string,
+		@IViewletService private viewletService: IViewletService,
+		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IPartService private partService: IPartService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(id);
+		super(id, { hasTitle: false }, themeService);
 
-		this.activityActionItems = {};
-		this.viewletIdToActions = {};
+		this.globalActivityIdToActions = Object.create(null);
+
+		this.compositeBar = this.instantiationService.createInstance(CompositeBar, {
+			icon: true,
+			storageId: ActivitybarPart.PINNED_VIEWLETS,
+			orientation: ActionsOrientation.VERTICAL,
+			composites: this.viewletService.getViewlets(),
+			openComposite: (compositeId: string) => this.viewletService.openViewlet(compositeId, true),
+			getActivityAction: (compositeId: string) => this.instantiationService.createInstance(ViewletActivityAction, this.viewletService.getViewlet(compositeId)),
+			getCompositePinnedAction: (compositeId: string) => new ToggleCompositePinnedAction(this.viewletService.getViewlet(compositeId), this.compositeBar),
+			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(ToggleViewletAction, this.viewletService.getViewlet(compositeId)),
+			getDefaultCompositeId: () => this.viewletService.getDefaultViewletId(),
+			hidePart: () => this.partService.setSideBarHidden(true),
+			colors: ActivitybarPart.COLORS,
+			overflowActionSize: ActivitybarPart.ACTION_HEIGHT
+		});
 
 		this.registerListeners();
-	}
-
-	public setInstantiationService(service: IInstantiationService): void {
-		this.instantiationService = service;
 	}
 
 	private registerListeners(): void {
 
 		// Activate viewlet action on opening of a viewlet
-		this.toUnbind.push(this.eventService.addListener(EventType.COMPOSITE_OPENING, (e: CompositeEvent) => this.onCompositeOpening(e)));
+		this.toUnbind.push(this.viewletService.onDidViewletOpen(viewlet => this.compositeBar.activateComposite(viewlet.getId())));
 
 		// Deactivate viewlet action on close
-		this.toUnbind.push(this.eventService.addListener(EventType.COMPOSITE_CLOSED, (e: CompositeEvent) => this.onCompositeClosed(e)));
-	}
-
-	private onCompositeOpening(e: CompositeEvent): void {
-		if (this.viewletIdToActions[e.compositeId]) {
-			this.viewletIdToActions[e.compositeId].activate();
-
-			// There can only be one active viewlet action
-			for (let key in this.viewletIdToActions) {
-				if (this.viewletIdToActions.hasOwnProperty(key) && key !== e.compositeId) {
-					this.viewletIdToActions[key].deactivate();
-				}
+		this.toUnbind.push(this.viewletService.onDidViewletClose(viewlet => this.compositeBar.deactivateComposite(viewlet.getId())));
+		this.toUnbind.push(this.compositeBar.onDidContextMenu(e => this.showContextMenu(e)));
+		this.toUnbind.push(this.viewletService.onDidViewletEnablementChange(({ id, enabled }) => {
+			if (enabled) {
+				this.compositeBar.addComposite(this.viewletService.getViewlet(id));
+			} else {
+				this.compositeBar.removeComposite(id);
 			}
+		}));
+	}
+
+	public showActivity(viewletOrActionId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {
+		if (this.viewletService.getViewlet(viewletOrActionId)) {
+			return this.compositeBar.showActivity(viewletOrActionId, badge, clazz, priority);
 		}
+
+		return this.showGlobalActivity(viewletOrActionId, badge, clazz);
 	}
 
-	private onCompositeClosed(e: CompositeEvent): void {
-		if (this.viewletIdToActions[e.compositeId]) {
-			this.viewletIdToActions[e.compositeId].deactivate();
+	private showGlobalActivity(globalActivityId: string, badge: IBadge, clazz?: string): IDisposable {
+		if (!badge) {
+			throw illegalArgument('badge');
 		}
-	}
 
-	public showActivity(viewletId: string, badge: IBadge, clazz?: string): void {
-		let action = this.viewletIdToActions[viewletId];
-		if (action) {
-			action.setBadge(badge);
-			if (clazz) {
-				action.class = clazz;
-			}
+		const action = this.globalActivityIdToActions[globalActivityId];
+		if (!action) {
+			throw illegalArgument('globalActivityId');
 		}
+
+		action.setBadge(badge, clazz);
+
+		return toDisposable(() => action.setBadge(undefined));
 	}
 
-	public clearActivity(viewletId: string): void {
-		this.showActivity(viewletId, null);
-	}
-
-	public createContentArea(parent: Builder): Builder {
-		let $el = $(parent);
-		let $result = $('.content').appendTo($el);
+	public createContentArea(parent: HTMLElement): HTMLElement {
+		const $el = $(parent);
+		const $result = $('.content').appendTo($el);
 
 		// Top Actionbar with action items for each viewlet action
-		this.createViewletSwitcher($result.clone());
+		this.compositeBar.create($result.getHTMLElement());
 
-		// Bottom Toolbar with action items for global actions
-		// this.createGlobalToolBarArea($result.clone()); // not used currently
+		// Top Actionbar with action items for each viewlet action
+		this.createGlobalActivityActionBar($('.global-activity').appendTo($result).getHTMLElement());
 
-		return $result;
+		return $result.getHTMLElement();
 	}
 
-	private createViewletSwitcher(div: Builder): void {
+	public updateStyles(): void {
+		super.updateStyles();
 
-		// Viewlet switcher is on top
-		this.viewletSwitcherBar = new ActionBar(div, {
-			actionItemProvider: (action: Action) => this.activityActionItems[action.id],
-			orientation: ActionsOrientation.VERTICAL,
-			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher")
+		// Part container
+		const container = $(this.getContainer());
+		const background = this.getColor(ACTIVITY_BAR_BACKGROUND);
+		container.style('background-color', background);
+
+		const borderColor = this.getColor(ACTIVITY_BAR_BORDER) || this.getColor(contrastBorder);
+		const isPositionLeft = this.partService.getSideBarPosition() === SideBarPosition.LEFT;
+		container.style('box-sizing', borderColor && isPositionLeft ? 'border-box' : null);
+		container.style('border-right-width', borderColor && isPositionLeft ? '1px' : null);
+		container.style('border-right-style', borderColor && isPositionLeft ? 'solid' : null);
+		container.style('border-right-color', isPositionLeft ? borderColor : null);
+		container.style('border-left-width', borderColor && !isPositionLeft ? '1px' : null);
+		container.style('border-left-style', borderColor && !isPositionLeft ? 'solid' : null);
+		container.style('border-left-color', !isPositionLeft ? borderColor : null);
+	}
+
+	private showContextMenu(e: MouseEvent): void {
+		const event = new StandardMouseEvent(e);
+
+		const actions: Action[] = this.viewletService.getViewlets().map(viewlet => this.instantiationService.createInstance(ToggleCompositePinnedAction, viewlet, this.compositeBar));
+		actions.push(new Separator());
+		actions.push(this.instantiationService.createInstance(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, nls.localize('hideActivitBar', "Hide Activity Bar")));
+
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => { return { x: event.posx, y: event.posy }; },
+			getActions: () => TPromise.as(actions),
+			onHide: () => dispose(actions)
 		});
-		this.viewletSwitcherBar.getContainer().addClass('position-top');
-
-		// Build Viewlet Actions in correct order
-		let activeViewlet = this.viewletService.getActiveViewlet();
-		let registry = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
-		let viewletActions: Action[] = registry.getViewlets()
-			.sort((v1: ViewletDescriptor, v2: ViewletDescriptor) => v1.order - v2.order)
-			.map((viewlet: ViewletDescriptor) => {
-				let action = this.instantiationService.createInstance(ViewletActivityAction, viewlet.id + '.activity-bar-action', viewlet);
-
-				let keybinding: string = null;
-				let keys = this.keybindingService.lookupKeybindings(viewlet.id).map(k => this.keybindingService.getLabelFor(k));
-				if (keys && keys.length) {
-					keybinding = keys[0];
-				}
-
-				this.activityActionItems[action.id] = new ActivityActionItem(action, viewlet.name, keybinding);
-				this.viewletIdToActions[viewlet.id] = action;
-
-				// Mark active viewlet action as active
-				if (activeViewlet && activeViewlet.getId() === viewlet.id) {
-					action.activate();
-				}
-
-				return action;
-			}
-				);
-
-		// Add to viewlet switcher
-		this.viewletSwitcherBar.push(viewletActions, { label: true, icon: true });
 	}
 
-	// private createGlobalToolBarArea(div: Builder): void {
+	private createGlobalActivityActionBar(container: HTMLElement): void {
+		const activityRegistry = Registry.as<IGlobalActivityRegistry>(GlobalActivityExtensions);
+		const descriptors = activityRegistry.getActivities();
+		const actions = descriptors
+			.map(d => this.instantiationService.createInstance(d))
+			.map(a => new GlobalActivityAction(a));
 
-	// 	// Global action bar is on the bottom
-	// 	this.globalToolBar = new ToolBar(div.getHTMLElement(), this.contextMenuService, {
-	// 		actionItemProvider: (action: Action) => this.activityActionItems[action.id],
-	// 		orientation: ActionsOrientation.VERTICAL
-	// 	});
-	// 	this.globalToolBar.getContainer().addClass('global');
+		this.globalActionBar = new ActionBar(container, {
+			actionItemProvider: a => this.instantiationService.createInstance(GlobalActivityActionItem, a, ActivitybarPart.COLORS),
+			orientation: ActionsOrientation.VERTICAL,
+			ariaLabel: nls.localize('globalActions', "Global Actions"),
+			animated: false
+		});
+		this.toUnbind.push(this.globalActionBar);
 
-	// 	this.globalToolBar.actionRunner.addListener(events.EventType.RUN, (e: any) => {
+		actions.forEach(a => {
+			this.globalActivityIdToActions[a.id] = a;
+			this.globalActionBar.push(a);
+		});
+	}
 
-	// 		// Check for Error
-	// 		if (e.error && !errors.isPromiseCanceledError(e.error)) {
-	// 			this.messageService.show(Severity.Error, e.error);
-	// 		}
+	public getPinned(): string[] {
+		return this.viewletService.getViewlets().map(v => v.id).filter(id => this.compositeBar.isPinned(id));
+	}
 
-	// 		// Log in telemetry
-	// 		if (this.telemetryService) {
-	// 			this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: 'activityBar' });
-	// 		}
-	// 	});
-
-	// 	// Build Global Actions in correct order
-	// 	let primaryActions = this.getGlobalActions(true);
-	// 	let secondaryActions = this.getGlobalActions(false);
-
-	// 	if (primaryActions.length + secondaryActions.length > 0) {
-	// 		this.globalToolBar.getContainer().addClass('position-bottom');
-	// 	}
-
-	// 	// Add to global action bar
-	// 	this.globalToolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions))();
-	// }
-
-	// private getGlobalActions(primary: boolean): IAction[] {
-	// 	let actionBarRegistry = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);
-
-	// 	// Collect actions from actionbar contributor
-	// 	let actions: IAction[];
-	// 	if (primary) {
-	// 		actions = actionBarRegistry.getActionBarActionsForContext(Scope.GLOBAL, CONTEXT);
-	// 	} else {
-	// 		actions = actionBarRegistry.getSecondaryActionBarActionsForContext(Scope.GLOBAL, CONTEXT);
-	// 	}
-
-	// 	return actions.map((action: Action) => {
-	// 		if (primary) {
-	// 			let keybinding: string = null;
-	// 			let keys = this.keybindingService.lookupKeybindings(action.id).map(k => this.keybindingService.getLabelFor(k));
-	// 			if (keys && keys.length) {
-	// 				keybinding = keys[0];
-	// 			}
-
-	// 			let actionItem = actionBarRegistry.getActionItemForContext(Scope.GLOBAL, CONTEXT, action);
-
-	// 			if (!actionItem) {
-	// 				actionItem = new ActivityActionItem(action, action.label, keybinding);
-	// 			}
-
-	// 			if (actionItem instanceof ActivityActionItem) {
-	// 				(<ActivityActionItem> actionItem).keybinding = keybinding;
-	// 			}
-
-	// 			this.activityActionItems[action.id] = actionItem;
-	// 		}
-
-	// 		return action;
-	// 	});
-	// }
-
-	public dispose(): void {
-		if (this.viewletSwitcherBar) {
-			this.viewletSwitcherBar.dispose();
-			this.viewletSwitcherBar = null;
+	/**
+	 * Layout title, content and status area in the given dimension.
+	 */
+	public layout(dimension: Dimension): Dimension[] {
+		if (!this.partService.isVisible(Parts.ACTIVITYBAR_PART)) {
+			return [dimension];
 		}
 
-		if (this.globalToolBar) {
-			this.globalToolBar.dispose();
-			this.globalToolBar = null;
+		// Pass to super
+		const sizes = super.layout(dimension);
+
+		this.dimension = sizes[1];
+
+		let availableHeight = this.dimension.height;
+		if (this.globalActionBar) {
+			// adjust height for global actions showing
+			availableHeight -= (this.globalActionBar.items.length * ActivitybarPart.ACTION_HEIGHT);
+		}
+		this.compositeBar.layout(new Dimension(dimension.width, availableHeight));
+
+		return sizes;
+	}
+
+	public dispose(): void {
+		if (this.compositeBar) {
+			this.compositeBar.dispose();
+			this.compositeBar = null;
+		}
+
+		if (this.globalActionBar) {
+			this.globalActionBar.dispose();
+			this.globalActionBar = null;
 		}
 
 		super.dispose();
-	}
-}
-
-class ViewletActivityAction extends ActivityAction {
-	private static preventDoubleClickDelay = 300;
-	private static lastRun: number = 0;
-
-	private viewlet: ViewletDescriptor;
-
-	constructor(
-		id: string, viewlet: ViewletDescriptor,
-		@IViewletService private viewletService: IViewletService,
-		@IPartService private partService: IPartService
-	) {
-		super(id, viewlet.name, viewlet.cssClass);
-
-		this.viewlet = viewlet;
-	}
-
-	public run(): TPromise<any> {
-
-		// cheap trick to prevent accident trigger on a doubleclick (to help nervous people)
-		let now = new Date().getTime();
-		if (now - ViewletActivityAction.lastRun < ViewletActivityAction.preventDoubleClickDelay) {
-			return TPromise.as(true);
-		}
-		ViewletActivityAction.lastRun = now;
-
-		let sideBarHidden = this.partService.isSideBarHidden();
-		let activeViewlet = this.viewletService.getActiveViewlet();
-
-		// Hide sidebar if selected viewlet already visible
-		if (!sideBarHidden && activeViewlet && activeViewlet.getId() === this.viewlet.id) {
-			this.partService.setSideBarHidden(true);
-		}
-
-		// Open viewlet and focus it
-		else {
-			this.viewletService.openViewlet(this.viewlet.id, true).done(null, errors.onUnexpectedError);
-			this.activate();
-		}
-
-		return TPromise.as(true);
 	}
 }

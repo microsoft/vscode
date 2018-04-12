@@ -1,0 +1,40 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+'use strict';
+
+import * as assert from 'assert';
+import URI from 'vs/base/common/uri';
+import { parse, stringify } from 'vs/base/common/marshalling';
+
+suite('Marshalling', () => {
+
+	test('RegExp', function () {
+		let value = /foo/img;
+		let raw = stringify(value);
+		let clone = <RegExp>parse(raw);
+
+		assert.equal(value.source, clone.source);
+		assert.equal(value.global, clone.global);
+		assert.equal(value.ignoreCase, clone.ignoreCase);
+		assert.equal(value.multiline, clone.multiline);
+	});
+
+	test('URI', function () {
+		let value = URI.from({ scheme: 'file', authority: 'server', path: '/shares/c#files', query: 'q', fragment: 'f' });
+		let raw = stringify(value);
+		let clone = <URI>parse(raw);
+
+		assert.equal(value.scheme, clone.scheme);
+		assert.equal(value.authority, clone.authority);
+		assert.equal(value.path, clone.path);
+		assert.equal(value.query, clone.query);
+		assert.equal(value.fragment, clone.fragment);
+	});
+
+	test('Bug 16793:# in folder name => mirror models get out of sync', () => {
+		var uri1 = URI.file('C:\\C#\\file.txt');
+		assert.equal(parse(stringify(uri1)).toString(), uri1.toString());
+	});
+});

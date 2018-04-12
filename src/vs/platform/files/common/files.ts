@@ -4,17 +4,52 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
-import paths = require('vs/base/common/paths');
+import { TPromise } from 'vs/base/common/winjs.base';
+import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
-import glob = require('vs/base/common/glob');
-import events = require('vs/base/common/events');
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import * as glob from 'vs/base/common/glob';
+import { isLinux } from 'vs/base/common/platform';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from 'vs/base/common/event';
+import { startsWithIgnoreCase } from 'vs/base/common/strings';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
+import { isUndefinedOrNull } from 'vs/base/common/types';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
+export interface IResourceEncodings {
+	getWriteEncoding(resource: URI, preferredEncoding?: string): string;
+}
+
 export interface IFileService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
+
+	/**
+	 * Helper to determine read/write encoding for resources.
+	 */
+	encoding: IResourceEncodings;
+
+	/**
+	 * Allows to listen for file changes. The event will fire for every file within the opened workspace
+	 * (if any) as well as all files that have been watched explicitly using the #watchFileChanges() API.
+	 */
+	onFileChanges: Event<FileChangesEvent>;
+
+	/**
+	 * An event that is fired upon successful completion of a certain file operation.
+	 */
+	onAfterOperation: Event<FileOperationEvent>;
+
+	/**
+	 * Registeres a file system provider for a certain scheme.
+	 */
+	registerProvider?(scheme: string, provider: IFileSystemProvider): IDisposable;
+
+	/**
+	 * Checks if this file service can handle the given resource.
+	 */
+	canHandleResource?(resource: URI): boolean;
 
 	/**
 	 * Resolve the properties of a file identified by the resource.
@@ -27,38 +62,51 @@ export interface IFileService {
 	 * the stat service is asked to automatically resolve child folders that only
 	 * contain a single element.
 	 */
-	resolveFile(resource: URI, options?: IResolveFileOptions): winjs.TPromise<IFileStat>;
+	resolveFile(resource: URI, options?: IResolveFileOptions): TPromise<IFileStat>;
+
+	/**
+	 * Same as resolveFile but supports resolving mulitple resources in parallel.
+	 * If one of the resolve targets fails to resolve returns a fake IFileStat instead of making the whole call fail.
+	 */
+	resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): TPromise<IResolveFileResult[]>;
+
+	/**
+	 *Finds out if a file identified by the resource exists.
+	 */
+	existsFile(resource: URI): TPromise<boolean>;
 
 	/**
 	 * Resolve the contents of a file identified by the resource.
 	 *
 	 * The returned object contains properties of the file and the full value as string.
 	 */
-	resolveContent(resource: URI, options?: IResolveContentOptions): winjs.TPromise<IContent>;
+	resolveContent(resource: URI, options?: IResolveContentOptions): TPromise<IContent>;
 
 	/**
-	 * Returns the contents of all files by the given array of file resources.
+	 * Resolve the contents of a file identified by the resource.
+	 *
+	 * The returned object contains properties of the file and the value as a readable stream.
 	 */
-	resolveContents(resources: URI[]): winjs.TPromise<IContent[]>;
+	resolveStreamContent(resource: URI, options?: IResolveContentOptions): TPromise<IStreamContent>;
 
 	/**
 	 * Updates the content replacing its previous value.
 	 */
-	updateContent(resource: URI, value: string, options?: IUpdateContentOptions): winjs.TPromise<IFileStat>;
+	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): TPromise<IFileStat>;
 
 	/**
 	 * Moves the file to a new path identified by the resource.
 	 *
 	 * The optional parameter overwrite can be set to replace an existing file at the location.
 	 */
-	moveFile(source: URI, target: URI, overwrite?: boolean): winjs.TPromise<IFileStat>;
+	moveFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat>;
 
 	/**
 	 * Copies the file to a path identified by the resource.
 	 *
 	 * The optional parameter overwrite can be set to replace an existing file at the location.
 	 */
-	copyFile(source: URI, target: URI, overwrite?: boolean): winjs.TPromise<IFileStat>;
+	copyFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat>;
 
 	/**
 	 * Creates a new file with the given path. The returned promise
@@ -66,30 +114,25 @@ export interface IFileService {
 	 *
 	 * The optional parameter content can be used as value to fill into the new file.
 	 */
-	createFile(resource: URI, content?: string): winjs.TPromise<IFileStat>;
+	createFile(resource: URI, content?: string, options?: ICreateFileOptions): TPromise<IFileStat>;
 
 	/**
 	 * Creates a new folder with the given path. The returned promise
 	 * will have the stat model object as a result.
 	 */
-	createFolder(resource: URI): winjs.TPromise<IFileStat>;
+	createFolder(resource: URI): TPromise<IFileStat>;
 
 	/**
 	 * Renames the provided file to use the new name. The returned promise
 	 * will have the stat model object as a result.
 	 */
-	rename(resource: URI, newName: string): winjs.TPromise<IFileStat>;
+	rename(resource: URI, newName: string): TPromise<IFileStat>;
 
 	/**
 	 * Deletes the provided file.  The optional useTrash parameter allows to
 	 * move the file to trash.
 	 */
-	del(resource: URI, useTrash?: boolean): winjs.TPromise<void>;
-
-	/**
-	 * Imports the file to the parent identified by the resource.
-	 */
-	importFile(source: URI, targetFolder: URI): winjs.TPromise<IImportResult>;
+	del(resource: URI, useTrash?: boolean): TPromise<void>;
 
 	/**
 	 * Allows to start a watcher that reports file change events on the provided resource.
@@ -100,12 +143,6 @@ export interface IFileService {
 	 * Allows to stop a watcher on the provided resource or absolute fs path.
 	 */
 	unwatchFileChanges(resource: URI): void;
-	unwatchFileChanges(fsPath: string): void;
-
-	/**
-	 * Configures the file service with the provided options.
-	 */
-	updateOptions(options: any): void;
 
 	/**
 	 * Frees up any resources occupied by this service.
@@ -113,6 +150,53 @@ export interface IFileService {
 	dispose(): void;
 }
 
+export enum FileType2 {
+	File = 1,
+	Directory = 2,
+	SymbolicLink = 4,
+}
+
+export interface IStat {
+	mtime: number;
+	size: number;
+	type: FileType2;
+}
+
+export interface IFileSystemProvider {
+	onDidChange: Event<IFileChange[]>;
+	stat(resource: URI): TPromise<IStat>;
+	readFile(resource: URI): TPromise<Uint8Array>;
+	writeFile(resource: URI, content: Uint8Array): TPromise<void>;
+	rename(from: URI, to: URI): TPromise<IStat>;
+	mkdir(resource: URI): TPromise<IStat>;
+	readdir(resource: URI): TPromise<[string, IStat][]>;
+	delete(resource: URI): TPromise<void>;
+}
+
+export enum FileOperation {
+	CREATE,
+	DELETE,
+	MOVE,
+	COPY
+}
+
+export class FileOperationEvent {
+
+	constructor(private _resource: URI, private _operation: FileOperation, private _target?: IFileStat) {
+	}
+
+	public get resource(): URI {
+		return this._resource;
+	}
+
+	public get target(): IFileStat {
+		return this._target;
+	}
+
+	public get operation(): FileOperation {
+		return this._operation;
+	}
+}
 
 /**
  * Possible changes that can occur to a file.
@@ -124,23 +208,12 @@ export enum FileChangeType {
 }
 
 /**
- * Possible events to subscribe to
- */
-export var EventType = {
-
-	/**
-	* Send on file changes.
-	*/
-	FILE_CHANGES: 'files:fileChanges'
-};
-
-/**
  * Identifies a single change in a file.
  */
 export interface IFileChange {
 
 	/**
-	 * The type of change that occured to the file.
+	 * The type of change that occurred to the file.
 	 */
 	type: FileChangeType;
 
@@ -150,12 +223,11 @@ export interface IFileChange {
 	resource: URI;
 }
 
-export class FileChangesEvent extends events.Event {
+export class FileChangesEvent {
+
 	private _changes: IFileChange[];
 
 	constructor(changes: IFileChange[]) {
-		super();
-
 		this._changes = changes;
 	}
 
@@ -173,42 +245,17 @@ export class FileChangesEvent extends events.Event {
 			return false;
 		}
 
-		return this.containsAny([resource], type);
-	}
-
-	/**
-	 * Returns true if this change event contains any of the provided files with the given change type. In case of
-	 * type DELETED, this method will also return true if a folder got deleted that is the parent of any of the
-	 * provided file paths.
-	 */
-	public containsAny(resources: URI[], type: FileChangeType): boolean {
-		if (!resources || !resources.length) {
-			return false;
-		}
-
-		return this._changes.some((change) => {
+		return this._changes.some(change => {
 			if (change.type !== type) {
 				return false;
 			}
 
 			// For deleted also return true when deleted folder is parent of target path
 			if (type === FileChangeType.DELETED) {
-				return resources.some((a: URI) => {
-					if (!a) {
-						return false;
-					}
-
-					return paths.isEqualOrParent(a.fsPath, change.resource.fsPath);
-				});
+				return isEqualOrParent(resource, change.resource, !isLinux /* ignorecase */);
 			}
 
-			return resources.some((a: URI) => {
-				if (!a) {
-					return false;
-				}
-
-				return a.fsPath === change.resource.fsPath;
-			});
+			return isEqual(resource, change.resource, !isLinux /* ignorecase */);
 		});
 	}
 
@@ -255,14 +302,34 @@ export class FileChangesEvent extends events.Event {
 	}
 
 	private getOfType(type: FileChangeType): IFileChange[] {
-		return this._changes.filter((change) => change.type === type);
+		return this._changes.filter(change => change.type === type);
 	}
 
 	private hasType(type: FileChangeType): boolean {
-		return this._changes.some((change) => {
+		return this._changes.some(change => {
 			return change.type === type;
 		});
 	}
+}
+
+export function isParent(path: string, candidate: string, ignoreCase?: boolean): boolean {
+	if (!path || !candidate || path === candidate) {
+		return false;
+	}
+
+	if (candidate.length > path.length) {
+		return false;
+	}
+
+	if (candidate.charAt(candidate.length - 1) !== paths.nativeSep) {
+		candidate += paths.nativeSep;
+	}
+
+	if (ignoreCase) {
+		return startsWithIgnoreCase(path, candidate);
+	}
+
+	return path.indexOf(candidate) === 0;
 }
 
 export interface IBaseStat {
@@ -289,12 +356,6 @@ export interface IBaseStat {
 	 * current state of the file or directory.
 	 */
 	etag: string;
-
-	/**
-	 * The mime type string. Applicate for files
-	 * only.
-	 */
-	mime: string;
 }
 
 /**
@@ -303,16 +364,15 @@ export interface IBaseStat {
 export interface IFileStat extends IBaseStat {
 
 	/**
-	 * The resource is a directory. Iff {{true}}
-	 * {{mime}} and {{encoding}} have no meaning.
+	 * The resource is a directory. if {{true}}
+	 * {{encoding}} has no meaning.
 	 */
 	isDirectory: boolean;
 
 	/**
-	 * Return {{true}} when this is a directory
-	 * that is not empty.
+	 * The resource is a symbolic link.
 	 */
-	hasChildren: boolean;
+	isSymbolicLink?: boolean;
 
 	/**
 	 * The children of the file stat or undefined if none.
@@ -323,6 +383,11 @@ export interface IFileStat extends IBaseStat {
 	 * The size of the file if known.
 	 */
 	size?: number;
+}
+
+export interface IResolveFileResult {
+	stat: IFileStat;
+	success: boolean;
 }
 
 /**
@@ -341,6 +406,62 @@ export interface IContent extends IBaseStat {
 	encoding: string;
 }
 
+// this should eventually replace IContent such
+// that we have a clear separation between content
+// and metadata (TODO@Joh, TODO@Ben)
+export interface IContentData {
+	encoding: string;
+	stream: IStringStream;
+}
+
+/**
+ * A Stream emitting strings.
+ */
+export interface IStringStream {
+	on(event: 'data', callback: (chunk: string) => void): void;
+	on(event: 'error', callback: (err: any) => void): void;
+	on(event: 'end', callback: () => void): void;
+	on(event: string, callback: any): void;
+}
+
+/**
+ * Text snapshot that works like an iterator.
+ * Will try to return chunks of roughly ~64KB size.
+ * Will return null when finished.
+ */
+export interface ITextSnapshot {
+	read(): string;
+}
+
+/**
+ * Helper method to convert a snapshot into its full string form.
+ */
+export function snapshotToString(snapshot: ITextSnapshot): string {
+	const chunks: string[] = [];
+	let chunk: string;
+	while (typeof (chunk = snapshot.read()) === 'string') {
+		chunks.push(chunk);
+	}
+
+	return chunks.join('');
+}
+
+/**
+ * Streamable content and meta information of a file.
+ */
+export interface IStreamContent extends IBaseStat {
+
+	/**
+	 * The streamable content of a text file.
+	 */
+	value: IStringStream;
+
+	/**
+	 * The encoding of the content if known.
+	 */
+	encoding: string;
+}
+
 export interface IResolveContentOptions {
 
 	/**
@@ -350,9 +471,10 @@ export interface IResolveContentOptions {
 	acceptTextOnly?: boolean;
 
 	/**
-	 * The optional etag parameter allows to return a 304 (Not Modified) if the etag matches
-	 * with the remote resource. It is the task of the caller to makes sure to handle this
-	 * error case from the promise.
+	 * The optional etag parameter allows to return early from resolving the resource if
+	 * the contents on disk match the etag. This prevents accumulated reading of resources
+	 * that have been read already with the same etag.
+	 * It is the task of the caller to makes sure to handle this error case from the promise.
 	 */
 	etag?: string;
 
@@ -361,6 +483,17 @@ export interface IResolveContentOptions {
 	 * the contents of the file.
 	 */
 	encoding?: string;
+
+	/**
+	 * The optional guessEncoding parameter allows to guess encoding from content of the file.
+	 */
+	autoGuessEncoding?: boolean;
+
+	/**
+	 * Is an integer specifying where to begin reading from in the file. If position is null,
+	 * data will be read from the current file position.
+	 */
+	position?: number;
 }
 
 export interface IUpdateContentOptions {
@@ -381,6 +514,12 @@ export interface IUpdateContentOptions {
 	overwriteReadonly?: boolean;
 
 	/**
+	 * Wether to write to the file as elevated (admin) user. When setting this option a prompt will
+	 * ask the user to authenticate as super user.
+	 */
+	writeElevated?: boolean;
+
+	/**
 	 * The last known modification time of the file. This can be used to prevent dirty writes.
 	 */
 	mtime?: number;
@@ -396,14 +535,23 @@ export interface IResolveFileOptions {
 	resolveSingleChildDescendants?: boolean;
 }
 
-export interface IImportResult {
-	stat: IFileStat;
-	isNew: boolean;
+export interface ICreateFileOptions {
+
+	/**
+	 * Overwrite the file to create if it already exists on disk. Otherwise
+	 * an error will be thrown (FILE_MODIFIED_SINCE).
+	 */
+	overwrite?: boolean;
 }
 
-export interface IFileOperationResult {
-	message: string;
-	fileOperationResult: FileOperationResult;
+export class FileOperationError extends Error {
+	constructor(message: string, public fileOperationResult: FileOperationResult, public options?: IResolveContentOptions & IUpdateContentOptions & ICreateFileOptions) {
+		super(message);
+	}
+
+	static isFileOperationError(obj: any): obj is FileOperationError {
+		return obj instanceof Error && !isUndefinedOrNull((obj as FileOperationError).fileOperationResult);
+	}
 }
 
 export enum FileOperationResult {
@@ -414,16 +562,29 @@ export enum FileOperationResult {
 	FILE_MODIFIED_SINCE,
 	FILE_MOVE_CONFLICT,
 	FILE_READ_ONLY,
-	FILE_TOO_LARGE
+	FILE_PERMISSION_DENIED,
+	FILE_TOO_LARGE,
+	FILE_INVALID_PATH,
+	FILE_EXCEED_MEMORY_LIMIT
 }
-
-export const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
 export const AutoSaveConfiguration = {
 	OFF: 'off',
 	AFTER_DELAY: 'afterDelay',
-	ON_FOCUS_CHANGE: 'onFocusChange'
+	ON_FOCUS_CHANGE: 'onFocusChange',
+	ON_WINDOW_CHANGE: 'onWindowChange'
 };
+
+export const HotExitConfiguration = {
+	OFF: 'off',
+	ON_EXIT: 'onExit',
+	ON_EXIT_AND_WINDOW_CLOSE: 'onExitAndWindowClose'
+};
+
+export const CONTENT_CHANGE_EVENT_BUFFER_DELAY = 1000;
+
+export const FILES_ASSOCIATIONS_CONFIG = 'files.associations';
+export const FILES_EXCLUDE_CONFIG = 'files.exclude';
 
 export interface IFilesConfiguration {
 	files: {
@@ -431,10 +592,14 @@ export interface IFilesConfiguration {
 		exclude: glob.IExpression;
 		watcherExclude: { [filepattern: string]: boolean };
 		encoding: string;
+		autoGuessEncoding: boolean;
+		defaultLanguage: string;
 		trimTrailingWhitespace: boolean;
 		autoSave: string;
 		autoSaveDelay: number;
 		eol: string;
+		hotExit: string;
+		useExperimentalFileWatcher: boolean;
 	};
 }
 
@@ -527,139 +692,160 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		labelShort: 'ISO 8859-2',
 		order: 17
 	},
+	cp852: {
+		labelLong: 'Central European (CP 852)',
+		labelShort: 'CP 852',
+		order: 18
+	},
 	windows1251: {
 		labelLong: 'Cyrillic (Windows 1251)',
 		labelShort: 'Windows 1251',
-		order: 18
+		order: 19
 	},
 	cp866: {
 		labelLong: 'Cyrillic (CP 866)',
 		labelShort: 'CP 866',
-		order: 19
+		order: 20
 	},
 	iso88595: {
 		labelLong: 'Cyrillic (ISO 8859-5)',
 		labelShort: 'ISO 8859-5',
-		order: 20
+		order: 21
 	},
 	koi8r: {
 		labelLong: 'Cyrillic (KOI8-R)',
 		labelShort: 'KOI8-R',
-		order: 21
+		order: 22
 	},
 	koi8u: {
 		labelLong: 'Cyrillic (KOI8-U)',
 		labelShort: 'KOI8-U',
-		order: 22
+		order: 23
 	},
 	iso885913: {
 		labelLong: 'Estonian (ISO 8859-13)',
 		labelShort: 'ISO 8859-13',
-		order: 23
+		order: 24
 	},
 	windows1253: {
 		labelLong: 'Greek (Windows 1253)',
 		labelShort: 'Windows 1253',
-		order: 24
+		order: 25
 	},
 	iso88597: {
 		labelLong: 'Greek (ISO 8859-7)',
 		labelShort: 'ISO 8859-7',
-		order: 25
+		order: 26
 	},
 	windows1255: {
 		labelLong: 'Hebrew (Windows 1255)',
 		labelShort: 'Windows 1255',
-		order: 26
+		order: 27
 	},
 	iso88598: {
 		labelLong: 'Hebrew (ISO 8859-8)',
 		labelShort: 'ISO 8859-8',
-		order: 27
+		order: 28
 	},
 	iso885910: {
 		labelLong: 'Nordic (ISO 8859-10)',
 		labelShort: 'ISO 8859-10',
-		order: 28
+		order: 29
 	},
 	iso885916: {
 		labelLong: 'Romanian (ISO 8859-16)',
 		labelShort: 'ISO 8859-16',
-		order: 29
+		order: 30
 	},
 	windows1254: {
 		labelLong: 'Turkish (Windows 1254)',
 		labelShort: 'Windows 1254',
-		order: 30
+		order: 31
 	},
 	iso88599: {
 		labelLong: 'Turkish (ISO 8859-9)',
 		labelShort: 'ISO 8859-9',
-		order: 31
+		order: 32
 	},
 	windows1258: {
 		labelLong: 'Vietnamese (Windows 1258)',
 		labelShort: 'Windows 1258',
-		order: 32
+		order: 33
 	},
 	gbk: {
 		labelLong: 'Chinese (GBK)',
 		labelShort: 'GBK',
-		order: 33
+		order: 34
 	},
 	gb18030: {
 		labelLong: 'Chinese (GB18030)',
 		labelShort: 'GB18030',
-		order: 34
+		order: 35
 	},
 	cp950: {
 		labelLong: 'Traditional Chinese (Big5)',
 		labelShort: 'Big5',
-		order: 35
+		order: 36
 	},
 	big5hkscs: {
 		labelLong: 'Traditional Chinese (Big5-HKSCS)',
 		labelShort: 'Big5-HKSCS',
-		order: 36
+		order: 37
 	},
 	shiftjis: {
 		labelLong: 'Japanese (Shift JIS)',
 		labelShort: 'Shift JIS',
-		order: 37
+		order: 38
 	},
 	eucjp: {
 		labelLong: 'Japanese (EUC-JP)',
 		labelShort: 'EUC-JP',
-		order: 38
+		order: 39
 	},
 	euckr: {
 		labelLong: 'Korean (EUC-KR)',
 		labelShort: 'EUC-KR',
-		order: 39
+		order: 40
 	},
 	windows874: {
 		labelLong: 'Thai (Windows 874)',
 		labelShort: 'Windows 874',
-		order: 40
-	}
-	, iso885911: {
-		labelLong: 'Latin/Thai (ISO 8859-11)',
-		labelShort: 'ISO 8859-11',
 		order: 41
 	},
-	'koi8-ru': {
-		labelLong: 'Cyrillic (KOI8-RU)',
-		labelShort: 'KOI8-RU',
+	iso885911: {
+		labelLong: 'Latin/Thai (ISO 8859-11)',
+		labelShort: 'ISO 8859-11',
 		order: 42
 	},
-	'koi8-t': {
-		labelLong: 'Tajik (KOI8-T)',
-		labelShort: 'KOI8-T',
+	koi8ru: {
+		labelLong: 'Cyrillic (KOI8-RU)',
+		labelShort: 'KOI8-RU',
 		order: 43
 	},
-	GB2312: {
+	koi8t: {
+		labelLong: 'Tajik (KOI8-T)',
+		labelShort: 'KOI8-T',
+		order: 44
+	},
+	gb2312: {
 		labelLong: 'Simplified Chinese (GB 2312)',
 		labelShort: 'GB 2312',
-		order: 44
+		order: 45
+	},
+	cp865: {
+		labelLong: 'Nordic DOS (CP 865)',
+		labelShort: 'CP 865',
+		order: 46
+	},
+	cp850: {
+		labelLong: 'Western European DOS (CP 850)',
+		labelShort: 'CP 850',
+		order: 47
 	}
 };
+
+export enum FileKind {
+	FILE,
+	FOLDER,
+	ROOT_FOLDER
+}

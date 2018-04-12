@@ -1,19 +1,43 @@
 {
 	"editor.insertSpaces": false,
-	"files.eol": "\n",
 	"files.trimTrailingWhitespace": true,
 	"files.exclude": {
 		".git": true,
-		"**/.DS_Store": true
+		".build": true,
+		"**/.DS_Store": true,
+		"build/**/*.js": {
+			"when": "$(basename).ts"
+		}
+	},
+	"files.associations": {
+		"OSSREADME.json": "jsonc"
 	},
 	"search.exclude": {
 		"**/node_modules": true,
 		"**/bower_components": true,
 		".build/**": true,
-		"out*/**": true,
+		"out/**": true,
+		"out-build/**": true,
+		"out-vscode/**": true,
 		"i18n/**": true,
-		"extensions/**/out/**": true
+		"extensions/**/out/**": true,
+		"test/smoke/out/**": true
 	},
 	"tslint.enable": true,
-	"tslint.rulesDirectory": "build/lib/tslint"
+	"lcov.path": [
+		"./.build/coverage/lcov.info",
+		"./.build/coverage-single/lcov.info"
+	],
+	"lcov.watch": [
+		{
+			"pattern": "**/*.test.js",
+			"command": "${workspaceFolder}/scripts/test.sh --coverage --run ${file}",
+			"windows": {
+				"command": "${workspaceFolder}\\scripts\\test.bat --coverage --run ${file}"
+			}
+		}
+	],
+	"typescript.tsdk": "node_modules/typescript/lib",
+	"npm.exclude": "**/extensions/**",
+	"emmet.excludeLanguages": []
 }

@@ -4,83 +4,56 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
-import {IMessageService} from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
-import {Action} from 'vs/base/common/actions';
-import {TPromise as Promise} from 'vs/base/common/winjs.base';
-import vscode = require('vscode');
+import * as vscode from 'vscode';
+import { MainContext, MainThreadMessageServiceShape, MainThreadMessageOptions, IMainContext } from './extHost.protocol';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+
+function isMessageItem(item: any): item is vscode.MessageItem {
+	return item && item.title;
+}
 
 export class ExtHostMessageService {
 
-	private _proxy: MainThreadMessageService;
-	private _commands: typeof vscode.commands;
+	private _proxy: MainThreadMessageServiceShape;
 
-	constructor(@IThreadService threadService: IThreadService, commands: typeof vscode.commands) {
-		this._proxy = threadService.getRemotable(MainThreadMessageService);
-		this._commands = commands;
+	constructor(mainContext: IMainContext) {
+		this._proxy = mainContext.getProxy(MainContext.MainThreadMessageService);
 	}
 
-	showMessage(severity: Severity, message: string, commands: (string|vscode.MessageItem)[]): Thenable<string|vscode.MessageItem> {
+	showMessage(extension: IExtensionDescription, severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | string, rest: string[]): Thenable<string | undefined>;
+	showMessage(extension: IExtensionDescription, severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | vscode.MessageItem, rest: vscode.MessageItem[]): Thenable<vscode.MessageItem | undefined>;
+	showMessage(extension: IExtensionDescription, severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | string | vscode.MessageItem, rest: (string | vscode.MessageItem)[]): Thenable<string | vscode.MessageItem | undefined> {
 
-		const items: { title: string; handle: number; }[] = [];
+		let options: MainThreadMessageOptions = { extension };
+		let items: (string | vscode.MessageItem)[];
 
-		for (let handle = 0; handle < commands.length; handle++) {
-			let command = commands[handle];
+		if (typeof optionsOrFirstItem === 'string' || isMessageItem(optionsOrFirstItem)) {
+			items = [optionsOrFirstItem, ...rest];
+		} else {
+			options.modal = optionsOrFirstItem && optionsOrFirstItem.modal;
+			items = rest;
+		}
+
+		const commands: { title: string; isCloseAffordance: boolean; handle: number; }[] = [];
+
+		for (let handle = 0; handle < items.length; handle++) {
+			let command = items[handle];
 			if (typeof command === 'string') {
-				items.push({ title: command, handle });
+				commands.push({ title: command, handle, isCloseAffordance: false });
+			} else if (typeof command === 'object') {
+				let { title, isCloseAffordance } = command;
+				commands.push({ title, isCloseAffordance, handle });
 			} else {
-				items.push({ title: command.title, handle });
+				console.warn('Invalid message item:', command);
 			}
 		}
 
-		return this._proxy.showMessage(severity, message, items).then(handle => {
+		return this._proxy.$showMessage(severity, message, options, commands).then(handle => {
 			if (typeof handle === 'number') {
-				return commands[handle];
+				return items[handle];
 			}
-		});
-	}
-}
-
-@Remotable.MainContext('MainThreadMessageService')
-export class MainThreadMessageService {
-
-	private _messageService: IMessageService;
-
-	constructor(@IMessageService messageService:IMessageService) {
-		this._messageService = messageService;
-	}
-
-	showMessage(severity: Severity, message: string, commands: { title: string; handle: number;}[]): Thenable<number> {
-
-		let hide: (handle?: number) => void;
-		let actions: Action[] = [];
-
-		actions.push(new Action('__close', nls.localize('close', "Close"), undefined, true, () => {
-			hide();
-			return Promise.as(undefined);
-		}));
-
-		commands.forEach(command => {
-			actions.push(new Action('_extension_message_handle_' + command.handle, command.title, undefined, true, () => {
-				hide(command.handle);
-				return Promise.as(undefined);
-			}));
-		});
-
-		return new Promise<number>((c) => {
-			let messageHide: Function;
-
-			hide = (handle?: number) => {
-				messageHide();
-				c(handle);
-			};
-
-			messageHide = this._messageService.show(severity, {
-				message,
-				actions
-			});
+			return undefined;
 		});
 	}
 }

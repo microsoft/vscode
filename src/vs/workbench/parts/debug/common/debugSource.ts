@@ -3,20 +3,53 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
+import { TPromise } from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
-import paths = require('vs/base/common/paths');
-import { IModel } from 'vs/workbench/parts/debug/common/debug';
+import * as paths from 'vs/base/common/paths';
+import * as resources from 'vs/base/common/resources';
+import { DEBUG_SCHEME } from 'vs/workbench/parts/debug/common/debug';
+import { IRange } from 'vs/editor/common/core/range';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Schemas } from 'vs/base/common/network';
+
+const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
+
+/**
+ * Debug URI format
+ *
+ * a debug URI represents a Source object and the debug session where the Source comes from.
+ *
+ *       debug:arbitrary_path?session=123e4567-e89b-12d3-a456-426655440000&ref=1016
+ *       \___/ \____________/ \__________________________________________/ \______/
+ *         |          |                             |                          |
+ *      scheme   source.path                    session id            source.reference
+ *
+ * the arbitrary_path and the session id are encoded with 'encodeURIComponent'
+ *
+ */
 
 export class Source {
 
-	public uri: uri;
+	public readonly uri: uri;
 	public available: boolean;
 
-	private static INTERNAL_URI_PREFIX = 'debug://internal/';
-
-	constructor(public raw: DebugProtocol.Source, available = true) {
-		this.uri = raw.path ? uri.file(raw.path) : uri.parse(Source.INTERNAL_URI_PREFIX + raw.name);
-		this.available = available;
+	constructor(public raw: DebugProtocol.Source, sessionId: string) {
+		if (!raw) {
+			this.raw = { name: UNKNOWN_SOURCE_LABEL };
+		}
+		this.available = this.raw.name !== UNKNOWN_SOURCE_LABEL;
+		const path = this.raw.path || this.raw.name;
+		if (this.raw.sourceReference > 0) {
+			this.uri = uri.parse(`${DEBUG_SCHEME}:${encodeURIComponent(path)}?session=${encodeURIComponent(sessionId)}&ref=${this.raw.sourceReference}`);
+		} else {
+			if (paths.isAbsolute(path)) {
+				this.uri = uri.file(path);
+			} else {
+				// assume that path is a URI
+				this.uri = uri.parse(path);
+			}
+		}
 	}
 
 	public get name() {
@@ -27,39 +60,70 @@ export class Source {
 		return this.raw.origin;
 	}
 
+	public get presentationHint() {
+		return this.raw.presentationHint;
+	}
+
 	public get reference() {
 		return this.raw.sourceReference;
 	}
 
 	public get inMemory() {
-		return Source.isInMemory(this.uri);
+		return this.uri.scheme === DEBUG_SCHEME;
 	}
 
-	public static toRawSource(uri: uri, model: IModel): DebugProtocol.Source {
-		if (model) {
-			// first try to find the raw source amongst the stack frames - since that represenation has more data (source reference),
-			const threads = model.getThreads();
-			for (let threadId in threads) {
-				if (threads.hasOwnProperty(threadId) && threads[threadId].getCachedCallStack()) {
-					const found = threads[threadId].getCachedCallStack().filter(sf => sf.source.uri.toString() === uri.toString()).pop();
-					if (found) {
-						return found.source.raw;
+	public openInEditor(editorService: IWorkbenchEditorService, selection: IRange, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
+		return !this.available ? TPromise.as(null) : editorService.openEditor({
+			resource: this.uri,
+			description: this.origin,
+			options: {
+				preserveFocus,
+				selection,
+				revealIfVisible: true,
+				revealInCenterIfOutsideViewport: true,
+				pinned: pinned || (!preserveFocus && !this.inMemory)
+			}
+		}, sideBySide);
+	}
+
+	public static getEncodedDebugData(modelUri: uri): { name: string, path: string, processId: string, sourceReference: number } {
+		let path: string;
+		let sourceReference: number;
+		let processId: string;
+
+		switch (modelUri.scheme) {
+			case Schemas.file:
+				path = paths.normalize(modelUri.fsPath, true);
+				break;
+			case DEBUG_SCHEME:
+				path = modelUri.path;
+				if (modelUri.query) {
+					const keyvalues = modelUri.query.split('&');
+					for (let keyvalue of keyvalues) {
+						const pair = keyvalue.split('=');
+						if (pair.length === 2) {
+							switch (pair[0]) {
+								case 'session':
+									processId = decodeURIComponent(pair[1]);
+									break;
+								case 'ref':
+									sourceReference = parseInt(pair[1]);
+									break;
+							}
+						}
 					}
 				}
-			}
+				break;
+			default:
+				path = modelUri.toString();
+				break;
 		}
 
-		// did not find the raw source amongst the stack frames, construct the raw stack frame from the limited data you have.
-		return Source.isInMemory(uri) ? { name: Source.getName(uri) } :
-			{ path: paths.normalize(uri.fsPath, true) };
-	}
-
-	private static getName(uri: uri): string {
-		const uriStr = uri.toString();
-		return uriStr.substr(uriStr.lastIndexOf('/') + 1);
-	}
-
-	private static isInMemory(uri: uri): boolean {
-		return uri.toString().indexOf(Source.INTERNAL_URI_PREFIX) === 0;
+		return {
+			name: resources.basenameOrAuthority(modelUri),
+			path,
+			sourceReference,
+			processId
+		};
 	}
 }

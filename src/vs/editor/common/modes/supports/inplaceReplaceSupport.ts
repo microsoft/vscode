@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IRange} from 'vs/editor/common/editorCommon';
-import {IInplaceReplaceSupportResult} from 'vs/editor/common/modes';
+import { IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
+import { IRange } from 'vs/editor/common/core/range';
 
 export class BasicInplaceReplace {
 
-	public static INSTANCE = new BasicInplaceReplace();
+	public static readonly INSTANCE = new BasicInplaceReplace();
 
-	public navigateValueSet(range1:IRange, text1:string, range2:IRange, text2:string, up:boolean): IInplaceReplaceSupportResult {
+	public navigateValueSet(range1: IRange, text1: string, range2: IRange, text2: string, up: boolean): IInplaceReplaceSupportResult {
 
 		if (range1 && text1) {
 			let result = this.doNavigateValueSet(text1, up);
@@ -36,7 +36,7 @@ export class BasicInplaceReplace {
 		return null;
 	}
 
-	private doNavigateValueSet(text:string, up:boolean): string {
+	private doNavigateValueSet(text: string, up: boolean): string {
 		let numberResult = this.numberReplace(text, up);
 		if (numberResult !== null) {
 			return numberResult;
@@ -44,17 +44,17 @@ export class BasicInplaceReplace {
 		return this.textReplace(text, up);
 	}
 
-	private numberReplace(value:string, up:boolean):string {
-		var precision = Math.pow(10, value.length - (value.lastIndexOf('.') + 1)),
-			n1 = Number(value),
-			n2 = parseFloat(value);
+	private numberReplace(value: string, up: boolean): string {
+		let precision = Math.pow(10, value.length - (value.lastIndexOf('.') + 1));
+		let n1 = Number(value);
+		let n2 = parseFloat(value);
 
-		if(!isNaN(n1) && !isNaN(n2) && n1 === n2) {
+		if (!isNaN(n1) && !isNaN(n2) && n1 === n2) {
 
-			if(n1 === 0 && !up) {
+			if (n1 === 0 && !up) {
 				return null; // don't do negative
-//			} else if(n1 === 9 && up) {
-//				return null; // don't insert 10 into a number
+				//			} else if(n1 === 9 && up) {
+				//				return null; // don't insert 10 into a number
 			} else {
 				n1 = Math.floor(n1 * precision);
 				n1 += up ? precision : -precision;
@@ -72,23 +72,23 @@ export class BasicInplaceReplace {
 		['public', 'protected', 'private'],
 	];
 
-	private textReplace(value:string, up:boolean):string {
+	private textReplace(value: string, up: boolean): string {
 		return this.valueSetsReplace(this._defaultValueSet, value, up);
 	}
 
-	private valueSetsReplace(valueSets:string[][], value:string, up:boolean):string {
-		var result:string = null;
+	private valueSetsReplace(valueSets: string[][], value: string, up: boolean): string {
+		let result: string = null;
 		for (let i = 0, len = valueSets.length; result === null && i < len; i++) {
 			result = this.valueSetReplace(valueSets[i], value, up);
 		}
 		return result;
 	}
 
-	private valueSetReplace(valueSet:string[], value:string, up:boolean):string {
-		var idx = valueSet.indexOf(value);
-		if(idx >= 0) {
+	private valueSetReplace(valueSet: string[], value: string, up: boolean): string {
+		let idx = valueSet.indexOf(value);
+		if (idx >= 0) {
 			idx += up ? +1 : -1;
-			if(idx < 0) {
+			if (idx < 0) {
 				idx = valueSet.length - 1;
 			} else {
 				idx %= valueSet.length;

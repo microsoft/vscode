@@ -3,14 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench > .sidebar > .title > .title-actions {
-	background-color: rgb(243, 243, 243);
-}
-
-.monaco-workbench.vs-dark > .sidebar > .title > .title-actions {
-	background-color: rgb(37, 37, 38);
-}
-
 .monaco-workbench > .sidebar > .content {
 	overflow: hidden;
 }
@@ -20,6 +12,10 @@
 	visibility: hidden !important;
 }
 
+.monaco-workbench > .sidebar > .title > .title-label span {
+	text-transform: uppercase;
+}
+
 .monaco-workbench .viewlet .collapsible.header .title {
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -27,14 +23,13 @@
 }
 
 .monaco-workbench .viewlet .collapsible.header .actions {
-	float: right;
-	padding-right: 8px;
 	width: 0; /* not using display: none for keyboard a11y reasons */
 }
 
-.monaco-workbench .viewlet .split-view-view:hover .actions,
+.monaco-workbench .viewlet .split-view-view:hover > .header .actions,
 .monaco-workbench .viewlet .collapsible.header.focused .actions {
 	width: initial;
+	flex: 1;
 }
 
 .monaco-workbench .viewlet .collapsible.header .actions .action-label {
@@ -59,17 +54,4 @@
 	background-repeat: no-repeat;
 	width: 16px;
 	height: 16px;
-}
-
-/* High Contrast Theming */
-.monaco-workbench.hc-black > .sidebar.left {
-	border-right: 1px solid #6FC3DF;
-}
-
-.monaco-workbench.hc-black > .sidebar.right {
-	border-left: 1px solid #6FC3DF;
-}
-
-.monaco-workbench.hc-black > .sidebar > .title > .title-actions {
-	background-color: #000;
 }

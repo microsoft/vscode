@@ -4,87 +4,104 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {EndOfLinePreference, IModel, EventType} from 'vs/editor/common/editorCommon';
-import {IMode} from 'vs/editor/common/modes';
-import {EditorModel} from 'vs/workbench/common/editor';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ITextModel, ITextBufferFactory } from 'vs/editor/common/model';
+import { IMode } from 'vs/editor/common/modes';
+import { EditorModel } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
-import {ITextEditorModel} from 'vs/platform/editor/common/editor';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {RawText} from 'vs/editor/common/model/textModel';
+import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { ITextSnapshot } from 'vs/platform/files/common/files';
 
 /**
- * The base text editor model leverages the monaco code editor model. This class is only intended to be subclassed and not instantiated.
+ * The base text editor model leverages the code editor model. This class is only intended to be subclassed and not instantiated.
  */
 export abstract class BaseTextEditorModel extends EditorModel implements ITextEditorModel {
 	private textEditorModelHandle: URI;
-	private createdEditorModel: boolean;
+	protected createdEditorModel: boolean;
+	private modelDisposeListener: IDisposable;
 
 	constructor(
-		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService,
+		@IModelService protected modelService: IModelService,
+		@IModeService protected modeService: IModeService,
 		textEditorModelHandle?: URI
 	) {
 		super();
 
-		this.textEditorModelHandle = textEditorModelHandle;
-
 		if (textEditorModelHandle) {
-
-			// We need the resource to point to an existing model
-			let model = modelService.getModel(textEditorModelHandle);
-			if (!model) {
-				throw new Error(`Document with resource ${textEditorModelHandle.toString()} does not exist`);
-			}
-
-			// Since we did not create the model, we need to listen to it disposing
-			// and properly trigger our dispose function so that events get emitted
-			const unbind = model.addListener(EventType.ModelDispose, () => {
-				this.textEditorModelHandle = null; // make sure we do not dispose code editor model again
-				unbind();
-				this.dispose();
-			});
+			this.handleExistingModel(textEditorModelHandle);
 		}
 	}
 
-	public get textEditorModel(): IModel {
+	private handleExistingModel(textEditorModelHandle: URI): void {
+
+		// We need the resource to point to an existing model
+		const model = this.modelService.getModel(textEditorModelHandle);
+		if (!model) {
+			throw new Error(`Document with resource ${textEditorModelHandle.toString()} does not exist`);
+		}
+
+		this.textEditorModelHandle = textEditorModelHandle;
+
+		// Make sure we clean up when this model gets disposed
+		this.registerModelDisposeListener(model);
+	}
+
+	private registerModelDisposeListener(model: ITextModel): void {
+		if (this.modelDisposeListener) {
+			this.modelDisposeListener.dispose();
+		}
+
+		this.modelDisposeListener = model.onWillDispose(() => {
+			this.textEditorModelHandle = null; // make sure we do not dispose code editor model again
+			this.dispose();
+		});
+	}
+
+	public get textEditorModel(): ITextModel {
 		return this.textEditorModelHandle ? this.modelService.getModel(this.textEditorModelHandle) : null;
 	}
 
 	/**
-	 * Creates the text editor model with the provided value, mime (can be comma separated for multiple values) and optional resource URL.
+	 * Creates the text editor model with the provided value, modeId (can be comma separated for multiple values) and optional resource URL.
 	 */
-	protected createTextEditorModel(value: string, resource?: URI, mime?: string): TPromise<EditorModel> {
-		let firstLineText = this.getFirstLineText(value);
-
-		// To avoid flickering, give the mode at most 50ms to load. If the mode doesn't load in 50ms, proceed creating the model with a mode promise
-		return TPromise.any<any>([TPromise.timeout(50), this.getOrCreateMode(this.modeService, mime, firstLineText)]).then(() => {
-			let model = this.modelService.createModel(value, this.getOrCreateMode(this.modeService, mime, firstLineText), resource);
-			this.createdEditorModel = true;
-
-			this.textEditorModelHandle = model.getAssociatedResource();
-
-			return this;
-		});
+	protected createTextEditorModel(value: ITextBufferFactory, resource?: URI, modeId?: string): TPromise<EditorModel> {
+		const firstLineText = this.getFirstLineText(value);
+		const mode = this.getOrCreateMode(this.modeService, modeId, firstLineText);
+		return TPromise.as(this.doCreateTextEditorModel(value, mode, resource));
 	}
 
-	private getFirstLineText(value: string): string {
-		let firstLineText = value.substr(0, 100);
+	private doCreateTextEditorModel(value: ITextBufferFactory, mode: TPromise<IMode>, resource: URI): EditorModel {
+		let model = resource && this.modelService.getModel(resource);
+		if (!model) {
+			model = this.modelService.createModel(value, mode, resource);
+			this.createdEditorModel = true;
 
-		let crIndex = firstLineText.indexOf('\r');
-		if (crIndex < 0) {
-			crIndex = firstLineText.length;
+			// Make sure we clean up when this model gets disposed
+			this.registerModelDisposeListener(model);
+		} else {
+			this.modelService.updateModel(model, value);
+			this.modelService.setMode(model, mode);
 		}
 
-		let lfIndex = firstLineText.indexOf('\n');
-		if (lfIndex < 0) {
-			lfIndex = firstLineText.length;
+		this.textEditorModelHandle = model.uri;
+
+		return this;
+	}
+
+	protected getFirstLineText(value: ITextBufferFactory | ITextModel): string {
+
+		// text buffer factory
+		const textBufferFactory = value as ITextBufferFactory;
+		if (typeof textBufferFactory.getFirstLineText === 'function') {
+			return textBufferFactory.getFirstLineText(100);
 		}
 
-		firstLineText = firstLineText.substr(0, Math.min(crIndex, lfIndex));
-
-		return firstLineText;
+		// text model
+		const textSnapshot = value as ITextModel;
+		return textSnapshot.getLineContent(1).substr(0, 100);
 	}
 
 	/**
@@ -92,42 +109,40 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	 *
 	 * @param firstLineText optional first line of the text buffer to set the mode on. This can be used to guess a mode from content.
 	 */
-	protected getOrCreateMode(modeService: IModeService, mime: string, firstLineText?: string): TPromise<IMode> {
-		return modeService.getOrCreateMode(mime);
+	protected getOrCreateMode(modeService: IModeService, modeId: string, firstLineText?: string): TPromise<IMode> {
+		return modeService.getOrCreateMode(modeId);
 	}
 
 	/**
 	 * Updates the text editor model with the provided value. If the value is the same as the model has, this is a no-op.
 	 */
-	protected updateTextEditorModel(newValue: string): void {
+	protected updateTextEditorModel(newValue: ITextBufferFactory): void {
 		if (!this.textEditorModel) {
 			return;
 		}
 
-		let rawText = RawText.fromStringWithModelOptions(newValue, this.textEditorModel);
-
-		// Return early if the text is already set in that form
-		if (this.textEditorModel.equals(rawText)) {
-			return;
-		}
-
-		// Otherwise update model
-		this.textEditorModel.setValueFromRawText(rawText);
+		this.modelService.updateModel(this.textEditorModel, newValue);
 	}
 
-	/**
-	 * Returns the textual value of this editor model or null if it has not yet been created.
-	 */
-	public getValue(): string {
-		let model = this.textEditorModel;
+	public createSnapshot(): ITextSnapshot {
+		const model = this.textEditorModel;
 		if (model) {
-			return model.getValue(EndOfLinePreference.TextDefined, true /* Preserve BOM */);
+			return model.createSnapshot(true /* Preserve BOM */);
 		}
 
 		return null;
 	}
 
+	public isResolved(): boolean {
+		return !!this.textEditorModelHandle;
+	}
+
 	public dispose(): void {
+		if (this.modelDisposeListener) {
+			this.modelDisposeListener.dispose(); // dispose this first because it will trigger another dispose() otherwise
+			this.modelDisposeListener = null;
+		}
+
 		if (this.textEditorModelHandle && this.createdEditorModel) {
 			this.modelService.destroyModel(this.textEditorModelHandle);
 		}
@@ -136,9 +151,5 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		this.createdEditorModel = false;
 
 		super.dispose();
-	}
-
-	public isResolved(): boolean {
-		return !!this.textEditorModelHandle;
 	}
 }

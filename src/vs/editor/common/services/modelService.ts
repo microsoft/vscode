@@ -4,32 +4,41 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {IModel, ITextModelCreationOptions} from 'vs/editor/common/editorCommon';
-import {IMode} from 'vs/editor/common/modes';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ITextModel, ITextModelCreationOptions, ITextBufferFactory } from 'vs/editor/common/model';
+import { IMode } from 'vs/editor/common/modes';
 
-export var IModelService = createDecorator<IModelService>('modelService');
+export const IModelService = createDecorator<IModelService>('modelService');
 
 export interface IModelService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
-	createModel(value:string, modeOrPromise:TPromise<IMode>|IMode, resource: URI): IModel;
+	createModel(value: string | ITextBufferFactory, modeOrPromise: TPromise<IMode> | IMode, resource: URI, isForSimpleWidget?: boolean): ITextModel;
+
+	updateModel(model: ITextModel, value: string | ITextBufferFactory): void;
+
+	setMode(model: ITextModel, modeOrPromise: TPromise<IMode> | IMode): void;
 
 	destroyModel(resource: URI): void;
 
-	getModels(): IModel[];
+	getModels(): ITextModel[];
 
-	getCreationOptions(): ITextModelCreationOptions;
+	getCreationOptions(language: string, resource: URI, isForSimpleWidget: boolean): ITextModelCreationOptions;
 
-	getModel(resource: URI): IModel;
+	getModel(resource: URI): ITextModel;
 
-	onModelAdded: Event<IModel>;
+	onModelAdded: Event<ITextModel>;
 
-	onModelRemoved: Event<IModel>;
+	onModelRemoved: Event<ITextModel>;
 
-	onModelModeChanged: Event<{ model: IModel; oldModeId: string; }>;
+	onModelModeChanged: Event<{ model: ITextModel; oldModeId: string; }>;
 }
 
+export function shouldSynchronizeModel(model: ITextModel): boolean {
+	return (
+		!model.isTooLargeForHavingARichMode() && !model.isForSimpleWidget
+	);
+}

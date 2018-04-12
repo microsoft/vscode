@@ -6,31 +6,35 @@
 (function () {
 	'use strict';
 
-	var MonacoEnvironment = (<any>self).MonacoEnvironment;
-	var monacoBaseUrl = MonacoEnvironment && MonacoEnvironment.baseUrl ? MonacoEnvironment.baseUrl : '../../../';
+	let MonacoEnvironment = (<any>self).MonacoEnvironment;
+	let monacoBaseUrl = MonacoEnvironment && MonacoEnvironment.baseUrl ? MonacoEnvironment.baseUrl : '../../../';
 
-	importScripts(monacoBaseUrl + 'vs/loader.js');
+	if (typeof (<any>self).define !== 'function' || !(<any>self).define.amd) {
+		importScripts(monacoBaseUrl + 'vs/loader.js');
+	}
 
 	require.config({
 		baseUrl: monacoBaseUrl,
 		catchError: true
 	});
 
-	var loadCode = function(moduleId) {
-		require([moduleId], function(ws) {
-			var messageHandler = ws.create((msg:any) => {
-				(<any>self).postMessage(msg);
-			}, null);
+	let loadCode = function (moduleId: string) {
+		require([moduleId], function (ws) {
+			setTimeout(function () {
+				let messageHandler = ws.create((msg: any) => {
+					(<any>self).postMessage(msg);
+				}, null);
 
-			self.onmessage = (e) => messageHandler.onmessage(e.data);
-			while(beforeReadyMessages.length > 0) {
-				self.onmessage(beforeReadyMessages.shift());
-			}
+				self.onmessage = (e) => messageHandler.onmessage(e.data);
+				while (beforeReadyMessages.length > 0) {
+					self.onmessage(beforeReadyMessages.shift());
+				}
+			}, 0);
 		});
 	};
 
-	var isFirstMessage = true;
-	var beforeReadyMessages:MessageEvent[] = [];
+	let isFirstMessage = true;
+	let beforeReadyMessages: MessageEvent[] = [];
 	self.onmessage = (message) => {
 		if (!isFirstMessage) {
 			beforeReadyMessages.push(message);

@@ -1,0 +1,145 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Activity Bar */
+.monaco-workbench > .activitybar .monaco-action-bar .action-label.explore {
+	-webkit-mask: url('files-dark.svg') no-repeat 50% 50%;
+}
+
+/* --- Explorer viewlet --- */
+.explorer-viewlet {
+	height: 100%;
+}
+
+.explorer-viewlet .explorer-item,
+.explorer-viewlet .open-editor,
+.explorer-viewlet .editor-group {
+	height: 22px;
+	line-height: 22px;
+}
+
+.explorer-viewlet .explorer-item {
+	display: flex; /* this helps showing the overflow ellipsis (...) even though we use display:inline-block for the labels */
+	flex-wrap: nowrap;
+}
+
+.explorer-viewlet .explorer-item > a,
+.explorer-viewlet .open-editor > a,
+.explorer-viewlet .editor-group {
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+.explorer-viewlet .explorer-item,
+.explorer-viewlet .explorer-item .monaco-inputbox {
+	flex: 1;
+}
+
+.explorer-viewlet .explorer-item.explorer-item-edited .label-name {
+	flex: 0; /* do not steal space when label is hidden because we are in edit mode */
+}
+
+.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row {
+	padding-left: 22px;
+	display: flex;
+}
+
+.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar {
+	visibility: hidden;
+}
+
+.explorer-viewlet .panel-header .count {
+	min-width: fit-content;
+}
+
+.explorer-viewlet .panel-header .monaco-count-badge.hidden {
+	display: none;
+}
+
+.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row:hover > .monaco-action-bar,
+.explorer-viewlet .explorer-open-editors .monaco-list.focused .monaco-list-row.focused > .monaco-action-bar,
+.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row.dirty > .monaco-action-bar {
+	visibility: visible;
+}
+
+.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar .action-label {
+	display: block;
+}
+
+.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar .close-editor-action {
+	width: 8px;
+	height: 22px;
+}
+
+.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar .action-close-all-files,
+.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar .save-all {
+	width: 23px;
+	height: 22px;
+}
+
+.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .open-editor {
+	flex: 1;
+}
+
+.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .editor-group {
+	flex: 1;
+}
+
+.explorer-viewlet .monaco-count-badge {
+	padding: 1px 6px;
+	margin-left: 6px;
+	border-radius: 0; /* goes better when ellipsis shows up on narrow sidebar */
+}
+
+.explorer-viewlet .explorer-empty-view {
+	padding: 0 20px 0 20px;
+}
+
+.explorer-viewlet .explorer-item.nonexistent-root {
+	opacity: 0.5;
+}
+
+.explorer-viewlet .explorer-item .monaco-inputbox {
+	width: 100%;
+	line-height: normal;
+}
+
+.monaco-workbench.linux .explorer-viewlet .explorer-item .monaco-inputbox,
+.monaco-workbench.mac .explorer-viewlet .explorer-item .monaco-inputbox {
+	height: 22px;
+	margin-left: -1px;
+}
+
+.explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input {
+	padding: 1px 2px;
+}
+
+.monaco-workbench.linux .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input,
+.monaco-workbench.mac .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input {
+	padding: 0;
+	height: 20px;
+}
+
+.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row .editor-group {
+	font-size: 11px;
+	font-weight: bold;
+	text-transform: uppercase;
+	cursor: default;
+}
+
+/* Bold font style does not go well with CJK fonts */
+.explorer-viewlet:lang(zh-Hans) .explorer-open-editors .monaco-list .monaco-list-row .editor-group,
+.explorer-viewlet:lang(zh-Hant) .explorer-open-editors .monaco-list .monaco-list-row .editor-group,
+.explorer-viewlet:lang(ja) .explorer-open-editors .monaco-list .monaco-list-row .editor-group,
+.explorer-viewlet:lang(ko) .explorer-open-editors .monaco-list .monaco-list-row .editor-group {
+	font-weight: normal;
+}
+
+/* High Contrast Theming */
+.hc-black .monaco-workbench .explorer-viewlet .explorer-item,
+.hc-black .monaco-workbench .explorer-viewlet .open-editor,
+.hc-black .monaco-workbench .explorer-viewlet .editor-group {
+	line-height: 20px;
+}

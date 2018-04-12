@@ -4,76 +4,91 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as Browser from 'vs/base/browser/browser';
-import {ARROW_IMG_SIZE, AbstractScrollbar, ScrollbarState, IMouseMoveEventData} from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
-import {IMouseEvent, StandardMouseWheelEvent} from 'vs/base/browser/mouseEvent';
-import {IDomNodePosition} from 'vs/base/browser/dom';
-import {IParent, IScrollableElementOptions, Visibility} from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import {IScrollable} from 'vs/base/common/scrollable';
-import {StyleMutator} from 'vs/base/browser/styleMutator';
+import { AbstractScrollbar, ScrollbarHost, ISimplifiedMouseEvent } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
+import { StandardMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import { Scrollable, ScrollEvent, ScrollbarVisibility, INewScrollPosition } from 'vs/base/common/scrollable';
+import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
+import { ARROW_IMG_SIZE } from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
 
 export class HorizontalScrollbar extends AbstractScrollbar {
 
-	private _scrollable: IScrollable;
+	constructor(scrollable: Scrollable, options: ScrollableElementResolvedOptions, host: ScrollbarHost) {
+		super({
+			lazyRender: options.lazyRender,
+			host: host,
+			scrollbarState: new ScrollbarState(
+				(options.horizontalHasArrows ? options.arrowSize : 0),
+				(options.horizontal === ScrollbarVisibility.Hidden ? 0 : options.horizontalScrollbarSize),
+				(options.vertical === ScrollbarVisibility.Hidden ? 0 : options.verticalScrollbarSize)
+			),
+			visibility: options.horizontal,
+			extraScrollbarClassName: 'horizontal',
+			scrollable: scrollable
+		});
 
-	constructor(scrollable: IScrollable, parent: IParent, options: IScrollableElementOptions) {
-		let s = new ScrollbarState(
-			(options.horizontalHasArrows ? options.arrowSize : 0),
-			(options.horizontal === Visibility.Hidden ? 0 : options.horizontalScrollbarSize),
-			(options.vertical === Visibility.Hidden ? 0 : options.verticalScrollbarSize)
-		);
-		super(options.forbidTranslate3dUse, parent, s, options.horizontal, 'horizontal');
-		this._scrollable = scrollable;
-
-		this._createDomNode();
 		if (options.horizontalHasArrows) {
 			let arrowDelta = (options.arrowSize - ARROW_IMG_SIZE) / 2;
 			let scrollbarDelta = (options.horizontalScrollbarSize - ARROW_IMG_SIZE) / 2;
 
-			this._createArrow('left-arrow', scrollbarDelta, arrowDelta, null, null, options.arrowSize, options.horizontalScrollbarSize, () => this._createMouseWheelEvent(1));
-			this._createArrow('right-arrow', scrollbarDelta, null, null, arrowDelta, options.arrowSize, options.horizontalScrollbarSize, () => this._createMouseWheelEvent(-1));
+			this._createArrow({
+				className: 'left-arrow',
+				top: scrollbarDelta,
+				left: arrowDelta,
+				bottom: void 0,
+				right: void 0,
+				bgWidth: options.arrowSize,
+				bgHeight: options.horizontalScrollbarSize,
+				onActivate: () => this._host.onMouseWheel(new StandardMouseWheelEvent(null, 1, 0)),
+			});
+
+			this._createArrow({
+				className: 'right-arrow',
+				top: scrollbarDelta,
+				left: void 0,
+				bottom: void 0,
+				right: arrowDelta,
+				bgWidth: options.arrowSize,
+				bgHeight: options.horizontalScrollbarSize,
+				onActivate: () => this._host.onMouseWheel(new StandardMouseWheelEvent(null, -1, 0)),
+			});
 		}
 
 		this._createSlider(Math.floor((options.horizontalScrollbarSize - options.horizontalSliderSize) / 2), 0, null, options.horizontalSliderSize);
 	}
 
-	protected _createMouseWheelEvent(sign: number) {
-		return new StandardMouseWheelEvent(null, sign, 0);
-	}
-
 	protected _updateSlider(sliderSize: number, sliderPosition: number): void {
-		StyleMutator.setWidth(this.slider, sliderSize);
-		if (!this._forbidTranslate3dUse && Browser.canUseTranslate3d) {
-			StyleMutator.setTransform(this.slider, 'translate3d(' + sliderPosition + 'px, 0px, 0px)');
-		} else {
-			StyleMutator.setLeft(this.slider, sliderPosition);
-		}
+		this.slider.setWidth(sliderSize);
+		this.slider.setLeft(sliderPosition);
 	}
 
 	protected _renderDomNode(largeSize: number, smallSize: number): void {
-		StyleMutator.setWidth(this.domNode, largeSize);
-		StyleMutator.setHeight(this.domNode, smallSize);
-		StyleMutator.setLeft(this.domNode, 0);
-		StyleMutator.setBottom(this.domNode, 0);
+		this.domNode.setWidth(largeSize);
+		this.domNode.setHeight(smallSize);
+		this.domNode.setLeft(0);
+		this.domNode.setBottom(0);
 	}
 
-	protected _mouseDownRelativePosition(e: IMouseEvent, domNodePosition: IDomNodePosition): number {
-		return e.posx - domNodePosition.left;
+	public onDidScroll(e: ScrollEvent): boolean {
+		this._shouldRender = this._onElementScrollSize(e.scrollWidth) || this._shouldRender;
+		this._shouldRender = this._onElementScrollPosition(e.scrollLeft) || this._shouldRender;
+		this._shouldRender = this._onElementSize(e.width) || this._shouldRender;
+		return this._shouldRender;
 	}
 
-	protected _sliderMousePosition(e: IMouseMoveEventData): number {
+	protected _mouseDownRelativePosition(offsetX: number, offsetY: number): number {
+		return offsetX;
+	}
+
+	protected _sliderMousePosition(e: ISimplifiedMouseEvent): number {
 		return e.posx;
 	}
 
-	protected _sliderOrthogonalMousePosition(e: IMouseMoveEventData): number {
+	protected _sliderOrthogonalMousePosition(e: ISimplifiedMouseEvent): number {
 		return e.posy;
 	}
 
-	protected _getScrollPosition(): number {
-		return this._scrollable.getScrollLeft();
-	}
-
-	protected _setScrollPosition(scrollPosition: number) {
-		this._scrollable.setScrollLeft(scrollPosition);
+	public writeScrollPosition(target: INewScrollPosition, scrollPosition: number): void {
+		target.scrollLeft = scrollPosition;
 	}
 }

@@ -7,8 +7,9 @@
 
 import { Url, parse as parseUrl } from 'url';
 import { isBoolean } from 'vs/base/common/types';
-import HttpProxyAgent = require('http-proxy-agent');
-import HttpsProxyAgent = require('https-proxy-agent');
+import { Agent } from './request';
+import { TPromise } from 'vs/base/common/winjs.base';
+
 
 function getSystemProxyURI(requestURL: Url): string {
 	if (requestURL.protocol === 'http:') {
@@ -25,7 +26,7 @@ export interface IOptions {
 	strictSSL?: boolean;
 }
 
-export function getProxyAgent(rawRequestURL: string, options: IOptions = {}): any {
+export async function getProxyAgent(rawRequestURL: string, options: IOptions = {}): TPromise<Agent> {
 	const requestURL = parseUrl(rawRequestURL);
 	const proxyURL = options.proxyUrl || getSystemProxyURI(requestURL);
 
@@ -46,5 +47,9 @@ export function getProxyAgent(rawRequestURL: string, options: IOptions = {}): an
 		rejectUnauthorized: isBoolean(options.strictSSL) ? options.strictSSL : true
 	};
 
-	return requestURL.protocol === 'http:' ? new HttpProxyAgent(opts) : new HttpsProxyAgent(opts);
+	const Ctor = requestURL.protocol === 'http:'
+		? await import('http-proxy-agent')
+		: await import('https-proxy-agent');
+
+	return new Ctor(opts);
 }

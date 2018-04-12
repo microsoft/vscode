@@ -6,33 +6,34 @@
 'use strict';
 
 import 'vs/css!./media/gotoSymbolHandler';
-import {TPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import arrays = require('vs/base/common/arrays');
-import errors = require('vs/base/common/errors');
-import types = require('vs/base/common/types');
-import strings = require('vs/base/common/strings');
-import {IContext, Mode, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
-import {QuickOpenModel, IHighlight} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {QuickOpenHandler, EditorQuickOpenEntryGroup} from 'vs/workbench/browser/quickopen';
-import {QuickOpenAction} from 'vs/workbench/browser/actions/quickOpenAction';
-import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {TextEditorOptions, EditorOptions, EditorInput} from 'vs/workbench/common/editor';
-import filters = require('vs/base/common/filters');
-import {IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IRange, IModel, ITokenizedModel, IDiffEditorModel, IEditorViewState} from 'vs/editor/common/editorCommon';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {Position} from 'vs/platform/editor/common/editor';
-import {OutlineRegistry, getOutlineEntries} from 'vs/editor/contrib/quickOpen/common/quickOpen';
+import { TPromise } from 'vs/base/common/winjs.base';
+import * as nls from 'vs/nls';
+import * as errors from 'vs/base/common/errors';
+import * as types from 'vs/base/common/types';
+import * as strings from 'vs/base/common/strings';
+import { IEntryRunContext, Mode, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
+import { QuickOpenModel, IHighlight } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { QuickOpenHandler, EditorQuickOpenEntryGroup, QuickOpenAction } from 'vs/workbench/browser/quickopen';
+import * as filters from 'vs/base/common/filters';
+import { IEditor, IDiffEditorModel, IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
+import { IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { Position, IEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/quickOpen';
+import { DocumentSymbolProviderRegistry, SymbolInformation, symbolKindToCssClass } from 'vs/editor/common/modes';
+import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
+import { IRange } from 'vs/editor/common/core/range';
+import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
 
 export const GOTO_SYMBOL_PREFIX = '@';
 export const SCOPE_PREFIX = ':';
 
 export class GotoSymbolAction extends QuickOpenAction {
 
-	public static ID = 'workbench.action.gotoSymbol';
-	public static LABEL = nls.localize('gotoSymbol', "Go to Symbol...");
+	public static readonly ID = 'workbench.action.gotoSymbol';
+	public static readonly LABEL = nls.localize('gotoSymbol', "Go to Symbol in File...");
 
 	constructor(actionId: string, actionLabel: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
 		super(actionId, actionLabel, GOTO_SYMBOL_PREFIX, quickOpenService);
@@ -48,7 +49,7 @@ class OutlineModel extends QuickOpenModel {
 		this.outline = outline;
 	}
 
-	public dofilter(searchValue: string): void {
+	public applyFilter(searchValue: string): void {
 
 		// Normalize search
 		let normalizedSearchValue = searchValue;
@@ -67,7 +68,7 @@ class OutlineModel extends QuickOpenModel {
 
 			// Filter by search
 			if (normalizedSearchValue) {
-				let highlights = filters.matchesFuzzy(normalizedSearchValue, entry.getLabel());
+				const highlights = filters.matchesFuzzy(normalizedSearchValue, entry.getLabel());
 				if (highlights) {
 					entry.setHighlights(highlights);
 					entry.setHidden(false);
@@ -92,14 +93,14 @@ class OutlineModel extends QuickOpenModel {
 		}
 
 		// Mark all type groups
-		let visibleResults = <SymbolEntry[]>this.getEntries(true);
+		const visibleResults = <SymbolEntry[]>this.getEntries(true);
 		if (visibleResults.length > 0 && searchValue.indexOf(SCOPE_PREFIX) === 0) {
 			let currentType: string = null;
 			let currentResult: SymbolEntry = null;
 			let typeCounter = 0;
 
 			for (let i = 0; i < visibleResults.length; i++) {
-				let result = visibleResults[i];
+				const result = visibleResults[i];
 
 				// Found new type
 				if (currentType !== result.getType()) {
@@ -145,18 +146,18 @@ class OutlineModel extends QuickOpenModel {
 			return -1;
 		}
 
-		let elementAName = elementA.getLabel().toLowerCase();
-		let elementBName = elementB.getLabel().toLowerCase();
+		const elementAName = elementA.getLabel().toLowerCase();
+		const elementBName = elementB.getLabel().toLowerCase();
 
 		// Compare by name
-		let r = strings.localeCompare(elementAName, elementBName);
+		const r = elementAName.localeCompare(elementBName);
 		if (r !== 0) {
 			return r;
 		}
 
 		// If name identical sort by range instead
-		let elementARange = elementA.getRange();
-		let elementBRange = elementB.getRange();
+		const elementARange = elementA.getRange();
+		const elementBRange = elementB.getRange();
 
 		return elementARange.startLineNumber - elementBRange.startLineNumber;
 	}
@@ -176,35 +177,35 @@ class OutlineModel extends QuickOpenModel {
 		searchValue = searchValue.substr(SCOPE_PREFIX.length);
 
 		// Sort by type first if scoped search
-		let elementAType = elementA.getType();
-		let elementBType = elementB.getType();
-		let r = strings.localeCompare(elementAType, elementBType);
+		const elementAType = elementA.getType();
+		const elementBType = elementB.getType();
+		let r = elementAType.localeCompare(elementBType);
 		if (r !== 0) {
 			return r;
 		}
 
 		// Special sort when searching in scoped mode
 		if (searchValue) {
-			let elementAName = elementA.getLabel().toLowerCase();
-			let elementBName = elementB.getLabel().toLowerCase();
+			const elementAName = elementA.getLabel().toLowerCase();
+			const elementBName = elementB.getLabel().toLowerCase();
 
 			// Compare by name
-			r = strings.localeCompare(elementAName, elementBName);
+			r = elementAName.localeCompare(elementBName);
 			if (r !== 0) {
 				return r;
 			}
 		}
 
 		// Default to sort by range
-		let elementARange = elementA.getRange();
-		let elementBRange = elementB.getRange();
+		const elementARange = elementA.getRange();
+		const elementBRange = elementB.getRange();
 
 		return elementARange.startLineNumber - elementBRange.startLineNumber;
 	}
 
 	private renderGroupLabel(type: string, count: number, outline: Outline): string {
 
-		let pattern = outline.outlineGroupLabel[type] || OutlineModel.getDefaultGroupLabelPatterns()[type];
+		const pattern = OutlineModel.getDefaultGroupLabelPatterns()[type];
 		if (pattern) {
 			return strings.format(pattern, count);
 		}
@@ -289,18 +290,18 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 		return this.range;
 	}
 
-	public getInput(): EditorInput {
-		return <EditorInput>this.editorService.getActiveEditorInput();
+	public getInput(): IEditorInput {
+		return this.editorService.getActiveEditorInput();
 	}
 
-	public getOptions(): EditorOptions {
-		let options = new TextEditorOptions();
-		options.selection(this.range.startLineNumber, this.range.startColumn, this.range.startLineNumber, this.range.startColumn);
-
-		return options;
+	public getOptions(pinned?: boolean): ITextEditorOptions {
+		return {
+			selection: this.toSelection(),
+			pinned
+		};
 	}
 
-	public run(mode: Mode, context: IContext): boolean {
+	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
 			return this.runOpen(context);
 		}
@@ -308,23 +309,22 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 		return this.runPreview();
 	}
 
-	private runOpen(context: IContext): boolean {
+	private runOpen(context: IEntryRunContext): boolean {
 
 		// Check for sideBySide use
-		let event = context.event;
-		let sideBySide = (event && (event.ctrlKey || event.metaKey || (event.payload && event.payload.originalEvent && (event.payload.originalEvent.ctrlKey || event.payload.originalEvent.metaKey))));
+		const sideBySide = context.keymods.ctrlCmd;
 		if (sideBySide) {
-			this.editorService.openEditor(this.getInput(), this.getOptions(), true).done(null, errors.onUnexpectedError);
+			this.editorService.openEditor(this.getInput(), this.getOptions(context.keymods.alt), true).done(null, errors.onUnexpectedError);
 		}
 
 		// Apply selection and focus
 		else {
-			let range = this.toSelection();
-			let activeEditor = this.editorService.getActiveEditor();
+			const range = this.toSelection();
+			const activeEditor = this.editorService.getActiveEditor();
 			if (activeEditor) {
-				let editor = <IEditor>activeEditor.getControl();
+				const editor = <IEditor>activeEditor.getControl();
 				editor.setSelection(range);
-				editor.revealRangeInCenter(range);
+				editor.revealRangeInCenter(range, ScrollType.Smooth);
 			}
 		}
 
@@ -334,11 +334,11 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 	private runPreview(): boolean {
 
 		// Select Outline Position
-		let range = this.toSelection();
-		let activeEditor = this.editorService.getActiveEditor();
+		const range = this.toSelection();
+		const activeEditor = this.editorService.getActiveEditor();
 		if (activeEditor) {
-			let editorControl = <IEditor>activeEditor.getControl();
-			editorControl.revealRangeInCenter(range);
+			const editorControl = <IEditor>activeEditor.getControl();
+			editorControl.revealRangeInCenter(range, ScrollType.Smooth);
 
 			// Decorate if possible
 			if (types.isFunction(editorControl.changeDecorations)) {
@@ -360,35 +360,26 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 }
 
 interface Outline {
-	entries: OutlineNode[];
-	outlineGroupLabel?: { [name: string]: string; };
-}
-
-interface OutlineNode {
-	label: string;
-	containerLabel?: string;
-	type: string;
-	icon?: string;
-	range: IRange;
-	children?: OutlineNode[];
-	parentScope?: string[];
+	entries: SymbolInformation[];
 }
 
 interface IEditorLineDecoration {
-	lineHighlightId: string;
+	rangeHighlightId: string;
 	lineDecorationId: string;
 	position: Position;
 }
 
 export class GotoSymbolHandler extends QuickOpenHandler {
+
+	public static readonly ID = 'workbench.picker.filesymbols';
+
 	private outlineToModelCache: { [modelId: string]: OutlineModel; };
-	private lineHighlightDecorationId: IEditorLineDecoration;
+	private rangeHighlightDecorationId: IEditorLineDecoration;
 	private lastKnownEditorViewState: IEditorViewState;
 	private activeOutlineRequest: TPromise<OutlineModel>;
 
 	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super();
 
@@ -400,15 +391,15 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 		// Remember view state to be able to restore on cancel
 		if (!this.lastKnownEditorViewState) {
-			let editor = this.editorService.getActiveEditor();
+			const editor = this.editorService.getActiveEditor();
 			this.lastKnownEditorViewState = (<IEditor>editor.getControl()).saveViewState();
 		}
 
 		// Resolve Outline Model
-		return this.getActiveOutline().then((outline) => {
+		return this.getActiveOutline().then(outline => {
 
 			// Filter by search
-			outline.dofilter(searchValue);
+			outline.applyFilter(searchValue);
 
 			return outline;
 		});
@@ -429,20 +420,19 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 	public canRun(): boolean | string {
 		let canRun = false;
 
-		let editor = this.editorService.getActiveEditor();
-		if (editor instanceof BaseTextEditor) {
-			let editorControl = <IEditor>editor.getControl();
+		const editorControl: IEditor = getCodeEditor(this.editorService.getActiveEditor());
+		if (editorControl) {
 			let model = editorControl.getModel();
 			if (model && (<IDiffEditorModel>model).modified && (<IDiffEditorModel>model).original) {
 				model = (<IDiffEditorModel>model).modified; // Support for diff editor models
 			}
 
-			if (model && types.isFunction((<ITokenizedModel>model).getMode)) {
-				canRun = OutlineRegistry.has(<IModel>model);
+			if (model && types.isFunction((<ITextModel>model).getLanguageIdentifier)) {
+				canRun = DocumentSymbolProviderRegistry.has(<ITextModel>model);
 			}
 		}
 
-		return canRun ? true : editor instanceof BaseTextEditor ? nls.localize('cannotRunGotoSymbolInFile', "Unfortunately we have no symbol information for the file") : nls.localize('cannotRunGotoSymbol', "Open a text file first to go to a symbol");
+		return canRun ? true : editorControl !== null ? nls.localize('cannotRunGotoSymbolInFile', "No symbol information for the file") : nls.localize('cannotRunGotoSymbol', "Open a text file first to go to a symbol");
 	}
 
 	public getAutoFocus(searchValue: string): IAutoFocus {
@@ -459,52 +449,25 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		};
 	}
 
-	private toQuickOpenEntries(outline: Outline): SymbolEntry[] {
-		let results: SymbolEntry[] = [];
-
-		// Flatten
-		let flattened: OutlineNode[] = [];
-		if (outline) {
-			this.flatten(outline.entries, flattened);
-		}
+	private toQuickOpenEntries(flattened: SymbolInformation[]): SymbolEntry[] {
+		const results: SymbolEntry[] = [];
 
 		for (let i = 0; i < flattened.length; i++) {
-			let element = flattened[i];
-			let label = strings.trim(element.label);
+			const element = flattened[i];
+			const label = strings.trim(element.name);
 
 			// Show parent scope as description
-			let description: string = element.containerLabel;
-			if (element.parentScope) {
-				description = arrays.tail(element.parentScope);
-			}
+			const description: string = element.containerName;
+			const icon = symbolKindToCssClass(element.kind);
 
 			// Add
-			let icon = element.icon || element.type;
-			results.push(new SymbolEntry(i, label, element.type, description, icon, element.range, null, this.editorService, this));
+			results.push(new SymbolEntry(i,
+				label, icon, description, icon,
+				element.location.range, null, this.editorService, this
+			));
 		}
 
 		return results;
-	}
-
-	private flatten(outline: OutlineNode[], flattened: OutlineNode[], parentScope?: string[]): void {
-		for (let i = 0; i < outline.length; i++) {
-			let element = outline[i];
-			flattened.push(element);
-
-			if (parentScope) {
-				element.parentScope = parentScope;
-			}
-
-			if (element.children) {
-				let elementScope: string[] = [];
-				if (parentScope) {
-					elementScope = parentScope.slice(0);
-				}
-				elementScope.push(element.label);
-
-				this.flatten(element.children, flattened, elementScope);
-			}
-		}
 	}
 
 	private getActiveOutline(): TPromise<OutlineModel> {
@@ -516,25 +479,24 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 	}
 
 	private doGetActiveOutline(): TPromise<OutlineModel> {
-		let editor = this.editorService.getActiveEditor();
-		if (editor instanceof BaseTextEditor) {
-			let editorControl = <IEditor>editor.getControl();
+		const editorControl: IEditor = getCodeEditor(this.editorService.getActiveEditor());
+		if (editorControl) {
 			let model = editorControl.getModel();
 			if (model && (<IDiffEditorModel>model).modified && (<IDiffEditorModel>model).original) {
 				model = (<IDiffEditorModel>model).modified; // Support for diff editor models
 			}
 
-			if (model && types.isFunction((<ITokenizedModel>model).getMode)) {
+			if (model && types.isFunction((<ITextModel>model).getLanguageIdentifier)) {
 
 				// Ask cache first
-				let modelId = (<IModel>model).id;
+				const modelId = (<ITextModel>model).id;
 				if (this.outlineToModelCache[modelId]) {
 					return TPromise.as(this.outlineToModelCache[modelId]);
 				}
 
-				return getOutlineEntries(<IModel>model).then(outline => {
+				return getDocumentSymbols(<ITextModel>model).then(outline => {
 
-					let model = new OutlineModel(outline, this.toQuickOpenEntries(outline));
+					const model = new OutlineModel(outline, this.toQuickOpenEntries(outline.entries));
 
 					this.outlineToModelCache = {}; // Clear cache, only keep 1 outline
 					this.outlineToModelCache[modelId] = model;
@@ -544,26 +506,26 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			}
 		}
 
-		return TPromise.as<OutlineModel>(null);
+		return TPromise.wrap<OutlineModel>(null);
 	}
 
 	public decorateOutline(fullRange: IRange, startRange: IRange, editor: IEditor, position: Position): void {
 		editor.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
-			let deleteDecorations: string[] = [];
+			const deleteDecorations: string[] = [];
 
-			if (this.lineHighlightDecorationId) {
-				deleteDecorations.push(this.lineHighlightDecorationId.lineDecorationId);
-				deleteDecorations.push(this.lineHighlightDecorationId.lineHighlightId);
-				this.lineHighlightDecorationId = null;
+			if (this.rangeHighlightDecorationId) {
+				deleteDecorations.push(this.rangeHighlightDecorationId.lineDecorationId);
+				deleteDecorations.push(this.rangeHighlightDecorationId.rangeHighlightId);
+				this.rangeHighlightDecorationId = null;
 			}
 
-			let newDecorations: IModelDeltaDecoration[] = [
+			const newDecorations: IModelDeltaDecoration[] = [
 
-				// lineHighlight at index 0
+				// rangeHighlight at index 0
 				{
 					range: fullRange,
 					options: {
-						className: 'lineHighlight',
+						className: 'rangeHighlight',
 						isWholeLine: true
 					}
 				},
@@ -573,8 +535,8 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 					range: startRange,
 					options: {
 						overviewRuler: {
-							color: 'rgba(0, 122, 204, 0.6)',
-							darkColor: 'rgba(0, 122, 204, 0.6)',
+							color: themeColorFromId(overviewRulerRangeHighlight),
+							darkColor: themeColorFromId(overviewRulerRangeHighlight),
 							position: OverviewRulerLane.Full
 						}
 					}
@@ -582,12 +544,12 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 			];
 
-			let decorations = changeAccessor.deltaDecorations(deleteDecorations, newDecorations);
-			let lineHighlightId = decorations[0];
-			let lineDecorationId = decorations[1];
+			const decorations = changeAccessor.deltaDecorations(deleteDecorations, newDecorations);
+			const rangeHighlightId = decorations[0];
+			const lineDecorationId = decorations[1];
 
-			this.lineHighlightDecorationId = {
-				lineHighlightId: lineHighlightId,
+			this.rangeHighlightDecorationId = {
+				rangeHighlightId: rangeHighlightId,
 				lineDecorationId: lineDecorationId,
 				position: position
 			};
@@ -595,20 +557,20 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 	}
 
 	public clearDecorations(): void {
-		if (this.lineHighlightDecorationId) {
-			this.editorService.getVisibleEditors().forEach((editor) => {
-				if (editor.position === this.lineHighlightDecorationId.position) {
-					let editorControl = <IEditor>editor.getControl();
+		if (this.rangeHighlightDecorationId) {
+			this.editorService.getVisibleEditors().forEach(editor => {
+				if (editor.position === this.rangeHighlightDecorationId.position) {
+					const editorControl = <IEditor>editor.getControl();
 					editorControl.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
 						changeAccessor.deltaDecorations([
-							this.lineHighlightDecorationId.lineDecorationId,
-							this.lineHighlightDecorationId.lineHighlightId
+							this.rangeHighlightDecorationId.lineDecorationId,
+							this.rangeHighlightDecorationId.rangeHighlightId
 						], []);
 					});
 				}
 			});
 
-			this.lineHighlightDecorationId = null;
+			this.rangeHighlightDecorationId = null;
 		}
 	}
 
@@ -622,9 +584,9 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 		// Restore selection if canceled
 		if (canceled && this.lastKnownEditorViewState) {
-			let activeEditor = this.editorService.getActiveEditor();
+			const activeEditor = this.editorService.getActiveEditor();
 			if (activeEditor) {
-				let editor = <IEditor>activeEditor.getControl();
+				const editor = <IEditor>activeEditor.getControl();
 				editor.restoreViewState(this.lastKnownEditorViewState);
 			}
 		}

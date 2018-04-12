@@ -5,12 +5,14 @@
 
 'use strict';
 
-import 'vs/editor/browser/editor.all';
-import 'vs/editor/browser/standalone/standaloneEditor';
-import 'vs/editor/contrib/quickOpen/browser/quickOutline.contribution';
-import 'vs/editor/contrib/quickOpen/browser/gotoLine.contribution';
-import 'vs/editor/contrib/quickOpen/browser/quickCommand.contribution';
-import 'vs/languages/languages.main';
-import 'vs/languages/javascript/common/javascript.contribution';
-import 'vs/languages/typescript/common/typescript.contribution';
-import 'vs/languages/json/common/json.contribution';
+import 'vs/editor/editor.all';
+import 'vs/editor/standalone/browser/accessibilityHelp/accessibilityHelp';
+import 'vs/editor/standalone/browser/inspectTokens/inspectTokens';
+import 'vs/editor/standalone/browser/iPadShowKeyboard/iPadShowKeyboard';
+import 'vs/editor/standalone/browser/quickOpen/quickOutline';
+import 'vs/editor/standalone/browser/quickOpen/gotoLine';
+import 'vs/editor/standalone/browser/quickOpen/quickCommand';
+import 'vs/editor/standalone/browser/toggleHighContrast/toggleHighContrast';
+import 'vs/editor/standalone/browser/referenceSearch/standaloneReferenceSearch';
+
+export * from 'vs/editor/editor.api';

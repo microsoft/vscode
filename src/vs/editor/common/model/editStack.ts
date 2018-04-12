@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {ICursorStateComputer, IEditableTextModel, IEditorSelection, IIdentifiedSingleEditOperation} from 'vs/editor/common/editorCommon';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { ICursorStateComputer, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { Selection } from 'vs/editor/common/core/selection';
+import { TextModel } from 'vs/editor/common/model/textModel';
 
 interface IEditOperation {
 	operations: IIdentifiedSingleEditOperation[];
@@ -13,27 +15,27 @@ interface IEditOperation {
 
 interface IStackElement {
 	beforeVersionId: number;
-	beforeCursorState: IEditorSelection[];
+	beforeCursorState: Selection[];
 
 	editOperations: IEditOperation[];
 
-	afterCursorState: IEditorSelection[];
+	afterCursorState: Selection[];
 	afterVersionId: number;
 }
 
 export interface IUndoRedoResult {
-	selections: IEditorSelection[];
+	selections: Selection[];
 	recordedVersionId: number;
 }
 
 export class EditStack {
 
-	private model:IEditableTextModel;
-	private currentOpenStackElement:IStackElement;
-	private past:IStackElement[];
-	private future:IStackElement[];
+	private model: TextModel;
+	private currentOpenStackElement: IStackElement;
+	private past: IStackElement[];
+	private future: IStackElement[];
 
-	constructor(model:IEditableTextModel) {
+	constructor(model: TextModel) {
 		this.model = model;
 		this.currentOpenStackElement = null;
 		this.past = [];
@@ -53,7 +55,7 @@ export class EditStack {
 		this.future = [];
 	}
 
-	public pushEditOperation(beforeCursorState: IEditorSelection[], editOperations:IIdentifiedSingleEditOperation[], cursorStateComputer:ICursorStateComputer): IEditorSelection[] {
+	public pushEditOperation(beforeCursorState: Selection[], editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): Selection[] {
 		// No support for parallel universes :(
 		this.future = [];
 
@@ -67,7 +69,7 @@ export class EditStack {
 			};
 		}
 
-		var inverseEditOperation:IEditOperation = {
+		const inverseEditOperation: IEditOperation = {
 			operations: this.model.applyEdits(editOperations)
 		};
 
@@ -78,6 +80,7 @@ export class EditStack {
 			onUnexpectedError(e);
 			this.currentOpenStackElement.afterCursorState = null;
 		}
+
 		this.currentOpenStackElement.afterVersionId = this.model.getVersionId();
 		return this.currentOpenStackElement.afterCursorState;
 	}
@@ -87,16 +90,16 @@ export class EditStack {
 		this.pushStackElement();
 
 		if (this.past.length > 0) {
-			var pastStackElement = this.past.pop();
+			const pastStackElement = this.past.pop();
 
 			try {
 				// Apply all operations in reverse order
-				for (var i = pastStackElement.editOperations.length - 1; i >= 0; i--) {
+				for (let i = pastStackElement.editOperations.length - 1; i >= 0; i--) {
 					pastStackElement.editOperations[i] = {
 						operations: this.model.applyEdits(pastStackElement.editOperations[i].operations)
 					};
 				}
-			} catch(e) {
+			} catch (e) {
 				this.clear();
 				return null;
 			}
@@ -119,16 +122,16 @@ export class EditStack {
 				throw new Error('How is this possible?');
 			}
 
-			var futureStackElement = this.future.pop();
+			const futureStackElement = this.future.pop();
 
 			try {
 				// Apply all operations
-				for (var i = 0; i < futureStackElement.editOperations.length; i++) {
+				for (let i = 0; i < futureStackElement.editOperations.length; i++) {
 					futureStackElement.editOperations[i] = {
 						operations: this.model.applyEdits(futureStackElement.editOperations[i].operations)
 					};
 				}
-			} catch(e) {
+			} catch (e) {
 				this.clear();
 				return null;
 			}

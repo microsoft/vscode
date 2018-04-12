@@ -3,225 +3,143 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { localize } from 'vs/nls';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
+import * as paths from 'vs/base/common/paths';
+import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { IFileService } from 'vs/platform/files/common/files';
+import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IMessageService } from 'vs/platform/message/common/message';
-import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
-import { IExtensionsService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
-import { extensionEquals } from 'vs/workbench/parts/extensions/common/extensionsUtil';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 
-const CloseAction = new Action('action.close', nls.localize('close', "Close"));
+export class OpenExtensionsFolderAction extends Action {
 
-export class ListExtensionsAction extends Action {
-
-	static ID = 'workbench.extensions.action.listExtensions';
-	static LABEL = nls.localize('showInstalledExtensions', "Show Installed Extensions");
+	static readonly ID = 'workbench.extensions.action.openExtensionsFolder';
+	static LABEL = localize('openExtensionsFolder', "Open Extensions Folder");
 
 	constructor(
 		id: string,
 		label: string,
-		@IExtensionsService private extensionsService: IExtensionsService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IWindowsService private windowsService: IWindowsService,
+		@IFileService private fileService: IFileService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(id, label, null, true);
 	}
 
-	public run(): Promise {
-		return this.quickOpenService.show('ext ');
-	}
+	run(): TPromise<void> {
+		const extensionsHome = this.environmentService.extensionsPath;
 
-	protected isEnabled(): boolean {
-		return true;
-	}
-}
+		return this.fileService.resolveFile(URI.file(extensionsHome)).then(file => {
+			let itemToShow: string;
+			if (file.children && file.children.length > 0) {
+				itemToShow = file.children[0].resource.fsPath;
+			} else {
+				itemToShow = paths.normalize(extensionsHome, true);
+			}
 
-export class InstallExtensionAction extends Action {
-
-	static ID = 'workbench.extensions.action.installExtension';
-	static LABEL = nls.localize('installExtension', "Install Extension");
-
-	constructor(
-		id: string,
-		label: string,
-		@IExtensionsService private extensionsService: IExtensionsService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
-	) {
-		super(id, label, null, true);
-	}
-
-	public run(): Promise {
-		return this.quickOpenService.show('ext install ');
-	}
-
-	protected isEnabled(): boolean {
-		return true;
+			return this.windowsService.showItemInFolder(itemToShow);
+		});
 	}
 }
 
-export class ListOutdatedExtensionsAction extends Action {
+export class InstallVSIXAction extends Action {
 
-	static ID = 'workbench.extensions.action.listOutdatedExtensions';
-	static LABEL = nls.localize('showOutdatedExtensions', "Show Outdated Extensions");
+	static readonly ID = 'workbench.extensions.action.installVSIX';
+	static LABEL = localize('installVSIX', "Install from VSIX...");
 
 	constructor(
-		id: string,
-		label: string,
-		@IExtensionsService private extensionsService: IExtensionsService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		id = InstallVSIXAction.ID,
+		label = InstallVSIXAction.LABEL,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@INotificationService private notificationService: INotificationService,
+		@IWindowService private windowService: IWindowService
 	) {
-		super(id, label, null, true);
+		super(id, label, 'extension-action install-vsix', true);
 	}
 
-	public run(): Promise {
-		return this.quickOpenService.show('ext update ');
-	}
+	run(): TPromise<any> {
+		return this.windowService.showOpenDialog({
+			title: localize('installFromVSIX', "Install from VSIX"),
+			filters: [{ name: 'VSIX Extensions', extensions: ['vsix'] }],
+			properties: ['openFile'],
+			buttonLabel: mnemonicButtonLabel(localize({ key: 'installButton', comment: ['&& denotes a mnemonic'] }, "&&Install"))
+		}).then(result => {
+			if (!result) {
+				return TPromise.as(null);
+			}
 
-	protected isEnabled(): boolean {
-		return true;
+			return TPromise.join(result.map(vsix => this.extensionsWorkbenchService.install(vsix))).then(() => {
+				this.notificationService.prompt(
+					Severity.Info,
+					localize('InstallVSIXAction.success', "Successfully installed the extension. Reload to enable it."),
+					[{
+						label: localize('InstallVSIXAction.reloadNow', "Reload Now"),
+						run: () => this.windowService.reloadWindow()
+					}]
+				);
+			});
+		});
 	}
 }
 
-export class ListSuggestedExtensionsAction extends Action {
+export class ReinstallAction extends Action {
 
-	static ID = 'workbench.extensions.action.listSuggestedExtensions';
-	static LABEL = nls.localize('showExtensionRecommendations', "Show Extension Recommendations");
-
-	constructor(
-		id: string,
-		label: string,
-		@IExtensionsService private extensionsService: IExtensionsService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
-	) {
-		super(id, label, null, true);
-	}
-
-	public run(): Promise {
-		return this.quickOpenService.show('ext recommend ');
-	}
-
-	protected isEnabled(): boolean {
-		return true;
-	}
-}
-
-export class InstallAction extends Action {
+	static readonly ID = 'workbench.extensions.action.reinstall';
+	static LABEL = localize('reinstall', "Reinstall Extension...");
 
 	constructor(
-		label: string,
-		@IQuickOpenService protected quickOpenService: IQuickOpenService,
-		@IExtensionsService protected extensionsService: IExtensionsService,
-		@IMessageService protected messageService: IMessageService,
-		@ITelemetryService protected telemetryService: ITelemetryService,
-		@IInstantiationService protected instantiationService: IInstantiationService
+		id: string = ReinstallAction.ID, label: string = ReinstallAction.LABEL,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@INotificationService private notificationService: INotificationService,
+		@IWindowService private windowService: IWindowService
 	) {
-		super('extensions.install', label, 'octicon octicon-cloud-download', true);
+		super(id, label);
 	}
 
-	public run(extension: IExtension): TPromise<any> {
-		this.enabled = false;
+	get enabled(): boolean {
+		return this.extensionsWorkbenchService.local.filter(l => l.type === LocalExtensionType.User && l.local).length > 0;
+	}
 
-		return this.extensionsService.getInstalled()
-			.then(installed => installed.some(e => extensionEquals(e, extension)))
-			.then(isUpdate => {
-				return this.extensionsService
-					.install(extension)
-					.then(() => this.onSuccess(extension, isUpdate), err => this.onError(err, extension, isUpdate))
-					.then(() => this.enabled = true)
-					.then(() => null);
+	run(): TPromise<any> {
+		return this.quickOpenService.pick(this.getEntries(), { placeHolder: localize('selectExtension', "Select Extension to Reinstall") });
+	}
+
+	private getEntries(): TPromise<IPickOpenEntry[]> {
+		return this.extensionsWorkbenchService.queryLocal()
+			.then(local => {
+				const entries: IPickOpenEntry[] = local
+					.filter(extension => extension.type === LocalExtensionType.User)
+					.map(extension => {
+						return <IPickOpenEntry>{
+							id: extension.id,
+							label: extension.displayName,
+							description: extension.id,
+							run: () => this.reinstallExtension(extension),
+						};
+					});
+				return entries;
 			});
 	}
 
-	private onSuccess(extension: IExtension, isUpdate: boolean) {
-		this.reportTelemetry(extension, isUpdate, true);
-		this.messageService.show(
-			Severity.Info,
-			{
-				message: nls.localize('success-installed', "'{0}' was successfully installed. Restart to enable it.", extension.displayName),
-				actions: [
-					CloseAction,
-					this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, nls.localize('restartNow', "Restart Now"))
-				]
-			}
-		);
-	}
-
-	private onError(err: Error, extension: IExtension, isUpdate: boolean) {
-		this.reportTelemetry(extension, isUpdate, false);
-		this.messageService.show(Severity.Error, err);
-	}
-
-	private reportTelemetry(extension: IExtension, isUpdate: boolean, success: boolean) {
-		const event = isUpdate ? 'extensionGallery:update' : 'extensionGallery:install';
-		const data = {
-			success,
-			id: extension.galleryInformation ? extension.galleryInformation.id : null,
-			name: extension.name,
-			publisherId: extension.galleryInformation ? extension.galleryInformation.publisherId : null,
-			publisherName: extension.publisher,
-			publisherDisplayName: extension.galleryInformation ? extension.galleryInformation.publisherDisplayName : null
-		};
-
-		this.telemetryService.publicLog(event, data);
-	}
-}
-
-export class UninstallAction extends Action {
-
-	constructor(
-		@IQuickOpenService protected quickOpenService: IQuickOpenService,
-		@IExtensionsService protected extensionsService: IExtensionsService,
-		@IMessageService protected messageService: IMessageService,
-		@ITelemetryService protected telemetryService: ITelemetryService,
-		@IInstantiationService protected instantiationService: IInstantiationService
-	) {
-		super('extensions.uninstall', nls.localize('uninstall', "Uninstall Extension"), 'octicon octicon-x', true);
-	}
-
-	public run(extension: IExtension): TPromise<any> {
-		if (!window.confirm(nls.localize('deleteSure', "Are you sure you want to uninstall '{0}'?", extension.displayName))) {
-			return TPromise.as(null);
-		}
-
-		this.enabled = false;
-
-		return this.extensionsService.uninstall(extension)
-			.then(() => this.onSuccess(extension), err => this.onError(err, extension))
-			.then(() => this.enabled = true)
-			.then(() => null);
-	}
-
-	private onSuccess(extension: IExtension) {
-		this.reportTelemetry(extension, true);
-		this.messageService.show(
-			Severity.Info,
-			{
-				message: nls.localize('success-uninstalled', "'{0}' was successfully uninstalled. Restart to deactivate it.", extension.displayName),
-				actions: [
-					CloseAction,
-					this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, nls.localize('restartNow2', "Restart Now"))
-				]
-			}
-		);
-	}
-
-	private onError(err: Error, extension: IExtension) {
-		this.reportTelemetry(extension, false);
-		this.messageService.show(Severity.Error, err);
-	}
-
-	private reportTelemetry(extension: IExtension, success: boolean) {
-		this.telemetryService.publicLog('extensionGallery:uninstall', {
-			success,
-			id: extension.galleryInformation ? extension.galleryInformation.id : null,
-			name: extension.name,
-			publisherId: extension.galleryInformation ? extension.galleryInformation.publisherId : null,
-			publisherName: extension.publisher,
-			publisherDisplayName: extension.galleryInformation ? extension.galleryInformation.publisherDisplayName : null
-		});
+	private reinstallExtension(extension: IExtension): TPromise<void> {
+		return this.extensionsWorkbenchService.reinstall(extension)
+			.then(() => {
+				this.notificationService.prompt(
+					Severity.Info,
+					localize('ReinstallAction.success', "Successfully reinstalled the extension."),
+					[{
+						label: localize('ReinstallAction.reloadNow', "Reload Now"),
+						run: () => this.windowService.reloadWindow()
+					}]
+				);
+			}, error => this.notificationService.error(error));
 	}
 }

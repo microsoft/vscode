@@ -6,31 +6,59 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
-import { IEventEmitter } from 'vs/base/common/eventEmitter';
-import { TerminateResponse } from 'vs/base/common/processes';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { ITaskSummary, TaskDescription, TaskEvent, TaskType } from 'vs/workbench/parts/tasks/common/taskSystem';
+import { Event } from 'vs/base/common/event';
+import { LinkedMap } from 'vs/base/common/map';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export { ITaskSummary, TaskDescription, TaskEvent, TaskType };
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { Task, ContributedTask, CustomTask, TaskSet, TaskSorter, TaskEvent } from 'vs/workbench/parts/tasks/common/tasks';
+import { ITaskSummary, TaskTerminateResponse } from 'vs/workbench/parts/tasks/common/taskSystem';
 
-export var ITaskService = createDecorator<ITaskService>('taskService');
+export { ITaskSummary, Task, TaskTerminateResponse };
 
-export namespace TaskServiceEvents {
-	export let Active: string = 'active';
-	export let Inactive: string = 'inactive';
-	export let ConfigChanged: string = 'configChanged';
-	export let Terminated: string = 'terminated';
+export const ITaskService = createDecorator<ITaskService>('taskService');
+
+export interface ITaskProvider {
+	provideTasks(): TPromise<TaskSet>;
 }
 
-export interface ITaskService extends IEventEmitter {
-	serviceId: ServiceIdentifier<any>;
+export interface RunOptions {
+	attachProblemMatcher?: boolean;
+}
+
+export interface CustomizationProperties {
+	group?: string | { kind?: string; isDefault?: boolean; };
+	problemMatcher?: string | string[];
+	isBackground?: boolean;
+}
+
+export interface ITaskService {
+	_serviceBrand: any;
+	onDidStateChange: Event<TaskEvent>;
 	configureAction(): Action;
 	build(): TPromise<ITaskSummary>;
-	rebuild(): TPromise<ITaskSummary>;
-	clean(): TPromise<ITaskSummary>;
 	runTest(): TPromise<ITaskSummary>;
-	run(taskIdentifier: string): TPromise<ITaskSummary>;
+	run(task: Task, options?: RunOptions): TPromise<ITaskSummary>;
+	inTerminal(): boolean;
 	isActive(): TPromise<boolean>;
-	terminate(): TPromise<TerminateResponse>;
-	tasks(): TPromise<TaskDescription[]>;
+	getActiveTasks(): TPromise<Task[]>;
+	restart(task: Task): void;
+	terminate(task: Task): TPromise<TaskTerminateResponse>;
+	terminateAll(): TPromise<TaskTerminateResponse[]>;
+	tasks(): TPromise<Task[]>;
+	/**
+	 * @param alias The task's name, label or defined identifier.
+	 */
+	getTask(workspaceFolder: IWorkspaceFolder | string, alias: string, compareId?: boolean): TPromise<Task>;
+	getTasksForGroup(group: string): TPromise<Task[]>;
+	getRecentlyUsedTasks(): LinkedMap<string, string>;
+	createSorter(): TaskSorter;
+
+	needsFolderQualification();
+	canCustomize(task: ContributedTask | CustomTask): boolean;
+	customize(task: ContributedTask | CustomTask, properties?: {}, openConfig?: boolean): TPromise<void>;
+	openConfig(task: CustomTask): TPromise<void>;
+
+	registerTaskProvider(handle: number, taskProvider: ITaskProvider): void;
+	unregisterTaskProvider(handle: number): boolean;
 }

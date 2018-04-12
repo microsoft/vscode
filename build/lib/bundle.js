@@ -1,11 +1,12 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-"use strict";
-var fs = require('fs');
-var path = require('path');
-var vm = require('vm');
+Object.defineProperty(exports, "__esModule", { value: true });
+var fs = require("fs");
+var path = require("path");
+var vm = require("vm");
 /**
  * Bundle `entryPoints` given config `config`.
  */
@@ -14,16 +15,53 @@ function bundle(entryPoints, config, callback) {
     entryPoints.forEach(function (module) {
         entryPointsMap[module.name] = module;
     });
+    var allMentionedModulesMap = {};
+    entryPoints.forEach(function (module) {
+        allMentionedModulesMap[module.name] = true;
+        (module.include || []).forEach(function (includedModule) {
+            allMentionedModulesMap[includedModule] = true;
+        });
+        (module.exclude || []).forEach(function (excludedModule) {
+            allMentionedModulesMap[excludedModule] = true;
+        });
+    });
     var code = require('fs').readFileSync(path.join(__dirname, '../../src/vs/loader.js'));
     var r = vm.runInThisContext('(function(require, module, exports) { ' + code + '\n});');
     var loaderModule = { exports: {} };
     r.call({}, require, loaderModule, loaderModule.exports);
     var loader = loaderModule.exports;
     config.isBuild = true;
+    config.paths = config.paths || {};
+    config.paths['vs/nls'] = 'out-build/vs/nls.build';
+    config.paths['vs/css'] = 'out-build/vs/css.build';
     loader.config(config);
-    loader(Object.keys(entryPointsMap), function () {
+    loader(['require'], function (localRequire) {
+        var resolvePath = function (path) {
+            var r = localRequire.toUrl(path);
+            if (!/\.js/.test(r)) {
+                return r + '.js';
+            }
+            return r;
+        };
+        for (var moduleId in entryPointsMap) {
+            var entryPoint = entryPointsMap[moduleId];
+            if (entryPoint.append) {
+                entryPoint.append = entryPoint.append.map(resolvePath);
+            }
+            if (entryPoint.prepend) {
+                entryPoint.prepend = entryPoint.prepend.map(resolvePath);
+            }
+        }
+    });
+    loader(Object.keys(allMentionedModulesMap), function () {
         var modules = loader.getBuildInfo();
-        callback(null, emitEntryPoints(modules, entryPointsMap));
+        var partialResult = emitEntryPoints(modules, entryPointsMap);
+        var cssInlinedResources = loader('vs/css').getInlinedResources();
+        callback(null, {
+            files: partialResult.files,
+            cssInlinedResources: cssInlinedResources,
+            bundleData: partialResult.bundleData
+        });
     }, function (err) { return callback(err, null); });
 }
 exports.bundle = bundle;
@@ -39,6 +77,10 @@ function emitEntryPoints(modules, entryPoints) {
     var sortedModules = topologicalSort(modulesGraph);
     var result = [];
     var usedPlugins = {};
+    var bundleData = {
+        graph: modulesGraph,
+        bundles: {}
+    };
     Object.keys(entryPoints).forEach(function (moduleToBundle) {
         var info = entryPoints[moduleToBundle];
         var rootNodes = [moduleToBundle].concat(info.include || []);
@@ -53,7 +95,8 @@ function emitEntryPoints(modules, entryPoints) {
         var includedModules = sortedModules.filter(function (module) {
             return allDependencies[module];
         });
-        var res = emitEntryPoint(modulesMap, modulesGraph, moduleToBundle, includedModules);
+        bundleData.bundles[moduleToBundle] = includedModules;
+        var res = emitEntryPoint(modulesMap, modulesGraph, moduleToBundle, includedModules, info.prepend, info.append, info.dest);
         result = result.concat(res.files);
         for (var pluginName in res.usedPlugins) {
             usedPlugins[pluginName] = usedPlugins[pluginName] || res.usedPlugins[pluginName];
@@ -74,12 +117,155 @@ function emitEntryPoints(modules, entryPoints) {
             plugin.finishBuild(write);
         }
     });
-    return result;
+    return {
+        // TODO@TS 2.1.2
+        files: extractStrings(removeDuplicateTSBoilerplate(result)),
+        bundleData: bundleData
+    };
 }
-function emitEntryPoint(modulesMap, deps, entryPoint, includedModules) {
+function extractStrings(destFiles) {
+    var parseDefineCall = function (moduleMatch, depsMatch) {
+        var module = moduleMatch.replace(/^"|"$/g, '');
+        var deps = depsMatch.split(',');
+        deps = deps.map(function (dep) {
+            dep = dep.trim();
+            dep = dep.replace(/^"|"$/g, '');
+            dep = dep.replace(/^'|'$/g, '');
+            var prefix = null;
+            var _path = null;
+            var pieces = dep.split('!');
+            if (pieces.length > 1) {
+                prefix = pieces[0] + '!';
+                _path = pieces[1];
+            }
+            else {
+                prefix = '';
+                _path = pieces[0];
+            }
+            if (/^\.\//.test(_path) || /^\.\.\//.test(_path)) {
+                var res = path.join(path.dirname(module), _path).replace(/\\/g, '/');
+                return prefix + res;
+            }
+            return prefix + _path;
+        });
+        return {
+            module: module,
+            deps: deps
+        };
+    };
+    destFiles.forEach(function (destFile, index) {
+        if (!/\.js$/.test(destFile.dest)) {
+            return;
+        }
+        if (/\.nls\.js$/.test(destFile.dest)) {
+            return;
+        }
+        // Do one pass to record the usage counts for each module id
+        var useCounts = {};
+        destFile.sources.forEach(function (source) {
+            var matches = source.contents.match(/define\(("[^"]+"),\s*\[(((, )?("|')[^"']+("|'))+)\]/);
+            if (!matches) {
+                return;
+            }
+            var defineCall = parseDefineCall(matches[1], matches[2]);
+            useCounts[defineCall.module] = (useCounts[defineCall.module] || 0) + 1;
+            defineCall.deps.forEach(function (dep) {
+                useCounts[dep] = (useCounts[dep] || 0) + 1;
+            });
+        });
+        var sortedByUseModules = Object.keys(useCounts);
+        sortedByUseModules.sort(function (a, b) {
+            return useCounts[b] - useCounts[a];
+        });
+        var replacementMap = {};
+        sortedByUseModules.forEach(function (module, index) {
+            replacementMap[module] = index;
+        });
+        destFile.sources.forEach(function (source) {
+            source.contents = source.contents.replace(/define\(("[^"]+"),\s*\[(((, )?("|')[^"']+("|'))+)\]/, function (_, moduleMatch, depsMatch) {
+                var defineCall = parseDefineCall(moduleMatch, depsMatch);
+                return "define(__m[" + replacementMap[defineCall.module] + "/*" + defineCall.module + "*/], __M([" + defineCall.deps.map(function (dep) { return replacementMap[dep] + '/*' + dep + '*/'; }).join(',') + "])";
+            });
+        });
+        destFile.sources.unshift({
+            path: null,
+            contents: [
+                '(function() {',
+                "var __m = " + JSON.stringify(sortedByUseModules) + ";",
+                "var __M = function(deps) {",
+                "  var result = [];",
+                "  for (var i = 0, len = deps.length; i < len; i++) {",
+                "    result[i] = __m[deps[i]];",
+                "  }",
+                "  return result;",
+                "};"
+            ].join('\n')
+        });
+        destFile.sources.push({
+            path: null,
+            contents: '}).call(this);'
+        });
+    });
+    return destFiles;
+}
+function removeDuplicateTSBoilerplate(destFiles) {
+    // Taken from typescript compiler => emitFiles
+    var BOILERPLATE = [
+        { start: /^var __extends/, end: /^}\)\(\);$/ },
+        { start: /^var __assign/, end: /^};$/ },
+        { start: /^var __decorate/, end: /^};$/ },
+        { start: /^var __metadata/, end: /^};$/ },
+        { start: /^var __param/, end: /^};$/ },
+        { start: /^var __awaiter/, end: /^};$/ },
+        { start: /^var __generator/, end: /^};$/ },
+    ];
+    destFiles.forEach(function (destFile) {
+        var SEEN_BOILERPLATE = [];
+        destFile.sources.forEach(function (source) {
+            var lines = source.contents.split(/\r\n|\n|\r/);
+            var newLines = [];
+            var IS_REMOVING_BOILERPLATE = false, END_BOILERPLATE;
+            for (var i = 0; i < lines.length; i++) {
+                var line = lines[i];
+                if (IS_REMOVING_BOILERPLATE) {
+                    newLines.push('');
+                    if (END_BOILERPLATE.test(line)) {
+                        IS_REMOVING_BOILERPLATE = false;
+                    }
+                }
+                else {
+                    for (var j = 0; j < BOILERPLATE.length; j++) {
+                        var boilerplate = BOILERPLATE[j];
+                        if (boilerplate.start.test(line)) {
+                            if (SEEN_BOILERPLATE[j]) {
+                                IS_REMOVING_BOILERPLATE = true;
+                                END_BOILERPLATE = boilerplate.end;
+                            }
+                            else {
+                                SEEN_BOILERPLATE[j] = true;
+                            }
+                        }
+                    }
+                    if (IS_REMOVING_BOILERPLATE) {
+                        newLines.push('');
+                    }
+                    else {
+                        newLines.push(line);
+                    }
+                }
+            }
+            source.contents = newLines.join('\n');
+        });
+    });
+    return destFiles;
+}
+function emitEntryPoint(modulesMap, deps, entryPoint, includedModules, prepend, append, dest) {
+    if (!dest) {
+        dest = entryPoint + '.js';
+    }
     var mainResult = {
         sources: [],
-        dest: entryPoint + '.js'
+        dest: dest
     }, results = [mainResult];
     var usedPlugins = {};
     var getLoaderPlugin = function (pluginName) {
@@ -127,6 +313,16 @@ function emitEntryPoint(modulesMap, deps, entryPoint, includedModules) {
             plugin.writeFile(pluginName, entryPoint, req, write, {});
         }
     });
+    var toIFile = function (path) {
+        var contents = readFileAndRemoveBOM(path);
+        return {
+            path: path,
+            contents: contents
+        };
+    };
+    var toPrepend = (prepend || []).map(toIFile);
+    var toAppend = (append || []).map(toIFile);
+    mainResult.sources = toPrepend.concat(mainResult.sources).concat(toAppend);
     return {
         files: results,
         usedPlugins: usedPlugins

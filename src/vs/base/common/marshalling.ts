@@ -11,10 +11,12 @@ export function stringify(obj: any): string {
 }
 
 export function parse(text: string): any {
-	return JSON.parse(text, reviver);
+	let data = JSON.parse(text);
+	data = revive(data, 0);
+	return data;
 }
 
-interface MarshalledObject {
+export interface MarshalledObject {
 	$mid: number;
 }
 
@@ -30,17 +32,26 @@ function replacer(key: string, value: any): any {
 	return value;
 }
 
+export function revive(obj: any, depth: number): any {
 
-function reviver(key: string, value: any): any {
-	let marshallingConst: number;
-	if (value !== void 0 && value !== null) {
-		marshallingConst = (<MarshalledObject>value).$mid;
+	if (!obj || depth > 200) {
+		return obj;
 	}
-	if (marshallingConst === 1) {
-		return URI.revive(value);
-	} else if (marshallingConst === 2) {
-		return new RegExp(value.source, value.flags);
-	} else {
-		return value;
+
+	if (typeof obj === 'object') {
+
+		switch ((<MarshalledObject>obj).$mid) {
+			case 1: return URI.revive(obj);
+			case 2: return new RegExp(obj.source, obj.flags);
+		}
+
+		// walk object (or array)
+		for (let key in obj) {
+			if (Object.hasOwnProperty.call(obj, key)) {
+				obj[key] = revive(obj[key], depth + 1);
+			}
+		}
 	}
+
+	return obj;
 }

@@ -6,27 +6,30 @@
 'use strict';
 
 import 'vs/css!./rulers';
-import {StyleMutator} from 'vs/base/browser/styleMutator';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ILayoutProvider, IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
-import {ViewPart} from 'vs/editor/browser/view/viewPart';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { ViewPart } from 'vs/editor/browser/view/viewPart';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorRuler } from 'vs/editor/common/view/editorColorRegistry';
 
 export class Rulers extends ViewPart {
 
-	public domNode: HTMLElement;
-	private _layoutProvider:ILayoutProvider;
+	public domNode: FastDomNode<HTMLElement>;
+	private _renderedRulers: FastDomNode<HTMLElement>[];
 	private _rulers: number[];
-	private _height: number;
 	private _typicalHalfwidthCharacterWidth: number;
 
-	constructor(context:IViewContext, layoutProvider:ILayoutProvider) {
+	constructor(context: ViewContext) {
 		super(context);
-		this._layoutProvider = layoutProvider;
-		this.domNode = document.createElement('div');
-		this.domNode.className = 'view-rulers';
-		this._rulers = this._context.configuration.editor.rulers;
-		this._height = this._context.configuration.editor.layoutInfo.contentHeight;
-		this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.typicalHalfwidthCharacterWidth;
+		this.domNode = createFastDomNode<HTMLElement>(document.createElement('div'));
+		this.domNode.setAttribute('role', 'presentation');
+		this.domNode.setAttribute('aria-hidden', 'true');
+		this.domNode.setClassName('view-rulers');
+		this._renderedRulers = [];
+		this._rulers = this._context.configuration.editor.viewInfo.rulers;
+		this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
 	}
 
 	public dispose(): void {
@@ -35,45 +38,71 @@ export class Rulers extends ViewPart {
 
 	// --- begin event handlers
 
-	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
-		if (e.rulers || e.layoutInfo || e.typicalHalfwidthCharacterWidth) {
-			this._rulers = this._context.configuration.editor.rulers;
-			this._height = this._context.configuration.editor.layoutInfo.contentHeight;
-			this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.typicalHalfwidthCharacterWidth;
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		if (e.viewInfo || e.layoutInfo || e.fontInfo) {
+			this._rulers = this._context.configuration.editor.viewInfo.rulers;
+			this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
 			return true;
 		}
 		return false;
 	}
-	public onScrollHeightChanged(scrollHeight:number): boolean {
-		return true;
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		return e.scrollHeightChanged;
 	}
 
 	// --- end event handlers
 
-	_render(ctx: IRenderingContext): void {
-		this._requestModificationFrame(() => {
-			let existingRulersLength = this.domNode.children.length;
-			let max = Math.max(existingRulersLength, this._rulers.length);
+	public prepareRender(ctx: RenderingContext): void {
+		// Nothing to read
+	}
 
-			for (let i = 0; i < max; i++) {
+	private _ensureRulersCount(): void {
+		const currentCount = this._renderedRulers.length;
+		const desiredCount = this._rulers.length;
 
-				if (i >= this._rulers.length) {
-					this.domNode.removeChild(this.domNode.lastChild);
-					continue;
-				}
+		if (currentCount === desiredCount) {
+			// Nothing to do
+			return;
+		}
 
-				let node: HTMLElement;
-				if (i < existingRulersLength) {
-					node = <HTMLElement>this.domNode.children[i];
-				} else {
-					node = document.createElement('div');
-					node.className = 'view-ruler';
-					this.domNode.appendChild(node);
-				}
-
-				StyleMutator.setHeight(node, Math.min(this._layoutProvider.getTotalHeight(), 1000000));
-				StyleMutator.setLeft(node, this._rulers[i] * this._typicalHalfwidthCharacterWidth);
+		if (currentCount < desiredCount) {
+			const rulerWidth = this._context.model.getTabSize();
+			let addCount = desiredCount - currentCount;
+			while (addCount > 0) {
+				let node = createFastDomNode(document.createElement('div'));
+				node.setClassName('view-ruler');
+				node.setWidth(rulerWidth);
+				this.domNode.appendChild(node);
+				this._renderedRulers.push(node);
+				addCount--;
 			}
-		});
+			return;
+		}
+
+		let removeCount = currentCount - desiredCount;
+		while (removeCount > 0) {
+			let node = this._renderedRulers.pop();
+			this.domNode.removeChild(node);
+			removeCount--;
+		}
+	}
+
+	public render(ctx: RestrictedRenderingContext): void {
+
+		this._ensureRulersCount();
+
+		for (let i = 0, len = this._rulers.length; i < len; i++) {
+			let node = this._renderedRulers[i];
+
+			node.setHeight(Math.min(ctx.scrollHeight, 1000000));
+			node.setLeft(this._rulers[i] * this._typicalHalfwidthCharacterWidth);
+		}
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let rulerColor = theme.getColor(editorRuler);
+	if (rulerColor) {
+		collector.addRule(`.monaco-editor .view-ruler { box-shadow: 1px 0 0 0 ${rulerColor} inset; }`);
+	}
+});

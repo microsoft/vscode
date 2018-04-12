@@ -5,10 +5,10 @@
 
 'use strict';
 
-import path = require('path');
-import os = require('os');
-import net = require('net');
-import cp = require('child_process');
+import * as path from 'path';
+import * as os from 'os';
+import * as net from 'net';
+import * as cp from 'child_process';
 import uri from 'vs/base/common/uri';
 
 export interface IForkOpts {
@@ -18,7 +18,7 @@ export interface IForkOpts {
 	execArgv?: string[];
 }
 
-function makeRandomHexString(length:number): string {
+function makeRandomHexString(length: number): string {
 	let chars = ['0', '1', '2', '3', '4', '5', '6', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'];
 	let result = '';
 	for (let i = 0; i < length; i++) {
@@ -38,10 +38,10 @@ function generatePipeName(): string {
 	return path.join(os.tmpdir(), randomName + '.sock');
 }
 
-function generatePatchedEnv(env:any, stdInPipeName:string, stdOutPipeName:string, stdErrPipeName:string): any {
+function generatePatchedEnv(env: any, stdInPipeName: string, stdOutPipeName: string, stdErrPipeName: string): any {
 	// Set the two unique pipe names and the electron flag as process env
 
-	let newEnv:any = {};
+	let newEnv: any = {};
 	for (let key in env) {
 		newEnv[key] = env[key];
 	}
@@ -49,12 +49,12 @@ function generatePatchedEnv(env:any, stdInPipeName:string, stdOutPipeName:string
 	newEnv['STDIN_PIPE_NAME'] = stdInPipeName;
 	newEnv['STDOUT_PIPE_NAME'] = stdOutPipeName;
 	newEnv['STDERR_PIPE_NAME'] = stdErrPipeName;
-	newEnv['ATOM_SHELL_INTERNAL_RUN_AS_NODE'] = '1';
+	newEnv['ELECTRON_RUN_AS_NODE'] = '1';
 
 	return newEnv;
 }
 
-export function fork(modulePath: string, args: string[], options: IForkOpts, callback:(error:any, cp:cp.ChildProcess)=>void): void {
+export function fork(modulePath: string, args: string[], options: IForkOpts, callback: (error: any, cp: cp.ChildProcess) => void): void {
 
 	let callbackCalled = false;
 	let resolve = (result: cp.ChildProcess) => {
@@ -64,7 +64,7 @@ export function fork(modulePath: string, args: string[], options: IForkOpts, cal
 		callbackCalled = true;
 		callback(null, result);
 	};
-	let reject = (err:any) => {
+	let reject = (err: any) => {
 		if (callbackCalled) {
 			return;
 		}
@@ -92,7 +92,7 @@ export function fork(modulePath: string, args: string[], options: IForkOpts, cal
 	let stdOutServer = net.createServer((stdOutStream) => {
 		// The child process will write exactly one chunk with content `ready` when it has installed a listener to the stdin pipe
 
-		stdOutStream.once('data', (chunk:Buffer) => {
+		stdOutStream.once('data', (chunk: Buffer) => {
 			// The child process is sending me the `ready` chunk, time to connect to the stdin pipe
 			childProcess.stdin = <any>net.connect(stdInPipeName);
 
@@ -109,7 +109,9 @@ export function fork(modulePath: string, args: string[], options: IForkOpts, cal
 		if (serverClosed) {
 			return;
 		}
+
 		serverClosed = true;
+		process.removeListener('exit', closeServer);
 		stdOutServer.close();
 		stdErrServer.close();
 	};
@@ -123,13 +125,16 @@ export function fork(modulePath: string, args: string[], options: IForkOpts, cal
 		execArgv: options.execArgv
 	});
 
-	childProcess.once('error', (err:Error) => {
+	childProcess.once('error', (err: Error) => {
 		closeServer();
 		reject(err);
 	});
 
-	childProcess.once('exit', (err:Error) => {
+	childProcess.once('exit', (err: Error) => {
 		closeServer();
 		reject(err);
 	});
+
+	// On vscode exit still close server #7758
+	process.once('exit', closeServer);
 }

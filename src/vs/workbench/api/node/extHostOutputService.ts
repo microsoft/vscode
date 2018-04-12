@@ -4,20 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
-import {IOutputService, OUTPUT_EDITOR_INPUT_ID} from 'vs/workbench/parts/output/common/output';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import { MainContext, MainThreadOutputServiceShape, IMainContext } from './extHost.protocol';
+import * as vscode from 'vscode';
 
 export class ExtHostOutputChannel implements vscode.OutputChannel {
 
-	private _proxy: MainThreadOutputService;
+	private static _idPool = 1;
+
+	private _proxy: MainThreadOutputServiceShape;
 	private _name: string;
+	private _id: string;
 	private _disposed: boolean;
 
-	constructor(name: string, proxy: MainThreadOutputService) {
+	constructor(name: string, proxy: MainThreadOutputServiceShape) {
 		this._name = name;
+		this._id = 'extension-output-#' + (ExtHostOutputChannel._idPool++);
 		this._proxy = proxy;
 	}
 
@@ -27,43 +28,54 @@ export class ExtHostOutputChannel implements vscode.OutputChannel {
 
 	dispose(): void {
 		if (!this._disposed) {
-			this._proxy.clear(this._name).then(() => {
+			this._proxy.$dispose(this._id, this._name).then(() => {
 				this._disposed = true;
 			});
 		}
 	}
 
 	append(value: string): void {
-		this._proxy.append(this._name, value);
+		this.validate();
+		this._proxy.$append(this._id, this._name, value);
 	}
 
 	appendLine(value: string): void {
+		this.validate();
 		this.append(value + '\n');
 	}
 
 	clear(): void {
-		this._proxy.clear(this._name);
+		this.validate();
+		this._proxy.$clear(this._id, this._name);
 	}
 
 	show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
+		this.validate();
 		if (typeof columnOrPreserveFocus === 'boolean') {
 			preserveFocus = columnOrPreserveFocus;
 		}
 
-		this._proxy.reveal(this._name, preserveFocus);
+		this._proxy.$reveal(this._id, this._name, preserveFocus);
 	}
 
 	hide(): void {
-		this._proxy.close(this._name);
+		this.validate();
+		this._proxy.$close(this._id);
+	}
+
+	private validate(): void {
+		if (this._disposed) {
+			throw new Error('Channel has been closed');
+		}
 	}
 }
 
 export class ExtHostOutputService {
 
-	private _proxy: MainThreadOutputService;
+	private _proxy: MainThreadOutputServiceShape;
 
-	constructor(threadService: IThreadService) {
-		this._proxy = threadService.getRemotable(MainThreadOutputService);
+	constructor(mainContext: IMainContext) {
+		this._proxy = mainContext.getProxy(MainContext.MainThreadOutputService);
 	}
 
 	createOutputChannel(name: string): vscode.OutputChannel {
@@ -72,43 +84,6 @@ export class ExtHostOutputService {
 			throw new Error('illegal argument `name`. must not be falsy');
 		} else {
 			return new ExtHostOutputChannel(name, this._proxy);
-		}
-	}
-}
-
-@Remotable.MainContext('MainThreadOutputService')
-export class MainThreadOutputService {
-
-	private _outputService: IOutputService;
-	private _editorService: IWorkbenchEditorService;
-
-	constructor( @IOutputService outputService: IOutputService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
-		this._outputService = outputService;
-		this._editorService = editorService;
-	}
-
-	public append(channel: string, value: string): TPromise<void> {
-		this._outputService.append(channel, value);
-		return undefined;
-	}
-
-	public clear(channel: string): TPromise<void> {
-		this._outputService.clearOutput(channel);
-		return undefined;
-	}
-
-	public reveal(channel: string, preserveFocus: boolean): TPromise<void> {
-		this._outputService.showOutput(channel, preserveFocus);
-		return undefined;
-	}
-
-	public close(channel: string): TPromise<void> {
-		let editors = this._editorService.getVisibleEditors();
-		for (let editor of editors) {
-			if (editor.input.getId() === OUTPUT_EDITOR_INPUT_ID) {
-				this._editorService.closeEditor(editor).done(null, onUnexpectedError);
-				return undefined;
-			}
 		}
 	}
 }

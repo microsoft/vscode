@@ -6,85 +6,44 @@
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item {
 	display: block;
 	position: relative;
-	margin: 10px 0;
+	padding: 5px 0;
 }
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label {
-	display: inline-block; /* this is for IE9 which will ignore the flex rules */
-	display: -ms-flexbox;
 	display: flex;
 	overflow: hidden;
 	height: 40px;
 	line-height: 40px;
 	margin-right: 0;
 	padding: 0 0 0 50px;
-	-moz-box-sizing: border-box;
-	-webkit-box-sizing: border-box;
 	box-sizing: border-box;
-	background-position: 9px center;
-	background-repeat: no-repeat;
-	opacity: 0.6;
 	font-size: 15px;
-	color: white;
-	text-shadow: 0 1px 0 rgba(0, 0, 0, 0.8);
 }
 
-.monaco-workbench > .activitybar > .content .monaco-action-bar .badge:active:before,
-.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
+.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus:before {
 	content: "";
 	position: absolute;
-	top: 4px;
+	top: 9px;
 	height: 32px;
 	width: 0;
 	border-left: 2px solid;
 }
 
-.monaco-workbench.vs > .activitybar > .content .monaco-action-bar .badge:active:before,
-.monaco-workbench.vs-dark > .activitybar > .content .monaco-action-bar .badge:active:before,
-.monaco-workbench.vs > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before,
-.monaco-workbench.vs-dark > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
-	border-left-color: #007ACC;
+.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.clicked:focus:before {
+	border-left: none !important; /* no focus feedback when using mouse */
 }
 
-.monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar .badge:active:before,
-.monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
-	border-left-color: #f38518;
-}
-
-.monaco-workbench > .activitybar.left > .content .monaco-action-bar .badge:active:before,
-.monaco-workbench > .activitybar.left > .content .monaco-action-bar .action-item .action-label:focus:before {
+.monaco-workbench > .activitybar.left > .content .monaco-action-bar .action-item:focus:before {
 	left: 1px;
 }
 
-.monaco-workbench > .activitybar.right > .content .monaco-action-bar .badge:active:before,
-.monaco-workbench > .activitybar.right > .content .monaco-action-bar .action-item .action-label:focus:before {
+.monaco-workbench > .activitybar.right > .content .monaco-action-bar .action-item:focus:before {
 	right: 1px;
-}
-
-.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label > .label {
-	-ms-flex: 1 1 auto;
-	flex: 1 1 auto;
-	overflow: hidden;
-}
-
-.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label > .keybinding {
-	overflow: hidden;
-	text-overflow: hidden;
-	-ms-flex: 2 1 auto;
-	flex: 2 1 auto;
-	text-align: right;
-	opacity: 0.5;
-	padding: 0 2em 0 1em;
-	font-size: 0.8em;
-}
-
-.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label:hover {
-	text-decoration: none;
 }
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar .badge {
 	position: absolute;
-	top: 0;
+	top: 5px;
 	left: 0;
 	overflow: hidden;
 	width: 50px;
@@ -102,15 +61,9 @@
 	padding: 0 5px;
 	border-radius: 20px;
 	text-align: center;
-	color: white;
 }
 
-.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.active,
-.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover .action-label {
-	opacity: 1;
-}
-
-/* Right  aligned */
+/* Right aligned */
 
 .monaco-workbench > .activitybar.right > .content .monaco-action-bar .action-label {
 	margin-left: 0;
@@ -118,50 +71,7 @@
 	background-position: calc(100% - 9px) center;
 }
 
-.monaco-workbench > .activitybar.right > .content .monaco-action-bar .action-label .label {
-	padding-left: 1em;
-}
-
-.monaco-workbench > .activitybar.right > .content .monaco-action-bar .action-label > .keybinding {
-	text-align: right;
-	padding: 0 0 0 2em;
-}
-
 .monaco-workbench > .activitybar.right > .content .monaco-action-bar .badge {
 	left: auto;
 	right: 0;
-}
-
-/* High Contrast Theming */
-.monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar .action-label,
-.monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar .action-label.active {
-	opacity: 1;
-}
-
-.monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar .action-label:before {
-	opacity: 0.6;
-	position: absolute;
-	top: 4px;
-	left: 9px;
-	height: 32px;
-	width: 32px;
-}
-
-.monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar .action-item .action-label.active:before,
-.monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar .action-item:hover .action-label:before {
-	opacity: 1;
-}
-
-.monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar .action-item .action-label.active:before {
-	outline: 1px solid #f38518;
-}
-
-.monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar.global .action-item .action-label.active:before {
-	border: none;
-}
-
-.monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar .badge .badge-content {
-	background: none;
-	background-color: #000;
-	border: 1px solid #6FC3DF;
 }

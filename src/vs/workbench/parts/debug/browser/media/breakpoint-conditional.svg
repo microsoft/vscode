@@ -1,10 +1,1 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Generator: Adobe Illustrator 19.2.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
-<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
-	 viewBox="0 0 16 16" style="enable-background:new 0 0 16 16;" xml:space="preserve">
-<style type="text/css">
-	.st0{fill:#E51400;}
-</style>
-<path class="st0" d="M8,3C5.2,3,3,5.2,3,8s2.2,5,5,5s5-2.2,5-5S10.8,3,8,3z M10.8,9.9H5.2V8.7h5.7V9.9z M10.8,7.3H5.2V6.1h5.7V7.3z"
-	/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><defs><style>.cls-1,.icon-vs-out{fill:#f6f6f6;}.cls-1{fill-opacity:0;}.icon-vs-red{fill:#e51400;}.icon-white{fill:#fff;}</style></defs><title>breakpoint-conditional</title><g id="canvas"><path class="cls-1" d="M16,0V16H0V0Z"/></g><g id="outline" style="display: none;"><path class="icon-vs-out" d="M12.8,8A4.8,4.8,0,1,1,8,3.2,4.806,4.806,0,0,1,12.8,8Z"/></g><g id="iconBg"><path class="icon-vs-red" d="M11.8,8A3.8,3.8,0,1,1,8,4.2,3.8,3.8,0,0,1,11.8,8Z"/><path class="icon-white" d="M10.1,6.7v.8H5.9V6.7ZM5.9,9.2h4.2V8.4H5.9Z"/></g></svg>

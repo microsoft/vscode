@@ -5,38 +5,22 @@
 'use strict';
 
 import * as assert from 'assert';
-import {EditOperation} from 'vs/editor/common/core/editOperation';
-import {Position} from 'vs/editor/common/core/position';
-import {Range} from 'vs/editor/common/core/range';
-import {EventType, IModelContentChangedEvent, IModelContentChangedFlushEvent} from 'vs/editor/common/editorCommon';
-import {Model} from 'vs/editor/common/model/model';
-import {BracketMode} from 'vs/editor/test/common/testModes';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import {
+	ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged,
+	ModelRawLinesDeleted, ModelRawLinesInserted
+} from 'vs/editor/common/model/textModelEvents';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { LanguageIdentifier, TokenizationRegistry, IState, MetadataConsts } from 'vs/editor/common/modes';
+import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
+import { dispose, Disposable } from 'vs/base/common/lifecycle';
 
 // --------- utils
-
-function isNotABracket(model, lineNumber, column) {
-	var match = model.matchBracket(new Position(lineNumber, column));
-	assert.equal(match.isAccurate, true, 'is not matching brackets at ' + lineNumber + ', ' + column);
-	assert.equal(match.brackets, null, 'is not matching brackets at ' + lineNumber + ', ' + column);
-}
-
-function isBracket(model, lineNumber1, column11, column12, lineNumber2, column21, column22) {
-	var match = model.matchBracket(new Position(lineNumber1, column11));
-	assert.deepEqual(match, {
-		brackets: [
-			new Range(lineNumber1, column11, lineNumber1, column12),
-			new Range(lineNumber2, column21, lineNumber2, column22)
-		],
-		isAccurate: true
-	}, 'is matching brackets at ' + lineNumber1 + ', ' + column11);
-}
-
-
-
-function rangeEqual(range, startLineNumber, startColumn, endLineNumber, endColumn) {
-	assert.deepEqual(range, new Range(startLineNumber, startColumn, endLineNumber, endColumn));
-}
-
 
 var LINE1 = 'My First Line';
 var LINE2 = '\t\tMy Second Line';
@@ -46,7 +30,7 @@ var LINE5 = '1';
 
 suite('Editor Model - Model', () => {
 
-	var thisModel: Model;
+	var thisModel: TextModel;
 
 	setup(() => {
 		var text =
@@ -55,7 +39,7 @@ suite('Editor Model - Model', () => {
 			LINE3 + '\n' +
 			LINE4 + '\r\n' +
 			LINE5;
-		thisModel = new Model(text, Model.DEFAULT_CREATION_OPTIONS, null);
+		thisModel = TextModel.createFromString(text);
 	});
 
 	teardown(() => {
@@ -115,50 +99,49 @@ suite('Editor Model - Model', () => {
 	// --------- insert text eventing
 
 	test('model insert empty text does not trigger eventing', () => {
-		thisModel.addListener(EventType.ModelContentChanged, (e) => {
+		thisModel.onDidChangeRawContent((e) => {
 			assert.ok(false, 'was not expecting event');
 		});
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), '')]);
 	});
 
 	test('model insert text without newline eventing', () => {
-		var listenerCalls = 0;
-		thisModel.addListener(EventType.ModelContentChanged, (e) => {
-			listenerCalls++;
-			assert.equal(e.changeType, EventType.ModelContentChangedLineChanged);
-			assert.equal(e.lineNumber, 1);
+		let e: ModelRawContentChangedEvent = null;
+		thisModel.onDidChangeRawContent((_e) => {
+			if (e !== null) {
+				assert.fail('Unexpected assertion error');
+			}
+			e = _e;
 		});
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), 'foo ')]);
-		assert.equal(listenerCalls, 1, 'listener calls');
+		assert.deepEqual(e, new ModelRawContentChangedEvent(
+			[
+				new ModelRawLineChanged(1, 'foo My First Line')
+			],
+			2,
+			false,
+			false
+		));
 	});
 
 	test('model insert text with one newline eventing', () => {
-		var listenerCalls = 0;
-		var order = 0;
-
-		thisModel.addListener(EventType.ModelContentChanged, (e) => {
-			listenerCalls++;
-
-			if (e.changeType === EventType.ModelContentChangedLineChanged) {
-				if (order === 0) {
-					assert.equal(++order, 1, 'ModelContentChangedLineChanged first');
-					assert.equal(e.lineNumber, 1, 'ModelContentChangedLineChanged line number 1');
-				} else {
-					assert.equal(++order, 2, 'ModelContentChangedLineChanged first');
-					assert.equal(e.lineNumber, 1, 'ModelContentChangedLineChanged line number 1');
-				}
-			} else if (e.changeType === EventType.ModelContentChangedLinesInserted) {
-				assert.equal(++order, 3, 'ModelContentChangedLinesInserted second');
-				assert.equal(e.fromLineNumber, 2, 'ModelContentChangedLinesInserted fromLineNumber');
-				assert.equal(e.toLineNumber, 2, 'ModelContentChangedLinesInserted toLineNumber');
-			} else {
-				assert.ok (false);
+		let e: ModelRawContentChangedEvent = null;
+		thisModel.onDidChangeRawContent((_e) => {
+			if (e !== null) {
+				assert.fail('Unexpected assertion error');
 			}
-
+			e = _e;
 		});
-
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 3), ' new line\nNo longer')]);
-		assert.equal(listenerCalls, 3, 'listener calls');
+		assert.deepEqual(e, new ModelRawContentChangedEvent(
+			[
+				new ModelRawLineChanged(1, 'My new line'),
+				new ModelRawLinesInserted(2, 2, ['No longer First Line']),
+			],
+			2,
+			false,
+			false
+		));
 	});
 
 
@@ -212,89 +195,88 @@ suite('Editor Model - Model', () => {
 	// --------- delete text eventing
 
 	test('model delete empty text does not trigger eventing', () => {
-		thisModel.addListener(EventType.ModelContentChanged, (e) => {
+		thisModel.onDidChangeRawContent((e) => {
 			assert.ok(false, 'was not expecting event');
 		});
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 1))]);
 	});
 
 	test('model delete text from one line eventing', () => {
-		var listenerCalls = 0;
-		thisModel.addListener(EventType.ModelContentChanged, (e) => {
-			listenerCalls++;
-			assert.equal(e.changeType, EventType.ModelContentChangedLineChanged);
-			assert.equal(e.lineNumber, 1);
+		let e: ModelRawContentChangedEvent = null;
+		thisModel.onDidChangeRawContent((_e) => {
+			if (e !== null) {
+				assert.fail('Unexpected assertion error');
+			}
+			e = _e;
 		});
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 2))]);
-		assert.equal(listenerCalls, 1, 'listener calls');
+		assert.deepEqual(e, new ModelRawContentChangedEvent(
+			[
+				new ModelRawLineChanged(1, 'y First Line'),
+			],
+			2,
+			false,
+			false
+		));
 	});
 
 	test('model delete all text from a line eventing', () => {
-		var listenerCalls = 0;
-		thisModel.addListener(EventType.ModelContentChanged, (e) => {
-			listenerCalls++;
-			assert.equal(e.changeType, EventType.ModelContentChangedLineChanged);
-			assert.equal(e.lineNumber, 1);
+		let e: ModelRawContentChangedEvent = null;
+		thisModel.onDidChangeRawContent((_e) => {
+			if (e !== null) {
+				assert.fail('Unexpected assertion error');
+			}
+			e = _e;
 		});
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 14))]);
-		assert.equal(listenerCalls, 1, 'listener calls');
+		assert.deepEqual(e, new ModelRawContentChangedEvent(
+			[
+				new ModelRawLineChanged(1, ''),
+			],
+			2,
+			false,
+			false
+		));
 	});
 
 	test('model delete text from two lines eventing', () => {
-		var listenerCalls = 0;
-		var order = 0;
-		thisModel.addListener(EventType.ModelContentChanged, (e) => {
-			listenerCalls++;
-
-			if (e.changeType === EventType.ModelContentChangedLineChanged) {
-				if (order === 0) {
-					assert.equal(++order, 1);
-					assert.equal(e.lineNumber, 1);
-				} else {
-					assert.equal(++order, 2);
-					assert.equal(e.lineNumber, 1);
-				}
-			} else if (e.changeType === EventType.ModelContentChangedLinesDeleted) {
-				assert.equal(++order, 3);
-				assert.equal(e.fromLineNumber, 2);
-				assert.equal(e.toLineNumber, 2);
-			} else {
-				assert.ok (false);
+		let e: ModelRawContentChangedEvent = null;
+		thisModel.onDidChangeRawContent((_e) => {
+			if (e !== null) {
+				assert.fail('Unexpected assertion error');
 			}
-
+			e = _e;
 		});
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 4, 2, 6))]);
-		assert.equal(listenerCalls, 3, 'listener calls');
+		assert.deepEqual(e, new ModelRawContentChangedEvent(
+			[
+				new ModelRawLineChanged(1, 'My Second Line'),
+				new ModelRawLinesDeleted(2, 2),
+			],
+			2,
+			false,
+			false
+		));
 	});
 
 	test('model delete text from many lines eventing', () => {
-		var listenerCalls = 0;
-		var order = 0;
-
-		thisModel.addListener(EventType.ModelContentChanged, (e) => {
-			listenerCalls++;
-
-			if (e.changeType === EventType.ModelContentChangedLineChanged) {
-				if (order === 0) {
-					assert.equal(++order, 1);
-					assert.equal(e.lineNumber, 1);
-				} else {
-					assert.equal(++order, 2);
-					assert.equal(e.lineNumber, 1);
-				}
-			} else if (e.changeType === EventType.ModelContentChangedLinesDeleted) {
-				assert.equal(++order, 3);
-				assert.equal(e.fromLineNumber, 2);
-				assert.equal(e.toLineNumber, 3);
-			} else {
-				assert.ok (false);
+		let e: ModelRawContentChangedEvent = null;
+		thisModel.onDidChangeRawContent((_e) => {
+			if (e !== null) {
+				assert.fail('Unexpected assertion error');
 			}
-
+			e = _e;
 		});
-
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 4, 3, 5))]);
-
-		assert.equal(listenerCalls, 3, 'listener calls');
+		assert.deepEqual(e, new ModelRawContentChangedEvent(
+			[
+				new ModelRawLineChanged(1, 'My Third Line'),
+				new ModelRawLinesDeleted(2, 3),
+			],
+			2,
+			false,
+			false
+		));
 	});
 
 	// --------- getValueInRange
@@ -329,30 +311,40 @@ suite('Editor Model - Model', () => {
 
 	// --------- setValue
 	test('setValue eventing', () => {
-		var listenerCalls = 0;
-		thisModel.addOneTimeListener(EventType.ModelContentChanged, (e:IModelContentChangedEvent) => {
-			listenerCalls++;
-
-			assert.equal(e.changeType, EventType.ModelContentChangedFlush);
-
-			assert.deepEqual((<IModelContentChangedFlushEvent>e).detail.lines, [ 'new value' ]);
+		let e: ModelRawContentChangedEvent = null;
+		thisModel.onDidChangeRawContent((_e) => {
+			if (e !== null) {
+				assert.fail('Unexpected assertion error');
+			}
+			e = _e;
 		});
 		thisModel.setValue('new value');
-		assert.equal(listenerCalls, 1, 'listener calls');
+		assert.deepEqual(e, new ModelRawContentChangedEvent(
+			[
+				new ModelRawFlush()
+			],
+			2,
+			false,
+			false
+		));
 	});
 
-	//	var LINE1 = 'My First Line';
-	//	var LINE2 = '\t\tMy Second Line';
-	//	var LINE3 = '    Third Line';
-	//	var LINE4 = '';
-	//	var LINE5 = '1';
+	test('issue #46342: Maintain edit operation order in applyEdits', () => {
+		let res = thisModel.applyEdits([
+			{ range: new Range(2, 1, 2, 1), text: 'a' },
+			{ range: new Range(1, 1, 1, 1), text: 'b' },
+		]);
+
+		assert.deepEqual(res[0].range, new Range(2, 1, 2, 2));
+		assert.deepEqual(res[1].range, new Range(1, 1, 1, 2));
+	});
 });
 
 
 // --------- Special Unicode LINE SEPARATOR character
 suite('Editor Model - Model Line Separators', () => {
 
-	var thisModel: Model;
+	var thisModel: TextModel;
 
 	setup(() => {
 		var text =
@@ -361,11 +353,11 @@ suite('Editor Model - Model Line Separators', () => {
 			LINE3 + '\u2028' +
 			LINE4 + '\r\n' +
 			LINE5;
-		thisModel = new Model(text, Model.DEFAULT_CREATION_OPTIONS, null);
+		thisModel = TextModel.createFromString(text);
 	});
 
 	teardown(() => {
-		thisModel.destroy();
+		thisModel.dispose();
 	});
 
 	test('model getValue', () => {
@@ -377,116 +369,10 @@ suite('Editor Model - Model Line Separators', () => {
 	});
 
 	test('Bug 13333:Model should line break on lonely CR too', () => {
-		var model = new Model('Hello\rWorld!\r\nAnother line', Model.DEFAULT_CREATION_OPTIONS, null);
+		var model = TextModel.createFromString('Hello\rWorld!\r\nAnother line');
 		assert.equal(model.getLineCount(), 3);
 		assert.equal(model.getValue(), 'Hello\r\nWorld!\r\nAnother line');
 		model.dispose();
-	});
-});
-
-
-// --------- bracket matching
-
-suite('Editor Model - bracket Matching', () => {
-
-	var thisModel: Model;
-	var bracketMode = new BracketMode();
-
-	setup(() => {
-		var text =
-			'var bar = {' + '\n' +
-			'foo: {' + '\n' +
-			'}, bar: {hallo: [{' + '\n' +
-			'}, {' + '\n' +
-			'}]}}';
-		thisModel = new Model(text, Model.DEFAULT_CREATION_OPTIONS, bracketMode);
-	});
-
-	teardown(() => {
-		thisModel.destroy();
-	});
-
-	test('Model bracket matching 1', () => {
-
-		var brackets = [
-			[1, 11, 12, 5, 4, 5],
-			[1, 12, 11, 5, 4, 5],
-			[5, 5, 4, 1, 11, 12],
-
-			[2, 6, 7, 3, 1, 2],
-			[2, 7, 6, 3, 1, 2],
-			[3, 1, 2, 2, 6, 7],
-			[3, 2, 1, 2, 6, 7],
-
-			[3, 9, 10, 5, 3, 4],
-			[3, 10, 9, 5, 3, 4],
-			[5, 4, 3, 3, 9, 10],
-
-			[3, 17, 18, 5, 2, 3],
-			[3, 18, 17, 5, 2, 3],
-			[5, 3, 2, 3, 17, 18],
-
-			[3, 19, 18, 4, 1, 2],
-			[4, 2, 1, 3, 18, 19],
-			[4, 1, 2, 3, 18, 19],
-
-			[4, 4, 5, 5, 1, 2],
-			[4, 5, 4, 5, 1, 2],
-			[5, 2, 1, 4, 4, 5],
-			[5, 1, 2, 4, 4, 5]
-		];
-		var i, len, b, isABracket = {1:{}, 2:{}, 3:{}, 4:{}, 5:{}};
-
-		for (i = 0, len = brackets.length; i < len; i++) {
-			b = brackets[i];
-			isBracket(thisModel, b[0], b[1], b[2], b[3], b[4], b[5]);
-			isABracket[b[0]][b[1]] = true;
-		}
-
-		for (i = 1, len = thisModel.getLineCount(); i <= len; i++) {
-			var line = thisModel.getLineContent(i), j, lenJ;
-			for (j = 1, lenJ = line.length + 1; j <= lenJ; j++) {
-				if (!isABracket[i].hasOwnProperty(j)) {
-					isNotABracket(thisModel, i, j);
-				}
-			}
-		}
-	});
-});
-
-
-suite('Editor Model - bracket Matching 2', () => {
-
-	var thisModel: Model;
-	var bracketMode = new BracketMode();
-
-	setup(() => {
-		var text =
-			')]}{[(' + '\n' +
-			')]}{[(';
-		thisModel = new Model(text, Model.DEFAULT_CREATION_OPTIONS, bracketMode);
-	});
-
-	teardown(() => {
-		thisModel.destroy();
-	});
-
-	test('Model bracket matching', () => {
-		isNotABracket(thisModel, 1, 1);
-		isNotABracket(thisModel, 1, 2);
-		isNotABracket(thisModel, 1, 3);
-		isBracket(thisModel, 1, 4, 5, 2, 3, 4);
-		isBracket(thisModel, 1, 5, 4, 2, 3, 4);
-		isBracket(thisModel, 1, 6, 5, 2, 2, 3);
-		isBracket(thisModel, 1, 7, 6, 2, 1, 2);
-
-		isBracket(thisModel, 2, 1, 2, 1, 6, 7);
-		isBracket(thisModel, 2, 2, 1, 1, 6, 7);
-		isBracket(thisModel, 2, 3, 2, 1, 5, 6);
-		isBracket(thisModel, 2, 4, 3, 1, 4, 5);
-		isNotABracket(thisModel, 2, 5);
-		isNotABracket(thisModel, 2, 6);
-		isNotABracket(thisModel, 2, 7);
 	});
 });
 
@@ -495,35 +381,62 @@ suite('Editor Model - bracket Matching 2', () => {
 
 suite('Editor Model - Words', () => {
 
-	var thisModel: Model;
+	const OUTER_LANGUAGE_ID = new LanguageIdentifier('outerMode', 3);
+	const INNER_LANGUAGE_ID = new LanguageIdentifier('innerMode', 4);
+
+	class OuterMode extends MockMode {
+		constructor() {
+			super(OUTER_LANGUAGE_ID);
+			this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {}));
+
+			this._register(TokenizationRegistry.register(this.getLanguageIdentifier().language, {
+				getInitialState: (): IState => NULL_STATE,
+				tokenize: undefined,
+				tokenize2: (line: string, state: IState): TokenizationResult2 => {
+					const tokensArr: number[] = [];
+					let prevLanguageId: LanguageIdentifier = undefined;
+					for (let i = 0; i < line.length; i++) {
+						const languageId = (line.charAt(i) === 'x' ? INNER_LANGUAGE_ID : OUTER_LANGUAGE_ID);
+						if (prevLanguageId !== languageId) {
+							tokensArr.push(i);
+							tokensArr.push((languageId.id << MetadataConsts.LANGUAGEID_OFFSET));
+						}
+						prevLanguageId = languageId;
+					}
+
+					const tokens = new Uint32Array(tokensArr.length);
+					for (let i = 0; i < tokens.length; i++) {
+						tokens[i] = tokensArr[i];
+					}
+					return new TokenizationResult2(tokens, state);
+				}
+			}));
+		}
+	}
+
+	class InnerMode extends MockMode {
+		constructor() {
+			super(INNER_LANGUAGE_ID);
+			this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {}));
+		}
+	}
+
+	let disposables: Disposable[] = [];
 
 	setup(() => {
-		var text = [ 'This text has some  words. ' ];
-		thisModel = new Model(text.join('\n'), Model.DEFAULT_CREATION_OPTIONS, null);
+		disposables = [];
 	});
 
 	teardown(() => {
-		thisModel.destroy();
-	});
-
-	test('Get all words', () => {
-		var words = [
-			{ start: 0,		end: 4 },
-			{ start: 5,		end: 9 },
-			{ start: 10,	end: 13 },
-			{ start: 14,	end: 18 },
-			{ start: 20,	end: 25 },
-			{ start: 25,	end: 26 }
-		];
-
-		var modelWords = thisModel.getWords(1);
-
-		for (var i = 0; i < modelWords.length; i++) {
-			assert.deepEqual(modelWords[i], words[i]);
-		}
+		dispose(disposables);
+		disposables = [];
 	});
 
 	test('Get word at position', () => {
+		const text = ['This text has some  words. '];
+		const thisModel = TextModel.createFromString(text.join('\n'));
+		disposables.push(thisModel);
+
 		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 1)), { word: 'This', startColumn: 1, endColumn: 5 });
 		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 2)), { word: 'This', startColumn: 1, endColumn: 5 });
 		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 4)), { word: 'This', startColumn: 1, endColumn: 5 });
@@ -536,120 +449,21 @@ suite('Editor Model - Words', () => {
 		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 27)), null);
 		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 28)), null);
 	});
-});
 
+	test('getWordAtPosition at embedded language boundaries', () => {
+		const outerMode = new OuterMode();
+		const innerMode = new InnerMode();
+		disposables.push(outerMode, innerMode);
 
-// --------- Find
-suite('Editor Model - Find', () => {
+		const model = TextModel.createFromString('ab<xx>ab<x>', undefined, outerMode.getLanguageIdentifier());
+		disposables.push(model);
 
-	var thisModel: Model;
-
-	setup(() => {
-		var text = [
-			'This is some foo - bar text which contains foo and bar - as in Barcelona.',
-			'Now it begins a word fooBar and now it is caps Foo-isn\'t this great?',
-			'And here\'s a dull line with nothing interesting in it',
-			'It is also interesting if it\'s part of a word like amazingFooBar',
-			'Again nothing interesting here'
-		];
-		thisModel = new Model(text.join('\n'), Model.DEFAULT_CREATION_OPTIONS, null);
-	});
-
-	teardown(() => {
-		thisModel.dispose();
-	});
-
-	test('Simple find', () => {
-		var ranges = [
-			[1, 14, 1, 17],
-			[1, 44, 1, 47],
-			[2, 22, 2, 25],
-			[2, 48, 2, 51],
-			[4, 59, 4, 62]
-		];
-		var matches = thisModel.findMatches('foo', false, false, false, false);
-		assert.equal(matches.length, ranges.length);
-		for (var i = 0; i < matches.length; i++) {
-			rangeEqual(matches[i], ranges[i][0], ranges[i][1], ranges[i][2], ranges[i][3]);
-		}
-	});
-
-	test('Case sensitive find', () => {
-		var ranges = [
-			[1, 14, 1, 17],
-			[1, 44, 1, 47],
-			[2, 22, 2, 25]
-		];
-		var matches = thisModel.findMatches('foo', false, false, true, false);
-		assert.equal(matches.length, ranges.length);
-		for (var i = 0; i < matches.length; i++) {
-			rangeEqual(matches[i], ranges[i][0], ranges[i][1], ranges[i][2], ranges[i][3]);
-		}
-	});
-
-	test('Whole words find', () => {
-		var ranges = [
-			[1, 14, 1, 17],
-			[1, 44, 1, 47],
-			[2, 48, 2, 51]
-		];
-		var matches = thisModel.findMatches('foo', false, false, false, true);
-		assert.equal(matches.length, ranges.length);
-		for (var i = 0; i < matches.length; i++) {
-			rangeEqual(matches[i], ranges[i][0], ranges[i][1], ranges[i][2], ranges[i][3]);
-		}
-	});
-
-	test('/^/ find', () => {
-		var ranges = [
-			[1, 1, 1, 1],
-			[2, 1, 2, 1],
-			[3, 1, 3, 1],
-			[4, 1, 4, 1],
-			[5, 1, 5, 1]
-		];
-		var matches = thisModel.findMatches('^', false, true, false, false);
-		assert.equal(matches.length, ranges.length);
-		for (var i = 0; i < matches.length; i++) {
-			rangeEqual(matches[i], ranges[i][0], ranges[i][1], ranges[i][2], ranges[i][3]);
-		}
-	});
-
-	test('/$/ find', () => {
-		var ranges = [
-			[1, 74, 1, 74],
-			[2, 69, 2, 69],
-			[3, 54, 3, 54],
-			[4, 65, 4, 65],
-			[5, 31, 5, 31]
-		];
-		var matches = thisModel.findMatches('$', false, true, false, false);
-		assert.equal(matches.length, ranges.length);
-		for (var i = 0; i < matches.length; i++) {
-			rangeEqual(matches[i], ranges[i][0], ranges[i][1], ranges[i][2], ranges[i][3]);
-		}
-	});
-
-	test('/^$/ find', () => {
-		var text = [
-			'This is some foo - bar text which contains foo and bar - as in Barcelona.',
-			'',
-			'And here\'s a dull line with nothing interesting in it',
-			'',
-			'Again nothing interesting here'
-		];
-		var model = new Model(text.join('\n'), Model.DEFAULT_CREATION_OPTIONS, null);
-
-		var ranges = [
-			[2, 1, 2, 1],
-			[4, 1, 4, 1]
-		];
-		var matches = model.findMatches('^$', false, true, false, false);
-		assert.equal(matches.length, ranges.length);
-		for (var i = 0; i < matches.length; i++) {
-			rangeEqual(matches[i], ranges[i][0], ranges[i][1], ranges[i][2], ranges[i][3]);
-		}
-
-		model.dispose();
+		assert.deepEqual(model.getWordAtPosition(new Position(1, 1)), { word: 'ab', startColumn: 1, endColumn: 3 });
+		assert.deepEqual(model.getWordAtPosition(new Position(1, 2)), { word: 'ab', startColumn: 1, endColumn: 3 });
+		assert.deepEqual(model.getWordAtPosition(new Position(1, 3)), { word: 'ab', startColumn: 1, endColumn: 3 });
+		assert.deepEqual(model.getWordAtPosition(new Position(1, 4)), { word: 'xx', startColumn: 4, endColumn: 6 });
+		assert.deepEqual(model.getWordAtPosition(new Position(1, 5)), { word: 'xx', startColumn: 4, endColumn: 6 });
+		assert.deepEqual(model.getWordAtPosition(new Position(1, 6)), { word: 'xx', startColumn: 4, endColumn: 6 });
+		assert.deepEqual(model.getWordAtPosition(new Position(1, 7)), { word: 'ab', startColumn: 7, endColumn: 9 });
 	});
 });

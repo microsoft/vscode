@@ -1,0 +1,18 @@
+{
+	"name": "vscode-colorize-tests",
+	"description": "Colorize tests for VS Code",
+	"version": "0.0.1",
+	"publisher": "vscode",
+	"private": true,
+	"engines": {
+		"vscode": "*"
+	},
+	"scripts": {
+		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-colorize-tests ./tsconfig.json",
+		"postinstall": "node ./node_modules/vscode/bin/install"
+	},
+	"devDependencies": {
+		"@types/node": "7.0.43",
+		"vscode": "1.1.5"
+	}
+}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.custom-checkbox {
+.monaco-custom-checkbox {
 	margin-left: 2px;
 	float: left;
 	cursor: pointer;
@@ -28,36 +28,15 @@
 	user-select: none;
 }
 
-.custom-checkbox:hover,
-.custom-checkbox.checked {
+.monaco-custom-checkbox:hover,
+.monaco-custom-checkbox.checked {
 	opacity: 1;
 }
 
-.custom-checkbox:hover {
-	background-color: #EEE;
-}
-
-.custom-checkbox.checked {
-	border-color: #007ACC;
-}
-
-.vs-dark .custom-checkbox:hover {
-	background-color: #292929;
-}
-
-.vs-dark .custom-checkbox.checked {
-	border-color: #007ACC;
-}
-
-.hc-black .custom-checkbox {
-	background: none;
-	border: none;
-}
-
-.hc-black .custom-checkbox:hover {
+.hc-black .monaco-custom-checkbox {
 	background: none;
 }
 
-.hc-black .custom-checkbox.checked {
-	border: 1px solid #f38518;
+.hc-black .monaco-custom-checkbox:hover {
+	background: none;
 }

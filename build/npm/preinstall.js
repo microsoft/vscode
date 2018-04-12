@@ -3,11 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-var win = "Please run '.\\scripts\\npm.bat install' instead."
-var nix = "Please run './scripts/npm.sh install' instead."
+let err = false;
 
-if (process.env['npm_config_disturl'] !== 'https://atom.io/download/atom-shell') {
-	console.error("You can't use plain npm to install Code's dependencies.");
-	console.error(/^win/.test(process.platform) ? win : nix);
+const major = parseInt(/^(\d+)\./.exec(process.versions.node)[1]);
+
+if (major < 8) {
+	console.error('\033[1;31m*** Please use node>=8.\033[0;0m');
+	err = true;
+}
+
+if (!/yarn\.js$|yarnpkg$/.test(process.env['npm_execpath'])) {
+	console.error('\033[1;31m*** Please use yarn to install dependencies.\033[0;0m');
+	err = true;
+}
+
+if (err) {
+	console.error('');
 	process.exit(1);
 }

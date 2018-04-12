@@ -5,145 +5,119 @@
 
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import {ThrottledDelayer} from 'vs/base/common/async';
-import types = require('vs/base/common/types');
-import {isWindows} from 'vs/base/common/platform';
-import scorer = require('vs/base/common/scorer');
-import paths = require('vs/base/common/paths');
-import labels = require('vs/base/common/labels');
-import strings = require('vs/base/common/strings');
-import {IRange} from 'vs/editor/common/editorCommon';
-import {IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
-import {QuickOpenEntry, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {QuickOpenHandler} from 'vs/workbench/browser/quickopen';
-import {FileEntry, OpenFileHandler} from 'vs/workbench/parts/search/browser/openFileHandler';
-/* tslint:disable:no-unused-variable */
+import * as arrays from 'vs/base/common/arrays';
+import { TPromise } from 'vs/base/common/winjs.base';
+import * as nls from 'vs/nls';
+import { ThrottledDelayer } from 'vs/base/common/async';
+import * as types from 'vs/base/common/types';
+import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
+import { QuickOpenEntry, QuickOpenModel, QuickOpenItemAccessor } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
+import { FileEntry, OpenFileHandler, FileQuickOpenModel } from 'vs/workbench/parts/search/browser/openFileHandler';
 import * as openSymbolHandler from 'vs/workbench/parts/search/browser/openSymbolHandler';
-/* tslint:enable:no-unused-variable */
-import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWorkbenchSearchConfiguration } from 'vs/workbench/parts/search/common/search';
+import { IRange } from 'vs/editor/common/core/range';
+import { compareItemsByScore, scoreItem, ScorerCache, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
+
+export import OpenSymbolHandler = openSymbolHandler.OpenSymbolHandler; // OpenSymbolHandler is used from an extension and must be in the main bundle file so it can load
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 
 interface ISearchWithRange {
 	search: string;
 	range: IRange;
 }
 
-// OpenSymbolHandler is used from an extension and must be in the main bundle file so it can load
-export import OpenSymbolHandler = openSymbolHandler.OpenSymbolHandler;
-
 export class OpenAnythingHandler extends QuickOpenHandler {
-	private static LINE_COLON_PATTERN = /[#|:|\(](\d*)([#|:|,](\d*))?\)?$/;
 
-	private static SYMBOL_SEARCH_INITIAL_TIMEOUT = 500; // Ignore symbol search after a timeout to not block search results
-	private static SYMBOL_SEARCH_SUBSEQUENT_TIMEOUT = 100;
-	private static SEARCH_DELAY = 300; // This delay accommodates for the user typing a word and then stops typing to start searching
+	public static readonly ID = 'workbench.picker.anything';
 
-	private static MAX_DISPLAYED_RESULTS = 512;
+	private static readonly LINE_COLON_PATTERN = /[#|:|\(](\d*)([#|:|,](\d*))?\)?$/;
+
+	private static readonly FILE_SEARCH_DELAY = 300;
+	private static readonly SYMBOL_SEARCH_DELAY = 500; // go easier on those symbols!
+
+	private static readonly MAX_DISPLAYED_RESULTS = 512;
 
 	private openSymbolHandler: OpenSymbolHandler;
 	private openFileHandler: OpenFileHandler;
-	private resultsToSearchCache: { [searchValue: string]: QuickOpenEntry[]; };
-	private delayer: ThrottledDelayer<QuickOpenModel>;
+	private searchDelayer: ThrottledDelayer<QuickOpenModel>;
 	private pendingSearch: TPromise<QuickOpenModel>;
 	private isClosed: boolean;
-	private scorerCache: { [key: string]: number };
+	private scorerCache: ScorerCache;
+	private includeSymbols: boolean;
 
 	constructor(
-		@IMessageService private messageService: IMessageService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@INotificationService private notificationService: INotificationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
 
-		// Instantiate delegate handlers
+		this.scorerCache = Object.create(null);
+		this.searchDelayer = new ThrottledDelayer<QuickOpenModel>(OpenAnythingHandler.FILE_SEARCH_DELAY);
+
 		this.openSymbolHandler = instantiationService.createInstance(OpenSymbolHandler);
 		this.openFileHandler = instantiationService.createInstance(OpenFileHandler);
 
-		this.openSymbolHandler.setStandalone(false);
+		this.updateHandlers(this.configurationService.getValue<IWorkbenchSearchConfiguration>());
 
-		this.resultsToSearchCache = Object.create(null);
-		this.scorerCache = Object.create(null);
-		this.delayer = new ThrottledDelayer<QuickOpenModel>(OpenAnythingHandler.SEARCH_DELAY);
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.configurationService.onDidChangeConfiguration(e => this.updateHandlers(this.configurationService.getValue<IWorkbenchSearchConfiguration>()));
+	}
+
+	private updateHandlers(configuration: IWorkbenchSearchConfiguration): void {
+		this.includeSymbols = configuration && configuration.search && configuration.search.quickOpen && configuration.search.quickOpen.includeSymbols;
+
+		// Files
+		this.openFileHandler.setOptions({
+			forceUseIcons: this.includeSymbols // only need icons for file results if we mix with symbol results
+		});
+
+		// Symbols
+		this.openSymbolHandler.setOptions({
+			skipDelay: true,		// we have our own delay
+			skipLocalSymbols: true,	// we only want global symbols
+			skipSorting: true 		// we sort combined with file results
+		});
 	}
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
-		searchValue = searchValue.trim();
-
-		// Help Windows users to search for paths when using slash
-		if (isWindows) {
-			searchValue = searchValue.replace(/\//g, '\\');
-		}
-
-		// Cancel any pending search
 		this.cancelPendingSearch();
-
-		// Treat this call as the handler being in use
-		this.isClosed = false;
-
-		// Respond directly to empty search
-		if (!searchValue) {
-			return TPromise.as(new QuickOpenModel());
-		}
+		this.isClosed = false; // Treat this call as the handler being in use
 
 		// Find a suitable range from the pattern looking for ":" and "#"
-		let searchWithRange = this.extractRange(searchValue);
+		const searchWithRange = this.extractRange(searchValue);
 		if (searchWithRange) {
 			searchValue = searchWithRange.search; // ignore range portion in query
 		}
 
-		// Check Cache first
-		let cachedResults = this.getResultsFromCache(searchValue, searchWithRange ? searchWithRange.range : null);
-		if (cachedResults) {
-			return TPromise.as(new QuickOpenModel(cachedResults));
+		// Prepare search for scoring
+		const query = prepareQuery(searchValue);
+		if (!query.value) {
+			return TPromise.as(new QuickOpenModel()); // Respond directly to empty search
 		}
 
 		// The throttler needs a factory for its promises
-		let promiseFactory = () => {
-			let receivedFileResults = false;
-
-			// Symbol Results (unless a range is specified)
-			let resultPromises: TPromise<QuickOpenModel>[] = [];
-			if (!searchWithRange) {
-				let symbolSearchTimeoutPromiseFn: (timeout: number) => TPromise<QuickOpenModel> = (timeout) => {
-					return TPromise.timeout(timeout).then(() => {
-
-						// As long as the file search query did not return, push out the symbol timeout
-						// so that the symbol search has a chance to return results at least as long as
-						// the file search did not return.
-						if (!receivedFileResults) {
-							return symbolSearchTimeoutPromiseFn(OpenAnythingHandler.SYMBOL_SEARCH_SUBSEQUENT_TIMEOUT);
-						}
-
-						// Empty result since timeout was reached and file results are in
-						return TPromise.as(new QuickOpenModel());
-					});
-				};
-
-				let lookupPromise = this.openSymbolHandler.getResults(searchValue);
-				let timeoutPromise = symbolSearchTimeoutPromiseFn(OpenAnythingHandler.SYMBOL_SEARCH_INITIAL_TIMEOUT);
-
-				// Timeout lookup after N seconds to not block file search results
-				resultPromises.push(TPromise.any([lookupPromise, timeoutPromise]).then((result) => {
-					return result.value;
-				}));
-			} else {
-				resultPromises.push(TPromise.as(new QuickOpenModel())); // We need this empty promise because we are using the throttler below!
-			}
+		const promiseFactory = () => {
+			const resultPromises: TPromise<QuickOpenModel | FileQuickOpenModel>[] = [];
 
 			// File Results
-			resultPromises.push(this.openFileHandler.getResults(searchValue).then((results: QuickOpenModel) => {
-				receivedFileResults = true;
+			const filePromise = this.openFileHandler.getResults(query.value, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);
+			resultPromises.push(filePromise);
 
-				return results;
-			}));
+			// Symbol Results (unless disabled or a range or absolute path is specified)
+			if (this.includeSymbols && !searchWithRange) {
+				resultPromises.push(this.openSymbolHandler.getResults(query.value));
+			}
 
 			// Join and sort unified
-			this.pendingSearch = TPromise.join(resultPromises).then((results: QuickOpenModel[]) => {
+			this.pendingSearch = TPromise.join(resultPromises).then(results => {
 				this.pendingSearch = null;
 
 				// If the quick open widget has been closed meanwhile, ignore the result
@@ -151,54 +125,64 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 					return TPromise.as<QuickOpenModel>(new QuickOpenModel());
 				}
 
-				// Combine symbol results and file results
-				let result = [...results[0].entries, ...results[1].entries];
+				// Combine results.
+				const mergedResults = [].concat(...results.map(r => r.entries));
 
 				// Sort
-				const normalizedSearchValue = strings.stripWildcards(searchValue).toLowerCase();
-				result.sort((elementA, elementB) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, normalizedSearchValue, this.scorerCache));
+				const compare = (elementA: QuickOpenEntry, elementB: QuickOpenEntry) => compareItemsByScore(elementA, elementB, query, true, QuickOpenItemAccessor, this.scorerCache);
+				const viewResults = arrays.top(mergedResults, compare, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);
 
-				// Apply Range
-				result.forEach((element) => {
-					if (element instanceof FileEntry) {
-						(<FileEntry>element).setRange(searchWithRange ? searchWithRange.range : null);
-					}
-				});
-
-				// Cache for fast lookup
-				this.resultsToSearchCache[searchValue] = result;
-
-				// Cap the number of results to make the view snappy
-				const viewResults = result.length > OpenAnythingHandler.MAX_DISPLAYED_RESULTS ? result.slice(0, OpenAnythingHandler.MAX_DISPLAYED_RESULTS) : result;
-
-				// Apply highlights to file entries
+				// Apply range and highlights to file entries
 				viewResults.forEach(entry => {
 					if (entry instanceof FileEntry) {
-						const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue, true /* fuzzy highlight */);
-						entry.setHighlights(labelHighlights, descriptionHighlights);
+						entry.setRange(searchWithRange ? searchWithRange.range : null);
+
+						const itemScore = scoreItem(entry, query, true, QuickOpenItemAccessor, this.scorerCache);
+						entry.setHighlights(itemScore.labelMatch, itemScore.descriptionMatch);
 					}
 				});
 
 				return TPromise.as<QuickOpenModel>(new QuickOpenModel(viewResults));
-			}, (error: Error) => {
+			}, error => {
 				this.pendingSearch = null;
-				this.messageService.show(Severity.Error, error);
+
+				if (!isPromiseCanceledError(error)) {
+					if (error && error[0] && error[0].message) {
+						this.notificationService.error(error[0].message.replace(/[\*_\[\]]/g, '\\$&'));
+					} else {
+						this.notificationService.error(error);
+					}
+				}
+
+				return null;
 			});
 
 			return this.pendingSearch;
 		};
 
-		// Trigger through delayer to prevent accumulation while the user is typing
-		return this.delayer.trigger(promiseFactory);
+		// Trigger through delayer to prevent accumulation while the user is typing (except when expecting results to come from cache)
+		return this.hasShortResponseTime() ? promiseFactory() : this.searchDelayer.trigger(promiseFactory, this.includeSymbols ? OpenAnythingHandler.SYMBOL_SEARCH_DELAY : OpenAnythingHandler.FILE_SEARCH_DELAY);
+	}
+
+	public hasShortResponseTime(): boolean {
+		if (!this.includeSymbols) {
+			return this.openFileHandler.hasShortResponseTime();
+		}
+
+		return this.openFileHandler.hasShortResponseTime() && this.openSymbolHandler.hasShortResponseTime();
 	}
 
 	private extractRange(value: string): ISearchWithRange {
+		if (!value) {
+			return null;
+		}
+
 		let range: IRange = null;
 
 		// Find Line/Column number from search value using RegExp
-		let patternMatch = OpenAnythingHandler.LINE_COLON_PATTERN.exec(value);
+		const patternMatch = OpenAnythingHandler.LINE_COLON_PATTERN.exec(value);
 		if (patternMatch && patternMatch.length > 1) {
-			let startLineNumber = parseInt(patternMatch[1], 10);
+			const startLineNumber = parseInt(patternMatch[1], 10);
 
 			// Line Number
 			if (types.isNumber(startLineNumber)) {
@@ -211,10 +195,14 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 				// Column Number
 				if (patternMatch.length > 3) {
-					let startColumn = parseInt(patternMatch[3], 10);
+					const startColumn = parseInt(patternMatch[3], 10);
 					if (types.isNumber(startColumn)) {
-						range.startColumn = startColumn;
-						range.endColumn = startColumn;
+						range = {
+							startLineNumber: range.startLineNumber,
+							startColumn: startColumn,
+							endLineNumber: range.endLineNumber,
+							endColumn: startColumn
+						};
 					}
 				}
 			}
@@ -240,81 +228,19 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		return null;
 	}
 
-	public getResultsFromCache(searchValue: string, range: IRange = null): QuickOpenEntry[] {
-		if (paths.isAbsolute(searchValue)) {
-			return null; // bypass cache if user looks up an absolute path where matching goes directly on disk
-		}
-
-		// Find cache entries by prefix of search value
-		let cachedEntries: QuickOpenEntry[];
-		for (let previousSearch in this.resultsToSearchCache) {
-
-			// If we narrow down, we might be able to reuse the cached results
-			if (searchValue.indexOf(previousSearch) === 0) {
-				if (searchValue.indexOf(paths.nativeSep) >= 0 && previousSearch.indexOf(paths.nativeSep) < 0) {
-					continue; // since a path character widens the search for potential more matches, require it in previous search too
-				}
-
-				cachedEntries = this.resultsToSearchCache[previousSearch];
-				break;
-			}
-		}
-
-		if (!cachedEntries) {
-			return null;
-		}
-
-		// Pattern match on results and adjust highlights
-		let results: QuickOpenEntry[] = [];
-		const normalizedSearchValueLowercase = strings.stripWildcards(searchValue).toLowerCase();
-		for (let i = 0; i < cachedEntries.length; i++) {
-			let entry = cachedEntries[i];
-
-			// Check for file entries if range is used
-			if (range && !(entry instanceof FileEntry)) {
-				continue;
-			}
-
-			// Check if this entry is a match for the search value
-			const resource = entry.getResource(); // can be null for symbol results!
-			let targetToMatch = resource ? labels.getPathLabel(resource, this.contextService) : entry.getLabel();
-			if (!scorer.matches(targetToMatch, normalizedSearchValueLowercase)) {
-				continue;
-			}
-
-			results.push(entry);
-		}
-
-		// Sort
-		results.sort((elementA, elementB) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, normalizedSearchValueLowercase, this.scorerCache));
-
-		// Apply Range
-		results.forEach((element) => {
-			if (element instanceof FileEntry) {
-				(<FileEntry>element).setRange(range);
-			}
-		});
-
-		// Cap the number of results to make the view snappy
-		const viewResults = results.length > OpenAnythingHandler.MAX_DISPLAYED_RESULTS ? results.slice(0, OpenAnythingHandler.MAX_DISPLAYED_RESULTS) : results;
-
-		// Apply highlights
-		viewResults.forEach(entry => {
-			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue, true /* fuzzy highlight */);
-			entry.setHighlights(labelHighlights, descriptionHighlights);
-		});
-
-		return viewResults;
-	}
-
 	public getGroupLabel(): string {
-		return nls.localize('fileAndTypeResults', "file and symbol results");
+		return this.includeSymbols ? nls.localize('fileAndTypeResults', "file and symbol results") : nls.localize('fileResults', "file results");
 	}
 
 	public getAutoFocus(searchValue: string): IAutoFocus {
 		return {
 			autoFocusFirstEntry: true
 		};
+	}
+
+	public onOpen(): void {
+		this.openSymbolHandler.onOpen();
+		this.openFileHandler.onOpen();
 	}
 
 	public onClose(canceled: boolean): void {
@@ -324,7 +250,6 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		this.cancelPendingSearch();
 
 		// Clear Cache
-		this.resultsToSearchCache = Object.create(null);
 		this.scorerCache = Object.create(null);
 
 		// Propagate
