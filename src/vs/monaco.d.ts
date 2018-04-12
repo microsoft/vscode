@@ -4030,7 +4030,7 @@ declare namespace monaco.languages {
 	export function registerRenameProvider(languageId: string, provider: RenameProvider): IDisposable;
 
 	/**
-	 * Register a signature help provider (used by e.g. paremeter hints).
+	 * Register a signature help provider (used by e.g. parameter hints).
 	 */
 	export function registerSignatureHelpProvider(languageId: string, provider: SignatureHelpProvider): IDisposable;
 

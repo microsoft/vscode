@@ -545,7 +545,7 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 				} else if (part.text === ')') {
 					--parenCount;
 				} else if (part.text === '...' && parenCount === 1) {
-					// Found rest parmeter. Do not fill in any further arguments
+					// Found rest parameter. Do not fill in any further arguments
 					hasOptionalParameters = true;
 					break;
 				}

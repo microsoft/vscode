@@ -589,7 +589,7 @@
 					]
 				},
 				{
-					"name": "meta.paramter.array-binding-pattern.js.jsx",
+					"name": "meta.parameter.array-binding-pattern.js.jsx",
 					"begin": "(?<!=|:)\\s*(\\[)",
 					"beginCaptures": {
 						"1": {

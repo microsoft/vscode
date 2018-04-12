@@ -216,7 +216,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		}));
 	}
 
-	private createParamaterHintDOMNodes() {
+	private createParameterHintDOMNodes() {
 		this.element = $('.editor-widget.parameter-hints-widget');
 		const wrapper = dom.append(this.element, $('.wrapper'));
 
@@ -273,7 +273,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		}
 
 		if (!this.element) {
-			this.createParamaterHintDOMNodes();
+			this.createParameterHintDOMNodes();
 		}
 
 		this.keyVisible.set(true);
@@ -288,7 +288,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		}
 
 		if (!this.element) {
-			this.createParamaterHintDOMNodes();
+			this.createParameterHintDOMNodes();
 		}
 
 		this.keyVisible.reset();

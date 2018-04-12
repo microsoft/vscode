@@ -589,7 +589,7 @@
 					]
 				},
 				{
-					"name": "meta.paramter.array-binding-pattern.tsx",
+					"name": "meta.parameter.array-binding-pattern.tsx",
 					"begin": "(?<!=|:)\\s*(\\[)",
 					"beginCaptures": {
 						"1": {
