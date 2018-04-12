@@ -250,7 +250,7 @@ export interface ConfigurationProperties {
 	label?: string;
 
 	/**
-	 * An optional indentifier which can be used to reference a task
+	 * An optional identifier which can be used to reference a task
 	 * in a dependsOn or other attributes.
 	 */
 	identifier?: string;
