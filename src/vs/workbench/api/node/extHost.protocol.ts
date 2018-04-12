@@ -350,7 +350,7 @@ export interface MainThreadTelemetryShape extends IDisposable {
 export type WebviewHandle = string;
 
 export interface MainThreadWebviewsShape extends IDisposable {
-	$createWebview(handle: WebviewHandle, viewType: string, title: string, column: EditorPosition, options: vscode.WebviewEditorOptions & vscode.WebviewOptions, extensionFolderPath: string): void;
+	$createWebview(handle: WebviewHandle, viewType: string, title: string, column: EditorPosition, options: vscode.WebviewPanelOptions & vscode.WebviewOptions, extensionFolderPath: string): void;
 	$disposeWebview(handle: WebviewHandle): void;
 	$reveal(handle: WebviewHandle, column: EditorPosition): void;
 	$setTitle(handle: WebviewHandle, value: string): void;

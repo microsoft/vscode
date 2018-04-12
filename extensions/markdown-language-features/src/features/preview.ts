@@ -20,7 +20,7 @@ export class MarkdownPreview {
 
 	public static viewType = 'markdown.preview';
 
-	private readonly editor: vscode.WebviewEditor;
+	private readonly editor: vscode.WebviewPanel;
 	private throttleTimer: any;
 	private line: number | undefined = undefined;
 	private readonly disposables: vscode.Disposable[] = [];
@@ -32,7 +32,7 @@ export class MarkdownPreview {
 
 
 	public static async revive(
-		webview: vscode.WebviewEditor,
+		webview: vscode.WebviewPanel,
 		state: any,
 		contentProvider: MarkdownContentProvider,
 		previewConfigurations: MarkdownPreviewConfigurationManager,
@@ -69,7 +69,7 @@ export class MarkdownPreview {
 		topmostLineMonitor: MarkdownFileTopmostLineMonitor,
 		contributions: MarkdownContributions
 	): MarkdownPreview {
-		const webview = vscode.window.createWebviewEditor(
+		const webview = vscode.window.createWebviewPanel(
 			MarkdownPreview.viewType,
 			MarkdownPreview.getPreviewTitle(resource, locked),
 			previewColumn, {
@@ -90,7 +90,7 @@ export class MarkdownPreview {
 	}
 
 	private constructor(
-		webview: vscode.WebviewEditor,
+		webview: vscode.WebviewPanel,
 		private _resource: vscode.Uri,
 		public locked: boolean,
 		private readonly contentProvider: MarkdownContentProvider,
@@ -155,7 +155,7 @@ export class MarkdownPreview {
 	private readonly _onDisposeEmitter = new vscode.EventEmitter<void>();
 	public readonly onDispose = this._onDisposeEmitter.event;
 
-	private readonly _onDidChangeViewStateEmitter = new vscode.EventEmitter<vscode.WebviewEditorOnDidChangeViewStateEvent>();
+	private readonly _onDidChangeViewStateEmitter = new vscode.EventEmitter<vscode.WebviewPanelOnDidChangeViewStateEvent>();
 	public readonly onDidChangeViewState = this._onDidChangeViewStateEmitter.event;
 
 	public get resource(): vscode.Uri {
@@ -231,7 +231,7 @@ export class MarkdownPreview {
 		return this._resource.fsPath === resource.fsPath;
 	}
 
-	public isWebviewOf(webview: vscode.WebviewEditor): boolean {
+	public isWebviewOf(webview: vscode.WebviewPanel): boolean {
 		return this.editor === webview;
 	}
 

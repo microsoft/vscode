@@ -21,12 +21,12 @@ suite('ExtHostWebview', function () {
 		const shape = createNoopMainThreadWebviews();
 		const extHostWebviews = new ExtHostWebviews(SingleProxyRPCProtocol(shape));
 
-		let lastInvokedDeserializer: vscode.WebviewEditorSerializer | undefined = undefined;
+		let lastInvokedDeserializer: vscode.WebviewPanelSerializer | undefined = undefined;
 
-		class NoopSerializer implements vscode.WebviewEditorSerializer {
-			async serializeWebviewEditor(webview: vscode.WebviewEditor): Promise<any> { /* noop */ }
+		class NoopSerializer implements vscode.WebviewPanelSerializer {
+			async serializeWebviewPanel(webview: vscode.WebviewPanel): Promise<any> { /* noop */ }
 
-			async deserializeWebviewEditor(webview: vscode.WebviewEditor, state: any): Promise<void> {
+			async deserializeWebviewPanel(webview: vscode.WebviewPanel, state: any): Promise<void> {
 				lastInvokedDeserializer = this;
 			}
 		}
@@ -34,18 +34,18 @@ suite('ExtHostWebview', function () {
 		const serializerA = new NoopSerializer();
 		const serializerB = new NoopSerializer();
 
-		const serializerARegistration = extHostWebviews.registerWebviewEditorSerializer(viewType, serializerA);
+		const serializerARegistration = extHostWebviews.registerWebviewPanelSerializer(viewType, serializerA);
 
 		await extHostWebviews.$deserializeWebview('x', viewType, 'title', {}, EditorPosition.ONE, {});
 		assert.strictEqual(lastInvokedDeserializer, serializerA);
 
 		assert.throws(
-			() => extHostWebviews.registerWebviewEditorSerializer(viewType, serializerB),
+			() => extHostWebviews.registerWebviewPanelSerializer(viewType, serializerB),
 			'Should throw when registering two serializers for the same view');
 
 		serializerARegistration.dispose();
 
-		extHostWebviews.registerWebviewEditorSerializer(viewType, serializerB);
+		extHostWebviews.registerWebviewPanelSerializer(viewType, serializerB);
 
 		await extHostWebviews.$deserializeWebview('x', viewType, 'title', {}, EditorPosition.ONE, {});
 		assert.strictEqual(lastInvokedDeserializer, serializerB);

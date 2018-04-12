@@ -447,11 +447,11 @@ export function createApiFactory(
 			registerDecorationProvider: proposedApiFunction(extension, (provider: vscode.DecorationProvider) => {
 				return extHostDecorations.registerDecorationProvider(provider, extension.id);
 			}),
-			createWebviewEditor: proposedApiFunction(extension, (viewType: string, title: string, column: vscode.ViewColumn, options: vscode.WebviewEditorOptions & vscode.WebviewOptions) => {
+			createWebviewPanel: proposedApiFunction(extension, (viewType: string, title: string, column: vscode.ViewColumn, options: vscode.WebviewPanelOptions & vscode.WebviewOptions) => {
 				return extHostWebviews.createWebview(viewType, title, column, options, extension.extensionFolderPath);
 			}),
-			registerWebviewEditorSerializer: proposedApiFunction(extension, (viewType: string, serializer: vscode.WebviewEditorSerializer) => {
-				return extHostWebviews.registerWebviewEditorSerializer(viewType, serializer);
+			registerWebviewPanelSerializer: proposedApiFunction(extension, (viewType: string, serializer: vscode.WebviewPanelSerializer) => {
+				return extHostWebviews.registerWebviewPanelSerializer(viewType, serializer);
 			})
 		};
 

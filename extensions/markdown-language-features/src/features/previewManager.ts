@@ -14,7 +14,7 @@ import { isMarkdownFile } from '../util/file';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { MarkdownContributions } from '../markdownExtensions';
 
-export class MarkdownPreviewManager implements vscode.WebviewEditorSerializer {
+export class MarkdownPreviewManager implements vscode.WebviewPanelSerializer {
 	private static readonly markdownPreviewActiveContextKey = 'markdownPreviewFocus';
 
 	private readonly topmostLineMonitor = new MarkdownFileTopmostLineMonitor();
@@ -36,7 +36,7 @@ export class MarkdownPreviewManager implements vscode.WebviewEditorSerializer {
 			}
 		}, null, this.disposables);
 
-		this.disposables.push(vscode.window.registerWebviewEditorSerializer(MarkdownPreview.viewType, this));
+		this.disposables.push(vscode.window.registerWebviewPanelSerializer(MarkdownPreview.viewType, this));
 	}
 
 	public dispose(): void {
@@ -88,8 +88,8 @@ export class MarkdownPreviewManager implements vscode.WebviewEditorSerializer {
 		}
 	}
 
-	public async deserializeWebviewEditor(
-		webview: vscode.WebviewEditor,
+	public async deserializeWebviewPanel(
+		webview: vscode.WebviewPanel,
 		state: any
 	): Promise<void> {
 		const preview = await MarkdownPreview.revive(
@@ -103,8 +103,8 @@ export class MarkdownPreviewManager implements vscode.WebviewEditorSerializer {
 		this.registerPreview(preview);
 	}
 
-	public async serializeWebviewEditor(
-		webview: vscode.WebviewEditor,
+	public async serializeWebviewPanel(
+		webview: vscode.WebviewPanel,
 	): Promise<any> {
 		const preview = this.previews.find(preview => preview.isWebviewOf(webview));
 		return preview ? preview.state : undefined;
