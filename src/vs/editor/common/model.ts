@@ -142,7 +142,7 @@ export interface IModelDecoration {
 	 */
 	readonly id: string;
 	/**
-	 * Identifier for a decoration's owener.
+	 * Identifier for a decoration's owner.
 	 */
 	readonly ownerId: number;
 	/**
