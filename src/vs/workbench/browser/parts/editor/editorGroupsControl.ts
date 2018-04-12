@@ -143,7 +143,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 	// - The size of the editor is defined by centeredEditorSize
 	// - The position is defined by the ratio centeredEditorLeftMarginRatio = left-margin/(left-margin + editor + right-margin).
 	// - The two sashes can be used to control the size and position of the editor inside of the silo.
-	// - In order to seperate the two sashes from the sashes that control the size of bordering widgets
+	// - In order to separate the two sashes from the sashes that control the size of bordering widgets
 	//   CENTERED_EDITOR_MIN_MARGIN is forced as a minimum size for the two margins.
 	private centeredEditorActive: boolean;
 	private centeredEditorSashLeft: Sash;
