@@ -108,6 +108,7 @@ import { registerNotificationCommands } from 'vs/workbench/browser/parts/notific
 import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
+import { ICommentService, CommentService } from '../services/comments/electron-browser/commentService';
 
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
 export const InZenModeContext = new RawContextKey<boolean>('inZenMode', false);
@@ -590,7 +591,7 @@ export class Workbench implements IPartService {
 		this.titlebarPart = this.instantiationService.createInstance(TitlebarPart, Identifiers.TITLEBAR_PART);
 		this.toUnbind.push({ dispose: () => this.titlebarPart.shutdown() });
 		serviceCollection.set(ITitleService, this.titlebarPart);
-
+		serviceCollection.set(ICommentService, new SyncDescriptor(CommentService));
 		// History
 		serviceCollection.set(IHistoryService, new SyncDescriptor(HistoryService));
 

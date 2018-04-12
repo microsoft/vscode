@@ -16,6 +16,10 @@ import { keys } from '../../../base/common/map';
 import { IWorkbenchEditorService } from '../../services/editor/common/editorService';
 import { ExtHostCommentsShape, ExtHostContext, IExtHostContext, MainContext, MainThreadCommentsShape } from '../node/extHost.protocol';
 
+import { ICommentService } from 'vs/workbench/services/comments/electron-browser/commentService';
+import { COMMENTS_PANEL_ID } from 'vs/workbench/parts/comments/electron-browser/commentsPanel';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+
 @extHostNamedCustomer(MainContext.MainThreadComments)
 export class MainThreadComments extends Disposable implements MainThreadCommentsShape {
 
@@ -26,6 +30,8 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		extHostContext: IExtHostContext,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService private _workbenchEditorService: IWorkbenchEditorService,
+		@ICommentService private _commentService: ICommentService,
+		@IPanelService private _panelService: IPanelService,
 		@ICodeEditorService private _codeEditorService: ICodeEditorService
 	) {
 		super();
@@ -43,12 +49,14 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 			this.provideComments(outerEditor.getModel()).then(commentThreads => {
 				controller.setComments(commentThreads);
+				this._commentService.updateComments(commentThreads);
 			});
 		});
 	}
 
 	$registerCommentProvider(handle: number): void {
 		this._providers.set(handle, undefined);
+		this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, true);
 	}
 
 	$unregisterCommentProvider(handle: number): void {
@@ -68,7 +76,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		return editor;
 	}
 
-	async provideComments(model: ITextModel): Promise<modes.CommentThread[]> {
+	async provideComments(model: ITextModel): Promise<any> {
 		const result: modes.CommentThread[] = [];
 		for (const handle of keys(this._providers)) {
 			result.push(...await this._proxy.$providerComments(handle, model.uri));
