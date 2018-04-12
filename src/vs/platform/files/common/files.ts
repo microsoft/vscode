@@ -162,16 +162,31 @@ export interface IStat {
 	type: FileType2;
 }
 
-export interface IFileSystemProvider {
+export interface IFileSystemProviderBase {
 	onDidChange: Event<IFileChange[]>;
 	stat(resource: URI): TPromise<IStat>;
-	readFile(resource: URI): TPromise<Uint8Array>;
-	writeFile(resource: URI, content: Uint8Array): TPromise<void>;
 	rename(from: URI, to: URI): TPromise<IStat>;
 	mkdir(resource: URI): TPromise<IStat>;
 	readdir(resource: URI): TPromise<[string, IStat][]>;
 	delete(resource: URI): TPromise<void>;
 }
+
+export interface ISimpleReadWriteProvider {
+	_type: 'simple';
+	readFile(resource: URI): TPromise<Uint8Array>;
+	writeFile(resource: URI, content: Uint8Array): TPromise<void>;
+}
+
+export interface IReadWriteProvider {
+	_type: 'chunked';
+	open(resource: URI, options: { mode: string }): TPromise<number>;
+	close(fd: number): TPromise<void>;
+	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
+	// write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
+	writeFile(resource: URI, content: Uint8Array): TPromise<void>;
+}
+
+export type IFileSystemProvider = (IFileSystemProviderBase & ISimpleReadWriteProvider) | (IFileSystemProviderBase & IReadWriteProvider);
 
 export enum FileOperation {
 	CREATE,
@@ -433,6 +448,14 @@ export interface ITextSnapshot {
 	read(): string;
 }
 
+export class StringSnapshot implements ITextSnapshot {
+	constructor(private _value: string) { }
+	read(): string {
+		let ret = this._value;
+		this._value = null;
+		return ret;
+	}
+}
 /**
  * Helper method to convert a snapshot into its full string form.
  */

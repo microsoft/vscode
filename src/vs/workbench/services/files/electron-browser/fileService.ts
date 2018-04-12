@@ -38,7 +38,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { getBaseLabel } from 'vs/base/common/labels';
-import { Readable } from 'stream';
 import { Schemas } from 'vs/base/common/network';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -46,6 +45,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import product from 'vs/platform/node/product';
 import { shell } from 'electron';
 import { IEncodingOverride, ResourceEncodings } from 'vs/workbench/services/files/electron-browser/encoding';
+import { createReadableOfSnapshot } from 'vs/workbench/services/files/electron-browser/streams';
 
 class BufferPool {
 
@@ -633,7 +633,7 @@ export class FileService implements IFileService {
 		if (typeof value === 'string') {
 			writeFilePromise = pfs.writeFile(absolutePath, value, writeFileOptions);
 		} else {
-			writeFilePromise = pfs.writeFile(absolutePath, this.snapshotToReadableStream(value), writeFileOptions);
+			writeFilePromise = pfs.writeFile(absolutePath, createReadableOfSnapshot(value), writeFileOptions);
 		}
 
 		// set contents
@@ -641,31 +641,6 @@ export class FileService implements IFileService {
 
 			// resolve
 			return this.resolve(resource);
-		});
-	}
-
-	private snapshotToReadableStream(snapshot: ITextSnapshot): NodeJS.ReadableStream {
-		return new Readable({
-			read: function () {
-				try {
-					let chunk: string;
-					let canPush = true;
-
-					// Push all chunks as long as we can push and as long as
-					// the underlying snapshot returns strings to us
-					while (canPush && typeof (chunk = snapshot.read()) === 'string') {
-						canPush = this.push(chunk);
-					}
-
-					// Signal EOS by pushing NULL
-					if (typeof chunk !== 'string') {
-						this.push(null);
-					}
-				} catch (error) {
-					this.emit('error', error);
-				}
-			},
-			encoding: encoding.UTF8 // very important, so that strings are passed around and not buffers!
 		});
 	}
 

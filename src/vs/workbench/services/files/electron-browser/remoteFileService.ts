@@ -6,13 +6,13 @@
 
 import URI from 'vs/base/common/uri';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
-import { IContent, IStreamContent, IFileStat, IResolveContentOptions, IUpdateContentOptions, IResolveFileOptions, IResolveFileResult, FileOperationEvent, FileOperation, IFileSystemProvider, IStat, FileType2, FileChangesEvent, ICreateFileOptions, FileOperationError, FileOperationResult, ITextSnapshot, snapshotToString } from 'vs/platform/files/common/files';
+import { IContent, IStreamContent, IFileStat, IResolveContentOptions, IUpdateContentOptions, IResolveFileOptions, IResolveFileResult, FileOperationEvent, FileOperation, IFileSystemProvider, IStat, FileType2, FileChangesEvent, ICreateFileOptions, FileOperationError, FileOperationResult, ITextSnapshot, StringSnapshot } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { posix } from 'path';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isFalsyOrEmpty, distinct } from 'vs/base/common/arrays';
 import { Schemas } from 'vs/base/common/network';
-import { encode, toDecodeStream, IDecodeStreamOptions } from 'vs/base/node/encoding';
+import { toDecodeStream, IDecodeStreamOptions, decodeStream } from 'vs/base/node/encoding';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -23,7 +23,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { localize } from 'vs/nls';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Readable } from 'stream';
+import { createReadableOfProvider, createReadableOfSnapshot, createWritableOfProvider } from 'vs/workbench/services/files/electron-browser/streams';
 
 function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse?: (tuple: [URI, IStat]) => boolean): TPromise<IFileStat> {
 	const [resource, stat] = tuple;
@@ -225,24 +225,6 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
-	private _createReadStream(provider: IFileSystemProvider, resource: URI): Readable {
-		return new class extends Readable {
-			_readOperation: Thenable<any>;
-			_read(size?: number): void {
-				if (this._readOperation) {
-					return;
-				}
-				this._readOperation = provider.readFile(resource).then(data => {
-					this.push(data);
-					this.push(null);
-				}, err => {
-					this.emit('error', err);
-					this.push(null);
-				});
-			}
-		};
-	}
-
 	private _readFile(resource: URI, options: IResolveContentOptions = Object.create(null)): TPromise<IStreamContent> {
 		return this._withProvider(resource).then(provider => {
 
@@ -272,7 +254,7 @@ export class RemoteFileService extends FileService {
 					}
 				};
 
-				return toDecodeStream(this._createReadStream(provider, resource), decodeStreamOpts).then(data => {
+				return toDecodeStream(createReadableOfProvider(provider, resource), decodeStreamOpts).then(data => {
 
 					if (options.acceptTextOnly && data.detected.seemsBinary) {
 						return TPromise.wrapError<IStreamContent>(new FileOperationError(
@@ -331,9 +313,20 @@ export class RemoteFileService extends FileService {
 	}
 
 	private _writeFile(provider: IFileSystemProvider, resource: URI, content: string | ITextSnapshot, options: IUpdateContentOptions): TPromise<IFileStat> {
+
+		const snapshot = typeof content === 'string' ? new StringSnapshot(content) : content;
+		const readable = createReadableOfSnapshot(snapshot);
+
 		const encoding = this.encoding.getWriteEncoding(resource, options.encoding);
-		// TODO@Joh support streaming API for remote file system writes
-		return provider.writeFile(resource, encode(typeof content === 'string' ? content : snapshotToString(content), encoding)).then(() => {
+		const decoder = decodeStream(encoding);
+
+		const target = createWritableOfProvider(provider, resource);
+
+		return new TPromise<IFileStat>((resolve, reject) => {
+			let stream = readable.pipe(decoder).pipe(target);
+			stream.on('error', err => reject(err));
+			stream.on('finish', _ => resolve(void 0));
+		}).then(_ => {
 			return this.resolveFile(resource);
 		});
 	}
