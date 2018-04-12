@@ -600,7 +600,7 @@ declare module 'vscode' {
 		 *
 		 * Pass in an empty array to disallow access to any local resources.
 		 */
-		readonly localResourceRoots?: Uri[];
+		readonly localResourceRoots?: ReadonlyArray<Uri>;
 	}
 
 	/**
@@ -654,8 +654,8 @@ declare module 'vscode' {
 		 * Should the webview panel's content (iframe) be kept around even when the panel
 		 * is no longer visible?
 		 *
-		 * Normally the webview panels's html context is created when the panel becomes visible
-		 * and destroyed when it is is hidden. Apps that have complex state
+		 * Normally the webview panel's html context is created when the panel becomes visible
+		 * and destroyed when it is is hidden. Extensions that have complex state
 		 * or UI can set the `retainContextWhenHidden` to make VS Code keep the webview
 		 * context around, even when the webview moves to a background tab. When
 		 * the panel becomes visible again, the context is automatically restored
@@ -672,12 +672,12 @@ declare module 'vscode' {
 	 */
 	interface WebviewPanel {
 		/**
-		 * The type of the webview panel, such as `'markdown.preview'`.
+		 * Type of the webview panel, such as `'markdown.preview'`.
 		 */
 		readonly viewType: string;
 
 		/**
-		 * The webview belonging to the panel.
+		 * Webview belonging to the panel.
 		 */
 		readonly webview: Webview;
 
@@ -687,7 +687,7 @@ declare module 'vscode' {
 		readonly options: WebviewPanelOptions;
 
 		/**
-		 * The editor position of the panel.
+		 * Editor position of the panel.
 		 */
 		readonly position?: ViewColumn;
 
@@ -707,24 +707,24 @@ declare module 'vscode' {
 		 * This may be because the user closed the panel or because `.dispose()` was
 		 * called on it.
 		 *
-		 * Trying to use the webview after it has been disposed throws an exception.
+		 * Trying to use the panel after it has been disposed throws an exception.
 		 */
 		readonly onDidDispose: Event<void>;
 
 		/**
-		 * Shows the webview panel in a given column.
+		 * Show the webview panel in a given column.
 		 *
-		 * A webview panel may only be in a single column at a time. If it is already showing, this
-		 * command moves it to a new column.
+		 * A webview panel may only show in a single column at a time. If it is already showing, this
+		 * method moves it to a new column.
 		 */
 		reveal(viewColumn: ViewColumn): void;
 
 		/**
 		 * Dispose of the webview panel.
 		 *
-		 * This closes the webview if it showing and disposes of the resources owned by the webview.
-		 * Webview are also disposed when the user closes the webview panel. Both cases fire `onDispose`
-		 * event.
+		 * This closes the panel if it showing and disposes of the resources owned by the webview.
+		 * Webview panels are also disposed when the user closes the webview panel. Both cases
+		 * fire the `onDispose` event.
 		 */
 		dispose(): any;
 	}
@@ -734,7 +734,7 @@ declare module 'vscode' {
 	 */
 	export interface WebviewPanelOnDidChangeViewStateEvent {
 		/**
-		 * Webview panel who's view state changed.
+		 * Webview panel whose view state changed.
 		 */
 		readonly webviewPanel: WebviewPanel;
 	}
@@ -744,23 +744,26 @@ declare module 'vscode' {
 	 */
 	interface WebviewPanelSerializer {
 		/**
-		 * Save a webview panels's `state`.
+		 * Save a webview panel's `state`.
 		 *
-		 * Called before shutdown. webview panel may or may not be visible.
+		 * Called before shutdown. Extensions have a 250ms timeframe to return a state. If serialization
+		 * takes longer than 250ms, the panel will not be serialized.
 		 *
-		 * @param webviewPanel webview Panel to serialize.
+		 * @param webviewPanel webview Panel to serialize. May or may not be visible.
 		 *
 		 * @returns JSON serializable state blob.
 		 */
 		serializeWebviewPanel(webviewPanel: WebviewPanel): Thenable<any>;
 
 		/**
-		 * Restore a webview panel from its `state`.
+		 * Restore a webview panel from its seriailzed `state`.
 		 *
-		 * Called when a serialized webview first becomes active.
+		 * Called when a serialized webview first becomes visible.
 		 *
 		 * @param webviewPanel Webview panel to restore. The serializer should take ownership of this panel.
 		 * @param state Persisted state.
+		 *
+		 * @return Thanble indicating that the webview has been fully restored.
 		 */
 		deserializeWebviewPanel(webviewPanel: WebviewPanel, state: any): Thenable<void>;
 	}
@@ -770,11 +773,13 @@ declare module 'vscode' {
 		 * Create and show a new webview panel.
 		 *
 		 * @param viewType Identifies the type of the webview panel.
-		 * @param title Title of the webview.
-		 * @param column Editor column to show the new webview panel in.
+		 * @param title Title of the panel.
+		 * @param position Editor column to show the new panel in.
 		 * @param options Settings for the new webview panel.
+		 *
+		 * @return New webview panel.
 		 */
-		export function createWebviewPanel(viewType: string, title: string, column: ViewColumn, options: WebviewPanelOptions & WebviewOptions): WebviewPanel;
+		export function createWebviewPanel(viewType: string, title: string, position: ViewColumn, options: WebviewPanelOptions & WebviewOptions): WebviewPanel;
 
 		/**
 		 * Registers a webview panel serializer.
