@@ -5,6 +5,7 @@
 
 import * as path from 'path';
 import * as cp from 'child_process';
+import * as os from 'os';
 import { tmpName } from 'tmp';
 import { IDriver, connect as connectDriver, IDisposable, IElement } from './driver';
 
@@ -88,11 +89,20 @@ export interface SpawnOptions {
 	extraArgs?: string[];
 }
 
+async function createDriverHandle(): Promise<string> {
+	if ('win32' === os.platform()) {
+		const name = [...Array(15)].map(() => Math.random().toString(36)[3]).join('');
+		return `\\\\.\\pipe\\${name}`;
+	} else {
+		return await new Promise<string>((c, e) => tmpName((err, handlePath) => err ? e(err) : c(handlePath)));
+	}
+}
+
 export async function spawn(options: SpawnOptions): Promise<Code> {
 	const codePath = options.codePath;
 	const electronPath = codePath ? getBuildElectronPath(codePath) : getDevElectronPath();
 	const outPath = codePath ? getBuildOutPath(codePath) : getDevOutPath();
-	const handlePath = await new Promise<string>((c, e) => tmpName((err, handlePath) => err ? e(err) : c(handlePath)));
+	const handle = await createDriverHandle();
 
 	const args = [
 		options.workspacePath,
@@ -104,7 +114,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		'--disable-crash-reporter',
 		`--extensions-dir=${options.extensionsPath}`,
 		`--user-data-dir=${options.userDataDir}`,
-		'--driver', handlePath
+		'--driver', handle
 	];
 
 	if (!codePath) {
@@ -126,7 +136,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 	instances.add(child);
 	child.once('exit', () => instances.delete(child));
 
-	return connect(child, outPath, handlePath, options.verbose);
+	return connect(child, outPath, handle, options.verbose);
 }
 
 export class Code {
