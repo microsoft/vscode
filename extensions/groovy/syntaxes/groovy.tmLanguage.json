@@ -165,7 +165,7 @@
 						},
 						{
 							"match": ",",
-							"name": "punctuation.definition.seperator.groovy"
+							"name": "punctuation.definition.separator.groovy"
 						}
 					]
 				},
@@ -482,7 +482,7 @@
 							"patterns": [
 								{
 									"match": ",",
-									"name": "punctuation.definition.seperator.parameter.groovy"
+									"name": "punctuation.definition.separator.parameter.groovy"
 								},
 								{
 									"include": "#groovy-code"
@@ -618,7 +618,7 @@
 					"patterns": [
 						{
 							"match": ":",
-							"name": "keyword.operator.assert.expression-seperator.groovy"
+							"name": "keyword.operator.assert.expression-separator.groovy"
 						},
 						{
 							"include": "#groovy-code-minus-map-keys"
@@ -681,7 +681,7 @@
 					"patterns": [
 						{
 							"match": ":",
-							"name": "keyword.operator.ternary.expression-seperator.groovy"
+							"name": "keyword.operator.ternary.expression-separator.groovy"
 						},
 						{
 							"include": "#groovy-code-minus-map-keys"
@@ -738,7 +738,7 @@
 							"name": "constant.other.key.groovy"
 						},
 						"2": {
-							"name": "punctuation.definition.seperator.key-value.groovy"
+							"name": "punctuation.definition.separator.key-value.groovy"
 						}
 					},
 					"match": "(\\w+)\\s*(:)"
@@ -765,7 +765,7 @@
 			"patterns": [
 				{
 					"match": ",",
-					"name": "punctuation.definition.seperator.parameter.groovy"
+					"name": "punctuation.definition.separator.parameter.groovy"
 				},
 				{
 					"include": "#groovy-code"
@@ -856,7 +856,7 @@
 								},
 								{
 									"match": ",",
-									"name": "punctuation.definition.seperator.groovy"
+									"name": "punctuation.definition.separator.groovy"
 								}
 							]
 						}
