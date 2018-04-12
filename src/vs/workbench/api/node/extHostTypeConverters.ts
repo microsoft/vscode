@@ -120,7 +120,7 @@ export function fromDiagnosticSeverity(value: number): MarkerSeverity {
 	return MarkerSeverity.Error;
 }
 
-export function toDiagnosticSeverty(value: MarkerSeverity): types.DiagnosticSeverity {
+export function toDiagnosticSeverity(value: MarkerSeverity): types.DiagnosticSeverity {
 	switch (value) {
 		case MarkerSeverity.Info:
 			return types.DiagnosticSeverity.Information;
