@@ -62,11 +62,11 @@ export function memoize(target: any, key: string, descriptor: any) {
 	};
 }
 
-export interface IDebouceReducer<T> {
+export interface IDebounceReducer<T> {
 	(previousValue: T, ...args: any[]): T;
 }
 
-export function debounce<T>(delay: number, reducer?: IDebouceReducer<T>, initialValueProvider?: () => T): Function {
+export function debounce<T>(delay: number, reducer?: IDebounceReducer<T>, initialValueProvider?: () => T): Function {
 	return createDecorator((fn, key) => {
 		const timerKey = `$debounce$${key}`;
 		let result = initialValueProvider ? initialValueProvider() : void 0;
