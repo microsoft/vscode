@@ -55,10 +55,12 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		}
 
 		return asWinJsPromise(token => {
-			const allProviderResults = values(this._providers).map(provider => provider.provideComments(data.document, token));
-			return TPromise.join(allProviderResults);
+			let provider = this._providers.get(handle);
+			return provider.provideComments(data.document, token);
+			// const allProviderResults = values(this._providers).map(provider => provider.provideComments(data.document, token));
+			// return TPromise.join(allProviderResults);
 		})
-			.then(flatten)
+			// .then(flatten)
 			.then(comments => comments.map(x => convertCommentThread(x, this._commandsConverter)));
 	}
 }
