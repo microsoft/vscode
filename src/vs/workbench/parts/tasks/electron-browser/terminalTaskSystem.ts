@@ -593,7 +593,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			return command;
 		}
 		let basename = path.parse(shellExecutable).name.toLowerCase();
-		let shellQuoteOptions = this.getOuotingOptions(basename, shellOptions);
+		let shellQuoteOptions = this.getQuotingOptions(basename, shellOptions);
 
 		function needsQuotes(value: string): boolean {
 			if (value.length >= 2) {
@@ -673,7 +673,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return commandLine;
 	}
 
-	private getOuotingOptions(shellBasename: string, shellOptions: ShellConfiguration): ShellQuotingOptions {
+	private getQuotingOptions(shellBasename: string, shellOptions: ShellConfiguration): ShellQuotingOptions {
 		if (shellOptions && shellOptions.quoting) {
 			return shellOptions.quoting;
 		}
