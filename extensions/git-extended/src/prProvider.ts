@@ -11,10 +11,9 @@ import * as _ from 'lodash';
 import { Configuration } from './configuration';
 import { CredentialStore } from './credentials';
 import { parseComments } from './common/comment';
-import { enterReviewMode, restoreReviewState } from './review';
+import { enterReviewMode } from './review';
 import { PRGroup, PullRequest, FileChange, PRGroupType } from './common/treeItems';
 import { Resource } from './common/resources';
-import { CommentsProvider } from './commentsProvider';
 
 export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest | FileChange> {
 	private context: vscode.ExtensionContext;
@@ -23,31 +22,27 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 	private gitRepo: any;
 	private crendentialStore: CredentialStore;
 	private configuration: Configuration;
-	private commentsProvider: CommentsProvider;
-	private _onDidChangeTreeData = new vscode.EventEmitter<PRGroup | PullRequest | FileChange | undefined>();
+=	private _onDidChangeTreeData = new vscode.EventEmitter<PRGroup | PullRequest | FileChange | undefined>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-	constructor(configuration: Configuration) {
+	constructor(configuration: Configuration, crendentialStore: CredentialStore) {
 		this.configuration = configuration;
-		this.crendentialStore = new CredentialStore(configuration);
+		this.crendentialStore = crendentialStore;
 	}
 
-	async activate(context: vscode.ExtensionContext, workspaceRoot: string, repository: Repository, commentsProvider: CommentsProvider, gitRepo: any) {
+	async activate(context: vscode.ExtensionContext, workspaceRoot: string, repository: Repository, gitRepo: any) {
 		this.context = context;
 		this.workspaceRoot = workspaceRoot;
 		this.repository = repository;
-		this.commentsProvider = commentsProvider;
 		this.gitRepo = gitRepo;
 
 		this.context.subscriptions.push(vscode.window.registerTreeDataProvider<PRGroup | PullRequest | FileChange>('pr', this));
 		this.context.subscriptions.push(vscode.commands.registerCommand('pr.pick', async (pr: PullRequest) => {
-			await enterReviewMode(context.workspaceState, this.repository, pr, this.gitRepo);
+			await enterReviewMode(context.workspaceState, this.repository, this.crendentialStore, pr, this.gitRepo);
 		}));
 		this.context.subscriptions.push(this.configuration.onDidChange(e => {
 			this._onDidChangeTreeData.fire();
 		}));
-
-		await restoreReviewState(this.repository, this.crendentialStore, context.workspaceState, gitRepo, this.commentsProvider);
 	}
 
 	getTreeItem(element: PRGroup | PullRequest | FileChange): vscode.TreeItem {
@@ -110,7 +105,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 				return changedItem;
 			});
 
-			vscode.commands.registerCommand(element.prItem.number + '-post', async (id: string, text: string) => {
+			vscode.commands.registerCommand('diff-' + element.prItem.number + '-post', async (id: string, text: string) => {
 				try {
 					let ret = await element.otcokit.pullRequests.createCommentReply({
 						owner: element.remote.owner,
@@ -136,10 +131,49 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 				}
 			];
 
-			this.commentsProvider.registerCommentProvider({
-				provideComments: async (uri: vscode.Uri) => {
-					let matchingComments = commentsCache.get(uri.toString());
-					return [matchingComments, actions];
+			vscode.workspace.registerCommentProvider({
+				provideComments: async (document: vscode.TextDocument, token: vscode.CancellationToken) => {
+					if (document.uri.scheme !== 'review') {
+						let matchingComments = commentsCache.get(document.uri.toString());
+
+
+						if (!matchingComments || !matchingComments.length) {
+							return [];
+						}
+
+						let sections = _.groupBy(matchingComments, comment => comment.position);
+						let ret: vscode.CommentThread[] = [];
+
+						for (let i in sections) {
+							let comments = sections[i];
+
+							const comment = comments[0];
+							const commentAbsolutePosition = comment.diff_hunk_range.start + (comment.position - 1);
+							const pos = new vscode.Position(comment.currentPosition ? comment.currentPosition - 1 - 1 : commentAbsolutePosition - /* after line */ 1 - /* it's zero based*/ 1, 0);
+							const range = new vscode.Range(pos, pos);
+							const newCommentStartPos = new vscode.Position(comment.diff_hunk_range.start - 1, 0);
+							const newCommentEndPos = new vscode.Position(comment.diff_hunk_range.start + comment.diff_hunk_range.length - 1 - 1, 0);
+
+							ret.push({
+								threadId: comment.id,
+								range,
+								newCommentRange: new vscode.Range(newCommentStartPos, newCommentEndPos),
+								comments: comments.map(comment => {
+									return {
+										body: new vscode.MarkdownString(comment.body),
+										userName: comment.user.login,
+										gravatar: comment.user.avatar_url
+									};
+								}),
+								actions: actions
+							});
+						}
+
+						return ret;
+
+					}
+
+					return [];
 				}
 			});
 			// fill in file changes and comments.
@@ -221,36 +255,4 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 
 		return `is:open ${filter} type:pr repo:${owner}/${repo}`;
 	}
-
-	// async provideComments(document: vscode.TextDocument): Promise<vscode.CommentThread[]> {
-	// 	let matchingComments = await this.commentsProvider.provideComments(document.uri)
-
-	// 	if (!matchingComments || !matchingComments.length) {
-	// 		return [];
-	// 	}
-
-	// 	let sections = _.groupBy(matchingComments, comment => comment.position);
-	// 	let ret = [];
-
-	// 	for (let i in sections) {
-	// 		let comments = sections[i];
-
-	// 		const comment = comments[0];
-	// 		const pos = new vscode.Position(comment.diff_hunk_range.start + comment.position - 1 - 1, 0);
-	// 		const range = new vscode.Range(pos, pos);
-
-	// 		ret.push({
-	// 			range,
-	// 			comments: comments.map(comment => {
-	// 				return {
-	// 					body: new vscode.MarkdownString(comment.body),
-	// 					userName: comment.user.login,
-	// 					gravatar: comment.user.avatar_url
-	// 				};
-	// 			})
-	// 		});
-	// 	}
-
-	// 	return ret;
-	// }
 }

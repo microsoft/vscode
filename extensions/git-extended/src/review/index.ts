@@ -4,20 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as path from 'path';
 import { Repository } from '../common/models/repository';
-import { populatePRDiagnostics } from './FileComments';
 import { PullRequest, FileChange } from '../common/treeItems';
-import { Comment } from '../common/models/comment';
 import { toGitUri } from '../common/uri';
-import { CommentsProvider } from '../commentsProvider';
 import { GitChangeType } from '../common/models/file';
-import { fetch, checkout, diff } from '../common/operation';
-import { mapCommentsToHead } from '../common/diff';
+import { fetch, checkout } from '../common/operation';
 import { CredentialStore } from '../credentials';
 
 const REVIEW_STATE = 'git-extended.state';
-const resourceGroups: vscode.SourceControlResourceGroup[] = [];
 
 export function parseCommitDiff(repository: Repository, head: string, base: string, fileChanges: FileChange[]): FileChange[] {
 	let ret = fileChanges.map(fileChange => {
@@ -29,84 +23,14 @@ export function parseCommitDiff(repository: Repository, head: string, base: stri
 	return ret;
 }
 
-export async function restoreReviewState(repository: Repository, crendentialStore: CredentialStore, workspaceState: vscode.Memento, gitRepo: any, commentsProvider: CommentsProvider) {
-	let branch = repository.HEAD.name;
-
-	if (!branch) {
+export async function enterReviewMode(workspaceState: vscode.Memento, repository: Repository, crendentialStore: CredentialStore, pr: PullRequest, gitRepo: any) {
+	try {
+		await fetch(repository, pr.remote.remoteName, `pull/${pr.prItem.number}/head:pull-request-${pr.prItem.number}`);
+		await checkout(repository, `pull-request-${pr.prItem.number}`);
+	} catch (e) {
+		vscode.window.showErrorMessage(e);
 		return;
 	}
-
-	let state = workspaceState.get(`${REVIEW_STATE}:${branch}`);
-
-	if (!state) {
-		return;
-	}
-
-	// we are in review mode
-	let fileChanges: FileChange[] = state['fileChanges'];
-	let comments: Comment[] = state['comments'];
-
-	if (!fileChanges || !comments) {
-		return;
-	}
-
-	let localFileChanges = parseCommitDiff(repository, state['head'].sha, state['base'].sha, fileChanges);
-
-	populatePRDiagnostics(repository.path, localFileChanges, comments);
-	const commentsCache = new Map<String, Comment[]>();
-	localFileChanges.forEach(changedItem => {
-		let matchingComments = comments.filter(comment => comment.path === changedItem.fileName);
-		commentsCache.set(changedItem.filePath.toString(), matchingComments);
-	});
-	commentsProvider.registerCommentProvider({
-		provideComments: async (uri: vscode.Uri) => {
-			let matchingComments = commentsCache.get(uri.toString());
-			return [matchingComments || [], []];
-		}
-	});
-	commentsProvider.registerCommentProvider({
-		provideComments: async (uri: vscode.Uri) => {
-			let fileName = uri.path;
-			let matchedFiles = localFileChanges.filter(fileChange => path.resolve(repository.path, fileChange.fileName) === fileName);
-			if (matchedFiles && matchedFiles.length) {
-				let matchedFile = matchedFiles[0];
-				// last commit sha of pr
-				let prHead = state['head'].sha;
-				// git diff sha -- fileName
-				let contentDiff = await diff(repository, matchedFile.fileName, prHead);
-				let matchingComments = comments.filter(comment => path.resolve(repository.path, comment.path) === fileName);
-				matchingComments = mapCommentsToHead(contentDiff, matchingComments);
-				return [matchingComments || [], []];
-			}
-			return [[], []];
-		}
-	});
-
-	let prChangeResources = localFileChanges.map(fileChange => ({
-		resourceUri: vscode.Uri.file(path.resolve(repository.path, fileChange.fileName)),
-		command: {
-			title: 'show diff',
-			command: 'vscode.diff',
-			arguments: [
-				fileChange.parentFilePath,
-				fileChange.filePath,
-				fileChange.fileName
-			]
-		}
-	}));
-
-	resourceGroups.forEach(group => {
-		group.dispose();
-	});
-
-	let prGroup: vscode.SourceControlResourceGroup = gitRepo.sourceControl.createResourceGroup('pr', 'Changes from PR');
-	resourceGroups.push(prGroup);
-	prGroup.resourceStates = prChangeResources;
-}
-
-export async function enterReviewMode(workspaceState: vscode.Memento, repository: Repository, pr: PullRequest, gitRepo: any) {
-	await fetch(repository, pr.remote.remoteName, `pull/${pr.prItem.number}/head:pull-request-${pr.prItem.number}`);
-	await checkout(repository, `pull-request-${pr.prItem.number}`);
 
 	workspaceState.update(`${REVIEW_STATE}:pull-request-${pr.prItem.number}`, {
 		remote: pr.remote.remoteName,
@@ -121,32 +45,11 @@ export async function enterReviewMode(workspaceState: vscode.Memento, repository
 				filePath: filechange.filePath
 			})),
 		comments: pr.comments
-	}).then(e => {
+	}).then(async e => {
 		if (!pr.fileChanges || !pr.comments) {
 			return;
 		}
 
-		populatePRDiagnostics(repository.path, pr.fileChanges, pr.comments);
-
-		let prChangeResources = pr.fileChanges.map(fileChange => ({
-			resourceUri: vscode.Uri.file(path.resolve(repository.path, fileChange.fileName)),
-			command: {
-				title: 'show diff',
-				command: 'vscode.diff',
-				arguments: [
-					fileChange.parentFilePath,
-					fileChange.filePath,
-					fileChange.fileName
-				]
-			}
-		}));
-
-		resourceGroups.forEach(group => {
-			group.dispose();
-		});
-
-		let prGroup: vscode.SourceControlResourceGroup = gitRepo.sourceControl.createResourceGroup('pr', 'Changes from PR');
-		resourceGroups.push(prGroup);
-		prGroup.resourceStates = prChangeResources;
+		await repository.status();
 	});
 }
