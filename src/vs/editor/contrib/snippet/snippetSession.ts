@@ -328,7 +328,7 @@ export class SnippetSession {
 			delta += snippet.toString().length - model.getValueLengthInRange(snippetSelection);
 
 			// store snippets with the index of their originating selection.
-			// that ensures the primiary cursor stays primary despite not being
+			// that ensures the primary cursor stays primary despite not being
 			// the one with lowest start position
 			edits[idx] = EditOperation.replace(snippetSelection, snippet.toString());
 			snippets[idx] = new OneSnippet(editor, snippet, offset);
