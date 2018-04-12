@@ -123,7 +123,7 @@ export class SearchWidget extends Widget {
 		@IThemeService private themeService: IThemeService,
 		@IContextKeyService private keyBindingService: IContextKeyService,
 		@IKeybindingService private keyBindingService2: IKeybindingService,
-		@IClipboardService private clipboardServce: IClipboardService,
+		@IClipboardService private clipboardService: IClipboardService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
@@ -257,7 +257,7 @@ export class SearchWidget extends Widget {
 
 			const useGlobalFindBuffer = this.configurationService.getValue<ISearchConfigurationProperties>('search').globalFindClipboard;
 			if (!this.ignoreGlobalFindBufferOnNextFocus && useGlobalFindBuffer) {
-				const globalBufferText = this.clipboardServce.readFindText();
+				const globalBufferText = this.clipboardService.readFindText();
 				if (this.previousGlobalFindBufferValue !== globalBufferText) {
 					this.searchHistory.add(this.searchInput.getValue());
 					this.searchInput.setValue(globalBufferText);
@@ -385,7 +385,7 @@ export class SearchWidget extends Widget {
 		const useGlobalFindBuffer = this.configurationService.getValue<ISearchConfigurationProperties>('search').globalFindClipboard;
 		if (value) {
 			if (useGlobalFindBuffer) {
-				this.clipboardServce.writeFindText(value);
+				this.clipboardService.writeFindText(value);
 			}
 
 			this._onSearchSubmit.fire(refresh);
