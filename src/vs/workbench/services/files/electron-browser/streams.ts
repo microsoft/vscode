@@ -66,17 +66,17 @@ function createWritable(provider: IReadWriteProvider, resource: URI): Writable {
 	};
 }
 
-export function createReadableOfProvider(provider: IFileSystemProvider, resource: URI): Readable {
+export function createReadableOfProvider(provider: IFileSystemProvider, resource: URI, position: number): Readable {
 	switch (provider._type) {
-		case 'simple': return createSimpleReadable(provider, resource);
-		case 'chunked': return createReadable(provider, resource);
+		case 'simple': return createSimpleReadable(provider, resource, position);
+		case 'chunked': return createReadable(provider, resource, position);
 	}
 }
 
-function createReadable(provider: IReadWriteProvider, resource: URI): Readable {
+function createReadable(provider: IReadWriteProvider, resource: URI, position: number): Readable {
 	return new class extends Readable {
 		_fd: number;
-		_pos: number = 0;
+		_pos: number = position;
 		_reading: boolean = false;
 		constructor(opts?) {
 			super(opts);
@@ -117,7 +117,7 @@ function createReadable(provider: IReadWriteProvider, resource: URI): Readable {
 	};
 }
 
-function createSimpleReadable(provider: ISimpleReadWriteProvider, resource: URI): Readable {
+function createSimpleReadable(provider: ISimpleReadWriteProvider, resource: URI, position: number): Readable {
 	return new class extends Readable {
 		_readOperation: Thenable<any>;
 		_read(size?: number): void {
@@ -125,7 +125,7 @@ function createSimpleReadable(provider: ISimpleReadWriteProvider, resource: URI)
 				return;
 			}
 			this._readOperation = provider.readFile(resource).then(data => {
-				this.push(data);
+				this.push(data.slice(position));
 				this.push(null);
 			}, err => {
 				this.emit('error', err);

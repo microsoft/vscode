@@ -254,7 +254,9 @@ export class RemoteFileService extends FileService {
 					}
 				};
 
-				return toDecodeStream(createReadableOfProvider(provider, resource), decodeStreamOpts).then(data => {
+				const readable = createReadableOfProvider(provider, resource, options.position || 0);
+
+				return toDecodeStream(readable, decodeStreamOpts).then(data => {
 
 					if (options.acceptTextOnly && data.detected.seemsBinary) {
 						return TPromise.wrapError<IStreamContent>(new FileOperationError(
