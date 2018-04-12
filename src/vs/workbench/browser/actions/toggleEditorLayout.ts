@@ -55,8 +55,8 @@ export class ToggleEditorLayoutAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const groupOrientiation = this.editorGroupService.getGroupOrientation();
-		const newGroupOrientation: GroupOrientation = (groupOrientiation === 'vertical') ? 'horizontal' : 'vertical';
+		const groupOrientation = this.editorGroupService.getGroupOrientation();
+		const newGroupOrientation: GroupOrientation = (groupOrientation === 'vertical') ? 'horizontal' : 'vertical';
 
 		this.editorGroupService.setGroupOrientation(newGroupOrientation);
 
