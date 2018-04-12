@@ -487,7 +487,7 @@ export function getEmmetConfiguration(syntax: string) {
 }
 
 /**
- * Itereates by each child, as well as nested child's children, in their order
+ * Iterates by each child, as well as nested child's children, in their order
  * and invokes `fn` for each. If `fn` function returns `false`, iteration stops
  */
 export function iterateCSSToken(token: CssToken, fn: (x: any) => any) {
