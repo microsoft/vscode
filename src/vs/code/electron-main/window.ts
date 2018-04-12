@@ -749,7 +749,7 @@ export class CodeWindow implements ICodeWindow {
 			return state;
 		}
 
-		// Multi Montior (fullscreen): try to find the previously used display
+		// Multi Monitor (fullscreen): try to find the previously used display
 		if (state.display && state.mode === WindowMode.Fullscreen) {
 			const display = displays.filter(d => d.id === state.display)[0];
 			if (display && display.bounds && typeof display.bounds.x === 'number' && typeof display.bounds.y === 'number') {
