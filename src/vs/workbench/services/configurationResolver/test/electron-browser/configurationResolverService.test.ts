@@ -196,7 +196,7 @@ suite('Configuration Resolver Service', () => {
 		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.fontFamily} ${config:editor.lineNumbers} ${config:editor.insertSpaces} xyz'), 'abc foo 123 false xyz');
 	});
 
-	test('configuration should not evaluate Javascript', () => {
+	test('configuration should not evaluate JavaScript', () => {
 		let configurationService: IConfigurationService;
 		configurationService = new MockConfigurationService({
 			editor: {
