@@ -334,7 +334,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			TPromise.join(event.added.map(workspaceFolder => this.resolveWorkspaceFolderRecommendations(workspaceFolder)))
 				.then(result => {
 					const newRecommendations = flatten(result);
-					// Suggest only if atleast one of the newly added recommendtations was not suggested before
+					// Suggest only if atleast one of the newly added recommendations was not suggested before
 					if (newRecommendations.some(e => this._allWorkspaceRecommendedExtensions.indexOf(e) === -1)) {
 						this._suggestWorkspaceRecommendations();
 					}
