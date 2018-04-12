@@ -608,7 +608,7 @@ export class TabsTitleControl extends TitleControl {
 			});
 		}
 
-		// Tab is overlflowng to the left or does not fit: Scroll it into view to the left
+		// Tab is overflowing to the left or does not fit: Scroll it into view to the left
 		else if (containerScrollPosX > activeTabPosX || !activeTabFits) {
 			this.scrollbar.setScrollPosition({
 				scrollLeft: activeTabPosX
