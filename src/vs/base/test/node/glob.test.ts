@@ -705,7 +705,7 @@ suite('Glob', () => {
 		assert.strictEqual(glob.match(expr, 'bar.js', sibilings), null);
 	});
 
-	test('expression with multipe basename globs', function () {
+	test('expression with multiple basename globs', function () {
 		let expr = {
 			'**/bar': true,
 			'{**/baz,**/foo}': true

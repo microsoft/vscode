@@ -545,7 +545,7 @@ suite('Event utils', () => {
 			assert.deepEqual(result, [0]);
 		});
 
-		test('mutliplexer event dispose works', () => {
+		test('multiplexer event dispose works', () => {
 			const result: number[] = [];
 			const m = new EventMultiplexer<number>();
 			m.event(r => result.push(r));

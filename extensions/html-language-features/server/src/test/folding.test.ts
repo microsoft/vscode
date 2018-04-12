@@ -123,7 +123,7 @@ suite('HTML Folding', () => {
 		assertRanges(input, [r(0, 6), r(1, 5), r(2, 4), r(3, 4)]);
 	});
 
-	test('Embedded JavaScript - mutiple areas', () => {
+	test('Embedded JavaScript - multiple areas', () => {
 		let input = [
 			/* 0*/'<html>',
 			/* 1*/'<head>',
