@@ -151,12 +151,12 @@ export class MoveLinesCommand implements ICommand {
 							}
 						};
 
-						let newIndentatOfMovingBlock = LanguageConfigurationRegistry.getGoodIndentForLine(virtualModel, model.getLanguageIdAtPosition(
+						let newIndentOfMovingBlock = LanguageConfigurationRegistry.getGoodIndentForLine(virtualModel, model.getLanguageIdAtPosition(
 							movingLineNumber, 1), s.startLineNumber + 1, indentConverter);
 
-						if (newIndentatOfMovingBlock !== null) {
+						if (newIndentOfMovingBlock !== null) {
 							const oldIndentation = strings.getLeadingWhitespace(model.getLineContent(s.startLineNumber));
-							const newSpaceCnt = IndentUtil.getSpaceCnt(newIndentatOfMovingBlock, tabSize);
+							const newSpaceCnt = IndentUtil.getSpaceCnt(newIndentOfMovingBlock, tabSize);
 							const oldSpaceCnt = IndentUtil.getSpaceCnt(oldIndentation, tabSize);
 							if (newSpaceCnt !== oldSpaceCnt) {
 								const spaceCntOffset = newSpaceCnt - oldSpaceCnt;
