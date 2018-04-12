@@ -494,7 +494,7 @@ export class CompositeBar implements ICompositeBar {
 	public layout(dimension: Dimension): void {
 		this.dimension = dimension;
 		if (dimension.height === 0 || dimension.width === 0) {
-			// Do not layout if not visible. Otherwise the size measurment would be computed wrongly
+			// Do not layout if not visible. Otherwise the size measurement would be computed wrongly
 			return;
 		}
 
