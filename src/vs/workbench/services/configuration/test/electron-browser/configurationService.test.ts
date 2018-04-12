@@ -21,7 +21,7 @@ import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/node/configurationEditingService';
-import { FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationTarget, IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { workbenchInstantiationService, TestTextResourceConfigurationService, TestTextFileService, TestLifecycleService, TestEnvironmentService, TestStorageService, TestNotificationService } from 'vs/workbench/test/workbenchTestServices';
@@ -154,7 +154,7 @@ suite('WorkspaceContextService - Workspace', () => {
 					instantiationService.stub(IFileService, new FileService(<IWorkspaceContextService>workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true }));
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
-					workspaceService.setInstantiationService(instantiationService);
+					workspaceService.acquireInstantiationService(instantiationService);
 
 					testObject = workspaceService;
 				});
@@ -412,7 +412,7 @@ suite('WorkspaceService - Initialization', () => {
 					instantiationService.stub(IFileService, new FileService(<IWorkspaceContextService>workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true }));
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
-					workspaceService.setInstantiationService(instantiationService);
+					workspaceService.acquireInstantiationService(instantiationService);
 					testObject = workspaceService;
 				});
 			});
@@ -670,7 +670,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 					instantiationService.stub(IFileService, new FileService(<IWorkspaceContextService>workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true }));
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
-					workspaceService.setInstantiationService(instantiationService);
+					workspaceService.acquireInstantiationService(instantiationService);
 					testObject = workspaceService;
 				});
 			});
@@ -772,19 +772,6 @@ suite('WorkspaceConfigurationService - Folder', () => {
 					}
 				});
 				assert.deepEqual(testObject.getUnsupportedWorkspaceKeys(), ['configurationService.folder.anotherExecutableSetting']);
-			});
-	});
-
-	test('workspace change triggers event', () => {
-		const settingsFile = path.join(workspaceDir, '.vscode', 'settings.json');
-		fs.writeFileSync(settingsFile, '{ "configurationService.folder.testSetting": "workspaceValue" }');
-		const event = new FileChangesEvent([{ resource: URI.file(settingsFile), type: FileChangeType.ADDED }]);
-		const target = sinon.spy();
-		testObject.onDidChangeConfiguration(target);
-		return (<WorkspaceService>testObject).handleWorkspaceFileEvents(event)
-			.then(() => {
-				assert.equal(testObject.getValue('configurationService.folder.testSetting'), 'workspaceValue');
-				assert.ok(target.called);
 			});
 	});
 
@@ -983,7 +970,7 @@ suite('WorkspaceConfigurationService - Multiroot', () => {
 					instantiationService.stub(IFileService, new FileService(<IWorkspaceContextService>workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true }));
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
-					workspaceService.setInstantiationService(instantiationService);
+					workspaceService.acquireInstantiationService(instantiationService);
 
 					workspaceContextService = workspaceService;
 					jsonEditingServce = instantiationService.createInstance(JSONEditingService);
