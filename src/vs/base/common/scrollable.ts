@@ -229,7 +229,7 @@ export class Scrollable extends Disposable {
 
 	/**
 	 * Returns the final scroll position that the instance will have once the smooth scroll animation concludes.
-	 * If no scroll animation is occuring, it will return the current scroll position instead.
+	 * If no scroll animation is occurring, it will return the current scroll position instead.
 	 */
 	public getFutureScrollPosition(): IScrollPosition {
 		if (this._smoothScrolling) {
