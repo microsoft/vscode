@@ -116,9 +116,9 @@ export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry
 		const viewsToDeregister = views.filter(view => ids.indexOf(view.id) !== -1);
 
 		if (viewsToDeregister.length) {
-			const remaningViews = views.filter(view => ids.indexOf(view.id) === -1);
-			if (remaningViews.length) {
-				this._views.set(location, remaningViews);
+			const remainingViews = views.filter(view => ids.indexOf(view.id) === -1);
+			if (remainingViews.length) {
+				this._views.set(location, remainingViews);
 			} else {
 				this._views.delete(location);
 				this._viewLocations.splice(this._viewLocations.indexOf(location), 1);
