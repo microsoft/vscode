@@ -7,8 +7,8 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isBoolean, isNumber } from 'vs/base/common/types';
-import https = require('https');
-import http = require('http');
+import * as https from 'https';
+import * as http from 'http';
 import { Stream } from 'stream';
 import { parse as parseUrl } from 'url';
 import { createWriteStream } from 'fs';
@@ -96,7 +96,7 @@ export function request(options: IRequestOptions): TPromise<IRequestContext> {
 						stream = stream.pipe(createGunzip());
 					}
 
-					c({ res, stream });
+					c({ res, stream } as IRequestContext);
 				}
 			});
 

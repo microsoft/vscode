@@ -5,13 +5,12 @@
 
 'use strict';
 
-import Severity from 'vs/base/common/severity';
+import BaseSeverity from 'vs/base/common/severity';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
-export import Severity = Severity;
+export import Severity = BaseSeverity;
 
 export const INotificationService = createDecorator<INotificationService>('notificationService');
 
@@ -44,7 +43,7 @@ export interface INotification {
 	 * close automatically when invoking a secondary action.
 	 *
 	 * **Note:** If your intent is to show a message with actions to the user, consider
-	 * the `IChoiceService` and `IConfirmationService` instead which are optimized for
+	 * the `INotificationService.prompt()` method instead which are optimized for
 	 * this usecase and much easier to use!
 	 */
 	actions?: INotificationActions;
@@ -89,12 +88,12 @@ export interface INotificationProgress {
 	done(): void;
 }
 
-export interface INotificationHandle extends IDisposable {
+export interface INotificationHandle {
 
 	/**
-	 * Will be fired once the notification is disposed.
+	 * Will be fired once the notification is closed.
 	 */
-	readonly onDidDispose: Event<void>;
+	readonly onDidClose: Event<void>;
 
 	/**
 	 * Allows to indicate progress on the notification even after the
@@ -118,8 +117,43 @@ export interface INotificationHandle extends IDisposable {
 	 * notification is already visible.
 	 */
 	updateActions(actions?: INotificationActions): void;
+
+	/**
+	 * Hide the notification and remove it from the notification center.
+	 */
+	close(): void;
 }
 
+export interface IPromptChoice {
+
+	/**
+	 * Label to show for the choice to the user.
+	 */
+	label: string;
+
+	/**
+	 * Primary choices show up as buttons in the notification below the message.
+	 * Secondary choices show up under the gear icon in the header of the notification.
+	 */
+	isSecondary?: boolean;
+
+	/**
+	 * Wether to keep the notification open after the choice was selected
+	 * by the user. By default, will close the notification upon click.
+	 */
+	keepOpen?: boolean;
+
+	/**
+	 * Triggered when the user selects the choice.
+	 */
+	run: () => void;
+}
+
+/**
+ * A service to bring up notifications and non-modal prompts.
+ *
+ * Note: use the `IDialogService` for a modal way to ask the user for input.
+ */
 export interface INotificationService {
 
 	_serviceBrand: any;
@@ -129,8 +163,10 @@ export interface INotificationService {
 	 * can be used to control the notification afterwards.
 	 *
 	 * **Note:** If your intent is to show a message with actions to the user, consider
-	 * the `IChoiceService` and `IConfirmationService` instead which are optimized for
+	 * the `INotificationService.prompt()` method instead which are optimized for
 	 * this usecase and much easier to use!
+	 *
+	 * @returns a handle on the notification to e.g. hide it or update message, buttons, etc.
 	 */
 	notify(notification: INotification): INotificationHandle;
 
@@ -151,23 +187,34 @@ export interface INotificationService {
 	 * method if you need more control over the notification.
 	 */
 	error(message: NotificationMessage | NotificationMessage[]): void;
+
+	/**
+	 * Shows a prompt in the notification area with the provided choices. The prompt
+	 * is non-modal. If you want to show a modal dialog instead, use `IDialogService`.
+	 *
+	 * @param onCancel will be called if the user closed the notification without picking
+	 * any of the provided choices.
+	 *
+	 * @returns a handle on the notification to e.g. hide it or update message, buttons, etc.
+	 */
+	prompt(severity: Severity, message: string, choices: IPromptChoice[], onCancel?: () => void): INotificationHandle;
 }
 
 export class NoOpNotification implements INotificationHandle {
 	readonly progress = new NoOpProgress();
 
-	private _onDidDispose: Emitter<void> = new Emitter();
+	private readonly _onDidClose: Emitter<void> = new Emitter();
 
-	public get onDidDispose(): Event<void> {
-		return this._onDidDispose.event;
+	public get onDidClose(): Event<void> {
+		return this._onDidClose.event;
 	}
 
 	updateSeverity(severity: Severity): void { }
 	updateMessage(message: NotificationMessage): void { }
 	updateActions(actions?: INotificationActions): void { }
 
-	dispose(): void {
-		this._onDidDispose.dispose();
+	close(): void {
+		this._onDidClose.dispose();
 	}
 }
 

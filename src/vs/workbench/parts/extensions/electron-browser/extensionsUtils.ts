@@ -7,21 +7,18 @@
 
 import * as arrays from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
-import Event, { chain, anyEvent, debounceEvent } from 'vs/base/common/event';
-import { onUnexpectedError, canceled } from 'vs/base/common/errors';
+import { Event, chain, anyEvent, debounceEvent } from 'vs/base/common/event';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionManagementService, ILocalExtension, IExtensionEnablementService, IExtensionTipsService, LocalExtensionType, IExtensionIdentifier, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionManagementService, ILocalExtension, IExtensionEnablementService, IExtensionTipsService, IExtensionIdentifier, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { BetterMergeDisabledNowKey, BetterMergeId, areSameExtensions, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { areSameExtensions, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
-import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
-import { Severity } from 'vs/platform/notification/common/notification';
+import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
 
 export interface IExtensionStatus {
 	identifier: IExtensionIdentifier;
@@ -37,8 +34,8 @@ export class KeymapExtensions implements IWorkbenchContribution {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
 		@IExtensionTipsService private tipsService: IExtensionTipsService,
-		@IChoiceService private choiceService: IChoiceService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@INotificationService private notificationService: INotificationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 	) {
 		this.disposables.push(
@@ -64,36 +61,37 @@ export class KeymapExtensions implements IWorkbenchContribution {
 		});
 	}
 
-	private promptForDisablingOtherKeymaps(newKeymap: IExtensionStatus, oldKeymaps: IExtensionStatus[]): TPromise<void> {
-		const message = localize('disableOtherKeymapsConfirmation', "Disable other keymaps ({0}) to avoid conflicts between keybindings?", oldKeymaps.map(k => `'${k.local.manifest.displayName}'`).join(', '));
-		const options = [
-			localize('yes', "Yes"),
-			localize('no', "No")
-		];
-		return this.choiceService.choose(Severity.Info, message, options)
-			.then(value => {
-				const confirmed = value === 0;
-				const telemetryData: { [key: string]: any; } = {
-					newKeymap: newKeymap.identifier,
-					oldKeymaps: oldKeymaps.map(k => k.identifier),
-					confirmed
-				};
-				/* __GDPR__
-					"disableOtherKeymaps" : {
-						"newKeymap" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"oldKeymaps": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"confirmed" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
-				this.telemetryService.publicLog('disableOtherKeymaps', telemetryData);
-				if (confirmed) {
-					return TPromise.join(oldKeymaps.map(keymap => {
-						return this.extensionEnablementService.setEnablement(keymap.local, EnablementState.Disabled);
-					}));
+	private promptForDisablingOtherKeymaps(newKeymap: IExtensionStatus, oldKeymaps: IExtensionStatus[]): void {
+		const onPrompt = (confirmed: boolean) => {
+			const telemetryData: { [key: string]: any; } = {
+				newKeymap: newKeymap.identifier,
+				oldKeymaps: oldKeymaps.map(k => k.identifier),
+				confirmed
+			};
+			/* __GDPR__
+				"disableOtherKeymaps" : {
+					"newKeymap": { "${inline}": [ "${ExtensionIdentifier}" ] },
+					"oldKeymaps": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"confirmed" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 				}
-				return undefined;
-			}, error => TPromise.wrapError(canceled()))
-			.then(() => { /* drop resolved value */ });
+			*/
+			this.telemetryService.publicLog('disableOtherKeymaps', telemetryData);
+			if (confirmed) {
+				TPromise.join(oldKeymaps.map(keymap => {
+					return this.extensionEnablementService.setEnablement(keymap.local, EnablementState.Disabled);
+				}));
+			}
+		};
+
+		this.notificationService.prompt(Severity.Info, localize('disableOtherKeymapsConfirmation', "Disable other keymaps ({0}) to avoid conflicts between keybindings?", oldKeymaps.map(k => `'${k.local.manifest.displayName}'`).join(', ')),
+			[{
+				label: localize('yes', "Yes"),
+				run: () => onPrompt(true)
+			}, {
+				label: localize('no', "No"),
+				run: () => onPrompt(false)
+			}]
+		);
 	}
 
 	dispose(): void {
@@ -143,30 +141,4 @@ export function isKeymapExtension(tipsService: IExtensionTipsService, extension:
 
 function stripVersion(id: string): string {
 	return getIdAndVersionFromLocalExtensionId(id).id;
-}
-
-export class BetterMergeDisabled implements IWorkbenchContribution {
-
-	constructor(
-		@IStorageService storageService: IStorageService,
-		@IChoiceService choiceService: IChoiceService,
-		@IExtensionService extensionService: IExtensionService,
-		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
-		@ITelemetryService telemetryService: ITelemetryService,
-	) {
-		extensionService.whenInstalledExtensionsRegistered().then(() => {
-			if (storageService.getBoolean(BetterMergeDisabledNowKey, StorageScope.GLOBAL, false)) {
-				storageService.remove(BetterMergeDisabledNowKey, StorageScope.GLOBAL);
-
-				choiceService.choose(Severity.Info, localize('betterMergeDisabled', "The Better Merge extension is now built-in, the installed extension was disabled and can be uninstalled."), [localize('uninstall', "Uninstall")]).then(choice => {
-					if (choice === 0) {
-						extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
-							return Promise.all(extensions.filter(e => stripVersion(e.identifier.id) === BetterMergeId)
-								.map(e => extensionManagementService.uninstall(e, true)));
-						});
-					}
-				});
-			}
-		});
-	}
 }

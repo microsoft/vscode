@@ -7,14 +7,14 @@
 
 import 'vs/css!./sash';
 import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
-import { Builder, $, Dimension } from 'vs/base/browser/builder';
+import { Builder, $ } from 'vs/base/browser/builder';
 import { isIPad } from 'vs/base/browser/browser';
 import { isMacintosh } from 'vs/base/common/platform';
-import types = require('vs/base/common/types');
-import DOM = require('vs/base/browser/dom');
+import * as types from 'vs/base/common/types';
 import { EventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
+import { getElementsByTagName, EventHelper, EventType as DOMEventType, createStyleSheet, addDisposableListener, Dimension } from 'vs/base/browser/dom';
 
 export interface ISashLayoutProvider { }
 
@@ -63,15 +63,14 @@ export class Sash {
 	private _onDidEnd = new Emitter<void>();
 
 	constructor(container: HTMLElement, layoutProvider: ISashLayoutProvider, options: ISashOptions = {}) {
-
 		this.$e = $('.monaco-sash').appendTo(container);
 
 		if (isMacintosh) {
 			this.$e.addClass('mac');
 		}
 
-		this.$e.on(DOM.EventType.MOUSE_DOWN, (e) => { this.onMouseDown(e as MouseEvent); });
-		this.$e.on(DOM.EventType.DBLCLICK, (e) => this._onDidReset.fire());
+		this.$e.on(DOMEventType.MOUSE_DOWN, (e) => { this.onMouseDown(e as MouseEvent); });
+		this.$e.on(DOMEventType.DBLCLICK, (e) => this._onDidReset.fire());
 		Gesture.addTarget(this.$e.getHTMLElement());
 		this.$e.on(EventType.Start, (e) => { this.onTouchStart(e as GestureEvent); });
 
@@ -127,23 +126,23 @@ export class Sash {
 	}
 
 	private onMouseDown(e: MouseEvent): void {
-		DOM.EventHelper.stop(e, false);
+		EventHelper.stop(e, false);
 
 		if (this.isDisabled) {
 			return;
 		}
 
-		const iframes = $(DOM.getElementsByTagName('iframe'));
+		const iframes = $(getElementsByTagName('iframe'));
 		if (iframes) {
 			iframes.style('pointer-events', 'none'); // disable mouse events on iframes as long as we drag the sash
 		}
 
-		let mouseDownEvent = new StandardMouseEvent(e);
-		let startX = mouseDownEvent.posx;
-		let startY = mouseDownEvent.posy;
+		const mouseDownEvent = new StandardMouseEvent(e);
+		const startX = mouseDownEvent.posx;
+		const startY = mouseDownEvent.posy;
 		const altKey = mouseDownEvent.altKey;
 
-		let startEvent: ISashEvent = {
+		const startEvent: ISashEvent = {
 			startX: startX,
 			currentX: startX,
 			startY: startY,
@@ -154,14 +153,21 @@ export class Sash {
 		this.$e.addClass('active');
 		this._onDidStart.fire(startEvent);
 
-		let $window = $(window);
-		let containerCSSClass = `${this.getOrientation()}-cursor-container${isMacintosh ? '-mac' : ''}`;
+		const $window = $(window);
+
+		// fix https://github.com/Microsoft/vscode/issues/21675
+		const globalStyle = createStyleSheet(this.$e.getHTMLElement());
+		if (this.orientation === Orientation.HORIZONTAL) {
+			globalStyle.innerHTML = `* { cursor: ${isMacintosh ? 'row-resize' : 'ns-resize'}; }`;
+		} else {
+			globalStyle.innerHTML = `* { cursor: ${isMacintosh ? 'col-resize' : 'ew-resize'}; }`;
+		}
 
 		$window.on('mousemove', (e) => {
-			DOM.EventHelper.stop(e, false);
-			let mouseMoveEvent = new StandardMouseEvent(e as MouseEvent);
+			EventHelper.stop(e, false);
+			const mouseMoveEvent = new StandardMouseEvent(e as MouseEvent);
 
-			let event: ISashEvent = {
+			const event: ISashEvent = {
 				startX: startX,
 				currentX: mouseMoveEvent.posx,
 				startY: startY,
@@ -171,29 +177,29 @@ export class Sash {
 
 			this._onDidChange.fire(event);
 		}).once('mouseup', (e) => {
-			DOM.EventHelper.stop(e, false);
+			EventHelper.stop(e, false);
+
+			this.$e.getHTMLElement().removeChild(globalStyle);
+
 			this.$e.removeClass('active');
 			this._onDidEnd.fire();
 
 			$window.off('mousemove');
-			document.body.classList.remove(containerCSSClass);
 
-			const iframes = $(DOM.getElementsByTagName('iframe'));
+			const iframes = $(getElementsByTagName('iframe'));
 			if (iframes) {
 				iframes.style('pointer-events', 'auto');
 			}
 		});
-
-		document.body.classList.add(containerCSSClass);
 	}
 
 	private onTouchStart(event: GestureEvent): void {
-		DOM.EventHelper.stop(event);
+		EventHelper.stop(event);
 
-		let listeners: IDisposable[] = [];
+		const listeners: IDisposable[] = [];
 
-		let startX = event.pageX;
-		let startY = event.pageY;
+		const startX = event.pageX;
+		const startY = event.pageY;
 		const altKey = event.altKey;
 
 
@@ -205,7 +211,7 @@ export class Sash {
 			altKey
 		});
 
-		listeners.push(DOM.addDisposableListener(this.$e.getHTMLElement(), EventType.Change, (event: GestureEvent) => {
+		listeners.push(addDisposableListener(this.$e.getHTMLElement(), EventType.Change, (event: GestureEvent) => {
 			if (types.isNumber(event.pageX) && types.isNumber(event.pageY)) {
 				this._onDidChange.fire({
 					startX: startX,
@@ -217,7 +223,7 @@ export class Sash {
 			}
 		}));
 
-		listeners.push(DOM.addDisposableListener(this.$e.getHTMLElement(), EventType.End, (event: GestureEvent) => {
+		listeners.push(addDisposableListener(this.$e.getHTMLElement(), EventType.End, (event: GestureEvent) => {
 			this._onDidEnd.fire();
 			dispose(listeners);
 		}));
@@ -227,7 +233,7 @@ export class Sash {
 		let style: { top?: string; left?: string; height?: string; width?: string; };
 
 		if (this.orientation === Orientation.VERTICAL) {
-			let verticalProvider = (<IVerticalSashLayoutProvider>this.layoutProvider);
+			const verticalProvider = (<IVerticalSashLayoutProvider>this.layoutProvider);
 			style = { left: verticalProvider.getVerticalSashLeft(this) - (this.size / 2) + 'px' };
 
 			if (verticalProvider.getVerticalSashTop) {
@@ -238,7 +244,7 @@ export class Sash {
 				style.height = verticalProvider.getVerticalSashHeight(this) + 'px';
 			}
 		} else {
-			let horizontalProvider = (<IHorizontalSashLayoutProvider>this.layoutProvider);
+			const horizontalProvider = (<IHorizontalSashLayoutProvider>this.layoutProvider);
 			style = { top: horizontalProvider.getHorizontalSashTop(this) - (this.size / 2) + 'px' };
 
 			if (horizontalProvider.getHorizontalSashLeft) {
@@ -294,18 +300,18 @@ export class Sash {
  * Triggers onPositionChange event when the position is changed
  */
 export class VSash extends Disposable implements IVerticalSashLayoutProvider {
-
 	private sash: Sash;
 	private ratio: number;
 	private startPosition: number;
 	private position: number;
 	private dimension: Dimension;
 
-	private _onPositionChange: Emitter<number> = new Emitter<number>();
+	private readonly _onPositionChange: Emitter<number> = new Emitter<number>();
 	public get onPositionChange(): Event<number> { return this._onPositionChange.event; }
 
 	constructor(container: HTMLElement, private minWidth: number) {
 		super();
+
 		this.ratio = 0.5;
 		this.sash = new Sash(container, this);
 
@@ -357,9 +363,9 @@ export class VSash extends Disposable implements IVerticalSashLayoutProvider {
 	}
 
 	private computeSashPosition(sashRatio: number = this.ratio) {
-		let contentWidth = this.dimension.width;
+		const contentWidth = this.dimension.width;
 		let sashPosition = Math.floor((sashRatio || 0.5) * contentWidth);
-		let midPoint = Math.floor(0.5 * contentWidth);
+		const midPoint = Math.floor(0.5 * contentWidth);
 
 		if (contentWidth > this.minWidth * 2) {
 			if (sashPosition < this.minWidth) {

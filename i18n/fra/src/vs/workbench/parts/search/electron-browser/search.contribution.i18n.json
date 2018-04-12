@@ -25,6 +25,6 @@
 	"search.quickOpen.includeSymbols": "Configurez l'ajout des résultats d'une recherche de symboles globale dans le fichier de résultats pour Quick Open.",
 	"search.followSymlinks": "Contrôle s'il faut suivre les symlinks pendant la recherche.",
 	"search.smartCase": "Recherches de manière non case-sensitive si le modèle est entièrement en minuscules, dans le cas contraire, recherche de manière case-sensitive",
-	"search.globalFindClipboard": "Contrôle si le viewlet de recherche doit lire ou modifier le presse-papiers partagé sur macOS",
-	"search.location": "Contrôle si la recherche sera affichée comme un viewlet dans la barre latérale ou comme un panneau dans la zone de panneaux pour plus d'espace horizontal"
+	"search.globalFindClipboard": "Contrôle si la vue de recherche doit lire ou modifier le presse-papiers partagé sur macOS",
+	"search.location": "Aperçu : contrôle si la recherche est affichée comme une vue dans la barre latérale ou comme un panneau dans la zone correspondante pour libérer de l'espace horizontal. La prochaine version de la recherche dans le panneau prévoit une amélioration de la disposition horizontale qui ne sera plus un aperçu."
 }

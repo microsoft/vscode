@@ -18,16 +18,11 @@ th {
 	vertical-align: bottom;
 	border-bottom: 2px solid #e9ecef;
 	padding: .75rem;
-	border-top: 1px solid #e9ecef;
 	text-align: inherit;
-}
-tr:nth-of-type(even) {
-	background-color: rgba(0,0,0,.05);
 }
 td {
 	padding: .75rem;
 	vertical-align: top;
-	border-top: 1px solid #e9ecef;
 }
 
 .block-settingsSearchResults-details {
@@ -39,7 +34,7 @@ td {
 }
 
 .section {
-	margin-bottom: 1.5em;
+	margin-bottom: .5em;
 }
 
 /**
@@ -103,19 +98,17 @@ textarea {
 html {
 	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
 	color: #CCCCCC;
+	height: 100%;
 }
 
 body {
 	margin: 0;
 	overflow: scroll;
+	height: 100%;
 }
 
 .hidden {
 	display: none;
-}
-
-#block-container {
-	margin-top: 1em;
 }
 
 .block .block-info {
@@ -144,11 +137,32 @@ button:disabled {
 	max-width: 85vw;
 	margin-left: auto;
 	margin-right: auto;
-	margin-top: 2em;
+	padding-top: 2em;
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+.description-section {
+	flex-grow: 1;
+	display: flex;
+	flex-direction: column;
+	flex-shrink: 0;
+}
+
+textarea {
+	flex-grow: 1;
+	min-height: 150px;
+}
+
+.block-info-text {
+	display: flex;
+	flex-grow: 1;
 }
 
 #github-submit-btn {
-	float: right;
+	flex-shrink: 0;
+	margin-left: auto;
 	margin-top: 10px;
 	margin-bottom: 10px;
 }
@@ -166,31 +180,8 @@ button:disabled {
 	margin-bottom: 1em;
 }
 
-.extensions-form {
-	display: flex;
-}
-
-.extensions-form > .form-buttons {
-	display: flex;
-	margin-left: 20px;
-}
-
-.extensions-form > .form-buttons > .choice {
-	margin-right: 35px;
-	position: relative;
-}
-
-.extensions-form > .form-buttons > .choice > label, .extensions-form  > .form-buttons > .choice > input {
-	cursor: pointer;
-	height: 100%;
-	margin-top: 1px;
-}
-
-.extensions-form > .form-buttons > .choice > label {
-	position: absolute;
-	top: 50%;
-	margin-top: -50%;
-	left: 20px;
+#extension-selection {
+	margin-top: 1em;
 }
 
 .system-info {
@@ -206,6 +197,7 @@ summary {
 	border: 1px solid transparent;
 	padding: 0 10px;
 	margin-bottom: 5px;
+	cursor: pointer;
 }
 
 .validation-error {
@@ -250,8 +242,9 @@ input:disabled {
 	margin-top: .5em;
 }
 
-.workbenchCommand {
+a, .workbenchCommand {
 	cursor: pointer;
+	border: 1px solid transparent;
 }
 
 .workbenchCommand:disabled {
@@ -309,17 +302,17 @@ button {
 }
 
 #similar-issues {
-	margin-left: 12%;
+	margin-left: 13%;
 	display: block;
 }
 
 @media (max-width: 950px) {
 	.section .inline-label {
-		width: 12%;
+		width: 13%;
 	}
 
 	.section .inline-form-control  {
-		width: calc(88% - 5px);
+		width: calc(87% - 5px);
 	}
 }
 
@@ -328,7 +321,7 @@ button {
 		display: none !important;
 	}
 
-	.inline-form-control {
+	.section .inline-form-control {
 		width: 100%;
 	}
 
@@ -352,26 +345,28 @@ button {
 .issues-container {
 	margin-left: 1.5em;
 	margin-top: .5em;
-	height: 92px;
+	max-height: 92px;
 	overflow-y: auto;
 }
 
 .issues-container > .issue {
 	padding: 4px 0;
+	display: flex;
 }
 
 .issues-container > .issue > .issue-link {
-	display: inline-block;
 	width: calc(100% - 82px);
-	vertical-align: top;
 	overflow: hidden;
 	padding-top: 3px;
 	white-space: nowrap;
 	text-overflow: ellipsis;
 }
 
+.issues-container > .issue > .issue-state .octicon {
+	width: 16px;
+}
+
 .issues-container > .issue > .issue-state {
-	display: inline-block;
 	width: 77px;
 	padding: 3px 6px;
 	margin-right: 5px;
@@ -380,14 +375,8 @@ button {
 	border-radius: .25rem;
 }
 
-.issues-container > .issue > .issue-state .octicon {
-	vertical-align: top;
-	width: 16px;
-}
-
 .issues-container > .issue .label {
 	margin-left: 5px;
-	display: inline-block;
 	width: 44px;
 	text-overflow: ellipsis;
 	overflow: hidden;

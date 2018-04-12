@@ -5,10 +5,10 @@
 
 'use strict';
 
-import path = require('path');
-import os = require('os');
-import net = require('net');
-import cp = require('child_process');
+import * as path from 'path';
+import * as os from 'os';
+import * as net from 'net';
+import * as cp from 'child_process';
 import uri from 'vs/base/common/uri';
 
 export interface IForkOpts {

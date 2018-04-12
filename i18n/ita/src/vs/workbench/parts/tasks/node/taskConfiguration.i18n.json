@@ -17,7 +17,6 @@
 	"ConfigurationParser.missingRequiredProperty": "Errore: nella configurazione di attività '{0}' manca la proprietà obbligatoria '{1}'. La configurazione dell'attività verrà ignorata.",
 	"ConfigurationParser.notCustom": "Errore: tasks non è dichiarato come un'attività personalizzata. La configurazione verrà ignorata.\n{0}\n",
 	"ConfigurationParser.noTaskName": "Errore: un'attività deve specificare una proprietà label. L'attività verrà ignorata.\n{0}\n",
-	"taskConfiguration.shellArgs": "Avviso: l'attività '{0}' è un comando di shell e uno dei suoi argomenti potrebbe avere spazi indesiderati. Per garantire la correttezza della riga di comando unire args nel comando stesso.",
 	"taskConfiguration.noCommandOrDependsOn": "Errore: l'attività '{0}' non specifica un comando né una proprietà dependsOn. L'attività verrà ignorata. La sua definizione è:\n{1}",
 	"taskConfiguration.noCommand": "Errore: l'attività '{0}' non definisce un comando. L'attività verrà ignorata. Definizione dell'attività:\n{1}",
 	"TaskParse.noOsSpecificGlobalTasks": "L'attività versione 2.0.0 non supporta attività specifiche globali del sistema operativo. Convertirle in un'attività con un comando specifico del sistema operativo. Attività interessate:\n{0}"

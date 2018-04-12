@@ -18,6 +18,7 @@
 	"zoomReset": "Yakınlaştırmayı Sıfırla",
 	"appPerf": "Başlangıç Performansı",
 	"reloadWindow": "Pencereyi Yeniden Yükle",
+	"reloadWindowWithExntesionsDisabled": "Pencereyi Eklentiler Devre Dışı Olarak Yeniden Başlat",
 	"switchWindowPlaceHolder": "Geçilecek pencereyi seçin",
 	"current": "Geçerli Pencere",
 	"close": "Pencereyi Kapat",
@@ -48,5 +49,6 @@
 	"moveWindowTabToNewWindow": "Pencere Sekmesini Yeni Pencereye Taşı",
 	"mergeAllWindowTabs": "Tüm Pencereleri Birleştir",
 	"toggleWindowTabsBar": "Pencere Sekmeleri Çubuğunu Gizle/Göster",
-	"about": "{0} Hakkında"
+	"about": "{0} Hakkında",
+	"inspect context keys": "Bağlam Anahtarlarını Denetle"
 }

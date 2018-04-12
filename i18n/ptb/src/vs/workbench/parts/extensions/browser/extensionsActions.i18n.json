@@ -56,6 +56,13 @@
 	"malicious": "Malicioso",
 	"disableAll": "Desabilitar Todas as Extensões Instaladas",
 	"disableAllWorkspace": "Desabilitar Todas as Extensões Instaladas para este Espaço de Trabalho",
+	"openExtensionsFolder": "Abrir a Pasta de Extensões",
+	"installVSIX": "Instalar do VSIX...",
+	"installFromVSIX": "Instalar a partir do VSIX",
+	"installButton": "&&Instalar",
+	"InstallVSIXAction.success": "A extensão foi instalada com sucesso. Recarregue para ativá-la.",
+	"InstallVSIXAction.reloadNow": "Recarregar Agora",
+	"ReinstallAction.reloadNow": "Recarregar Agora",
 	"extensionButtonProminentBackground": "Cor de fundo do botão para a ações de extensão que se destacam (por exemplo, o botão de instalar).",
 	"extensionButtonProminentForeground": "Cor de primeiro plano do botão para a ações de extensão que se destacam (por exemplo, o botão de instalar).",
 	"extensionButtonProminentHoverBackground": "Cor de fundo ao passar o mouse sobre o botão para a ações de extensão que se destacam (por exemplo, o botão de instalar)."

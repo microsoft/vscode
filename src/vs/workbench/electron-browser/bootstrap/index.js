@@ -28,8 +28,10 @@ process.lazyEnv = new Promise(function (resolve) {
 		assign(process.env, shellEnv);
 		resolve(process.env);
 	});
-	ipc.send('vscode:fetchShellEnv', remote.getCurrentWindow().id);
+	ipc.send('vscode:fetchShellEnv');
 });
+
+Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
 
 function onError(error, enableDeveloperTools) {
 	if (enableDeveloperTools) {
@@ -135,10 +137,10 @@ function main() {
 		const NODE_MODULES_ASAR_PATH = NODE_MODULES_PATH + '.asar';
 
 		const originalResolveLookupPaths = Module._resolveLookupPaths;
-		Module._resolveLookupPaths = function (request, parent) {
-			const result = originalResolveLookupPaths(request, parent);
+		Module._resolveLookupPaths = function (request, parent, newReturn) {
+			const result = originalResolveLookupPaths(request, parent, newReturn);
 
-			const paths = result[1];
+			const paths = newReturn ? result : result[1];
 			for (let i = 0, len = paths.length; i < len; i++) {
 				if (paths[i] === NODE_MODULES_PATH) {
 					paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
@@ -179,7 +181,7 @@ function main() {
 				bundles[bundle] = json;
 				cb(undefined, json);
 			})
-			.catch(cb);
+				.catch(cb);
 		};
 	}
 

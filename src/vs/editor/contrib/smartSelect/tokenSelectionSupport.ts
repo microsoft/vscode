@@ -24,7 +24,7 @@ export class TokenSelectionSupport {
 
 	private _modelService: IModelService;
 
-	constructor( @IModelService modelService: IModelService) {
+	constructor(@IModelService modelService: IModelService) {
 		this._modelService = modelService;
 	}
 

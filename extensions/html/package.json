@@ -4,23 +4,11 @@
 	"description": "%description%",
   "version": "1.0.0",
   "publisher": "vscode",
-  "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "engines": {
     "vscode": "0.10.x"
   },
-  "icon": "icons/html.png",
-  "activationEvents": [
-    "onLanguage:html",
-    "onLanguage:handlebars",
-    "onLanguage:razor"
-  ],
-  "enableProposedApi": true,
-  "main": "./client/out/htmlMain",
   "scripts": {
-    "compile": "gulp compile-extension:html-client && gulp compile-extension:html-server",
-    "postinstall": "cd server && yarn install",
-    "update-grammar": "node ../../build/npm/update-grammar.js textmate/html.tmbundle Syntaxes/HTML.plist ./syntaxes/html.tmLanguage.json",
-    "install-client-next": "yarn add vscode-languageclient@next"
+    "update-grammar": "node ../../build/npm/update-grammar.js textmate/html.tmbundle Syntaxes/HTML.plist ./syntaxes/html.tmLanguage.json"
   },
   "contributes": {
     "languages": [
@@ -67,178 +55,17 @@
           "source.js": "javascript",
           "source.python": "python",
           "source.smarty": "smarty"
+        },
+        "tokenTypes": {
+          "meta.tag string.quoted": "other"
         }
       }
     ],
-    "folding": {
-      "markers": {
-        "start": "^\\s*<!--\\s*#region\\b\\s*(.*?)-->/",
-        "end": "^\\s*<!--\\s*#endregion\\b\\s*(.*?)-->/"
-      }
-    },
     "snippets": [
       {
         "language": "html",
         "path": "./snippets/html.snippets.json"
       }
-    ],
-    "configuration": {
-      "id": "html",
-      "order": 20,
-      "type": "object",
-      "title": "HTML",
-      "properties": {
-        "html.format.enable": {
-          "type": "boolean",
-          "scope": "window",
-          "default": true,
-          "description": "%html.format.enable.desc%"
-        },
-        "html.format.wrapLineLength": {
-          "type": "integer",
-          "scope": "resource",
-          "default": 120,
-          "description": "%html.format.wrapLineLength.desc%"
-        },
-        "html.format.unformatted": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "scope": "resource",
-          "default": "wbr",
-          "description": "%html.format.unformatted.desc%"
-        },
-        "html.format.contentUnformatted": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "scope": "resource",
-          "default": "pre,code,textarea",
-          "description": "%html.format.contentUnformatted.desc%"
-        },
-        "html.format.indentInnerHtml": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": false,
-          "description": "%html.format.indentInnerHtml.desc%"
-        },
-        "html.format.preserveNewLines": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": true,
-          "description": "%html.format.preserveNewLines.desc%"
-        },
-        "html.format.maxPreserveNewLines": {
-          "type": [
-            "number",
-            "null"
-          ],
-          "scope": "resource",
-          "default": null,
-          "description": "%html.format.maxPreserveNewLines.desc%"
-        },
-        "html.format.indentHandlebars": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": false,
-          "description": "%html.format.indentHandlebars.desc%"
-        },
-        "html.format.endWithNewline": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": false,
-          "description": "%html.format.endWithNewline.desc%"
-        },
-        "html.format.extraLiners": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "scope": "resource",
-          "default": "head, body, /html",
-          "description": "%html.format.extraLiners.desc%"
-        },
-        "html.format.wrapAttributes": {
-          "type": "string",
-          "scope": "resource",
-          "default": "auto",
-          "enum": [
-            "auto",
-            "force",
-            "force-aligned",
-            "force-expand-multiline"
-          ],
-          "enumDescriptions": [
-            "%html.format.wrapAttributes.auto%",
-            "%html.format.wrapAttributes.force%",
-            "%html.format.wrapAttributes.forcealign%",
-            "%html.format.wrapAttributes.forcemultiline%"
-          ],
-          "description": "%html.format.wrapAttributes.desc%"
-        },
-        "html.suggest.angular1": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": true,
-          "description": "%html.suggest.angular1.desc%"
-        },
-        "html.suggest.ionic": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": true,
-          "description": "%html.suggest.ionic.desc%"
-        },
-        "html.suggest.html5": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": true,
-          "description": "%html.suggest.html5.desc%"
-        },
-        "html.validate.scripts": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": true,
-          "description": "%html.validate.scripts%"
-        },
-        "html.validate.styles": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": true,
-          "description": "%html.validate.styles%"
-        },
-        "html.autoClosingTags": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": true,
-          "description": "%html.autoClosingTags%"
-        },
-        "html.experimental.syntaxFolding": {
-          "type": "boolean",
-          "default": false,
-          "description": "%html.experimental.syntaxFolding%"
-        },
-        "html.trace.server": {
-          "type": "string",
-          "scope": "window",
-          "enum": [
-            "off",
-            "messages",
-            "verbose"
-          ],
-          "default": "off",
-          "description": "%html.trace.server.desc%"
-        }
-      }
-    }
-  },
-  "dependencies": {
-    "vscode-extension-telemetry": "0.0.15",
-    "vscode-languageclient": "4.0.0-next.9",
-    "vscode-nls": "^3.2.1"
-  },
-  "devDependencies": {
-    "@types/node": "7.0.43"
+    ]
   }
 }

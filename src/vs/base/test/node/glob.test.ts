@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import * as path from 'path';
-import glob = require('vs/base/common/glob');
+import * as glob from 'vs/base/common/glob';
 import { isWindows } from 'vs/base/common/platform';
 
 suite('Glob', () => {

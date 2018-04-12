@@ -41,6 +41,7 @@ export interface ILineMapperFactory {
 export interface ISimpleModel {
 	getLineTokens(lineNumber: number): LineTokens;
 	getLineContent(lineNumber: number): string;
+	getLineLength(lineNumber: number): number;
 	getLineMinColumn(lineNumber: number): number;
 	getLineMaxColumn(lineNumber: number): number;
 	getValueInRange(range: IRange, eol?: EndOfLinePreference): string;
@@ -52,6 +53,7 @@ export interface ISplitLine {
 
 	getViewLineCount(): number;
 	getViewLineContent(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): string;
+	getViewLineLength(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number;
 	getViewLineMinColumn(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number;
 	getViewLineMaxColumn(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number;
 	getViewLineData(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): ViewLineData;
@@ -82,6 +84,7 @@ export interface IViewModelLinesCollection {
 	warmUpLookupCache(viewStartLineNumber: number, viewEndLineNumber: number): void;
 	getViewLinesIndentGuides(viewStartLineNumber: number, viewEndLineNumber: number): number[];
 	getViewLineContent(viewLineNumber: number): string;
+	getViewLineLength(viewLineNumber: number): number;
 	getViewLineMinColumn(viewLineNumber: number): number;
 	getViewLineMaxColumn(viewLineNumber: number): number;
 	getViewLineData(viewLineNumber: number): ViewLineData;
@@ -570,6 +573,16 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		return this.lines[lineIndex].getViewLineContent(this.model, lineIndex + 1, remainder);
 	}
 
+	public getViewLineLength(viewLineNumber: number): number {
+		this._ensureValidState();
+		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
+		let r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
+		let lineIndex = r.index;
+		let remainder = r.remainder;
+
+		return this.lines[lineIndex].getViewLineLength(this.model, lineIndex + 1, remainder);
+	}
+
 	public getViewLineMinColumn(viewLineNumber: number): number {
 		this._ensureValidState();
 		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
@@ -815,6 +828,10 @@ class VisibleIdentitySplitLine implements ISplitLine {
 		return model.getLineContent(modelLineNumber);
 	}
 
+	public getViewLineLength(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number {
+		return model.getLineLength(modelLineNumber);
+	}
+
 	public getViewLineMinColumn(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number {
 		return model.getLineMinColumn(modelLineNumber);
 	}
@@ -877,6 +894,10 @@ class InvisibleIdentitySplitLine implements ISplitLine {
 	}
 
 	public getViewLineContent(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): string {
+		throw new Error('Not supported');
+	}
+
+	public getViewLineLength(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number {
 		throw new Error('Not supported');
 	}
 
@@ -968,6 +989,21 @@ export class SplitLine implements ISplitLine {
 
 		if (outputLineIndex > 0) {
 			r = this.wrappedIndent + r;
+		}
+
+		return r;
+	}
+
+	public getViewLineLength(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number {
+		if (!this._isVisible) {
+			throw new Error('Not supported');
+		}
+		let startOffset = this.getInputStartOffsetOfOutputLineIndex(outputLineIndex);
+		let endOffset = this.getInputEndOffsetOfOutputLineIndex(model, modelLineNumber, outputLineIndex);
+		let r = endOffset - startOffset;
+
+		if (outputLineIndex > 0) {
+			r = this.wrappedIndent.length + r;
 		}
 
 		return r;
@@ -1216,6 +1252,10 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 
 	public getViewLineContent(viewLineNumber: number): string {
 		return this.model.getLineContent(viewLineNumber);
+	}
+
+	public getViewLineLength(viewLineNumber: number): number {
+		return this.model.getLineLength(viewLineNumber);
 	}
 
 	public getViewLineMinColumn(viewLineNumber: number): number {

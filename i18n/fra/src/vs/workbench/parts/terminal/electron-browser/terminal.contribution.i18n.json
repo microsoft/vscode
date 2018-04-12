@@ -35,6 +35,7 @@
 	"terminal.integrated.env.linux": "Objet avec les variables d’environnement qui seront ajoutées au processus VS Code pour être utilisées par le terminal sous Linux",
 	"terminal.integrated.env.windows": "Objet avec les variables d’environnement qui seront ajoutées au processus VS Code pour être utilisées par le terminal sous Windows",
 	"terminal.integrated.showExitAlert": "Afficher une alerte `Le processus terminal s’est arrêté avec le code de sortie` lorsque le code de sortie est différent de zéro.",
+	"terminal.integrated.experimentalRestore": "Si le fait de restaurer automatiquement les sessions du terminal pour l'espace de travail au lancement de VS Code. Il s'agit d'une fonctionnalité expérimentale; elle peut être boguée et peut changer dans le futur.",
 	"terminalCategory": "Terminal",
 	"viewCategory": "Affichage"
 }

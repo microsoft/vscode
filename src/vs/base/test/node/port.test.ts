@@ -7,10 +7,10 @@
 
 import * as assert from 'assert';
 import * as net from 'net';
-import ports = require('vs/base/node/ports');
+import * as ports from 'vs/base/node/ports';
 
 suite('Ports', () => {
-	test('Finds a free port (no timeout)', function (done: () => void) {
+	test('Finds a free port (no timeout)', function (done) {
 		this.timeout(1000 * 10); // higher timeout for this test
 
 		if (process.env['VSCODE_PID']) {
@@ -31,8 +31,8 @@ suite('Ports', () => {
 					server.close();
 
 					done();
-				});
+				}, err => done(err));
 			});
-		});
+		}, err => done(err));
 	});
 });

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/07f55fa7c0dcdbfeb21b8970255e96dd9c00b6bb",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/641c88a57c3f33ef8bcb504202f8330acef39b9e",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -1668,14 +1668,103 @@
 					"name": "markup.fenced_code.block.markdown"
 				},
 				"heading": {
-					"begin": "(?:^|\\G)[ ]{0,3}(#{1,6})\\s*(?=[\\S[^#]])",
+					"match": "(?:^|\\G)[ ]{0,3}((#{1,6})\\s*(?=[\\S[^#]]).*?\\s*(#{1,6})?)$\\n?",
 					"captures": {
 						"1": {
-							"name": "punctuation.definition.heading.markdown"
+							"patterns": [
+								{
+									"match": "(#{6})\\s*(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+									"name": "heading.6.markdown",
+									"captures": {
+										"1": {
+											"name": "punctuation.definition.heading.markdown"
+										},
+										"2": {
+											"name": "entity.name.section.markdown"
+										},
+										"3": {
+											"name": "punctuation.definition.heading.markdown"
+										}
+									}
+								},
+								{
+									"match": "(#{5})\\s*(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+									"name": "heading.5.markdown",
+									"captures": {
+										"1": {
+											"name": "punctuation.definition.heading.markdown"
+										},
+										"2": {
+											"name": "entity.name.section.markdown"
+										},
+										"3": {
+											"name": "punctuation.definition.heading.markdown"
+										}
+									}
+								},
+								{
+									"match": "(#{4})\\s*(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+									"name": "heading.4.markdown",
+									"captures": {
+										"1": {
+											"name": "punctuation.definition.heading.markdown"
+										},
+										"2": {
+											"name": "entity.name.section.markdown"
+										},
+										"3": {
+											"name": "punctuation.definition.heading.markdown"
+										}
+									}
+								},
+								{
+									"match": "(#{3})\\s*(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+									"name": "heading.3.markdown",
+									"captures": {
+										"1": {
+											"name": "punctuation.definition.heading.markdown"
+										},
+										"2": {
+											"name": "entity.name.section.markdown"
+										},
+										"3": {
+											"name": "punctuation.definition.heading.markdown"
+										}
+									}
+								},
+								{
+									"match": "(#{2})\\s*(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+									"name": "heading.2.markdown",
+									"captures": {
+										"1": {
+											"name": "punctuation.definition.heading.markdown"
+										},
+										"2": {
+											"name": "entity.name.section.markdown"
+										},
+										"3": {
+											"name": "punctuation.definition.heading.markdown"
+										}
+									}
+								},
+								{
+									"match": "(#{1})\\s*(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+									"name": "heading.1.markdown",
+									"captures": {
+										"1": {
+											"name": "punctuation.definition.heading.markdown"
+										},
+										"2": {
+											"name": "entity.name.section.markdown"
+										},
+										"3": {
+											"name": "punctuation.definition.heading.markdown"
+										}
+									}
+								}
+							]
 						}
 					},
-					"contentName": "entity.name.section.markdown",
-					"end": "\\s*(#{1,6})?$\\n?",
 					"name": "markup.heading.markdown",
 					"patterns": [
 						{
@@ -1933,7 +2022,7 @@
 					"name": "meta.other.valid-ampersand.markdown"
 				},
 				"bold": {
-					"begin": "(?x)\n (\\*\\*|__)(?=\\S)                # Open\n (?=\n   (\n     <[^>]*+>              # HTML tags\n     | (?<raw>`+)([^`]|(?!(?<!`)\\k<raw>(?!`))`)*+\\k<raw>\n                       # Raw\n     | \\\\[\\\\`*_{}\\[\\]()#.!+\\->]?+      # Escapes\n     | \\[\n     (\n         (?<square>          # Named group\n           [^\\[\\]\\\\]        # Match most chars\n           | \\\\.            # Escaped chars\n           | \\[ \\g<square>*+ \\]    # Nested brackets\n         )*+\n       \\]\n       (\n         (              # Reference Link\n           [ ]?          # Optional space\n           \\[[^\\]]*+\\]        # Ref name\n         )\n         | (              # Inline Link\n           \\(            # Opening paren\n             [ \\t]*+        # Optional whitespace\n             <?(.*?)>?      # URL\n             [ \\t]*+        # Optional whitespace\n             (          # Optional Title\n               (?<title>['\"])\n               (.*?)\n               \\k<title>\n             )?\n           \\)\n         )\n       )\n     )\n     | (?!(?<=\\S)\\1).            # Everything besides\n                       # style closer\n   )++\n   (?<=\\S)\\1                # Close\n )\n",
+					"begin": "(?x)\n ((?<!\\w)\\*\\*\\b|\\b__)(?=\\S)                # Open\n (?=\n   (\n     <[^>]*+>              # HTML tags\n     | (?<raw>`+)([^`]|(?!(?<!`)\\k<raw>(?!`))`)*+\\k<raw>\n                       # Raw\n     | \\\\[\\\\`*_{}\\[\\]()#.!+\\->]?+      # Escapes\n     | \\[\n     (\n         (?<square>          # Named group\n           [^\\[\\]\\\\]        # Match most chars\n           | \\\\.            # Escaped chars\n           | \\[ \\g<square>*+ \\]    # Nested brackets\n         )*+\n       \\]\n       (\n         (              # Reference Link\n           [ ]?          # Optional space\n           \\[[^\\]]*+\\]        # Ref name\n         )\n         | (              # Inline Link\n           \\(            # Opening paren\n             [ \\t]*+        # Optional whitespace\n             <?(.*?)>?      # URL\n             [ \\t]*+        # Optional whitespace\n             (          # Optional Title\n               (?<title>['\"])\n               (.*?)\n               \\k<title>\n             )?\n           \\)\n         )\n       )\n     )\n     | (?!(?<=\\S)\\1).            # Everything besides\n                       # style closer\n   )++\n   (?<=\\S)\\1                # Close\n )\n",
 					"captures": {
 						"1": {
 							"name": "punctuation.definition.bold.markdown"

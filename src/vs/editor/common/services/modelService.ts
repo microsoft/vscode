@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -16,7 +16,7 @@ export const IModelService = createDecorator<IModelService>('modelService');
 export interface IModelService {
 	_serviceBrand: any;
 
-	createModel(value: string | ITextBufferFactory, modeOrPromise: TPromise<IMode> | IMode, resource: URI): ITextModel;
+	createModel(value: string | ITextBufferFactory, modeOrPromise: TPromise<IMode> | IMode, resource: URI, isForSimpleWidget?: boolean): ITextModel;
 
 	updateModel(model: ITextModel, value: string | ITextBufferFactory): void;
 
@@ -26,7 +26,7 @@ export interface IModelService {
 
 	getModels(): ITextModel[];
 
-	getCreationOptions(language: string, resource: URI): ITextModelCreationOptions;
+	getCreationOptions(language: string, resource: URI, isForSimpleWidget: boolean): ITextModelCreationOptions;
 
 	getModel(resource: URI): ITextModel;
 
@@ -35,4 +35,10 @@ export interface IModelService {
 	onModelRemoved: Event<ITextModel>;
 
 	onModelModeChanged: Event<{ model: ITextModel; oldModeId: string; }>;
+}
+
+export function shouldSynchronizeModel(model: ITextModel): boolean {
+	return (
+		!model.isTooLargeForHavingARichMode() && !model.isForSimpleWidget
+	);
 }

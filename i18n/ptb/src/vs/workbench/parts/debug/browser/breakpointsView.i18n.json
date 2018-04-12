@@ -10,6 +10,7 @@
 	"functionBreakpointsNotSupported": "Pontos de parada de função não são suportados por este tipo de depuração",
 	"functionBreakpointPlaceholder": "Função de parada",
 	"functionBreakPointInputAriaLabel": "Digitar Ponto de Parada de Função",
+	"breakpointDisabledHover": "Ponto de interrupção desativado",
 	"breakpointDirtydHover": "Ponto de parada não verificado. O arquivo foi modificado, por favor reinicie a sessão de depuração.",
 	"conditionalBreakpointUnsupported": "Pontos de parada condicionais não são suportados por esse tipo de depurador"
 }

@@ -17,6 +17,7 @@ import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { assign } from 'vs/base/common/objects';
 
 suite('ExtHostConfiguration', function () {
 
@@ -102,35 +103,164 @@ suite('ExtHostConfiguration', function () {
 					'config2': 'Das Pferd frisst kein Reis.'
 				},
 				'config4': ''
+			},
+			'workbench': {
+				'colorCustomizations': {
+					'statusBar.foreground': 'somevalue'
+				}
 			}
 		});
 
 		let testObject = all.getConfiguration();
 		let actual = testObject.get('farboo');
+		actual['nested']['config1'] = 41;
+		assert.equal(41, actual['nested']['config1']);
 		actual['farboo1'] = 'newValue';
 		assert.equal('newValue', actual['farboo1']);
 
 		testObject = all.getConfiguration();
-		testObject['farboo']['farboo1'] = 'newValue';
-		assert.equal('newValue', testObject['farboo']['farboo1']);
+		actual = testObject.get('farboo');
+		assert.equal(actual['nested']['config1'], 42);
+		assert.equal(actual['farboo1'], undefined);
 
 		testObject = all.getConfiguration();
-		testObject['farboo']['farboo1'] = 'newValue';
-		assert.equal('newValue', testObject.get('farboo')['farboo1']);
+		actual = testObject.get('farboo');
+		assert.equal(actual['config0'], true);
+		actual['config0'] = false;
+		assert.equal(actual['config0'], false);
+
+		testObject = all.getConfiguration();
+		actual = testObject.get('farboo');
+		assert.equal(actual['config0'], true);
 
 		testObject = all.getConfiguration();
 		actual = testObject.inspect('farboo');
 		actual['value'] = 'effectiveValue';
 		assert.equal('effectiveValue', actual['value']);
 
-		testObject = all.getConfiguration();
-		actual = testObject.get('farboo');
-		assert.equal(undefined, actual['farboo1']);
+		testObject = all.getConfiguration('workbench');
+		actual = testObject.get('colorCustomizations');
+		delete actual['statusBar.foreground'];
+		assert.equal(actual['statusBar.foreground'], undefined);
+		testObject = all.getConfiguration('workbench');
+		actual = testObject.get('colorCustomizations');
+		assert.equal(actual['statusBar.foreground'], 'somevalue');
+	});
 
-		testObject = all.getConfiguration();
-		testObject['farboo']['farboo1'] = 'newValue';
-		testObject = all.getConfiguration();
-		assert.equal(undefined, testObject['farboo']['farboo1']);
+	test('Stringify returned configuration', function () {
+
+		const all = createExtHostConfiguration({
+			'farboo': {
+				'config0': true,
+				'nested': {
+					'config1': 42,
+					'config2': 'Das Pferd frisst kein Reis.'
+				},
+				'config4': ''
+			},
+			'workbench': {
+				'colorCustomizations': {
+					'statusBar.foreground': 'somevalue'
+				},
+				'emptyobjectkey': {
+				}
+			}
+		});
+
+		let testObject = all.getConfiguration();
+		let actual = testObject.get('farboo');
+		assert.deepEqual(JSON.stringify({
+			'config0': true,
+			'nested': {
+				'config1': 42,
+				'config2': 'Das Pferd frisst kein Reis.'
+			},
+			'config4': ''
+		}), JSON.stringify(actual));
+
+		assert.deepEqual(undefined, JSON.stringify(testObject.get('unknownkey')));
+
+		actual = testObject.get('farboo');
+		actual['config0'] = false;
+		assert.deepEqual(JSON.stringify({
+			'config0': false,
+			'nested': {
+				'config1': 42,
+				'config2': 'Das Pferd frisst kein Reis.'
+			},
+			'config4': ''
+		}), JSON.stringify(actual));
+
+		actual = testObject.get('workbench')['colorCustomizations'];
+		actual['statusBar.background'] = 'anothervalue';
+		assert.deepEqual(JSON.stringify({
+			'statusBar.foreground': 'somevalue',
+			'statusBar.background': 'anothervalue'
+		}), JSON.stringify(actual));
+
+		actual = testObject.get('workbench');
+		actual['unknownkey'] = 'somevalue';
+		assert.deepEqual(JSON.stringify({
+			'colorCustomizations': {
+				'statusBar.foreground': 'somevalue'
+			},
+			'emptyobjectkey': {},
+			'unknownkey': 'somevalue'
+		}), JSON.stringify(actual));
+
+		actual = all.getConfiguration('workbench').get('emptyobjectkey');
+		actual = assign(actual || {}, {
+			'statusBar.background': `#0ff`,
+			'statusBar.foreground': `#ff0`,
+		});
+		assert.deepEqual(JSON.stringify({
+			'statusBar.background': `#0ff`,
+			'statusBar.foreground': `#ff0`,
+		}), JSON.stringify(actual));
+
+		actual = all.getConfiguration('workbench').get('unknownkey');
+		actual = assign(actual || {}, {
+			'statusBar.background': `#0ff`,
+			'statusBar.foreground': `#ff0`,
+		});
+		assert.deepEqual(JSON.stringify({
+			'statusBar.background': `#0ff`,
+			'statusBar.foreground': `#ff0`,
+		}), JSON.stringify(actual));
+	});
+
+	test('cannot modify returned configuration', function () {
+
+		const all = createExtHostConfiguration({
+			'farboo': {
+				'config0': true,
+				'nested': {
+					'config1': 42,
+					'config2': 'Das Pferd frisst kein Reis.'
+				},
+				'config4': ''
+			}
+		});
+
+		let testObject = all.getConfiguration();
+
+		try {
+			testObject['get'] = null;
+			assert.fail('This should be readonly');
+		} catch (e) {
+		}
+
+		try {
+			testObject['farboo']['config0'] = false;
+			assert.fail('This should be readonly');
+		} catch (e) {
+		}
+
+		try {
+			testObject['farboo']['farboo1'] = 'hello';
+			assert.fail('This should be readonly');
+		} catch (e) {
+		}
 	});
 
 	test('inspect in no workspace context', function () {

@@ -507,7 +507,7 @@ declare namespace Electron {
 		 * and macOS, icons depend on the application associated with file mime type.
 		 */
 		getFileIcon(path: string, callback: (error: Error, icon: NativeImage) => void): void;
-		getGpuFeatureStatus(): GPUFeatureStatus;
+		getGPUFeatureStatus(): GPUFeatureStatus;
 		getJumpListSettings(): JumpListSettings;
 		/**
 		 * Note: When distributing your packaged app, you have to also ship the locales

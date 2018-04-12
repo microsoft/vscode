@@ -81,7 +81,9 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	}
 
 	// Show Notifications Cneter
-	CommandsRegistry.registerCommand(SHOW_NOTIFICATIONS_CENTER, () => center.show());
+	CommandsRegistry.registerCommand(SHOW_NOTIFICATIONS_CENTER, () => {
+		center.show();
+	});
 
 	// Hide Notifications Center
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -93,7 +95,13 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	});
 
 	// Toggle Notifications Center
-	CommandsRegistry.registerCommand(TOGGLE_NOTIFICATIONS_CENTER, accessor => center.isVisible ? center.hide() : center.show());
+	CommandsRegistry.registerCommand(TOGGLE_NOTIFICATIONS_CENTER, accessor => {
+		if (center.isVisible) {
+			center.hide();
+		} else {
+			center.show();
+		}
+	});
 
 	// Clear Notification
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -107,7 +115,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		handler: (accessor, args?: any) => {
 			const notification = getNotificationFromContext(accessor.get(IListService), args);
 			if (notification) {
-				notification.dispose();
+				notification.close();
 			}
 		}
 	});

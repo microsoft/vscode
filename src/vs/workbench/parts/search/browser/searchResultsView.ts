@@ -12,7 +12,7 @@ import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel } from 'vs/workbench/browser/labels';
-import { ITree, IDataSource, ISorter, IAccessibilityProvider, IFilter, IRenderer } from 'vs/base/parts/tree/browser/tree';
+import { ITree, IDataSource, ISorter, IAccessibilityProvider, IFilter, IRenderer, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
 import { Match, SearchResult, FileMatch, FileMatchOrMatch, SearchModel, FolderMatch } from 'vs/workbench/parts/search/common/searchModel';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { Range } from 'vs/editor/common/core/range';
@@ -23,6 +23,11 @@ import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getPathLabel } from 'vs/base/common/labels';
 import { FileKind } from 'vs/platform/files/common/files';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
+import { WorkbenchTreeController, WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 
 export class SearchDataSource implements IDataSource {
 
@@ -31,7 +36,7 @@ export class SearchDataSource implements IDataSource {
 	private includeFolderMatch: boolean;
 	private listener: IDisposable;
 
-	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
 		this.updateIncludeFolderMatch();
 		this.listener = this.contextService.onDidChangeWorkbenchState(() => this.updateIncludeFolderMatch());
 	}
@@ -319,7 +324,7 @@ export class SearchRenderer extends Disposable implements IRenderer {
 
 export class SearchAccessibilityProvider implements IAccessibilityProvider {
 
-	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
 	}
 
 	public getAriaLabel(tree: ITree, element: FileMatchOrMatch): string {
@@ -339,10 +344,12 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 			const replace = searchModel.isReplaceActive() && !!searchModel.replaceString;
 			const matchString = match.getMatchString();
 			const range = match.range();
+			const matchText = match.text().substr(0, range.endColumn + 150);
 			if (replace) {
-				return nls.localize('replacePreviewResultAria', "Replace term {0} with {1} at column position {2} in line with text {3}", matchString, match.replaceString, range.startColumn + 1, match.text());
+				return nls.localize('replacePreviewResultAria', "Replace term {0} with {1} at column position {2} in line with text {3}", matchString, match.replaceString, range.startColumn + 1, matchText);
 			}
-			return nls.localize('searchResultAria', "Found term {0} at column position {1} in line with text {2}", matchString, range.startColumn + 1, match.text());
+
+			return nls.localize('searchResultAria', "Found term {0} at column position {1} in line with text {2}", matchString, range.startColumn + 1, matchText);
 		}
 		return undefined;
 	}
@@ -352,5 +359,40 @@ export class SearchFilter implements IFilter {
 
 	public isVisible(tree: ITree, element: any): boolean {
 		return !(element instanceof FileMatch || element instanceof FolderMatch) || element.matches().length > 0;
+	}
+}
+
+export class SearchTreeController extends WorkbenchTreeController {
+	private contextMenu: IMenu;
+
+	constructor(
+		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IMenuService private menuService: IMenuService,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		super({}, configurationService);
+	}
+
+	public onContextMenu(tree: WorkbenchTree, element: any, event: ContextMenuEvent): boolean {
+		if (!this.contextMenu) {
+			this.contextMenu = this.menuService.createMenu(MenuId.SearchContext, tree.contextKeyService);
+		}
+
+		tree.setFocus(element);
+
+		const anchor = { x: event.posx, y: event.posy };
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+
+			getActions: () => {
+				const actions: IAction[] = [];
+				fillInActions(this.contextMenu, { shouldForwardArgs: true }, actions, this.contextMenuService);
+				return TPromise.as(actions);
+			},
+
+			getActionsContext: () => element
+		});
+
+		return true;
 	}
 }

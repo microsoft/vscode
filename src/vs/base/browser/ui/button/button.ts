@@ -6,14 +6,15 @@
 'use strict';
 
 import 'vs/css!./button';
-import DOM = require('vs/base/browser/dom');
+import * as DOM from 'vs/base/browser/dom';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event as BaseEvent, Emitter } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Gesture, EventType } from 'vs/base/browser/touch';
 
 export interface IButtonOptions extends IButtonStyles {
 	title?: boolean;
@@ -43,13 +44,11 @@ export class Button {
 	private buttonBorder: Color;
 
 	private _onDidClick = new Emitter<any>();
-	readonly onDidClick: Event<any> = this._onDidClick.event;
+	readonly onDidClick: BaseEvent<Event> = this._onDidClick.event;
 
 	private focusTracker: DOM.IFocusTracker;
 
-	constructor(container: Builder, options?: IButtonOptions);
-	constructor(container: HTMLElement, options?: IButtonOptions);
-	constructor(container: any, options?: IButtonOptions) {
+	constructor(container: HTMLElement, options?: IButtonOptions) {
 		this.options = options || Object.create(null);
 		mixin(this.options, defaultOptions, false);
 
@@ -63,7 +62,9 @@ export class Button {
 			'role': 'button'
 		}).appendTo(container);
 
-		this.$el.on(DOM.EventType.CLICK, e => {
+		Gesture.addTarget(this.$el.getHTMLElement());
+
+		this.$el.on([DOM.EventType.CLICK, EventType.Tap], e => {
 			if (!this.enabled) {
 				DOM.EventHelper.stop(e);
 				return;
@@ -194,9 +195,7 @@ export class ButtonGroup {
 	private _buttons: Button[];
 	private toDispose: IDisposable[];
 
-	constructor(container: Builder, count: number, options?: IButtonOptions);
-	constructor(container: HTMLElement, count: number, options?: IButtonOptions);
-	constructor(container: any, count: number, options?: IButtonOptions) {
+	constructor(container: HTMLElement, count: number, options?: IButtonOptions) {
 		this._buttons = [];
 		this.toDispose = [];
 
@@ -207,9 +206,7 @@ export class ButtonGroup {
 		return this._buttons;
 	}
 
-	private create(container: Builder, count: number, options?: IButtonOptions): void;
-	private create(container: HTMLElement, count: number, options?: IButtonOptions): void;
-	private create(container: any, count: number, options?: IButtonOptions): void {
+	private create(container: HTMLElement, count: number, options?: IButtonOptions): void {
 		for (let index = 0; index < count; index++) {
 			const button = new Button(container, options);
 			this._buttons.push(button);

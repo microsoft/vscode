@@ -7,7 +7,7 @@
 import 'vs/css!./lightBulbWidget';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
 import * as dom from 'vs/base/browser/dom';
 import { ICodeEditor, IContentWidget, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
@@ -45,6 +45,8 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 			}
 		}));
 		this._disposables.push(dom.addStandardDisposableListener(this._domNode, 'click', e => {
+			// Make sure that focus / cursor location is not lost when clicking widget icon
+			this._editor.focus();
 			// a bit of extra work to make sure the menu
 			// doesn't cover the line-text
 			const { top, height } = dom.getDomNodePagePosition(this._domNode);

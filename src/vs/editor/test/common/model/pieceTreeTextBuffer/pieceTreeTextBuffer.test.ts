@@ -12,6 +12,10 @@ import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { PieceTreeBase } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
 import { SENTINEL, NodeColor, TreeNode } from 'vs/editor/common/model/pieceTreeTextBuffer/rbTreeBase';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { ITextSnapshot } from 'vs/platform/files/common/files';
+import { SearchData } from 'vs/editor/common/model/textModelSearch';
+import { WordCharacterClassifier } from 'vs/editor/common/controller/wordCharacterClassifier';
 
 const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\r\n';
 
@@ -1441,11 +1445,44 @@ suite('centralized lineStarts with CRLF', () => {
 });
 
 suite('random is unsupervised', () => {
+	test('splitting large change buffer', function () {
+		let pieceTable = createTextBuffer([''], false);
+		let str = '';
+
+		pieceTable.insert(0, 'WUZ\nXVZY\n');
+		str = str.substring(0, 0) + 'WUZ\nXVZY\n' + str.substring(0);
+		pieceTable.insert(8, '\r\r\nZXUWVW');
+		str = str.substring(0, 8) + '\r\r\nZXUWVW' + str.substring(8);
+		pieceTable.delete(10, 7);
+		str = str.substring(0, 10) + str.substring(10 + 7);
+		pieceTable.delete(10, 1);
+		str = str.substring(0, 10) + str.substring(10 + 1);
+		pieceTable.insert(4, 'VX\r\r\nWZVZ');
+		str = str.substring(0, 4) + 'VX\r\r\nWZVZ' + str.substring(4);
+		pieceTable.delete(11, 3);
+		str = str.substring(0, 11) + str.substring(11 + 3);
+		pieceTable.delete(12, 4);
+		str = str.substring(0, 12) + str.substring(12 + 4);
+		pieceTable.delete(8, 0);
+		str = str.substring(0, 8) + str.substring(8 + 0);
+		pieceTable.delete(10, 2);
+		str = str.substring(0, 10) + str.substring(10 + 2);
+		pieceTable.insert(0, 'VZXXZYZX\r');
+		str = str.substring(0, 0) + 'VZXXZYZX\r' + str.substring(0);
+
+		assert.equal(pieceTable.getLinesRawContent(), str);
+
+		testLineStarts(str, pieceTable);
+		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
+	});
+
 	test('random insert delete', function () {
 		this.timeout(500000);
 		let str = '';
 		let pieceTable = createTextBuffer([str], false);
 
+		// let output = '';
 		for (let i = 0; i < 1000; i++) {
 			if (Math.random() < 0.6) {
 				// insert
@@ -1453,6 +1490,8 @@ suite('random is unsupervised', () => {
 				let pos = randomInt(str.length + 1);
 				pieceTable.insert(pos, text);
 				str = str.substring(0, pos) + text + str.substring(pos);
+				// output += `pieceTable.insert(${pos}, '${text.replace(/\n/g, '\\n').replace(/\r/g, '\\r')}');\n`;
+				// output += `str = str.substring(0, ${pos}) + '${text.replace(/\n/g, '\\n').replace(/\r/g, '\\r')}' + str.substring(${pos});\n`;
 			} else {
 				// delete
 				let pos = randomInt(str.length);
@@ -1462,8 +1501,12 @@ suite('random is unsupervised', () => {
 				);
 				pieceTable.delete(pos, length);
 				str = str.substring(0, pos) + str.substring(pos + length);
+				// output += `pieceTable.delete(${pos}, ${length});\n`;
+				// output += `str = str.substring(0, ${pos}) + str.substring(${pos} + ${length});\n`
+
 			}
 		}
+		// console.log(output);
 
 		assert.equal(pieceTable.getLinesRawContent(), str);
 
@@ -1566,6 +1609,15 @@ suite('buffer api', () => {
 		let b = createTextBuffer(['']);
 
 		assert(!a.equal(b));
+	});
+
+	test('getLineCharCode - issue #45735', () => {
+		let pieceTable = createTextBuffer(['LINE1\nline2']);
+		assert.equal(pieceTable.getLineCharCode(2, 0), 'l'.charCodeAt(0), 'l');
+		assert.equal(pieceTable.getLineCharCode(2, 1), 'i'.charCodeAt(0), 'i');
+		assert.equal(pieceTable.getLineCharCode(2, 2), 'n'.charCodeAt(0), 'n');
+		assert.equal(pieceTable.getLineCharCode(2, 3), 'e'.charCodeAt(0), 'e');
+		assert.equal(pieceTable.getLineCharCode(2, 4), '2'.charCodeAt(0), '2');
 	});
 });
 
@@ -1674,4 +1726,154 @@ suite('search offset cache', () => {
 		assertTreeInvariants(pieceTable);
 	});
 
+});
+
+function getValueInSnapshot(snapshot: ITextSnapshot) {
+	let ret = '';
+	let tmp = snapshot.read();
+
+	while (tmp !== null) {
+		ret += tmp;
+		tmp = snapshot.read();
+	}
+
+	return ret;
+}
+suite('snapshot', () => {
+	test('bug #45564, piece tree pieces should be immutable', () => {
+		const model = TextModel.createFromString('\n');
+		model.applyEdits([
+			{
+				range: new Range(2, 1, 2, 1),
+				text: '!'
+			}
+		]);
+		const snapshot = model.createSnapshot();
+		const snapshot1 = model.createSnapshot();
+		assert.equal(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot));
+
+		model.applyEdits([
+			{
+				range: new Range(2, 1, 2, 2),
+				text: ''
+			}
+		]);
+		model.applyEdits([
+			{
+				range: new Range(2, 1, 2, 1),
+				text: '!'
+			}
+		]);
+
+		assert.equal(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot1));
+	});
+
+	test('immutable snapshot 1', () => {
+		const model = TextModel.createFromString('abc\ndef');
+		const snapshot = model.createSnapshot();
+		model.applyEdits([
+			{
+				range: new Range(2, 1, 2, 4),
+				text: ''
+			}
+		]);
+
+		model.applyEdits([
+			{
+				range: new Range(1, 1, 2, 1),
+				text: 'abc\ndef'
+			}
+		]);
+
+		assert.equal(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot));
+	});
+
+	test('immutable snapshot 2', () => {
+		const model = TextModel.createFromString('abc\ndef');
+		const snapshot = model.createSnapshot();
+		model.applyEdits([
+			{
+				range: new Range(2, 1, 2, 1),
+				text: '!'
+			}
+		]);
+
+		model.applyEdits([
+			{
+				range: new Range(2, 1, 2, 2),
+				text: ''
+			}
+		]);
+
+		assert.equal(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot));
+	});
+
+	test('immutable snapshot 3', () => {
+		const model = TextModel.createFromString('abc\ndef');
+		model.applyEdits([
+			{
+				range: new Range(2, 4, 2, 4),
+				text: '!'
+			}
+		]);
+		const snapshot = model.createSnapshot();
+		model.applyEdits([
+			{
+				range: new Range(2, 5, 2, 5),
+				text: '!'
+			}
+		]);
+
+		assert.notEqual(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot));
+	});
+});
+
+suite('chunk based search', () => {
+	test('#45892. For some cases, the buffer is empty but we still try to search', () => {
+		let pieceTree = createTextBuffer(['']);
+		pieceTree.delete(0, 1);
+		let ret = pieceTree.findMatchesLineByLine(new Range(1, 1, 1, 1), new SearchData(/abc/, new WordCharacterClassifier(',./'), 'abc'), true, 1000);
+		assert.equal(ret.length, 0);
+	});
+
+	test('#45770. FindInNode should not cross node boundary.', () => {
+		let pieceTree = createTextBuffer([
+			[
+				'balabalababalabalababalabalaba',
+				'balabalababalabalababalabalaba',
+				'',
+				'* [ ] task1',
+				'* [x] task2 balabalaba',
+				'* [ ] task 3'
+			].join('\n')
+		]);
+		pieceTree.delete(0, 62);
+		pieceTree.delete(16, 1);
+
+		pieceTree.insert(16, ' ');
+		let ret = pieceTree.findMatchesLineByLine(new Range(1, 1, 4, 13), new SearchData(/\[/gi, new WordCharacterClassifier(',./'), '['), true, 1000);
+		assert.equal(ret.length, 3);
+
+		assert.deepEqual(ret[0].range, new Range(2, 3, 2, 4));
+		assert.deepEqual(ret[1].range, new Range(3, 3, 3, 4));
+		assert.deepEqual(ret[2].range, new Range(4, 3, 4, 4));
+	});
+
+	test('search searching from the middle', () => {
+		let pieceTree = createTextBuffer([
+			[
+				'def',
+				'dbcabc'
+			].join('\n')
+		]);
+		pieceTree.delete(4, 1);
+		let ret = pieceTree.findMatchesLineByLine(new Range(2, 3, 2, 6), new SearchData(/a/gi, null, 'a'), true, 1000);
+		assert.equal(ret.length, 1);
+		assert.deepEqual(ret[0].range, new Range(2, 3, 2, 4));
+
+		pieceTree.delete(4, 1);
+		ret = pieceTree.findMatchesLineByLine(new Range(2, 2, 2, 5), new SearchData(/a/gi, null, 'a'), true, 1000);
+		assert.equal(ret.length, 1);
+		assert.deepEqual(ret[0].range, new Range(2, 2, 2, 3));
+	});
 });

@@ -8,10 +8,9 @@
 import { IssueReporterStyles, IIssueService, IssueReporterData } from 'vs/platform/issue/common/issue';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
+import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, editorBackground, editorForeground, listHoverBackground, listHoverForeground, listHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IExtensionManagementService, IExtensionEnablementService, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { webFrame } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
@@ -29,7 +28,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 
 	openReporter(dataOverrides: Partial<IssueReporterData> = {}): TPromise<void> {
 		return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
-			const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled({ id: getGalleryExtensionIdFromLocal(extension) }));
+			const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension));
 			const theme = this.themeService.getTheme();
 			const issueReporterData: IssueReporterData = assign(
 				{
@@ -41,6 +40,21 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 
 			return this.issueService.openReporter(issueReporterData);
 		});
+	}
+
+	openProcessExplorer(): TPromise<void> {
+		const theme = this.themeService.getTheme();
+		const data = {
+			zoomLevel: webFrame.getZoomLevel(),
+			styles: {
+				backgroundColor: theme.getColor(editorBackground) && theme.getColor(editorBackground).toString(),
+				color: theme.getColor(editorForeground).toString(),
+				hoverBackground: theme.getColor(listHoverBackground) && theme.getColor(listHoverBackground).toString(),
+				hoverForeground: theme.getColor(listHoverForeground) && theme.getColor(listHoverForeground).toString(),
+				highlightForeground: theme.getColor(listHighlightForeground) && theme.getColor(listHighlightForeground).toString()
+			}
+		};
+		return this.issueService.openProcessExplorer(data);
 	}
 }
 

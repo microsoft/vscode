@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 
 import { sequence, asWinJsPromise } from 'vs/base/common/async';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
@@ -32,8 +32,8 @@ export const editorWordHighlightStrong = registerColor('editor.wordHighlightStro
 export const editorWordHighlightBorder = registerColor('editor.wordHighlightBorder', { light: null, dark: null, hc: activeContrastBorder }, nls.localize('wordHighlightBorder', 'Border color of a symbol during read-access, like reading a variable.'));
 export const editorWordHighlightStrongBorder = registerColor('editor.wordHighlightStrongBorder', { light: null, dark: null, hc: activeContrastBorder }, nls.localize('wordHighlightStrongBorder', 'Border color of a symbol during write-access, like writing to a variable.'));
 
-export const overviewRulerWordHighlightForeground = registerColor('editorOverviewRuler.wordHighlightForeground', { dark: '#A0A0A0', light: '#A0A0A0', hc: '#A0A0A0' }, nls.localize('overviewRulerWordHighlightForeground', 'Overview ruler marker color for symbol highlights.'));
-export const overviewRulerWordHighlightStrongForeground = registerColor('editorOverviewRuler.wordHighlightStrongForeground', { dark: '#C0A0C0', light: '#C0A0C0', hc: '#C0A0C0' }, nls.localize('overviewRulerWordHighlightStrongForeground', 'Overview ruler marker color for write-access symbol highlights.'));
+export const overviewRulerWordHighlightForeground = registerColor('editorOverviewRuler.wordHighlightForeground', { dark: '#A0A0A0CC', light: '#A0A0A0CC', hc: '#A0A0A0CC' }, nls.localize('overviewRulerWordHighlightForeground', 'Overview ruler marker color for symbol highlights. The color must not be opaque to not hide underlying decorations.'), true);
+export const overviewRulerWordHighlightStrongForeground = registerColor('editorOverviewRuler.wordHighlightStrongForeground', { dark: '#C0A0C0CC', light: '#C0A0C0CC', hc: '#C0A0C0CC' }, nls.localize('overviewRulerWordHighlightStrongForeground', 'Overview ruler marker color for write-access symbol highlights. The color must not be opaque to not hide underlying decorations.'), true);
 
 export const ctxHasWordHighlights = new RawContextKey<boolean>('hasWordHighlights', false);
 
@@ -477,7 +477,7 @@ class NextWordHighlightAction extends WordHighlightNavigationAction {
 			alias: 'Go to Next Symbol Highlight',
 			precondition: ctxHasWordHighlights,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyCode.F7
 			}
 		});
@@ -492,7 +492,7 @@ class PrevWordHighlightAction extends WordHighlightNavigationAction {
 			alias: 'Go to Previous Symbol Highlight',
 			precondition: ctxHasWordHighlights,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyCode.F7
 			}
 		});
@@ -504,30 +504,34 @@ registerEditorAction(NextWordHighlightAction);
 registerEditorAction(PrevWordHighlightAction);
 
 registerThemingParticipant((theme, collector) => {
-	let selectionHighlight = theme.getColor(editorSelectionHighlight);
+	const selectionHighlight = theme.getColor(editorSelectionHighlight);
 	if (selectionHighlight) {
 		collector.addRule(`.monaco-editor .focused .selectionHighlight { background-color: ${selectionHighlight}; }`);
 		collector.addRule(`.monaco-editor .selectionHighlight { background-color: ${selectionHighlight.transparent(0.5)}; }`);
 	}
-	let wordHighlight = theme.getColor(editorWordHighlight);
+
+	const wordHighlight = theme.getColor(editorWordHighlight);
 	if (wordHighlight) {
 		collector.addRule(`.monaco-editor .wordHighlight { background-color: ${wordHighlight}; }`);
 	}
-	let wordHighlightStrong = theme.getColor(editorWordHighlightStrong);
+
+	const wordHighlightStrong = theme.getColor(editorWordHighlightStrong);
 	if (wordHighlightStrong) {
 		collector.addRule(`.monaco-editor .wordHighlightStrong { background-color: ${wordHighlightStrong}; }`);
 	}
-	let selectionHighlightBorder = theme.getColor(editorSelectionHighlightBorder);
+
+	const selectionHighlightBorder = theme.getColor(editorSelectionHighlightBorder);
 	if (selectionHighlightBorder) {
-		collector.addRule(`.monaco-editor .selectionHighlight { border: 1px dotted ${selectionHighlightBorder}; box-sizing: border-box; }`);
-	}
-	let wordHighlightBorder = theme.getColor(editorWordHighlightBorder);
-	if (wordHighlightBorder) {
-		collector.addRule(`.monaco-editor .wordHighlight { border: 1px dashed ${wordHighlightBorder}; box-sizing: border-box; }`);
-	}
-	let wordHighlightStrongBorder = theme.getColor(editorWordHighlightStrongBorder);
-	if (wordHighlightStrongBorder) {
-		collector.addRule(`.monaco-editor .wordHighlightStrong { border: 1px dashed ${wordHighlightStrongBorder}; box-sizing: border-box; }`);
+		collector.addRule(`.monaco-editor .selectionHighlight { border: 1px ${theme.type === 'hc' ? 'dotted' : 'solid'} ${selectionHighlightBorder}; box-sizing: border-box; }`);
 	}
 
+	const wordHighlightBorder = theme.getColor(editorWordHighlightBorder);
+	if (wordHighlightBorder) {
+		collector.addRule(`.monaco-editor .wordHighlight { border: 1px ${theme.type === 'hc' ? 'dashed' : 'solid'} ${wordHighlightBorder}; box-sizing: border-box; }`);
+	}
+
+	const wordHighlightStrongBorder = theme.getColor(editorWordHighlightStrongBorder);
+	if (wordHighlightStrongBorder) {
+		collector.addRule(`.monaco-editor .wordHighlightStrong { border: 1px ${theme.type === 'hc' ? 'dashed' : 'solid'} ${wordHighlightStrongBorder}; box-sizing: border-box; }`);
+	}
 });

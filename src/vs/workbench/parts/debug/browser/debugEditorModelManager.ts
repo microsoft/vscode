@@ -303,12 +303,12 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	// we need a separate decoration for glyph margin, since we do not want it on each line of a multi line statement.
 	private static TOP_STACK_FRAME_MARGIN: IModelDecorationOptions = {
-		glyphMarginClassName: 'debug-top-stack-frame-glyph',
+		glyphMarginClassName: 'debug-top-stack-frame',
 		stickiness: DebugEditorModelManager.STICKINESS
 	};
 
 	private static FOCUSED_STACK_FRAME_MARGIN: IModelDecorationOptions = {
-		glyphMarginClassName: 'debug-focused-stack-frame-glyph',
+		glyphMarginClassName: 'debug-focused-stack-frame',
 		stickiness: DebugEditorModelManager.STICKINESS
 	};
 

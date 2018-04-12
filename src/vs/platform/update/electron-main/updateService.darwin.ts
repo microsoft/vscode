@@ -7,7 +7,7 @@
 
 import * as electron from 'electron';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import Event, { fromNodeEventEmitter } from 'vs/base/common/event';
+import { Event, fromNodeEventEmitter } from 'vs/base/common/event';
 import { memoize } from 'vs/base/common/decorators';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
@@ -59,8 +59,8 @@ export class DarwinUpdateService extends AbstractUpdateService {
 		return true;
 	}
 
-	protected doCheckForUpdates(explicit: boolean): void {
-		this.setState(State.CheckingForUpdates(explicit));
+	protected doCheckForUpdates(context: any): void {
+		this.setState(State.CheckingForUpdates(context));
 		electron.autoUpdater.checkForUpdates();
 	}
 
@@ -94,10 +94,10 @@ export class DarwinUpdateService extends AbstractUpdateService {
 
 		/* __GDPR__
 				"update:notAvailable" : {
-					"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 				}
 			*/
-		this.telemetryService.publicLog('update:notAvailable', { explicit: this.state.explicit });
+		this.telemetryService.publicLog('update:notAvailable', { explicit: !!this.state.context });
 
 		this.setState(State.Idle);
 	}

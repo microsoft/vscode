@@ -26,6 +26,6 @@
 	"always": "Visualizzare sempre debug nella barra di stato",
 	"onFirstSessionStart": "Mostra debug nella barra solo stato dopo il primo avvio del debug",
 	"showInStatusBar": "Controlla se rendere visibile la barra di stato del debug",
-	"openDebug": "Controlla se la viewlet di debug debba essere aperta all'avvio della sessione di debug.",
+	"openDebug": "Controlla se la visualizzazione di debug debba essere aperta all'avvio della sessione di debug.",
 	"launch": "Configurazione globale per l'esecuzione del debug. Può essere usata come un'alternativa a \"launch.json\" "
 }

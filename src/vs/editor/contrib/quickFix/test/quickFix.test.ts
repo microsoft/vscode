@@ -6,13 +6,13 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import Severity from 'vs/base/common/severity';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { CodeActionProviderRegistry, LanguageIdentifier, CodeActionProvider, Command, WorkspaceEdit, ResourceTextEdit, CodeAction, CodeActionContext } from 'vs/editor/common/modes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { getCodeActions } from 'vs/editor/contrib/quickFix/quickFix';
 import { CodeActionKind } from 'vs/editor/contrib/quickFix/codeActionTrigger';
+import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 
 suite('QuickFix', () => {
 
@@ -29,7 +29,7 @@ suite('QuickFix', () => {
 					startColumn: 1,
 					endLineNumber: 2,
 					endColumn: 1,
-					severity: Severity.Error,
+					severity: MarkerSeverity.Error,
 					message: 'abc'
 				}]
 			},
@@ -40,7 +40,7 @@ suite('QuickFix', () => {
 					startColumn: 1,
 					endLineNumber: 2,
 					endColumn: 1,
-					severity: Severity.Error,
+					severity: MarkerSeverity.Error,
 					message: 'bcd'
 				}]
 			}
@@ -136,20 +136,20 @@ suite('QuickFix', () => {
 		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
 
 		{
-			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), new CodeActionKind('a'));
+			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), { kind: new CodeActionKind('a') });
 			assert.equal(actions.length, 2);
 			assert.strictEqual(actions[0].title, 'a');
 			assert.strictEqual(actions[1].title, 'a.b');
 		}
 
 		{
-			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), new CodeActionKind('a.b'));
+			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), { kind: new CodeActionKind('a.b') });
 			assert.equal(actions.length, 1);
 			assert.strictEqual(actions[0].title, 'a.b');
 		}
 
 		{
-			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), new CodeActionKind('a.b.c'));
+			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), { kind: new CodeActionKind('a.b.c') });
 			assert.equal(actions.length, 0);
 		}
 	});
@@ -165,8 +165,33 @@ suite('QuickFix', () => {
 
 		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
 
-		const actions = await getCodeActions(model, new Range(1, 1, 2, 1), new CodeActionKind('a'));
+		const actions = await getCodeActions(model, new Range(1, 1, 2, 1), { kind: new CodeActionKind('a') });
 		assert.equal(actions.length, 1);
 		assert.strictEqual(actions[0].title, 'a');
+	});
+
+	test('getCodeActions should not return source code action by default', async function () {
+		const provider = new class implements CodeActionProvider {
+			provideCodeActions(): CodeAction[] {
+				return [
+					{ title: 'a', kind: CodeActionKind.Source.value },
+					{ title: 'b', kind: 'b' }
+				];
+			}
+		};
+
+		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
+
+		{
+			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), {});
+			assert.equal(actions.length, 1);
+			assert.strictEqual(actions[0].title, 'b');
+		}
+
+		{
+			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), { kind: CodeActionKind.Source, includeSourceActions: true });
+			assert.equal(actions.length, 1);
+			assert.strictEqual(actions[0].title, 'a');
+		}
 	});
 });

@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { $ } from 'vs/base/browser/builder';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { InputBox, IInputValidator } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import CommonEvent, { Emitter } from 'vs/base/common/event';
+import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
 import { HistoryNavigator } from 'vs/base/common/history';
@@ -73,7 +72,7 @@ export class PatternInputWidget extends Widget {
 		switch (eventType) {
 			case 'keydown':
 			case 'keyup':
-				$(this.inputBox.inputElement).on(eventType, handler);
+				this._register(dom.addDisposableListener(this.inputBox.inputElement, eventType, handler));
 				break;
 			case PatternInputWidget.OPTION_CHANGE:
 				this.onOptionChange = handler;
@@ -158,7 +157,7 @@ export class PatternInputWidget extends Widget {
 	private render(): void {
 		this.domNode = document.createElement('div');
 		this.domNode.style.width = this.width + 'px';
-		$(this.domNode).addClass('monaco-findInput');
+		dom.addClass(this.domNode, 'monaco-findInput');
 
 		this.inputBox = new InputBox(this.domNode, this.contextViewProvider, {
 			placeholder: this.placeholder || '',

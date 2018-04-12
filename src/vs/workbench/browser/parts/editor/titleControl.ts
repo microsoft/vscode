@@ -6,15 +6,14 @@
 'use strict';
 
 import 'vs/css!./media/titlecontrol';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { prepareActions } from 'vs/workbench/browser/actions';
 import { IAction, Action, IRunEvent } from 'vs/base/common/actions';
-import errors = require('vs/base/common/errors');
-import DOM = require('vs/base/browser/dom');
+import * as errors from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import arrays = require('vs/base/common/arrays');
+import * as arrays from 'vs/base/common/arrays';
 import { IEditorStacksModel, IEditorGroup, IEditorIdentifier, EditorInput, IStacksModelChangeEvent, toResource, IEditorCommandsContext } from 'vs/workbench/common/editor';
 import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
@@ -28,7 +27,7 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { SplitEditorAction, CloseEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { SplitEditorAction, CloseOneEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IMenuService, MenuId, IMenu, ExecuteCommandAction } from 'vs/platform/actions/common/actions';
@@ -36,8 +35,8 @@ import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Themable } from 'vs/workbench/common/theme';
 import { isDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Dimension } from 'vs/base/browser/builder';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { Dimension, findParentWithClass } from 'vs/base/browser/dom';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -65,7 +64,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 
 	protected dragged: boolean;
 
-	protected closeEditorAction: CloseEditorAction;
+	protected closeOneEditorAction: CloseOneEditorAction;
 	protected splitEditorAction: SplitEditorAction;
 
 	private parent: HTMLElement;
@@ -75,7 +74,8 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 	protected editorActionsToolbar: ToolBar;
 
 	private mapActionsToEditors: { [editorId: string]: IToolbarActions; };
-	private scheduler: RunOnceScheduler;
+	private titleAreaUpdateScheduler: RunOnceScheduler;
+	private titleAreaToolbarUpdateScheduler: RunOnceScheduler;
 	private refreshScheduled: boolean;
 
 	private resourceContext: ResourceContextKey;
@@ -101,8 +101,11 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		this.stacks = editorGroupService.getStacksModel();
 		this.mapActionsToEditors = Object.create(null);
 
-		this.scheduler = new RunOnceScheduler(() => this.onSchedule(), 0);
-		this.toUnbind.push(this.scheduler);
+		this.titleAreaUpdateScheduler = new RunOnceScheduler(() => this.onSchedule(), 0);
+		this.toUnbind.push(this.titleAreaUpdateScheduler);
+
+		this.titleAreaToolbarUpdateScheduler = new RunOnceScheduler(() => this.updateEditorActionsToolbar(), 0);
+		this.toUnbind.push(this.titleAreaToolbarUpdateScheduler);
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 
@@ -166,22 +169,26 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 
 	public update(instant?: boolean): void {
 		if (instant) {
-			this.scheduler.cancel();
+			this.titleAreaUpdateScheduler.cancel();
 			this.onSchedule();
 		} else {
-			this.scheduler.schedule();
+			this.titleAreaUpdateScheduler.schedule();
 		}
+
+		this.titleAreaToolbarUpdateScheduler.cancel(); // a title area update will always refresh the toolbar too
 	}
 
 	public refresh(instant?: boolean) {
 		this.refreshScheduled = true;
 
 		if (instant) {
-			this.scheduler.cancel();
+			this.titleAreaUpdateScheduler.cancel();
 			this.onSchedule();
 		} else {
-			this.scheduler.schedule();
+			this.titleAreaUpdateScheduler.schedule();
 		}
+
+		this.titleAreaToolbarUpdateScheduler.cancel(); // a title area update will always refresh the toolbar too
 	}
 
 	public create(parent: HTMLElement): void {
@@ -203,11 +210,11 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 	}
 
 	public allowDragging(element: HTMLElement): boolean {
-		return !DOM.findParentWithClass(element, 'monaco-action-bar', 'one-editor-silo');
+		return !findParentWithClass(element, 'monaco-action-bar', 'one-editor-silo');
 	}
 
 	protected initActions(services: IInstantiationService): void {
-		this.closeEditorAction = services.createInstance(CloseEditorAction, CloseEditorAction.ID, nls.localize('close', "Close"));
+		this.closeOneEditorAction = services.createInstance(CloseOneEditorAction, CloseOneEditorAction.ID, CloseOneEditorAction.LABEL);
 		this.splitEditorAction = services.createInstance(SplitEditorAction, SplitEditorAction.ID, SplitEditorAction.LABEL);
 	}
 
@@ -296,7 +303,14 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 			const codeEditor = isCodeEditor(widget) && widget || isDiffEditor(widget) && widget.getModifiedEditor();
 			const scopedContextKeyService = codeEditor && codeEditor.invokeWithinContext(accessor => accessor.get(IContextKeyService)) || this.contextKeyService;
 			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService);
-			this.disposeOnEditorActions.push(titleBarMenu, titleBarMenu.onDidChange(_ => this.update()));
+			this.disposeOnEditorActions.push(titleBarMenu, titleBarMenu.onDidChange(_ => {
+				// schedule the update for the title area toolbar only if no other
+				// update to the title area is scheduled which will always also
+				// update the toolbar
+				if (!this.titleAreaUpdateScheduler.isScheduled()) {
+					this.titleAreaToolbarUpdateScheduler.schedule();
+				}
+			}));
 
 			fillInActions(titleBarMenu, { arg: this.resourceContext.get(), shouldForwardArgs: true }, { primary, secondary }, this.contextMenuService);
 		}
@@ -334,11 +348,10 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 
 		const primaryEditorActionIds = primaryEditorActions.map(a => a.id);
 		if (!tabOptions.showTabs) {
-			primaryEditorActionIds.push(this.closeEditorAction.id); // always show "Close" when tabs are disabled
+			primaryEditorActionIds.push(this.closeOneEditorAction.id); // always show "Close" when tabs are disabled
 		}
 
 		const secondaryEditorActionIds = secondaryEditorActions.map(a => a.id);
-
 		if (
 			!arrays.equals(primaryEditorActionIds, this.currentPrimaryEditorActionIds) ||
 			!arrays.equals(secondaryEditorActionIds, this.currentSecondaryEditorActionIds) ||
@@ -348,7 +361,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 			this.editorActionsToolbar.setActions(primaryEditorActions, secondaryEditorActions)();
 
 			if (!tabOptions.showTabs) {
-				this.editorActionsToolbar.addPrimaryAction(this.closeEditorAction)();
+				this.editorActionsToolbar.addPrimaryAction(this.closeOneEditorAction)();
 			}
 
 			this.currentPrimaryEditorActionIds = primaryEditorActionIds;
@@ -416,7 +429,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		// Actions
 		[
 			this.splitEditorAction,
-			this.closeEditorAction
+			this.closeOneEditorAction
 		].forEach((action) => {
 			action.dispose();
 		});

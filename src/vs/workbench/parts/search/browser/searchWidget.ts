@@ -12,27 +12,26 @@ import { Action } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { FindInput, IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';
 import { InputBox, IMessage } from 'vs/base/browser/ui/inputbox/inputBox';
-import { Button } from 'vs/base/browser/ui/button/button';
+import { Button, IButtonOptions } from 'vs/base/browser/ui/button/button';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Builder } from 'vs/base/browser/builder';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { isSearchViewFocused, appendKeyBindingLabel } from 'vs/workbench/parts/search/browser/searchActions';
 import { HistoryNavigator } from 'vs/base/common/history';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
-import { attachInputBoxStyler, attachFindInputBoxStyler, attachButtonStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachFindInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/findModel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ISearchConfigurationProperties } from '../../../../platform/search/common/search';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { ISearchConfigurationProperties } from 'vs/platform/search/common/search';
 
 export interface ISearchWidgetOptions {
 	value?: string;
@@ -100,22 +99,22 @@ export class SearchWidget extends Widget {
 	private previousGlobalFindBufferValue: string;
 
 	private _onSearchSubmit = this._register(new Emitter<boolean>());
-	public onSearchSubmit: Event<boolean> = this._onSearchSubmit.event;
+	public readonly onSearchSubmit: Event<boolean> = this._onSearchSubmit.event;
 
 	private _onSearchCancel = this._register(new Emitter<void>());
-	public onSearchCancel: Event<void> = this._onSearchCancel.event;
+	public readonly onSearchCancel: Event<void> = this._onSearchCancel.event;
 
 	private _onReplaceToggled = this._register(new Emitter<void>());
-	public onReplaceToggled: Event<void> = this._onReplaceToggled.event;
+	public readonly onReplaceToggled: Event<void> = this._onReplaceToggled.event;
 
 	private _onReplaceStateChange = this._register(new Emitter<boolean>());
-	public onReplaceStateChange: Event<boolean> = this._onReplaceStateChange.event;
+	public readonly onReplaceStateChange: Event<boolean> = this._onReplaceStateChange.event;
 
 	private _onReplaceValueChanged = this._register(new Emitter<string>());
-	public onReplaceValueChanged: Event<string> = this._onReplaceValueChanged.event;
+	public readonly onReplaceValueChanged: Event<string> = this._onReplaceValueChanged.event;
 
 	private _onReplaceAll = this._register(new Emitter<void>());
-	public onReplaceAll: Event<void> = this._onReplaceAll.event;
+	public readonly onReplaceAll: Event<void> = this._onReplaceAll.event;
 
 	constructor(
 		container: Builder,
@@ -217,11 +216,13 @@ export class SearchWidget extends Widget {
 	}
 
 	private renderToggleReplaceButton(parent: HTMLElement): void {
-		this.toggleReplaceButton = this._register(new Button(parent));
-		attachButtonStyler(this.toggleReplaceButton, this.themeService, {
-			buttonBackground: SIDE_BAR_BACKGROUND,
-			buttonHoverBackground: SIDE_BAR_BACKGROUND
-		});
+		const opts: IButtonOptions = {
+			buttonBackground: null,
+			buttonBorder: null,
+			buttonForeground: null,
+			buttonHoverBackground: null
+		};
+		this.toggleReplaceButton = this._register(new Button(parent, opts));
 		this.toggleReplaceButton.icon = 'toggle-replace-button collapse';
 		// TODO@joh need to dispose this listener eventually
 		this.toggleReplaceButton.onDidClick(() => this.onToggleReplaceButton());

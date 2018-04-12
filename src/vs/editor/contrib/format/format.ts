@@ -38,14 +38,14 @@ export function getDocumentRangeFormattingEdits(model: ITextModel, range: Range,
 
 	let result: TextEdit[];
 	return sequence(providers.map(provider => {
-		if (isFalsyOrEmpty(result)) {
-			return () => {
-				return asWinJsPromise(token => provider.provideDocumentRangeFormattingEdits(model, range, options, token)).then(value => {
-					result = value;
-				}, onUnexpectedExternalError);
-			};
-		}
-		return undefined;
+		return () => {
+			if (!isFalsyOrEmpty(result)) {
+				return undefined;
+			}
+			return asWinJsPromise(token => provider.provideDocumentRangeFormattingEdits(model, range, options, token)).then(value => {
+				result = value;
+			}, onUnexpectedExternalError);
+		};
 	})).then(() => result);
 }
 
@@ -59,14 +59,14 @@ export function getDocumentFormattingEdits(model: ITextModel, options: Formattin
 
 	let result: TextEdit[];
 	return sequence(providers.map(provider => {
-		if (isFalsyOrEmpty(result)) {
-			return () => {
-				return asWinJsPromise(token => provider.provideDocumentFormattingEdits(model, options, token)).then(value => {
-					result = value;
-				}, onUnexpectedExternalError);
-			};
-		}
-		return undefined;
+		return () => {
+			if (!isFalsyOrEmpty(result)) {
+				return undefined;
+			}
+			return asWinJsPromise(token => provider.provideDocumentFormattingEdits(model, options, token)).then(value => {
+				result = value;
+			}, onUnexpectedExternalError);
+		};
 	})).then(() => result);
 }
 

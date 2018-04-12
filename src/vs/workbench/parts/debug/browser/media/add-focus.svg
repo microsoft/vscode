@@ -1,1 +1,1 @@
-<svg width="16" height="16" xmlns="http://www.w3.org/2000/svg"><title>Layer 1</title><rect height="11" width="3" y="3" x="7" fill="#fff"/><rect height="3" width="11" y="7" x="3" fill="#fff"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><defs><style>.icon-canvas-transparent{fill:#f6f6f6;opacity:0;}.icon-white{fill:#fff;}</style></defs><title>add-focus</title><g id="canvas"><path class="icon-canvas-transparent" d="M16,16H0V0H16Z"/></g><g id="iconBg"><path class="icon-white" d="M13,7V9H9v4H7V9H3V7H7V3H9V7Z"/></g></svg>

@@ -23,7 +23,7 @@
 
 .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content {
 	line-height: 18px;
-	-webkit-user-select: text;
+	user-select: text;
 	/* Wrap words but also do not trim whitespace #6275 */
 	word-wrap: break-word;
 	white-space: pre-wrap;
@@ -163,6 +163,7 @@
 
 /* ANSI Codes */
 .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression .code-bold	{ font-weight: bold; }
+.monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression .code-underline { text-decoration: underline; }
 
 .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression .code30, .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression .code90	{ color: gray; }
 .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression .code31, .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression .code91	{ color: #BE1717; }

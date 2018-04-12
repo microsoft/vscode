@@ -51,5 +51,9 @@
 	"workbench.action.terminal.hideFindWidget": "検索ウィジェットを非表示にする",
 	"nextTerminalFindTerm": "次の検索語句を表示",
 	"previousTerminalFindTerm": "前の検索語句を表示",
-	"quickOpenTerm": "アクティブなターミナルの切り替え"
+	"quickOpenTerm": "アクティブなターミナルの切り替え",
+	"workbench.action.terminal.focusPreviousCommand": "前のコマンドにフォーカス",
+	"workbench.action.terminal.focusNextCommand": "次のコマンドにフォーカス",
+	"workbench.action.terminal.selectToPreviousCommand": "前のコマンドを選択",
+	"workbench.action.terminal.selectToNextCommand": "次のコマンドを選択"
 }

@@ -58,7 +58,7 @@ class CopyLinesUpAction extends AbstractCopyLinesAction {
 			alias: 'Copy Line Up',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow,
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow }
 			}
@@ -74,7 +74,7 @@ class CopyLinesDownAction extends AbstractCopyLinesAction {
 			alias: 'Copy Line Down',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow,
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow }
 			}
@@ -117,7 +117,7 @@ class MoveLinesUpAction extends AbstractMoveLinesAction {
 			alias: 'Move Line Up',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Alt | KeyCode.UpArrow,
 				linux: { primary: KeyMod.Alt | KeyCode.UpArrow }
 			}
@@ -133,7 +133,7 @@ class MoveLinesDownAction extends AbstractMoveLinesAction {
 			alias: 'Move Line Down',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Alt | KeyCode.DownArrow,
 				linux: { primary: KeyMod.Alt | KeyCode.DownArrow }
 			}
@@ -203,7 +203,7 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 			alias: 'Trim Trailing Whitespace',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_X)
 			}
 		});
@@ -286,7 +286,7 @@ class DeleteLinesAction extends AbstractRemoveLinesAction {
 			alias: 'Delete Line',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_K
 			}
 		});
@@ -315,7 +315,7 @@ export class IndentLinesAction extends EditorAction {
 			alias: 'Indent Line',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET
 			}
 		});
@@ -336,7 +336,7 @@ class OutdentLinesAction extends EditorAction {
 			alias: 'Outdent Line',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET
 			}
 		});
@@ -355,7 +355,7 @@ export class InsertLineBeforeAction extends EditorAction {
 			alias: 'Insert Line Above',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter
 			}
 		});
@@ -375,7 +375,7 @@ export class InsertLineAfterAction extends EditorAction {
 			alias: 'Insert Line Below',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.Enter
 			}
 		});
@@ -434,7 +434,7 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 			alias: 'Delete All Left',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.textInputFocus,
 				primary: null,
 				mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace }
 			}
@@ -487,7 +487,7 @@ export class DeleteAllRightAction extends AbstractDeleteAllToBoundaryAction {
 			alias: 'Delete All Right',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.textInputFocus,
 				primary: null,
 				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_K, secondary: [KeyMod.CtrlCmd | KeyCode.Delete] }
 			}
@@ -544,7 +544,7 @@ export class JoinLinesAction extends EditorAction {
 			alias: 'Join Lines',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: 0,
 				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_J }
 			}

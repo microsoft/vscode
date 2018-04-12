@@ -10,7 +10,7 @@
 	"neverShowAgain": "不再显示",
 	"netVersionError": "需要 Microsoft .NET Framework 4.5。请访问链接安装它。",
 	"learnMore": "说明",
-	"enospcError": "{0} 的文件句柄已用完。 请按照说明解决此问题。",
+	"enospcError": "{0} 无法监视这个大型工作区的文件变化。请访问说明链接解决此问题。",
 	"binFailed": "未能将“{0}”移动到回收站",
 	"trashFailed": "未能将“{0}”移动到废纸篓"
 }

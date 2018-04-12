@@ -9,7 +9,7 @@ import { range } from 'vs/base/common/arrays';
 import { IDelegate, IRenderer, IListEvent, IListOpenEvent } from './list';
 import { List, IListStyles, IListOptions } from './listWidget';
 import { IPagedModel } from 'vs/base/common/paging';
-import Event, { mapEvent } from 'vs/base/common/event';
+import { Event, mapEvent } from 'vs/base/common/event';
 
 export interface IPagedRenderer<TElement, TTemplateData> extends IRenderer<TElement, TTemplateData> {
 	renderPlaceholder(index: number, templateData: TTemplateData): void;
@@ -58,7 +58,7 @@ class PagedRenderer<TElement, TTemplateData> implements IRenderer<number, ITempl
 	}
 }
 
-export class PagedList<T> {
+export class PagedList<T> implements IDisposable {
 
 	private list: List<number>;
 	private _model: IPagedModel<T>;
@@ -81,6 +81,10 @@ export class PagedList<T> {
 		return this.list.getHTMLElement() === document.activeElement;
 	}
 
+	domFocus(): void {
+		this.list.domFocus();
+	}
+
 	get onDidFocus(): Event<void> {
 		return this.list.onDidFocus;
 	}
@@ -91,6 +95,10 @@ export class PagedList<T> {
 
 	get widget(): List<number> {
 		return this.list;
+	}
+
+	get onDidDispose(): Event<void> {
+		return this.list.onDidDispose;
 	}
 
 	get onFocusChange(): Event<IListEvent<T>> {
@@ -184,5 +192,9 @@ export class PagedList<T> {
 
 	style(styles: IListStyles): void {
 		this.list.style(styles);
+	}
+
+	dispose(): void {
+		this.list.dispose();
 	}
 }

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import Event, { Emitter, once } from 'vs/base/common/event';
+import { Event, Emitter, once } from 'vs/base/common/event';
 import { Extensions, IEditorInputFactoryRegistry, EditorInput, toResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, IStacksModelChangeEvent, EditorOpenPositioning, SideBySideEditorInput, OPEN_POSITIONING_CONFIG } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -61,17 +61,17 @@ export class EditorGroup implements IEditorGroup {
 	private toDispose: IDisposable[];
 	private editorOpenPositioning: 'left' | 'right' | 'first' | 'last';
 
-	private _onEditorActivated: Emitter<EditorInput>;
-	private _onEditorOpened: Emitter<EditorInput>;
-	private _onEditorClosed: Emitter<EditorCloseEvent>;
-	private _onEditorDisposed: Emitter<EditorInput>;
-	private _onEditorDirty: Emitter<EditorInput>;
-	private _onEditorLabelChange: Emitter<EditorInput>;
-	private _onEditorMoved: Emitter<EditorInput>;
-	private _onEditorPinned: Emitter<EditorInput>;
-	private _onEditorUnpinned: Emitter<EditorInput>;
-	private _onEditorStateChanged: Emitter<EditorInput>;
-	private _onEditorsStructureChanged: Emitter<EditorInput>;
+	private readonly _onEditorActivated: Emitter<EditorInput>;
+	private readonly _onEditorOpened: Emitter<EditorInput>;
+	private readonly _onEditorClosed: Emitter<EditorCloseEvent>;
+	private readonly _onEditorDisposed: Emitter<EditorInput>;
+	private readonly _onEditorDirty: Emitter<EditorInput>;
+	private readonly _onEditorLabelChange: Emitter<EditorInput>;
+	private readonly _onEditorMoved: Emitter<EditorInput>;
+	private readonly _onEditorPinned: Emitter<EditorInput>;
+	private readonly _onEditorUnpinned: Emitter<EditorInput>;
+	private readonly _onEditorStateChanged: Emitter<EditorInput>;
+	private readonly _onEditorsStructureChanged: Emitter<EditorInput>;
 
 	constructor(
 		arg1: string | ISerializedEditorGroup,
@@ -709,22 +709,22 @@ export class EditorStacksModel implements IEditorStacksModel {
 	private _activeGroup: EditorGroup;
 	private groupToIdentifier: { [id: number]: EditorGroup };
 
-	private _onGroupOpened: Emitter<EditorGroup>;
-	private _onGroupClosed: Emitter<EditorGroup>;
-	private _onGroupMoved: Emitter<EditorGroup>;
-	private _onGroupActivated: Emitter<EditorGroup>;
-	private _onGroupDeactivated: Emitter<EditorGroup>;
-	private _onGroupRenamed: Emitter<EditorGroup>;
+	private readonly _onGroupOpened: Emitter<EditorGroup>;
+	private readonly _onGroupClosed: Emitter<EditorGroup>;
+	private readonly _onGroupMoved: Emitter<EditorGroup>;
+	private readonly _onGroupActivated: Emitter<EditorGroup>;
+	private readonly _onGroupDeactivated: Emitter<EditorGroup>;
+	private readonly _onGroupRenamed: Emitter<EditorGroup>;
 
-	private _onEditorDisposed: Emitter<EditorIdentifier>;
-	private _onEditorDirty: Emitter<EditorIdentifier>;
-	private _onEditorLabelChange: Emitter<EditorIdentifier>;
-	private _onEditorOpened: Emitter<EditorIdentifier>;
+	private readonly _onEditorDisposed: Emitter<EditorIdentifier>;
+	private readonly _onEditorDirty: Emitter<EditorIdentifier>;
+	private readonly _onEditorLabelChange: Emitter<EditorIdentifier>;
+	private readonly _onEditorOpened: Emitter<EditorIdentifier>;
 
-	private _onWillCloseEditor: Emitter<EditorCloseEvent>;
-	private _onEditorClosed: Emitter<EditorCloseEvent>;
+	private readonly _onWillCloseEditor: Emitter<EditorCloseEvent>;
+	private readonly _onEditorClosed: Emitter<EditorCloseEvent>;
 
-	private _onModelChanged: Emitter<IStacksModelChangeEvent>;
+	private readonly _onModelChanged: Emitter<IStacksModelChangeEvent>;
 
 	constructor(
 		private restoreFromStorage: boolean,

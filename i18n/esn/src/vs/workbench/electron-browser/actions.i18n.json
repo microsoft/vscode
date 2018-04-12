@@ -18,6 +18,7 @@
 	"zoomReset": "Restablecer zoom",
 	"appPerf": "Rendimiento de inicio",
 	"reloadWindow": "Recargar ventana",
+	"reloadWindowWithExntesionsDisabled": "Recargar la ventana con las extensiones deshabilitadas",
 	"switchWindowPlaceHolder": "Seleccionar una ventana a la que cambiar",
 	"current": "Ventana actual",
 	"close": "Cerrar ventana",
@@ -48,5 +49,6 @@
 	"moveWindowTabToNewWindow": "Mover pestaña de ventana a una nueva ventana",
 	"mergeAllWindowTabs": "Fusionar todas las ventanas",
 	"toggleWindowTabsBar": "Alternar barra de pestañas de ventana",
-	"about": "Acerca de {0}"
+	"about": "Acerca de {0}",
+	"inspect context keys": "Inspeccionar claves de contexto"
 }

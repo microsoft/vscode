@@ -17,8 +17,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { Action } from 'vs/base/common/actions';
 import * as Dom from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
-import * as Builder from 'vs/base/browser/builder';
+import { Event, Emitter } from 'vs/base/common/event';
 import * as Types from 'vs/base/common/types';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { TerminateResponseCode } from 'vs/base/common/processes';
@@ -46,11 +45,11 @@ import { IProgressService2, IProgressOptions, ProgressLocation } from 'vs/platfo
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IConfirmationService, IChoiceService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IConfirmationResult } from 'vs/platform/dialogs/common/dialogs';
 
 import { IModelService } from 'vs/editor/common/services/modelService';
 
-import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
+import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 import { IStatusbarItem, IStatusbarRegistry, Extensions as StatusbarExtensions, StatusbarItemDescriptor, StatusbarAlignment } from 'vs/workbench/browser/parts/statusbar/statusbar';
@@ -58,7 +57,7 @@ import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandler
 
 import { IQuickOpenService, IPickOpenEntry, IPickOpenAction, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import Constants from 'vs/workbench/parts/markers/common/constants';
+import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -71,7 +70,11 @@ import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
 import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, TaskErrors, TaskTerminateResponse } from 'vs/workbench/parts/tasks/common/taskSystem';
-import { Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskEvent, TaskEventKind, TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind, TaskIdentifier, TaskSorter } from 'vs/workbench/parts/tasks/common/tasks';
+import {
+	Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskEvent,
+	TaskEventKind, TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
+	TaskIdentifier, TaskSorter, TaskItem
+} from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, ITaskProvider, RunOptions, CustomizationProperties } from 'vs/workbench/parts/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
@@ -84,7 +87,6 @@ import { QuickOpenActionContributor } from '../browser/quickOpen';
 import { Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
-let $ = Builder.$;
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
 
 namespace ConfigureTaskAction {
@@ -137,11 +139,15 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 		const info = document.createElement('div');
 		const building = document.createElement('div');
 
+		const errorTitle = n => nls.localize('totalErrors', "{0} Errors", n);
+		const warningTitle = n => nls.localize('totalWarnings', "{0} Warnings", n);
+		const infoTitle = n => nls.localize('totalInfos', "{0} Infos", n);
+
 		Dom.addClass(element, 'task-statusbar-item');
+		element.title = nls.localize('problems', "Problems");
 
 		Dom.addClass(label, 'task-statusbar-item-label');
 		element.appendChild(label);
-		element.title = nls.localize('problems', "Problems");
 
 		Dom.addClass(errorIcon, 'task-statusbar-item-label-error');
 		Dom.addClass(errorIcon, 'mask-icon');
@@ -150,6 +156,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 
 		Dom.addClass(error, 'task-statusbar-item-label-counter');
 		error.innerHTML = '0';
+		error.title = errorIcon.title = errorTitle(0);
 		label.appendChild(error);
 
 		Dom.addClass(warningIcon, 'task-statusbar-item-label-warning');
@@ -159,23 +166,23 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 
 		Dom.addClass(warning, 'task-statusbar-item-label-counter');
 		warning.innerHTML = '0';
+		warning.title = warningIcon.title = warningTitle(0);
 		label.appendChild(warning);
 
 		Dom.addClass(infoIcon, 'task-statusbar-item-label-info');
 		Dom.addClass(infoIcon, 'mask-icon');
 		label.appendChild(infoIcon);
 		this.icons.push(infoIcon);
-		$(infoIcon).hide();
+		Dom.hide(infoIcon);
 
 		Dom.addClass(info, 'task-statusbar-item-label-counter');
 		label.appendChild(info);
-		$(info).hide();
+		Dom.hide(info);
 
 		Dom.addClass(building, 'task-statusbar-item-building');
 		element.appendChild(building);
 		building.innerHTML = nls.localize('building', 'Building...');
-		$(building).hide();
-
+		Dom.hide(building);
 
 		callOnDispose.push(Dom.addDisposableListener(label, 'click', (e: MouseEvent) => {
 			const panel = this.panelService.getActivePanel();
@@ -186,24 +193,22 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 			}
 		}));
 
-		let updateStatus = (element: HTMLDivElement, icon: HTMLDivElement, stats: number): boolean => {
-			if (stats > 0) {
-				element.innerHTML = stats.toString();
-				$(element).show();
-				$(icon).show();
-				return true;
-			} else {
-				$(element).hide();
-				$(icon).hide();
-				return false;
-			}
-		};
-
-		let manyMarkers = nls.localize('manyMarkers', "99+");
+		const manyProblems = nls.localize('manyProblems', "10K+");
+		const packNumber = n => n > 9999 ? manyProblems : n > 999 ? n.toString().charAt(0) + 'K' : n.toString();
 		let updateLabel = (stats: MarkerStatistics) => {
-			error.innerHTML = stats.errors < 100 ? stats.errors.toString() : manyMarkers;
-			warning.innerHTML = stats.warnings < 100 ? stats.warnings.toString() : manyMarkers;
-			updateStatus(info, infoIcon, stats.infos);
+			error.innerHTML = packNumber(stats.errors);
+			error.title = errorIcon.title = errorTitle(stats.errors);
+			warning.innerHTML = packNumber(stats.warnings);
+			warning.title = warningIcon.title = warningTitle(stats.warnings);
+			if (stats.infos > 0) {
+				info.innerHTML = packNumber(stats.infos);
+				info.title = infoIcon.title = infoTitle(stats.infos);
+				Dom.show(info);
+				Dom.show(infoIcon);
+			} else {
+				Dom.hide(info);
+				Dom.hide(infoIcon);
+			}
 		};
 
 		this.markerService.onMarkerChanged((changedResources) => {
@@ -218,7 +223,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 				case TaskEventKind.Active:
 					this.activeCount++;
 					if (this.activeCount === 1) {
-						$(building).show();
+						Dom.show(building);
 					}
 					break;
 				case TaskEventKind.Inactive:
@@ -227,13 +232,13 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 					if (this.activeCount > 0) {
 						this.activeCount--;
 						if (this.activeCount === 0) {
-							$(building).hide();
+							Dom.hide(building);
 						}
 					}
 					break;
 				case TaskEventKind.Terminated:
 					if (this.activeCount !== 0) {
-						$(building).hide();
+						Dom.hide(building);
 						this.activeCount = 0;
 					}
 					break;
@@ -291,7 +296,7 @@ class TaskStatusBarItem extends Themable implements IStatusbarItem {
 		let label = new OcticonLabel(labelElement);
 		label.title = nls.localize('runningTasks', "Show Running Tasks");
 
-		$(element).hide();
+		Dom.hide(element);
 
 		callOnDispose.push(Dom.addDisposableListener(labelElement, 'click', (e: MouseEvent) => {
 			(this.taskService as TaskService).runShowTasks();
@@ -300,10 +305,10 @@ class TaskStatusBarItem extends Themable implements IStatusbarItem {
 		let updateStatus = (): void => {
 			this.taskService.getActiveTasks().then(tasks => {
 				if (tasks.length === 0) {
-					$(element).hide();
+					Dom.hide(element);
 				} else {
 					label.text = `$(tools) ${tasks.length}`;
-					$(element).show();
+					Dom.show(element);
 				}
 			});
 		};
@@ -450,7 +455,7 @@ class TaskService implements ITaskService {
 	private _recentlyUsedTasks: LinkedMap<string, string>;
 
 	private _outputChannel: IOutputChannel;
-	private _onDidStateChange: Emitter<TaskEvent>;
+	private readonly _onDidStateChange: Emitter<TaskEvent>;
 
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -471,9 +476,8 @@ class TaskService implements ITaskService {
 		@IProgressService2 private progressService: IProgressService2,
 		@IOpenerService private openerService: IOpenerService,
 		@IWindowService private readonly _windowService: IWindowService,
-		@IConfirmationService private confirmationService: IConfirmationService,
-		@INotificationService private notificationService: INotificationService,
-		@IChoiceService private choiceService: IChoiceService
+		@IDialogService private dialogService: IDialogService,
+		@INotificationService private notificationService: INotificationService
 	) {
 		this._configHasErrors = false;
 		this._workspaceTasksPromise = undefined;
@@ -491,14 +495,17 @@ class TaskService implements ITaskService {
 			let folderSetup = this.computeWorkspaceFolderSetup();
 			if (this.executionEngine !== folderSetup[2]) {
 				if (this._taskSystem && this._taskSystem.getActiveTasks().length > 0) {
-					this.choiceService.choose(Severity.Info, nls.localize(
-						'TaskSystem.noHotSwap',
-						'Changing the task execution engine with an active task running requires to reload the Window'
-					), [nls.localize('reloadWindow', "Reload Window")]).then(choice => {
-						if (choice === 0) {
-							this._windowService.reloadWindow();
-						}
-					});
+					this.notificationService.prompt(
+						Severity.Info,
+						nls.localize(
+							'TaskSystem.noHotSwap',
+							'Changing the task execution engine with an active task running requires to reload the Window'
+						),
+						[{
+							label: nls.localize('reloadWindow', "Reload Window"),
+							run: () => this._windowService.reloadWindow()
+						}]
+					);
 					return;
 				} else {
 					this.disposeTaskSystemListeners();
@@ -572,6 +579,19 @@ class TaskService implements ITaskService {
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.showTasks', () => {
 			this.runShowTasks();
+		});
+
+		CommandsRegistry.registerCommand('_executeTaskProvider', (accessor, args) => {
+			return this.tasks().then((tasks) => {
+				let result: TaskItem[] = [];
+				for (let task of tasks) {
+					let item = Task.getTaskItem(task);
+					if (item) {
+						result.push(item);
+					}
+				}
+				return result;
+			});
 		});
 	}
 
@@ -655,7 +675,7 @@ class TaskService implements ITaskService {
 		return this._providers.delete(handle);
 	}
 
-	public getTask(folder: IWorkspaceFolder | string, alias: string): TPromise<Task> {
+	public getTask(folder: IWorkspaceFolder | string, alias: string, compareId: boolean = false): TPromise<Task> {
 		let name = Types.isString(folder) ? folder : folder.name;
 		if (this.ignoredWorkspaceFolders.some(ignored => ignored.name === name)) {
 			return TPromise.wrapError(new Error(nls.localize('TaskServer.folderIgnored', 'The folder {0} is ignored since it uses task version 0.1.0', name)));
@@ -666,7 +686,7 @@ class TaskService implements ITaskService {
 				return undefined;
 			}
 			for (let task of values) {
-				if (Task.matches(task, alias)) {
+				if (Task.matches(task, alias, compareId)) {
 					return task;
 				}
 			}
@@ -1586,19 +1606,10 @@ class TaskService implements ITaskService {
 		if (!config.command || this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			return false;
 		}
-		return ProcessRunnerDetector.supports(config.command);
+		return ProcessRunnerDetector.supports(TaskConfig.CommandString.value(config.command));
 	}
 
 	public configureAction(): Action {
-		let run = () => { this.runConfigureTasks(); return TPromise.as(undefined); };
-		return new class extends Action {
-			constructor() {
-				super(ConfigureTaskAction.ID, ConfigureTaskAction.TEXT, undefined, true, run);
-			}
-		};
-	}
-
-	private configureBuildTask(): Action {
 		let run = () => { this.runConfigureTasks(); return TPromise.as(undefined); };
 		return new class extends Action {
 			constructor() {
@@ -1621,19 +1632,19 @@ class TaskService implements ITaskService {
 			return false;
 		}
 
-		let terminatePromise: TPromise<boolean>;
+		let terminatePromise: TPromise<IConfirmationResult>;
 		if (this._taskSystem.canAutoTerminate()) {
-			terminatePromise = TPromise.wrap(true);
+			terminatePromise = TPromise.wrap({ confirmed: true });
 		} else {
-			terminatePromise = this.confirmationService.confirm({
+			terminatePromise = this.dialogService.confirm({
 				message: nls.localize('TaskSystem.runningTask', 'There is a task running. Do you want to terminate it?'),
 				primaryButton: nls.localize({ key: 'TaskSystem.terminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task"),
 				type: 'question'
 			});
 		}
 
-		return terminatePromise.then(terminate => {
-			if (terminate) {
+		return terminatePromise.then(res => {
+			if (res.confirmed) {
 				return this._taskSystem.terminateAll().then((responses) => {
 					let success = true;
 					let code: number = undefined;
@@ -1650,11 +1661,11 @@ class TaskService implements ITaskService {
 						this.disposeTaskSystemListeners();
 						return false; // no veto
 					} else if (code && code === TerminateResponseCode.ProcessNotFound) {
-						return this.confirmationService.confirm({
+						return this.dialogService.confirm({
 							message: nls.localize('TaskSystem.noProcess', 'The launched task doesn\'t exist anymore. If the task spawned background processes exiting VS Code might result in orphaned processes. To avoid this start the last background process with a wait flag.'),
 							primaryButton: nls.localize({ key: 'TaskSystem.exitAnyways', comment: ['&& denotes a mnemonic'] }, "&&Exit Anyways"),
 							type: 'info'
-						}).then(confirmed => !confirmed);
+						}).then(res => !res.confirmed);
 					}
 					return true; // veto
 				}, (err) => {
@@ -1666,15 +1677,6 @@ class TaskService implements ITaskService {
 		});
 	}
 
-	private getConfigureAction(code: TaskErrors): Action {
-		switch (code) {
-			case TaskErrors.NoBuildTask:
-				return this.configureBuildTask();
-			default:
-				return this.configureAction();
-		}
-	}
-
 	private handleError(err: any): void {
 		let showOutput = true;
 		if (err instanceof TaskError) {
@@ -1682,13 +1684,16 @@ class TaskService implements ITaskService {
 			let needsConfig = buildError.code === TaskErrors.NotConfigured || buildError.code === TaskErrors.NoBuildTask || buildError.code === TaskErrors.NoTestTask;
 			let needsTerminate = buildError.code === TaskErrors.RunningTask;
 			if (needsConfig || needsTerminate) {
-				let action: Action = needsConfig
-					? this.getConfigureAction(buildError.code)
-					: new Action(
-						'workbench.action.tasks.terminate',
-						nls.localize('TerminateAction.label', "Terminate Task"),
-						undefined, true, () => { this.runTerminateCommand(); return TPromise.wrap<void>(undefined); });
-				this.notificationService.notify({ severity: buildError.severity, message: buildError.message, actions: { primary: [action] } });
+				this.notificationService.prompt(buildError.severity, buildError.message, [{
+					label: needsConfig ? ConfigureTaskAction.TEXT : nls.localize('TerminateAction.label', "Terminate Task"),
+					run: () => {
+						if (needsConfig) {
+							this.runConfigureTasks();
+						} else {
+							this.runTerminateCommand();
+						}
+					}
+				}]);
 			} else {
 				this.notificationService.notify({ severity: buildError.severity, message: buildError.message });
 			}
@@ -1829,21 +1834,18 @@ class TaskService implements ITaskService {
 			return TPromise.as(undefined);
 		}
 
-		this.notificationService.notify({
-			severity: Severity.Info,
-			message: nls.localize('TaskService.ignoredFolder', 'The following workspace folders are ignored since they use task version 0.1.0: {0}', this.ignoredWorkspaceFolders.map(f => f.name).join(', ')),
-			actions: {
-				secondary: [new Action('dontShowAgain', nls.localize('TaskService.notAgain', 'Don\'t Show Again'), null, true, (notification: IDisposable) => {
+		this.notificationService.prompt(
+			Severity.Info,
+			nls.localize('TaskService.ignoredFolder', 'The following workspace folders are ignored since they use task version 0.1.0: {0}', this.ignoredWorkspaceFolders.map(f => f.name).join(', ')),
+			[{
+				label: nls.localize('TaskService.notAgain', 'Don\'t Show Again'),
+				isSecondary: true,
+				run: () => {
 					this.storageService.store(TaskService.IgnoreTask010DonotShowAgain_key, true, StorageScope.WORKSPACE);
 					this.__showIgnoreMessage = false;
-
-					// Hide notification
-					notification.dispose();
-
-					return TPromise.as(true);
-				})]
-			}
-		});
+				}
+			}]
+		);
 
 		return TPromise.as(undefined);
 	}
@@ -2093,6 +2095,12 @@ class TaskService implements ITaskService {
 						content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + strings.repeat(' ', s2.length * editorConfig.editor.tabSize));
 					}
 					configFileCreated = true;
+					/* __GDPR__
+						"taskService.template" : {
+							"templateId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"autoDetect" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+						}
+					*/
 					return this.fileService.createFile(resource, content).then((result): URI => {
 						this.telemetryService.publicLog(TaskService.TemplateTelemetryEventName, {
 							templateId: selection.id,
@@ -2313,14 +2321,14 @@ MenuRegistry.addCommand({ id: 'workbench.action.tasks.configureDefaultTestTask',
 // MenuRegistry.addCommand( { id: 'workbench.action.tasks.clean', title: nls.localize('CleanAction.label', 'Run Clean Task'), category: tasksCategory });
 
 // Tasks Output channel. Register it before using it in Task Service.
-let outputChannelRegistry = <IOutputChannelRegistry>Registry.as(OutputExt.OutputChannels);
+let outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
 outputChannelRegistry.registerChannel(TaskService.OutputChannelId, TaskService.OutputChannelLabel);
 
 // Task Service
 registerSingleton(ITaskService, TaskService);
 
 // Register Quick Open
-const quickOpenRegistry = (<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen));
+const quickOpenRegistry = (Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen));
 const tasksPickerContextKey = 'inTasksPicker';
 
 quickOpenRegistry.registerQuickOpenHandler(
@@ -2337,7 +2345,7 @@ const actionBarRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Ac
 actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionContributor);
 
 // Status bar
-let statusbarRegistry = <IStatusbarRegistry>Registry.as(StatusbarExtensions.Statusbar);
+let statusbarRegistry = Registry.as<IStatusbarRegistry>(StatusbarExtensions.Statusbar);
 statusbarRegistry.registerStatusbarItem(new StatusbarItemDescriptor(BuildStatusBarItem, StatusbarAlignment.LEFT, 50 /* Medium Priority */));
 statusbarRegistry.registerStatusbarItem(new StatusbarItemDescriptor(TaskStatusBarItem, StatusbarAlignment.LEFT, 50 /* Medium Priority */));
 

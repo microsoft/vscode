@@ -13,8 +13,9 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeAction } from 'vs/editor/common/modes';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Action } from 'vs/base/common/actions';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { ScrollType } from 'vs/editor/common/editorCommon';
+import { canceled } from 'vs/base/common/errors';
 
 export class QuickFixContextMenu {
 
@@ -39,6 +40,12 @@ export class QuickFixContextMenu {
 						() => this._onDidExecuteCodeAction.fire(undefined));
 				});
 			});
+		}).then(actions => {
+			if (!this._editor.getDomNode()) {
+				// cancel when editor went off-dom
+				return TPromise.wrapError<any>(canceled());
+			}
+			return actions;
 		});
 
 		this._contextMenuService.showContextMenu({

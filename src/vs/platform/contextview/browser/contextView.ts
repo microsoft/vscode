@@ -5,7 +5,7 @@
 'use strict';
 
 import { IDisposable } from 'vs/base/common/lifecycle';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
 

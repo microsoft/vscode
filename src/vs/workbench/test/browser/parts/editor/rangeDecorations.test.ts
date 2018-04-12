@@ -10,7 +10,7 @@ import { TestEditorService, workbenchInstantiationService } from 'vs/workbench/t
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
-import WorkbenchEditorService = require('vs/workbench/services/editor/common/editorService');
+import * as WorkbenchEditorService from 'vs/workbench/services/editor/common/editorService';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';

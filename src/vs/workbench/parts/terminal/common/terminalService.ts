@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as errors from 'vs/base/common/errors';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -31,7 +31,7 @@ export abstract class TerminalService implements ITerminalService {
 	protected abstract _terminalInstances: ITerminalInstance[];
 
 	private _activeTabIndex: number;
-	private _onActiveTabChanged: Emitter<void>;
+	private readonly _onActiveTabChanged: Emitter<void>;
 
 	public get activeTabIndex(): number { return this._activeTabIndex; }
 	public get onActiveTabChanged(): Event<void> { return this._onActiveTabChanged.event; }

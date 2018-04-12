@@ -218,8 +218,14 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			}
 		}
 
-		const centeredRange = this._editor.getCenteredRangeInViewport();
-		const shouldRestoreCenteredRange = centeredRange && (groups.length !== this._lenses.length && this._editor.getScrollTop() !== 0);
+		const visibleRanges = this._editor.getVisibleRanges();
+		const visiblePosition = (visibleRanges.length > 0 ? visibleRanges[0].getStartPosition() : null);
+		let visiblePositionScrollDelta = 0;
+		if (visiblePosition) {
+			const visiblePositionScrollTop = this._editor.getTopForPosition(visiblePosition.lineNumber, visiblePosition.column);
+			visiblePositionScrollDelta = this._editor.getScrollTop() - visiblePositionScrollTop;
+		}
+
 		this._editor.changeDecorations((changeAccessor) => {
 			this._editor.changeViewZones((accessor) => {
 
@@ -259,8 +265,10 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 				helper.commit(changeAccessor);
 			});
 		});
-		if (shouldRestoreCenteredRange) {
-			this._editor.revealRangeInCenter(centeredRange, editorCommon.ScrollType.Immediate);
+
+		if (visiblePosition) {
+			const visiblePositionScrollTop = this._editor.getTopForPosition(visiblePosition.lineNumber, visiblePosition.column);
+			this._editor.setScrollTop(visiblePositionScrollTop + visiblePositionScrollDelta);
 		}
 	}
 

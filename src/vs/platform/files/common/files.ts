@@ -5,14 +5,13 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import paths = require('vs/base/common/paths');
+import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
-import glob = require('vs/base/common/glob');
+import * as glob from 'vs/base/common/glob';
 import { isLinux } from 'vs/base/common/platform';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import Event from 'vs/base/common/event';
-import { beginsWithIgnoreCase } from 'vs/base/common/strings';
-import { IProgress } from 'vs/platform/progress/common/progress';
+import { Event } from 'vs/base/common/event';
+import { startsWithIgnoreCase } from 'vs/base/common/strings';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
 import { isUndefinedOrNull } from 'vs/base/common/types';
@@ -121,12 +120,6 @@ export interface IFileService {
 	rename(resource: URI, newName: string): TPromise<IFileStat>;
 
 	/**
-	 * Creates a new empty file if the given path does not exist and otherwise
-	 * will set the mtime and atime of the file to the current date.
-	 */
-	touchFile(resource: URI): TPromise<IFileStat>;
-
-	/**
 	 * Deletes the provided file.  The optional useTrash parameter allows to
 	 * move the file to trash.
 	 */
@@ -148,11 +141,6 @@ export interface IFileService {
 	unwatchFileChanges(resource: URI): void;
 
 	/**
-	 * Configures the file service with the provided options.
-	 */
-	updateOptions(options: object): void;
-
-	/**
 	 * Returns the preferred encoding to use for a given resource.
 	 */
 	getEncoding(resource: URI, preferredEncoding?: string): string;
@@ -163,36 +151,28 @@ export interface IFileService {
 	dispose(): void;
 }
 
-
-export enum FileType {
-	File = 0,
-	Dir = 1,
-	Symlink = 2
+export enum FileType2 {
+	File = 1,
+	Directory = 2,
+	SymbolicLink = 4,
 }
+
 export interface IStat {
-	id: number | string;
 	mtime: number;
 	size: number;
-	type: FileType;
+	type: FileType2;
 }
 
 export interface IFileSystemProvider {
-
-	onDidChange?: Event<IFileChange[]>;
-
-	// more...
-	//
-	utimes(resource: URI, mtime: number, atime: number): TPromise<IStat>;
+	onDidChange: Event<IFileChange[]>;
 	stat(resource: URI): TPromise<IStat>;
-	read(resource: URI, offset: number, count: number, progress: IProgress<Uint8Array>): TPromise<number>;
-	write(resource: URI, content: Uint8Array): TPromise<void>;
-	move(from: URI, to: URI): TPromise<IStat>;
+	readFile(resource: URI): TPromise<Uint8Array>;
+	writeFile(resource: URI, content: Uint8Array): TPromise<void>;
+	rename(from: URI, to: URI): TPromise<IStat>;
 	mkdir(resource: URI): TPromise<IStat>;
-	readdir(resource: URI): TPromise<[URI, IStat][]>;
-	rmdir(resource: URI): TPromise<void>;
-	unlink(resource: URI): TPromise<void>;
+	readdir(resource: URI): TPromise<[string, IStat][]>;
+	delete(resource: URI): TPromise<void>;
 }
-
 
 export enum FileOperation {
 	CREATE,
@@ -348,29 +328,10 @@ export function isParent(path: string, candidate: string, ignoreCase?: boolean):
 	}
 
 	if (ignoreCase) {
-		return beginsWithIgnoreCase(path, candidate);
+		return startsWithIgnoreCase(path, candidate);
 	}
 
 	return path.indexOf(candidate) === 0;
-}
-
-
-
-export function indexOf(path: string, candidate: string, ignoreCase?: boolean): number {
-	if (candidate.length > path.length) {
-		return -1;
-	}
-
-	if (path === candidate) {
-		return 0;
-	}
-
-	if (ignoreCase) {
-		path = path.toLowerCase();
-		candidate = candidate.toLowerCase();
-	}
-
-	return path.indexOf(candidate);
 }
 
 export interface IBaseStat {
@@ -512,9 +473,10 @@ export interface IResolveContentOptions {
 	acceptTextOnly?: boolean;
 
 	/**
-	 * The optional etag parameter allows to return a 304 (Not Modified) if the etag matches
-	 * with the remote resource. It is the task of the caller to makes sure to handle this
-	 * error case from the promise.
+	 * The optional etag parameter allows to return early from resolving the resource if
+	 * the contents on disk match the etag. This prevents accumulated reading of resources
+	 * that have been read already with the same etag.
+	 * It is the task of the caller to makes sure to handle this error case from the promise.
 	 */
 	etag?: string;
 

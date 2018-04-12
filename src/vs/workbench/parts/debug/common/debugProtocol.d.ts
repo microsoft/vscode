@@ -82,6 +82,8 @@ declare module DebugProtocol {
 			description?: string;
 			/** The thread which was stopped. */
 			threadId?: number;
+			/** A value of true hints to the frontend that this event should not change the focus. */
+			preserveFocusHint?: boolean;
 			/** Additional information. E.g. if reason is 'exception', text contains the exception name. This string is shown in the UI. */
 			text?: string;
 			/** If allThreadsStopped is true, a debug adapter can announce that all threads have stopped.
@@ -125,7 +127,7 @@ declare module DebugProtocol {
 		// event: 'terminated';
 		body?: {
 			/** A debug adapter may set 'restart' to true (or to an arbitrary object) to request that the front end restarts the session.
-				The value is not interpreted by the client and passed unmodified as an attribute '__restart' to the launchRequest.
+				The value is not interpreted by the client and passed unmodified as an attribute '__restart' to the 'launch' and 'attach' requests.
 			*/
 			restart?: any;
 		};
@@ -295,6 +297,8 @@ declare module DebugProtocol {
 	export interface InitializeRequestArguments {
 		/** The ID of the (frontend) client using this adapter. */
 		clientID?: string;
+		/** The human readable name of the (frontend) client using this adapter. */
+		clientName?: string;
 		/** The ID of the debug adapter. */
 		adapterID: string;
 		/** The ISO-639 locale of the (frontend) client using this adapter, e.g. en-US or de-CH. */
@@ -345,10 +349,15 @@ declare module DebugProtocol {
 		arguments: LaunchRequestArguments;
 	}
 
-	/** Arguments for 'launch' request. */
+	/** Arguments for 'launch' request. Additional attributes are implementation specific. */
 	export interface LaunchRequestArguments {
 		/** If noDebug is true the launch request should launch the program without enabling debugging. */
 		noDebug?: boolean;
+		/** Optional data from the previous, restarted session.
+			The data is sent as the 'restart' attribute of the 'terminated' event.
+			The client should leave the data intact.
+		*/
+		__restart?: any;
 	}
 
 	/** Response to 'launch' request. This is just an acknowledgement, so no body field is required. */
@@ -361,10 +370,13 @@ declare module DebugProtocol {
 		arguments: AttachRequestArguments;
 	}
 
-	/** Arguments for 'attach' request.
-		The attach request has no standardized attributes.
-	*/
+	/** Arguments for 'attach' request. Additional attributes are implementation specific. */
 	export interface AttachRequestArguments {
+		/** Optional data from the previous, restarted session.
+			The data is sent as the 'restart' attribute of the 'terminated' event.
+			The client should leave the data intact.
+		*/
+		__restart?: any;
 	}
 
 	/** Response to 'attach' request. This is just an acknowledgement, so no body field is required. */
@@ -588,7 +600,7 @@ declare module DebugProtocol {
 
 	/** Arguments for 'stepBack' request. */
 	export interface StepBackArguments {
-		/** Exceute 'stepBack' for this thread. */
+		/** Execute 'stepBack' for this thread. */
 		threadId: number;
 	}
 
@@ -606,7 +618,7 @@ declare module DebugProtocol {
 
 	/** Arguments for 'reverseContinue' request. */
 	export interface ReverseContinueArguments {
-		/** Exceute 'reverseContinue' for this thread. */
+		/** Execute 'reverseContinue' for this thread. */
 		threadId: number;
 	}
 
@@ -839,6 +851,24 @@ declare module DebugProtocol {
 		};
 	}
 
+	/** Terminate thread request; value of command field is 'terminateThreads'.
+		The request terminates the threads with the given ids.
+	*/
+	export interface TerminateThreadsRequest extends Request {
+		// command: 'terminateThreads';
+		arguments: TerminateThreadsArguments;
+	}
+
+	/** Arguments for 'terminateThreads' request. */
+	export interface TerminateThreadsArguments {
+		/** Ids of threads to be terminated. */
+		threadIds?: number[];
+	}
+
+	/** Response to 'terminateThreads' request. This is just an acknowledgement, so no body field is required. */
+	export interface TerminateThreadsResponse extends Response {
+	}
+
 	/** Modules can be retrieved from the debug adapter with the ModulesRequest which can either return all modules or a range of modules to support paging. */
 	export interface ModulesRequest extends Request {
 		// command: 'modules';
@@ -921,6 +951,49 @@ declare module DebugProtocol {
 			presentationHint?: VariablePresentationHint;
 			/** If variablesReference is > 0, the evaluate result is structured and its children can be retrieved by passing variablesReference to the VariablesRequest. */
 			variablesReference: number;
+			/** The number of named child variables.
+				The client can use this optional information to present the variables in a paged UI and fetch them in chunks.
+			*/
+			namedVariables?: number;
+			/** The number of indexed child variables.
+				The client can use this optional information to present the variables in a paged UI and fetch them in chunks.
+			*/
+			indexedVariables?: number;
+		};
+	}
+
+	/** SetExpression request; value of command field is 'setExpression'.
+		Evaluates the given 'value' expression and assigns it to the 'expression' which must be a modifiable l-value.
+		The expressions have access to any variables and arguments that are in scope of the specified frame.
+	*/
+	export interface SetExpressionRequest extends Request {
+		// command: 'setExpression';
+		arguments: SetExpressionArguments;
+	}
+
+	/** Arguments for 'setExpression' request. */
+	export interface SetExpressionArguments {
+		/** The l-value expression to assign to. */
+		expression: string;
+		/** The value expression to assign to the l-value expression. */
+		value: string;
+		/** Evaluate the expressions in the scope of this stack frame. If not specified, the expressions are evaluated in the global scope. */
+		frameId?: number;
+		/** Specifies how the resulting value should be formatted. */
+		format?: ValueFormat;
+	}
+
+	/** Response to 'setExpression' request. */
+	export interface SetExpressionResponse extends Response {
+		body: {
+			/** The new value of the expression. */
+			value: string;
+			/** The optional type of the value. */
+			type?: string;
+			/** Properties of a value that can be used to determine how to render the result in the UI. */
+			presentationHint?: VariablePresentationHint;
+			/** If variablesReference is > 0, the value is structured and its children can be retrieved by passing variablesReference to the VariablesRequest. */
+			variablesReference?: number;
 			/** The number of named child variables.
 				The client can use this optional information to present the variables in a paged UI and fetch them in chunks.
 			*/
@@ -1043,7 +1116,7 @@ declare module DebugProtocol {
 
 	/** Information about the capabilities of a debug adapter. */
 	export interface Capabilities {
-		/** The debug adapter supports the configurationDoneRequest. */
+		/** The debug adapter supports the 'configurationDone' request. */
 		supportsConfigurationDoneRequest?: boolean;
 		/** The debug adapter supports function breakpoints. */
 		supportsFunctionBreakpoints?: boolean;
@@ -1055,31 +1128,31 @@ declare module DebugProtocol {
 		supportsEvaluateForHovers?: boolean;
 		/** Available filters or options for the setExceptionBreakpoints request. */
 		exceptionBreakpointFilters?: ExceptionBreakpointsFilter[];
-		/** The debug adapter supports stepping back via the stepBack and reverseContinue requests. */
+		/** The debug adapter supports stepping back via the 'stepBack' and 'reverseContinue' requests. */
 		supportsStepBack?: boolean;
 		/** The debug adapter supports setting a variable to a value. */
 		supportsSetVariable?: boolean;
 		/** The debug adapter supports restarting a frame. */
 		supportsRestartFrame?: boolean;
-		/** The debug adapter supports the gotoTargetsRequest. */
+		/** The debug adapter supports the 'gotoTargets' request. */
 		supportsGotoTargetsRequest?: boolean;
-		/** The debug adapter supports the stepInTargetsRequest. */
+		/** The debug adapter supports the 'stepInTargets' request. */
 		supportsStepInTargetsRequest?: boolean;
-		/** The debug adapter supports the completionsRequest. */
+		/** The debug adapter supports the 'completions' request. */
 		supportsCompletionsRequest?: boolean;
-		/** The debug adapter supports the modules request. */
+		/** The debug adapter supports the 'modules' request. */
 		supportsModulesRequest?: boolean;
 		/** The set of additional module information exposed by the debug adapter. */
 		additionalModuleColumns?: ColumnDescriptor[];
 		/** Checksum algorithms supported by the debug adapter. */
 		supportedChecksumAlgorithms?: ChecksumAlgorithm[];
-		/** The debug adapter supports the RestartRequest. In this case a client should not implement 'restart' by terminating and relaunching the adapter but by calling the RestartRequest. */
+		/** The debug adapter supports the 'restart' request. In this case a client should not implement 'restart' by terminating and relaunching the adapter but by calling the RestartRequest. */
 		supportsRestartRequest?: boolean;
 		/** The debug adapter supports 'exceptionOptions' on the setExceptionBreakpoints request. */
 		supportsExceptionOptions?: boolean;
 		/** The debug adapter supports a 'format' attribute on the stackTraceRequest, variablesRequest, and evaluateRequest. */
 		supportsValueFormattingOptions?: boolean;
-		/** The debug adapter supports the exceptionInfo request. */
+		/** The debug adapter supports the 'exceptionInfo' request. */
 		supportsExceptionInfoRequest?: boolean;
 		/** The debug adapter supports the 'terminateDebuggee' attribute on the 'disconnect' request. */
 		supportTerminateDebuggee?: boolean;
@@ -1089,6 +1162,10 @@ declare module DebugProtocol {
 		supportsLoadedSourcesRequest?: boolean;
 		/** The debug adapter supports logpoints by interpreting the 'logMessage' attribute of the SourceBreakpoint. */
 		supportsLogPoints?: boolean;
+		/** The debug adapter supports the 'terminateThreads' request. */
+		supportsTerminateThreadsRequest?: boolean;
+		/** The debug adapter supports the 'setExpression' request. */
+		supportsSetExpression?: boolean;
 	}
 
 	/** An ExceptionBreakpointsFilter is shown in the UI as an option for configuring how exceptions are dealt with. */

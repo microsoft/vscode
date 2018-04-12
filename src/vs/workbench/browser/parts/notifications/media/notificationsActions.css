@@ -24,21 +24,21 @@
 }
 
 .vs .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .expand-notification-action {
-	background-image: url('down.svg');
+	background-image: url('up.svg');
 }
 
 .vs-dark .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .expand-notification-action,
 .hc-black .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .expand-notification-action {
-	background-image: url('down-inverse.svg');
+	background-image: url('up-inverse.svg');
 }
 
 .vs .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .collapse-notification-action {
-	background-image: url('up.svg');
+	background-image: url('down.svg');
 }
 
 .vs-dark .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .collapse-notification-action,
 .hc-black .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .collapse-notification-action {
-	background-image: url('up-inverse.svg');
+	background-image: url('down-inverse.svg');
 }
 
 .vs .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .configure-notification-action {

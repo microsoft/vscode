@@ -17,7 +17,6 @@
 	"ConfigurationParser.missingRequiredProperty": "Erreur : la configuration de la tâche '{0}' a besoin de la propriété '{1}'. La configuration de la tâche sera ignorée.",
 	"ConfigurationParser.notCustom": "Erreur : la tâche n'est pas déclarée comme une tâche personnalisée. La configuration est ignorée.\n{0}\n",
 	"ConfigurationParser.noTaskName": "Erreur : un tâche doit fournir une propriété label. La tâche va être ignorée.\n{0}\n",
-	"taskConfiguration.shellArgs": "Avertissement : la tâche '{0}' est une commande shell et un de ses arguments peut avoir des espaces non échappés. Afin d’assurer un échappement correct des guillemets dans la ligne de commande, veuillez fusionner les arguments dans la commande.",
 	"taskConfiguration.noCommandOrDependsOn": "Erreur : La tâche '{0}' ne spécifie ni une commande, ni une propriété dependsOn. La tâche est ignorée. Sa définition est :\n{1}",
 	"taskConfiguration.noCommand": "Erreur : La tâche '{0}' ne définit aucune commande. La tâche va être ignorée. Sa définition est :\n{1}",
 	"TaskParse.noOsSpecificGlobalTasks": "Task Version 2.0.0 ne supporte pas les tâches spécifiques globales du système d'exploitation. Convertissez-les en une tâche en une commande spécifique du système d'exploitation. Les tâches concernées sont : {0}"

@@ -10,6 +10,8 @@ perf.mark('main:started');
 // Perf measurements
 global.perfStartTime = Date.now();
 
+Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
+
 //#region Add support for using node_modules.asar
 (function () {
 	const path = require('path');
@@ -18,10 +20,10 @@ global.perfStartTime = Date.now();
 	const NODE_MODULES_ASAR_PATH = NODE_MODULES_PATH + '.asar';
 
 	const originalResolveLookupPaths = Module._resolveLookupPaths;
-	Module._resolveLookupPaths = function (request, parent) {
-		const result = originalResolveLookupPaths(request, parent);
+	Module._resolveLookupPaths = function (request, parent, newReturn) {
+		const result = originalResolveLookupPaths(request, parent, newReturn);
 
-		const paths = result[1];
+		const paths = newReturn ? result : result[1];
 		for (let i = 0, len = paths.length; i < len; i++) {
 			if (paths[i] === NODE_MODULES_PATH) {
 				paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
@@ -278,14 +280,14 @@ function getNLSConfiguration(locale) {
 		return undefined;
 	}
 
-	let isCoreLangaguage = true;
+	let isCoreLanguage = true;
 	if (locale) {
-		isCoreLangaguage = ['de', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'tr', 'zh-cn', 'zh-tw'].some((language) => {
+		isCoreLanguage = ['de', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'zh-cn', 'zh-tw'].some((language) => {
 			return locale === language || locale.startsWith(language + '-');
 		});
 	}
 
-	if (isCoreLangaguage) {
+	if (isCoreLanguage) {
 		return Promise.resolve(resolveLocale(locale));
 	} else {
 		perf.mark('nlsGeneration:start');
@@ -366,7 +368,7 @@ function getNLSConfiguration(locale) {
 								}
 								target[module] = targetStrings;
 							}
-							writes.push(writeFile(path.join(coreLocation, bundle.replace(/\//g,'!') + '.nls.json'), JSON.stringify(target)));
+							writes.push(writeFile(path.join(coreLocation, bundle.replace(/\//g, '!') + '.nls.json'), JSON.stringify(target)));
 						}
 						writes.push(writeFile(translationsConfigFile, JSON.stringify(packConfig.translations)));
 						return Promise.all(writes);
@@ -445,7 +447,6 @@ global.getOpenUrls = function () {
 	app.removeListener('open-url', onOpenUrl);
 	return openUrls;
 };
-
 
 // use '<UserData>/CachedData'-directory to store
 // node/v8 cached data.

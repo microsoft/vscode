@@ -8,6 +8,7 @@
 	],
 	"neverShowAgain": "No volver a mostrar",
 	"searchMarketplace": "Buscar en Marketplace ",
+	"showLanguagePackExtensions": "Marketplace tiene extensiones que pueden facilitar la adaptación de VS Code a la configuración regional \"{0}\"",
 	"dynamicWorkspaceRecommendation": "Esta extensión podría interesarle porque muchos otros usuarios del repositorio {0} la utilizan.",
 	"exeBasedRecommendation": "Se recomienda esta extensión porque tiene instalado {0} . ",
 	"fileBasedRecommendation": "Esta extensión se recomienda basado en los archivos que abrió recientemente.",

@@ -18,6 +18,7 @@
 	"zoomReset": "Zoom zurücksetzen",
 	"appPerf": "Startleistung",
 	"reloadWindow": "Fenster erneut laden",
+	"reloadWindowWithExntesionsDisabled": "Fenster mit deaktivierten Erweiterungen erneut laden",
 	"switchWindowPlaceHolder": "Fenster auswählen, zu dem Sie wechseln möchten",
 	"current": "Aktuelles Fenster",
 	"close": "Fenster schließen",
@@ -48,5 +49,6 @@
 	"moveWindowTabToNewWindow": "Fensterregisterkarte in neues Fenster verschieben",
 	"mergeAllWindowTabs": "Alle Fenster zusammenführen",
 	"toggleWindowTabsBar": "Fensterregisterkarten-Leiste umschalten",
-	"about": "Informationen zu {0}"
+	"about": "Informationen zu {0}",
+	"inspect context keys": "Kontextschlüssel prüfen"
 }

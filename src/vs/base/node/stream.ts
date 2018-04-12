@@ -5,7 +5,7 @@
 
 'use strict';
 
-import fs = require('fs');
+import * as fs from 'fs';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 

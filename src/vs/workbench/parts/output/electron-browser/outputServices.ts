@@ -5,18 +5,17 @@
 
 import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
-import * as strings from 'vs/base/common/strings';
 import * as extfs from 'vs/base/node/extfs';
 import * as fs from 'fs';
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorOptions } from 'vs/workbench/common/editor';
-import { IOutputChannelIdentifier, IOutputChannel, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, OUTPUT_SCHEME, OUTPUT_MIME, MAX_OUTPUT_LENGTH, LOG_SCHEME, LOG_MIME } from 'vs/workbench/parts/output/common/output';
+import { IOutputChannelIdentifier, IOutputChannel, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, OUTPUT_SCHEME, OUTPUT_MIME, LOG_SCHEME, LOG_MIME, CONTEXT_ACTIVE_LOG_OUTPUT } from 'vs/workbench/parts/output/common/output';
 import { OutputPanel } from 'vs/workbench/parts/output/browser/outputPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -36,10 +35,9 @@ import { RotatingLogger } from 'spdlog';
 import { toLocalISOString } from 'vs/base/common/date';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILogService } from 'vs/platform/log/common/log';
-import { binarySearch } from 'vs/base/common/arrays';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Schemas } from 'vs/base/common/network';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
@@ -315,7 +313,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 
 class OutputFileListener extends Disposable {
 
-	private _onDidChange: Emitter<void> = new Emitter<void>();
+	private readonly _onDidChange: Emitter<void> = new Emitter<void>();
 	readonly onDidContentChange: Event<void> = this._onDidChange.event;
 
 	private watching: boolean = false;
@@ -423,7 +421,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	private activeChannel: IOutputChannel;
 	private readonly outputDir: string;
 
-	private _onActiveOutputChannel: Emitter<string> = new Emitter<string>();
+	private readonly _onActiveOutputChannel: Emitter<string> = new Emitter<string>();
 	readonly onActiveOutputChannel: Event<string> = this._onActiveOutputChannel.event;
 
 	private _outputPanel: OutputPanel;
@@ -436,9 +434,9 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IWindowService windowService: IWindowService,
-		@ITelemetryService private telemetryService: ITelemetryService,
 		@ILogService private logService: ILogService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
 	) {
 		super();
 		this.activeChannelIdInStorage = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, null);
@@ -510,21 +508,24 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		this.channels.set(channelId, channel);
 		if (this.activeChannelIdInStorage === channelId) {
 			this.activeChannel = channel;
-			this.onDidPanelOpen(this.panelService.getActivePanel());
+			this.onDidPanelOpen(this.panelService.getActivePanel())
+				.then(() => this._onActiveOutputChannel.fire(channelId));
 		}
 	}
 
-	private onDidPanelOpen(panel: IPanel): void {
+	private onDidPanelOpen(panel: IPanel): TPromise<void> {
 		if (panel && panel.getId() === OUTPUT_PANEL_ID) {
 			this._outputPanel = <OutputPanel>this.panelService.getActivePanel();
 			if (this.activeChannel) {
-				this.doShowChannel(this.activeChannel, true);
+				return this.doShowChannel(this.activeChannel, true);
 			}
 		}
+		return TPromise.as(null);
 	}
 
 	private onDidPanelClose(panel: IPanel): void {
 		if (this._outputPanel && panel.getId() === OUTPUT_PANEL_ID) {
+			CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(false);
 			this._outputPanel.clearInput();
 		}
 	}
@@ -565,25 +566,22 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		}
 
 		const uri = URI.from({ scheme: OUTPUT_SCHEME, path: id });
-		if (channelData && channelData.file) {
-			return this.instantiationService.createInstance(FileOutputChannel, channelData, uri);
-		}
-		try {
-			return this.instantiationService.createInstance(OutputChannelBackedByFile, { id, label: channelData ? channelData.label : '' }, this.outputDir, uri);
-		} catch (e) {
-			this.logService.error(e);
-			this.telemetryService.publicLog('output.used.bufferedChannel');
-			return this.instantiationService.createInstance(BufferredOutputChannel, { id, label: channelData ? channelData.label : '' });
-		}
+		return channelData && channelData.file
+			? this.instantiationService.createInstance(FileOutputChannel, channelData, uri)
+			: this.instantiationService.createInstance(OutputChannelBackedByFile, { id, label: channelData ? channelData.label : '' }, this.outputDir, uri);
 	}
 
-	private doShowChannel(channel: IOutputChannel, preserveFocus: boolean): void {
+	private doShowChannel(channel: IOutputChannel, preserveFocus: boolean): TPromise<void> {
 		if (this._outputPanel) {
-			this._outputPanel.setInput(this.createInput(channel), EditorOptions.create({ preserveFocus: preserveFocus }));
-			if (!preserveFocus) {
-				this._outputPanel.focus();
-			}
+			CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(channel instanceof FileOutputChannel);
+			return this._outputPanel.setInput(this.createInput(channel), EditorOptions.create({ preserveFocus: preserveFocus }))
+				.then(() => {
+					if (!preserveFocus) {
+						this._outputPanel.focus();
+					}
+				});
 		}
+		return TPromise.as(null);
 	}
 
 	private isChannelShown(channel: IOutputChannel): boolean {
@@ -637,146 +635,5 @@ export class LogContentProvider {
 			this.channels.set(id, channel);
 		}
 		return channel;
-	}
-}
-
-// Remove this channel when there are no issues using Output channel backed by file
-class BufferredOutputChannel extends Disposable implements OutputChannel {
-
-	readonly id: string;
-	readonly label: string;
-	readonly file: URI = null;
-	scrollLock: boolean = false;
-
-	protected _onDidAppendedContent: Emitter<void> = new Emitter<void>();
-	readonly onDidAppendedContent: Event<void> = this._onDidAppendedContent.event;
-
-	private _onDispose: Emitter<void> = new Emitter<void>();
-	readonly onDispose: Event<void> = this._onDispose.event;
-
-	private modelUpdater: RunOnceScheduler;
-	private model: ITextModel;
-	private readonly bufferredContent: BufferedContent;
-	private lastReadId: number = void 0;
-
-	constructor(
-		protected readonly outputChannelIdentifier: IOutputChannelIdentifier,
-		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService
-	) {
-		super();
-
-		this.id = outputChannelIdentifier.id;
-		this.label = outputChannelIdentifier.label;
-
-		this.modelUpdater = new RunOnceScheduler(() => this.updateModel(), 300);
-		this._register(toDisposable(() => this.modelUpdater.cancel()));
-
-		this.bufferredContent = new BufferedContent();
-		this._register(toDisposable(() => this.bufferredContent.clear()));
-	}
-
-	append(output: string) {
-		this.bufferredContent.append(output);
-		if (!this.modelUpdater.isScheduled()) {
-			this.modelUpdater.schedule();
-		}
-	}
-
-	clear(): void {
-		if (this.modelUpdater.isScheduled()) {
-			this.modelUpdater.cancel();
-		}
-		if (this.model) {
-			this.model.setValue('');
-		}
-		this.bufferredContent.clear();
-		this.lastReadId = void 0;
-	}
-
-	loadModel(): TPromise<ITextModel> {
-		const { value, id } = this.bufferredContent.getDelta(this.lastReadId);
-		if (this.model) {
-			this.model.setValue(value);
-		} else {
-			this.model = this.createModel(value);
-		}
-		this.lastReadId = id;
-		return TPromise.as(this.model);
-	}
-
-	private createModel(content: string): ITextModel {
-		const model = this.modelService.createModel(content, this.modeService.getOrCreateMode(OUTPUT_MIME), URI.from({ scheme: OUTPUT_SCHEME, path: this.id }));
-		const disposables: IDisposable[] = [];
-		disposables.push(model.onWillDispose(() => {
-			this.model = null;
-			dispose(disposables);
-		}));
-		return model;
-	}
-
-	private updateModel(): void {
-		if (this.model) {
-			const { value, id } = this.bufferredContent.getDelta(this.lastReadId);
-			this.lastReadId = id;
-			const lastLine = this.model.getLineCount();
-			const lastLineMaxColumn = this.model.getLineMaxColumn(lastLine);
-			this.model.applyEdits([EditOperation.insert(new Position(lastLine, lastLineMaxColumn), value)]);
-			this._onDidAppendedContent.fire();
-		}
-	}
-
-	dispose(): void {
-		this._onDispose.fire();
-		super.dispose();
-	}
-}
-
-class BufferedContent {
-
-	private data: string[] = [];
-	private dataIds: number[] = [];
-	private idPool = 0;
-	private length = 0;
-
-	public append(content: string): void {
-		this.data.push(content);
-		this.dataIds.push(++this.idPool);
-		this.length += content.length;
-		this.trim();
-	}
-
-	public clear(): void {
-		this.data.length = 0;
-		this.dataIds.length = 0;
-		this.length = 0;
-	}
-
-	private trim(): void {
-		if (this.length < MAX_OUTPUT_LENGTH * 1.2) {
-			return;
-		}
-
-		while (this.length > MAX_OUTPUT_LENGTH) {
-			this.dataIds.shift();
-			const removed = this.data.shift();
-			this.length -= removed.length;
-		}
-	}
-
-	public getDelta(previousId?: number): { value: string, id: number } {
-		let idx = -1;
-		if (previousId !== void 0) {
-			idx = binarySearch(this.dataIds, previousId, (a, b) => a - b);
-		}
-
-		const id = this.idPool;
-		if (idx >= 0) {
-			const value = strings.removeAnsiEscapeCodes(this.data.slice(idx + 1).join(''));
-			return { value, id };
-		} else {
-			const value = strings.removeAnsiEscapeCodes(this.data.join(''));
-			return { value, id };
-		}
 	}
 }

@@ -6,7 +6,7 @@
 
 import * as matchers from 'vs/workbench/parts/tasks/common/problemMatcher';
 
-import assert = require('assert');
+import * as assert from 'assert';
 import { ValidationState, IProblemReporter, ValidationStatus } from 'vs/base/common/parsers';
 
 class ProblemReporter implements IProblemReporter {
@@ -225,7 +225,6 @@ suite('ProblemPatternParser', () => {
 				{ regexp: 'test', file: 2, kind: 'file', message: 6 }
 			];
 			let parsed = parser.parse(problemPattern);
-			console.log(reporter.messages);
 			assert(reporter.isOK());
 			assert.deepEqual(parsed,
 				[{

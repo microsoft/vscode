@@ -10,6 +10,7 @@
 	"malicious": "Questa estensione è segnalata come problematica.",
 	"installingMarketPlaceExtension": "Installazione dell'estensione dal Marketplace...",
 	"uninstallingExtension": "Disinstallazione estensione in corso...",
+	"enableDependeciesConfirmation": "Se si abilita '{0}', verranno abilitate anche le relative dipendenze. Continuare?",
 	"enable": "Sì",
 	"doNotEnable": "No",
 	"disableDependeciesConfirmation": "Disabilitare solo '{0}' o anche le relative dipendenze?",

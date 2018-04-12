@@ -11,7 +11,7 @@ import { Action } from 'vs/base/common/actions';
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
 import { $ } from 'vs/base/browser/builder';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import * as dom from 'vs/base/browser/dom';
 import { ActionBar, IActionBarOptions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -133,7 +133,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 
 		const actionsContainer = $('.peekview-actions').appendTo(this._headElement);
 		const actionBarOptions = this._getActionBarOptions();
-		this._actionbarWidget = new ActionBar(actionsContainer, actionBarOptions);
+		this._actionbarWidget = new ActionBar(actionsContainer.getHTMLElement(), actionBarOptions);
 		this._disposables.push(this._actionbarWidget);
 
 		this._actionbarWidget.push(new Action('peekview.close', nls.localize('label.close', "Close"), 'close-peekview-action', true, () => {

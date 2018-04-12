@@ -7,7 +7,7 @@ import 'vs/css!./selectBoxCustom';
 
 import * as nls from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import Event, { Emitter, chain } from 'vs/base/common/event';
+import { Event, Emitter, chain } from 'vs/base/common/event';
 import { KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as dom from 'vs/base/browser/dom';
@@ -61,6 +61,9 @@ class SelectListRenderer implements IRenderer<ISelectOptionItem, ISelectListTemp
 		// pseudo-select disabled option
 		if (optionDisabled) {
 			dom.addClass((<HTMLElement>data.root), 'option-disabled');
+		} else {
+			// Make sure we do class removal from prior template rendering
+			dom.removeClass((<HTMLElement>data.root), 'option-disabled');
 		}
 	}
 
@@ -78,7 +81,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	private options: string[];
 	private selected: number;
 	private disabledOptionIndex: number;
-	private _onDidSelect: Emitter<ISelectData>;
+	private readonly _onDidSelect: Emitter<ISelectData>;
 	private toDispose: IDisposable[];
 	private styles: ISelectBoxStyles;
 	private listRenderer: SelectListRenderer;
@@ -96,7 +99,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		this._isVisible = false;
 
 		this.selectElement = document.createElement('select');
-		this.selectElement.className = 'select-box';
+		this.selectElement.className = 'monaco-select-box';
 
 		this._onDidSelect = new Emitter<ISelectData>();
 		this.styles = styles;
@@ -121,7 +124,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 
 		// SetUp ContextView container to hold select Dropdown
 		this.contextViewProvider = contextViewProvider;
-		this.selectDropDownContainer = dom.$('.select-box-dropdown-container');
+		this.selectDropDownContainer = dom.$('.monaco-select-box-dropdown-container');
 
 		// Setup list for drop-down select
 		this.createSelectList(this.selectDropDownContainer);
@@ -234,6 +237,10 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 
 		if (index >= 0 && index < this.options.length) {
 			this.selected = index;
+		} else if (index > this.options.length - 1) {
+			// Adjust index to end of list
+			// This could make client out of sync with the select
+			this.select(this.options.length - 1);
 		} else if (this.selected < 0) {
 			this.selected = 0;
 		}
@@ -270,33 +277,33 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		// Style non-native select mode
 
 		if (this.styles.listFocusBackground) {
-			content.push(`.monaco-shell .select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.focused { background-color: ${this.styles.listFocusBackground} !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.focused { background-color: ${this.styles.listFocusBackground} !important; }`);
 		}
 
 		if (this.styles.listFocusForeground) {
-			content.push(`.monaco-shell .select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.focused:not(:hover) { color: ${this.styles.listFocusForeground} !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.focused:not(:hover) { color: ${this.styles.listFocusForeground} !important; }`);
 		}
 
 		// Hover foreground - ignore for disabled options
 		if (this.styles.listHoverForeground) {
-			content.push(`.monaco-shell .select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:hover { color: ${this.styles.listHoverForeground} !important; }`);
-			content.push(`.monaco-shell .select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { background-color: ${this.styles.listActiveSelectionForeground} !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:hover { color: ${this.styles.listHoverForeground} !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { background-color: ${this.styles.listActiveSelectionForeground} !important; }`);
 		}
 
 		// Hover background - ignore for disabled options
 		if (this.styles.listHoverBackground) {
-			content.push(`.monaco-shell .select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:not(.option-disabled):not(.focused):hover { background-color: ${this.styles.listHoverBackground} !important; }`);
-			content.push(`.monaco-shell .select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { background-color: ${this.styles.selectBackground} !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:not(.option-disabled):not(.focused):hover { background-color: ${this.styles.listHoverBackground} !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { background-color: ${this.styles.selectBackground} !important; }`);
 		}
 
 		// Match quickOpen outline styles - ignore for disabled options
 		if (this.styles.listFocusOutline) {
-			content.push(`.monaco-shell .select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.focused { outline: 1.6px dotted ${this.styles.listFocusOutline} !important; outline-offset: -1.6px !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.focused { outline: 1.6px dotted ${this.styles.listFocusOutline} !important; outline-offset: -1.6px !important; }`);
 		}
 
 		if (this.styles.listHoverOutline) {
-			content.push(`.monaco-shell .select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:hover:not(.focused) { outline: 1.6px dashed ${this.styles.listHoverOutline} !important; outline-offset: -1.6px !important; }`);
-			content.push(`.monaco-shell .select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { outline: none !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:hover:not(.focused) { outline: 1.6px dashed ${this.styles.listHoverOutline} !important; outline-offset: -1.6px !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { outline: none !important; }`);
 		}
 
 		this.styleElement.innerHTML = content.join('\n');
@@ -378,9 +385,12 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	}
 
 	private renderSelectDropDown(container: HTMLElement): IDisposable {
-		dom.append(container, this.selectDropDownContainer);
+		container.appendChild(this.selectDropDownContainer);
+
 		this.layoutSelectDropDown();
-		return null;
+		return {
+			dispose: () => container.removeChild(this.selectDropDownContainer) // remove to take out the CSS rules we add
+		};
 	}
 
 	private layoutSelectDropDown() {

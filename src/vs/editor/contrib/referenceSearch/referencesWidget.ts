@@ -8,7 +8,7 @@ import 'vs/css!./media/referencesWidget';
 import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { getPathLabel } from 'vs/base/common/labels';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as strings from 'vs/base/common/strings';
@@ -35,7 +35,7 @@ import { FileReferences, OneReference, ReferencesModel } from './referencesModel
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { registerColor, activeContrastBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/styler';
+import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import URI from 'vs/base/common/uri';
@@ -84,28 +84,25 @@ class DecorationsManager implements IDisposable {
 	private _addDecorations(reference: FileReferences): void {
 		this._callOnModelChange.push(this._editor.getModel().onDidChangeDecorations((event) => this._onDecorationChanged()));
 
-		this._editor.changeDecorations(accessor => {
+		const newDecorations: IModelDeltaDecoration[] = [];
+		const newDecorationsActualIndex: number[] = [];
 
-			const newDecorations: IModelDeltaDecoration[] = [];
-			const newDecorationsActualIndex: number[] = [];
-
-			for (let i = 0, len = reference.children.length; i < len; i++) {
-				let oneReference = reference.children[i];
-				if (this._decorationIgnoreSet.has(oneReference.id)) {
-					continue;
-				}
-				newDecorations.push({
-					range: oneReference.range,
-					options: DecorationsManager.DecorationOptions
-				});
-				newDecorationsActualIndex.push(i);
+		for (let i = 0, len = reference.children.length; i < len; i++) {
+			let oneReference = reference.children[i];
+			if (this._decorationIgnoreSet.has(oneReference.id)) {
+				continue;
 			}
+			newDecorations.push({
+				range: oneReference.range,
+				options: DecorationsManager.DecorationOptions
+			});
+			newDecorationsActualIndex.push(i);
+		}
 
-			const decorations = accessor.deltaDecorations([], newDecorations);
-			for (let i = 0; i < decorations.length; i++) {
-				this._decorations.set(decorations[i], reference.children[newDecorationsActualIndex[i]]);
-			}
-		});
+		const decorations = this._editor.deltaDecorations([], newDecorations);
+		for (let i = 0; i < decorations.length; i++) {
+			this._decorations.set(decorations[i], reference.children[newDecorationsActualIndex[i]]);
+		}
 	}
 
 	private _onDecorationChanged(): void {
@@ -143,21 +140,19 @@ class DecorationsManager implements IDisposable {
 			}
 		});
 
-		this._editor.changeDecorations((accessor) => {
-			for (let i = 0, len = toRemove.length; i < len; i++) {
-				this._decorations.delete(toRemove[i]);
-			}
-			accessor.deltaDecorations(toRemove, []);
-		});
+		for (let i = 0, len = toRemove.length; i < len; i++) {
+			this._decorations.delete(toRemove[i]);
+		}
+		this._editor.deltaDecorations(toRemove, []);
 	}
 
 	public removeDecorations(): void {
-		this._editor.changeDecorations(accessor => {
-			this._decorations.forEach((value, key) => {
-				accessor.removeDecoration(key);
-			});
-			this._decorations.clear();
+		let toRemove: string[] = [];
+		this._decorations.forEach((value, key) => {
+			toRemove.push(key);
 		});
+		this._editor.deltaDecorations(toRemove, []);
+		this._decorations.clear();
 	}
 }
 
@@ -536,14 +531,14 @@ export class ReferenceWidget extends PeekViewWidget {
 		public layoutData: LayoutData,
 		private _textModelResolverService: ITextModelService,
 		private _contextService: IWorkspaceContextService,
-		private _themeService: IThemeService,
+		themeService: IThemeService,
 		private _instantiationService: IInstantiationService,
 		private _environmentService: IEnvironmentService
 	) {
 		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true });
 
-		this._applyTheme(_themeService.getTheme());
-		this._callOnDispose.push(_themeService.onThemeChange(this._applyTheme.bind(this)));
+		this._applyTheme(themeService.getTheme());
+		this._callOnDispose.push(themeService.onThemeChange(this._applyTheme.bind(this)));
 		this.create();
 	}
 
@@ -575,7 +570,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	}
 
 	focus(): void {
-		this._tree.DOMFocus();
+		this._tree.domFocus();
 	}
 
 	protected _onTitleClick(e: MouseEvent): void {
@@ -651,7 +646,6 @@ export class ReferenceWidget extends PeekViewWidget {
 			};
 
 			this._tree = this._instantiationService.createInstance(WorkbenchTree, div.getHTMLElement(), config, options);
-			this._callOnDispose.push(attachListStyler(this._tree, this._themeService));
 
 			ctxReferenceWidgetSearchTreeFocused.bindTo(this._tree.contextKeyService);
 
@@ -659,7 +653,7 @@ export class ReferenceWidget extends PeekViewWidget {
 			var onEvent = (element: any, kind: 'show' | 'goto' | 'side') => {
 				if (element instanceof OneReference) {
 					if (kind === 'show') {
-						this._revealReference(element);
+						this._revealReference(element, false);
 					}
 					this._onDidSelectReference.fire({ element, kind, source: 'tree' });
 				}
@@ -711,7 +705,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	}
 
 	public setSelection(selection: OneReference): TPromise<any> {
-		return this._revealReference(selection).then(() => {
+		return this._revealReference(selection, true).then(() => {
 
 			// show in tree
 			this._tree.setSelection([selection]);
@@ -781,7 +775,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		return undefined;
 	}
 
-	private _revealReference(reference: OneReference): TPromise<void> {
+	private async _revealReference(reference: OneReference, revealParent: boolean): TPromise<void> {
 
 		// Update widget header
 		if (reference.uri.scheme !== Schemas.inMemory) {
@@ -791,6 +785,10 @@ export class ReferenceWidget extends PeekViewWidget {
 		}
 
 		const promise = this._textModelResolverService.createModelReference(reference.uri);
+
+		if (revealParent) {
+			await this._tree.reveal(reference.parent);
+		}
 
 		return TPromise.join([promise, this._tree.reveal(reference)]).then(values => {
 			const ref = values[0];

@@ -23,7 +23,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { generateRandomPipeName, Protocol } from 'vs/base/parts/ipc/node/ipc.net';
 import { createServer, Server, Socket } from 'net';
-import Event, { Emitter, debounceEvent, mapEvent, anyEvent, fromNodeEventEmitter } from 'vs/base/common/event';
+import { Event, Emitter, debounceEvent, mapEvent, anyEvent, fromNodeEventEmitter } from 'vs/base/common/event';
 import { IInitData, IWorkspaceData, IConfigurationInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
@@ -36,11 +36,10 @@ import { IRemoteConsoleLog, log, parse } from 'vs/base/node/console';
 import { getScopes } from 'vs/platform/configuration/common/configurationRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 
 export class ExtensionHostProcessWorker {
 
-	private _onCrashed: Emitter<[number, string]> = new Emitter<[number, string]>();
+	private readonly _onCrashed: Emitter<[number, string]> = new Emitter<[number, string]>();
 	public readonly onCrashed: Event<[number, string]> = this._onCrashed.event;
 
 	private readonly _toDispose: IDisposable[];
@@ -73,7 +72,6 @@ export class ExtensionHostProcessWorker {
 		@IWorkspaceConfigurationService private readonly _configurationService: IWorkspaceConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ICrashReporterService private readonly _crashReporterService: ICrashReporterService,
-		@IChoiceService private readonly _choiceService: IChoiceService,
 		@ILogService private readonly _logService: ILogService
 	) {
 		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
@@ -143,7 +141,6 @@ export class ExtensionHostProcessWorker {
 						AMD_ENTRYPOINT: 'vs/workbench/node/extensionHostProcess',
 						PIPE_LOGGING: 'true',
 						VERBOSE_LOGGING: true,
-						VSCODE_WINDOW_ID: String(this._windowService.getCurrentWindowId()),
 						VSCODE_IPC_HOOK_EXTHOST: pipeName,
 						VSCODE_HANDLES_UNCAUGHT_ERRORS: true,
 						VSCODE_LOG_STACK: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || product.quality !== 'stable' || this._environmentService.verbose)
@@ -238,11 +235,12 @@ export class ExtensionHostProcessWorker {
 							? nls.localize('extensionHostProcess.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.")
 							: nls.localize('extensionHostProcess.startupFail', "Extension host did not start in 10 seconds, that might be a problem.");
 
-						this._choiceService.choose(Severity.Warning, msg, [nls.localize('reloadWindow', "Reload Window")]).then(choice => {
-							if (choice === 0) {
-								this._windowService.reloadWindow();
-							}
-						});
+						this._notificationService.prompt(Severity.Warning, msg,
+							[{
+								label: nls.localize('reloadWindow', "Reload Window"),
+								run: () => this._windowService.reloadWindow()
+							}]
+						);
 					}, 10000);
 				}
 
@@ -372,7 +370,6 @@ export class ExtensionHostProcessWorker {
 					appRoot: this._environmentService.appRoot,
 					appSettingsHome: this._environmentService.appSettingsHome,
 					disableExtensions: this._environmentService.disableExtensions,
-					userExtensionsHome: this._environmentService.extensionsPath,
 					extensionDevelopmentPath: this._environmentService.extensionDevelopmentPath,
 					extensionTestsPath: this._environmentService.extensionTestsPath,
 					// globally disable proposed api when built and not insiders developing extensions
@@ -384,10 +381,9 @@ export class ExtensionHostProcessWorker {
 				// Send configurations scopes only in development mode.
 				configuration: !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment ? { ...configurationData, configurationScopes: getScopes() } : configurationData,
 				telemetryInfo,
-				args: this._environmentService.args,
-				execPath: this._environmentService.execPath,
 				windowId: this._windowService.getCurrentWindowId(),
-				logLevel: this._logService.getLevel()
+				logLevel: this._logService.getLevel(),
+				logsPath: this._environmentService.logsPath
 			};
 			return r;
 		});

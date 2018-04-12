@@ -82,12 +82,6 @@ export function readlink(path: string): TPromise<string> {
 	return nfcall<string>(fs.readlink, path);
 }
 
-export function touch(path: string): TPromise<void> {
-	const now = Date.now() / 1000; // the value should be a Unix timestamp in seconds
-
-	return nfcall(fs.utimes, path, now, now);
-}
-
 export function truncate(path: string, len: number): TPromise<void> {
 	return nfcall(fs.truncate, path, len);
 }
@@ -195,4 +189,8 @@ export function whenDeleted(path: string): TPromise<void> {
 			}
 		}, 1000);
 	});
+}
+
+export function copy(source: string, target: string): TPromise<void> {
+	return nfcall(extfs.copy, source, target);
 }

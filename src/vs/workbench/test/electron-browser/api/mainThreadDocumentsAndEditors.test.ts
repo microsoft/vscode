@@ -17,7 +17,7 @@ import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta } from 'vs/w
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -90,6 +90,21 @@ suite('MainThreadDocumentsAndEditors', () => {
 
 		const model = modelService.createModel(hugeModelString, null, null);
 		assert.ok(model.isTooLargeForHavingARichMode());
+
+		assert.equal(deltas.length, 1);
+		const [delta] = deltas;
+		assert.equal(delta.newActiveEditor, null);
+		assert.equal(delta.addedDocuments, undefined);
+		assert.equal(delta.removedDocuments, undefined);
+		assert.equal(delta.addedEditors, undefined);
+		assert.equal(delta.removedEditors, undefined);
+	});
+
+	test('ignore simple widget model', function () {
+		this.timeout(1000 * 60); // increase timeout for this one test
+
+		const model = modelService.createModel('test', null, null, true);
+		assert.ok(model.isForSimpleWidget);
 
 		assert.equal(deltas.length, 1);
 		const [delta] = deltas;

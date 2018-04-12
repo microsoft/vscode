@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/output';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action, IAction } from 'vs/base/common/actions';
-import { Builder } from 'vs/base/browser/builder';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -19,7 +18,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT } from 'vs/workbench/parts/output/common/output';
-import { SwitchOutputAction, SwitchOutputActionItem, ClearOutputAction, ToggleOutputScrollLockAction } from 'vs/workbench/parts/output/browser/outputActions';
+import { SwitchOutputAction, SwitchOutputActionItem, ClearOutputAction, ToggleOutputScrollLockAction, OpenLogOutputFile } from 'vs/workbench/parts/output/browser/outputActions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -55,7 +54,8 @@ export class OutputPanel extends AbstractTextResourceEditor {
 			this.actions = [
 				this.instantiationService.createInstance(SwitchOutputAction),
 				this.instantiationService.createInstance(ClearOutputAction, ClearOutputAction.ID, ClearOutputAction.LABEL),
-				this.instantiationService.createInstance(ToggleOutputScrollLockAction, ToggleOutputScrollLockAction.ID, ToggleOutputScrollLockAction.LABEL)
+				this.instantiationService.createInstance(ToggleOutputScrollLockAction, ToggleOutputScrollLockAction.ID, ToggleOutputScrollLockAction.LABEL),
+				this.instantiationService.createInstance(OpenLogOutputFile)
 			];
 
 			this.actions.forEach(a => {
@@ -120,9 +120,9 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		super.clearInput();
 	}
 
-	protected createEditor(parent: Builder): void {
+	protected createEditor(parent: HTMLElement): void {
 		// First create the scoped instantation service and only then construct the editor using the scoped service
-		const scopedContextKeyService = this.contextKeyService.createScoped(parent.getHTMLElement());
+		const scopedContextKeyService = this.contextKeyService.createScoped(parent);
 		this.toUnbind.push(scopedContextKeyService);
 		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
 		super.createEditor(parent);

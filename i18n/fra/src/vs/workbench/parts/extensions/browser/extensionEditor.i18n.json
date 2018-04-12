@@ -46,6 +46,8 @@
 	"defaultLight": "Défaut pour le thème clair",
 	"defaultHC": "Défaut pour le thème de contraste élevé",
 	"JSON Validation": "Validation JSON ({0})",
+	"fileMatch": "Correspondance de fichier",
+	"schema": "Schéma",
 	"commands": "Commandes ({0})",
 	"command name": "Nom",
 	"keyboard shortcuts": "Raccourcis clavier",

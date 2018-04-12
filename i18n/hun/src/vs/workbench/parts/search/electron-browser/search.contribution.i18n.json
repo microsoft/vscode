@@ -26,5 +26,5 @@
 	"search.followSymlinks": "Meghatározza, hogy keresés során követve legyenek-e a szimbolikus linkek.",
 	"search.smartCase": "Figyelmen kívül hagyja a kis- és nagybetűket, ha a minta csak kisbetűkből áll, ellenkező esetben kis- és nagybetűérzékenyen keres",
 	"search.globalFindClipboard": "Meghatározza, hogy a keresőmodul olvassa és módosítsa-e a megosztott keresési vágólapot macOS-en.",
-	"search.location": "Meghatározza, hogy a keresés az oldalsávon jelenik meg vagy egy panelként a panelterületen, mely utóbbi esetén több hely van vízszintesen."
+	"search.location": "Előzetes funkció: meghatározza, hogy a keresés az oldalsávon jelenik meg vagy egy panelként a panelterületen, mely utóbbi esetén több hely van vízszintesen. A következő kiadásban a panel megjelenése optimalizálva lesz a vízszintes megjelenítéshez, és a funkció nem lesz előzetes."
 }

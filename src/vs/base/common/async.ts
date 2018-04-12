@@ -9,7 +9,7 @@ import * as errors from 'vs/base/common/errors';
 import { Promise, TPromise, ValueCallback, ErrorCallback, ProgressCallback } from 'vs/base/common/winjs.base';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 
 export function isThenable<T>(obj: any): obj is Thenable<T> {
@@ -29,10 +29,13 @@ export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | TP
 	return new TPromise<T>((resolve, reject, progress) => {
 		let item = callback(source.token);
 		if (item instanceof TPromise) {
+			always(item, () => source.dispose());
 			item.then(resolve, reject, progress);
 		} else if (isThenable<T>(item)) {
+			always(item, () => source.dispose());
 			item.then(resolve, reject);
 		} else {
+			source.dispose();
 			resolve(item);
 		}
 	}, () => {
@@ -320,6 +323,10 @@ export function timeout(n: number): Promise<void> {
 	return new Promise(resolve => setTimeout(resolve, n));
 }
 
+function isWinJSPromise(candidate: any): candidate is TPromise {
+	return TPromise.is(candidate) && typeof (<TPromise>candidate).done === 'function';
+}
+
 /**
  * Returns a new promise that joins the provided promise. Upon completion of
  * the provided promise the provided function will always be called. This
@@ -327,28 +334,37 @@ export function timeout(n: number): Promise<void> {
  * @param promise a promise
  * @param f a function that will be call in the success and error case.
  */
-export function always<T>(promise: TPromise<T>, f: Function): TPromise<T> {
-	return new TPromise<T>((c, e, p) => {
-		promise.done((result) => {
-			try {
-				f(result);
-			} catch (e1) {
-				errors.onUnexpectedError(e1);
-			}
-			c(result);
-		}, (err) => {
-			try {
-				f(err);
-			} catch (e1) {
-				errors.onUnexpectedError(e1);
-			}
-			e(err);
-		}, (progress) => {
-			p(progress);
+export function always<T>(thenable: TPromise<T>, f: Function): TPromise<T>;
+export function always<T>(promise: Thenable<T>, f: Function): Thenable<T>;
+export function always<T>(winjsPromiseOrThenable: Thenable<T> | TPromise<T>, f: Function): TPromise<T> | Thenable<T> {
+	if (isWinJSPromise(winjsPromiseOrThenable)) {
+		return new TPromise<T>((c, e, p) => {
+			winjsPromiseOrThenable.done((result) => {
+				try {
+					f(result);
+				} catch (e1) {
+					errors.onUnexpectedError(e1);
+				}
+				c(result);
+			}, (err) => {
+				try {
+					f(err);
+				} catch (e1) {
+					errors.onUnexpectedError(e1);
+				}
+				e(err);
+			}, (progress) => {
+				p(progress);
+			});
+		}, () => {
+			winjsPromiseOrThenable.cancel();
 		});
-	}, () => {
-		promise.cancel();
-	});
+
+	} else {
+		// simple
+		winjsPromiseOrThenable.then(_ => f(), _ => f());
+		return winjsPromiseOrThenable;
+	}
 }
 
 /**
@@ -424,7 +440,7 @@ export class Limiter<T> {
 	private runningPromises: number;
 	private maxDegreeOfParalellism: number;
 	private outstandingPromises: ILimitedTaskFactory[];
-	private _onFinished: Emitter<void>;
+	private readonly _onFinished: Emitter<void>;
 
 	constructor(maxDegreeOfParalellism: number) {
 		this.maxDegreeOfParalellism = maxDegreeOfParalellism;

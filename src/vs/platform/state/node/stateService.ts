@@ -92,7 +92,7 @@ export class StateService implements IStateService {
 
 	private fileStorage: FileStorage;
 
-	constructor( @IEnvironmentService environmentService: IEnvironmentService, @ILogService logService: ILogService) {
+	constructor(@IEnvironmentService environmentService: IEnvironmentService, @ILogService logService: ILogService) {
 		this.fileStorage = new FileStorage(path.join(environmentService.userDataPath, 'storage.json'), error => logService.error(error));
 	}
 

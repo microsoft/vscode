@@ -85,7 +85,7 @@ export class ConfigurationModel implements IConfigurationModel {
 				if (override) {
 					this.mergeContents(override.contents, otherOverride.contents);
 				} else {
-					overrides.push(otherOverride);
+					overrides.push(objects.deepClone(otherOverride));
 				}
 			}
 			for (const key of other.keys) {
@@ -286,7 +286,8 @@ export class Configuration {
 		private _workspaceConfiguration: ConfigurationModel = new ConfigurationModel(),
 		private _folderConfigurations: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>(),
 		private _memoryConfiguration: ConfigurationModel = new ConfigurationModel(),
-		private _memoryConfigurationByResource: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>()) {
+		private _memoryConfigurationByResource: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>(),
+		private _freeze: boolean = true) {
 	}
 
 	getValue(section: string, overrides: IConfigurationOverrides, workspace: Workspace): any {
@@ -421,7 +422,10 @@ export class Configuration {
 
 	private getWorkspaceConsolidatedConfiguration(): ConfigurationModel {
 		if (!this._workspaceConsolidatedConfiguration) {
-			this._workspaceConsolidatedConfiguration = this._defaultConfiguration.merge(this._userConfiguration).merge(this._workspaceConfiguration).merge(this._memoryConfiguration).freeze();
+			this._workspaceConsolidatedConfiguration = this._defaultConfiguration.merge(this._userConfiguration, this._workspaceConfiguration, this._memoryConfiguration);
+			if (this._freeze) {
+				this._workspaceConfiguration = this._workspaceConfiguration.freeze();
+			}
 		}
 		return this._workspaceConsolidatedConfiguration;
 	}
@@ -432,7 +436,10 @@ export class Configuration {
 			const workspaceConsolidateConfiguration = this.getWorkspaceConsolidatedConfiguration();
 			const folderConfiguration = this._folderConfigurations.get(folder);
 			if (folderConfiguration) {
-				folderConsolidatedConfiguration = workspaceConsolidateConfiguration.merge(folderConfiguration).freeze();
+				folderConsolidatedConfiguration = workspaceConsolidateConfiguration.merge(folderConfiguration);
+				if (this._freeze) {
+					folderConsolidatedConfiguration = folderConsolidatedConfiguration.freeze();
+				}
 				this._foldersConsolidatedConfigurations.set(folder, folderConsolidatedConfiguration);
 			} else {
 				folderConsolidatedConfiguration = workspaceConsolidateConfiguration;
@@ -492,21 +499,6 @@ export class Configuration {
 			addKeys(this.folders.get(resource).keys);
 		}
 		return all;
-	}
-
-	public static parse(data: IConfigurationData): Configuration {
-		const defaultConfiguration = Configuration.parseConfigurationModel(data.defaults);
-		const userConfiguration = Configuration.parseConfigurationModel(data.user);
-		const workspaceConfiguration = Configuration.parseConfigurationModel(data.workspace);
-		const folders: StrictResourceMap<ConfigurationModel> = Object.keys(data.folders).reduce((result, key) => {
-			result.set(URI.parse(key), Configuration.parseConfigurationModel(data.folders[key]));
-			return result;
-		}, new StrictResourceMap<ConfigurationModel>());
-		return new Configuration(defaultConfiguration, userConfiguration, workspaceConfiguration, folders);
-	}
-
-	private static parseConfigurationModel(model: IConfigurationModel): ConfigurationModel {
-		return new ConfigurationModel(model.contents, model.keys, model.overrides).freeze();
 	}
 }
 

@@ -11,15 +11,15 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IWindowService, IWindowsService, MenuBarVisibility } from 'vs/platform/windows/common/windows';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
-import errors = require('vs/base/common/errors');
+import * as errors from 'vs/base/common/errors';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import paths = require('vs/base/common/paths');
+import * as paths from 'vs/base/common/paths';
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import { IQuickOpenService, IFilePickOpenEntry, ISeparator, IPickOpenAction, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
 import * as browser from 'vs/base/browser/browser';
@@ -867,6 +867,24 @@ export class OpenIssueReporterAction extends Action {
 
 	public run(): TPromise<boolean> {
 		return this.issueService.openReporter()
+			.then(() => true);
+	}
+}
+
+export class OpenProcessExplorer extends Action {
+	public static readonly ID = 'workbench.action.openProcessExplorer';
+	public static readonly LABEL = nls.localize('openProcessExplorer', "Open Process Explorer");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchIssueService private issueService: IWorkbenchIssueService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<boolean> {
+		return this.issueService.openProcessExplorer()
 			.then(() => true);
 	}
 }

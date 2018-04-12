@@ -116,7 +116,7 @@ class SimpleWorkerProtocol {
 		} catch (e) {
 			// nothing
 		}
-		if (!message.vsWorker) {
+		if (!message || !message.vsWorker) {
 			return;
 		}
 		if (this._workerId !== -1 && message.vsWorker !== this._workerId) {
@@ -224,10 +224,9 @@ export class SimpleWorkerClient<T> extends Disposable {
 
 		// Gather loader configuration
 		let loaderConfiguration: any = null;
-		let globalRequire = (<any>self).require;
-		if (typeof globalRequire.getConfig === 'function') {
+		if (typeof (<any>self).require !== 'undefined' && typeof (<any>self).require.getConfig === 'function') {
 			// Get the configuration from the Monaco AMD Loader
-			loaderConfiguration = globalRequire.getConfig();
+			loaderConfiguration = (<any>self).require.getConfig();
 		} else if (typeof (<any>self).requirejs !== 'undefined') {
 			// Get the configuration from requirejs
 			loaderConfiguration = (<any>self).requirejs.s.contexts._.config;
@@ -298,10 +297,11 @@ export interface IRequestHandler {
  */
 export class SimpleWorkerServer {
 
-	private _protocol: SimpleWorkerProtocol;
 	private _requestHandler: IRequestHandler;
+	private _protocol: SimpleWorkerProtocol;
 
-	constructor(postSerializedMessage: (msg: string) => void) {
+	constructor(postSerializedMessage: (msg: string) => void, requestHandler: IRequestHandler) {
+		this._requestHandler = requestHandler;
 		this._protocol = new SimpleWorkerProtocol({
 			sendMessage: (msg: string): void => {
 				postSerializedMessage(msg);
@@ -332,6 +332,17 @@ export class SimpleWorkerServer {
 
 	private initialize(workerId: number, moduleId: string, loaderConfig: any): TPromise<any> {
 		this._protocol.setWorkerId(workerId);
+
+		if (this._requestHandler) {
+			// static request handler
+			let methods: string[] = [];
+			for (let prop in this._requestHandler) {
+				if (typeof this._requestHandler[prop] === 'function') {
+					methods.push(prop);
+				}
+			}
+			return TPromise.as(methods);
+		}
 
 		if (loaderConfig) {
 			// Remove 'baseUrl', handling it is beyond scope for now
@@ -379,5 +390,5 @@ export class SimpleWorkerServer {
  * Called on the worker side
  */
 export function create(postMessage: (msg: string) => void): SimpleWorkerServer {
-	return new SimpleWorkerServer(postMessage);
+	return new SimpleWorkerServer(postMessage, null);
 }

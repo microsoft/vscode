@@ -5,14 +5,14 @@
 
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
-import errors = require('vs/base/common/errors');
-import types = require('vs/base/common/types');
+import * as errors from 'vs/base/common/errors';
+import * as types from 'vs/base/common/types';
 import { TPromise } from 'vs/base/common/winjs.base';
-import arrays = require('vs/base/common/arrays');
-import objects = require('vs/base/common/objects');
-import DOM = require('vs/base/browser/dom');
+import * as arrays from 'vs/base/common/arrays';
+import * as objects from 'vs/base/common/objects';
+import * as DOM from 'vs/base/browser/dom';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, Action } from 'vs/base/common/actions';
 import { AutoSaveConfiguration, IFileService } from 'vs/platform/files/common/files';
@@ -131,7 +131,7 @@ export class ElectronWindow extends Themable {
 		});
 
 		// Support runAction event
-		ipc.on('vscode:runAction', (_event: any, request: IRunActionInWindowRequest) => {
+		ipc.on('vscode:runAction', (event: any, request: IRunActionInWindowRequest) => {
 			const args: any[] = [];
 
 			// If we run an action from the touchbar, we fill in the currently active resource
@@ -162,7 +162,7 @@ export class ElectronWindow extends Themable {
 		});
 
 		// Support resolve keybindings event
-		ipc.on('vscode:resolveKeybindings', (_event: any, rawActionIds: string) => {
+		ipc.on('vscode:resolveKeybindings', (event: any, rawActionIds: string) => {
 			let actionIds: string[] = [];
 			try {
 				actionIds = JSON.parse(rawActionIds);
@@ -178,7 +178,7 @@ export class ElectronWindow extends Themable {
 			}, () => errors.onUnexpectedError);
 		});
 
-		ipc.on('vscode:reportError', (_event: any, error: string) => {
+		ipc.on('vscode:reportError', (event: any, error: string) => {
 			if (error) {
 				const errorParsed = JSON.parse(error);
 				errorParsed.mainProcess = true;
@@ -187,13 +187,13 @@ export class ElectronWindow extends Themable {
 		});
 
 		// Support openFiles event for existing and new files
-		ipc.on('vscode:openFiles', (_event: any, request: IOpenFileRequest) => this.onOpenFiles(request));
+		ipc.on('vscode:openFiles', (event: any, request: IOpenFileRequest) => this.onOpenFiles(request));
 
 		// Support addFolders event if we have a workspace opened
-		ipc.on('vscode:addFolders', (_event: any, request: IAddFoldersRequest) => this.onAddFoldersRequest(request));
+		ipc.on('vscode:addFolders', (event: any, request: IAddFoldersRequest) => this.onAddFoldersRequest(request));
 
 		// Message support
-		ipc.on('vscode:showInfoMessage', (_event: any, message: string) => {
+		ipc.on('vscode:showInfoMessage', (event: any, message: string) => {
 			this.notificationService.info(message);
 		});
 
@@ -240,7 +240,7 @@ export class ElectronWindow extends Themable {
 		});
 
 		// keyboard layout changed event
-		ipc.on('vscode:accessibilitySupportChanged', (_event: any, accessibilitySupportEnabled: boolean) => {
+		ipc.on('vscode:accessibilitySupportChanged', (event: any, accessibilitySupportEnabled: boolean) => {
 			browser.setAccessibilitySupport(accessibilitySupportEnabled ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 		});
 

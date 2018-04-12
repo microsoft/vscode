@@ -101,6 +101,7 @@ suite('ExtHostDocumentData', () => {
 		data.onEvents({
 			changes: [{
 				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+				rangeOffset: undefined,
 				rangeLength: undefined,
 				text: '\t '
 			}],
@@ -157,6 +158,7 @@ suite('ExtHostDocumentData', () => {
 		data.onEvents({
 			changes: [{
 				range: { startLineNumber: 1, startColumn: 3, endLineNumber: 1, endColumn: 6 },
+				rangeOffset: undefined,
 				rangeLength: undefined,
 				text: ''
 			}],
@@ -174,6 +176,7 @@ suite('ExtHostDocumentData', () => {
 		data.onEvents({
 			changes: [{
 				range: { startLineNumber: 1, startColumn: 3, endLineNumber: 1, endColumn: 6 },
+				rangeOffset: undefined,
 				rangeLength: undefined,
 				text: 'is could be'
 			}],
@@ -191,6 +194,7 @@ suite('ExtHostDocumentData', () => {
 		data.onEvents({
 			changes: [{
 				range: { startLineNumber: 1, startColumn: 3, endLineNumber: 1, endColumn: 6 },
+				rangeOffset: undefined,
 				rangeLength: undefined,
 				text: 'is could be\na line with number'
 			}],
@@ -211,6 +215,7 @@ suite('ExtHostDocumentData', () => {
 		data.onEvents({
 			changes: [{
 				range: { startLineNumber: 1, startColumn: 3, endLineNumber: 2, endColumn: 6 },
+				rangeOffset: undefined,
 				rangeLength: undefined,
 				text: ''
 			}],
@@ -344,6 +349,7 @@ suite('ExtHostDocumentData updates line mapping', () => {
 		return {
 			changes: [{
 				range: range,
+				rangeOffset: undefined,
 				rangeLength: undefined,
 				text: text
 			}],

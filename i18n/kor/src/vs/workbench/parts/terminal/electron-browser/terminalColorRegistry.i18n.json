@@ -11,5 +11,6 @@
 	"terminalCursor.foreground": "터미널 커서의 전경색입니다.",
 	"terminalCursor.background": "터미널 커서의 배경색입니다. 블록 커서와 겹친 문자의 색상을 사용자 정의할 수 있습니다.",
 	"terminal.selectionBackground": "터미널의 선택 영역 배경색입니다.",
+	"terminal.border": "터미널 내의 분할 창을 구분하는 테두리의 색입니다. 기본값은 panel.border입니다.",
 	"terminal.ansiColor": "터미널의 '{0}' ANSI 색상"
 }

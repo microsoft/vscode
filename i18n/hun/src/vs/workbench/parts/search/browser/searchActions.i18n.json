@@ -8,8 +8,6 @@
 	],
 	"nextSearchIncludePattern": "Következő bele foglalt keresési minta megjelenítése",
 	"previousSearchIncludePattern": "Előző bele foglalt keresési minta megjelenítése",
-	"nextSearchExcludePattern": "Következő kizáró keresési minta megjelenítése",
-	"previousSearchExcludePattern": "Előző kizáró keresési minta megjelenítése",
 	"nextSearchTerm": "Következő keresőkifejezés megjelenítése",
 	"previousSearchTerm": "Előző keresőkifejezés megjelenítése",
 	"showSearchViewlet": "Keresés megjelenítése",

@@ -10,6 +10,7 @@
 	"malicious": "Diese Erweiterung wird als problematisch gemeldet.",
 	"installingMarketPlaceExtension": "Die Erweiterung wird aus dem Marketplace installiert …",
 	"uninstallingExtension": "Die Erweiterung wird deinstalliert …",
+	"enableDependeciesConfirmation": "Durch Aktivieren von \"{0}\" werden auch die dazugehörigen Abhängigkeiten aktiviert. Möchten Sie fortfahren?",
 	"enable": "Ja",
 	"doNotEnable": "Nein",
 	"disableDependeciesConfirmation": "Möchten Sie nur \"{0}\" oder auch die dazugehörigen Abhängigkeiten deaktivieren?",

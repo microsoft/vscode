@@ -12,7 +12,7 @@ import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry'
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 
 export interface ILocalizedString {
 	value: string;
@@ -59,6 +59,7 @@ export class MenuId {
 	static readonly ViewTitle = new MenuId();
 	static readonly ViewItemContext = new MenuId();
 	static readonly TouchBarContext = new MenuId();
+	static readonly SearchContext = new MenuId();
 
 	readonly id: string = String(MenuId.ID++);
 }
