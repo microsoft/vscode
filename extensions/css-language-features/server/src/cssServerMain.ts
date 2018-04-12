@@ -49,7 +49,7 @@ connection.onShutdown(() => {
 });
 
 let scopedSettingsSupport = false;
-let workspaceFolders: WorkspaceFolder[] | undefined;
+let workspaceFolders: WorkspaceFolder[];
 
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
@@ -76,7 +76,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	let capabilities: ServerCapabilities & FoldingProviderServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
-		completionProvider: snippetSupport ? { resolveProvider: false } : undefined,
+		completionProvider: snippetSupport ? { resolveProvider: false, triggerCharacters: ['/'] } : undefined,
 		hoverProvider: true,
 		documentSymbolProvider: true,
 		referencesProvider: true,
@@ -192,7 +192,7 @@ connection.onCompletion((textDocumentPosition, token) => {
 		cssLS.setCompletionParticipants([getPathCompletionParticipant(document, workspaceFolders, pathCompletionList)]);
 		const result = cssLS.doComplete(document, textDocumentPosition.position, stylesheets.get(document))!; /* TODO: remove ! once LS has null annotations */
 		return {
-			isIncomplete: result.isIncomplete,
+			isIncomplete: pathCompletionList.isIncomplete,
 			items: [...pathCompletionList.items, ...result.items]
 		};
 	}, null, `Error while computing completions for ${textDocumentPosition.textDocument.uri}`, token);
