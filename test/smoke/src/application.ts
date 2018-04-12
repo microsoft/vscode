@@ -120,6 +120,10 @@ export class Application {
 
 		await this.code.waitForWindowIds(ids => ids.length > 0);
 		await this.code.waitForElement('.monaco-workbench');
+
+		// wait a bit, since focus might be stolen off widgets
+		// as soon as they open (eg quick open)
+		await new Promise(c => setTimeout(c, 500));
 	}
 
 	private retrieveKeybindings(): Promise<void> {
