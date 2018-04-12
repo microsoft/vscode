@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { CommentsPanel, COMMENTS_PANEL_ID, COMMENTS_PANEL_TITLE } from './commentsPanel';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Extensions as PanelExtensions, PanelDescriptor, PanelRegistry } from 'vs/workbench/browser/panel';
+import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { COMMENTS_PANEL_ID, COMMENTS_PANEL_TITLE, CommentsPanel } from './commentsPanel';
 
 export class CommentPanelVisibilityUpdater implements IWorkbenchContribution {
 

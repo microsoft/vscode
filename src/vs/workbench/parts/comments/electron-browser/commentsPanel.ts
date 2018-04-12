@@ -3,17 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Panel } from 'vs/workbench/browser/panel';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import * as dom from 'vs/base/browser/dom';
-import { WorkbenchTree } from '../../../../platform/list/browser/listService';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
-import { IDataSource, ITree, IRenderer } from 'vs/base/parts/tree/browser/tree';
-import { TPromise, Promise } from 'vs/base/common/winjs.base';
-import { ICommentService, CommentsModel, ResourceCommentThread, CommentNode } from 'vs/workbench/services/comments/electron-browser/commentService';
+import { debounceEvent } from 'vs/base/common/event';
+import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { IDataSource, IFilter, IRenderer, ITree } from 'vs/base/parts/tree/browser/tree';
+import { DefaultAccessibilityProvider, DefaultController, DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
+import { IEditorService } from 'vs/platform/editor/common/editor';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
-import { DefaultAccessibilityProvider, DefaultController, DefaultDragAndDrop, DefaultFilter } from '../../../../base/parts/tree/browser/treeDefaults';
+import { Panel } from 'vs/workbench/browser/panel';
+import { CommentNode, CommentsModel, ICommentService, ResourceCommentThreads } from 'vs/workbench/services/comments/electron-browser/commentService';
 
 export const COMMENTS_PANEL_ID = 'workbench.panel.comments';
 export const COMMENTS_PANEL_TITLE = 'Comments';
@@ -23,7 +25,7 @@ export class CommentsDataSource implements IDataSource {
 		if (element instanceof CommentsModel) {
 			return 'root';
 		}
-		if (element instanceof ResourceCommentThread) {
+		if (element instanceof ResourceCommentThreads) {
 			return element.id;
 		}
 		if (element instanceof CommentNode) {
@@ -33,14 +35,14 @@ export class CommentsDataSource implements IDataSource {
 	}
 
 	public hasChildren(tree: ITree, element: any): boolean {
-		return element instanceof CommentsModel || element instanceof ResourceCommentThread || (element instanceof CommentNode && element.hasReply());
+		return element instanceof CommentsModel || element instanceof ResourceCommentThreads || (element instanceof CommentNode && element.hasReply());
 	}
 
 	public getChildren(tree: ITree, element: any): Promise {
 		if (element instanceof CommentsModel) {
 			return Promise.as(element.commentThreads);
 		}
-		if (element instanceof ResourceCommentThread) {
+		if (element instanceof ResourceCommentThreads) {
 			return Promise.as([element.comments[0]]);
 		}
 		if (element instanceof CommentNode && element.hasReply()) {
@@ -73,7 +75,7 @@ export class CommentsModelRenderer implements IRenderer {
 	}
 
 	public getTemplateId(tree: ITree, element: any): string {
-		if (element instanceof ResourceCommentThread) {
+		if (element instanceof ResourceCommentThreads) {
 			return CommentsModelRenderer.COMMENTS_THREAD_ID;
 		}
 		if (element instanceof CommentNode) {
@@ -121,12 +123,24 @@ export class CommentsModelRenderer implements IRenderer {
 		return data;
 	}
 
-	private renderCommentsThreadElement(tree: ITree, element: ResourceCommentThread, templateData: IResourceMarkersTemplateData) {
-		templateData.resourceLabel.setLabel({ name: element.id });
+	private renderCommentsThreadElement(tree: ITree, element: ResourceCommentThreads, templateData: IResourceMarkersTemplateData) {
+		templateData.resourceLabel.setLabel({ name: element.resource.toString() });
 	}
 
 	private renderCommentElement(tree: ITree, element: CommentNode, templateData: IResourceMarkersTemplateData) {
 		templateData.resourceLabel.setLabel({ name: element.comment.body.value });
+	}
+}
+
+export class DataFilter implements IFilter {
+	public isVisible(tree: ITree, element: any): boolean {
+		if (element instanceof CommentsModel) {
+			return element.commentThreads.length > 0;
+		}
+		if (element instanceof ResourceCommentThreads) {
+			return element.comments.length > 0;
+		}
+		return true;
 	}
 }
 
@@ -140,6 +154,7 @@ export class CommentsPanel extends Panel {
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ICommentService private commentService: ICommentService,
+		@IEditorService private editorService: IEditorService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 	) {
@@ -171,7 +186,6 @@ export class CommentsPanel extends Panel {
 
 	private render(): TPromise<void> {
 		dom.toggleClass(this.treeContainer, 'hidden', false);
-		console.log(this.commentService.commentsModel);
 		return this.tree.setInput(this.commentService.commentsModel);
 	}
 
@@ -190,10 +204,27 @@ export class CommentsPanel extends Panel {
 			accessibilityProvider: new DefaultAccessibilityProvider,
 			controller: new DefaultController(),
 			dnd: new DefaultDragAndDrop(),
-			filter: new DefaultFilter()
+			filter: new DataFilter()
 		}, {
 				twistiePixels: 20,
 				ariaLabel: COMMENTS_PANEL_TITLE
 			});
+
+		const commentsNavigator = this._register(new TreeResourceNavigator(this.tree, { openOnFocus: true }));
+		this._register(debounceEvent(commentsNavigator.openResource, (last, event) => event, 75, true)(options => {
+			if (options.element instanceof ResourceCommentThreads) {
+				const resource = options.element.resource;
+				this.editorService.openEditor({
+					resource,
+					options: {
+						pinned: options.editorOptions.pinned
+					}
+				},
+					options.sideBySide);
+				return true;
+			} else {
+				return false;
+			}
+		}));
 	}
 }

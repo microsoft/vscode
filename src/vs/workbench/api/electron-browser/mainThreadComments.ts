@@ -7,7 +7,6 @@
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { ReviewController } from 'vs/editor/contrib/review/review';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
@@ -19,6 +18,7 @@ import { ExtHostCommentsShape, ExtHostContext, IExtHostContext, MainContext, Mai
 import { ICommentService } from 'vs/workbench/services/comments/electron-browser/commentService';
 import { COMMENTS_PANEL_ID } from 'vs/workbench/parts/comments/electron-browser/commentsPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import URI from 'vs/base/common/uri';
 
 @extHostNamedCustomer(MainContext.MainThreadComments)
 export class MainThreadComments extends Disposable implements MainThreadCommentsShape {
@@ -47,9 +47,10 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 				return;
 			}
 
-			this.provideComments(outerEditor.getModel()).then(commentThreads => {
+			const outerEditorURI = outerEditor.getModel().uri;
+			this.provideComments(outerEditorURI).then(commentThreads => {
 				controller.setComments(commentThreads);
-				this._commentService.updateComments(commentThreads);
+				this._commentService.setCommentsForResource(outerEditorURI, commentThreads);
 			});
 		});
 	}
@@ -76,10 +77,10 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		return editor;
 	}
 
-	async provideComments(model: ITextModel): Promise<any> {
+	async provideComments(resource: URI): Promise<any> {
 		const result: modes.CommentThread[] = [];
 		for (const handle of keys(this._providers)) {
-			result.push(...await this._proxy.$providerComments(handle, model.uri));
+			result.push(...await this._proxy.$providerComments(handle, resource));
 		}
 		return result;
 	}
