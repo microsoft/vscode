@@ -281,8 +281,8 @@ export class MoveLinesCommand implements ICommand {
 			if (this.trimLeft(movingLineText).indexOf(this.trimLeft(enterPrefix)) >= 0) {
 				let oldIndentation = strings.getLeadingWhitespace(model.getLineContent(line));
 				let newIndentation = strings.getLeadingWhitespace(enterPrefix);
-				let indentMetadataOfMovelingLine = LanguageConfigurationRegistry.getIndentMetadata(model, line);
-				if (indentMetadataOfMovelingLine & IndentConsts.DECREASE_MASK) {
+				let indentMetadataOfModelLine = LanguageConfigurationRegistry.getIndentMetadata(model, line);
+				if (indentMetadataOfModelLine & IndentConsts.DECREASE_MASK) {
 					newIndentation = indentConverter.unshiftIndent(newIndentation);
 				}
 				let newSpaceCnt = IndentUtil.getSpaceCnt(newIndentation, tabSize);
