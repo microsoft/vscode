@@ -60,7 +60,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	}
 
 	$unregisterCommentProvider(handle: number): void {
-		throw new Error('Method not implemented.');
+		this._providers.delete(handle);
 	}
 
 	dispose(): void {
