@@ -126,11 +126,6 @@ export interface IFileService {
 	del(resource: URI, useTrash?: boolean): TPromise<void>;
 
 	/**
-	 * Imports the file to the parent identified by the resource.
-	 */
-	importFile(source: URI, targetFolder: URI): TPromise<IImportResult>;
-
-	/**
 	 * Allows to start a watcher that reports file change events on the provided resource.
 	 */
 	watchFileChanges(resource: URI): void;
@@ -178,8 +173,7 @@ export enum FileOperation {
 	CREATE,
 	DELETE,
 	MOVE,
-	COPY,
-	IMPORT
+	COPY
 }
 
 export class FileOperationEvent {
@@ -544,11 +538,6 @@ export interface ICreateFileOptions {
 	 * an error will be thrown (FILE_MODIFIED_SINCE).
 	 */
 	overwrite?: boolean;
-}
-
-export interface IImportResult {
-	stat: IFileStat;
-	isNew: boolean;
 }
 
 export class FileOperationError extends Error {

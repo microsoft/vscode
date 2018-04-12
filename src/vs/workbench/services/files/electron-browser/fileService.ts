@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as crypto from 'crypto';
 import * as assert from 'assert';
-import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, FileChangesEvent, ICreateFileOptions, IContentData, ITextSnapshot, IFilesConfiguration } from 'vs/platform/files/common/files';
+import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, FileChangesEvent, ICreateFileOptions, IContentData, ITextSnapshot, IFilesConfiguration } from 'vs/platform/files/common/files';
 import { MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/platform/files/node/files';
 import { isEqualOrParent } from 'vs/base/common/paths';
 import { ResourceMap } from 'vs/base/common/map';
@@ -46,6 +46,42 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import product from 'vs/platform/node/product';
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { shell } from 'electron';
+
+class BufferPool {
+
+	static _64K = new BufferPool(64 * 1024, 5);
+
+	constructor(
+		readonly bufferSize: number,
+		private readonly _capacity: number,
+		private readonly _free: Buffer[] = [],
+	) { }
+
+	acquire(): Buffer {
+		if (this._free.length === 0) {
+			return Buffer.allocUnsafe(this.bufferSize);
+		} else {
+			return this._free.shift();
+		}
+	}
+
+	release(buf: Buffer): void {
+		if (this._free.length <= this._capacity) {
+			this._free.push(buf);
+		}
+	}
+}
+
+export interface IEncodingOverride {
+	parent?: uri;
+	extension?: string;
+	encoding: string;
+}
+
+export interface IFileServiceTestOptions {
+	disableWatcher?: boolean;
+	encodingOverride?: IEncodingOverride[];
+}
 
 export class FileService implements IFileService {
 
@@ -191,12 +227,6 @@ export class FileService implements IFileService {
 		return this._onAfterOperation.event;
 	}
 
-	public updateOptions(options: IFileServiceTestOptions): void {
-		if (options) {
-			objects.mixin(this.options, options); // overwrite current options
-		}
-	}
-
 	private setupFileWatching(): void {
 
 		// dispose old if any
@@ -213,10 +243,11 @@ export class FileService implements IFileService {
 		// new watcher: use it if setting tells us so or we run in multi-root environment
 		const configuration = this.configurationService.getValue<IFilesConfiguration>();
 		if ((configuration.files && configuration.files.useExperimentalFileWatcher) || workbenchState === WorkbenchState.WORKSPACE) {
-			this.activeWorkspaceFileChangeWatcher = toDisposable(this.setupNsfwWorkspaceWatching().startWatching());
+			const multiRootWatcher = new NsfwWatcherService(this.contextService, this.configurationService, e => this._onFileChanges.fire(e), err => this.handleError(err), this.environmentService.verbose);
+			this.activeWorkspaceFileChangeWatcher = toDisposable(multiRootWatcher.startWatching());
 		}
 
-		// old watcher
+		// legacy watcher
 		else {
 			let watcherIgnoredPatterns: string[] = [];
 			if (configuration.files && configuration.files.watcherExclude) {
@@ -224,23 +255,13 @@ export class FileService implements IFileService {
 			}
 
 			if (isWindows) {
-				this.activeWorkspaceFileChangeWatcher = toDisposable(this.setupWin32WorkspaceWatching(watcherIgnoredPatterns).startWatching());
+				const legacyWindowsWatcher = new WindowsWatcherService(this.contextService, watcherIgnoredPatterns, e => this._onFileChanges.fire(e), err => this.handleError(err), this.environmentService.verbose);
+				this.activeWorkspaceFileChangeWatcher = toDisposable(legacyWindowsWatcher.startWatching());
 			} else {
-				this.activeWorkspaceFileChangeWatcher = toDisposable(this.setupUnixWorkspaceWatching(watcherIgnoredPatterns).startWatching());
+				const legacyUnixWatcher = new UnixWatcherService(this.contextService, watcherIgnoredPatterns, e => this._onFileChanges.fire(e), err => this.handleError(err), this.environmentService.verbose);
+				this.activeWorkspaceFileChangeWatcher = toDisposable(legacyUnixWatcher.startWatching());
 			}
 		}
-	}
-
-	private setupWin32WorkspaceWatching(watcherIgnoredPatterns: string[]): WindowsWatcherService {
-		return new WindowsWatcherService(this.contextService, watcherIgnoredPatterns, e => this._onFileChanges.fire(e), err => this.handleError(err), this.environmentService.verbose);
-	}
-
-	private setupUnixWorkspaceWatching(watcherIgnoredPatterns: string[]): UnixWatcherService {
-		return new UnixWatcherService(this.contextService, watcherIgnoredPatterns, e => this._onFileChanges.fire(e), err => this.handleError(err), this.environmentService.verbose);
-	}
-
-	private setupNsfwWorkspaceWatching(): NsfwWatcherService {
-		return new NsfwWatcherService(this.contextService, this.configurationService, e => this._onFileChanges.fire(e), err => this.handleError(err), this.environmentService.verbose);
 	}
 
 	public resolveFile(resource: uri, options?: IResolveFileOptions): TPromise<IFileStat> {
@@ -512,9 +533,10 @@ export class FileService implements IFileService {
 						} else {
 							// when receiving the first chunk of data we need to create the
 							// decoding stream which is then used to drive the string stream.
+							const autoGuessEncoding = (options && options.autoGuessEncoding) || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding');
 							TPromise.as(encoding.detectEncodingFromBuffer(
 								{ buffer: chunkBuffer, bytesRead },
-								options && options.autoGuessEncoding || this.configuredAutoGuessEncoding(resource)
+								autoGuessEncoding
 							)).then(detected => {
 
 								if (options && options.acceptTextOnly && detected.seemsBinary) {
@@ -920,32 +942,6 @@ export class FileService implements IFileService {
 		});
 	}
 
-	public importFile(source: uri, targetFolder: uri): TPromise<IImportResult> {
-		const sourcePath = this.toAbsolutePath(source);
-		const targetResource = uri.file(paths.join(targetFolder.fsPath, paths.basename(source.fsPath)));
-		const targetPath = this.toAbsolutePath(targetResource);
-
-		// 1.) resolve
-		return pfs.stat(sourcePath).then(stat => {
-			if (stat.isDirectory()) {
-				return TPromise.wrapError<IImportResult>(new Error(nls.localize('foldersCopyError', "Folders cannot be copied into the workspace. Please select individual files to copy them."))); // for now we do not allow to import a folder into a workspace
-			}
-
-			// 2.) copy
-			return this.doMoveOrCopyFile(sourcePath, targetPath, true, true).then(exists => {
-
-				// 3.) resolve
-				return this.resolve(targetResource).then(stat => {
-
-					// Events
-					this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.IMPORT, stat));
-
-					return <IImportResult>{ isNew: !exists, stat };
-				});
-			});
-		});
-	}
-
 	public del(resource: uri, useTrash?: boolean): TPromise<void> {
 		if (useTrash) {
 			return this.doMoveItemToTrash(resource);
@@ -992,8 +988,7 @@ export class FileService implements IFileService {
 	}
 
 	private resolve(resource: uri, options: IResolveFileOptions = Object.create(null)): TPromise<IFileStat> {
-		return this.toStatResolver(resource)
-			.then(model => model.resolve(options));
+		return this.toStatResolver(resource).then(model => model.resolve(options));
 	}
 
 	private toStatResolver(resource: uri): TPromise<StatResolver> {
@@ -1041,10 +1036,6 @@ export class FileService implements IFileService {
 		}
 
 		return fileEncoding;
-	}
-
-	private configuredAutoGuessEncoding(resource: uri): boolean {
-		return this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding');
 	}
 
 	private configuredEncoding(resource: uri): string {
@@ -1181,17 +1172,6 @@ export class FileService implements IFileService {
 	}
 }
 
-export interface IEncodingOverride {
-	parent?: uri;
-	extension?: string;
-	encoding: string;
-}
-
-export interface IFileServiceTestOptions {
-	disableWatcher?: boolean;
-	encodingOverride?: IEncodingOverride[];
-}
-
 function etag(stat: fs.Stats): string;
 function etag(size: number, mtime: number): string;
 function etag(arg1: any, arg2?: any): string {
@@ -1206,33 +1186,6 @@ function etag(arg1: any, arg2?: any): string {
 	}
 
 	return `"${crypto.createHash('sha1').update(String(size) + String(mtime)).digest('hex')}"`;
-}
-
-class BufferPool {
-
-	static _64K = new BufferPool(64 * 1024, 5);
-
-	constructor(
-		readonly bufferSize: number,
-		private readonly _capacity: number,
-		private readonly _free: Buffer[] = [],
-	) {
-		//
-	}
-
-	acquire(): Buffer {
-		if (this._free.length === 0) {
-			return Buffer.allocUnsafe(this.bufferSize);
-		} else {
-			return this._free.shift();
-		}
-	}
-
-	release(buf: Buffer): void {
-		if (this._free.length <= this._capacity) {
-			this._free.push(buf);
-		}
-	}
 }
 
 export class StatResolver {

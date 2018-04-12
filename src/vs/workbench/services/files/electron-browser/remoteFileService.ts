@@ -6,7 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
-import { IContent, IStreamContent, IFileStat, IResolveContentOptions, IUpdateContentOptions, IResolveFileOptions, IResolveFileResult, FileOperationEvent, FileOperation, IFileSystemProvider, IStat, FileType2, IImportResult, FileChangesEvent, ICreateFileOptions, FileOperationError, FileOperationResult, ITextSnapshot, snapshotToString } from 'vs/platform/files/common/files';
+import { IContent, IStreamContent, IFileStat, IResolveContentOptions, IUpdateContentOptions, IResolveFileOptions, IResolveFileResult, FileOperationEvent, FileOperation, IFileSystemProvider, IStat, FileType2, FileChangesEvent, ICreateFileOptions, FileOperationError, FileOperationResult, ITextSnapshot, snapshotToString } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { posix } from 'path';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -428,15 +428,6 @@ export class RemoteFileService extends FileService {
 			this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.MOVE, fileStat));
 			return fileStat;
 		});
-	}
-
-	importFile(source: URI, targetFolder: URI): TPromise<IImportResult> {
-		if (source.scheme === targetFolder.scheme && source.scheme === Schemas.file) {
-			return super.importFile(source, targetFolder);
-		} else {
-			const target = targetFolder.with({ path: posix.join(targetFolder.path, posix.basename(source.path)) });
-			return this.copyFile(source, target, false).then(stat => ({ stat, isNew: false }));
-		}
 	}
 
 	copyFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat> {

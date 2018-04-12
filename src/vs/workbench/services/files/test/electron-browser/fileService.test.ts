@@ -426,36 +426,18 @@ suite('FileService', () => {
 		});
 	});
 
-	test('importFile', function () {
-		let event: FileOperationEvent;
-		const toDispose = service.onAfterOperation(e => {
-			event = e;
-		});
-
-		return service.resolveFile(uri.file(path.join(testDir, 'deep'))).then(target => {
-			const resource = uri.file(require.toUrl('./fixtures/service/index.html'));
-			return service.importFile(resource, target.resource).then(res => {
-				assert.equal(res.isNew, true);
-				assert.equal(fs.existsSync(res.stat.resource.fsPath), true);
-
-				assert.ok(event);
-				assert.equal(event.resource.fsPath, resource.fsPath);
-				assert.equal(event.operation, FileOperation.IMPORT);
-				assert.equal(event.target.resource.fsPath, res.stat.resource.fsPath);
-				toDispose.dispose();
-			});
-		});
-	});
-
-	test('importFile - MIX CASE', function () {
+	test('copyFile - MIX CASE', function () {
 		return service.resolveFile(uri.file(path.join(testDir, 'index.html'))).then(source => {
 			return service.rename(source.resource, 'CONWAY.js').then(renamed => { // index.html => CONWAY.js
 				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
 				assert.ok(fs.readdirSync(testDir).some(f => f === 'CONWAY.js'));
 
 				return service.resolveFile(uri.file(path.join(testDir, 'deep', 'conway.js'))).then(source => {
-					return service.importFile(source.resource, uri.file(testDir)).then(res => { // CONWAY.js => conway.js
-						assert.equal(fs.existsSync(res.stat.resource.fsPath), true);
+					const targetParent = uri.file(testDir);
+					const target = targetParent.with({ path: path.posix.join(targetParent.path, path.posix.basename(source.resource.path)) });
+
+					return service.copyFile(source.resource, target, true).then(res => { // CONWAY.js => conway.js
+						assert.equal(fs.existsSync(res.resource.fsPath), true);
 						assert.ok(fs.readdirSync(testDir).some(f => f === 'conway.js'));
 					});
 				});
@@ -463,48 +445,12 @@ suite('FileService', () => {
 		});
 	});
 
-	test('importFile - overwrite folder with file', function () {
-		let createEvent: FileOperationEvent;
-		let importEvent: FileOperationEvent;
-		let deleteEvent: FileOperationEvent;
-		const toDispose = service.onAfterOperation(e => {
-			if (e.operation === FileOperation.CREATE) {
-				createEvent = e;
-			} else if (e.operation === FileOperation.DELETE) {
-				deleteEvent = e;
-			} else if (e.operation === FileOperation.IMPORT) {
-				importEvent = e;
-			}
-		});
-
-		return service.resolveFile(uri.file(testDir)).then(parent => {
-			const folderResource = uri.file(path.join(parent.resource.fsPath, 'conway.js'));
-			return service.createFolder(folderResource).then(f => {
-				const resource = uri.file(path.join(testDir, 'deep', 'conway.js'));
-				return service.importFile(resource, uri.file(testDir)).then(res => {
-					assert.equal(fs.existsSync(res.stat.resource.fsPath), true);
-					assert.ok(fs.readdirSync(testDir).some(f => f === 'conway.js'));
-					assert.ok(fs.statSync(res.stat.resource.fsPath).isFile);
-
-					assert.ok(createEvent);
-					assert.ok(deleteEvent);
-					assert.ok(importEvent);
-
-					assert.equal(importEvent.resource.fsPath, resource.fsPath);
-					assert.equal(importEvent.target.resource.fsPath, res.stat.resource.fsPath);
-
-					assert.equal(deleteEvent.resource.fsPath, folderResource.fsPath);
-
-					toDispose.dispose();
-				});
-			});
-		});
-	});
-
-	test('importFile - same file', function () {
+	test('copyFile - same file', function () {
 		return service.resolveFile(uri.file(path.join(testDir, 'index.html'))).then(source => {
-			return service.importFile(source.resource, uri.file(path.dirname(source.resource.fsPath))).then(imported => {
-				assert.equal(imported.stat.size, source.size);
+			const targetParent = uri.file(path.dirname(source.resource.fsPath));
+			const target = targetParent.with({ path: path.posix.join(targetParent.path, path.posix.basename(source.resource.path)) });
+			return service.copyFile(source.resource, target, true).then(copied => {
+				assert.equal(copied.size, source.size);
 			});
 		});
 	});

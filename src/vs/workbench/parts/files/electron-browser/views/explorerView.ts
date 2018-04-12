@@ -470,7 +470,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		}
 
 		// Add
-		if (e.operation === FileOperation.CREATE || e.operation === FileOperation.IMPORT || e.operation === FileOperation.COPY) {
+		if (e.operation === FileOperation.CREATE || e.operation === FileOperation.COPY) {
 			const addedElement = e.target;
 			const parentResource = resources.dirname(addedElement.resource);
 			const parents = this.model.findAll(parentResource);
