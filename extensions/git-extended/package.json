@@ -66,6 +66,14 @@
       {
           "command": "pr.pick",
           "title": "Checkout & Review"
+      },
+      {
+          "command": "review.openFile",
+          "title": "Open File",
+          "icon": {
+          "light": "resources/icons/light/open-file.svg",
+          "dark": "resources/icons/dark/open-file.svg"
+        }
       }
     ],
     "menus": {
@@ -79,6 +87,13 @@
         {
           "command": "pr.pick",
           "when": "view == pr && viewItem == pullrequest"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "review.openFile",
+          "group": "navigation",
+          "when": "resourceScheme =~ /^review$/"
         }
       ]
     }

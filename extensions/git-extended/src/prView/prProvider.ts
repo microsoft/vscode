@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { parseDiff } from '../common/diff';
 import { Repository } from '../common//models/repository';
@@ -101,7 +102,8 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 			let richContentChanges = await parseDiff(data, this.repository, element.prItem.base.sha);
 			const commentsCache = new Map<String, Comment[]>();
 			let fileChanges = richContentChanges.map(change => {
-				let changedItem = new FileChange(element.prItem, change.fileName, change.status, this.context, change.fileName, toPRUri(vscode.Uri.file(change.filePath), true), toPRUri(vscode.Uri.file(change.originalFilePath), false), this.repository.path);
+				let fileInRepo = path.resolve(this.repository.path, change.fileName);
+				let changedItem = new FileChange(element.prItem, change.fileName, change.status, this.context, change.fileName, toPRUri(vscode.Uri.file(change.filePath), fileInRepo, true), toPRUri(vscode.Uri.file(change.originalFilePath), fileInRepo, false), this.repository.path);
 				changedItem.comments = comments.filter(comment => comment.path === changedItem.fileName);
 				commentsCache.set(changedItem.filePath.toString(), changedItem.comments);
 				return changedItem;

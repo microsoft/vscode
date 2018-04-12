@@ -45,7 +45,7 @@ export function toGitUri(uri: Uri, ref: string, commit: string, options: GitUriO
 	});
 }
 
-export function toPRUri(uri: Uri, base: boolean): Uri {
+export function toPRUri(uri: Uri, fileInRepo: string, base: boolean): Uri {
 	const params = {
 		path: uri.path,
 		base: base
@@ -58,7 +58,7 @@ export function toPRUri(uri: Uri, base: boolean): Uri {
 	return uri.with({
 		scheme: 'pr',
 		path,
-		query: JSON.stringify(params)
+		query: JSON.stringify(params),
 	});
 }
 

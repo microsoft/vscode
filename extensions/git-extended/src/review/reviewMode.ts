@@ -32,7 +32,7 @@ export class ReviewMode {
 	private _command: vscode.Disposable;
 	private _prNumber: number;
 	private _resourceGroups: vscode.SourceControlResourceGroup[] = [];
-	private _gitContentProvider: vscode.Disposable;
+	private _disposables: vscode.Disposable[];
 
 	constructor(
 		private _repository: Repository,
@@ -42,10 +42,15 @@ export class ReviewMode {
 	) {
 		this._commentProvider = null;
 		this._command = null;
+		this._disposables = [];
 		_repository.onDidRunGitStatus(e => {
 			this.validateState();
 		});
-		this._gitContentProvider = vscode.workspace.registerTextDocumentContentProvider('review', new GitContentProvider(_repository));
+		this._disposables.push(vscode.workspace.registerTextDocumentContentProvider('review', new GitContentProvider(_repository)));
+		this._disposables.push(vscode.commands.registerCommand('review.openFile', (uri: vscode.Uri) => {
+			let params = JSON.parse(uri.query);
+			vscode.commands.executeCommand('vscode.open', vscode.Uri.file(path.resolve(this._repository.path, params.path)), {});
+		}));
 		this.validateState();
 	}
 
@@ -237,6 +242,8 @@ export class ReviewMode {
 
 	dispose() {
 		this.clear();
-		this._gitContentProvider.dispose();
+		this._disposables.forEach(dispose => {
+			dispose.dispose();
+		});
 	}
 }
