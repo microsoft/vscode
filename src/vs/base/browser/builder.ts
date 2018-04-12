@@ -1082,7 +1082,7 @@ export class Builder implements IDisposable {
 
 	/**
 	 *  Removes all HTML elements from the current element of the builder. Will also clean up any
-	 *  event listners registered and also clear any data binding and properties stored
+	 *  event listeners registered and also clear any data binding and properties stored
 	 *  to any child element.
 	 */
 	public empty(): Builder {
