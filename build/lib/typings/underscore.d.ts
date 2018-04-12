@@ -4169,12 +4169,12 @@ interface Underscore<T> {
 	/**
 	* @see _.find
 	**/
-	find<T, U extends {}>(interator: U): T;
+	find<T, U extends {}>(iterator: U): T;
 
 	/**
 	* @see _.find
 	**/
-	find<T>(interator: string): T;
+	find<T>(iterator: string): T;
 
 	/**
 	* @see _.find
@@ -4184,12 +4184,12 @@ interface Underscore<T> {
 	/**
 	* @see _.find
 	**/
-	detect<T, U extends {}>(interator?: U): T;
+	detect<T, U extends {}>(iterator?: U): T;
 
 	/**
 	* @see _.find
 	**/
-	detect<T>(interator?: string): T;
+	detect<T>(iterator?: string): T;
 
 	/**
 	* Wrapped type `any[]`.
@@ -5129,12 +5129,12 @@ interface _Chain<T> {
 	/**
 	* @see _.find
 	**/
-	find<T, U extends {}>(interator: U): _ChainSingle<T>;
+	find<T, U extends {}>(iterator: U): _ChainSingle<T>;
 
 	/**
 	* @see _.find
 	**/
-	find<T>(interator: string): _ChainSingle<T>;
+	find<T>(iterator: string): _ChainSingle<T>;
 
 	/**
 	* @see _.find
@@ -5144,12 +5144,12 @@ interface _Chain<T> {
 	/**
 	* @see _.find
 	**/
-	detect<T, U extends {}>(interator: U): _ChainSingle<T>;
+	detect<T, U extends {}>(iterator: U): _ChainSingle<T>;
 
 	/**
 	* @see _.find
 	**/
-	detect<T>(interator: string): _ChainSingle<T>;
+	detect<T>(iterator: string): _ChainSingle<T>;
 
 	/**
 	* Wrapped type `any[]`.
