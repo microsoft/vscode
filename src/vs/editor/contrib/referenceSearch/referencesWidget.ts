@@ -442,7 +442,7 @@ class VSash {
 			getVerticalSashHeight: () => this._height
 		});
 
-		// compute the current widget clientX postion since
+		// compute the current widget clientX position since
 		// the sash works with clientX when dragging
 		let clientX: number;
 		this._disposables.push(this._sash.onDidStart((e: ISashEvent) => {

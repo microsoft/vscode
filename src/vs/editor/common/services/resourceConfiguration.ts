@@ -25,7 +25,7 @@ export interface ITextResourceConfigurationService {
 	 * Value can be of native type or an object keyed off the section name.
 	 *
 	 * @param resource - Resource for which the configuration has to be fetched. Can be `null` or `undefined`.
-	 * @param postion - Position in the resource for which configuration has to be fetched. Can be `null` or `undefined`.
+	 * @param position - Position in the resource for which configuration has to be fetched. Can be `null` or `undefined`.
 	 * @param section - Section of the configuration. Can be `null` or `undefined`.
 	 *
 	 */

@@ -672,7 +672,7 @@ export interface IDebugService {
 	renameWatchExpression(id: string, newName: string): void;
 
 	/**
-	 * Moves a watch expression to a new possition. Used for reordering watch expressions.
+	 * Moves a watch expression to a new position. Used for reordering watch expressions.
 	 */
 	moveWatchExpression(id: string, position: number): void;
 
