@@ -19,6 +19,7 @@ import { CodeActionKind, CodeActionTrigger } from './codeActionTrigger';
 import { getCodeActions } from './quickFix';
 
 export const HAS_REFACTOR_PROVIDER = new RawContextKey<boolean>('hasRefactorProvider', false);
+export const HAS_SOURCE_ACTION_PROVIDER = new RawContextKey<boolean>('hasSourceActionProvider', false);
 
 export class QuickFixOracle {
 
@@ -145,12 +146,14 @@ export class QuickFixModel {
 	private _onDidChangeFixes = new Emitter<QuickFixComputeEvent>();
 	private _disposables: IDisposable[] = [];
 	private readonly _hasRefactorProvider: IContextKey<boolean>;
+	private readonly _hasSourceProvider: IContextKey<boolean>;
 
 	constructor(editor: ICodeEditor, markerService: IMarkerService, contextKeyService: IContextKeyService) {
 		this._editor = editor;
 		this._markerService = markerService;
 
 		this._hasRefactorProvider = HAS_REFACTOR_PROVIDER.bindTo(contextKeyService);
+		this._hasSourceProvider = HAS_SOURCE_ACTION_PROVIDER.bindTo(contextKeyService);
 
 		this._disposables.push(this._editor.onDidChangeModel(() => this._update()));
 		this._disposables.push(this._editor.onDidChangeModelLanguage(() => this._update()));
@@ -180,9 +183,23 @@ export class QuickFixModel {
 			&& CodeActionProviderRegistry.has(this._editor.getModel())
 			&& !this._editor.getConfiguration().readOnly) {
 
-			this._hasRefactorProvider.set(CodeActionProviderRegistry.all(this._editor.getModel()).some(provider => {
-				return provider.providedKinds && provider.providedKinds.some(kind => CodeActionKind.Refactor.contains(kind));
-			}));
+			let hasRefactorProvider = false;
+			let hasSourceProvider = false;
+			outer: for (const provider of CodeActionProviderRegistry.all(this._editor.getModel())) {
+				if (!provider.providedCodeActionKinds) {
+					continue;
+				}
+				for (const providedKind of provider.providedCodeActionKinds) {
+					hasRefactorProvider = hasRefactorProvider || CodeActionKind.Refactor.contains(providedKind);
+					hasSourceProvider = hasSourceProvider || CodeActionKind.Source.contains(providedKind);
+					if (hasRefactorProvider && hasSourceProvider) {
+						break outer;
+					}
+				}
+			}
+
+			this._hasRefactorProvider.set(hasRefactorProvider);
+			this._hasSourceProvider.set(hasSourceProvider);
 
 			this._quickFixOracle = new QuickFixOracle(this._editor, this._markerService, p => this._onDidChangeFixes.fire(p));
 			this._quickFixOracle.trigger({ type: 'auto' });
