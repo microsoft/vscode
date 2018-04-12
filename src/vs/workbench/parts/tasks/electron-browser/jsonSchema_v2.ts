@@ -320,7 +320,7 @@ taskDescription.default = {
 	problemMatcher: []
 };
 definitions.showOutputType.deprecationMessage = nls.localize(
-	'JsonSchema.tasks.showOputput.deprecated',
+	'JsonSchema.tasks.showOutput.deprecated',
 	'The property showOutput is deprecated. Use the reveal property inside the presentation property instead. See also the 1.14 release notes.'
 );
 definitions.taskDescription.properties.echoCommand.deprecationMessage = nls.localize(
