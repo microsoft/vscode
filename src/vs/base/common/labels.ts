@@ -233,7 +233,7 @@ export function shorten(paths: string[]): string[] {
 						result = prefix + result;
 					}
 
-					// add ellipsis at the beginning if neeeded
+					// add ellipsis at the beginning if needed
 					if (start > 0) {
 						result = result + ellipsis + nativeSep;
 					}
