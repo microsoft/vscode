@@ -103,15 +103,15 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private doNotFireTabOptionsChanged: boolean;
 	private revealIfOpen: boolean;
 	private ignoreOpenEditorErrors: boolean;
+	private textCompareEditorVisible: IContextKey<boolean>;
 
-	private _onEditorsChanged: ThrottledEmitter<void>;
+	private readonly _onEditorsChanged: ThrottledEmitter<void>;
 	private readonly _onEditorOpening: Emitter<IEditorOpeningEvent>;
 	private readonly _onEditorGroupMoved: Emitter<void>;
 	private readonly _onEditorOpenFail: Emitter<EditorInput>;
 	private readonly _onGroupOrientationChanged: Emitter<void>;
 	private readonly _onTabOptionsChanged: Emitter<IEditorTabOptions>;
-
-	private textCompareEditorVisible: IContextKey<boolean>;
+	private readonly _onLayout: Emitter<Dimension>;
 
 	// The following data structures are partitioned into array of Position as provided by Services.POSITION array
 	private visibleEditors: BaseEditor[];
@@ -119,9 +119,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private editorOpenToken: number[];
 	private pendingEditorInputsToClose: EditorIdentifier[];
 	private pendingEditorInputCloseTimeout: number;
-
-	private onLayoutEmitter = new Emitter<Dimension>();
-	public onLayout = this.onLayoutEmitter.event;
 
 	constructor(
 		id: string,
@@ -144,6 +141,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this._onEditorOpenFail = new Emitter<EditorInput>();
 		this._onGroupOrientationChanged = new Emitter<void>();
 		this._onTabOptionsChanged = new Emitter<IEditorTabOptions>();
+		this._onLayout = new Emitter<Dimension>();
 
 		this.visibleEditors = [];
 
@@ -291,6 +289,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	public resizeGroup(position: Position, groupSizeChange: number): void {
 		this.editorGroupsControl.resizeGroup(position, groupSizeChange);
+	}
+
+	public get onLayout(): Event<Dimension> {
+		return this._onLayout.event;
 	}
 
 	public get onEditorsChanged(): Event<void> {
@@ -1486,7 +1488,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.dimension = sizes[1];
 		this.editorGroupsControl.layout(this.dimension);
 
-		this.onLayoutEmitter.fire(dimension);
+		this._onLayout.fire(dimension);
 
 		return sizes;
 	}
@@ -1519,6 +1521,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this._onEditorOpening.dispose();
 		this._onEditorGroupMoved.dispose();
 		this._onEditorOpenFail.dispose();
+		this._onGroupOrientationChanged.dispose();
+		this._onTabOptionsChanged.dispose();
+		this._onLayout.dispose();
 
 		// Reset Tokens
 		this.editorOpenToken = [];
