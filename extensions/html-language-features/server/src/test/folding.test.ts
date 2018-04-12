@@ -177,7 +177,7 @@ suite('HTML Folding', () => {
 		assertRanges(input, [r(0, 9), r(1, 8), r(2, 7), r(3, 7, 'region'), r(4, 6, 'region')]);
 	});
 
-	// test('Embedded JavaScript - mulit line comment', () => {
+	// test('Embedded JavaScript - multi line comment', () => {
 	// 	let input = [
 	// 		/* 0*/'<html>',
 	// 		/* 1*/'<head>',

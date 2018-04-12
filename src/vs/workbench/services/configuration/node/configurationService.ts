@@ -333,7 +333,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 
 	private createWorkspace(arg: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWindowConfiguration): TPromise<Workspace> {
 		if (isWorkspaceIdentifier(arg)) {
-			return this.createMulitFolderWorkspace(arg);
+			return this.createMultiFolderWorkspace(arg);
 		}
 
 		if (isSingleFolderWorkspaceIdentifier(arg)) {
@@ -343,7 +343,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return this.createEmptyWorkspace(arg);
 	}
 
-	private createMulitFolderWorkspace(workspaceIdentifier: IWorkspaceIdentifier): TPromise<Workspace> {
+	private createMultiFolderWorkspace(workspaceIdentifier: IWorkspaceIdentifier): TPromise<Workspace> {
 		const workspaceConfigPath = URI.file(workspaceIdentifier.configPath);
 		return this.workspaceConfiguration.load(workspaceConfigPath)
 			.then(() => {
