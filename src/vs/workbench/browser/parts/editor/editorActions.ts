@@ -417,7 +417,7 @@ export class FocusPreviousGroup extends Action {
 			return TPromise.as(true);
 		}
 
-		// Nevigate to the previous group or to the last group if the first group is active
+		// Navigate to the previous group or to the last group if the first group is active
 		const newPositionIndex = (activeEditor.position + groupCount - 1) % groupCount;
 		this.editorGroupService.focusGroup(<Position>newPositionIndex);
 
@@ -455,7 +455,7 @@ export class FocusNextGroup extends Action {
 			return TPromise.as(true);
 		}
 
-		// Nevigate to the next group or to the first group if the last group is active
+		// Navigate to the next group or to the first group if the last group is active
 		const newPositionIndex = (activeEditor.position + 1) % groupCount;
 		this.editorGroupService.focusGroup(<Position>newPositionIndex);
 
