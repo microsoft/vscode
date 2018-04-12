@@ -72,7 +72,7 @@ export class AppInsightsAppender implements ITelemetryAppender {
 		const measurements: Measurements = Object.create(null);
 
 		const flat = Object.create(null);
-		AppInsightsAppender._flaten(data, flat);
+		AppInsightsAppender._flatten(data, flat);
 
 		for (let prop in flat) {
 			// enforce property names less than 150 char, take the last 150 char
@@ -100,7 +100,7 @@ export class AppInsightsAppender implements ITelemetryAppender {
 		};
 	}
 
-	private static _flaten(obj: any, result: { [key: string]: any }, order: number = 0, prefix?: string): void {
+	private static _flatten(obj: any, result: { [key: string]: any }, order: number = 0, prefix?: string): void {
 		if (!obj) {
 			return;
 		}
@@ -118,7 +118,7 @@ export class AppInsightsAppender implements ITelemetryAppender {
 
 			} else if (isObject(value)) {
 				if (order < 2) {
-					AppInsightsAppender._flaten(value, result, order + 1, index + '.');
+					AppInsightsAppender._flatten(value, result, order + 1, index + '.');
 				} else {
 					result[index] = safeStringify(value);
 				}
