@@ -106,6 +106,8 @@ import { NotificationsAlerts } from 'vs/workbench/browser/parts/notifications/no
 import { NotificationsStatus } from 'vs/workbench/browser/parts/notifications/notificationsStatus';
 import { registerNotificationCommands } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
+import { IPCClient } from 'vs/base/parts/ipc/common/ipc';
+import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
 
@@ -233,9 +235,10 @@ export class Workbench implements IPartService {
 	constructor(
 		parent: HTMLElement,
 		container: HTMLElement,
-		configuration: IWindowConfiguration,
+		private configuration: IWindowConfiguration,
 		serviceCollection: ServiceCollection,
 		private lifecycleService: LifecycleService,
+		private mainProcessClient: IPCClient,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
@@ -319,6 +322,12 @@ export class Workbench implements IPartService {
 
 		// Workbench Layout
 		this.createWorkbenchLayout();
+
+		// Driver
+		if (this.environmentService.driverHandle) {
+			registerWindowDriver(this.mainProcessClient, this.configuration.windowId, this.instantiationService)
+				.then(disposable => this.toUnbind.push(disposable));
+		}
 
 		// Restore Parts
 		return this.restoreParts();

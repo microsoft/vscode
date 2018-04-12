@@ -3,15 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+const path = require('path');
 
-import { Code } from '../../vscode/code';
-
-export abstract class Viewlet {
-
-	constructor(protected code: Code) { }
-
-	async waitForTitle(fn: (title: string) => boolean): Promise<void> {
-		await this.code.waitForTextContent('.monaco-workbench-container .part.sidebar > .title > .title-label > span', undefined, fn);
-	}
-}
+exports.connect = function (outPath, handle) {
+	const bootstrapPath = path.join(outPath, 'bootstrap-amd.js');
+	const { bootstrap } = require(bootstrapPath);
+	return new Promise((c, e) => bootstrap('vs/platform/driver/node/driver', ({ connect }) => connect(handle).then(c, e), e));
+};
