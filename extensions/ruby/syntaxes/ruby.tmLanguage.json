@@ -421,7 +421,7 @@
 			]
 		},
 		{
-			"comment": "Needs higher precidence than regular expressions.",
+			"comment": "Needs higher precedence than regular expressions.",
 			"match": "(?<!\\()/=",
 			"name": "keyword.operator.assignment.augmented.ruby"
 		},
