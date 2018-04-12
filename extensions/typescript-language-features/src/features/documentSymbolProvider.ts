@@ -67,7 +67,7 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 	private static convertNavBar(resource: Uri, indent: number, foldingMap: ObjectMap<SymbolInformation>, bucket: SymbolInformation[], item: Proto.NavigationBarItem, containerLabel?: string): void {
 		let realIndent = indent + item.indent;
 		let key = `${realIndent}|${item.text}`;
-		if (realIndent !== 0 && !foldingMap[key] && TypeScriptDocumentSymbolProvider.shouldInclueEntry(item.text)) {
+		if (realIndent !== 0 && !foldingMap[key] && TypeScriptDocumentSymbolProvider.shouldIncludeEntry(item.text)) {
 			let result = new SymbolInformation(item.text,
 				outlineTypeTable[item.kind as string] || SymbolKind.Variable,
 				containerLabel ? containerLabel : '',
@@ -94,12 +94,12 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 			}
 		}
 
-		if (TypeScriptDocumentSymbolProvider.shouldInclueEntry(result.name)) {
+		if (TypeScriptDocumentSymbolProvider.shouldIncludeEntry(result.name)) {
 			bucket.push(result);
 		}
 	}
 
-	private static shouldInclueEntry(name: string): boolean {
+	private static shouldIncludeEntry(name: string): boolean {
 		return !!(name && name !== '<function>' && name !== '<class>');
 	}
 }
