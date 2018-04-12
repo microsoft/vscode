@@ -386,7 +386,7 @@ export interface IBaseStat {
 	name: string;
 
 	/**
-	 * The last modifictaion date represented
+	 * The last modification date represented
 	 * as millis from unix epoch.
 	 */
 	mtime: number;
