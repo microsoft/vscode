@@ -221,7 +221,7 @@ export class SuggestController implements IEditorContribution {
 			this._model.cancel();
 
 		} else if (suggestion.command.id === TriggerSuggestAction.id) {
-			// retigger
+			// retrigger
 			this._model.trigger({ auto: true }, true);
 
 		} else {
