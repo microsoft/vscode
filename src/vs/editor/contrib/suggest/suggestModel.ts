@@ -428,7 +428,7 @@ export class SuggestModel implements IDisposable {
 		}
 
 		if (ctx.column > this._context.column && this._completionModel.incomplete && ctx.leadingWord.word.length !== 0) {
-			// typed -> moved cursor RIGHT & incomple model & still on a word -> retrigger
+			// typed -> moved cursor RIGHT & incomplete model & still on a word -> retrigger
 			const { complete, incomplete } = this._completionModel.resolveIncompleteInfo();
 			this.trigger({ auto: this._state === State.Auto }, true, incomplete, complete);
 
