@@ -534,7 +534,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				this._onEditorsChanged.fire();
 			}
 
-			// Fullfill promise with Editor that is being used
+			// Fulfill promise with Editor that is being used
 			return editor;
 
 		}, e => {
