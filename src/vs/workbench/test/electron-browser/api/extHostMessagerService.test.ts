@@ -32,7 +32,7 @@ const emptyCommandService: ICommandService = {
 };
 
 const emptyNotificationService = new class implements INotificationService {
-	_serviceBrand: 'notificiationService';
+	_serviceBrand: 'notificationService';
 	notify(...args: any[]): never {
 		throw new Error('not implemented');
 	}
