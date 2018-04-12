@@ -18,7 +18,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 
 export class LifecycleService implements ILifecycleService {
 
-	private static readonly _lastShutdownReasonKey = 'lifecyle.lastShutdownReason';
+	private static readonly _lastShutdownReasonKey = 'lifecycle.lastShutdownReason';
 
 	public _serviceBrand: any;
 
