@@ -323,9 +323,9 @@ export class RemoteFileService extends FileService {
 		const target = createWritableOfProvider(provider, resource);
 
 		return new TPromise<IFileStat>((resolve, reject) => {
-			let stream = readable.pipe(decoder).pipe(target);
-			stream.on('error', err => reject(err));
-			stream.on('finish', _ => resolve(void 0));
+			readable.pipe(decoder).pipe(target);
+			target.once('error', err => reject(err));
+			target.once('finish', _ => resolve(void 0));
 		}).then(_ => {
 			return this.resolveFile(resource);
 		});

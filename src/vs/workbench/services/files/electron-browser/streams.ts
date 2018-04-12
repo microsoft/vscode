@@ -26,19 +26,12 @@ function createSimpleWritable(provider: ISimpleReadWriteProvider, resource: URI)
 			this._chunks.push(chunk);
 			callback(null);
 		}
-		end(chunk?, encoding?, callback?) {
-			super.end(chunk, encoding, err => {
-				provider.writeFile(resource, Buffer.concat(this._chunks)).then(_ => {
-					if (callback) {
-						callback(null);
-					}
-				}, err => {
-					if (callback) {
-						callback(err);
-					} else {
-						this.emit('error', err);
-					}
-				});
+		end() {
+			// todo@joh - end might have another chunk...
+			provider.writeFile(resource, Buffer.concat(this._chunks)).then(_ => {
+				super.end();
+			}, err => {
+				this.emit('error', err);
 			});
 		}
 	};
@@ -51,27 +44,23 @@ function createWritable(provider: IReadWriteProvider, resource: URI): Writable {
 		constructor(opts?) {
 			super(opts);
 		}
-		_write(chunk: Buffer, encoding, callback: Function) {
-			this._doWrite(chunk).then(() => callback(null), err => callback(err));
-		}
-		async _doWrite(chunk: Buffer) {
-			if (typeof this._fd !== 'number') {
-				this._fd = await provider.open(resource, { mode: 'w+' });
+		async _write(chunk: Buffer, encoding, callback: Function) {
+			try {
+				if (typeof this._fd !== 'number') {
+					this._fd = await provider.open(resource, { mode: 'w+' });
+				}
+				let bytesWritten = await provider.write(this._fd, this._pos, chunk, 0, chunk.length);
+				this._pos += bytesWritten;
+				callback();
+			} catch (err) {
+				callback(err);
 			}
-			let bytesWritten = await provider.write(this._fd, this._pos, chunk, 0, chunk.length);
-			this._pos += bytesWritten;
 		}
-		end(chunk?, encoding?, callback?) {
+		end() {
 			provider.close(this._fd).then(_ => {
-				if (callback) {
-					callback();
-				}
+				super.end();
 			}, err => {
-				if (callback) {
-					callback(err);
-				} else {
-					this.emit('error', err);
-				}
+				this.emit('error', err);
 			});
 		}
 	};
