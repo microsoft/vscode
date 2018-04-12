@@ -383,7 +383,7 @@ export interface BaseTaskRunnerConfiguration {
 	taskSelector?: string;
 
 	/**
-	 * The problem matcher(s) to used if a global command is exucuted (e.g. no tasks
+	 * The problem matcher(s) to used if a global command is executed (e.g. no tasks
 	 * are defined). A tasks.json file can either contain a global problemMatcher
 	 * property or a tasks property but not both.
 	 */
