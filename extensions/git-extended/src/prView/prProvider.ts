@@ -130,7 +130,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 
 			let actions = [
 				{
-					command: element.prItem.number + '-post',
+					command: 'diff-' + element.prItem.number + '-post',
 					title: 'Add single comment'
 				}
 			];
