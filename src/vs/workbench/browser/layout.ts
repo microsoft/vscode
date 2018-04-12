@@ -86,7 +86,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	private _panelWidth: number;
 	private layoutEditorGroupsVertically: boolean;
 
-	// Take parts as an object bag since instatation service does not have typings for constructors with 9+ arguments
+	// Take parts as an object bag since instantiation service does not have typings for constructors with 9+ arguments
 	constructor(
 		parent: HTMLElement,
 		workbenchContainer: HTMLElement,
