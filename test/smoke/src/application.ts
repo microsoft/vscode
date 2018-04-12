@@ -59,12 +59,10 @@ export class Application {
 		return this.options.workspaceFilePath;
 	}
 
-	async start(waitForWelcome: boolean = true): Promise<any> {
+	async start(): Promise<any> {
 		await this._start();
-
-		if (waitForWelcome) {
-			await this.waitForWelcome();
-		}
+		await this.code.waitForElement('.explorer-folders-view');
+		await this.code.waitForActiveElement(`.editor-container[id="workbench.editor.walkThroughPart"] > div > div[tabIndex="0"]`);
 	}
 
 	async restart(options: { workspaceOrFolder?: string, extraArgs?: string[] }): Promise<any> {
@@ -122,11 +120,6 @@ export class Application {
 
 		await this.code.waitForWindowIds(ids => ids.length > 0);
 		await this.code.waitForElement('.monaco-workbench');
-	}
-
-	private async waitForWelcome(): Promise<any> {
-		await this.code.waitForElement('.explorer-folders-view');
-		await this.code.waitForElement(`.editor-container[id="workbench.editor.walkThroughPart"] .welcomePage`);
 	}
 
 	private retrieveKeybindings(): Promise<void> {
