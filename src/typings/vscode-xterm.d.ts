@@ -19,7 +19,7 @@ declare module 'vscode-xterm' {
 	export interface ITerminalOptions {
 		/**
 		 * Whether background should support non-opaque color. It must be set before
-		 * executing open() method and can't be changed later without excuting it again.
+		 * executing open() method and can't be changed later without executing it again.
 		 * Warning: Enabling this option can reduce performances somewhat.
 		 */
 		allowTransparency?: boolean;
