@@ -965,7 +965,7 @@ export class Repository implements Disposable {
 				return await runOperation();
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.RepositoryIsLocked && attempt <= 10) {
-					// quatratic backoff
+					// quadratic backoff
 					await timeout(Math.pow(attempt, 2) * 50);
 				} else {
 					throw err;
