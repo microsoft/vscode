@@ -72,7 +72,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {
 
-		// resolve this type bearing if neccessary
+		// resolve this type bearing if necessary
 		if (!this._bearingResolve
 			&& typeof this._provider.resolveWorkspaceSymbol === 'function'
 			&& !this._bearing.location.range
