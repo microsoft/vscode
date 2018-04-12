@@ -400,7 +400,7 @@ class TokenTreeBuilder {
 
 /**
  * Parses this grammar:
- *	grammer = { line }
+ *	grammar = { line }
  *	line = { block | "token" }
  *	block = "open_bracket" { line } "close_bracket"
  */
