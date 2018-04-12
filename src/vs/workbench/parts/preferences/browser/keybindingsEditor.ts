@@ -132,7 +132,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.overlayContainer.style.height = dimension.height + 'px';
 		this.defineKeybindingWidget.layout(this.dimension);
 
-		this.layoutKebindingsList();
+		this.layoutKeybindingsList();
 	}
 
 	focus(): void {
@@ -387,7 +387,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			const currentSelectedIndex = this.keybindingsList.getSelection()[0];
 			this.listEntries = [{ id: 'keybinding-header-entry', templateId: KEYBINDING_HEADER_TEMPLATE_ID }, ...keybindingsEntries];
 			this.keybindingsList.splice(0, this.keybindingsList.length, this.listEntries);
-			this.layoutKebindingsList();
+			this.layoutKeybindingsList();
 
 			if (reset) {
 				this.keybindingsList.setSelection([]);
@@ -409,7 +409,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		}
 	}
 
-	private layoutKebindingsList(): void {
+	private layoutKeybindingsList(): void {
 		const listHeight = this.dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 12 /*padding*/);
 		this.keybindingsListContainer.style.height = `${listHeight}px`;
 		this.keybindingsList.layout(listHeight);

@@ -452,7 +452,7 @@ export class CodeMenu {
 
 	private getPreferencesMenu(): Electron.MenuItem {
 		const settings = this.createMenuItem(nls.localize({ key: 'miOpenSettings', comment: ['&& denotes a mnemonic'] }, "&&Settings"), 'workbench.action.openSettings');
-		const kebindingSettings = this.createMenuItem(nls.localize({ key: 'miOpenKeymap', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts"), 'workbench.action.openGlobalKeybindings');
+		const keybindingSettings = this.createMenuItem(nls.localize({ key: 'miOpenKeymap', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts"), 'workbench.action.openGlobalKeybindings');
 		const keymapExtensions = this.createMenuItem(nls.localize({ key: 'miOpenKeymapExtensions', comment: ['&& denotes a mnemonic'] }, "&&Keymap Extensions"), 'workbench.extensions.action.showRecommendedKeymapExtensions');
 		const snippetsSettings = this.createMenuItem(nls.localize({ key: 'miOpenSnippets', comment: ['&& denotes a mnemonic'] }, "User &&Snippets"), 'workbench.action.openSnippets');
 		const colorThemeSelection = this.createMenuItem(nls.localize({ key: 'miSelectColorTheme', comment: ['&& denotes a mnemonic'] }, "&&Color Theme"), 'workbench.action.selectTheme');
@@ -461,7 +461,7 @@ export class CodeMenu {
 		const preferencesMenu = new Menu();
 		preferencesMenu.append(settings);
 		preferencesMenu.append(__separator__());
-		preferencesMenu.append(kebindingSettings);
+		preferencesMenu.append(keybindingSettings);
 		preferencesMenu.append(keymapExtensions);
 		preferencesMenu.append(__separator__());
 		preferencesMenu.append(snippetsSettings);
