@@ -194,13 +194,13 @@ export namespace RevealLine_ {
 			return false;
 		}
 
-		let reveaLineArg: RawArguments = arg;
+		let revealLineArg: RawArguments = arg;
 
-		if (!types.isNumber(reveaLineArg.lineNumber)) {
+		if (!types.isNumber(revealLineArg.lineNumber)) {
 			return false;
 		}
 
-		if (!types.isUndefined(reveaLineArg.at) && !types.isString(reveaLineArg.at)) {
+		if (!types.isUndefined(revealLineArg.at) && !types.isString(revealLineArg.at)) {
 			return false;
 		}
 
