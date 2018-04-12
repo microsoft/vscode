@@ -84,7 +84,7 @@ suite('ConfigurationModel', () => {
 		assert.deepEqual(testObject.keys, ['a.b']);
 	});
 
-	test('removeValue: remove a single segemented key', () => {
+	test('removeValue: remove a single segmented key', () => {
 		let testObject = new ConfigurationModel({ 'a': 1 }, ['a']);
 
 		testObject.removeValue('a');
@@ -93,7 +93,7 @@ suite('ConfigurationModel', () => {
 		assert.deepEqual(testObject.keys, []);
 	});
 
-	test('removeValue: remove a multi segemented key', () => {
+	test('removeValue: remove a multi segmented key', () => {
 		let testObject = new ConfigurationModel({ 'a': { 'b': 1 } }, ['a.b']);
 
 		testObject.removeValue('a.b');

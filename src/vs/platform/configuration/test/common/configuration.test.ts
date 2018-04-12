@@ -34,7 +34,7 @@ suite('Configuration', () => {
 		assert.deepEqual(target, { 'a': { 'b': 2 } });
 	});
 
-	test('removeFromValueTree: remove a single segemented key', () => {
+	test('removeFromValueTree: remove a single segmented key', () => {
 		let target = { 'a': 1 };
 
 		removeFromValueTree(target, 'a');
@@ -42,7 +42,7 @@ suite('Configuration', () => {
 		assert.deepEqual(target, {});
 	});
 
-	test('removeFromValueTree: remove a single segemented key when its value is undefined', () => {
+	test('removeFromValueTree: remove a single segmented key when its value is undefined', () => {
 		let target = { 'a': void 0 };
 
 		removeFromValueTree(target, 'a');
@@ -50,7 +50,7 @@ suite('Configuration', () => {
 		assert.deepEqual(target, {});
 	});
 
-	test('removeFromValueTree: remove a multi segemented key when its value is undefined', () => {
+	test('removeFromValueTree: remove a multi segmented key when its value is undefined', () => {
 		let target = { 'a': { 'b': 1 } };
 
 		removeFromValueTree(target, 'a.b');
@@ -58,7 +58,7 @@ suite('Configuration', () => {
 		assert.deepEqual(target, {});
 	});
 
-	test('removeFromValueTree: remove a multi segemented key when its value is array', () => {
+	test('removeFromValueTree: remove a multi segmented key when its value is array', () => {
 		let target = { 'a': { 'b': [1] } };
 
 		removeFromValueTree(target, 'a.b');
@@ -66,7 +66,7 @@ suite('Configuration', () => {
 		assert.deepEqual(target, {});
 	});
 
-	test('removeFromValueTree: remove a multi segemented key first segment value is array', () => {
+	test('removeFromValueTree: remove a multi segmented key first segment value is array', () => {
 		let target = { 'a': [1] };
 
 		removeFromValueTree(target, 'a.0');
@@ -74,7 +74,7 @@ suite('Configuration', () => {
 		assert.deepEqual(target, { 'a': [1] });
 	});
 
-	test('removeFromValueTree: remove when key is the first segmenet', () => {
+	test('removeFromValueTree: remove when key is the first segment', () => {
 		let target = { 'a': { 'b': 1 } };
 
 		removeFromValueTree(target, 'a');
@@ -82,7 +82,7 @@ suite('Configuration', () => {
 		assert.deepEqual(target, {});
 	});
 
-	test('removeFromValueTree: remove a multi segemented key when the first node has more values', () => {
+	test('removeFromValueTree: remove a multi segmented key when the first node has more values', () => {
 		let target = { 'a': { 'b': { 'c': 1 }, 'd': 1 } };
 
 		removeFromValueTree(target, 'a.b.c');
@@ -90,7 +90,7 @@ suite('Configuration', () => {
 		assert.deepEqual(target, { 'a': { 'd': 1 } });
 	});
 
-	test('removeFromValueTree: remove a multi segemented key when in between node has more values', () => {
+	test('removeFromValueTree: remove a multi segmented key when in between node has more values', () => {
 		let target = { 'a': { 'b': { 'c': { 'd': 1 }, 'd': 1 } } };
 
 		removeFromValueTree(target, 'a.b.c.d');
@@ -98,7 +98,7 @@ suite('Configuration', () => {
 		assert.deepEqual(target, { 'a': { 'b': { 'd': 1 } } });
 	});
 
-	test('removeFromValueTree: remove a multi segemented key when the last but one node has more values', () => {
+	test('removeFromValueTree: remove a multi segmented key when the last but one node has more values', () => {
 		let target = { 'a': { 'b': { 'c': 1, 'd': 1 } } };
 
 		removeFromValueTree(target, 'a.b.c');
