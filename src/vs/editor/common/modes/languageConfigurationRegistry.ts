@@ -358,7 +358,7 @@ export class LanguageConfigurationRegistryImpl {
 	 *
 	 * This function only return the inherited indent based on above lines, it doesn't check whether current line should decrease or not.
 	 */
-	public getInheritIndentForLine(model: IVirtualModel, lineNumber: number, honorIntentialIndent: boolean = true): { indentation: string, action: IndentAction, line?: number } {
+	public getInheritIndentForLine(model: IVirtualModel, lineNumber: number, honorIntentionalIndent: boolean = true): { indentation: string, action: IndentAction, line?: number } {
 		let indentRulesSupport = this.getIndentRulesSupport(model.getLanguageIdentifier().id);
 		if (!indentRulesSupport) {
 			return null;
@@ -430,7 +430,7 @@ export class LanguageConfigurationRegistryImpl {
 				};
 			}
 
-			if (honorIntentialIndent) {
+			if (honorIntentionalIndent) {
 				return {
 					indentation: strings.getLeadingWhitespace(model.getLineContent(precedingUnIgnoredLine)),
 					action: null,

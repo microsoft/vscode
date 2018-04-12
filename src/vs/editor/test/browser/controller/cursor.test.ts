@@ -2671,7 +2671,7 @@ suite('Editor Controller - Indentation Rules', () => {
 		model.dispose();
 	});
 
-	test('Enter honors intential indent', () => {
+	test('Enter honors intentional indent', () => {
 		usingCursor({
 			text: [
 				'if (true) {',
