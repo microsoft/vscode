@@ -442,7 +442,7 @@ export class CodeApplication {
 		const urlHandlerChannel = this.electronIpcServer.getChannel('urlHandler', { route: () => activeWindowManager.activeClientId });
 		const multiplexURLHandler = new URLHandlerChannelClient(urlHandlerChannel);
 
-		// Register the multiple URL handker
+		// Register the multiple URL handler
 		urlService.registerHandler(multiplexURLHandler);
 
 		// Watch Electron URLs and forward them to the UrlService
