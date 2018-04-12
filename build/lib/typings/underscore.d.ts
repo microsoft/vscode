@@ -4001,7 +4001,7 @@ interface UnderscoreStatic {
 	/**
 	* A mostly-internal function to generate callbacks that can be applied to each element
 	* in a collection, returning the desired result -- either identity, an arbitrary callback,
-	* a property matcher, or a propetery accessor.
+	* a property matcher, or a property accessor.
 	* @param string|Function|Object value The value to iterate over, usually the key.
 	* @param any context
 	* @return Callback that can be applied to each element in a collection.
