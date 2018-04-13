@@ -67,7 +67,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWi
 
 		this.toDispose = [];
 		const uri = this.editor.getModel().uri;
-		this.breakpoint = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === this.lineNumber && bp.column === this.column && bp.uri.toString() === uri.toString()).pop();
+		this.breakpoint = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === this.lineNumber && bp.uri.toString() === uri.toString()).pop();
 
 		if (this.context === undefined) {
 			if (this.breakpoint && !this.breakpoint.condition && !this.breakpoint.hitCondition && this.breakpoint.logMessage) {

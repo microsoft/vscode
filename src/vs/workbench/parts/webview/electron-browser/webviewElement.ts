@@ -22,7 +22,7 @@ export interface WebviewOptions {
 	readonly svgWhiteList?: string[];
 	readonly enableWrappedPostMessage?: boolean;
 	readonly useSameOriginForRoot?: boolean;
-	readonly localResourceRoots?: URI[];
+	readonly localResourceRoots?: ReadonlyArray<URI>;
 }
 
 export class WebviewElement {
@@ -421,7 +421,7 @@ namespace ApiThemeClassName {
 function registerFileProtocol(
 	contents: Electron.WebContents,
 	protocol: string,
-	getRoots: () => URI[]
+	getRoots: () => ReadonlyArray<URI>
 ) {
 	contents.session.protocol.registerFileProtocol(protocol, (request, callback: any) => {
 		const requestPath = URI.parse(request.url).path;

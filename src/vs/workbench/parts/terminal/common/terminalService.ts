@@ -24,6 +24,7 @@ export abstract class TerminalService implements ITerminalService {
 	protected _terminalContainer: HTMLElement;
 	protected _onInstancesChanged: Emitter<void>;
 	protected _onTabDisposed: Emitter<ITerminalTab>;
+	protected _onInstanceCreated: Emitter<ITerminalInstance>;
 	protected _onInstanceDisposed: Emitter<ITerminalInstance>;
 	protected _onInstanceProcessIdReady: Emitter<ITerminalInstance>;
 	protected _onInstanceTitleChanged: Emitter<string>;
@@ -36,6 +37,7 @@ export abstract class TerminalService implements ITerminalService {
 	public get activeTabIndex(): number { return this._activeTabIndex; }
 	public get onActiveTabChanged(): Event<void> { return this._onActiveTabChanged.event; }
 	public get onTabDisposed(): Event<ITerminalTab> { return this._onTabDisposed.event; }
+	public get onInstanceCreated(): Event<ITerminalInstance> { return this._onInstanceCreated.event; }
 	public get onInstanceDisposed(): Event<ITerminalInstance> { return this._onInstanceDisposed.event; }
 	public get onInstanceProcessIdReady(): Event<ITerminalInstance> { return this._onInstanceProcessIdReady.event; }
 	public get onInstanceTitleChanged(): Event<string> { return this._onInstanceTitleChanged.event; }
@@ -57,6 +59,7 @@ export abstract class TerminalService implements ITerminalService {
 
 		this._onActiveTabChanged = new Emitter<void>();
 		this._onTabDisposed = new Emitter<ITerminalTab>();
+		this._onInstanceCreated = new Emitter<ITerminalInstance>();
 		this._onInstanceDisposed = new Emitter<ITerminalInstance>();
 		this._onInstanceProcessIdReady = new Emitter<ITerminalInstance>();
 		this._onInstanceTitleChanged = new Emitter<string>();

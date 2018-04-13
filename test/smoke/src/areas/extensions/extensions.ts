@@ -17,17 +17,13 @@ export class Extensions extends Viewlet {
 
 	async openExtensionsViewlet(): Promise<any> {
 		await this.commands.runCommand('workbench.view.extensions');
-		await this.waitForExtensionsViewlet();
-	}
-
-	async waitForExtensionsViewlet(): Promise<any> {
 		await this.code.waitForActiveElement(SEARCH_BOX);
 	}
 
 	async searchForExtension(name: string): Promise<any> {
 		await this.code.waitAndClick(SEARCH_BOX);
 		await this.code.waitForActiveElement(SEARCH_BOX);
-		await this.code.waitForSetValue(SEARCH_BOX, name);
+		await this.code.waitForSetValue(SEARCH_BOX, `name:"${name}"`);
 	}
 
 	async installExtension(name: string): Promise<void> {

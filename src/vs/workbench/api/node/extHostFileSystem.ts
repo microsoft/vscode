@@ -57,10 +57,9 @@ class FsLinkProvider implements vscode.DocumentLinkProvider {
 	}
 }
 
-
 class FileSystemProviderShim implements vscode.FileSystemProvider2 {
 
-	_version: 4;
+	_version: 5;
 
 	onDidChange: vscode.Event<vscode.FileChange2[]>;
 
@@ -154,7 +153,8 @@ class FileSystemProviderShim implements vscode.FileSystemProvider2 {
 			return Buffer.concat(chunks);
 		});
 	}
-	writeFile(resource: vscode.Uri, content: Uint8Array): Thenable<void> {
+	writeFile(resource: vscode.Uri, content: Uint8Array, options: { flags: vscode.FileOpenFlags }): Thenable<void> {
+		// if (options.flags & (files.FileOpenFlags.Exclusive) )
 		return this._delegate.write(resource, content);
 	}
 }
@@ -174,7 +174,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	}
 
 	registerFileSystemProvider(scheme: string, provider: vscode.FileSystemProvider, newProvider: vscode.FileSystemProvider2) {
-		if (newProvider && newProvider._version === 4) {
+		if (newProvider && newProvider._version === 5) {
 			return this._doRegisterFileSystemProvider(scheme, newProvider);
 		} else if (provider) {
 			return this._doRegisterFileSystemProvider(scheme, new FileSystemProviderShim(provider));
@@ -240,15 +240,15 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	$readdir(handle: number, resource: UriComponents): TPromise<[string, files.IStat][], any> {
 		return asWinJsPromise(token => this._fsProvider.get(handle).readDirectory(URI.revive(resource), token));
 	}
-	$readFile(handle: number, resource: UriComponents): TPromise<string> {
+	$readFile(handle: number, resource: UriComponents, flags: files.FileOpenFlags): TPromise<string> {
 		return asWinJsPromise(token => {
-			return this._fsProvider.get(handle).readFile(URI.revive(resource), token);
+			return this._fsProvider.get(handle).readFile(URI.revive(resource), { flags }, token);
 		}).then(data => {
 			return Buffer.isBuffer(data) ? data.toString('base64') : Buffer.from(data.buffer, data.byteOffset, data.byteLength).toString('base64');
 		});
 	}
-	$writeFile(handle: number, resource: UriComponents, base64Content: string): TPromise<void, any> {
-		return asWinJsPromise(token => this._fsProvider.get(handle).writeFile(URI.revive(resource), Buffer.from(base64Content, 'base64'), token));
+	$writeFile(handle: number, resource: UriComponents, base64Content: string, flags: files.FileOpenFlags): TPromise<void, any> {
+		return asWinJsPromise(token => this._fsProvider.get(handle).writeFile(URI.revive(resource), Buffer.from(base64Content, 'base64'), { flags }, token));
 	}
 	$delete(handle: number, resource: UriComponents): TPromise<void, any> {
 		return asWinJsPromise(token => this._fsProvider.get(handle).delete(URI.revive(resource), token));

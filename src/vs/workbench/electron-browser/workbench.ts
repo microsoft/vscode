@@ -586,7 +586,7 @@ export class Workbench implements IPartService {
 		// File Service
 		this.fileService = this.instantiationService.createInstance(RemoteFileService);
 		serviceCollection.set(IFileService, this.fileService);
-		this.toUnbind.push(this.fileService.onFileChanges(e => this.configurationService.handleWorkspaceFileEvents(e)));
+		this.configurationService.acquireFileService(this.fileService);
 
 		// Editor service (editor part)
 		this.editorPart = this.instantiationService.createInstance(EditorPart, Identifiers.EDITOR_PART, !this.hasFilesToCreateOpenOrDiff);
@@ -658,7 +658,7 @@ export class Workbench implements IPartService {
 
 		this.instantiationService.createInstance(DefaultConfigurationExportHelper);
 
-		this.configurationService.setInstantiationService(this.getInstantiationService());
+		this.configurationService.acquireInstantiationService(this.getInstantiationService());
 	}
 
 	private initSettings(): void {

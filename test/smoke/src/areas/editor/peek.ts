@@ -34,7 +34,19 @@ export class References {
 	}
 
 	async close(): Promise<void> {
-		await this.code.dispatchKeybinding('escape');
-		await this.code.waitForElement(References.REFERENCES_WIDGET, element => !element);
+		// Sometimes someone else eats up the `Escape` key
+		let count = 0;
+		while (true) {
+			await this.code.dispatchKeybinding('escape');
+
+			try {
+				await this.code.waitForElement(References.REFERENCES_WIDGET, el => !el, 10);
+				return;
+			} catch (err) {
+				if (++count > 5) {
+					throw err;
+				}
+			}
+		}
 	}
 }

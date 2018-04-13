@@ -42,7 +42,7 @@ import { ITreeItem } from 'vs/workbench/common/views';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { SerializedError } from 'vs/base/common/errors';
-import { IStat, FileChangeType } from 'vs/platform/files/common/files';
+import { IStat, FileChangeType, FileOpenFlags } from 'vs/platform/files/common/files';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { CommentRule, CharacterPair, EnterAction } from 'vs/editor/common/modes/languageConfiguration';
 import { ISingleEditOperation } from 'vs/editor/common/model';
@@ -273,7 +273,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerHoverProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerDocumentHighlightProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerReferenceSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
-	$registerQuickFixSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerQuickFixSupport(handle: number, selector: ISerializedDocumentFilter[], supportedKinds?: string[]): void;
 	$registerDocumentFormattingSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerRangeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerOnTypeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], autoFormatTriggerCharacters: string[]): void;
@@ -350,7 +350,7 @@ export interface MainThreadTelemetryShape extends IDisposable {
 export type WebviewHandle = string;
 
 export interface MainThreadWebviewsShape extends IDisposable {
-	$createWebview(handle: WebviewHandle, viewType: string, title: string, column: EditorPosition, options: vscode.WebviewEditorOptions & vscode.WebviewOptions, extensionFolderPath: string): void;
+	$createWebview(handle: WebviewHandle, viewType: string, title: string, column: EditorPosition, options: vscode.WebviewPanelOptions & vscode.WebviewOptions, extensionFolderPath: string): void;
 	$disposeWebview(handle: WebviewHandle): void;
 	$reveal(handle: WebviewHandle, column: EditorPosition): void;
 	$setTitle(handle: WebviewHandle, value: string): void;
@@ -567,8 +567,8 @@ export interface ExtHostWorkspaceShape {
 export interface ExtHostFileSystemShape {
 	$stat(handle: number, resource: UriComponents): TPromise<IStat>;
 
-	$readFile(handle: number, resource: UriComponents): TPromise<string>;
-	$writeFile(handle: number, resource: UriComponents, base64Encoded: string): TPromise<void>;
+	$readFile(handle: number, resource: UriComponents, flags: FileOpenFlags): TPromise<string>;
+	$writeFile(handle: number, resource: UriComponents, base64Encoded: string, flags: FileOpenFlags): TPromise<void>;
 
 	$move(handle: number, resource: UriComponents, target: UriComponents): TPromise<IStat>;
 	$mkdir(handle: number, resource: UriComponents): TPromise<IStat>;
@@ -728,6 +728,7 @@ export interface ExtHostQuickOpenShape {
 
 export interface ExtHostTerminalServiceShape {
 	$acceptTerminalClosed(id: number): void;
+	$acceptTerminalOpened(id: number, name: string): void;
 	$acceptTerminalProcessId(id: number, processId: number): void;
 }
 

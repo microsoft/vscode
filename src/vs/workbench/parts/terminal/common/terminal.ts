@@ -149,6 +149,7 @@ export interface ITerminalService {
 	configHelper: ITerminalConfigHelper;
 	onActiveTabChanged: Event<void>;
 	onTabDisposed: Event<ITerminalTab>;
+	onInstanceCreated: Event<ITerminalInstance>;
 	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
 	onInstancesChanged: Event<void>;
@@ -233,6 +234,8 @@ export interface ITerminalInstance {
 	onFocused: Event<ITerminalInstance>;
 
 	onProcessIdReady: Event<ITerminalInstance>;
+
+	processReady: TPromise<void>;
 
 	/**
 	 * The title of the terminal. This is either title or the process currently running or an

@@ -80,9 +80,9 @@ export class PolyfillPromise<T = any> implements Promise<T> {
 			},
 			onRejected && function (err) {
 				if (!sync) {
-					onFulfilled(err);
+					onRejected(err);
 				} else {
-					platform.setImmediate(() => onFulfilled(err));
+					platform.setImmediate(() => onRejected(err));
 				}
 			}
 		));

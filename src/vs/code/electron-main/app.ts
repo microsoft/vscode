@@ -62,7 +62,7 @@ import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
 import { join } from 'path';
-import { exists, unlink, del } from 'vs/base/node/pfs';
+import { copy, exists, rename } from 'vs/base/node/pfs';
 
 export class CodeApplication {
 
@@ -265,6 +265,7 @@ export class CodeApplication {
 		this.logService.debug('args:', this.environmentService.args);
 
 		// Handle local storage (TODO@Ben remove me after a while)
+		this.logService.trace('Handling localStorage if needed...');
 		return this.handleLocalStorage().then(() => {
 
 			// Make sure we associate the program with the app user model id
@@ -301,6 +302,7 @@ export class CodeApplication {
 				}
 
 				return promise.then(() => {
+
 					// Setup Auth Handler
 					const authHandler = appInstantiationService.createInstance(ProxyAuthHandler);
 					this.toDispose.push(authHandler);
@@ -331,26 +333,33 @@ export class CodeApplication {
 	}
 
 	private handleLocalStorage(): TPromise<void> {
+		const localStorageFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage');
+		const localStorageJournalFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage-journal');
 		const localStorageBackupFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage.vscbak');
 		const localStorageJournalBackupFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage-journal.vscbak');
-		const localStorageLevelDB = join(this.environmentService.userDataPath, 'Local Storage', 'leveldb');
 
-		// Electron 1.7.12: Delete
-		if (product.quality === 'insider' && process.versions.electron === '1.7.12') {
+		// Electron 1.7.12: Restore storage
+		if (process.versions.electron === '1.7.12') {
 			return exists(localStorageBackupFile).then(localStorageBackupFileExists => {
 				return exists(localStorageJournalBackupFile).then(localStorageJournalBackupFileExists => {
-					return exists(localStorageLevelDB).then(localStorageLevelDBExists => {
-						return TPromise.join([
-							localStorageBackupFileExists ? unlink(localStorageBackupFile) : TPromise.as(null),
-							localStorageJournalBackupFileExists ? unlink(localStorageJournalBackupFile) : TPromise.as(null),
-							localStorageLevelDBExists ? del(localStorageLevelDB) : TPromise.as(null)
-						]);
-					});
+					return TPromise.join([
+						localStorageBackupFileExists ? rename(localStorageBackupFile, localStorageFile) : TPromise.as(void 0),
+						localStorageJournalBackupFileExists ? rename(localStorageJournalBackupFile, localStorageJournalFile) : TPromise.as(void 0)
+					]);
 				});
 			}).then(() => void 0, () => void 0);
 		}
 
-		return TPromise.as(null);
+		// Electron 2.0: Backup
+		else {
+			return exists(localStorageBackupFile).then(backupExists => {
+				if (backupExists) {
+					return void 0; // do not backup if backup already exists
+				}
+
+				return copy(localStorageFile, localStorageBackupFile).then(() => copy(localStorageJournalFile, localStorageJournalBackupFile));
+			}).then(() => void 0, () => void 0);
+		}
 	}
 
 	private initServices(machineId: string): IInstantiationService {

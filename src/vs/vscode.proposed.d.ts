@@ -223,6 +223,18 @@ declare module 'vscode' {
 		// create(resource: Uri): Thenable<FileStat>;
 	}
 
+	export class FileError extends Error {
+
+		static readonly EEXIST: FileError;
+		static readonly ENOENT: FileError;
+		static readonly ENOTDIR: FileError;
+		static readonly EISDIR: FileError;
+
+		readonly code: string;
+
+		constructor(code: string, message?: string);
+	}
+
 	export enum FileChangeType2 {
 		Changed = 1,
 		Created = 2,
@@ -246,12 +258,18 @@ declare module 'vscode' {
 		size: number;
 	}
 
+	export enum FileOpenFlags {
+		Read = 0b0001,
+		Write = 0b0010,
+		Create = 0b0100,
+		Exclusive = 0b1000
+	}
 
 	// todo@joh discover files etc
 	// todo@joh add open/close calls?
 	export interface FileSystemProvider2 {
 
-		_version: 4;
+		_version: 5;
 
 		/**
 		 * An event to signal that a resource has been created, changed, or deleted.
@@ -284,7 +302,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return A thenable that resolves to an array of bytes.
 		 */
-		readFile(uri: Uri, token: CancellationToken): Uint8Array | Thenable<Uint8Array>;
+		readFile(uri: Uri, options: { flags: FileOpenFlags }, token: CancellationToken): Uint8Array | Thenable<Uint8Array>;
 
 		/**
 		 * Write data to a file, replacing its entire contents.
@@ -293,7 +311,7 @@ declare module 'vscode' {
 		 * @param content The new content of the file.
 		 * @param token A cancellation token.
 		 */
-		writeFile(uri: Uri, content: Uint8Array, token: CancellationToken): void | Thenable<void>;
+		writeFile(uri: Uri, content: Uint8Array, options: { flags: FileOpenFlags }, token: CancellationToken): void | Thenable<void>;
 
 		/**
 		 * Rename a file or folder.
@@ -600,7 +618,7 @@ declare module 'vscode' {
 		 *
 		 * Pass in an empty array to disallow access to any local resources.
 		 */
-		readonly localResourceRoots?: Uri[];
+		readonly localResourceRoots?: ReadonlyArray<Uri>;
 	}
 
 	/**
@@ -640,144 +658,159 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Content settings for a webview editor.
+	 * Content settings for a webview panel.
 	 */
-	export interface WebviewEditorOptions {
+	export interface WebviewPanelOptions {
 		/**
-		 * Should the find widget be enabled in the editor?
+		 * Should the find widget be enabled in the panel?
 		 *
 		 * Defaults to false.
 		 */
 		readonly enableFindWidget?: boolean;
 
 		/**
-		 * Should the webview editor's content (iframe) be kept around even when the editor
+		 * Should the webview panel's content (iframe) be kept around even when the panel
 		 * is no longer visible?
 		 *
-		 * Normally the editor's html context is created when the editor becomes visible
-		 * and destroyed when it is is hidden. Apps that have complex state
+		 * Normally the webview panel's html context is created when the panel becomes visible
+		 * and destroyed when it is is hidden. Extensions that have complex state
 		 * or UI can set the `retainContextWhenHidden` to make VS Code keep the webview
 		 * context around, even when the webview moves to a background tab. When
-		 * the editor becomes visible again, the context is automatically restored
+		 * the panel becomes visible again, the context is automatically restored
 		 * in the exact same state it was in originally.
 		 *
 		 * `retainContextWhenHidden` has a high memory overhead and should only be used if
-		 * your editor's context cannot be quickly saved and restored.
+		 * your panel's context cannot be quickly saved and restored.
 		 */
 		readonly retainContextWhenHidden?: boolean;
 	}
 
 	/**
-	 * An editor that contains a webview.
+	 * A panel that contains a webview.
 	 */
-	interface WebviewEditor {
+	interface WebviewPanel {
 		/**
-		 * The type of the webview editor, such as `'markdown.preview'`.
+		 * Type of the webview panel, such as `'markdown.preview'`.
 		 */
 		readonly viewType: string;
 
 		/**
-		 * The webview belonging to the editor.
+		 * Webview belonging to the panel.
 		 */
 		readonly webview: Webview;
 
 		/**
-		 * Content settings for the webview editor.
+		 * Content settings for the webview panel.
 		 */
-		readonly options: WebviewEditorOptions;
+		readonly options: WebviewPanelOptions;
 
 		/**
-		 * The column in which the editor is showing.
+		 * Editor position of the panel.
 		 */
-		readonly viewColumn?: ViewColumn;
+		readonly position?: ViewColumn;
 
 		/**
-		 * Fired when the editor's view state changes.
+		 * Is the panel current visible?
 		 */
-		readonly onDidChangeViewState: Event<WebviewEditorOnDidChangeViewStateEvent>;
+		readonly visible: boolean;
 
 		/**
-		 * Fired when the editor is disposed.
+		 * Fired when the panel's view state changes.
+		 */
+		readonly onDidChangeViewState: Event<WebviewPanelOnDidChangeViewStateEvent>;
+
+		/**
+		 * Fired when the panel is disposed.
 		 *
-		 * This may be because the user closed the editor or because `.dispose()` was
+		 * This may be because the user closed the panel or because `.dispose()` was
 		 * called on it.
 		 *
-		 * Trying to use the webview after it has been disposed throws an exception.
+		 * Trying to use the panel after it has been disposed throws an exception.
 		 */
 		readonly onDidDispose: Event<void>;
 
 		/**
-		 * Shows the webview editor in a given column.
+		 * Show the webview panel in a given column.
 		 *
-		 * A webview may only be in a single column at a time. If it is already showing, this
-		 * command moves it to a new column.
+		 * A webview panel may only show in a single column at a time. If it is already showing, this
+		 * method moves it to a new column.
 		 */
 		reveal(viewColumn: ViewColumn): void;
 
 		/**
-		 * Dispose of the webview editor.
+		 * Dispose of the webview panel.
 		 *
-		 * This closes the webview if it showing and disposes of the resources owned by the webview.
-		 * Webview are also disposed when the user closes the webview editor. Both cases fire `onDispose`
-		 * event.
+		 * This closes the panel if it showing and disposes of the resources owned by the webview.
+		 * Webview panels are also disposed when the user closes the webview panel. Both cases
+		 * fire the `onDispose` event.
 		 */
 		dispose(): any;
 	}
 
-	export interface WebviewEditorOnDidChangeViewStateEvent {
-		readonly viewColumn: ViewColumn;
-		readonly active: boolean;
+	/**
+	 * Event fired when a webview panel's view state changes.
+	 */
+	export interface WebviewPanelOnDidChangeViewStateEvent {
+		/**
+		 * Webview panel whose view state changed.
+		 */
+		readonly webviewPanel: WebviewPanel;
 	}
 
 	/**
-	 * Save and restore webview editors that have been persisted when vscode shuts down.
+	 * Save and restore webview panels that have been persisted when vscode shuts down.
 	 */
-	interface WebviewEditorSerializer {
+	interface WebviewPanelSerializer {
 		/**
-		 * Save a webview editors's `state`.
+		 * Save a webview panel's `state`.
 		 *
-		 * Called before shutdown. Webview editor may or may not be visible.
+		 * Called before shutdown. Extensions have a 250ms timeframe to return a state. If serialization
+		 * takes longer than 250ms, the panel will not be serialized.
 		 *
-		 * @param webviewEditor Webview editor to serialize.
+		 * @param webviewPanel webview Panel to serialize. May or may not be visible.
 		 *
 		 * @returns JSON serializable state blob.
 		 */
-		serializeWebviewEditor(webviewEditor: WebviewEditor): Thenable<any>;
+		serializeWebviewPanel(webviewPanel: WebviewPanel): Thenable<any>;
 
 		/**
-		 * Restore a webview editor from its `state`.
+		 * Restore a webview panel from its seriailzed `state`.
 		 *
-		 * Called when a serialized webview first becomes active.
+		 * Called when a serialized webview first becomes visible.
 		 *
-		 * @param webviewEditor Webview editor to restore. The serializer should take ownership of this editor.
+		 * @param webviewPanel Webview panel to restore. The serializer should take ownership of this panel.
 		 * @param state Persisted state.
+		 *
+		 * @return Thanble indicating that the webview has been fully restored.
 		 */
-		deserializeWebviewEditor(webviewEditor: WebviewEditor, state: any): Thenable<void>;
+		deserializeWebviewPanel(webviewPanel: WebviewPanel, state: any): Thenable<void>;
 	}
 
 	namespace window {
 		/**
-		 * Create and show a new webview editor.
+		 * Create and show a new webview panel.
 		 *
-		 * @param viewType Identifies the type of the webview editor.
-		 * @param title Title of the webview.
-		 * @param column Editor column to show the new webview editor in.
-		 * @param editorOptions Settings for the webview editor.
+		 * @param viewType Identifies the type of the webview panel.
+		 * @param title Title of the panel.
+		 * @param position Editor column to show the new panel in.
+		 * @param options Settings for the new webview panel.
+		 *
+		 * @return New webview panel.
 		 */
-		export function createWebviewEditor(viewType: string, title: string, column: ViewColumn, options: WebviewEditorOptions & WebviewOptions): WebviewEditor;
+		export function createWebviewPanel(viewType: string, title: string, position: ViewColumn, options: WebviewPanelOptions & WebviewOptions): WebviewPanel;
 
 		/**
-		 * Registers a webview editor serializer.
+		 * Registers a webview panel serializer.
 		 *
 		 * Extensions that support reviving should have an `"onView:viewType"` activation method and
-		 * make sure that `registerWebviewEditorSerializer` is called during activation.
+		 * make sure that [registerWebviewPanelSerializer](#registerWebviewPanelSerializer) is called during activation.
 		 *
 		 * Only a single serializer may be registered at a time for a given `viewType`.
 		 *
-		 * @param viewType Type of the webview editor that can be serialized.
+		 * @param viewType Type of the webview panel that can be serialized.
 		 * @param reviver Webview serializer.
 		 */
-		export function registerWebviewEditorSerializer(viewType: string, reviver: WebviewEditorSerializer): Disposable;
+		export function registerWebviewPanelSerializer(viewType: string, reviver: WebviewPanelSerializer): Disposable;
 	}
 
 	//#endregion
@@ -829,7 +862,7 @@ declare module 'vscode' {
 	export namespace workspace {
 
 		/**
-		 * Fetches all task available in the systems. This includes tasks
+		 * Fetches all task available in the systems. Thisweweb includes tasks
 		 * from `tasks.json` files as well as tasks from task providers
 		 * contributed through extensions.
 		 */
@@ -852,6 +885,25 @@ declare module 'vscode' {
 		 * Fires when a task ends.
 		 */
 		export const onDidEndTask: Event<TaskEndEvent>;
+	}
+
+	//#endregion
+
+	//#region Terminal
+
+	export namespace window {
+		/**
+		 * The currently active terminals or an empty array.
+		 *
+		 * @readonly
+		 */
+		export let terminals: Terminal[];
+
+		/**
+		 * An [event](#Event) which fires when a terminal has been created, either through the
+		 * [createTerminal](#window.createTerminal) API or commands.
+		 */
+		export const onDidOpenTerminal: Event<Terminal>;
 	}
 
 	//#endregion

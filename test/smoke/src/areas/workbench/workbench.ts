@@ -58,14 +58,14 @@ export class Workbench implements Commands {
 	 * Retrieves the command from keybindings file and executes it with WebdriverIO client API
 	 * @param command command (e.g. 'workbench.action.files.newUntitledFile')
 	 */
-	async runCommand(command: string): Promise<any> {
+	async runCommand(command: string): Promise<void> {
 		const binding = this.keybindings.find(x => x['command'] === command);
-		if (!binding) {
-			await this.quickopen.runCommand(command);
-			return;
-		}
 
-		return this.code.dispatchKeybinding(binding.key);
+		if (binding) {
+			await this.code.dispatchKeybinding(binding.key);
+		} else {
+			await this.quickopen.runCommand(command);
+		}
 	}
 }
 

@@ -4,18 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Event, Emitter, debounceEvent } from 'vs/base/common/event';
+import { Emitter, Event, debounceEvent } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { CodeActionProviderRegistry, CodeAction } from 'vs/editor/common/modes';
+import { CodeAction, CodeActionProviderRegistry } from 'vs/editor/common/modes';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { CodeActionKind, CodeActionTrigger } from './codeActionTrigger';
 import { getCodeActions } from './quickFix';
-import { CodeActionTrigger } from './codeActionTrigger';
-import { Position } from 'vs/editor/common/core/position';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+
+export const HAS_REFACTOR_PROVIDER = new RawContextKey<boolean>('hasRefactorProvider', false);
+export const HAS_SOURCE_ACTION_PROVIDER = new RawContextKey<boolean>('hasSourceActionProvider', false);
 
 export class QuickFixOracle {
 
@@ -141,10 +145,15 @@ export class QuickFixModel {
 	private _quickFixOracle: QuickFixOracle;
 	private _onDidChangeFixes = new Emitter<QuickFixComputeEvent>();
 	private _disposables: IDisposable[] = [];
+	private readonly _hasRefactorProvider: IContextKey<boolean>;
+	private readonly _hasSourceProvider: IContextKey<boolean>;
 
-	constructor(editor: ICodeEditor, markerService: IMarkerService) {
+	constructor(editor: ICodeEditor, markerService: IMarkerService, contextKeyService: IContextKeyService) {
 		this._editor = editor;
 		this._markerService = markerService;
+
+		this._hasRefactorProvider = HAS_REFACTOR_PROVIDER.bindTo(contextKeyService);
+		this._hasSourceProvider = HAS_SOURCE_ACTION_PROVIDER.bindTo(contextKeyService);
 
 		this._disposables.push(this._editor.onDidChangeModel(() => this._update()));
 		this._disposables.push(this._editor.onDidChangeModelLanguage(() => this._update()));
@@ -174,8 +183,28 @@ export class QuickFixModel {
 			&& CodeActionProviderRegistry.has(this._editor.getModel())
 			&& !this._editor.getConfiguration().readOnly) {
 
+			let hasRefactorProvider = false;
+			let hasSourceProvider = false;
+			outer: for (const provider of CodeActionProviderRegistry.all(this._editor.getModel())) {
+				if (!provider.providedCodeActionKinds) {
+					continue;
+				}
+				for (const providedKind of provider.providedCodeActionKinds) {
+					hasRefactorProvider = hasRefactorProvider || CodeActionKind.Refactor.contains(providedKind);
+					hasSourceProvider = hasSourceProvider || CodeActionKind.Source.contains(providedKind);
+					if (hasRefactorProvider && hasSourceProvider) {
+						break outer;
+					}
+				}
+			}
+
+			this._hasRefactorProvider.set(hasRefactorProvider);
+			this._hasSourceProvider.set(hasSourceProvider);
+
 			this._quickFixOracle = new QuickFixOracle(this._editor, this._markerService, p => this._onDidChangeFixes.fire(p));
 			this._quickFixOracle.trigger({ type: 'auto' });
+		} else {
+			this._hasRefactorProvider.reset();
 		}
 	}
 

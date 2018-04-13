@@ -23,7 +23,7 @@ export interface IDecodeStreamOptions {
 	overwriteEncoding?(detectedEncoding: string): string;
 }
 
-export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions): TPromise<{ detected: IDetectedEncodingResult, stream: NodeJS.ReadableStream }> {
+export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions): Promise<{ detected: IDetectedEncodingResult, stream: NodeJS.ReadableStream }> {
 
 	if (!options.minBytesRequiredForDetection) {
 		options.minBytesRequiredForDetection = options.guessEncoding ? AUTO_GUESS_BUFFER_MAX_LEN : NO_GUESS_BUFFER_MAX_LEN;
@@ -33,7 +33,7 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 		options.overwriteEncoding = detected => detected || UTF8;
 	}
 
-	return new TPromise<{ detected: IDetectedEncodingResult, stream: NodeJS.ReadableStream }>((resolve, reject) => {
+	return new Promise<{ detected: IDetectedEncodingResult, stream: NodeJS.ReadableStream }>((resolve, reject) => {
 		readable.pipe(new class extends Writable {
 
 			private _decodeStream: NodeJS.ReadWriteStream;
@@ -76,7 +76,7 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 
 			_startDecodeStream(callback: Function): void {
 
-				this._decodeStreamConstruction = TPromise.as(detectEncodingFromBuffer({
+				this._decodeStreamConstruction = Promise.resolve(detectEncodingFromBuffer({
 					buffer: Buffer.concat(this._buffer), bytesRead: this._bytesBuffered
 				}, options.guessEncoding)).then(detected => {
 					detected.encoding = options.overwriteEncoding(detected.encoding);

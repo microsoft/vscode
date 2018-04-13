@@ -25,7 +25,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { CodeActionAutoApply, CodeActionFilter, CodeActionKind } from './codeActionTrigger';
 import { LightBulbWidget } from './lightBulbWidget';
-import { QuickFixComputeEvent, QuickFixModel } from './quickFixModel';
+import { QuickFixComputeEvent, QuickFixModel, HAS_REFACTOR_PROVIDER, HAS_SOURCE_ACTION_PROVIDER } from './quickFixModel';
 import { QuickFixContextMenu } from './quickFixWidget';
 
 export class QuickFixController implements IEditorContribution {
@@ -52,7 +52,7 @@ export class QuickFixController implements IEditorContribution {
 		@optional(IFileService) private _fileService: IFileService
 	) {
 		this._editor = editor;
-		this._model = new QuickFixModel(this._editor, markerService);
+		this._model = new QuickFixModel(this._editor, markerService, contextKeyService);
 		this._quickFixContextMenu = new QuickFixContextMenu(editor, contextMenuService, action => this._onApplyCodeAction(action));
 		this._lightBulbWidget = new LightBulbWidget(editor);
 
@@ -247,7 +247,8 @@ export class RefactorAction extends EditorAction {
 			},
 			menuOpts: {
 				group: '1_modification',
-				order: 2
+				order: 2,
+				when: ContextKeyExpr.and(EditorContextKeys.writable, HAS_REFACTOR_PROVIDER),
 			}
 		});
 	}
@@ -273,7 +274,9 @@ export class SourceAction extends EditorAction {
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			menuOpts: {
 				group: '1_modification',
-				order: 2.1
+				order: 2.1,
+				when: ContextKeyExpr.and(EditorContextKeys.writable, HAS_SOURCE_ACTION_PROVIDER),
+
 			}
 		});
 	}
