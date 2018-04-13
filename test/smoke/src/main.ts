@@ -248,6 +248,7 @@ before(async function () {
 });
 
 after(async function () {
+	await new Promise(c => setTimeout(c, 500)); // wait for shutdown
 	await new Promise((c, e) => rimraf(testDataPath, { maxBusyTries: 10 }, err => err ? e(err) : c()));
 });
 

@@ -27,7 +27,6 @@ export class Application {
 	private _code: Code | undefined;
 	private _workbench: Workbench;
 	private keybindings: any[];
-	private stopLogCollection: (() => Promise<void>) | undefined;
 
 	constructor(private options: ApplicationOptions) { }
 
@@ -79,7 +78,7 @@ export class Application {
 	}
 
 	async reload(): Promise<any> {
-		this.workbench.runCommand('Reload Window')
+		this.code.reload()
 			.catch(err => null); // ignore the connection drop errors
 
 		// needs to be enough to propagate the 'Reload Window' command
@@ -88,11 +87,6 @@ export class Application {
 	}
 
 	async stop(): Promise<any> {
-		if (this.stopLogCollection) {
-			await this.stopLogCollection();
-			this.stopLogCollection = undefined;
-		}
-
 		if (this._code) {
 			this._code.dispose();
 			this._code = undefined;

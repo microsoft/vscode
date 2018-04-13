@@ -63,6 +63,14 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 			.filter(id => this.registeredWindowIds.has(id) && !this.reloadingWindowIds.has(id));
 	}
 
+	async reloadWindow(windowId: number): TPromise<void> {
+		await this.whenUnfrozen(windowId);
+
+		const window = this.windowsService.getWindowById(windowId);
+		this.reloadingWindowIds.add(windowId);
+		window.reload();
+	}
+
 	async dispatchKeybinding(windowId: number, keybinding: string): TPromise<void> {
 		await this.whenUnfrozen(windowId);
 

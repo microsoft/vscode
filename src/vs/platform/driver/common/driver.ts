@@ -27,6 +27,7 @@ export interface IDriver {
 	_serviceBrand: any;
 
 	getWindowIds(): TPromise<number[]>;
+	reloadWindow(windowId: number): TPromise<void>;
 	dispatchKeybinding(windowId: number, keybinding: string): TPromise<void>;
 	click(windowId: number, selector: string, xoffset?: number | undefined, yoffset?: number | undefined): TPromise<void>;
 	doubleClick(windowId: number, selector: string): TPromise<void>;
@@ -42,6 +43,7 @@ export interface IDriver {
 
 export interface IDriverChannel extends IChannel {
 	call(command: 'getWindowIds'): TPromise<number[]>;
+	call(command: 'reloadWindow', arg: number): TPromise<void>;
 	call(command: 'dispatchKeybinding', arg: [number, string]): TPromise<void>;
 	call(command: 'click', arg: [number, string, number | undefined, number | undefined]): TPromise<void>;
 	call(command: 'doubleClick', arg: [number, string]): TPromise<void>;
@@ -62,6 +64,7 @@ export class DriverChannel implements IDriverChannel {
 	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
 			case 'getWindowIds': return this.driver.getWindowIds();
+			case 'reloadWindow': return this.driver.reloadWindow(arg);
 			case 'dispatchKeybinding': return this.driver.dispatchKeybinding(arg[0], arg[1]);
 			case 'click': return this.driver.click(arg[0], arg[1], arg[2], arg[3]);
 			case 'doubleClick': return this.driver.doubleClick(arg[0], arg[1]);
@@ -86,6 +89,10 @@ export class DriverChannelClient implements IDriver {
 
 	getWindowIds(): TPromise<number[]> {
 		return this.channel.call('getWindowIds');
+	}
+
+	reloadWindow(windowId: number): TPromise<void> {
+		return this.channel.call('reloadWindow', windowId);
 	}
 
 	dispatchKeybinding(windowId: number, keybinding: string): TPromise<void> {

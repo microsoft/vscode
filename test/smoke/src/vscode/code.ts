@@ -211,6 +211,11 @@ export class Code {
 		await this.driver.dispatchKeybinding(windowId, keybinding);
 	}
 
+	async reload(): Promise<void> {
+		const windowId = await this.getActiveWindowId();
+		await this.driver.reloadWindow(windowId);
+	}
+
 	async waitForTextContent(selector: string, textContent?: string, accept?: (result: string) => boolean): Promise<string> {
 		const windowId = await this.getActiveWindowId();
 		accept = accept || (result => textContent !== void 0 ? textContent === result : !!result);

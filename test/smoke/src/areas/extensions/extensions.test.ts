@@ -21,7 +21,7 @@ export function setup() {
 			await app.workbench.extensions.installExtension(extensionName);
 
 			await app.reload();
-			await app.workbench.extensions.waitForExtensionsViewlet();
+			await app.workbench.extensions.openExtensionsViewlet();
 			await app.workbench.runCommand('Smoke Test Check');
 			await app.workbench.statusbar.waitForStatusbarText('smoke test', 'VS Code Smoke Test Check');
 		});
