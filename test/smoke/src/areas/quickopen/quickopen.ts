@@ -19,8 +19,23 @@ export class QuickOpen {
 	constructor(private code: Code, private commands: Commands, private editors: Editors) { }
 
 	async openQuickOpen(value: string): Promise<void> {
-		await this.commands.runCommand('workbench.action.quickOpen');
-		await this.waitForQuickOpenOpened();
+		let retries = 0;
+
+		// other parts of code might steal focus away from quickopen :(
+		while (retries < 5) {
+			await this.commands.runCommand('workbench.action.quickOpen');
+
+			try {
+				await this.waitForQuickOpenOpened(10);
+				break;
+			} catch (err) {
+				if (++retries > 5) {
+					throw err;
+				}
+
+				await this.code.dispatchKeybinding('escape');
+			}
+		}
 
 		if (value) {
 			await this.code.waitForSetValue(QuickOpen.QUICK_OPEN_INPUT, value);
@@ -41,8 +56,8 @@ export class QuickOpen {
 		await this.editors.waitForEditorFocus(fileName);
 	}
 
-	async waitForQuickOpenOpened(): Promise<void> {
-		await this.code.waitForActiveElement(QuickOpen.QUICK_OPEN_INPUT);
+	async waitForQuickOpenOpened(retryCount?: number): Promise<void> {
+		await this.code.waitForActiveElement(QuickOpen.QUICK_OPEN_INPUT, retryCount);
 	}
 
 	private async waitForQuickOpenClosed(): Promise<void> {
