@@ -68,6 +68,7 @@
 	"config.decorations.enabled": "Controls if Git contributes colors and badges to the explorer and the open editors view.",
 	"config.promptToSaveFilesBeforeCommit": "Controls whether Git should check for unsaved files before committing.",
 	"config.showInlineOpenFileAction": "Controls whether to show an inline Open File action in the Git changes view.",
+	"config.showPushSuccessNotification": "Controls whether to show a notification when a push is successful.",
 	"config.inputValidation": "Controls when to show commit message input validation.",
 	"config.detectSubmodules": "Controls whether to automatically detect git submodules.",
 	"config.detectSubmodulesLimit": "Controls the limit of git submodules detected.",
