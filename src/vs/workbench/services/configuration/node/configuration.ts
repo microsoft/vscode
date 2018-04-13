@@ -25,6 +25,7 @@ import { WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { relative } from 'path';
 import { equals } from 'vs/base/common/objects';
+import { Schemas } from 'vs/base/common/network';
 
 export class WorkspaceConfiguration extends Disposable {
 
@@ -124,7 +125,7 @@ export class WorkspaceConfiguration extends Disposable {
 }
 
 function isWorkspaceConfigurationFile(resource: URI): boolean {
-	const name = paths.basename(resource.fsPath);
+	const name = paths.basename(resource.path);
 	return [`${FOLDER_SETTINGS_NAME}.json`, `${TASKS_CONFIGURATION_KEY}.json`, `${LAUNCH_CONFIGURATION_KEY}.json`].some(p => p === name);// only workspace config files
 }
 
@@ -172,7 +173,7 @@ export abstract class FolderConfiguration extends Disposable {
 	private parseContents(contents: { resource: URI, value: string }[]): void {
 		this._standAloneConfigurations = [];
 		for (const content of contents) {
-			const name = paths.basename(content.resource.fsPath);
+			const name = paths.basename(content.resource.path);
 			if (name === `${FOLDER_SETTINGS_NAME}.json`) {
 				this._folderSettingsModelParser.parse(content.value);
 			} else {
@@ -245,7 +246,7 @@ export class FileServiceBasedFolderConfiguration extends FolderConfiguration {
 
 	constructor(folder: URI, private configFolderRelativePath: string, workbenchState: WorkbenchState, private fileService: IFileService) {
 		super(folder, workbenchState);
-		this.folderConfigurationPath = URI.file(paths.join(this.folder.fsPath, configFolderRelativePath));
+		this.folderConfigurationPath = folder.with({ path: paths.join(this.folder.path, configFolderRelativePath) });
 		this.workspaceFilePathToConfiguration = Object.create(null);
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this._onDidChange.fire(), 50));
 		this._register(fileService.onFileChanges(e => this.handleWorkspaceFileEvents(e)));
@@ -273,8 +274,9 @@ export class FileServiceBasedFolderConfiguration extends FolderConfiguration {
 		// Find changes that affect workspace configuration files
 		for (let i = 0, len = events.length; i < len; i++) {
 			const resource = events[i].resource;
-			const isJson = paths.extname(resource.fsPath) === '.json';
-			const isDeletedSettingsFolder = (events[i].type === FileChangeType.DELETED && paths.basename(resource.fsPath) === this.configFolderRelativePath);
+			const basename = paths.basename(resource.path);
+			const isJson = paths.extname(basename) === '.json';
+			const isDeletedSettingsFolder = (events[i].type === FileChangeType.DELETED && basename === this.configFolderRelativePath);
 			if (!isJson && !isDeletedSettingsFolder) {
 				continue; // only JSON files or the actual settings folder
 			}
@@ -314,8 +316,14 @@ export class FileServiceBasedFolderConfiguration extends FolderConfiguration {
 	}
 
 	private toFolderRelativePath(resource: URI): string {
-		if (paths.isEqualOrParent(resource.fsPath, this.folder.fsPath, !isLinux /* ignorecase */)) {
-			return paths.normalize(relative(this.folder.fsPath, resource.fsPath));
+		if (resource.scheme === Schemas.file) {
+			if (paths.isEqualOrParent(resource.fsPath, this.folder.fsPath, !isLinux /* ignorecase */)) {
+				return paths.normalize(relative(this.folder.fsPath, resource.fsPath));
+			}
+		} else {
+			if (paths.isEqualOrParent(resource.path, this.folder.path, false /* ignorecase */)) {
+				return paths.normalize(relative(this.folder.path, resource.path));
+			}
 		}
 		return null;
 	}
