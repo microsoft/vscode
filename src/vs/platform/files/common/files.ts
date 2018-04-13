@@ -158,6 +158,7 @@ export enum FileType2 {
 
 export class FileError extends Error {
 
+
 	static readonly EEXIST = new FileError('EEXIST');
 	static readonly ENOENT = new FileError('ENOENT');
 	static readonly ENOTDIR = new FileError('ENOTDIR');
@@ -165,6 +166,12 @@ export class FileError extends Error {
 
 	constructor(readonly code: string) {
 		super(code);
+	}
+	is(err: any): err is FileError {
+		if (!err || typeof err !== 'object') {
+			return false;
+		}
+		return err.code === this.code;
 	}
 }
 
