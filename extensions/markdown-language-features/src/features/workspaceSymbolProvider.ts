@@ -8,55 +8,65 @@ import { disposeAll } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
 import MDDocumentSymbolProvider from './documentSymbolProvider';
 
-export default class MarkdownWorkspaceSymbolProvider implements WorkspaceSymbolProvider {
-	private symbolProvider: MDDocumentSymbolProvider;
-	private symbolCache = new Map<string, SymbolInformation[]>();
-	private symbolCachePopulated: boolean;
-	private disposables: Disposable[] = [];
+export interface WorkspaceMarkdownDocumentProvider {
+	getAllMarkdownDocuments(): Thenable<Uri[]>;
+}
 
-	public constructor(symbolProvider: MDDocumentSymbolProvider) {
-		this.symbolProvider = symbolProvider;
-		this.symbolCachePopulated = false;
+class VSCodeWorkspaceMarkdownDocumentProvider implements WorkspaceMarkdownDocumentProvider {
+	getAllMarkdownDocuments() {
+		return workspace.findFiles('**/*.md');
 	}
+}
+
+
+export default class MarkdownWorkspaceSymbolProvider implements WorkspaceSymbolProvider {
+	private _symbolCache = new Map<string, SymbolInformation[]>();
+	private _symbolCachePopulated: boolean = false;
+	private _disposables: Disposable[] = [];
+
+	public constructor(
+		private _symbolProvider: MDDocumentSymbolProvider,
+		private _workspaceMarkdownDocumentProvider: WorkspaceMarkdownDocumentProvider = new VSCodeWorkspaceMarkdownDocumentProvider()
+	) { }
 
 	public async provideWorkspaceSymbols(query: string): Promise<SymbolInformation[]> {
-		if (!this.symbolCachePopulated) {
+		if (!this._symbolCachePopulated) {
 			await this.populateSymbolCache();
-			this.symbolCachePopulated = true;
+			this._symbolCachePopulated = true;
 
 			const watcher = workspace.createFileSystemWatcher('**/*.md');
-			this.disposables.push(watcher);
-			watcher.onDidChange(this.onDidChange, this, this.disposables);
+			this._disposables.push(watcher);
+			watcher.onDidChange(this.onDidChange, this, this._disposables);
 		}
 
-		return Array.prototype.concat.apply([], Array.from(this.symbolCache.values())
+		return Array.prototype.concat.apply([], Array.from(this._symbolCache.values())
 			.filter(symbols => symbols.filter(symbolInformation => symbolInformation.name.toLowerCase().indexOf(query.toLowerCase()) !== -1)));
 	}
 
 	public async populateSymbolCache(): Promise<void> {
-		const markDownDocumentUris = await workspace.findFiles('**/*.md');
+		const markDownDocumentUris = await this._workspaceMarkdownDocumentProvider.getAllMarkdownDocuments();
 		for (const uri of markDownDocumentUris) {
 			const document = await workspace.openTextDocument(uri);
 			if (isMarkdownFile(document)) {
 				const symbols = await this.getSymbol(document);
-				this.symbolCache.set(document.fileName, symbols);
+				this._symbolCache.set(document.fileName, symbols);
 			}
 		}
 	}
 
 	public dispose(): void {
-		disposeAll(this.disposables);
+		disposeAll(this._disposables);
 	}
 
 	private async getSymbol(document: TextDocument): Promise<SymbolInformation[]> {
-		return this.symbolProvider.provideDocumentSymbols(document);
+		return this._symbolProvider.provideDocumentSymbols(document);
 	}
 
 	private async onDidChange(resource: Uri) {
 		const document = await workspace.openTextDocument(resource);
 		if (isMarkdownFile(document)) {
 			const symbols = await this.getSymbol(document);
-			this.symbolCache.set(document.fileName, symbols);
+			this._symbolCache.set(document.fileName, symbols);
 		}
 	}
 }

@@ -7,10 +7,9 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import 'mocha';
 
-import { MarkdownEngine } from '../markdownEngine';
-import { MarkdownContributions } from '../markdownExtensions';
 import MarkdownFoldingProvider from '../features/foldingProvider';
 import { InMemoryDocument } from './inMemoryDocument';
+import { createNewMarkdownEngine } from './engine';
 
 const testFileName = vscode.Uri.parse('test.md');
 
@@ -84,16 +83,6 @@ y`);
 
 async function getFoldsForDocument(contents: string) {
 	const doc = new InMemoryDocument(testFileName, contents);
-	const provider = new MarkdownFoldingProvider(newEngine());
+	const provider = new MarkdownFoldingProvider(createNewMarkdownEngine());
 	return await provider.provideFoldingRanges(doc, {}, new vscode.CancellationTokenSource().token);
 }
-
-function newEngine(): MarkdownEngine {
-	return new MarkdownEngine(new class implements MarkdownContributions {
-		readonly previewScripts: vscode.Uri[] = [];
-		readonly previewStyles: vscode.Uri[] = [];
-		readonly previewResourceRoots: vscode.Uri[] = [];
-		readonly markdownItPlugins: Promise<(md: any) => any>[]  = [];
-	});
-}
-
