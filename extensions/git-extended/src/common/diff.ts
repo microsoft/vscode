@@ -52,7 +52,7 @@ async function parseModifiedHunkComplete(originalContent, patch, a, b) {
 	let contentPath = await writeTmpFile(right.join('\n'), path.extname(b));
 	let originalContentPath = await writeTmpFile(left.join('\n'), path.extname(a));
 
-	return new RichFileChange(contentPath, originalContentPath, GitChangeType.MODIFY, b);
+	return new RichFileChange(contentPath, originalContentPath, GitChangeType.MODIFY, b, patch);
 }
 
 async function parseModifiedHunkFast(modifyDiffInfo, a, b) {
@@ -82,10 +82,10 @@ async function parseModifiedHunkFast(modifyDiffInfo, a, b) {
 	let contentPath = await writeTmpFile(right.join('\n'), path.extname(b));
 	let originalContentPath = await writeTmpFile(left.join('\n'), path.extname(a));
 
-	return new RichFileChange(contentPath, originalContentPath, GitChangeType.MODIFY, b);
+	return new RichFileChange(contentPath, originalContentPath, GitChangeType.MODIFY, b, modifyDiffInfo);
 }
 
-export async function parseDiff(reviews: any[], repository: Repository, parentCommit: string) {
+export async function parseDiff(reviews: any[], repository: Repository, parentCommit: string): Promise<RichFileChange[]> {
 	let richFileChanges: RichFileChange[] = [];
 	for (let i = 0; i < reviews.length; i++) {
 		let review = reviews[i];
@@ -115,7 +115,7 @@ export async function parseDiff(reviews: any[], repository: Repository, parentCo
 			}
 			let originalFilePath = await writeTmpFile(contentArray.join('\n'), path.extname(fileName));
 			let filePath = await writeTmpFile('', path.extname(fileName));
-			let richFileChange = new RichFileChange(filePath, originalFilePath, GitChangeType.DELETE, fileName);
+			let richFileChange = new RichFileChange(filePath, originalFilePath, GitChangeType.DELETE, fileName, review.patch);
 			richFileChanges.push(richFileChange);
 		} else {
 			// added
@@ -133,7 +133,7 @@ export async function parseDiff(reviews: any[], repository: Repository, parentCo
 			}
 			let oriFilePath = await writeTmpFile('', path.extname(fileName));
 			let filePath = await writeTmpFile(contentArray.join('\n'), path.extname(fileName));
-			let richFileChange = new RichFileChange(filePath, oriFilePath, GitChangeType.ADD, fileName);
+			let richFileChange = new RichFileChange(filePath, oriFilePath, GitChangeType.ADD, fileName, review.patch);
 			richFileChanges.push(richFileChange);
 		}
 	}

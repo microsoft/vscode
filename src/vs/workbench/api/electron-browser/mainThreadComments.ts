@@ -19,6 +19,8 @@ import { ICommentService } from 'vs/workbench/services/comments/electron-browser
 import { COMMENTS_PANEL_ID } from 'vs/workbench/parts/comments/electron-browser/commentsPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import URI from 'vs/base/common/uri';
+import { IRange } from 'vs/editor/common/core/range';
+import { ITextModel } from 'vs/editor/common/model';
 
 @extHostNamedCustomer(MainContext.MainThreadComments)
 export class MainThreadComments extends Disposable implements MainThreadCommentsShape {
@@ -52,6 +54,9 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 				controller.setComments(commentThreads);
 				this._commentService.setCommentsForResource(outerEditorURI, commentThreads);
 			});
+			this.provideNewCommentRange(outerEditor.getModel()).then(newActions => {
+				controller.setNewCommentActions(newActions);
+			});
 		});
 	}
 
@@ -80,7 +85,15 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	async provideComments(resource: URI): Promise<any> {
 		const result: modes.CommentThread[] = [];
 		for (const handle of keys(this._providers)) {
-			result.push(...await this._proxy.$providerComments(handle, resource));
+			result.push(...await this._proxy.$provideComments(handle, resource));
+		}
+		return result;
+	}
+
+	async provideNewCommentRange(model: ITextModel): Promise<modes.NewCommentAction[]> {
+		const result: modes.NewCommentAction[] = [];
+		for (const handle of keys(this._providers)) {
+			result.push(await this._proxy.$provideNewCommentRange(handle, model.uri));
 		}
 		return result;
 	}

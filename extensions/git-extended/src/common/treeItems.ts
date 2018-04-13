@@ -61,7 +61,8 @@ export class FileChange implements vscode.TreeItem {
 		public readonly fileName: string,
 		public readonly filePath: vscode.Uri,
 		public readonly parentFilePath: vscode.Uri,
-		public readonly workspaceRoot: string
+		public readonly workspaceRoot: string,
+		public readonly patch: string
 	) {
 		this.command = {
 			title: 'show diff',

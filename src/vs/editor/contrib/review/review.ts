@@ -8,6 +8,7 @@ import 'vs/css!./review';
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import * as modes from 'vs/editor/common/modes';
+import { IRange } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { $ } from 'vs/base/browser/builder';
@@ -227,7 +228,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		for (const action of commentThread.actions) {
 			const button = document.createElement('button');
 			button.onclick = async () => {
-				let newComment = await this.commandService.executeCommand(action.id, commentThread.threadId, textArea.value);
+				let newComment = await this.commandService.executeCommand(action.id, commentThread.threadId, this.editor.getModel().uri, lineNumber, textArea.value);
 				if (newComment) {
 					textArea.value = '';
 					this._comments.push(newComment);
@@ -283,6 +284,7 @@ export class ReviewController implements IEditorContribution {
 	private _zoneWidgets: ReviewZoneWidget[];
 	private _reviewPanelVisible: IContextKey<boolean>;
 	private _commentThreads: modes.CommentThread[];
+	private _newCommentActions: modes.NewCommentAction[];
 	private _reviewModel: ReviewModel;
 
 	constructor(
@@ -298,6 +300,7 @@ export class ReviewController implements IEditorContribution {
 		this.newCommentHintDecoration = [];
 		this.mouseDownInfo = null;
 		this._commentThreads = [];
+		this._newCommentActions = [];
 		this._zoneWidgets = [];
 		this._zoneWidget = null;
 
@@ -441,6 +444,29 @@ export class ReviewController implements IEditorContribution {
 				this._zoneWidget = null;
 			});
 			this._zoneWidget.display(this.getCommentThread(lineNumber), lineNumber);
+		} else if (this.marginFreeFromCommentHintDecorations(lineNumber)) {
+			let newCommentAction = this.getNewCommentAction(lineNumber);
+			if (!newCommentAction) {
+				return;
+			}
+
+			// add new comment
+			this._reviewPanelVisible.set(true);
+			this._zoneWidget = new ReviewZoneWidget(this.themeService, this.commandService, this.editor, {}, []);
+			this._zoneWidget.onDidClose(e => {
+				this._zoneWidget = null;
+			});
+			this._zoneWidget.display({
+				threadId: null,
+				comments: [],
+				range: {
+					startLineNumber: lineNumber,
+					startColumn: 0,
+					endLineNumber: lineNumber,
+					endColumn: 0
+				},
+				actions: newCommentAction.actions
+			}, lineNumber);
 		}
 	}
 
@@ -473,15 +499,43 @@ export class ReviewController implements IEditorContribution {
 		this.newCommentHintDecoration = this.editor.deltaDecorations(this.newCommentHintDecoration, newDecoration);
 	}
 
+	getNewCommentAction(line: number): modes.NewCommentAction {
+		let allowNewComment = false;
+
+		for (let i = 0; i < this._newCommentActions.length; i++) {
+			let newCommentAction = this._newCommentActions[i];
+
+			for (let j = 0; j < newCommentAction.ranges.length; j++) {
+				if (newCommentAction.ranges[j].startLineNumber <= line && newCommentAction.ranges[j].endLineNumber >= line) {
+					allowNewComment = true;
+					break;
+				}
+			}
+
+			if (allowNewComment) {
+				return newCommentAction;
+			}
+		}
+
+		return null;
+	}
+
 	marginFreeFromCommentHintDecorations(line: number): boolean {
 		let allowNewComment = false;
 
-		for (let i = 0; i < this._commentThreads.length; i++) {
-			if (this._commentThreads[i].newCommentRange.startLineNumber <= line && this._commentThreads[i].newCommentRange.endLineNumber >= line) {
-				allowNewComment = true;
-				break;
+		for (let i = 0; i < this._newCommentActions.length; i++) {
+			let newCommentAction = this._newCommentActions[i];
+
+			for (let j = 0; j < newCommentAction.ranges.length; j++) {
+				if (newCommentAction.ranges[j].startLineNumber <= line && newCommentAction.ranges[j].endLineNumber >= line) {
+					allowNewComment = true;
+					break;
+				}
 			}
 
+			if (allowNewComment) {
+				break;
+			}
 		}
 
 		if (!allowNewComment) {
@@ -508,6 +562,10 @@ export class ReviewController implements IEditorContribution {
 		}
 
 		return undefined;
+	}
+
+	setNewCommentActions(newCommentActions: modes.NewCommentAction[]) {
+		this._newCommentActions = newCommentActions;
 	}
 
 	setComments(commentThreads: modes.CommentThread[]): void {

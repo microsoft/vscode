@@ -773,8 +773,12 @@ declare module 'vscode' {
 	interface CommentThread {
 		threadId: string;
 		range: Range;
-		newCommentRange: Range;
 		comments: Comment[];
+		actions?: Command[];
+	}
+
+	interface NewCommentAction {
+		ranges: Range[];
 		actions?: Command[];
 	}
 
@@ -790,6 +794,7 @@ declare module 'vscode' {
 	 */
 	interface CommentProvider {
 		provideComments(document: TextDocument, token: CancellationToken): Promise<CommentThread[]>;
+		provideNewCommentRange(document: TextDocument, token: CancellationToken): Promise<NewCommentAction>;
 	}
 
 	namespace workspace {

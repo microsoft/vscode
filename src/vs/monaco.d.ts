@@ -5031,9 +5031,13 @@ declare namespace monaco.languages {
 	export interface CommentThread {
 		readonly threadId: string;
 		readonly range: IRange;
-		readonly newCommentRange: IRange;
 		readonly comments: Comment[];
 		readonly actions: Command[];
+	}
+
+	export interface NewCommentAction {
+		ranges: IRange[];
+		actions: Command[];
 	}
 
 	export interface Comment {
@@ -5044,6 +5048,7 @@ declare namespace monaco.languages {
 
 	export interface CommentProvider {
 		provideComments(model: editor.ITextModel, token: CancellationToken): CommentThread[];
+		provideNewCommentRange(model: editor.ITextModel, token: CancellationToken): Promise<NewCommentAction>;
 	}
 
 	export interface ICodeLensSymbol {

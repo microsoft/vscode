@@ -45,10 +45,11 @@ export function toGitUri(uri: Uri, ref: string, commit: string, options: GitUriO
 	});
 }
 
-export function toPRUri(uri: Uri, fileInRepo: string, base: boolean): Uri {
+export function toPRUri(uri: Uri, fileInRepo: string, fileName: string, base: boolean): Uri {
 	const params = {
 		path: uri.path,
-		base: base
+		base: base,
+		fileName: fileName
 	};
 
 	let path = uri.path;

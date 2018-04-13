@@ -14,6 +14,7 @@ import * as extHostTypeConverter from 'vs/workbench/api/node/extHostTypeConverte
 import * as vscode from 'vscode';
 import { ExtHostCommentsShape, IMainContext, MainContext, MainThreadCommentsShape } from './extHost.protocol';
 import { CommandsConverter } from './extHostCommands';
+import { IRange } from 'vs/editor/common/core/range';
 
 
 export class ExtHostComments implements ExtHostCommentsShape {
@@ -46,7 +47,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		};
 	}
 
-	$providerComments(handle: number, uri: UriComponents): TPromise<modes.CommentThread[]> {
+	$provideComments(handle: number, uri: UriComponents): TPromise<modes.CommentThread[]> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 		if (!data || !data.document) {
 			return TPromise.as([]);
@@ -58,13 +59,33 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		})
 			.then(comments => comments.map(x => convertCommentThread(x, this._commandsConverter)));
 	}
+
+	$provideNewCommentRange(handle: number, uri: UriComponents): TPromise<modes.NewCommentAction> {
+		const data = this._documents.getDocumentData(URI.revive(uri));
+		if (!data || !data.document) {
+			return TPromise.as(null);
+		}
+
+		return asWinJsPromise(token => {
+			let provider = this._providers.get(handle);
+			return provider.provideNewCommentRange(data.document, token);
+		})
+			.then(newCommentAction => convertNewCommandAction(newCommentAction, this._commandsConverter));
+
+	}
+}
+
+function convertNewCommandAction(vscodeNewCommentAction: vscode.NewCommentAction, commandsConverter: CommandsConverter): modes.NewCommentAction {
+	return {
+		ranges: vscodeNewCommentAction.ranges.map(range => extHostTypeConverter.fromRange(range)),
+		actions: vscodeNewCommentAction.actions.map(commandsConverter.toInternal)
+	};
 }
 
 function convertCommentThread(vscodeCommentThread: vscode.CommentThread, commandsConverter: CommandsConverter): modes.CommentThread {
 	return {
 		threadId: vscodeCommentThread.threadId,
 		range: extHostTypeConverter.fromRange(vscodeCommentThread.range),
-		newCommentRange: extHostTypeConverter.fromRange(vscodeCommentThread.newCommentRange),
 		comments: vscodeCommentThread.comments.map(convertComment),
 		actions: vscodeCommentThread.actions.map(commandsConverter.toInternal)
 	};

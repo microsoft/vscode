@@ -831,7 +831,8 @@ export interface ExtHostProgressShape {
 }
 
 export interface ExtHostCommentsShape {
-	$providerComments(handle: number, document: UriComponents): TPromise<modes.CommentThread[]>;
+	$provideComments(handle: number, document: UriComponents): TPromise<modes.CommentThread[]>;
+	$provideNewCommentRange(handle: number, document: UriComponents): TPromise<modes.NewCommentAction>;
 }
 
 // --- proxy identifiers

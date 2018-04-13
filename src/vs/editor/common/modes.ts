@@ -941,9 +941,13 @@ export interface Command {
 export interface CommentThread {
 	readonly threadId: string;
 	readonly range: IRange;
-	readonly newCommentRange: IRange;
 	readonly comments: Comment[];
 	readonly actions: Command[];
+}
+
+export interface NewCommentAction {
+	ranges: IRange[];
+	actions: Command[];
 }
 
 export interface Comment {
@@ -954,6 +958,7 @@ export interface Comment {
 
 export interface CommentProvider {
 	provideComments(model: model.ITextModel, token: CancellationToken): CommentThread[];
+	provideNewCommentRange(model: model.ITextModel, token: CancellationToken): Promise<NewCommentAction>;
 }
 
 export interface ICodeLensSymbol {

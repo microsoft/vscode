@@ -49,6 +49,7 @@ export class RichFileChange {
 		public readonly filePath: string,
 		public readonly originalFilePath: string,
 		public readonly status: GitChangeType,
-		public readonly fileName: string
+		public readonly fileName: string,
+		public readonly patch: string
 	) { }
 }

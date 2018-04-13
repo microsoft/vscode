@@ -86,7 +86,7 @@ export class ReviewMode {
 		let fileChanges: FileChange[] = state.fileChanges;
 		let comments: Comment[] = state.comments;
 		let otcokit = await this._credentialStore.getOctokit(remote);
-		this._command = vscode.commands.registerCommand(this._prNumber + '-post', async (id: string, text: string) => {
+		this._command = vscode.commands.registerCommand(this._prNumber + '-post', async (id: string, uri: vscode.Uri, lineNumber: number, text: string) => {
 			try {
 				let ret = await otcokit.pullRequests.createCommentReply({
 					owner: remote.owner,
@@ -121,6 +121,23 @@ export class ReviewMode {
 		});
 
 		this._commentProvider = vscode.workspace.registerCommentProvider({
+			provideNewCommentRange: async (document: vscode.TextDocument, token: vscode.CancellationToken) => {
+				if (document.uri.scheme === 'review' || document.uri.scheme === 'file') {
+					let lastLine = document.lineCount;
+					let lastColumn = document.lineAt(lastLine - 1).text.length;
+					return {
+						ranges: [
+							new vscode.Range(1, 1, lastLine, lastColumn)
+						],
+						actions: actions
+					};
+				} else {
+					return {
+						ranges: [],
+						actions: []
+					};
+				}
+			},
 			provideComments: async (document: vscode.TextDocument, token: vscode.CancellationToken) => {
 				let matchingComments: Comment[];
 				if (document.uri.scheme === 'review') {
@@ -155,13 +172,10 @@ export class ReviewMode {
 					const commentAbsolutePosition = comment.diff_hunk_range.start + (comment.position - 1);
 					const pos = new vscode.Position(comment.currentPosition ? comment.currentPosition - 1 - 1 : commentAbsolutePosition - /* after line */ 1 - /* it's zero based*/ 1, 0);
 					const range = new vscode.Range(pos, pos);
-					const newCommentStartPos = new vscode.Position(comment.diff_hunk_range.start - 1, 0);
-					const newCommentEndPos = new vscode.Position(comment.diff_hunk_range.start + comment.diff_hunk_range.length - 1 - 1, 0);
 
 					ret.push({
 						threadId: comment.id,
 						range,
-						newCommentRange: new vscode.Range(newCommentStartPos, newCommentEndPos),
 						comments: comments.map(comment => {
 							return {
 								body: new vscode.MarkdownString(comment.body),

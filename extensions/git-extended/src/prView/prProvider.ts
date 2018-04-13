@@ -5,7 +5,7 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { parseDiff } from '../common/diff';
+import { parseDiff, DIFF_HUNK_INFO } from '../common/diff';
 import { Repository } from '../common//models/repository';
 import { Comment } from '../common/models/comment';
 import * as _ from 'lodash';
@@ -99,32 +99,83 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 				});
 				element.prItem = data;
 			}
-			let richContentChanges = await parseDiff(data, this.repository, element.prItem.base.sha);
+			const richContentChanges = await parseDiff(data, this.repository, element.prItem.base.sha);
 			const commentsCache = new Map<String, Comment[]>();
 			let fileChanges = richContentChanges.map(change => {
 				let fileInRepo = path.resolve(this.repository.path, change.fileName);
-				let changedItem = new FileChange(element.prItem, change.fileName, change.status, this.context, change.fileName, toPRUri(vscode.Uri.file(change.filePath), fileInRepo, true), toPRUri(vscode.Uri.file(change.originalFilePath), fileInRepo, false), this.repository.path);
+				let changedItem = new FileChange(
+					element.prItem,
+					change.fileName,
+					change.status,
+					this.context,
+					change.fileName,
+					toPRUri(vscode.Uri.file(change.filePath), fileInRepo, change.fileName, true),
+					toPRUri(vscode.Uri.file(change.originalFilePath), fileInRepo, change.fileName, false),
+					this.repository.path,
+					change.patch
+				);
 				changedItem.comments = comments.filter(comment => comment.path === changedItem.fileName);
 				commentsCache.set(changedItem.filePath.toString(), changedItem.comments);
 				return changedItem;
 			});
 
-			vscode.commands.registerCommand('diff-' + element.prItem.number + '-post', async (id: string, text: string) => {
-				try {
-					let ret = await element.otcokit.pullRequests.createCommentReply({
+			vscode.commands.registerCommand('diff-' + element.prItem.number + '-post', async (id: string, uri: vscode.Uri, lineNumber: number, text: string) => {
+				if (id) {
+					try {
+						let ret = await element.otcokit.pullRequests.createCommentReply({
+							owner: element.remote.owner,
+							repo: element.remote.name,
+							number: element.prItem.number,
+							body: text,
+							in_reply_to: id
+						});
+						return {
+							body: new vscode.MarkdownString(ret.data.body),
+							userName: ret.data.user.login,
+							gravatar: ret.data.user.avatar_url
+						};
+					} catch (e) {
+						return null;
+					}
+				} else {
+					let params = JSON.parse(uri.query);
+
+					let fileChange = richContentChanges.find(change => change.fileName === params.fileName);
+					let regex = new RegExp(DIFF_HUNK_INFO, 'g');
+					let matches = regex.exec(fileChange.patch);
+
+					let position;
+					while (matches) {
+						let newStartLine = Number(matches[5]);
+						let newLen = Number(matches[7]) | 0;
+
+						if (lineNumber >= newStartLine && lineNumber <= newStartLine + newLen - 1) {
+							position = lineNumber - newStartLine + 1;
+							break;
+						}
+
+						matches = regex.exec(fileChange.patch);
+					}
+
+					if (!position) {
+						return;
+					}
+
+					// there is no thread Id, which means it's a new thread
+					let ret = await element.otcokit.pullRequests.createComment({
 						owner: element.remote.owner,
 						repo: element.remote.name,
 						number: element.prItem.number,
 						body: text,
-						in_reply_to: id
+						commit_id: element.prItem.head.sha,
+						path: params.fileName,
+						position: position
 					});
 					return {
 						body: new vscode.MarkdownString(ret.data.body),
 						userName: ret.data.user.login,
 						gravatar: ret.data.user.avatar_url
 					};
-				} catch (e) {
-					return null;
 				}
 			});
 
@@ -136,10 +187,39 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 			];
 
 			vscode.workspace.registerCommentProvider({
-				provideComments: async (document: vscode.TextDocument, token: vscode.CancellationToken) => {
-					if (document.uri.scheme !== 'review') {
-						let matchingComments = commentsCache.get(document.uri.toString());
+				provideNewCommentRange: async (document: vscode.TextDocument, token: vscode.CancellationToken) => {
+					if (document.uri.scheme === 'pr') {
+						let params = JSON.parse(document.uri.query);
+						let fileChange = richContentChanges.find(change => change.fileName === params.fileName);
+						let regex = new RegExp(DIFF_HUNK_INFO, 'g');
+						let matches = regex.exec(fileChange.patch);
 
+						let ret: vscode.Range[] = [];
+						while (matches) {
+							let newStartLine = Number(matches[5]);
+							let newLen = Number(matches[7]) | 0;
+
+							ret.push(new vscode.Range(
+								newStartLine - 1,
+								0,
+								newStartLine + newLen - 1 - 1,
+								document.lineAt(newStartLine + newLen - 1 - 1).text.length
+							));
+
+							matches = regex.exec(fileChange.patch);
+						}
+
+						return {
+							ranges: ret,
+							actions: actions
+						};
+					}
+
+					return null;
+				},
+				provideComments: async (document: vscode.TextDocument, token: vscode.CancellationToken) => {
+					if (document.uri.scheme === 'pr') {
+						let matchingComments = commentsCache.get(document.uri.toString());
 
 						if (!matchingComments || !matchingComments.length) {
 							return [];
@@ -155,13 +235,10 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 							const commentAbsolutePosition = comment.diff_hunk_range.start + (comment.position - 1);
 							const pos = new vscode.Position(comment.currentPosition ? comment.currentPosition - 1 - 1 : commentAbsolutePosition - /* after line */ 1 - /* it's zero based*/ 1, 0);
 							const range = new vscode.Range(pos, pos);
-							const newCommentStartPos = new vscode.Position(comment.diff_hunk_range.start - 1, 0);
-							const newCommentEndPos = new vscode.Position(comment.diff_hunk_range.start + comment.diff_hunk_range.length - 1 - 1, 0);
 
 							ret.push({
 								threadId: comment.id,
 								range,
-								newCommentRange: new vscode.Range(newCommentStartPos, newCommentEndPos),
 								comments: comments.map(comment => {
 									return {
 										body: new vscode.MarkdownString(comment.body),
