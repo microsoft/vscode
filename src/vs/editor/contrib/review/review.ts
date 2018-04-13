@@ -68,6 +68,7 @@ export class ReviewViewZone implements IViewZone {
 }
 
 export class ReviewZoneWidget extends ZoneWidget {
+	public id: string;
 	private _headElement: HTMLElement;
 	protected _primaryHeading: HTMLElement;
 	protected _secondaryHeading: HTMLElement;
@@ -78,14 +79,20 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _resizeObserver: any;
 	private _comments: modes.Comment[];
 	private _onDidClose = new Emitter<ReviewZoneWidget>();
+	private _isCollapsed = true;
+	private _toggleAction: Action;
 
 	constructor(
+		id: string,
+		editor: ICodeEditor,
+		comments: modes.Comment[],
+		options: IOptions = {},
 		private readonly themeService: IThemeService,
-		private readonly commandService: ICommandService,
-
-		editor: ICodeEditor, options: IOptions = {}, comments: modes.Comment[]) {
+		private readonly commandService: ICommandService
+	) {
 		super(editor, options);
 		this._resizeObserver = null;
+		this.id = id;
 		this._comments = comments;
 		this.create();
 		this.themeService.onThemeChange(this._applyTheme, this);
@@ -93,6 +100,12 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 	public get onDidClose(): Event<ReviewZoneWidget> {
 		return this._onDidClose.event;
+	}
+
+	public reveal() {
+		if (this._isCollapsed) {
+			this._toggleAction.run();
+		}
 	}
 
 	protected _fillContainer(container: HTMLElement): void {
@@ -126,21 +139,23 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._actionbarWidget = new ActionBar(actionsContainer.getHTMLElement(), {});
 		this._disposables.push(this._actionbarWidget);
 
-		let toggleAction = new Action('review.expand', nls.localize('label.expand', "Expand"), 'expand-review-action octicon octicon-chevron-down', true, () => {
+		this._toggleAction = new Action('review.expand', nls.localize('label.expand', "Expand"), 'expand-review-action octicon octicon-chevron-down', true, () => {
 			// let webView = await commentProvider.resolveComment(threadId)
 			// this._bodyElement.appendChild(webView);
-			if (toggleAction.class.indexOf('octicon-chevron-down') >= 0) {
+			if (this._isCollapsed) {
 				this._bodyElement.style.display = 'block';
-				toggleAction.class = 'expand-review-action octicon octicon-chevron-up';
+				this._toggleAction.class = 'expand-review-action octicon octicon-chevron-up';
+				this._isCollapsed = false;
 			} else {
 				this._bodyElement.style.display = 'none';
-				toggleAction.class = 'expand-review-action octicon octicon-chevron-down';
-
+				this._toggleAction.class = 'expand-review-action octicon octicon-chevron-down';
+				this._isCollapsed = true;
 			}
+
 			return null;
 		});
 
-		this._actionbarWidget.push(toggleAction, { label: false, icon: true });
+		this._actionbarWidget.push(this._toggleAction, { label: false, icon: true });
 
 		// this._actionbarWidget.push(new Action('review.close', nls.localize('label.close', "Close"), 'close-review-action', true, () => {
 		// 	this.dispose();
@@ -319,7 +334,7 @@ export class ReviewController implements IEditorContribution {
 				});
 
 				this._commentThreads.forEach(thread => {
-					let zoneWidget = new ReviewZoneWidget(this.themeService, this.commandService, this.editor, {}, thread.comments);
+					let zoneWidget = new ReviewZoneWidget(thread.threadId, this.editor, thread.comments, {}, this.themeService, this.commandService);
 					zoneWidget.display(this.getCommentThread(thread.range.startLineNumber), thread.range.startLineNumber);
 					this._zoneWidgets.push(zoneWidget);
 				});
@@ -331,6 +346,13 @@ export class ReviewController implements IEditorContribution {
 
 	public static get(editor: ICodeEditor): ReviewController {
 		return editor.getContribution<ReviewController>(ID);
+	}
+
+	public revealCommentThread(threadId: string): void {
+		const commentThreadWidget = this._zoneWidgets.filter(widget => widget.id === threadId);
+		if (commentThreadWidget.length === 1) {
+			commentThreadWidget[0].reveal();
+		}
 	}
 
 	getId(): string {
@@ -414,7 +436,7 @@ export class ReviewController implements IEditorContribution {
 		let thread = this.getCommentThread(lineNumber);
 		if (thread && thread.comments.length) {
 			this._reviewPanelVisible.set(true);
-			this._zoneWidget = new ReviewZoneWidget(this.themeService, this.commandService, this.editor, {}, thread.comments);
+			this._zoneWidget = new ReviewZoneWidget(thread.threadId, this.editor, thread.comments, {}, this.themeService, this.commandService);
 			this._zoneWidget.onDidClose(e => {
 				this._zoneWidget = null;
 			});
@@ -509,7 +531,7 @@ export class ReviewController implements IEditorContribution {
 			});
 
 			this._commentThreads.forEach(thread => {
-				let zoneWidget = new ReviewZoneWidget(this.themeService, this.commandService, this.editor, {}, thread.comments);
+				let zoneWidget = new ReviewZoneWidget(thread.threadId, this.editor, thread.comments, {}, this.themeService, this.commandService);
 				zoneWidget.display(this.getCommentThread(thread.range.startLineNumber), thread.range.startLineNumber);
 				this._zoneWidgets.push(zoneWidget);
 			});

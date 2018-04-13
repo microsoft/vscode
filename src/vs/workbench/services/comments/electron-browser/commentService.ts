@@ -12,15 +12,22 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
+import { IRange } from 'vs/editor/common/core/range';
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
 
 export class CommentNode {
+	threadId: string;
+	range: IRange;
 	comment: Comment;
 	reply: CommentNode;
+	resource: URI;
 
-	constructor(comment: Comment) {
+	constructor(threadId: string, resource: URI, comment: Comment, range: IRange) {
+		this.threadId = threadId;
 		this.comment = comment;
+		this.resource = resource;
+		this.range = range;
 	}
 
 	hasReply(): boolean {
@@ -34,19 +41,20 @@ export class ResourceCommentThreads {
 	resource: URI;
 
 	constructor(resource: URI, commentThreads: CommentThread[]) {
-		this.id = Math.random().toString();
+		this.id = resource.toString();
 		this.resource = resource;
-		this.comments = commentThreads.map(thread => this.createCommentNode(thread.comments));
+		this.comments = commentThreads.map(thread => this.createCommentNode(resource, thread));
 	}
 
-	private createCommentNode(comments: Comment[]): CommentNode {
-		const commentNodes: CommentNode[] = comments.map(comment => new CommentNode(comment));
+	private createCommentNode(resource: URI, commentThread: CommentThread): CommentNode {
+		const { threadId, comments, range } = commentThread;
+		const commentNodes: CommentNode[] = comments.map(comment => new CommentNode(threadId, resource, comment, range));
 		for (var i = 0; i < commentNodes.length - 1; i++) {
 			const commentNode = commentNodes[i];
 			commentNode.reply = commentNodes[i + 1];
 		}
 
-		commentNodes.push(new CommentNode(comments[comments.length - 1]));
+		commentNodes.push(new CommentNode(threadId, resource, comments[comments.length - 1], range));
 
 		return commentNodes[0];
 	}
@@ -61,13 +69,19 @@ export class CommentsModel {
 		this.commentThreadsByResource = new Map<string, ResourceCommentThreads>();
 	}
 
-	// TODO: Should have an additional level of nesting, mapping file to comment threads
-	public setCommentThreadsForResource(resource: URI, commentThreads: CommentThread[]) {
+
+	public setCommentThreadsForResource(resource: URI, commentThreads: CommentThread[]): boolean {
+		if (!commentThreads.length || this.commentThreadsByResource.get(resource.toString())) {
+			return false;
+		}
+
 		this.commentThreadsByResource.set(resource.toString(), new ResourceCommentThreads(resource, commentThreads));
 		this.commentThreads = [];
 		this.commentThreadsByResource.forEach((v, i, m) => {
 			this.commentThreads.push(v);
 		});
+
+		return true;
 	}
 }
 
@@ -92,8 +106,10 @@ export class CommentService extends Disposable implements ICommentService {
 	}
 
 	setCommentsForResource(resource: URI, commentThreads: CommentThread[]): TPromise<void> {
-		this.commentsModel.setCommentThreadsForResource(resource, commentThreads);
-		this._onDidChangeCommentThreads.fire();
+		if (this.commentsModel.setCommentThreadsForResource(resource, commentThreads)) {
+			this._onDidChangeCommentThreads.fire();
+		}
+
 		return TPromise.as(null);
 	}
 }

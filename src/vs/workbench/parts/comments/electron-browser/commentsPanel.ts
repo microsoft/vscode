@@ -8,6 +8,8 @@ import { debounceEvent } from 'vs/base/common/event';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IFilter, IRenderer, ITree } from 'vs/base/parts/tree/browser/tree';
 import { DefaultAccessibilityProvider, DefaultController, DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ReviewController } from 'vs/editor/contrib/review/review';
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
@@ -29,7 +31,8 @@ export class CommentsDataSource implements IDataSource {
 			return element.id;
 		}
 		if (element instanceof CommentNode) {
-			return 'commentNode' + Math.random().toString();
+			// Fix
+			return 'commentNode' + element.comment.body.value.substr(0, 10);
 		}
 		return '';
 	}
@@ -211,20 +214,29 @@ export class CommentsPanel extends Panel {
 			});
 
 		const commentsNavigator = this._register(new TreeResourceNavigator(this.tree, { openOnFocus: true }));
-		this._register(debounceEvent(commentsNavigator.openResource, (last, event) => event, 75, true)(options => {
-			if (options.element instanceof ResourceCommentThreads) {
-				const resource = options.element.resource;
-				this.editorService.openEditor({
-					resource,
-					options: {
-						pinned: options.editorOptions.pinned
-					}
-				},
-					options.sideBySide);
-				return true;
-			} else {
-				return false;
-			}
+		this._register(debounceEvent(commentsNavigator.openResource, (last, event) => event, 100, true)(options => {
+			this.openFile(options.element, options.editorOptions.pinned, options.sideBySide);
 		}));
+	}
+
+	private openFile(element: any, pinned: boolean, sideBySide: boolean): boolean {
+		if (!(element instanceof ResourceCommentThreads || element instanceof CommentNode)) {
+			return false;
+		}
+
+		const range = element instanceof ResourceCommentThreads ? element.comments[0].range : element.range;
+		this.editorService.openEditor({ resource: element.resource, options: { pinned: pinned, selection: range } }, sideBySide)
+			.done(editor => {
+				// If clicking on the file name, open the first comment thread. If clicking on a comment, open its thread
+				const threadToReveal = element instanceof ResourceCommentThreads ? element.comments[0].threadId : element.threadId;
+				const control = editor.getControl();
+				if (threadToReveal && isCodeEditor(control)) {
+					const controller = ReviewController.get(control);
+					// FIX there is a race between revealing the thread and the widget being created?
+					controller.revealCommentThread(threadToReveal);
+				}
+			});
+
+		return true;
 	}
 }
