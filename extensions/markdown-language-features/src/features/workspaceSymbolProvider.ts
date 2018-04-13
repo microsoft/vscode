@@ -6,11 +6,10 @@
 import { workspace, WorkspaceSymbolProvider, SymbolInformation, TextDocument, Disposable } from 'vscode';
 import { isMarkdownFile } from '../util/file';
 import MDDocumentSymbolProvider from './documentSymbolProvider';
-import { Dictionary, flatMap } from 'lodash';
 
 export default class MarkdownWorkspaceSymbolProvider implements WorkspaceSymbolProvider {
 	private symbolProvider: MDDocumentSymbolProvider;
-	private symbolCache: Dictionary<SymbolInformation[]> = {};
+	private symbolCache = new Map<string, SymbolInformation[]>();
 	private symbolCachePopulated: boolean;
 	private deRegisterOnSaveEvent: Disposable;
 
@@ -26,8 +25,8 @@ export default class MarkdownWorkspaceSymbolProvider implements WorkspaceSymbolP
 			this.symbolCachePopulated = true;
 		}
 
-		return flatMap(this.symbolCache)
-			.filter(symbolInformation => symbolInformation.name.toLowerCase().indexOf(query.toLowerCase()) !== -1);
+		return Array.prototype.concat.apply([], Array.from(this.symbolCache.values())
+			.filter(symbols => symbols.filter(symbolInformation => symbolInformation.name.toLowerCase().indexOf(query.toLowerCase()) !== -1)));
 	}
 
 	public async populateSymbolCache(): Promise<void> {
@@ -36,7 +35,7 @@ export default class MarkdownWorkspaceSymbolProvider implements WorkspaceSymbolP
 			const document = await workspace.openTextDocument(uri);
 			if (isMarkdownFile(document)) {
 				const symbols = await this.getSymbol(document);
-				this.symbolCache[document.fileName] = symbols;
+				this.symbolCache.set(document.fileName, symbols);
 			}
 		}
 	}
@@ -53,7 +52,7 @@ export default class MarkdownWorkspaceSymbolProvider implements WorkspaceSymbolP
 		return workspace.onDidSaveTextDocument(async document => {
 			if (isMarkdownFile(document)) {
 				const symbols = await this.getSymbol(document);
-				this.symbolCache[document.fileName] = symbols;
+				this.symbolCache.set(document.fileName, symbols);
 			}
 		});
 	}
