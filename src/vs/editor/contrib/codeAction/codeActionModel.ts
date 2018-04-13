@@ -19,6 +19,7 @@ import { CodeActionKind, CodeActionTrigger } from './codeActionTrigger';
 
 export const HAS_REFACTOR_PROVIDER = new RawContextKey<boolean>('hasRefactorProvider', false);
 export const HAS_SOURCE_ACTION_PROVIDER = new RawContextKey<boolean>('hasSourceActionProvider', false);
+export const HAS_ORGANIZE_IMPORTS_PROVIDER = new RawContextKey<boolean>('hasOrganizeImportsActionProvider', false);
 
 export class CodeActionOracle {
 
@@ -146,6 +147,7 @@ export class CodeActionModel {
 	private _disposables: IDisposable[] = [];
 	private readonly _hasRefactorProvider: IContextKey<boolean>;
 	private readonly _hasSourceProvider: IContextKey<boolean>;
+	private readonly _hasOrganizeImportsProvider: IContextKey<boolean>;
 
 	constructor(editor: ICodeEditor, markerService: IMarkerService, contextKeyService: IContextKeyService) {
 		this._editor = editor;
@@ -153,6 +155,7 @@ export class CodeActionModel {
 
 		this._hasRefactorProvider = HAS_REFACTOR_PROVIDER.bindTo(contextKeyService);
 		this._hasSourceProvider = HAS_SOURCE_ACTION_PROVIDER.bindTo(contextKeyService);
+		this._hasOrganizeImportsProvider = HAS_ORGANIZE_IMPORTS_PROVIDER.bindTo(contextKeyService);
 
 		this._disposables.push(this._editor.onDidChangeModel(() => this._update()));
 		this._disposables.push(this._editor.onDidChangeModelLanguage(() => this._update()));
@@ -184,6 +187,7 @@ export class CodeActionModel {
 
 			let hasRefactorProvider = false;
 			let hasSourceProvider = false;
+			let hasOrgaizeImportsProvider = false;
 			outer: for (const provider of CodeActionProviderRegistry.all(this._editor.getModel())) {
 				if (!provider.providedCodeActionKinds) {
 					continue;
@@ -191,7 +195,8 @@ export class CodeActionModel {
 				for (const providedKind of provider.providedCodeActionKinds) {
 					hasRefactorProvider = hasRefactorProvider || CodeActionKind.Refactor.contains(providedKind);
 					hasSourceProvider = hasSourceProvider || CodeActionKind.Source.contains(providedKind);
-					if (hasRefactorProvider && hasSourceProvider) {
+					hasOrgaizeImportsProvider = hasOrgaizeImportsProvider || CodeActionKind.SourceOrganizeImports.contains(providedKind);
+					if (hasRefactorProvider && hasSourceProvider && hasOrgaizeImportsProvider) {
 						break outer;
 					}
 				}
@@ -199,6 +204,7 @@ export class CodeActionModel {
 
 			this._hasRefactorProvider.set(hasRefactorProvider);
 			this._hasSourceProvider.set(hasSourceProvider);
+			this._hasOrganizeImportsProvider.set(hasOrgaizeImportsProvider);
 
 			this._codeActionOracle = new CodeActionOracle(this._editor, this._markerService, p => this._onDidChangeFixes.fire(p));
 			this._codeActionOracle.trigger({ type: 'auto' });

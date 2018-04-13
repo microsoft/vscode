@@ -1942,6 +1942,11 @@ declare module 'vscode' {
 		 */
 		static readonly Source: CodeActionKind;
 
+		/**
+		 * Base kind for an organize imports source action.
+		 */
+		static readonly SourceOrganizeImports: CodeActionKind;
+
 		private constructor(value: string);
 
 		/**
