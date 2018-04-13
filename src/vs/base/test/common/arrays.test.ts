@@ -12,25 +12,25 @@ suite('Arrays', () => {
 	test('findFirst', function () {
 		const array = [1, 4, 5, 7, 55, 59, 60, 61, 64, 69];
 
-		let idx = arrays.findFirst(array, e => e >= 0);
+		let idx = arrays.findFirstInSorted(array, e => e >= 0);
 		assert.equal(array[idx], 1);
 
-		idx = arrays.findFirst(array, e => e > 1);
+		idx = arrays.findFirstInSorted(array, e => e > 1);
 		assert.equal(array[idx], 4);
 
-		idx = arrays.findFirst(array, e => e >= 8);
+		idx = arrays.findFirstInSorted(array, e => e >= 8);
 		assert.equal(array[idx], 55);
 
-		idx = arrays.findFirst(array, e => e >= 61);
+		idx = arrays.findFirstInSorted(array, e => e >= 61);
 		assert.equal(array[idx], 61);
 
-		idx = arrays.findFirst(array, e => e >= 69);
+		idx = arrays.findFirstInSorted(array, e => e >= 69);
 		assert.equal(array[idx], 69);
 
-		idx = arrays.findFirst(array, e => e >= 70);
+		idx = arrays.findFirstInSorted(array, e => e >= 70);
 		assert.equal(idx, array.length);
 
-		idx = arrays.findFirst([], e => e >= 0);
+		idx = arrays.findFirstInSorted([], e => e >= 0);
 		assert.equal(array[idx], 1);
 	});
 
