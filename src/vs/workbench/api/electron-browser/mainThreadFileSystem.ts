@@ -111,8 +111,8 @@ class RemoteFileSystemProvider implements ISimpleReadWriteProvider, IFileSystemP
 	delete(resource: URI): TPromise<void, any> {
 		return this._proxy.$delete(this._handle, resource);
 	}
-	rename(resource: URI, target: URI): TPromise<IStat, any> {
-		return this._proxy.$move(this._handle, resource, target);
+	rename(resource: URI, target: URI, opts: { flags: FileOpenFlags }): TPromise<IStat, any> {
+		return this._proxy.$rename(this._handle, resource, target, opts.flags);
 	}
 	mkdir(resource: URI): TPromise<IStat, any> {
 		return this._proxy.$mkdir(this._handle, resource);

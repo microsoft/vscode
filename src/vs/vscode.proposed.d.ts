@@ -283,7 +283,7 @@ declare module 'vscode' {
 		 * @param newUri The target location
 		 * @param token A cancellation token.
 		 */
-		rename(oldUri: Uri, newUri: Uri, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
+		rename(oldUri: Uri, newUri: Uri, options: { flags: FileOpenFlags }, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
 
 		// todo@remote
 		// helps with performance bigly

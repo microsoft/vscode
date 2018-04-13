@@ -191,7 +191,7 @@ export interface IStat {
 export interface IFileSystemProviderBase {
 	onDidChange: Event<IFileChange[]>;
 	stat(resource: URI): TPromise<IStat>;
-	rename(from: URI, to: URI): TPromise<IStat>;
+	rename(from: URI, to: URI, opts: { flags: FileOpenFlags }): TPromise<IStat>;
 	mkdir(resource: URI): TPromise<IStat>;
 	readdir(resource: URI): TPromise<[string, IStat][]>;
 	delete(resource: URI): TPromise<void>;

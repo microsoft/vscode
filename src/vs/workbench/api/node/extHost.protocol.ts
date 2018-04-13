@@ -570,7 +570,7 @@ export interface ExtHostFileSystemShape {
 	$readFile(handle: number, resource: UriComponents, flags: FileOpenFlags): TPromise<string>;
 	$writeFile(handle: number, resource: UriComponents, base64Encoded: string, flags: FileOpenFlags): TPromise<void>;
 
-	$move(handle: number, resource: UriComponents, target: UriComponents): TPromise<IStat>;
+	$rename(handle: number, resource: UriComponents, target: UriComponents, flags: FileOpenFlags): TPromise<IStat>;
 	$mkdir(handle: number, resource: UriComponents): TPromise<IStat>;
 	$readdir(handle: number, resource: UriComponents): TPromise<[string, IStat][]>;
 
