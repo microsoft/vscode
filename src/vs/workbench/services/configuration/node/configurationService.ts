@@ -16,8 +16,8 @@ import { Queue } from 'vs/base/common/async';
 import { stat, writeFile } from 'vs/base/node/pfs';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IWorkspaceContextService, Workspace, WorkbenchState, IWorkspaceFolder, toWorkspaceFolders, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { IFileService } from 'vs/platform/files/common/files';
-import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ConfigurationChangeEvent, ConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, keyFromOverrideIdentifier, isConfigurationOverrides, IConfigurationData } from 'vs/platform/configuration/common/configuration';
@@ -344,7 +344,19 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		const folderPath = URI.file(singleFolderWorkspaceIdentifier);
 		return stat(folderPath.fsPath)
 			.then(workspaceStat => {
-				const ctime = isLinux ? workspaceStat.ino : workspaceStat.birthtime.getTime(); // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
+				let ctime: number;
+				if (isLinux) {
+					ctime = workspaceStat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
+				} else if (isMacintosh) {
+					ctime = workspaceStat.birthtime.getTime(); // macOS: birthtime is fine to use as is
+				} else if (isWindows) {
+					if (typeof workspaceStat.birthtimeMs === 'number') {
+						ctime = Math.floor(workspaceStat.birthtimeMs); // Windows: fix precision issue in node.js 8.x to get 7.x results (see https://github.com/nodejs/node/issues/19897)
+					} else {
+						ctime = workspaceStat.birthtime.getTime();
+					}
+				}
+
 				const id = createHash('md5').update(folderPath.fsPath).update(ctime ? String(ctime) : '').digest('hex');
 				const folder = URI.file(folderPath.fsPath);
 				return new Workspace(id, getBaseLabel(folder), toWorkspaceFolders([{ path: folder.fsPath }]), null, ctime);
