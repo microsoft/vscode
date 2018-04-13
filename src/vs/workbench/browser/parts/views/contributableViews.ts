@@ -7,7 +7,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { ViewsRegistry, IViewDescriptor, ViewLocation } from 'vs/workbench/common/views';
 import { IContextKeyService, IContextKeyChangeEvent, IReadableSet } from 'vs/platform/contextkey/common/contextkey';
 import { Event, chain, filterEvent, Emitter } from 'vs/base/common/event';
-import { findFirst, sortedDiff } from 'vs/base/common/arrays';
+import { sortedDiff, firstIndex } from 'vs/base/common/arrays';
 import { ISequence, Sequence, ISplice } from 'vs/base/common/sequence';
 
 function filterViewEvent(location: ViewLocation, event: Event<IViewDescriptor[]>): Event<IViewDescriptor[]> {
@@ -116,7 +116,7 @@ class ViewDescriptorCollection {
 		let fireChangeEvent = false;
 
 		for (const viewDescriptor of viewDescriptors) {
-			const index = findFirst(this.items, i => i.viewDescriptor.id === viewDescriptor.id);
+			const index = firstIndex(this.items, i => i.viewDescriptor.id === viewDescriptor.id);
 
 			if (index === -1) {
 				continue;
@@ -145,13 +145,13 @@ class ViewDescriptorCollection {
 		let fireChangeEvent = false;
 
 		for (const item of this.items) {
-			const visible = this.isViewDescriptorActive(item.viewDescriptor);
+			const active = this.isViewDescriptorActive(item.viewDescriptor);
 
-			if (item.active !== visible) {
+			if (item.active !== active) {
 				fireChangeEvent = true;
 			}
 
-			item.active = visible;
+			item.active = active;
 		}
 
 		if (fireChangeEvent) {
