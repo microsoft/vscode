@@ -209,6 +209,7 @@ export class ContributableViewsModel implements ISequence<IViewDescriptor>{
 
 	move(from: string, to: string): void {
 		// reset ORDERS for all view states
+		throw new Error('not implemented');
 	}
 
 	private findViewDescriptor(id: string): { visibleIndex: number, viewDescriptor: IViewDescriptor, state: IViewState } {
