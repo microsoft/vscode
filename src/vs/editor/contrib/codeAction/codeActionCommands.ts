@@ -7,7 +7,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, ServicesAccessor, registerEditorAction, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { BulkEdit } from 'vs/editor/browser/services/bulkEdit';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -22,7 +22,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { HAS_REFACTOR_PROVIDER, HAS_SOURCE_ACTION_PROVIDER, CodeActionsComputeEvent, CodeActionModel } from './codeActionModel';
+import { CodeActionModel, CodeActionsComputeEvent, HAS_REFACTOR_PROVIDER, HAS_SOURCE_ACTION_PROVIDER } from './codeActionModel';
 import { CodeActionAutoApply, CodeActionFilter, CodeActionKind } from './codeActionTrigger';
 import { CodeActionContextMenu } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
@@ -287,9 +287,3 @@ export class SourceAction extends EditorAction {
 			CodeActionAutoApply.Never);
 	}
 }
-
-registerEditorContribution(QuickFixController);
-registerEditorAction(QuickFixAction);
-registerEditorAction(RefactorAction);
-registerEditorAction(SourceAction);
-registerEditorCommand(new CodeActionCommand());
