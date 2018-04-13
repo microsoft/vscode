@@ -422,6 +422,39 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		});
 	});
 
+	test('Suggest, resolve completion items', async function () {
+
+		let resolveCount = 0;
+
+		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
+			provideCompletionItems(): any {
+				let a = new types.CompletionItem('item1');
+				let b = new types.CompletionItem('item2');
+				let c = new types.CompletionItem('item3');
+				let d = new types.CompletionItem('item4');
+				return new types.CompletionList([a, b, c, d], false);
+			},
+			resolveCompletionItem(item) {
+				resolveCount += 1;
+				return item;
+			}
+		}, []));
+
+		await rpcProtocol.sync();
+
+		let list = await commands.executeCommand<vscode.CompletionList>(
+			'vscode.executeCompletionItemProvider',
+			model.uri,
+			new types.Position(0, 4),
+			undefined,
+			2 // maxItemsToResolve
+		);
+
+		assert.ok(list instanceof types.CompletionList);
+		assert.equal(resolveCount, 2);
+
+	});
+
 	// --- quickfix
 
 	test('QuickFix, back and forth', function () {
