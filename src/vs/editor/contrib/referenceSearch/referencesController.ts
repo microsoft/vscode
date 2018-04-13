@@ -16,7 +16,6 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ReferencesModel } from './referencesModel';
 import { ReferenceWidget, LayoutData } from './referencesWidget';
 import { Range } from 'vs/editor/common/core/range';
@@ -34,7 +33,7 @@ export interface RequestOptions {
 	onGoto?: (reference: Location) => TPromise<any>;
 }
 
-export class ReferencesController implements editorCommon.IEditorContribution {
+export abstract class ReferencesController implements editorCommon.IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.referencesController';
 
@@ -52,6 +51,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 	}
 
 	public constructor(
+		private _defaultTreeKeyboardSupport: boolean,
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -103,7 +103,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		}));
 		const storageKey = 'peekViewLayout';
 		const data = <LayoutData>JSON.parse(this._storageService.get(storageKey, undefined, '{}'));
-		this._widget = new ReferenceWidget(this._editor, data, this._textModelResolverService, this._contextService, this._themeService, this._instantiationService, this._environmentService);
+		this._widget = new ReferenceWidget(this._editor, this._defaultTreeKeyboardSupport, data, this._textModelResolverService, this._contextService, this._themeService, this._instantiationService, this._environmentService);
 		this._widget.setTitle(nls.localize('labelLoading', "Loading..."));
 		this._widget.show(range);
 		this._disposables.push(this._widget.onDidClose(() => {
@@ -249,5 +249,3 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		}
 	}
 }
-
-registerEditorContribution(ReferencesController);

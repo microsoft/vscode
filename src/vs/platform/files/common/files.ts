@@ -18,8 +18,17 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
+export interface IResourceEncodings {
+	getWriteEncoding(resource: URI, preferredEncoding?: string): string;
+}
+
 export interface IFileService {
 	_serviceBrand: any;
+
+	/**
+	 * Helper to determine read/write encoding for resources.
+	 */
+	encoding: IResourceEncodings;
 
 	/**
 	 * Allows to listen for file changes. The event will fire for every file within the opened workspace
@@ -126,11 +135,6 @@ export interface IFileService {
 	del(resource: URI, useTrash?: boolean): TPromise<void>;
 
 	/**
-	 * Imports the file to the parent identified by the resource.
-	 */
-	importFile(source: URI, targetFolder: URI): TPromise<IImportResult>;
-
-	/**
 	 * Allows to start a watcher that reports file change events on the provided resource.
 	 */
 	watchFileChanges(resource: URI): void;
@@ -139,16 +143,6 @@ export interface IFileService {
 	 * Allows to stop a watcher on the provided resource or absolute fs path.
 	 */
 	unwatchFileChanges(resource: URI): void;
-
-	/**
-	 * Configures the file service with the provided options.
-	 */
-	updateOptions(options: object): void;
-
-	/**
-	 * Returns the preferred encoding to use for a given resource.
-	 */
-	getEncoding(resource: URI, preferredEncoding?: string): string;
 
 	/**
 	 * Frees up any resources occupied by this service.
@@ -168,28 +162,36 @@ export interface IStat {
 	type: FileType2;
 }
 
-export interface IFileSystemProvider {
-
-	onDidChange?: Event<IFileChange[]>;
-
-	// more...
-	//
+export interface IFileSystemProviderBase {
+	onDidChange: Event<IFileChange[]>;
 	stat(resource: URI): TPromise<IStat>;
-	readFile(resource: URI): TPromise<Uint8Array>;
-	writeFile(resource: URI, content: Uint8Array): TPromise<void>;
-	move(from: URI, to: URI): TPromise<IStat>;
+	rename(from: URI, to: URI): TPromise<IStat>;
 	mkdir(resource: URI): TPromise<IStat>;
-	readdir(resource: URI): TPromise<[URI, IStat][]>;
+	readdir(resource: URI): TPromise<[string, IStat][]>;
 	delete(resource: URI): TPromise<void>;
 }
 
+export interface ISimpleReadWriteProvider {
+	_type: 'simple';
+	readFile(resource: URI): TPromise<Uint8Array>;
+	writeFile(resource: URI, content: Uint8Array): TPromise<void>;
+}
+
+export interface IReadWriteProvider {
+	_type: 'chunked';
+	open(resource: URI, options: { mode: string }): TPromise<number>;
+	close(fd: number): TPromise<void>;
+	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
+	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
+}
+
+export type IFileSystemProvider = (IFileSystemProviderBase & ISimpleReadWriteProvider) | (IFileSystemProviderBase & IReadWriteProvider);
 
 export enum FileOperation {
 	CREATE,
 	DELETE,
 	MOVE,
-	COPY,
-	IMPORT
+	COPY
 }
 
 export class FileOperationEvent {
@@ -445,6 +447,14 @@ export interface ITextSnapshot {
 	read(): string;
 }
 
+export class StringSnapshot implements ITextSnapshot {
+	constructor(private _value: string) { }
+	read(): string {
+		let ret = this._value;
+		this._value = null;
+		return ret;
+	}
+}
 /**
  * Helper method to convert a snapshot into its full string form.
  */
@@ -554,11 +564,6 @@ export interface ICreateFileOptions {
 	 * an error will be thrown (FILE_MODIFIED_SINCE).
 	 */
 	overwrite?: boolean;
-}
-
-export interface IImportResult {
-	stat: IFileStat;
-	isNew: boolean;
 }
 
 export class FileOperationError extends Error {

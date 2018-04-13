@@ -60,8 +60,6 @@ function modeFromEntry(entry: Entry) {
 function toExtractError(err: Error): ExtractError {
 	let type = ExtractErrorType.CorruptZip;
 
-	console.log('WHAT');
-
 	if (/end of central directory record signature not found/.test(err.message)) {
 		type = ExtractErrorType.CorruptZip;
 	}

@@ -7,7 +7,7 @@
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise, PPromise } from 'vs/base/common/winjs.base';
 import { ExtHostContext, MainContext, IExtHostContext, MainThreadFileSystemShape, ExtHostFileSystemShape, IFileChangeDto } from '../node/extHost.protocol';
-import { IFileService, IFileSystemProvider, IStat, IFileChange } from 'vs/platform/files/common/files';
+import { IFileService, IStat, IFileChange, ISimpleReadWriteProvider, IFileSystemProviderBase } from 'vs/platform/files/common/files';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
@@ -61,13 +61,14 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	}
 }
 
-class RemoteFileSystemProvider implements IFileSystemProvider {
+class RemoteFileSystemProvider implements ISimpleReadWriteProvider, IFileSystemProviderBase {
+
+	_type: 'simple' = 'simple';
 
 	private readonly _onDidChange = new Emitter<IFileChange[]>();
 	private readonly _registrations: IDisposable[];
 
 	readonly onDidChange: Event<IFileChange[]> = this._onDidChange.event;
-
 
 	constructor(
 		fileService: IFileService,
@@ -110,16 +111,14 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 	delete(resource: URI): TPromise<void, any> {
 		return this._proxy.$delete(this._handle, resource);
 	}
-	move(resource: URI, target: URI): TPromise<IStat, any> {
+	rename(resource: URI, target: URI): TPromise<IStat, any> {
 		return this._proxy.$move(this._handle, resource, target);
 	}
 	mkdir(resource: URI): TPromise<IStat, any> {
 		return this._proxy.$mkdir(this._handle, resource);
 	}
-	readdir(resource: URI): TPromise<[URI, IStat][], any> {
-		return this._proxy.$readdir(this._handle, resource).then(data => {
-			return data.map(tuple => <[URI, IStat]>[URI.revive(tuple[0]), tuple[1]]);
-		});
+	readdir(resource: URI): TPromise<[string, IStat][], any> {
+		return this._proxy.$readdir(this._handle, resource);
 	}
 }
 

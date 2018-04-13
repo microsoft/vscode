@@ -446,6 +446,25 @@ export interface IDebugConfigurationProvider {
 	debugAdapterExecutable(folderUri: uri | undefined): TPromise<IAdapterExecutable>;
 }
 
+export interface ITerminalLauncher {
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void>;
+}
+
+export interface ITerminalSettings {
+	external: {
+		windowsExec: string,
+		osxExec: string,
+		linuxExec: string
+	};
+	integrated: {
+		shell: {
+			osx: string,
+			windows: string,
+			linux: string
+		}
+	};
+}
+
 export interface IConfigurationManager {
 	/**
 	 * Returns true if breakpoints can be set for a given editor model. Depends on mode.
@@ -479,6 +498,9 @@ export interface IConfigurationManager {
 
 	registerDebugAdapterProvider(debugType: string, debugAdapterLauncher: IDebugAdapterProvider);
 	createDebugAdapter(debugType: string, adapterExecutable: IAdapterExecutable | null): IDebugAdapter;
+
+	registerEHTerminalLauncher(launcher: ITerminalLauncher): void;
+	runInTerminal(extensionHost: boolean, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void>;
 }
 
 export interface ILaunch {

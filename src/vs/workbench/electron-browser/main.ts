@@ -97,7 +97,7 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 				logService,
 				timerService,
 				storageService
-			}, mainServices, configuration);
+			}, mainServices, mainProcessClient, configuration);
 			shell.open();
 
 			// Inform user about loading issues from the loader

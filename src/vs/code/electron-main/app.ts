@@ -59,9 +59,10 @@ import { IssueChannel } from 'vs/platform/issue/common/issueIpc';
 import { IssueService } from 'vs/platform/issue/electron-main/issueService';
 import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
+import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
 import { join } from 'path';
 import { copy, exists, rename } from 'vs/base/node/pfs';
-import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 
 export class CodeApplication {
 
@@ -290,15 +291,28 @@ export class CodeApplication {
 				// Services
 				const appInstantiationService = this.initServices(machineId);
 
-				// Setup Auth Handler
-				const authHandler = appInstantiationService.createInstance(ProxyAuthHandler);
-				this.toDispose.push(authHandler);
+				let promise: TPromise<any> = TPromise.as(null);
 
-				// Open Windows
-				appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor));
+				// Create driver
+				if (this.environmentService.driverHandle) {
+					serveDriver(this.electronIpcServer, this.environmentService.driverHandle, appInstantiationService).then(server => {
+						this.logService.info('Driver started at:', this.environmentService.driverHandle);
+						this.toDispose.push(server);
+					});
+				}
 
-				// Post Open Windows Tasks
-				appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
+				return promise.then(() => {
+
+					// Setup Auth Handler
+					const authHandler = appInstantiationService.createInstance(ProxyAuthHandler);
+					this.toDispose.push(authHandler);
+
+					// Open Windows
+					appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor));
+
+					// Post Open Windows Tasks
+					appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
+				});
 			});
 		});
 	}

@@ -468,7 +468,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	}
 
 	provideTextContent(resource: URI): TPromise<ITextModel> {
-		const channel = <OutputChannel>this.getChannel(resource.fsPath);
+		const channel = <OutputChannel>this.getChannel(resource.path);
 		if (channel) {
 			return channel.loadModel();
 		}

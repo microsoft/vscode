@@ -3,16 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorInput, IEditorModel, Position } from 'vs/platform/editor/common/editor';
 import { EditorInput, EditorModel } from 'vs/workbench/common/editor';
-import { WebviewElement } from './webviewElement';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { WebviewEvents, WebviewInputOptions, WebviewReviver } from './webviewEditorService';
+import { WebviewElement } from './webviewElement';
 
 
 export class WebviewEditorInput extends EditorInput {

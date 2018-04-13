@@ -202,9 +202,9 @@ export class ExtHostApiCommands {
 				options);
 		}, {
 				description: `
-					Render the html of the resource in an editor view.
+					Render the HTML of the resource in an editor view.
 
-					See [working with the html preview](https://code.visualstudio.com/docs/extensionAPI/vscode-api-commands#working-with-the-html-preview) for more information about the html preview's intergration with the editor and for best practices for extension authors.
+					See [working with the HTML preview](https://code.visualstudio.com/docs/extensionAPI/vscode-api-commands#working-with-the-html-preview) for more information about the HTML preview's integration with the editor and for best practices for extension authors.
 				`,
 				args: [
 					{ name: 'uri', description: 'Uri of the resource to preview.', constraint: value => value instanceof URI || typeof value === 'string' },

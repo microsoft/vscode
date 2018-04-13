@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SpectronApplication } from '../../spectron/application';
 import { Explorer } from '../explorer/explorer';
 import { ActivityBar } from '../activitybar/activityBar';
 import { QuickOpen } from '../quickopen/quickopen';
@@ -16,13 +15,19 @@ import { StatusBar } from '../statusbar/statusbar';
 import { Problems } from '../problems/problems';
 import { SettingsEditor } from '../preferences/settings';
 import { KeybindingsEditor } from '../preferences/keybindings';
-import { Terminal } from '../terminal/terminal';
+import { Editors } from '../editor/editors';
+import { Code } from '../../vscode/code';
 
-export class Workbench {
+export interface Commands {
+	runCommand(command: string): Promise<any>;
+}
 
+export class Workbench implements Commands {
+
+	readonly quickopen: QuickOpen;
+	readonly editors: Editors;
 	readonly explorer: Explorer;
 	readonly activitybar: ActivityBar;
-	readonly quickopen: QuickOpen;
 	readonly search: Search;
 	readonly extensions: Extensions;
 	readonly editor: Editor;
@@ -32,49 +37,35 @@ export class Workbench {
 	readonly problems: Problems;
 	readonly settingsEditor: SettingsEditor;
 	readonly keybindingsEditor: KeybindingsEditor;
-	readonly terminal: Terminal;
 
-	constructor(private spectron: SpectronApplication) {
-		this.explorer = new Explorer(spectron);
-		this.activitybar = new ActivityBar(spectron);
-		this.quickopen = new QuickOpen(spectron);
-		this.search = new Search(spectron);
-		this.extensions = new Extensions(spectron);
-		this.editor = new Editor(spectron);
-		this.scm = new SCM(spectron);
-		this.debug = new Debug(spectron);
-		this.statusbar = new StatusBar(spectron);
-		this.problems = new Problems(spectron);
-		this.settingsEditor = new SettingsEditor(spectron);
-		this.keybindingsEditor = new KeybindingsEditor(spectron);
-		this.terminal = new Terminal(spectron);
+	constructor(private code: Code, private keybindings: any[], userDataPath: string) {
+		this.editors = new Editors(code, this);
+		this.quickopen = new QuickOpen(code, this, this.editors);
+		this.explorer = new Explorer(code, this.quickopen, this.editors);
+		this.activitybar = new ActivityBar(code);
+		this.search = new Search(code, this);
+		this.extensions = new Extensions(code, this);
+		this.editor = new Editor(code, this);
+		this.scm = new SCM(code, this);
+		this.debug = new Debug(code, this, this.editors, this.editor);
+		this.statusbar = new StatusBar(code);
+		this.problems = new Problems(code, this);
+		this.settingsEditor = new SettingsEditor(code, userDataPath, this, this.editors, this.editor);
+		this.keybindingsEditor = new KeybindingsEditor(code, this);
 	}
 
-	public async saveOpenedFile(): Promise<any> {
-		await this.spectron.client.waitForElement('.tabs-container div.tab.active.dirty');
-		await this.spectron.workbench.quickopen.runCommand('File: Save');
-	}
+	/**
+	 * Retrieves the command from keybindings file and executes it with WebdriverIO client API
+	 * @param command command (e.g. 'workbench.action.files.newUntitledFile')
+	 */
+	async runCommand(command: string): Promise<any> {
+		const binding = this.keybindings.find(x => x['command'] === command);
+		if (!binding) {
+			await this.quickopen.runCommand(command);
+			return;
+		}
 
-	public async selectTab(tabName: string, untitled: boolean = false): Promise<void> {
-		await this.spectron.client.waitAndClick(`.tabs-container div.tab[aria-label="${tabName}, tab"]`);
-		await this.waitForEditorFocus(tabName, untitled);
-	}
-
-	public async waitForEditorFocus(fileName: string, untitled: boolean = false): Promise<void> {
-		await this.waitForActiveTab(fileName);
-		await this.editor.waitForActiveEditor(fileName);
-	}
-
-	public async waitForActiveTab(fileName: string, isDirty: boolean = false): Promise<any> {
-		return this.spectron.client.waitForElement(`.tabs-container div.tab.active${isDirty ? '.dirty' : ''}[aria-selected="true"][aria-label="${fileName}, tab"]`);
-	}
-
-	public async waitForTab(fileName: string, isDirty: boolean = false): Promise<boolean> {
-		return this.spectron.client.waitForElement(`.tabs-container div.tab${isDirty ? '.dirty' : ''}[aria-label="${fileName}, tab"]`).then(() => true);
-	}
-
-	public async newUntitledFile(): Promise<void> {
-		await this.spectron.runCommand('workbench.action.files.newUntitledFile');
-		await this.waitForEditorFocus('Untitled-1', true);
+		return this.code.dispatchKeybinding(binding.key);
 	}
 }
+

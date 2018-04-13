@@ -25,11 +25,20 @@ export class GettingStarted implements IWorkbenchContribution {
 	) {
 		this.appName = product.nameLong;
 
-		/* do not open a browser when we run an extension or --skip-getting-started is provided */
-		if (product.welcomePage && !environmentService.isExtensionDevelopment && !environmentService.skipGettingStarted) {
-			this.welcomePageURL = product.welcomePage;
-			this.handleWelcome();
+		if (!product.welcomePage) {
+			return;
 		}
+
+		if (environmentService.skipGettingStarted) {
+			return;
+		}
+
+		if (environmentService.isExtensionDevelopment) {
+			return;
+		}
+
+		this.welcomePageURL = product.welcomePage;
+		this.handleWelcome();
 	}
 
 	private getUrl(telemetryInfo: ITelemetryInfo): string {

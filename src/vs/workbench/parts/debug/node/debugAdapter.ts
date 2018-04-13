@@ -134,6 +134,8 @@ export abstract class AbstractDebugAdapter implements debug.IDebugAdapter {
 export abstract class StreamDebugAdapter extends AbstractDebugAdapter {
 
 	private static readonly TWO_CRLF = '\r\n\r\n';
+	private static readonly HEADER_LINESEPARATOR = /\r?\n/;	// allow for non-RFC 2822 conforming line separators
+	private static readonly HEADER_FIELDSEPARATOR = /: */;
 
 	private outputStream: stream.Writable;
 	private rawData: Buffer;
@@ -191,30 +193,18 @@ export abstract class StreamDebugAdapter extends AbstractDebugAdapter {
 					continue;	// there may be more complete messages to process
 				}
 			} else {
-				/*
 				const idx = this.rawData.indexOf(StreamDebugAdapter.TWO_CRLF);
 				if (idx !== -1) {
 					const header = this.rawData.toString('utf8', 0, idx);
-					const lines = header.split('\r\n');
+					const lines = header.split(StreamDebugAdapter.HEADER_LINESEPARATOR);
 					for (const h of lines) {
-						const kvPair = h.split(/: +/);
+						const kvPair = h.split(StreamDebugAdapter.HEADER_FIELDSEPARATOR);
 						if (kvPair[0] === 'Content-Length') {
 							this.contentLength = Number(kvPair[1]);
 						}
 					}
 					this.rawData = this.rawData.slice(idx + StreamDebugAdapter.TWO_CRLF.length);
 					continue;
-				}
-				*/
-				const s = this.rawData.toString('utf8', 0, this.rawData.length);
-				const idx = s.indexOf(StreamDebugAdapter.TWO_CRLF);
-				if (idx !== -1) {
-					const match = /Content-Length: (\d+)/.exec(s);
-					if (match && match[1]) {
-						this.contentLength = Number(match[1]);
-						this.rawData = this.rawData.slice(idx + StreamDebugAdapter.TWO_CRLF.length);
-						continue;	// try to handle a complete message
-					}
 				}
 			}
 			break;

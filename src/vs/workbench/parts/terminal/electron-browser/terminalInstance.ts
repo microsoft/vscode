@@ -107,7 +107,9 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public disableLayout: boolean;
 	public get id(): number { return this._id; }
+	// TODO: Ideally processId would be merged into processReady
 	public get processId(): number { return this._processId; }
+	public get processReady(): TPromise<void> { return this._processReady; }
 	public get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
 	public get onFocused(): Event<ITerminalInstance> { return this._onFocused.event; }
 	public get onProcessIdReady(): Event<ITerminalInstance> { return this._onProcessIdReady.event; }

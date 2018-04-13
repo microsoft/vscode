@@ -24,7 +24,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 
 import { IConfigurationData, ConfigurationTarget, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
-import { IConfig, IAdapterExecutable } from 'vs/workbench/parts/debug/common/debug';
+import { IConfig, IAdapterExecutable, ITerminalSettings } from 'vs/workbench/parts/debug/common/debug';
 
 import { IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
@@ -273,7 +273,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerHoverProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerDocumentHighlightProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerReferenceSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
-	$registerQuickFixSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerQuickFixSupport(handle: number, selector: ISerializedDocumentFilter[], supportedKinds?: string[]): void;
 	$registerDocumentFormattingSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerRangeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerOnTypeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], autoFormatTriggerCharacters: string[]): void;
@@ -350,7 +350,7 @@ export interface MainThreadTelemetryShape extends IDisposable {
 export type WebviewHandle = string;
 
 export interface MainThreadWebviewsShape extends IDisposable {
-	$createWebview(handle: WebviewHandle, viewType: string, title: string, column: EditorPosition, options: vscode.WebviewOptions, extensionFolderPath: string): void;
+	$createWebview(handle: WebviewHandle, viewType: string, title: string, column: EditorPosition, options: vscode.WebviewPanelOptions & vscode.WebviewOptions, extensionFolderPath: string): void;
 	$disposeWebview(handle: WebviewHandle): void;
 	$reveal(handle: WebviewHandle, column: EditorPosition): void;
 	$setTitle(handle: WebviewHandle, value: string): void;
@@ -365,7 +365,7 @@ export interface ExtHostWebviewsShape {
 	$onMessage(handle: WebviewHandle, message: any): void;
 	$onDidChangeWeviewViewState(handle: WebviewHandle, active: boolean, position: EditorPosition): void;
 	$onDidDisposeWeview(handle: WebviewHandle): Thenable<void>;
-	$deserializeWebview(newWebviewHandle: WebviewHandle, viewType: string, state: any, position: EditorPosition, options: vscode.WebviewOptions): Thenable<void>;
+	$deserializeWebview(newWebviewHandle: WebviewHandle, viewType: string, title: string, state: any, position: EditorPosition, options: vscode.WebviewOptions): Thenable<void>;
 	$serializeWebview(webviewHandle: WebviewHandle): Thenable<any>;
 }
 
@@ -572,7 +572,7 @@ export interface ExtHostFileSystemShape {
 
 	$move(handle: number, resource: UriComponents, target: UriComponents): TPromise<IStat>;
 	$mkdir(handle: number, resource: UriComponents): TPromise<IStat>;
-	$readdir(handle: number, resource: UriComponents): TPromise<[UriComponents, IStat][]>;
+	$readdir(handle: number, resource: UriComponents): TPromise<[string, IStat][]>;
 
 	$delete(handle: number, resource: UriComponents): TPromise<void>;
 
@@ -728,6 +728,7 @@ export interface ExtHostQuickOpenShape {
 
 export interface ExtHostTerminalServiceShape {
 	$acceptTerminalClosed(id: number): void;
+	$acceptTerminalOpened(id: number, name: string): void;
 	$acceptTerminalProcessId(id: number, processId: number): void;
 }
 
@@ -786,6 +787,7 @@ export interface ISourceMultiBreakpointDto {
 }
 
 export interface ExtHostDebugServiceShape {
+	$runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void>;
 	$startDASession(handle: number, debugType: string, adapterExecutableInfo: IAdapterExecutable | null): TPromise<void>;
 	$stopDASession(handle: number): TPromise<void>;
 	$sendDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): TPromise<void>;

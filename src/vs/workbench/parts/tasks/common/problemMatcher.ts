@@ -302,6 +302,9 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 	}
 
 	private getLocation(data: ProblemData): Location {
+		if (data.kind === ProblemLocationKind.File) {
+			return this.createLocation(0, 0, 0, 0);
+		}
 		if (data.location) {
 			return this.parseLocationInfo(data.location);
 		}
@@ -383,7 +386,7 @@ class SingleLineMatcher extends AbstractLineMatcher {
 	public handle(lines: string[], start: number = 0): HandleResult {
 		Assert.ok(lines.length - start === 1);
 		let data: ProblemData = Object.create(null);
-		if (this.pattern.kind) {
+		if (this.pattern.kind !== void 0) {
 			data.kind = this.pattern.kind;
 		}
 		let matches = this.pattern.regexp.exec(lines[start]);

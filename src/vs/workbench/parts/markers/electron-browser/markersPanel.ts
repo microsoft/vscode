@@ -10,8 +10,7 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
-import { IAction, Action } from 'vs/base/common/actions';
-import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction, IActionItem } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { Panel } from 'vs/workbench/browser/panel';
@@ -21,7 +20,7 @@ import { Marker, ResourceMarkers, RelatedInformation } from 'vs/workbench/parts/
 import { Controller } from 'vs/workbench/parts/markers/electron-browser/markersTreeController';
 import * as Viewer from 'vs/workbench/parts/markers/electron-browser/markersTreeViewer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CollapseAllAction, FilterAction, FilterInputBoxActionItem } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
+import { CollapseAllAction, MarkersFilterActionItem, MarkersFilterAction } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
@@ -31,6 +30,9 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IMarkersWorkbenchService } from 'vs/workbench/parts/markers/electron-browser/markers';
 import { SimpleFileResourceDragAndDrop } from 'vs/workbench/browser/dnd';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { Scope } from 'vs/workbench/common/memento';
+import { localize } from 'vs/nls';
 
 export class MarkersPanel extends Panel {
 
@@ -44,12 +46,12 @@ export class MarkersPanel extends Panel {
 	private rangeHighlightDecorations: RangeHighlightDecorations;
 
 	private actions: IAction[];
-	private filterAction: FilterAction;
 	private collapseAllAction: IAction;
+	private filterInputActionItem: MarkersFilterActionItem;
 
 	private treeContainer: HTMLElement;
 	private messageBoxContainer: HTMLElement;
-	private messageBox: HTMLElement;
+	private panelSettings: any;
 
 	private currentResourceGotAddedToMarkersData: boolean = false;
 
@@ -60,11 +62,13 @@ export class MarkersPanel extends Panel {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IMarkersWorkbenchService private markersWorkbenchService: IMarkersWorkbenchService
+		@IMarkersWorkbenchService private markersWorkbenchService: IMarkersWorkbenchService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super(Constants.MARKERS_PANEL_ID, telemetryService, themeService);
 		this.delayedRefresh = new Delayer<void>(500);
 		this.autoExpanded = new Set<string>();
+		this.panelSettings = this.getMemento(storageService, Scope.WORKSPACE);
 	}
 
 	public create(parent: HTMLElement): TPromise<void> {
@@ -79,8 +83,10 @@ export class MarkersPanel extends Panel {
 
 		this.createMessageBox(container);
 		this.createTree(container);
-
+		this.createActions();
 		this.createListeners();
+
+		this.updateFilter();
 
 		return this.render();
 	}
@@ -90,7 +96,10 @@ export class MarkersPanel extends Panel {
 	}
 
 	public layout(dimension: dom.Dimension): void {
-		this.tree.layout(dimension.height, dimension.width);
+		const height = dimension.height - 38;
+		this.treeContainer.style.height = `${height}px`;
+		this.tree.layout(height, dimension.width);
+		this.filterInputActionItem.toggleLayout(dimension.width < 1200);
 	}
 
 	public focus(): void {
@@ -106,7 +115,7 @@ export class MarkersPanel extends Panel {
 			this.highlightCurrentSelectedMarkerRange();
 			this.autoReveal(true);
 		} else {
-			this.messageBox.focus();
+			this.messageBoxContainer.focus();
 		}
 	}
 
@@ -126,9 +135,8 @@ export class MarkersPanel extends Panel {
 
 	public getActions(): IAction[] {
 		if (!this.actions) {
-			this.actions = this.createActions();
+			this.createActions();
 		}
-		this.collapseAllAction.enabled = this.markersWorkbenchService.markersModel.hasFilteredResources();
 		return this.actions;
 	}
 
@@ -172,17 +180,13 @@ export class MarkersPanel extends Panel {
 		return TPromise.as(null);
 	}
 
-	public updateFilter(filter: string) {
-		this.markersWorkbenchService.filter(filter);
+	private updateFilter() {
 		this.autoExpanded = new Set<string>();
-		this.refreshPanel();
-		this.autoReveal();
+		this.markersWorkbenchService.filter({ filterText: this.filterInputActionItem.getFilterText(), useFilesExclude: this.filterInputActionItem.useFilesExclude });
 	}
 
 	private createMessageBox(parent: HTMLElement): void {
 		this.messageBoxContainer = dom.append(parent, dom.$('.message-box-container'));
-		this.messageBox = dom.append(this.messageBoxContainer, dom.$('span'));
-		this.messageBox.setAttribute('tabindex', '0');
 	}
 
 	private createTree(parent: HTMLElement): void {
@@ -221,28 +225,24 @@ export class MarkersPanel extends Panel {
 		}));
 	}
 
-	private createActions(): IAction[] {
+	private createActions(): void {
 		this.collapseAllAction = this.instantiationService.createInstance(CollapseAllAction, this.tree, true);
-		this.filterAction = new FilterAction();
-		const actions = [
-			this.filterAction,
-			this.collapseAllAction
-		];
-		actions.forEach(a => {
-			this.toUnbind.push(a);
-		});
-		return actions;
+		const filterAction = this.instantiationService.createInstance(MarkersFilterAction);
+		this.filterInputActionItem = this.instantiationService.createInstance(MarkersFilterActionItem, { filterText: this.panelSettings['filter'] || '', filterHistory: this.panelSettings['filterHistory'] || [], useFilesExclude: !!this.panelSettings['useFilesExclude'] }, filterAction);
+		this.actions = [filterAction, this.collapseAllAction];
 	}
 
 	private createListeners(): void {
-		this.toUnbind.push(this.markersWorkbenchService.onDidChangeMarkersForResources(this.onMarkerChanged, this));
+		this.toUnbind.push(this.markersWorkbenchService.onDidChange(resources => this.onDidChange(resources)));
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(this.onEditorsChanged, this));
 		this.toUnbind.push(this.tree.onDidChangeSelection(() => this.onSelected()));
+		this.toUnbind.push(this.filterInputActionItem.onDidChange(() => this.updateFilter()));
+		this.actions.forEach(a => this.toUnbind.push(a));
 	}
 
-	private onMarkerChanged(changedResources: URI[]) {
-		this.currentResourceGotAddedToMarkersData = this.currentResourceGotAddedToMarkersData || this.isCurrentResourceGotAddedToMarkersData(changedResources);
-		this.updateResources(changedResources);
+	private onDidChange(resources: URI[]) {
+		this.currentResourceGotAddedToMarkersData = this.currentResourceGotAddedToMarkersData || this.isCurrentResourceGotAddedToMarkersData(resources);
+		this.updateResources(resources);
 		this.delayedRefresh.trigger(() => {
 			this.refreshPanel();
 			this.updateRangeHighlights();
@@ -295,8 +295,44 @@ export class MarkersPanel extends Panel {
 	}
 
 	private renderMessage(): void {
-		this.messageBox.textContent = this.markersWorkbenchService.markersModel.getMessage();
-		dom.toggleClass(this.messageBoxContainer, 'hidden', this.markersWorkbenchService.markersModel.hasFilteredResources());
+		const markersModel = this.markersWorkbenchService.markersModel;
+		const hasFilteredResources = markersModel.hasFilteredResources();
+		dom.clearNode(this.messageBoxContainer);
+		dom.toggleClass(this.messageBoxContainer, 'hidden', hasFilteredResources);
+		if (!hasFilteredResources) {
+			if (markersModel.hasResources()) {
+				if (markersModel.filterOptions.filter) {
+					this.renderFilteredByFilterMessage(this.messageBoxContainer);
+				} else {
+					this.renderFilteredByFilesExcludeMessage(this.messageBoxContainer);
+				}
+			} else {
+				this.renderNoProblemsMessage(this.messageBoxContainer);
+			}
+		}
+	}
+
+	private renderFilteredByFilesExcludeMessage(container: HTMLElement) {
+		const span1 = dom.append(container, dom.$('span'));
+		span1.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_FILE_EXCLUSIONS_FILTER;
+		const link = dom.append(container, dom.$('a.messageAction'));
+		link.textContent = localize('disableFilesExclude', "Disable Files Exclude.");
+		link.setAttribute('tabIndex', '0');
+		dom.addDisposableListener(link, dom.EventType.CLICK, () => this.filterInputActionItem.useFilesExclude = false);
+	}
+
+	private renderFilteredByFilterMessage(container: HTMLElement) {
+		const span1 = dom.append(container, dom.$('span'));
+		span1.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_FILTERS;
+		const link = dom.append(container, dom.$('a.messageAction'));
+		link.textContent = localize('clearFilter', "Clear Filter.");
+		link.setAttribute('tabIndex', '0');
+		dom.addDisposableListener(link, dom.EventType.CLICK, () => this.filterInputActionItem.clear());
+	}
+
+	private renderNoProblemsMessage(container: HTMLElement) {
+		const span = dom.append(container, dom.$('span'));
+		span.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT;
 	}
 
 	private autoExpand(): void {
@@ -375,15 +411,24 @@ export class MarkersPanel extends Panel {
 		}
 	}
 
-	public getActionItem(action: Action): IActionItem {
-		if (action.id === FilterAction.ID) {
-			return this.instantiationService.createInstance(FilterInputBoxActionItem, this, action);
+	public getFocusElement(): ResourceMarkers | Marker {
+		return this.tree.getFocus();
+	}
+
+	public getActionItem(action: IAction): IActionItem {
+		if (action.id === MarkersFilterAction.ID) {
+			return this.filterInputActionItem;
 		}
 		return super.getActionItem(action);
 	}
 
-	public getFocusElement(): ResourceMarkers | Marker {
-		return this.tree.getFocus();
+	public shutdown(): void {
+		// store memento
+		this.panelSettings['filter'] = this.filterInputActionItem.getFilterText();
+		this.panelSettings['filterHistory'] = this.filterInputActionItem.getFilterHistory();
+		this.panelSettings['useFilesExclude'] = this.filterInputActionItem.useFilesExclude;
+
+		super.shutdown();
 	}
 
 	public dispose(): void {

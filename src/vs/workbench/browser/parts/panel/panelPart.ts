@@ -43,7 +43,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private blockOpeningPanel: boolean;
 	private compositeBar: CompositeBar;
 	private dimension: Dimension;
-	private toolbarWidth = new Map<string, number>();
 
 	constructor(
 		id: string,
@@ -258,11 +257,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		if (!activePanel) {
 			return 0;
 		}
-		if (!this.toolbarWidth.has(activePanel.getId())) {
-			this.toolbarWidth.set(activePanel.getId(), this.toolBar.getContainer().offsetWidth);
-		}
-
-		return this.toolbarWidth.get(activePanel.getId());
+		return this.toolBar.getItemsWidth();
 	}
 }
 

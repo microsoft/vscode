@@ -59,8 +59,8 @@ async function tmpFile(name: string): Promise<string> {
 	return join(tmpParent, name);
 }
 
-async function getVersions(accessor: IApplicationAccessor): Promise<IVersions> {
-	return await asyncRequest<IVersions>({
+function getVersions(accessor: IApplicationAccessor): Promise<IVersions> {
+	return asyncRequest<IVersions>({
 		url: `${BASE_URL}/apps/${accessor.appId}/app_versions`,
 		method: 'GET',
 		headers: {
@@ -69,8 +69,8 @@ async function getVersions(accessor: IApplicationAccessor): Promise<IVersions> {
 	});
 }
 
-async function createVersion(accessor: IApplicationAccessor, version: string): Promise<IVersion> {
-	return await asyncRequest<IVersion>({
+function createVersion(accessor: IApplicationAccessor, version: string): Promise<IVersion> {
+	return asyncRequest<IVersion>({
 		url: `${BASE_URL}/apps/${accessor.appId}/app_versions/new`,
 		method: 'POST',
 		headers: {
@@ -82,8 +82,8 @@ async function createVersion(accessor: IApplicationAccessor, version: string): P
 	});
 }
 
-async function updateVersion(accessor: IVersionAccessor, symbolsPath: string) {
-	return await asyncRequest<IVersions>({
+function updateVersion(accessor: IVersionAccessor, symbolsPath: string) {
+	return asyncRequest<IVersions>({
 		url: `${BASE_URL}/apps/${accessor.appId}/app_versions/${accessor.id}`,
 		method: 'PUT',
 		headers: {
@@ -95,7 +95,7 @@ async function updateVersion(accessor: IVersionAccessor, symbolsPath: string) {
 	});
 }
 
-async function asyncRequest<T>(options: request.UrlOptions & request.CoreOptions): Promise<T> {
+function asyncRequest<T>(options: request.UrlOptions & request.CoreOptions): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
 		request(options, (error, response, body) => {
 			if (error) {
@@ -107,7 +107,7 @@ async function asyncRequest<T>(options: request.UrlOptions & request.CoreOptions
 	});
 }
 
-async function downloadAsset(repository, assetName: string, targetPath: string, electronVersion: string) {
+function downloadAsset(repository, assetName: string, targetPath: string, electronVersion: string) {
 	return new Promise((resolve, reject) => {
 		repository.getReleases({ tag_name: `v${electronVersion}` }, (err, releases) => {
 			if (err) {
@@ -211,7 +211,7 @@ if (repository && codeVersion && electronVersion && (product.quality === 'stable
 		}
 	}).then(() => {
 		console.log('HockeyApp: done');
-	}, error => {
+	}).catch(error => {
 		console.error(`HockeyApp: error (${error})`);
 	});
 } else {

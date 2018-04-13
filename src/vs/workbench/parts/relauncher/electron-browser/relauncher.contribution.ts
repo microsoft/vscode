@@ -20,12 +20,14 @@ import { isEqual } from 'vs/base/common/resources';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { equals } from 'vs/base/common/objects';
 
 interface IConfiguration extends IWindowsConfiguration {
 	update: { channel: string; };
 	telemetry: { enableCrashReporter: boolean };
 	keyboard: { touchbar: { enabled: boolean } };
 	workbench: { tree: { horizontalScrolling: boolean } };
+	files: { useExperimentalFileWatcher: boolean, watcherExclude: object };
 }
 
 export class SettingsChangeRelauncher implements IWorkbenchContribution {
@@ -40,6 +42,8 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private touchbarEnabled: boolean;
 	private treeHorizontalScrolling: boolean;
 	private windowsSmoothScrollingWorkaround: boolean;
+	private experimentalFileWatcher: boolean;
+	private fileWatcherExclude: object;
 
 	private firstFolderResource: URI;
 	private extensionHostRestarter: RunOnceScheduler;
@@ -101,6 +105,20 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		if (config.telemetry && typeof config.telemetry.enableCrashReporter === 'boolean' && config.telemetry.enableCrashReporter !== this.enableCrashReporter) {
 			this.enableCrashReporter = config.telemetry.enableCrashReporter;
 			changed = true;
+		}
+
+		// Experimental File Watcher
+		if (config.files && typeof config.files.useExperimentalFileWatcher === 'boolean' && config.files.useExperimentalFileWatcher !== this.experimentalFileWatcher) {
+			this.experimentalFileWatcher = config.files.useExperimentalFileWatcher;
+			changed = true;
+		}
+
+		// File Watcher Excludes (only if in folder workspace mode)
+		if (!this.experimentalFileWatcher && this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
+			if (config.files && typeof config.files.watcherExclude === 'object' && !equals(config.files.watcherExclude, this.fileWatcherExclude)) {
+				this.fileWatcherExclude = config.files.watcherExclude;
+				changed = true;
+			}
 		}
 
 		// macOS: Touchbar config

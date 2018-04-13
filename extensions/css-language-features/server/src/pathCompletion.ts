@@ -10,75 +10,71 @@ import URI from 'vscode-uri';
 
 import { TextDocument, CompletionList, CompletionItemKind, CompletionItem, TextEdit, Range, Position } from 'vscode-languageserver-types';
 import { WorkspaceFolder } from 'vscode-languageserver';
-import { ICompletionParticipant, URILiteralCompletionContext } from 'vscode-css-languageservice';
+import { ICompletionParticipant } from 'vscode-css-languageservice';
 
 import { startsWith } from './utils/strings';
 
 export function getPathCompletionParticipant(
 	document: TextDocument,
-	workspaceFolders: WorkspaceFolder[] | undefined,
+	workspaceFolders: WorkspaceFolder[],
 	result: CompletionList
 ): ICompletionParticipant {
 	return {
-		onURILiteralValue: (context: URILiteralCompletionContext) => {
+		onURILiteralValue: ({ position, range, uriValue }) => {
+			const isValueQuoted = startsWith(uriValue, `'`) || startsWith(uriValue, `"`);
+			const fullValue = stripQuotes(uriValue);
+			const valueBeforeCursor = isValueQuoted
+				? fullValue.slice(0, position.character - (range.start.character + 1))
+				: fullValue.slice(0, position.character - range.start.character);
+
+			if (fullValue === '.' || fullValue === '..') {
+				result.isIncomplete = true;
+				return;
+			}
+
 			if (!workspaceFolders || workspaceFolders.length === 0) {
 				return;
 			}
 			const workspaceRoot = resolveWorkspaceRoot(document, workspaceFolders);
+			const paths = providePaths(valueBeforeCursor, URI.parse(document.uri).fsPath, workspaceRoot);
 
-			// Handle quoted values
-			let uriValue = context.uriValue;
-			let range = context.range;
-			if (startsWith(uriValue, `'`) || startsWith(uriValue, `"`)) {
-				uriValue = uriValue.slice(1, -1);
-				range = getRangeWithoutQuotes(range);
-			}
-
-			const suggestions = providePathSuggestions(uriValue, range, URI.parse(document.uri).fsPath, workspaceRoot);
+			const fullValueRange = isValueQuoted ? shiftRange(range, 1, -1) : range;
+			const replaceRange = pathToReplaceRange(valueBeforeCursor, fullValue, fullValueRange);
+			const suggestions = paths.map(p => pathToSuggestion(p, replaceRange));
 			result.items = [...suggestions, ...result.items];
 		}
+
 	};
 }
 
-export function providePathSuggestions(value: string, range: Range, activeDocFsPath: string, root?: string): CompletionItem[] {
-	if (startsWith(value, '/') && !root) {
+function stripQuotes(fullValue: string) {
+	if (startsWith(fullValue, `'`) || startsWith(fullValue, `"`)) {
+		return fullValue.slice(1, -1);
+	} else {
+		return fullValue;
+	}
+}
+
+/**
+ * Get a list of path suggestions. Folder suggestions are suffixed with a slash.
+ */
+function providePaths(valueBeforeCursor: string, activeDocFsPath: string, root?: string): string[] {
+	if (startsWith(valueBeforeCursor, '/') && !root) {
 		return [];
 	}
 
-	let replaceRange: Range;
-	const lastIndexOfSlash = value.lastIndexOf('/');
-	if (lastIndexOfSlash === -1) {
-		replaceRange = getFullReplaceRange(range);
-	} else {
-		const valueAfterLastSlash = value.slice(lastIndexOfSlash + 1);
-		replaceRange = getReplaceRange(range, valueAfterLastSlash);
-	}
+	const lastIndexOfSlash = valueBeforeCursor.lastIndexOf('/');
+	const valueBeforeLastSlash = valueBeforeCursor.slice(0, lastIndexOfSlash + 1);
 
-	const valueBeforeLastSlash = value.slice(0, lastIndexOfSlash + 1);
-
-	const parentDir = startsWith(value, '/')
+	const parentDir = startsWith(valueBeforeCursor, '/')
 		? path.resolve(root, '.' + valueBeforeLastSlash)
 		: path.resolve(activeDocFsPath, '..', valueBeforeLastSlash);
 
 	try {
 		return fs.readdirSync(parentDir).map(f => {
-			if (isDir(path.resolve(parentDir, f))) {
-				return {
-					label: f + '/',
-					kind: CompletionItemKind.Folder,
-					textEdit: TextEdit.replace(replaceRange, f + '/'),
-					command: {
-						title: 'Suggest',
-						command: 'editor.action.triggerSuggest'
-					}
-				};
-			} else {
-				return {
-					label: f,
-					kind: CompletionItemKind.File,
-					textEdit: TextEdit.replace(replaceRange, f)
-				};
-			}
+			return isDir(path.resolve(parentDir, f))
+				? f + '/'
+				: f;
 		});
 	} catch (e) {
 		return [];
@@ -93,6 +89,57 @@ const isDir = (p: string) => {
 	}
 };
 
+function pathToReplaceRange(valueBeforeCursor: string, fullValue: string, fullValueRange: Range) {
+	let replaceRange: Range;
+	const lastIndexOfSlash = valueBeforeCursor.lastIndexOf('/');
+	if (lastIndexOfSlash === -1) {
+		replaceRange = fullValueRange;
+	} else {
+		// For cases where cursor is in the middle of attribute value, like <script src="./s|rc/test.js">
+		// Find the last slash before cursor, and calculate the start of replace range from there
+		const valueAfterLastSlash = fullValue.slice(lastIndexOfSlash + 1);
+		const startPos = shiftPosition(fullValueRange.end, -valueAfterLastSlash.length);
+		// If whitespace exists, replace until it
+		const whiteSpaceIndex = valueAfterLastSlash.indexOf(' ');
+		let endPos;
+		if (whiteSpaceIndex !== -1) {
+			endPos = shiftPosition(startPos, whiteSpaceIndex);
+		} else {
+			endPos = fullValueRange.end;
+		}
+		replaceRange = Range.create(startPos, endPos);
+	}
+
+	return replaceRange;
+}
+
+function pathToSuggestion(p: string, replaceRange: Range): CompletionItem {
+	const isDir = p[p.length - 1] === '/';
+
+	if (isDir) {
+		return {
+			label: escapePath(p),
+			kind: CompletionItemKind.Folder,
+			textEdit: TextEdit.replace(replaceRange, escapePath(p)),
+			command: {
+				title: 'Suggest',
+				command: 'editor.action.triggerSuggest'
+			}
+		};
+	} else {
+		return {
+			label: escapePath(p),
+			kind: CompletionItemKind.File,
+			textEdit: TextEdit.replace(replaceRange, escapePath(p))
+		};
+	}
+}
+
+// Escape https://www.w3.org/TR/CSS1/#url
+function escapePath(p: string) {
+	return p.replace(/(\s|\(|\)|,|"|')/g, '\\$1');
+}
+
 function resolveWorkspaceRoot(activeDoc: TextDocument, workspaceFolders: WorkspaceFolder[]): string | undefined {
 	for (let i = 0; i < workspaceFolders.length; i++) {
 		if (startsWith(activeDoc.uri, workspaceFolders[i].uri)) {
@@ -101,18 +148,11 @@ function resolveWorkspaceRoot(activeDoc: TextDocument, workspaceFolders: Workspa
 	}
 }
 
-function getFullReplaceRange(valueRange: Range) {
-	const start = Position.create(valueRange.end.line, valueRange.start.character);
-	const end = Position.create(valueRange.end.line, valueRange.end.character);
-	return Range.create(start, end);
+function shiftPosition(pos: Position, offset: number): Position {
+	return Position.create(pos.line, pos.character + offset);
 }
-function getReplaceRange(valueRange: Range, valueAfterLastSlash: string) {
-	const start = Position.create(valueRange.end.line, valueRange.end.character - valueAfterLastSlash.length);
-	const end = Position.create(valueRange.end.line, valueRange.end.character);
-	return Range.create(start, end);
-}
-function getRangeWithoutQuotes(range: Range) {
-	const start = Position.create(range.start.line, range.start.character + 1);
-	const end = Position.create(range.end.line, range.end.character - 1);
+function shiftRange(range: Range, startOffset: number, endOffset: number): Range {
+	const start = shiftPosition(range.start, startOffset);
+	const end = shiftPosition(range.end, endOffset);
 	return Range.create(start, end);
 }

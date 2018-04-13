@@ -903,6 +903,7 @@ export class CodeActionKind {
 	public static readonly RefactorExtract = CodeActionKind.Refactor.append('extract');
 	public static readonly RefactorInline = CodeActionKind.Refactor.append('inline');
 	public static readonly RefactorRewrite = CodeActionKind.Refactor.append('rewrite');
+	public static readonly Source = CodeActionKind.Empty.append('source');
 
 	constructor(
 		public readonly value: string

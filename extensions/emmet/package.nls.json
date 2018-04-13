@@ -28,7 +28,7 @@
 	"emmetExtensionsPath": "Path to a folder containing Emmet profiles and snippets.'",
 	"emmetShowExpandedAbbreviation": "Shows expanded Emmet abbreviations as suggestions.\nThe option \"inMarkupAndStylesheetFilesOnly\" applies to html, haml, jade, slim, xml, xsl, css, scss, sass, less and stylus.\nThe option \"always\" applies to all parts of the file regardless of markup/css.",
 	"emmetShowAbbreviationSuggestions": "Shows possible Emmet abbreviations as suggestions. Not applicable in stylesheets or when emmet.showExpandedAbbreviation is set to \"never\".",
-	"emmetIncludeLanguages": "Enable Emmet abbreviations in languages that are not supported by default. Add a mapping here between the language and emmet supported language.\n Eg: {\"vue-html\": \"html\", \"javascript\": \"javascriptreact\"}",
+	"emmetIncludeLanguages": "Enable Emmet abbreviations in languages that are not supported by default. Add a mapping here between the language and emmet supported language.\n E.g.: {\"vue-html\": \"html\", \"javascript\": \"javascriptreact\"}",
 	"emmetVariables": "Variables to be used in Emmet snippets",
 	"emmetTriggerExpansionOnTab": "When enabled, Emmet abbreviations are expanded when pressing TAB.",
 	"emmetPreferences": "Preferences used to modify behavior of some actions and resolvers of Emmet.",

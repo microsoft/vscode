@@ -10,6 +10,7 @@ export class CodeActionKind {
 
 	public static readonly Empty = new CodeActionKind('');
 	public static readonly Refactor = new CodeActionKind('refactor');
+	public static readonly Source = new CodeActionKind('source');
 
 	constructor(
 		public readonly value: string
@@ -26,8 +27,13 @@ export enum CodeActionAutoApply {
 	Never = 3
 }
 
+export interface CodeActionFilter {
+	readonly kind?: CodeActionKind;
+	readonly includeSourceActions?: boolean;
+}
+
 export interface CodeActionTrigger {
-	type: 'auto' | 'manual';
-	kind?: CodeActionKind;
-	autoApply?: CodeActionAutoApply;
+	readonly type: 'auto' | 'manual';
+	readonly filter?: CodeActionFilter;
+	readonly autoApply?: CodeActionAutoApply;
 }

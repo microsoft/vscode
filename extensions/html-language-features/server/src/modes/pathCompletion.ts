@@ -20,7 +20,7 @@ export function getPathCompletionParticipant(
 ): ICompletionParticipant {
 	return {
 		onHtmlAttributeValue: ({ tag, position, attribute, value: valueBeforeCursor, range }) => {
-			const fullValue = getFullValueWithoutQuotes(document, range);
+			const fullValue = stripQuotes(document.getText(range));
 
 			if (shouldDoPathCompletion(tag, attribute, fullValue)) {
 				if (workspaceFolders.length === 0) {
@@ -35,8 +35,7 @@ export function getPathCompletionParticipant(
 	};
 }
 
-function getFullValueWithoutQuotes(document: TextDocument, range: Range) {
-	const fullValue = document.getText(range);
+function stripQuotes(fullValue: string) {
 	if (startsWith(fullValue, `'`) || startsWith(fullValue, `"`)) {
 		return fullValue.slice(1, -1);
 	} else {
@@ -44,7 +43,7 @@ function getFullValueWithoutQuotes(document: TextDocument, range: Range) {
 	}
 }
 
-function shouldDoPathCompletion(tag: string, attr: string, value: string): boolean {
+function shouldDoPathCompletion(tag: string, attr: string, value: string) {
 	if (startsWith(value, 'http') || startsWith(value, 'https') || startsWith(value, '//')) {
 		return false;
 	}
