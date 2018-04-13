@@ -156,6 +156,25 @@ export enum FileType2 {
 	SymbolicLink = 4,
 }
 
+export class FileError extends Error {
+
+	static readonly EEXIST = new FileError('EEXIST');
+	static readonly ENOENT = new FileError('ENOENT');
+	static readonly ENOTDIR = new FileError('ENOTDIR');
+	static readonly EISDIR = new FileError('EISDIR');
+
+	constructor(readonly code: string) {
+		super(code);
+	}
+}
+
+export enum FileOpenFlags {
+	Read = 0b0001,
+	Write = 0b0010,
+	Create = 0b0100,
+	Exclusive = 0b1000
+}
+
 export interface IStat {
 	mtime: number;
 	size: number;
@@ -173,13 +192,13 @@ export interface IFileSystemProviderBase {
 
 export interface ISimpleReadWriteProvider {
 	_type: 'simple';
-	readFile(resource: URI): TPromise<Uint8Array>;
-	writeFile(resource: URI, content: Uint8Array): TPromise<void>;
+	readFile(resource: URI, opts: { flags: FileOpenFlags }): TPromise<Uint8Array>;
+	writeFile(resource: URI, content: Uint8Array, opts: { flags: FileOpenFlags }): TPromise<void>;
 }
 
 export interface IReadWriteProvider {
 	_type: 'chunked';
-	open(resource: URI, options: { mode: string }): TPromise<number>;
+	open(resource: URI, opts: { flags: FileOpenFlags }): TPromise<number>;
 	close(fd: number): TPromise<void>;
 	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
 	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;

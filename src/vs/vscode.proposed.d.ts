@@ -223,6 +223,18 @@ declare module 'vscode' {
 		// create(resource: Uri): Thenable<FileStat>;
 	}
 
+	export class FileError extends Error {
+
+		static readonly EEXIST: FileError;
+		static readonly ENOENT: FileError;
+		static readonly ENOTDIR: FileError;
+		static readonly EISDIR: FileError;
+
+		readonly code: string;
+
+		constructor(code: string, message?: string);
+	}
+
 	export enum FileChangeType2 {
 		Changed = 1,
 		Created = 2,
@@ -246,12 +258,18 @@ declare module 'vscode' {
 		size: number;
 	}
 
+	export enum FileOpenFlags {
+		Read = 0b0001,
+		Write = 0b0010,
+		Create = 0b0100,
+		Exclusive = 0b1000
+	}
 
 	// todo@joh discover files etc
 	// todo@joh add open/close calls?
 	export interface FileSystemProvider2 {
 
-		_version: 4;
+		_version: 5;
 
 		/**
 		 * An event to signal that a resource has been created, changed, or deleted.
@@ -284,7 +302,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return A thenable that resolves to an array of bytes.
 		 */
-		readFile(uri: Uri, token: CancellationToken): Uint8Array | Thenable<Uint8Array>;
+		readFile(uri: Uri, options: { flags: FileOpenFlags }, token: CancellationToken): Uint8Array | Thenable<Uint8Array>;
 
 		/**
 		 * Write data to a file, replacing its entire contents.
@@ -293,7 +311,7 @@ declare module 'vscode' {
 		 * @param content The new content of the file.
 		 * @param token A cancellation token.
 		 */
-		writeFile(uri: Uri, content: Uint8Array, token: CancellationToken): void | Thenable<void>;
+		writeFile(uri: Uri, content: Uint8Array, options: { flags: FileOpenFlags }, token: CancellationToken): void | Thenable<void>;
 
 		/**
 		 * Rename a file or folder.

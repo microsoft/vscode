@@ -7,16 +7,16 @@
 import { Readable, Writable } from 'stream';
 import { UTF8 } from 'vs/base/node/encoding';
 import URI from 'vs/base/common/uri';
-import { IFileSystemProvider, ITextSnapshot, ISimpleReadWriteProvider, IReadWriteProvider } from 'vs/platform/files/common/files';
+import { IFileSystemProvider, ITextSnapshot, ISimpleReadWriteProvider, IReadWriteProvider, FileOpenFlags } from 'vs/platform/files/common/files';
 
-export function createWritableOfProvider(provider: IFileSystemProvider, resource: URI): Writable {
+export function createWritableOfProvider(provider: IFileSystemProvider, resource: URI, flags: FileOpenFlags): Writable {
 	switch (provider._type) {
-		case 'simple': return createSimpleWritable(provider, resource);
-		case 'chunked': return createWritable(provider, resource);
+		case 'simple': return createSimpleWritable(provider, resource, flags);
+		case 'chunked': return createWritable(provider, resource, flags);
 	}
 }
 
-function createSimpleWritable(provider: ISimpleReadWriteProvider, resource: URI): Writable {
+function createSimpleWritable(provider: ISimpleReadWriteProvider, resource: URI, flags: FileOpenFlags): Writable {
 	return new class extends Writable {
 		_chunks: Buffer[] = [];
 		constructor(opts?) {
@@ -28,7 +28,7 @@ function createSimpleWritable(provider: ISimpleReadWriteProvider, resource: URI)
 		}
 		end() {
 			// todo@joh - end might have another chunk...
-			provider.writeFile(resource, Buffer.concat(this._chunks)).then(_ => {
+			provider.writeFile(resource, Buffer.concat(this._chunks), { flags }).then(_ => {
 				super.end();
 			}, err => {
 				this.emit('error', err);
@@ -37,7 +37,7 @@ function createSimpleWritable(provider: ISimpleReadWriteProvider, resource: URI)
 	};
 }
 
-function createWritable(provider: IReadWriteProvider, resource: URI): Writable {
+function createWritable(provider: IReadWriteProvider, resource: URI, flags: FileOpenFlags): Writable {
 	return new class extends Writable {
 		_fd: number;
 		_pos: number;
@@ -47,7 +47,7 @@ function createWritable(provider: IReadWriteProvider, resource: URI): Writable {
 		async _write(chunk: Buffer, encoding, callback: Function) {
 			try {
 				if (typeof this._fd !== 'number') {
-					this._fd = await provider.open(resource, { mode: 'w+' });
+					this._fd = await provider.open(resource, { flags });
 				}
 				let bytesWritten = await provider.write(this._fd, this._pos, chunk, 0, chunk.length);
 				this._pos += bytesWritten;
@@ -66,14 +66,14 @@ function createWritable(provider: IReadWriteProvider, resource: URI): Writable {
 	};
 }
 
-export function createReadableOfProvider(provider: IFileSystemProvider, resource: URI, position: number): Readable {
+export function createReadableOfProvider(provider: IFileSystemProvider, resource: URI, position: number, flags: FileOpenFlags): Readable {
 	switch (provider._type) {
-		case 'simple': return createSimpleReadable(provider, resource, position);
-		case 'chunked': return createReadable(provider, resource, position);
+		case 'simple': return createSimpleReadable(provider, resource, position, flags);
+		case 'chunked': return createReadable(provider, resource, position, flags);
 	}
 }
 
-function createReadable(provider: IReadWriteProvider, resource: URI, position: number): Readable {
+function createReadable(provider: IReadWriteProvider, resource: URI, position: number, flags: FileOpenFlags): Readable {
 	return new class extends Readable {
 		_fd: number;
 		_pos: number = position;
@@ -89,7 +89,7 @@ function createReadable(provider: IReadWriteProvider, resource: URI, position: n
 			this._reading = true;
 			try {
 				if (typeof this._fd !== 'number') {
-					this._fd = await provider.open(resource, { mode: 'r' });
+					this._fd = await provider.open(resource, { flags });
 				}
 				let buffer = Buffer.allocUnsafe(64 * 1024);
 				while (this._reading) {
@@ -117,14 +117,14 @@ function createReadable(provider: IReadWriteProvider, resource: URI, position: n
 	};
 }
 
-function createSimpleReadable(provider: ISimpleReadWriteProvider, resource: URI, position: number): Readable {
+function createSimpleReadable(provider: ISimpleReadWriteProvider, resource: URI, position: number, flags: FileOpenFlags): Readable {
 	return new class extends Readable {
 		_readOperation: Thenable<any>;
 		_read(size?: number): void {
 			if (this._readOperation) {
 				return;
 			}
-			this._readOperation = provider.readFile(resource).then(data => {
+			this._readOperation = provider.readFile(resource, { flags }).then(data => {
 				this.push(data.slice(position));
 				this.push(null);
 			}, err => {

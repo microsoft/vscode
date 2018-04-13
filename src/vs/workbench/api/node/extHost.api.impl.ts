@@ -58,6 +58,7 @@ import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { OverviewRulerLane } from 'vs/editor/common/model';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { ExtHostWebviews } from 'vs/workbench/api/node/extHostWebview';
+import * as files from 'vs/platform/files/common/files';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;
@@ -706,6 +707,8 @@ export function createApiFactory(
 			FileType: extHostTypes.FileType,
 			FileChangeType2: extHostTypes.FileChangeType2,
 			FileType2: extHostTypes.FileType2,
+			FileOpenFlags: files.FileOpenFlags,
+			FileError: files.FileError,
 			FoldingRangeList: extHostTypes.FoldingRangeList,
 			FoldingRange: extHostTypes.FoldingRange,
 			FoldingRangeType: extHostTypes.FoldingRangeType
