@@ -111,7 +111,6 @@ export class ContributableViews {
 			};
 
 			let index = binarySearch(this.items, item, compareViewItems);
-			console.log('GOT INDEX', index, ~index);
 
 			// insert this new view descriptor at the end of same order view descriptors
 			if (index < 0) {
