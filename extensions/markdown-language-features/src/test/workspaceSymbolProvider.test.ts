@@ -48,7 +48,7 @@ suite('markdown.WorkspaceSymbolProvider', () => {
 		assert.strictEqual(symbols.length, fileNameCount * 2);
 	});
 
-	test('Should update results when file changes symbols from workspace with one markdown file', async () => {
+	test('Should update results when markdown file changes symbols', async () => {
 		const testFileName = vscode.Uri.parse('test.md');
 
 		const workspaceFileProvider = new InMemoryWorkspaceMarkdownDocumentProvider([
@@ -65,6 +65,23 @@ suite('markdown.WorkspaceSymbolProvider', () => {
 		assert.strictEqual(newSymbols.length, 2);
 		assert.strictEqual(newSymbols[0].name, '# new header');
 		assert.strictEqual(newSymbols[1].name, '## header2');
+	});
+
+	test('Should remove results when file is deleted', async () => {
+		const testFileName = vscode.Uri.parse('test.md');
+
+		const workspaceFileProvider = new InMemoryWorkspaceMarkdownDocumentProvider([
+			new InMemoryDocument(testFileName, `# header1`)
+		]);
+
+		const provider = new MarkdownWorkspaceSymbolProvider(symbolProvider, workspaceFileProvider);
+
+		assert.strictEqual((await provider.provideWorkspaceSymbols('')).length, 1);
+
+		// delete file
+		workspaceFileProvider.deleteDocument(testFileName);
+		const newSymbols = await provider.provideWorkspaceSymbols('');
+		assert.strictEqual(newSymbols.length, 0);
 	});
 });
 
@@ -85,8 +102,16 @@ class InMemoryWorkspaceMarkdownDocumentProvider implements WorkspaceMarkdownDocu
 	private readonly _onDidChangeMarkdownDocumentEmitter = new vscode.EventEmitter<vscode.TextDocument>();
 	public onDidChangeMarkdownDocument = this._onDidChangeMarkdownDocumentEmitter.event;
 
+	private readonly _onDidDeleteMarkdownDocumentEmitter = new vscode.EventEmitter<vscode.Uri>();
+	public onDidDeleteMarkdownDocument = this._onDidDeleteMarkdownDocumentEmitter.event;
+
 	public updateDocument(document: vscode.TextDocument) {
 		this._documents.set(document.fileName, document);
 		this._onDidChangeMarkdownDocumentEmitter.fire(document);
+	}
+
+	public deleteDocument(resource: vscode.Uri) {
+		this._documents.delete(resource.fsPath);
+		this._onDidDeleteMarkdownDocumentEmitter.fire(resource);
 	}
 }
