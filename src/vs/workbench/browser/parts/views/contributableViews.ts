@@ -287,7 +287,7 @@ export class ContributableViewsModel implements ISequence<IViewDescriptor>{
 			this.viewDescriptors,
 			viewDescriptors,
 			this.compareViewDescriptors.bind(this)
-		);
+		).reverse();
 
 		for (const splice of splices) {
 			const startViewDescriptor = this.viewDescriptors[splice.start];

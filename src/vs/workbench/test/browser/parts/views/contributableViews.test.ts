@@ -40,7 +40,7 @@ suite('ContributableViewsModel', () => {
 		assert.equal(seq.elements.length, 0);
 
 		const viewDescriptor: IViewDescriptor = {
-			id: 'test.view1',
+			id: 'view1',
 			ctor: null,
 			location,
 			name: 'Test View 1'
@@ -53,7 +53,7 @@ suite('ContributableViewsModel', () => {
 		assert.deepEqual(model.elements[0], viewDescriptor);
 		assert.deepEqual(seq.elements[0], viewDescriptor);
 
-		ViewsRegistry.deregisterViews(['test.view1'], location);
+		ViewsRegistry.deregisterViews(['view1'], location);
 
 		assert.equal(model.elements.length, 0);
 		assert.equal(seq.elements.length, 0);
@@ -65,7 +65,7 @@ suite('ContributableViewsModel', () => {
 		assert.equal(model.elements.length, 0);
 
 		const viewDescriptor: IViewDescriptor = {
-			id: 'test.view1',
+			id: 'view1',
 			ctor: null,
 			location,
 			name: 'Test View 1',
@@ -87,7 +87,7 @@ suite('ContributableViewsModel', () => {
 		await new Promise(c => setTimeout(c, 30));
 		assert.equal(model.elements.length, 0, 'view should disappear');
 
-		ViewsRegistry.deregisterViews(['test.view1'], location);
+		ViewsRegistry.deregisterViews(['view1'], location);
 		assert.equal(model.elements.length, 0, 'view should not be there anymore');
 
 		key.set(true);
@@ -97,35 +97,57 @@ suite('ContributableViewsModel', () => {
 
 	test('setVisible', function () {
 		const model = new ContributableViewsModel(location, contextKeyService);
-		const view1: IViewDescriptor = { id: 'test.view1', ctor: null, location, name: 'Test View 1' };
-		const view2: IViewDescriptor = { id: 'test.view2', ctor: null, location, name: 'Test View 2' };
-		const view3: IViewDescriptor = { id: 'test.view3', ctor: null, location, name: 'Test View 3' };
+		const view1: IViewDescriptor = { id: 'view1', ctor: null, location, name: 'Test View 1' };
+		const view2: IViewDescriptor = { id: 'view2', ctor: null, location, name: 'Test View 2' };
+		const view3: IViewDescriptor = { id: 'view3', ctor: null, location, name: 'Test View 3' };
 
 		ViewsRegistry.registerViews([view1, view2, view3]);
 		assert.deepEqual(model.elements, [view1, view2, view3]);
 
-		model.setVisible('test.view2', true);
+		model.setVisible('view2', true);
 		assert.deepEqual(model.elements, [view1, view2, view3], 'nothing should happen');
 
-		model.setVisible('test.view2', false);
+		model.setVisible('view2', false);
 		assert.deepEqual(model.elements, [view1, view3], 'view2 should hide');
 
-		model.setVisible('test.view1', false);
+		model.setVisible('view1', false);
 		assert.deepEqual(model.elements, [view3], 'view1 should hide');
 
-		model.setVisible('test.view3', false);
+		model.setVisible('view3', false);
 		assert.deepEqual(model.elements, [], 'view3 shoud hide');
 
-		model.setVisible('test.view1', true);
+		model.setVisible('view1', true);
 		assert.deepEqual(model.elements, [view1], 'view1 should show');
 
-		model.setVisible('test.view3', true);
+		model.setVisible('view3', true);
 		assert.deepEqual(model.elements, [view1, view3], 'view3 should show');
 
-		model.setVisible('test.view2', true);
+		model.setVisible('view2', true);
 		assert.deepEqual(model.elements, [view1, view2, view3], 'view2 should show');
 
 		ViewsRegistry.deregisterViews([view1.id, view2.id, view3.id], location);
 		assert.deepEqual(model.elements, []);
+	});
+
+	test('move', function () {
+		const model = new ContributableViewsModel(location, contextKeyService);
+		const view1: IViewDescriptor = { id: 'view1', ctor: null, location, name: 'Test View 1' };
+		const view2: IViewDescriptor = { id: 'view2', ctor: null, location, name: 'Test View 2' };
+		const view3: IViewDescriptor = { id: 'view3', ctor: null, location, name: 'Test View 3' };
+
+		ViewsRegistry.registerViews([view1, view2, view3]);
+		assert.deepEqual(model.elements, [view1, view2, view3]);
+
+		model.move('view3', 'view1');
+		assert.deepEqual(model.elements, [view3, view1, view2], 'view3 should go to the front');
+
+		model.move('view1', 'view2');
+		assert.deepEqual(model.elements, [view3, view2, view1], 'view1 should go to the end');
+
+		model.move('view1', 'view3');
+		assert.deepEqual(model.elements, [view1, view3, view2], 'view1 should go to the front');
+
+		model.move('view2', 'view3');
+		assert.deepEqual(model.elements, [view1, view2, view3], 'view2 should go to the middle');
 	});
 });
