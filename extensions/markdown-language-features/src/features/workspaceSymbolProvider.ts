@@ -12,12 +12,14 @@ export interface WorkspaceMarkdownDocumentProvider {
 	getAllMarkdownDocuments(): Thenable<vscode.TextDocument[]>;
 
 	readonly onDidChangeMarkdownDocument: vscode.Event<vscode.TextDocument>;
+	readonly onDidCreateMarkdownDocument: vscode.Event<vscode.TextDocument>;
 	readonly onDidDeleteMarkdownDocument: vscode.Event<vscode.Uri>;
 }
 
 class VSCodeWorkspaceMarkdownDocumentProvider implements WorkspaceMarkdownDocumentProvider {
 
 	private readonly _onDidChangeMarkdownDocumentEmitter = new vscode.EventEmitter<vscode.TextDocument>();
+	private readonly _onDidCreateMarkdownDocumentEmitter = new vscode.EventEmitter<vscode.TextDocument>();
 	private readonly _onDidDeleteMarkdownDocumentEmitter = new vscode.EventEmitter<vscode.Uri>();
 
 	private _watcher: vscode.FileSystemWatcher | undefined;
@@ -46,6 +48,11 @@ class VSCodeWorkspaceMarkdownDocumentProvider implements WorkspaceMarkdownDocume
 		return this._onDidChangeMarkdownDocumentEmitter.event;
 	}
 
+	public get onDidCreateMarkdownDocument() {
+		this.ensureWatcher();
+		return this._onDidCreateMarkdownDocumentEmitter.event;
+	}
+
 	public get onDidDeleteMarkdownDocument() {
 		this.ensureWatcher();
 		return this._onDidDeleteMarkdownDocumentEmitter.event;
@@ -62,6 +69,13 @@ class VSCodeWorkspaceMarkdownDocumentProvider implements WorkspaceMarkdownDocume
 			const document = await vscode.workspace.openTextDocument(resource);
 			if (isMarkdownFile(document)) {
 				this._onDidChangeMarkdownDocumentEmitter.fire(document);
+			}
+		}, this, this._disposables);
+
+		this._watcher.onDidCreate(async resource => {
+			const document = await vscode.workspace.openTextDocument(resource);
+			if (isMarkdownFile(document)) {
+				this._onDidCreateMarkdownDocumentEmitter.fire(document);
 			}
 		}, this, this._disposables);
 
@@ -88,6 +102,7 @@ export default class MarkdownWorkspaceSymbolProvider implements vscode.Workspace
 			this._symbolCachePopulated = true;
 
 			this._workspaceMarkdownDocumentProvider.onDidChangeMarkdownDocument(this.onDidChangeDocument, this, this._disposables);
+			this._workspaceMarkdownDocumentProvider.onDidCreateMarkdownDocument(this.onDidChangeDocument, this, this._disposables);
 			this._workspaceMarkdownDocumentProvider.onDidDeleteMarkdownDocument(this.onDidDeleteDocument, this, this._disposables);
 		}
 

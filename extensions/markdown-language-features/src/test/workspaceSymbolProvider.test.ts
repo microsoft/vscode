@@ -75,13 +75,28 @@ suite('markdown.WorkspaceSymbolProvider', () => {
 		]);
 
 		const provider = new MarkdownWorkspaceSymbolProvider(symbolProvider, workspaceFileProvider);
-
 		assert.strictEqual((await provider.provideWorkspaceSymbols('')).length, 1);
 
 		// delete file
 		workspaceFileProvider.deleteDocument(testFileName);
 		const newSymbols = await provider.provideWorkspaceSymbols('');
 		assert.strictEqual(newSymbols.length, 0);
+	});
+
+	test('Should update results when markdown file is created', async () => {
+		const testFileName = vscode.Uri.parse('test.md');
+
+		const workspaceFileProvider = new InMemoryWorkspaceMarkdownDocumentProvider([
+			new InMemoryDocument(testFileName, `# header1`)
+		]);
+
+		const provider = new MarkdownWorkspaceSymbolProvider(symbolProvider, workspaceFileProvider);
+		assert.strictEqual((await provider.provideWorkspaceSymbols('')).length, 1);
+
+		// Creat file
+		workspaceFileProvider.createDocument(new InMemoryDocument(vscode.Uri.parse('test2.md'), `# new header\nabc\n## header2`));
+		const newSymbols = await provider.provideWorkspaceSymbols('');
+		assert.strictEqual(newSymbols.length, 3);
 	});
 });
 
@@ -102,12 +117,22 @@ class InMemoryWorkspaceMarkdownDocumentProvider implements WorkspaceMarkdownDocu
 	private readonly _onDidChangeMarkdownDocumentEmitter = new vscode.EventEmitter<vscode.TextDocument>();
 	public onDidChangeMarkdownDocument = this._onDidChangeMarkdownDocumentEmitter.event;
 
+	private readonly _onDidCreateMarkdownDocumentEmitter = new vscode.EventEmitter<vscode.TextDocument>();
+	public onDidCreateMarkdownDocument = this._onDidCreateMarkdownDocumentEmitter.event;
+
 	private readonly _onDidDeleteMarkdownDocumentEmitter = new vscode.EventEmitter<vscode.Uri>();
 	public onDidDeleteMarkdownDocument = this._onDidDeleteMarkdownDocumentEmitter.event;
 
 	public updateDocument(document: vscode.TextDocument) {
 		this._documents.set(document.fileName, document);
 		this._onDidChangeMarkdownDocumentEmitter.fire(document);
+	}
+
+	public createDocument(document: vscode.TextDocument) {
+		assert.ok(!this._documents.has(document.uri.fsPath));
+
+		this._documents.set(document.uri.fsPath, document);
+		this._onDidCreateMarkdownDocumentEmitter.fire(document);
 	}
 
 	public deleteDocument(resource: vscode.Uri) {
