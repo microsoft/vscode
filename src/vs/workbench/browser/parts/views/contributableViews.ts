@@ -174,6 +174,10 @@ interface IViewState {
 	order?: number;
 }
 
+// TODO: this should not be an ISequence but expose events:
+// onDidAdd
+// onDidRemove
+// onDidMove
 export class ContributableViewsModel implements ISequence<IViewDescriptor>{
 
 	private viewDescriptors: IViewDescriptor[] = [];
