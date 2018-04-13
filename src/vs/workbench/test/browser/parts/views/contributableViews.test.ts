@@ -94,4 +94,38 @@ suite('ContributableViewsModel', () => {
 		await new Promise(c => setTimeout(c, 30));
 		assert.equal(model.elements.length, 0, 'view should not be there anymore');
 	});
+
+	test('setVisible', function () {
+		const model = new ContributableViewsModel(location, contextKeyService);
+		const view1: IViewDescriptor = { id: 'test.view1', ctor: null, location, name: 'Test View 1' };
+		const view2: IViewDescriptor = { id: 'test.view2', ctor: null, location, name: 'Test View 2' };
+		const view3: IViewDescriptor = { id: 'test.view3', ctor: null, location, name: 'Test View 3' };
+
+		ViewsRegistry.registerViews([view1, view2, view3]);
+		assert.deepEqual(model.elements, [view1, view2, view3]);
+
+		model.setVisible('test.view2', true);
+		assert.deepEqual(model.elements, [view1, view2, view3], 'nothing should happen');
+
+		model.setVisible('test.view2', false);
+		assert.deepEqual(model.elements, [view1, view3], 'view2 should hide');
+
+		model.setVisible('test.view1', false);
+		assert.deepEqual(model.elements, [view3], 'view1 should hide');
+
+		model.setVisible('test.view3', false);
+		assert.deepEqual(model.elements, [], 'view3 shoud hide');
+
+		model.setVisible('test.view1', true);
+		assert.deepEqual(model.elements, [view1], 'view1 should show');
+
+		model.setVisible('test.view3', true);
+		assert.deepEqual(model.elements, [view1, view3], 'view3 should show');
+
+		model.setVisible('test.view2', true);
+		assert.deepEqual(model.elements, [view1, view2, view3], 'view2 should show');
+
+		ViewsRegistry.deregisterViews([view1.id, view2.id, view3.id], location);
+		assert.deepEqual(model.elements, []);
+	});
 });

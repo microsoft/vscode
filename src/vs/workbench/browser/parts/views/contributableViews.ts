@@ -7,7 +7,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { ViewsRegistry, IViewDescriptor, ViewLocation } from 'vs/workbench/common/views';
 import { IContextKeyService, IContextKeyChangeEvent, IReadableSet } from 'vs/platform/contextkey/common/contextkey';
 import { Event, chain, filterEvent, Emitter } from 'vs/base/common/event';
-import { sortedDiff, firstIndex } from 'vs/base/common/arrays';
+import { sortedDiff, firstIndex, move } from 'vs/base/common/arrays';
 import { ISequence, Sequence, ISplice } from 'vs/base/common/sequence';
 
 function filterViewEvent(location: ViewLocation, event: Event<IViewDescriptor[]>): Event<IViewDescriptor[]> {
@@ -196,29 +196,43 @@ export class ContributableViewsModel implements ISequence<IViewDescriptor>{
 	}
 
 	setVisible(id: string, visible: boolean): void {
-		const { visibleIndex, viewDescriptor, state } = this.findViewDescriptor(id);
+		const { visibleIndex, viewDescriptor, state } = this.find(id);
+
+		if (state.visible === visible) {
+			return;
+		}
+
+		state.visible = visible;
 
 		if (visible) {
 			this.visibleViewDescriptors.splice(visibleIndex, 0, [viewDescriptor]);
 		} else {
 			this.visibleViewDescriptors.splice(visibleIndex, 1);
 		}
-
-		state.visible = visible;
 	}
 
 	move(from: string, to: string): void {
-		// reset ORDERS for all view states
-		throw new Error('not implemented');
+		const fromIndex = firstIndex(this.viewDescriptors, v => v.id === from);
+		const toIndex = firstIndex(this.viewDescriptors, v => v.id === to);
+
+		const viewDescriptors = [...this.viewDescriptors];
+		move(viewDescriptors, fromIndex, toIndex);
+
+		for (let index = 0; index < viewDescriptors.length; index++) {
+			const state = this.viewStates.get(viewDescriptors[index].id);
+			state.order = index;
+		}
+
+		this.onDidChangeViewDescriptors(viewDescriptors);
 	}
 
-	private findViewDescriptor(id: string): { visibleIndex: number, viewDescriptor: IViewDescriptor, state: IViewState } {
+	private find(id: string): { index: number, visibleIndex: number, viewDescriptor: IViewDescriptor, state: IViewState } {
 		for (let i = 0, visibleIndex = 0; i < this.viewDescriptors.length; i++) {
 			const viewDescriptor = this.viewDescriptors[i];
 			const state = this.viewStates.get(viewDescriptor.id);
 
 			if (viewDescriptor.id === id) {
-				return { visibleIndex, viewDescriptor, state };
+				return { index: i, visibleIndex, viewDescriptor, state };
 			}
 
 			if (state.visible) {
@@ -277,11 +291,11 @@ export class ContributableViewsModel implements ISequence<IViewDescriptor>{
 
 		for (const splice of splices) {
 			const startViewDescriptor = this.viewDescriptors[splice.start];
-			let startIndex = startViewDescriptor ? this.findViewDescriptor(startViewDescriptor.id).visibleIndex : 0;
+			let startIndex = startViewDescriptor ? this.find(startViewDescriptor.id).visibleIndex : 0;
 
 			for (let i = 0; i < splice.deleteCount; i++) {
 				const viewDescriptor = this.viewDescriptors[splice.start + i];
-				const { state } = this.findViewDescriptor(viewDescriptor.id);
+				const { state } = this.find(viewDescriptor.id);
 
 				if (state.visible) {
 					this.visibleViewDescriptors.splice(startIndex, 1);
