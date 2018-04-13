@@ -8,7 +8,7 @@ import { ViewsRegistry, IViewDescriptor, ViewLocation } from 'vs/workbench/commo
 import { IContextKeyService, IContextKeyChangeEvent, IReadableSet } from 'vs/platform/contextkey/common/contextkey';
 import { Event, chain, filterEvent, Emitter } from 'vs/base/common/event';
 import { findFirst, sortedDiff } from 'vs/base/common/arrays';
-import { ISequence, ISplice } from 'vs/base/common/sequence';
+import { ISequence, Sequence, ISplice } from 'vs/base/common/sequence';
 
 function filterViewEvent(location: ViewLocation, event: Event<IViewDescriptor[]>): Event<IViewDescriptor[]> {
 	return chain(event)
@@ -174,15 +174,14 @@ interface IViewState {
 	order?: number;
 }
 
-export class ContributableViews implements ISequence<IViewDescriptor>{
+export class ContributableViewsModel implements ISequence<IViewDescriptor>{
 
-	private viewDescriptorCollection: ViewDescriptorCollection;
-	private viewsStates = new Map<string, IViewState>();
+	private viewDescriptors: IViewDescriptor[] = [];
+	private viewStates = new Map<string, IViewState>();
 
-	// ISequence
-	elements: IViewDescriptor[] = [];
-	private _onDidSplice = new Emitter<ISplice<IViewDescriptor>>();
-	readonly onDidSplice: Event<ISplice<IViewDescriptor>> = this._onDidSplice.event;
+	private visibleViewDescriptors = new Sequence<IViewDescriptor>();
+	get elements() { return this.visibleViewDescriptors.elements; }
+	readonly onDidSplice: Event<ISplice<IViewDescriptor>> = this.visibleViewDescriptors.onDidSplice;
 
 	private disposables: IDisposable[] = [];
 
@@ -190,57 +189,114 @@ export class ContributableViews implements ISequence<IViewDescriptor>{
 		location: ViewLocation,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		this.viewDescriptorCollection = new ViewDescriptorCollection(location, contextKeyService);
+		const viewDescriptorCollection = new ViewDescriptorCollection(location, contextKeyService);
 
-		this.viewDescriptorCollection.onDidChange(this.onDidChangeViewDescriptors, this, this.disposables);
-		this.onDidChangeViewDescriptors();
-	}
-
-	private compareViewDescriptors(a: IViewDescriptor, b: IViewDescriptor): number {
-		const viewStateA = this.viewsStates.get(a.id);
-		const viewStateB = this.viewsStates.get(b.id);
-		const orderA = viewStateA ? viewStateA.order : a.order;
-		const orderB = viewStateB ? viewStateB.order : b.order;
-
-		if (orderB === void 0 || orderB === null) {
-			return -1;
-		}
-
-		if (orderA === void 0 || orderA === null) {
-			return 1;
-		}
-
-		return orderA - orderB;
-	}
-
-	private onDidChangeViewDescriptors(): void {
-		const compareFn = (a, b) => this.compareViewDescriptors(a, b);
-		const sortedViewDescriptors = this.viewDescriptorCollection.viewDescriptors.sort(compareFn);
-
-		const elements: IViewDescriptor[] = [];
-
-		for (const viewDescriptor of sortedViewDescriptors) {
-			const state = this.viewsStates.get(viewDescriptor.id);
-
-			if (!state || state.visible) {
-				elements.push(viewDescriptor);
-			}
-		}
-
-		const splices = sortedDiff<IViewDescriptor>(this.elements, elements, compareFn);
-
-		for (const splice of splices) {
-			this._onDidSplice.fire(splice);
-		}
-
-		this.elements = elements;
+		viewDescriptorCollection.onDidChange(() => this.onDidChangeViewDescriptors(viewDescriptorCollection.viewDescriptors), this, this.disposables);
+		this.onDidChangeViewDescriptors(viewDescriptorCollection.viewDescriptors);
 	}
 
 	setVisible(id: string, visible: boolean): void {
+		const { visibleIndex, viewDescriptor, state } = this.findViewDescriptor(id);
 
+		if (visible) {
+			this.visibleViewDescriptors.splice(visibleIndex, 0, [viewDescriptor]);
+		} else {
+			this.visibleViewDescriptors.splice(visibleIndex, 1);
+		}
+
+		state.visible = visible;
 	}
 
 	move(from: string, to: string): void {
 		// reset ORDERS for all view states
+	}
+
+	private findViewDescriptor(id: string): { visibleIndex: number, viewDescriptor: IViewDescriptor, state: IViewState } {
+		for (let i = 0, visibleIndex = 0; i < this.viewDescriptors.length; i++) {
+			const viewDescriptor = this.viewDescriptors[i];
+			const state = this.viewStates.get(viewDescriptor.id);
+
+			if (viewDescriptor.id === id) {
+				return { visibleIndex, viewDescriptor, state };
+			}
+
+			if (state.visible) {
+				visibleIndex++;
+			}
+		}
+
+		throw new Error(`view descriptor ${id} not found`);
+	}
+
+	private compareViewDescriptors(a: IViewDescriptor, b: IViewDescriptor): number {
+		const viewStateA = this.viewStates.get(a.id);
+		const viewStateB = this.viewStates.get(b.id);
+
+		let orderA = viewStateA && viewStateA.order;
+		orderA = typeof orderA === 'number' ? orderA : a.order;
+		orderA = typeof orderA === 'number' ? orderA : Number.POSITIVE_INFINITY;
+
+		let orderB = viewStateB && viewStateB.order;
+		orderB = typeof orderB === 'number' ? orderB : b.order;
+		orderB = typeof orderB === 'number' ? orderB : Number.POSITIVE_INFINITY;
+
+		if (orderA !== orderB) {
+			return orderA - orderB;
+		}
+
+		if (a.id === b.id) {
+			return 0;
+		}
+
+		return a.id < b.id ? -1 : 1;
+	}
+
+	private onDidChangeViewDescriptors(viewDescriptors: IViewDescriptor[]): void {
+		const ids = new Set<string>();
+
+		for (const viewDescriptor of this.viewDescriptors) {
+			ids.add(viewDescriptor.id);
+		}
+
+		viewDescriptors = viewDescriptors.sort(this.compareViewDescriptors.bind(this));
+
+		for (const viewDescriptor of viewDescriptors) {
+			if (!this.viewStates.has(viewDescriptor.id)) {
+				this.viewStates.set(viewDescriptor.id, {
+					visible: true // viewDescriptor.canToggleVisibility
+				});
+			}
+		}
+
+		const splices = sortedDiff<IViewDescriptor>(
+			this.viewDescriptors,
+			viewDescriptors,
+			this.compareViewDescriptors.bind(this)
+		);
+
+		for (const splice of splices) {
+			const startViewDescriptor = this.viewDescriptors[splice.start];
+			let startIndex = startViewDescriptor ? this.findViewDescriptor(startViewDescriptor.id).visibleIndex : 0;
+
+			for (let i = 0; i < splice.deleteCount; i++) {
+				const viewDescriptor = this.viewDescriptors[splice.start + i];
+				const { state } = this.findViewDescriptor(viewDescriptor.id);
+
+				if (state.visible) {
+					this.visibleViewDescriptors.splice(startIndex, 1);
+				}
+			}
+
+			for (let i = 0; i < splice.toInsert.length; i++) {
+				const viewDescriptor = splice.toInsert[i];
+				const state = this.viewStates.get(viewDescriptor.id);
+
+				if (state.visible) {
+					this.visibleViewDescriptors.splice(startIndex++, 0, [viewDescriptor]);
+				}
+			}
+		}
+
+		this.viewDescriptors = viewDescriptors;
 	}
 }
