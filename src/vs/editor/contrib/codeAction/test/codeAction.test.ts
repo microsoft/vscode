@@ -14,7 +14,7 @@ import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 
-suite('QuickFix', () => {
+suite('CodeAction', () => {
 
 	let langId = new LanguageIdentifier('fooLang', 17);
 	let uri = URI.parse('untitled:path');

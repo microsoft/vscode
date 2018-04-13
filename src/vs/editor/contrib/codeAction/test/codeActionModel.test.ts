@@ -16,7 +16,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
-suite('QuickFix', () => {
+suite('CodeAction', () => {
 
 	const languageIdentifier = new LanguageIdentifier('foo-lang', 3);
 	let uri = URI.parse('untitled:path');
