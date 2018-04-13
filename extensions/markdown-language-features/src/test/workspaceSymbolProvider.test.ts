@@ -16,11 +16,7 @@ const symbolProvider = new MDDocumentSymbolProvider(createNewMarkdownEngine());
 
 suite('markdown.WorkspaceSymbolProvider', () => {
 	test('Should not return anything for empty workspace', async () => {
-		const provider = new MarkdownWorkspaceSymbolProvider(symbolProvider, new class implements WorkspaceMarkdownDocumentProvider {
-			async getAllMarkdownDocuments() {
-				return [];
-			}
-		});
+		const provider = new MarkdownWorkspaceSymbolProvider(symbolProvider, new InMemoryWorkspaceMarkdownDocumentProvider([]));
 
 		assert.deepEqual(await provider.provideWorkspaceSymbols(''), []);
 	});
@@ -28,11 +24,9 @@ suite('markdown.WorkspaceSymbolProvider', () => {
 	test('Should return symbols from workspace with one markdown file', async () => {
 		const testFileName = vscode.Uri.parse('test.md');
 
-		const provider = new MarkdownWorkspaceSymbolProvider(symbolProvider, new class implements WorkspaceMarkdownDocumentProvider {
-			async getAllMarkdownDocuments() {
-				return [new InMemoryDocument(testFileName, `# header1\nabc\n## header2`)];
-			}
-		});
+		const provider = new MarkdownWorkspaceSymbolProvider(symbolProvider, new InMemoryWorkspaceMarkdownDocumentProvider([
+			new InMemoryDocument(testFileName, `# header1\nabc\n## header2`)
+		]));
 
 		const symbols = await provider.provideWorkspaceSymbols('');
 		assert.strictEqual(symbols.length, 2);
@@ -48,13 +42,51 @@ suite('markdown.WorkspaceSymbolProvider', () => {
 			files.push(new InMemoryDocument(testFileName, `# common\nabc\n## header${i}`));
 		}
 
-		const provider = new MarkdownWorkspaceSymbolProvider(symbolProvider, new class implements WorkspaceMarkdownDocumentProvider {
-			async getAllMarkdownDocuments() {
-				return files;
-			}
-		});
+		const provider = new MarkdownWorkspaceSymbolProvider(symbolProvider, new InMemoryWorkspaceMarkdownDocumentProvider(files));
 
 		const symbols = await provider.provideWorkspaceSymbols('');
 		assert.strictEqual(symbols.length, fileNameCount * 2);
 	});
+
+	test('Should update results when file changes symbols from workspace with one markdown file', async () => {
+		const testFileName = vscode.Uri.parse('test.md');
+
+		const workspaceFileProvider = new InMemoryWorkspaceMarkdownDocumentProvider([
+			new InMemoryDocument(testFileName, `# header1`)
+		]);
+
+		const provider = new MarkdownWorkspaceSymbolProvider(symbolProvider, workspaceFileProvider);
+
+		assert.strictEqual((await provider.provideWorkspaceSymbols('')).length, 1);
+
+		// Update file
+		workspaceFileProvider.updateDocument(new InMemoryDocument(testFileName, `# new header\nabc\n## header2`));
+		const newSymbols = await provider.provideWorkspaceSymbols('');
+		assert.strictEqual(newSymbols.length, 2);
+		assert.strictEqual(newSymbols[0].name, '# new header');
+		assert.strictEqual(newSymbols[1].name, '## header2');
+	});
 });
+
+
+class InMemoryWorkspaceMarkdownDocumentProvider implements WorkspaceMarkdownDocumentProvider {
+	private readonly _documents = new Map<string, vscode.TextDocument>();
+
+	constructor(documents: vscode.TextDocument[]) {
+		for( const doc of documents) {
+			this._documents.set(doc.fileName, doc);
+		}
+	}
+
+	async getAllMarkdownDocuments() {
+		return Array.from(this._documents.values());
+	}
+
+	private readonly _onDidChangeMarkdownDocumentEmitter = new vscode.EventEmitter<vscode.TextDocument>();
+	public onDidChangeMarkdownDocument = this._onDidChangeMarkdownDocumentEmitter.event;
+
+	public updateDocument(document: vscode.TextDocument) {
+		this._documents.set(document.fileName, document);
+		this._onDidChangeMarkdownDocumentEmitter.fire(document);
+	}
+}
