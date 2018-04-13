@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, WorkspaceSymbolProvider, SymbolInformation, TextDocument, Disposable } from 'vscode';
+import { Disposable, SymbolInformation, TextDocument, Uri, WorkspaceSymbolProvider, workspace } from 'vscode';
+import { disposeAll } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
 import MDDocumentSymbolProvider from './documentSymbolProvider';
 
@@ -11,18 +12,21 @@ export default class MarkdownWorkspaceSymbolProvider implements WorkspaceSymbolP
 	private symbolProvider: MDDocumentSymbolProvider;
 	private symbolCache = new Map<string, SymbolInformation[]>();
 	private symbolCachePopulated: boolean;
-	private deRegisterOnSaveEvent: Disposable;
+	private disposables: Disposable[] = [];
 
 	public constructor(symbolProvider: MDDocumentSymbolProvider) {
 		this.symbolProvider = symbolProvider;
 		this.symbolCachePopulated = false;
-		this.deRegisterOnSaveEvent = this.registerOnSaveEvent();
 	}
 
 	public async provideWorkspaceSymbols(query: string): Promise<SymbolInformation[]> {
 		if (!this.symbolCachePopulated) {
 			await this.populateSymbolCache();
 			this.symbolCachePopulated = true;
+
+			const watcher = workspace.createFileSystemWatcher('**/*.md');
+			this.disposables.push(watcher);
+			watcher.onDidChange(this.onDidChange, this, this.disposables);
 		}
 
 		return Array.prototype.concat.apply([], Array.from(this.symbolCache.values())
@@ -41,20 +45,18 @@ export default class MarkdownWorkspaceSymbolProvider implements WorkspaceSymbolP
 	}
 
 	public dispose(): void {
-		this.deRegisterOnSaveEvent.dispose();
+		disposeAll(this.disposables);
 	}
 
 	private async getSymbol(document: TextDocument): Promise<SymbolInformation[]> {
 		return this.symbolProvider.provideDocumentSymbols(document);
 	}
 
-	private registerOnSaveEvent(): Disposable {
-		return workspace.onDidSaveTextDocument(async document => {
-			if (isMarkdownFile(document)) {
-				const symbols = await this.getSymbol(document);
-				this.symbolCache.set(document.fileName, symbols);
-			}
-		});
+	private async onDidChange(resource: Uri) {
+		const document = await workspace.openTextDocument(resource);
+		if (isMarkdownFile(document)) {
+			const symbols = await this.getSymbol(document);
+			this.symbolCache.set(document.fileName, symbols);
+		}
 	}
-
 }
