@@ -312,14 +312,18 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	acquireFileService(fileService: IFileService): void {
 		this.fileService = fileService;
 		const changedWorkspaceFolders: IWorkspaceFolder[] = [];
-		this.cachedFolderConfigs.forEach(folderConfiguration => {
-			if (folderConfiguration.adopt(fileService)) {
-				changedWorkspaceFolders.push(folderConfiguration.workspaceFolder);
-			}
-		});
-		for (const workspaceFolder of changedWorkspaceFolders) {
-			this.onWorkspaceFolderConfigurationChanged(workspaceFolder);
-		}
+		TPromise.join(this.cachedFolderConfigs.values()
+			.map(folderConfiguration => folderConfiguration.adopt(fileService)
+				.then(result => {
+					if (result) {
+						changedWorkspaceFolders.push(folderConfiguration.workspaceFolder);
+					}
+				})))
+			.then(() => {
+				for (const workspaceFolder of changedWorkspaceFolders) {
+					this.onWorkspaceFolderConfigurationChanged(workspaceFolder);
+				}
+			});
 	}
 
 	acquireInstantiationService(instantiationService: IInstantiationService): void {

@@ -457,21 +457,36 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 		return this._loaded;
 	}
 
-	adopt(fileService: IFileService): boolean {
-		let result = false;
-		if (fileService && !(this.folderConfiguration instanceof FileServiceBasedFolderConfiguration)) {
+	adopt(fileService: IFileService): TPromise<boolean> {
+		if (fileService) {
 			if (this.folderConfiguration instanceof CachedFolderConfiguration) {
-				this.folderConfiguration = new FileServiceBasedFolderConfiguration(this.workspaceFolder.uri, this.configFolderRelativePath, this.workbenchState, fileService);
-				this.updateCache();
-				result = true;
-			} else {
-				const oldFolderConfiguration = this.folderConfiguration;
-				this.folderConfiguration = new FileServiceBasedFolderConfiguration(this.workspaceFolder.uri, this.configFolderRelativePath, this.workbenchState, fileService, <AbstractFolderConfiguration>oldFolderConfiguration);
-				oldFolderConfiguration.dispose();
+				return this.adoptFromCachedConfiguration(fileService);
 			}
-			this._register(this.folderConfiguration.onDidChange(e => this.onDidFolderConfigurationChange()));
+
+			if (this.folderConfiguration instanceof NodeBasedFolderConfiguration) {
+				return this.adoptFromNodeBasedConfiguration(fileService);
+			}
 		}
-		return result;
+		return TPromise.as(false);
+	}
+
+	private adoptFromCachedConfiguration(fileService: IFileService): TPromise<boolean> {
+		const folderConfiguration = new FileServiceBasedFolderConfiguration(this.workspaceFolder.uri, this.configFolderRelativePath, this.workbenchState, fileService);
+		return folderConfiguration.loadConfiguration()
+			.then(() => {
+				this.folderConfiguration = folderConfiguration;
+				this._register(this.folderConfiguration.onDidChange(e => this.onDidFolderConfigurationChange()));
+				this.updateCache();
+				return true;
+			});
+	}
+
+	private adoptFromNodeBasedConfiguration(fileService: IFileService): TPromise<boolean> {
+		const oldFolderConfiguration = this.folderConfiguration;
+		this.folderConfiguration = new FileServiceBasedFolderConfiguration(this.workspaceFolder.uri, this.configFolderRelativePath, this.workbenchState, fileService, <AbstractFolderConfiguration>oldFolderConfiguration);
+		oldFolderConfiguration.dispose();
+		this._register(this.folderConfiguration.onDidChange(e => this.onDidFolderConfigurationChange()));
+		return TPromise.as(false);
 	}
 
 	private onDidFolderConfigurationChange(): void {
