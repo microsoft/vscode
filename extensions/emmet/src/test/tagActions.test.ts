@@ -5,7 +5,7 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import { Selection, workspace } from 'vscode';
+import { Selection, workspace, ConfigurationTarget } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
 import { removeTag } from '../removeTag';
 import { updateTag } from '../updateTag';
@@ -15,8 +15,8 @@ import { mergeLines } from '../mergeLines';
 
 suite('Tests for Emmet actions on html tags', () => {
 	teardown(() => {
-		// Reset config and close all editors
-		return workspace.getConfiguration('emmet').update('syntaxProfiles', {}).then(closeAllEditors);
+		// close all editors
+		return closeAllEditors;
 	});
 
 	const contents = `
@@ -116,7 +116,8 @@ suite('Tests for Emmet actions on html tags', () => {
 		<span></span>
 	</div>
 	`;
-		return workspace.getConfiguration('emmet').update('syntaxProfiles', {jsx: {selfClosingStyle: 'xhtml'}}).then(() =>{
+		const oldValueForSyntaxProfiles = workspace.getConfiguration('emmet').inspect('syntaxProfiles');
+		return workspace.getConfiguration('emmet').update('syntaxProfiles', {jsx: {selfClosingStyle: 'xhtml'}}, ConfigurationTarget.Global).then(() =>{
 			return withRandomFileEditor(contents, 'jsx', (editor, doc) => {
 				editor.selections = [
 					new Selection(3, 17, 3, 17), // join tag
@@ -125,7 +126,7 @@ suite('Tests for Emmet actions on html tags', () => {
 
 				return splitJoinTag()!.then(() => {
 					assert.equal(doc.getText(), expectedContents);
-					return workspace.getConfiguration('emmet').update('syntaxProfiles', {});
+					return workspace.getConfiguration('emmet').update('syntaxProfiles', oldValueForSyntaxProfiles ? oldValueForSyntaxProfiles.globalValue : undefined, ConfigurationTarget.Global);
 				});
 			});
 		});

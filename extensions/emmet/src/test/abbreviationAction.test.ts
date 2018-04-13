@@ -5,7 +5,7 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import { Selection, workspace, CompletionList, CancellationTokenSource, CompletionTriggerKind } from 'vscode';
+import { Selection, workspace, CompletionList, CancellationTokenSource, CompletionTriggerKind, ConfigurationTarget } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
 import { expandEmmetAbbreviation } from '../abbreviationActions';
 import { DefaultCompletionItemProvider } from '../defaultCompletionProvider';
@@ -36,9 +36,10 @@ const htmlContents = `
 `;
 
 suite('Tests for Expand Abbreviations (HTML)', () => {
+	const oldValueForExcludeLanguages = workspace.getConfiguration('emmet').inspect('excludeLanguages');
 	teardown(() => {
-		// Reset config and close all editors
-		return workspace.getConfiguration('emmet').update('excludeLanguages', []).then(closeAllEditors);
+		// close all editors
+		return closeAllEditors;
 	});
 
 	test('Expand snippets (HTML)', () => {
@@ -255,25 +256,25 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 	// });
 
 	test('No expanding when html is excluded in the settings', () => {
-		return workspace.getConfiguration('emmet').update('excludeLanguages', ['html']).then(() => {
+		return workspace.getConfiguration('emmet').update('excludeLanguages', ['html'], ConfigurationTarget.Global).then(() => {
 			return testExpandAbbreviation('html', new Selection(9, 6, 9, 6), '', '', true).then(() => {
-				return workspace.getConfiguration('emmet').update('excludeLanguages', []);
+				return workspace.getConfiguration('emmet').update('excludeLanguages', oldValueForExcludeLanguages ? oldValueForExcludeLanguages.globalValue : undefined, ConfigurationTarget.Global);
 			});
 		});
 	});
 
 	test('No expanding when html is excluded in the settings in completion list', () => {
-		return workspace.getConfiguration('emmet').update('excludeLanguages', ['html']).then(() => {
+		return workspace.getConfiguration('emmet').update('excludeLanguages', ['html'], ConfigurationTarget.Global).then(() => {
 			return testHtmlCompletionProvider(new Selection(9, 6, 9, 6), '', '', true).then(() => {
-				return workspace.getConfiguration('emmet').update('excludeLanguages', []);
+				return workspace.getConfiguration('emmet').update('excludeLanguages', oldValueForExcludeLanguages ? oldValueForExcludeLanguages.globalValue : undefined, ConfigurationTarget.Global);
 			});
 		});
 	});
 
 	test('No expanding when php (mapped syntax) is excluded in the settings', () => {
-		return workspace.getConfiguration('emmet').update('excludeLanguages', ['php']).then(() => {
+		return workspace.getConfiguration('emmet').update('excludeLanguages', ['php'], ConfigurationTarget.Global).then(() => {
 			return testExpandAbbreviation('php', new Selection(9, 6, 9, 6), '', '', true).then(() => {
-				return workspace.getConfiguration('emmet').update('excludeLanguages', []);
+				return workspace.getConfiguration('emmet').update('excludeLanguages', oldValueForExcludeLanguages ? oldValueForExcludeLanguages.globalValue : undefined, ConfigurationTarget.Global);
 			});
 		});
 	});
@@ -282,6 +283,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 });
 
 suite('Tests for jsx, xml and xsl', () => {
+	const oldValueForSyntaxProfiles = workspace.getConfiguration('emmet').inspect('syntaxProfiles');
 	teardown(closeAllEditors);
 
 	test('Expand abbreviation with className instead of class in jsx', () => {
@@ -305,12 +307,12 @@ suite('Tests for jsx, xml and xsl', () => {
 	});
 
 	test('Expand abbreviation with single quotes for jsx', () => {
-		return workspace.getConfiguration('emmet').update('syntaxProfiles', {jsx: {"attr_quotes": "single"}}).then(() => {
+		return workspace.getConfiguration('emmet').update('syntaxProfiles', {jsx: {"attr_quotes": "single"}}, ConfigurationTarget.Global).then(() => {
 			return withRandomFileEditor('img', 'javascriptreact', (editor, doc) => {
 				editor.selection = new Selection(0, 6, 0, 6);
 				return expandEmmetAbbreviation({ language: 'javascriptreact' }).then(() => {
 					assert.equal(editor.document.getText(), '<img src=\'\' alt=\'\'/>');
-					return workspace.getConfiguration('emmet').update('syntaxProfiles', {});
+					return workspace.getConfiguration('emmet').update('syntaxProfiles', oldValueForSyntaxProfiles ? oldValueForSyntaxProfiles.globalValue : undefined, ConfigurationTarget.Global);
 				});
 			});
 		});
