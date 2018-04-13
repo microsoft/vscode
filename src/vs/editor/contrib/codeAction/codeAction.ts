@@ -16,21 +16,20 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { CodeActionFilter, CodeActionKind } from './codeActionTrigger';
 
 export function getCodeActions(model: ITextModel, range: Range, filter?: CodeActionFilter): TPromise<CodeAction[]> {
-
-	const allResults: CodeAction[] = [];
+	const allCodeActions: CodeAction[] = [];
 	const promises = CodeActionProviderRegistry.all(model).map(support => {
-		return asWinJsPromise(token => support.provideCodeActions(model, range, { only: filter && filter.kind ? filter.kind.value : undefined }, token)).then(result => {
-			if (Array.isArray(result)) {
-				for (const quickFix of result) {
-					if (!quickFix) {
+		return asWinJsPromise(token => support.provideCodeActions(model, range, { only: filter && filter.kind ? filter.kind.value : undefined }, token)).then(providedCodeActions => {
+			if (Array.isArray(providedCodeActions)) {
+				for (const action of providedCodeActions) {
+					if (!action) {
 						continue;
 					}
 
-					if (!filter || !filter.kind || (quickFix.kind && filter.kind.contains(quickFix.kind))) {
-						if (quickFix.kind && CodeActionKind.Source.contains(quickFix.kind) && (!filter || !filter.includeSourceActions)) {
+					if (!filter || !filter.kind || (action.kind && filter.kind.contains(action.kind))) {
+						if (action.kind && CodeActionKind.Source.contains(action.kind) && (!filter || !filter.includeSourceActions)) {
 							continue;
 						}
-						allResults.push(quickFix);
+						allCodeActions.push(action);
 					}
 				}
 			}
@@ -40,12 +39,11 @@ export function getCodeActions(model: ITextModel, range: Range, filter?: CodeAct
 	});
 
 	return TPromise.join(promises).then(
-		() => mergeSort(allResults, codeActionsComparator)
+		() => mergeSort(allCodeActions, codeActionsComparator)
 	);
 }
 
 function codeActionsComparator(a: CodeAction, b: CodeAction): number {
-
 	const aHasDiags = !isFalsyOrEmpty(a.diagnostics);
 	const bHasDiags = !isFalsyOrEmpty(b.diagnostics);
 	if (aHasDiags) {
@@ -62,7 +60,6 @@ function codeActionsComparator(a: CodeAction, b: CodeAction): number {
 }
 
 registerLanguageCommand('_executeCodeActionProvider', function (accessor, args) {
-
 	const { resource, range } = args;
 	if (!(resource instanceof URI) || !Range.isIRange(range)) {
 		throw illegalArgument();
