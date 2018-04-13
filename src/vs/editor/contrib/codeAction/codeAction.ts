@@ -39,18 +39,22 @@ export function getCodeActions(model: ITextModel, range: Range, filter?: CodeAct
 	);
 }
 
-function isValidAction(filter: CodeActionFilter, action: CodeAction): boolean {
+function isValidAction(filter: CodeActionFilter | undefined, action: CodeAction): boolean {
 	if (!action) {
 		return false;
 	}
 
-	if (!filter || !filter.kind || (action.kind && filter.kind.contains(action.kind))) {
-		if (action.kind && CodeActionKind.Source.contains(action.kind) && (!filter || !filter.includeSourceActions)) {
-			return false;
-		}
-		return true;
+	// Filter out actions by kind
+	if (filter && filter.kind && (!action.kind || !filter.kind.contains(action.kind))) {
+		return false;
 	}
-	return false;
+
+	// Don't return source actions unless they are explicitly requested
+	if (action.kind && CodeActionKind.Source.contains(action.kind) && (!filter || !filter.includeSourceActions)) {
+		return false;
+	}
+
+	return true;
 }
 
 function codeActionsComparator(a: CodeAction, b: CodeAction): number {
