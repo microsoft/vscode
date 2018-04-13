@@ -1809,7 +1809,7 @@ declare module 'vscode' {
 	 * its resource, or a glob-pattern that is applied to the [path](#TextDocument.fileName).
 	 *
 	 * @sample A language filter that applies to typescript files on disk: `{ language: 'typescript', scheme: 'file' }`
-	 * @sample A language filter that applies to all package.json paths: `{ language: 'json', pattern: '**​/package.json' }`
+	 * @sample A language filter that applies to all package.json paths: `{ language: 'json', scheme: 'untitled', pattern: '**​/package.json' }`
 	 */
 	export interface DocumentFilter {
 
@@ -1834,10 +1834,14 @@ declare module 'vscode' {
 	 * A language selector is the combination of one or many language identifiers
 	 * and [language filters](#DocumentFilter).
 	 *
-	 * @sample `let sel:DocumentSelector = 'typescript'`;
-	 * @sample `let sel:DocumentSelector = ['typescript', { language: 'json', pattern: '**​/tsconfig.json' }]`;
+	 * *Note* that a document selector that is just a language identifier selects *all*
+	 * documents, even those that are not saved on disk. Only use such selectors when
+	 * a feature works without further context, e.g without the need to resolve related
+	 * 'files'.
+	 *
+	 * @sample `let sel:DocumentSelector = { scheme: 'file', language: 'typescript' }`;
 	 */
-	export type DocumentSelector = string | DocumentFilter | (string | DocumentFilter)[];
+	export type DocumentSelector = DocumentFilter | string | Array<DocumentFilter | string>;
 
 	/**
 	 * A provider result represents the values a provider, like the [`HoverProvider`](#HoverProvider),
