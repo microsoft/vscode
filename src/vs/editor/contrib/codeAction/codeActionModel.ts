@@ -20,14 +20,14 @@ import { CodeActionKind, CodeActionTrigger } from './codeActionTrigger';
 export const HAS_REFACTOR_PROVIDER = new RawContextKey<boolean>('hasRefactorProvider', false);
 export const HAS_SOURCE_ACTION_PROVIDER = new RawContextKey<boolean>('hasSourceActionProvider', false);
 
-export class QuickFixOracle {
+export class CodeActionOracle {
 
 	private _disposables: IDisposable[] = [];
 
 	constructor(
 		private _editor: ICodeEditor,
 		private _markerService: IMarkerService,
-		private _signalChange: (e: QuickFixComputeEvent) => any,
+		private _signalChange: (e: CodeActionsComputeEvent) => any,
 		delay: number = 250
 	) {
 		this._disposables.push(
@@ -109,7 +109,7 @@ export class QuickFixOracle {
 				trigger,
 				range: undefined,
 				position: undefined,
-				fixes: undefined,
+				actions: undefined,
 			});
 			return TPromise.as(undefined);
 		} else {
@@ -117,32 +117,32 @@ export class QuickFixOracle {
 			const model = this._editor.getModel();
 			const range = model.validateRange(rangeOrSelection);
 			const position = rangeOrSelection instanceof Selection ? rangeOrSelection.getPosition() : rangeOrSelection.getStartPosition();
-			const fixes = getCodeActions(model, range, trigger && trigger.filter);
+			const actions = getCodeActions(model, range, trigger && trigger.filter);
 
 			this._signalChange({
 				trigger,
 				range,
 				position,
-				fixes
+				actions
 			});
-			return fixes;
+			return actions;
 		}
 	}
 }
 
-export interface QuickFixComputeEvent {
+export interface CodeActionsComputeEvent {
 	trigger: CodeActionTrigger;
 	range: Range;
 	position: Position;
-	fixes: TPromise<CodeAction[]>;
+	actions: TPromise<CodeAction[]>;
 }
 
-export class QuickFixModel {
+export class CodeActionModel {
 
 	private _editor: ICodeEditor;
 	private _markerService: IMarkerService;
-	private _quickFixOracle: QuickFixOracle;
-	private _onDidChangeFixes = new Emitter<QuickFixComputeEvent>();
+	private _codeActionOracle: CodeActionOracle;
+	private _onDidChangeFixes = new Emitter<CodeActionsComputeEvent>();
 	private _disposables: IDisposable[] = [];
 	private readonly _hasRefactorProvider: IContextKey<boolean>;
 	private readonly _hasSourceProvider: IContextKey<boolean>;
@@ -163,18 +163,18 @@ export class QuickFixModel {
 
 	dispose(): void {
 		this._disposables = dispose(this._disposables);
-		dispose(this._quickFixOracle);
+		dispose(this._codeActionOracle);
 	}
 
-	get onDidChangeFixes(): Event<QuickFixComputeEvent> {
+	get onDidChangeFixes(): Event<CodeActionsComputeEvent> {
 		return this._onDidChangeFixes.event;
 	}
 
 	private _update(): void {
 
-		if (this._quickFixOracle) {
-			this._quickFixOracle.dispose();
-			this._quickFixOracle = undefined;
+		if (this._codeActionOracle) {
+			this._codeActionOracle.dispose();
+			this._codeActionOracle = undefined;
 			this._onDidChangeFixes.fire(undefined);
 		}
 
@@ -200,16 +200,16 @@ export class QuickFixModel {
 			this._hasRefactorProvider.set(hasRefactorProvider);
 			this._hasSourceProvider.set(hasSourceProvider);
 
-			this._quickFixOracle = new QuickFixOracle(this._editor, this._markerService, p => this._onDidChangeFixes.fire(p));
-			this._quickFixOracle.trigger({ type: 'auto' });
+			this._codeActionOracle = new CodeActionOracle(this._editor, this._markerService, p => this._onDidChangeFixes.fire(p));
+			this._codeActionOracle.trigger({ type: 'auto' });
 		} else {
 			this._hasRefactorProvider.reset();
 		}
 	}
 
 	trigger(trigger: CodeActionTrigger): TPromise<CodeAction[] | undefined> {
-		if (this._quickFixOracle) {
-			return this._quickFixOracle.trigger(trigger);
+		if (this._codeActionOracle) {
+			return this._codeActionOracle.trigger(trigger);
 		}
 		return TPromise.as(undefined);
 	}

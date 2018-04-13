@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
-import { QuickFixOracle } from 'vs/editor/contrib/codeAction/codeActionModel';
+import { CodeActionOracle } from 'vs/editor/contrib/codeAction/codeActionModel';
 import { CodeActionProviderRegistry, LanguageIdentifier } from 'vs/editor/common/modes';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
@@ -46,11 +46,11 @@ suite('QuickFix', () => {
 
 	test('Orcale -> marker added', done => {
 
-		const oracle = new QuickFixOracle(editor, markerService, e => {
+		const oracle = new CodeActionOracle(editor, markerService, e => {
 			assert.equal(e.trigger.type, 'auto');
-			assert.ok(e.fixes);
+			assert.ok(e.actions);
 
-			e.fixes.then(fixes => {
+			e.actions.then(fixes => {
 				oracle.dispose();
 				assert.equal(fixes.length, 1);
 				done();
@@ -82,10 +82,10 @@ suite('QuickFix', () => {
 
 		return new Promise((resolve, reject) => {
 
-			const oracle = new QuickFixOracle(editor, markerService, e => {
+			const oracle = new CodeActionOracle(editor, markerService, e => {
 				assert.equal(e.trigger.type, 'auto');
-				assert.ok(e.fixes);
-				e.fixes.then(fixes => {
+				assert.ok(e.actions);
+				e.actions.then(fixes => {
 					oracle.dispose();
 					assert.equal(fixes.length, 1);
 					resolve(undefined);
@@ -115,8 +115,8 @@ suite('QuickFix', () => {
 		}]);
 
 		let fixes: TPromise<any>[] = [];
-		let oracle = new QuickFixOracle(editor, markerService, e => {
-			fixes.push(e.fixes);
+		let oracle = new CodeActionOracle(editor, markerService, e => {
+			fixes.push(e.actions);
 		}, 10);
 
 		editor.setSelection({ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 13 });
@@ -159,7 +159,7 @@ suite('QuickFix', () => {
 		// case 1 - drag selection over multiple lines -> range of enclosed marker, position or marker
 		await new Promise(resolve => {
 
-			let oracle = new QuickFixOracle(editor, markerService, e => {
+			let oracle = new CodeActionOracle(editor, markerService, e => {
 				assert.equal(e.trigger.type, 'auto');
 				assert.deepEqual(e.range, { startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 4 });
 				assert.deepEqual(e.position, { lineNumber: 3, column: 1 });
