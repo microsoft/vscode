@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFalsyOrEmpty, mergeSort } from 'vs/base/common/arrays';
+import { isFalsyOrEmpty, mergeSort, flatten } from 'vs/base/common/arrays';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
@@ -16,27 +16,23 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { CodeActionFilter, CodeActionKind } from './codeActionTrigger';
 
 export function getCodeActions(model: ITextModel, range: Range, filter?: CodeActionFilter): TPromise<CodeAction[]> {
-	const allCodeActions: CodeAction[] = [];
 	const codeActionContext = { only: filter && filter.kind ? filter.kind.value : undefined };
+
 	const promises = CodeActionProviderRegistry.all(model).map(support => {
 		return asWinJsPromise(token => support.provideCodeActions(model, range, codeActionContext, token)).then(providedCodeActions => {
 			if (!Array.isArray(providedCodeActions)) {
-				return;
+				return [];
 			}
-
-			for (const action of providedCodeActions) {
-				if (isValidAction(filter, action)) {
-					allCodeActions.push(action);
-				}
-			}
-		}, err => {
+			return providedCodeActions.filter(action => isValidAction(filter, action));
+		}, (err): CodeAction[] => {
 			onUnexpectedExternalError(err);
+			return [];
 		});
 	});
 
-	return TPromise.join(promises).then(
-		() => mergeSort(allCodeActions, codeActionsComparator)
-	);
+	return TPromise.join(promises)
+		.then(flatten)
+		.then(allCodeActions => mergeSort(allCodeActions, codeActionsComparator));
 }
 
 function isValidAction(filter: CodeActionFilter | undefined, action: CodeAction): boolean {
