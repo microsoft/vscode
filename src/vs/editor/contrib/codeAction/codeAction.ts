@@ -17,20 +17,16 @@ import { CodeActionFilter, CodeActionKind } from './codeActionTrigger';
 
 export function getCodeActions(model: ITextModel, range: Range, filter?: CodeActionFilter): TPromise<CodeAction[]> {
 	const allCodeActions: CodeAction[] = [];
+	const codeActionContext = { only: filter && filter.kind ? filter.kind.value : undefined };
 	const promises = CodeActionProviderRegistry.all(model).map(support => {
-		return asWinJsPromise(token => support.provideCodeActions(model, range, { only: filter && filter.kind ? filter.kind.value : undefined }, token)).then(providedCodeActions => {
-			if (Array.isArray(providedCodeActions)) {
-				for (const action of providedCodeActions) {
-					if (!action) {
-						continue;
-					}
+		return asWinJsPromise(token => support.provideCodeActions(model, range, codeActionContext, token)).then(providedCodeActions => {
+			if (!Array.isArray(providedCodeActions)) {
+				return;
+			}
 
-					if (!filter || !filter.kind || (action.kind && filter.kind.contains(action.kind))) {
-						if (action.kind && CodeActionKind.Source.contains(action.kind) && (!filter || !filter.includeSourceActions)) {
-							continue;
-						}
-						allCodeActions.push(action);
-					}
+			for (const action of providedCodeActions) {
+				if (isValidAction(filter, action)) {
+					allCodeActions.push(action);
 				}
 			}
 		}, err => {
@@ -41,6 +37,20 @@ export function getCodeActions(model: ITextModel, range: Range, filter?: CodeAct
 	return TPromise.join(promises).then(
 		() => mergeSort(allCodeActions, codeActionsComparator)
 	);
+}
+
+function isValidAction(filter: CodeActionFilter, action: CodeAction): boolean {
+	if (!action) {
+		return false;
+	}
+
+	if (!filter || !filter.kind || (action.kind && filter.kind.contains(action.kind))) {
+		if (action.kind && CodeActionKind.Source.contains(action.kind) && (!filter || !filter.includeSourceActions)) {
+			return false;
+		}
+		return true;
+	}
+	return false;
 }
 
 function codeActionsComparator(a: CodeAction, b: CodeAction): number {
