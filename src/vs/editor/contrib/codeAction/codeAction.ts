@@ -2,19 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import URI from 'vs/base/common/uri';
-import { ITextModel } from 'vs/editor/common/model';
-import { Range } from 'vs/editor/common/core/range';
-import { CodeActionProviderRegistry, CodeAction } from 'vs/editor/common/modes';
-import { asWinJsPromise } from 'vs/base/common/async';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { onUnexpectedExternalError, illegalArgument } from 'vs/base/common/errors';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { isFalsyOrEmpty, mergeSort } from 'vs/base/common/arrays';
-import { CodeActionKind, CodeActionFilter } from './codeActionTrigger';
+import { asWinJsPromise } from 'vs/base/common/async';
+import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
+import URI from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
+import { Range } from 'vs/editor/common/core/range';
+import { ITextModel } from 'vs/editor/common/model';
+import { CodeAction, CodeActionProviderRegistry } from 'vs/editor/common/modes';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { CodeActionFilter, CodeActionKind } from './codeActionTrigger';
 
 export function getCodeActions(model: ITextModel, range: Range, filter?: CodeActionFilter): TPromise<CodeAction[]> {
 

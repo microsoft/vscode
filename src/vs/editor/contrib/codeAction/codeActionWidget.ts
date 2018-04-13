@@ -3,19 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { TPromise } from 'vs/base/common/winjs.base';
-import { always } from 'vs/base/common/async';
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
-import { Position } from 'vs/editor/common/core/position';
+import { Action } from 'vs/base/common/actions';
+import { always } from 'vs/base/common/async';
+import { canceled } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Position } from 'vs/editor/common/core/position';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeAction } from 'vs/editor/common/modes';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { Action } from 'vs/base/common/actions';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { canceled } from 'vs/base/common/errors';
 
 export class QuickFixContextMenu {
 

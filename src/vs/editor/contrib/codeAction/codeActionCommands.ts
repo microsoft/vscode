@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -23,10 +22,10 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { HAS_REFACTOR_PROVIDER, HAS_SOURCE_ACTION_PROVIDER, QuickFixComputeEvent, QuickFixModel } from './codeActionModel';
 import { CodeActionAutoApply, CodeActionFilter, CodeActionKind } from './codeActionTrigger';
-import { LightBulbWidget } from './lightBulbWidget';
-import { QuickFixComputeEvent, QuickFixModel, HAS_REFACTOR_PROVIDER, HAS_SOURCE_ACTION_PROVIDER } from './codeActionModel';
 import { QuickFixContextMenu } from './codeActionWidget';
+import { LightBulbWidget } from './lightBulbWidget';
 
 export class QuickFixController implements IEditorContribution {
 
