@@ -1214,6 +1214,34 @@ suite('Editor Controller - Regression tests', () => {
 		model.dispose();
 	});
 
+	test('issue #47733: Undo mangles unicode characters', () => {
+		const languageId = new LanguageIdentifier('myMode', 3);
+		class MyMode extends MockMode {
+			constructor() {
+				super(languageId);
+				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+					surroundingPairs: [{ open: '"', close: '"' }]
+				}));
+			}
+		}
+
+		const mode = new MyMode();
+		const model = createTextModel('\'👁\'', undefined, languageId);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			editor.setSelection(new Selection(1, 1, 1, 2));
+
+			cursorCommand(cursor, H.Type, { text: '"' }, 'keyboard');
+			assert.equal(model.getValue(EndOfLinePreference.LF), '"\'"👁\'', 'assert1');
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getValue(EndOfLinePreference.LF), '\'👁\'', 'assert2');
+		});
+
+		model.dispose();
+		mode.dispose();
+	});
+
 	test('issue #46208: Allow empty selections in the undo/redo stack', () => {
 		let model = createTextModel('');
 
