@@ -25,8 +25,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { CodeActionAutoApply, CodeActionFilter, CodeActionKind } from './codeActionTrigger';
 import { LightBulbWidget } from './lightBulbWidget';
-import { QuickFixComputeEvent, QuickFixModel, HAS_REFACTOR_PROVIDER, HAS_SOURCE_ACTION_PROVIDER } from './quickFixModel';
-import { QuickFixContextMenu } from './quickFixWidget';
+import { QuickFixComputeEvent, QuickFixModel, HAS_REFACTOR_PROVIDER, HAS_SOURCE_ACTION_PROVIDER } from './codeActionModel';
+import { QuickFixContextMenu } from './codeActionWidget';
 
 export class QuickFixController implements IEditorContribution {
 

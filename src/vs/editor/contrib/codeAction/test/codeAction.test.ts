@@ -10,8 +10,8 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { CodeActionProviderRegistry, LanguageIdentifier, CodeActionProvider, Command, WorkspaceEdit, ResourceTextEdit, CodeAction, CodeActionContext } from 'vs/editor/common/modes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
-import { getCodeActions } from 'vs/editor/contrib/quickFix/quickFix';
-import { CodeActionKind } from 'vs/editor/contrib/quickFix/codeActionTrigger';
+import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 
 suite('QuickFix', () => {

@@ -11,7 +11,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
 import * as dom from 'vs/base/browser/dom';
 import { ICodeEditor, IContentWidget, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { QuickFixComputeEvent } from './quickFixModel';
+import { QuickFixComputeEvent } from './codeActionModel';
 import { TextModel } from 'vs/editor/common/model/textModel';
 
 export class LightBulbWidget implements IDisposable, IContentWidget {

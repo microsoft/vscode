@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
-import { QuickFixOracle } from 'vs/editor/contrib/quickFix/quickFixModel';
+import { QuickFixOracle } from 'vs/editor/contrib/codeAction/codeActionModel';
 import { CodeActionProviderRegistry, LanguageIdentifier } from 'vs/editor/common/modes';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';

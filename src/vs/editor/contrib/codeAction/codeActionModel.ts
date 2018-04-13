@@ -16,7 +16,7 @@ import { CodeAction, CodeActionProviderRegistry } from 'vs/editor/common/modes';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { CodeActionKind, CodeActionTrigger } from './codeActionTrigger';
-import { getCodeActions } from './quickFix';
+import { getCodeActions } from './codeAction';
 
 export const HAS_REFACTOR_PROVIDER = new RawContextKey<boolean>('hasRefactorProvider', false);
 export const HAS_SOURCE_ACTION_PROVIDER = new RawContextKey<boolean>('hasSourceActionProvider', false);
