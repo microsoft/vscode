@@ -12,12 +12,12 @@ import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import pkg from 'vs/platform/node/package';
 import product, { ISurveyData } from 'vs/platform/node/product';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
+import { ITextFileService, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
 
 class LanguageSurvey {
 
@@ -27,8 +27,8 @@ class LanguageSurvey {
 		storageService: IStorageService,
 		notificationService: INotificationService,
 		telemetryService: ITelemetryService,
-		fileService: IFileService,
-		modelService: IModelService
+		modelService: IModelService,
+		textFileService: ITextFileService
 	) {
 		const SESSION_COUNT_KEY = `${data.surveyId}.sessionCount`;
 		const LAST_SESSION_DATE_KEY = `${data.surveyId}.lastSessionDate`;
@@ -44,9 +44,9 @@ class LanguageSurvey {
 		const date = new Date().toDateString();
 
 		if (storageService.getInteger(EDITED_LANGUAGE_COUNT_KEY, StorageScope.GLOBAL, 0) < data.editCount) {
-			fileService.onFileChanges(e => {
-				e.getUpdated().forEach(event => {
-					if (event.type === FileChangeType.UPDATED) {
+			textFileService.models.onModelsSaved(e => {
+				e.forEach(event => {
+					if (event.kind === StateChange.SAVED) {
 						const model = modelService.getModel(event.resource);
 						if (model && model.getModeId() === data.languageId && date !== storageService.get(EDITED_LANGUAGE_DATE_KEY, StorageScope.GLOBAL)) {
 							const editedCount = storageService.getInteger(EDITED_LANGUAGE_COUNT_KEY, StorageScope.GLOBAL, 0) + 1;
@@ -126,11 +126,11 @@ class LanguageSurveysContribution implements IWorkbenchContribution {
 		@IStorageService storageService: IStorageService,
 		@INotificationService notificationService: INotificationService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IFileService fileService: IFileService,
-		@IModelService modelService: IModelService
+		@IModelService modelService: IModelService,
+		@ITextFileService textFileService: ITextFileService
 	) {
 		product.surveys.filter(surveyData => surveyData.surveyId && surveyData.editCount && surveyData.languageId && surveyData.surveyUrl && surveyData.userProbability).map(surveyData =>
-			new LanguageSurvey(surveyData, instantiationService, storageService, notificationService, telemetryService, fileService, modelService));
+			new LanguageSurvey(surveyData, instantiationService, storageService, notificationService, telemetryService, modelService, textFileService));
 	}
 }
 
