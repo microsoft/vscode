@@ -352,11 +352,6 @@ export class CodeApplication {
 
 		// Electron 2.0: Backup
 		else {
-			const localStorageFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage');
-			const localStorageJournalFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage-journal');
-			const localStorageBackupFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage.vscbak');
-			const localStorageJournalBackupFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage-journal.vscbak');
-
 			return exists(localStorageBackupFile).then(backupExists => {
 				if (backupExists) {
 					return void 0; // do not backup if backup already exists
