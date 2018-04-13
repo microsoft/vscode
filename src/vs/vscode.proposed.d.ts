@@ -101,57 +101,6 @@ declare module 'vscode' {
 
 	//#region Joh: file system provider
 
-	// export enum FileErrorCodes {
-	// 	/**
-	// 	 * Not owner.
-	// 	 */
-	// 	EPERM = 1,
-	// 	/**
-	// 	 * No such file or directory.
-	// 	 */
-	// 	ENOENT = 2,
-	// 	/**
-	// 	 * I/O error.
-	// 	 */
-	// 	EIO = 5,
-	// 	/**
-	// 	 * Permission denied.
-	// 	 */
-	// 	EACCES = 13,
-	// 	/**
-	// 	 * File exists.
-	// 	 */
-	// 	EEXIST = 17,
-	// 	/**
-	// 	 * Not a directory.
-	// 	 */
-	// 	ENOTDIR = 20,
-	// 	/**
-	// 	 * Is a directory.
-	// 	 */
-	// 	EISDIR = 21,
-	// 	/**
-	// 	 *  File too large.
-	// 	 */
-	// 	EFBIG = 27,
-	// 	/**
-	// 	 * No space left on device.
-	// 	 */
-	// 	ENOSPC = 28,
-	// 	/**
-	// 	 * Directory is not empty.
-	// 	 */
-	// 	ENOTEMPTY = 66,
-	// 	/**
-	// 	 * Invalid file handle.
-	// 	 */
-	// 	ESTALE = 70,
-	// 	/**
-	// 	 * Illegal NFS file handle.
-	// 	 */
-	// 	EBADHANDLE = 10001,
-	// }
-
 	export enum FileChangeType {
 		Updated = 0,
 		Added = 1,
@@ -225,9 +174,24 @@ declare module 'vscode' {
 
 	export class FileError extends Error {
 
+		/**
+		 * Entry already exists.
+		 */
 		static readonly EEXIST: FileError;
+
+		/**
+		 * Entry does not exist.
+		 */
 		static readonly ENOENT: FileError;
+
+		/**
+		 * Entry is not a directory.
+		 */
 		static readonly ENOTDIR: FileError;
+
+		/**
+		 * Entry is a directory.
+		 */
 		static readonly EISDIR: FileError;
 
 		readonly code: string;
@@ -265,7 +229,6 @@ declare module 'vscode' {
 		Exclusive = 0b1000
 	}
 
-	// todo@joh discover files etc
 	// todo@joh add open/close calls?
 	export interface FileSystemProvider2 {
 
@@ -277,13 +240,13 @@ declare module 'vscode' {
 		readonly onDidChange: Event<FileChange2[]>;
 
 		/**
-		 * Retrieve meta data about a file.
+		 * Retrieve metadata about a file. Must throw an [`ENOENT`](#FileError.ENOENT)-error
+		 * when the file doesn't exist.
 		 *
 		 * @param uri The uri of the file to retrieve meta data about.
 		 * @param token A cancellation token.
+		 * @return The file metadata about the file.
 		 */
-		// todo@remote
-		// ! throw error (ENOENT) when the file doesn't exist
 		stat(uri: Uri, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
 
 		/**
