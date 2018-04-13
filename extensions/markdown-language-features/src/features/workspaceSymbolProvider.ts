@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { disposeAll } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
+import { Lazy, lazy } from '../util/lazy';
 import MDDocumentSymbolProvider from './documentSymbolProvider';
 
 export interface WorkspaceMarkdownDocumentProvider {
@@ -87,7 +88,7 @@ class VSCodeWorkspaceMarkdownDocumentProvider implements WorkspaceMarkdownDocume
 
 
 export default class MarkdownWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvider {
-	private _symbolCache = new Map<string, Thenable<vscode.SymbolInformation[]>>();
+	private _symbolCache = new Map<string, Lazy<Thenable<vscode.SymbolInformation[]>>>();
 	private _symbolCachePopulated: boolean = false;
 	private _disposables: vscode.Disposable[] = [];
 
@@ -106,7 +107,7 @@ export default class MarkdownWorkspaceSymbolProvider implements vscode.Workspace
 			this._workspaceMarkdownDocumentProvider.onDidDeleteMarkdownDocument(this.onDidDeleteDocument, this, this._disposables);
 		}
 
-		const allSymbolsSets = await Promise.all(Array.from(this._symbolCache.values()));
+		const allSymbolsSets = await Promise.all(Array.from(this._symbolCache.values()).map(x => x.value));
 		const allSymbols: vscode.SymbolInformation[] = Array.prototype.concat.apply([], allSymbolsSets);
 		return allSymbols.filter(symbolInformation => symbolInformation.name.toLowerCase().indexOf(query.toLowerCase()) !== -1);
 	}
@@ -122,8 +123,10 @@ export default class MarkdownWorkspaceSymbolProvider implements vscode.Workspace
 		disposeAll(this._disposables);
 	}
 
-	private getSymbols(document: vscode.TextDocument): Promise<vscode.SymbolInformation[]> {
-		return this._symbolProvider.provideDocumentSymbols(document);
+	private getSymbols(document: vscode.TextDocument): Lazy<Thenable<vscode.SymbolInformation[]>> {
+		return lazy(async () => {
+			return this._symbolProvider.provideDocumentSymbols(document);
+		});
 	}
 
 	private onDidChangeDocument(document: vscode.TextDocument) {
