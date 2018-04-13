@@ -71,6 +71,7 @@
 	"config.inputValidation": "Controls when to show commit message input validation.",
 	"config.detectSubmodules": "Controls whether to automatically detect git submodules.",
 	"config.detectSubmodulesLimit": "Controls the limit of git submodules detected.",
+	"config.alwaysSignOff": "Controls the signoff flag for all commits",
 	"colors.modified": "Color for modified resources.",
 	"colors.deleted": "Color for deleted resources.",
 	"colors.untracked": "Color for untracked resources.",

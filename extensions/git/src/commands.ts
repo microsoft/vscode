@@ -1017,6 +1017,10 @@ export class CommandCenter {
 		// enable signing of commits if configurated
 		opts.signCommit = enableCommitSigning;
 
+		if (config.get<boolean>('alwaysSignOff')) {
+			opts.signoff = true;
+		}
+
 		if (
 			// no changes
 			(noStagedChanges && noUnstagedChanges)
