@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import URI from 'vs/base/common/uri';
+import { createHash } from 'crypto';
 import * as paths from 'vs/base/common/paths';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter } from 'vs/base/common/event';
-import { readFile } from 'vs/base/node/pfs';
+import * as pfs from 'vs/base/node/pfs';
 import * as errors from 'vs/base/common/errors';
 import * as collections from 'vs/base/common/collections';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -21,11 +22,13 @@ import { FOLDER_SETTINGS_PATH, TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LA
 import { IStoredWorkspace, IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import * as extfs from 'vs/base/node/extfs';
 import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
-import { WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { relative } from 'path';
 import { equals } from 'vs/base/common/objects';
 import { Schemas } from 'vs/base/common/network';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 
 export class WorkspaceConfiguration extends Disposable {
 
@@ -129,18 +132,29 @@ function isWorkspaceConfigurationFile(resource: URI): boolean {
 	return [`${FOLDER_SETTINGS_NAME}.json`, `${TASKS_CONFIGURATION_KEY}.json`, `${LAUNCH_CONFIGURATION_KEY}.json`].some(p => p === name);// only workspace config files
 }
 
-export abstract class FolderConfiguration extends Disposable {
+export interface IFolderConfiguration {
+	readonly onDidChange: Event<void>;
+	loadConfiguration(): TPromise<ConfigurationModel>;
+	reprocess(): ConfigurationModel;
+	getUnsupportedKeys(): string[];
+	dispose(): void;
+}
+
+export abstract class AbstractFolderConfiguration extends Disposable implements IFolderConfiguration {
 
 	private _folderSettingsModelParser: FolderSettingsModelParser;
-	private _standAloneConfigurations: ConfigurationModel[] = [];
-	private _cache: ConfigurationModel = new ConfigurationModel();
+	private _standAloneConfigurations: ConfigurationModel[];
+	private _cache: ConfigurationModel;
 
 	protected readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
-	constructor(protected readonly folder: URI, workbenchState: WorkbenchState) {
+	constructor(protected readonly folder: URI, workbenchState: WorkbenchState, from?: AbstractFolderConfiguration) {
 		super();
-		this._folderSettingsModelParser = new FolderSettingsModelParser(FOLDER_SETTINGS_PATH, WorkbenchState.WORKSPACE === workbenchState ? [ConfigurationScope.RESOURCE] : [ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE]);
+
+		this._folderSettingsModelParser = from ? from._folderSettingsModelParser : new FolderSettingsModelParser(FOLDER_SETTINGS_PATH, WorkbenchState.WORKSPACE === workbenchState ? [ConfigurationScope.RESOURCE] : [ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE]);
+		this._standAloneConfigurations = from ? from._standAloneConfigurations : [];
+		this._cache = from ? from._cache : new ConfigurationModel();
 	}
 
 	loadConfiguration(): TPromise<ConfigurationModel> {
@@ -190,7 +204,7 @@ export abstract class FolderConfiguration extends Disposable {
 	protected abstract loadFolderConfigurationContents(): TPromise<{ resource: URI, value: string }[]>;
 }
 
-export class NodeBasedFolderConfiguration extends FolderConfiguration {
+export class NodeBasedFolderConfiguration extends AbstractFolderConfiguration {
 
 	private readonly folderConfigurationPath: URI;
 
@@ -212,7 +226,7 @@ export class NodeBasedFolderConfiguration extends FolderConfiguration {
 
 	private resolveContents(resources: URI[]): TPromise<{ resource: URI, value: string }[]> {
 		return TPromise.join(resources.map(resource =>
-			readFile(resource.fsPath)
+			pfs.readFile(resource.fsPath)
 				.then(contents => ({ resource, value: contents.toString() }))));
 	}
 
@@ -237,15 +251,15 @@ export class NodeBasedFolderConfiguration extends FolderConfiguration {
 	}
 }
 
-export class FileServiceBasedFolderConfiguration extends FolderConfiguration {
+export class FileServiceBasedFolderConfiguration extends AbstractFolderConfiguration {
 
 	private bulkContentFetchromise: TPromise<IContent[]>;
 	private workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: TPromise<IContent> };
 	private reloadConfigurationScheduler: RunOnceScheduler;
 	private readonly folderConfigurationPath: URI;
 
-	constructor(folder: URI, private configFolderRelativePath: string, workbenchState: WorkbenchState, private fileService: IFileService) {
-		super(folder, workbenchState);
+	constructor(folder: URI, private configFolderRelativePath: string, workbenchState: WorkbenchState, private fileService: IFileService, from?: AbstractFolderConfiguration) {
+		super(folder, workbenchState, from);
 		this.folderConfigurationPath = folder.with({ path: paths.join(this.folder.path, configFolderRelativePath) });
 		this.workspaceFilePathToConfiguration = Object.create(null);
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this._onDidChange.fire(), 50));
@@ -329,8 +343,124 @@ export class FileServiceBasedFolderConfiguration extends FolderConfiguration {
 	}
 }
 
-export class VoidFolderConfiguration extends FolderConfiguration {
-	protected loadFolderConfigurationContents(): TPromise<{ resource: URI, value: string }[]> {
-		return TPromise.as([]);
+export class CachedFolderConfiguration extends Disposable implements IFolderConfiguration {
+
+	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	private readonly cachedFolderPath: string;
+	private readonly cachedConfigurationPath: string;
+	private configurationModel: ConfigurationModel;
+
+	constructor(
+		folder: URI,
+		configFolderRelativePath: string,
+		environmentService: IEnvironmentService) {
+		super();
+		this.cachedFolderPath = paths.join(environmentService.appSettingsHome, createHash('md5').update(paths.join(folder.path, configFolderRelativePath)).digest('hex'));
+		this.cachedConfigurationPath = paths.join(this.cachedFolderPath, 'configuration.json');
+		this.configurationModel = new ConfigurationModel();
+	}
+
+	loadConfiguration(): TPromise<ConfigurationModel> {
+		return pfs.readFile(this.cachedConfigurationPath)
+			.then(contents => {
+				const parsed: IConfigurationModel = JSON.parse(contents.toString());
+				this.configurationModel = new ConfigurationModel(parsed.contents, parsed.keys, parsed.overrides);
+				return this.configurationModel;
+			}, () => this.configurationModel);
+	}
+
+	updateConfiguration(configurationModel: ConfigurationModel): TPromise<void> {
+		const raw = JSON.stringify(configurationModel.toJSON());
+		return this.createCachedFolder().then(created => {
+			if (created) {
+				return configurationModel.keys.length ? pfs.writeFile(this.cachedConfigurationPath, raw) : pfs.rimraf(this.cachedFolderPath);
+			}
+			return null;
+		});
+	}
+
+	reprocess(): ConfigurationModel {
+		return this.configurationModel;
+	}
+
+	getUnsupportedKeys(): string[] {
+		return [];
+	}
+
+	private createCachedFolder(): TPromise<boolean> {
+		return pfs.exists(this.cachedFolderPath)
+			.then(exists => exists ? exists : pfs.mkdirp(this.cachedFolderPath), () => pfs.mkdirp(this.cachedFolderPath));
+	}
+}
+
+export class FolderConfiguration extends Disposable implements IFolderConfiguration {
+
+	protected readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	private folderConfiguration: IFolderConfiguration;
+	private cachedFolderConfiguration: CachedFolderConfiguration;
+
+	constructor(
+		readonly workspaceFolder: IWorkspaceFolder,
+		private readonly configFolderRelativePath: string,
+		private readonly workbenchState: WorkbenchState,
+		private environmentService: IEnvironmentService,
+		fileService?: IFileService
+	) {
+		super();
+
+		this.cachedFolderConfiguration = new CachedFolderConfiguration(this.workspaceFolder.uri, this.configFolderRelativePath, this.environmentService);
+		this.folderConfiguration = this.cachedFolderConfiguration;
+		if (fileService) {
+			this.folderConfiguration = new FileServiceBasedFolderConfiguration(this.workspaceFolder.uri, this.configFolderRelativePath, this.workbenchState, fileService);
+		} else if (this.workspaceFolder.uri.scheme === Schemas.file) {
+			this.folderConfiguration = new NodeBasedFolderConfiguration(this.workspaceFolder.uri, this.configFolderRelativePath, this.workbenchState);
+		}
+		this._register(this.folderConfiguration.onDidChange(e => this.onDidFolderConfigurationChange()));
+	}
+
+	loadConfiguration(): TPromise<ConfigurationModel> {
+		return this.folderConfiguration.loadConfiguration();
+	}
+
+	reprocess(): ConfigurationModel {
+		return this.folderConfiguration.reprocess();
+	}
+
+	getUnsupportedKeys(): string[] {
+		return this.folderConfiguration.getUnsupportedKeys();
+	}
+
+	adopt(fileService: IFileService): boolean {
+		let result = false;
+		if (fileService && !(this.folderConfiguration instanceof FileServiceBasedFolderConfiguration)) {
+			if (this.folderConfiguration instanceof CachedFolderConfiguration) {
+				this.folderConfiguration = new FileServiceBasedFolderConfiguration(this.workspaceFolder.uri, this.configFolderRelativePath, this.workbenchState, fileService);
+				this.updateCache();
+				result = true;
+			} else {
+				const oldFolderConfiguration = this.folderConfiguration;
+				this.folderConfiguration = new FileServiceBasedFolderConfiguration(this.workspaceFolder.uri, this.configFolderRelativePath, this.workbenchState, fileService, <AbstractFolderConfiguration>oldFolderConfiguration);
+				oldFolderConfiguration.dispose();
+			}
+			this._register(this.folderConfiguration.onDidChange(e => this.onDidFolderConfigurationChange()));
+		}
+		return result;
+	}
+
+	private onDidFolderConfigurationChange(): void {
+		this.updateCache();
+		this._onDidChange.fire();
+	}
+
+	private updateCache(): TPromise<void> {
+		if (this.workspaceFolder.uri.scheme !== Schemas.file && this.folderConfiguration instanceof FileServiceBasedFolderConfiguration) {
+			return this.folderConfiguration.loadConfiguration()
+				.then(configurationModel => this.cachedFolderConfiguration.updateConfiguration(configurationModel));
+		}
+		return TPromise.as(null);
 	}
 }
