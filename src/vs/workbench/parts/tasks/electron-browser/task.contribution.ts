@@ -1876,23 +1876,27 @@ class TaskService implements ITaskService {
 
 	private doRunTaskCommand(tasks?: Task[]): void {
 		this.showIgnoredFoldersMessage().then(() => {
-			this.showQuickPick(tasks ? tasks : this.tasks(),
-				nls.localize('TaskService.pickRunTask', 'Select the task to run'),
-				{
-					label: nls.localize('TaslService.noEntryToRun', 'No task to run found. Configure Tasks...'),
-					task: null
-				},
-				true).
-				then((task) => {
-					if (task === void 0) {
-						return;
-					}
-					if (task === null) {
-						this.runConfigureTasks();
-					} else {
-						this.run(task, { attachProblemMatcher: true });
-					}
-				});
+			if (tasks && tasks.length === 1) {
+				this.run(tasks[0], { attachProblemMatcher: true });
+			} else {
+				this.showQuickPick(tasks ? tasks : this.tasks(),
+					nls.localize('TaskService.pickRunTask', 'Select the task to run'),
+					{
+						label: nls.localize('TaslService.noEntryToRun', 'No task to run found. Configure Tasks...'),
+						task: null
+					},
+					true).
+					then((task) => {
+						if (task === void 0) {
+							return;
+						}
+						if (task === null) {
+							this.runConfigureTasks();
+						} else {
+							this.run(task, { attachProblemMatcher: true });
+						}
+					});
+			}
 		});
 	}
 
@@ -1935,22 +1939,27 @@ class TaskService implements ITaskService {
 				}
 			}
 			this.showIgnoredFoldersMessage().then(() => {
-				this.showQuickPick(tasks,
-					nls.localize('TaskService.pickBuildTask', 'Select the build task to run'),
-					{
-						label: nls.localize('TaskService.noBuildTask', 'No build task to run found. Configure Build Task...'),
-						task: null
-					},
-					true).then((task) => {
-						if (task === void 0) {
-							return;
-						}
-						if (task === null) {
-							this.runConfigureDefaultBuildTask();
-							return;
-						}
-						this.run(task, { attachProblemMatcher: true });
-					});
+				if (tasks.length === 1) {
+					this.run(tasks[0], { attachProblemMatcher: true });
+				} else {
+					this.showQuickPick(tasks,
+						nls.localize('TaskService.pickBuildTask', 'Select the build task to run'),
+						{
+							label: nls.localize('TaskService.noBuildTask', 'No build task to run found. Configure Build Task...'),
+							task: null
+						},
+						true)
+						.then((task) => {
+							if (task === void 0) {
+								return;
+							}
+							if (task === null) {
+								this.runConfigureDefaultBuildTask();
+								return;
+							}
+							this.run(task, { attachProblemMatcher: true });
+						});
+				}
 			});
 		});
 		this.progressService.withProgress(options, () => promise);
@@ -1979,22 +1988,27 @@ class TaskService implements ITaskService {
 				}
 			}
 			this.showIgnoredFoldersMessage().then(() => {
-				this.showQuickPick(tasks,
-					nls.localize('TaskService.pickTestTask', 'Select the test task to run'),
-					{
-						label: nls.localize('TaskService.noTestTaskTerminal', 'No test task to run found. Configure Tasks...'),
-						task: null
-					}, true
-				).then((task) => {
-					if (task === void 0) {
-						return;
-					}
-					if (task === null) {
-						this.runConfigureTasks();
-						return;
-					}
-					this.run(task);
-				});
+				if (tasks.length === 1) {
+					this.run(tasks[0]);
+				} else {
+					this.showQuickPick(tasks,
+						nls.localize('TaskService.pickTestTask', 'Select the test task to run'),
+						{
+							label: nls.localize('TaskService.noTestTaskTerminal', 'No test task to run found. Configure Tasks...'),
+							task: null
+						},
+						true)
+						.then((task) => {
+							if (task === void 0) {
+								return;
+							}
+							if (task === null) {
+								this.runConfigureTasks();
+								return;
+							}
+							this.run(task);
+						});
+				}
 			});
 		});
 		this.progressService.withProgress(options, () => promise);
@@ -2043,18 +2057,24 @@ class TaskService implements ITaskService {
 			return;
 		}
 		if (this.inTerminal()) {
-			this.showQuickPick(this.getActiveTasks(),
-				nls.localize('TaskService.tastToRestart', 'Select the task to restart'),
-				{
-					label: nls.localize('TaskService.noTaskToRestart', 'No task to restart'),
-					task: null
-				},
-				false, true
-			).then(task => {
-				if (task === void 0 || task === null) {
-					return;
+			this.getActiveTasks().then((tasks) => {
+				if (tasks.length === 1) {
+					this.restart(tasks[0]);
+				} else {
+					this.showQuickPick(tasks,
+						nls.localize('TaskService.tastToRestart', 'Select the task to restart'),
+						{
+							label: nls.localize('TaskService.noTaskToRestart', 'No task to restart'),
+							task: null
+						},
+						false, true)
+						.then(task => {
+							if (task === void 0 || task === null) {
+								return;
+							}
+							this.restart(task);
+						});
 				}
-				this.restart(task);
 			});
 		} else {
 			this.getActiveTasks().then((activeTasks) => {
@@ -2291,18 +2311,24 @@ class TaskService implements ITaskService {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		this.showQuickPick(this.getActiveTasks(),
-			nls.localize('TaskService.pickShowTask', 'Select the task to show its output'),
-			{
-				label: nls.localize('TaskService.noTaskIsRunning', 'No task is running'),
-				task: null
-			},
-			false, true
-		).then((task) => {
-			if (task === void 0 || task === null) {
-				return;
+		this.getActiveTasks().then((tasks) => {
+			if (tasks.length === 1) {
+				this._taskSystem.revealTask(tasks[0]);
+			} else {
+				this.showQuickPick(tasks,
+					nls.localize('TaskService.pickShowTask', 'Select the task to show its output'),
+					{
+						label: nls.localize('TaskService.noTaskIsRunning', 'No task is running'),
+						task: null
+					},
+					false, true)
+					.then((task) => {
+						if (task === void 0 || task === null) {
+							return;
+						}
+						this._taskSystem.revealTask(task);
+					});
 			}
-			this._taskSystem.revealTask(task);
 		});
 	}
 }
