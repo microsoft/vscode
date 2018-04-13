@@ -134,6 +134,7 @@ function isFolderConfigurationFile(resource: URI): boolean {
 
 export interface IFolderConfiguration {
 	readonly onDidChange: Event<void>;
+	readonly loaded: boolean;
 	loadConfiguration(): TPromise<ConfigurationModel>;
 	reprocess(): ConfigurationModel;
 	getUnsupportedKeys(): string[];
@@ -145,6 +146,7 @@ export abstract class AbstractFolderConfiguration extends Disposable implements 
 	private _folderSettingsModelParser: FolderSettingsModelParser;
 	private _standAloneConfigurations: ConfigurationModel[];
 	private _cache: ConfigurationModel;
+	private _loaded: boolean = false;
 
 	protected readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
@@ -157,12 +159,17 @@ export abstract class AbstractFolderConfiguration extends Disposable implements 
 		this._cache = from ? from._cache : new ConfigurationModel();
 	}
 
+	get loaded(): boolean {
+		return this._loaded;
+	}
+
 	loadConfiguration(): TPromise<ConfigurationModel> {
 		return this.loadFolderConfigurationContents()
 			.then((contents) => {
 				this.parseContents(contents);
 				// Consolidate (support *.json files in the workspace settings folder)
 				this.consolidate();
+				this._loaded = true;
 				return this._cache;
 			});
 	}
@@ -355,6 +362,8 @@ export class CachedFolderConfiguration extends Disposable implements IFolderConf
 	private readonly cachedConfigurationPath: string;
 	private configurationModel: ConfigurationModel;
 
+	loaded: boolean = false;
+
 	constructor(
 		folder: URI,
 		configFolderRelativePath: string,
@@ -370,6 +379,7 @@ export class CachedFolderConfiguration extends Disposable implements IFolderConf
 			.then(contents => {
 				const parsed: IConfigurationModel = JSON.parse(contents.toString());
 				this.configurationModel = new ConfigurationModel(parsed.contents, parsed.keys, parsed.overrides);
+				this.loaded = true;
 				return this.configurationModel;
 			}, () => this.configurationModel);
 	}
@@ -394,7 +404,8 @@ export class CachedFolderConfiguration extends Disposable implements IFolderConf
 
 	private createCachedFolder(): TPromise<boolean> {
 		return pfs.exists(this.cachedFolderPath)
-			.then(exists => exists ? exists : pfs.mkdirp(this.cachedFolderPath), () => pfs.mkdirp(this.cachedFolderPath));
+			.then(null, () => false)
+			.then(exists => exists ? exists : pfs.mkdirp(this.cachedFolderPath).then(() => true, () => false));
 	}
 }
 
@@ -405,6 +416,7 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 
 	private folderConfiguration: IFolderConfiguration;
 	private cachedFolderConfiguration: CachedFolderConfiguration;
+	private _loaded: boolean = false;
 
 	constructor(
 		readonly workspaceFolder: IWorkspaceFolder,
@@ -426,7 +438,11 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 	}
 
 	loadConfiguration(): TPromise<ConfigurationModel> {
-		return this.folderConfiguration.loadConfiguration();
+		return this.folderConfiguration.loadConfiguration()
+			.then(model => {
+				this._loaded = this.folderConfiguration.loaded;
+				return model;
+			});
 	}
 
 	reprocess(): ConfigurationModel {
@@ -435,6 +451,10 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 
 	getUnsupportedKeys(): string[] {
 		return this.folderConfiguration.getUnsupportedKeys();
+	}
+
+	get loaded(): boolean {
+		return this._loaded;
 	}
 
 	adopt(fileService: IFileService): boolean {

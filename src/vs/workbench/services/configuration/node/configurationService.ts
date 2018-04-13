@@ -239,7 +239,9 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	// Workspace Configuration Service Impl
 
 	getConfigurationData(): IConfigurationData {
-		return this._configuration.toData();
+		const configurationData = this._configuration.toData();
+		configurationData.isComplete = this.cachedFolderConfigs.values().every(c => c.loaded);
+		return configurationData;
 	}
 
 	getValue<T>(): T;

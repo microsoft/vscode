@@ -112,6 +112,7 @@ export interface IConfigurationData {
 	user: IConfigurationModel;
 	workspace: IConfigurationModel;
 	folders: { [folder: string]: IConfigurationModel };
+	isComplete: boolean;
 }
 
 export function compare(from: IConfigurationModel, to: IConfigurationModel): { added: string[], removed: string[], updated: string[] } {
