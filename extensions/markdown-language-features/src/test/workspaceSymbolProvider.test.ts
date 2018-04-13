@@ -12,9 +12,11 @@ import { createNewMarkdownEngine } from './engine';
 import { InMemoryDocument } from './inMemoryDocument';
 
 
+const symbolProvider = new MDDocumentSymbolProvider(createNewMarkdownEngine());
+
 suite('markdown.WorkspaceSymbolProvider', () => {
 	test('Should not return anything for empty workspace', async () => {
-		const provider = new MarkdownWorkspaceSymbolProvider(new MDDocumentSymbolProvider(createNewMarkdownEngine()), new class implements WorkspaceMarkdownDocumentProvider {
+		const provider = new MarkdownWorkspaceSymbolProvider(symbolProvider, new class implements WorkspaceMarkdownDocumentProvider {
 			async getAllMarkdownDocuments() {
 				return [];
 			}
@@ -23,10 +25,10 @@ suite('markdown.WorkspaceSymbolProvider', () => {
 		assert.deepEqual(await provider.provideWorkspaceSymbols(''), []);
 	});
 
-	test('Should return single documents content for basic workspace', async () => {
+	test('Should return symbols from workspace with one markdown file', async () => {
 		const testFileName = vscode.Uri.parse('test.md');
 
-		const provider = new MarkdownWorkspaceSymbolProvider(new MDDocumentSymbolProvider(createNewMarkdownEngine()), new class implements WorkspaceMarkdownDocumentProvider {
+		const provider = new MarkdownWorkspaceSymbolProvider(symbolProvider, new class implements WorkspaceMarkdownDocumentProvider {
 			async getAllMarkdownDocuments() {
 				return [new InMemoryDocument(testFileName, `# header1\nabc\n## header2`)];
 			}
@@ -36,5 +38,23 @@ suite('markdown.WorkspaceSymbolProvider', () => {
 		assert.strictEqual(symbols.length, 2);
 		assert.strictEqual(symbols[0].name, '# header1');
 		assert.strictEqual(symbols[1].name, '## header2');
+	});
+
+	test('Should return all content  basic workspace', async () => {
+		const fileNameCount = 10;
+		const files: vscode.TextDocument[] = [];
+		for (let i = 0; i < fileNameCount; ++i) {
+			const testFileName = vscode.Uri.parse(`test${i}.md`);
+			files.push(new InMemoryDocument(testFileName, `# common\nabc\n## header${i}`));
+		}
+
+		const provider = new MarkdownWorkspaceSymbolProvider(symbolProvider, new class implements WorkspaceMarkdownDocumentProvider {
+			async getAllMarkdownDocuments() {
+				return files;
+			}
+		});
+
+		const symbols = await provider.provideWorkspaceSymbols('');
+		assert.strictEqual(symbols.length, fileNameCount * 2);
 	});
 });
