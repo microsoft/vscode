@@ -7,8 +7,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { ViewsRegistry, IViewDescriptor, ViewLocation } from 'vs/workbench/common/views';
 import { IContextKeyService, IContextKeyChangeEvent, IReadableSet } from 'vs/platform/contextkey/common/contextkey';
 import { Event, chain, filterEvent, Emitter } from 'vs/base/common/event';
-import { binarySearch, findFirst } from 'vs/base/common/arrays';
-import { ISplice } from 'vs/base/common/sequence';
+import { findFirst, sortedDiff } from 'vs/base/common/arrays';
+import { ISequence, ISplice } from 'vs/base/common/sequence';
 
 function filterViewEvent(location: ViewLocation, event: Event<IViewDescriptor[]>): Event<IViewDescriptor[]> {
 	return chain(event)
@@ -49,41 +49,23 @@ class CounterSet<T> implements IReadableSet<T> {
 	}
 }
 
-export interface IView {
-	collapsed: boolean;
-}
-
 export interface IViewItem {
 	viewDescriptor: IViewDescriptor;
-	visible: boolean;
+	active: boolean;
 }
 
-function compareViewDescriptors(a: IViewDescriptor, b: IViewDescriptor): number {
-	if (typeof a.order !== 'number') {
-		return 1;
-	} else if (typeof b.order !== 'number') {
-		return -1;
-	}
-
-	return a.order - b.order;
-}
-
-function compareViewItems(a: IViewItem, b: IViewItem): number {
-	return compareViewDescriptors(a.viewDescriptor, b.viewDescriptor);
-}
-
-export class ContributableViews {
+class ViewDescriptorCollection {
 
 	private contextKeys = new CounterSet<string>();
 	private items: IViewItem[] = [];
 	private disposables: IDisposable[] = [];
 
-	private _onDidSplice = new Emitter<ISplice<IViewDescriptor>>();
-	readonly onDidSplice: Event<ISplice<IViewDescriptor>> = this._onDidSplice.event;
+	private _onDidChange = new Emitter<void>();
+	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	get viewDescriptors(): IViewDescriptor[] {
 		return this.items
-			.filter(i => i.visible)
+			.filter(i => i.active)
 			.map(i => i.viewDescriptor);
 	}
 
@@ -104,24 +86,15 @@ export class ContributableViews {
 	}
 
 	private onViewsRegistered(viewDescriptors: IViewDescriptor[]): any {
+		let fireChangeEvent = false;
+
 		for (const viewDescriptor of viewDescriptors) {
 			const item = {
 				viewDescriptor,
-				visible: this.canViewDescriptorBeVisible(viewDescriptor) // TODO: should read from some state?
+				active: this.isViewDescriptorActive(viewDescriptor) // TODO: should read from some state?
 			};
 
-			let index = binarySearch(this.items, item, compareViewItems);
-
-			// insert this new view descriptor at the end of same order view descriptors
-			if (index < 0) {
-				index = ~index;
-
-				while (index < this.items.length && compareViewItems(this.items[index], item) === 0) {
-					index++;
-				}
-			}
-
-			this.items.splice(index, 0, item);
+			this.items.push(item);
 
 			if (viewDescriptor.when) {
 				for (const key of viewDescriptor.when.keys()) {
@@ -129,13 +102,19 @@ export class ContributableViews {
 				}
 			}
 
-			if (item.visible) {
-				this._onDidSplice.fire({ start: index, deleteCount: 0, toInsert: [viewDescriptor] });
+			if (item.active) {
+				fireChangeEvent = true;
 			}
+		}
+
+		if (fireChangeEvent) {
+			this._onDidChange.fire();
 		}
 	}
 
 	private onViewsDeregistered(viewDescriptors: IViewDescriptor[]): any {
+		let fireChangeEvent = false;
+
 		for (const viewDescriptor of viewDescriptors) {
 			const index = findFirst(this.items, i => i.viewDescriptor.id === viewDescriptor.id);
 
@@ -152,38 +131,116 @@ export class ContributableViews {
 				}
 			}
 
-			if (item.visible) {
-				this._onDidSplice.fire({ start: index, deleteCount: 1, toInsert: [] });
+			if (item.active) {
+				fireChangeEvent = true;
 			}
+		}
+
+		if (fireChangeEvent) {
+			this._onDidChange.fire();
 		}
 	}
 
 	private onContextChanged(event: IContextKeyChangeEvent): any {
-		let index = 0;
+		let fireChangeEvent = false;
 
 		for (const item of this.items) {
-			const visible = this.canViewDescriptorBeVisible(item.viewDescriptor);
+			const visible = this.isViewDescriptorActive(item.viewDescriptor);
 
-			if (item.visible === visible) {
-				if (visible) {
-					index++;
-				}
-
-				continue;
+			if (item.active !== visible) {
+				fireChangeEvent = true;
 			}
 
-			if (visible) { // show
-				this._onDidSplice.fire({ start: index, deleteCount: 0, toInsert: [item.viewDescriptor] });
-				index++;
-			} else { // hide
-				this._onDidSplice.fire({ start: index, deleteCount: 1, toInsert: [] });
-			}
+			item.active = visible;
+		}
 
-			item.visible = visible;
+		if (fireChangeEvent) {
+			this._onDidChange.fire();
 		}
 	}
 
-	private canViewDescriptorBeVisible(viewDescriptor: IViewDescriptor): boolean {
-		return this.contextKeyService.contextMatchesRules(viewDescriptor.when);
+	private isViewDescriptorActive(viewDescriptor: IViewDescriptor): boolean {
+		return !viewDescriptor.when || this.contextKeyService.contextMatchesRules(viewDescriptor.when);
+	}
+}
+
+export interface IView {
+	viewDescriptor: IViewDescriptor;
+	visible: boolean;
+}
+
+interface IViewState {
+	visible: boolean;
+	order?: number;
+}
+
+export class ContributableViews implements ISequence<IViewDescriptor>{
+
+	private viewDescriptorCollection: ViewDescriptorCollection;
+	private viewsStates = new Map<string, IViewState>();
+
+	// ISequence
+	elements: IViewDescriptor[] = [];
+	private _onDidSplice = new Emitter<ISplice<IViewDescriptor>>();
+	readonly onDidSplice: Event<ISplice<IViewDescriptor>> = this._onDidSplice.event;
+
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		location: ViewLocation,
+		@IContextKeyService contextKeyService: IContextKeyService
+	) {
+		this.viewDescriptorCollection = new ViewDescriptorCollection(location, contextKeyService);
+
+		this.viewDescriptorCollection.onDidChange(this.onDidChangeViewDescriptors, this, this.disposables);
+		this.onDidChangeViewDescriptors();
+	}
+
+	private compareViewDescriptors(a: IViewDescriptor, b: IViewDescriptor): number {
+		const viewStateA = this.viewsStates.get(a.id);
+		const viewStateB = this.viewsStates.get(b.id);
+		const orderA = viewStateA ? viewStateA.order : a.order;
+		const orderB = viewStateB ? viewStateB.order : b.order;
+
+		if (orderB === void 0 || orderB === null) {
+			return -1;
+		}
+
+		if (orderA === void 0 || orderA === null) {
+			return 1;
+		}
+
+		return orderA - orderB;
+	}
+
+	private onDidChangeViewDescriptors(): void {
+		const compareFn = (a, b) => this.compareViewDescriptors(a, b);
+		const sortedViewDescriptors = this.viewDescriptorCollection.viewDescriptors.sort(compareFn);
+
+		const elements: IViewDescriptor[] = [];
+
+		for (const viewDescriptor of sortedViewDescriptors) {
+			const state = this.viewsStates.get(viewDescriptor.id);
+
+			if (!state || state.visible) {
+				elements.push(viewDescriptor);
+			}
+		}
+
+		const splices = sortedDiff<IViewDescriptor>(this.elements, elements, compareFn);
+
+		for (const splice of splices) {
+			this._onDidSplice.fire(splice);
+		}
+
+		this.elements = elements;
+	}
+
+	setVisible(id: string, visible: boolean): void {
+
+	}
+
+	move(from: string, to: string): void {
+		// reset ORDERS for all view states
 	}
 }
