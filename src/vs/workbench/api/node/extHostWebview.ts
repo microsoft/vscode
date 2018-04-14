@@ -242,7 +242,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 	}
 
-	$onDidChangeWeviewViewState(handle: WebviewHandle, active: boolean, position: Position): void {
+	$onDidChangeWebviewViewState(handle: WebviewHandle, active: boolean, position: Position): void {
 		const panel = this.getWebviewPanel(handle);
 		if (panel) {
 			const viewColumn = typeConverters.toViewColumn(position);
@@ -254,7 +254,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 	}
 
-	$onDidDisposeWeview(handle: WebviewHandle): Thenable<void> {
+	$onDidDisposeWebview(handle: WebviewHandle): Thenable<void> {
 		const panel = this.getWebviewPanel(handle);
 		if (panel) {
 			panel.dispose();
