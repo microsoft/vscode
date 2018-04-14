@@ -14,7 +14,7 @@ import { Terminal as XTermTerminal } from 'vscode-xterm';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig, ITerminalProcessManager, ITerminalProcessMessage } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig, ITerminalProcessManager, ProcessState } from 'vs/workbench/parts/terminal/common/terminal';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
@@ -34,29 +34,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { TerminalCommandTracker } from 'vs/workbench/parts/terminal/node/terminalCommandTracker';
 import { TerminalProcessManager } from './terminalProcessManager';
 
-/** The amount of time to consider terminal errors to be related to the launch */
-const LAUNCHING_DURATION = 500;
-
 let Terminal: typeof XTermTerminal;
-
-enum ProcessState {
-	// The process has not been initialized yet.
-	UNINITIALIZED,
-	// The process is currently launching, the process is marked as launching
-	// for a short duration after being created and is helpful to indicate
-	// whether the process died as a result of bad shell and args.
-	LAUNCHING,
-	// The process is running normally.
-	RUNNING,
-	// The process was killed during launch, likely as a result of bad shell and
-	// args.
-	KILLED_DURING_LAUNCH,
-	// The process was killed by the user (the event originated from VS Code).
-	KILLED_BY_USER,
-	// The process was killed by itself, for example the shell crashed or `exit`
-	// was run.
-	KILLED_BY_PROCESS
-}
 
 export class TerminalInstance implements ITerminalInstance {
 	private static readonly EOL_REGEX = /\r?\n/g;
@@ -70,20 +48,15 @@ export class TerminalInstance implements ITerminalInstance {
 	private _isExiting: boolean;
 	private _hadFocusOnExit: boolean;
 	private _isVisible: boolean;
-	// private _processState: ProcessState;
-	// private _processReady: TPromise<void>;
 	private _isDisposed: boolean;
 	private readonly _onDisposed: Emitter<ITerminalInstance>;
 	private readonly _onFocused: Emitter<ITerminalInstance>;
 	private readonly _onProcessIdReady: Emitter<ITerminalInstance>;
 	private readonly _onTitleChanged: Emitter<string>;
-	// private _process: cp.ChildProcess;
-	// private _processId: number;
 	private _skipTerminalCommands: string[];
 	private _title: string;
 	// TODO: Rename to "_disposables"
 	private _instanceDisposables: lifecycle.IDisposable[];
-	// private _processDisposables: lifecycle.IDisposable[];
 	private _wrapperElement: HTMLDivElement;
 	private _xterm: XTermTerminal;
 	private _xtermElement: HTMLDivElement;
@@ -91,8 +64,6 @@ export class TerminalInstance implements ITerminalInstance {
 	private _cols: number;
 	private _rows: number;
 	private _messageTitleListener: (message: { type: string, content: string }) => void;
-	// private _preLaunchInputQueue: string;
-	// private _initialCwd: string;
 	private _windowsShellHelper: WindowsShellHelper;
 	private _onLineDataListeners: ((lineData: string) => void)[];
 	private _xtermReadyPromise: TPromise<void>;
@@ -141,7 +112,6 @@ export class TerminalInstance implements ITerminalInstance {
 		this._isDisposed = false;
 		this._id = TerminalInstance._idCounter++;
 		this._terminalHasTextContextKey = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.bindTo(this._contextKeyService);
-		// this._preLaunchInputQueue = '';
 		this.disableLayout = false;
 
 		this._logService.trace(`terminalInstance#ctor (id: ${this.id})`, this._shellLaunchConfig);
@@ -631,34 +601,6 @@ export class TerminalInstance implements ITerminalInstance {
 		this._processManager.onShellProcessIdReady(() => this._onProcessIdReady.fire(this));
 		this._processManager.createProcess(this._shellLaunchConfig);
 
-		// const locale = this._configHelper.config.setLocaleVariables ? platform.locale : undefined;
-		// if (!this._shellLaunchConfig.executable) {
-		// 	this._configHelper.mergeDefaultShellPathAndArgs(this._shellLaunchConfig);
-		// }
-
-		// const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot('file');
-		// this._initialCwd = this._getCwd(this._shellLaunchConfig, lastActiveWorkspaceRootUri);
-
-		// // Resolve env vars from config and shell
-		// const lastActiveWorkspaceRoot = this._workspaceContextService.getWorkspaceFolder(lastActiveWorkspaceRootUri);
-		// const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
-		// const envFromConfig = TerminalInstance.resolveConfigurationVariables(this._configurationResolverService, { ...this._configHelper.config.env[platformKey] }, lastActiveWorkspaceRoot);
-		// const envFromShell = TerminalInstance.resolveConfigurationVariables(this._configurationResolverService, { ...this._shellLaunchConfig.env }, lastActiveWorkspaceRoot);
-		// this._shellLaunchConfig.env = envFromShell;
-
-		// // Merge process env with the env from config
-		// const parentEnv = { ...process.env };
-		// TerminalInstance.mergeEnvironments(parentEnv, envFromConfig);
-
-		// // Continue env initialization, merging in the env from the launch
-		// // config and adding keys that are needed to create the process
-		// const env = TerminalInstance.createTerminalEnv(parentEnv, this._shellLaunchConfig, this._initialCwd, locale, this._cols, this._rows);
-		// const cwd = Uri.parse(path.dirname(require.toUrl('../node/terminalProcess'))).fsPath;
-		// const options = { env, cwd };
-		// this._logService.debug(`Terminal process launching (id: ${this.id})`, options);
-		// this._processManager.process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], options);
-		// this._processManager.processState = ProcessState.LAUNCHING;
-
 		if (this._shellLaunchConfig.name) {
 			this.setTitle(this._shellLaunchConfig.name, false);
 		} else {
@@ -671,16 +613,7 @@ export class TerminalInstance implements ITerminalInstance {
 			};
 			this._processManager.process.on('message', this._messageTitleListener);
 		}
-		// TODO: Move to process manager?
-		this._processManager.process.on('message', (message: ITerminalProcessMessage) => {
-			this._processManager.acceptProcessMessage(message);
-		});
 		this._processManager.process.on('exit', exitCode => this._onPtyProcessExit(exitCode));
-		setTimeout(() => {
-			if (this._processManager.processState === ProcessState.LAUNCHING) {
-				this._processManager.processState = ProcessState.RUNNING;
-			}
-		}, LAUNCHING_DURATION);
 	}
 
 	private _sendPtyDataToXterm(message: { type: string, content: string }): void {
@@ -695,6 +628,7 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 	}
 
+	// TODO: Move most to TerminalProcessManager, fire an event when it happens
 	private _onPtyProcessExit(exitCode: number): void {
 		this._logService.debug(`Terminal process exit (id: ${this.id}) with code ${exitCode}`);
 

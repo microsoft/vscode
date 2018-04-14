@@ -19,6 +19,9 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
+/** The amount of time to consider terminal errors to be related to the launch */
+const LAUNCHING_DURATION = 500;
+
 /**
  * Holds all state related to the creation and management of terminal processes.
  *
@@ -29,7 +32,6 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
  */
 export class TerminalProcessManager implements ITerminalProcessManager {
 	public processState: ProcessState = ProcessState.UNINITIALIZED;
-	// _process
 	public process: cp.ChildProcess;
 	public ptyProcessReady: TPromise<void>;
 	public shellProcessId: number;
@@ -96,6 +98,15 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		this._logService.debug(`Terminal process launching`, options);
 		this.process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], options);
 		this.processState = ProcessState.LAUNCHING;
+
+		// TODO: Hide message communication details inside terminal process manager
+		this.process.on('message', message => this.acceptProcessMessage(message));
+
+		setTimeout(() => {
+			if (this.processState === ProcessState.LAUNCHING) {
+				this.processState = ProcessState.RUNNING;
+			}
+		}, LAUNCHING_DURATION);
 	}
 
 	protected _getCwd(shell: IShellLaunchConfig, root: Uri): string {
