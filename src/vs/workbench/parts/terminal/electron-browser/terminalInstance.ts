@@ -3,21 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as cp from 'child_process';
-import * as os from 'os';
-import * as path from 'path';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
+import * as paths from 'vs/base/common/paths';
 import { Event, Emitter } from 'vs/base/common/event';
-import Uri from 'vs/base/common/uri';
 import { WindowsShellHelper } from 'vs/workbench/parts/terminal/electron-browser/windowsShellHelper';
 import { Terminal as XTermTerminal } from 'vscode-xterm';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IStringDictionary } from 'vs/base/common/collections';
 import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig, ITerminalProcessManager, ITerminalProcessMessage } from 'vs/workbench/parts/terminal/common/terminal';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -29,12 +25,8 @@ import { registerThemingParticipant, ITheme, ICssStyleCollector, IThemeService }
 import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import pkg from 'vs/platform/node/package';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/parts/terminal/electron-browser/terminalColorRegistry';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -100,7 +92,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _rows: number;
 	private _messageTitleListener: (message: { type: string, content: string }) => void;
 	// private _preLaunchInputQueue: string;
-	private _initialCwd: string;
+	// private _initialCwd: string;
 	private _windowsShellHelper: WindowsShellHelper;
 	private _onLineDataListeners: ((lineData: string) => void)[];
 	private _xtermReadyPromise: TPromise<void>;
@@ -136,10 +128,7 @@ export class TerminalInstance implements ITerminalInstance {
 		@IPanelService private readonly _panelService: IPanelService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
-		@IHistoryService private readonly _historyService: IHistoryService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private _logService: ILogService
 	) {
@@ -315,7 +304,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm.on('linefeed', () => this._onLineFeed());
 		this._processManager.process.on('message', (message) => this._sendPtyDataToXterm(message));
 		this._xterm.on('data', data => this._processManager.write(data));
-		this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform, this._initialCwd);
+		this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform, this._processManager.initialCwd);
 		this._commandTracker = new TerminalCommandTracker(this._xterm);
 		this._instanceDisposables.push(this._themeService.onThemeChange(theme => this._updateTheme(theme)));
 	}
@@ -636,67 +625,39 @@ export class TerminalInstance implements ITerminalInstance {
 		this._terminalHasTextContextKey.set(isActive && this.hasSelection());
 	}
 
-	protected _getCwd(shell: IShellLaunchConfig, root: Uri): string {
-		if (shell.cwd) {
-			return shell.cwd;
-		}
-
-		let cwd: string;
-
-		// TODO: Handle non-existent customCwd
-		if (!shell.ignoreConfigurationCwd) {
-			// Evaluate custom cwd first
-			const customCwd = this._configHelper.config.cwd;
-			if (customCwd) {
-				if (path.isAbsolute(customCwd)) {
-					cwd = customCwd;
-				} else if (root) {
-					cwd = path.normalize(path.join(root.fsPath, customCwd));
-				}
-			}
-		}
-
-		// If there was no custom cwd or it was relative with no workspace
-		if (!cwd) {
-			cwd = root ? root.fsPath : os.homedir();
-		}
-
-		return TerminalInstance._sanitizeCwd(cwd);
-	}
-
 	protected _createProcess(): void {
 		// TODO: This should be injected in to the terminal instance (from service?)
-		this._processManager = this._instantiationService.createInstance(TerminalProcessManager);
+		this._processManager = this._instantiationService.createInstance(TerminalProcessManager, this._configHelper, this._cols, this._rows);
 		this._processManager.onShellProcessIdReady(() => this._onProcessIdReady.fire(this));
 		this._processManager.createProcess(this._shellLaunchConfig);
 
-		const locale = this._configHelper.config.setLocaleVariables ? platform.locale : undefined;
-		if (!this._shellLaunchConfig.executable) {
-			this._configHelper.mergeDefaultShellPathAndArgs(this._shellLaunchConfig);
-		}
+		// const locale = this._configHelper.config.setLocaleVariables ? platform.locale : undefined;
+		// if (!this._shellLaunchConfig.executable) {
+		// 	this._configHelper.mergeDefaultShellPathAndArgs(this._shellLaunchConfig);
+		// }
 
-		const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot('file');
-		this._initialCwd = this._getCwd(this._shellLaunchConfig, lastActiveWorkspaceRootUri);
+		// const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot('file');
+		// this._initialCwd = this._getCwd(this._shellLaunchConfig, lastActiveWorkspaceRootUri);
 
-		// Resolve env vars from config and shell
-		const lastActiveWorkspaceRoot = this._workspaceContextService.getWorkspaceFolder(lastActiveWorkspaceRootUri);
-		const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
-		const envFromConfig = TerminalInstance.resolveConfigurationVariables(this._configurationResolverService, { ...this._configHelper.config.env[platformKey] }, lastActiveWorkspaceRoot);
-		const envFromShell = TerminalInstance.resolveConfigurationVariables(this._configurationResolverService, { ...this._shellLaunchConfig.env }, lastActiveWorkspaceRoot);
-		this._shellLaunchConfig.env = envFromShell;
+		// // Resolve env vars from config and shell
+		// const lastActiveWorkspaceRoot = this._workspaceContextService.getWorkspaceFolder(lastActiveWorkspaceRootUri);
+		// const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
+		// const envFromConfig = TerminalInstance.resolveConfigurationVariables(this._configurationResolverService, { ...this._configHelper.config.env[platformKey] }, lastActiveWorkspaceRoot);
+		// const envFromShell = TerminalInstance.resolveConfigurationVariables(this._configurationResolverService, { ...this._shellLaunchConfig.env }, lastActiveWorkspaceRoot);
+		// this._shellLaunchConfig.env = envFromShell;
 
-		// Merge process env with the env from config
-		const parentEnv = { ...process.env };
-		TerminalInstance.mergeEnvironments(parentEnv, envFromConfig);
+		// // Merge process env with the env from config
+		// const parentEnv = { ...process.env };
+		// TerminalInstance.mergeEnvironments(parentEnv, envFromConfig);
 
-		// Continue env initialization, merging in the env from the launch
-		// config and adding keys that are needed to create the process
-		const env = TerminalInstance.createTerminalEnv(parentEnv, this._shellLaunchConfig, this._initialCwd, locale, this._cols, this._rows);
-		const cwd = Uri.parse(path.dirname(require.toUrl('../node/terminalProcess'))).fsPath;
-		const options = { env, cwd };
-		this._logService.debug(`Terminal process launching (id: ${this.id})`, options);
-		this._processManager.process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], options);
-		this._processManager.processState = ProcessState.LAUNCHING;
+		// // Continue env initialization, merging in the env from the launch
+		// // config and adding keys that are needed to create the process
+		// const env = TerminalInstance.createTerminalEnv(parentEnv, this._shellLaunchConfig, this._initialCwd, locale, this._cols, this._rows);
+		// const cwd = Uri.parse(path.dirname(require.toUrl('../node/terminalProcess'))).fsPath;
+		// const options = { env, cwd };
+		// this._logService.debug(`Terminal process launching (id: ${this.id})`, options);
+		// this._processManager.process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], options);
+		// this._processManager.processState = ProcessState.LAUNCHING;
 
 		if (this._shellLaunchConfig.name) {
 			this.setTitle(this._shellLaunchConfig.name, false);
@@ -720,16 +681,6 @@ export class TerminalInstance implements ITerminalInstance {
 				this._processManager.processState = ProcessState.RUNNING;
 			}
 		}, LAUNCHING_DURATION);
-	}
-
-	// TODO: Should be protected
-	private static resolveConfigurationVariables(configurationResolverService: IConfigurationResolverService, env: IStringDictionary<string>, lastActiveWorkspaceRoot: IWorkspaceFolder): IStringDictionary<string> {
-		Object.keys(env).forEach((key) => {
-			if (typeof env[key] === 'string') {
-				env[key] = configurationResolverService.resolve(lastActiveWorkspaceRoot, env[key]);
-			}
-		});
-		return env;
 	}
 
 	private _sendPtyDataToXterm(message: { type: string, content: string }): void {
@@ -868,69 +819,6 @@ export class TerminalInstance implements ITerminalInstance {
 		this._shellLaunchConfig = shell;
 	}
 
-	public static mergeEnvironments(parent: IStringDictionary<string>, other: IStringDictionary<string>) {
-		if (!other) {
-			return;
-		}
-
-		// On Windows apply the new values ignoring case, while still retaining
-		// the case of the original key.
-		if (platform.isWindows) {
-			for (let configKey in other) {
-				let actualKey = configKey;
-				for (let envKey in parent) {
-					if (configKey.toLowerCase() === envKey.toLowerCase()) {
-						actualKey = envKey;
-						break;
-					}
-				}
-				const value = other[configKey];
-				TerminalInstance._mergeEnvironmentValue(parent, actualKey, value);
-			}
-		} else {
-			Object.keys(other).forEach((key) => {
-				const value = other[key];
-				TerminalInstance._mergeEnvironmentValue(parent, key, value);
-			});
-		}
-	}
-
-	private static _mergeEnvironmentValue(env: IStringDictionary<string>, key: string, value: string | null) {
-		if (typeof value === 'string') {
-			env[key] = value;
-		} else {
-			delete env[key];
-		}
-	}
-
-	// TODO: This should be private/protected
-	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShellLaunchConfig, cwd: string, locale: string, cols?: number, rows?: number): IStringDictionary<string> {
-		const env = { ...parentEnv };
-		if (shell.env) {
-			TerminalInstance.mergeEnvironments(env, shell.env);
-		}
-
-		env['PTYPID'] = process.pid.toString();
-		env['PTYSHELL'] = shell.executable;
-		env['TERM_PROGRAM'] = 'vscode';
-		env['TERM_PROGRAM_VERSION'] = pkg.version;
-		if (shell.args) {
-			if (typeof shell.args === 'string') {
-				env[`PTYSHELLCMDLINE`] = shell.args;
-			} else {
-				shell.args.forEach((arg, i) => env[`PTYSHELLARG${i}`] = arg);
-			}
-		}
-		env['PTYCWD'] = cwd;
-		env['LANG'] = TerminalInstance._getLangEnvVariable(locale);
-		if (cols && rows) {
-			env['PTYCOLS'] = cols.toString();
-			env['PTYROWS'] = rows.toString();
-		}
-		env['AMD_ENTRYPOINT'] = 'vs/workbench/parts/terminal/node/terminalProcess';
-		return env;
-	}
-
 	public onLineData(listener: (lineData: string) => void): lifecycle.IDisposable {
 		this._onLineDataListeners.push(listener);
 		return {
@@ -979,47 +867,6 @@ export class TerminalInstance implements ITerminalInstance {
 				}
 			}
 		};
-	}
-
-	private static _sanitizeCwd(cwd: string) {
-		// Make the drive letter uppercase on Windows (see #9448)
-		if (platform.platform === platform.Platform.Windows && cwd && cwd[1] === ':') {
-			return cwd[0].toUpperCase() + cwd.substr(1);
-		}
-		return cwd;
-	}
-
-	private static _getLangEnvVariable(locale?: string) {
-		const parts = locale ? locale.split('-') : [];
-		const n = parts.length;
-		if (n === 0) {
-			// Fallback to en_US to prevent possible encoding issues.
-			return 'en_US.UTF-8';
-		}
-		if (n === 1) {
-			// app.getLocale can return just a language without a variant, fill in the variant for
-			// supported languages as many shells expect a 2-part locale.
-			const languageVariants = {
-				de: 'DE',
-				en: 'US',
-				es: 'ES',
-				fi: 'FI',
-				fr: 'FR',
-				it: 'IT',
-				ja: 'JP',
-				ko: 'KR',
-				pl: 'PL',
-				ru: 'RU',
-				zh: 'CN'
-			};
-			if (parts[0] in languageVariants) {
-				parts.push(languageVariants[parts[0]]);
-			}
-		} else {
-			// Ensure the variant is uppercase
-			parts[1] = parts[1].toUpperCase();
-		}
-		return parts.join('_') + '.UTF-8';
 	}
 
 	public updateConfig(): void {
@@ -1156,7 +1003,7 @@ export class TerminalInstance implements ITerminalInstance {
 			return;
 		}
 		if (eventFromProcess) {
-			title = path.basename(title);
+			title = paths.basename(title);
 			if (platform.isWindows) {
 				// Remove the .exe extension
 				title = title.split('.exe')[0];
