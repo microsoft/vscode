@@ -473,7 +473,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	initialCwd: string;
 
 	addDisposable(disposable: IDisposable);
-	createProcess(shellLaunchConfig: IShellLaunchConfig);
+	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number);
 	write(data: string): void;
 }
 

@@ -45,8 +45,6 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 
 	constructor(
 		private _configHelper: ITerminalConfigHelper,
-		private _cols: number,
-		private _rows: number,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
@@ -63,7 +61,11 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		this._disposables.push(disposable);
 	}
 
-	public createProcess(shellLaunchConfig: IShellLaunchConfig): void {
+	public createProcess(
+		shellLaunchConfig: IShellLaunchConfig,
+		cols: number,
+		rows: number
+	): void {
 		this.ptyProcessReady = new TPromise<void>(c => {
 			this.onShellProcessIdReady(() => {
 				this._logService.debug(`Terminal process ready (shellProcessId: ${this.shellProcessId})`);
@@ -92,7 +94,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 
 		// Continue env initialization, merging in the env from the launch
 		// config and adding keys that are needed to create the process
-		const env = TerminalProcessManager.createTerminalEnv(parentEnv, shellLaunchConfig, this.initialCwd, locale, this._cols, this._rows);
+		const env = TerminalProcessManager.createTerminalEnv(parentEnv, shellLaunchConfig, this.initialCwd, locale, cols, rows);
 		const cwd = Uri.parse(path.dirname(require.toUrl('../node/terminalProcess'))).fsPath;
 		const options = { env, cwd };
 		this._logService.debug(`Terminal process launching`, options);

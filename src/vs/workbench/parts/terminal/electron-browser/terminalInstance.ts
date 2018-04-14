@@ -434,7 +434,7 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 	}
 
-	get selection(): string | undefined {
+	public get selection(): string | undefined {
 		return this.hasSelection() ? this._xterm.getSelection() : undefined;
 	}
 
@@ -591,9 +591,9 @@ export class TerminalInstance implements ITerminalInstance {
 
 	protected _createProcess(): void {
 		// TODO: This should be injected in to the terminal instance (from service?)
-		this._processManager = this._instantiationService.createInstance(TerminalProcessManager, this._configHelper, this._cols, this._rows);
+		this._processManager = this._instantiationService.createInstance(TerminalProcessManager, this._configHelper);
 		this._processManager.onShellProcessIdReady(() => this._onProcessIdReady.fire(this));
-		this._processManager.createProcess(this._shellLaunchConfig);
+		this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows);
 
 		if (this._shellLaunchConfig.name) {
 			this.setTitle(this._shellLaunchConfig.name, false);
