@@ -456,3 +456,7 @@ export interface ITerminalCommandTracker {
 	selectToPreviousCommand(): void;
 	selectToNextCommand(): void;
 }
+
+export interface ITerminalProcessManager extends IDisposable {
+	addDisposable(disposable: IDisposable);
+}

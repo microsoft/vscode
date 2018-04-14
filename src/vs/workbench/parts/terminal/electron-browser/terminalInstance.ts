@@ -18,7 +18,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig, ITerminalProcessManager } from 'vs/workbench/parts/terminal/common/terminal';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
@@ -40,6 +40,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ILogService } from 'vs/platform/log/common/log';
 import { TerminalCommandTracker } from 'vs/workbench/parts/terminal/node/terminalCommandTracker';
+import { TerminalProcessManager } from './terminalProcessManager';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -71,6 +72,8 @@ export class TerminalInstance implements ITerminalInstance {
 	private static _lastKnownDimensions: dom.Dimension = null;
 	private static _idCounter = 1;
 
+	private _processManager: ITerminalProcessManager | undefined;
+
 	private _id: number;
 	private _isExiting: boolean;
 	private _hadFocusOnExit: boolean;
@@ -86,8 +89,9 @@ export class TerminalInstance implements ITerminalInstance {
 	private _processId: number;
 	private _skipTerminalCommands: string[];
 	private _title: string;
+	// TODO: Rename to "_disposables"
 	private _instanceDisposables: lifecycle.IDisposable[];
-	private _processDisposables: lifecycle.IDisposable[];
+	// private _processDisposables: lifecycle.IDisposable[];
 	private _wrapperElement: HTMLDivElement;
 	private _xterm: XTermTerminal;
 	private _xtermElement: HTMLDivElement;
@@ -139,7 +143,6 @@ export class TerminalInstance implements ITerminalInstance {
 		@ILogService private _logService: ILogService
 	) {
 		this._instanceDisposables = [];
-		this._processDisposables = [];
 		this._skipTerminalCommands = [];
 		this._onLineDataListeners = [];
 		this._isExiting = false;
@@ -562,7 +565,7 @@ export class TerminalInstance implements ITerminalInstance {
 			this._isDisposed = true;
 			this._onDisposed.fire(this);
 		}
-		this._processDisposables = lifecycle.dispose(this._processDisposables);
+		this._processManager.dispose();
 		this._instanceDisposables = lifecycle.dispose(this._instanceDisposables);
 	}
 
@@ -683,6 +686,9 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	protected _createProcess(): void {
+		// TODO: This should be injected in to the terminal instance (from service?)
+		this._processManager = new TerminalProcessManager();
+
 		const locale = this._configHelper.config.setLocaleVariables ? platform.locale : undefined;
 		if (!this._shellLaunchConfig.executable) {
 			this._configHelper.mergeDefaultShellPathAndArgs(this._shellLaunchConfig);
@@ -845,7 +851,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _attachPressAnyKeyToCloseListener() {
-		this._processDisposables.push(dom.addDisposableListener(this._xterm.textarea, 'keypress', (event: KeyboardEvent) => {
+		this._processManager.addDisposable(dom.addDisposableListener(this._xterm.textarea, 'keypress', (event: KeyboardEvent) => {
 			this.dispose();
 			event.preventDefault();
 		}));
@@ -860,8 +866,10 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 			this._process = null;
 		}
-		lifecycle.dispose(this._processDisposables);
-		this._processDisposables = [];
+
+		// TODO: This should not call dispose directly, process manager should dispose any
+		// disposables when creating a new process
+		this._processManager.dispose();
 
 		// Ensure new processes' output starts at start of new line
 		this._xterm.write('\n\x1b[G');
