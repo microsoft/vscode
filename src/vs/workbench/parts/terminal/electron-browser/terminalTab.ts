@@ -270,7 +270,8 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 			terminalFocusContextKey,
 			configHelper,
 			undefined,
-			shellLaunchConfig);
+			shellLaunchConfig,
+			true);
 		this._terminalInstances.push(instance);
 		this._initInstanceListeners(instance);
 		this._activeInstanceIndex = 0;
@@ -399,7 +400,8 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 			terminalFocusContextKey,
 			configHelper,
 			undefined,
-			shellLaunchConfig);
+			shellLaunchConfig,
+			true);
 		this._terminalInstances.splice(this._activeInstanceIndex + 1, 0, instance);
 		this._initInstanceListeners(instance);
 		this._setActiveInstance(instance);

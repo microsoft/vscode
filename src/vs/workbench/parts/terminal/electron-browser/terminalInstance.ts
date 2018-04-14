@@ -95,6 +95,7 @@ export class TerminalInstance implements ITerminalInstance {
 		private _configHelper: TerminalConfigHelper,
 		private _container: HTMLElement,
 		private _shellLaunchConfig: IShellLaunchConfig,
+		doCreateProcess: boolean,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -119,18 +120,12 @@ export class TerminalInstance implements ITerminalInstance {
 		this._logService.trace(`terminalInstance#ctor (id: ${this.id})`, this._shellLaunchConfig);
 
 		this._initDimensions();
-		this._createProcess();
+		if (doCreateProcess) {
+			this._createProcess();
+		}
 
 		this._xtermReadyPromise = this._createXterm();
 		this._xtermReadyPromise.then(() => {
-			if (platform.isWindows) {
-				this._processManager.ptyProcessReady.then(() => {
-					if (!this._isDisposed) {
-						this._windowsShellHelper = new WindowsShellHelper(this._processManager.shellProcessId, this, this._xterm);
-					}
-				});
-			}
-
 			// Only attach xterm.js to the DOM if the terminal panel has been opened before.
 			if (_container) {
 				this._attachToElement(_container);
@@ -269,8 +264,10 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		this._xterm.winptyCompatInit();
 		this._xterm.on('linefeed', () => this._onLineFeed());
-		this._processManager.process.on('message', (message) => this._sendPtyDataToXterm(message));
-		this._xterm.on('data', data => this._processManager.write(data));
+		if (this._processManager) {
+			this._processManager.process.on('message', (message) => this._sendPtyDataToXterm(message));
+			this._xterm.on('data', data => this._processManager.write(data));
+		}
 		this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform, this._processManager.initialCwd);
 		this._commandTracker = new TerminalCommandTracker(this._xterm);
 		this._instanceDisposables.push(this._themeService.onThemeChange(theme => this._updateTheme(theme)));
@@ -611,6 +608,16 @@ export class TerminalInstance implements ITerminalInstance {
 			this._processManager.process.on('message', this._messageTitleListener);
 		}
 		this._processManager.process.on('exit', exitCode => this._onPtyProcessExit(exitCode));
+
+		if (platform.isWindows) {
+			this._processManager.ptyProcessReady.then(() => {
+				this._xtermReadyPromise.then(() => {
+					if (!this._isDisposed) {
+						this._windowsShellHelper = new WindowsShellHelper(this._processManager.shellProcessId, this, this._xterm);
+					}
+				});
+			});
+		}
 	}
 
 	private _sendPtyDataToXterm(message: { type: string, content: string }): void {

@@ -472,7 +472,6 @@ export interface ITerminalProcessManager extends IDisposable {
 	onShellProcessIdReady: Event<number>;
 	initialCwd: string;
 
-	acceptProcessMessage(message): void;
 	addDisposable(disposable: IDisposable);
 	createProcess(shellLaunchConfig: IShellLaunchConfig);
 	write(data: string): void;

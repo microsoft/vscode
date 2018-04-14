@@ -100,7 +100,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		this.processState = ProcessState.LAUNCHING;
 
 		// TODO: Hide message communication details inside terminal process manager
-		this.process.on('message', message => this.acceptProcessMessage(message));
+		this.process.on('message', message => this._onProcessMessage(message));
 
 		setTimeout(() => {
 			if (this.processState === ProcessState.LAUNCHING) {
@@ -150,7 +150,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		}
 	}
 
-	public acceptProcessMessage(message: ITerminalProcessMessage): void {
+	private _onProcessMessage(message: ITerminalProcessMessage): void {
 		if (message.type === 'pid') {
 			this.shellProcessId = <number>message.content;
 			this._onShellProcessIdReady.fire(this.shellProcessId);
