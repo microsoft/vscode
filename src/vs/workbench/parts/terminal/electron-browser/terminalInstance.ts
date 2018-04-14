@@ -49,10 +49,6 @@ export class TerminalInstance implements ITerminalInstance {
 	private _hadFocusOnExit: boolean;
 	private _isVisible: boolean;
 	private _isDisposed: boolean;
-	private readonly _onDisposed: Emitter<ITerminalInstance>;
-	private readonly _onFocused: Emitter<ITerminalInstance>;
-	private readonly _onProcessIdReady: Emitter<ITerminalInstance>;
-	private readonly _onTitleChanged: Emitter<string>;
 	private _skipTerminalCommands: string[];
 	private _title: string;
 	// TODO: Rename to "_disposables"
@@ -78,15 +74,21 @@ export class TerminalInstance implements ITerminalInstance {
 	public get processId(): number { return this._processManager.shellProcessId; }
 	// TODO: Should this be an event as it can fire twice?
 	public get processReady(): TPromise<void> { return this._processManager.ptyProcessReady; }
-	public get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
-	public get onFocused(): Event<ITerminalInstance> { return this._onFocused.event; }
-	public get onProcessIdReady(): Event<ITerminalInstance> { return this._onProcessIdReady.event; }
-	public get onTitleChanged(): Event<string> { return this._onTitleChanged.event; }
 	public get title(): string { return this._title; }
 	public get hadFocusOnExit(): boolean { return this._hadFocusOnExit; }
 	public get isTitleSetByProcess(): boolean { return !!this._messageTitleListener; }
 	public get shellLaunchConfig(): IShellLaunchConfig { return Object.freeze(this._shellLaunchConfig); }
 	public get commandTracker(): TerminalCommandTracker { return this._commandTracker; }
+
+	private readonly _onDisposed: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
+	private readonly _onFocused: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
+	private readonly _onProcessIdReady: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
+	private readonly _onTitleChanged: Emitter<string> = new Emitter<string>();
+
+	public get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
+	public get onFocused(): Event<ITerminalInstance> { return this._onFocused.event; }
+	public get onProcessIdReady(): Event<ITerminalInstance> { return this._onProcessIdReady.event; }
+	public get onTitleChanged(): Event<string> { return this._onTitleChanged.event; }
 
 	public constructor(
 		private _terminalFocusContextKey: IContextKey<boolean>,
@@ -115,11 +117,6 @@ export class TerminalInstance implements ITerminalInstance {
 		this.disableLayout = false;
 
 		this._logService.trace(`terminalInstance#ctor (id: ${this.id})`, this._shellLaunchConfig);
-
-		this._onDisposed = new Emitter<TerminalInstance>();
-		this._onFocused = new Emitter<TerminalInstance>();
-		this._onProcessIdReady = new Emitter<TerminalInstance>();
-		this._onTitleChanged = new Emitter<string>();
 
 		this._initDimensions();
 		this._createProcess();
