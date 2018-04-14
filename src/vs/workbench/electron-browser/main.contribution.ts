@@ -276,6 +276,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('enableNaturalLanguageSettingsSearch', "Controls whether to enable the natural language search mode for settings."),
 			'default': true
+		},
+		'workbench.disablePointer': {
+			'type': 'boolean',
+			'description': nls.localize('disablePointer', "Specifies if the pointer cursor should be disabled."),
+			'default': false
 		}
 	}
 });

@@ -2,6 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+.cursor-default {
+	/*cursor: default;*/
+	cursor: crosshair;
+}
+
 .monaco-tree {
 	height: 100%;
 	width: 100%;

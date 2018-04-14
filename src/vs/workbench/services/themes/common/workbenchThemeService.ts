@@ -22,6 +22,7 @@ export const HC_THEME_ID = 'Default High Contrast';
 export const COLOR_THEME_SETTING = 'workbench.colorTheme';
 export const DETECT_HC_SETTING = 'window.autoDetectHighContrast';
 export const ICON_THEME_SETTING = 'workbench.iconTheme';
+export const POINTER_DISABLE = 'workbench.disablePointer';
 export const CUSTOM_WORKBENCH_COLORS_SETTING = 'workbench.colorCustomizations';
 export const CUSTOM_EDITOR_COLORS_SETTING = 'editor.tokenColorCustomizations';
 export const CUSTOM_EDITOR_SCOPE_COLORS_SETTING = 'textMateRules';

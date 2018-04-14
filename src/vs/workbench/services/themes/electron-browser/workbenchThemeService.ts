@@ -528,7 +528,7 @@ const themeSettingsConfiguration: IConfigurationNode = {
 	properties: {
 		[COLOR_THEME_SETTING]: colorThemeSettingSchema,
 		[ICON_THEME_SETTING]: iconThemeSettingSchema,
-		[CUSTOM_WORKBENCH_COLORS_SETTING]: colorCustomizationsSchema
+		[CUSTOM_WORKBENCH_COLORS_SETTING]: colorCustomizationsSchema,
 	}
 };
 configurationRegistry.registerConfiguration(themeSettingsConfiguration);
