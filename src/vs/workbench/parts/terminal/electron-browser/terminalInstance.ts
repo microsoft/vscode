@@ -78,7 +78,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _isExiting: boolean;
 	private _hadFocusOnExit: boolean;
 	private _isVisible: boolean;
-	private _processState: ProcessState;
+	// private _processState: ProcessState;
 	private _processReady: TPromise<void>;
 	private _isDisposed: boolean;
 	private readonly _onDisposed: Emitter<ITerminalInstance>;
@@ -147,7 +147,6 @@ export class TerminalInstance implements ITerminalInstance {
 		this._onLineDataListeners = [];
 		this._isExiting = false;
 		this._hadFocusOnExit = false;
-		this._processState = ProcessState.UNINITIALIZED;
 		this._isVisible = false;
 		this._isDisposed = false;
 		this._id = TerminalInstance._idCounter++;
@@ -556,7 +555,7 @@ export class TerminalInstance implements ITerminalInstance {
 				// If the process was still connected this dispose came from
 				// within VS Code, not the process, so mark the process as
 				// killed by the user.
-				this._processState = ProcessState.KILLED_BY_USER;
+				this._processManager.processState = ProcessState.KILLED_BY_USER;
 				this._process.send({ event: 'shutdown' });
 			}
 			this._process = null;
@@ -715,7 +714,7 @@ export class TerminalInstance implements ITerminalInstance {
 		const options = { env, cwd };
 		this._logService.debug(`Terminal process launching (id: ${this.id})`, options);
 		this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], options);
-		this._processState = ProcessState.LAUNCHING;
+		this._processManager.processState = ProcessState.LAUNCHING;
 
 		if (this._shellLaunchConfig.name) {
 			this.setTitle(this._shellLaunchConfig.name, false);
@@ -746,8 +745,8 @@ export class TerminalInstance implements ITerminalInstance {
 		});
 		this._process.on('exit', exitCode => this._onPtyProcessExit(exitCode));
 		setTimeout(() => {
-			if (this._processState === ProcessState.LAUNCHING) {
-				this._processState = ProcessState.RUNNING;
+			if (this._processManager.processState === ProcessState.LAUNCHING) {
+				this._processManager.processState = ProcessState.RUNNING;
 			}
 		}, LAUNCHING_DURATION);
 	}
@@ -793,22 +792,22 @@ export class TerminalInstance implements ITerminalInstance {
 		// If the process is marked as launching then mark the process as killed
 		// during launch. This typically means that there is a problem with the
 		// shell and args.
-		if (this._processState === ProcessState.LAUNCHING) {
-			this._processState = ProcessState.KILLED_DURING_LAUNCH;
+		if (this._processManager.processState === ProcessState.LAUNCHING) {
+			this._processManager.processState = ProcessState.KILLED_DURING_LAUNCH;
 		}
 
 		// If TerminalInstance did not know about the process exit then it was
 		// triggered by the process, not on VS Code's side.
-		if (this._processState === ProcessState.RUNNING) {
-			this._processState = ProcessState.KILLED_BY_PROCESS;
+		if (this._processManager.processState === ProcessState.RUNNING) {
+			this._processManager.processState = ProcessState.KILLED_BY_PROCESS;
 		}
 
 
-		this._logService.debug(`Terminal process exit (id: ${this.id}) state ${this._processState}`);
+		this._logService.debug(`Terminal process exit (id: ${this.id}) state ${this._processManager.processState}`);
 
 		// Only trigger wait on exit when the exit was *not* triggered by the
 		// user (via the `workbench.action.terminal.kill` command).
-		if (this._shellLaunchConfig.waitOnExit && this._processState !== ProcessState.KILLED_BY_USER) {
+		if (this._shellLaunchConfig.waitOnExit && this._processManager.processState !== ProcessState.KILLED_BY_USER) {
 			if (exitCode) {
 				this._xterm.writeln(exitCodeMessage);
 			}
@@ -826,7 +825,7 @@ export class TerminalInstance implements ITerminalInstance {
 		} else {
 			this.dispose();
 			if (exitCode) {
-				if (this._processState === ProcessState.KILLED_DURING_LAUNCH) {
+				if (this._processManager.processState === ProcessState.KILLED_DURING_LAUNCH) {
 					let args = '';
 					if (typeof this._shellLaunchConfig.args === 'string') {
 						args = this._shellLaunchConfig.args;

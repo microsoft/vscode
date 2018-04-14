@@ -458,5 +458,26 @@ export interface ITerminalCommandTracker {
 }
 
 export interface ITerminalProcessManager extends IDisposable {
+	processState: ProcessState;
+
 	addDisposable(disposable: IDisposable);
+}
+
+export enum ProcessState {
+	// The process has not been initialized yet.
+	UNINITIALIZED,
+	// The process is currently launching, the process is marked as launching
+	// for a short duration after being created and is helpful to indicate
+	// whether the process died as a result of bad shell and args.
+	LAUNCHING,
+	// The process is running normally.
+	RUNNING,
+	// The process was killed during launch, likely as a result of bad shell and
+	// args.
+	KILLED_DURING_LAUNCH,
+	// The process was killed by the user (the event originated from VS Code).
+	KILLED_BY_USER,
+	// The process was killed by itself, for example the shell crashed or `exit`
+	// was run.
+	KILLED_BY_PROCESS
 }
