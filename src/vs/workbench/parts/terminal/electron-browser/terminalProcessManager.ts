@@ -6,20 +6,21 @@
 import { ChildProcess } from 'child_process';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ProcessState, ITerminalProcessManager } from 'vs/workbench/parts/terminal/common/terminal';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 /**
  * Holds all state related to the creation and management of terminal processes.
  *
  * Definitions:
  * - Process: The process launched with the terminalProcess.ts file
- * - Pty Process: The pseudoterminal slave process (or the winpty agent process)
- * - Shell Process: The pseudoterminal master process
+ * - Pty Process: The pseudoterminal master process (or the winpty agent process)
+ * - Shell Process: The pseudoterminal slave process (ie. the shell)
  */
 export class TerminalProcessManager implements ITerminalProcessManager {
 	public processState: ProcessState = ProcessState.UNINITIALIZED;
 	// _process
 	public process: ChildProcess;
-	// private _terminalProcessReady: TPromise<void>;
+	public ptyProcessReady: TPromise<void>;
 
 	// private _shellProcessId: number;
 

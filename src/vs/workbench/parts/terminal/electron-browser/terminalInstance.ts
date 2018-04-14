@@ -79,7 +79,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _hadFocusOnExit: boolean;
 	private _isVisible: boolean;
 	// private _processState: ProcessState;
-	private _processReady: TPromise<void>;
+	// private _processReady: TPromise<void>;
 	private _isDisposed: boolean;
 	private readonly _onDisposed: Emitter<ITerminalInstance>;
 	private readonly _onFocused: Emitter<ITerminalInstance>;
@@ -113,7 +113,7 @@ export class TerminalInstance implements ITerminalInstance {
 	public get id(): number { return this._id; }
 	// TODO: Ideally processId would be merged into processReady
 	public get processId(): number { return this._processId; }
-	public get processReady(): TPromise<void> { return this._processReady; }
+	public get processReady(): TPromise<void> { return this._processManager.ptyProcessReady; }
 	public get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
 	public get onFocused(): Event<ITerminalInstance> { return this._onFocused.event; }
 	public get onProcessIdReady(): Event<ITerminalInstance> { return this._onProcessIdReady.event; }
@@ -161,21 +161,13 @@ export class TerminalInstance implements ITerminalInstance {
 		this._onProcessIdReady = new Emitter<TerminalInstance>();
 		this._onTitleChanged = new Emitter<string>();
 
-		// Create a promise that resolves when the pty is ready
-		this._processReady = new TPromise<void>(c => {
-			this.onProcessIdReady(() => {
-				this._logService.debug(`Terminal process ready (id: ${this.id}, processId: ${this.processId})`);
-				c(void 0);
-			});
-		});
-
 		this._initDimensions();
 		this._createProcess();
 
 		this._xtermReadyPromise = this._createXterm();
 		this._xtermReadyPromise.then(() => {
 			if (platform.isWindows) {
-				this._processReady.then(() => {
+				this._processManager.ptyProcessReady.then(() => {
 					if (!this._isDisposed) {
 						this._windowsShellHelper = new WindowsShellHelper(this._processId, this, this._xterm);
 					}
@@ -584,7 +576,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public sendText(text: string, addNewLine: boolean): void {
-		this._processReady.then(() => {
+		this._processManager.ptyProcessReady.then(() => {
 			// Normalize line endings to 'enter' press.
 			text = text.replace(TerminalInstance.EOL_REGEX, '\r');
 			if (addNewLine && text.substr(text.length - 1) !== '\r') {
@@ -687,6 +679,14 @@ export class TerminalInstance implements ITerminalInstance {
 	protected _createProcess(): void {
 		// TODO: This should be injected in to the terminal instance (from service?)
 		this._processManager = new TerminalProcessManager();
+
+		// Create a promise that resolves when the pty is ready
+		this._processManager.ptyProcessReady = new TPromise<void>(c => {
+			this.onProcessIdReady(() => {
+				this._logService.debug(`Terminal process ready (id: ${this.id}, processId: ${this.processId})`);
+				c(void 0);
+			});
+		});
 
 		const locale = this._configHelper.config.setLocaleVariables ? platform.locale : undefined;
 		if (!this._shellLaunchConfig.executable) {
@@ -1161,7 +1161,7 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 		}
 
-		this._processReady.then(() => {
+		this._processManager.ptyProcessReady.then(() => {
 			if (this._processManager.process && this._processManager.process.connected) {
 				// The child process could aready be terminated
 				try {
