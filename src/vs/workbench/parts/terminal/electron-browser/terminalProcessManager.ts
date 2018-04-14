@@ -5,8 +5,10 @@
 
 import { ChildProcess } from 'child_process';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ProcessState, ITerminalProcessManager, ITerminalProcessMessage } from 'vs/workbench/parts/terminal/common/terminal';
+import { ProcessState, ITerminalProcessManager, ITerminalProcessMessage, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { ILogService } from 'vs/platform/log/common/log';
+import { Emitter, Event } from 'vs/base/common/event';
 
 /**
  * Holds all state related to the creation and management of terminal processes.
@@ -21,14 +23,17 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	// _process
 	public process: ChildProcess;
 	public ptyProcessReady: TPromise<void>;
-
 	public shellProcessId: number;
 
 	private _preLaunchInputQueue: string[] = [];
-
 	private _disposables: IDisposable[] = [];
 
-	constructor() {
+	private readonly _onShellProcessIdReady: Emitter<number> = new Emitter<number>();
+	public get onShellProcessIdReady(): Event<number> { return this._onShellProcessIdReady.event; }
+
+	constructor(
+		@ILogService private _logService: ILogService
+	) {
 	}
 
 	public dispose(): void {
@@ -38,6 +43,15 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 
 	public addDisposable(disposable: IDisposable) {
 		this._disposables.push(disposable);
+	}
+
+	public createProcess(launchConfig: IShellLaunchConfig): void {
+		this.ptyProcessReady = new TPromise<void>(c => {
+			this.onShellProcessIdReady(() => {
+				this._logService.debug(`Terminal process ready (shellProcessId: ${this.shellProcessId})`);
+				c(void 0);
+			});
+		});
 	}
 
 	public write(data: string): void {
@@ -56,6 +70,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	public acceptProcessMessage(message: ITerminalProcessMessage): void {
 		if (message.type === 'pid') {
 			this.shellProcessId = <number>message.content;
+			this._onShellProcessIdReady.fire(this.shellProcessId);
 
 			// Send any queued data that's waiting
 			if (this._preLaunchInputQueue.length > 0) {

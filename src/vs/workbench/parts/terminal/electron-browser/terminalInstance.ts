@@ -666,15 +666,8 @@ export class TerminalInstance implements ITerminalInstance {
 
 	protected _createProcess(): void {
 		// TODO: This should be injected in to the terminal instance (from service?)
-		this._processManager = new TerminalProcessManager();
-
-		// Create a promise that resolves when the pty is ready
-		this._processManager.ptyProcessReady = new TPromise<void>(c => {
-			this.onProcessIdReady(() => {
-				this._logService.debug(`Terminal process ready (id: ${this.id}, processId: ${this.processId})`);
-				c(void 0);
-			});
-		});
+		this._processManager = this._instantiationService.createInstance(TerminalProcessManager);
+		this._processManager.createProcess(this._shellLaunchConfig);
 
 		const locale = this._configHelper.config.setLocaleVariables ? platform.locale : undefined;
 		if (!this._shellLaunchConfig.executable) {
@@ -718,10 +711,7 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		// TODO: Move to process manager?
 		this._processManager.process.on('message', (message: ITerminalProcessMessage) => {
-			if (message.type === 'pid') {
-				this._processManager.acceptProcessMessage(message);
-				this._onProcessIdReady.fire(this);
-			}
+			this._processManager.acceptProcessMessage(message);
 		});
 		this._processManager.process.on('exit', exitCode => this._onPtyProcessExit(exitCode));
 		setTimeout(() => {
