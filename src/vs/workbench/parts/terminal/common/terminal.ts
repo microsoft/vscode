@@ -457,6 +457,12 @@ export interface ITerminalCommandTracker {
 	selectToNextCommand(): void;
 }
 
+export interface ITerminalProcessMessage {
+	type: 'pid' | 'data' | 'title';
+	// TODO: Use conditional type so type is narrowed
+	content: number | string;
+}
+
 export interface ITerminalProcessManager extends IDisposable {
 	// TODO: Strongly type me
 	process: any;
@@ -464,7 +470,9 @@ export interface ITerminalProcessManager extends IDisposable {
 	ptyProcessReady: TPromise<void>;
 	shellProcessId: number;
 
+	acceptProcessMessage(message): void;
 	addDisposable(disposable: IDisposable);
+	write(data: string): void;
 }
 
 export enum ProcessState {

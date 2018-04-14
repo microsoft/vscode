@@ -5,7 +5,7 @@
 
 import { ChildProcess } from 'child_process';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ProcessState, ITerminalProcessManager } from 'vs/workbench/parts/terminal/common/terminal';
+import { ProcessState, ITerminalProcessManager, ITerminalProcessMessage } from 'vs/workbench/parts/terminal/common/terminal';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 /**
@@ -24,6 +24,8 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 
 	public shellProcessId: number;
 
+	private _preLaunchInputQueue: string[] = [];
+
 	private _disposables: IDisposable[] = [];
 
 	constructor() {
@@ -38,7 +40,33 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		this._disposables.push(disposable);
 	}
 
+	public write(data: string): void {
+		if (this.shellProcessId) {
+			// Send data if the pty is ready
+			this.process.send({
+				event: 'input',
+				data
+			});
+		} else {
+			// If the pty is not ready, queue the data received to send later
+			this._preLaunchInputQueue.push(data);
+		}
+	}
 
+	public acceptProcessMessage(message: ITerminalProcessMessage): void {
+		if (message.type === 'pid') {
+			this.shellProcessId = <number>message.content;
+
+			// Send any queued data that's waiting
+			if (this._preLaunchInputQueue.length > 0) {
+				this.process.send({
+					event: 'input',
+					data: this._preLaunchInputQueue.join('')
+				});
+				this._preLaunchInputQueue.length = 0;
+			}
+		}
+	}
 
 
 	// Should this be here or in instance?

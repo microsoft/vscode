@@ -18,7 +18,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig, ITerminalProcessManager } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig, ITerminalProcessManager, ITerminalProcessMessage } from 'vs/workbench/parts/terminal/common/terminal';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
@@ -99,7 +99,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _cols: number;
 	private _rows: number;
 	private _messageTitleListener: (message: { type: string, content: string }) => void;
-	private _preLaunchInputQueue: string;
+	// private _preLaunchInputQueue: string;
 	private _initialCwd: string;
 	private _windowsShellHelper: WindowsShellHelper;
 	private _onLineDataListeners: ((lineData: string) => void)[];
@@ -152,7 +152,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._isDisposed = false;
 		this._id = TerminalInstance._idCounter++;
 		this._terminalHasTextContextKey = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.bindTo(this._contextKeyService);
-		this._preLaunchInputQueue = '';
+		// this._preLaunchInputQueue = '';
 		this.disableLayout = false;
 
 		this._logService.trace(`terminalInstance#ctor (id: ${this.id})`, this._shellLaunchConfig);
@@ -314,20 +314,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm.winptyCompatInit();
 		this._xterm.on('linefeed', () => this._onLineFeed());
 		this._processManager.process.on('message', (message) => this._sendPtyDataToXterm(message));
-		this._xterm.on('data', (data) => {
-			if (this._processManager.shellProcessId) {
-				// Send data if the pty is ready
-				this._processManager.process.send({
-					event: 'input',
-					data
-				});
-			} else {
-				// If the pty is not ready, queue the data received from
-				// xterm.js until the pty is ready
-				this._preLaunchInputQueue += data;
-			}
-			return false;
-		});
+		this._xterm.on('data', data => this._processManager.write(data));
 		this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform, this._initialCwd);
 		this._commandTracker = new TerminalCommandTracker(this._xterm);
 		this._instanceDisposables.push(this._themeService.onThemeChange(theme => this._updateTheme(theme)));
@@ -729,18 +716,10 @@ export class TerminalInstance implements ITerminalInstance {
 			};
 			this._processManager.process.on('message', this._messageTitleListener);
 		}
-		this._processManager.process.on('message', (message) => {
+		// TODO: Move to process manager?
+		this._processManager.process.on('message', (message: ITerminalProcessMessage) => {
 			if (message.type === 'pid') {
-				this._processManager.shellProcessId = message.content;
-
-				// Send any queued data that's waiting
-				if (this._preLaunchInputQueue.length > 0) {
-					this._processManager.process.send({
-						event: 'input',
-						data: this._preLaunchInputQueue
-					});
-					this._preLaunchInputQueue = null;
-				}
+				this._processManager.acceptProcessMessage(message);
 				this._onProcessIdReady.fire(this);
 			}
 		});
