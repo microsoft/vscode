@@ -130,6 +130,8 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 		}
 
 		this._isDisposed = true;
+		this.onDisposeEmitter.fire();
+
 		this._proxy.$disposeWebview(this._handle);
 
 		this.onDisposeEmitter.dispose();
@@ -255,7 +257,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 	$onDidDisposeWeview(handle: WebviewHandle): Thenable<void> {
 		const panel = this.getWebviewPanel(handle);
 		if (panel) {
-			panel.onDisposeEmitter.fire();
+			panel.dispose();
 			this._webviewPanels.delete(handle);
 		}
 		return TPromise.as(void 0);
