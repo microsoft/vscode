@@ -85,7 +85,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private readonly _onFocused: Emitter<ITerminalInstance>;
 	private readonly _onProcessIdReady: Emitter<ITerminalInstance>;
 	private readonly _onTitleChanged: Emitter<string>;
-	private _process: cp.ChildProcess;
+	// private _process: cp.ChildProcess;
 	private _processId: number;
 	private _skipTerminalCommands: string[];
 	private _title: string;
@@ -320,11 +320,11 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		this._xterm.winptyCompatInit();
 		this._xterm.on('linefeed', () => this._onLineFeed());
-		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
+		this._processManager.process.on('message', (message) => this._sendPtyDataToXterm(message));
 		this._xterm.on('data', (data) => {
 			if (this._processId) {
 				// Send data if the pty is ready
-				this._process.send({
+				this._processManager.process.send({
 					event: 'input',
 					data
 				});
@@ -550,15 +550,15 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xterm.destroy();
 			this._xterm = null;
 		}
-		if (this._process) {
-			if (this._process.connected) {
+		if (this._processManager.process) {
+			if (this._processManager.process.connected) {
 				// If the process was still connected this dispose came from
 				// within VS Code, not the process, so mark the process as
 				// killed by the user.
 				this._processManager.processState = ProcessState.KILLED_BY_USER;
-				this._process.send({ event: 'shutdown' });
+				this._processManager.process.send({ event: 'shutdown' });
 			}
-			this._process = null;
+			this._processManager.process = null;
 		}
 		if (!this._isDisposed) {
 			this._isDisposed = true;
@@ -590,7 +590,7 @@ export class TerminalInstance implements ITerminalInstance {
 			if (addNewLine && text.substr(text.length - 1) !== '\r') {
 				text += '\r';
 			}
-			this._process.send({
+			this._processManager.process.send({
 				event: 'input',
 				data: text
 			});
@@ -713,7 +713,7 @@ export class TerminalInstance implements ITerminalInstance {
 		const cwd = Uri.parse(path.dirname(require.toUrl('../node/terminalProcess'))).fsPath;
 		const options = { env, cwd };
 		this._logService.debug(`Terminal process launching (id: ${this.id})`, options);
-		this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], options);
+		this._processManager.process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], options);
 		this._processManager.processState = ProcessState.LAUNCHING;
 
 		if (this._shellLaunchConfig.name) {
@@ -726,15 +726,15 @@ export class TerminalInstance implements ITerminalInstance {
 					this.setTitle(message.content ? message.content : '', true);
 				}
 			};
-			this._process.on('message', this._messageTitleListener);
+			this._processManager.process.on('message', this._messageTitleListener);
 		}
-		this._process.on('message', (message) => {
+		this._processManager.process.on('message', (message) => {
 			if (message.type === 'pid') {
 				this._processId = message.content;
 
 				// Send any queued data that's waiting
 				if (this._preLaunchInputQueue.length > 0) {
-					this._process.send({
+					this._processManager.process.send({
 						event: 'input',
 						data: this._preLaunchInputQueue
 					});
@@ -743,7 +743,7 @@ export class TerminalInstance implements ITerminalInstance {
 				this._onProcessIdReady.fire(this);
 			}
 		});
-		this._process.on('exit', exitCode => this._onPtyProcessExit(exitCode));
+		this._processManager.process.on('exit', exitCode => this._onPtyProcessExit(exitCode));
 		setTimeout(() => {
 			if (this._processManager.processState === ProcessState.LAUNCHING) {
 				this._processManager.processState = ProcessState.RUNNING;
@@ -782,7 +782,7 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 
 		this._isExiting = true;
-		this._process = null;
+		this._processManager.process = null;
 		let exitCodeMessage: string;
 
 		if (exitCode) {
@@ -858,12 +858,12 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public reuseTerminal(shell?: IShellLaunchConfig): void {
 		// Kill and clean up old process
-		if (this._process) {
-			this._process.removeAllListeners('exit');
-			if (this._process.connected) {
-				this._process.kill();
+		if (this._processManager.process) {
+			this._processManager.process.removeAllListeners('exit');
+			if (this._processManager.process.connected) {
+				this._processManager.process.kill();
 			}
-			this._process = null;
+			this._processManager.process = null;
 		}
 
 		// TODO: This should not call dispose directly, process manager should dispose any
@@ -885,7 +885,7 @@ export class TerminalInstance implements ITerminalInstance {
 		if (oldTitle !== this._title) {
 			this.setTitle(this._title, true);
 		}
-		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
+		this._processManager.process.on('message', (message) => this._sendPtyDataToXterm(message));
 
 		// Clean up waitOnExit state
 		if (this._isExiting && this._shellLaunchConfig.waitOnExit) {
@@ -998,13 +998,13 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public onExit(listener: (exitCode: number) => void): lifecycle.IDisposable {
-		if (this._process) {
-			this._process.on('exit', listener);
+		if (this._processManager.process) {
+			this._processManager.process.on('exit', listener);
 		}
 		return {
 			dispose: () => {
-				if (this._process) {
-					this._process.removeListener('exit', listener);
+				if (this._processManager.process) {
+					this._processManager.process.removeListener('exit', listener);
 				}
 			}
 		};
@@ -1162,10 +1162,10 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 
 		this._processReady.then(() => {
-			if (this._process && this._process.connected) {
+			if (this._processManager.process && this._processManager.process.connected) {
 				// The child process could aready be terminated
 				try {
-					this._process.send({
+					this._processManager.process.send({
 						event: 'resize',
 						cols: this._cols,
 						rows: this._rows
@@ -1193,8 +1193,8 @@ export class TerminalInstance implements ITerminalInstance {
 		} else {
 			// If the title has not been set by the API or the rename command, unregister the handler that
 			// automatically updates the terminal name
-			if (this._process && this._messageTitleListener) {
-				this._process.removeListener('message', this._messageTitleListener);
+			if (this._processManager.process && this._messageTitleListener) {
+				this._processManager.process.removeListener('message', this._messageTitleListener);
 				this._messageTitleListener = null;
 			}
 		}

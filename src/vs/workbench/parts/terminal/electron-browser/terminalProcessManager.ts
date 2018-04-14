@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ChildProcess } from 'child_process';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ProcessState, ITerminalProcessManager } from 'vs/workbench/parts/terminal/common/terminal';
 
@@ -15,10 +16,9 @@ import { ProcessState, ITerminalProcessManager } from 'vs/workbench/parts/termin
  * - Shell Process: The pseudoterminal master process
  */
 export class TerminalProcessManager implements ITerminalProcessManager {
-	// _processState
 	public processState: ProcessState = ProcessState.UNINITIALIZED;
 	// _process
-	// private _terminalProcess: cp.ChildProcess;
+	public process: ChildProcess;
 	// private _terminalProcessReady: TPromise<void>;
 
 	// private _shellProcessId: number;

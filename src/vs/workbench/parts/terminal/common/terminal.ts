@@ -458,6 +458,8 @@ export interface ITerminalCommandTracker {
 }
 
 export interface ITerminalProcessManager extends IDisposable {
+	// TODO: Strongly type me
+	process: any;
 	processState: ProcessState;
 
 	addDisposable(disposable: IDisposable);
