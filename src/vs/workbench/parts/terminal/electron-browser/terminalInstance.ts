@@ -86,7 +86,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private readonly _onProcessIdReady: Emitter<ITerminalInstance>;
 	private readonly _onTitleChanged: Emitter<string>;
 	// private _process: cp.ChildProcess;
-	private _processId: number;
+	// private _processId: number;
 	private _skipTerminalCommands: string[];
 	private _title: string;
 	// TODO: Rename to "_disposables"
@@ -112,7 +112,8 @@ export class TerminalInstance implements ITerminalInstance {
 	public disableLayout: boolean;
 	public get id(): number { return this._id; }
 	// TODO: Ideally processId would be merged into processReady
-	public get processId(): number { return this._processId; }
+	public get processId(): number { return this._processManager.shellProcessId; }
+	// TODO: Should this be an event as it can fire twice?
 	public get processReady(): TPromise<void> { return this._processManager.ptyProcessReady; }
 	public get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
 	public get onFocused(): Event<ITerminalInstance> { return this._onFocused.event; }
@@ -169,7 +170,7 @@ export class TerminalInstance implements ITerminalInstance {
 			if (platform.isWindows) {
 				this._processManager.ptyProcessReady.then(() => {
 					if (!this._isDisposed) {
-						this._windowsShellHelper = new WindowsShellHelper(this._processId, this, this._xterm);
+						this._windowsShellHelper = new WindowsShellHelper(this._processManager.shellProcessId, this, this._xterm);
 					}
 				});
 			}
@@ -314,7 +315,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm.on('linefeed', () => this._onLineFeed());
 		this._processManager.process.on('message', (message) => this._sendPtyDataToXterm(message));
 		this._xterm.on('data', (data) => {
-			if (this._processId) {
+			if (this._processManager.shellProcessId) {
 				// Send data if the pty is ready
 				this._processManager.process.send({
 					event: 'input',
@@ -730,7 +731,7 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		this._processManager.process.on('message', (message) => {
 			if (message.type === 'pid') {
-				this._processId = message.content;
+				this._processManager.shellProcessId = message.content;
 
 				// Send any queued data that's waiting
 				if (this._preLaunchInputQueue.length > 0) {

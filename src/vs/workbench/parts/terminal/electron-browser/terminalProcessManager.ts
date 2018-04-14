@@ -22,7 +22,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	public process: ChildProcess;
 	public ptyProcessReady: TPromise<void>;
 
-	// private _shellProcessId: number;
+	public shellProcessId: number;
 
 	private _disposables: IDisposable[] = [];
 

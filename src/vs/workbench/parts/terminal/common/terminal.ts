@@ -462,6 +462,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	process: any;
 	processState: ProcessState;
 	ptyProcessReady: TPromise<void>;
+	shellProcessId: number;
 
 	addDisposable(disposable: IDisposable);
 }
