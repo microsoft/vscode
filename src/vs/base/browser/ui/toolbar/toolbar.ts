@@ -97,6 +97,14 @@ export class ToolBar {
 		return this.actionBar.getContainer();
 	}
 
+	public getItemsWidth(): number {
+		let itemsWidth = 0;
+		for (let i = 0; i < this.actionBar.length(); i++) {
+			itemsWidth += this.actionBar.getWidth(i);
+		}
+		return itemsWidth;
+	}
+
 	public setAriaLabel(label: string): void {
 		this.actionBar.setAriaLabel(label);
 	}

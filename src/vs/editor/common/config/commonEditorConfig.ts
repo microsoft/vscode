@@ -370,6 +370,11 @@ const editorConfiguration: IConfigurationNode = {
 				]
 			}, "The modifier to be used to add multiple cursors with the mouse. `ctrlCmd` maps to `Control` on Windows and Linux and to `Command` on macOS. The Go To Definition and Open Link mouse gestures will adapt such that they do not conflict with the multicursor modifier.")
 		},
+		'editor.multiCursorMergeOverlapping': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.multiCursorMergeOverlapping,
+			'description': nls.localize('multiCursorMergeOverlapping', "Merge multiple cursors when they are overlapping.")
+		},
 		'editor.quickSuggestions': {
 			'anyOf': [
 				{
@@ -579,7 +584,7 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'string',
 			'enum': ['auto', 'indentation'],
 			'enumDescriptions': [
-				nls.localize('foldingStrategyAuto', 'If available, use a langauge specific folding strategy, otherwise falls back to the indentation based strategy.'),
+				nls.localize('foldingStrategyAuto', 'If available, use a language specific folding strategy, otherwise falls back to the indentation based strategy.'),
 				nls.localize('foldingStrategyIndentation', 'Always use the indentation based folding strategy')
 			],
 			'default': EDITOR_DEFAULTS.contribInfo.foldingStrategy,
@@ -662,6 +667,16 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': true,
 			'description': nls.localize('ignoreTrimWhitespace', "Controls if the diff editor shows changes in leading or trailing whitespace as diffs")
+		},
+		'editor.largeFileSize': {
+			'type': 'number',
+			'default': EDITOR_MODEL_DEFAULTS.largeFileSize,
+			'description': nls.localize('largeFileSize', "Controls file size threshold in bytes beyond which special optimization rules are applied")
+		},
+		'editor.largeFileLineCount': {
+			'type': 'number',
+			'default': EDITOR_MODEL_DEFAULTS.largeFileLineCount,
+			'description': nls.localize('largeFileLineCount', "Controls file size threshold in terms of line count beyond which special optimization rules are applied")
 		},
 		'diffEditor.renderIndicators': {
 			'type': 'boolean',

@@ -1194,6 +1194,11 @@ declare namespace monaco.editor {
 		 */
 		isWholeLine?: boolean;
 		/**
+		 * Specifies the stack order of a decoration.
+		 * A decoration with greater stack order is always in front of a decoration with a lower stack order.
+		 */
+		zIndex?: number;
+		/**
 		 * If set, render this decoration in the overview ruler.
 		 */
 		overviewRuler?: IModelDecorationOverviewRulerOptions;
@@ -1483,6 +1488,10 @@ declare namespace monaco.editor {
 		 * Get the text for a certain line.
 		 */
 		getLineContent(lineNumber: number): string;
+		/**
+		 * Get the text length for a certain line.
+		 */
+		getLineLength(lineNumber: number): number;
 		/**
 		 * Get the text for all lines.
 		 */
@@ -2192,6 +2201,10 @@ declare namespace monaco.editor {
 		 */
 		readonly range: IRange;
 		/**
+		 * The offset of the range that got replaced.
+		 */
+		readonly rangeOffset: number;
+		/**
 		 * The length of the range that got replaced.
 		 */
 		readonly rangeLength: number;
@@ -2689,6 +2702,11 @@ declare namespace monaco.editor {
 		 */
 		multiCursorModifier?: 'ctrlCmd' | 'alt';
 		/**
+		 * Merge overlapping selections.
+		 * Defaults to true
+		 */
+		multiCursorMergeOverlapping?: boolean;
+		/**
 		 * Configure the editor's accessibility support.
 		 * Defaults to 'auto'. It is best to leave this to 'auto'.
 		 */
@@ -3109,6 +3127,7 @@ declare namespace monaco.editor {
 		readonly lineHeight: number;
 		readonly readOnly: boolean;
 		readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
+		readonly multiCursorMergeOverlapping: boolean;
 		readonly wordSeparators: string;
 		readonly autoClosingBrackets: boolean;
 		readonly autoIndent: boolean;
@@ -3246,6 +3265,7 @@ declare namespace monaco.editor {
 		readonly readOnly: boolean;
 		readonly accessibilitySupport: boolean;
 		readonly multiCursorModifier: boolean;
+		readonly multiCursorMergeOverlapping: boolean;
 		readonly wordSeparators: boolean;
 		readonly autoClosingBrackets: boolean;
 		readonly autoIndent: boolean;

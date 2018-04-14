@@ -13,7 +13,7 @@ import * as types from 'vs/base/common/types';
 import * as errors from 'vs/base/common/errors';
 import * as DOM from 'vs/base/browser/dom';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
-import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, EditorViewStateMemento } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorViewState, IEditor } from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/platform/editor/common/editor';
@@ -45,18 +45,21 @@ export abstract class BaseTextEditor extends BaseEditor {
 	private _editorContainer: HTMLElement;
 	private hasPendingConfigurationChange: boolean;
 	private lastAppliedEditorOptions: IEditorOptions;
+	private editorViewStateMemento: EditorViewStateMemento<IEditorViewState>;
 
 	constructor(
 		id: string,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IStorageService private storageService: IStorageService,
+		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService private readonly _configurationService: ITextResourceConfigurationService,
 		@IThemeService protected themeService: IThemeService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IEditorGroupService protected editorGroupService: IEditorGroupService
 	) {
 		super(id, telemetryService, themeService);
+
+		this.editorViewStateMemento = new EditorViewStateMemento<IEditorViewState>(this.getMemento(storageService, Scope.WORKSPACE), TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY, 100);
 
 		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.handleConfigurationChangeEvent(this.configurationService.getValue<IEditorConfiguration>(this.getResource()))));
 	}
@@ -237,23 +240,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 			return;
 		}
 
-		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
-
-		let textEditorViewStateMemento: { [key: string]: { [position: number]: IEditorViewState } } = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
-		if (!textEditorViewStateMemento) {
-			textEditorViewStateMemento = Object.create(null);
-			memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY] = textEditorViewStateMemento;
-		}
-
-		let lastKnownViewState = textEditorViewStateMemento[resource.toString()];
-		if (!lastKnownViewState) {
-			lastKnownViewState = Object.create(null);
-			textEditorViewStateMemento[resource.toString()] = lastKnownViewState;
-		}
-
-		if (typeof this.position === 'number') {
-			lastKnownViewState[this.position] = editorViewState;
-		}
+		this.editorViewStateMemento.saveState(resource, this.position, editorViewState);
 	}
 
 	protected retrieveTextEditorViewState(resource: URI): IEditorViewState {
@@ -283,27 +270,16 @@ export abstract class BaseTextEditor extends BaseEditor {
 	 * Clears the text editor view state for the given resources.
 	 */
 	protected clearTextEditorViewState(resources: URI[]): void {
-		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
-		const textEditorViewStateMemento: { [key: string]: { [position: number]: IEditorViewState } } = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
-		if (textEditorViewStateMemento) {
-			resources.forEach(resource => delete textEditorViewStateMemento[resource.toString()]);
-		}
+		resources.forEach(resource => {
+			this.editorViewStateMemento.clearState(resource);
+		});
 	}
 
 	/**
 	 * Loads the text editor view state for the given resource and returns it.
 	 */
 	protected loadTextEditorViewState(resource: URI): IEditorViewState {
-		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
-		const textEditorViewStateMemento: { [key: string]: { [position: number]: IEditorViewState } } = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
-		if (textEditorViewStateMemento) {
-			const viewState = textEditorViewStateMemento[resource.toString()];
-			if (viewState) {
-				return viewState[this.position];
-			}
-		}
-
-		return null;
+		return this.editorViewStateMemento.loadState(resource, this.position);
 	}
 
 	private updateEditorConfiguration(configuration = this.configurationService.getValue<IEditorConfiguration>(this.getResource())): void {
@@ -344,6 +320,14 @@ export abstract class BaseTextEditor extends BaseEditor {
 	}
 
 	protected abstract getAriaLabel(): string;
+
+	protected saveMemento(): void {
+
+		// ensure to first save our view state memento
+		this.editorViewStateMemento.save();
+
+		super.saveMemento();
+	}
 
 	public dispose(): void {
 		this.lastAppliedEditorOptions = void 0;

@@ -334,4 +334,29 @@ suite('FormatCommand', () => {
 		});
 	});
 
+	test('issue #47382: full model replace moves cursor to end of file', () => {
+		const initialText = [
+			'just some',
+			'Text',
+			'...more text'
+		];
+		withTestCodeEditor(initialText, {}, (editor) => {
+			editor.setSelection(new Selection(2, 1, 2, 1));
+			EditOperationsCommand.execute(editor, [{
+				range: new Range(1, 1, 3, 13),
+				text: [
+					'just some',
+					'\tText',
+					'...more text'
+				].join('\n')
+			}]);
+			assert.equal(editor.getValue(), [
+				'just some',
+				'\tText',
+				'...more text'
+			].join('\n'));
+			assert.deepEqual(editor.getSelection(), new Selection(2, 1, 2, 1));
+		});
+	});
+
 });

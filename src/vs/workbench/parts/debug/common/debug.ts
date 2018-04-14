@@ -20,6 +20,7 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 export const VARIABLES_VIEW_ID = 'workbench.debug.variablesView';
@@ -347,6 +348,7 @@ export interface IDebugConfiguration {
 	hideActionBar: boolean;
 	showInStatusBar: 'never' | 'always' | 'onFirstSessionStart';
 	internalConsoleOptions: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
+	extensionHostDebugAdapter: boolean;
 }
 
 export interface IGlobalConfig {
@@ -380,34 +382,60 @@ export interface ICompound {
 	configurations: (string | { name: string, folder: string })[];
 }
 
+export interface IDebugAdapter extends IDisposable {
+	readonly onError: Event<Error>;
+	readonly onExit: Event<number>;
+	onRequest(callback: (request: DebugProtocol.Request) => void);
+	onEvent(callback: (event: DebugProtocol.Event) => void);
+	startSession(): TPromise<void>;
+	sendMessage(message: DebugProtocol.ProtocolMessage): void;
+	sendResponse(response: DebugProtocol.Response): void;
+	sendRequest(command: string, args: any, clb: (result: DebugProtocol.Response) => void): void;
+	stopSession(): TPromise<void>;
+}
+
+export interface IDebugAdapterProvider {
+	createDebugAdapter(debugType: string, adapterInfo: IAdapterExecutable | null): IDebugAdapter;
+}
+
 export interface IAdapterExecutable {
 	command?: string;
 	args?: string[];
 }
 
-export interface IRawEnvAdapter {
-	type?: string;
-	label?: string;
+export interface IPlatformSpecificAdapterContribution {
+	type?: string;		// TODO: doesn't belong here
+	label?: string;		// TODO: doesn't belong here
 	program?: string;
 	args?: string[];
 	runtime?: string;
 	runtimeArgs?: string[];
 }
 
-export interface IRawAdapter extends IRawEnvAdapter {
+export interface IDebuggerContribution extends IPlatformSpecificAdapterContribution {
+	// type: string;		// TODO: host from IPlatformSpecificAdapterContribution
+	// label?: string;		// TODO: host from IPlatformSpecificAdapterContribution
+
+	// debug adapter executable
 	adapterExecutableCommand?: string;
-	enableBreakpointsFor?: { languageIds: string[] };
-	configurationAttributes?: any;
-	configurationSnippets?: IJSONSchemaSnippet[];
-	initialConfigurations?: any[];
-	languages?: string[];
-	variables?: { [key: string]: string };
+	win?: IPlatformSpecificAdapterContribution;
+	winx86?: IPlatformSpecificAdapterContribution;
+	windows?: IPlatformSpecificAdapterContribution;
+	osx?: IPlatformSpecificAdapterContribution;
+	linux?: IPlatformSpecificAdapterContribution;
+
+	// internal
 	aiKey?: string;
-	win?: IRawEnvAdapter;
-	winx86?: IRawEnvAdapter;
-	windows?: IRawEnvAdapter;
-	osx?: IRawEnvAdapter;
-	linux?: IRawEnvAdapter;
+
+	// supported languages
+	languages?: string[];
+	enableBreakpointsFor?: { languageIds: string[] };
+
+	// debug configuration support
+	configurationAttributes?: any;
+	initialConfigurations?: any[];
+	configurationSnippets?: IJSONSchemaSnippet[];
+	variables?: { [key: string]: string };
 }
 
 export interface IDebugConfigurationProvider {
@@ -416,6 +444,25 @@ export interface IDebugConfigurationProvider {
 	resolveDebugConfiguration?(folderUri: uri | undefined, debugConfiguration: IConfig): TPromise<IConfig>;
 	provideDebugConfigurations?(folderUri: uri | undefined): TPromise<IConfig[]>;
 	debugAdapterExecutable(folderUri: uri | undefined): TPromise<IAdapterExecutable>;
+}
+
+export interface ITerminalLauncher {
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void>;
+}
+
+export interface ITerminalSettings {
+	external: {
+		windowsExec: string,
+		osxExec: string,
+		linuxExec: string
+	};
+	integrated: {
+		shell: {
+			osx: string,
+			windows: string,
+			linux: string
+		}
+	};
 }
 
 export interface IConfigurationManager {
@@ -448,6 +495,12 @@ export interface IConfigurationManager {
 
 	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any): TPromise<any>;
 	debugAdapterExecutable(folderUri: uri | undefined, type: string): TPromise<IAdapterExecutable | undefined>;
+
+	registerDebugAdapterProvider(debugType: string, debugAdapterLauncher: IDebugAdapterProvider);
+	createDebugAdapter(debugType: string, adapterExecutable: IAdapterExecutable | null): IDebugAdapter;
+
+	registerEHTerminalLauncher(launcher: ITerminalLauncher): void;
+	runInTerminal(extensionHost: boolean, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void>;
 }
 
 export interface ILaunch {

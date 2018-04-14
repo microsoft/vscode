@@ -22,8 +22,20 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
 		this._toDispose = [];
+		this._toDispose.push(terminalService.onInstanceCreated((terminalInstance) => {
+			// Delay this message so the TerminalInstance constructor has a chance to finish and
+			// return the ID normally to the extension host. The ID that is passed here will be used
+			// to register non-extension API terminals in the extension host.
+			setTimeout(() => this._onTerminalOpened(terminalInstance), 100);
+		}));
 		this._toDispose.push(terminalService.onInstanceDisposed((terminalInstance) => this._onTerminalDisposed(terminalInstance)));
 		this._toDispose.push(terminalService.onInstanceProcessIdReady((terminalInstance) => this._onTerminalProcessIdReady(terminalInstance)));
+
+		// Set initial ext host state
+		this.terminalService.terminalInstances.forEach(t => {
+			this._onTerminalOpened(t);
+			t.processReady.then(() => this._onTerminalProcessIdReady(t));
+		});
 	}
 
 	public dispose(): void {
@@ -76,6 +88,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	private _onTerminalDisposed(terminalInstance: ITerminalInstance): void {
 		this._proxy.$acceptTerminalClosed(terminalInstance.id);
+	}
+
+	private _onTerminalOpened(terminalInstance: ITerminalInstance): void {
+		this._proxy.$acceptTerminalOpened(terminalInstance.id, terminalInstance.title);
 	}
 
 	private _onTerminalProcessIdReady(terminalInstance: ITerminalInstance): void {

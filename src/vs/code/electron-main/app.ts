@@ -59,14 +59,14 @@ import { IssueChannel } from 'vs/platform/issue/common/issueIpc';
 import { IssueService } from 'vs/platform/issue/electron-main/issueService';
 import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { join } from 'path';
-import { copy } from 'vs/base/node/pfs';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
+import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
+import { join } from 'path';
+import { copy, exists, rename } from 'vs/base/node/pfs';
 
 export class CodeApplication {
 
 	private static readonly MACHINE_ID_KEY = 'telemetry.machineId';
-	private static readonly LOCAL_STORAGE_BACKED_UP_KEY = 'localStorage.backedUp';
 
 	private toDispose: IDisposable[];
 	private windowsMainService: IWindowsMainService;
@@ -264,9 +264,9 @@ export class CodeApplication {
 		this.logService.debug(`from: ${this.environmentService.appRoot}`);
 		this.logService.debug('args:', this.environmentService.args);
 
-		// Backup local storage (TODO@Ben remove me after a while)
-		this.logService.trace('Backing up localStorage if needed...');
-		return this.backupLocalStorage().then(() => {
+		// Handle local storage (TODO@Ben remove me after a while)
+		this.logService.trace('Handling localStorage if needed...');
+		return this.handleLocalStorage().then(() => {
 
 			// Make sure we associate the program with the app user model id
 			// This will help Windows to associate the running program with
@@ -291,15 +291,28 @@ export class CodeApplication {
 				// Services
 				const appInstantiationService = this.initServices(machineId);
 
-				// Setup Auth Handler
-				const authHandler = appInstantiationService.createInstance(ProxyAuthHandler);
-				this.toDispose.push(authHandler);
+				let promise: TPromise<any> = TPromise.as(null);
 
-				// Open Windows
-				appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor));
+				// Create driver
+				if (this.environmentService.driverHandle) {
+					serveDriver(this.electronIpcServer, this.environmentService.driverHandle, appInstantiationService).then(server => {
+						this.logService.info('Driver started at:', this.environmentService.driverHandle);
+						this.toDispose.push(server);
+					});
+				}
 
-				// Post Open Windows Tasks
-				appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
+				return promise.then(() => {
+
+					// Setup Auth Handler
+					const authHandler = appInstantiationService.createInstance(ProxyAuthHandler);
+					this.toDispose.push(authHandler);
+
+					// Open Windows
+					appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor));
+
+					// Post Open Windows Tasks
+					appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
+				});
 			});
 		});
 	}
@@ -319,22 +332,34 @@ export class CodeApplication {
 		});
 	}
 
-	private backupLocalStorage(): TPromise<void> {
-		const localStorageBackedUp = this.stateService.getItem<string>(CodeApplication.LOCAL_STORAGE_BACKED_UP_KEY);
-		if (localStorageBackedUp) {
-			return TPromise.wrap(void 0);
-		}
-
-		const afterBackupDone = () => {
-
-			// Remember in global storage
-			this.stateService.setItem(CodeApplication.LOCAL_STORAGE_BACKED_UP_KEY, true);
-		};
-
+	private handleLocalStorage(): TPromise<void> {
 		const localStorageFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage');
 		const localStorageJournalFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage-journal');
+		const localStorageBackupFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage.vscbak');
+		const localStorageJournalBackupFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage-journal.vscbak');
 
-		return copy(localStorageFile, `${localStorageFile}.vscbak`).then(() => copy(localStorageJournalFile, `${localStorageJournalFile}.vscbak`)).then(afterBackupDone, afterBackupDone);
+		// Electron 1.7.12: Restore storage
+		if (process.versions.electron === '1.7.12') {
+			return exists(localStorageBackupFile).then(localStorageBackupFileExists => {
+				return exists(localStorageJournalBackupFile).then(localStorageJournalBackupFileExists => {
+					return TPromise.join([
+						localStorageBackupFileExists ? rename(localStorageBackupFile, localStorageFile) : TPromise.as(void 0),
+						localStorageJournalBackupFileExists ? rename(localStorageJournalBackupFile, localStorageJournalFile) : TPromise.as(void 0)
+					]);
+				});
+			}).then(() => void 0, () => void 0);
+		}
+
+		// Electron 2.0: Backup
+		else {
+			return exists(localStorageBackupFile).then(backupExists => {
+				if (backupExists) {
+					return void 0; // do not backup if backup already exists
+				}
+
+				return copy(localStorageFile, localStorageBackupFile).then(() => copy(localStorageJournalFile, localStorageJournalBackupFile));
+			}).then(() => void 0, () => void 0);
+		}
 	}
 
 	private initServices(machineId: string): IInstantiationService {

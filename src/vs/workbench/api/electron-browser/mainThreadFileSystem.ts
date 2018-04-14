@@ -7,11 +7,10 @@
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise, PPromise } from 'vs/base/common/winjs.base';
 import { ExtHostContext, MainContext, IExtHostContext, MainThreadFileSystemShape, ExtHostFileSystemShape, IFileChangeDto } from '../node/extHost.protocol';
-import { IFileService, IFileSystemProvider, IStat, IFileChange } from 'vs/platform/files/common/files';
+import { IFileService, IStat, IFileChange, ISimpleReadWriteProvider, IFileSystemProviderBase, FileOpenFlags } from 'vs/platform/files/common/files';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import { IProgress } from 'vs/platform/progress/common/progress';
 import { ISearchResultProvider, ISearchQuery, ISearchComplete, ISearchProgressItem, QueryType, IFileMatch, ISearchService, ILineMatch } from 'vs/platform/search/common/search';
 import { values } from 'vs/base/common/map';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
@@ -55,11 +54,6 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	$onFileSystemChange(handle: number, changes: IFileChangeDto[]): void {
 		this._fileProvider.get(handle).$onFileSystemChange(changes);
 	}
-
-	$reportFileChunk(handle: number, session: number, base64Chunk: string): void {
-		this._fileProvider.get(handle).reportFileChunk(session, base64Chunk);
-	}
-
 	// --- search
 
 	$handleFindMatch(handle: number, session, data: UriComponents | [UriComponents, ILineMatch]): void {
@@ -67,26 +61,14 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	}
 }
 
-class FileReadOperation {
+class RemoteFileSystemProvider implements ISimpleReadWriteProvider, IFileSystemProviderBase {
 
-	private static _idPool = 0;
-
-	constructor(
-		readonly progress: IProgress<Uint8Array>,
-		readonly id: number = ++FileReadOperation._idPool
-	) {
-		//
-	}
-}
-
-class RemoteFileSystemProvider implements IFileSystemProvider {
+	_type: 'simple' = 'simple';
 
 	private readonly _onDidChange = new Emitter<IFileChange[]>();
 	private readonly _registrations: IDisposable[];
-	private readonly _reads = new Map<number, FileReadOperation>();
 
 	readonly onDidChange: Event<IFileChange[]> = this._onDidChange.event;
-
 
 	constructor(
 		fileService: IFileService,
@@ -112,45 +94,31 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 
 	// --- forwarding calls
 
-	utimes(resource: URI, mtime: number, atime: number): TPromise<IStat, any> {
-		return this._proxy.$utimes(this._handle, resource, mtime, atime);
-	}
 	stat(resource: URI): TPromise<IStat, any> {
 		return this._proxy.$stat(this._handle, resource);
 	}
-	read(resource: URI, offset: number, count: number, progress: IProgress<Uint8Array>): TPromise<number, any> {
-		const read = new FileReadOperation(progress);
-		this._reads.set(read.id, read);
-		return this._proxy.$read(this._handle, read.id, offset, count, resource).then(value => {
-			this._reads.delete(read.id);
-			return value;
+	readFile(resource: URI, opts: { flags: FileOpenFlags }): TPromise<Uint8Array, any> {
+		return this._proxy.$readFile(this._handle, resource, opts.flags).then(encoded => {
+			return Buffer.from(encoded, 'base64');
 		});
 	}
-	reportFileChunk(session: number, encodedChunk: string): void {
-		this._reads.get(session).progress.report(Buffer.from(encodedChunk, 'base64'));
-	}
-	write(resource: URI, content: Uint8Array): TPromise<void, any> {
+	writeFile(resource: URI, content: Uint8Array, opts: { flags: FileOpenFlags }): TPromise<void, any> {
 		let encoded = Buffer.isBuffer(content)
 			? content.toString('base64')
-			: Buffer.from(content.buffer).toString('base64');
-		return this._proxy.$write(this._handle, resource, encoded);
+			: Buffer.from(content.buffer, content.byteOffset, content.byteLength).toString('base64');
+		return this._proxy.$writeFile(this._handle, resource, encoded, opts.flags);
 	}
-	unlink(resource: URI): TPromise<void, any> {
-		return this._proxy.$unlink(this._handle, resource);
+	delete(resource: URI): TPromise<void, any> {
+		return this._proxy.$delete(this._handle, resource);
 	}
-	move(resource: URI, target: URI): TPromise<IStat, any> {
-		return this._proxy.$move(this._handle, resource, target);
+	rename(resource: URI, target: URI, opts: { flags: FileOpenFlags }): TPromise<IStat, any> {
+		return this._proxy.$rename(this._handle, resource, target, opts.flags);
 	}
 	mkdir(resource: URI): TPromise<IStat, any> {
 		return this._proxy.$mkdir(this._handle, resource);
 	}
-	readdir(resource: URI): TPromise<[URI, IStat][], any> {
-		return this._proxy.$readdir(this._handle, resource).then(data => {
-			return data.map(tuple => <[URI, IStat]>[URI.revive(tuple[0]), tuple[1]]);
-		});
-	}
-	rmdir(resource: URI): TPromise<void, any> {
-		return this._proxy.$rmdir(this._handle, resource);
+	readdir(resource: URI): TPromise<[string, IStat][], any> {
+		return this._proxy.$readdir(this._handle, resource);
 	}
 }
 

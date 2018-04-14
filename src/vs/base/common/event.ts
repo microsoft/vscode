@@ -279,7 +279,7 @@ export function debounceEvent<I, O>(event: Event<I>, merger: (last: O, event: I)
 
 	let subscription: IDisposable;
 	let output: O = undefined;
-	let handle: number = undefined;
+	let handle: any = undefined;
 	let numDebouncedCalls = 0;
 
 	const emitter = new Emitter<O>({

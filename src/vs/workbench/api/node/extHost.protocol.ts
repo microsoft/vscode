@@ -24,7 +24,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 
 import { IConfigurationData, ConfigurationTarget, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
-import { IConfig, IAdapterExecutable } from 'vs/workbench/parts/debug/common/debug';
+import { IConfig, IAdapterExecutable, ITerminalSettings } from 'vs/workbench/parts/debug/common/debug';
 
 import { IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
@@ -42,7 +42,7 @@ import { ITreeItem } from 'vs/workbench/common/views';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { SerializedError } from 'vs/base/common/errors';
-import { IStat, FileChangeType } from 'vs/platform/files/common/files';
+import { IStat, FileChangeType, FileOpenFlags } from 'vs/platform/files/common/files';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { CommentRule, CharacterPair, EnterAction } from 'vs/editor/common/modes/languageConfiguration';
 import { ISingleEditOperation } from 'vs/editor/common/model';
@@ -273,7 +273,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerHoverProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerDocumentHighlightProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerReferenceSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
-	$registerQuickFixSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerQuickFixSupport(handle: number, selector: ISerializedDocumentFilter[], supportedKinds?: string[]): void;
 	$registerDocumentFormattingSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerRangeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerOnTypeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], autoFormatTriggerCharacters: string[]): void;
@@ -350,7 +350,7 @@ export interface MainThreadTelemetryShape extends IDisposable {
 export type WebviewHandle = string;
 
 export interface MainThreadWebviewsShape extends IDisposable {
-	$createWebview(handle: WebviewHandle, viewType: string, title: string, column: EditorPosition, options: vscode.WebviewOptions, extensionFolderPath: string): void;
+	$createWebview(handle: WebviewHandle, viewType: string, title: string, column: EditorPosition, options: vscode.WebviewPanelOptions & vscode.WebviewOptions, extensionFolderPath: string): void;
 	$disposeWebview(handle: WebviewHandle): void;
 	$reveal(handle: WebviewHandle, column: EditorPosition): void;
 	$setTitle(handle: WebviewHandle, value: string): void;
@@ -363,10 +363,9 @@ export interface MainThreadWebviewsShape extends IDisposable {
 
 export interface ExtHostWebviewsShape {
 	$onMessage(handle: WebviewHandle, message: any): void;
-	$onDidChangeActiveWeview(handle: WebviewHandle | undefined): void;
+	$onDidChangeWeviewViewState(handle: WebviewHandle, active: boolean, position: EditorPosition): void;
 	$onDidDisposeWeview(handle: WebviewHandle): Thenable<void>;
-	$onDidChangePosition(handle: WebviewHandle, newPosition: EditorPosition): void;
-	$deserializeWebview(newWebviewHandle: WebviewHandle, viewType: string, state: any, position: EditorPosition, options: vscode.WebviewOptions): void;
+	$deserializeWebview(newWebviewHandle: WebviewHandle, viewType: string, title: string, state: any, position: EditorPosition, options: vscode.WebviewOptions): Thenable<void>;
 	$serializeWebview(webviewHandle: WebviewHandle): Thenable<any>;
 }
 
@@ -388,7 +387,6 @@ export interface MainThreadFileSystemShape extends IDisposable {
 	$unregisterProvider(handle: number): void;
 
 	$onFileSystemChange(handle: number, resource: IFileChangeDto[]): void;
-	$reportFileChunk(handle: number, session: number, base64Encoded: string | null): void;
 
 	$handleFindMatch(handle: number, session, data: UriComponents | [UriComponents, ILineMatch]): void;
 }
@@ -465,6 +463,9 @@ export interface MainThreadSCMShape extends IDisposable {
 export type DebugSessionUUID = string;
 
 export interface MainThreadDebugServiceShape extends IDisposable {
+	$acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage);
+	$acceptDAError(handle: number, name: string, message: string, stack: string);
+	$acceptDAExit(handle: number, code: number, signal: string);
 	$registerDebugConfigurationProvider(type: string, hasProvideMethod: boolean, hasResolveMethod: boolean, hasDebugAdapterExecutable: boolean, handle: number): TPromise<any>;
 	$unregisterDebugConfigurationProvider(handle: number): TPromise<any>;
 	$startDebugging(folder: UriComponents | undefined, nameOrConfig: string | vscode.DebugConfiguration): TPromise<boolean>;
@@ -564,15 +565,17 @@ export interface ExtHostWorkspaceShape {
 }
 
 export interface ExtHostFileSystemShape {
-	$utimes(handle: number, resource: UriComponents, mtime: number, atime: number): TPromise<IStat>;
 	$stat(handle: number, resource: UriComponents): TPromise<IStat>;
-	$read(handle: number, session: number, offset: number, count: number, resource: UriComponents): TPromise<number>;
-	$write(handle: number, resource: UriComponents, base64Encoded: string): TPromise<void>;
-	$unlink(handle: number, resource: UriComponents): TPromise<void>;
-	$move(handle: number, resource: UriComponents, target: UriComponents): TPromise<IStat>;
+
+	$readFile(handle: number, resource: UriComponents, flags: FileOpenFlags): TPromise<string>;
+	$writeFile(handle: number, resource: UriComponents, base64Encoded: string, flags: FileOpenFlags): TPromise<void>;
+
+	$rename(handle: number, resource: UriComponents, target: UriComponents, flags: FileOpenFlags): TPromise<IStat>;
 	$mkdir(handle: number, resource: UriComponents): TPromise<IStat>;
-	$readdir(handle: number, resource: UriComponents): TPromise<[UriComponents, IStat][]>;
-	$rmdir(handle: number, resource: UriComponents): TPromise<void>;
+	$readdir(handle: number, resource: UriComponents): TPromise<[string, IStat][]>;
+
+	$delete(handle: number, resource: UriComponents): TPromise<void>;
+
 	$provideFileSearchResults(handle: number, session: number, query: string): TPromise<void>;
 	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, options: { includes: string[], excludes: string[] }): TPromise<void>;
 }
@@ -725,6 +728,7 @@ export interface ExtHostQuickOpenShape {
 
 export interface ExtHostTerminalServiceShape {
 	$acceptTerminalClosed(id: number): void;
+	$acceptTerminalOpened(id: number, name: string): void;
 	$acceptTerminalProcessId(id: number, processId: number): void;
 }
 
@@ -783,6 +787,10 @@ export interface ISourceMultiBreakpointDto {
 }
 
 export interface ExtHostDebugServiceShape {
+	$runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void>;
+	$startDASession(handle: number, debugType: string, adapterExecutableInfo: IAdapterExecutable | null): TPromise<void>;
+	$stopDASession(handle: number): TPromise<void>;
+	$sendDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): TPromise<void>;
 	$resolveDebugConfiguration(handle: number, folder: UriComponents | undefined, debugConfiguration: IConfig): TPromise<IConfig>;
 	$provideDebugConfigurations(handle: number, folder: UriComponents | undefined): TPromise<IConfig[]>;
 	$debugAdapterExecutable(handle: number, folder: UriComponents | undefined): TPromise<IAdapterExecutable>;

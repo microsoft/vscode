@@ -43,7 +43,7 @@ import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { ExtensionService } from 'vs/workbench/services/extensions/electron-browser/extensionService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -60,7 +60,7 @@ import { WorkbenchModeServiceImpl } from 'vs/workbench/services/mode/common/work
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { ICrashReporterService, NullCrashReporterService, CrashReporterService } from 'vs/workbench/services/crashReporter/electron-browser/crashReporterService';
-import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
+import { getDelayedChannel, IPCClient } from 'vs/base/parts/ipc/common/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { IExtensionManagementChannel, ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { IExtensionManagementService, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -83,7 +83,7 @@ import { HashService } from 'vs/workbench/services/hash/node/hashService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
-import { stat } from 'fs';
+import { stat, existsSync } from 'fs';
 import { join } from 'path';
 import { ILocalizationsChannel, LocalizationsChannelClient } from 'vs/platform/localizations/common/localizationsIpc';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
@@ -128,6 +128,7 @@ export class WorkbenchShell {
 	private lifecycleService: LifecycleService;
 	private mainProcessServices: ServiceCollection;
 	private notificationService: INotificationService;
+	private mainProcessClient: IPCClient;
 
 	private container: HTMLElement;
 	private toUnbind: IDisposable[];
@@ -139,7 +140,9 @@ export class WorkbenchShell {
 	private configuration: IWindowConfiguration;
 	private workbench: Workbench;
 
-	constructor(container: HTMLElement, coreServices: ICoreServices, mainProcessServices: ServiceCollection, configuration: IWindowConfiguration) {
+	private hasLocalStorageData: boolean;
+
+	constructor(container: HTMLElement, coreServices: ICoreServices, mainProcessServices: ServiceCollection, mainProcessClient: IPCClient, configuration: IWindowConfiguration) {
 		this.container = container;
 
 		this.configuration = configuration;
@@ -152,9 +155,13 @@ export class WorkbenchShell {
 		this.storageService = coreServices.storageService;
 
 		this.mainProcessServices = mainProcessServices;
+		this.mainProcessClient = mainProcessClient;
 
 		this.toUnbind = [];
 		this.previousErrorTime = 0;
+
+		// TODO@Ben remove me later
+		this.hasLocalStorageData = !!this.storageService.get('releaseNotes/lastVersion', StorageScope.GLOBAL);
 	}
 
 	private createContents(parent: HTMLElement): HTMLElement {
@@ -189,7 +196,7 @@ export class WorkbenchShell {
 
 	private createWorkbench(instantiationService: IInstantiationService, serviceCollection: ServiceCollection, parent: HTMLElement, workbenchContainer: HTMLElement): Workbench {
 		try {
-			const workbench = instantiationService.createInstance(Workbench, parent, workbenchContainer, this.configuration, serviceCollection, this.lifecycleService);
+			const workbench = instantiationService.createInstance(Workbench, parent, workbenchContainer, this.configuration, serviceCollection, this.lifecycleService, this.mainProcessClient);
 
 			// Set lifecycle phase to `Restoring`
 			this.lifecycleService.phase = LifecyclePhase.Restoring;
@@ -219,6 +226,11 @@ export class WorkbenchShell {
 				// localStorage metrics (TODO@Ben remove me later)
 				if (!this.environmentService.extensionTestsPath && this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 					this.logLocalStorageMetrics();
+				}
+
+				// localStorage migration (TODO@Ben remove me later)
+				if (!this.environmentService.extensionTestsPath) {
+					this.logLocalStorageMigrationStatus();
 				}
 			});
 
@@ -294,17 +306,17 @@ export class WorkbenchShell {
 		}
 
 		perf.mark('willReadLocalStorage');
-		const readyToSend = this.storageService.getBoolean('localStorageMetricsReadyToSend3');
+		const readyToSend = this.storageService.getBoolean('localStorageMetricsReadyToSend4');
 		perf.mark('didReadLocalStorage');
 
 		if (!readyToSend) {
-			this.storageService.store('localStorageMetricsReadyToSend3', true);
+			this.storageService.store('localStorageMetricsReadyToSend4', true);
 			return; // avoid logging localStorage metrics directly after the update, we prefer cold startup numbers
 		}
 
-		if (!this.storageService.getBoolean('localStorageMetricsSent3')) {
+		if (!this.storageService.getBoolean('localStorageMetricsSent4')) {
 			perf.mark('willWriteLocalStorage');
-			this.storageService.store('localStorageMetricsSent3', true);
+			this.storageService.store('localStorageMetricsSent4', true);
 			perf.mark('didWriteLocalStorage');
 
 			perf.mark('willStatLocalStorage');
@@ -312,7 +324,7 @@ export class WorkbenchShell {
 				perf.mark('didStatLocalStorage');
 
 				/* __GDPR__
-					"localStorageTimers2" : {
+					"localStorageTimers4" : {
 						"statTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"accessTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"firstReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -322,7 +334,7 @@ export class WorkbenchShell {
 						"size": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 					}
 				*/
-				this.telemetryService.publicLog('localStorageTimers2', {
+				this.telemetryService.publicLog('localStorageTimers4', {
 					'statTime': perf.getDuration('willStatLocalStorage', 'didStatLocalStorage'),
 					'accessTime': perf.getDuration('willAccessLocalStorage', 'didAccessLocalStorage'),
 					'firstReadTime': perf.getDuration('willReadWorkspaceIdentifier', 'didReadWorkspaceIdentifier'),
@@ -331,6 +343,38 @@ export class WorkbenchShell {
 					'keys': window.localStorage.length,
 					'size': stat ? stat.size : -1
 				});
+			});
+		}
+	}
+
+	private logLocalStorageMigrationStatus(): void {
+		if (product.quality === 'insider' && !this.storageService.getBoolean('localStorageMigrationStatusLogged')) {
+			this.storageService.store('localStorageMigrationStatusLogged', true);
+
+			stat(join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage.vscbak'), (error, stat) => {
+				// if we have a backup of localStorage it means a migration was attempted
+				// by Electron 2.0. We log to telemetry if we had data initially which means
+				// the migration was successful.
+				if (stat) {
+					/* __GDPR__
+						"localStorageMigrationStatus" : {
+							"platform": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+							"arch": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+							"migrated": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+							"size": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+							"sqliteStillExists": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+							"sqliteJournalExists": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+						}
+					*/
+					this.telemetryService.publicLog('localStorageMigrationStatus', {
+						'platform': process.platform,
+						'arch': process.arch,
+						'migrated': this.hasLocalStorageData,
+						'size': stat.size,
+						'sqliteStillExists': existsSync(join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage')),
+						'sqliteJournalExists': existsSync(join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage-journal'))
+					});
+				}
 			});
 		}
 	}

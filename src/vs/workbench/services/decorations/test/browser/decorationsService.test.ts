@@ -9,7 +9,7 @@ import * as assert from 'assert';
 import { FileDecorationsService } from 'vs/workbench/services/decorations/browser/decorationsService';
 import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import URI from 'vs/base/common/uri';
-import { Event, toPromise, Emitter } from 'vs/base/common/event';
+import { Event, toPromise } from 'vs/base/common/event';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 suite('DecorationsService', function () {
@@ -166,42 +166,6 @@ suite('DecorationsService', function () {
 
 		deco = service.getDecoration(someUri, false, { source: 'foo', tooltip: 'O' });
 		assert.equal(deco.tooltip, 'O');
-
-		reg.dispose();
-	});
-
-	test('Avoid unnecessary decoration change events #46938', async function () {
-
-		let uri1 = URI.parse('file:///uri1.txt');
-		let uri2 = URI.parse('file:///uri2.txt');
-
-		let emitter = new Emitter<URI[]>();
-
-		let asked = new Set<string>();
-
-		let reg = service.registerDecorationsProvider({
-			label: 'Test',
-			onDidChange: emitter.event,
-			provideDecorations(uri: URI) {
-				asked.add(uri.toString());
-				return { tooltip: uri.path, source: 'foo' };
-			}
-		});
-
-		let deco = service.getDecoration(uri1, false);
-		assert.equal(deco.tooltip, '/uri1.txt');
-		assert.equal(asked.size, 1);
-		assert.ok(asked.has(uri1.toString()));
-
-		let didChange = toPromise(service.onDidChangeDecorations);
-		emitter.fire([uri1, uri2]);
-
-		let e = await didChange;
-
-		assert.equal(e.affectsResource(uri1), true);
-		assert.equal(e.affectsResource(uri2), false);
-		assert.equal(asked.size, 1);
-		assert.ok(asked.has(uri1.toString()));
 
 		reg.dispose();
 	});

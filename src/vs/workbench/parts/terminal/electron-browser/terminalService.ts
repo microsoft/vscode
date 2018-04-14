@@ -82,6 +82,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			// It's the first instance so it should be made active automatically
 			this.setActiveInstanceByIndex(0);
 		}
+		this._onInstanceCreated.fire(instance);
 		this._onInstancesChanged.fire();
 		this._suggestShellChange(wasNewTerminalAction);
 		return instance;

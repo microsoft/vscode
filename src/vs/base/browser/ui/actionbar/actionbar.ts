@@ -6,6 +6,7 @@
 'use strict';
 
 import 'vs/css!./actionbar';
+import * as platform from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -139,7 +140,7 @@ export class BaseActionItem implements IActionItem {
 			if (this.options && this.options.isMenu) {
 				this.onClick(e);
 			} else {
-				setImmediate(() => this.onClick(e));
+				platform.setImmediate(() => this.onClick(e));
 			}
 		});
 

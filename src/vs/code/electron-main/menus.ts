@@ -451,7 +451,7 @@ export class CodeMenu {
 	}
 
 	private getPreferencesMenu(): Electron.MenuItem {
-		const settings = this.createMenuItem(nls.localize({ key: 'miOpenSettings', comment: ['&& denotes a mnemonic'] }, "&&Settings"), 'workbench.action.openGlobalSettings');
+		const settings = this.createMenuItem(nls.localize({ key: 'miOpenSettings', comment: ['&& denotes a mnemonic'] }, "&&Settings"), 'workbench.action.openSettings');
 		const kebindingSettings = this.createMenuItem(nls.localize({ key: 'miOpenKeymap', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts"), 'workbench.action.openGlobalKeybindings');
 		const keymapExtensions = this.createMenuItem(nls.localize({ key: 'miOpenKeymapExtensions', comment: ['&& denotes a mnemonic'] }, "&&Keymap Extensions"), 'workbench.extensions.action.showRecommendedKeymapExtensions');
 		const snippetsSettings = this.createMenuItem(nls.localize({ key: 'miOpenSnippets', comment: ['&& denotes a mnemonic'] }, "User &&Snippets"), 'workbench.action.openSnippets');
@@ -942,6 +942,8 @@ export class CodeMenu {
 			}
 		}, false));
 
+		const openProcessExplorer = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miOpenProcessExplorerer', comment: ['&& denotes a mnemonic'] }, "Open &&Process Explorer")), click: () => this.runActionInRenderer('workbench.action.openProcessExplorer') });
+
 		let reportIssuesItem: Electron.MenuItem = null;
 		if (product.reportIssueUrl) {
 			const label = nls.localize({ key: 'miReportIssue', comment: ['&& denotes a mnemonic', 'Translate this to "Report Issue in English" in all languages please!'] }, "Report &&Issue");
@@ -990,7 +992,8 @@ export class CodeMenu {
 			}) : null,
 			(product.licenseUrl || product.privacyStatementUrl) ? __separator__() : null,
 			toggleDevToolsItem,
-			isWindows && product.quality !== 'stable' ? showAccessibilityOptions : null
+			openProcessExplorer,
+			isWindows && product.quality !== 'stable' ? showAccessibilityOptions : null,
 		]).forEach(item => helpMenu.append(item));
 
 		if (!isMacintosh) {
@@ -1029,7 +1032,7 @@ export class CodeMenu {
 	}
 
 	private openAccessibilityOptions(): void {
-		let win = new BrowserWindow({
+		const win = new BrowserWindow({
 			alwaysOnTop: true,
 			skipTaskbar: true,
 			resizable: false,

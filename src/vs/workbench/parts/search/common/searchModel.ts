@@ -95,6 +95,7 @@ export class FileMatch extends Disposable {
 
 	private static readonly _CURRENT_FIND_MATCH = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		zIndex: 13,
 		className: 'currentFindMatch',
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerFindMatchForeground),

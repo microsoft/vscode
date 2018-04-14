@@ -29,7 +29,8 @@ const options: minimist.Opts = {
 		'enable-proposed-api',
 		'export-default-configuration',
 		'install-source',
-		'upload-logs'
+		'upload-logs',
+		'driver'
 	],
 	boolean: [
 		'help',

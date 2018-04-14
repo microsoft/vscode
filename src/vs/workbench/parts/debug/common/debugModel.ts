@@ -897,7 +897,7 @@ export class Model implements IModel {
 				const ebp = this.exceptionBreakpoints.filter(ebp => ebp.filter === d.filter).pop();
 				return new ExceptionBreakpoint(d.filter, d.label, ebp ? ebp.enabled : d.default);
 			});
-			this._onDidChangeBreakpoints.fire();
+			this._onDidChangeBreakpoints.fire({});
 		}
 	}
 
@@ -907,7 +907,7 @@ export class Model implements IModel {
 
 	public setBreakpointsActivated(activated: boolean): void {
 		this.breakpointsActivated = activated;
-		this._onDidChangeBreakpoints.fire();
+		this._onDidChangeBreakpoints.fire({});
 	}
 
 	public addBreakpoints(uri: uri, rawData: IBreakpointData[], fireEvent = true): IBreakpoint[] {

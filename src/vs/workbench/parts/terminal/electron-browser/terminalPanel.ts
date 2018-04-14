@@ -15,7 +15,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITerminalService, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
-import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ITheme, registerThemingParticipant, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { TerminalFindWidget } from './terminalFindWidget';
 import { editorHoverBackground, editorHoverBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { KillTerminalAction, SwitchTerminalAction, SwitchTerminalActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction, SelectAllTerminalAction, CreateNewTerminalAction, SplitTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
@@ -37,7 +37,6 @@ export class TerminalPanel extends Panel {
 	private _fontStyleElement: HTMLElement;
 	private _parentDomElement: HTMLElement;
 	private _terminalContainer: HTMLElement;
-	private _themeStyleElement: HTMLElement;
 	private _findWidget: TerminalFindWidget;
 
 	constructor(
@@ -56,7 +55,6 @@ export class TerminalPanel extends Panel {
 		super.create(parent);
 		this._parentDomElement = parent;
 		dom.addClass(this._parentDomElement, 'integrated-terminal');
-		this._themeStyleElement = document.createElement('style');
 		this._fontStyleElement = document.createElement('style');
 
 		this._terminalContainer = document.createElement('div');
@@ -64,7 +62,6 @@ export class TerminalPanel extends Panel {
 
 		this._findWidget = this._instantiationService.createInstance(TerminalFindWidget);
 
-		this._parentDomElement.appendChild(this._themeStyleElement);
 		this._parentDomElement.appendChild(this._fontStyleElement);
 		this._parentDomElement.appendChild(this._terminalContainer);
 		this._parentDomElement.appendChild(this._findWidget.getDomNode());
@@ -303,31 +300,6 @@ export class TerminalPanel extends Panel {
 			theme = this.themeService.getTheme();
 		}
 
-		let css = '';
-
-		const backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(PANEL_BACKGROUND);
-		this._terminalContainer.style.backgroundColor = backgroundColor ? backgroundColor.toString() : '';
-
-		const borderColor = theme.getColor(TERMINAL_BORDER_COLOR) || theme.getColor(PANEL_BORDER);
-		if (borderColor) {
-			css += `.monaco-workbench .panel.integrated-terminal .split-view-view:not(:first-child) { border-color: ${borderColor.toString()}; }`;
-		}
-
-		// Borrow the editor's hover background for now
-		let hoverBackground = theme.getColor(editorHoverBackground);
-		if (hoverBackground) {
-			css += `.monaco-workbench .panel.integrated-terminal .terminal-message-widget { background-color: ${hoverBackground}; }`;
-		}
-		let hoverBorder = theme.getColor(editorHoverBorder);
-		if (hoverBorder) {
-			css += `.monaco-workbench .panel.integrated-terminal .terminal-message-widget { border: 1px solid ${hoverBorder}; }`;
-		}
-		let hoverForeground = theme.getColor(editorForeground);
-		if (hoverForeground) {
-			css += `.monaco-workbench .panel.integrated-terminal .terminal-message-widget { color: ${hoverForeground}; }`;
-		}
-
-		this._themeStyleElement.innerHTML = css;
 		this._findWidget.updateTheme(theme);
 	}
 
@@ -364,3 +336,27 @@ export class TerminalPanel extends Panel {
 		return path;
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	const backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(PANEL_BACKGROUND);
+	collector.addRule(`.monaco-workbench .panel.integrated-terminal .terminal-outer-container { background-color: ${backgroundColor ? backgroundColor.toString() : ''}; }`);
+
+	const borderColor = theme.getColor(TERMINAL_BORDER_COLOR) || theme.getColor(PANEL_BORDER);
+	if (borderColor) {
+		collector.addRule(`.monaco-workbench .panel.integrated-terminal .split-view-view:not(:first-child) { border-color: ${borderColor.toString()}; }`);
+	}
+
+	// Borrow the editor's hover background for now
+	let hoverBackground = theme.getColor(editorHoverBackground);
+	if (hoverBackground) {
+		collector.addRule(`.monaco-workbench .panel.integrated-terminal .terminal-message-widget { background-color: ${hoverBackground}; }`);
+	}
+	let hoverBorder = theme.getColor(editorHoverBorder);
+	if (hoverBorder) {
+		collector.addRule(`.monaco-workbench .panel.integrated-terminal .terminal-message-widget { border: 1px solid ${hoverBorder}; }`);
+	}
+	let hoverForeground = theme.getColor(editorForeground);
+	if (hoverForeground) {
+		collector.addRule(`.monaco-workbench .panel.integrated-terminal .terminal-message-widget { color: ${hoverForeground}; }`);
+	}
+});

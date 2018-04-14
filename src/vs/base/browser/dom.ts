@@ -1082,7 +1082,7 @@ export function domContentLoaded(): TPromise<any> {
 	return new TPromise<any>((c, e) => {
 		const readyState = document.readyState;
 		if (readyState === 'complete' || (document && document.body !== null)) {
-			window.setImmediate(c);
+			platform.setImmediate(c);
 		} else {
 			window.addEventListener('DOMContentLoaded', c, false);
 		}
@@ -1116,7 +1116,7 @@ export function windowOpenNoOpener(url: string): void {
 	} else {
 		let newTab = window.open();
 		if (newTab) {
-			newTab.opener = null;
+			(newTab as any).opener = null;
 			newTab.location.href = url;
 		}
 	}

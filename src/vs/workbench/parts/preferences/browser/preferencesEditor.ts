@@ -14,20 +14,22 @@ import * as arrays from 'vs/base/common/arrays';
 import { ArrayNavigator } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { SideBySideEditorInput, EditorOptions, EditorInput, PREFERENCES_EDITOR_ID } from 'vs/workbench/common/editor';
+import { EditorOptions, EditorInput, PREFERENCES_EDITOR_ID } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
-import { IEditorControl, Position, Verbosity } from 'vs/platform/editor/common/editor';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { IEditorControl, Position } from 'vs/platform/editor/common/editor';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import {
-	IPreferencesService, ISettingsGroup, ISetting, IFilterResult, IPreferencesSearchService,
-	CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_SEARCH, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, ISettingsEditorModel, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING, ISearchProvider, ISearchResult, SETTINGS_EDITOR_COMMAND_EDIT_FOCUSED_SETTING
+	IPreferencesSearchService,
+	CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_SEARCH, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING, ISearchProvider, SETTINGS_EDITOR_COMMAND_EDIT_FOCUSED_SETTING
 } from 'vs/workbench/parts/preferences/common/preferences';
-import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
+import {
+	IPreferencesService, ISettingsGroup, ISetting, IFilterResult, ISettingsEditorModel, ISearchResult
+} from 'vs/workbench/services/preferences/common/preferences';
+import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { SearchWidget, SettingsTargetsWidget, SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ContextKeyExpr, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -37,7 +39,6 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { VSash } from 'vs/base/browser/ui/sash/sash';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IPreferencesRenderer, DefaultSettingsRenderer, UserSettingsRenderer, WorkspaceSettingsRenderer, FolderSettingsRenderer } from 'vs/workbench/parts/preferences/browser/preferencesRenderers';
@@ -56,50 +57,10 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ILogService } from 'vs/platform/log/common/log';
-
-export class PreferencesEditorInput extends SideBySideEditorInput {
-	public static readonly ID: string = 'workbench.editorinputs.preferencesEditorInput';
-
-	getTypeId(): string {
-		return PreferencesEditorInput.ID;
-	}
-
-	public supportsSplitEditor(): boolean {
-		return true;
-	}
-
-	public getTitle(verbosity: Verbosity): string {
-		return this.master.getTitle(verbosity);
-	}
-}
-
-export class DefaultPreferencesEditorInput extends ResourceEditorInput {
-	public static readonly ID = 'workbench.editorinputs.defaultpreferences';
-	constructor(defaultSettingsResource: URI,
-		@ITextModelService textModelResolverService: ITextModelService,
-		@IHashService hashService: IHashService
-	) {
-		super(nls.localize('settingsEditorName', "Default Settings"), '', defaultSettingsResource, textModelResolverService, hashService);
-	}
-
-	getTypeId(): string {
-		return DefaultPreferencesEditorInput.ID;
-	}
-
-	matches(other: any): boolean {
-		if (other instanceof DefaultPreferencesEditorInput) {
-			return true;
-		}
-		if (!super.matches(other)) {
-			return false;
-		}
-		return true;
-	}
-}
+import { PreferencesEditorInput, DefaultPreferencesEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 
 export class PreferencesEditor extends BaseEditor {
 

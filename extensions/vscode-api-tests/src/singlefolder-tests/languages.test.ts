@@ -12,7 +12,31 @@ import {
 	CompletionList, CompletionItem, CompletionItemKind, TextDocument, Position
 } from 'vscode';
 
+
 suite('languages namespace tests', () => {
+
+	test('diagnostics, read & event', function () {
+		let uri = Uri.file('/foo/bar.txt');
+		let col1 = languages.createDiagnosticCollection('foo1');
+		col1.set(uri, [new Diagnostic(new Range(0, 0, 0, 12), 'error1')]);
+
+		let col2 = languages.createDiagnosticCollection('foo2');
+		col2.set(uri, [new Diagnostic(new Range(0, 0, 0, 12), 'error1')]);
+
+		let diag = languages.getDiagnostics(uri);
+		assert.equal(diag.length, 2);
+
+		let tuples = languages.getDiagnostics();
+		let found = false;
+		for (let [thisUri,] of tuples) {
+			if (thisUri.toString() === uri.toString()) {
+				found = true;
+				break;
+			}
+		}
+		assert.ok(tuples.length >= 1);
+		assert.ok(found);
+	});
 
 	test('diagnostics & CodeActionProvider', function () {
 

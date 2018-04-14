@@ -102,15 +102,16 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private forceHideTabs: boolean;
 	private doNotFireTabOptionsChanged: boolean;
 	private revealIfOpen: boolean;
+	private ignoreOpenEditorErrors: boolean;
+	private textCompareEditorVisible: IContextKey<boolean>;
 
-	private _onEditorsChanged: ThrottledEmitter<void>;
+	private readonly _onEditorsChanged: ThrottledEmitter<void>;
 	private readonly _onEditorOpening: Emitter<IEditorOpeningEvent>;
 	private readonly _onEditorGroupMoved: Emitter<void>;
 	private readonly _onEditorOpenFail: Emitter<EditorInput>;
 	private readonly _onGroupOrientationChanged: Emitter<void>;
 	private readonly _onTabOptionsChanged: Emitter<IEditorTabOptions>;
-
-	private textCompareEditorVisible: IContextKey<boolean>;
+	private readonly _onLayout: Emitter<Dimension>;
 
 	// The following data structures are partitioned into array of Position as provided by Services.POSITION array
 	private visibleEditors: BaseEditor[];
@@ -118,9 +119,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private editorOpenToken: number[];
 	private pendingEditorInputsToClose: EditorIdentifier[];
 	private pendingEditorInputCloseTimeout: number;
-
-	private onLayoutEmitter = new Emitter<Dimension>();
-	public onLayout = this.onLayoutEmitter.event;
 
 	constructor(
 		id: string,
@@ -143,6 +141,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this._onEditorOpenFail = new Emitter<EditorInput>();
 		this._onGroupOrientationChanged = new Emitter<void>();
 		this._onTabOptionsChanged = new Emitter<IEditorTabOptions>();
+		this._onLayout = new Emitter<Dimension>();
 
 		this.visibleEditors = [];
 
@@ -290,6 +289,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	public resizeGroup(position: Position, groupSizeChange: number): void {
 		this.editorGroupsControl.resizeGroup(position, groupSizeChange);
+	}
+
+	public get onLayout(): Event<Dimension> {
+		return this._onLayout.event;
 	}
 
 	public get onEditorsChanged(): Event<void> {
@@ -546,8 +549,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// Stop loading promise if any
 		monitor.cancel();
 
-		// Report error only if this was not us restoring previous error state
-		if (this.partService.isCreated() && !errors.isPromiseCanceledError(error)) {
+		// Report error only if this was not us restoring previous error state or
+		// we are told to ignore errors that occur from opening an editor
+		if (this.partService.isCreated() && !errors.isPromiseCanceledError(error) && !this.ignoreOpenEditorErrors) {
 			const actions: INotificationActions = { primary: [] };
 			if (errors.isErrorWithActions(error)) {
 				actions.primary = (error as errors.IErrorWithActions).actions;
@@ -569,7 +573,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Recover by closing the active editor (if the input is still the active one)
 		if (group.activeEditor === input) {
-			this.doCloseActiveEditor(group, !(options && options.preserveFocus) /* still preserve focus as needed */);
+			this.doCloseActiveEditor(group, !(options && options.preserveFocus) /* still preserve focus as needed */, true /* from error */);
 		}
 	}
 
@@ -603,7 +607,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 	}
 
-	private doCloseActiveEditor(group: EditorGroup, focusNext = true): void {
+	private doCloseActiveEditor(group: EditorGroup, focusNext = true, fromError?: boolean): void {
 		const position = this.stacks.positionOfGroup(group);
 
 		// Update stacks model
@@ -616,7 +620,22 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Otherwise open next active
 		else {
-			this.openEditor(group.activeEditor, !focusNext ? EditorOptions.create({ preserveFocus: true }) : null, position).done(null, errors.onUnexpectedError);
+			// When closing an editor due to an error we can end up in a loop where we continue closing
+			// editors that fail to open (e.g. when the file no longer exists). We do not want to show
+			// repeated errors in this case to the user. As such, if we open the next editor and we are
+			// in a scope of a previous editor failing, we silence the input errors until the editor is
+			// opened.
+			if (fromError) {
+				this.ignoreOpenEditorErrors = true;
+			}
+
+			this.openEditor(group.activeEditor, !focusNext ? EditorOptions.create({ preserveFocus: true }) : null, position).done(() => {
+				this.ignoreOpenEditorErrors = false;
+			}, error => {
+				errors.onUnexpectedError(error);
+
+				this.ignoreOpenEditorErrors = false;
+			});
 		}
 	}
 
@@ -826,8 +845,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Close: By Filter or all
 		else {
-			editorsToClose = group.getEditors(true /* in MRU order */);
 			filter = filterOrEditors || Object.create(null);
+
+			const hasDirection = !types.isUndefinedOrNull(filter.direction);
+			editorsToClose = group.getEditors(!hasDirection /* in MRU order only if direction is not specified */);
 
 			// Filter: saved only
 			if (filter.savedOnly) {
@@ -835,7 +856,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			}
 
 			// Filter: direction (left / right)
-			else if (!types.isUndefinedOrNull(filter.direction)) {
+			else if (hasDirection) {
 				editorsToClose = (filter.direction === Direction.LEFT) ? editorsToClose.slice(0, group.indexOf(filter.except)) : editorsToClose.slice(group.indexOf(filter.except) + 1);
 			}
 
@@ -1467,7 +1488,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.dimension = sizes[1];
 		this.editorGroupsControl.layout(this.dimension);
 
-		this.onLayoutEmitter.fire(dimension);
+		this._onLayout.fire(dimension);
 
 		return sizes;
 	}
@@ -1500,6 +1521,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this._onEditorOpening.dispose();
 		this._onEditorGroupMoved.dispose();
 		this._onEditorOpenFail.dispose();
+		this._onGroupOrientationChanged.dispose();
+		this._onTabOptionsChanged.dispose();
+		this._onLayout.dispose();
 
 		// Reset Tokens
 		this.editorOpenToken = [];

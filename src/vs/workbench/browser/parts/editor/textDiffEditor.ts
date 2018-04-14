@@ -143,7 +143,7 @@ export class TextDiffEditor extends BaseTextEditor {
 		this.diffNavigatorDisposables = dispose(this.diffNavigatorDisposables);
 
 		// Remember view settings if input changes
-		this.saveTextDiffEditorViewStateForInput(this.input);
+		this.saveTextDiffEditorViewState(this.input);
 
 		// Set input and resolve
 		return super.setInput(input, options).then(() => {
@@ -172,7 +172,7 @@ export class TextDiffEditor extends BaseTextEditor {
 				// Otherwise restore View State
 				let hasPreviousViewState = false;
 				if (!optionsGotApplied) {
-					hasPreviousViewState = this.restoreViewState(input);
+					hasPreviousViewState = this.restoreTextDiffEditorViewState(input);
 				}
 
 				this.diffNavigator = new DiffNavigator(diffEditor, {
@@ -199,7 +199,7 @@ export class TextDiffEditor extends BaseTextEditor {
 		});
 	}
 
-	private restoreViewState(input: EditorInput): boolean {
+	private restoreTextDiffEditorViewState(input: EditorInput): boolean {
 		if (input instanceof DiffEditorInput) {
 			const resource = this.toDiffEditorViewStateResource(input);
 			if (resource) {
@@ -306,7 +306,7 @@ export class TextDiffEditor extends BaseTextEditor {
 		this.diffNavigatorDisposables = dispose(this.diffNavigatorDisposables);
 
 		// Keep editor view state in settings to restore when coming back
-		this.saveTextDiffEditorViewStateForInput(this.input);
+		this.saveTextDiffEditorViewState(this.input);
 
 		// Clear Model
 		this.getControl().setModel(null);
@@ -335,7 +335,7 @@ export class TextDiffEditor extends BaseTextEditor {
 		return super.loadTextEditorViewState(resource) as IDiffEditorViewState;  // overridden for text diff editor support
 	}
 
-	private saveTextDiffEditorViewStateForInput(input: EditorInput): void {
+	private saveTextDiffEditorViewState(input: EditorInput): void {
 		if (!(input instanceof DiffEditorInput)) {
 			return; // only supported for diff editor inputs
 		}

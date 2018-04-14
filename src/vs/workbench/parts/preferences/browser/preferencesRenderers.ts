@@ -18,8 +18,8 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, ISettingsEditorModel, IWorkbenchSettingsConfiguration, IExtensionSetting, IScoredResults } from 'vs/workbench/parts/preferences/common/preferences';
-import { SettingsEditorModel, DefaultSettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
+import { IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, ISettingsEditorModel, IExtensionSetting, IScoredResults } from 'vs/workbench/services/preferences/common/preferences';
+import { SettingsEditorModel, DefaultSettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { SettingsGroupTitleWidget, EditPreferenceWidget, SettingsHeaderWidget, DefaultSettingsHeaderWidget, FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
@@ -41,6 +41,7 @@ import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ContextSubMenu } from 'vs/base/browser/contextmenu';
+import { IWorkbenchSettingsConfiguration } from 'vs/workbench/parts/preferences/common/preferences';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	readonly preferencesModel: IPreferencesEditorModel<T>;
@@ -890,12 +891,14 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 	private createDecoration(range: IRange, model: ITextModel): IModelDeltaDecoration {
 		return {
 			range,
-			options: {
-				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-				className: 'findMatch'
-			}
+			options: FilteredMatchesRenderer._FIND_MATCH
 		};
 	}
+
+	private static readonly _FIND_MATCH = ModelDecorationOptions.register({
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		className: 'findMatch'
+	});
 
 	private computeHiddenRanges(filteredGroups: ISettingsGroup[], allSettingsGroups: ISettingsGroup[], model: ITextModel): IRange[] {
 		// Hide the contents of hidden groups

@@ -24,7 +24,7 @@ import { IFilesConfiguration, SortOrder } from 'vs/workbench/parts/files/common/
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationError, FileOperationResult, IFileService, FileKind } from 'vs/platform/files/common/files';
 import { ResourceMap } from 'vs/base/common/map';
-import { DuplicateFileAction, ImportFileAction, IEditableData, IFileViewletState, FileCopiedContext } from 'vs/workbench/parts/files/electron-browser/fileActions';
+import { DuplicateFileAction, AddFilesAction, IEditableData, IFileViewletState, FileCopiedContext } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { IDataSource, ITree, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
 import { DesktopDragAndDropData, ExternalElementsDragAndDropData } from 'vs/base/parts/tree/browser/treeDnd';
 import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
@@ -99,9 +99,12 @@ export class FileDataSource implements IDataSource {
 				const modelDirStat = ExplorerItem.create(dirStat, stat.root);
 
 				// Add children to folder
-				modelDirStat.getChildrenArray().forEach(child => {
-					stat.addChild(child);
-				});
+				const children = modelDirStat.getChildrenArray();
+				if (children) {
+					children.forEach(child => {
+						stat.addChild(child);
+					});
+				}
 
 				stat.isDirectoryResolved = true;
 
@@ -921,9 +924,9 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 			// Handle dropped files (only support FileStat as target)
 			else if (target instanceof ExplorerItem) {
-				const importAction = this.instantiationService.createInstance(ImportFileAction, tree, target, null);
+				const addFilesAction = this.instantiationService.createInstance(AddFilesAction, tree, target, null);
 
-				return importAction.run(droppedResources.map(res => res.resource));
+				return addFilesAction.run(droppedResources.map(res => res.resource));
 			}
 
 			return void 0;

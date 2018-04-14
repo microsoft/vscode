@@ -336,10 +336,10 @@ export class LineCommentCommand implements editorCommon.ICommand {
 		}
 
 		return new Selection(
-			result.startLineNumber,
-			result.startColumn + this._deltaColumn,
-			result.endLineNumber,
-			result.endColumn + this._deltaColumn
+			result.selectionStartLineNumber,
+			result.selectionStartColumn + this._deltaColumn,
+			result.positionLineNumber,
+			result.positionColumn + this._deltaColumn
 		);
 	}
 

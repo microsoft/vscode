@@ -81,7 +81,12 @@ export interface IModelDecorationOptions {
 	 * Always render the decoration (even when the range it encompasses is collapsed).
 	 * @internal
 	 */
-	readonly showIfCollapsed?: boolean;
+	showIfCollapsed?: boolean;
+	/**
+	 * Specifies the stack order of a decoration.
+	 * A decoration with greater stack order is always in front of a decoration with a lower stack order.
+	 */
+	zIndex?: number;
 	/**
 	 * If set, render this decoration in the overview ruler.
 	 */
@@ -391,6 +396,8 @@ export interface ITextModelCreationOptions {
 	trimAutoWhitespace: boolean;
 	defaultEOL: DefaultEndOfLine;
 	isForSimpleWidget: boolean;
+	largeFileSize: number;
+	largeFileLineCount: number;
 }
 
 export interface ITextModelUpdateOptions {
@@ -561,6 +568,10 @@ export interface ITextModel {
 	 */
 	getLineContent(lineNumber: number): string;
 
+	/**
+	 * Get the text length for a certain line.
+	 */
+	getLineLength(lineNumber: number): number;
 
 	/**
 	 * Get the text for all lines.
@@ -1147,6 +1158,5 @@ export class ApplyEditsResult {
  */
 export interface IInternalModelContentChange extends IModelContentChange {
 	range: Range;
-	rangeOffset: number;
 	forceMoveMarkers: boolean;
 }

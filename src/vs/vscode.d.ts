@@ -896,6 +896,11 @@ declare module 'vscode' {
 		/**
 		 * CSS styling property that will be applied to text enclosed by a decoration.
 		 */
+		opacity?: string;
+
+		/**
+		 * CSS styling property that will be applied to text enclosed by a decoration.
+		 */
 		letterSpacing?: string;
 
 		/**
@@ -1804,7 +1809,7 @@ declare module 'vscode' {
 	 * its resource, or a glob-pattern that is applied to the [path](#TextDocument.fileName).
 	 *
 	 * @sample A language filter that applies to typescript files on disk: `{ language: 'typescript', scheme: 'file' }`
-	 * @sample A language filter that applies to all package.json paths: `{ language: 'json', pattern: '**​/package.json' }`
+	 * @sample A language filter that applies to all package.json paths: `{ language: 'json', scheme: 'untitled', pattern: '**​/package.json' }`
 	 */
 	export interface DocumentFilter {
 
@@ -1829,10 +1834,14 @@ declare module 'vscode' {
 	 * A language selector is the combination of one or many language identifiers
 	 * and [language filters](#DocumentFilter).
 	 *
-	 * @sample `let sel:DocumentSelector = 'typescript'`;
-	 * @sample `let sel:DocumentSelector = ['typescript', { language: 'json', pattern: '**​/tsconfig.json' }]`;
+	 * *Note* that a document selector that is just a language identifier selects *all*
+	 * documents, even those that are not saved on disk. Only use such selectors when
+	 * a feature works without further context, e.g without the need to resolve related
+	 * 'files'.
+	 *
+	 * @sample `let sel:DocumentSelector = { scheme: 'file', language: 'typescript' }`;
 	 */
-	export type DocumentSelector = string | DocumentFilter | (string | DocumentFilter)[];
+	export type DocumentSelector = DocumentFilter | string | Array<DocumentFilter | string>;
 
 	/**
 	 * A provider result represents the values a provider, like the [`HoverProvider`](#HoverProvider),
@@ -1925,6 +1934,13 @@ declare module 'vscode' {
 		 * - ...
 		 */
 		static readonly RefactorRewrite: CodeActionKind;
+
+		/**
+		 * Base kind for source actions.
+		 *
+		 * Source code actions apply to the entire file.
+		 */
+		static readonly Source: CodeActionKind;
 
 		private constructor(value: string);
 
@@ -2022,7 +2038,6 @@ declare module 'vscode' {
 	 * A code action can be any command that is [known](#commands.getCommands) to the system.
 	 */
 	export interface CodeActionProvider {
-
 		/**
 		 * Provide commands for the given document and range.
 		 *
@@ -2034,6 +2049,19 @@ declare module 'vscode' {
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		provideCodeActions(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | CodeAction)[]>;
+	}
+
+	/**
+	 * Metadata about the type of code actions that a [CodeActionProvider](#CodeActionProvider) providers
+	 */
+	export interface CodeActionProviderMetadata {
+		/**
+		 * [CodeActionKinds](#CodeActionKind) that this provider may return.
+		 *
+		 * The list of kinds may be generic, such as `CodeActionKind.Refactor`, or the provider
+		 * may list our every specific kind they provide, such as `CodeActionKind.Refactor.Extract.append('function`)`
+		 */
+		readonly providedCodeActionKinds?: ReadonlyArray<CodeActionKind>;
 	}
 
 	/**
@@ -3678,6 +3706,17 @@ declare module 'vscode' {
 		 * @param rangeOrPosition The range or position. Positions will be converted to an empty range.
 		 */
 		constructor(uri: Uri, rangeOrPosition: Range | Position);
+	}
+
+	/**
+	 * The event that is fired when diagnostics change.
+	 */
+	export interface DiagnosticChangeEvent {
+
+		/**
+		 * An array of resources for which diagnostics have changed.
+		 */
+		readonly uris: Uri[];
 	}
 
 	/**
@@ -5512,6 +5551,10 @@ declare module 'vscode' {
 		 */
 		range: Range;
 		/**
+		 * The offset of the range that got replaced.
+		 */
+		rangeOffset: number;
+		/**
 		 * The length of the range that got replaced.
 		 */
 		rangeLength: number;
@@ -6041,6 +6084,29 @@ declare module 'vscode' {
 		export function match(selector: DocumentSelector, document: TextDocument): number;
 
 		/**
+		 * An [event](#Event) which fires when the global set of diagnostics changes. This is
+		 * newly added and removed diagnostics.
+		 */
+		export const onDidChangeDiagnostics: Event<DiagnosticChangeEvent>;
+
+		/**
+		 * Get all diagnostics for a given resource. *Note* that this includes diagnostics from
+		 * all extensions but *not yet* from the task framework.
+		 *
+		 * @param resource A resource
+		 * @returns An arrary of [diagnostics](#Diagnostic) objects or an empty array.
+		 */
+		export function getDiagnostics(resource: Uri): Diagnostic[];
+
+		/**
+		 * Get all diagnostics. *Note* that this includes diagnostics from
+		 * all extensions but *not yet* from the task framework.
+		 *
+		 * @returns An array of uri-diagnostics tuples or an empty array.
+		 */
+		export function getDiagnostics(): [Uri, Diagnostic[]][];
+
+		/**
 		 * Create a diagnostics collection.
 		 *
 		 * @param name The [name](#DiagnosticCollection.name) of the collection.
@@ -6073,9 +6139,10 @@ declare module 'vscode' {
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A code action provider.
+		 * @param metadata Metadata about the kind of code actions the provider providers.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerCodeActionsProvider(selector: DocumentSelector, provider: CodeActionProvider): Disposable;
+		export function registerCodeActionsProvider(selector: DocumentSelector, provider: CodeActionProvider, metadata?: CodeActionProviderMetadata): Disposable;
 
 		/**
 		 * Register a code lens provider.

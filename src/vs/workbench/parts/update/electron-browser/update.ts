@@ -121,7 +121,7 @@ export class ProductContribution implements IWorkbenchContribution {
 
 		// was there an update? if so, open release notes
 		if (!environmentService.skipReleaseNotes && product.releaseNotesUrl && lastVersion && pkg.version !== lastVersion) {
-			showReleaseNotes(instantiationService, lastVersion)
+			showReleaseNotes(instantiationService, pkg.version)
 				.then(undefined, () => {
 					notificationService.prompt(
 						severity.Info,
@@ -223,7 +223,7 @@ class CommandAction extends Action {
 export class UpdateContribution implements IGlobalActivity {
 
 	private static readonly showCommandsId = 'workbench.action.showCommands';
-	private static readonly openSettingsId = 'workbench.action.openGlobalSettings';
+	private static readonly openSettingsId = 'workbench.action.openSettings';
 	private static readonly openKeybindingsId = 'workbench.action.openGlobalKeybindings';
 	private static readonly openUserSnippets = 'workbench.action.openSnippets';
 	private static readonly selectColorThemeId = 'workbench.action.selectTheme';

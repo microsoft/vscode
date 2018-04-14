@@ -12,16 +12,18 @@ import {
 	IMainContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, IFunctionBreakpointDto
 } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-
 import * as vscode from 'vscode';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { Disposable, Position, Location, SourceBreakpoint, FunctionBreakpoint } from 'vs/workbench/api/node/extHostTypes';
 import { generateUuid } from 'vs/base/common/uuid';
+import { DebugAdapter, convertToVSCPaths, convertToDAPaths } from 'vs/workbench/parts/debug/node/debugAdapter';
+import * as paths from 'vs/base/common/paths';
+import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
+import { IAdapterExecutable, ITerminalSettings } from 'vs/workbench/parts/debug/common/debug';
+import { getTerminalLauncher } from 'vs/workbench/parts/debug/node/terminals';
 
 
 export class ExtHostDebugService implements ExtHostDebugServiceShape {
-
-	private _workspace: ExtHostWorkspace;
 
 	private _handleCounter: number;
 	private _handlers: Map<number, vscode.DebugConfigurationProvider>;
@@ -52,10 +54,10 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 	private readonly _onDidChangeBreakpoints: Emitter<vscode.BreakpointsChangeEvent>;
 
+	private _debugAdapters: Map<number, DebugAdapter>;
 
-	constructor(mainContext: IMainContext, workspace: ExtHostWorkspace) {
 
-		this._workspace = workspace;
+	constructor(mainContext: IMainContext, private _workspace: ExtHostWorkspace, private _extensionService: ExtHostExtensionService) {
 
 		this._handleCounter = 0;
 		this._handlers = new Map<number, vscode.DebugConfigurationProvider>();
@@ -77,6 +79,55 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 		this._breakpoints = new Map<string, vscode.Breakpoint>();
 		this._breakpointEventsActive = false;
+
+		this._debugAdapters = new Map<number, DebugAdapter>();
+	}
+
+	public $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
+		return getTerminalLauncher().runInTerminal(args, config);
+	}
+
+	public $startDASession(handle: number, debugType: string, adpaterExecutable: IAdapterExecutable | null): TPromise<void> {
+		const mythis = this;
+
+		const da = new class extends DebugAdapter {
+
+			// DA -> VS Code
+			public acceptMessage(message: DebugProtocol.ProtocolMessage) {
+				convertToVSCPaths(message, source => {
+					if (paths.isAbsolute(source.path)) {
+						(<any>source).path = URI.file(source.path);
+					}
+				});
+				mythis._debugServiceProxy.$acceptDAMessage(handle, message);
+			}
+
+		}(debugType, adpaterExecutable, this._extensionService.getAllExtensionDescriptions());
+
+		this._debugAdapters.set(handle, da);
+		da.onError(err => this._debugServiceProxy.$acceptDAError(handle, err.name, err.message, err.stack));
+		da.onExit(code => this._debugServiceProxy.$acceptDAExit(handle, code, null));
+		return da.startSession();
+	}
+
+	public $sendDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): TPromise<void> {
+		// VS Code -> DA
+		convertToDAPaths(message, source => {
+			if (typeof source.path === 'object') {
+				source.path = URI.revive(source.path).fsPath;
+			}
+		});
+		const da = this._debugAdapters.get(handle);
+		if (da) {
+			da.sendMessage(message);
+		}
+		return void 0;
+	}
+
+	public $stopDASession(handle: number): TPromise<void> {
+		const da = this._debugAdapters.get(handle);
+		this._debugAdapters.delete(handle);
+		return da ? da.stopSession() : void 0;
 	}
 
 	private startBreakpoints() {

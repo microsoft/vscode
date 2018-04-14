@@ -29,7 +29,7 @@ import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } f
 import { ExtensionEditor } from 'vs/workbench/parts/extensions/electron-browser/extensionEditor';
 import { StatusUpdater, ExtensionsViewlet, MaliciousExtensionChecker } from 'vs/workbench/parts/extensions/electron-browser/extensionsViewlet';
 import { IQuickOpenRegistry, Extensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from 'vs/workbench/parts/extensions/common/extensionsFileTemplate';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -204,7 +204,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			'extensions.autoUpdate': {
 				type: 'boolean',
 				description: localize('extensionsAutoUpdate', "Automatically update extensions"),
-				default: true
+				default: true,
+				scope: ConfigurationScope.APPLICATION
 			},
 			'extensions.ignoreRecommendations': {
 				type: 'boolean',

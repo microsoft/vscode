@@ -509,7 +509,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			let cwd = options && options.cwd ? options.cwd : process.cwd();
 			// On Windows executed process must be described absolute. Since we allowed command without an
 			// absolute path (e.g. "command": "node") we need to find the executable in the CWD or PATH.
-			let executable = Platform.isWindows && !isShellCommand ? this.findExecutable(commandExecutable, cwd) : commandExecutable;
+			let executable = Platform.isWindows && !isShellCommand ? this.findExecutable(commandExecutable, cwd, options) : commandExecutable;
 
 			// When we have a process task there is no need to quote arguments. So we go ahead and take the string value.
 			shellLaunchConfig = {
@@ -688,23 +688,39 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return { command, args };
 	}
 
-	private findExecutable(command: string, cwd: string): string {
+	private findExecutable(command: string, cwd: string, options: CommandOptions): string {
 		// If we have an absolute path then we take it.
 		if (path.isAbsolute(command)) {
 			return command;
 		}
 		let dir = path.dirname(command);
 		if (dir !== '.') {
-			// We have a directory. Make the path absolute
-			// to the current working directory
+			// We have a directory and the directory is relative (see above). Make the path absolute
+			// to the current working directory.
+			return path.join(cwd, command);
+		}
+		let paths: string[] = undefined;
+		// The options can override the PATH. So consider that PATH if present.
+		if (options && options.env) {
+			// Path can be named in many different ways and for the execution it doesn't matter
+			for (let key of Object.keys(options.env)) {
+				if (key.toLowerCase() === 'path') {
+					if (Types.isString(options.env[key])) {
+						paths = options.env[key].split(path.delimiter);
+					}
+					break;
+				}
+			}
+		}
+		if (paths === void 0 && Types.isString(process.env.PATH)) {
+			paths = process.env.PATH.split(path.delimiter);
+		}
+		// No PATH environment. Make path absolute to the cwd.
+		if (paths === void 0 || paths.length === 0) {
 			return path.join(cwd, command);
 		}
 		// We have a simple file name. We get the path variable from the env
 		// and try to find the executable on the path.
-		if (!process.env.PATH) {
-			return command;
-		}
-		let paths: string[] = (process.env.PATH as string).split(path.delimiter);
 		for (let pathEntry of paths) {
 			// The path entry is absolute.
 			let fullPath: string;

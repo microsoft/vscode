@@ -59,10 +59,7 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { Schemas } from 'vs/base/common/network';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { Themable } from 'vs/workbench/common/theme';
-
-// TODO@Sandeep layer breaker
-// tslint:disable-next-line:import-patterns
-import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private master: IEncodingSupport, private details: IEncodingSupport) { }

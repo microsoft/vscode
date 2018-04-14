@@ -155,8 +155,6 @@ class TextModelSnapshot implements ITextSnapshot {
 export class TextModel extends Disposable implements model.ITextModel {
 
 	private static readonly MODEL_SYNC_LIMIT = 50 * 1024 * 1024; // 50 MB
-	private static readonly MODEL_TOKENIZATION_LIMIT = 20 * 1024 * 1024; // 20 MB
-	private static readonly MANY_MANY_LINES = 300 * 1000; // 300K lines
 
 	public static DEFAULT_CREATION_OPTIONS: model.ITextModelCreationOptions = {
 		isForSimpleWidget: false,
@@ -165,6 +163,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 		detectIndentation: false,
 		defaultEOL: model.DefaultEndOfLine.LF,
 		trimAutoWhitespace: EDITOR_MODEL_DEFAULTS.trimAutoWhitespace,
+		largeFileSize: EDITOR_MODEL_DEFAULTS.largeFileSize,
+		largeFileLineCount: EDITOR_MODEL_DEFAULTS.largeFileLineCount,
 	};
 
 	public static createFromString(text: string, options: model.ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, languageIdentifier: LanguageIdentifier = null, uri: URI = null): TextModel {
@@ -289,8 +289,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 		// If a model is too large at construction time, it will never get tokenized,
 		// under no circumstances.
 		this._isTooLargeForTokenization = (
-			(bufferTextLength > TextModel.MODEL_TOKENIZATION_LIMIT)
-			|| (bufferLineCount > TextModel.MANY_MANY_LINES)
+			(bufferTextLength > creationOptions.largeFileSize)
+			|| (bufferLineCount > creationOptions.largeFileLineCount)
 		);
 
 		this._shouldSimplifyMode = (
@@ -386,10 +386,11 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this.setValueFromTextBuffer(textBuffer);
 	}
 
-	private _createContentChanged2(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeLength: number, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean): IModelContentChangedEvent {
+	private _createContentChanged2(range: Range, rangeOffset: number, rangeLength: number, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean): IModelContentChangedEvent {
 		return {
 			changes: [{
-				range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
+				range: range,
+				rangeOffset: rangeOffset,
 				rangeLength: rangeLength,
 				text: text,
 			}],
@@ -435,7 +436,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 				false,
 				false
 			),
-			this._createContentChanged2(1, 1, endLineNumber, endColumn, oldModelValueLength, this.getValue(), false, false, true)
+			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, this.getValue(), false, false, true)
 		);
 	}
 
@@ -466,7 +467,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 				false,
 				false
 			),
-			this._createContentChanged2(1, 1, endLineNumber, endColumn, oldModelValueLength, this.getValue(), false, false, false)
+			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, this.getValue(), false, false, false)
 		);
 	}
 
@@ -769,6 +770,15 @@ export class TextModel extends Disposable implements model.ITextModel {
 		}
 
 		return this._buffer.getLineContent(lineNumber);
+	}
+
+	public getLineLength(lineNumber: number): number {
+		this._assertNotDisposed();
+		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
+			throw new Error('Illegal value for lineNumber');
+		}
+
+		return this._buffer.getLineLength(lineNumber);
 	}
 
 	public getLinesContent(): string[] {
@@ -2585,22 +2595,20 @@ export class ModelDecorationOverviewRulerOptions implements model.IModelDecorati
 	}
 }
 
-let lastStaticId = 0;
-
 export class ModelDecorationOptions implements model.IModelDecorationOptions {
 
 	public static EMPTY: ModelDecorationOptions;
 
 	public static register(options: model.IModelDecorationOptions): ModelDecorationOptions {
-		return new ModelDecorationOptions(++lastStaticId, options);
+		return new ModelDecorationOptions(options);
 	}
 
 	public static createDynamic(options: model.IModelDecorationOptions): ModelDecorationOptions {
-		return new ModelDecorationOptions(0, options);
+		return new ModelDecorationOptions(options);
 	}
 
-	readonly staticId: number;
 	readonly stickiness: model.TrackedRangeStickiness;
+	readonly zIndex: number;
 	readonly className: string;
 	readonly hoverMessage: IMarkdownString | IMarkdownString[];
 	readonly glyphMarginHoverMessage: IMarkdownString | IMarkdownString[];
@@ -2614,9 +2622,9 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly beforeContentClassName: string;
 	readonly afterContentClassName: string;
 
-	private constructor(staticId: number, options: model.IModelDecorationOptions) {
-		this.staticId = staticId;
+	private constructor(options: model.IModelDecorationOptions) {
 		this.stickiness = options.stickiness || model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
+		this.zIndex = options.zIndex || 0;
 		this.className = options.className ? cleanClassName(options.className) : strings.empty;
 		this.hoverMessage = options.hoverMessage || [];
 		this.glyphMarginHoverMessage = options.glyphMarginHoverMessage || [];

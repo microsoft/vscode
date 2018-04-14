@@ -474,6 +474,10 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		return this.lines.getViewLineContent(lineNumber);
 	}
 
+	public getLineLength(lineNumber: number): number {
+		return this.lines.getViewLineLength(lineNumber);
+	}
+
 	public getLineMinColumn(lineNumber: number): number {
 		return this.lines.getViewLineMinColumn(lineNumber);
 	}
