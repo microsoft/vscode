@@ -667,6 +667,7 @@ export class TerminalInstance implements ITerminalInstance {
 	protected _createProcess(): void {
 		// TODO: This should be injected in to the terminal instance (from service?)
 		this._processManager = this._instantiationService.createInstance(TerminalProcessManager);
+		this._processManager.onShellProcessIdReady(() => this._onProcessIdReady.fire(this));
 		this._processManager.createProcess(this._shellLaunchConfig);
 
 		const locale = this._configHelper.config.setLocaleVariables ? platform.locale : undefined;
