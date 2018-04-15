@@ -113,7 +113,7 @@ export const language = _language;
 export const locale = _locale;
 
 /**
- * The translatios that are available through language packs.
+ * The translations that are available through language packs.
  */
 export const translationsConfigFile = _translationsConfigFile;
 
