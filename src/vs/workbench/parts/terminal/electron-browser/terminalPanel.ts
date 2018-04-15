@@ -77,19 +77,19 @@ export class TerminalPanel extends Panel {
 		this._register(this.themeService.onThemeChange(theme => this._updateTheme(theme)));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('terminal.integrated') || e.affectsConfiguration('editor.fontFamily')) {
+
 				let configHelper = this._terminalService.configHelper;
 				if(configHelper instanceof TerminalConfigHelper) {
 
-					if( !configHelper.isMonospace("Go") ) {
-						this._updateFont();
+					if( !configHelper.configFontIsMonospace() ) {
 						this._notificationService.notify({
-							severity: Severity.Warning,
-							message: "Please choose a Monospace font",
+							severity: Severity.Error,
+							message: "The terminal only supports Monospace fonts.",
 						});
 					}
 				}
 
-
+				this._updateFont();
 			}
 		}));
 		this._updateFont();

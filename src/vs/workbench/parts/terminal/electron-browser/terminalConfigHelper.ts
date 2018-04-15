@@ -50,16 +50,17 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		this.config = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
 	}
 
-	public isMonospace(fontFamily: string): boolean {
+	public configFontIsMonospace(): boolean {
 		this._createCharMeasureElementIfNecessary();
-		let fontSize = 30;
+		let fontSize = this.config.fontSize;
+		let fontFamily = this.config.fontFamily;
 		let i_rect = this._getBoundingRectFor('i', fontFamily, fontSize);
 		let w_rect = this._getBoundingRectFor('w', fontFamily, fontSize);
 
 		let invalidBounds = !i_rect.width || !w_rect.width;
 		if(invalidBounds) {
 			// There is no reason to believe the font is not Monospace.
-			return true;
+			return false;
 		}
 
 		if(i_rect.width === w_rect.width) {
@@ -84,9 +85,9 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		style.fontFamily = fontFamily;
 		style.fontSize = fontSize + 'px';
 		style.lineHeight = 'normal';
-		style.display = 'none';
 		this._charMeasureElement.innerText = char;
 		const rect = this._charMeasureElement.getBoundingClientRect();
+		style.display = 'none';
 
 		return rect;
 	}
