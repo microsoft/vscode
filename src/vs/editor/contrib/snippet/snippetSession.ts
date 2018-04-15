@@ -123,7 +123,7 @@ export class OneSnippet {
 				}
 			}
 
-			// change stickness to never grow when typing at its edges
+			// change stickiness to never grow when typing at its edges
 			// so that in-active tabstops never grow
 			this._placeholderDecorations.forEach((id, placeholder) => {
 				if (!activePlaceholders.has(placeholder)) {
