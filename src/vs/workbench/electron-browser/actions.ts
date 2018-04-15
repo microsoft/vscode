@@ -1269,7 +1269,7 @@ export class NavigateLeftAction extends BaseNavigationAction {
 			});
 	}
 
-	protected navigateOnPanelFocus(isEditorGroupVertica: boolean, isSidebarPositionLeft: boolean): TPromise<boolean | IViewlet> {
+	protected navigateOnPanelFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean | IViewlet> {
 		if (isSidebarPositionLeft) {
 			return this.navigateToSidebar();
 		}
