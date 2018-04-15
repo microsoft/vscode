@@ -182,7 +182,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 					this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_DEFINE, keybindingEntry.keybindingItem.command, key);
 					return this.keybindingEditingService.editKeybinding(key, keybindingEntry.keybindingItem.keybindingItem)
 						.then(() => {
-							if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added to unassinged. Because the entry will be placed in different position after rendering
+							if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added to unassigned. Because the entry will be placed in different position after rendering
 								this.unAssignedKeybindingItemToRevealAndFocus = keybindingEntry;
 							}
 						});
@@ -219,7 +219,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_RESET, keybindingEntry.keybindingItem.command, keybindingEntry.keybindingItem.keybinding);
 		return this.keybindingEditingService.resetKeybinding(keybindingEntry.keybindingItem.keybindingItem)
 			.then(() => {
-				if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added to unassinged. Because the entry will be placed in different position after rendering
+				if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added to unassigned. Because the entry will be placed in different position after rendering
 					this.unAssignedKeybindingItemToRevealAndFocus = keybindingEntry;
 				}
 				this.selectEntry(keybindingEntry);
