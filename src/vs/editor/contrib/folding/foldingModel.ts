@@ -163,14 +163,14 @@ export class FoldingModel {
 		if (!Array.isArray(state)) {
 			return;
 		}
-		let toToogle: FoldingRegion[] = [];
+		let toToggle: FoldingRegion[] = [];
 		for (let range of state) {
 			let region = this.getRegionAtLine(range.startLineNumber);
 			if (region && !region.isCollapsed) {
-				toToogle.push(region);
+				toToggle.push(region);
 			}
 		}
-		this.toggleCollapseState(toToogle);
+		this.toggleCollapseState(toToggle);
 	}
 
 	public dispose() {
