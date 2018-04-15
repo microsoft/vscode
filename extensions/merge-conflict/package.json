@@ -95,6 +95,11 @@
           "type": "boolean",
           "description": "%config.decoratorsEnabled%",
           "default": true
+        },
+        "merge-conflict.autoNavigateNextConflict.enabled": {
+          "type": "boolean",
+          "description": "%config.autoNavigateNextConflictEnabled%",
+          "default": true
         }
       }
     }

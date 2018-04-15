@@ -14,5 +14,6 @@
 	"command.compare": "Compare Current Conflict",
 	"config.title": "Merge Conflict",
 	"config.codeLensEnabled": "Enable/disable merge conflict block CodeLens within editor",
-	"config.decoratorsEnabled": "Enable/disable merge conflict decorators within editor"
+	"config.decoratorsEnabled": "Enable/disable merge conflict decorators within editor",
+	"config.autoNavigateNextConflictEnabled": "Enable/disable automatic navigation between merge conflicts within editor when resolving conflicts"
 }
