@@ -46,7 +46,7 @@ export interface IViewletService {
 	getViewlets(): ViewletDescriptor[];
 
 	/**
-	 * Enables or disables a viewlet. Disabled viewlets are completly hidden from UI.
+	 * Enables or disables a viewlet. Disabled viewlets are completely hidden from UI.
 	 * By default all viewlets are enabled.
 	 */
 	setViewletEnablement(id: string, enabled: boolean): void;

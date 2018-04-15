@@ -684,7 +684,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	}
 
 	private promptForDependenciesAndEnable(extension: IExtension, dependencies: IExtension[], enablementState: EnablementState, enable: boolean): TPromise<any> {
-		const message = nls.localize('enableDependeciesConfirmation', "Enabling '{0}' also enables its dependencies. Would you like to continue?", extension.displayName);
+		const message = nls.localize('enableDependenciesConfirmation', "Enabling '{0}' also enables its dependencies. Would you like to continue?", extension.displayName);
 		const buttons = [
 			nls.localize('enable', "Yes"),
 			nls.localize('doNotEnable', "No")
@@ -699,7 +699,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	}
 
 	private promptForDependenciesAndDisable(extension: IExtension, dependencies: IExtension[], enablementState: EnablementState, enable: boolean): TPromise<void> {
-		const message = nls.localize('disableDependeciesConfirmation', "Would you like to disable '{0}' only or its dependencies also?", extension.displayName);
+		const message = nls.localize('disableDependenciesConfirmation', "Would you like to disable '{0}' only or its dependencies also?", extension.displayName);
 		const buttons = [
 			nls.localize('disableOnly', "Only"),
 			nls.localize('disableAll', "All"),

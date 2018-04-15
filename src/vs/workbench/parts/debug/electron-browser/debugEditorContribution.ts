@@ -120,7 +120,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 			actions.push(new ContextSubMenu(nls.localize('editBreakpoints', "Edit Breakpoints"), sorted.map(bp =>
 				new Action('editBreakpoint',
-					bp.column ? nls.localize('editBreakpointOnColumn', "Edit Breakpoint on Column {0}", bp.column) : nls.localize('editLineBrekapoint', "Edit Line Breakpoint"),
+					bp.column ? nls.localize('editBreakpointOnColumn', "Edit Breakpoint on Column {0}", bp.column) : nls.localize('editLineBreakpoint', "Edit Line Breakpoint"),
 					null,
 					true,
 					() => TPromise.as(this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(bp.lineNumber, bp.column))

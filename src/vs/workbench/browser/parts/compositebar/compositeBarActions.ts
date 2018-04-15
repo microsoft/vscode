@@ -127,7 +127,7 @@ export class ActivityActionItem extends BaseActionItem {
 		super(null, action, options);
 
 		this.themeService.onThemeChange(this.onThemeChange, this, this._callOnDispose);
-		action.onDidChangeBadge(this.handleBadgeChangeEvenet, this, this._callOnDispose);
+		action.onDidChangeBadge(this.handleBadgeChangeEvent, this, this._callOnDispose);
 	}
 
 	protected get activity(): IActivity {
@@ -275,7 +275,7 @@ export class ActivityActionItem extends BaseActionItem {
 		});
 	}
 
-	private handleBadgeChangeEvenet(): void {
+	private handleBadgeChangeEvent(): void {
 		const action = this.getAction();
 		if (action instanceof ActivityAction) {
 			this.updateBadge(action.getBadge(), action.getClass());

@@ -167,7 +167,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 			editor.selection = new Selection(2, 4, 2, 4);
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			assert.equal(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
+			assert.equal(!completionPromise, true, `Got unexpected completion promise instead of undefined`);
 			return Promise.resolve();
 		});
 	});
@@ -187,7 +187,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 			editor.selection = new Selection(9, 8, 9, 8);
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			assert.equal(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
+			assert.equal(!completionPromise, true, `Got unexpected completion promise instead of undefined`);
 			return Promise.resolve();
 		});
 	});
@@ -209,7 +209,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 			editor.selection = new Selection(0, 6, 0, 6);
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			assert.equal(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
+			assert.equal(!completionPromise, true, `Got unexpected completion promise instead of undefined`);
 			return Promise.resolve();
 		});
 	});
@@ -343,7 +343,7 @@ suite('Tests for jsx, xml and xsl', () => {
 			editor.selection = new Selection(2, 4, 2, 4);
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			assert.equal(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
+			assert.equal(!completionPromise, true, `Got unexpected completion promise instead of undefined`);
 			return Promise.resolve();
 		});
 	});
@@ -353,7 +353,7 @@ suite('Tests for jsx, xml and xsl', () => {
 			editor.selection = new Selection(9, 6, 9, 6);
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			assert.equal(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
+			assert.equal(!completionPromise, true, `Got unexpected completion promise instead of undefined`);
 			return Promise.resolve();
 		});
 	});
@@ -363,7 +363,7 @@ suite('Tests for jsx, xml and xsl', () => {
 			editor.selection = new Selection(9, 8, 9, 8);
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			assert.equal(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
+			assert.equal(!completionPromise, true, `Got unexpected completion promise instead of undefined`);
 			return Promise.resolve();
 		});
 	});
@@ -374,7 +374,7 @@ suite('Tests for jsx, xml and xsl', () => {
 			editor.selection = new Selection(0, 6, 0, 6);
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			assert.equal(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
+			assert.equal(!completionPromise, true, `Got unexpected completion promise instead of undefined`);
 			return Promise.resolve();
 		});
 	});

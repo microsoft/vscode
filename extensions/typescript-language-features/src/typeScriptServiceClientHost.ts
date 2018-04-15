@@ -23,7 +23,7 @@ import * as typeConverters from './utils/typeConverters';
 import { CommandManager } from './utils/commandManager';
 import { LanguageDescription } from './utils/languageDescription';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
-import { disposeAll } from './utils/dipose';
+import { disposeAll } from './utils/dispose';
 import { DiagnosticKind } from './features/diagnostics';
 
 // Style check diagnostics that can be reported as warnings

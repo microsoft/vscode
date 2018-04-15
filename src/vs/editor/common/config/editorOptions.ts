@@ -1598,7 +1598,7 @@ export class EditorOptionsValidator {
 		};
 	}
 
-	private static _santizeFindOpts(opts: IEditorFindOptions, defaults: InternalEditorFindOptions): InternalEditorFindOptions {
+	private static _sanitizeFindOpts(opts: IEditorFindOptions, defaults: InternalEditorFindOptions): InternalEditorFindOptions {
 		if (typeof opts !== 'object') {
 			return defaults;
 		}
@@ -1723,7 +1723,7 @@ export class EditorOptionsValidator {
 		if (typeof opts.acceptSuggestionOnEnter === 'boolean') {
 			opts.acceptSuggestionOnEnter = opts.acceptSuggestionOnEnter ? 'on' : 'off';
 		}
-		const find = this._santizeFindOpts(opts.find, defaults.find);
+		const find = this._sanitizeFindOpts(opts.find, defaults.find);
 		return {
 			selectionClipboard: _boolean(opts.selectionClipboard, defaults.selectionClipboard),
 			hover: _boolean(opts.hover, defaults.hover),

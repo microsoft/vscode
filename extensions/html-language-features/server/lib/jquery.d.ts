@@ -1056,7 +1056,7 @@ interface JQueryStatic {
      */
     isEmptyObject(obj: any): boolean;
     /**
-     * Determine if the argument passed is a Javascript function object.
+     * Determine if the argument passed is a JavaScript function object.
      *
      * @param obj Object to test whether or not it is a function.
      */
@@ -1574,7 +1574,7 @@ interface JQuery {
      * Store arbitrary data associated with the matched elements.
      *
      * @param key A string naming the piece of data to set.
-     * @param value The new data value; it can be any Javascript type including Array or Object.
+     * @param value The new data value; it can be any JavaScript type including Array or Object.
      */
     data(key: string, value: any): JQuery;
     /**

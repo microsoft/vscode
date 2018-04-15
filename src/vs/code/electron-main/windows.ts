@@ -214,7 +214,7 @@ export class WindowsManager implements IWindowsMainService {
 	//          and then onBeforeShutdown(). Using the quit action however will first issue onBeforeShutdown()
 	//          and then onBeforeWindowClose().
 	//
-	// Here is the behaviour on different OS dependig on action taken (Electron 1.7.x):
+	// Here is the behaviour on different OS depending on action taken (Electron 1.7.x):
 	//
 	// Legend
 	// -  quit(N): quit application with N windows opened
@@ -397,9 +397,9 @@ export class WindowsManager implements IWindowsMainService {
 
 			// 1.) focus last active window if we are not instructed to open any paths
 			if (focusLastActive) {
-				const lastActiveWindw = usedWindows.filter(w => w.backupPath === this.windowsState.lastActiveWindow.backupPath);
-				if (lastActiveWindw.length) {
-					lastActiveWindw[0].focus();
+				const lastActiveWindow = usedWindows.filter(w => w.backupPath === this.windowsState.lastActiveWindow.backupPath);
+				if (lastActiveWindow.length) {
+					lastActiveWindow[0].focus();
 					focusLastOpened = false;
 					focusLastWindow = false;
 				}

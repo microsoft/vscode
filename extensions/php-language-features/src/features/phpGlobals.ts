@@ -486,11 +486,11 @@ export var globalfunctions: IEntries = {
 		signature: '(mixed $left , mixed $right [, int $lcid [, int $flags ]]): int'
 	},
 	variant_date_to_timestamp: {
-		description: 'Converts variant from a VT_DATE (or similar) value into a Unix timestamp. This allows easier interopability between the Unix-ish parts of PHP and COM.',
+		description: 'Converts variant from a VT_DATE (or similar) value into a Unix timestamp. This allows easier interoperability between the Unix-ish parts of PHP and COM.',
 		signature: '(variant $variant): int'
 	},
 	variant_date_from_timestamp: {
-		description: 'Converts timestamp from a unix timestamp value into a variant of type VT_DATE. This allows easier interopability between the unix-ish parts of PHP and COM.',
+		description: 'Converts timestamp from a unix timestamp value into a variant of type VT_DATE. This allows easier interoperability between the unix-ish parts of PHP and COM.',
 		signature: '(int $timestamp): variant'
 	},
 	variant_get_type: {
@@ -1613,7 +1613,7 @@ export var globalfunctions: IEntries = {
 		signature: '(string $iptcdata , string $jpeg_file_name [, int $spool ]): mixed'
 	},
 	getimagesize: {
-		description: 'The getimagesize() function will determine the size of any given image file and return the dimensions along with the file type and a height/width text string to be used inside a normal HTML IMG tag and the correspondant HTTP content type.',
+		description: 'The getimagesize() function will determine the size of any given image file and return the dimensions along with the file type and a height/width text string to be used inside a normal HTML IMG tag and the correspondent HTTP content type.',
 		signature: '(string $filename [, array &$imageinfo ]): array'
 	},
 	image_type_to_mime_type: {
@@ -4451,7 +4451,7 @@ export var globalfunctions: IEntries = {
 		signature: '(resource $image , int $red , int $green , int $blue): int'
 	},
 	imagecolorset: {
-		description: 'This sets the specified index in the palette to the specified color. This is useful for creating flood-fill-like effects in palleted images without the overhead of performing the actual flood-fill.',
+		description: 'This sets the specified index in the palette to the specified color. This is useful for creating flood-fill-like effects in paletted images without the overhead of performing the actual flood-fill.',
 		signature: '(resource $image , int $index , int $red , int $green , int $blue [, int $alpha = 0 ]): void'
 	},
 	imagecolortransparent: {

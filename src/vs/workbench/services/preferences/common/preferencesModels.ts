@@ -845,26 +845,26 @@ class SettingsContentBuilder {
 			setting.descriptionRanges.push({ startLineNumber: this.lineCountWithOffset, startColumn: this.lastLine.indexOf(line) + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length });
 		}
 
-		let preValueConent = indent;
+		let preValueContent = indent;
 		const keyString = JSON.stringify(setting.key);
-		preValueConent += keyString;
-		setting.keyRange = { startLineNumber: this.lineCountWithOffset + 1, startColumn: preValueConent.indexOf(setting.key) + 1, endLineNumber: this.lineCountWithOffset + 1, endColumn: setting.key.length };
+		preValueContent += keyString;
+		setting.keyRange = { startLineNumber: this.lineCountWithOffset + 1, startColumn: preValueContent.indexOf(setting.key) + 1, endLineNumber: this.lineCountWithOffset + 1, endColumn: setting.key.length };
 
-		preValueConent += ': ';
+		preValueContent += ': ';
 		const valueStart = this.lineCountWithOffset + 1;
-		this.pushValue(setting, preValueConent, indent);
+		this.pushValue(setting, preValueContent, indent);
 
-		setting.valueRange = { startLineNumber: valueStart, startColumn: preValueConent.length + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length + 1 };
+		setting.valueRange = { startLineNumber: valueStart, startColumn: preValueContent.length + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length + 1 };
 		this._contentByLines[this._contentByLines.length - 1] += ',';
 		this._contentByLines.push('');
 		setting.range = { startLineNumber: settingStart, startColumn: 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length };
 	}
 
-	private pushValue(setting: ISetting, preValueConent: string, indent: string): void {
+	private pushValue(setting: ISetting, preValueContent: string, indent: string): void {
 		let valueString = JSON.stringify(setting.value, null, indent);
 		if (valueString && (typeof setting.value === 'object')) {
 			if (setting.overrides.length) {
-				this._contentByLines.push(preValueConent + ' {');
+				this._contentByLines.push(preValueContent + ' {');
 				for (const subSetting of setting.overrides) {
 					this.pushSetting(subSetting, indent + indent);
 					this._contentByLines.pop();
@@ -874,14 +874,14 @@ class SettingsContentBuilder {
 				this._contentByLines[lastSetting.range.endLineNumber - 2] = content.substring(0, content.length - 1);
 				this._contentByLines.push(indent + '}');
 			} else {
-				const mulitLineValue = valueString.split('\n');
-				this._contentByLines.push(preValueConent + mulitLineValue[0]);
-				for (let i = 1; i < mulitLineValue.length; i++) {
-					this._contentByLines.push(indent + mulitLineValue[i]);
+				const multiLineValue = valueString.split('\n');
+				this._contentByLines.push(preValueContent + multiLineValue[0]);
+				for (let i = 1; i < multiLineValue.length; i++) {
+					this._contentByLines.push(indent + multiLineValue[i]);
 				}
 			}
 		} else {
-			this._contentByLines.push(preValueConent + valueString);
+			this._contentByLines.push(preValueContent + valueString);
 		}
 	}
 

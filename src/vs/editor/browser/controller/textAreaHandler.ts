@@ -61,7 +61,7 @@ interface LocalClipboardMetadata {
 
 /**
  * Every time we write to the clipboard, we record a bit of extra metadata here.
- * Every time we read from the cipboard, if the text matches our last written text,
+ * Every time we read from the clipboard, if the text matches our last written text,
  * we can fetch the previous metadata.
  */
 class LocalClipboardMetadataManager {
@@ -534,7 +534,7 @@ export class TextAreaHandler extends ViewPart {
 		}
 
 		// (in WebKit the textarea is 1px by 1px because it cannot handle input to a 0x0 textarea)
-		// specifically, when doing Korean IME, setting the textare to 0x0 breaks IME badly.
+		// specifically, when doing Korean IME, setting the textarea to 0x0 breaks IME badly.
 
 		ta.setWidth(1);
 		ta.setHeight(1);

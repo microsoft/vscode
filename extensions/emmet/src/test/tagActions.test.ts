@@ -56,7 +56,7 @@ suite('Tests for Emmet actions on html tags', () => {
 	});
 
 
-	test('remove tag with mutliple cursors', () => {
+	test('remove tag with multiple cursors', () => {
 		const expectedContents = `
 	<div class="hello">
 		<ul>
@@ -81,7 +81,7 @@ suite('Tests for Emmet actions on html tags', () => {
 		});
 	});
 
-	test('split/join tag with mutliple cursors', () => {
+	test('split/join tag with multiple cursors', () => {
 		const expectedContents = `
 	<div class="hello">
 		<ul>
@@ -132,7 +132,7 @@ suite('Tests for Emmet actions on html tags', () => {
 		});
 	});
 
-	test('match tag with mutliple cursors', () => {
+	test('match tag with multiple cursors', () => {
 		return withRandomFileEditor(contents, 'html', (editor, doc) => {
 			editor.selections = [
 				new Selection(1, 0, 1, 0), // just before tag starts, i.e before <

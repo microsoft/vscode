@@ -586,7 +586,7 @@
 					]
 				},
 				{
-					"name": "meta.paramter.array-binding-pattern.ts",
+					"name": "meta.parameter.array-binding-pattern.ts",
 					"begin": "(?<!=|:)\\s*(\\[)",
 					"beginCaptures": {
 						"1": {

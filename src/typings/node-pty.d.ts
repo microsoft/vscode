@@ -11,7 +11,7 @@ declare module 'node-pty' {
 	 * escaped properly.
 	 * @param options The options of the terminal.
 	 * @see CommandLineToArgvW https://msdn.microsoft.com/en-us/library/windows/desktop/bb776391(v=vs.85).aspx
-	 * @see Parsing C++ Comamnd-Line Arguments https://msdn.microsoft.com/en-us/library/17w5ykft.aspx
+	 * @see Parsing C++ Command-Line Arguments https://msdn.microsoft.com/en-us/library/17w5ykft.aspx
 	 * @see GetCommandLine https://msdn.microsoft.com/en-us/library/windows/desktop/ms683156.aspx
 	 */
 	export function spawn(file: string, args: string[] | string, options: IPtyForkOptions): IPty;

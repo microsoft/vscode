@@ -158,7 +158,7 @@ declare namespace Q {
          * Returns a "state snapshot" object, which will be in one of three forms:
          *
          * - { state: "pending" }
-         * - { state: "fulfilled", value: <fulfllment value> }
+         * - { state: "fulfilled", value: <fulfillment value> }
          * - { state: "rejected", reason: <rejection reason> }
          */
         inspect(): PromiseState<T>;

@@ -389,7 +389,7 @@ export class LcsDiff {
 			if (!quitEarlyArr[0]) {
 				rightChanges = this.ComputeDiffRecursive(midOriginal + 1, originalEnd, midModified + 1, modifiedEnd, quitEarlyArr);
 			} else {
-				// We did't have time to finish the first half, so we don't have time to compute this half.
+				// We didn't have time to finish the first half, so we don't have time to compute this half.
 				// Consider the entire rest of the sequence different.
 				rightChanges = [
 					new DiffChange(midOriginal + 1, originalEnd - (midOriginal + 1) + 1, midModified + 1, modifiedEnd - (midModified + 1) + 1)

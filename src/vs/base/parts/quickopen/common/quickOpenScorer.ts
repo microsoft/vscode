@@ -197,7 +197,7 @@ function computeCharScore(query: string, queryLower: string, queryIndex: number,
 			score += separatorBonus;
 
 			// if (DEBUG) {
-			// 	console.log('After separtor bonus: +4');
+			// 	console.log('After separator bonus: +4');
 			// }
 		}
 

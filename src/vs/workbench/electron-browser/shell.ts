@@ -204,21 +204,21 @@ export class WorkbenchShell {
 			// Startup Workbench
 			workbench.startup().done(startupInfos => {
 
-				// Set lifecycle phase to `Runnning` so that other contributions can now do something
+				// Set lifecycle phase to `Running` so that other contributions can now do something
 				this.lifecycleService.phase = LifecyclePhase.Running;
 
 				// Startup Telemetry
 				this.logStartupTelemetry(startupInfos);
 
-				// Set lifecycle phase to `Runnning For A Bit` after a short delay
-				let eventuallPhaseTimeoutHandle = setTimeout(() => {
-					eventuallPhaseTimeoutHandle = void 0;
+				// Set lifecycle phase to `Running For A Bit` after a short delay
+				let eventuallyPhaseTimeoutHandle = setTimeout(() => {
+					eventuallyPhaseTimeoutHandle = void 0;
 					this.lifecycleService.phase = LifecyclePhase.Eventually;
 				}, 3000);
 				this.toUnbind.push({
 					dispose: () => {
-						if (eventuallPhaseTimeoutHandle) {
-							clearTimeout(eventuallPhaseTimeoutHandle);
+						if (eventuallyPhaseTimeoutHandle) {
+							clearTimeout(eventuallyPhaseTimeoutHandle);
 						}
 					}
 				});

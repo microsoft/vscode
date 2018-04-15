@@ -16,7 +16,7 @@ export interface IOpenerService {
 	_serviceBrand: any;
 
 	/**
-	 * Opens a resource, like a webadress, a document uri, or executes command.
+	 * Opens a resource, like a webaddress, a document uri, or executes command.
 	 *
 	 * @param resource A resource
 	 * @return A promise that resolves when the opening is done.

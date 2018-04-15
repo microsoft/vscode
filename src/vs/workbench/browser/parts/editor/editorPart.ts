@@ -505,7 +505,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	private doSetInput(group: EditorGroup, editor: BaseEditor, input: EditorInput, options: EditorOptions, monitor: ProgressMonitor): TPromise<BaseEditor> {
 
-		// Emit Input-Changed Event as appropiate
+		// Emit Input-Changed Event as appropriate
 		const previousInput = editor.input;
 		const inputChanged = (!previousInput || !previousInput.matches(input) || (options && options.forceOpen));
 
@@ -534,7 +534,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				this._onEditorsChanged.fire();
 			}
 
-			// Fullfill promise with Editor that is being used
+			// Fulfill promise with Editor that is being used
 			return editor;
 
 		}, e => {

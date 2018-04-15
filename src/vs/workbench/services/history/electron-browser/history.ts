@@ -454,7 +454,7 @@ export class HistoryService implements IHistoryService {
 		// treat editor changes that happen as part of stack navigation specially
 		// we do not want to add a new stack entry as a matter of navigating the
 		// stack but we need to keep our currentTextEditorState up to date with
-		// the navigtion that occurs.
+		// the navigation that occurs.
 		if (this.navigatingInStack) {
 			if (control && editor.input) {
 				this.currentTextEditorState = new TextEditorState(editor.input, control.getSelection());

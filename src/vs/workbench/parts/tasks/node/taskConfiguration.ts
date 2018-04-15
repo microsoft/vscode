@@ -250,7 +250,7 @@ export interface ConfigurationProperties {
 	label?: string;
 
 	/**
-	 * An optional indentifier which can be used to reference a task
+	 * An optional identifier which can be used to reference a task
 	 * in a dependsOn or other attributes.
 	 */
 	identifier?: string;
@@ -383,7 +383,7 @@ export interface BaseTaskRunnerConfiguration {
 	taskSelector?: string;
 
 	/**
-	 * The problem matcher(s) to used if a global command is exucuted (e.g. no tasks
+	 * The problem matcher(s) to used if a global command is executed (e.g. no tasks
 	 * are defined). A tasks.json file can either contain a global problemMatcher
 	 * property or a tasks property but not both.
 	 */
@@ -449,7 +449,7 @@ export interface ExternalTaskRunnerConfiguration extends BaseTaskRunnerConfigura
 	osx?: BaseTaskRunnerConfiguration;
 
 	/**
-	 * Linux speciif task configuration
+	 * Linux specific task configuration
 	 */
 	linux?: BaseTaskRunnerConfiguration;
 }
@@ -798,13 +798,13 @@ namespace CommandConfiguration {
 		}
 	}
 
-	interface BaseCommandConfiguationShape extends BaseCommandProperties, LegacyCommandProperties {
+	interface BaseCommandConfigurationShape extends BaseCommandProperties, LegacyCommandProperties {
 	}
 
-	interface CommandConfiguationShape extends BaseCommandConfiguationShape {
-		windows?: BaseCommandConfiguationShape;
-		osx?: BaseCommandConfiguationShape;
-		linux?: BaseCommandConfiguationShape;
+	interface CommandConfigurationShape extends BaseCommandConfigurationShape {
+		windows?: BaseCommandConfigurationShape;
+		osx?: BaseCommandConfigurationShape;
+		linux?: BaseCommandConfigurationShape;
 	}
 
 	const properties: MetaData<Tasks.CommandConfiguration, any>[] = [
@@ -813,7 +813,7 @@ namespace CommandConfiguration {
 		{ property: 'presentation', type: PresentationOptions }
 	];
 
-	export function from(this: void, config: CommandConfiguationShape, context: ParseContext): Tasks.CommandConfiguration {
+	export function from(this: void, config: CommandConfigurationShape, context: ParseContext): Tasks.CommandConfiguration {
 		let result: Tasks.CommandConfiguration = fromBase(config, context);
 
 		let osConfig: Tasks.CommandConfiguration = undefined;
@@ -830,7 +830,7 @@ namespace CommandConfiguration {
 		return isEmpty(result) ? undefined : result;
 	}
 
-	function fromBase(this: void, config: BaseCommandConfiguationShape, context: ParseContext): Tasks.CommandConfiguration {
+	function fromBase(this: void, config: BaseCommandConfigurationShape, context: ParseContext): Tasks.CommandConfiguration {
 		let result: Tasks.CommandConfiguration = {
 			name: undefined,
 			runtime: undefined,
@@ -1053,7 +1053,7 @@ namespace ProblemMatcherConverter {
 					return localProblemMatcher;
 				}
 			}
-			context.problemReporter.error(nls.localize('ConfigurationParser.invalidVaraibleReference', 'Error: Invalid problemMatcher reference: {0}\n', value));
+			context.problemReporter.error(nls.localize('ConfigurationParser.invalidVariableReference', 'Error: Invalid problemMatcher reference: {0}\n', value));
 			return undefined;
 		} else {
 			let json = <ProblemMatcherConfig.ProblemMatcher>value;

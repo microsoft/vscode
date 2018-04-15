@@ -35,7 +35,7 @@ export interface IConfigurationRegistry {
 	notifyConfigurationSchemaUpdated(configuration: IConfigurationNode): void;
 
 	/**
-	 * Event that fires whenver a configuration has been
+	 * Event that fires whenever a configuration has been
 	 * registered.
 	 */
 	onDidRegisterConfiguration: Event<string[]>;
@@ -264,7 +264,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	private updateSchemaForOverrideSettingsConfiguration(configuration: IConfigurationNode): void {
-		if (configuration.id !== SETTINGS_OVERRRIDE_NODE_ID) {
+		if (configuration.id !== SETTINGS_OVERRIDE_NODE_ID) {
 			this.update(configuration);
 			contributionRegistry.registerSchema(editorConfigurationSchemaId, this.editorConfigurationSchema);
 		}
@@ -314,7 +314,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 }
 
-const SETTINGS_OVERRRIDE_NODE_ID = 'override';
+const SETTINGS_OVERRIDE_NODE_ID = 'override';
 const OVERRIDE_PROPERTY = '\\[.*\\]$';
 const OVERRIDE_PATTERN_WITH_SUBSTITUTION = '\\[(${0})\\]$';
 export const OVERRIDE_PROPERTY_PATTERN = new RegExp(OVERRIDE_PROPERTY);

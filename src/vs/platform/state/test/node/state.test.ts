@@ -32,7 +32,7 @@ suite('StateService', () => {
 			service.removeItem('some.key');
 			assert.equal(service.getItem('some.key', 'some.default'), 'some.default');
 
-			assert.ok(!service.getItem('some.unknonw.key'));
+			assert.ok(!service.getItem('some.unknown.key'));
 
 			service.setItem('some.other.key', 'some.other.value');
 

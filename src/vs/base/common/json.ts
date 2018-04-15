@@ -1042,7 +1042,7 @@ export interface JSONVisitor {
 	/**
 	 * Invoked when a comma or colon separator is encountered. The offset and length represent the location of the separator.
 	 */
-	onSeparator?: (charcter: string, offset: number, length: number) => void;
+	onSeparator?: (character: string, offset: number, length: number) => void;
 
 	/**
 	 * Invoked on an error.

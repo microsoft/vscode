@@ -492,8 +492,8 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	private _scanAndHandleExtensions(): void {
 
 		this._getRuntimeExtension()
-			.then(runtimeExtensons => {
-				this._registry = new ExtensionDescriptionRegistry(runtimeExtensons);
+			.then(runtimeExtensions => {
+				this._registry = new ExtensionDescriptionRegistry(runtimeExtensions);
 
 				let availableExtensions = this._registry.getAllExtensionDescriptions();
 				let extensionPoints = ExtensionsRegistry.getExtensionPoints();

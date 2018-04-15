@@ -179,7 +179,7 @@ function resolveJSFlags() {
 	}
 }
 
-// Language tags are case insensitve however an amd loader is case sensitive
+// Language tags are case insensitive however an amd loader is case sensitive
 // To make this work on case preserving & insensitive FS we do the following:
 // the language bundles have lower case language tags and we always lower case
 // the locale we receive from the user or OS.
@@ -494,7 +494,7 @@ app.once('ready', function () {
 				process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
 				require('./bootstrap-amd').bootstrap('vs/code/electron-main/main');
 			};
-			// We recevied a valid nlsConfig from a user defined locale
+			// We received a valid nlsConfig from a user defined locale
 			if (nlsConfig) {
 				boot(nlsConfig);
 			} else {

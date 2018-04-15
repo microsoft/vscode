@@ -108,7 +108,7 @@ export class MoveLinesCommand implements ICommand {
 						let newIndentation = IndentUtil.generateIndent(newSpaceCnt, tabSize, insertSpaces);
 						insertingText = newIndentation + this.trimLeft(movingLineText);
 					} else {
-						// no enter rule matches, let's check indentatin rules then.
+						// no enter rule matches, let's check indentation rules then.
 						virtualModel.getLineContent = (lineNumber: number) => {
 							if (lineNumber === s.startLineNumber) {
 								return model.getLineContent(movingLineNumber);
@@ -151,12 +151,12 @@ export class MoveLinesCommand implements ICommand {
 							}
 						};
 
-						let newIndentatOfMovingBlock = LanguageConfigurationRegistry.getGoodIndentForLine(virtualModel, model.getLanguageIdAtPosition(
+						let newIndentOfMovingBlock = LanguageConfigurationRegistry.getGoodIndentForLine(virtualModel, model.getLanguageIdAtPosition(
 							movingLineNumber, 1), s.startLineNumber + 1, indentConverter);
 
-						if (newIndentatOfMovingBlock !== null) {
+						if (newIndentOfMovingBlock !== null) {
 							const oldIndentation = strings.getLeadingWhitespace(model.getLineContent(s.startLineNumber));
-							const newSpaceCnt = IndentUtil.getSpaceCnt(newIndentatOfMovingBlock, tabSize);
+							const newSpaceCnt = IndentUtil.getSpaceCnt(newIndentOfMovingBlock, tabSize);
 							const oldSpaceCnt = IndentUtil.getSpaceCnt(oldIndentation, tabSize);
 							if (newSpaceCnt !== oldSpaceCnt) {
 								const spaceCntOffset = newSpaceCnt - oldSpaceCnt;
@@ -281,8 +281,8 @@ export class MoveLinesCommand implements ICommand {
 			if (this.trimLeft(movingLineText).indexOf(this.trimLeft(enterPrefix)) >= 0) {
 				let oldIndentation = strings.getLeadingWhitespace(model.getLineContent(line));
 				let newIndentation = strings.getLeadingWhitespace(enterPrefix);
-				let indentMetadataOfMovelingLine = LanguageConfigurationRegistry.getIndentMetadata(model, line);
-				if (indentMetadataOfMovelingLine & IndentConsts.DECREASE_MASK) {
+				let indentMetadataOfModelLine = LanguageConfigurationRegistry.getIndentMetadata(model, line);
+				if (indentMetadataOfModelLine & IndentConsts.DECREASE_MASK) {
 					newIndentation = indentConverter.unshiftIndent(newIndentation);
 				}
 				let newSpaceCnt = IndentUtil.getSpaceCnt(newIndentation, tabSize);

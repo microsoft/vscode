@@ -63,7 +63,7 @@ suite('MarkersModel Test', () => {
 		assert.ok(hasMarker(actuals[3].markers, marker5));
 	});
 
-	test('sort palces resources with no errors at the end', function () {
+	test('sort places resources with no errors at the end', function () {
 		let marker1 = aMarker('a/res1', MarkerSeverity.Warning);
 		let marker2 = aMarker('a/res2');
 		let marker3 = aMarker('res4');

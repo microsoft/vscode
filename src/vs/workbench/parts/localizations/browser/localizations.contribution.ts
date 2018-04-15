@@ -40,12 +40,12 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService
 	) {
 		super();
-		this.updateLocaleDefintionSchema();
-		this._register(this.localizationService.onDidLanguagesChange(() => this.updateLocaleDefintionSchema()));
+		this.updateLocaleDefinitionSchema();
+		this._register(this.localizationService.onDidLanguagesChange(() => this.updateLocaleDefinitionSchema()));
 		this._register(this.extensionManagementService.onDidInstallExtension(e => this.onDidInstallExtension(e)));
 	}
 
-	private updateLocaleDefintionSchema(): void {
+	private updateLocaleDefinitionSchema(): void {
 		this.localizationService.getLanguageIds()
 			.then(languageIds => {
 				let lowercaseLanguageIds: string[] = [];
@@ -60,7 +60,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private onDidInstallExtension(e: DidInstallExtensionEvent): void {
-		const donotAskUpdateKey = 'langugage.update.donotask';
+		const donotAskUpdateKey = 'language.update.donotask';
 		if (!this.storageService.getBoolean(donotAskUpdateKey) && e.local && e.local.manifest.contributes && e.local.manifest.contributes.localizations && e.local.manifest.contributes.localizations.length) {
 			const locale = e.local.manifest.contributes.localizations[0].languageId;
 			if (language !== locale) {

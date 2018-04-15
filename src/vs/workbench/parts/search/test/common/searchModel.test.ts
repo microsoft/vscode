@@ -89,17 +89,17 @@ suite('SearchModel', () => {
 		assert.equal(2, actual.length);
 		assert.equal('file://c:/1', actual[0].resource().toString());
 
-		let actuaMatches = actual[0].matches();
-		assert.equal(2, actuaMatches.length);
-		assert.equal('preview 1', actuaMatches[0].text());
-		assert.ok(new Range(2, 2, 2, 5).equalsRange(actuaMatches[0].range()));
-		assert.equal('preview 1', actuaMatches[1].text());
-		assert.ok(new Range(2, 5, 2, 12).equalsRange(actuaMatches[1].range()));
+		let actualMatches = actual[0].matches();
+		assert.equal(2, actualMatches.length);
+		assert.equal('preview 1', actualMatches[0].text());
+		assert.ok(new Range(2, 2, 2, 5).equalsRange(actualMatches[0].range()));
+		assert.equal('preview 1', actualMatches[1].text());
+		assert.ok(new Range(2, 5, 2, 12).equalsRange(actualMatches[1].range()));
 
-		actuaMatches = actual[1].matches();
-		assert.equal(1, actuaMatches.length);
-		assert.equal('preview 2', actuaMatches[0].text());
-		assert.ok(new Range(2, 1, 2, 2).equalsRange(actuaMatches[0].range()));
+		actualMatches = actual[1].matches();
+		assert.equal(1, actualMatches.length);
+		assert.equal('preview 2', actualMatches[0].text());
+		assert.ok(new Range(2, 1, 2, 2).equalsRange(actualMatches[0].range()));
 	});
 
 	test('Search Model: Search adds to results during progress', function () {
@@ -120,17 +120,17 @@ suite('SearchModel', () => {
 			assert.equal(2, actual.length);
 			assert.equal('file://c:/1', actual[0].resource().toString());
 
-			let actuaMatches = actual[0].matches();
-			assert.equal(2, actuaMatches.length);
-			assert.equal('preview 1', actuaMatches[0].text());
-			assert.ok(new Range(2, 2, 2, 5).equalsRange(actuaMatches[0].range()));
-			assert.equal('preview 1', actuaMatches[1].text());
-			assert.ok(new Range(2, 5, 2, 12).equalsRange(actuaMatches[1].range()));
+			let actualMatches = actual[0].matches();
+			assert.equal(2, actualMatches.length);
+			assert.equal('preview 1', actualMatches[0].text());
+			assert.ok(new Range(2, 2, 2, 5).equalsRange(actualMatches[0].range()));
+			assert.equal('preview 1', actualMatches[1].text());
+			assert.ok(new Range(2, 5, 2, 12).equalsRange(actualMatches[1].range()));
 
-			actuaMatches = actual[1].matches();
-			assert.equal(1, actuaMatches.length);
-			assert.equal('preview 2', actuaMatches[0].text());
-			assert.ok(new Range(2, 1, 2, 2).equalsRange(actuaMatches[0].range()));
+			actualMatches = actual[1].matches();
+			assert.equal(1, actualMatches.length);
+			assert.equal('preview 2', actualMatches[0].text());
+			assert.ok(new Range(2, 1, 2, 2).equalsRange(actualMatches[0].range()));
 		});
 	});
 

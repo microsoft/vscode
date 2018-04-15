@@ -422,7 +422,7 @@ declare module 'vscode' {
 
 	export interface DebugConfigurationProvider {
 		/**
-		 * This optional method is called just before a debug adapter is started to determine its excutable path and arguments.
+		 * This optional method is called just before a debug adapter is started to determine its executable path and arguments.
 		 * Registering more than one debugAdapterExecutable for a type results in an error.
 		 * @param folder The workspace folder from which the configuration originates from or undefined for a folderless setup.
 		 * @param token A cancellation token.
@@ -613,7 +613,7 @@ declare module 'vscode' {
 		/**
 		 * Post a message to the webview content.
 		 *
-		 * Messages are only develivered if the webview is visible.
+		 * Messages are only delivered if the webview is visible.
 		 *
 		 * @param message Body of the message.
 		 */
@@ -737,7 +737,7 @@ declare module 'vscode' {
 		serializeWebviewPanel(webviewPanel: WebviewPanel): Thenable<any>;
 
 		/**
-		 * Restore a webview panel from its seriailzed `state`.
+		 * Restore a webview panel from its serialized `state`.
 		 *
 		 * Called when a serialized webview first becomes visible.
 		 *

@@ -19,7 +19,7 @@ declare module 'vscode-xterm' {
 	export interface ITerminalOptions {
 		/**
 		 * Whether background should support non-opaque color. It must be set before
-		 * executing open() method and can't be changed later without excuting it again.
+		 * executing open() method and can't be changed later without executing it again.
 		 * Warning: Enabling this option can reduce performances somewhat.
 		 */
 		allowTransparency?: boolean;
@@ -393,7 +393,7 @@ declare module 'vscode-xterm' {
 		 * should be processed by the terminal and what keys should not.
 		 * @param customKeyEventHandler The custom KeyboardEvent handler to attach.
 		 * This is a function that takes a KeyboardEvent, allowing consumers to stop
-		 * propogation and/or prevent the default action. The function returns
+		 * propagation and/or prevent the default action. The function returns
 		 * whether the event should be processed by xterm.js.
 		 */
 		attachCustomKeyEventHandler(customKeyEventHandler: (event: KeyboardEvent) => boolean): void;

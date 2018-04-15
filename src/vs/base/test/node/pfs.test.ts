@@ -66,7 +66,7 @@ suite('PFS', () => {
 		});
 	});
 
-	test('writeFile - parallel write on same files works and is sequentalized', function () {
+	test('writeFile - parallel write on same files works and is sequentialized', function () {
 		const id = uuid.generateUuid();
 		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'pfs', id);

@@ -694,18 +694,18 @@ suite('Glob', () => {
 			'**/*.js': { when: '$(basename).ts' }
 		};
 
-		let sibilings = () => ['foo.ts', 'foo.js', 'foo', 'bar'];
+		let siblings = () => ['foo.ts', 'foo.js', 'foo', 'bar'];
 
-		assert.strictEqual(glob.match(expr, 'bar', sibilings), '**/bar');
-		assert.strictEqual(glob.match(expr, 'foo', sibilings), null);
-		assert.strictEqual(glob.match(expr, 'foo/bar', sibilings), '**/bar');
-		assert.strictEqual(glob.match(expr, 'foo\\bar', sibilings), '**/bar');
-		assert.strictEqual(glob.match(expr, 'foo/foo', sibilings), null);
-		assert.strictEqual(glob.match(expr, 'foo.js', sibilings), '**/*.js');
-		assert.strictEqual(glob.match(expr, 'bar.js', sibilings), null);
+		assert.strictEqual(glob.match(expr, 'bar', siblings), '**/bar');
+		assert.strictEqual(glob.match(expr, 'foo', siblings), null);
+		assert.strictEqual(glob.match(expr, 'foo/bar', siblings), '**/bar');
+		assert.strictEqual(glob.match(expr, 'foo\\bar', siblings), '**/bar');
+		assert.strictEqual(glob.match(expr, 'foo/foo', siblings), null);
+		assert.strictEqual(glob.match(expr, 'foo.js', siblings), '**/*.js');
+		assert.strictEqual(glob.match(expr, 'bar.js', siblings), null);
 	});
 
-	test('expression with multipe basename globs', function () {
+	test('expression with multiple basename globs', function () {
 		let expr = {
 			'**/bar': true,
 			'{**/baz,**/foo}': true
@@ -747,10 +747,10 @@ suite('Glob', () => {
 		assert.strictEqual(glob.parse('{**/baz,**/foo}')('baz/foo', 'foo'), true);
 
 		let expr = { '**/*.js': { when: '$(basename).ts' } };
-		let sibilings = () => ['foo.ts', 'foo.js'];
+		let siblings = () => ['foo.ts', 'foo.js'];
 
-		assert.strictEqual(glob.parse(expr)('bar/baz.js', 'baz.js', sibilings), null);
-		assert.strictEqual(glob.parse(expr)('bar/foo.js', 'foo.js', sibilings), '**/*.js');
+		assert.strictEqual(glob.parse(expr)('bar/baz.js', 'baz.js', siblings), null);
+		assert.strictEqual(glob.parse(expr)('bar/foo.js', 'foo.js', siblings), '**/*.js');
 	});
 
 	test('expression/pattern basename terms', function () {

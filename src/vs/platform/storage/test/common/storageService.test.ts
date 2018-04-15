@@ -12,7 +12,7 @@ import { IWorkspaceContextService, IWorkspace, WorkbenchState } from 'vs/platfor
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
-suite('Workbench StorageSevice', () => {
+suite('Workbench StorageService', () => {
 	let contextService: IWorkspaceContextService;
 	let instantiationService: TestInstantiationService;
 
@@ -68,7 +68,7 @@ suite('Workbench StorageSevice', () => {
 		assert.strictEqual(s.getBoolean('Monaco.IDE.Core.Storage.Test.getBooleanDefault', StorageScope.GLOBAL, true), true);
 	});
 
-	test('StorageSevice cleans up when workspace changes', () => {
+	test('StorageService cleans up when workspace changes', () => {
 		let storageImpl = new InMemoryLocalStorage();
 		let time = new Date().getTime();
 		let s = new StorageService(storageImpl, null, contextService.getWorkspace().id, time);

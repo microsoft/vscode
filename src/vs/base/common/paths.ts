@@ -219,7 +219,7 @@ export const join: (...parts: string[]) => string = function () {
 	for (let i = 0; i < arguments.length; i++) {
 		let part = arguments[i];
 		if (i > 0) {
-			// add the separater between two parts unless
+			// add the separator between two parts unless
 			// there already is one
 			let last = value.charCodeAt(value.length - 1);
 			if (last !== CharCode.Slash && last !== CharCode.Backslash) {

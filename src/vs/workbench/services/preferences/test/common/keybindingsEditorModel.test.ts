@@ -199,7 +199,7 @@ suite('Keybindings Editor Model test', () => {
 		});
 	});
 
-	test('convert with title and wihtout binding to entry', () => {
+	test('convert with title and without binding to entry', () => {
 		const id = 'a' + uuid.generateUuid();
 		registerCommandWithTitle(id, 'some title');
 		prepareKeybindingService();

@@ -199,7 +199,7 @@ declare module 'vscode' {
 
 		/**
 		 * Get a word-range at the given position. By default words are defined by
-		 * common separators, like space, -, _, etc. In addition, per languge custom
+		 * common separators, like space, -, _, etc. In addition, per language custom
 		 * [word definitions](#LanguageConfiguration.wordPattern) can be defined. It
 		 * is also possible to provide a custom regular expression.
 		 *
@@ -477,7 +477,7 @@ declare module 'vscode' {
 		active: Position;
 
 		/**
-		 * Create a selection from two postions.
+		 * Create a selection from two positions.
 		 *
 		 * @param anchor A position.
 		 * @param active A position.
@@ -1032,7 +1032,7 @@ declare module 'vscode' {
 
 		/**
 		 * Render options applied to the current decoration. For performance reasons, keep the
-		 * number of decoration specific options small, and use decoration types whereever possible.
+		 * number of decoration specific options small, and use decoration types wherever possible.
 		 */
 		renderOptions?: DecorationInstanceRenderOptions;
 	}
@@ -1304,7 +1304,7 @@ declare module 'vscode' {
 		 * [Uri.parse](#Uri.parse).
 		 *
 		 * @param skipEncoding Do not percentage-encode the result, defaults to `false`. Note that
-		 *	the `#` and `?` characters occuring in the path will always be encoded.
+		 *	the `#` and `?` characters occurring in the path will always be encoded.
 		 * @returns A string representation of this Uri.
 		 */
 		toString(skipEncoding?: boolean): string;
@@ -1599,7 +1599,7 @@ declare module 'vscode' {
 	 *
 	 * * Note 1: A dialog can select files, folders, or both. This is not true for Windows
 	 * which enforces to open either files or folder, but *not both*.
-	 * * Note 2: Explictly setting `canSelectFiles` and `canSelectFolders` to `false` is futile
+	 * * Note 2: Explicitly setting `canSelectFiles` and `canSelectFolders` to `false` is futile
 	 * and the editor then silently adjusts the options to select files.
 	 */
 	export interface OpenDialogOptions {
@@ -1849,7 +1849,7 @@ declare module 'vscode' {
 	 * to that type `T`. In addition, `null` and `undefined` can be returned - either directly or from a
 	 * thenable.
 	 *
-	 * The snippets below are all valid implementions of the [`HoverProvider`](#HoverProvider):
+	 * The snippets below are all valid implementations of the [`HoverProvider`](#HoverProvider):
 	 *
 	 * ```ts
 	 * let a: HoverProvider = {
@@ -2161,7 +2161,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The implemenetation provider interface defines the contract between extensions and
+	 * The implementation provider interface defines the contract between extensions and
 	 * the go to implementation feature.
 	 */
 	export interface ImplementationProvider {
@@ -2698,7 +2698,7 @@ declare module 'vscode' {
 		 * Builder-function that appends a tabstop (`$1`, `$2` etc) to
 		 * the [`value`](#SnippetString.value) of this snippet string.
 		 *
-		 * @param number The number of this tabstop, defaults to an auto-incremet
+		 * @param number The number of this tabstop, defaults to an auto-increment
 		 * value starting at 1.
 		 * @return This snippet string.
 		 */
@@ -2710,7 +2710,7 @@ declare module 'vscode' {
 		 *
 		 * @param value The value of this placeholder - either a string or a function
 		 * with which a nested snippet can be created.
-		 * @param number The number of this tabstop, defaults to an auto-incremet
+		 * @param number The number of this tabstop, defaults to an auto-increment
 		 * value starting at 1.
 		 * @return This snippet string.
 		 */
@@ -2969,7 +2969,7 @@ declare module 'vscode' {
 	/**
 	 * A completion item represents a text snippet that is proposed to complete text that is being typed.
 	 *
-	 * It is suffient to create a completion item from just a [label](#CompletionItem.label). In that
+	 * It is sufficient to create a completion item from just a [label](#CompletionItem.label). In that
 	 * case the completion item will replace the [word](#TextDocument.getWordRangeAtPosition)
 	 * until the cursor with the given label or [insertText](#CompletionItem.insertText). Otherwise the
 	 * the given [edit](#CompletionItem.textEdit) is used.
@@ -3235,7 +3235,7 @@ declare module 'vscode' {
 
 		/**
 		 * Given a link fill in its [target](#DocumentLink.target). This method is called when an incomplete
-		 * link is selected in the UI. Providers can implement this method and return incomple links
+		 * link is selected in the UI. Providers can implement this method and return incomplete links
 		 * (without target) from the [`provideDocumentLinks`](#DocumentLinkProvider.provideDocumentLinks) method which
 		 * often helps to improve performance.
 		 *
@@ -3287,7 +3287,7 @@ declare module 'vscode' {
 	export class ColorInformation {
 
 		/**
-		 * The range in the document where this color appers.
+		 * The range in the document where this color appears.
 		 */
 		range: Range;
 
@@ -3630,7 +3630,7 @@ declare module 'vscode' {
 		 * The *effective* value (returned by [`get`](#WorkspaceConfiguration.get))
 		 * is computed like this: `defaultValue` overwritten by `globalValue`,
 		 * `globalValue` overwritten by `workspaceValue`. `workspaceValue` overwritten by `workspaceFolderValue`.
-		 * Refer to [Settings Inheritence](https://code.visualstudio.com/docs/getstarted/settings)
+		 * Refer to [Settings Inheritance](https://code.visualstudio.com/docs/getstarted/settings)
 		 * for more information.
 		 *
 		 * *Note:* The configuration name must denote a leaf in the configuration tree
@@ -3655,7 +3655,7 @@ declare module 'vscode' {
 		 * has no observable effect in that workspace, but in others. Setting a workspace value
 		 * in the presence of a more specific folder value has no observable effect for the resources
 		 * under respective [folder](#workspace.workspaceFolders), but in others. Refer to
-		 * [Settings Inheritence](https://code.visualstudio.com/docs/getstarted/settings) for more information.
+		 * [Settings Inheritance](https://code.visualstudio.com/docs/getstarted/settings) for more information.
 		 *
 		 * *Note 2:* To remove a configuration value use `undefined`, like so: `config.update('somekey', undefined)`
 		 *
@@ -3887,7 +3887,7 @@ declare module 'vscode' {
 		 * modify the diagnostics-array returned from this call.
 		 *
 		 * @param uri A resource identifier.
-		 * @returns An immutable array of [diagnostics](#Diagnxostic) or `undefined`.
+		 * @returns An immutable array of [diagnostics](#Diagnostic) or `undefined`.
 		 */
 		get(uri: Uri): Diagnostic[] | undefined;
 
@@ -4504,7 +4504,7 @@ declare module 'vscode' {
 
 	/**
 	 * Defines how an argument should be quoted if it contains
-	 * spaces or unsuppoerted characters.
+	 * spaces or unsupported characters.
 	 */
 	export enum ShellQuoting {
 
@@ -5512,7 +5512,7 @@ declare module 'vscode' {
 		Window = 10,
 
 		/**
-		 * Show progress as notifiation with an optional cancel button. Supports to show infinite and discrete progress.
+		 * Show progress as notification with an optional cancel button. Supports to show infinite and discrete progress.
 		 */
 		Notification = 15
 	}
@@ -6094,7 +6094,7 @@ declare module 'vscode' {
 		 * all extensions but *not yet* from the task framework.
 		 *
 		 * @param resource A resource
-		 * @returns An arrary of [diagnostics](#Diagnostic) objects or an empty array.
+		 * @returns An array of [diagnostics](#Diagnostic) objects or an empty array.
 		 */
 		export function getDiagnostics(resource: Uri): Diagnostic[];
 
@@ -6844,7 +6844,7 @@ declare module 'vscode' {
 
 
 		/**
-		 * Register a [debug configuration provider](#DebugConfigurationProvider) for a specifc debug type.
+		 * Register a [debug configuration provider](#DebugConfigurationProvider) for a specific debug type.
 		 * More than one provider can be registered for the same type.
 		 *
 		 * @param type The debug type for which the provider is registered.
@@ -6937,7 +6937,7 @@ declare module 'vscode' {
 
 /**
  * Thenable is a common denominator between ES6 promises, Q, jquery.Deferred, WinJS.Promise,
- * and others. This API makes no assumption about what promise libary is being used which
+ * and others. This API makes no assumption about what promise library is being used which
  * enables reusing existing code without migrating to a specific promise implementation. Still,
  * we recommend the use of native promises which are available in this editor.
  */

@@ -337,7 +337,7 @@ module nls {
 		}
 	}
 
-	export function patchJavascript(patches: IPatch[], contents: string, moduleId: string): string {
+	export function patchJavaScript(patches: IPatch[], contents: string, moduleId: string): string {
 		const model = new nls.TextModel(contents);
 
 		// patch the localize calls
@@ -423,7 +423,7 @@ module nls {
 			})
 			.toArray();
 
-		javascript = patchJavascript(patches, javascript, moduleId);
+		javascript = patchJavaScript(patches, javascript, moduleId);
 
 		// since imports are not within the sourcemap information,
 		// we must do this MacGyver style

@@ -42,7 +42,7 @@ export function getPathLabel(resource: URI | string, rootProvider?: IWorkspaceFo
 
 		let pathLabel: string;
 		if (isLinux ? baseResource.uri.fsPath === resource.fsPath : equalsIgnoreCase(baseResource.uri.fsPath, resource.fsPath)) {
-			pathLabel = ''; // no label if pathes are identical
+			pathLabel = ''; // no label if paths are identical
 		} else {
 			pathLabel = normalize(ltrim(resource.fsPath.substr(baseResource.uri.fsPath.length), nativeSep), true);
 		}
@@ -233,7 +233,7 @@ export function shorten(paths: string[]): string[] {
 						result = prefix + result;
 					}
 
-					// add ellipsis at the beginning if neeeded
+					// add ellipsis at the beginning if needed
 					if (start > 0) {
 						result = result + ellipsis + nativeSep;
 					}

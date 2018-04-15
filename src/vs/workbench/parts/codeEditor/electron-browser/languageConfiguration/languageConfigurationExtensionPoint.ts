@@ -71,7 +71,7 @@ export class LanguageConfigurationFileHandler {
 		this._modeService = modeService;
 		this._done = [];
 
-		// Listen for hints that a language configuration is needed/usefull and then load it once
+		// Listen for hints that a language configuration is needed/useful and then load it once
 		this._modeService.onDidCreateMode((mode) => this._loadConfigurationsForMode(mode.getLanguageIdentifier()));
 		textMateService.onDidEncounterLanguage((languageId) => {
 			this._loadConfigurationsForMode(this._modeService.getLanguageIdentifier(languageId));

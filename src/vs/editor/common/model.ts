@@ -142,7 +142,7 @@ export interface IModelDecoration {
 	 */
 	readonly id: string;
 	/**
-	 * Identifier for a decoration's owener.
+	 * Identifier for a decoration's owner.
 	 */
 	readonly ownerId: number;
 	/**
@@ -185,7 +185,7 @@ export interface IModelDecorationsChangeAccessor {
 	 */
 	removeDecoration(id: string): void;
 	/**
-	 * Perform a minimum ammount of operations, in order to transform the decorations
+	 * Perform a minimum amount of operations, in order to transform the decorations
 	 * identified by `oldDecorations` to the decorations described by `newDecorations`
 	 * and returns the new identifiers associated with the resulting decorations.
 	 *
@@ -623,7 +623,7 @@ export interface ITextModel {
 	 * If the offset and position are such that their combination goes beyond the beginning or
 	 * end of the model, throws an exception.
 	 *
-	 * If the ofsset is such that the new position would be in the middle of a multi-byte
+	 * If the offset is such that the new position would be in the middle of a multi-byte
 	 * line terminator, throws an exception.
 	 */
 	modifyPosition(position: IPosition, offset: number): Position;
@@ -869,7 +869,7 @@ export interface ITextModel {
 	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T, ownerId?: number): T;
 
 	/**
-	 * Perform a minimum ammount of operations, in order to transform the decorations
+	 * Perform a minimum amount of operations, in order to transform the decorations
 	 * identified by `oldDecorations` to the decorations described by `newDecorations`
 	 * and returns the new identifiers associated with the resulting decorations.
 	 *
@@ -921,7 +921,7 @@ export interface ITextModel {
 	getLinesDecorations(startLineNumber: number, endLineNumber: number, ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
 
 	/**
-	 * Gets all the deocorations in a range as an array. Only `startLineNumber` and `endLineNumber` from `range` are used for filtering.
+	 * Gets all the decorations in a range as an array. Only `startLineNumber` and `endLineNumber` from `range` are used for filtering.
 	 * So for now it returns all the decorations on the same line as `range`.
 	 * @param range The range to search in
 	 * @param ownerId If set, it will ignore decorations belonging to other owners.
@@ -984,7 +984,7 @@ export interface ITextModel {
 	/**
 	 * Push edit operations, basically editing the model. This is the preferred way
 	 * of editing the model. The edit operations will land on the undo stack.
-	 * @param beforeCursorState The cursor state before the edit operaions. This cursor state will be returned when `undo` or `redo` are invoked.
+	 * @param beforeCursorState The cursor state before the edit operations. This cursor state will be returned when `undo` or `redo` are invoked.
 	 * @param editOperations The edit operations.
 	 * @param cursorStateComputer A callback that can compute the resulting cursors state after the edit operations have been executed.
 	 * @return The cursor state returned by the `cursorStateComputer`.

@@ -28,7 +28,7 @@ import { TypeScriptVersionPicker } from './utils/versionPicker';
 import * as fileSchemes from './utils/fileSchemes';
 import { inferredProjectConfig } from './utils/tsconfig';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
-import { disposeAll } from './utils/dipose';
+import { disposeAll } from './utils/dispose';
 import { DiagnosticKind } from './features/diagnostics';
 import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
 
@@ -810,7 +810,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 				const diagnosticEvent: Proto.DiagnosticEvent = event;
 				if (diagnosticEvent.body && diagnosticEvent.body.diagnostics) {
 					this._onDiagnosticsReceived.fire({
-						kind: getDignosticsKind(event),
+						kind: getDiagnosticsKind(event),
 						resource: this.asUrl(diagnosticEvent.body.file),
 						diagnostics: diagnosticEvent.body.diagnostics
 					});
@@ -995,11 +995,11 @@ const getTsLocale = (configuration: TypeScriptServiceConfiguration): string | un
 		? configuration.locale
 		: env.language);
 
-function getDignosticsKind(event: Proto.Event) {
+function getDiagnosticsKind(event: Proto.Event) {
 	switch (event.event) {
 		case 'syntaxDiag': return DiagnosticKind.Syntax;
 		case 'semanticDiag': return DiagnosticKind.Semantic;
 		case 'suggestionDiag': return DiagnosticKind.Suggestion;
 	}
-	throw new Error('Unknown dignostics kind');
+	throw new Error('Unknown diagnostics kind');
 }

@@ -190,7 +190,7 @@ export class MarkerService implements IMarkerService {
 			return undefined;
 		}
 
-		// santize data
+		// sanitize data
 		code = code || null;
 		startLineNumber = startLineNumber > 0 ? startLineNumber : 1;
 		startColumn = startColumn > 0 ? startColumn : 1;
@@ -220,7 +220,7 @@ export class MarkerService implements IMarkerService {
 		if (map) {
 			delete this._byOwner[owner];
 			for (const resource in map) {
-				// remeber what we remove
+				// remember what we remove
 				const [first] = MapMap.get(this._byResource, resource, owner);
 				if (first) {
 					changes.push(first.resource);

@@ -758,7 +758,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 	}
 
 	// When getting client rects for the last character, we will position the
-	// text range at the end of the span, insteaf of at the beginning of next span
+	// text range at the end of the span, instead of at the beginning of next span
 	characterMapping.setPartData(len, parts.length - 1, charOffsetInPart, partAbsoluteOffset);
 
 	if (isOverflowing) {

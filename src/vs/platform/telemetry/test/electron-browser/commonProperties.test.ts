@@ -70,7 +70,7 @@ suite('Telemetry - common properties', function () {
 		});
 	});
 
-	test('lastSessionDate when aviablale', function () {
+	test('lastSessionDate when available', function () {
 
 		storageService.store('telemetry.lastSessionDate', new Date().toUTCString());
 

@@ -333,13 +333,13 @@ export class WorkspaceStats implements IWorkbenchContribution {
 	public reportWorkspaceTags(configuration: IWindowConfiguration): void {
 		this.getWorkspaceTags(configuration).then((tags) => {
 			/* __GDPR__
-				"workspce.tags" : {
+				"workspace.tags" : {
 					"${include}": [
 						"${WorkspaceTags}"
 					]
 				}
 			*/
-			this.telemetryService.publicLog('workspce.tags', tags);
+			this.telemetryService.publicLog('workspace.tags', tags);
 		}, error => onUnexpectedError(error));
 	}
 

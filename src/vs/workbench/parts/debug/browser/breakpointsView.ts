@@ -436,7 +436,7 @@ class FunctionBreakpointsRenderer implements IRenderer<FunctionBreakpoint, IBase
 
 		// Mark function breakpoints as disabled if deactivated or if debug type does not support them #9099
 		const process = this.debugService.getViewModel().focusedProcess;
-		dom.toggleClass(data.breakpoint, 'disalbed', (process && !process.session.capabilities.supportsFunctionBreakpoints) || !this.debugService.getModel().areBreakpointsActivated());
+		dom.toggleClass(data.breakpoint, 'disabled', (process && !process.session.capabilities.supportsFunctionBreakpoints) || !this.debugService.getModel().areBreakpointsActivated());
 		if (process && !process.session.capabilities.supportsFunctionBreakpoints) {
 			data.breakpoint.title = nls.localize('functionBreakpointsNotSupported', "Function breakpoints are not supported by this debug type");
 		}
@@ -564,7 +564,7 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 	if (debugActive && !breakpoint.verified) {
 		return {
 			className: breakpoint instanceof FunctionBreakpoint ? 'debug-function-breakpoint-unverified' : breakpoint.logMessage ? 'debug-breakpoint-log-unverified' : 'debug-breakpoint-unverified',
-			message: appendMessage(nls.localize('breakpointUnverifieddHover', "Unverified breakpoint")),
+			message: appendMessage(nls.localize('breakpointUnverifiedHover', "Unverified breakpoint")),
 		};
 	}
 

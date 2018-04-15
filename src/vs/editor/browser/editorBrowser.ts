@@ -668,7 +668,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	addContentWidget(widget: IContentWidget): void;
 	/**
 	 * Layout/Reposition a content widget. This is a ping to the editor to call widget.getPosition()
-	 * and update appropiately.
+	 * and update appropriately.
 	 */
 	layoutContentWidget(widget: IContentWidget): void;
 	/**
@@ -682,7 +682,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	addOverlayWidget(widget: IOverlayWidget): void;
 	/**
 	 * Layout/Reposition an overlay widget. This is a ping to the editor to call widget.getPosition()
-	 * and update appropiately.
+	 * and update appropriately.
 	 */
 	layoutOverlayWidget(widget: IOverlayWidget): void;
 	/**
@@ -720,7 +720,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * The result position takes scrolling into account and is relative to the top left corner of the editor.
 	 * Explanation 1: the results of this method will change for the same `position` if the user scrolls the editor.
 	 * Explanation 2: the results of this method will not change if the container of the editor gets repositioned.
-	 * Warning: the results of this method are innacurate for positions that are outside the current editor viewport.
+	 * Warning: the results of this method are innaccurate for positions that are outside the current editor viewport.
 	 */
 	getScrolledVisiblePosition(position: IPosition): { top: number; left: number; height: number; };
 

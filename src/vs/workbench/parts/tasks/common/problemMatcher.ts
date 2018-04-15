@@ -703,7 +703,7 @@ export namespace Config {
 		fileLocation?: string | string[];
 
 		/**
-		* The name of a predefined problem pattern, the inline definintion
+		* The name of a predefined problem pattern, the inline definition
 		* of a problem pattern or an array of problem patterns to match
 		* problems spread over multiple lines.
 		*/

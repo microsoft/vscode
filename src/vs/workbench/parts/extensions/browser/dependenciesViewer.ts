@@ -160,7 +160,7 @@ export class Renderer implements IRenderer {
 export class Controller extends WorkbenchTreeController {
 
 	constructor(
-		@IExtensionsWorkbenchService private extensionsWorkdbenchService: IExtensionsWorkbenchService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super({}, configurationService);
@@ -187,7 +187,7 @@ export class Controller extends WorkbenchTreeController {
 	public openExtension(tree: ITree, sideByside: boolean): boolean {
 		const element: IExtensionDependencies = tree.getFocus();
 		if (element.extension) {
-			this.extensionsWorkdbenchService.open(element.extension, sideByside);
+			this.extensionsWorkbenchService.open(element.extension, sideByside);
 			return true;
 		}
 		return false;
@@ -198,7 +198,7 @@ class OpenExtensionAction extends Action {
 
 	private _extensionDependencies: IExtensionDependencies;
 
-	constructor(@IExtensionsWorkbenchService private extensionsWorkdbenchService: IExtensionsWorkbenchService) {
+	constructor(@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService) {
 		super('extensions.action.openDependency', '');
 	}
 
@@ -211,6 +211,6 @@ class OpenExtensionAction extends Action {
 	}
 
 	run(sideByside: boolean): TPromise<any> {
-		return this.extensionsWorkdbenchService.open(this._extensionDependencies.extension, sideByside);
+		return this.extensionsWorkbenchService.open(this._extensionDependencies.extension, sideByside);
 	}
 }

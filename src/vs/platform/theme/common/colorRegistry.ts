@@ -47,7 +47,7 @@ export interface IColorRegistry {
 
 	/**
 	 * Register a color to the registry.
-	 * @param id The color id as used in theme descrition files
+	 * @param id The color id as used in theme description files
 	 * @param defaults The default values
 	 * @description the description
 	 */
@@ -64,12 +64,12 @@ export interface IColorRegistry {
 	resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color;
 
 	/**
-	 * JSON schema for an object to assign color values to one of the color contrbutions.
+	 * JSON schema for an object to assign color values to one of the color contributions.
 	 */
 	getColorSchema(): IJSONSchema;
 
 	/**
-	 * JSON schema to for a reference to a color contrbution.
+	 * JSON schema to for a reference to a color contribution.
 	 */
 	getColorReferenceSchema(): IJSONSchema;
 
@@ -299,7 +299,7 @@ export const mergeCurrentContentBackground = registerColor('merge.currentContent
 export const mergeIncomingHeaderBackground = registerColor('merge.incomingHeaderBackground', { dark: incomingBaseColor, light: incomingBaseColor, hc: null }, nls.localize('mergeIncomingHeaderBackground', 'Incoming header background in inline merge-conflicts. The color must not be opaque to not hide underlying decorations.'), true);
 export const mergeIncomingContentBackground = registerColor('merge.incomingContentBackground', { dark: transparent(mergeIncomingHeaderBackground, contentTransparency), light: transparent(mergeIncomingHeaderBackground, contentTransparency), hc: transparent(mergeIncomingHeaderBackground, contentTransparency) }, nls.localize('mergeIncomingContentBackground', 'Incoming content background in inline merge-conflicts. The color must not be opaque to not hide underlying decorations.'), true);
 export const mergeCommonHeaderBackground = registerColor('merge.commonHeaderBackground', { dark: commonBaseColor, light: commonBaseColor, hc: null }, nls.localize('mergeCommonHeaderBackground', 'Common ancestor header background in inline merge-conflicts. The color must not be opaque to not hide underlying decorations.'), true);
-export const mergeCommonContentBackground = registerColor('merge.commonContentBackground', { dark: transparent(mergeCommonHeaderBackground, contentTransparency), light: transparent(mergeCommonHeaderBackground, contentTransparency), hc: transparent(mergeCommonHeaderBackground, contentTransparency) }, nls.localize('mergeCommonContentBackground', 'Common ancester content background in inline merge-conflicts. The color must not be opaque to not hide underlying decorations.'), true);
+export const mergeCommonContentBackground = registerColor('merge.commonContentBackground', { dark: transparent(mergeCommonHeaderBackground, contentTransparency), light: transparent(mergeCommonHeaderBackground, contentTransparency), hc: transparent(mergeCommonHeaderBackground, contentTransparency) }, nls.localize('mergeCommonContentBackground', 'Common ancestor content background in inline merge-conflicts. The color must not be opaque to not hide underlying decorations.'), true);
 
 export const mergeBorder = registerColor('merge.border', { dark: null, light: null, hc: '#C3DF6F' }, nls.localize('mergeBorder', 'Border color on headers and the splitter in inline merge-conflicts.'));
 

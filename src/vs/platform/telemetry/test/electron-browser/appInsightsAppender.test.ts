@@ -60,7 +60,7 @@ suite('AIAdapter', () => {
 		assert.equal(appInsightsMock.events[0].eventName, `${prefix}/testEvent`);
 	});
 
-	test('addional data', () => {
+	test('additional data', () => {
 		adapter = new AppInsightsAppender(prefix, { first: '1st', second: 2, third: true }, () => appInsightsMock);
 		adapter.log('testEvent');
 

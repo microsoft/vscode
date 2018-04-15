@@ -131,7 +131,7 @@ suite('BackupMainService', () => {
 		assert.ok(!fs.existsSync(service.toBackupPath(barFile.fsPath)));
 
 		// 4) backup workspace path points to a workspace that no longer exists
-		// so it should convert the backup worspace to an empty workspace backup
+		// so it should convert the backup workspace to an empty workspace backup
 		const fileBackups = path.join(service.toBackupPath(fooFile.fsPath), Schemas.file);
 		fs.mkdirSync(service.toBackupPath(fooFile.fsPath));
 		fs.mkdirSync(service.toBackupPath(barFile.fsPath));
@@ -177,7 +177,7 @@ suite('BackupMainService', () => {
 		assert.ok(!fs.existsSync(service.toBackupPath(barFile.fsPath)));
 
 		// 4) backup workspace path points to a workspace that no longer exists
-		// so it should convert the backup worspace to an empty workspace backup
+		// so it should convert the backup workspace to an empty workspace backup
 		const fileBackups = path.join(service.toBackupPath(fooFile.fsPath), Schemas.file);
 		fs.mkdirSync(service.toBackupPath(fooFile.fsPath));
 		fs.mkdirSync(service.toBackupPath(barFile.fsPath));

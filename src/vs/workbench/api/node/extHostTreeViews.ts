@@ -120,7 +120,7 @@ class ExtHostTreeView<T> extends Disposable {
 
 	reveal(element: T, options?: { select?: boolean }): TPromise<void> {
 		if (typeof this.dataProvider.getParent !== 'function') {
-			return TPromise.wrapError(new Error(`Required registered TreeDataProvider to implement 'getParent' method to access 'reveal' mehtod`));
+			return TPromise.wrapError(new Error(`Required registered TreeDataProvider to implement 'getParent' method to access 'reveal' method`));
 		}
 		return this.resolveUnknownParentChain(element)
 			.then(parentChain => this.resolveTreeNode(element, parentChain[parentChain.length - 1])
@@ -392,9 +392,9 @@ class ExtHostTreeView<T> extends Disposable {
 			let node = this.nodes.get(parentElement);
 			if (node.children) {
 				for (const child of node.children) {
-					const childEleement = this.elements.get(child.item.handle);
-					if (childEleement) {
-						this.clear(childEleement);
+					const childElement = this.elements.get(child.item.handle);
+					if (childElement) {
+						this.clear(childElement);
 					}
 				}
 			}
@@ -408,9 +408,9 @@ class ExtHostTreeView<T> extends Disposable {
 		let node = this.nodes.get(element);
 		if (node.children) {
 			for (const child of node.children) {
-				const childEleement = this.elements.get(child.item.handle);
-				if (childEleement) {
-					this.clear(childEleement);
+				const childElement = this.elements.get(child.item.handle);
+				if (childElement) {
+					this.clear(childElement);
 				}
 			}
 		}

@@ -110,7 +110,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		return void 0;
 	}
 
-	public $startDASession(handle: number, debugType: string, adpaterExecutable: IAdapterExecutable | null): TPromise<void> {
+	public $startDASession(handle: number, debugType: string, adapterExecutable: IAdapterExecutable | null): TPromise<void> {
 		const mythis = this;
 
 		const da = new class extends DebugAdapter {
@@ -125,7 +125,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 				mythis._debugServiceProxy.$acceptDAMessage(handle, message);
 			}
 
-		}(debugType, adpaterExecutable, this._extensionService.getAllExtensionDescriptions());
+		}(debugType, adapterExecutable, this._extensionService.getAllExtensionDescriptions());
 
 		this._debugAdapters.set(handle, da);
 		da.onError(err => this._debugServiceProxy.$acceptDAError(handle, err.name, err.message, err.stack));

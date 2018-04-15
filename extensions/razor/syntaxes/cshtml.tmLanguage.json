@@ -118,7 +118,7 @@
 				}
 			],
 			"end": "(\\))",
-			"comments": "Covers same line Razor statments with embedded C#"
+			"comments": "Covers same line Razor statements with embedded C#"
 		},
 		{
 			"include": "#comments"

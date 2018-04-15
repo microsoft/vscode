@@ -187,8 +187,8 @@ export class ProfileExtHostStatusbarItem implements IStatusbarItem {
 	private updateLabel() {
 		let label = 'Profiling Extension Host';
 		if (this.timeStarted > 0) {
-			let secondsRecoreded = (new Date().getTime() - this.timeStarted) / 1000;
-			label = `Profiling Extension Host (${Math.round(secondsRecoreded)} sec)`;
+			let secondsRecorded = (new Date().getTime() - this.timeStarted) / 1000;
+			label = `Profiling Extension Host (${Math.round(secondsRecorded)} sec)`;
 		}
 		this.label.textContent = label;
 	}

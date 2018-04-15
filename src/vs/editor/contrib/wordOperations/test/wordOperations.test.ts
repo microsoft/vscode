@@ -451,7 +451,7 @@ suite('WordOperations', () => {
 		});
 	});
 
-	test('delete word right for caret at beggining of whitespace', () => {
+	test('delete word right for caret at beginning of whitespace', () => {
 		withTestCodeEditor([
 			'    \tMy First Line\t ',
 			'\tMy Second Line',

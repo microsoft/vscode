@@ -376,10 +376,10 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 		// Also check if we still have to apply other workspace edits and commands
 		// using a vscode command
 		const additionalTextEdits: vscode.TextEdit[] = [];
-		let hasReaminingCommandsOrEdits = false;
+		let hasRemainingCommandsOrEdits = false;
 		for (const tsAction of detail.codeActions) {
 			if (tsAction.commands) {
-				hasReaminingCommandsOrEdits = true;
+				hasRemainingCommandsOrEdits = true;
 			}
 
 			// Apply all edits in the current file using `additionalTextEdits`
@@ -388,14 +388,14 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 					if (change.fileName === filepath) {
 						additionalTextEdits.push(...change.textChanges.map(typeConverters.TextEdit.fromCodeEdit));
 					} else {
-						hasReaminingCommandsOrEdits = true;
+						hasRemainingCommandsOrEdits = true;
 					}
 				}
 			}
 		}
 
 		let command: vscode.Command | undefined = undefined;
-		if (hasReaminingCommandsOrEdits) {
+		if (hasRemainingCommandsOrEdits) {
 			// Create command that applies all edits not in the current file.
 			command = {
 				title: '',
@@ -492,7 +492,7 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 		position: vscode.Position
 	): Promise<boolean> {
 		// Workaround for https://github.com/Microsoft/TypeScript/issues/12677
-		// Don't complete function calls inside of destructive assigments or imports
+		// Don't complete function calls inside of destructive assignments or imports
 		try {
 			const infoResponse = await this.client.execute('quickinfo', typeConverters.Position.toFileLocationRequestArgs(filepath, position));
 			const info = infoResponse.body;
@@ -545,7 +545,7 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 				} else if (part.text === ')') {
 					--parenCount;
 				} else if (part.text === '...' && parenCount === 1) {
-					// Found rest parmeter. Do not fill in any further arguments
+					// Found rest parameter. Do not fill in any further arguments
 					hasOptionalParameters = true;
 					break;
 				}

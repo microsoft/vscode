@@ -3593,7 +3593,7 @@ interface UnderscoreStatic {
 	/**
 	 * Like map, but for objects. Transform the value of each property in turn.
 	 * @param object The object to transform
-	 * @param iteratee The function that tranforms property values
+	 * @param iteratee The function that transforms property values
 	 * @param context The optional context (value of `this`) to bind to
 	 */
 	mapObject<T>(object: any, iteratee: (val: any, key: string, object: any) => T, context?: any): _.Dictionary<T>;
@@ -4001,7 +4001,7 @@ interface UnderscoreStatic {
 	/**
 	* A mostly-internal function to generate callbacks that can be applied to each element
 	* in a collection, returning the desired result -- either identity, an arbitrary callback,
-	* a property matcher, or a propetery accessor.
+	* a property matcher, or a property accessor.
 	* @param string|Function|Object value The value to iterate over, usually the key.
 	* @param any context
 	* @return Callback that can be applied to each element in a collection.
@@ -4169,12 +4169,12 @@ interface Underscore<T> {
 	/**
 	* @see _.find
 	**/
-	find<T, U extends {}>(interator: U): T;
+	find<T, U extends {}>(iterator: U): T;
 
 	/**
 	* @see _.find
 	**/
-	find<T>(interator: string): T;
+	find<T>(iterator: string): T;
 
 	/**
 	* @see _.find
@@ -4184,12 +4184,12 @@ interface Underscore<T> {
 	/**
 	* @see _.find
 	**/
-	detect<T, U extends {}>(interator?: U): T;
+	detect<T, U extends {}>(iterator?: U): T;
 
 	/**
 	* @see _.find
 	**/
-	detect<T>(interator?: string): T;
+	detect<T>(iterator?: string): T;
 
 	/**
 	* Wrapped type `any[]`.
@@ -5129,12 +5129,12 @@ interface _Chain<T> {
 	/**
 	* @see _.find
 	**/
-	find<T, U extends {}>(interator: U): _ChainSingle<T>;
+	find<T, U extends {}>(iterator: U): _ChainSingle<T>;
 
 	/**
 	* @see _.find
 	**/
-	find<T>(interator: string): _ChainSingle<T>;
+	find<T>(iterator: string): _ChainSingle<T>;
 
 	/**
 	* @see _.find
@@ -5144,12 +5144,12 @@ interface _Chain<T> {
 	/**
 	* @see _.find
 	**/
-	detect<T, U extends {}>(interator: U): _ChainSingle<T>;
+	detect<T, U extends {}>(iterator: U): _ChainSingle<T>;
 
 	/**
 	* @see _.find
 	**/
-	detect<T>(interator: string): _ChainSingle<T>;
+	detect<T>(iterator: string): _ChainSingle<T>;
 
 	/**
 	* Wrapped type `any[]`.

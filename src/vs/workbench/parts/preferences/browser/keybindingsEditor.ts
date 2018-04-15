@@ -132,7 +132,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.overlayContainer.style.height = dimension.height + 'px';
 		this.defineKeybindingWidget.layout(this.dimension);
 
-		this.layoutKebindingsList();
+		this.layoutKeybindingsList();
 	}
 
 	focus(): void {
@@ -182,7 +182,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 					this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_DEFINE, keybindingEntry.keybindingItem.command, key);
 					return this.keybindingEditingService.editKeybinding(key, keybindingEntry.keybindingItem.keybindingItem)
 						.then(() => {
-							if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added to unassinged. Because the entry will be placed in different position after rendering
+							if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added to unassigned. Because the entry will be placed in different position after rendering
 								this.unAssignedKeybindingItemToRevealAndFocus = keybindingEntry;
 							}
 						});
@@ -219,7 +219,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_RESET, keybindingEntry.keybindingItem.command, keybindingEntry.keybindingItem.keybinding);
 		return this.keybindingEditingService.resetKeybinding(keybindingEntry.keybindingItem.keybindingItem)
 			.then(() => {
-				if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added to unassinged. Because the entry will be placed in different position after rendering
+				if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added to unassigned. Because the entry will be placed in different position after rendering
 					this.unAssignedKeybindingItemToRevealAndFocus = keybindingEntry;
 				}
 				this.selectEntry(keybindingEntry);
@@ -298,7 +298,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			actionClassName: 'sort-by-precedence',
 			isChecked: false,
 			onChange: () => this.renderKeybindingsEntries(false),
-			title: localize('sortByPrecedene', "Sort by Precedence")
+			title: localize('sortByPrecedence', "Sort by Precedence")
 		}));
 		searchContainer.appendChild(this.sortByPrecedence.domNode);
 
@@ -387,7 +387,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			const currentSelectedIndex = this.keybindingsList.getSelection()[0];
 			this.listEntries = [{ id: 'keybinding-header-entry', templateId: KEYBINDING_HEADER_TEMPLATE_ID }, ...keybindingsEntries];
 			this.keybindingsList.splice(0, this.keybindingsList.length, this.listEntries);
-			this.layoutKebindingsList();
+			this.layoutKeybindingsList();
 
 			if (reset) {
 				this.keybindingsList.setSelection([]);
@@ -409,7 +409,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		}
 	}
 
-	private layoutKebindingsList(): void {
+	private layoutKeybindingsList(): void {
 		const listHeight = this.dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 12 /*padding*/);
 		this.keybindingsListContainer.style.height = `${listHeight}px`;
 		this.keybindingsList.layout(listHeight);

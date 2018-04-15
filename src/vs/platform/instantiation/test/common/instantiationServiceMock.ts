@@ -19,12 +19,12 @@ interface IServiceMock<T> {
 
 export class TestInstantiationService extends InstantiationService {
 
-	private _servciesMap: Map<ServiceIdentifier<any>, any>;
+	private _servicesMap: Map<ServiceIdentifier<any>, any>;
 
 	constructor(private _serviceCollection: ServiceCollection = new ServiceCollection()) {
 		super(_serviceCollection);
 
-		this._servciesMap = new Map<ServiceIdentifier<any>, any>();
+		this._servicesMap = new Map<ServiceIdentifier<any>, any>();
 	}
 
 	public get<T>(service: ServiceIdentifier<T>): T {
@@ -110,7 +110,7 @@ export class TestInstantiationService extends InstantiationService {
 	}
 
 	private _createService(serviceMock: IServiceMock<any>, opts: SinonOptions): any {
-		serviceMock.service = serviceMock.service ? serviceMock.service : this._servciesMap.get(serviceMock.id);
+		serviceMock.service = serviceMock.service ? serviceMock.service : this._servicesMap.get(serviceMock.id);
 		let service = opts.mock ? sinon.mock(serviceMock.service) : this._createStub(serviceMock.service);
 		service['sinonOptions'] = opts;
 		return service;

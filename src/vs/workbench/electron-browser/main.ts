@@ -173,7 +173,7 @@ function createStorageService(workspaceService: IWorkspaceContextService, enviro
 			secondaryWorkspaceId = workspace.ctime;
 			break;
 
-		// finaly, if we do not have a workspace open, we need to find another identifier for the window to store
+		// finally, if we do not have a workspace open, we need to find another identifier for the window to store
 		// workspace UI state. if we have a backup path in the configuration we can use that because this
 		// will be a unique identifier per window that is stable between restarts as long as there are
 		// dirty files in the workspace.

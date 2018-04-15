@@ -253,7 +253,7 @@ suite('ExtHostDocumentData', () => {
 		assert.equal(range.end.line, 0);
 		assert.equal(range.end.character, 4);
 
-		// ignore bad regular expresson /.*/
+		// ignore bad regular expression /.*/
 		range = data.document.getWordRangeAtPosition(new Position(0, 2), /.*/);
 		assert.equal(range.start.line, 0);
 		assert.equal(range.start.character, 0);

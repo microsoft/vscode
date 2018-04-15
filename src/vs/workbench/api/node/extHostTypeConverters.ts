@@ -120,7 +120,7 @@ export function fromDiagnosticSeverity(value: number): MarkerSeverity {
 	return MarkerSeverity.Error;
 }
 
-export function toDiagnosticSeverty(value: MarkerSeverity): types.DiagnosticSeverity {
+export function toDiagnosticSeverity(value: MarkerSeverity): types.DiagnosticSeverity {
 	switch (value) {
 		case MarkerSeverity.Info:
 			return types.DiagnosticSeverity.Information;
@@ -464,7 +464,7 @@ export namespace Suggest {
 		}
 		result.range = new types.Range(startPosition, endPosition);
 
-		// 'inserText'-logic
+		// 'insertText'-logic
 		if (suggestion.snippetType === 'textmate') {
 			result.insertText = new types.SnippetString(suggestion.insertText);
 		} else {

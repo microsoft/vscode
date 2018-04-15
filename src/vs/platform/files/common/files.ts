@@ -42,7 +42,7 @@ export interface IFileService {
 	onAfterOperation: Event<FileOperationEvent>;
 
 	/**
-	 * Registeres a file system provider for a certain scheme.
+	 * Registers a file system provider for a certain scheme.
 	 */
 	registerProvider?(scheme: string, provider: IFileSystemProvider): IDisposable;
 
@@ -65,7 +65,7 @@ export interface IFileService {
 	resolveFile(resource: URI, options?: IResolveFileOptions): TPromise<IFileStat>;
 
 	/**
-	 * Same as resolveFile but supports resolving mulitple resources in parallel.
+	 * Same as resolveFile but supports resolving multiple resources in parallel.
 	 * If one of the resolve targets fails to resolve returns a fake IFileStat instead of making the whole call fail.
 	 */
 	resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): TPromise<IResolveFileResult[]>;
@@ -380,19 +380,19 @@ export interface IBaseStat {
 	resource: URI;
 
 	/**
-	 * The name which is the last segement
+	 * The name which is the last segment
 	 * of the {{path}}.
 	 */
 	name: string;
 
 	/**
-	 * The last modifictaion date represented
+	 * The last modification date represented
 	 * as millis from unix epoch.
 	 */
 	mtime: number;
 
 	/**
-	 * A unique identifier thet represents the
+	 * A unique identifier that represents the
 	 * current state of the file or directory.
 	 */
 	etag: string;

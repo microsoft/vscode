@@ -5,7 +5,7 @@
 'use strict';
 
 /**
- * Create a syntax highighter with a fully declarative JSON style lexer description
+ * Create a syntax highlighter with a fully declarative JSON style lexer description
  * using regular expressions.
  */
 

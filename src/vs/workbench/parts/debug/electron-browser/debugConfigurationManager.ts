@@ -633,7 +633,7 @@ class Launch implements ILaunch {
 		setOSProperties(isMacintosh, result.osx);
 		setOSProperties(isLinux, result.linux);
 
-		// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
+		// massage configuration attributes - append workspace path to relative paths, substitute variables in paths.
 		Object.keys(result).forEach(key => {
 			result[key] = this.configurationResolverService.resolveAny(this.getWorkspaceForResolving(), result[key]);
 		});

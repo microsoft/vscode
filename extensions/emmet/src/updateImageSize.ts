@@ -210,7 +210,7 @@ function updateCSSNode(editor: TextEditor, srcProp: Property, width: number, hei
 
 	// Detect formatting
 	const separator = srcProp.separator || ': ';
-	const before = getPropertyDelimitor(editor, srcProp);
+	const before = getPropertyDelimiter(editor, srcProp);
 
 	let edits: TextEdit[] = [];
 	if (!srcProp.terminatorToken) {
@@ -274,7 +274,7 @@ function findUrlToken(node: Property, pos: Position): CssToken | undefined {
 /**
  * Returns a string that is used to delimit properties in current node’s rule
  */
-function getPropertyDelimitor(editor: TextEditor, node: Property): string {
+function getPropertyDelimiter(editor: TextEditor, node: Property): string {
 	let anchor;
 	if (anchor = (node.previousSibling || node.parent.contentStartToken)) {
 		return editor.document.getText(new Range(anchor.end, node.start));

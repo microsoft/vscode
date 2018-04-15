@@ -747,7 +747,7 @@ suite('Quick Open Scorer', () => {
 	});
 
 	test('compareFilesByScore - avoid match scattering (bug #18381)', function () {
-		const resourceA = URI.file('AssymblyInfo.cs');
+		const resourceA = URI.file('AssemblyInfo.cs');
 		const resourceB = URI.file('IAsynchronousTask.java');
 
 		let query = 'async';
@@ -760,7 +760,7 @@ suite('Quick Open Scorer', () => {
 	});
 
 	test('compareFilesByScore - avoid match scattering (bug #35572)', function () {
-		const resourceA = URI.file('static/app/source/angluar/-admin/-organization/-settings/layout/layout.js');
+		const resourceA = URI.file('static/app/source/angular/-admin/-organization/-settings/layout/layout.js');
 		const resourceB = URI.file('static/app/source/angular/-admin/-project/-settings/_settings/settings.js');
 
 		let query = 'partisettings';

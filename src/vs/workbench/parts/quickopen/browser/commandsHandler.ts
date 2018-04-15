@@ -439,7 +439,7 @@ export class CommandsHandler extends QuickOpenHandler {
 			}
 		});
 
-		// Sort by MRU order and fallback to name otherwie
+		// Sort by MRU order and fallback to name otherwise
 		entries = entries.sort((elementA, elementB) => {
 			const counterA = this.commandsHistory.peek(elementA.getCommandId());
 			const counterB = this.commandsHistory.peek(elementB.getCommandId());

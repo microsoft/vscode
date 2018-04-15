@@ -831,7 +831,7 @@ class SideBySidePreferencesWidget extends Widget {
 
 	public layout(dimension: DOM.Dimension): void {
 		this.dimension = dimension;
-		this.sash.setDimenesion(this.dimension);
+		this.sash.setDimension(this.dimension);
 	}
 
 	public focus(): void {

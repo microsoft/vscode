@@ -180,7 +180,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	 * {folderName}: e.g. myFolder
 	 * {folderPath}: e.g. /Users/Development/myFolder
 	 * {appName}: e.g. VS Code
-	 * {dirty}: indiactor
+	 * {dirty}: indicator
 	 * {separator}: conditional separator
 	 */
 	private doGetWindowTitle(): string {

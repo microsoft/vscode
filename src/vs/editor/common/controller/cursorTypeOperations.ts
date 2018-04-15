@@ -735,7 +735,7 @@ export class TypeOperations {
 		}
 
 		// Electric characters make sense only when dealing with a single cursor,
-		// as multiple cursors typing brackets for example would interfer with bracket matching
+		// as multiple cursors typing brackets for example would interfere with bracket matching
 		if (this._isTypeInterceptorElectricChar(config, model, selections)) {
 			const r = this._typeInterceptorElectricChar(prevEditOperationType, config, model, selections[0], ch);
 			if (r) {

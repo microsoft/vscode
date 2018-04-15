@@ -442,7 +442,7 @@ class VSash {
 			getVerticalSashHeight: () => this._height
 		});
 
-		// compute the current widget clientX postion since
+		// compute the current widget clientX position since
 		// the sash works with clientX when dragging
 		let clientX: number;
 		this._disposables.push(this._sash.onDidStart((e: ISashEvent) => {
@@ -536,7 +536,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		private _instantiationService: IInstantiationService,
 		private _environmentService: IEnvironmentService
 	) {
-		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true });
+		super(editor, { showFrame: false, showArrow: true, isResizable: true, isAccessible: true });
 
 		this._applyTheme(themeService.getTheme());
 		this._callOnDispose.push(themeService.onThemeChange(this._applyTheme.bind(this)));

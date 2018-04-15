@@ -21,7 +21,7 @@ export class ReplacePattern {
 	}
 
 	/**
-	 * Assigned when the replace pattern has replacemend patterns.
+	 * Assigned when the replace pattern has replacement patterns.
 	 */
 	private readonly _pieces: ReplacePiece[];
 

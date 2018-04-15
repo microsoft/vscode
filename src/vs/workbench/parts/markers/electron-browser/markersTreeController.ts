@@ -28,11 +28,11 @@ export class Controller extends WorkbenchTreeController {
 	}
 
 	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.IMouseEvent): boolean {
-		let currentFoucssed = tree.getFocus();
+		let currentFocussed = tree.getFocus();
 		if (super.onLeftClick(tree, element, event)) {
 			if (element instanceof MarkersModel) {
-				if (currentFoucssed) {
-					tree.setFocus(currentFoucssed);
+				if (currentFocussed) {
+					tree.setFocus(currentFocussed);
 				} else {
 					tree.focusFirst();
 				}

@@ -598,7 +598,7 @@ var AMDLoader;
         }
         /**
          * Attach load / error listeners to a script element and remove them when either one has fired.
-         * Implemented for browssers supporting HTML5 standard 'load' and 'error' events.
+         * Implemented for browsers supporting HTML5 standard 'load' and 'error' events.
          */
         BrowserScriptLoader.prototype.attachListeners = function (script, callback, errorback) {
             var unbind = function () {
@@ -1058,7 +1058,7 @@ var AMDLoader;
             this._knownModules2 = [];
             this._inverseDependencies2 = [];
             this._inversePluginDependencies2 = new Map();
-            this._currentAnnonymousDefineCall = null;
+            this._currentAnonymousDefineCall = null;
             this._recorder = null;
             this._buildInfoPath = [];
             this._buildInfoDefineStack = [];
@@ -1140,18 +1140,18 @@ var AMDLoader;
         };
         /**
          * Defines an anonymous module (without an id). Its name will be resolved as we receive a callback from the scriptLoader.
-         * @param dependecies @see defineModule
+         * @param dependencies @see defineModule
          * @param callback @see defineModule
          */
         ModuleManager.prototype.enqueueDefineAnonymousModule = function (dependencies, callback) {
-            if (this._currentAnnonymousDefineCall !== null) {
+            if (this._currentAnonymousDefineCall !== null) {
                 throw new Error('Can only have one anonymous define call per script file');
             }
             var stack = null;
             if (this._config.isBuild()) {
                 stack = new Error('StackLocation').stack;
             }
-            this._currentAnnonymousDefineCall = {
+            this._currentAnonymousDefineCall = {
                 stack: stack,
                 dependencies: dependencies,
                 callback: callback
@@ -1255,9 +1255,9 @@ var AMDLoader;
          * This means its code is available and has been executed.
          */
         ModuleManager.prototype._onLoad = function (moduleId) {
-            if (this._currentAnnonymousDefineCall !== null) {
-                var defineCall = this._currentAnnonymousDefineCall;
-                this._currentAnnonymousDefineCall = null;
+            if (this._currentAnonymousDefineCall !== null) {
+                var defineCall = this._currentAnonymousDefineCall;
+                this._currentAnonymousDefineCall = null;
                 // Hit an anonymous define call
                 this.defineModule(this._moduleIdProvider.getStrModuleId(moduleId), defineCall.dependencies, defineCall.callback, null, defineCall.stack);
             }

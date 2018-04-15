@@ -145,7 +145,7 @@ export class FolderSettingsModelParser extends ConfigurationModelParser {
 	private isNotExecutable(key: string, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }): boolean {
 		const propertySchema = configurationProperties[key];
 		if (!propertySchema) {
-			return true; // Unknown propertis are ignored from checks
+			return true; // Unknown properties are ignored from checks
 		}
 		return !propertySchema.isExecutable;
 	}

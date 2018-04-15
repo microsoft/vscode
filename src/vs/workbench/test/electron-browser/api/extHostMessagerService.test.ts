@@ -32,7 +32,7 @@ const emptyCommandService: ICommandService = {
 };
 
 const emptyNotificationService = new class implements INotificationService {
-	_serviceBrand: 'notificiationService';
+	_serviceBrand: 'notificationService';
 	notify(...args: any[]): never {
 		throw new Error('not implemented');
 	}
@@ -78,7 +78,7 @@ class EmptyNotificationService implements INotificationService {
 
 suite('ExtHostMessageService', function () {
 
-	test('propagte handle on select', function () {
+	test('propagate handle on select', function () {
 
 		let service = new MainThreadMessageService(null, new EmptyNotificationService(notification => {
 			assert.equal(notification.actions.primary.length, 1);

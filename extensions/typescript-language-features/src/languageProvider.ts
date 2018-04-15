@@ -19,7 +19,7 @@ import { LanguageDescription } from './utils/languageDescription';
 import * as fileSchemes from './utils/fileSchemes';
 import { CachedNavTreeResponse } from './features/baseCodeLensProvider';
 import { memoize } from './utils/memoize';
-import { disposeAll } from './utils/dipose';
+import { disposeAll } from './utils/dispose';
 
 const validateSetting = 'validate.enable';
 const suggestionSetting = 'suggestionActions.enabled';

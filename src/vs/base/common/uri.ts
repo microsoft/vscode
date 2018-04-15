@@ -443,7 +443,7 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 			}
 		}
 
-		// encode every segement but not slashes
+		// encode every segment but not slashes
 		// make sure that # and ? are always encoded
 		// when occurring in paths - otherwise the result
 		// cannot be parsed back again

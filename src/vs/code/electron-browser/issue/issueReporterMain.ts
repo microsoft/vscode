@@ -209,9 +209,9 @@ export class IssueReporter extends Disposable {
 			return onlyTheme ? 'themes' : 'nonThemes';
 		});
 
-		const numberOfThemeExtesions = themes && themes.length;
-		this.issueReporterModel.update({ numberOfThemeExtesions, enabledNonThemeExtesions: nonThemes, allExtensions: extensions });
-		this.updateExtensionTable(nonThemes, numberOfThemeExtesions);
+		const numberOfThemeExtensions = themes && themes.length;
+		this.issueReporterModel.update({ numberOfThemeExtensions, enabledNonThemeExtensions: nonThemes, allExtensions: extensions });
+		this.updateExtensionTable(nonThemes, numberOfThemeExtensions);
 
 		if (this.environmentService.disableExtensions || extensions.length === 0) {
 			(<HTMLButtonElement>document.getElementById('disableExtensions')).disabled = true;
@@ -312,7 +312,7 @@ export class IssueReporter extends Disposable {
 			label.addEventListener('click', (e) => {
 				e.stopPropagation();
 
-				// Stop propgagation not working as expected in this case https://bugs.chromium.org/p/chromium/issues/detail?id=809801
+				// Stop propagation not working as expected in this case https://bugs.chromium.org/p/chromium/issues/detail?id=809801
 				// preventDefault does prevent outer details tag from toggling, so use that and manually toggle the checkbox
 				e.preventDefault();
 				const containingDiv = (<HTMLLabelElement>e.target).parentElement;
@@ -667,7 +667,7 @@ export class IssueReporter extends Disposable {
 			}
 
 			descriptionTitle.innerHTML = `${localize('stepsToReproduce', "Steps to Reproduce")} <span class="required-input">*</span>`;
-			descriptionSubtitle.innerHTML = localize('performanceIssueDesciption', "When did this performance issue happen? Does it occur on startup or after a specific series of actions? We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub.");
+			descriptionSubtitle.innerHTML = localize('performanceIssueDescription', "When did this performance issue happen? Does it occur on startup or after a specific series of actions? We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub.");
 		} else if (issueType === IssueType.FeatureRequest) {
 			descriptionTitle.innerHTML = `${localize('description', "Description")} <span class="required-input">*</span>`;
 			descriptionSubtitle.innerHTML = localize('featureRequestDescription', "Please describe the feature you would like to see. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub.");

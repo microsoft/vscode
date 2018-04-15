@@ -261,9 +261,9 @@ export class AbstractProblemCollector implements IDisposable {
 
 	protected reportMarkers(): void {
 		this.markers.forEach((markersPerOwner, owner) => {
-			let develieredMarkersPerOwner = this.getDeliveredMarkersPerOwner(owner);
+			let deliveredMarkersPerOwner = this.getDeliveredMarkersPerOwner(owner);
 			markersPerOwner.forEach((markers, resource) => {
-				this.deliverMarkersPerOwnerAndResourceResolved(owner, resource, markers, develieredMarkersPerOwner);
+				this.deliverMarkersPerOwnerAndResourceResolved(owner, resource, markers, deliveredMarkersPerOwner);
 			});
 		});
 	}

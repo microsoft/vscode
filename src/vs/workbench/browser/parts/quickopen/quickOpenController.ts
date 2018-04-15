@@ -869,7 +869,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			this.quickOpenWidget.refresh(quickOpenModel, { autoFocusFirstEntry });
 		}
 
-		// Otherwise if no results are present (even from histoy) indicate this to the user
+		// Otherwise if no results are present (even from history) indicate this to the user
 		else if (quickOpenModel.getEntries().length === 0) {
 			quickOpenModel.addEntries([new PlaceholderQuickOpenEntry(nls.localize('noResultsFound1', "No results found"))]);
 			this.quickOpenWidget.refresh(quickOpenModel, { autoFocusFirstEntry: true });

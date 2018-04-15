@@ -255,8 +255,8 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		let keys = Object.keys(this.currentOccurrences);
 		for (let i = 0, len = keys.length; i < len; i++) {
 			let decorationId = keys[i];
-			let occurance = this.currentOccurrences[decorationId];
-			oldDecorations.push(occurance.decorationId);
+			let occurrence = this.currentOccurrences[decorationId];
+			oldDecorations.push(occurrence.decorationId);
 		}
 
 		let newDecorations: IModelDeltaDecoration[] = [];
@@ -272,8 +272,8 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		this.currentOccurrences = {};
 		this.activeLinkDecorationId = null;
 		for (let i = 0, len = decorations.length; i < len; i++) {
-			let occurance = new LinkOccurrence(links[i], decorations[i]);
-			this.currentOccurrences[occurance.decorationId] = occurance;
+			let occurrence = new LinkOccurrence(links[i], decorations[i]);
+			this.currentOccurrences[occurrence.decorationId] = occurrence;
 		}
 	}
 

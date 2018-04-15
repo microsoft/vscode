@@ -370,25 +370,25 @@ export class ShowStartupPerformance extends Action {
 		const metrics: IStartupMetrics = this.timerService.startupMetrics;
 
 		if (metrics.initialStartup) {
-			table.push({ Topic: '[main] start => app.isReady', 'Took (ms)': metrics.timers.ellapsedAppReady });
-			table.push({ Topic: '[main] nls:start => nls:end', 'Took (ms)': metrics.timers.ellapsedNlsGeneration });
-			table.push({ Topic: '[main] app.isReady => window.loadUrl()', 'Took (ms)': metrics.timers.ellapsedWindowLoad });
+			table.push({ Topic: '[main] start => app.isReady', 'Took (ms)': metrics.timers.elapsedAppReady });
+			table.push({ Topic: '[main] nls:start => nls:end', 'Took (ms)': metrics.timers.elapsedNlsGeneration });
+			table.push({ Topic: '[main] app.isReady => window.loadUrl()', 'Took (ms)': metrics.timers.elapsedWindowLoad });
 		}
 
-		table.push({ Topic: '[renderer] window.loadUrl() => begin to require(workbench.main.js)', 'Took (ms)': metrics.timers.ellapsedWindowLoadToRequire });
-		table.push({ Topic: '[renderer] require(workbench.main.js)', 'Took (ms)': metrics.timers.ellapsedRequire });
+		table.push({ Topic: '[renderer] window.loadUrl() => begin to require(workbench.main.js)', 'Took (ms)': metrics.timers.elapsedWindowLoadToRequire });
+		table.push({ Topic: '[renderer] require(workbench.main.js)', 'Took (ms)': metrics.timers.elapsedRequire });
 
 		if (nodeModuleLoadTime) {
 			table.push({ Topic: '[renderer] -> of which require() node_modules', 'Took (ms)': nodeModuleLoadTime });
 		}
 
-		table.push({ Topic: '[renderer] create extension host => extensions onReady()', 'Took (ms)': metrics.timers.ellapsedExtensions });
-		table.push({ Topic: '[renderer] restore viewlet', 'Took (ms)': metrics.timers.ellapsedViewletRestore });
-		table.push({ Topic: '[renderer] restore editor view state', 'Took (ms)': metrics.timers.ellapsedEditorRestore });
-		table.push({ Topic: '[renderer] overall workbench load', 'Took (ms)': metrics.timers.ellapsedWorkbench });
+		table.push({ Topic: '[renderer] create extension host => extensions onReady()', 'Took (ms)': metrics.timers.elapsedExtensions });
+		table.push({ Topic: '[renderer] restore viewlet', 'Took (ms)': metrics.timers.elapsedViewletRestore });
+		table.push({ Topic: '[renderer] restore editor view state', 'Took (ms)': metrics.timers.elapsedEditorRestore });
+		table.push({ Topic: '[renderer] overall workbench load', 'Took (ms)': metrics.timers.elapsedWorkbench });
 		table.push({ Topic: '------------------------------------------------------' });
-		table.push({ Topic: '[main, renderer] start => extensions ready', 'Took (ms)': metrics.timers.ellapsedExtensionsReady });
-		table.push({ Topic: '[main, renderer] start => workbench ready', 'Took (ms)': metrics.ellapsed });
+		table.push({ Topic: '[main, renderer] start => extensions ready', 'Took (ms)': metrics.timers.elapsedExtensionsReady });
+		table.push({ Topic: '[main, renderer] start => workbench ready', 'Took (ms)': metrics.elapsed });
 
 		return table;
 	}
@@ -558,7 +558,7 @@ export class ReloadWindowAction extends Action {
 export class ReloadWindowWithExtensionsDisabledAction extends Action {
 
 	static readonly ID = 'workbench.action.reloadWindowWithExtensionsDisabled';
-	static LABEL = nls.localize('reloadWindowWithExntesionsDisabled', "Reload Window With Extensions Disabled");
+	static LABEL = nls.localize('reloadWindowWithExtensionsDisabled', "Reload Window With Extensions Disabled");
 
 	constructor(
 		id: string,
@@ -1007,23 +1007,23 @@ ${appendix}`
 		const metrics: IStartupMetrics = this.timerService.startupMetrics;
 
 		if (metrics.initialStartup) {
-			table.push({ component: 'main', task: 'start => app.isReady', time: metrics.timers.ellapsedAppReady });
-			table.push({ component: 'main', task: 'app.isReady => window.loadUrl()', time: metrics.timers.ellapsedWindowLoad });
+			table.push({ component: 'main', task: 'start => app.isReady', time: metrics.timers.elapsedAppReady });
+			table.push({ component: 'main', task: 'app.isReady => window.loadUrl()', time: metrics.timers.elapsedWindowLoad });
 		}
 
-		table.push({ component: 'renderer', task: 'window.loadUrl() => begin to require(workbench.main.js)', time: metrics.timers.ellapsedWindowLoadToRequire });
-		table.push({ component: 'renderer', task: 'require(workbench.main.js)', time: metrics.timers.ellapsedRequire });
+		table.push({ component: 'renderer', task: 'window.loadUrl() => begin to require(workbench.main.js)', time: metrics.timers.elapsedWindowLoadToRequire });
+		table.push({ component: 'renderer', task: 'require(workbench.main.js)', time: metrics.timers.elapsedRequire });
 
 		if (nodeModuleLoadTime) {
 			table.push({ component: 'renderer', task: '-> of which require() node_modules', time: nodeModuleLoadTime });
 		}
 
-		table.push({ component: 'renderer', task: 'create extension host => extensions onReady()', time: metrics.timers.ellapsedExtensions });
-		table.push({ component: 'renderer', task: 'restore viewlet', time: metrics.timers.ellapsedViewletRestore });
-		table.push({ component: 'renderer', task: 'restore editor view state', time: metrics.timers.ellapsedEditorRestore });
-		table.push({ component: 'renderer', task: 'overall workbench load', time: metrics.timers.ellapsedWorkbench });
-		table.push({ component: 'main + renderer', task: 'start => extensions ready', time: metrics.timers.ellapsedExtensionsReady });
-		table.push({ component: 'main + renderer', task: 'start => workbench ready', time: metrics.ellapsed });
+		table.push({ component: 'renderer', task: 'create extension host => extensions onReady()', time: metrics.timers.elapsedExtensions });
+		table.push({ component: 'renderer', task: 'restore viewlet', time: metrics.timers.elapsedViewletRestore });
+		table.push({ component: 'renderer', task: 'restore editor view state', time: metrics.timers.elapsedEditorRestore });
+		table.push({ component: 'renderer', task: 'overall workbench load', time: metrics.timers.elapsedWorkbench });
+		table.push({ component: 'main + renderer', task: 'start => extensions ready', time: metrics.timers.elapsedExtensionsReady });
+		table.push({ component: 'main + renderer', task: 'start => workbench ready', time: metrics.elapsed });
 
 		return table;
 	}
@@ -1269,7 +1269,7 @@ export class NavigateLeftAction extends BaseNavigationAction {
 			});
 	}
 
-	protected navigateOnPanelFocus(isEditorGroupVertica: boolean, isSidebarPositionLeft: boolean): TPromise<boolean | IViewlet> {
+	protected navigateOnPanelFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean | IViewlet> {
 		if (isSidebarPositionLeft) {
 			return this.navigateToSidebar();
 		}

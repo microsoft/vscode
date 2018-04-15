@@ -297,7 +297,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 			});
 		};
 		findInteractiveVariables(configuration);
-		let substitionCanceled = false;
+		let substitutionCanceled = false;
 
 		const factory: { (): TPromise<any> }[] = Object.keys(interactiveVariablesToSubstitutes).map(interactiveVariable => {
 			return () => {
@@ -316,12 +316,12 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 							}
 						});
 					} else {
-						substitionCanceled = true;
+						substitutionCanceled = true;
 					}
 				});
 			};
 		});
 
-		return sequence(factory).then(() => substitionCanceled ? null : configuration);
+		return sequence(factory).then(() => substitutionCanceled ? null : configuration);
 	}
 }

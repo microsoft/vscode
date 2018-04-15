@@ -82,7 +82,7 @@ export class RawDebugSession implements debug.ISession {
 	private readonly _onDidInitialize: Emitter<DebugProtocol.InitializedEvent>;
 	private readonly _onDidStop: Emitter<DebugProtocol.StoppedEvent>;
 	private readonly _onDidContinued: Emitter<DebugProtocol.ContinuedEvent>;
-	private readonly _onDidTerminateDebugee: Emitter<SessionTerminatedEvent>;
+	private readonly _onDidTerminateDebuggee: Emitter<SessionTerminatedEvent>;
 	private readonly _onDidExitAdapter: Emitter<SessionExitedEvent>;
 	private readonly _onDidThread: Emitter<DebugProtocol.ThreadEvent>;
 	private readonly _onDidOutput: Emitter<DebugProtocol.OutputEvent>;
@@ -108,7 +108,7 @@ export class RawDebugSession implements debug.ISession {
 		this._onDidInitialize = new Emitter<DebugProtocol.InitializedEvent>();
 		this._onDidStop = new Emitter<DebugProtocol.StoppedEvent>();
 		this._onDidContinued = new Emitter<DebugProtocol.ContinuedEvent>();
-		this._onDidTerminateDebugee = new Emitter<SessionTerminatedEvent>();
+		this._onDidTerminateDebuggee = new Emitter<SessionTerminatedEvent>();
 		this._onDidExitAdapter = new Emitter<SessionExitedEvent>();
 		this._onDidThread = new Emitter<DebugProtocol.ThreadEvent>();
 		this._onDidOutput = new Emitter<DebugProtocol.OutputEvent>();
@@ -133,8 +133,8 @@ export class RawDebugSession implements debug.ISession {
 		return this._onDidContinued.event;
 	}
 
-	public get onDidTerminateDebugee(): Event<SessionTerminatedEvent> {
-		return this._onDidTerminateDebugee.event;
+	public get onDidTerminateDebuggee(): Event<SessionTerminatedEvent> {
+		return this._onDidTerminateDebuggee.event;
 	}
 
 	public get onDidExitAdapter(): Event<SessionExitedEvent> {
@@ -266,8 +266,8 @@ export class RawDebugSession implements debug.ISession {
 			this.readyForBreakpoints = true;
 			this._onDidInitialize.fire(event);
 		} else if (event.event === 'capabilities' && event.body) {
-			const capabilites = (<DebugProtocol.CapabilitiesEvent>event).body.capabilities;
-			this._capabilities = objects.mixin(this._capabilities, capabilites);
+			const capabilities = (<DebugProtocol.CapabilitiesEvent>event).body.capabilities;
+			this._capabilities = objects.mixin(this._capabilities, capabilities);
 		} else if (event.event === 'stopped') {
 			this.emittedStopped = true;
 			this._onDidStop.fire(<DebugProtocol.StoppedEvent>event);
@@ -281,7 +281,7 @@ export class RawDebugSession implements debug.ISession {
 		} else if (event.event === 'breakpoint') {
 			this._onDidBreakpoint.fire(<DebugProtocol.BreakpointEvent>event);
 		} else if (event.event === 'terminated') {
-			this._onDidTerminateDebugee.fire(<SessionTerminatedEvent>event);
+			this._onDidTerminateDebuggee.fire(<SessionTerminatedEvent>event);
 		} else if (event.event === 'exit') {
 			this._onDidExitAdapter.fire(<SessionExitedEvent>event);
 		} else {

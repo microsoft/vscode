@@ -104,7 +104,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 				this.activeComposite.focus();
 			}
 
-			// Fullfill promise with composite that is being opened
+			// Fulfill promise with composite that is being opened
 			return TPromise.as(this.activeComposite);
 		}
 
@@ -145,7 +145,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 					composite.focus();
 				}
 
-				// Fullfill promise with composite that is being opened
+				// Fulfill promise with composite that is being opened
 				return TPromise.as(composite);
 			}
 
@@ -155,7 +155,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 					composite.focus();
 				}
 
-				// Fullfill promise with composite that is being opened
+				// Fulfill promise with composite that is being opened
 				return composite;
 			});
 		}).then(composite => {

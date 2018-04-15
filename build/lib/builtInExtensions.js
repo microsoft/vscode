@@ -94,7 +94,7 @@ function writeControlFile(control) {
 }
 
 function main() {
-	util.log('Syncronizing built-in extensions...');
+	util.log('Synchronizing built-in extensions...');
 	util.log(`You can manage built-in extensions with the ${util.colors.cyan('--builtin')} flag`);
 
 	const control = readControlFile();

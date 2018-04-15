@@ -289,7 +289,7 @@
 	background: url('edit_inverse.svg') center center no-repeat;
 }
 
-.monaco-editor .unsupportedWorkbenhSettingInfo:before {
+.monaco-editor .unsupportedWorkbenchSettingInfo:before {
 	content:" ";
 	display:inline-block;
 	height:1em;

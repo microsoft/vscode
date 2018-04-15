@@ -88,7 +88,7 @@ suite('HTML Folding', () => {
 		assertRanges(input, [r(0, 7), r(5, 6)]);
 	});
 
-	test('Fold commment', () => {
+	test('Fold comment', () => {
 		let input = [
 			/*0*/'<!--',
 			/*1*/' multi line',
@@ -123,7 +123,7 @@ suite('HTML Folding', () => {
 		assertRanges(input, [r(0, 6), r(1, 5), r(2, 4), r(3, 4)]);
 	});
 
-	test('Embedded JavaScript - mutiple areas', () => {
+	test('Embedded JavaScript - multiple areas', () => {
 		let input = [
 			/* 0*/'<html>',
 			/* 1*/'<head>',
@@ -177,7 +177,7 @@ suite('HTML Folding', () => {
 		assertRanges(input, [r(0, 9), r(1, 8), r(2, 7), r(3, 7, 'region'), r(4, 6, 'region')]);
 	});
 
-	// test('Embedded JavaScript - mulit line comment', () => {
+	// test('Embedded JavaScript - multi line comment', () => {
 	// 	let input = [
 	// 		/* 0*/'<html>',
 	// 		/* 1*/'<head>',

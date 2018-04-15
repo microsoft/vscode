@@ -31,7 +31,7 @@ declare module 'v8-inspect-profiler' {
 		stop(afterDelay?: number): PromiseLike<ProfileResult>;
 	}
 
-	export function startProfiling(options: { port: number, tries?: number, retyWait?: number }): PromiseLike<ProfilingSession>;
+	export function startProfiling(options: { port: number, tries?: number, retryWait?: number }): PromiseLike<ProfilingSession>;
 	export function writeProfile(profile: ProfileResult, name?: string): PromiseLike<void>;
 	export function rewriteAbsolutePaths(profile, replaceWith?);
 }

@@ -95,7 +95,7 @@ import 'vs/workbench/parts/tasks/electron-browser/task.contribution';
 import 'vs/workbench/parts/emmet/browser/emmet.browser.contribution';
 import 'vs/workbench/parts/emmet/electron-browser/emmet.contribution';
 
-// Code Editor enhacements
+// Code Editor enhancements
 import 'vs/workbench/parts/codeEditor/codeEditor.contribution';
 
 import 'vs/workbench/parts/execution/electron-browser/execution.contribution';

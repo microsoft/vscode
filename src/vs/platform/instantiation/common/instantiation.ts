@@ -143,7 +143,7 @@ export interface IInstantiationService {
 	invokeFunction<A1, A2, A3, A4, A5, A6, A7, A8, R>(ctor: IFunctionSignature8<A1, A2, A3, A4, A5, A6, A7, A8, R>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8): R;
 
 	/**
-	 * Creates a child of this service which inherts all current services
+	 * Creates a child of this service which inherits all current services
 	 * and adds/overwrites the given services
 	 */
 	createChild(services: ServiceCollection): IInstantiationService;

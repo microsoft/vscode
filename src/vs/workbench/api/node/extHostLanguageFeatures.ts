@@ -947,7 +947,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	registerDefinitionProvider(selector: vscode.DocumentSelector, provider: vscode.DefinitionProvider): vscode.Disposable {
 		const handle = this._addNewAdapter(new DefinitionAdapter(this._documents, provider));
-		this._proxy.$registerDeclaractionSupport(handle, this._transformDocumentSelector(selector));
+		this._proxy.$registerDeclarationSupport(handle, this._transformDocumentSelector(selector));
 		return this._createDisposable(handle);
 	}
 
@@ -984,7 +984,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	}
 
 	$provideHover(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.Hover> {
-		return this._withAdapter(handle, HoverAdapter, adpater => adpater.provideHover(URI.revive(resource), position));
+		return this._withAdapter(handle, HoverAdapter, adapter => adapter.provideHover(URI.revive(resource), position));
 	}
 
 	// --- occurrences

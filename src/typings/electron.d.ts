@@ -496,7 +496,7 @@ declare namespace Electron {
 		 * Emitted when Handoff is about to be resumed on another device. If you need to
 		 * update the state to be transferred, you should call event.preventDefault()
 		 * immediately, construct a new userInfo dictionary and call
-		 * app.updateCurrentActiviy() in a timely manner. Otherwise the operation will fail
+		 * app.updateCurrentActivity() in a timely manner. Otherwise the operation will fail
 		 * and continue-activity-error will be called.
 		 */
 		on(event: 'update-activity-state', listener: (event: Event,
