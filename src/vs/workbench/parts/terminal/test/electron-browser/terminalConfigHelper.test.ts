@@ -127,4 +127,10 @@ suite('Workbench - TerminalConfigHelper', () => {
 		configHelper.panelContainer = fixture;
 		assert.equal(configHelper.getFont().lineHeight, 1, 'editor.lineHeight should be 1 when terminal.integrated.lineHeight not set');
 	});
+
+	test('TerminalConfigHelper - isMonospace', function() {
+		const configurationService = new TestConfigurationService();
+		let configHelper = new TerminalConfigHelper(configurationService, null, null, null);
+		assert.equal(configHelper.isMonospace("Go"), false);
+	})
 });

@@ -50,9 +50,9 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		this.config = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
 	}
 
-	private _isMonospace(fontFamily: string): boolean {
+	public isMonospace(fontFamily: string): boolean {
 		this._createCharMeasureElementIfNecessary();
-		let fontSize = 12;
+		let fontSize = 30;
 		let i_rect = this._getBoundingRectFor('i', fontFamily, fontSize);
 		let w_rect = this._getBoundingRectFor('w', fontFamily, fontSize);
 
@@ -85,7 +85,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		style.fontSize = fontSize + 'px';
 		style.lineHeight = 'normal';
 		style.display = 'none';
-		this._charMeasureElement.innerText = 'X';
+		this._charMeasureElement.innerText = char;
 		const rect = this._charMeasureElement.getBoundingClientRect();
 
 		return rect;

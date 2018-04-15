@@ -27,6 +27,9 @@ import { PANEL_BACKGROUND, PANEL_BORDER } from 'vs/workbench/common/theme';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/parts/terminal/electron-browser/terminalColorRegistry';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import { Severity } from '../../../../editor/editor.api';
 
 export class TerminalPanel extends Panel {
 
@@ -46,7 +49,8 @@ export class TerminalPanel extends Panel {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IThemeService protected themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@ITelemetryService telemetryService: ITelemetryService,
+		@INotificationService private readonly _notificationService: INotificationService
 	) {
 		super(TERMINAL_PANEL_ID, telemetryService, themeService);
 	}
@@ -73,7 +77,19 @@ export class TerminalPanel extends Panel {
 		this._register(this.themeService.onThemeChange(theme => this._updateTheme(theme)));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('terminal.integrated') || e.affectsConfiguration('editor.fontFamily')) {
-				this._updateFont();
+				let configHelper = this._terminalService.configHelper;
+				if(configHelper instanceof TerminalConfigHelper) {
+
+					if( !configHelper.isMonospace("Go") ) {
+						this._updateFont();
+						this._notificationService.notify({
+							severity: Severity.Warning,
+							message: "Please choose a Monospace font",
+						});
+					}
+				}
+
+
 			}
 		}));
 		this._updateFont();
