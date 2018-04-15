@@ -987,6 +987,15 @@
           "scope": "resource",
           "default": 10,
           "description": "%config.detectSubmodulesLimit%"
+        },
+        "git.ignoreRepositories": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "default": null,
+          "scope": "resource",
+          "description": "%config.ignoreRepositories%"
         }
       }
     },
