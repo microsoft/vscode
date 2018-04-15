@@ -8,7 +8,7 @@
 	"npm.parseError": "Npm task detection: failed to parse the file {0}",
 	"taskdef.script": "The npm script to customize.",
 	"taskdef.path": "The path to the folder of the package.json file that provides the script. Can be ommitted.",
-	"view.name": "npm scripts",
+	"view.name": "Npm Scripts",
 	"command.refresh": "Refresh",
 	"command.run": "Run",
 	"command.debug": "Debug",
