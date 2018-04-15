@@ -137,12 +137,6 @@
           },
           "description": "%config.npm.exclude%",
           "scope": "resource"
-        },
-        "npm.explorerVisible": {
-          "type": "boolean",
-          "default": true,
-          "scope": "resource",
-          "description": "%config.npm.explorerVisible%"
         }
       }
     },
