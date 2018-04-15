@@ -12,11 +12,11 @@ const localize = nls.loadMessageBundle();
 
 import { addJSONProviders } from './features/jsonContributions';
 import { NpmScriptsTreeDataProvider } from './npmView';
-import { provideNpmScripts } from './tasks';
+import { provideNpmScripts, hasNpmScripts } from './tasks';
 
 let taskProvider: vscode.Disposable | undefined;
 
-export function activate(context: vscode.ExtensionContext): void {
+export async function activate(context: vscode.ExtensionContext): Promise<void> {
 
 	if (vscode.workspace.workspaceFolders) {
 		let provider: vscode.TaskProvider = {
@@ -30,6 +30,10 @@ export function activate(context: vscode.ExtensionContext): void {
 		taskProvider = vscode.workspace.registerTaskProvider('npm', provider);
 		let treeDataProvider = vscode.window.registerTreeDataProvider('npm', new NpmScriptsTreeDataProvider(context, provider, localize));
 		context.subscriptions.push(treeDataProvider);
+
+		if (await hasNpmScripts()) {
+			vscode.commands.executeCommand('setContext', 'hasNpmScripts', true);
+		}
 	}
 
 	configureHttpRequest();

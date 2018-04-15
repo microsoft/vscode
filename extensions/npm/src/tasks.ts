@@ -48,6 +48,28 @@ export function getPackageManager(folder: WorkspaceFolder): string {
 	return workspace.getConfiguration('npm', folder.uri).get<string>('packageManager', 'npm');
 }
 
+export async function hasNpmScripts(): Promise<boolean> {
+	let folders = workspace.workspaceFolders;
+	if (!folders) {
+		return false;
+	}
+	try {
+		for (let i = 0; i < folders.length; i++) {
+			let folder = folders[i];
+			if (isEnabled(folder)) {
+				let relativePattern = new RelativePattern(folder, '**/package.json');
+				let paths = await workspace.findFiles(relativePattern, '**/node_modules/**');
+				if (paths.length > 0) {
+					return true;
+				}
+			}
+		}
+		return false;
+	} catch (error) {
+		return Promise.reject(error);
+	}
+}
+
 export async function provideNpmScripts(localize: any): Promise<Task[]> {
 	let emptyTasks: Task[] = [];
 	let allTasks: Task[] = [];

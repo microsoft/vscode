@@ -30,7 +30,8 @@
   "activationEvents": [
     "onCommand:workbench.action.tasks.runTask",
     "onLanguage:json",
-    "onView:npm"
+    "onView:npm",
+    "workspaceContains:**/package.json"
   ],
   "contributes": {
     "views": {
@@ -38,7 +39,7 @@
         {
           "id": "npm",
           "name": "%view.name%",
-          "when": "config.npm.explorerVisible"
+          "when": "hasNpmScripts"
         }
       ]
     },
