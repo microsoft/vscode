@@ -61,7 +61,7 @@ export interface IConfigurationService {
 	 * Fetches the value of the section for the given overrides.
 	 * Value can be of native type or an object keyed off the section name.
 	 *
-	 * @param section - Section of the configuraion. Can be `null` or `undefined`.
+	 * @param section - Section of the configuration. Can be `null` or `undefined`.
 	 * @param overrides - Overrides that has to be applied while fetching
 	 *
 	 */

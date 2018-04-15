@@ -775,14 +775,14 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			});
 	});
 
-	test('reload configuration emits events after global configuraiton changes', () => {
+	test('reload configuration emits events after global configuration changes', () => {
 		fs.writeFileSync(globalSettingsFile, '{ "testworkbench.editor.tabs": true }');
 		const target = sinon.spy();
 		testObject.onDidChangeConfiguration(target);
 		return testObject.reloadConfiguration().then(() => assert.ok(target.called));
 	});
 
-	test('reload configuration emits events after workspace configuraiton changes', () => {
+	test('reload configuration emits events after workspace configuration changes', () => {
 		fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "configurationService.folder.testSetting": "workspaceValue" }');
 		const target = sinon.spy();
 		testObject.onDidChangeConfiguration(target);
