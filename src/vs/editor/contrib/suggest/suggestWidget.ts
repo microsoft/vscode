@@ -1002,7 +1002,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		// Compare top of the cursor (cursorY - lineheight) with widgetTop to determine if
 		// margin-top needs to be applied on list to make it appear right above the cursor
-		// Cannot compare cursorY directly as it may be a few decimals off due to zoooming
+		// Cannot compare cursorY directly as it may be a few decimals off due to zooming
 		if (hasClass(this.element, 'docs-side')
 			&& cursorY - lineHeight > widgetY
 			&& this.details.element.offsetHeight > this.listElement.offsetHeight) {
