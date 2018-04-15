@@ -115,7 +115,7 @@ suite('Debug - Model', () => {
 		assert.equal(model.getProcesses().length, 0);
 	});
 
-	test('threads multiple wtih allThreadsStopped', () => {
+	test('threads multiple with allThreadsStopped', () => {
 		const sessionStub = sinon.spy(rawSession, 'stackTrace');
 
 		const threadId1 = 1;
