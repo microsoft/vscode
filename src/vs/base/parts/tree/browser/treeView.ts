@@ -188,7 +188,7 @@ export class ViewItem implements IViewItem {
 			return;
 		}
 
-		var classes = ['monaco-tree-row'];
+		var classes = ['monaco-tree-row cursor-default'];
 		classes.push.apply(classes, Object.keys(this._styles));
 
 		if (this.model.hasChildren()) {
