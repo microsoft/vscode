@@ -62,7 +62,8 @@ export class Debugger {
 	public runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): TPromise<void> {
 		const debugConfigs = this.configurationService.getValue<IDebugConfiguration>('debug');
 		const config = this.configurationService.getValue<ITerminalSettings>('terminal');
-		return this.configurationManager.runInTerminal(debugConfigs && debugConfigs.extensionHostDebugAdapter, args, config);
+		const type = debugConfigs.extensionHostDebugAdapter ? this.type : '*';
+		return this.configurationManager.runInTerminal(type, args, config);
 	}
 
 	public get aiKey(): string {
