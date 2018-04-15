@@ -3593,7 +3593,7 @@ interface UnderscoreStatic {
 	/**
 	 * Like map, but for objects. Transform the value of each property in turn.
 	 * @param object The object to transform
-	 * @param iteratee The function that tranforms property values
+	 * @param iteratee The function that transforms property values
 	 * @param context The optional context (value of `this`) to bind to
 	 */
 	mapObject<T>(object: any, iteratee: (val: any, key: string, object: any) => T, context?: any): _.Dictionary<T>;

@@ -30,7 +30,7 @@ declare module 'through2' {
 		 * Creates a constructor for a custom Transform. This is useful when you
 		 * want to use the same transform logic in multiple instances.
 		 */
-		export function ctor(opts?: stream.DuplexOptions, transfrom?: TransformFunction, flush?: FlushCallback): Through2Constructor;
+		export function ctor(opts?: stream.DuplexOptions, transform?: TransformFunction, flush?: FlushCallback): Through2Constructor;
 	}
 
 	export = through2;
