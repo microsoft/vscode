@@ -392,7 +392,7 @@ export interface IBaseStat {
 	mtime: number;
 
 	/**
-	 * A unique identifier thet represents the
+	 * A unique identifier that represents the
 	 * current state of the file or directory.
 	 */
 	etag: string;
