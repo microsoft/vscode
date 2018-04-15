@@ -35,7 +35,7 @@ export interface IConfigurationRegistry {
 	notifyConfigurationSchemaUpdated(configuration: IConfigurationNode): void;
 
 	/**
-	 * Event that fires whenver a configuration has been
+	 * Event that fires whenever a configuration has been
 	 * registered.
 	 */
 	onDidRegisterConfiguration: Event<string[]>;
