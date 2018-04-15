@@ -4504,7 +4504,7 @@ declare module 'vscode' {
 
 	/**
 	 * Defines how an argument should be quoted if it contains
-	 * spaces or unsuppoerted characters.
+	 * spaces or unsupported characters.
 	 */
 	export enum ShellQuoting {
 
