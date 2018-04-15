@@ -210,7 +210,7 @@ export class FileService implements IFileService {
 			this.activeWorkspaceFileChangeWatcher.dispose();
 		}
 
-		// Return if not aplicable
+		// Return if not applicable
 		const workbenchState = this.contextService.getWorkbenchState();
 		if (workbenchState === WorkbenchState.EMPTY || this.options.disableWatcher) {
 			return;
