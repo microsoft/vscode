@@ -115,7 +115,7 @@ export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvi
 			return [];
 		}
 
-		const action = new vscode.CodeAction(localize('oraganizeImportsAction.title', "Organize Imports"), OrganizeImportsCodeActionProvider.organizeImportsKind);
+		const action = new vscode.CodeAction(localize('organizeImportsAction.title', "Organize Imports"), OrganizeImportsCodeActionProvider.organizeImportsKind);
 		action.command = { title: '', command: OrganizeImportsCommand.Ids[0] };
 		return [action];
 	}
