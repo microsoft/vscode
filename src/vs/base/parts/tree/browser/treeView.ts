@@ -108,6 +108,8 @@ export class ViewItem implements IViewItem {
 
 	private context: IViewContext;
 
+	private noPointer: boolean;
+
 	public model: Model.Item;
 	public id: string;
 	protected row: IRow;
@@ -131,6 +133,7 @@ export class ViewItem implements IViewItem {
 
 		this.id = this.model.id;
 		this.row = null;
+		this.noPointer = context.options.noPointer;
 
 		this.top = 0;
 		this.height = model.getHeight();
@@ -188,7 +191,8 @@ export class ViewItem implements IViewItem {
 			return;
 		}
 
-		var classes = ['monaco-tree-row cursor-default'];
+		var classes = ['monaco-tree-row'];
+		if (this.noPointer) { classes.push('cursor-default'); }
 		classes.push.apply(classes, Object.keys(this._styles));
 
 		if (this.model.hasChildren()) {

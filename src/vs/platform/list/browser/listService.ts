@@ -345,7 +345,7 @@ export class WorkbenchTree extends Tree {
 			horizontalScrollMode,
 			keyboardSupport: false,
 			...computeStyles(themeService.getTheme(), defaultListStyles),
-			...options
+			...{ options, noPointer: configurationService.getValue('workbench.disablePointer') as boolean }
 		};
 
 		super(container, config, opts);
