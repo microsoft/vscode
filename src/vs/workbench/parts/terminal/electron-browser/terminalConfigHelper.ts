@@ -50,6 +50,47 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		this.config = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
 	}
 
+	private _isMonospace(fontFamily: string): boolean {
+		this._createCharMeasureElementIfNecessary();
+		let fontSize = 12;
+		let i_rect = this._getBoundingRectFor('i', fontFamily, fontSize);
+		let w_rect = this._getBoundingRectFor('w', fontFamily, fontSize);
+
+		let invalidBounds = !i_rect.width || !w_rect.width;
+		if(invalidBounds) {
+			// There is no reason to believe the font is not Monospace.
+			return true;
+		}
+
+		if(i_rect.width === w_rect.width) {
+			return true;
+		}
+
+		return false;
+
+	}
+
+	private _createCharMeasureElementIfNecessary() {
+		// Create charMeasureElement if it hasn't been created or if it was orphaned by its parent
+		if (!this._charMeasureElement || !this._charMeasureElement.parentElement) {
+			this._charMeasureElement = document.createElement('div');
+			this.panelContainer.appendChild(this._charMeasureElement);
+		}
+	}
+
+	private _getBoundingRectFor(char: string, fontFamily: string, fontSize: number): ClientRect | DOMRect {
+		const style = this._charMeasureElement.style;
+		style.display = 'block';
+		style.fontFamily = fontFamily;
+		style.fontSize = fontSize + 'px';
+		style.lineHeight = 'normal';
+		style.display = 'none';
+		this._charMeasureElement.innerText = 'X';
+		const rect = this._charMeasureElement.getBoundingClientRect();
+
+		return rect;
+	}
+
 	private _measureFont(fontFamily: string, fontSize: number, lineHeight: number): ITerminalFont {
 		// Create charMeasureElement if it hasn't been created or if it was orphaned by its parent
 		if (!this._charMeasureElement || !this._charMeasureElement.parentElement) {
