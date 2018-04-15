@@ -47,7 +47,7 @@ export function setSnippetSuggestSupport(support: ISuggestSupport): ISuggestSupp
 export function provideSuggestionItems(model: ITextModel, position: Position, snippetConfig: SnippetConfig = 'bottom', onlyFrom?: ISuggestSupport[], context?: SuggestContext): TPromise<ISuggestionItem[]> {
 
 	const allSuggestions: ISuggestionItem[] = [];
-	const acceptSuggestion = createSuggesionFilter(snippetConfig);
+	const acceptSuggestion = createSuggestionFilter(snippetConfig);
 
 	position = position.clone();
 
@@ -138,7 +138,7 @@ function createSuggestionResolver(provider: ISuggestSupport, suggestion: ISugges
 	};
 }
 
-function createSuggesionFilter(snippetConfig: SnippetConfig): (candidate: ISuggestion) => boolean {
+function createSuggestionFilter(snippetConfig: SnippetConfig): (candidate: ISuggestion) => boolean {
 	if (snippetConfig === 'none') {
 		return suggestion => suggestion.type !== 'snippet';
 	} else {
