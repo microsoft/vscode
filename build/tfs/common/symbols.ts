@@ -171,12 +171,12 @@ async function ensureVersionAndSymbols(options: IOptions) {
 }
 
 // Environment
-const pakage = require('../../../package.json');
+const pkg = require('../../../package.json');
 const product = require('../../../product.json');
 const repository = product.electronRepository;
 const electronVersion = require('../../lib/electron').getElectronVersion();
 const insiders = product.quality !== 'stable';
-let codeVersion = pakage.version;
+let codeVersion = pkg.version;
 if (insiders) {
 	codeVersion = `${codeVersion}-insider`;
 }
