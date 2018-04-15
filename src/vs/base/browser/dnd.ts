@@ -66,7 +66,7 @@ export const DataTransfers = {
 	FILES: 'Files',
 
 	/**
-	 * Typicaly transfer type for copy/paste transfers.
+	 * Typically transfer type for copy/paste transfers.
 	 */
 	TEXT: 'text/plain'
 };
