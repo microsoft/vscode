@@ -5137,7 +5137,7 @@ declare namespace monaco.languages {
 		 */
 		bracket?: string;
 		/**
-		 * switch to embedded language (useing the mimetype) or get out using "@pop"
+		 * switch to embedded language (using the mimetype) or get out using "@pop"
 		 */
 		nextEmbedded?: string;
 		/**
