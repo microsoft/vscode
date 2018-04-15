@@ -211,14 +211,14 @@ export class WorkbenchShell {
 				this.logStartupTelemetry(startupInfos);
 
 				// Set lifecycle phase to `Runnning For A Bit` after a short delay
-				let eventuallPhaseTimeoutHandle = setTimeout(() => {
-					eventuallPhaseTimeoutHandle = void 0;
+				let eventuallyPhaseTimeoutHandle = setTimeout(() => {
+					eventuallyPhaseTimeoutHandle = void 0;
 					this.lifecycleService.phase = LifecyclePhase.Eventually;
 				}, 3000);
 				this.toUnbind.push({
 					dispose: () => {
-						if (eventuallPhaseTimeoutHandle) {
-							clearTimeout(eventuallPhaseTimeoutHandle);
+						if (eventuallyPhaseTimeoutHandle) {
+							clearTimeout(eventuallyPhaseTimeoutHandle);
 						}
 					}
 				});
