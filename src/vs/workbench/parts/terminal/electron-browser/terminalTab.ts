@@ -55,7 +55,7 @@ class SplitPaneContainer {
 	}
 
 	public resetSize(): void {
-		// TODO: Optimize temrinal instance layout
+		// TODO: Optimize terminal instance layout
 		let totalSize = 0;
 		for (let i = 0; i < this._splitView.length; i++) {
 			totalSize += this._splitView.getViewSize(i);
