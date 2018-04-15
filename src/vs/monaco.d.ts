@@ -4423,7 +4423,7 @@ declare namespace monaco.languages {
 	 */
 	export interface FoldingRules {
 		/**
-		 * Used by the indentation based strategy to decide wheter empty lines belong to the previous or the next block.
+		 * Used by the indentation based strategy to decide whether empty lines belong to the previous or the next block.
 		 * A language adheres to the off-side rule if blocks in that language are expressed by their indentation.
 		 * See [wikipedia](https://en.wikipedia.org/wiki/Off-side_rule) for more information.
 		 * If not set, `false` is used and empty lines belong to the previous block.

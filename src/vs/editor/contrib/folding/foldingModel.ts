@@ -237,7 +237,7 @@ export class FoldingModel {
 
 /**
  * Collapse or expand the regions at the given locations including all children.
- * @param doCollapse Wheter to collapse or expand
+ * @param doCollapse Whether to collapse or expand
  * @param levels The number of levels. Use 1 to only impact the regions at the location, use Number.MAX_VALUE for all levels.
  * @param lineNumbers the location of the regions to collapse or expand, or if not set, all regions in the model.
  */
@@ -265,7 +265,7 @@ export function setCollapseStateLevelsDown(foldingModel: FoldingModel, doCollaps
 
 /**
  * Collapse or expand the regions at the given locations including all parents.
- * @param doCollapse Wheter to collapse or expand
+ * @param doCollapse Whether to collapse or expand
  * @param levels The number of levels. Use 1 to only impact the regions at the location, use Number.MAX_VALUE for all levels.
  * @param lineNumbers the location of the regions to collapse or expand, or if not set, all regions in the model.
  */
@@ -281,7 +281,7 @@ export function setCollapseStateLevelsUp(foldingModel: FoldingModel, doCollapse:
 /**
  * Folds or unfolds all regions that have a given level, except if they contain one of the blocked lines.
  * @param foldLevel level. Level == 1 is the top level
- * @param doCollapse Wheter to collapse or expand
+ * @param doCollapse Whether to collapse or expand
 * @param blockedLineNumbers
 */
 export function setCollapseStateAtLevel(foldingModel: FoldingModel, foldLevel: number, doCollapse: boolean, blockedLineNumbers: number[]): void {
