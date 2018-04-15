@@ -127,13 +127,22 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		workspace.executeTask(script.task);
 	}
 
-	private async extractPort(scripts: any, task: Task): Promise<number | null> {
+	private async extractDebugArg(scripts: any, task: Task): Promise<[string, number] | undefined> {
 		let script: string = scripts[task.name];
-		let match = script.match(/--inspect-brk=(\d*)/);
-		if (match && match.length === 2) {
-			return parseInt(match[1]);
+
+		let match = script.match(/--(inspect|debug)(-brk)?(=(\d*))?/);
+		if (match) {
+			if (match[4]) {
+				return [match[1], parseInt(match[4])];
+			}
+			if (match[1] === 'inspect') {
+				return [match[1], 9229];
+			}
+			if (match[1] === 'debug') {
+				return [match[1], 5858];
+			}
 		}
-		return null;
+		return undefined;
 	}
 
 	private async debugScript(script: NpmScript) {
@@ -146,8 +155,8 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 			return;
 		}
 
-		let port = await this.extractPort(scripts, task);
-		if (!port) {
+		let debugArg = await this.extractDebugArg(scripts, task);
+		if (!debugArg) {
 			let message = this.localize('npm.noDebugOptions', 'Could not launch "{0}" for debugging, the script needs to include the node debug options: "--nolazy --inspect-brk=port", [learn more](https://code.visualstudio.com/docs/nodejs/nodejs-debugging#_launch-configuration-support-for-npm-and-other-tools).', task.name);
 			window.showErrorMessage(message);
 			return;
@@ -163,7 +172,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 				'run-script',
 				task.name,
 			],
-			port: port
+			port: debugArg[1]
 		};
 
 		if (isWorkspaceFolder(task.scope)) {
