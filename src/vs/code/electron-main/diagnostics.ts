@@ -72,7 +72,7 @@ export function getPerformanceInfo(info: IMainProcessInfo): Promise<PerformanceI
 							workspaceInfoMessages.push(formatLaunchConfigs(launchConfigs));
 						}
 					} catch (error) {
-						workspaceInfoMessages.push(`|      Error: Unable to collect workpsace stats for folder ${folder} (${error.toString()})`);
+						workspaceInfoMessages.push(`|      Error: Unable to collect workspace stats for folder ${folder} (${error.toString()})`);
 					}
 				});
 			});
@@ -147,7 +147,7 @@ export function printDiagnostics(info: IMainProcessInfo): Promise<any> {
 							console.log(formatLaunchConfigs(launchConfigs));
 						}
 					} catch (error) {
-						console.log(`|      Error: Unable to collect workpsace stats for folder ${folder} (${error.toString()})`);
+						console.log(`|      Error: Unable to collect workspace stats for folder ${folder} (${error.toString()})`);
 					}
 				});
 			});

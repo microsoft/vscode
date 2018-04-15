@@ -594,7 +594,7 @@ suite('WorkspaceService - Initialization', () => {
 
 	});
 
-	test('initialize a multi folder workspace from a folder workspacce triggers change events in the right order', () => {
+	test('initialize a multi folder workspace from a folder workspace triggers change events in the right order', () => {
 		const folderDir = path.join(parentResource, '1');
 		return testObject.initialize(folderDir)
 			.then(() => {
