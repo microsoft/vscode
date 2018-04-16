@@ -14,7 +14,7 @@ import { basename } from 'vs/base/common/paths';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, combinedDisposable, empty as EmptyDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { PanelViewlet, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
-import { append, $, addClass, toggleClass, trackFocus, Dimension } from 'vs/base/browser/dom';
+import { append, $, addClass, toggleClass, trackFocus, Dimension, addDisposableListener } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IDelegate, IRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
@@ -51,12 +51,15 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import * as platform from 'vs/base/common/platform';
 import { format } from 'vs/base/common/strings';
 import { ISpliceable, ISequence, ISplice } from 'vs/base/common/sequence';
-import { firstIndex } from 'vs/base/common/arrays';
+import { firstIndex, move } from 'vs/base/common/arrays';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { ContributableViewsModel, IViewDescriptorRef } from 'vs/workbench/browser/parts/views/contributableViews';
+import { ViewLocation, IViewDescriptor } from 'vs/workbench/common/views';
+import { ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 
 export interface ISpliceEvent<T> {
 	index: number;
@@ -1047,6 +1050,9 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 	get repositories(): ISCMRepository[] { return this._repositories; }
 	get selectedRepositories(): ISCMRepository[] { return this.repositoryPanels.map(p => p.repository); }
 
+	private contributedViews: ContributableViewsModel;
+	private contextMenuDisposables: IDisposable[] = [];
+
 	constructor(
 		@IPartService partService: IPartService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -1070,6 +1076,8 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 
 		this.menus = instantiationService.createInstance(SCMMenus, undefined);
 		this.menus.onDidChangeTitle(this.updateTitleArea, this, this.disposables);
+
+		this.contributedViews = new ContributableViewsModel(ViewLocation.SCM, contextKeyService);
 	}
 
 	async create(parent: HTMLElement): TPromise<void> {
@@ -1088,6 +1096,15 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		onDidUpdateConfiguration(this.onDidChangeRepositories, this, this.disposables);
 
 		this.onDidChangeRepositories();
+
+		this.contributedViews.onDidAdd(this.onDidAddContributedView, this, this.disposables);
+		this.contributedViews.onDidRemove(this.onDidRemoveContributedView, this, this.disposables);
+		this.contributedViews.onDidMove(this.onDidMoveContributedView, this, this.disposables);
+
+		let index = this.getContributedViewsStartIndex();
+		for (const viewDescriptor of this.contributedViews.visibleViewDescriptors) {
+			this.onDidAddContributedView({ viewDescriptor, index: index++ });
+		}
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
@@ -1146,6 +1163,10 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		}
 	}
 
+	private getContributedViewsStartIndex(): number {
+		return (this.mainPanel ? 1 : 0) + this.repositoryPanels.length;
+	}
+
 	setVisible(visible: boolean): TPromise<void> {
 		const result = super.setVisible(visible);
 
@@ -1174,8 +1195,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 
 	getActions(): IAction[] {
 		if (this.isSingleView()) {
-			const [panel] = this.repositoryPanels;
-			return panel.getActions();
+			return this.panels[0].getActions();
 		}
 
 		return this.menus.getTitleActions();
@@ -1185,7 +1205,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		let result: IAction[];
 
 		if (this.isSingleView()) {
-			const [panel] = this.repositoryPanels;
+			const [panel] = this.panels;
 
 			result = [
 				...panel.getSecondaryActions(),
@@ -1219,6 +1239,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 
 	private onSelectionChange(repositories: ISCMRepository[]): void {
 		const wasSingleView = this.isSingleView();
+		const contributableViewsHeight = this.getContributableViewsSize();
 
 		// Collect unselected panels
 		const panelsToRemove = this.repositoryPanels
@@ -1234,9 +1255,10 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 			.map(r => this.instantiationService.createInstance(RepositoryPanel, r, this));
 
 		// Add new selected panels
+		let index = repositoryPanels.length + (this.mainPanel ? 1 : 0);
 		this.repositoryPanels = [...repositoryPanels, ...newRepositoryPanels];
 		newRepositoryPanels.forEach(panel => {
-			this.addPanel(panel, panel.minimumSize, this.length);
+			this.addPanel(panel, panel.minimumSize, index++);
 			panel.repository.focus();
 		});
 
@@ -1252,7 +1274,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		// Resize all panels equally
 		const height = typeof this.height === 'number' ? this.height : 1000;
 		const mainPanelHeight = this.getPanelSize(this.mainPanel);
-		const size = (height - mainPanelHeight) / repositories.length;
+		const size = (height - mainPanelHeight - contributableViewsHeight) / repositories.length;
 		for (const panel of this.repositoryPanels) {
 			this.resizePanel(panel, size);
 		}
@@ -1269,8 +1291,98 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		}
 	}
 
+	private getContributableViewsSize(): number {
+		let value = 0;
+
+		for (let i = this.getContributedViewsStartIndex(); i < this.length; i++) {
+			value += this.getPanelSize(this.panels[i]);
+		}
+
+		return value;
+	}
+
+	onDidAddContributedView({ viewDescriptor, index }: IViewDescriptorRef): void {
+		const start = this.getContributedViewsStartIndex();
+		const panel = this.instantiationService.createInstance(viewDescriptor.ctor, {
+			id: viewDescriptor.id,
+			name: viewDescriptor.name,
+			actionRunner: this.getActionRunner(),
+			expanded: true, //!(viewState ? viewState.collapsed : viewDescriptor.collapsed),
+			viewletSettings: {}//this.viewletSettings
+		}) as ViewsViewletPanel;
+
+		this.addPanel(panel, /* (viewState && viewState.size) ||*/ 200, start + index);
+
+		const contextMenuDisposable = addDisposableListener(panel.draggableElement, 'contextmenu', e => {
+			e.stopPropagation();
+			e.preventDefault();
+			this.onViewHeaderContextMenu(new StandardMouseEvent(e), viewDescriptor);
+		});
+
+		this.contextMenuDisposables.splice(index, 0, contextMenuDisposable);
+	}
+
+	private onViewHeaderContextMenu(event: StandardMouseEvent, viewDescriptor: IViewDescriptor): void {
+		const actions: IAction[] = [];
+		actions.push(<IAction>{
+			id: `${viewDescriptor.id}.removeView`,
+			label: localize('hideView', "Hide"),
+			enabled: viewDescriptor.canToggleVisibility,
+			run: () => this.contributedViews.setVisible(viewDescriptor.id, !this.contributedViews.isVisible(viewDescriptor.id))
+		});
+
+		const otherActions = this.getContextMenuActions();
+		if (otherActions.length) {
+			actions.push(...[new Separator(), ...otherActions]);
+		}
+
+		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => TPromise.as(actions)
+		});
+	}
+
+	getContextMenuActions(): IAction[] {
+		const result: IAction[] = [];
+		const viewToggleActions = this.contributedViews.viewDescriptors.map(viewDescriptor => (<IAction>{
+			id: `${viewDescriptor.id}.toggleVisibility`,
+			label: viewDescriptor.name,
+			checked: this.contributedViews.isVisible(viewDescriptor.id),
+			enabled: viewDescriptor.canToggleVisibility,
+			run: () => this.contributedViews.setVisible(viewDescriptor.id, !this.contributedViews.isVisible(viewDescriptor.id))
+		}));
+
+		result.push(...viewToggleActions);
+		const parentActions = super.getContextMenuActions();
+		if (viewToggleActions.length && parentActions.length) {
+			result.push(new Separator());
+		}
+		result.push(...parentActions);
+		return result;
+	}
+
+	onDidRemoveContributedView({ viewDescriptor, index }: IViewDescriptorRef): void {
+		const start = this.getContributedViewsStartIndex();
+		const panel = this.panels[start + index];
+
+		this.removePanel(panel);
+
+		const [disposable] = this.contextMenuDisposables.splice(index, 1);
+		disposable.dispose();
+	}
+
+	onDidMoveContributedView({ from, to }: { from: IViewDescriptorRef, to: IViewDescriptorRef }): void {
+		const start = this.getContributedViewsStartIndex();
+		const fromPanel = this.panels[start + from.index];
+		const toPanel = this.panels[start + to.index];
+
+		this.movePanel(fromPanel, toPanel);
+		move(this.contextMenuDisposables, from.index, to.index);
+	}
+
 	protected isSingleView(): boolean {
-		return super.isSingleView() && this.repositoryPanels.length === 1;
+		return super.isSingleView() && this.repositoryPanels.length + this.contributedViews.visibleViewDescriptors.length === 1;
 	}
 
 	hide(repository: ISCMRepository): void {
@@ -1283,6 +1395,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
+		this.contextMenuDisposables = dispose(this.contextMenuDisposables);
 		this.mainPanelDisposable.dispose();
 		super.dispose();
 	}
