@@ -142,7 +142,7 @@ suite('Workbench - TerminalCommandTracker', () => {
 			assert.equal(xterm.getSelection(), '2');
 			commandTracker.selectToPreviousCommand();
 			commandTracker.selectToPreviousLine();
-			assert.equal(xterm.getSelection(), '0\r\n1\r\n2');
+			assert.equal(xterm.getSelection(), '0\n1\n2');
 		});
 	});
 });
