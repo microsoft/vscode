@@ -6,6 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
+import * as terminalEnvironment from 'vs/workbench/parts/terminal/electron-browser/terminalEnvironment';
 import { Action, IAction } from 'vs/base/common/actions';
 import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -288,7 +289,7 @@ export class TerminalPanel extends Panel {
 				}
 
 				const terminal = this._terminalService.getActiveInstance();
-				terminal.sendText(TerminalPanel.preparePathForTerminal(path), false);
+				terminal.sendText(terminalEnvironment.preparePathForTerminal(path), false);
 			}
 		}));
 	}
@@ -308,30 +309,6 @@ export class TerminalPanel extends Panel {
 		// TODO: Can we support ligatures?
 		// dom.toggleClass(this._parentDomElement, 'enable-ligatures', this._terminalService.configHelper.config.fontLigatures);
 		this.layout(new dom.Dimension(this._parentDomElement.offsetWidth, this._parentDomElement.offsetHeight));
-	}
-
-	/**
-	 * Adds quotes to a path if it contains whitespaces
-	 */
-	public static preparePathForTerminal(path: string): string {
-		if (platform.isWindows) {
-			if (/\s+/.test(path)) {
-				return `"${path}"`;
-			}
-			return path;
-		}
-		path = path.replace(/(%5C|\\)/g, '\\\\');
-		const charsToEscape = [
-			' ', '\'', '"', '?', ':', ';', '!', '*', '(', ')', '{', '}', '[', ']'
-		];
-		for (let i = 0; i < path.length; i++) {
-			const indexOfChar = charsToEscape.indexOf(path.charAt(i));
-			if (indexOfChar >= 0) {
-				path = `${path.substring(0, i)}\\${path.charAt(i)}${path.substring(i + 1)}`;
-				i++; // Skip char due to escape char being added
-			}
-		}
-		return path;
 	}
 }
 

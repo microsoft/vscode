@@ -157,3 +157,27 @@ function _sanitizeCwd(cwd: string): string {
 	}
 	return cwd;
 }
+
+/**
+ * Adds quotes to a path if it contains whitespaces
+ */
+export function preparePathForTerminal(path: string): string {
+	if (platform.isWindows) {
+		if (/\s+/.test(path)) {
+			return `"${path}"`;
+		}
+		return path;
+	}
+	path = path.replace(/(%5C|\\)/g, '\\\\');
+	const charsToEscape = [
+		' ', '\'', '"', '?', ':', ';', '!', '*', '(', ')', '{', '}', '[', ']'
+	];
+	for (let i = 0; i < path.length; i++) {
+		const indexOfChar = charsToEscape.indexOf(path.charAt(i));
+		if (indexOfChar >= 0) {
+			path = `${path.substring(0, i)}\\${path.charAt(i)}${path.substring(i + 1)}`;
+			i++; // Skip char due to escape char being added
+		}
+	}
+	return path;
+}

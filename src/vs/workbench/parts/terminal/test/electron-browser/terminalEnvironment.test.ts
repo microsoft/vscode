@@ -165,4 +165,14 @@ suite('Workbench - TerminalEnvironment', () => {
 			assertPathsMatch(terminalEnvironment.getCwd({ executable: null, args: [], ignoreConfigurationCwd: true }, Uri.file('/bar'), configHelper), '/bar');
 		});
 	});
+
+	test('preparePathForTerminal', function () {
+		if (platform.isWindows) {
+			assert.equal(terminalEnvironment.preparePathForTerminal('C:\\foo'), 'C:\\foo');
+			assert.equal(terminalEnvironment.preparePathForTerminal('C:\\foo bar'), '"C:\\foo bar"');
+			return;
+		}
+		assert.equal(terminalEnvironment.preparePathForTerminal('/a/\\foo bar"\'? ;\'??  :'), '/a/\\\\foo\\ bar\\"\\\'\\?\\ \\;\\\'\\?\\?\\ \\ \\:');
+		assert.equal(terminalEnvironment.preparePathForTerminal('/\\\'"?:;!*(){}[]'), '/\\\\\\\'\\"\\?\\:\\;\\!\\*\\(\\)\\{\\}\\[\\]');
+	});
 });
