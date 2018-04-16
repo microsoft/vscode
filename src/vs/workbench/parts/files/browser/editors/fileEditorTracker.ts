@@ -82,7 +82,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		if (configuration.workbench && configuration.workbench.editor && typeof configuration.workbench.editor.closeOnFileDelete === 'boolean') {
 			this.closeOnFileDelete = configuration.workbench.editor.closeOnFileDelete;
 		} else {
-			this.closeOnFileDelete = true; // default
+			this.closeOnFileDelete = false; // the default should be to preserve user data
 		}
 	}
 
@@ -138,7 +138,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 			const resource = editor.getResource();
 
 			// Handle deletes in opened editors depending on:
-			// - the user has not disabled the setting closeOnFileDelete
+			// - the closeOnFileDelete setting
 			// - the file change is local or external
 			// - the input is not resolved (we need to dispose because we cannot restore otherwise since we do not have the contents)
 			if (this.closeOnFileDelete || !isExternal || !editor.isResolved()) {
