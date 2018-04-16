@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as os from 'os';
-import * as path from 'path';
+import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
 import pkg from 'vs/platform/node/package';
 import Uri from 'vs/base/common/uri';
@@ -134,10 +134,10 @@ export function getCwd(shell: IShellLaunchConfig, root: Uri, configHelper: ITerm
 		// Evaluate custom cwd first
 		const customCwd = configHelper.config.cwd;
 		if (customCwd) {
-			if (path.isAbsolute(customCwd)) {
+			if (paths.isAbsolute(customCwd)) {
 				cwd = customCwd;
 			} else if (root) {
-				cwd = path.normalize(path.join(root.fsPath, customCwd));
+				cwd = paths.normalize(paths.join(root.fsPath, customCwd));
 			}
 		}
 	}
