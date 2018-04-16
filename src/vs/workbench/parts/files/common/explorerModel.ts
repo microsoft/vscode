@@ -277,7 +277,7 @@ export class ExplorerItem {
 	}
 
 	private getPlatformAwareName(name: string): string {
-		return isLinux ? name : name.toLowerCase();
+		return (isLinux || !name) ? name : name.toLowerCase();
 	}
 
 	/**
