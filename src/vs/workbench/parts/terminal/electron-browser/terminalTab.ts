@@ -4,10 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITerminalInstance, IShellLaunchConfig, ITerminalTab, Direction, ITerminalService, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
-// TODO: Let service create instance, and move to browser layer
-import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import { Event, Emitter, anyEvent } from 'vs/base/common/event';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView } from 'vs/base/browser/ui/splitview/splitview';
@@ -258,7 +255,6 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		configHelper: ITerminalConfigHelper,
 		private _container: HTMLElement,
 		shellLaunchConfig: IShellLaunchConfig,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IPartService private readonly _partService: IPartService
 	) {
@@ -266,7 +262,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		this._onDisposed = new Emitter<ITerminalTab>();
 		this._onInstancesChanged = new Emitter<void>();
 
-		const instance = this._instantiationService.createInstance(TerminalInstance,
+		const instance = this._terminalService.createInstance(
 			terminalFocusContextKey,
 			configHelper,
 			undefined,
@@ -396,7 +392,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		configHelper: ITerminalConfigHelper,
 		shellLaunchConfig: IShellLaunchConfig
 	): ITerminalInstance {
-		const instance = this._instantiationService.createInstance(TerminalInstance,
+		const instance = this._terminalService.createInstance(
 			terminalFocusContextKey,
 			configHelper,
 			undefined,

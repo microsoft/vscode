@@ -55,7 +55,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			ignoreConfigurationCwd: true,
 			env
 		};
-		return TPromise.as(this.terminalService.createInstance(shellLaunchConfig).id);
+		return TPromise.as(this.terminalService.createTerminal(shellLaunchConfig).id);
 	}
 
 	public $show(terminalId: number, preserveFocus: boolean): void {

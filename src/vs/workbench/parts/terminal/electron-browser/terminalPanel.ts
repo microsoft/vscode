@@ -111,7 +111,7 @@ export class TerminalPanel extends Panel {
 								return;
 							}
 
-							const instance = this._terminalService.createInstance();
+							const instance = this._terminalService.createTerminal();
 							if (instance) {
 								this._updateFont();
 								this._updateTheme();

@@ -156,7 +156,17 @@ export interface ITerminalService {
 	terminalInstances: ITerminalInstance[];
 	terminalTabs: ITerminalTab[];
 
-	createInstance(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
+	/**
+	 * Creates a terminal.
+	 * @param shell The shell launch configuration to use.
+	 * @param wasNewTerminalAction Whether this was triggered by a new terminal action, if so a
+	 * default shell selection dialog may display.
+	 */
+	createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
+	/**
+	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
+	 */
+	createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
 	getTabLabels(): string[];
