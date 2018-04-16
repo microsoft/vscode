@@ -168,7 +168,7 @@ export interface IView {
 	visible: boolean;
 }
 
-interface IViewState {
+export interface IViewState {
 	visible: boolean;
 	order?: number;
 }
@@ -206,6 +206,16 @@ export class ContributableViewsModel {
 
 		viewDescriptorCollection.onDidChange(() => this.onDidChangeViewDescriptors(viewDescriptorCollection.viewDescriptors), this, this.disposables);
 		this.onDidChangeViewDescriptors(viewDescriptorCollection.viewDescriptors);
+	}
+
+	isVisible(id: string): boolean {
+		const state = this.viewStates.get(id);
+
+		if (!state) {
+			throw new Error(`Unknown view ${id}`);
+		}
+
+		return state.visible;
 	}
 
 	setVisible(id: string, visible: boolean): void {
@@ -300,7 +310,7 @@ export class ContributableViewsModel {
 		for (const viewDescriptor of viewDescriptors) {
 			if (!this.viewStates.has(viewDescriptor.id)) {
 				this.viewStates.set(viewDescriptor.id, {
-					visible: true // viewDescriptor.canToggleVisibility
+					visible: true
 				});
 			}
 		}
