@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { assign } from 'vs/base/common/objects';
-import * as map from 'vs/base/common/map';
-import { tail, flatten } from 'vs/base/common/arrays';
-import URI from 'vs/base/common/uri';
-import { IReference, Disposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { visit, JSONVisitor } from 'vs/base/common/json';
-import { ITextModel, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
-import { EditorModel } from 'vs/workbench/common/editor';
-import { IConfigurationNode, IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN, IConfigurationPropertySchema, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, IGroupFilter, ISettingMatcher, ISettingMatch, ISearchResultGroup, IFilterMetadata } from 'vs/workbench/services/preferences/common/preferences';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { Selection } from 'vs/editor/common/core/selection';
+import { flatten, tail } from 'vs/base/common/arrays';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { Emitter, Event } from 'vs/base/common/event';
+import { JSONVisitor, visit } from 'vs/base/common/json';
+import { Disposable, IReference } from 'vs/base/common/lifecycle';
+import * as map from 'vs/base/common/map';
+import { assign } from 'vs/base/common/objects';
+import URI from 'vs/base/common/uri';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
+import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import * as nls from 'vs/nls';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { EditorModel } from 'vs/workbench/common/editor';
+import { IFilterMetadata, IFilterResult, IGroupFilter, IKeybindingsEditorModel, ISearchResultGroup, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 
 export abstract class AbstractSettingsModel extends EditorModel {
 
@@ -470,7 +470,9 @@ export class DefaultSettings extends Disposable {
 					value: setting.value,
 					range: null,
 					valueRange: null,
-					overrides: []
+					overrides: [],
+					type: setting.type,
+					enum: setting.enum
 				};
 			}
 			return null;
@@ -537,14 +539,14 @@ export class DefaultSettings extends Disposable {
 	}
 
 	private parseSettings(settingsObject: { [path: string]: IConfigurationPropertySchema; }): ISetting[] {
-		let result = [];
+		let result: ISetting[] = [];
 		for (let key in settingsObject) {
 			const prop = settingsObject[key];
 			if (!prop.deprecationMessage && this.matchesScope(prop)) {
 				const value = prop.default;
 				const description = (prop.description || '').split('\n');
 				const overrides = OVERRIDE_PROPERTY_PATTERN.test(key) ? this.parseOverrideSettings(prop.default) : [];
-				result.push({ key, value, description, range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides });
+				result.push({ key, value, description, range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides, type: prop.type, enum: prop.enum });
 			}
 		}
 		return result;

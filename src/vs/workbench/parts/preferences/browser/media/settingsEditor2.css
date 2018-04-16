@@ -1,0 +1,186 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.settings-editor {
+	padding: 11px 0px 0px 27px;
+	max-width: 800px;
+	margin: auto;
+}
+
+/* header styling */
+
+.settings-editor > .settings-header {
+	padding: 0px 10px 0px 0px;
+}
+
+.settings-editor > .settings-header > .search-container {
+	position: relative;
+}
+
+.settings-editor > .settings-header .search-container > .settings-search-input {
+	vertical-align: middle;
+}
+
+.settings-editor > .settings-header .search-container > .settings-search-input > .monaco-inputbox {
+	height: 30px;
+	width: 100%;
+}
+
+.settings-editor > .settings-header .search-container > .settings-search-input > .monaco-inputbox .input {
+	font-size: 14px;
+	padding-left:10px;
+}
+
+.settings-editor > .settings-header > .settings-header-controls-container {
+	margin-top: 7px;
+	display: flex;
+}
+
+.settings-editor > .settings-header .settings-target-container {
+	flex: 1;
+}
+
+.settings-editor > .settings-header .settings-tabs-widget > .monaco-action-bar .action-item:not(:first-child) .action-label {
+	margin-left: 33px;
+}
+
+.settings-editor > .settings-header .open-settings-container {
+	/* compensate for 3px padding inside target widget, should be cleaned up */
+	padding-top: 3px;
+	display: flex;
+	opacity: 0.7;
+}
+
+.settings-editor > .settings-header .open-settings-container > .file-name {
+	text-decoration: underline;
+	cursor: pointer;
+	margin-left: 4px;
+}
+
+.settings-editor > .settings-body .settings-nav-controls {
+	margin-bottom: 15px;
+	display: flex;
+}
+
+.settings-editor > .settings-body .settings-nav-controls .monaco-custom-checkbox {
+	margin-right: 5px;
+}
+
+.settings-editor > .settings-body .settings-list-container .settings-list-offset-helper {
+	opacity: 0;
+	position: absolute;
+}
+
+.settings-editor > .settings-body .settings-nav-container {
+	margin-top: 18px;
+	margin-left: 410px;
+}
+
+.settings-editor > .settings-body .settings-nav-container .settings-nav-controls-configured-only {
+	margin-right: 10px;
+}
+
+.settings-editor > .settings-body .settings-list-container .monaco-list::before {
+	outline: none !important;
+}
+
+.settings-editor > .settings-body .settings-list-container {
+	flex: 1;
+	border-spacing: 0;
+	border-collapse: separate;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row {
+	cursor: default;
+	white-space: normal;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row.odd {
+	background-color: rgba(130, 130, 130, 0.04);
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row.setting-item {
+	padding: 3px 0px;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row > .setting-item-container {
+	display: flex;
+	height: 100%;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row > .setting-item-container > .setting-item-left {
+	width: 600px;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row > .setting-item-container > .setting-item-right {
+	flex: 1;
+	margin: 35px 10px;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-title {
+	line-height: initial;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-label {
+	font-size: 15px;
+	font-weight: bold;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-key {
+	margin-left: 10px;
+	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 90%;
+	opacity: 0.8;
+	display: none;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-description {
+	opacity: 0.6;
+	margin-top: 5px;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-value {
+	display: flex;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row .monaco-select-box {
+	width: 100%;
+	font: inherit;
+}
+
+.settings-editor .settings-nav-controls .monaco-custom-checkbox.unchecked,
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row .monaco-custom-checkbox.unchecked {
+	background: url("action-remove.svg") center center no-repeat;
+	/* Unchecked border style needs to be stylable on checkbox. Themeable? */
+	border-color: #75715e !important;
+}
+
+.settings-editor .settings-nav-controls .monaco-custom-checkbox.checked,
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row .monaco-custom-checkbox.checked {
+	background: url("action-remove-focus.svg") center center no-repeat;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row .monaco-custom-checkbox {
+	margin-left: auto;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-value > .setting-reset-button.monaco-button {
+	display: inline-block;
+	background: url("action-remove-dark.svg") center center no-repeat;
+	width: 16px;
+	height: 16px;
+	margin-left: 3px;
+	visibility: hidden;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row.is-configured:hover .setting-item-value > .setting-reset-button.monaco-button {
+	visibility: visible;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-overrides {
+	opacity: 0.6;
+	margin-top: 5px;
+	text-align: center;
+}

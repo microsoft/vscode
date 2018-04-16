@@ -14,6 +14,7 @@ import { KeybindingsEditorModel } from 'vs/workbench/services/preferences/common
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { OS } from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { DefaultSettingsEditorModel } from './preferencesModels';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	public static readonly ID: string = 'workbench.editorinputs.preferencesEditorInput';
@@ -79,5 +80,33 @@ export class KeybindingsEditorInput extends EditorInput {
 
 	matches(otherInput: any): boolean {
 		return otherInput instanceof KeybindingsEditorInput;
+	}
+}
+
+export class PreferencesEditorInput2 extends EditorInput {
+
+	public static readonly ID: string = 'workbench.input.preferences2';
+
+	public readonly defaultSettingsEditorModel: DefaultSettingsEditorModel;
+
+	constructor(model, @IInstantiationService instantiationService: IInstantiationService) {
+		super();
+		this.defaultSettingsEditorModel = model;
+	}
+
+	getTypeId(): string {
+		return PreferencesEditorInput2.ID;
+	}
+
+	getName(): string {
+		return nls.localize('prefsEditorInput2', "Settings (Experimental)");
+	}
+
+	resolve(refresh?: boolean): TPromise<DefaultSettingsEditorModel> {
+		return TPromise.wrap(this.defaultSettingsEditorModel);
+	}
+
+	matches(otherInput: any): boolean {
+		return otherInput instanceof PreferencesEditorInput2;
 	}
 }

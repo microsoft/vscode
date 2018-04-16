@@ -34,6 +34,25 @@ export class OpenRawDefaultSettingsAction extends Action {
 	}
 }
 
+export class OpenSettings2Action extends Action {
+
+	public static readonly ID = 'workbench.action.openSettings2';
+	public static readonly LABEL = nls.localize('openSettings2', "Open Settings (Experimental)");
+
+	constructor(
+		id: string,
+		label: string,
+		@IPreferencesService private preferencesService2: IPreferencesService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		return this.preferencesService2.openSettings2();
+	}
+}
+
+
 export class OpenSettingsAction extends Action {
 
 	public static readonly ID = 'workbench.action.openSettings';
