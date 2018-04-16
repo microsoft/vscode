@@ -265,7 +265,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm.winptyCompatInit();
 		this._xterm.on('linefeed', () => this._onLineFeed());
 		if (this._processManager) {
-			this._processManager.process.on('message', (message) => this._sendPtyDataToXterm(message));
+			this._processManager.onProcessData(data => this._sendPtyDataToXterm(data));
 			this._xterm.on('data', data => this._processManager.write(data));
 		}
 		this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform, this._processManager.initialCwd);
@@ -600,7 +600,6 @@ export class TerminalInstance implements ITerminalInstance {
 			};
 			this._processManager.process.on('message', this._messageTitleListener);
 		}
-		// this._processManager.process.on('exit', exitCode => this._onPtyProcessExit(exitCode));
 
 		if (platform.isWindows) {
 			this._processManager.ptyProcessReady.then(() => {
@@ -613,15 +612,12 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 	}
 
-	private _sendPtyDataToXterm(message: { type: string, content: string }): void {
-		this._logService.debug(`Terminal process message (id: ${this.id})`, message);
-		if (message.type === 'data') {
-			if (this._widgetManager) {
-				this._widgetManager.closeMessage();
-			}
-			if (this._xterm) {
-				this._xterm.write(message.content);
-			}
+	private _sendPtyDataToXterm(data: string): void {
+		if (this._widgetManager) {
+			this._widgetManager.closeMessage();
+		}
+		if (this._xterm) {
+			this._xterm.write(data);
 		}
 	}
 
@@ -722,7 +718,7 @@ export class TerminalInstance implements ITerminalInstance {
 		if (oldTitle !== this._title) {
 			this.setTitle(this._title, true);
 		}
-		this._processManager.process.on('message', (message) => this._sendPtyDataToXterm(message));
+		this._processManager.onProcessData(data => this._sendPtyDataToXterm(data));
 
 		// Clean up waitOnExit state
 		if (this._isExiting && this._shellLaunchConfig.waitOnExit) {

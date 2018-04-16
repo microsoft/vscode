@@ -42,6 +42,8 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 
 	private readonly _onProcessReady: Emitter<void> = new Emitter<void>();
 	public get onProcessReady(): Event<void> { return this._onProcessReady.event; }
+	private readonly _onProcessData: Emitter<string> = new Emitter<string>();
+	public get onProcessData(): Event<string> { return this._onProcessData.event; }
 	private readonly _onProcessExit: Emitter<number> = new Emitter<number>();
 	public get onProcessExit(): Event<number> { return this._onProcessExit.event; }
 
@@ -178,6 +180,8 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 				});
 				this._preLaunchInputQueue.length = 0;
 			}
+		} else if (message.type === 'data') {
+			this._onProcessData.fire(<string>message.content);
 		}
 	}
 

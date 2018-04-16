@@ -472,6 +472,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	initialCwd: string;
 
 	onProcessReady: Event<void>;
+	onProcessData: Event<string>;
 	onProcessExit: Event<number>;
 
 	addDisposable(disposable: IDisposable);
