@@ -6,7 +6,7 @@
 
 import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache';
 import { TextDocument, Position, Range, CompletionList } from 'vscode-languageserver-types';
-import { getCSSLanguageService, Stylesheet, ICompletionParticipant } from 'vscode-css-languageservice';
+import { getCSSLanguageService, Stylesheet, ICompletionParticipant, FoldingRange } from 'vscode-css-languageservice';
 import { LanguageMode, Workspace } from './languageModes';
 import { HTMLDocumentRegions, CSS_STYLE_RULE } from './embeddedSupport';
 import { Color } from 'vscode-languageserver';
@@ -37,7 +37,7 @@ export function getCSSMode(documentRegions: LanguageModelCache<HTMLDocumentRegio
 					if (typeof (<any>registeredCompletionParticipants[i]).getId === 'function' && (<any>registeredCompletionParticipants[i]).getId() === 'emmet') {
 						const extractedResults = extractAbbreviation(document, position, { lookAhead: false, syntax: 'css' });
 						if (extractedResults && extractedResults.abbreviation) {
-							registeredCompletionParticipants[i].onCssProperty({ propertyName: extractedResults.abbreviation, range: extractedResults.abbreviationRange });
+							registeredCompletionParticipants[i].onCssProperty!({ propertyName: extractedResults.abbreviation, range: extractedResults.abbreviationRange });
 						}
 					} else {
 						nonEmmetCompletionParticipants.push(registeredCompletionParticipants[i]);
@@ -74,6 +74,11 @@ export function getCSSMode(documentRegions: LanguageModelCache<HTMLDocumentRegio
 		getColorPresentations(document: TextDocument, color: Color, range: Range) {
 			let embedded = embeddedCSSDocuments.get(document);
 			return cssLanguageService.getColorPresentations(embedded, cssStylesheets.get(embedded), color, range);
+		},
+		getFoldingRanges(document: TextDocument, range: Range): FoldingRange[] {
+			let embedded = embeddedCSSDocuments.get(document);
+			let ranges = cssLanguageService.getFoldingRanges(embedded, {}).ranges;
+			return ranges.filter(r => r.startLine >= range.start.line && r.endLine < range.end.line);
 		},
 		onDocumentRemoved(document: TextDocument) {
 			embeddedCSSDocuments.onDocumentRemoved(document);
