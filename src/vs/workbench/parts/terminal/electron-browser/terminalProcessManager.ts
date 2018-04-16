@@ -117,7 +117,6 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], options);
 		this.processState = ProcessState.LAUNCHING;
 
-		// TODO: Hide all message communication details inside terminal process manager
 		this._process.on('message', message => this._onMessage(message));
 		this._process.on('exit', exitCode => this._onExit(exitCode));
 
@@ -340,9 +339,4 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		}
 		return parts.join('_') + '.UTF-8';
 	}
-
-
-	// Should this be here or in instance?
-	// private _isExiting: boolean;
-
 }

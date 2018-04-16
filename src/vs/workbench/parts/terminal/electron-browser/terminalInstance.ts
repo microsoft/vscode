@@ -61,8 +61,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _onLineDataListeners: ((lineData: string) => void)[];
 	private _xtermReadyPromise: TPromise<void>;
 
-	// TODO: Rename to "_disposables"
-	private _instanceDisposables: lifecycle.IDisposable[];
+	private _disposables: lifecycle.IDisposable[];
 	private _messageTitleDisposable: lifecycle.IDisposable;
 
 	private _widgetManager: TerminalWidgetManager;
@@ -107,7 +106,7 @@ export class TerminalInstance implements ITerminalInstance {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private _logService: ILogService
 	) {
-		this._instanceDisposables = [];
+		this._disposables = [];
 		this._skipTerminalCommands = [];
 		this._onLineDataListeners = [];
 		this._isExiting = false;
@@ -144,7 +143,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public addDisposable(disposable: lifecycle.IDisposable): void {
-		this._instanceDisposables.push(disposable);
+		this._disposables.push(disposable);
 	}
 
 	private _initDimensions(): void {
@@ -271,7 +270,7 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform, this._processManager.initialCwd);
 		this._commandTracker = new TerminalCommandTracker(this._xterm);
-		this._instanceDisposables.push(this._themeService.onThemeChange(theme => this._updateTheme(theme)));
+		this._disposables.push(this._themeService.onThemeChange(theme => this._updateTheme(theme)));
 	}
 
 	public reattachToElement(container: HTMLElement): void {
@@ -298,7 +297,6 @@ export class TerminalInstance implements ITerminalInstance {
 			return;
 		}
 
-		// TODO: Verify listeners still work
 		// The container changed, reattach
 		this._container.removeChild(this._wrapperElement);
 		this._container = container;
@@ -347,7 +345,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 				return undefined;
 			});
-			this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'mousedown', (event: KeyboardEvent) => {
+			this._disposables.push(dom.addDisposableListener(this._xterm.element, 'mousedown', (event: KeyboardEvent) => {
 				// We need to listen to the mouseup event on the document since the user may release
 				// the mouse button anywhere outside of _xterm.element.
 				const listener = dom.addDisposableListener(document, 'mouseup', (event: KeyboardEvent) => {
@@ -359,7 +357,7 @@ export class TerminalInstance implements ITerminalInstance {
 			}));
 
 			// xterm.js currently drops selection on keyup as we need to handle this case.
-			this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'keyup', (event: KeyboardEvent) => {
+			this._disposables.push(dom.addDisposableListener(this._xterm.element, 'keyup', (event: KeyboardEvent) => {
 				// Wait until keyup has propagated through the DOM before evaluating
 				// the new selection state.
 				setTimeout(() => this._refreshSelectionContextKey(), 0);
@@ -369,7 +367,7 @@ export class TerminalInstance implements ITerminalInstance {
 			const focusTrap: HTMLElement = document.createElement('div');
 			focusTrap.setAttribute('tabindex', '0');
 			dom.addClass(focusTrap, 'focus-trap');
-			this._instanceDisposables.push(dom.addDisposableListener(focusTrap, 'focus', (event: FocusEvent) => {
+			this._disposables.push(dom.addDisposableListener(focusTrap, 'focus', (event: FocusEvent) => {
 				let currentElement = focusTrap;
 				while (!dom.hasClass(currentElement, 'part')) {
 					currentElement = currentElement.parentElement;
@@ -379,18 +377,18 @@ export class TerminalInstance implements ITerminalInstance {
 			}));
 			xtermHelper.insertBefore(focusTrap, this._xterm.textarea);
 
-			this._instanceDisposables.push(dom.addDisposableListener(this._xterm.textarea, 'focus', (event: KeyboardEvent) => {
+			this._disposables.push(dom.addDisposableListener(this._xterm.textarea, 'focus', (event: KeyboardEvent) => {
 				this._terminalFocusContextKey.set(true);
 				this._onFocused.fire(this);
 			}));
-			this._instanceDisposables.push(dom.addDisposableListener(this._xterm.textarea, 'blur', (event: KeyboardEvent) => {
+			this._disposables.push(dom.addDisposableListener(this._xterm.textarea, 'blur', (event: KeyboardEvent) => {
 				this._terminalFocusContextKey.reset();
 				this._refreshSelectionContextKey();
 			}));
-			this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'focus', (event: KeyboardEvent) => {
+			this._disposables.push(dom.addDisposableListener(this._xterm.element, 'focus', (event: KeyboardEvent) => {
 				this._terminalFocusContextKey.set(true);
 			}));
-			this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'blur', (event: KeyboardEvent) => {
+			this._disposables.push(dom.addDisposableListener(this._xterm.element, 'blur', (event: KeyboardEvent) => {
 				this._terminalFocusContextKey.reset();
 				this._refreshSelectionContextKey();
 			}));
@@ -491,7 +489,7 @@ export class TerminalInstance implements ITerminalInstance {
 			this._isDisposed = true;
 			this._onDisposed.fire(this);
 		}
-		this._instanceDisposables = lifecycle.dispose(this._instanceDisposables);
+		this._disposables = lifecycle.dispose(this._disposables);
 	}
 
 	public focus(force?: boolean): void {
