@@ -483,21 +483,13 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xterm.destroy();
 			this._xterm = null;
 		}
-		if (this._processManager.process) {
-			if (this._processManager.process.connected) {
-				// If the process was still connected this dispose came from
-				// within VS Code, not the process, so mark the process as
-				// killed by the user.
-				this._processManager.processState = ProcessState.KILLED_BY_USER;
-				this._processManager.process.send({ event: 'shutdown' });
-			}
-			this._processManager.process = null;
+		if (this._processManager) {
+			this._processManager.dispose();
 		}
 		if (!this._isDisposed) {
 			this._isDisposed = true;
 			this._onDisposed.fire(this);
 		}
-		this._processManager.dispose();
 		this._instanceDisposables = lifecycle.dispose(this._instanceDisposables);
 	}
 
@@ -592,7 +584,8 @@ export class TerminalInstance implements ITerminalInstance {
 	protected _createProcess(): void {
 		// TODO: This should be injected in to the terminal instance (from service?)
 		this._processManager = this._instantiationService.createInstance(TerminalProcessManager, this._configHelper);
-		this._processManager.onShellProcessIdReady(() => this._onProcessIdReady.fire(this));
+		this._processManager.onProcessReady(() => this._onProcessIdReady.fire(this));
+		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
 		this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows);
 
 		if (this._shellLaunchConfig.name) {
@@ -607,7 +600,7 @@ export class TerminalInstance implements ITerminalInstance {
 			};
 			this._processManager.process.on('message', this._messageTitleListener);
 		}
-		this._processManager.process.on('exit', exitCode => this._onPtyProcessExit(exitCode));
+		// this._processManager.process.on('exit', exitCode => this._onPtyProcessExit(exitCode));
 
 		if (platform.isWindows) {
 			this._processManager.ptyProcessReady.then(() => {
@@ -632,8 +625,7 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 	}
 
-	// TODO: Move most to TerminalProcessManager, fire an event when it happens
-	private _onPtyProcessExit(exitCode: number): void {
+	private _onProcessExit(exitCode: number): void {
 		this._logService.debug(`Terminal process exit (id: ${this.id}) with code ${exitCode}`);
 
 		// Prevent dispose functions being triggered multiple times
@@ -642,26 +634,11 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 
 		this._isExiting = true;
-		this._processManager.process = null;
 		let exitCodeMessage: string;
 
 		if (exitCode) {
 			exitCodeMessage = nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode);
 		}
-
-		// If the process is marked as launching then mark the process as killed
-		// during launch. This typically means that there is a problem with the
-		// shell and args.
-		if (this._processManager.processState === ProcessState.LAUNCHING) {
-			this._processManager.processState = ProcessState.KILLED_DURING_LAUNCH;
-		}
-
-		// If TerminalInstance did not know about the process exit then it was
-		// triggered by the process, not on VS Code's side.
-		if (this._processManager.processState === ProcessState.RUNNING) {
-			this._processManager.processState = ProcessState.KILLED_BY_PROCESS;
-		}
-
 
 		this._logService.debug(`Terminal process exit (id: ${this.id}) state ${this._processManager.processState}`);
 

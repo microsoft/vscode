@@ -25,8 +25,8 @@ const LAUNCHING_DURATION = 500;
 /**
  * Holds all state related to the creation and management of terminal processes.
  *
- * Definitions:
- * - Process: The process launched with the terminalProcess.ts file
+ * Internal definitions:
+ * - Process: The process launched with the terminalProcess.ts file, or the pty as a whole
  * - Pty Process: The pseudoterminal master process (or the winpty agent process)
  * - Shell Process: The pseudoterminal slave process (ie. the shell)
  */
@@ -40,8 +40,10 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	private _preLaunchInputQueue: string[] = [];
 	private _disposables: IDisposable[] = [];
 
-	private readonly _onShellProcessIdReady: Emitter<number> = new Emitter<number>();
-	public get onShellProcessIdReady(): Event<number> { return this._onShellProcessIdReady.event; }
+	private readonly _onProcessReady: Emitter<number> = new Emitter<number>();
+	public get onProcessReady(): Event<number> { return this._onProcessReady.event; }
+	private readonly _onProcessExit: Emitter<number> = new Emitter<number>();
+	public get onProcessExit(): Event<number> { return this._onProcessExit.event; }
 
 	constructor(
 		private _configHelper: ITerminalConfigHelper,
@@ -53,6 +55,16 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	}
 
 	public dispose(): void {
+		if (this.process) {
+			if (this.process.connected) {
+				// If the process was still connected this dispose came from
+				// within VS Code, not the process, so mark the process as
+				// killed by the user.
+				this.processState = ProcessState.KILLED_BY_USER;
+				this.process.send({ event: 'shutdown' });
+			}
+			this.process = null;
+		}
 		this._disposables.forEach(d => d.dispose());
 		this._disposables.length = 0;
 	}
@@ -67,7 +79,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		rows: number
 	): void {
 		this.ptyProcessReady = new TPromise<void>(c => {
-			this.onShellProcessIdReady(() => {
+			this.onProcessReady(() => {
 				this._logService.debug(`Terminal process ready (shellProcessId: ${this.shellProcessId})`);
 				c(void 0);
 			});
@@ -101,8 +113,9 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		this.process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], options);
 		this.processState = ProcessState.LAUNCHING;
 
-		// TODO: Hide message communication details inside terminal process manager
-		this.process.on('message', message => this._onProcessMessage(message));
+		// TODO: Hide all message communication details inside terminal process manager
+		this.process.on('message', message => this._onMessage(message));
+		this.process.on('exit', exitCode => this._onExit(exitCode));
 
 		setTimeout(() => {
 			if (this.processState === ProcessState.LAUNCHING) {
@@ -152,10 +165,10 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		}
 	}
 
-	private _onProcessMessage(message: ITerminalProcessMessage): void {
+	private _onMessage(message: ITerminalProcessMessage): void {
 		if (message.type === 'pid') {
 			this.shellProcessId = <number>message.content;
-			this._onShellProcessIdReady.fire(this.shellProcessId);
+			this._onProcessReady.fire(this.shellProcessId);
 
 			// Send any queued data that's waiting
 			if (this._preLaunchInputQueue.length > 0) {
@@ -166,6 +179,25 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 				this._preLaunchInputQueue.length = 0;
 			}
 		}
+	}
+
+	private _onExit(exitCode: number): void {
+		this.process = null;
+
+		// If the process is marked as launching then mark the process as killed
+		// during launch. This typically means that there is a problem with the
+		// shell and args.
+		if (this.processState === ProcessState.LAUNCHING) {
+			this.processState = ProcessState.KILLED_DURING_LAUNCH;
+		}
+
+		// If TerminalInstance did not know about the process exit then it was
+		// triggered by the process, not on VS Code's side.
+		if (this.processState === ProcessState.RUNNING) {
+			this.processState = ProcessState.KILLED_BY_PROCESS;
+		}
+
+		this._onProcessExit.fire(exitCode);
 	}
 
 	public static mergeEnvironments(parent: IStringDictionary<string>, other: IStringDictionary<string>) {
