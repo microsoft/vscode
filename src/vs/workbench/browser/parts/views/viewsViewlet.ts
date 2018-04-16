@@ -544,7 +544,7 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 			return false;
 		}
 
-		if (ViewLocation.getContributedViewLocation(this.location.id)) {
+		if (ViewLocation.get(this.location.id)) {
 			let visibleViewsCount = 0;
 			if (this.areExtensionsReady) {
 				visibleViewsCount = this.getViewDescriptorsFromRegistry().reduce((visibleViewsCount, v) => visibleViewsCount + (this.canBeVisible(v) ? 1 : 0), 0);

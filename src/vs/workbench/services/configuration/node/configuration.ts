@@ -92,10 +92,6 @@ export class WorkspaceConfiguration extends Disposable {
 		return this._cache;
 	}
 
-	getUnsupportedKeys(): string[] {
-		return this._workspaceConfigurationModelParser.settingsModel.unsupportedKeys;
-	}
-
 	reprocessWorkspaceSettings(): ConfigurationModel {
 		this._workspaceConfigurationModelParser.reprocessWorkspaceSettings();
 		this.consolidate();
@@ -137,7 +133,6 @@ export interface IFolderConfiguration {
 	readonly loaded: boolean;
 	loadConfiguration(): TPromise<ConfigurationModel>;
 	reprocess(): ConfigurationModel;
-	getUnsupportedKeys(): string[];
 	dispose(): void;
 }
 
@@ -175,20 +170,16 @@ export abstract class AbstractFolderConfiguration extends Disposable implements 
 	}
 
 	reprocess(): ConfigurationModel {
-		const oldContents = this._folderSettingsModelParser.settingsModel.contents;
+		const oldContents = this._folderSettingsModelParser.configurationModel.contents;
 		this._folderSettingsModelParser.reprocess();
-		if (!equals(oldContents, this._folderSettingsModelParser.settingsModel.contents)) {
+		if (!equals(oldContents, this._folderSettingsModelParser.configurationModel.contents)) {
 			this.consolidate();
 		}
 		return this._cache;
 	}
 
-	getUnsupportedKeys(): string[] {
-		return this._folderSettingsModelParser.settingsModel.unsupportedKeys;
-	}
-
 	private consolidate(): void {
-		this._cache = this._folderSettingsModelParser.settingsModel.merge(...this._standAloneConfigurations);
+		this._cache = this._folderSettingsModelParser.configurationModel.merge(...this._standAloneConfigurations);
 	}
 
 	private parseContents(contents: { resource: URI, value: string }[]): void {
@@ -447,10 +438,6 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 
 	reprocess(): ConfigurationModel {
 		return this.folderConfiguration.reprocess();
-	}
-
-	getUnsupportedKeys(): string[] {
-		return this.folderConfiguration.getUnsupportedKeys();
 	}
 
 	get loaded(): boolean {

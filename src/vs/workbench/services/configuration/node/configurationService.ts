@@ -37,7 +37,6 @@ import { WorkspaceConfiguration, FolderConfiguration } from 'vs/workbench/servic
 import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 import { Schemas } from 'vs/base/common/network';
 import { massageFolderPathForWorkspace } from 'vs/platform/workspaces/node/workspaces';
-import { distinct } from 'vs/base/common/arrays';
 import { UserConfiguration } from 'vs/platform/configuration/node/configuration';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
@@ -294,14 +293,6 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		workspaceFolder: string[];
 	} {
 		return this._configuration.keys();
-	}
-
-	getUnsupportedWorkspaceKeys(): string[] {
-		const unsupportedWorkspaceKeys = [...this.workspaceConfiguration.getUnsupportedKeys()];
-		for (const folder of this.workspace.folders) {
-			unsupportedWorkspaceKeys.push(...this.cachedFolderConfigs.get(folder.uri).getUnsupportedKeys());
-		}
-		return distinct(unsupportedWorkspaceKeys);
 	}
 
 	initialize(arg: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWindowConfiguration): TPromise<any> {

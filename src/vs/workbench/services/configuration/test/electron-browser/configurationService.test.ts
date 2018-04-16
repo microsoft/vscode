@@ -641,11 +641,6 @@ suite('WorkspaceConfigurationService - Folder', () => {
 					'type': 'string',
 					'default': 'isSet',
 					scope: ConfigurationScope.RESOURCE
-				},
-				'configurationService.folder.executableSetting': {
-					'type': 'string',
-					'default': 'isSet',
-					isExecutable: true
 				}
 			}
 		});
@@ -687,7 +682,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('defaults', () => {
-		assert.deepEqual(testObject.getValue('configurationService'), { 'folder': { 'applicationSetting': 'isSet', 'testSetting': 'isSet', 'executableSetting': 'isSet' } });
+		assert.deepEqual(testObject.getValue('configurationService'), { 'folder': { 'applicationSetting': 'isSet', 'testSetting': 'isSet' } });
 	});
 
 	test('globals override defaults', () => {
@@ -743,35 +738,22 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			.then(() => assert.equal(testObject.getValue('configurationService.folder.applicationSetting'), 'userValue'));
 	});
 
-	test('executable settings are not read from workspace', () => {
-		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.executableSetting": "userValue" }');
-		fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "configurationService.folder.executableSetting": "workspaceValue" }');
-		return testObject.reloadConfiguration()
-			.then(() => assert.equal(testObject.getValue('configurationService.folder.executableSetting'), 'userValue'));
-	});
-
-	test('get unsupported workspace settings', () => {
-		fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "configurationService.folder.executableSetting": "workspaceValue" }');
-		return testObject.reloadConfiguration()
-			.then(() => assert.deepEqual(testObject.getUnsupportedWorkspaceKeys(), ['configurationService.folder.executableSetting']));
-	});
-
-	test('get unsupported workspace settings after defaults are registered', () => {
-		fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "configurationService.folder.anotherExecutableSetting": "workspaceValue" }');
+	test('get application scope settings are not loaded after defaults are registered', () => {
+		fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "configurationService.folder.anotherApplicationSetting": "workspaceValue" }');
 		return testObject.reloadConfiguration()
 			.then(() => {
 				configurationRegistry.registerConfiguration({
 					'id': '_test',
 					'type': 'object',
 					'properties': {
-						'configurationService.folder.anotherExecutableSetting': {
+						'configurationService.folder.anotherApplicationSetting': {
 							'type': 'string',
 							'default': 'isSet',
-							isExecutable: true
+							scope: ConfigurationScope.APPLICATION
 						}
 					}
 				});
-				assert.deepEqual(testObject.getUnsupportedWorkspaceKeys(), ['configurationService.folder.anotherExecutableSetting']);
+				assert.deepEqual(testObject.keys().workspace, []);
 			});
 	});
 
@@ -935,17 +917,6 @@ suite('WorkspaceConfigurationService - Multiroot', () => {
 					'type': 'string',
 					'default': 'isSet',
 					scope: ConfigurationScope.RESOURCE
-				},
-				'configurationService.workspace.testExecutableSetting': {
-					'type': 'string',
-					'default': 'isSet',
-					isExecutable: true
-				},
-				'configurationService.workspace.testExecutableResourceSetting': {
-					'type': 'string',
-					'default': 'isSet',
-					isExecutable: true,
-					scope: ConfigurationScope.RESOURCE
 				}
 			}
 		});
@@ -989,27 +960,6 @@ suite('WorkspaceConfigurationService - Multiroot', () => {
 		return void 0;
 	});
 
-	test('executable settings are not read from workspace', () => {
-		fs.writeFileSync(environmentService.appSettingsPath, '{ "configurationService.workspace.testExecutableSetting": "userValue" }');
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration, { key: 'settings', value: { 'configurationService.workspace.testExecutableSetting': 'workspaceValue' } }, true)
-			.then(() => testObject.reloadConfiguration())
-			.then(() => assert.equal(testObject.getValue('configurationService.workspace.testExecutableSetting'), 'userValue'));
-	});
-
-	test('executable settings are not read from workspace folder', () => {
-		fs.writeFileSync(environmentService.appSettingsPath, '{ "configurationService.workspace.testExecutableResourceSetting": "userValue" }');
-		fs.writeFileSync(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json').fsPath, '{ "configurationService.workspace.testExecutableResourceSetting": "workspaceFolderValue" }');
-		return testObject.reloadConfiguration()
-			.then(() => assert.equal(testObject.getValue('configurationService.workspace.testExecutableResourceSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'userValue'));
-	});
-
-	test('get unsupported workspace settings', () => {
-		fs.writeFileSync(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json').fsPath, '{ "configurationService.workspace.testExecutableResourceSetting": "workspaceFolderValue" }');
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration, { key: 'settings', value: { 'configurationService.workspace.testExecutableSetting': 'workspaceValue' } }, true)
-			.then(() => testObject.reloadConfiguration())
-			.then(() => assert.deepEqual(testObject.getUnsupportedWorkspaceKeys(), ['configurationService.workspace.testExecutableSetting', 'configurationService.workspace.testExecutableResourceSetting']));
-	});
-
 	test('application settings are not read from workspace', () => {
 		fs.writeFileSync(environmentService.appSettingsPath, '{ "configurationService.workspace.applicationSetting": "userValue" }');
 		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration, { key: 'settings', value: { 'configurationService.workspace.applicationSetting': 'workspaceValue' } }, true)
@@ -1043,45 +993,23 @@ suite('WorkspaceConfigurationService - Multiroot', () => {
 			.then(() => assert.equal(testObject.getValue('configurationService.workspace.applicationSetting'), 'userValue'));
 	});
 
-	test('executable settings are not read from workspace folder after defaults are registered', () => {
-		fs.writeFileSync(environmentService.appSettingsPath, '{ "configurationService.workspace.testNewExecutableResourceSetting": "userValue" }');
-		fs.writeFileSync(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json').fsPath, '{ "configurationService.workspace.testNewExecutableResourceSetting": "workspaceFolderValue" }');
+	test('application settings are not read from workspace folder after defaults are registered', () => {
+		fs.writeFileSync(environmentService.appSettingsPath, '{ "configurationService.workspace.testNewApplicationSetting": "userValue" }');
+		fs.writeFileSync(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json').fsPath, '{ "configurationService.workspace.testNewApplicationSetting": "workspaceFolderValue" }');
 		return testObject.reloadConfiguration()
 			.then(() => {
 				configurationRegistry.registerConfiguration({
 					'id': '_test',
 					'type': 'object',
 					'properties': {
-						'configurationService.workspace.testNewExecutableResourceSetting': {
+						'configurationService.workspace.testNewApplicationSetting': {
 							'type': 'string',
 							'default': 'isSet',
-							isExecutable: true,
-							scope: ConfigurationScope.RESOURCE
+							scope: ConfigurationScope.APPLICATION
 						}
 					}
 				});
-				assert.equal(testObject.getValue('configurationService.workspace.testNewExecutableResourceSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'userValue');
-			});
-	});
-
-	test('get unsupported workspace settings after defaults are registered', () => {
-		fs.writeFileSync(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json').fsPath, '{ "configurationService.workspace.testNewExecutableResourceSetting2": "workspaceFolderValue" }');
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration, { key: 'settings', value: { 'configurationService.workspace.testExecutableSetting': 'workspaceValue' } }, true)
-			.then(() => testObject.reloadConfiguration())
-			.then(() => {
-				configurationRegistry.registerConfiguration({
-					'id': '_test',
-					'type': 'object',
-					'properties': {
-						'configurationService.workspace.testNewExecutableResourceSetting2': {
-							'type': 'string',
-							'default': 'isSet',
-							isExecutable: true,
-							scope: ConfigurationScope.RESOURCE
-						}
-					}
-				});
-				assert.deepEqual(testObject.getUnsupportedWorkspaceKeys(), ['configurationService.workspace.testExecutableSetting', 'configurationService.workspace.testNewExecutableResourceSetting2']);
+				assert.equal(testObject.getValue('configurationService.workspace.testNewApplicationSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'userValue');
 			});
 	});
 
