@@ -9,7 +9,7 @@ import * as platform from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
 import * as paths from 'vs/base/common/paths';
 import { Event, Emitter } from 'vs/base/common/event';
-import { WindowsShellHelper } from 'vs/workbench/parts/terminal/electron-browser/windowsShellHelper';
+import { WindowsShellHelper } from 'vs/workbench/parts/terminal/node/windowsShellHelper';
 import { Terminal as XTermTerminal } from 'vscode-xterm';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -25,7 +25,7 @@ import { registerThemingParticipant, ITheme, ICssStyleCollector, IThemeService }
 import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/parts/terminal/electron-browser/terminalColorRegistry';
+import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/parts/terminal/common/terminalColorRegistry';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';

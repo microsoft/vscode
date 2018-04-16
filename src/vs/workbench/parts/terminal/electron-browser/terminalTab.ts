@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalInstance, IShellLaunchConfig, ITerminalTab, Direction, ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalInstance, IShellLaunchConfig, ITerminalTab, Direction, ITerminalService, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
+// TODO: Let service create instance, and move to browser layer
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import { Event, Emitter, anyEvent } from 'vs/base/common/event';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -255,7 +255,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 	constructor(
 		terminalFocusContextKey: IContextKey<boolean>,
-		configHelper: TerminalConfigHelper,
+		configHelper: ITerminalConfigHelper,
 		private _container: HTMLElement,
 		shellLaunchConfig: IShellLaunchConfig,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -393,7 +393,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 	public split(
 		terminalFocusContextKey: IContextKey<boolean>,
-		configHelper: TerminalConfigHelper,
+		configHelper: ITerminalConfigHelper,
 		shellLaunchConfig: IShellLaunchConfig
 	): ITerminalInstance {
 		const instance = this._instantiationService.createInstance(TerminalInstance,
