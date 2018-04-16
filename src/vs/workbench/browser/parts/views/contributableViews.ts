@@ -323,14 +323,14 @@ export class ContributableViewsModel {
 
 		for (const splice of splices) {
 			const startViewDescriptor = this.viewDescriptors[splice.start];
-			let startIndex = startViewDescriptor ? this.find(startViewDescriptor.id).visibleIndex : 0;
+			let startIndex = startViewDescriptor ? this.find(startViewDescriptor.id).visibleIndex : this.viewDescriptors.length;
 
 			for (let i = 0; i < splice.deleteCount; i++) {
 				const viewDescriptor = this.viewDescriptors[splice.start + i];
 				const { state } = this.find(viewDescriptor.id);
 
 				if (state.visible) {
-					this._onDidRemove.fire({ index: startIndex, viewDescriptor: viewDescriptor });
+					this._onDidRemove.fire({ index: startIndex, viewDescriptor });
 				}
 			}
 
@@ -339,7 +339,7 @@ export class ContributableViewsModel {
 				const state = this.viewStates.get(viewDescriptor.id);
 
 				if (state.visible) {
-					this._onDidAdd.fire({ index: startIndex++, viewDescriptor: viewDescriptor });
+					this._onDidAdd.fire({ index: ++startIndex, viewDescriptor });
 				}
 			}
 		}
