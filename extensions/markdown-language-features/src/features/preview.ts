@@ -239,10 +239,6 @@ export class MarkdownPreview {
 		return this.editor.position;
 	}
 
-	public isPreviewOf(resource: vscode.Uri): boolean {
-		return this._resource.fsPath === resource.fsPath;
-	}
-
 	public isWebviewOf(webview: vscode.WebviewPanel): boolean {
 		return this.editor === webview;
 	}
@@ -274,6 +270,10 @@ export class MarkdownPreview {
 	public toggleLock() {
 		this._locked = !this._locked;
 		this.editor.webview.title = MarkdownPreview.getPreviewTitle(this._resource, this._locked);
+	}
+
+	private isPreviewOf(resource: vscode.Uri): boolean {
+		return this._resource.fsPath === resource.fsPath;
 	}
 
 	private static getPreviewTitle(resource: vscode.Uri, locked: boolean): string {
@@ -377,6 +377,8 @@ export class MarkdownPreview {
 				return;
 			}
 		}
+
+		vscode.workspace.openTextDocument(this._resource).then(vscode.window.showTextDocument);
 	}
 }
 
