@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/css!./review';
+import 'vs/css!./media/review';
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import * as modes from 'vs/editor/common/modes';
@@ -15,7 +15,6 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { TrackedRangeStickiness, IModelDeltaDecoration } from 'vs/editor/common/model';
-import { ZoneWidget, IOptions } from '../zoneWidget/zoneWidget';
 import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -31,8 +30,9 @@ import { Color } from 'vs/base/common/color';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ReviewModel, ReviewStyle } from 'vs/editor/contrib/review/reviewModel';
 import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { ZoneWidget, IOptions } from 'vs/editor/contrib/zoneWidget/zoneWidget';
+import { ReviewModel, ReviewStyle } from 'vs/workbench/parts/comments/common/reviewModel';
 
 export const ctxReviewPanelVisible = new RawContextKey<boolean>('reviewPanelVisible', false);
 export const ID = 'editor.contrib.review';

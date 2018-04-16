@@ -8,7 +8,6 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import * as modes from 'vs/editor/common/modes';
-import { ReviewController } from 'vs/editor/contrib/review/review';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { keys } from '../../../base/common/map';
@@ -20,6 +19,7 @@ import { COMMENTS_PANEL_ID } from 'vs/workbench/parts/comments/electron-browser/
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import URI from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
+import { ReviewController } from 'vs/workbench/parts/comments/electron-browser/commentsEditorContribution';
 
 @extHostNamedCustomer(MainContext.MainThreadComments)
 export class MainThreadComments extends Disposable implements MainThreadCommentsShape {

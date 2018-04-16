@@ -9,6 +9,7 @@ import { Extensions as PanelExtensions, PanelDescriptor, PanelRegistry } from 'v
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { COMMENTS_PANEL_ID, COMMENTS_PANEL_TITLE, CommentsPanel } from './commentsPanel';
+import 'vs/workbench/parts/comments/electron-browser/commentsEditorContribution';
 
 export class CommentPanelVisibilityUpdater implements IWorkbenchContribution {
 

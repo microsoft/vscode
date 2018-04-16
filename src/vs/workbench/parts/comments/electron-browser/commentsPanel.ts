@@ -9,7 +9,6 @@ import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IFilter, IRenderer, ITree } from 'vs/base/parts/tree/browser/tree';
 import { DefaultAccessibilityProvider, DefaultController, DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ReviewController } from 'vs/editor/contrib/review/review';
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
@@ -18,6 +17,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { Panel } from 'vs/workbench/browser/panel';
 import { CommentNode, CommentsModel, ICommentService, ResourceCommentThreads } from 'vs/workbench/services/comments/electron-browser/commentService';
+import { ReviewController } from 'vs/workbench/parts/comments/electron-browser/commentsEditorContribution';
 
 export const COMMENTS_PANEL_ID = 'workbench.panel.comments';
 export const COMMENTS_PANEL_TITLE = 'Comments';
