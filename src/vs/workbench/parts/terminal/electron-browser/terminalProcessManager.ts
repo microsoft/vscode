@@ -128,6 +128,20 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		}, LAUNCHING_DURATION);
 	}
 
+	public setDimensions(cols: number, rows: number): void {
+		if (this.process && this.process.connected) {
+			// The child process could aready be terminated
+			try {
+				this.process.send({ event: 'resize', cols, rows });
+			} catch (error) {
+				// We tried to write to a closed pipe / channel.
+				if (error.code !== 'EPIPE' && error.code !== 'ERR_IPC_CHANNEL_CLOSED') {
+					throw (error);
+				}
+			}
+		}
+	}
+
 	protected _getCwd(shell: IShellLaunchConfig, root: Uri): string {
 		if (shell.cwd) {
 			return shell.cwd;

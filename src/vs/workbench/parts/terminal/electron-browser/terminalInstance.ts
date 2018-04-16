@@ -867,23 +867,7 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 		}
 
-		this._processManager.ptyProcessReady.then(() => {
-			if (this._processManager.process && this._processManager.process.connected) {
-				// The child process could aready be terminated
-				try {
-					this._processManager.process.send({
-						event: 'resize',
-						cols: this._cols,
-						rows: this._rows
-					});
-				} catch (error) {
-					// We tried to write to a closed pipe / channel.
-					if (error.code !== 'EPIPE' && error.code !== 'ERR_IPC_CHANNEL_CLOSED') {
-						throw (error);
-					}
-				}
-			}
-		});
+		this._processManager.ptyProcessReady.then(() => this._processManager.setDimensions(this._cols, this._rows));
 	}
 
 	public setTitle(title: string, eventFromProcess: boolean): void {

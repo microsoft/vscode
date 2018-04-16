@@ -479,6 +479,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	addDisposable(disposable: IDisposable);
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number);
 	write(data: string): void;
+	setDimensions(cols: number, rows: number): void;
 }
 
 export enum ProcessState {
