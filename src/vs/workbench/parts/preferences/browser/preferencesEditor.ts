@@ -14,7 +14,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { ArrayNavigator } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { EditorOptions, EditorInput, PREFERENCES_EDITOR_ID } from 'vs/workbench/common/editor';
+import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { IEditorControl, Position } from 'vs/platform/editor/common/editor';
@@ -61,6 +61,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ILogService } from 'vs/platform/log/common/log';
 import { PreferencesEditorInput, DefaultPreferencesEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
+import { PREFERENCES_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 
 export class PreferencesEditor extends BaseEditor {
 
@@ -186,6 +187,10 @@ export class PreferencesEditor extends BaseEditor {
 		this.sideBySidePreferencesWidget.clearInput();
 		this.preferencesRenderers.onHidden();
 		super.clearInput();
+	}
+
+	public supportsCenteredLayout(): boolean {
+		return false;
 	}
 
 	protected setEditorVisible(visible: boolean, position: Position): void {
@@ -1014,6 +1019,10 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 
 	public layout(dimension: DOM.Dimension) {
 		this.getControl().layout(dimension);
+	}
+
+	public supportsCenteredLayout(): boolean {
+		return false;
 	}
 
 	protected getAriaLabel(): string {
