@@ -15,7 +15,7 @@ import { FoldingRange } from 'vscode-languageserver-protocol-foldingprovider';
 import { getLanguageModelCache, LanguageModelCache } from '../languageModelCache';
 import { getDocumentRegions, HTMLDocumentRegions } from './embeddedSupport';
 import { getCSSMode } from './cssMode';
-import { getJavascriptMode } from './javascriptMode';
+import { getJavaScriptMode } from './javascriptMode';
 import { getHTMLMode } from './htmlMode';
 
 export { ColorInformation, ColorPresentation, Color };
@@ -82,7 +82,7 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 		modes['css'] = getCSSMode(documentRegions, workspace);
 	}
 	if (supportedLanguages['javascript']) {
-		modes['javascript'] = getJavascriptMode(documentRegions, workspace);
+		modes['javascript'] = getJavaScriptMode(documentRegions, workspace);
 	}
 	return {
 		getModeAtPosition(document: TextDocument, position: Position): LanguageMode | undefined {

@@ -15,7 +15,7 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeAction } from 'vs/editor/common/modes';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
-export class QuickFixContextMenu {
+export class CodeActionContextMenu {
 
 	private _visible: boolean;
 	private _onDidExecuteCodeAction = new Emitter<void>();

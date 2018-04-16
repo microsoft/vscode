@@ -463,6 +463,7 @@ export interface MainThreadSCMShape extends IDisposable {
 export type DebugSessionUUID = string;
 
 export interface MainThreadDebugServiceShape extends IDisposable {
+	$registerDebugTypes(debugTypes: string[]);
 	$acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage);
 	$acceptDAError(handle: number, name: string, message: string, stack: string);
 	$acceptDAExit(handle: number, code: number, signal: string);

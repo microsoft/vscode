@@ -51,7 +51,7 @@ connection.onShutdown(() => {
 let scopedSettingsSupport = false;
 let workspaceFolders: WorkspaceFolder[];
 
-// After the server has started the client sends an initilize request. The server receives
+// After the server has started the client sends an initialize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
 connection.onInitialize((params: InitializeParams): InitializeResult => {
 	workspaceFolders = (<any>params).workspaceFolders;
@@ -279,8 +279,7 @@ connection.onRenameRequest((renameParameters, token) => {
 connection.onRequest(FoldingRangesRequest.type, (params, token) => {
 	return runSafe(() => {
 		let document = documents.get(params.textDocument.uri);
-		let stylesheet = stylesheets.get(document);
-		return getLanguageService(document).findFoldingRegions(document, stylesheet);
+		return getLanguageService(document).getFoldingRanges(document, { maxRanges: params.maxRanges });
 	}, null, `Error while computing folding ranges for ${params.textDocument.uri}`, token);
 });
 

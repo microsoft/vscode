@@ -81,8 +81,8 @@ let emmetSettings: any = {};
 let currentEmmetExtensionsPath: string;
 const emmetTriggerCharacters = ['!', '.', '}', ':', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
-// After the server has started the client sends an initilize request. The server receives
-// in the passed params the rootPath of the workspace plus the client capabilites
+// After the server has started the client sends an initialize request. The server receives
+// in the passed params the rootPath of the workspace plus the client capabilities
 connection.onInitialize((params: InitializeParams): InitializeResult => {
 	let initializationOptions = params.initializationOptions;
 

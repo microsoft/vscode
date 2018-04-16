@@ -193,7 +193,7 @@ export class TerminalLauncher implements ITerminalLauncher {
 					command += `cd ${quote(args.cwd)} ; `;
 				}
 				if (args.env) {
-					command += 'envVars';
+					command += 'env';
 					for (let key in args.env) {
 						const value = args.env[key];
 						if (value === null) {

@@ -394,7 +394,7 @@ export interface IDebugAdapter extends IDisposable {
 	stopSession(): TPromise<void>;
 }
 
-export interface IDebugAdapterProvider {
+export interface IDebugAdapterProvider extends ITerminalLauncher {
 	createDebugAdapter(debugType: string, adapterInfo: IAdapterExecutable | null): IDebugAdapter;
 }
 
@@ -496,11 +496,9 @@ export interface IConfigurationManager {
 	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any): TPromise<any>;
 	debugAdapterExecutable(folderUri: uri | undefined, type: string): TPromise<IAdapterExecutable | undefined>;
 
-	registerDebugAdapterProvider(debugType: string, debugAdapterLauncher: IDebugAdapterProvider);
-	createDebugAdapter(debugType: string, adapterExecutable: IAdapterExecutable | null): IDebugAdapter;
-
-	registerEHTerminalLauncher(launcher: ITerminalLauncher): void;
-	runInTerminal(extensionHost: boolean, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void>;
+	registerDebugAdapterProvider(debugTypes: string[], debugAdapterLauncher: IDebugAdapterProvider): IDisposable;
+	createDebugAdapter(debugType: string, adapterExecutable: IAdapterExecutable | null): IDebugAdapter | undefined;
+	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void>;
 }
 
 export interface ILaunch {

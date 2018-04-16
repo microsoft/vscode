@@ -14,6 +14,7 @@ import { loadDefaultTelemetryReporter } from './telemetryReporter';
 import { getMarkdownExtensionContributions } from './markdownExtensions';
 import LinkProvider from './features/documentLinkProvider';
 import MDDocumentSymbolProvider from './features/documentSymbolProvider';
+import MarkdownWorkspaceSymbolProvider from './features/workspaceSymbolProvider';
 import { MarkdownContentProvider } from './features/previewContentProvider';
 import { MarkdownPreviewManager } from './features/previewManager';
 import MarkdownFoldingProvider from './features/foldingProvider';
@@ -32,13 +33,14 @@ export function activate(context: vscode.ExtensionContext) {
 	const selector = 'markdown';
 
 	const contentProvider = new MarkdownContentProvider(engine, context, cspArbiter, contributions, logger);
-
+	const symbolProvider = new MDDocumentSymbolProvider(engine);
 	const previewManager = new MarkdownPreviewManager(contentProvider, logger, contributions);
 	context.subscriptions.push(previewManager);
 
-	context.subscriptions.push(vscode.languages.registerDocumentSymbolProvider(selector, new MDDocumentSymbolProvider(engine)));
+	context.subscriptions.push(vscode.languages.registerDocumentSymbolProvider(selector, symbolProvider));
 	context.subscriptions.push(vscode.languages.registerDocumentLinkProvider(selector, new LinkProvider()));
 	context.subscriptions.push(vscode.languages.registerFoldingProvider(selector, new MarkdownFoldingProvider(engine)));
+	context.subscriptions.push(vscode.languages.registerWorkspaceSymbolProvider(new MarkdownWorkspaceSymbolProvider(symbolProvider)));
 
 	const previewSecuritySelector = new PreviewSecuritySelector(cspArbiter, previewManager);
 

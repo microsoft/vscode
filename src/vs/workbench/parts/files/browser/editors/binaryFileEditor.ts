@@ -10,10 +10,11 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorInput, EditorOptions, BINARY_FILE_EDITOR_ID } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import URI from 'vs/base/common/uri';
+import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 
 /**
  * An implementation of editor for binary files like images.

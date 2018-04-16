@@ -7,7 +7,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, ServicesAccessor, registerEditorAction, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { BulkEdit } from 'vs/editor/browser/services/bulkEdit';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -22,9 +22,9 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { HAS_REFACTOR_PROVIDER, HAS_SOURCE_ACTION_PROVIDER, QuickFixComputeEvent, QuickFixModel } from './codeActionModel';
+import { CodeActionModel, CodeActionsComputeEvent, HAS_REFACTOR_PROVIDER, HAS_SOURCE_ACTION_PROVIDER } from './codeActionModel';
 import { CodeActionAutoApply, CodeActionFilter, CodeActionKind } from './codeActionTrigger';
-import { QuickFixContextMenu } from './codeActionWidget';
+import { CodeActionContextMenu } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
 
 export class QuickFixController implements IEditorContribution {
@@ -36,8 +36,8 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	private _editor: ICodeEditor;
-	private _model: QuickFixModel;
-	private _quickFixContextMenu: QuickFixContextMenu;
+	private _model: CodeActionModel;
+	private _codeActionContextMenu: CodeActionContextMenu;
 	private _lightBulbWidget: LightBulbWidget;
 	private _disposables: IDisposable[] = [];
 
@@ -51,16 +51,16 @@ export class QuickFixController implements IEditorContribution {
 		@optional(IFileService) private _fileService: IFileService
 	) {
 		this._editor = editor;
-		this._model = new QuickFixModel(this._editor, markerService, contextKeyService);
-		this._quickFixContextMenu = new QuickFixContextMenu(editor, contextMenuService, action => this._onApplyCodeAction(action));
+		this._model = new CodeActionModel(this._editor, markerService, contextKeyService);
+		this._codeActionContextMenu = new CodeActionContextMenu(editor, contextMenuService, action => this._onApplyCodeAction(action));
 		this._lightBulbWidget = new LightBulbWidget(editor);
 
 		this._updateLightBulbTitle();
 
 		this._disposables.push(
-			this._quickFixContextMenu.onDidExecuteCodeAction(_ => this._model.trigger({ type: 'auto', filter: {} })),
+			this._codeActionContextMenu.onDidExecuteCodeAction(_ => this._model.trigger({ type: 'auto', filter: {} })),
 			this._lightBulbWidget.onClick(this._handleLightBulbSelect, this),
-			this._model.onDidChangeFixes(e => this._onQuickFixEvent(e)),
+			this._model.onDidChangeFixes(e => this._onCodeActionsEvent(e)),
 			this._keybindingService.onDidUpdateKeybindings(this._updateLightBulbTitle, this)
 		);
 	}
@@ -70,28 +70,28 @@ export class QuickFixController implements IEditorContribution {
 		dispose(this._disposables);
 	}
 
-	private _onQuickFixEvent(e: QuickFixComputeEvent): void {
+	private _onCodeActionsEvent(e: CodeActionsComputeEvent): void {
 		if (e && e.trigger.filter && e.trigger.filter.kind) {
 			// Triggered for specific scope
 			// Apply if we only have one action or requested autoApply, otherwise show menu
-			e.fixes.then(fixes => {
+			e.actions.then(fixes => {
 				if (e.trigger.autoApply === CodeActionAutoApply.First || (e.trigger.autoApply === CodeActionAutoApply.IfSingle && fixes.length === 1)) {
 					this._onApplyCodeAction(fixes[0]);
 				} else {
-					this._quickFixContextMenu.show(e.fixes, e.position);
+					this._codeActionContextMenu.show(e.actions, e.position);
 				}
 			});
 			return;
 		}
 
 		if (e && e.trigger.type === 'manual') {
-			this._quickFixContextMenu.show(e.fixes, e.position);
-		} else if (e && e.fixes) {
+			this._codeActionContextMenu.show(e.actions, e.position);
+		} else if (e && e.actions) {
 			// auto magically triggered
 			// * update an existing list of code actions
 			// * manage light bulb
-			if (this._quickFixContextMenu.isVisible) {
-				this._quickFixContextMenu.show(e.fixes, e.position);
+			if (this._codeActionContextMenu.isVisible) {
+				this._codeActionContextMenu.show(e.actions, e.position);
 			} else {
 				this._lightBulbWidget.model = e;
 			}
@@ -105,7 +105,7 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	private _handleLightBulbSelect(coords: { x: number, y: number }): void {
-		this._quickFixContextMenu.show(this._lightBulbWidget.model.fixes, coords);
+		this._codeActionContextMenu.show(this._lightBulbWidget.model.actions, coords);
 	}
 
 	public triggerFromEditorSelection(filter?: CodeActionFilter, autoApply?: CodeActionAutoApply): TPromise<CodeAction[] | undefined> {
@@ -287,9 +287,3 @@ export class SourceAction extends EditorAction {
 			CodeActionAutoApply.Never);
 	}
 }
-
-registerEditorContribution(QuickFixController);
-registerEditorAction(QuickFixAction);
-registerEditorAction(RefactorAction);
-registerEditorAction(SourceAction);
-registerEditorCommand(new CodeActionCommand());

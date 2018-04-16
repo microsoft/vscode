@@ -19,7 +19,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { DebugAdapter, convertToVSCPaths, convertToDAPaths } from 'vs/workbench/parts/debug/node/debugAdapter';
 import * as paths from 'vs/base/common/paths';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
-import { IAdapterExecutable, ITerminalSettings } from 'vs/workbench/parts/debug/common/debug';
+import { IAdapterExecutable, ITerminalSettings, IDebuggerContribution } from 'vs/workbench/parts/debug/common/debug';
 import { getTerminalLauncher } from 'vs/workbench/parts/debug/node/terminals';
 
 
@@ -81,10 +81,33 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		this._breakpointEventsActive = false;
 
 		this._debugAdapters = new Map<number, DebugAdapter>();
+
+		// register all debug extensions
+		const debugTypes: string[] = [];
+		for (const ed of this._extensionService.getAllExtensionDescriptions()) {
+			if (ed.contributes) {
+				const debuggers = <IDebuggerContribution[]>ed.contributes['debuggers'];
+				if (debuggers && debuggers.length > 0) {
+					for (const dbg of debuggers) {
+						// only debugger contributions with a "label" are considered a "main" debugger contribution
+						if (dbg.type && dbg.label) {
+							debugTypes.push(dbg.type);
+						}
+					}
+				}
+			}
+		}
+		if (debugTypes.length > 0) {
+			this._debugServiceProxy.$registerDebugTypes(debugTypes);
+		}
 	}
 
 	public $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
-		return getTerminalLauncher().runInTerminal(args, config);
+		const terminalLauncher = getTerminalLauncher();
+		if (terminalLauncher) {
+			return terminalLauncher.runInTerminal(args, config);
+		}
+		return void 0;
 	}
 
 	public $startDASession(handle: number, debugType: string, adpaterExecutable: IAdapterExecutable | null): TPromise<void> {

@@ -8,16 +8,15 @@ import * as vscode from 'vscode';
 import 'mocha';
 
 import { TableOfContentsProvider } from '../tableOfContentsProvider';
-import { MarkdownEngine } from '../markdownEngine';
-import { MarkdownContributions } from '../markdownExtensions';
 import { InMemoryDocument } from './inMemoryDocument';
+import { createNewMarkdownEngine } from './engine';
 
 const testFileName = vscode.Uri.parse('test.md');
 
 suite('markdown.TableOfContentsProvider', () => {
 	test('Lookup should not return anything for empty document', async () => {
 		const doc = new InMemoryDocument(testFileName, '');
-		const provider = new TableOfContentsProvider(newEngine(), doc);
+		const provider = new TableOfContentsProvider(createNewMarkdownEngine(), doc);
 
 		assert.strictEqual(await provider.lookup(''), undefined);
 		assert.strictEqual(await provider.lookup('foo'), undefined);
@@ -25,7 +24,7 @@ suite('markdown.TableOfContentsProvider', () => {
 
 	test('Lookup should not return anything for document with no headers', async () => {
 		const doc = new InMemoryDocument(testFileName, 'a *b*\nc');
-		const provider = new TableOfContentsProvider(newEngine(), doc);
+		const provider = new TableOfContentsProvider(createNewMarkdownEngine(), doc);
 
 		assert.strictEqual(await provider.lookup(''), undefined);
 		assert.strictEqual(await provider.lookup('foo'), undefined);
@@ -35,7 +34,7 @@ suite('markdown.TableOfContentsProvider', () => {
 
 	test('Lookup should return basic #header', async () => {
 		const doc = new InMemoryDocument(testFileName, `# a\nx\n# c`);
-		const provider = new TableOfContentsProvider(newEngine(), doc);
+		const provider = new TableOfContentsProvider(createNewMarkdownEngine(), doc);
 
 		{
 			const entry = await provider.lookup('a');
@@ -54,7 +53,7 @@ suite('markdown.TableOfContentsProvider', () => {
 
 	test('Lookups should be case in-sensitive', async () => {
 		const doc = new InMemoryDocument(testFileName, `# fOo\n`);
-		const provider = new TableOfContentsProvider(newEngine(), doc);
+		const provider = new TableOfContentsProvider(createNewMarkdownEngine(), doc);
 
 		assert.strictEqual((await provider.lookup('fOo'))!.line, 0);
 		assert.strictEqual((await provider.lookup('foo'))!.line, 0);
@@ -63,7 +62,7 @@ suite('markdown.TableOfContentsProvider', () => {
 
 	test('Lookups should ignore leading and trailing white-space, and collapse internal whitespace', async () => {
 		const doc = new InMemoryDocument(testFileName, `#      f o  o    \n`);
-		const provider = new TableOfContentsProvider(newEngine(), doc);
+		const provider = new TableOfContentsProvider(createNewMarkdownEngine(), doc);
 
 		assert.strictEqual((await provider.lookup('f o  o'))!.line, 0);
 		assert.strictEqual((await provider.lookup('  f o  o'))!.line, 0);
@@ -78,27 +77,16 @@ suite('markdown.TableOfContentsProvider', () => {
 
 	test('should normalize special characters #44779', async () => {
 		const doc = new InMemoryDocument(testFileName, `# Indentação\n`);
-		const provider = new TableOfContentsProvider(newEngine(), doc);
+		const provider = new TableOfContentsProvider(createNewMarkdownEngine(), doc);
 
 		assert.strictEqual((await provider.lookup('indentacao'))!.line, 0);
 	});
 
 	test('should map special З, #37079', async () => {
 		const doc = new InMemoryDocument(testFileName, `### Заголовок Header 3`);
-		const provider = new TableOfContentsProvider(newEngine(), doc);
+		const provider = new TableOfContentsProvider(createNewMarkdownEngine(), doc);
 
 		assert.strictEqual((await provider.lookup('Заголовок-header-3'))!.line, 0);
 		assert.strictEqual((await provider.lookup('3аголовок-header-3'))!.line, 0);
 	});
 });
-
-function newEngine(): MarkdownEngine {
-	return new MarkdownEngine(new class implements MarkdownContributions {
-		readonly previewScripts: vscode.Uri[] = [];
-		readonly previewStyles: vscode.Uri[] = [];
-		readonly previewResourceRoots: vscode.Uri[] = [];
-		readonly markdownItPlugins: Promise<(md: any) => any>[]  = [];
-
-	});
-}
-

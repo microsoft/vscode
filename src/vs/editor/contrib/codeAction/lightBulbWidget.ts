@@ -11,7 +11,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import 'vs/css!./lightBulbWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { QuickFixComputeEvent } from './codeActionModel';
+import { CodeActionsComputeEvent } from './codeActionModel';
 
 export class LightBulbWidget implements IDisposable, IContentWidget {
 
@@ -25,7 +25,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 	readonly onClick: Event<{ x: number, y: number }> = this._onClick.event;
 
 	private _position: IContentWidgetPosition;
-	private _model: QuickFixComputeEvent;
+	private _model: CodeActionsComputeEvent;
 	private _futureFixes = new CancellationTokenSource();
 
 	constructor(editor: ICodeEditor) {
@@ -99,7 +99,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		return this._position;
 	}
 
-	set model(value: QuickFixComputeEvent) {
+	set model(value: CodeActionsComputeEvent) {
 
 		if (this._position && (!value.position || this._position.position.lineNumber !== value.position.lineNumber)) {
 			// hide when getting a 'hide'-request or when currently
@@ -114,7 +114,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		const { token } = this._futureFixes;
 		this._model = value;
 
-		this._model.fixes.done(fixes => {
+		this._model.actions.done(fixes => {
 			if (!token.isCancellationRequested && fixes && fixes.length > 0) {
 				this._show();
 			} else {
@@ -125,7 +125,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		});
 	}
 
-	get model(): QuickFixComputeEvent {
+	get model(): CodeActionsComputeEvent {
 		return this._model;
 	}
 
