@@ -686,17 +686,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public reuseTerminal(shell?: IShellLaunchConfig): void {
-		// Kill and clean up old process
-		if (this._processManager.process) {
-			this._processManager.process.removeAllListeners('exit');
-			if (this._processManager.process.connected) {
-				this._processManager.process.kill();
-			}
-			this._processManager.process = null;
-		}
-
-		// TODO: This should not call dispose directly, process manager should dispose any
-		// disposables when creating a new process
+		// Kill and clear up the process, making the process manager ready for a new process
 		this._processManager.dispose();
 
 		// Ensure new processes' output starts at start of new line
@@ -764,16 +754,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public onExit(listener: (exitCode: number) => void): lifecycle.IDisposable {
-		if (this._processManager.process) {
-			this._processManager.process.on('exit', listener);
-		}
-		return {
-			dispose: () => {
-				if (this._processManager.process) {
-					this._processManager.process.removeListener('exit', listener);
-				}
-			}
-		};
+		return this._processManager.onProcessExit(listener);
 	}
 
 	public updateConfig(): void {

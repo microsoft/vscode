@@ -170,6 +170,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	}
 
 	private _onMessage(message: ITerminalProcessMessage): void {
+		this._logService.trace(`terminalProcessManager#_onMessage (shellProcessId: ${this.shellProcessId}`, message);
 		switch (message.type) {
 			case 'data':
 				this._onProcessData.fire(<string>message.content);
@@ -190,8 +191,6 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			case 'title':
 				this._onProcessTitle.fire(<string>message.content);
 				break;
-			default:
-				this._logService.error(`Unrecognized message from pty (shellProcessId: ${this.shellProcessId}`, message);
 		}
 	}
 
