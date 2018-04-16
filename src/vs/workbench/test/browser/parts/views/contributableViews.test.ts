@@ -143,6 +143,29 @@ suite('ContributableViewsModel', () => {
 		ViewsRegistry.deregisterViews([view1.id, view2.id], location);
 	});
 
+	test('when contexts - multiple 2', async function () {
+		const model = new ContributableViewsModel(location, contextKeyService);
+		const seq = new ViewDescriptorSequence(model);
+
+		const view1: IViewDescriptor = { id: 'view1', ctor: null, location, name: 'Test View 1', when: ContextKeyExpr.equals('showview1', true) };
+		const view2: IViewDescriptor = { id: 'view2', ctor: null, location, name: 'Test View 2' };
+
+		ViewsRegistry.registerViews([view1, view2]);
+		assert.deepEqual(model.visibleViewDescriptors, [view2], 'only view2 should be visible');
+		assert.deepEqual(seq.elements, [view2], 'only view2 should be visible');
+
+		const key = contextKeyService.createKey('showview1', false);
+		assert.deepEqual(model.visibleViewDescriptors, [view2], 'still only view2 should be visible');
+		assert.deepEqual(seq.elements, [view2], 'still only view2 should be visible');
+
+		key.set(true);
+		await new Promise(c => setTimeout(c, 30));
+		assert.deepEqual(model.visibleViewDescriptors, [view1, view2], 'both views should be visible');
+		assert.deepEqual(seq.elements, [view1, view2], 'both views should be visible');
+
+		ViewsRegistry.deregisterViews([view1.id, view2.id], location);
+	});
+
 	test('setVisible', function () {
 		const model = new ContributableViewsModel(location, contextKeyService);
 		const seq = new ViewDescriptorSequence(model);

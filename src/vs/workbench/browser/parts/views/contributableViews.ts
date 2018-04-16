@@ -339,7 +339,7 @@ export class ContributableViewsModel {
 				const state = this.viewStates.get(viewDescriptor.id);
 
 				if (state.visible) {
-					this._onDidAdd.fire({ index: ++startIndex, viewDescriptor });
+					this._onDidAdd.fire({ index: startIndex++, viewDescriptor });
 				}
 			}
 		}
