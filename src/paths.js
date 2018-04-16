@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-var path = require('path');
-var os = require('os');
-var pkg = require('../package.json');
+const path = require('path');
+const os = require('os');
+const pkg = require('../package.json');
 
 function getAppDataPath(platform) {
 	switch (platform) {
