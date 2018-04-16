@@ -11,7 +11,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Position } from 'vs/platform/editor/common/editor';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ExtHostContext, ExtHostWebviewsShape, IExtHostContext, MainContext, MainThreadWebviewsShape, WebviewHandle } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtHostContext, ExtHostWebviewsShape, IExtHostContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle } from 'vs/workbench/api/node/extHost.protocol';
 import { WebviewEditor } from 'vs/workbench/parts/webview/electron-browser/webviewEditor';
 import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInput';
 import { IWebviewEditorService, WebviewInputOptions, WebviewReviver } from 'vs/workbench/parts/webview/electron-browser/webviewEditorService';
@@ -34,10 +34,10 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 	private _toDispose: IDisposable[] = [];
 
 	private readonly _proxy: ExtHostWebviewsShape;
-	private readonly _webviews = new Map<WebviewHandle, WebviewEditorInput>();
+	private readonly _webviews = new Map<WebviewPanelHandle, WebviewEditorInput>();
 	private readonly _revivers = new Set<string>();
 
-	private _activeWebview: WebviewHandle | undefined = undefined;
+	private _activeWebview: WebviewPanelHandle | undefined = undefined;
 
 	constructor(
 		context: IExtHostContext,
@@ -63,8 +63,8 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		this._toDispose = dispose(this._toDispose);
 	}
 
-	$createWebview(
-		handle: WebviewHandle,
+	$createWebviewPanel(
+		handle: WebviewPanelHandle,
 		viewType: string,
 		title: string,
 		column: Position,
@@ -80,27 +80,27 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		this._webviews.set(handle, webview);
 	}
 
-	$disposeWebview(handle: WebviewHandle): void {
+	$disposeWebview(handle: WebviewPanelHandle): void {
 		const webview = this.getWebview(handle);
 		webview.dispose();
 	}
 
-	$setTitle(handle: WebviewHandle, value: string): void {
+	$setTitle(handle: WebviewPanelHandle, value: string): void {
 		const webview = this.getWebview(handle);
 		webview.setName(value);
 	}
 
-	$setHtml(handle: WebviewHandle, value: string): void {
+	$setHtml(handle: WebviewPanelHandle, value: string): void {
 		const webview = this.getWebview(handle);
 		webview.html = value;
 	}
 
-	$reveal(handle: WebviewHandle, column: Position): void {
+	$reveal(handle: WebviewPanelHandle, column: Position): void {
 		const webview = this.getWebview(handle);
 		this._webviewService.revealWebview(webview, column);
 	}
 
-	async $sendMessage(handle: WebviewHandle, message: any): TPromise<boolean> {
+	async $sendMessage(handle: WebviewPanelHandle, message: any): TPromise<boolean> {
 		const webview = this.getWebview(handle);
 		const editors = this._editorService.getVisibleEditors()
 			.filter(e => e instanceof WebviewEditor)
@@ -129,7 +129,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			this._webviews.set(handle, webview);
 			webview._events = this.createWebviewEventDelegate(handle);
 
-			return this._proxy.$deserializeWebview(handle, webview.state.viewType, webview.getTitle(), webview.state.state, webview.position, webview.options)
+			return this._proxy.$deserializeWebviewPanel(handle, webview.state.viewType, webview.getTitle(), webview.state.state, webview.position, webview.options)
 				.then(undefined, () => {
 					webview.html = MainThreadWebviews.getDeserializationFailedContents(viewType);
 				});
@@ -141,7 +141,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 	}
 
 	private _onWillShutdown(): TPromise<boolean> {
-		const toRevive: WebviewHandle[] = [];
+		const toRevive: WebviewPanelHandle[] = [];
 		this._webviews.forEach((view, key) => {
 			if (this.canRevive(view)) {
 				toRevive.push(key);
@@ -150,7 +150,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 		const reviveResponses = toRevive.map(handle =>
 			TPromise.any([
-				this._proxy.$serializeWebview(handle).then(
+				this._proxy.$serializeWebviewPanel(handle).then(
 					state => ({ handle, state }),
 					() => ({ handle, state: null })),
 				TPromise.timeout(MainThreadWebviews.serializeTimeout).then(() => ({ handle, state: null }))
@@ -171,19 +171,19 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		});
 	}
 
-	private createWebviewEventDelegate(handle: WebviewHandle) {
+	private createWebviewEventDelegate(handle: WebviewPanelHandle) {
 		return {
 			onDidClickLink: uri => this.onDidClickLink(handle, uri),
 			onMessage: message => this._proxy.$onMessage(handle, message),
 			onDispose: () => {
-				this._proxy.$onDidDisposeWebview(handle).then(() => {
+				this._proxy.onDidDisposeWebviewPanel(handle).then(() => {
 					this._webviews.delete(handle);
 				});
 			}
 		};
 	}
 
-	private getWebview(handle: WebviewHandle): WebviewEditorInput {
+	private getWebview(handle: WebviewPanelHandle): WebviewEditorInput {
 		const webview = this._webviews.get(handle);
 		if (!webview) {
 			throw new Error('Unknown webview handle:' + handle);
@@ -193,7 +193,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 	private onEditorsChanged() {
 		const activeEditor = this._editorService.getActiveEditor();
-		let newActiveWebview: { input: WebviewEditorInput, handle: WebviewHandle } | undefined = undefined;
+		let newActiveWebview: { input: WebviewEditorInput, handle: WebviewPanelHandle } | undefined = undefined;
 		if (activeEditor && activeEditor.input instanceof WebviewEditorInput) {
 			for (const handle of map.keys(this._webviews)) {
 				const input = this._webviews.get(handle);
@@ -213,20 +213,20 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		if (typeof this._activeWebview !== 'undefined') {
 			const oldActiveWebview = this._webviews.get(this._activeWebview);
 			if (oldActiveWebview) {
-				this._proxy.$onDidChangeWebviewViewState(this._activeWebview, false, oldActiveWebview.position);
+				this._proxy.$onDidChangeWebviewPanelViewState(this._activeWebview, false, oldActiveWebview.position);
 			}
 		}
 
 		// Then for newly active
 		if (newActiveWebview) {
-			this._proxy.$onDidChangeWebviewViewState(newActiveWebview.handle, true, activeEditor.position);
+			this._proxy.$onDidChangeWebviewPanelViewState(newActiveWebview.handle, true, activeEditor.position);
 			this._activeWebview = newActiveWebview.handle;
 		} else {
 			this._activeWebview = undefined;
 		}
 	}
 
-	private onDidClickLink(handle: WebviewHandle, link: URI): void {
+	private onDidClickLink(handle: WebviewPanelHandle, link: URI): void {
 		if (!link) {
 			return;
 		}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainContext, MainThreadWebviewsShape, IMainContext, ExtHostWebviewsShape, WebviewHandle } from './extHost.protocol';
+import { MainContext, MainThreadWebviewsShape, IMainContext, ExtHostWebviewsShape, WebviewPanelHandle } from './extHost.protocol';
 import * as vscode from 'vscode';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
@@ -12,7 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from './extHostTypes';
 
 export class ExtHostWebview implements vscode.Webview {
-	private readonly _handle: WebviewHandle;
+	private readonly _handle: WebviewPanelHandle;
 	private readonly _proxy: MainThreadWebviewsShape;
 	private _title: string;
 	private _html: string;
@@ -26,7 +26,7 @@ export class ExtHostWebview implements vscode.Webview {
 	public readonly onDidChangeViewState: Event<vscode.WebviewPanelOnDidChangeViewStateEvent> = this.onDidChangeViewStateEmitter.event;
 
 	constructor(
-		handle: WebviewHandle,
+		handle: WebviewPanelHandle,
 		proxy: MainThreadWebviewsShape,
 		title: string,
 		options: vscode.WebviewOptions
@@ -91,7 +91,7 @@ export class ExtHostWebview implements vscode.Webview {
 
 export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 
-	private readonly _handle: WebviewHandle;
+	private readonly _handle: WebviewPanelHandle;
 	private readonly _viewType: string;
 	private readonly _options: vscode.WebviewPanelOptions;
 	private readonly _proxy: MainThreadWebviewsShape;
@@ -108,7 +108,7 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 	private _webview: ExtHostWebview;
 
 	constructor(
-		handle: WebviewHandle,
+		handle: WebviewPanelHandle,
 		proxy: MainThreadWebviewsShape,
 		viewType: string,
 		title: string,
@@ -194,7 +194,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 
 	private readonly _proxy: MainThreadWebviewsShape;
 
-	private readonly _webviewPanels = new Map<WebviewHandle, ExtHostWebviewPanel>();
+	private readonly _webviewPanels = new Map<WebviewPanelHandle, ExtHostWebviewPanel>();
 	private readonly _serializers = new Map<string, vscode.WebviewPanelSerializer>();
 
 	constructor(
@@ -211,7 +211,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		extensionFolderPath: string
 	): vscode.WebviewPanel {
 		const handle = ExtHostWebviews.webviewHandlePool++ + '';
-		this._proxy.$createWebview(handle, viewType, title, typeConverters.fromViewColumn(viewColumn), options, extensionFolderPath);
+		this._proxy.$createWebviewPanel(handle, viewType, title, typeConverters.fromViewColumn(viewColumn), options, extensionFolderPath);
 
 		const panel = new ExtHostWebviewPanel(handle, this._proxy, viewType, title, viewColumn, options, options);
 		this._webviewPanels.set(handle, panel);
@@ -235,14 +235,14 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		});
 	}
 
-	$onMessage(handle: WebviewHandle, message: any): void {
+	$onMessage(handle: WebviewPanelHandle, message: any): void {
 		const panel = this.getWebviewPanel(handle);
 		if (panel) {
 			panel.webview.onMessageEmitter.fire(message);
 		}
 	}
 
-	$onDidChangeWebviewViewState(handle: WebviewHandle, visible: boolean, position: Position): void {
+	$onDidChangeWebviewPanelViewState(handle: WebviewPanelHandle, visible: boolean, position: Position): void {
 		const panel = this.getWebviewPanel(handle);
 		if (panel) {
 			const viewColumn = typeConverters.toViewColumn(position);
@@ -254,7 +254,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 	}
 
-	$onDidDisposeWebview(handle: WebviewHandle): Thenable<void> {
+	onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Thenable<void> {
 		const panel = this.getWebviewPanel(handle);
 		if (panel) {
 			panel.dispose();
@@ -263,8 +263,8 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		return TPromise.as(void 0);
 	}
 
-	$deserializeWebview(
-		webviewHandle: WebviewHandle,
+	$deserializeWebviewPanel(
+		webviewHandle: WebviewPanelHandle,
 		viewType: string,
 		title: string,
 		state: any,
@@ -281,8 +281,8 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		return serializer.deserializeWebviewPanel(revivedPanel, state);
 	}
 
-	$serializeWebview(
-		webviewHandle: WebviewHandle
+	$serializeWebviewPanel(
+		webviewHandle: WebviewPanelHandle
 	): Thenable<any> {
 		const panel = this.getWebviewPanel(webviewHandle);
 		if (!panel) {
@@ -297,7 +297,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		return serialzer.serializeWebviewPanel(panel);
 	}
 
-	private getWebviewPanel(handle: WebviewHandle): ExtHostWebviewPanel | undefined {
+	private getWebviewPanel(handle: WebviewPanelHandle): ExtHostWebviewPanel | undefined {
 		return this._webviewPanels.get(handle);
 	}
 }
