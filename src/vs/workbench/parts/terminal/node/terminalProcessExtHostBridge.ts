@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalChildProcess, IMessageToTerminalProcess } from 'vs/workbench/parts/terminal/node/terminal';
+import { ITerminalChildProcess, IMessageToTerminalProcess, IMessageFromTerminalProcess } from 'vs/workbench/parts/terminal/node/terminal';
 import { EventEmitter } from 'events';
 
 export class TerminalProcessExtHostBridge extends EventEmitter implements ITerminalChildProcess {
@@ -14,11 +14,11 @@ export class TerminalProcessExtHostBridge extends EventEmitter implements ITermi
 
 		let i = 0;
 		setTimeout(() => {
-			this.emit('message', { type: 'pid', content: -1 });
-			this.emit('message', { type: 'data', content: `test ${i++}\r\n` });
+			this.emit('message', { type: 'pid', content: -1 } as IMessageFromTerminalProcess);
+			this.emit('message', { type: 'data', content: `test ${i++}\r\n` } as IMessageFromTerminalProcess);
 		}, 0);
 		setInterval(() => {
-			this.emit('message', { type: 'data', content: `test ${i++}\r\n` });
+			this.emit('message', { type: 'data', content: `test ${i++}\r\n` } as IMessageFromTerminalProcess);
 		}, 1000);
 	}
 
