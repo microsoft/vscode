@@ -20,6 +20,7 @@ export class ViewLocation {
 	static readonly Explorer = new ViewLocation('workbench.view.explorer');
 	static readonly Debug = new ViewLocation('workbench.view.debug');
 	static readonly Extensions = new ViewLocation('workbench.view.extensions');
+	static readonly SCM = new ViewLocation('workbench.view.scm');
 
 	constructor(private _id: string) {
 	}
@@ -32,6 +33,7 @@ export class ViewLocation {
 		switch (value) {
 			case 'explorer': return ViewLocation.Explorer;
 			case 'debug': return ViewLocation.Debug;
+			case 'scm': return ViewLocation.SCM;
 		}
 		return void 0;
 	}
