@@ -32,7 +32,8 @@ const configurationEntrySchema: IJSONSchema = {
 						type: 'object',
 						properties: {
 							isExecutable: {
-								type: 'boolean'
+								type: 'boolean',
+								deprecationMessage: 'This property is deprecated. Instead use `scope` property and set it to `application` value.'
 							},
 							scope: {
 								type: 'string',

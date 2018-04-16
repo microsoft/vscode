@@ -25,7 +25,6 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { SettingsGroupTitleWidget, EditPreferenceWidget, SettingsHeaderWidget, DefaultSettingsHeaderWidget, FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
-import { IMarkerService, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -188,7 +187,6 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 
 export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements IPreferencesRenderer<ISetting> {
 
-	private unsupportedSettingsRenderer: UnsupportedSettingsRenderer;
 	private workspaceConfigurationRenderer: WorkspaceConfigurationRenderer;
 
 	constructor(editor: ICodeEditor, preferencesModel: SettingsEditorModel,
@@ -198,7 +196,6 @@ export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements I
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(editor, preferencesModel, preferencesService, configurationService, instantiationService);
-		this.unsupportedSettingsRenderer = this._register(instantiationService.createInstance(UnsupportedSettingsRenderer, editor, preferencesModel));
 		this.workspaceConfigurationRenderer = this._register(instantiationService.createInstance(WorkspaceConfigurationRenderer, editor, preferencesModel));
 	}
 
@@ -213,14 +210,11 @@ export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements I
 
 	public render(): void {
 		super.render();
-		this.unsupportedSettingsRenderer.render();
 		this.workspaceConfigurationRenderer.render(this.getAssociatedPreferencesModel());
 	}
 }
 
 export class FolderSettingsRenderer extends UserSettingsRenderer implements IPreferencesRenderer<ISetting> {
-
-	private unsupportedSettingsRenderer: UnsupportedSettingsRenderer;
 
 	constructor(editor: ICodeEditor, preferencesModel: SettingsEditorModel,
 		@IPreferencesService preferencesService: IPreferencesService,
@@ -229,17 +223,12 @@ export class FolderSettingsRenderer extends UserSettingsRenderer implements IPre
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(editor, preferencesModel, preferencesService, configurationService, instantiationService);
-		this.unsupportedSettingsRenderer = this._register(instantiationService.createInstance(UnsupportedSettingsRenderer, editor, preferencesModel));
 	}
 
 	protected createHeader(): void {
 		this._register(new SettingsHeaderWidget(this.editor, '')).setMessage(nls.localize('emptyFolderSettingsHeader', "Place your folder settings here to overwrite those from the Workspace Settings."));
 	}
 
-	public render(): void {
-		super.render();
-		this.unsupportedSettingsRenderer.render();
-	}
 }
 
 export class DefaultSettingsRenderer extends Disposable implements IPreferencesRenderer<ISetting> {
@@ -1309,63 +1298,6 @@ class SettingHighlighter extends Disposable {
 			this.fixedHighlighter.removeHighlightRange();
 		}
 		this.clearFocusEventEmitter.fire(this.highlightedSetting);
-	}
-}
-
-class UnsupportedSettingsRenderer extends Disposable {
-
-	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
-
-	constructor(
-		private editor: ICodeEditor,
-		private settingsEditorModel: SettingsEditorModel,
-		@IMarkerService private markerService: IMarkerService
-	) {
-		super();
-		this._register(this.editor.getModel().onDidChangeContent(() => this.renderingDelayer.trigger(() => this.render())));
-	}
-
-	public render(): void {
-		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-		const markerData: IMarkerData[] = [];
-		for (const settingsGroup of this.settingsEditorModel.settingsGroups) {
-			for (const section of settingsGroup.sections) {
-				for (const setting of section.settings) {
-					if (this.settingsEditorModel.configurationTarget === ConfigurationTarget.WORKSPACE || this.settingsEditorModel.configurationTarget === ConfigurationTarget.WORKSPACE_FOLDER) {
-						// Show warnings for executable settings
-						if (configurationRegistry[setting.key] && configurationRegistry[setting.key].isExecutable) {
-							markerData.push({
-								severity: MarkerSeverity.Warning,
-								startLineNumber: setting.keyRange.startLineNumber,
-								startColumn: setting.keyRange.startColumn,
-								endLineNumber: setting.keyRange.endLineNumber,
-								endColumn: setting.keyRange.endColumn,
-								message: this.getMarkerMessage(setting.key)
-							});
-						}
-					}
-				}
-			}
-		}
-		if (markerData.length) {
-			this.markerService.changeOne('preferencesEditor', this.settingsEditorModel.uri, markerData);
-		} else {
-			this.markerService.remove('preferencesEditor', [this.settingsEditorModel.uri]);
-		}
-	}
-
-	private getMarkerMessage(settingKey: string): string {
-		switch (settingKey) {
-			case 'php.validate.executablePath':
-				return nls.localize('unsupportedPHPExecutablePathSetting', "This setting must be a User Setting. To configure PHP for the workspace, open a PHP file and click on 'PHP Path' in the status bar.");
-			default:
-				return nls.localize('unsupportedWorkspaceSetting', "This setting must be a User Setting.");
-		}
-	}
-
-	public dispose(): void {
-		this.markerService.remove('preferencesEditor', [this.settingsEditorModel.uri]);
-		super.dispose();
 	}
 }
 

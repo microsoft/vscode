@@ -878,7 +878,7 @@
           ],
           "description": "%config.path%",
           "default": null,
-          "isExecutable": true
+          "scope": "application"
         },
         "git.autoRepositoryDetection": {
           "type": "boolean",
