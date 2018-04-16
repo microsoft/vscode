@@ -40,8 +40,8 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	private _preLaunchInputQueue: string[] = [];
 	private _disposables: IDisposable[] = [];
 
-	private readonly _onProcessReady: Emitter<number> = new Emitter<number>();
-	public get onProcessReady(): Event<number> { return this._onProcessReady.event; }
+	private readonly _onProcessReady: Emitter<void> = new Emitter<void>();
+	public get onProcessReady(): Event<void> { return this._onProcessReady.event; }
 	private readonly _onProcessExit: Emitter<number> = new Emitter<number>();
 	public get onProcessExit(): Event<number> { return this._onProcessExit.event; }
 
@@ -168,7 +168,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	private _onMessage(message: ITerminalProcessMessage): void {
 		if (message.type === 'pid') {
 			this.shellProcessId = <number>message.content;
-			this._onProcessReady.fire(this.shellProcessId);
+			this._onProcessReady.fire();
 
 			// Send any queued data that's waiting
 			if (this._preLaunchInputQueue.length > 0) {
