@@ -7,7 +7,6 @@
 import * as vscode from 'vscode';
 import { Repository } from '../common/models/repository';
 import { fromGitUri } from '../common/uri';
-import { show } from '../common/operation';
 
 export class GitContentProvider implements vscode.TextDocumentContentProvider {
 	private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
@@ -22,7 +21,7 @@ export class GitContentProvider implements vscode.TextDocumentContentProvider {
 			return '';
 		}
 
-		let ret = await show(this.repository, `${commit}:${path}`);
+		let ret = await this.repository.show(`${commit}:${path}`);
 		return ret;
 	}
 }

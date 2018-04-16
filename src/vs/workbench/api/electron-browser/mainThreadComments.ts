@@ -19,7 +19,6 @@ import { ICommentService } from 'vs/workbench/services/comments/electron-browser
 import { COMMENTS_PANEL_ID } from 'vs/workbench/parts/comments/electron-browser/commentsPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import URI from 'vs/base/common/uri';
-import { IRange } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 
 @extHostNamedCustomer(MainContext.MainThreadComments)
@@ -93,7 +92,10 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	async provideNewCommentRange(model: ITextModel): Promise<modes.NewCommentAction[]> {
 		const result: modes.NewCommentAction[] = [];
 		for (const handle of keys(this._providers)) {
-			result.push(await this._proxy.$provideNewCommentRange(handle, model.uri));
+			let newCommentRange = await this._proxy.$provideNewCommentRange(handle, model.uri);
+			if (newCommentRange) {
+				result.push(newCommentRange);
+			}
 		}
 		return result;
 	}

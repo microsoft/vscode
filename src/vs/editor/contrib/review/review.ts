@@ -8,7 +8,6 @@ import 'vs/css!./review';
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import * as modes from 'vs/editor/common/modes';
-import { IRange } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { $ } from 'vs/base/browser/builder';
@@ -436,15 +435,7 @@ export class ReviewController implements IEditorContribution {
 			return;
 		}
 
-		let thread = this.getCommentThread(lineNumber);
-		if (thread && thread.comments.length) {
-			this._reviewPanelVisible.set(true);
-			this._zoneWidget = new ReviewZoneWidget(thread.threadId, this.editor, thread.comments, {}, this.themeService, this.commandService);
-			this._zoneWidget.onDidClose(e => {
-				this._zoneWidget = null;
-			});
-			this._zoneWidget.display(this.getCommentThread(lineNumber), lineNumber);
-		} else if (this.marginFreeFromCommentHintDecorations(lineNumber)) {
+		if (this.marginFreeFromCommentHintDecorations(lineNumber)) {
 			let newCommentAction = this.getNewCommentAction(lineNumber);
 			if (!newCommentAction) {
 				return;
@@ -452,7 +443,7 @@ export class ReviewController implements IEditorContribution {
 
 			// add new comment
 			this._reviewPanelVisible.set(true);
-			this._zoneWidget = new ReviewZoneWidget(this.themeService, this.commandService, this.editor, {}, []);
+			this._zoneWidget = new ReviewZoneWidget(null, this.editor, [], {}, this.themeService, this.commandService);
 			this._zoneWidget.onDidClose(e => {
 				this._zoneWidget = null;
 			});

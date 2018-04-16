@@ -6,7 +6,7 @@
 import * as path from 'path';
 import { Comment } from './models/comment';
 import { DIFF_HUNK_INFO } from './diff';
-import { FileChange } from './treeItems';
+import { FileChangeTreeItem } from './treeItems';
 
 export function parseComments(comments: any[]): Comment[] {
 	for (let i = 0; i < comments.length; i++) {
@@ -27,7 +27,7 @@ export function parseComments(comments: any[]): Comment[] {
 	return comments;
 }
 
-export function getMatchingCommentsForDiffViewEditor(filePath: string, items: FileChange[], comments: Comment[]): Comment[] {
+export function getMatchingCommentsForDiffViewEditor(filePath: string, items: FileChangeTreeItem[], comments: Comment[]): Comment[] {
 	let fileChangeItem = items.filter(item => filePath === item.filePath.fsPath);
 
 	if (fileChangeItem.length === 0) {

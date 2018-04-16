@@ -14,8 +14,6 @@ import * as extHostTypeConverter from 'vs/workbench/api/node/extHostTypeConverte
 import * as vscode from 'vscode';
 import { ExtHostCommentsShape, IMainContext, MainContext, MainThreadCommentsShape } from './extHost.protocol';
 import { CommandsConverter } from './extHostCommands';
-import { IRange } from 'vs/editor/common/core/range';
-
 
 export class ExtHostComments implements ExtHostCommentsShape {
 	private static handlePool = 0;
@@ -76,10 +74,14 @@ export class ExtHostComments implements ExtHostCommentsShape {
 }
 
 function convertNewCommandAction(vscodeNewCommentAction: vscode.NewCommentAction, commandsConverter: CommandsConverter): modes.NewCommentAction {
-	return {
-		ranges: vscodeNewCommentAction.ranges.map(range => extHostTypeConverter.fromRange(range)),
-		actions: vscodeNewCommentAction.actions.map(commandsConverter.toInternal)
-	};
+	if (vscodeNewCommentAction) {
+		return {
+			ranges: vscodeNewCommentAction.ranges.map(range => extHostTypeConverter.fromRange(range)),
+			actions: vscodeNewCommentAction.actions.map(commandsConverter.toInternal)
+		};
+	} else {
+		return null;
+	}
 }
 
 function convertCommentThread(vscodeCommentThread: vscode.CommentThread, commandsConverter: CommandsConverter): modes.CommentThread {

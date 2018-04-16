@@ -7,13 +7,13 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { Repository } from '../common/models/repository';
 import { CredentialStore } from '../credentials';
-import { FileChange, PullRequest } from '../common/treeItems';
-import { diff, fetch, checkout } from '../common/operation';
+import { FileChangeTreeItem } from '../common/treeItems';
 import { mapCommentsToHead } from '../common/diff';
 import * as _ from 'lodash';
 import { GitContentProvider } from './gitContentProvider';
 import { parseCommitDiff } from './fileComments';
 import { Comment } from '../common/models/comment';
+import { PullRequest } from '../common/models/pullrequest';
 
 const REVIEW_STATE = 'git-extended.state';
 
@@ -83,7 +83,7 @@ export class ReviewMode {
 
 		// we switch to another PR, let's clean up first.
 		this.clear();
-		let fileChanges: FileChange[] = state.fileChanges;
+		let fileChanges: FileChangeTreeItem[] = state.fileChanges;
 		let comments: Comment[] = state.comments;
 		let otcokit = await this._credentialStore.getOctokit(remote);
 		this._command = vscode.commands.registerCommand(this._prNumber + '-post', async (id: string, uri: vscode.Uri, lineNumber: number, text: string) => {
@@ -152,7 +152,7 @@ export class ReviewMode {
 						// last commit sha of pr
 						let prHead = state['head'].sha;
 						// git diff sha -- fileName
-						let contentDiff = await diff(this._repository, matchedFile.fileName, prHead);
+						let contentDiff = await this._repository.diff(matchedFile.fileName, prHead);
 						matchingComments = comments.filter(comment => path.resolve(this._repository.path, comment.path) === fileName);
 						matchingComments = mapCommentsToHead(contentDiff, matchingComments);
 					}
@@ -211,8 +211,8 @@ export class ReviewMode {
 
 	async switch(pr: PullRequest) {
 		try {
-			await fetch(this._repository, pr.remote.remoteName, `pull/${pr.prItem.number}/head:pull-request-${pr.prItem.number}`);
-			await checkout(this._repository, `pull-request-${pr.prItem.number}`);
+			await this._repository.fetch(pr.remote.remoteName, `pull/${pr.prItem.number}/head:pull-request-${pr.prItem.number}`);
+			await this._repository.checkout(`pull-request-${pr.prItem.number}`);
 		} catch (e) {
 			vscode.window.showErrorMessage(e);
 			return;

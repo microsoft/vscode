@@ -5,33 +5,25 @@
 
 import * as vscode from 'vscode';
 import { GitChangeType } from './models/file';
-import { Comment } from './models/comment';
-import { Remote } from './models/remote';
+import { PullRequest, PRType } from './models/pullrequest';
 
-export enum PRGroupType {
-	RequestReview = 0,
-	Mine = 1,
-	Mention = 2,
-	All = 3
-}
-
-export class PRGroup implements vscode.TreeItem {
+export class PRGroupTreeItem implements vscode.TreeItem {
 	public readonly label: string;
 	public collapsibleState: vscode.TreeItemCollapsibleState;
 	public prs: PullRequest[];
-	public groupType: PRGroupType;
-	constructor(type: PRGroupType) {
+	public type: PRType;
+	constructor(type: PRType) {
 		this.prs = [];
 		this.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
-		this.groupType = type;
+		this.type = type;
 		switch (type) {
-			case PRGroupType.All:
+			case PRType.All:
 				this.label = 'All';
 				break;
-			case PRGroupType.RequestReview:
+			case PRType.RequestReview:
 				this.label = 'Request Review';
 				break;
-			case PRGroupType.Mine:
+			case PRType.Mine:
 				this.label = 'Mine';
 				break;
 			default:
@@ -40,13 +32,7 @@ export class PRGroup implements vscode.TreeItem {
 	}
 }
 
-export class PullRequest {
-	public comments?: Comment[];
-	public fileChanges?: FileChange[];
-	constructor(public readonly otcokit: any, public readonly remote: Remote, public prItem: any) { }
-}
-
-export class FileChange implements vscode.TreeItem {
+export class FileChangeTreeItem implements vscode.TreeItem {
 	public iconPath?: string | vscode.Uri | { light: string | vscode.Uri; dark: string | vscode.Uri };
 	public sha: string;
 	public parentSha: string;

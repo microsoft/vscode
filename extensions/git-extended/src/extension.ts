@@ -60,7 +60,8 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 		repositoryInitialized = true;
 		let credentialStore = new CredentialStore(configuration);
+		await repository.connectGitHub(credentialStore);
 		let reviewMode = new ReviewMode(repository, credentialStore, context.workspaceState, repo);
-		await (new PRProvider(context, configuration, credentialStore, reviewMode)).activate(repository);
+		await (new PRProvider(context, configuration, reviewMode)).activate(repository);
 	});
 }
