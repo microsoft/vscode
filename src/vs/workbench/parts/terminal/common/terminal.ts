@@ -459,7 +459,6 @@ export interface ITerminalCommandTracker {
 
 export interface ITerminalProcessMessage {
 	type: 'pid' | 'data' | 'title';
-	// TODO: Use conditional type so type is narrowed
 	content: number | string;
 }
 
