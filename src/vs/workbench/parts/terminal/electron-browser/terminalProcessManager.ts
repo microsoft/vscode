@@ -32,11 +32,11 @@ const LAUNCHING_DURATION = 500;
  */
 export class TerminalProcessManager implements ITerminalProcessManager {
 	public processState: ProcessState = ProcessState.UNINITIALIZED;
-	public process: cp.ChildProcess;
 	public ptyProcessReady: TPromise<void>;
 	public shellProcessId: number;
 	public initialCwd: string;
 
+	private _process: cp.ChildProcess;
 	private _preLaunchInputQueue: string[] = [];
 	private _disposables: IDisposable[] = [];
 
@@ -59,15 +59,15 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	}
 
 	public dispose(): void {
-		if (this.process) {
-			if (this.process.connected) {
+		if (this._process) {
+			if (this._process.connected) {
 				// If the process was still connected this dispose came from
 				// within VS Code, not the process, so mark the process as
 				// killed by the user.
 				this.processState = ProcessState.KILLED_BY_USER;
-				this.process.send({ event: 'shutdown' });
+				this._process.send({ event: 'shutdown' });
 			}
-			this.process = null;
+			this._process = null;
 		}
 		this._disposables.forEach(d => d.dispose());
 		this._disposables.length = 0;
@@ -114,12 +114,12 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		const cwd = Uri.parse(path.dirname(require.toUrl('../node/terminalProcess'))).fsPath;
 		const options = { env, cwd };
 		this._logService.debug(`Terminal process launching`, options);
-		this.process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], options);
+		this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], options);
 		this.processState = ProcessState.LAUNCHING;
 
 		// TODO: Hide all message communication details inside terminal process manager
-		this.process.on('message', message => this._onMessage(message));
-		this.process.on('exit', exitCode => this._onExit(exitCode));
+		this._process.on('message', message => this._onMessage(message));
+		this._process.on('exit', exitCode => this._onExit(exitCode));
 
 		setTimeout(() => {
 			if (this.processState === ProcessState.LAUNCHING) {
@@ -129,10 +129,10 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	}
 
 	public setDimensions(cols: number, rows: number): void {
-		if (this.process && this.process.connected) {
+		if (this._process && this._process.connected) {
 			// The child process could aready be terminated
 			try {
-				this.process.send({ event: 'resize', cols, rows });
+				this._process.send({ event: 'resize', cols, rows });
 			} catch (error) {
 				// We tried to write to a closed pipe / channel.
 				if (error.code !== 'EPIPE' && error.code !== 'ERR_IPC_CHANNEL_CLOSED') {
@@ -173,7 +173,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	public write(data: string): void {
 		if (this.shellProcessId) {
 			// Send data if the pty is ready
-			this.process.send({
+			this._process.send({
 				event: 'input',
 				data
 			});
@@ -195,7 +195,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 
 				// Send any queued data that's waiting
 				if (this._preLaunchInputQueue.length > 0) {
-					this.process.send({
+					this._process.send({
 						event: 'input',
 						data: this._preLaunchInputQueue.join('')
 					});
@@ -209,7 +209,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	}
 
 	private _onExit(exitCode: number): void {
-		this.process = null;
+		this._process = null;
 
 		// If the process is marked as launching then mark the process as killed
 		// during launch. This typically means that there is a problem with the
