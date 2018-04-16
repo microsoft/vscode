@@ -465,15 +465,14 @@ export interface ITerminalProcessMessage {
 
 export interface ITerminalProcessManager extends IDisposable {
 	readonly processState: ProcessState;
+	readonly ptyProcessReady: TPromise<void>;
+	readonly shellProcessId: number;
+	readonly initialCwd: string;
 
-	ptyProcessReady: TPromise<void>;
-	shellProcessId: number;
-	initialCwd: string;
-
-	onProcessReady: Event<void>;
-	onProcessData: Event<string>;
-	onProcessTitle: Event<string>;
-	onProcessExit: Event<number>;
+	readonly onProcessReady: Event<void>;
+	readonly onProcessData: Event<string>;
+	readonly onProcessTitle: Event<string>;
+	readonly onProcessExit: Event<number>;
 
 	addDisposable(disposable: IDisposable);
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number);
