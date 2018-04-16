@@ -280,14 +280,14 @@ function getNLSConfiguration(locale) {
 		return undefined;
 	}
 
-	let isCoreLangaguage = true;
+	let isCoreLanguage = true;
 	if (locale) {
-		isCoreLangaguage = ['de', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'zh-cn', 'zh-tw'].some((language) => {
+		isCoreLanguage = ['de', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'zh-cn', 'zh-tw'].some((language) => {
 			return locale === language || locale.startsWith(language + '-');
 		});
 	}
 
-	if (isCoreLangaguage) {
+	if (isCoreLanguage) {
 		return Promise.resolve(resolveLocale(locale));
 	} else {
 		perf.mark('nlsGeneration:start');
@@ -447,7 +447,6 @@ global.getOpenUrls = function () {
 	app.removeListener('open-url', onOpenUrl);
 	return openUrls;
 };
-
 
 // use '<UserData>/CachedData'-directory to store
 // node/v8 cached data.

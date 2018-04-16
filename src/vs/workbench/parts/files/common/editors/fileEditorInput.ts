@@ -15,7 +15,6 @@ import { EncodingMode, ConfirmResult, EditorInput, IFileEditorInput, ITextEditor
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { BINARY_FILE_EDITOR_ID, TEXT_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode, ModelState, TextFileModelChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -25,12 +24,15 @@ import { Verbosity, IRevertOptions } from 'vs/platform/editor/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
+import { FILE_EDITOR_INPUT_ID, TEXT_FILE_EDITOR_ID, BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 
 /**
  * A file editor input is the input type for the file editor of file system resources.
  */
 export class FileEditorInput extends EditorInput implements IFileEditorInput {
+	private preferredEncoding: string;
 	private forceOpenAsBinary: boolean;
+	private forceOpenAsText: boolean;
 	private textModelReference: TPromise<IReference<ITextEditorModel>>;
 	private name: string;
 	private toUnbind: IDisposable[];
@@ -40,7 +42,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	 */
 	constructor(
 		private resource: URI,
-		private preferredEncoding: string,
+		preferredEncoding: string,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITextFileService private textFileService: ITextFileService,
@@ -51,6 +53,8 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		super();
 
 		this.toUnbind = [];
+
+		this.setPreferredEncoding(preferredEncoding);
 
 		this.registerListeners();
 	}
@@ -83,6 +87,10 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	public setPreferredEncoding(encoding: string): void {
 		this.preferredEncoding = encoding;
+
+		if (encoding) {
+			this.forceOpenAsText = true; // encoding is a good hint to open the file as text
+		}
 	}
 
 	public getEncoding(): string {
@@ -107,8 +115,14 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		}
 	}
 
+	public setForceOpenAsText(): void {
+		this.forceOpenAsText = true;
+		this.forceOpenAsBinary = false;
+	}
+
 	public setForceOpenAsBinary(): void {
 		this.forceOpenAsBinary = true;
+		this.forceOpenAsText = false;
 	}
 
 	public getTypeId(): string {
@@ -234,11 +248,17 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 		// Resolve as binary
 		if (this.forceOpenAsBinary) {
-			return this.resolveAsBinary();
+			return this.doResolveAsBinary();
 		}
 
 		// Resolve as text
-		return this.textFileService.models.loadOrCreate(this.resource, { encoding: this.preferredEncoding, reload: refresh }).then(model => {
+		return this.doResolveAsText(refresh);
+	}
+
+	private doResolveAsText(reload?: boolean): TPromise<TextFileEditorModel | BinaryEditorModel> {
+
+		// Resolve as text
+		return this.textFileService.models.loadOrCreate(this.resource, { encoding: this.preferredEncoding, reload, allowBinary: this.forceOpenAsText }).then(model => {
 
 			// This is a bit ugly, because we first resolve the model and then resolve a model reference. the reason being that binary
 			// or very large files do not resolve to a text file model but should be opened as binary files without text. First calling into
@@ -253,7 +273,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 			// In case of an error that indicates that the file is binary or too large, just return with the binary editor model
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
-				return this.resolveAsBinary();
+				return this.doResolveAsBinary();
 			}
 
 			// Bubble any other error up
@@ -261,7 +281,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		});
 	}
 
-	private resolveAsBinary(): TPromise<BinaryEditorModel> {
+	private doResolveAsBinary(): TPromise<BinaryEditorModel> {
 		return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName()).load().then(m => m as BinaryEditorModel);
 	}
 

@@ -117,6 +117,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const root = historyService.getLastActiveWorkspaceRoot(Schemas.file);
 		if (root) {
 			terminalService.openTerminal(root.fsPath);
+		} else {
+			// Opens current file's folder, if no folder is open in editor
+			const activeFile = historyService.getLastActiveFile();
+			if (activeFile) {
+				terminalService.openTerminal(paths.dirname(activeFile.fsPath));
+			}
 		}
 	}
 });

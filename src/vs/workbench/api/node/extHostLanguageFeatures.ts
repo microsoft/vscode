@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { mixin } from 'vs/base/common/objects';
 import * as vscode from 'vscode';
 import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
-import { Range, Disposable, CompletionList, SnippetString, Color, CodeActionKind } from 'vs/workbench/api/node/extHostTypes';
+import { Range, Disposable, CompletionList, SnippetString, CodeActionKind } from 'vs/workbench/api/node/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
@@ -506,7 +506,7 @@ class RenameAdapter {
 		});
 	}
 
-	resolveRenameLocation(resource: URI, position: IPosition): TPromise<modes.RenameContext> {
+	resolveRenameLocation(resource: URI, position: IPosition): TPromise<IRange> {
 		if (typeof this._provider.resolveRenameLocation !== 'function') {
 			return TPromise.as(undefined);
 		}
@@ -514,22 +514,18 @@ class RenameAdapter {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
 
-		return asWinJsPromise(token => this._provider.resolveRenameLocation(doc, pos, token)).then(context => {
-			if (!context) {
+		return asWinJsPromise(token => this._provider.resolveRenameLocation(doc, pos, token)).then(range => {
+			if (!range) {
 				return undefined;
 			}
-			if (context.range && (!context.range.isSingleLine || context.range.start.line !== pos.line)) {
+			if (range && (!range.isSingleLine || range.start.line !== pos.line)) {
 				console.warn('INVALID rename context, range must be single line and on the same line');
 				return undefined;
 			}
-			return <modes.RenameContext>{
-				range: TypeConverters.fromRange(context.range),
-				text: context.newName || doc.getText(context.range)
-			};
+			return TypeConverters.fromRange(range);
 		});
 	}
 }
-
 
 class SuggestAdapter {
 
@@ -784,7 +780,7 @@ class ColorProviderAdapter {
 
 			const colorInfos: IRawColorInfo[] = colors.map(ci => {
 				return {
-					color: [ci.color.red, ci.color.green, ci.color.blue, ci.color.alpha] as [number, number, number, number],
+					color: TypeConverters.Color.from(ci.color),
 					range: TypeConverters.fromRange(ci.range)
 				};
 			});
@@ -796,7 +792,7 @@ class ColorProviderAdapter {
 	provideColorPresentations(resource: URI, raw: IRawColorInfo): TPromise<modes.IColorPresentation[]> {
 		const document = this._documents.getDocumentData(resource).document;
 		const range = TypeConverters.toRange(raw.range);
-		const color = new Color(raw.color[0], raw.color[1], raw.color[2], raw.color[3]);
+		const color = TypeConverters.Color.to(raw.color);
 		return asWinJsPromise(token => this._provider.provideColorPresentations(color, { document, range }, token)).then(value => {
 			return value.map(TypeConverters.ColorPresentation.from);
 		});
@@ -1017,9 +1013,9 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	// --- quick fix
 
-	registerCodeActionProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider): vscode.Disposable {
+	registerCodeActionProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider, metadata?: vscode.CodeActionProviderMetadata): vscode.Disposable {
 		const handle = this._addNewAdapter(new CodeActionAdapter(this._documents, this._commands.converter, this._diagnostics, provider));
-		this._proxy.$registerQuickFixSupport(handle, this._transformDocumentSelector(selector));
+		this._proxy.$registerQuickFixSupport(handle, this._transformDocumentSelector(selector), metadata && metadata.providedCodeActionKinds ? metadata.providedCodeActionKinds.map(kind => kind.value) : undefined);
 		return this._createDisposable(handle);
 	}
 
@@ -1092,7 +1088,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, RenameAdapter, adapter => adapter.provideRenameEdits(URI.revive(resource), position, newName));
 	}
 
-	$resolveRenameLocation(handle: number, resource: URI, position: IPosition): TPromise<modes.RenameContext> {
+	$resolveRenameLocation(handle: number, resource: URI, position: IPosition): TPromise<IRange> {
 		return this._withAdapter(handle, RenameAdapter, adapter => adapter.resolveRenameLocation(resource, position));
 	}
 

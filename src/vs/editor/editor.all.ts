@@ -32,7 +32,7 @@ import 'vs/editor/contrib/linesOperations/linesOperations';
 import 'vs/editor/contrib/links/links';
 import 'vs/editor/contrib/multicursor/multicursor';
 import 'vs/editor/contrib/parameterHints/parameterHints';
-import 'vs/editor/contrib/quickFix/quickFixCommands';
+import 'vs/editor/contrib/codeAction/codeActionContributions';
 import 'vs/editor/contrib/referenceSearch/referenceSearch';
 import 'vs/editor/contrib/rename/rename';
 import 'vs/editor/contrib/smartSelect/smartSelect';

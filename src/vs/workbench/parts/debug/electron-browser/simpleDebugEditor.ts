@@ -47,4 +47,29 @@ export class SimpleDebugEditor extends CodeEditorWidget {
 	protected _getActions(): EditorAction[] {
 		return EditorExtensionsRegistry.getEditorActions();
 	}
+
+	public static getEditorOptions(): IEditorOptions {
+		return {
+			wordWrap: 'on',
+			overviewRulerLanes: 0,
+			glyphMargin: false,
+			lineNumbers: 'off',
+			folding: false,
+			selectOnLineNumbers: false,
+			hideCursorInOverviewRuler: true,
+			selectionHighlight: false,
+			scrollbar: {
+				horizontal: 'hidden'
+			},
+			lineDecorationsWidth: 0,
+			overviewRulerBorder: false,
+			scrollBeyondLastLine: false,
+			renderLineHighlight: 'none',
+			fixedOverflowWidgets: true,
+			acceptSuggestionOnEnter: 'smart',
+			minimap: {
+				enabled: false
+			}
+		};
+	}
 }

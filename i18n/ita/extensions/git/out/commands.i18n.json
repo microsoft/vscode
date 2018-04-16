@@ -75,7 +75,6 @@
 	"ok": "OK",
 	"push with tags success": "Il push con tag è riuscito.",
 	"pick remote": "Selezionare un repository remoto in cui pubblicare il ramo '{0}':",
-	"sync is unpredictable": "Questa azione consentirà di effettuare il push e il pull di commit da e verso '{0}'.",
 	"never again": "OK, non visualizzare più",
 	"no remotes to publish": "Il repository non contiene elementi remoti configurati come destinazione della pubblicazione.",
 	"no changes stash": "Non ci sono modifiche da accantonare.",

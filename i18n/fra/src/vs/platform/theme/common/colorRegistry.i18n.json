@@ -93,6 +93,6 @@
 	"overviewRulerCurrentContentForeground": "Premier plan de la règle d'aperçu actuelle pour les conflits de fusion inline.",
 	"overviewRulerIncomingContentForeground": "Premier plan de la règle d'aperçu entrante pour les conflits de fusion inline.",
 	"overviewRulerCommonContentForeground": "Arrière-plan de la règle d'aperçu de l'ancêtre commun dans les conflits de fusion inline.",
-	"overviewRulerFindMatchForeground": "Couleur du marqueur de la règle d'aperçu pour rechercher des correspondances.",
-	"overviewRulerSelectionHighlightForeground": "Couleur du marqueur de la règle d'aperçu pour la mise en évidence de la sélection."
+	"overviewRulerFindMatchForeground": "Couleur du marqueur de la règle d'aperçu pour les correspondances trouvées. La couleur doit ne pas être opaque pour ne pas masquer les décorations du dessous.",
+	"overviewRulerSelectionHighlightForeground": "Couleur du marqueur de la règle d'aperçu pour les mises en surbrillance de sélection. La couleur doit ne pas être opaque pour ne pas masquer les décorations du dessous."
 }

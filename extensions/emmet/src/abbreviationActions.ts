@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Node, HtmlNode, Rule, Property } from 'EmmetNode';
-import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode } from './util';
+import { Node, HtmlNode, Rule, Property, Stylesheet } from 'EmmetNode';
+import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode, parsePartialStylesheet } from './util';
 
 const trimRegex = /[\u00a0]*[\d|#|\-|\*|\u2022]+\.?/;
 const hexColorRegex = /^#\d+$/;
@@ -227,8 +227,13 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 	}
 
 	const editor = vscode.window.activeTextEditor;
-
-	let rootNode = parseDocument(editor.document, false);
+	let rootNode: Node | undefined;
+	let usePartialParsing = vscode.workspace.getConfiguration('emmet')['optimizeStylesheetParsing'] === true;
+	if (editor.selections.length === 1 && isStyleSheet(editor.document.languageId) && usePartialParsing && editor.document.lineCount > 1000) {
+		rootNode = parsePartialStylesheet(editor.document, editor.selection.isReversed ? editor.selection.anchor : editor.selection.active);
+	} else {
+		rootNode = parseDocument(editor.document, false);
+	}
 
 	// When tabbed on a non empty selection, do not treat it as an emmet abbreviation, and fallback to tab instead
 	if (vscode.workspace.getConfiguration('emmet')['triggerExpansionOnTab'] === true && editor.selections.find(x => !x.isEmpty)) {
@@ -290,8 +295,7 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 			return;
 		}
 
-		let currentNode = getNode(rootNode, position, true);
-		if (!isValidLocationForEmmetAbbreviation(editor.document, currentNode, syntax, position, rangeToReplace)) {
+		if (!isValidLocationForEmmetAbbreviation(editor.document, rootNode, syntax, position, rangeToReplace)) {
 			return;
 		}
 
@@ -321,13 +325,18 @@ function fallbackTab(): Thenable<boolean | undefined> {
  * Checks if given position is a valid location to expand emmet abbreviation.
  * Works only on html and css/less/scss syntax
  * @param document current Text Document
- * @param currentNode parsed node at given position
+ * @param rootNode parsed document
  * @param syntax syntax of the abbreviation
  * @param position position to validate
  * @param abbreviationRange The range of the abbreviation for which given position is being validated
  */
-export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocument, currentNode: Node | null, syntax: string, position: vscode.Position, abbreviationRange: vscode.Range): boolean {
+export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocument, rootNode: Node | undefined, syntax: string, position: vscode.Position, abbreviationRange: vscode.Range): boolean {
+	const currentNode = rootNode ? getNode(rootNode, position, true) : null;
 	if (isStyleSheet(syntax)) {
+		const stylesheet = <Stylesheet>rootNode;
+		if (stylesheet && (stylesheet.comments || []).some(x => position.isAfterOrEqual(x.start) && position.isBeforeOrEqual(x.end))) {
+			return false;
+		}
 		// Continue validation only if the file was parse-able and the currentNode has been found
 		if (!currentNode) {
 			return true;

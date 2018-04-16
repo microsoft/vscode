@@ -245,6 +245,9 @@ class DecorationProviderWrapper {
 
 			} else {
 				// selective changes -> drop for resource, fetch again, send event
+				// perf: the map stores thenables, decorations, or `null`-markers.
+				// we make us of that and ignore all uris in which we have never
+				// been interested.
 				for (const uri of uris) {
 					this._fetchData(uri);
 				}
@@ -363,6 +366,8 @@ export class FileDecorationsService implements IDecorationsService {
 
 	dispose(): void {
 		dispose(this._disposables);
+		dispose(this._onDidChangeDecorations);
+		dispose(this._onDidChangeDecorationsDelayed);
 	}
 
 	registerDecorationsProvider(provider: IDecorationsProvider): IDisposable {

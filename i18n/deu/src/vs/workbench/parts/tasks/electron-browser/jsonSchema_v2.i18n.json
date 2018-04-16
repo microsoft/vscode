@@ -28,6 +28,8 @@
 	"JsonSchema.tasks.group.none": "Weist die Aufgabe keiner Gruppe zu.",
 	"JsonSchema.tasks.group": "Definiert die Ausführungsgruppe, zu der diese Aufgabe gehört. Zum Hinzufügen der Aufgabe zur Buildgruppe wird \"build\" unterstützt und zum Hinzufügen zur Testgruppe \"test\".",
 	"JsonSchema.tasks.type": "Definiert, ob die Aufgabe als Prozess oder als Befehl innerhalb einer Shell ausgeführt wird.",
+	"JsonSchema.command": "Der auszuführende Befehl. Es kann sich um ein externes Programm oder einen Shellbefehl handeln.",
+	"JsonSchema.tasks.args": "Argumente, die an den Befehl übergeben werden, wenn diese Aufgabe aufgerufen wird.",
 	"JsonSchema.tasks.label": "Die Bezeichnung der Aufgabe der Benutzerschnittstelle",
 	"JsonSchema.version": "Die Versionsnummer der Konfiguration.",
 	"JsonSchema.tasks.identifier": "Ein vom Benutzer definierter Bezeichner, mit dem in \"launch.json\" oder in einer dependsOn-Klausel auf die Aufgabe verwiesen wird.",

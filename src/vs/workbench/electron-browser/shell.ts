@@ -9,8 +9,6 @@ import 'vs/css!./media/shell';
 
 import * as platform from 'vs/base/common/platform';
 import * as perf from 'vs/base/common/performance';
-import { Dimension, Builder, $ } from 'vs/base/browser/builder';
-import * as dom from 'vs/base/browser/dom';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as errors from 'vs/base/common/errors';
@@ -45,7 +43,7 @@ import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { ExtensionService } from 'vs/workbench/services/extensions/electron-browser/extensionService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -62,7 +60,7 @@ import { WorkbenchModeServiceImpl } from 'vs/workbench/services/mode/common/work
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { ICrashReporterService, NullCrashReporterService, CrashReporterService } from 'vs/workbench/services/crashReporter/electron-browser/crashReporterService';
-import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
+import { getDelayedChannel, IPCClient } from 'vs/base/parts/ipc/common/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { IExtensionManagementChannel, ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { IExtensionManagementService, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -85,7 +83,7 @@ import { HashService } from 'vs/workbench/services/hash/node/hashService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
-import { stat } from 'fs';
+import { stat, existsSync } from 'fs';
 import { join } from 'path';
 import { ILocalizationsChannel, LocalizationsChannelClient } from 'vs/platform/localizations/common/localizationsIpc';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
@@ -96,6 +94,7 @@ import { NotificationService } from 'vs/workbench/services/notification/common/n
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { DialogChannel } from 'vs/platform/dialogs/common/dialogIpc';
+import { EventType, addDisposableListener, addClass, getClientArea } from 'vs/base/browser/dom';
 
 /**
  * Services that we require for the Shell
@@ -129,18 +128,21 @@ export class WorkbenchShell {
 	private lifecycleService: LifecycleService;
 	private mainProcessServices: ServiceCollection;
 	private notificationService: INotificationService;
+	private mainProcessClient: IPCClient;
 
 	private container: HTMLElement;
 	private toUnbind: IDisposable[];
 	private previousErrorValue: string;
 	private previousErrorTime: number;
 	private content: HTMLElement;
-	private contentsContainer: Builder;
+	private contentsContainer: HTMLElement;
 
 	private configuration: IWindowConfiguration;
 	private workbench: Workbench;
 
-	constructor(container: HTMLElement, coreServices: ICoreServices, mainProcessServices: ServiceCollection, configuration: IWindowConfiguration) {
+	private hasLocalStorageData: boolean;
+
+	constructor(container: HTMLElement, coreServices: ICoreServices, mainProcessServices: ServiceCollection, mainProcessClient: IPCClient, configuration: IWindowConfiguration) {
 		this.container = container;
 
 		this.configuration = configuration;
@@ -153,24 +155,29 @@ export class WorkbenchShell {
 		this.storageService = coreServices.storageService;
 
 		this.mainProcessServices = mainProcessServices;
+		this.mainProcessClient = mainProcessClient;
 
 		this.toUnbind = [];
 		this.previousErrorTime = 0;
+
+		// TODO@Ben remove me later
+		this.hasLocalStorageData = !!this.storageService.get('releaseNotes/lastVersion', StorageScope.GLOBAL);
 	}
 
-	private createContents(parent: Builder): Builder {
+	private createContents(parent: HTMLElement): HTMLElement {
 
 		// ARIA
 		aria.setARIAContainer(document.body);
 
 		// Workbench Container
-		const workbenchContainer = $(parent).div();
+		const workbenchContainer = document.createElement('div');
+		parent.appendChild(workbenchContainer);
 
 		// Instantiation service with services
-		const [instantiationService, serviceCollection] = this.initServiceCollection(parent.getHTMLElement());
+		const [instantiationService, serviceCollection] = this.initServiceCollection(parent);
 
 		// Workbench
-		this.workbench = this.createWorkbench(instantiationService, serviceCollection, parent.getHTMLElement(), workbenchContainer.getHTMLElement());
+		this.workbench = this.createWorkbench(instantiationService, serviceCollection, parent, workbenchContainer);
 
 		// Window
 		this.workbench.getInstantiationService().createInstance(ElectronWindow, this.container);
@@ -189,7 +196,7 @@ export class WorkbenchShell {
 
 	private createWorkbench(instantiationService: IInstantiationService, serviceCollection: ServiceCollection, parent: HTMLElement, workbenchContainer: HTMLElement): Workbench {
 		try {
-			const workbench = instantiationService.createInstance(Workbench, parent, workbenchContainer, this.configuration, serviceCollection, this.lifecycleService);
+			const workbench = instantiationService.createInstance(Workbench, parent, workbenchContainer, this.configuration, serviceCollection, this.lifecycleService, this.mainProcessClient);
 
 			// Set lifecycle phase to `Restoring`
 			this.lifecycleService.phase = LifecyclePhase.Restoring;
@@ -219,6 +226,11 @@ export class WorkbenchShell {
 				// localStorage metrics (TODO@Ben remove me later)
 				if (!this.environmentService.extensionTestsPath && this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 					this.logLocalStorageMetrics();
+				}
+
+				// localStorage migration (TODO@Ben remove me later)
+				if (!this.environmentService.extensionTestsPath) {
+					this.logLocalStorageMigrationStatus();
 				}
 			});
 
@@ -294,17 +306,17 @@ export class WorkbenchShell {
 		}
 
 		perf.mark('willReadLocalStorage');
-		const readyToSend = this.storageService.getBoolean('localStorageMetricsReadyToSend2');
+		const readyToSend = this.storageService.getBoolean('localStorageMetricsReadyToSend4');
 		perf.mark('didReadLocalStorage');
 
 		if (!readyToSend) {
-			this.storageService.store('localStorageMetricsReadyToSend2', true);
+			this.storageService.store('localStorageMetricsReadyToSend4', true);
 			return; // avoid logging localStorage metrics directly after the update, we prefer cold startup numbers
 		}
 
-		if (!this.storageService.getBoolean('localStorageMetricsSent2')) {
+		if (!this.storageService.getBoolean('localStorageMetricsSent4')) {
 			perf.mark('willWriteLocalStorage');
-			this.storageService.store('localStorageMetricsSent2', true);
+			this.storageService.store('localStorageMetricsSent4', true);
 			perf.mark('didWriteLocalStorage');
 
 			perf.mark('willStatLocalStorage');
@@ -312,7 +324,7 @@ export class WorkbenchShell {
 				perf.mark('didStatLocalStorage');
 
 				/* __GDPR__
-					"localStorageTimers2" : {
+					"localStorageTimers4" : {
 						"statTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"accessTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"firstReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -322,7 +334,7 @@ export class WorkbenchShell {
 						"size": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 					}
 				*/
-				this.telemetryService.publicLog('localStorageTimers2', {
+				this.telemetryService.publicLog('localStorageTimers4', {
 					'statTime': perf.getDuration('willStatLocalStorage', 'didStatLocalStorage'),
 					'accessTime': perf.getDuration('willAccessLocalStorage', 'didAccessLocalStorage'),
 					'firstReadTime': perf.getDuration('willReadWorkspaceIdentifier', 'didReadWorkspaceIdentifier'),
@@ -331,6 +343,38 @@ export class WorkbenchShell {
 					'keys': window.localStorage.length,
 					'size': stat ? stat.size : -1
 				});
+			});
+		}
+	}
+
+	private logLocalStorageMigrationStatus(): void {
+		if (product.quality === 'insider' && !this.storageService.getBoolean('localStorageMigrationStatusLogged')) {
+			this.storageService.store('localStorageMigrationStatusLogged', true);
+
+			stat(join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage.vscbak'), (error, stat) => {
+				// if we have a backup of localStorage it means a migration was attempted
+				// by Electron 2.0. We log to telemetry if we had data initially which means
+				// the migration was successful.
+				if (stat) {
+					/* __GDPR__
+						"localStorageMigrationStatus" : {
+							"platform": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+							"arch": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+							"migrated": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+							"size": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+							"sqliteStillExists": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+							"sqliteJournalExists": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+						}
+					*/
+					this.telemetryService.publicLog('localStorageMigrationStatus', {
+						'platform': process.platform,
+						'arch': process.arch,
+						'migrated': this.hasLocalStorageData,
+						'size': stat.size,
+						'sqliteStillExists': existsSync(join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage')),
+						'sqliteJournalExists': existsSync(join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage-journal'))
+					});
+				}
 			});
 		}
 	}
@@ -475,13 +519,15 @@ export class WorkbenchShell {
 		});
 
 		// Shell Class for CSS Scoping
-		$(this.container).addClass('monaco-shell');
+		addClass(this.container, 'monaco-shell');
 
 		// Controls
-		this.content = $('.monaco-shell-content').appendTo(this.container).getHTMLElement();
+		this.content = document.createElement('div');
+		addClass(this.content, 'monaco-shell-content');
+		this.container.appendChild(this.content);
 
 		// Create Contents
-		this.contentsContainer = this.createContents($(this.content));
+		this.contentsContainer = this.createContents(this.content);
 
 		// Layout
 		this.layout();
@@ -493,7 +539,7 @@ export class WorkbenchShell {
 	private registerListeners(): void {
 
 		// Resize
-		$(window).on(dom.EventType.RESIZE, () => this.layout(), this.toUnbind);
+		this.toUnbind.push(addDisposableListener(window, EventType.RESIZE, () => this.layout()));
 	}
 
 	public onUnexpectedError(error: any): void {
@@ -520,10 +566,10 @@ export class WorkbenchShell {
 	}
 
 	private layout(): void {
-		const clArea = $(this.container).getClientArea();
+		const clientArea = getClientArea(this.container);
 
-		const contentsSize = new Dimension(clArea.width, clArea.height);
-		this.contentsContainer.size(contentsSize.width, contentsSize.height);
+		this.contentsContainer.style.width = `${clientArea.width}px`;
+		this.contentsContainer.style.height = `${clientArea.height}px`;
 
 		this.contextViewService.layout();
 		this.workbench.layout();

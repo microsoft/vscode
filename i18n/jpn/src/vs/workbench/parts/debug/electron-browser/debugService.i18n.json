@@ -29,6 +29,6 @@
 	"showErrors": "エラーの表示",
 	"noFolderWorkspaceDebugError": "アクティブ ファイルをデバッグできません。ファイルがディスクに保存されており、そのファイル タイプのデバッグ拡張機能がインストールされていることを確認してください。",
 	"cancel": "キャンセル",
-	"DebugTaskNotFound": "preLaunchTask '{0}' が見つかりませんでした。",
-	"taskNotTracked": "preLaunchTask '{0}' を追跡できません。"
+	"DebugTaskNotFound": "タスク '{0}' を見つけられませんでした。",
+	"taskNotTracked": "タスク '{0}' を追跡できません。"
 }

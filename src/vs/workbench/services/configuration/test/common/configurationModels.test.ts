@@ -42,7 +42,7 @@ suite('FolderSettingsModelParser', () => {
 	});
 
 	test('parse all folder settings', () => {
-		const testObject = new FolderSettingsModelParser('settings');
+		const testObject = new FolderSettingsModelParser('settings', [ConfigurationScope.RESOURCE, ConfigurationScope.WINDOW]);
 
 		testObject.parse(JSON.stringify({ 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.executable': 'executable' }));
 
@@ -50,7 +50,7 @@ suite('FolderSettingsModelParser', () => {
 	});
 
 	test('parse resource folder settings', () => {
-		const testObject = new FolderSettingsModelParser('settings', ConfigurationScope.RESOURCE);
+		const testObject = new FolderSettingsModelParser('settings', [ConfigurationScope.RESOURCE]);
 
 		testObject.parse(JSON.stringify({ 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.executable': 'executable' }));
 
@@ -58,7 +58,7 @@ suite('FolderSettingsModelParser', () => {
 	});
 
 	test('reprocess folder settings excludes executable', () => {
-		const testObject = new FolderSettingsModelParser('settings');
+		const testObject = new FolderSettingsModelParser('settings', [ConfigurationScope.RESOURCE, ConfigurationScope.WINDOW]);
 
 		testObject.parse(JSON.stringify({ 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.anotherExecutable': 'executable' }));
 

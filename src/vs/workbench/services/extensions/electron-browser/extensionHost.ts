@@ -193,13 +193,13 @@ export class ExtensionHostProcessWorker {
 				}, 100);
 
 				// Print out extension host output
-				onDebouncedOutput(data => {
-					const inspectorUrlIndex = !this._environmentService.isBuilt && data.data && data.data.indexOf('chrome-devtools://');
-					if (inspectorUrlIndex >= 0) {
-						console.log(`%c[Extension Host] %cdebugger inspector at ${data.data.substr(inspectorUrlIndex)}`, 'color: blue', 'color: black');
+				onDebouncedOutput(output => {
+					const inspectorUrlMatch = !this._environmentService.isBuilt && output.data && output.data.match(/ws:\/\/([^\s]+)/);
+					if (inspectorUrlMatch) {
+						console.log(`%c[Extension Host] %cdebugger inspector at chrome-devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=${inspectorUrlMatch[1]}`, 'color: blue', 'color: black');
 					} else {
 						console.group('Extension Host');
-						console.log(data.data, ...data.format);
+						console.log(output.data, ...output.format);
 						console.groupEnd();
 					}
 				});
@@ -235,11 +235,12 @@ export class ExtensionHostProcessWorker {
 							? nls.localize('extensionHostProcess.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.")
 							: nls.localize('extensionHostProcess.startupFail', "Extension host did not start in 10 seconds, that might be a problem.");
 
-						this._notificationService.prompt(Severity.Warning, msg, [nls.localize('reloadWindow', "Reload Window")]).then(choice => {
-							if (choice === 0) {
-								this._windowService.reloadWindow();
-							}
-						});
+						this._notificationService.prompt(Severity.Warning, msg,
+							[{
+								label: nls.localize('reloadWindow', "Reload Window"),
+								run: () => this._windowService.reloadWindow()
+							}]
+						);
 					}, 10000);
 				}
 

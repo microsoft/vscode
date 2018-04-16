@@ -613,6 +613,7 @@ namespace TaskDTO {
 		if (!execution || !definition || !scope) {
 			return undefined;
 		}
+		let group = (value.group as types.TaskGroup) ? (value.group as types.TaskGroup).id : undefined;
 		let result: TaskDTO = {
 			_id: (value as types.Task)._id,
 			definition,
@@ -624,7 +625,7 @@ namespace TaskDTO {
 			},
 			execution,
 			isBackground: value.isBackground,
-			group: (value.group as types.TaskGroup).id,
+			group: group,
 			presentationOptions: TaskPresentationOptionsDTO.from(value.presentationOptions),
 			problemMatchers: value.problemMatchers,
 			hasDefinedMatchers: (value as types.Task).hasDefinedMatchers
@@ -675,17 +676,26 @@ namespace TaskDTO {
 }
 
 class TaskExecutionImpl implements vscode.TaskExecution {
-	constructor(readonly _id: string) {
+	constructor(readonly _id: string, private readonly _task: vscode.Task, private readonly _tasks: ExtHostTask) {
+	}
+
+	get task(): vscode.Task {
+		return this._task;
+	}
+
+	public terminate(): void {
+		this._tasks.terminateTask(this);
 	}
 }
 
 namespace TaskExecutionDTO {
-	export function to(value: TaskExecutionDTO): vscode.TaskExecution {
-		return new TaskExecutionImpl(value.id);
+	export function to(value: TaskExecutionDTO, tasks: ExtHostTask): vscode.TaskExecution {
+		return new TaskExecutionImpl(value.id, TaskDTO.to(value.task, tasks.extHostWorkspace), tasks);
 	}
 	export function from(value: vscode.TaskExecution): TaskExecutionDTO {
 		return {
-			id: (value as TaskExecutionImpl)._id
+			id: (value as TaskExecutionImpl)._id,
+			task: undefined
 		};
 	}
 }
@@ -701,6 +711,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 	private _extHostWorkspace: ExtHostWorkspace;
 	private _handleCounter: number;
 	private _handlers: Map<number, HandlerData>;
+	private _taskExecutions: Map<string, TaskExecutionImpl>;
 
 	private readonly _onDidExecuteTask: Emitter<vscode.TaskStartEvent> = new Emitter<vscode.TaskStartEvent>();
 	private readonly _onDidTerminateTask: Emitter<vscode.TaskEndEvent> = new Emitter<vscode.TaskEndEvent>();
@@ -710,6 +721,11 @@ export class ExtHostTask implements ExtHostTaskShape {
 		this._extHostWorkspace = extHostWorkspace;
 		this._handleCounter = 0;
 		this._handlers = new Map<number, HandlerData>();
+		this._taskExecutions = new Map<string, TaskExecutionImpl>();
+	}
+
+	public get extHostWorkspace(): ExtHostWorkspace {
+		return this._extHostWorkspace;
 	}
 
 	public registerTaskProvider(extension: IExtensionDescription, provider: vscode.TaskProvider): vscode.Disposable {
@@ -742,15 +758,19 @@ export class ExtHostTask implements ExtHostTaskShape {
 		let tTask = (task as types.Task);
 		// We have a preserved ID. So the task didn't change.
 		if (tTask._id !== void 0) {
-			return this._proxy.$executeTask(TaskHandleDTO.from(tTask)).then(value => TaskExecutionDTO.to(value));
+			return this._proxy.$executeTask(TaskHandleDTO.from(tTask)).then(value => this.getTaskExecution(value, task));
 		} else {
-			return this._proxy.$executeTask(TaskDTO.from(task, extension)).then(value => TaskExecutionDTO.to(value));
+			let dto = TaskDTO.from(task, extension);
+			if (dto === void 0) {
+				return Promise.reject(new Error('Task is not valid'));
+			}
+			return this._proxy.$executeTask(dto).then(value => this.getTaskExecution(value, task));
 		}
 	}
 
 	public $taskStarted(execution: TaskExecutionDTO): void {
 		this._onDidExecuteTask.fire({
-			execution: TaskExecutionDTO.to(execution)
+			execution: this.getTaskExecution(execution)
 		});
 	}
 
@@ -762,12 +782,14 @@ export class ExtHostTask implements ExtHostTaskShape {
 		if (!(execution instanceof TaskExecutionImpl)) {
 			throw new Error('No valid task execution provided');
 		}
-		return this._proxy.$terminateTask(TaskExecutionDTO.from(execution));
+		return this._proxy.$terminateTask((execution as TaskExecutionImpl)._id);
 	}
 
 	public $taskEnded(execution: TaskExecutionDTO): void {
+		const _execution = this.getTaskExecution(execution);
+		this._taskExecutions.delete(execution.id);
 		this._onDidTerminateTask.fire({
-			execution: TaskExecutionDTO.to(execution)
+			execution: _execution
 		});
 	}
 
@@ -791,5 +813,15 @@ export class ExtHostTask implements ExtHostTaskShape {
 
 	private nextHandle(): number {
 		return this._handleCounter++;
+	}
+
+	private getTaskExecution(execution: TaskExecutionDTO, task?: vscode.Task): TaskExecutionImpl {
+		let result: TaskExecutionImpl = this._taskExecutions.get(execution.id);
+		if (result) {
+			return result;
+		}
+		result = new TaskExecutionImpl(execution.id, task ? task : TaskDTO.to(execution.task, this._extHostWorkspace), this);
+		this._taskExecutions.set(execution.id, result);
+		return result;
 	}
 }

@@ -19,9 +19,8 @@ import { getDocumentContext } from './utils/documentContext';
 import uri from 'vscode-uri';
 import { formatError, runSafe, runSafeAsync } from './utils/runner';
 import { doComplete as emmetDoComplete, updateExtensionsPath as updateEmmetExtensionsPath, getEmmetCompletionParticipants } from 'vscode-emmet-helper';
-import { getPathCompletionParticipant } from './modes/pathCompletion';
 
-import { FoldingRangesRequest, FoldingProviderServerCapabilities } from './protocol/foldingProvider.proposed';
+import { FoldingRangesRequest, FoldingProviderServerCapabilities } from 'vscode-languageserver-protocol-foldingprovider';
 import { getFoldingRegions } from './modes/htmlFolding';
 
 namespace TagCloseRequest {
@@ -82,8 +81,8 @@ let emmetSettings: any = {};
 let currentEmmetExtensionsPath: string;
 const emmetTriggerCharacters = ['!', '.', '}', ':', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
-// After the server has started the client sends an initilize request. The server receives
-// in the passed params the rootPath of the workspace plus the client capabilites
+// After the server has started the client sends an initialize request. The server receives
+// in the passed params the rootPath of the workspace plus the client capabilities
 connection.onInitialize((params: InitializeParams): InitializeResult => {
 	let initializationOptions = params.initializationOptions;
 
@@ -95,7 +94,11 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		}
 	}
 
-	languageModes = getLanguageModes(initializationOptions ? initializationOptions.embeddedLanguages : { css: true, javascript: true });
+	const workspace = {
+		get settings() { return globalSettings; },
+		get folders() { return workspaceFolders; }
+	};
+	languageModes = getLanguageModes(initializationOptions ? initializationOptions.embeddedLanguages : { css: true, javascript: true }, workspace);
 	documents.onDidClose(e => {
 		languageModes.onDocumentRemoved(e.document);
 	});
@@ -149,6 +152,7 @@ connection.onInitialized((p) => {
 				}
 			}
 			workspaceFolders = updatedFolders.concat(toAdd);
+			documents.all().forEach(triggerValidation);
 		});
 	}
 });
@@ -158,13 +162,7 @@ let formatterRegistration: Thenable<Disposable> | null = null;
 // The settings have changed. Is send on server activation as well.
 connection.onDidChangeConfiguration((change) => {
 	globalSettings = change.settings;
-
 	documentSettings = {}; // reset all document settings
-	languageModes.getAllModes().forEach(m => {
-		if (m.configure) {
-			m.configure(change.settings);
-		}
-	});
 	documents.all().forEach(triggerValidation);
 
 	// dynamically enable & disable the formatter
@@ -288,27 +286,16 @@ connection.onCompletion(async (textDocumentPosition, token) => {
 
 		cachedCompletionList = null;
 		const emmetCompletionList = CompletionList.create([], false);
-		const pathCompletionList = CompletionList.create([], false);
 
 		const emmetCompletionParticipant = getEmmetCompletionParticipants(document, textDocumentPosition.position, mode.getId(), emmetSettings, emmetCompletionList);
 		const completionParticipants = [emmetCompletionParticipant];
-		// Ideally, fix this in the Language Service side
-		// Check participants' methods before calling them
-		if (mode.getId() === 'html') {
-			const pathCompletionParticipant = getPathCompletionParticipant(document, workspaceFolders, pathCompletionList);
-			completionParticipants.push(pathCompletionParticipant);
-		}
 
 		let settings = await getDocumentSettings(document, () => doComplete.length > 2);
 		let result = doComplete(document, textDocumentPosition.position, settings, completionParticipants);
-		if (!result) {
-			result = pathCompletionList;
-		} else {
-			result.items.push(...pathCompletionList.items);
-		}
 		if (emmetCompletionList.isIncomplete) {
+			emmetCompletionList.items = emmetCompletionList.items || [];
 			cachedCompletionList = result;
-			if (hexColorRegex.test(emmetCompletionList.items[0].label) && result.items.some(x => x.label === emmetCompletionList.items[0].label)) {
+			if (emmetCompletionList.items.length && hexColorRegex.test(emmetCompletionList.items[0].label) && result.items.some(x => x.label === emmetCompletionList.items[0].label)) {
 				emmetCompletionList.items.shift();
 			}
 			return CompletionList.create([...emmetCompletionList.items, ...result.items], emmetCompletionList.isIncomplete || result.isIncomplete);

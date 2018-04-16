@@ -28,7 +28,5 @@
 	"preLaunchTaskExitCode": "'{0}' ön başlatma görevi {1} çıkış koduyla sonlandı.",
 	"showErrors": "Hataları Göster",
 	"noFolderWorkspaceDebugError": "Aktif dosyada hata ayıklama yapılamıyor. Lütfen, dosyanın diskte kayıtlı olduğundan ve bu dosya türü için hata ayıklama eklentinizin olduğundan emin olun.",
-	"cancel": "İptal",
-	"DebugTaskNotFound": "'{0}' ön başlatma görevi bulunamadı.",
-	"taskNotTracked": "'{0}' başlatma öncesi görevi izlenemez."
+	"cancel": "İptal"
 }

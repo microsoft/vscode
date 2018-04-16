@@ -14,6 +14,7 @@
 	"addFolders": "新增資料夾(&A)",
 	"addFolder": "新增資料夾(&A)",
 	"confirmMultiMove": "確定要移動以下 {0} 個文件嗎？",
+	"confirmRootMove": "您確定要變更工作區中根資料夾 '{0}' 的順序嗎？ ",
 	"confirmMove": "確定要移動 '{0}' 嗎?",
 	"doNotAskAgain": "不要再詢問我",
 	"moveButtonLabel": "移動(&&M)",

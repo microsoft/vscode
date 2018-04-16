@@ -13,7 +13,7 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/wor
 import { KeybindingsRegistry, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
-import { Marker } from 'vs/workbench/parts/markers/electron-browser/markersModel';
+import { Marker, RelatedInformation } from 'vs/workbench/parts/markers/electron-browser/markersModel';
 import { MarkersPanel } from 'vs/workbench/parts/markers/electron-browser/markersPanel';
 import { MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
@@ -101,13 +101,25 @@ registerAction({
 });
 registerAction({
 	id: Constants.MARKER_COPY_MESSAGE_ACTION_ID,
-	title: localize('copyMarkerMessage', "Copy Message"),
+	title: localize('copyMessage', "Copy Message"),
 	handler(accessor) {
 		copyMessage(accessor.get(IPanelService));
 	},
 	menu: {
 		menuId: MenuId.ProblemsPanelContext,
 		when: Constants.MarkerFocusContextKey,
+		group: 'navigation'
+	}
+});
+registerAction({
+	id: Constants.RELATED_INFORMATION_COPY_MESSAGE_ACTION_ID,
+	title: localize('copyMessage', "Copy Message"),
+	handler(accessor) {
+		copyRelatedInformationMessage(accessor.get(IPanelService));
+	},
+	menu: {
+		menuId: MenuId.ProblemsPanelContext,
+		when: Constants.RelatedInformationFocusContextKey,
 		group: 'navigation'
 	}
 });
@@ -128,6 +140,16 @@ function copyMessage(panelService: IPanelService) {
 	if (activePanel instanceof MarkersPanel) {
 		const element = (<MarkersPanel>activePanel).getFocusElement();
 		if (element instanceof Marker) {
+			clipboard.writeText(element.raw.message);
+		}
+	}
+}
+
+function copyRelatedInformationMessage(panelService: IPanelService) {
+	const activePanel = panelService.getActivePanel();
+	if (activePanel instanceof MarkersPanel) {
+		const element = (<MarkersPanel>activePanel).getFocusElement();
+		if (element instanceof RelatedInformation) {
 			clipboard.writeText(element.raw.message);
 		}
 	}

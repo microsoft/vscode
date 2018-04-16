@@ -10,8 +10,8 @@
 	"wordHighlightStrong": "Szimbólumok háttérszíne írási hozzáférés, például változó írása esetén. A színnek áttetszőnek kell lennie, hogy ne fedje el az alatta lévő dekorátorokat.",
 	"wordHighlightBorder": "Szimbólumok háttérszíne olvasási hozzáférés, például változó olvasása esetén.",
 	"wordHighlightStrongBorder": "Szimbólumok háttérszíne írási hozzáférés, például változó írása esetén.",
-	"overviewRulerWordHighlightForeground": "A kiemelt szimbólumokat jelölő jelzések színe az áttekintősávon.",
-	"overviewRulerWordHighlightStrongForeground": "A kiemelt, írási hozzáférésű szimbólumokat jelölő jelzések színe az áttekintősávon.",
+	"overviewRulerWordHighlightForeground": "A kiemelt szimbólumokat jelölő jelzések színe az áttekintősávon. A színnek áttetszőnek kell lennie, hogy ne fedje el az alatta lévő dekorátorokat.",
+	"overviewRulerWordHighlightStrongForeground": "Az írási hozzáféréssel rendelkező szimbólumokat jelölő jelzések színe az áttekintősávon. A színnek áttetszőnek kell lennie, hogy ne fedje el az alatta lévő dekorátorokat.",
 	"wordHighlight.next.label": "Ugrás a következő kiemelt szimbólumhoz",
 	"wordHighlight.previous.label": "Ugrás az előző kiemelt szimbólumhoz"
 }

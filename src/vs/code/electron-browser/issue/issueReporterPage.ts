@@ -19,6 +19,24 @@ export default (): string => `
 			</select>
 		</div>
 
+		<div class="input-group" id="problem-source">
+			<label class="inline-label" for="issue-source">${escape(localize('issueSourceLabel', "File on"))}</label>
+			<select id="issue-source" class="inline-form-control">
+				<option value="false">${escape(localize('vscode', "Visual Studio Code"))}</option>
+				<option value="true">${escape(localize('extension', "An Extension"))}</option>
+			</select>
+			<div id="problem-source-help-text" class="instructions">${escape(localize('disableExtensionsLabelText', "Try to reproduce the problem after {0}. If the problem only reproduces when extensions are active, it is likely an issue with an extension."))
+		.replace('{0}', `<span tabIndex=0 role="button" id="disableExtensions" class="workbenchCommand">${escape(localize('disableExtensions', "disabling all extensions and reloading the window"))}</span>`)}
+			</div>
+
+			<div id="extension-selection">
+				<label class="inline-label" for="extension-selector">${escape(localize('chooseExtension', "Extension"))} <span class="required-input">*</span></label>
+				<select id="extension-selector" class="inline-form-control">
+					<!-- To be dynamically filled -->
+				</select>
+			</div>
+		</div>
+
 		<div class="input-group">
 			<label class="inline-label" for="issue-title">${escape(localize('issueTitleLabel', "Title"))} <span class="required-input">*</span></label>
 			<input id="issue-title" type="text" class="inline-form-control" placeholder="${escape(localize('issueTitleRequired', "Please enter a title."))}" required>
@@ -27,6 +45,7 @@ export default (): string => `
 				<!-- To be dynamically filled -->
 			</small>
 		</div>
+
 	</div>
 
 	<div class="system-info" id="block-container">
@@ -109,28 +128,6 @@ export default (): string => `
 					<!-- To be dynamically filled -->
 				</div>
 			</details>
-		</div>
-	</div>
-
-	<div class="section" id="disabledExtensions">
-		<div class="extensions-form">
-			<label>${escape(localize('tryDisablingExtensions', "Is the problem reproducible when extensions are disabled?"))}</label>
-			<div class="form-buttons">
-				<div class="choice">
-					<input type="radio" id="reproducesWithoutExtensions" value=true name="reprosWithoutExtensions" />
-					<label for="reproducesWithoutExtensions">${escape(localize('yes', "Yes"))}</label>
-				</div>
-				<div class="choice">
-					<input type="radio" id="reproducesWithExtensions" value=false name="reprosWithoutExtensions" checked/>
-					<label for="reproducesWithExtensions">${escape(localize('no', "No"))}</label>
-				</div>
-			</div>
-		</div>
-		<div class="instructions">${escape(localize('disableExtensionsLabelText', "Try to reproduce the problem after {0}."))
-		.replace('{0}', `<span tabIndex=0 role="button" id="disableExtensions" class="workbenchCommand">${escape(localize('disableExtensions', "disabling all extensions and reloading the window"))}</span>`)}
-		</div>
-		<div class="instructions">${escape(localize('showRunningExtensionsLabelText', "If you suspect it's an extension issue, {0} to report the issue on the extension."))
-		.replace('{0}', `<span tabIndex=0 role="button"id="showRunning" class="workbenchCommand">${escape(localize('showRunningExtensions', "view all running extensions"))}</span>`)}
 		</div>
 	</div>
 

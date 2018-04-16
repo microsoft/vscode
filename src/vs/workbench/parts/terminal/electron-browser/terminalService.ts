@@ -23,7 +23,9 @@ import { getTerminalDefaultShellWindows } from 'vs/workbench/parts/terminal/elec
 import { TerminalPanel } from 'vs/workbench/parts/terminal/electron-browser/terminalPanel';
 import { TerminalTab } from 'vs/workbench/parts/terminal/electron-browser/terminalTab';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService, PromptOption } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ipcRenderer as ipc } from 'electron';
+import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
 
 export class TerminalService extends AbstractTerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
@@ -50,6 +52,19 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 
 		this._terminalTabs = [];
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
+
+		ipc.on('vscode:openFiles', (_event: any, request: IOpenFileRequest) => {
+			// if the request to open files is coming in from the integrated terminal (identified though
+			// the termProgram variable) and we are instructed to wait for editors close, wait for the
+			// marker file to get deleted and then focus back to the integrated terminal.
+			if (request.termProgram === 'vscode' && request.filesToWait) {
+				pfs.whenDeleted(request.filesToWait.waitMarkerFilePath).then(() => {
+					if (this.terminalInstances.length > 0) {
+						this.getActiveInstance().focus();
+					}
+				});
+			}
+		});
 	}
 
 	public createInstance(shell: IShellLaunchConfig = {}, wasNewTerminalAction?: boolean): ITerminalInstance {
@@ -67,6 +82,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			// It's the first instance so it should be made active automatically
 			this.setActiveInstanceByIndex(0);
 		}
+		this._onInstanceCreated.fire(instance);
 		this._onInstancesChanged.fire();
 		this._suggestShellChange(wasNewTerminalAction);
 		return instance;
@@ -127,11 +143,12 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			return;
 		}
 
-		const message = nls.localize('terminal.integrated.chooseWindowsShellInfo', "You can change the default terminal shell by selecting the customize button.");
-		const options: PromptOption[] = [nls.localize('customize', "Customize"), { label: nls.localize('never again', "Don't Show Again") }];
-		this._notificationService.prompt(Severity.Info, message, options).then(choice => {
-			switch (choice) {
-				case 0 /* Customize */:
+		this._notificationService.prompt(
+			Severity.Info,
+			nls.localize('terminal.integrated.chooseWindowsShellInfo', "You can change the default terminal shell by selecting the customize button."),
+			[{
+				label: nls.localize('customize', "Customize"),
+				run: () => {
 					this.selectDefaultWindowsShell().then(shell => {
 						if (!shell) {
 							return TPromise.as(null);
@@ -146,12 +163,14 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 						}
 						return TPromise.as(null);
 					});
-					break;
-				case 1 /* Do not show again */:
-					this._storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true);
-					break;
-			}
-		});
+				}
+			},
+			{
+				label: nls.localize('never again', "Don't Show Again"),
+				isSecondary: true,
+				run: () => this._storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true)
+			}]
+		);
 	}
 
 	public selectDefaultWindowsShell(): TPromise<string> {

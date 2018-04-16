@@ -146,11 +146,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 
 		// Views
 		viewlets.forEach((viewlet, index) => {
-			const viewLocation: ViewLocation = viewlet.id === EXPLORER_VIEWLET_ID ? ViewLocation.Explorer
-				: viewlet.id === DEBUG_VIEWLET_ID ? ViewLocation.Debug
-					: viewlet.id === EXTENSIONS_VIEWLET_ID ? ViewLocation.Extensions
-						: null;
-
+			const viewLocation: ViewLocation = ViewLocation.get(viewlet.id);
 			if (viewLocation) {
 				const viewEntriesForViewlet: ViewEntry[] = getViewEntriesForViewlet(viewlet, viewLocation);
 				viewEntries.push(...viewEntriesForViewlet);

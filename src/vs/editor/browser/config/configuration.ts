@@ -349,7 +349,7 @@ export class Configuration extends CommonEditorConfiguration {
 			extraEditorClassName: this._getExtraEditorClassName(),
 			outerWidth: this._elementSizeObserver.getWidth(),
 			outerHeight: this._elementSizeObserver.getHeight(),
-			emptySelectionClipboard: browser.isWebKit,
+			emptySelectionClipboard: browser.isWebKit || browser.isFirefox,
 			pixelRatio: browser.getPixelRatio(),
 			zoomLevel: browser.getZoomLevel(),
 			accessibilitySupport: browser.getAccessibilitySupport()

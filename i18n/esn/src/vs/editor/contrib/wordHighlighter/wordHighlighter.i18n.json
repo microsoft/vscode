@@ -10,8 +10,6 @@
 	"wordHighlightStrong": "Color de fondo de un símbolo durante el acceso de escritura, como escribir en una variable. El color no debe ser opaco para no ocultar las decoraciones subyacentes.",
 	"wordHighlightBorder": "Color de fondo de un símbolo durante el acceso de lectura; por ejemplo, cuando se lee una variable.",
 	"wordHighlightStrongBorder": "Color de fondo de un símbolo durante el acceso de escritura; por ejemplo, cuando se escribe una variable.",
-	"overviewRulerWordHighlightForeground": "Color de marcador de regla de información general para símbolos resaltados.",
-	"overviewRulerWordHighlightStrongForeground": "Color de marcador de regla de información general para símbolos de acceso de escritura resaltados. ",
 	"wordHighlight.next.label": "Ir al siguiente símbolo destacado",
 	"wordHighlight.previous.label": "Ir al símbolo destacado anterior"
 }

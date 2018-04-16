@@ -5,10 +5,10 @@
 
 'use strict';
 
-import { app, ipcMain as ipc, BrowserWindow } from 'electron';
+import { app, ipcMain as ipc } from 'electron';
 import * as platform from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
-import { IWindowsService, OpenContext } from 'vs/platform/windows/common/windows';
+import { IWindowsService, OpenContext, ActiveWindowManager } from 'vs/platform/windows/common/windows';
 import { WindowsChannel } from 'vs/platform/windows/common/windowsIpc';
 import { WindowsService } from 'vs/platform/windows/electron-main/windowsService';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
@@ -29,7 +29,7 @@ import { IStateService } from 'vs/platform/state/common/state';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IURLService } from 'vs/platform/url/common/url';
-import { URLChannel } from 'vs/platform/url/common/urlIpc';
+import { URLHandlerChannelClient, URLServiceChannel } from 'vs/platform/url/common/urlIpc';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
@@ -59,6 +59,10 @@ import { IssueChannel } from 'vs/platform/issue/common/issueIpc';
 import { IssueService } from 'vs/platform/issue/electron-main/issueService';
 import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
+import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
+import { join } from 'path';
+import { copy, exists, rename } from 'vs/base/node/pfs';
 
 export class CodeApplication {
 
@@ -126,7 +130,7 @@ export class CodeApplication {
 			return srcUri.startsWith(URI.file(this.environmentService.appRoot.toLowerCase()).toString());
 		};
 
-		app.on('web-contents-created', (_event: any, contents) => {
+		app.on('web-contents-created', (event: any, contents) => {
 			contents.on('will-attach-webview', (event: Electron.Event, webPreferences, params) => {
 				delete webPreferences.preload;
 				webPreferences.nodeIntegration = false;
@@ -181,15 +185,15 @@ export class CodeApplication {
 			this.windowsMainService.openNewWindow(OpenContext.DESKTOP); //macOS native tab "+" button
 		});
 
-		ipc.on('vscode:exit', (_event: any, code: number) => {
+		ipc.on('vscode:exit', (event: any, code: number) => {
 			this.logService.trace('IPC#vscode:exit', code);
 
 			this.dispose();
 			this.lifecycleService.kill(code);
 		});
 
-		ipc.on('vscode:fetchShellEnv', (_event: any, windowId: number) => {
-			const { webContents } = BrowserWindow.fromId(windowId);
+		ipc.on('vscode:fetchShellEnv', event => {
+			const webContents = event.sender.webContents;
 			getShellEnvironment().then(shellEnv => {
 				if (!webContents.isDestroyed()) {
 					webContents.send('vscode:acceptShellEnv', shellEnv);
@@ -203,7 +207,7 @@ export class CodeApplication {
 			});
 		});
 
-		ipc.on('vscode:broadcast', (_event: any, windowId: number, broadcast: { channel: string; payload: any; }) => {
+		ipc.on('vscode:broadcast', (event: any, windowId: number, broadcast: { channel: string; payload: any; }) => {
 			if (this.windowsMainService && broadcast.channel && !isUndefinedOrNull(broadcast.payload)) {
 				this.logService.trace('IPC#vscode:broadcast', broadcast.channel, broadcast.payload);
 
@@ -260,38 +264,56 @@ export class CodeApplication {
 		this.logService.debug(`from: ${this.environmentService.appRoot}`);
 		this.logService.debug('args:', this.environmentService.args);
 
-		// Make sure we associate the program with the app user model id
-		// This will help Windows to associate the running program with
-		// any shortcut that is pinned to the taskbar and prevent showing
-		// two icons in the taskbar for the same app.
-		if (platform.isWindows && product.win32AppUserModelId) {
-			app.setAppUserModelId(product.win32AppUserModelId);
-		}
+		// Handle local storage (TODO@Ben remove me after a while)
+		this.logService.trace('Handling localStorage if needed...');
+		return this.handleLocalStorage().then(() => {
 
-		// Create Electron IPC Server
-		this.electronIpcServer = new ElectronIPCServer();
+			// Make sure we associate the program with the app user model id
+			// This will help Windows to associate the running program with
+			// any shortcut that is pinned to the taskbar and prevent showing
+			// two icons in the taskbar for the same app.
+			if (platform.isWindows && product.win32AppUserModelId) {
+				app.setAppUserModelId(product.win32AppUserModelId);
+			}
 
-		// Resolve unique machine ID
-		this.logService.trace('Resolving machine identifier...');
-		return this.resolveMachineId().then(machineId => {
-			this.logService.trace(`Resolved machine identifier: ${machineId}`);
+			// Create Electron IPC Server
+			this.electronIpcServer = new ElectronIPCServer();
 
-			// Spawn shared process
-			this.sharedProcess = new SharedProcess(this.environmentService, this.lifecycleService, this.logService, machineId, this.userEnv);
-			this.sharedProcessClient = this.sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
+			// Resolve unique machine ID
+			this.logService.trace('Resolving machine identifier...');
+			return this.resolveMachineId().then(machineId => {
+				this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
-			// Services
-			const appInstantiationService = this.initServices(machineId);
+				// Spawn shared process
+				this.sharedProcess = new SharedProcess(this.environmentService, this.lifecycleService, this.logService, machineId, this.userEnv);
+				this.sharedProcessClient = this.sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
 
-			// Setup Auth Handler
-			const authHandler = appInstantiationService.createInstance(ProxyAuthHandler);
-			this.toDispose.push(authHandler);
+				// Services
+				const appInstantiationService = this.initServices(machineId);
 
-			// Open Windows
-			appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor));
+				let promise: TPromise<any> = TPromise.as(null);
 
-			// Post Open Windows Tasks
-			appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
+				// Create driver
+				if (this.environmentService.driverHandle) {
+					serveDriver(this.electronIpcServer, this.environmentService.driverHandle, appInstantiationService).then(server => {
+						this.logService.info('Driver started at:', this.environmentService.driverHandle);
+						this.toDispose.push(server);
+					});
+				}
+
+				return promise.then(() => {
+
+					// Setup Auth Handler
+					const authHandler = appInstantiationService.createInstance(ProxyAuthHandler);
+					this.toDispose.push(authHandler);
+
+					// Open Windows
+					appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor));
+
+					// Post Open Windows Tasks
+					appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
+				});
+			});
 		});
 	}
 
@@ -310,6 +332,36 @@ export class CodeApplication {
 		});
 	}
 
+	private handleLocalStorage(): TPromise<void> {
+		const localStorageFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage');
+		const localStorageJournalFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage-journal');
+		const localStorageBackupFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage.vscbak');
+		const localStorageJournalBackupFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage-journal.vscbak');
+
+		// Electron 1.7.12: Restore storage
+		if (process.versions.electron === '1.7.12') {
+			return exists(localStorageBackupFile).then(localStorageBackupFileExists => {
+				return exists(localStorageJournalBackupFile).then(localStorageJournalBackupFileExists => {
+					return TPromise.join([
+						localStorageBackupFileExists ? rename(localStorageBackupFile, localStorageFile) : TPromise.as(void 0),
+						localStorageJournalBackupFileExists ? rename(localStorageJournalBackupFile, localStorageJournalFile) : TPromise.as(void 0)
+					]);
+				});
+			}).then(() => void 0, () => void 0);
+		}
+
+		// Electron 2.0: Backup
+		else {
+			return exists(localStorageBackupFile).then(backupExists => {
+				if (backupExists) {
+					return void 0; // do not backup if backup already exists
+				}
+
+				return copy(localStorageFile, localStorageBackupFile).then(() => copy(localStorageJournalFile, localStorageJournalBackupFile));
+			}).then(() => void 0, () => void 0);
+		}
+	}
+
 	private initServices(machineId: string): IInstantiationService {
 		const services = new ServiceCollection();
 
@@ -324,7 +376,7 @@ export class CodeApplication {
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager, machineId));
 		services.set(IWindowsService, new SyncDescriptor(WindowsService, this.sharedProcess));
 		services.set(ILaunchService, new SyncDescriptor(LaunchService));
-		services.set(IIssueService, new SyncDescriptor(IssueService, machineId));
+		services.set(IIssueService, new SyncDescriptor(IssueService, machineId, this.userEnv));
 
 		// Telemtry
 		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
@@ -355,10 +407,6 @@ export class CodeApplication {
 		const updateChannel = new UpdateChannel(updateService);
 		this.electronIpcServer.registerChannel('update', updateChannel);
 
-		const urlService = accessor.get(IURLService);
-		const urlChannel = appInstantiationService.createInstance(URLChannel, urlService);
-		this.electronIpcServer.registerChannel('url', urlChannel);
-
 		const issueService = accessor.get(IIssueService);
 		const issueChannel = new IssueChannel(issueService);
 		this.electronIpcServer.registerChannel('issue', issueChannel);
@@ -372,6 +420,10 @@ export class CodeApplication {
 		this.electronIpcServer.registerChannel('windows', windowsChannel);
 		this.sharedProcessClient.done(client => client.registerChannel('windows', windowsChannel));
 
+		const urlService = accessor.get(IURLService);
+		const urlChannel = new URLServiceChannel(urlService);
+		this.electronIpcServer.registerChannel('url', urlChannel);
+
 		// Log level management
 		const logLevelChannel = new LogLevelSetterChannel(accessor.get(ILogService));
 		this.electronIpcServer.registerChannel('loglevel', logLevelChannel);
@@ -382,15 +434,31 @@ export class CodeApplication {
 
 		// Propagate to clients
 		this.windowsMainService = accessor.get(IWindowsMainService); // TODO@Joao: unfold this
+
+		const args = this.environmentService.args;
+
+		// Create a URL handler which forwards to the last active window
+		const activeWindowManager = new ActiveWindowManager(windowsService);
+		const urlHandlerChannel = this.electronIpcServer.getChannel('urlHandler', { route: () => activeWindowManager.activeClientId });
+		const multiplexURLHandler = new URLHandlerChannelClient(urlHandlerChannel);
+
+		// Register the multiple URL handker
+		urlService.registerHandler(multiplexURLHandler);
+
+		// Watch Electron URLs and forward them to the UrlService
+		const urls = args['open-url'] ? args._urls : [];
+		const urlListener = new ElectronURLListener(urls, urlService, this.windowsMainService);
+		this.toDispose.push(urlListener);
+
 		this.windowsMainService.ready(this.userEnv);
 
 		// Open our first window
-		const args = this.environmentService.args;
+		const macOpenFiles = (<any>global).macOpenFiles as string[];
 		const context = !!process.env['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
 		if (args['new-window'] && args._.length === 0) {
 			this.windowsMainService.open({ context, cli: args, forceNewWindow: true, forceEmpty: true, initialStartup: true }); // new window if "-n" was used without paths
-		} else if (global.macOpenFiles && global.macOpenFiles.length && (!args._ || !args._.length)) {
-			this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, pathsToOpen: global.macOpenFiles, initialStartup: true }); // mac: open-file event received on startup
+		} else if (macOpenFiles && macOpenFiles.length && (!args._ || !args._.length)) {
+			this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, pathsToOpen: macOpenFiles, initialStartup: true }); // mac: open-file event received on startup
 		} else {
 			this.windowsMainService.open({ context, cli: args, forceNewWindow: args['new-window'] || (!args._.length && args['unity-launch']), diffMode: args.diff, initialStartup: true }); // default: read paths from cli
 		}

@@ -192,7 +192,7 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 			this._inputField.setSelectionRange(
 				parseInt(this._inputField.getAttribute('selectionStart')),
 				parseInt(this._inputField.getAttribute('selectionEnd')));
-		}, 25);
+		}, 100);
 	}
 
 	private _hide(): void {

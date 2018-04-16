@@ -68,17 +68,13 @@ export abstract class CommonCodeEditor extends Disposable {
 	private readonly _onDidLayoutChange: Emitter<editorOptions.EditorLayoutInfo> = this._register(new Emitter<editorOptions.EditorLayoutInfo>());
 	public readonly onDidLayoutChange: Event<editorOptions.EditorLayoutInfo> = this._onDidLayoutChange.event;
 
-	protected readonly _onDidFocusEditorText: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidFocusEditorText: Event<void> = this._onDidFocusEditorText.event;
+	protected _editorTextFocus: BooleanEventEmitter = this._register(new BooleanEventEmitter());
+	public readonly onDidFocusEditorText: Event<void> = this._editorTextFocus.onDidChangeToTrue;
+	public readonly onDidBlurEditorText: Event<void> = this._editorTextFocus.onDidChangeToFalse;
 
-	protected readonly _onDidBlurEditorText: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidBlurEditorText: Event<void> = this._onDidBlurEditorText.event;
-
-	protected readonly _onDidFocusEditor: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidFocusEditor: Event<void> = this._onDidFocusEditor.event;
-
-	protected readonly _onDidBlurEditor: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidBlurEditor: Event<void> = this._onDidBlurEditor.event;
+	protected _editorFocus: BooleanEventEmitter = this._register(new BooleanEventEmitter());
+	public readonly onDidFocusEditor: Event<void> = this._editorFocus.onDidChangeToTrue;
+	public readonly onDidBlurEditor: Event<void> = this._editorFocus.onDidChangeToFalse;
 
 	private readonly _onWillType: Emitter<string> = this._register(new Emitter<string>());
 	public readonly onWillType = this._onWillType.event;
@@ -629,19 +625,19 @@ export abstract class CommonCodeEditor extends Disposable {
 		if (!this.cursor || !this.hasView) {
 			return null;
 		}
-		let contributionsState: { [key: string]: any } = {};
+		const contributionsState: { [key: string]: any } = {};
 
-		let keys = Object.keys(this._contributions);
+		const keys = Object.keys(this._contributions);
 		for (let i = 0, len = keys.length; i < len; i++) {
-			let id = keys[i];
-			let contribution = this._contributions[id];
+			const id = keys[i];
+			const contribution = this._contributions[id];
 			if (typeof contribution.saveViewState === 'function') {
 				contributionsState[id] = contribution.saveViewState();
 			}
 		}
 
-		let cursorState = this.cursor.saveState();
-		let viewState = this.viewModel.viewLayout.saveState();
+		const cursorState = this.cursor.saveState();
+		const viewState = this.viewModel.saveState();
 		return {
 			cursorState: cursorState,
 			viewState: viewState,
@@ -1044,6 +1040,40 @@ export abstract class CommonCodeEditor extends Disposable {
 	*/
 	public getTelemetryData(): { [key: string]: any; } {
 		return null;
+	}
+}
+
+const enum BooleanEventValue {
+	NotSet,
+	False,
+	True
+}
+
+export class BooleanEventEmitter extends Disposable {
+	private readonly _onDidChangeToTrue: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidChangeToTrue: Event<void> = this._onDidChangeToTrue.event;
+
+	private readonly _onDidChangeToFalse: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidChangeToFalse: Event<void> = this._onDidChangeToFalse.event;
+
+	private _value: BooleanEventValue;
+
+	constructor() {
+		super();
+		this._value = BooleanEventValue.NotSet;
+	}
+
+	public setValue(_value: boolean) {
+		let value = (_value ? BooleanEventValue.True : BooleanEventValue.False);
+		if (this._value === value) {
+			return;
+		}
+		this._value = value;
+		if (this._value === BooleanEventValue.True) {
+			this._onDidChangeToTrue.fire();
+		} else if (this._value === BooleanEventValue.False) {
+			this._onDidChangeToFalse.fire();
+		}
 	}
 }
 

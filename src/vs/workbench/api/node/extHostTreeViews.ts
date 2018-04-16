@@ -152,7 +152,7 @@ class ExtHostTreeView<T> extends Disposable {
 
 	private resolveTreeNode(element: T, parent?: TreeNode): TPromise<TreeNode> {
 		return asWinJsPromise(() => this.dataProvider.getTreeItem(element))
-			.then(extTreeItem => this.createHandle(element, extTreeItem, parent))
+			.then(extTreeItem => this.createHandle(element, extTreeItem, parent, true))
 			.then(handle => this.getChildren(parent ? parent.item.handle : null)
 				.then(() => {
 					const cachedElement = this.getExtensionElement(handle);
@@ -303,7 +303,7 @@ class ExtHostTreeView<T> extends Disposable {
 		return item;
 	}
 
-	private createHandle(element: T, { id, label, resourceUri }: vscode.TreeItem, parent?: TreeNode): TreeItemHandle {
+	private createHandle(element: T, { id, label, resourceUri }: vscode.TreeItem, parent: TreeNode, first?: boolean): TreeItemHandle {
 		if (id) {
 			return `${ExtHostTreeView.ID_HANDLE_PREFIX}/${id}`;
 		}
@@ -316,7 +316,7 @@ class ExtHostTreeView<T> extends Disposable {
 
 		for (let counter = 0; counter <= childrenNodes.length; counter++) {
 			const handle = `${prefix}/${counter}:${elementId}`;
-			if (!this.elements.has(handle) || existingHandle === handle) {
+			if (first || !this.elements.has(handle) || existingHandle === handle) {
 				return handle;
 			}
 		}

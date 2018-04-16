@@ -359,7 +359,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			set.forEach(item => list.push(item));
 			/* __GDPR__
 				"workspace.remotes" : {
-					"domains" : { "classification": "CustomerContent", "purpose": "FeatureInsight" }
+					"domains" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
 			this.telemetryService.publicLog('workspace.remotes', { domains: list.sort() });

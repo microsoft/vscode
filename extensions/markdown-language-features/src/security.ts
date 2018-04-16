@@ -14,7 +14,8 @@ const localize = nls.loadMessageBundle();
 export enum MarkdownPreviewSecurityLevel {
 	Strict = 0,
 	AllowInsecureContent = 1,
-	AllowScriptsAndAllContent = 2
+	AllowScriptsAndAllContent = 2,
+	AllowInsecureLocalContent = 3
 }
 
 export interface ContentSecurityPolicyArbiter {
@@ -110,6 +111,10 @@ export class PreviewSecuritySelector {
 					label: markActiveWhen(currentSecurityLevel === MarkdownPreviewSecurityLevel.Strict) + localize('strict.title', 'Strict'),
 					description: localize('strict.description', 'Only load secure content'),
 				}, {
+					type: MarkdownPreviewSecurityLevel.AllowInsecureLocalContent,
+					label: markActiveWhen(currentSecurityLevel === MarkdownPreviewSecurityLevel.AllowInsecureLocalContent) + localize('insecureLocalContent.title', 'Allow insecure local content'),
+					description: localize('insecureLocalContent.description', 'Enable loading content over http served from localhost'),
+				}, {
 					type: MarkdownPreviewSecurityLevel.AllowInsecureContent,
 					label: markActiveWhen(currentSecurityLevel === MarkdownPreviewSecurityLevel.AllowInsecureContent) + localize('insecureContent.title', 'Allow insecure content'),
 					description: localize('insecureContent.description', 'Enable loading content over http'),
@@ -133,7 +138,6 @@ export class PreviewSecuritySelector {
 					'preview.showPreviewSecuritySelector.title',
 					'Select security settings for Markdown previews in this workspace'),
 			});
-
 		if (!selection) {
 			return;
 		}

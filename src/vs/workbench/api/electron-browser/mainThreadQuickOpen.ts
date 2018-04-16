@@ -7,6 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { IQuickOpenService, IPickOptions, IInputOptions } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { InputBoxOptions } from 'vscode';
 import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPickItems, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
@@ -16,6 +17,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 	private _proxy: ExtHostQuickOpenShape;
 	private _quickOpenService: IQuickOpenService;
+	private _quickInputService: IQuickInputService;
 	private _doSetItems: (items: MyQuickPickItems[]) => any;
 	private _doSetError: (error: Error) => any;
 	private _contents: TPromise<MyQuickPickItems[]>;
@@ -23,16 +25,18 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IQuickOpenService quickOpenService: IQuickOpenService
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IQuickInputService quickInputService: IQuickInputService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostQuickOpen);
 		this._quickOpenService = quickOpenService;
+		this._quickInputService = quickInputService;
 	}
 
 	public dispose(): void {
 	}
 
-	$show(options: IPickOptions): TPromise<number> {
+	$show(options: IPickOptions): TPromise<number | number[]> {
 
 		const myToken = ++this._token;
 
@@ -50,16 +54,29 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 			};
 		});
 
-		return asWinJsPromise(token => this._quickOpenService.pick(this._contents, options, token)).then(item => {
-			if (item) {
-				return item.handle;
-			}
-			return undefined;
-		}, undefined, progress => {
-			if (progress) {
-				this._proxy.$onItemSelected((<MyQuickPickItems>progress).handle);
-			}
-		});
+		if (options.canSelectMany) {
+			return asWinJsPromise(token => this._quickInputService.pick(this._contents, options, token)).then(items => {
+				if (items) {
+					return items.map(item => item.handle);
+				}
+				return undefined;
+			}, undefined, progress => {
+				if (progress) {
+					this._proxy.$onItemSelected((<MyQuickPickItems>progress).handle);
+				}
+			});
+		} else {
+			return asWinJsPromise(token => this._quickOpenService.pick(this._contents, options, token)).then(item => {
+				if (item) {
+					return item.handle;
+				}
+				return undefined;
+			}, undefined, progress => {
+				if (progress) {
+					this._proxy.$onItemSelected((<MyQuickPickItems>progress).handle);
+				}
+			});
+		}
 	}
 
 	$setItems(items: MyQuickPickItems[]): TPromise<any> {

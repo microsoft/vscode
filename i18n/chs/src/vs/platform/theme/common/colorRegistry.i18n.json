@@ -93,6 +93,6 @@
 	"overviewRulerCurrentContentForeground": "内联合并冲突中当前版本区域的概览标尺前景色。",
 	"overviewRulerIncomingContentForeground": "内联合并冲突中传入的版本区域的概览标尺前景色。",
 	"overviewRulerCommonContentForeground": "内联合并冲突中共同祖先区域的概览标尺前景色。",
-	"overviewRulerFindMatchForeground": "概述查找匹配项的标尺标记颜色。",
-	"overviewRulerSelectionHighlightForeground": "概述选择突出显示的标尺标记颜色。"
+	"overviewRulerFindMatchForeground": "概览标尺中查找匹配项的标记颜色。颜色必须透明，使其不会挡住下方的其他元素。",
+	"overviewRulerSelectionHighlightForeground": "概览标尺中选择高亮的标记颜色。颜色必须透明，使其不会挡住下方的其他元素。"
 }

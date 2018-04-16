@@ -93,6 +93,6 @@
 	"overviewRulerCurrentContentForeground": "A helyi tartalom előtérszíne az áttekintő sávon összeolvasztási konfliktusok esetén.",
 	"overviewRulerIncomingContentForeground": "A beérkező tartalom előtérszíne az áttekintő sávon összeolvasztási konfliktusok esetén.",
 	"overviewRulerCommonContentForeground": "A közös ős tartalom előtérszíne az áttekintő sávon összeolvasztási konfliktusok esetén. ",
-	"overviewRulerFindMatchForeground": "A keresési találatokat jelölő jelzések színe az áttekintősávon.",
-	"overviewRulerSelectionHighlightForeground": "A kiemelt kijelöléseket jelölő jelzések színe az áttekintősávon."
+	"overviewRulerFindMatchForeground": "A keresési találatokat jelölő jelzések színe az áttekintősávon. A színnek áttetszőnek kell lennie, hogy ne fedje el az alatta lévő dekorátorokat.",
+	"overviewRulerSelectionHighlightForeground": "A kijelölt területeket jelölő jelzések színe az áttekintősávon. A színnek áttetszőnek kell lennie, hogy ne fedje el az alatta lévő dekorátorokat."
 }

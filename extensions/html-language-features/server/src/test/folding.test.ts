@@ -19,7 +19,11 @@ interface ExpectedIndentRange {
 
 function assertRanges(lines: string[], expected: ExpectedIndentRange[], message?: string, nRanges?: number): void {
 	let document = TextDocument.create('test://foo/bar.json', 'json', 1, lines.join('\n'));
-	let languageModes = getLanguageModes({ css: true, javascript: true });
+	let workspace = {
+		settings: {},
+		folders: [{ name: 'foo', uri: 'test://foo' }]
+	};
+	let languageModes = getLanguageModes({ css: true, javascript: true }, workspace);
 	let actual = getFoldingRegions(languageModes, document, nRanges, null)!.ranges;
 
 	let actualRanges = [];
@@ -84,7 +88,7 @@ suite('HTML Folding', () => {
 		assertRanges(input, [r(0, 7), r(5, 6)]);
 	});
 
-	test('Fold commment', () => {
+	test('Fold comment', () => {
 		let input = [
 			/*0*/'<!--',
 			/*1*/' multi line',
@@ -119,7 +123,7 @@ suite('HTML Folding', () => {
 		assertRanges(input, [r(0, 6), r(1, 5), r(2, 4), r(3, 4)]);
 	});
 
-	test('Embedded JavaScript - mutiple areas', () => {
+	test('Embedded JavaScript - multiple areas', () => {
 		let input = [
 			/* 0*/'<html>',
 			/* 1*/'<head>',
@@ -173,7 +177,7 @@ suite('HTML Folding', () => {
 		assertRanges(input, [r(0, 9), r(1, 8), r(2, 7), r(3, 7, 'region'), r(4, 6, 'region')]);
 	});
 
-	// test('Embedded JavaScript - mulit line comment', () => {
+	// test('Embedded JavaScript - multi line comment', () => {
 	// 	let input = [
 	// 		/* 0*/'<html>',
 	// 		/* 1*/'<head>',
@@ -220,6 +224,17 @@ suite('HTML Folding', () => {
 		assertRanges(input, [r(0, 3)]);
 	});
 
+	test('Fold intersecting region 2', () => {
+		let input = [
+			/*0*/'<!-- #region -->',
+			/*1*/'<body>',
+			/*2*/'Hello',
+			/*3*/'<!-- #endregion -->',
+			/*4*/'<div></div>',
+			/*5*/'</body>',
+		];
+		assertRanges(input, [r(0, 3, 'region')]);
+	});
 
 	test('Test limit', () => {
 		let input = [

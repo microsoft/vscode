@@ -149,9 +149,6 @@ class SplitPaneContainer {
 	}
 
 	public layout(width: number, height: number): void {
-		if (!this._isManuallySized) {
-			this.resetSize();
-		}
 		this._width = width;
 		this._height = height;
 		if (this.orientation === Orientation.HORIZONTAL) {
@@ -160,6 +157,9 @@ class SplitPaneContainer {
 		} else {
 			this._children.forEach(c => c.orthogonalLayout(width));
 			this._splitView.layout(height);
+		}
+		if (!this._isManuallySized) {
+			this.resetSize();
 		}
 	}
 

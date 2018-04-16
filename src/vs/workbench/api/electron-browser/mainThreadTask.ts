@@ -17,7 +17,7 @@ import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspac
 
 import {
 	ContributedTask, ExtensionTaskSourceTransfer, TaskIdentifier, TaskExecution, Task, TaskEvent, TaskEventKind,
-	PresentationOptions, CommandOptions, CommandConfiguration, RuntimeType, CustomTask, TaskScope, TaskSource, TaskSourceKind, ExtensionTaskSource
+	PresentationOptions, CommandOptions, CommandConfiguration, RuntimeType, CustomTask, TaskScope, TaskSource, TaskSourceKind, ExtensionTaskSource, RevealKind, PanelKind
 } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
 
@@ -35,11 +35,13 @@ namespace TaskExecutionDTO {
 	export function from(value: TaskExecution): TaskExecutionDTO {
 		return {
 			id: value.id,
+			task: TaskDTO.from(value.task)
 		};
 	}
 	export function to(value: TaskExecutionDTO, workspace: IWorkspaceContextService): TaskExecution {
 		return {
 			id: value.id,
+			task: TaskDTO.to(value.task, workspace)
 		};
 	}
 }
@@ -303,6 +305,8 @@ namespace TaskDTO {
 			return undefined;
 		}
 		command.presentation = TaskPresentationOptionsDTO.to(task.presentationOptions);
+		command.presentation = Objects.assign(command.presentation || {}, { echo: true, reveal: RevealKind.Always, focus: false, panel: PanelKind.Shared });
+
 		let source = TaskSourceDTO.to(task.source, workspace);
 
 		let label = nls.localize('task.label', '{0}: {1}', source.label, task.name);
@@ -403,7 +407,8 @@ export class MainThreadTask implements MainThreadTaskShape {
 				this._taskService.getTask(workspaceFolder, value.id, true).then((task: Task) => {
 					this._taskService.run(task);
 					let result: TaskExecutionDTO = {
-						id: value.id
+						id: value.id,
+						task: TaskDTO.from(task)
 					};
 					resolve(result);
 				}, (error) => {
@@ -413,19 +418,19 @@ export class MainThreadTask implements MainThreadTaskShape {
 				let task = TaskDTO.to(value, this._workspaceContextServer);
 				this._taskService.run(task);
 				let result: TaskExecutionDTO = {
-					id: task._id
+					id: task._id,
+					task: TaskDTO.from(task)
 				};
 				resolve(result);
 			}
 		});
 	}
 
-	public $terminateTask(value: TaskExecutionDTO): TPromise<void> {
-		let execution: TaskExecution = TaskExecutionDTO.to(value, this._workspaceContextServer);
+	public $terminateTask(id: string): TPromise<void> {
 		return new TPromise<void>((resolve, reject) => {
 			this._taskService.getActiveTasks().then((tasks) => {
 				for (let task of tasks) {
-					if (execution.id === task._id) {
+					if (id === task._id) {
 						this._taskService.terminate(task).then((value) => {
 							resolve(undefined);
 						}, (error) => {

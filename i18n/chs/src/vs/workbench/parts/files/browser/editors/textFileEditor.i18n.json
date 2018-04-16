@@ -8,6 +8,8 @@
 	],
 	"textFileEditor": "文本文件编辑器",
 	"createFile": "创建文件",
+	"relaunchWithIncreasedMemoryLimit": "重新启动",
+	"configureMemoryLimit": "配置",
 	"fileEditorWithInputAriaLabel": "{0}。文本文件编辑器。",
 	"fileEditorAriaLabel": "文本文件编辑器。"
 }

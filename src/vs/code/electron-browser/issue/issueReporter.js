@@ -9,6 +9,11 @@ const path = require('path');
 const fs = require('fs');
 const remote = require('electron').remote;
 
+function assign(destination, source) {
+	return Object.keys(source)
+		.reduce(function (r, key) { r[key] = source[key]; return r; }, destination);
+}
+
 function parseURLQueryArgs() {
 	const search = window.location.search || '';
 
@@ -17,15 +22,6 @@ function parseURLQueryArgs() {
 		.map(function (param) { return param.split('='); })
 		.filter(function (param) { return param.length === 2; })
 		.reduce(function (r, param) { r[param[0]] = decodeURIComponent(param[1]); return r; }, {});
-}
-
-function createScript(src, onload) {
-	const script = document.createElement('script');
-	script.src = src;
-	script.addEventListener('load', onload);
-
-	const head = document.getElementsByTagName('head')[0];
-	head.insertBefore(script, head.lastChild);
 }
 
 function uriFromPath(_path) {
@@ -52,6 +48,8 @@ function readFile(file) {
 function main() {
 	const args = parseURLQueryArgs();
 	const configuration = JSON.parse(args['config'] || '{}') || {};
+
+	assign(process.env, configuration.userEnv);
 
 	//#region Add support for using node_modules.asar
 	(function () {
@@ -143,31 +141,34 @@ function main() {
 
 	window.document.documentElement.setAttribute('lang', locale);
 
-	// In the bundled version the nls plugin is packaged with the loader so the NLS Plugins
-	// loads as soon as the loader loads. To be able to have pseudo translation
-	createScript(rootUrl + '/vs/loader.js', function () {
-		var define = global.define;
-		global.define = undefined;
-		define('fs', ['original-fs'], function (originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
+	// Load the loader
+	const loaderFilename = configuration.appRoot + '/out/vs/loader.js';
+	const loaderSource = fs.readFileSync(loaderFilename);
+	require('vm').runInThisContext(loaderSource, { filename: loaderFilename });
+	var define = global.define;
+	global.define = undefined;
 
-		window.MonacoEnvironment = {};
+	window.nodeRequire = require.__$__nodeRequire;
 
-		require.config({
-			baseUrl: rootUrl,
-			'vs/nls': nlsConfig,
-			nodeCachedDataDir: configuration.nodeCachedDataDir,
-			nodeModules: [/*BUILD->INSERT_NODE_MODULES*/]
+	define('fs', ['original-fs'], function (originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
+
+	window.MonacoEnvironment = {};
+
+	require.config({
+		baseUrl: rootUrl,
+		'vs/nls': nlsConfig,
+		nodeCachedDataDir: configuration.nodeCachedDataDir,
+		nodeModules: [/*BUILD->INSERT_NODE_MODULES*/]
+	});
+
+	if (nlsConfig.pseudo) {
+		require(['vs/nls'], function (nlsPlugin) {
+			nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
 		});
+	}
 
-		if (nlsConfig.pseudo) {
-			require(['vs/nls'], function (nlsPlugin) {
-				nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
-			});
-		}
-
-		require(['vs/code/electron-browser/issue/issueReporterMain'], (issueReporter) => {
-			issueReporter.startup(configuration);
-		});
+	require(['vs/code/electron-browser/issue/issueReporterMain'], (issueReporter) => {
+		issueReporter.startup(configuration);
 	});
 }
 

@@ -903,6 +903,7 @@ export class CodeActionKind {
 	public static readonly RefactorExtract = CodeActionKind.Refactor.append('extract');
 	public static readonly RefactorInline = CodeActionKind.Refactor.append('inline');
 	public static readonly RefactorRewrite = CodeActionKind.Refactor.append('rewrite');
+	public static readonly Source = CodeActionKind.Empty.append('source');
 
 	constructor(
 		public readonly value: string
@@ -1343,6 +1344,20 @@ export class ProcessExecution implements vscode.ProcessExecution {
 	set options(value: vscode.ProcessExecutionOptions) {
 		this._options = value;
 	}
+
+	public computeId(): string {
+		const hash = crypto.createHash('md5');
+		hash.update('process');
+		if (this._process !== void 0) {
+			hash.update(this._process);
+		}
+		if (this._args && this._args.length > 0) {
+			for (let arg of this._args) {
+				hash.update(arg);
+			}
+		}
+		return hash.digest('hex');
+	}
 }
 
 export class ShellExecution implements vscode.ShellExecution {
@@ -1410,6 +1425,23 @@ export class ShellExecution implements vscode.ShellExecution {
 
 	set options(value: vscode.ShellExecutionOptions) {
 		this._options = value;
+	}
+
+	public computeId(): string {
+		const hash = crypto.createHash('md5');
+		hash.update('shell');
+		if (this._commandLine !== void 0) {
+			hash.update(this._commandLine);
+		}
+		if (this._command !== void 0) {
+			hash.update(typeof this._command === 'string' ? this._command : this._command.value);
+		}
+		if (this._args && this._args.length > 0) {
+			for (let arg of this._args) {
+				hash.update(typeof arg === 'string' ? arg : arg.value);
+			}
+		}
+		return hash.digest('hex');
 	}
 }
 
@@ -1485,7 +1517,24 @@ export class Task implements vscode.Task {
 	}
 
 	private clear(): void {
+		if (this.__id === void 0) {
+			return;
+		}
 		this.__id = undefined;
+		this._scope = undefined;
+		this._definitionKey = undefined;
+		this._definition = undefined;
+		if (this._execution instanceof ProcessExecution) {
+			this._definition = {
+				type: 'process',
+				id: this._execution.computeId()
+			};
+		} else if (this._execution instanceof ShellExecution) {
+			this._definition = {
+				type: 'shell',
+				id: this._execution.computeId()
+			};
+		}
 	}
 
 	get definition(): vscode.TaskDefinition {
@@ -1616,6 +1665,7 @@ export class Task implements vscode.Task {
 export enum ProgressLocation {
 	SourceControl = 1,
 	Window = 10,
+	Notification = 15
 }
 
 export class TreeItem {
@@ -1769,10 +1819,22 @@ export enum FileChangeType {
 	Deleted = 2
 }
 
+export enum FileChangeType2 {
+	Changed = 1,
+	Created = 2,
+	Deleted = 3,
+}
+
 export enum FileType {
 	File = 0,
 	Dir = 1,
 	Symlink = 2
+}
+
+export enum FileType2 {
+	File = 1,
+	Directory = 2,
+	SymbolicLink = 4,
 }
 
 //#endregion
