@@ -180,14 +180,11 @@ export interface IViewDescriptorRef {
 
 export class ContributableViewsModel {
 
-	private allViewDescriptors: IViewDescriptor[] = [];
 	private viewStates = new Map<string, IViewState>();
 
-	get viewDescriptors(): IViewDescriptor[] {
-		return this.allViewDescriptors.filter(v => {
-			const state = this.viewStates.get(v.id);
-			return state.visible;
-		});
+	readonly viewDescriptors: IViewDescriptor[] = [];
+	get visibleViewDescriptors(): IViewDescriptor[] {
+		return this.viewDescriptors.filter(v => this.viewStates.get(v.id).visible);
 	}
 
 	private _onDidAdd = new Emitter<IViewDescriptorRef>();
@@ -214,6 +211,10 @@ export class ContributableViewsModel {
 	setVisible(id: string, visible: boolean): void {
 		const { visibleIndex, viewDescriptor, state } = this.find(id);
 
+		if (!viewDescriptor.canToggleVisibility) {
+			throw new Error('Can\'t toggle this view\'s visibility');
+		}
+
 		if (state.visible === visible) {
 			return;
 		}
@@ -228,16 +229,16 @@ export class ContributableViewsModel {
 	}
 
 	move(from: string, to: string): void {
-		const fromIndex = firstIndex(this.allViewDescriptors, v => v.id === from);
-		const toIndex = firstIndex(this.allViewDescriptors, v => v.id === to);
+		const fromIndex = firstIndex(this.viewDescriptors, v => v.id === from);
+		const toIndex = firstIndex(this.viewDescriptors, v => v.id === to);
 
-		const fromViewDescriptor = this.allViewDescriptors[fromIndex];
-		const toViewDescriptor = this.allViewDescriptors[toIndex];
+		const fromViewDescriptor = this.viewDescriptors[fromIndex];
+		const toViewDescriptor = this.viewDescriptors[toIndex];
 
-		move(this.allViewDescriptors, fromIndex, toIndex);
+		move(this.viewDescriptors, fromIndex, toIndex);
 
-		for (let index = 0; index < this.allViewDescriptors.length; index++) {
-			const state = this.viewStates.get(this.allViewDescriptors[index].id);
+		for (let index = 0; index < this.viewDescriptors.length; index++) {
+			const state = this.viewStates.get(this.viewDescriptors[index].id);
 			state.order = index;
 		}
 
@@ -248,8 +249,8 @@ export class ContributableViewsModel {
 	}
 
 	private find(id: string): { index: number, visibleIndex: number, viewDescriptor: IViewDescriptor, state: IViewState } {
-		for (let i = 0, visibleIndex = 0; i < this.allViewDescriptors.length; i++) {
-			const viewDescriptor = this.allViewDescriptors[i];
+		for (let i = 0, visibleIndex = 0; i < this.viewDescriptors.length; i++) {
+			const viewDescriptor = this.viewDescriptors[i];
 			const state = this.viewStates.get(viewDescriptor.id);
 
 			if (viewDescriptor.id === id) {
@@ -290,7 +291,7 @@ export class ContributableViewsModel {
 	private onDidChangeViewDescriptors(viewDescriptors: IViewDescriptor[]): void {
 		const ids = new Set<string>();
 
-		for (const viewDescriptor of this.allViewDescriptors) {
+		for (const viewDescriptor of this.viewDescriptors) {
 			ids.add(viewDescriptor.id);
 		}
 
@@ -305,17 +306,17 @@ export class ContributableViewsModel {
 		}
 
 		const splices = sortedDiff<IViewDescriptor>(
-			this.allViewDescriptors,
+			this.viewDescriptors,
 			viewDescriptors,
 			this.compareViewDescriptors.bind(this)
 		).reverse();
 
 		for (const splice of splices) {
-			const startViewDescriptor = this.allViewDescriptors[splice.start];
+			const startViewDescriptor = this.viewDescriptors[splice.start];
 			let startIndex = startViewDescriptor ? this.find(startViewDescriptor.id).visibleIndex : 0;
 
 			for (let i = 0; i < splice.deleteCount; i++) {
-				const viewDescriptor = this.allViewDescriptors[splice.start + i];
+				const viewDescriptor = this.viewDescriptors[splice.start + i];
 				const { state } = this.find(viewDescriptor.id);
 
 				if (state.visible) {
@@ -333,6 +334,6 @@ export class ContributableViewsModel {
 			}
 		}
 
-		this.allViewDescriptors = viewDescriptors;
+		this.viewDescriptors.splice(0, this.viewDescriptors.length, ...viewDescriptors);
 	}
 }
