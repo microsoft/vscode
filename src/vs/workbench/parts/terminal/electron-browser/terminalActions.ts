@@ -1132,3 +1132,45 @@ export class SelectToNextCommandAction extends Action {
 		return TPromise.as(void 0);
 	}
 }
+
+export class SelectToPreviousLineAction extends Action {
+	public static readonly ID = 'workbench.action.terminal.selectToPreviousLine';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.selectToPreviousLine', "Select To Previous Line");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const instance = this.terminalService.getActiveInstance();
+		if (instance) {
+			instance.commandTracker.selectToPreviousLine();
+			instance.focus();
+		}
+		return TPromise.as(void 0);
+	}
+}
+
+export class SelectToNextLineAction extends Action {
+	public static readonly ID = 'workbench.action.terminal.selectToNextLine';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.selectToNextLine', "Select To Next Line");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const instance = this.terminalService.getActiveInstance();
+		if (instance) {
+			instance.commandTracker.selectToNextLine();
+			instance.focus();
+		}
+		return TPromise.as(void 0);
+	}
+}
