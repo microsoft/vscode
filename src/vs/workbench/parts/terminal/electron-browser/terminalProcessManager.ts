@@ -9,13 +9,15 @@ import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/parts/terminal/node/terminalEnvironment';
 import Uri from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ProcessState, ITerminalProcessManager, ITerminalProcessMessage, IShellLaunchConfig, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
+import { ProcessState, ITerminalProcessManager, IShellLaunchConfig, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { ITerminalChildProcess, IMessageFromTerminalProcess } from 'vs/workbench/parts/terminal/node/terminal';
+import { TerminalProcessExtHostBridge } from 'vs/workbench/parts/terminal/node/terminalProcessExtHostBridge';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -34,7 +36,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	public shellProcessId: number;
 	public initialCwd: string;
 
-	private _process: cp.ChildProcess;
+	private _process: ITerminalChildProcess;
 	private _preLaunchInputQueue: string[] = [];
 	private _disposables: IDisposable[] = [];
 
@@ -112,7 +114,11 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		const cwd = Uri.parse(path.dirname(require.toUrl('../node/terminalProcess'))).fsPath;
 		const options = { env, cwd };
 		this._logService.debug(`Terminal process launching`, options);
-		this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], options);
+		if (shellLaunchConfig.extensionHostOwned) {
+			this._process = new TerminalProcessExtHostBridge();
+		} else {
+			this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], options);
+		}
 		this.processState = ProcessState.LAUNCHING;
 
 		this._process.on('message', message => this._onMessage(message));
@@ -152,7 +158,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		}
 	}
 
-	private _onMessage(message: ITerminalProcessMessage): void {
+	private _onMessage(message: IMessageFromTerminalProcess): void {
 		this._logService.trace(`terminalProcessManager#_onMessage (shellProcessId: ${this.shellProcessId}`, message);
 		switch (message.type) {
 			case 'data':

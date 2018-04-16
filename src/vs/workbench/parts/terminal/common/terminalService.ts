@@ -22,28 +22,31 @@ export abstract class TerminalService implements ITerminalService {
 	protected _terminalFocusContextKey: IContextKey<boolean>;
 	protected _findWidgetVisible: IContextKey<boolean>;
 	protected _terminalContainer: HTMLElement;
-	protected _onInstancesChanged: Emitter<void>;
-	protected _onTabDisposed: Emitter<ITerminalTab>;
-	protected _onInstanceCreated: Emitter<ITerminalInstance>;
-	protected _onInstanceDisposed: Emitter<ITerminalInstance>;
-	protected _onInstanceProcessIdReady: Emitter<ITerminalInstance>;
-	protected _onInstanceTitleChanged: Emitter<string>;
 	protected _terminalTabs: ITerminalTab[];
 	protected abstract _terminalInstances: ITerminalInstance[];
 
 	private _activeTabIndex: number;
-	private readonly _onActiveTabChanged: Emitter<void>;
 
 	public get activeTabIndex(): number { return this._activeTabIndex; }
-	public get onActiveTabChanged(): Event<void> { return this._onActiveTabChanged.event; }
-	public get onTabDisposed(): Event<ITerminalTab> { return this._onTabDisposed.event; }
-	public get onInstanceCreated(): Event<ITerminalInstance> { return this._onInstanceCreated.event; }
-	public get onInstanceDisposed(): Event<ITerminalInstance> { return this._onInstanceDisposed.event; }
-	public get onInstanceProcessIdReady(): Event<ITerminalInstance> { return this._onInstanceProcessIdReady.event; }
-	public get onInstanceTitleChanged(): Event<string> { return this._onInstanceTitleChanged.event; }
-	public get onInstancesChanged(): Event<void> { return this._onInstancesChanged.event; }
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
 	public get terminalTabs(): ITerminalTab[] { return this._terminalTabs; }
+
+	private readonly _onActiveTabChanged: Emitter<void> = new Emitter<void>();
+	public get onActiveTabChanged(): Event<void> { return this._onActiveTabChanged.event; }
+	protected readonly _onInstanceCreated: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
+	public get onInstanceCreated(): Event<ITerminalInstance> { return this._onInstanceCreated.event; }
+	protected readonly _onInstanceDisposed: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
+	public get onInstanceDisposed(): Event<ITerminalInstance> { return this._onInstanceDisposed.event; }
+	protected readonly _onInstanceProcessIdReady: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
+	public get onInstanceProcessIdReady(): Event<ITerminalInstance> { return this._onInstanceProcessIdReady.event; }
+	protected readonly _onInstanceRequestExtHostProcess: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
+	public get onInstanceRequestExtHostProcess(): Event<ITerminalInstance> { return this._onInstanceRequestExtHostProcess.event; }
+	protected readonly _onInstancesChanged: Emitter<void> = new Emitter<void>();
+	public get onInstancesChanged(): Event<void> { return this._onInstancesChanged.event; }
+	protected readonly _onInstanceTitleChanged: Emitter<string> = new Emitter<string>();
+	public get onInstanceTitleChanged(): Event<string> { return this._onInstanceTitleChanged.event; }
+	protected readonly _onTabDisposed: Emitter<ITerminalTab> = new Emitter<ITerminalTab>();
+	public get onTabDisposed(): Event<ITerminalTab> { return this._onTabDisposed.event; }
 
 	public abstract get configHelper(): ITerminalConfigHelper;
 
@@ -56,14 +59,6 @@ export abstract class TerminalService implements ITerminalService {
 	) {
 		this._activeTabIndex = 0;
 		this._isShuttingDown = false;
-
-		this._onActiveTabChanged = new Emitter<void>();
-		this._onTabDisposed = new Emitter<ITerminalTab>();
-		this._onInstanceCreated = new Emitter<ITerminalInstance>();
-		this._onInstanceDisposed = new Emitter<ITerminalInstance>();
-		this._onInstanceProcessIdReady = new Emitter<ITerminalInstance>();
-		this._onInstanceTitleChanged = new Emitter<string>();
-		this._onInstancesChanged = new Emitter<void>();
 
 		lifecycleService.onWillShutdown(event => event.veto(this._onWillShutdown()));
 		lifecycleService.onShutdown(() => this._onShutdown());

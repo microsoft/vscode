@@ -727,10 +727,19 @@ export interface ExtHostQuickOpenShape {
 	$validateInput(input: string): TPromise<string>;
 }
 
+export interface ShellLaunchConfigDto {
+	name?: string;
+	executable?: string;
+	args?: string[] | string;
+	cwd?: string;
+	env?: { [key: string]: string };
+}
+
 export interface ExtHostTerminalServiceShape {
 	$acceptTerminalClosed(id: number): void;
 	$acceptTerminalOpened(id: number, name: string): void;
 	$acceptTerminalProcessId(id: number, processId: number): void;
+	$createProcess(shellLaunchConfig: ShellLaunchConfigDto, cols: number, rows: number): void;
 }
 
 export interface ExtHostSCMShape {

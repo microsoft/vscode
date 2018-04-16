@@ -30,6 +30,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		}));
 		this._toDispose.push(terminalService.onInstanceDisposed((terminalInstance) => this._onTerminalDisposed(terminalInstance)));
 		this._toDispose.push(terminalService.onInstanceProcessIdReady((terminalInstance) => this._onTerminalProcessIdReady(terminalInstance)));
+		this._toDispose.push(terminalService.onInstanceRequestExtHostProcess((terminalInstance) => this._onTerminalRequestExtHostProcess(terminalInstance)));
 
 		// Set initial ext host state
 		this.terminalService.terminalInstances.forEach(t => {
@@ -96,5 +97,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	private _onTerminalProcessIdReady(terminalInstance: ITerminalInstance): void {
 		this._proxy.$acceptTerminalProcessId(terminalInstance.id, terminalInstance.processId);
+	}
+
+	private _onTerminalRequestExtHostProcess(terminalInstance: ITerminalInstance): void {
+		console.log('mainThreadTerminalService#_onTerminalRequestExtHostProcess', arguments);
+		this._proxy.$createProcess(null, 0, 0);
 	}
 }

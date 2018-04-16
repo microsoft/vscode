@@ -103,26 +103,35 @@ export interface ITerminalFont {
 }
 
 export interface IShellLaunchConfig {
-	/** The name of the terminal, if this is not set the name of the process will be used. */
+	/**
+	 * The name of the terminal, if this is not set the name of the process will be used.
+	 */
 	name?: string;
-	/** The shell executable (bash, cmd, etc.). */
+
+	/**
+	 * The shell executable (bash, cmd, etc.).
+	 */
 	executable?: string;
+
 	/**
 	 * The CLI arguments to use with executable, a string[] is in argv format and will be escaped,
 	 * a string is in "CommandLine" pre-escaped format and will be used as is. The string option is
 	 * only supported on Windows and will throw an exception if used on macOS or Linux.
 	 */
 	args?: string[] | string;
+
 	/**
 	 * The current working directory of the terminal, this overrides the `terminal.integrated.cwd`
 	 * settings key.
 	 */
 	cwd?: string;
+
 	/**
 	 * A custom environment for the terminal, if this is not set the environment will be inherited
 	 * from the VS Code process.
 	 */
 	env?: { [key: string]: string };
+
 	/**
 	 * Whether to ignore a custom cwd from the `terminal.integrated.cwd` settings key (eg. if the
 	 * shell is being launched by an extension).
@@ -139,6 +148,11 @@ export interface IShellLaunchConfig {
 	 * of the terminal. Use \x1b over \033 or \e for the escape control character.
 	 */
 	initialText?: string;
+
+	/**
+	 * Whether the process should live on the extension host, not the renderer process.
+	 */
+	extensionHostOwned?: boolean;
 }
 
 export interface ITerminalService {
@@ -151,6 +165,7 @@ export interface ITerminalService {
 	onInstanceCreated: Event<ITerminalInstance>;
 	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
+	onInstanceRequestExtHostProcess: Event<ITerminalInstance>;
 	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<string>;
 	terminalInstances: ITerminalInstance[];
@@ -226,9 +241,10 @@ export interface ITerminalInstance {
 	id: number;
 
 	/**
-	 * The process ID of the shell process.
+	 * The process ID of the shell process, this is undefined when there is no process associated
+	 * with this terminal.
 	 */
-	processId: number;
+	processId: number | undefined;
 
 	/**
 	 * An event that fires when the terminal instance's title changes.
@@ -243,6 +259,8 @@ export interface ITerminalInstance {
 	onFocused: Event<ITerminalInstance>;
 
 	onProcessIdReady: Event<ITerminalInstance>;
+
+	onRequestExtHostProcess: Event<ITerminalInstance>;
 
 	processReady: TPromise<void>;
 
@@ -464,11 +482,6 @@ export interface ITerminalCommandTracker {
 	scrollToNextCommand(): void;
 	selectToPreviousCommand(): void;
 	selectToNextCommand(): void;
-}
-
-export interface ITerminalProcessMessage {
-	type: 'pid' | 'data' | 'title';
-	content: number | string;
 }
 
 export interface ITerminalProcessManager extends IDisposable {

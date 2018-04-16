@@ -6,7 +6,7 @@
 
 import * as vscode from 'vscode';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext } from './extHost.protocol';
+import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext, ShellLaunchConfigDto } from 'vs/workbench/api/node/extHost.protocol';
 
 export class ExtHostTerminal implements vscode.Terminal {
 
@@ -166,6 +166,10 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		if (terminal) {
 			terminal._setProcessId(processId);
 		}
+	}
+
+	public $createProcess(shellLaunchConfig: ShellLaunchConfigDto, cols: number, rows: number): void {
+		console.log('$createProcess');
 	}
 
 	private _getTerminalById(id: number): ExtHostTerminal {
