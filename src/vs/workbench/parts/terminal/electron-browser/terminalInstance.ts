@@ -51,18 +51,19 @@ export class TerminalInstance implements ITerminalInstance {
 	private _isDisposed: boolean;
 	private _skipTerminalCommands: string[];
 	private _title: string;
-	// TODO: Rename to "_disposables"
-	private _instanceDisposables: lifecycle.IDisposable[];
 	private _wrapperElement: HTMLDivElement;
 	private _xterm: XTermTerminal;
 	private _xtermElement: HTMLDivElement;
 	private _terminalHasTextContextKey: IContextKey<boolean>;
 	private _cols: number;
 	private _rows: number;
-	private _messageTitleListener: (message: { type: string, content: string }) => void;
 	private _windowsShellHelper: WindowsShellHelper;
 	private _onLineDataListeners: ((lineData: string) => void)[];
 	private _xtermReadyPromise: TPromise<void>;
+
+	// TODO: Rename to "_disposables"
+	private _instanceDisposables: lifecycle.IDisposable[];
+	private _messageTitleDisposable: lifecycle.IDisposable;
 
 	private _widgetManager: TerminalWidgetManager;
 	private _linkHandler: TerminalLinkHandler;
@@ -76,7 +77,7 @@ export class TerminalInstance implements ITerminalInstance {
 	public get processReady(): TPromise<void> { return this._processManager.ptyProcessReady; }
 	public get title(): string { return this._title; }
 	public get hadFocusOnExit(): boolean { return this._hadFocusOnExit; }
-	public get isTitleSetByProcess(): boolean { return !!this._messageTitleListener; }
+	public get isTitleSetByProcess(): boolean { return !!this._messageTitleDisposable; }
 	public get shellLaunchConfig(): IShellLaunchConfig { return Object.freeze(this._shellLaunchConfig); }
 	public get commandTracker(): TerminalCommandTracker { return this._commandTracker; }
 
@@ -593,12 +594,7 @@ export class TerminalInstance implements ITerminalInstance {
 		} else {
 			// Only listen for process title changes when a name is not provided
 			this.setTitle(this._shellLaunchConfig.executable, true);
-			this._messageTitleListener = (message) => {
-				if (message.type === 'title') {
-					this.setTitle(message.content ? message.content : '', true);
-				}
-			};
-			this._processManager.process.on('message', this._messageTitleListener);
+			this._messageTitleDisposable = this._processManager.onProcessTitle(title => this.setTitle(title ? title : '', true));
 		}
 
 		if (platform.isWindows) {
@@ -922,9 +918,9 @@ export class TerminalInstance implements ITerminalInstance {
 		} else {
 			// If the title has not been set by the API or the rename command, unregister the handler that
 			// automatically updates the terminal name
-			if (this._processManager.process && this._messageTitleListener) {
-				this._processManager.process.removeListener('message', this._messageTitleListener);
-				this._messageTitleListener = null;
+			if (this._messageTitleDisposable) {
+				lifecycle.dispose(this._messageTitleDisposable);
+				this._messageTitleDisposable = null;
 			}
 		}
 		const didTitleChange = title !== this._title;

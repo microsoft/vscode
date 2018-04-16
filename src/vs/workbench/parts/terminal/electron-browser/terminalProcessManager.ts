@@ -44,6 +44,8 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	public get onProcessReady(): Event<void> { return this._onProcessReady.event; }
 	private readonly _onProcessData: Emitter<string> = new Emitter<string>();
 	public get onProcessData(): Event<string> { return this._onProcessData.event; }
+	private readonly _onProcessTitle: Emitter<string> = new Emitter<string>();
+	public get onProcessTitle(): Event<string> { return this._onProcessTitle.event; }
 	private readonly _onProcessExit: Emitter<number> = new Emitter<number>();
 	public get onProcessExit(): Event<number> { return this._onProcessExit.event; }
 
@@ -168,20 +170,28 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	}
 
 	private _onMessage(message: ITerminalProcessMessage): void {
-		if (message.type === 'pid') {
-			this.shellProcessId = <number>message.content;
-			this._onProcessReady.fire();
+		switch (message.type) {
+			case 'data':
+				this._onProcessData.fire(<string>message.content);
+				break;
+			case 'pid':
+				this.shellProcessId = <number>message.content;
+				this._onProcessReady.fire();
 
-			// Send any queued data that's waiting
-			if (this._preLaunchInputQueue.length > 0) {
-				this.process.send({
-					event: 'input',
-					data: this._preLaunchInputQueue.join('')
-				});
-				this._preLaunchInputQueue.length = 0;
-			}
-		} else if (message.type === 'data') {
-			this._onProcessData.fire(<string>message.content);
+				// Send any queued data that's waiting
+				if (this._preLaunchInputQueue.length > 0) {
+					this.process.send({
+						event: 'input',
+						data: this._preLaunchInputQueue.join('')
+					});
+					this._preLaunchInputQueue.length = 0;
+				}
+				break;
+			case 'title':
+				this._onProcessTitle.fire(<string>message.content);
+				break;
+			default:
+				this._logService.error(`Unrecognized message from pty (shellProcessId: ${this.shellProcessId}`, message);
 		}
 	}
 
