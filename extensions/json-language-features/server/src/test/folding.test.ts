@@ -77,7 +77,7 @@ suite('JSON Folding', () => {
 		assertRanges(input, [r(0, 4, 'array'), r(2, 3, 'array')]);
 	});
 
-	test('Fold commment', () => {
+	test('Fold comment', () => {
 		let input = [
 			/*0*/'/*',
 			/*1*/' multi line',
@@ -86,7 +86,7 @@ suite('JSON Folding', () => {
 		assertRanges(input, [r(0, 2, 'comment')]);
 	});
 
-	test('Incomplete commment', () => {
+	test('Incomplete comment', () => {
 		let input = [
 			/*0*/'/*',
 			/*1*/'{',
