@@ -216,17 +216,16 @@ export class ExplorerItem {
 	 * Adds a child element to this folder.
 	 */
 	public addChild(child: ExplorerItem): void {
-		if (child && child.name) {
-			// Inherit some parent properties to child
-			child.parent = this;
-			child.updateResource(false);
 
-			this.children.set(this.getPlatformAwareName(child.name), child);
-		}
+		// Inherit some parent properties to child
+		child.parent = this;
+		child.updateResource(false);
+
+		this.children.set(this.getPlatformAwareName(child.name), child);
 	}
 
 	public getChild(name: string): ExplorerItem {
-		if (!this.children || !name) {
+		if (!this.children) {
 			return undefined;
 		}
 
@@ -274,9 +273,7 @@ export class ExplorerItem {
 	 * Removes a child element from this folder.
 	 */
 	public removeChild(child: ExplorerItem): void {
-		if (child && child.name) {
-			this.children.delete(this.getPlatformAwareName(child.name));
-		}
+		this.children.delete(this.getPlatformAwareName(child.name));
 	}
 
 	private getPlatformAwareName(name: string): string {
