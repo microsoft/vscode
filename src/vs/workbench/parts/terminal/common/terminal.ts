@@ -464,9 +464,10 @@ export interface ITerminalProcessMessage {
 }
 
 export interface ITerminalProcessManager extends IDisposable {
+	readonly processState: ProcessState;
+
 	// TODO: Strongly type me
 	process: any;
-	processState: ProcessState;
 	ptyProcessReady: TPromise<void>;
 	shellProcessId: number;
 	initialCwd: string;

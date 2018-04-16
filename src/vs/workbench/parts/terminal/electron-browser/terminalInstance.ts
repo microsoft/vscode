@@ -516,10 +516,7 @@ export class TerminalInstance implements ITerminalInstance {
 			if (addNewLine && text.substr(text.length - 1) !== '\r') {
 				text += '\r';
 			}
-			this._processManager.process.send({
-				event: 'input',
-				data: text
-			});
+			this._processManager.write(text);
 		});
 	}
 
