@@ -14,12 +14,23 @@ export class TerminalProcessExtHostBridge extends EventEmitter implements ITermi
 
 		let i = 0;
 		setTimeout(() => {
-			this.emit('message', { type: 'pid', content: -1 } as IMessageFromTerminalProcess);
-			this.emit('message', { type: 'data', content: `test ${i++}\r\n` } as IMessageFromTerminalProcess);
+			this._emitPid(-1);
+			this._emitTitle('test title');
+			this._emitData(`test ${i++}\r\n`);
 		}, 0);
 		setInterval(() => {
-			this.emit('message', { type: 'data', content: `test ${i++}\r\n` } as IMessageFromTerminalProcess);
+			this._emitData(`test ${i++}\r\n`);
 		}, 1000);
+	}
+
+	private _emitData(data: string): void {
+		this.emit('message', { type: 'data', content: data } as IMessageFromTerminalProcess);
+	}
+	private _emitTitle(title: string): void {
+		this.emit('message', { type: 'data', content: title } as IMessageFromTerminalProcess);
+	}
+	private _emitPid(pid: number): void {
+		this.emit('message', { type: 'data', content: pid } as IMessageFromTerminalProcess);
 	}
 
 	public send(message: IMessageToTerminalProcess): boolean {
