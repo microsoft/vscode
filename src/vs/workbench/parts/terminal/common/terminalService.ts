@@ -75,7 +75,8 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	protected abstract _showTerminalCloseConfirmation(): TPromise<boolean>;
-	public abstract createInstance(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
+	public abstract createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
+	public abstract createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
 	public abstract getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract selectDefaultWindowsShell(): TPromise<string>;
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
@@ -96,7 +97,7 @@ export abstract class TerminalService implements ITerminalService {
 		}
 
 		tabConfigs.forEach(tabConfig => {
-			const instance = this.createInstance(tabConfig.instances[0]);
+			const instance = this.createTerminal(tabConfig.instances[0]);
 			for (let i = 1; i < tabConfig.instances.length; i++) {
 				this.splitInstance(instance, tabConfig.instances[i]);
 			}

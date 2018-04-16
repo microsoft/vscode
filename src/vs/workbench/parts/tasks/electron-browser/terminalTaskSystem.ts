@@ -571,7 +571,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			return [terminalToReuse.terminal, commandExecutable];
 		}
 
-		const result = this.terminalService.createInstance(shellLaunchConfig);
+		const result = this.terminalService.createTerminal(shellLaunchConfig);
 		const terminalKey = result.id.toString();
 		result.onDisposed((terminal) => {
 			let terminalData = this.terminals[terminalKey];

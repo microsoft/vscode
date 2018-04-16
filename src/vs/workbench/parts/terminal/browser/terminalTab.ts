@@ -3,11 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalInstance, IShellLaunchConfig, ITerminalTab, Direction, ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import { ITerminalInstance, IShellLaunchConfig, ITerminalTab, Direction, ITerminalService, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import { Event, Emitter, anyEvent } from 'vs/base/common/event';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView } from 'vs/base/browser/ui/splitview/splitview';
@@ -255,10 +252,9 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 	constructor(
 		terminalFocusContextKey: IContextKey<boolean>,
-		configHelper: TerminalConfigHelper,
+		configHelper: ITerminalConfigHelper,
 		private _container: HTMLElement,
 		shellLaunchConfig: IShellLaunchConfig,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IPartService private readonly _partService: IPartService
 	) {
@@ -266,11 +262,12 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		this._onDisposed = new Emitter<ITerminalTab>();
 		this._onInstancesChanged = new Emitter<void>();
 
-		const instance = this._instantiationService.createInstance(TerminalInstance,
+		const instance = this._terminalService.createInstance(
 			terminalFocusContextKey,
 			configHelper,
 			undefined,
-			shellLaunchConfig);
+			shellLaunchConfig,
+			true);
 		this._terminalInstances.push(instance);
 		this._initInstanceListeners(instance);
 		this._activeInstanceIndex = 0;
@@ -392,14 +389,15 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 	public split(
 		terminalFocusContextKey: IContextKey<boolean>,
-		configHelper: TerminalConfigHelper,
+		configHelper: ITerminalConfigHelper,
 		shellLaunchConfig: IShellLaunchConfig
 	): ITerminalInstance {
-		const instance = this._instantiationService.createInstance(TerminalInstance,
+		const instance = this._terminalService.createInstance(
 			terminalFocusContextKey,
 			configHelper,
 			undefined,
-			shellLaunchConfig);
+			shellLaunchConfig,
+			true);
 		this._terminalInstances.splice(this._activeInstanceIndex + 1, 0, instance);
 		this._initInstanceListeners(instance);
 		this._setActiveInstance(instance);
