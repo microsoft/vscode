@@ -249,7 +249,7 @@ export class DebugAdapter extends StreamDebugAdapter {
 					"Cannot determine executable for debug adapter '{0}'.", this._debugType)));
 			}
 
-			if (this._adapterExecutable.command === 'node' /*&& this.outputService*/) {
+			if (this._adapterExecutable.command === 'node' && this._outputService) {
 				if (Array.isArray(this._adapterExecutable.args) && this._adapterExecutable.args.length > 0) {
 					stdfork.fork(this._adapterExecutable.args[0], this._adapterExecutable.args.slice(1), {}, (err, child) => {
 						if (err) {
