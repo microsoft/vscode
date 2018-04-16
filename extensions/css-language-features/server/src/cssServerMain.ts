@@ -279,8 +279,7 @@ connection.onRenameRequest((renameParameters, token) => {
 connection.onRequest(FoldingRangesRequest.type, (params, token) => {
 	return runSafe(() => {
 		let document = documents.get(params.textDocument.uri);
-		let stylesheet = stylesheets.get(document);
-		return getLanguageService(document).findFoldingRegions(document, stylesheet);
+		return getLanguageService(document).getFoldingRanges(document, { maxRanges: params.maxRanges });
 	}, null, `Error while computing folding ranges for ${params.textDocument.uri}`, token);
 });
 
