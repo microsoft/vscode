@@ -8,8 +8,9 @@ import * as path from 'path';
 import {
 	DebugConfiguration, Event, EventEmitter, ExtensionContext, Task, TaskProvider,
 	TextDocument, ThemeIcon, TreeDataProvider, TreeItem, TreeItemCollapsibleState, Uri,
-	WorkspaceFolder, commands, debug, window, workspace
+	WorkspaceFolder, commands, debug, window, workspace, Selection
 } from 'vscode';
+import { visit, JSONVisitor } from 'jsonc-parser';
 import { NpmTaskDefinition, getPackageJsonUriFromTask, getScripts, isWorkspaceFolder, getPackageManager, getTaskName } from './tasks';
 
 class Folder extends TreeItem {
@@ -185,6 +186,38 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		window.showErrorMessage(message);
 	}
 
+	private findScript(document: TextDocument, script?: NpmScript): number {
+		let scriptOffset = 0;
+		let inScripts = false;
+
+		let visitor: JSONVisitor = {
+			onError() {
+				return scriptOffset;
+			},
+			onObjectEnd() {
+				if (inScripts) {
+					inScripts = false;
+				}
+			},
+			onObjectProperty(property: string, offset: number, _length: number) {
+				if (property === 'scripts') {
+					inScripts = true;
+					if (!script) { // select the script section
+						scriptOffset = offset;
+					}
+				}
+				else if (inScripts && script) {
+					let label = getTaskName(property, script.task.definition.path);
+					if (script.task.name === label) {
+						scriptOffset = offset;
+					}
+				}
+			}
+		};
+		visit(document.getText(), visitor);
+		return scriptOffset;
+
+	}
 	private async openScript(selection: PackageJSON | NpmScript) {
 		let uri: Uri | undefined = undefined;
 		if (selection instanceof PackageJSON) {
@@ -196,7 +229,9 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 			return;
 		}
 		let document: TextDocument = await workspace.openTextDocument(uri);
-		window.showTextDocument(document);
+		let offset = this.findScript(document, selection instanceof NpmScript ? selection : undefined);
+		let position = document.positionAt(offset);
+		await window.showTextDocument(document, { selection: new Selection(position, position) });
 	}
 
 	private refresh() {
