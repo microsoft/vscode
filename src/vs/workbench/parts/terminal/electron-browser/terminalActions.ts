@@ -46,7 +46,7 @@ export class ToggleTerminalAction extends TogglePanelAction {
 		if (this.terminalService.terminalInstances.length === 0) {
 			// If there is not yet an instance attempt to create it here so that we can suggest a
 			// new shell on Windows (and not do so when the panel is restored on reload).
-			const newTerminalInstance = this.terminalService.createInstance(undefined, true);
+			const newTerminalInstance = this.terminalService.createTerminal(undefined, true);
 			const toDispose = newTerminalInstance.onProcessIdReady(() => {
 				newTerminalInstance.focus();
 				toDispose.dispose();
@@ -258,7 +258,7 @@ export class CreateNewTerminalAction extends Action {
 		if (folders.length <= 1) {
 			// Allow terminal service to handle the path when there is only a
 			// single root
-			instancePromise = TPromise.as(this.terminalService.createInstance(undefined, true));
+			instancePromise = TPromise.as(this.terminalService.createTerminal(undefined, true));
 		} else {
 			const options: IPickOptions = {
 				placeHolder: nls.localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
@@ -268,7 +268,7 @@ export class CreateNewTerminalAction extends Action {
 					// Don't create the instance if the workspace picker was canceled
 					return null;
 				}
-				return this.terminalService.createInstance({ cwd: workspace.uri.fsPath }, true);
+				return this.terminalService.createTerminal({ cwd: workspace.uri.fsPath }, true);
 			});
 		}
 
@@ -295,7 +295,7 @@ export class CreateNewInActiveWorkspaceTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		const instance = this.terminalService.createInstance(undefined, true);
+		const instance = this.terminalService.createTerminal(undefined, true);
 		if (!instance) {
 			return TPromise.as(void 0);
 		}

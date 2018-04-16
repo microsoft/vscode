@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as pfs from 'vs/base/node/pfs';
 import * as platform from 'vs/base/common/platform';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -21,11 +21,12 @@ import Severity from 'vs/base/common/severity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { getTerminalDefaultShellWindows } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import { TerminalPanel } from 'vs/workbench/parts/terminal/electron-browser/terminalPanel';
-import { TerminalTab } from 'vs/workbench/parts/terminal/electron-browser/terminalTab';
+import { TerminalTab } from 'vs/workbench/parts/terminal/browser/terminalTab';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ipcRenderer as ipc } from 'electron';
 import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
+import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 
 export class TerminalService extends AbstractTerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
@@ -67,7 +68,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		});
 	}
 
-	public createInstance(shell: IShellLaunchConfig = {}, wasNewTerminalAction?: boolean): ITerminalInstance {
+	public createTerminal(shell: IShellLaunchConfig = {}, wasNewTerminalAction?: boolean): ITerminalInstance {
 		const terminalTab = this._instantiationService.createInstance(TerminalTab,
 			this._terminalFocusContextKey,
 			this._configHelper,
@@ -86,6 +87,10 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		this._onInstancesChanged.fire();
 		this._suggestShellChange(wasNewTerminalAction);
 		return instance;
+	}
+
+	public createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance {
+		return this._instantiationService.createInstance(TerminalInstance, terminalFocusContextKey, configHelper, undefined, shellLaunchConfig, true);
 	}
 
 	public focusFindWidget(): TPromise<void> {
@@ -154,7 +159,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 							return TPromise.as(null);
 						}
 						// Launch a new instance with the newly selected shell
-						const instance = this.createInstance({
+						const instance = this.createTerminal({
 							executable: shell,
 							args: this._configHelper.config.shellArgs.windows
 						});
@@ -234,7 +239,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 
 	public getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance {
 		const activeInstance = this.getActiveInstance();
-		return activeInstance ? activeInstance : this.createInstance(undefined, wasNewTerminalAction);
+		return activeInstance ? activeInstance : this.createTerminal(undefined, wasNewTerminalAction);
 	}
 
 	protected _showTerminalCloseConfirmation(): TPromise<boolean> {

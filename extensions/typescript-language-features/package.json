@@ -71,8 +71,7 @@
           ],
           "default": null,
           "description": "%typescript.npm%",
-          "isExecutable": true,
-          "scope": "window"
+          "scope": "application"
         },
         "typescript.check.npmIsInstalled": {
           "type": "boolean",
@@ -118,8 +117,7 @@
           },
           "default": [],
           "description": "%typescript.tsserver.pluginPaths%",
-          "scope": "window",
-          "isExecutable": true
+          "scope": "application"
         },
         "typescript.tsserver.trace": {
           "type": "string",
