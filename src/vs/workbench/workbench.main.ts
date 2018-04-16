@@ -20,6 +20,7 @@ import 'vs/workbench/services/actions/electron-browser/menusExtensionPoint';
 
 // Views
 import 'vs/workbench/api/browser/viewsExtensionPoint';
+import 'vs/workbench/api/browser/activitybarExtensionPoint';
 
 // Localizations
 import 'vs/workbench/parts/localizations/browser/localizations.contribution';
