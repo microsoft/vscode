@@ -957,10 +957,29 @@ export interface Comment {
 	readonly gravatar: string;
 }
 
+export interface CommentThreadChangedEvent {
+	/**
+	 * Added comment threads.
+	 */
+	readonly added: CommentThread[];
+
+	/**
+	 * Removed comment threads.
+	 */
+	readonly removed: CommentThread[];
+
+	/**
+	 * Changed comment threads.
+	 */
+	readonly changed: CommentThread[];
+}
+
+
 export interface CommentProvider {
 	provideComments(model: model.ITextModel, token: CancellationToken): CommentThread[];
 	provideNewCommentRange(model: model.ITextModel, token: CancellationToken): Promise<NewCommentAction>;
 	provideAllComments(token: CancellationToken): Promise<CommentThread[]>;
+	onDidChangeCommentThreads(): Event<CommentThreadChangedEvent>;
 }
 
 export interface ICodeLensSymbol {

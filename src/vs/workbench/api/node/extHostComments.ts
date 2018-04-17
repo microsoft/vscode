@@ -37,12 +37,25 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		this._providers.set(handle, provider);
 
 		this._proxy.$registerCommentProvider(handle);
+
+		provider.onDidChangeCommentThreads(event => {
+
+			this._proxy.$onDidCommentThreadsChange(handle, {
+				changed: event.changed.map(x => convertCommentThread(x, this._commandsConverter)),
+				added: event.added.map(x => convertCommentThread(x, this._commandsConverter)),
+				removed: event.removed.map(x => convertCommentThread(x, this._commandsConverter))
+			});
+		});
 		return {
 			dispose: () => {
 				this._proxy.$unregisterCommentProvider(handle);
 				this._providers.delete(handle);
 			}
 		};
+	}
+
+	$onDidCommentThreadsChange(handle: number, commentThreadEvent: vscode.CommentThreadChangedEvent) {
+		return TPromise.as(null);
 	}
 
 	$provideComments(handle: number, uri: UriComponents): TPromise<modes.CommentThread[]> {

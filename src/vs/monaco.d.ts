@@ -5047,10 +5047,26 @@ declare namespace monaco.languages {
 		readonly gravatar: string;
 	}
 
+	export interface CommentThreadChangedEvent {
+		/**
+		 * Added comment threads.
+		 */
+		readonly added: CommentThread[];
+		/**
+		 * Removed comment threads.
+		 */
+		readonly removed: CommentThread[];
+		/**
+		 * Changed comment threads.
+		 */
+		readonly changed: CommentThread[];
+	}
+
 	export interface CommentProvider {
 		provideComments(model: editor.ITextModel, token: CancellationToken): CommentThread[];
 		provideNewCommentRange(model: editor.ITextModel, token: CancellationToken): Promise<NewCommentAction>;
 		provideAllComments(token: CancellationToken): Promise<CommentThread[]>;
+		onDidChangeCommentThreads(): IEvent<CommentThreadChangedEvent>;
 	}
 
 	export interface ICodeLensSymbol {

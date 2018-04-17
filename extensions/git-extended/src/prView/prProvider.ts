@@ -158,7 +158,11 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 				}
 			];
 
+
+			const _onDidChangeCommentThreads = new vscode.EventEmitter<vscode.CommentThreadChangedEvent>();
+			setTimeout(() => _onDidChangeCommentThreads.fire({ changed: [], added: [], removed: [] }), 5000);
 			vscode.workspace.registerCommentProvider({
+				onDidChangeCommentThreads: _onDidChangeCommentThreads.event,
 				provideNewCommentRange: async (document: vscode.TextDocument, token: vscode.CancellationToken) => {
 					if (document.uri.scheme === 'pr') {
 						let params = JSON.parse(document.uri.query);

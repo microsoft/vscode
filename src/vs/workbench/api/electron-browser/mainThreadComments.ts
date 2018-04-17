@@ -67,8 +67,10 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 				this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, true);
 			}
 		});
+	}
 
-
+	$onDidCommentThreadsChange(handle: number, event: modes.CommentThreadChangedEvent) {
+		// notify comment service
 	}
 
 	$unregisterCommentProvider(handle: number): void {

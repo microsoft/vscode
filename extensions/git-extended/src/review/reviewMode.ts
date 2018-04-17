@@ -170,7 +170,9 @@ export class ReviewMode {
 			return ret;
 		}
 
-		this._commentProvider = vscode.workspace.registerCommentProvider({
+		const _onDidChangeCommentThreads = new vscode.EventEmitter<vscode.CommentThreadChangedEvent>();
+		vscode.workspace.registerCommentProvider({
+			onDidChangeCommentThreads: _onDidChangeCommentThreads.event,
 			provideNewCommentRange: async (document: vscode.TextDocument, token: vscode.CancellationToken) => {
 				if (document.uri.scheme === 'review' || document.uri.scheme === 'file') {
 					let lastLine = document.lineCount;

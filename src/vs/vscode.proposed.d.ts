@@ -789,6 +789,23 @@ declare module 'vscode' {
 		gravatar: string;
 	}
 
+	export interface CommentThreadChangedEvent {
+		/**
+		 * Added comment threads.
+		 */
+		readonly added: CommentThread[];
+
+		/**
+		 * Removed comment threads.
+		 */
+		readonly removed: CommentThread[];
+
+		/**
+		 * Changed comment threads.
+		 */
+		readonly changed: CommentThread[];
+	}
+
 	/**
 	 * TODO: force update event?
 	 * TODO: resolve step?
@@ -797,6 +814,7 @@ declare module 'vscode' {
 		provideComments(document: TextDocument, token: CancellationToken): Promise<CommentThread[]>;
 		provideNewCommentRange(document: TextDocument, token: CancellationToken): Promise<NewCommentAction>;
 		provideAllComments?(token: CancellationToken): Promise<CommentThread[]>;
+		onDidChangeCommentThreads?: Event<CommentThreadChangedEvent>;
 	}
 
 	namespace workspace {
