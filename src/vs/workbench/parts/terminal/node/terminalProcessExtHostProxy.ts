@@ -9,7 +9,8 @@ import { ITerminalService, ITerminalProcessExtHostProxy } from 'vs/workbench/par
 import { IDisposable } from '../../../../base/common/lifecycle';
 
 export class TerminalProcessExtHostProxy extends EventEmitter implements ITerminalChildProcess, ITerminalProcessExtHostProxy {
-	public connected: boolean;
+	// TODO: Set this properly
+	public connected: boolean = true;
 
 	constructor(
 		public terminalId: number,
@@ -32,21 +33,29 @@ export class TerminalProcessExtHostProxy extends EventEmitter implements ITermin
 	}
 
 	public send(message: IMessageToTerminalProcess): boolean {
-		console.log('TerminalProcessExtHostProxy#send');
-		if (message.event === 'input') {
-			console.log('emit input', message.data);
-			this.emit('input', message.data);
+		switch (message.event) {
+			case 'input': this.emit('input', message.data); break;
+			case 'resize': this.emit('resize', message.cols, message.rows); break;
+			case 'shutdown': this.emit('shutdown'); break;
 		}
 		return true;
 	}
 
 	public onInput(listener: (data: string) => void): IDisposable {
-		console.log('TerminalProcessExtHostProxy#onInput', arguments);
 		// TODO: Dispose of me
-		this.on('input', data => {
-			console.log('TerminalProcessExtHostProxy#onInput - listener');
-			listener(data);
-		});
+		this.on('input', data => listener(data));
+		return null;
+	}
+
+	public onResize(listener: (cols: number, rows: number) => void): IDisposable {
+		// TODO: Dispose of me
+		this.on('resize', (cols, rows) => listener(cols, rows));
+		return null;
+	}
+
+	public onShutdown(listener: () => void): IDisposable {
+		// TODO: Dispose of me
+		this.on('shutdown', () => listener());
 		return null;
 	}
 }

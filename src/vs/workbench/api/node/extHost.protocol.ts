@@ -748,7 +748,9 @@ export interface ExtHostTerminalServiceShape {
 	$acceptTerminalOpened(id: number, name: string): void;
 	$acceptTerminalProcessId(id: number, processId: number): void;
 	$createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, cols: number, rows: number): void;
-	$acceptTerminalProcessWrite(id: number, data: string): void;
+	$acceptTerminalProcessInput(id: number, data: string): void;
+	$acceptTerminalProcessResize(id: number, cols: number, rows: number): void;
+	$acceptTerminalProcessShutdown(id: number): void;
 }
 
 export interface ExtHostSCMShape {

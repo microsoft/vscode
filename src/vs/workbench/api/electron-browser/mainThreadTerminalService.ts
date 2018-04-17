@@ -105,7 +105,9 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._terminalProcesses[proxy.terminalId] = proxy;
 		this._proxy.$createProcess(proxy.terminalId, null, 0, 0);
 		// TODO: Dispose of this properly when the terminal/process dies
-		this._toDispose.push(proxy.onInput(data => this._onTerminalProcessWrite(proxy.terminalId, data)));
+		this._toDispose.push(proxy.onInput(data => this._proxy.$acceptTerminalProcessInput(proxy.terminalId, data)));
+		this._toDispose.push(proxy.onResize((cols, rows) => this._proxy.$acceptTerminalProcessResize(proxy.terminalId, cols, rows)));
+		this._toDispose.push(proxy.onShutdown(() => this._proxy.$acceptTerminalProcessShutdown(proxy.terminalId)));
 	}
 
 	public $sendProcessTitle(terminalId: number, title: string): void {
@@ -118,9 +120,5 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	public $sendProcessPid(terminalId: number, pid: number): void {
 		this._terminalProcesses[terminalId].emitPid(pid);
-	}
-
-	private _onTerminalProcessWrite(terminalId: number, data: string): void {
-		this._proxy.$acceptTerminalProcessWrite(terminalId, data);
 	}
 }

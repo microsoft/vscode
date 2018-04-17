@@ -212,8 +212,17 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		console.log('$createProcess terminal: ' + terminal.name);
 	}
 
-	public $acceptTerminalProcessWrite(id: number, data: string): void {
+	public $acceptTerminalProcessInput(id: number, data: string): void {
 		this._terminalProcesses[id].send({ event: 'input', data });
+	}
+
+	public $acceptTerminalProcessResize(id: number, cols: number, rows: number): void {
+		console.log('resize' + cols + ',' + rows);
+		this._terminalProcesses[id].send({ event: 'resize', cols, rows });
+	}
+
+	public $acceptTerminalProcessShutdown(id: number): void {
+		this._terminalProcesses[id].send({ event: 'shutdown' });
 	}
 
 	private _getTerminalById(id: number): ExtHostTerminal {

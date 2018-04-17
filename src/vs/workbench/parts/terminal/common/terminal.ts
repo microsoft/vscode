@@ -530,4 +530,6 @@ export interface ITerminalProcessExtHostProxy {
 	emitTitle(title: string): void;
 	emitPid(pid: number): void;
 	onInput(listener: (data: string) => void): IDisposable;
+	onResize(listener: (cols: number, rows: number) => void): IDisposable;
+	onShutdown(listener: () => void): IDisposable;
 }
