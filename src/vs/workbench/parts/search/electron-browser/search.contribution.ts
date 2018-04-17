@@ -420,7 +420,7 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new Vie
 	VIEW_ID,
 	nls.localize('name', "Search"),
 	'search',
-	10
+	1
 ));
 
 Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(

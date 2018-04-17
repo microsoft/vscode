@@ -120,7 +120,7 @@ const viewletDescriptor = new ViewletDescriptor(
 	VIEWLET_ID,
 	localize('extensions', "Extensions"),
 	'extensions',
-	100
+	4
 );
 
 Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets)

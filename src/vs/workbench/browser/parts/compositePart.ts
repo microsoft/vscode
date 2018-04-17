@@ -77,7 +77,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		private keybindingService: IKeybindingService,
 		protected instantiationService: IInstantiationService,
 		themeService: IThemeService,
-		private registry: CompositeRegistry<T>,
+		protected readonly registry: CompositeRegistry<T>,
 		private activeCompositeSettingsKey: string,
 		private defaultCompositeId: string,
 		private nameForTelemetry: string,
