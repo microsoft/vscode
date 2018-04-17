@@ -15,7 +15,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IContextViewProvider, IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { EventHelper, EventType } from 'vs/base/browser/dom';
+import { EventHelper, EventType, removeClass, addClass } from 'vs/base/browser/dom';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
 
 export interface ILabelRenderer {
@@ -79,12 +79,12 @@ export class BaseDropdown extends ActionRunner {
 		return this._toDispose;
 	}
 
-	public get element(): Builder {
-		return this.$el;
+	public get element(): HTMLElement {
+		return this.$el.getHTMLElement();
 	}
 
-	public get label(): Builder {
-		return this.$label;
+	public get label(): HTMLElement {
+		return this.$label.getHTMLElement();
 	}
 
 	public set tooltip(tooltip: string) {
@@ -142,7 +142,7 @@ export class Dropdown extends BaseDropdown {
 	public show(): void {
 		super.show();
 
-		this.element.addClass('active');
+		addClass(this.element, 'active');
 
 		this.contextViewProvider.showContextView({
 			getAnchor: () => this.getAnchor(),
@@ -160,11 +160,11 @@ export class Dropdown extends BaseDropdown {
 	}
 
 	protected getAnchor(): HTMLElement | IAnchor {
-		return this.element.getHTMLElement();
+		return this.element;
 	}
 
 	protected onHide(): void {
-		this.element.removeClass('active');
+		removeClass(this.element, 'active');
 	}
 
 	public hide(): void {
@@ -234,16 +234,16 @@ export class DropdownMenu extends BaseDropdown {
 	public show(): void {
 		super.show();
 
-		this.element.addClass('active');
+		addClass(this.element, 'active');
 
 		this._contextMenuProvider.showContextMenu({
-			getAnchor: () => this.element.getHTMLElement(),
+			getAnchor: () => this.element,
 			getActions: () => TPromise.as(this.actions),
 			getActionsContext: () => this.menuOptions ? this.menuOptions.context : null,
 			getActionItem: (action) => this.menuOptions && this.menuOptions.actionItemProvider ? this.menuOptions.actionItemProvider(action) : null,
 			getKeyBinding: (action: IAction) => this.menuOptions && this.menuOptions.getKeyBinding ? this.menuOptions.getKeyBinding(action) : null,
 			getMenuClassName: () => this.menuClassName,
-			onHide: () => this.element.removeClass('active'),
+			onHide: () => removeClass(this.element, 'active'),
 			actionRunner: this.menuOptions ? this.menuOptions.actionRunner : null
 		});
 	}

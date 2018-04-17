@@ -10,8 +10,6 @@
 	"wordHighlightStrong": "Colore di sfondo di un simbolo durante l'accesso in scrittura, per esempio durante la scrittura di una variabile. Il colore non deve essere opaco per evitare di nascondere le decorazioni sottostanti.",
 	"wordHighlightBorder": "Colore del bordo di un simbolo durante l'accesso in lettura, ad esempio durante la lettura di una variabile.",
 	"wordHighlightStrongBorder": "Colore del bordo di un simbolo durante l'accesso in scrittura, ad esempio durante la scrittura in una variabile.",
-	"overviewRulerWordHighlightForeground": "Colore del marcatore del righello delle annotazioni per le evidenziazioni dei simboli.",
-	"overviewRulerWordHighlightStrongForeground": "Colore del marcatore del righello delle annotazioni per le evidenziazioni dei simboli di accesso in scrittura.",
 	"wordHighlight.next.label": "Vai al prossimo simbolo evidenziato",
 	"wordHighlight.previous.label": "Vai al precedente simbolo evidenziato"
 }

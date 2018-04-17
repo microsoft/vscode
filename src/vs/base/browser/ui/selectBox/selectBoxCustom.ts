@@ -61,6 +61,9 @@ class SelectListRenderer implements IRenderer<ISelectOptionItem, ISelectListTemp
 		// pseudo-select disabled option
 		if (optionDisabled) {
 			dom.addClass((<HTMLElement>data.root), 'option-disabled');
+		} else {
+			// Make sure we do class removal from prior template rendering
+			dom.removeClass((<HTMLElement>data.root), 'option-disabled');
 		}
 	}
 
@@ -234,6 +237,10 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 
 		if (index >= 0 && index < this.options.length) {
 			this.selected = index;
+		} else if (index > this.options.length - 1) {
+			// Adjust index to end of list
+			// This could make client out of sync with the select
+			this.select(this.options.length - 1);
 		} else if (this.selected < 0) {
 			this.selected = 0;
 		}

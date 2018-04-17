@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService, shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
 import { ITextModel } from 'vs/editor/common/model';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -192,7 +192,7 @@ class MainThreadDocumentAndEditorStateComputer {
 	}
 
 	private _updateStateOnModelAdd(model: ITextModel): void {
-		if (model.isTooLargeForHavingARichMode()) {
+		if (!shouldSynchronizeModel(model)) {
 			// ignore
 			return;
 		}
@@ -222,7 +222,7 @@ class MainThreadDocumentAndEditorStateComputer {
 		// models: ignore too large models
 		const models = new Set<ITextModel>();
 		for (const model of this._modelService.getModels()) {
-			if (!model.isTooLargeForHavingARichMode()) {
+			if (shouldSynchronizeModel(model)) {
 				models.add(model);
 			}
 		}
@@ -233,8 +233,11 @@ class MainThreadDocumentAndEditorStateComputer {
 		let activeEditor: string = null;
 
 		for (const editor of this._codeEditorService.listCodeEditors()) {
+			if (editor.isSimpleWidget) {
+				continue;
+			}
 			const model = editor.getModel();
-			if (model && !model.isTooLargeForHavingARichMode()
+			if (model && shouldSynchronizeModel(model)
 				&& !model.isDisposed() // model disposed
 				&& Boolean(this._modelService.getModel(model.uri)) // model disposing, the flag didn't flip yet but the model service already removed it
 			) {

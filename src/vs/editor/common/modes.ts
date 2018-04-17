@@ -230,7 +230,7 @@ export interface Hover {
 	 * editor will use the range at the current position or the
 	 * current position itself.
 	 */
-	range: IRange;
+	range?: IRange;
 }
 
 /**
@@ -364,6 +364,11 @@ export interface CodeActionProvider {
 	 * Provide commands for the given document and range.
 	 */
 	provideCodeActions(model: model.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): CodeAction[] | Thenable<CodeAction[]>;
+
+	/**
+	 * Optional list of of CodeActionKinds that this provider returns.
+	 */
+	providedCodeActionKinds?: string[];
 }
 
 /**
@@ -924,14 +929,9 @@ export interface WorkspaceEdit {
 	rejectReason?: string; // TODO@joh, move to rename
 }
 
-export interface RenameContext {
-	range: IRange;
-	text: string;
-}
-
 export interface RenameProvider {
 	provideRenameEdits(model: model.ITextModel, position: Position, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
-	resolveRenameContext?(model: model.ITextModel, position: Position, token: CancellationToken): RenameContext | Thenable<RenameContext>;
+	resolveRenameLocation?(model: model.ITextModel, position: Position, token: CancellationToken): IRange | Thenable<IRange>;
 }
 
 

@@ -17,7 +17,6 @@
 	"ConfigurationParser.missingRequiredProperty": "Error: la configuración de la tarea '{0}' no contiene la propiedad requerida '{1}'. Se omitirá la configuración de la tarea.",
 	"ConfigurationParser.notCustom": "Error: Las tareas no se declaran como una tarea personalizada. La configuración se omitirá.\n{0}\n",
 	"ConfigurationParser.noTaskName": "Error: Las tareas deben proporcionar una propiedad label. La tarea se ignorará.\n{0}\n",
-	"taskConfiguration.shellArgs": "Advertencia: La tarea '{0}' es un comando de shell y uno de sus argumentos podría tener espacios sin escape. Para asegurarse de que la línea de comandos se cite correctamente, fusione mediante combinación los argumentos en el comando.",
 	"taskConfiguration.noCommandOrDependsOn": "Error: La tarea \"{0}\" no especifica un comando ni una propiedad dependsOn. La tarea se ignorará. Su definición es: \n{1}",
 	"taskConfiguration.noCommand": "Error: La tarea \"{0}\" no define un comando. La tarea se ignorará. Su definición es: {1}",
 	"TaskParse.noOsSpecificGlobalTasks": "La versión de tarea 2.0.0 no admite tareas específicas de SO globales. Conviértalas en una tarea con un comando específico de SO. Estas son las tareas afectadas:\n{0}"

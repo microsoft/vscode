@@ -92,7 +92,5 @@
 	"mergeBorder": "Цвет границы заголовков и разделителя во внутренних конфликтах слияния.",
 	"overviewRulerCurrentContentForeground": "Цвет переднего плана линейки текущего окна во внутренних конфликтах слияния.",
 	"overviewRulerIncomingContentForeground": "Цвет переднего плана линейки входящего окна во внутренних конфликтах слияния.",
-	"overviewRulerCommonContentForeground": "Цвет переднего плана для обзорной линейки для общего предка во внутренних конфликтах слияния. ",
-	"overviewRulerFindMatchForeground": "Цвет метки линейки в окне просмотра для результатов поиска.",
-	"overviewRulerSelectionHighlightForeground": "Цвет метки линейки в окне просмотра для выделения."
+	"overviewRulerCommonContentForeground": "Цвет переднего плана для обзорной линейки для общего предка во внутренних конфликтах слияния. "
 }

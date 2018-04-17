@@ -7,12 +7,11 @@ import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IDebugService, State, IProcess, IThread, IEnablement, IBreakpoint, IStackFrame, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, IExpression, REPL_ID, ProcessState }
+import { IDebugService, State, IProcess, IThread, IEnablement, IBreakpoint, IStackFrame, IExpression, REPL_ID, ProcessState }
 	from 'vs/workbench/parts/debug/common/debug';
 import { Variable, Expression, Thread, Breakpoint, Process } from 'vs/workbench/parts/debug/common/debugModel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -139,9 +138,9 @@ export class StartAction extends AbstractDebugAction {
 		if (!launch) {
 			const rootUri = this.historyService.getLastActiveWorkspaceRoot();
 			launch = configurationManager.getLaunch(rootUri);
-			if (!launch) {
+			if (!launch || launch.getConfigurationNames().length === 0) {
 				const launches = configurationManager.getLaunches();
-				launch = first(launches, l => !!l.getConfigurationNames().length, launches.length ? launches[0] : undefined);
+				launch = first(launches, l => !!l.getConfigurationNames().length, launches.length ? launches[0] : launch);
 			}
 
 			configurationManager.selectConfiguration(launch);
@@ -439,32 +438,6 @@ export class RemoveAllBreakpointsAction extends AbstractDebugAction {
 	}
 }
 
-export class EnableBreakpointAction extends AbstractDebugAction {
-	static readonly ID = 'workbench.debug.viewlet.action.enableBreakpoint';
-	static LABEL = nls.localize('enableBreakpoint', "Enable Breakpoint");
-
-	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, undefined, debugService, keybindingService);
-	}
-
-	public run(element: IEnablement): TPromise<any> {
-		return this.debugService.enableOrDisableBreakpoints(true, element);
-	}
-}
-
-export class DisableBreakpointAction extends AbstractDebugAction {
-	static readonly ID = 'workbench.debug.viewlet.action.disableBreakpoint';
-	static LABEL = nls.localize('disableBreakpoint', "Disable Breakpoint");
-
-	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, undefined, debugService, keybindingService);
-	}
-
-	public run(element: IEnablement): TPromise<any> {
-		return this.debugService.enableOrDisableBreakpoints(false, element);
-	}
-}
-
 export class EnableAllBreakpointsAction extends AbstractDebugAction {
 	static readonly ID = 'workbench.debug.viewlet.action.enableAllBreakpoints';
 	static LABEL = nls.localize('enableAllBreakpoints', "Enable All Breakpoints");
@@ -566,44 +539,6 @@ export class AddFunctionBreakpointAction extends AbstractDebugAction {
 			&& this.debugService.getModel().getFunctionBreakpoints().every(fbp => !!fbp.name);
 	}
 }
-
-export class AddConditionalBreakpointAction extends AbstractDebugAction {
-	static readonly ID = 'workbench.debug.viewlet.action.addConditionalBreakpointAction';
-	static LABEL = nls.localize('addConditionalBreakpoint', "Add Conditional Breakpoint...");
-
-	constructor(id: string, label: string,
-		private editor: ICodeEditor,
-		private lineNumber: number,
-		@IDebugService debugService: IDebugService,
-		@IKeybindingService keybindingService: IKeybindingService,
-	) {
-		super(id, label, null, debugService, keybindingService);
-	}
-
-	public run(): TPromise<any> {
-		this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(this.lineNumber, undefined);
-		return TPromise.as(null);
-	}
-}
-
-export class EditConditionalBreakpointAction extends AbstractDebugAction {
-	static readonly ID = 'workbench.debug.viewlet.action.editConditionalBreakpointAction';
-	static LABEL = nls.localize('editConditionalBreakpoint', "Edit Breakpoint...");
-
-	constructor(id: string, label: string,
-		private editor: ICodeEditor,
-		@IDebugService debugService: IDebugService,
-		@IKeybindingService keybindingService: IKeybindingService,
-	) {
-		super(id, label, null, debugService, keybindingService);
-	}
-
-	public run(breakpoint: IBreakpoint): TPromise<any> {
-		this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(breakpoint.lineNumber, breakpoint.column);
-		return TPromise.as(null);
-	}
-}
-
 
 export class SetValueAction extends AbstractDebugAction {
 	static readonly ID = 'workbench.debug.viewlet.action.setValue';

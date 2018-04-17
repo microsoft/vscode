@@ -59,5 +59,6 @@
 	"emmetPreferencesCssWebkitProperties": "Les propriétés css séparées par des virgules qui ont un préfixe 'webkit' vendor lorsqu’elles sont utilisées dans une abréviation emmet qui commence par '-'. Mettre une chaîne vide pour éviter le préfixe 'webkit'.",
 	"emmetPreferencesCssMozProperties": "Les propriétés css séparées par des virgules qui ont un préfixe 'moz' vendor lorsqu’elles sont utilisées dans une abréviation emmet qui commence par '-'. Mettre une chaîne vide pour éviter le préfixe 'moz'.",
 	"emmetPreferencesCssOProperties": "Les propriétés css séparées par des virgules qui ont un préfixe 'o' vendor lorsqu’elles sont utilisées dans une abréviation emmet qui commence par '-'. Mettre une chaîne vide pour éviter le préfixe 'o'.",
-	"emmetPreferencesCssMsProperties": "Les propriétés css séparées par des virgules qui ont un préfixe 'ms' vendor lorsqu’elles sont utilisées dans une abréviation emmet qui commence par '-'. Mettre une chaîne vide pour éviter le préfixe 'ms'."
+	"emmetPreferencesCssMsProperties": "Les propriétés css séparées par des virgules qui ont un préfixe 'ms' vendor lorsqu’elles sont utilisées dans une abréviation emmet qui commence par '-'. Mettre une chaîne vide pour éviter le préfixe 'ms'.",
+	"emmetPreferencesCssFuzzySearchMinScore": "La note minimale (de 0 à 1) que la correspondance de l'abréviation (fuzzy-matched) devrait atteindre. Des valeurs plus faibles peuvent produire de nombreuses correspondances de faux-positifs, des valeurs plus élevées peuvent réduire les correspondances possibles."
 }

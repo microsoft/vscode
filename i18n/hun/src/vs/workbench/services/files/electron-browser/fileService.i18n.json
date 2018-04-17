@@ -10,7 +10,7 @@
 	"neverShowAgain": "Ne jelenítse meg újra",
 	"netVersionError": "A működéshez Microsoft .NET-keretrendszer 4.5 szükséges. A telepítéshez kövesse az alábbi hivatkozást!",
 	"learnMore": "Utasítások",
-	"enospcError": "A {0} kezd kifogyni a fájlleírókból. Kövesse az utasításokat az alábbi hivatkozáson a probléma megoldásához!",
+	"enospcError": "A {0} nem tudja figyelni a fájlváltozásokat egy ilyen nagy munkaterületen. Kövesse az utasításokat az alábbi hivatkozáson a probléma megoldásához!",
 	"binFailed": "A következő fájlt nem sikerült a lomtárba helyezni: '{0}'",
 	"trashFailed": "A(z) {0} kukába helyezése nem sikerült"
 }

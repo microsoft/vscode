@@ -177,7 +177,7 @@ export function registerCommands(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		primary: KeyMod.Shift | KeyCode.F9,
-		when: EditorContextKeys.textFocus,
+		when: EditorContextKeys.editorTextFocus,
 		id: COLUMN_BREAKPOINT_COMMAND_ID,
 		handler: (accessor) => {
 			const debugService = accessor.get(IDebugService);

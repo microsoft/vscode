@@ -7,9 +7,7 @@
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
 import { CoreNavigationCommands, CoreEditorCommand } from 'vs/editor/browser/controller/coreCommands';
@@ -35,26 +33,35 @@ export interface IMouseDispatchData {
 	shiftKey: boolean;
 }
 
+export interface ICommandDelegate {
+	paste(source: string, text: string, pasteOnNewLine: boolean, multicursorText: string[]): void;
+	type(source: string, text: string): void;
+	replacePreviousChar(source: string, text: string, replaceCharCnt: number): void;
+	compositionStart(source: string): void;
+	compositionEnd(source: string): void;
+	cut(source: string): void;
+}
+
 export class ViewController {
 
 	private readonly configuration: Configuration;
 	private readonly viewModel: IViewModel;
 	private readonly _execCoreEditorCommandFunc: ExecCoreEditorCommandFunc;
 	private readonly outgoingEvents: ViewOutgoingEvents;
-	private readonly commandService: ICommandService;
+	private readonly commandDelegate: ICommandDelegate;
 
 	constructor(
 		configuration: Configuration,
 		viewModel: IViewModel,
 		execCommandFunc: ExecCoreEditorCommandFunc,
 		outgoingEvents: ViewOutgoingEvents,
-		commandService: ICommandService
+		commandDelegate: ICommandDelegate
 	) {
 		this.configuration = configuration;
 		this.viewModel = viewModel;
 		this._execCoreEditorCommandFunc = execCommandFunc;
 		this.outgoingEvents = outgoingEvents;
-		this.commandService = commandService;
+		this.commandDelegate = commandDelegate;
 	}
 
 	private _execMouseCommand(editorCommand: CoreEditorCommand, args: any): void {
@@ -63,36 +70,27 @@ export class ViewController {
 	}
 
 	public paste(source: string, text: string, pasteOnNewLine: boolean, multicursorText: string[]): void {
-		this.commandService.executeCommand(editorCommon.Handler.Paste, {
-			text: text,
-			pasteOnNewLine: pasteOnNewLine,
-			multicursorText: multicursorText
-		});
+		this.commandDelegate.paste(source, text, pasteOnNewLine, multicursorText);
 	}
 
 	public type(source: string, text: string): void {
-		this.commandService.executeCommand(editorCommon.Handler.Type, {
-			text: text
-		});
+		this.commandDelegate.type(source, text);
 	}
 
 	public replacePreviousChar(source: string, text: string, replaceCharCnt: number): void {
-		this.commandService.executeCommand(editorCommon.Handler.ReplacePreviousChar, {
-			text: text,
-			replaceCharCnt: replaceCharCnt
-		});
+		this.commandDelegate.replacePreviousChar(source, text, replaceCharCnt);
 	}
 
 	public compositionStart(source: string): void {
-		this.commandService.executeCommand(editorCommon.Handler.CompositionStart, {});
+		this.commandDelegate.compositionStart(source);
 	}
 
 	public compositionEnd(source: string): void {
-		this.commandService.executeCommand(editorCommon.Handler.CompositionEnd, {});
+		this.commandDelegate.compositionEnd(source);
 	}
 
 	public cut(source: string): void {
-		this.commandService.executeCommand(editorCommon.Handler.Cut, {});
+		this.commandDelegate.cut(source);
 	}
 
 	public setSelection(source: string, modelSelection: Selection): void {

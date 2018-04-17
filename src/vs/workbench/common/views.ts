@@ -17,24 +17,23 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export class ViewLocation {
 
-	static readonly Explorer = new ViewLocation('workbench.view.explorer');
-	static readonly Debug = new ViewLocation('workbench.view.debug');
-	static readonly Extensions = new ViewLocation('workbench.view.extensions');
-
-	constructor(private _id: string) {
+	private static locations: Map<string, ViewLocation> = new Map<string, ViewLocation>();
+	static register(id: string): ViewLocation {
+		const viewLocation = new ViewLocation(id);
+		ViewLocation.locations.set(id, viewLocation);
+		return viewLocation;
+	}
+	static get(value: string): ViewLocation {
+		return ViewLocation.locations.get(value);
 	}
 
-	get id(): string {
-		return this._id;
-	}
+	static readonly Explorer: ViewLocation = ViewLocation.register('workbench.view.explorer');
+	static readonly Debug: ViewLocation = ViewLocation.register('workbench.view.debug');
+	static readonly Extensions: ViewLocation = ViewLocation.register('workbench.view.extensions');
 
-	static getContributedViewLocation(value: string): ViewLocation {
-		switch (value) {
-			case 'explorer': return ViewLocation.Explorer;
-			case 'debug': return ViewLocation.Debug;
-		}
-		return void 0;
-	}
+	private constructor(private _id: string) { }
+	get id(): string { return this._id; }
+
 }
 
 export interface IViewDescriptor {

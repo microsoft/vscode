@@ -68,7 +68,7 @@ export class ReferenceAction extends EditorAction {
 				PeekContext.notInPeekEditor,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyCode.F12
 			},
 			menuOpts: {
@@ -207,10 +207,34 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'goToNextReferenceFromEmbeddedEditor',
+	weight: KeybindingsRegistry.WEIGHT.editorContrib(50),
+	primary: KeyCode.F4,
+	when: PeekContext.inPeekEditor,
+	handler(accessor) {
+		withController(accessor, controller => {
+			controller.goToNextOrPreviousReference(true);
+		});
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'goToPreviousReference',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
 	primary: KeyMod.Shift | KeyCode.F4,
 	when: ctxReferenceSearchVisible,
+	handler(accessor) {
+		withController(accessor, controller => {
+			controller.goToNextOrPreviousReference(false);
+		});
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'goToPreviousReferenceFromEmbeddedEditor',
+	weight: KeybindingsRegistry.WEIGHT.editorContrib(50),
+	primary: KeyMod.Shift | KeyCode.F4,
+	when: PeekContext.inPeekEditor,
 	handler(accessor) {
 		withController(accessor, controller => {
 			controller.goToNextOrPreviousReference(false);

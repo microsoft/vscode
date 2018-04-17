@@ -81,7 +81,12 @@ export interface IModelDecorationOptions {
 	 * Always render the decoration (even when the range it encompasses is collapsed).
 	 * @internal
 	 */
-	readonly showIfCollapsed?: boolean;
+	showIfCollapsed?: boolean;
+	/**
+	 * Specifies the stack order of a decoration.
+	 * A decoration with greater stack order is always in front of a decoration with a lower stack order.
+	 */
+	zIndex?: number;
 	/**
 	 * If set, render this decoration in the overview ruler.
 	 */
@@ -390,6 +395,9 @@ export interface ITextModelCreationOptions {
 	detectIndentation: boolean;
 	trimAutoWhitespace: boolean;
 	defaultEOL: DefaultEndOfLine;
+	isForSimpleWidget: boolean;
+	largeFileSize: number;
+	largeFileLineCount: number;
 }
 
 export interface ITextModelUpdateOptions {
@@ -448,6 +456,12 @@ export interface ITextModel {
 	 * A unique identifier associated with this model.
 	 */
 	readonly id: string;
+
+	/**
+	 * This model is constructed for a simple widget code editor.
+	 * @internal
+	 */
+	readonly isForSimpleWidget: boolean;
 
 	/**
 	 * If true, the text model might contain RTL.
@@ -554,6 +568,10 @@ export interface ITextModel {
 	 */
 	getLineContent(lineNumber: number): string;
 
+	/**
+	 * Get the text length for a certain line.
+	 */
+	getLineLength(lineNumber: number): number;
 
 	/**
 	 * Get the text for all lines.
@@ -642,6 +660,11 @@ export interface ITextModel {
 	 * Returns if the model was disposed or not.
 	 */
 	isDisposed(): boolean;
+
+	/**
+	 * @internal
+	 */
+	tokenizeViewport(startLineNumber: number, endLineNumber: number): void;
 
 	/**
 	 * Only basic mode supports allowed on this model because it is simply too large.
@@ -996,6 +1019,13 @@ export interface ITextModel {
 	 * @internal
 	 * @event
 	 */
+	onDidChangeRawContentFast(listener: (e: ModelRawContentChangedEvent) => void): IDisposable;
+	/**
+	 * @deprecated Please use `onDidChangeContent` instead.
+	 * An event emitted when the contents of the model have changed.
+	 * @internal
+	 * @event
+	 */
 	onDidChangeRawContent(listener: (e: ModelRawContentChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted when the contents of the model have changed.
@@ -1055,6 +1085,12 @@ export interface ITextModel {
 	 * @internal
 	 */
 	isAttachedToEditor(): boolean;
+
+	/**
+	 * Returns the count of editors this model is attached to.
+	 * @internal
+	 */
+	getAttachedEditorCount(): number;
 }
 
 /**
@@ -1122,6 +1158,5 @@ export class ApplyEditsResult {
  */
 export interface IInternalModelContentChange extends IModelContentChange {
 	range: Range;
-	rangeOffset: number;
 	forceMoveMarkers: boolean;
 }

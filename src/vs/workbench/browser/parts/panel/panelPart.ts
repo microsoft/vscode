@@ -7,7 +7,7 @@ import 'vs/css!./media/panelpart';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, Action } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
-import { Builder, Dimension } from 'vs/base/browser/builder';
+import { $ } from 'vs/base/browser/builder';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPanel } from 'vs/workbench/common/panel';
@@ -30,6 +30,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { Dimension } from 'vs/base/browser/dom';
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
@@ -42,7 +43,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private blockOpeningPanel: boolean;
 	private compositeBar: CompositeBar;
 	private dimension: Dimension;
-	private toolbarWidth = new Map<string, number>();
 
 	constructor(
 		id: string,
@@ -123,11 +123,11 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	public updateStyles(): void {
 		super.updateStyles();
 
-		const container = this.getContainer();
+		const container = $(this.getContainer());
 		container.style('background-color', this.getColor(PANEL_BACKGROUND));
 		container.style('border-left-color', this.getColor(PANEL_BORDER) || this.getColor(contrastBorder));
 
-		const title = this.getTitleArea();
+		const title = $(this.getTitleArea());
 		title.style('border-top-color', this.getColor(PANEL_BORDER) || this.getColor(contrastBorder));
 	}
 
@@ -207,8 +207,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return this.hideActiveComposite().then(composite => void 0);
 	}
 
-	protected createTitleLabel(parent: Builder): ICompositeTitleLabel {
-		const titleArea = this.compositeBar.create(parent.getHTMLElement());
+	protected createTitleLabel(parent: HTMLElement): ICompositeTitleLabel {
+		const titleArea = this.compositeBar.create(parent);
 		titleArea.classList.add('panel-switcher-container');
 
 		return {
@@ -257,11 +257,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		if (!activePanel) {
 			return 0;
 		}
-		if (!this.toolbarWidth.has(activePanel.getId())) {
-			this.toolbarWidth.set(activePanel.getId(), this.toolBar.getContainer().getHTMLElement().offsetWidth);
-		}
-
-		return this.toolbarWidth.get(activePanel.getId());
+		return this.toolBar.getItemsWidth();
 	}
 }
 

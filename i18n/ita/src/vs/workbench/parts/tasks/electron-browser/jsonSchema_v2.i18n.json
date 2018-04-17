@@ -28,6 +28,8 @@
 	"JsonSchema.tasks.group.none": "Non assegna l'attività ad alcun gruppo",
 	"JsonSchema.tasks.group": "Definisce il gruppo di esecuzione a cui appartiene questa attività. Supporta \"build\" per aggiungerlo al gruppo di compilazione e \"test\" per aggiungerlo al gruppo di test.",
 	"JsonSchema.tasks.type": "Definisce se l'attività viene eseguita come un processo o come un comando all'interno di una shell.",
+	"JsonSchema.command": "Comando da eseguire. Può essere un programma esterno o un comando della shell.",
+	"JsonSchema.tasks.args": "Argomenti passati al comando quando viene richiamata questa attività.",
 	"JsonSchema.tasks.label": "Etichetta dell'attività per l'interfaccia utente ",
 	"JsonSchema.version": "Numero di versione della configurazione",
 	"JsonSchema.tasks.identifier": "Identificatore definito dall'utente per fare riferimento all'attività in launch.json o in una clausola dependsOn.",

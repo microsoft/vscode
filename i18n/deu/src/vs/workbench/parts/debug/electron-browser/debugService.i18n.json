@@ -28,7 +28,5 @@
 	"preLaunchTaskExitCode": "Der preLaunchTask \"{0}\" wurde mit dem Exitcode {1} beendet.",
 	"showErrors": "Fehler anzeigen",
 	"noFolderWorkspaceDebugError": "Debuggen der aktiven Datei ist nicht möglich. Stellen Sie sicher, dass sie auf einem Datenträger gespeichert ist und dass Sie die Debugerweiterung für diesen Dateityp installiert haben.",
-	"cancel": "Abbrechen",
-	"DebugTaskNotFound": "Der preLaunchTask \"{0}\" wurde nicht gefunden.",
-	"taskNotTracked": "Der preLaunchTask \"{0}\" kann nicht getrackt werden."
+	"cancel": "Abbrechen"
 }

@@ -33,8 +33,6 @@ addons:
 before_install:
   - export GITHUB_TOKEN=$PUBLIC_GITHUB_TOKEN
   - git submodule update --init --recursive
-  - git clone --depth 1 https://github.com/creationix/nvm.git ./.nvm
-  - source ./.nvm/nvm.sh
   - nvm install 8.9.1
   - nvm use 8.9.1
   - npm i -g yarn
@@ -53,7 +51,6 @@ install:
 
 script:
   - node_modules/.bin/gulp electron --silent
-  - node_modules/.bin/tsc -p ./src/tsconfig.monaco.json --noEmit
   - node_modules/.bin/gulp compile --silent --max_old_space_size=4096
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./scripts/test.sh --coverage --reporter dot; else ./scripts/test.sh --reporter dot; fi
   - ./scripts/test-integration.sh

@@ -8,8 +8,6 @@
 	],
 	"nextSearchIncludePattern": "Nächstes Sucheinschlussmuster anzeigen",
 	"previousSearchIncludePattern": "Vorheriges Sucheinschlussmuster anzeigen",
-	"nextSearchExcludePattern": "Nächstes Suchausschlussmuster anzeigen",
-	"previousSearchExcludePattern": "Vorheriges Suchausschlussmuster anzeigen",
 	"nextSearchTerm": "Nächsten Suchbegriff anzeigen",
 	"previousSearchTerm": "Vorherigen Suchbegriff anzeigen",
 	"showSearchViewlet": "Suche anzeigen",

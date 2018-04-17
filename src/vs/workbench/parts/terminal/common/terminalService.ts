@@ -24,6 +24,7 @@ export abstract class TerminalService implements ITerminalService {
 	protected _terminalContainer: HTMLElement;
 	protected _onInstancesChanged: Emitter<void>;
 	protected _onTabDisposed: Emitter<ITerminalTab>;
+	protected _onInstanceCreated: Emitter<ITerminalInstance>;
 	protected _onInstanceDisposed: Emitter<ITerminalInstance>;
 	protected _onInstanceProcessIdReady: Emitter<ITerminalInstance>;
 	protected _onInstanceTitleChanged: Emitter<string>;
@@ -36,6 +37,7 @@ export abstract class TerminalService implements ITerminalService {
 	public get activeTabIndex(): number { return this._activeTabIndex; }
 	public get onActiveTabChanged(): Event<void> { return this._onActiveTabChanged.event; }
 	public get onTabDisposed(): Event<ITerminalTab> { return this._onTabDisposed.event; }
+	public get onInstanceCreated(): Event<ITerminalInstance> { return this._onInstanceCreated.event; }
 	public get onInstanceDisposed(): Event<ITerminalInstance> { return this._onInstanceDisposed.event; }
 	public get onInstanceProcessIdReady(): Event<ITerminalInstance> { return this._onInstanceProcessIdReady.event; }
 	public get onInstanceTitleChanged(): Event<string> { return this._onInstanceTitleChanged.event; }
@@ -57,6 +59,7 @@ export abstract class TerminalService implements ITerminalService {
 
 		this._onActiveTabChanged = new Emitter<void>();
 		this._onTabDisposed = new Emitter<ITerminalTab>();
+		this._onInstanceCreated = new Emitter<ITerminalInstance>();
 		this._onInstanceDisposed = new Emitter<ITerminalInstance>();
 		this._onInstanceProcessIdReady = new Emitter<ITerminalInstance>();
 		this._onInstanceTitleChanged = new Emitter<string>();
@@ -72,7 +75,8 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	protected abstract _showTerminalCloseConfirmation(): TPromise<boolean>;
-	public abstract createInstance(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
+	public abstract createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
+	public abstract createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
 	public abstract getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract selectDefaultWindowsShell(): TPromise<string>;
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
@@ -93,7 +97,7 @@ export abstract class TerminalService implements ITerminalService {
 		}
 
 		tabConfigs.forEach(tabConfig => {
-			const instance = this.createInstance(tabConfig.instances[0]);
+			const instance = this.createTerminal(tabConfig.instances[0]);
 			for (let i = 1; i < tabConfig.instances.length; i++) {
 				this.splitInstance(instance, tabConfig.instances[i]);
 			}

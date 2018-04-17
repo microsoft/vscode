@@ -17,7 +17,6 @@
 	"ConfigurationParser.missingRequiredProperty": "錯誤: 工作組態 '{0}' 缺少要求的屬性 '{1}'。會略過工作組態。",
 	"ConfigurationParser.notCustom": "錯誤: 未將工作宣告為自訂工作。將會忽略該組態。\n{0}\n",
 	"ConfigurationParser.noTaskName": "錯誤: 一項工作必須提供標籤屬性。即將忽略此工作。\n{0}\n",
-	"taskConfiguration.shellArgs": "警告: 工作 '{0}' 是 shell 命令 ，其中一個引數可能有未逸出的空格。若要確保命令列正確引述，請將引數合併到命令中。",
 	"taskConfiguration.noCommandOrDependsOn": "錯誤: 工作 '{0}' 未指定命令與 dependsOn 屬性。將會略過該工作。其定義為: \n{1}",
 	"taskConfiguration.noCommand": "錯誤: 工作 '{0}' 未定義命令。即將略過該工作。其定義為:\n{1}",
 	"TaskParse.noOsSpecificGlobalTasks": "工作版本 2.0.0 不支援全域 OS 特定工作。請使用 OS 特定命令來轉換這些工作。受影響的工作為:\n{0}"

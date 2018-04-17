@@ -28,7 +28,7 @@ export interface ILayoutOptions {
 	source?: Parts;
 }
 
-export interface Dimension {
+export interface IDimension {
 	readonly width: number;
 	readonly height: number;
 }
@@ -46,7 +46,7 @@ export interface IPartService {
 	/**
 	 * Emits when the editor part's layout changes.
 	 */
-	onEditorLayout: Event<Dimension>;
+	onEditorLayout: Event<IDimension>;
 
 	/**
 	 * Asks the part service to layout all parts.

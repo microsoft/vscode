@@ -83,6 +83,14 @@ namespace schema {
 	};
 }
 
+function getViewLocation(value: string): ViewLocation {
+	switch (value) {
+		case 'explorer': return ViewLocation.Explorer;
+		case 'debug': return ViewLocation.Debug;
+		default: return ViewLocation.get(`workbench.view.extension.${value}`) || ViewLocation.Explorer;
+	}
+}
+
 ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyViewDescriptor[] }>('views', [], schema.viewsContribution)
 	.setHandler((extensions) => {
 		for (let extension of extensions) {
@@ -93,12 +101,7 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyV
 					return;
 				}
 
-				const location = ViewLocation.getContributedViewLocation(entry.key);
-				if (!location) {
-					collector.warn(localize('locationId.invalid', "`{0}` is not a valid view location", entry.key));
-					return;
-				}
-
+				const location = getViewLocation(entry.key);
 				const registeredViews = ViewsRegistry.getViews(location);
 				const viewIds = [];
 				const viewDescriptors = coalesce(entry.value.map(item => {

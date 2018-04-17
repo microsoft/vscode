@@ -200,6 +200,33 @@ suite('Map', () => {
 		assert.deepStrictEqual(cache.values(), values);
 	});
 
+	test('LinkedMap - toJSON / fromJSON', () => {
+		let map = new LinkedMap<string, string>();
+		map.set('ak', 'av');
+		map.set('bk', 'bv');
+		map.set('ck', 'cv');
+
+		const json = map.toJSON();
+		map = new LinkedMap<string, string>();
+		map.fromJSON(json);
+
+		let i = 0;
+		map.forEach((value, key) => {
+			if (i === 0) {
+				assert.equal(key, 'ak');
+				assert.equal(value, 'av');
+			} else if (i === 1) {
+				assert.equal(key, 'bk');
+				assert.equal(value, 'bv');
+			} else if (i === 2) {
+				assert.equal(key, 'ck');
+				assert.equal(value, 'cv');
+			}
+
+			i++;
+		});
+	});
+
 	test('PathIterator', function () {
 		const iter = new PathIterator();
 		iter.reset('file:///usr/bin/file.txt');

@@ -1069,4 +1069,26 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		model.dispose();
 		mirrorModel2.dispose();
 	});
+
+	test('issue #47733: Undo mangles unicode characters', () => {
+		let model = createEditableTextModelFromString('\'👁\'');
+
+		model.applyEdits([
+			{ range: new Range(1, 1, 1, 1), text: '"' },
+			{ range: new Range(1, 2, 1, 2), text: '"' },
+		]);
+
+		// assert.equal(model.getValue(EndOfLinePreference.LF), '"\'"👁\'');
+
+		assert.deepEqual(model.validateRange(new Range(1, 3, 1, 4)), new Range(1, 3, 1, 4));
+
+		// model.applyEdits([
+		// 	{ range: new Range(1, 1, 1, 2), text: null },
+		// 	{ range: new Range(1, 3, 1, 4), text: null },
+		// ]);
+
+		// assert.equal(model.getValue(EndOfLinePreference.LF), '\'👁\'');
+
+		model.dispose();
+	});
 });

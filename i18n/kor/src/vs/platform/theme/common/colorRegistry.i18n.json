@@ -92,7 +92,5 @@
 	"mergeBorder": "인라인 병합 충돌에서 헤더 및 스플리터의 테두리 색입니다.",
 	"overviewRulerCurrentContentForeground": "인라인 병합 충돌에서 현재 개요 눈금 전경색입니다.",
 	"overviewRulerIncomingContentForeground": "인라인 병합 충돌에서 수신 개요 눈금 전경색입니다.",
-	"overviewRulerCommonContentForeground": "인라인 병합 충돌에서 공통 과거 개요 눈금 전경색입니다.",
-	"overviewRulerFindMatchForeground": "찾기 일치 항목의 개요 눈금자 마커 색입니다.",
-	"overviewRulerSelectionHighlightForeground": "선택 영역 강조 표시의 개요 눈금자 마커 색입니다."
+	"overviewRulerCommonContentForeground": "인라인 병합 충돌에서 공통 과거 개요 눈금 전경색입니다."
 }

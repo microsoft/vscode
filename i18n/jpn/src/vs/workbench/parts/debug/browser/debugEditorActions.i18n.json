@@ -8,6 +8,7 @@
 	],
 	"toggleBreakpointAction": "デバッグ: ブレークポイントの切り替え",
 	"conditionalBreakpointEditorAction": "デバッグ: 条件付きブレークポイントの追加...",
+	"logPointEditorAction": "デバッグ: ログ ポイントの追加...",
 	"runToCursor": "カーソル行の前まで実行",
 	"debugEvaluate": "デバッグ: 評価",
 	"debugAddToWatch": "デバッグ: ウォッチに追加",

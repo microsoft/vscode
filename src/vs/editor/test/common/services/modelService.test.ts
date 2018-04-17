@@ -93,7 +93,7 @@ suite('ModelService', () => {
 		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
 
 		assert.deepEqual(actual, [
-			EditOperation.replace(new Range(1, 1, 2, 1), 'This is line One\n')
+			EditOperation.replaceMove(new Range(1, 1, 2, 1), 'This is line One\n')
 		]);
 	});
 
@@ -147,7 +147,7 @@ suite('ModelService', () => {
 		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
 
 		assert.deepEqual(actual, [
-			EditOperation.replace(
+			EditOperation.replaceMove(
 				new Range(1, 1, 4, 1),
 				[
 					'This is line One',
@@ -182,7 +182,7 @@ suite('ModelService', () => {
 		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
 
 		assert.deepEqual(actual, [
-			EditOperation.replace(new Range(3, 2, 3, 2), '\r\n')
+			EditOperation.replaceMove(new Range(3, 2, 3, 2), '\r\n')
 		]);
 	});
 

@@ -11,16 +11,24 @@ import * as glob from 'vs/base/common/glob';
 import { isLinux } from 'vs/base/common/platform';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
-import { beginsWithIgnoreCase } from 'vs/base/common/strings';
-import { IProgress } from 'vs/platform/progress/common/progress';
+import { startsWithIgnoreCase } from 'vs/base/common/strings';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
+export interface IResourceEncodings {
+	getWriteEncoding(resource: URI, preferredEncoding?: string): string;
+}
+
 export interface IFileService {
 	_serviceBrand: any;
+
+	/**
+	 * Helper to determine read/write encoding for resources.
+	 */
+	encoding: IResourceEncodings;
 
 	/**
 	 * Allows to listen for file changes. The event will fire for every file within the opened workspace
@@ -121,21 +129,10 @@ export interface IFileService {
 	rename(resource: URI, newName: string): TPromise<IFileStat>;
 
 	/**
-	 * Creates a new empty file if the given path does not exist and otherwise
-	 * will set the mtime and atime of the file to the current date.
-	 */
-	touchFile(resource: URI): TPromise<IFileStat>;
-
-	/**
 	 * Deletes the provided file.  The optional useTrash parameter allows to
 	 * move the file to trash.
 	 */
 	del(resource: URI, useTrash?: boolean): TPromise<void>;
-
-	/**
-	 * Imports the file to the parent identified by the resource.
-	 */
-	importFile(source: URI, targetFolder: URI): TPromise<IImportResult>;
 
 	/**
 	 * Allows to start a watcher that reports file change events on the provided resource.
@@ -148,58 +145,79 @@ export interface IFileService {
 	unwatchFileChanges(resource: URI): void;
 
 	/**
-	 * Configures the file service with the provided options.
-	 */
-	updateOptions(options: object): void;
-
-	/**
-	 * Returns the preferred encoding to use for a given resource.
-	 */
-	getEncoding(resource: URI, preferredEncoding?: string): string;
-
-	/**
 	 * Frees up any resources occupied by this service.
 	 */
 	dispose(): void;
 }
 
-
-export enum FileType {
-	File = 0,
-	Dir = 1,
-	Symlink = 2
+export enum FileType2 {
+	File = 1,
+	Directory = 2,
+	SymbolicLink = 4,
 }
+
+export class FileError extends Error {
+
+
+	static readonly EEXIST = new FileError('EEXIST');
+	static readonly ENOENT = new FileError('ENOENT');
+	static readonly ENOTDIR = new FileError('ENOTDIR');
+	static readonly EISDIR = new FileError('EISDIR');
+
+	constructor(readonly code: string) {
+		super(code);
+	}
+	is(err: any): err is FileError {
+		if (!err || typeof err !== 'object') {
+			return false;
+		}
+		return err.code === this.code;
+	}
+}
+
+export enum FileOpenFlags {
+	Read = 0b0001,
+	Write = 0b0010,
+	Create = 0b0100,
+	Exclusive = 0b1000
+}
+
 export interface IStat {
-	id: number | string;
 	mtime: number;
 	size: number;
-	type: FileType;
+	type: FileType2;
 }
 
-export interface IFileSystemProvider {
-
-	onDidChange?: Event<IFileChange[]>;
-
-	// more...
-	//
-	utimes(resource: URI, mtime: number, atime: number): TPromise<IStat>;
+export interface IFileSystemProviderBase {
+	onDidChange: Event<IFileChange[]>;
 	stat(resource: URI): TPromise<IStat>;
-	read(resource: URI, offset: number, count: number, progress: IProgress<Uint8Array>): TPromise<number>;
-	write(resource: URI, content: Uint8Array): TPromise<void>;
-	move(from: URI, to: URI): TPromise<IStat>;
+	rename(from: URI, to: URI, opts: { flags: FileOpenFlags }): TPromise<IStat>;
 	mkdir(resource: URI): TPromise<IStat>;
-	readdir(resource: URI): TPromise<[URI, IStat][]>;
-	rmdir(resource: URI): TPromise<void>;
-	unlink(resource: URI): TPromise<void>;
+	readdir(resource: URI): TPromise<[string, IStat][]>;
+	delete(resource: URI): TPromise<void>;
 }
 
+export interface ISimpleReadWriteProvider {
+	_type: 'simple';
+	readFile(resource: URI, opts: { flags: FileOpenFlags }): TPromise<Uint8Array>;
+	writeFile(resource: URI, content: Uint8Array, opts: { flags: FileOpenFlags }): TPromise<void>;
+}
+
+export interface IReadWriteProvider {
+	_type: 'chunked';
+	open(resource: URI, opts: { flags: FileOpenFlags }): TPromise<number>;
+	close(fd: number): TPromise<void>;
+	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
+	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
+}
+
+export type IFileSystemProvider = (IFileSystemProviderBase & ISimpleReadWriteProvider) | (IFileSystemProviderBase & IReadWriteProvider);
 
 export enum FileOperation {
 	CREATE,
 	DELETE,
 	MOVE,
-	COPY,
-	IMPORT
+	COPY
 }
 
 export class FileOperationEvent {
@@ -348,29 +366,10 @@ export function isParent(path: string, candidate: string, ignoreCase?: boolean):
 	}
 
 	if (ignoreCase) {
-		return beginsWithIgnoreCase(path, candidate);
+		return startsWithIgnoreCase(path, candidate);
 	}
 
 	return path.indexOf(candidate) === 0;
-}
-
-
-
-export function indexOf(path: string, candidate: string, ignoreCase?: boolean): number {
-	if (candidate.length > path.length) {
-		return -1;
-	}
-
-	if (path === candidate) {
-		return 0;
-	}
-
-	if (ignoreCase) {
-		path = path.toLowerCase();
-		candidate = candidate.toLowerCase();
-	}
-
-	return path.indexOf(candidate);
 }
 
 export interface IBaseStat {
@@ -474,6 +473,14 @@ export interface ITextSnapshot {
 	read(): string;
 }
 
+export class StringSnapshot implements ITextSnapshot {
+	constructor(private _value: string) { }
+	read(): string {
+		let ret = this._value;
+		this._value = null;
+		return ret;
+	}
+}
 /**
  * Helper method to convert a snapshot into its full string form.
  */
@@ -512,9 +519,10 @@ export interface IResolveContentOptions {
 	acceptTextOnly?: boolean;
 
 	/**
-	 * The optional etag parameter allows to return a 304 (Not Modified) if the etag matches
-	 * with the remote resource. It is the task of the caller to makes sure to handle this
-	 * error case from the promise.
+	 * The optional etag parameter allows to return early from resolving the resource if
+	 * the contents on disk match the etag. This prevents accumulated reading of resources
+	 * that have been read already with the same etag.
+	 * It is the task of the caller to makes sure to handle this error case from the promise.
 	 */
 	etag?: string;
 
@@ -582,11 +590,6 @@ export interface ICreateFileOptions {
 	 * an error will be thrown (FILE_MODIFIED_SINCE).
 	 */
 	overwrite?: boolean;
-}
-
-export interface IImportResult {
-	stat: IFileStat;
-	isNew: boolean;
 }
 
 export class FileOperationError extends Error {

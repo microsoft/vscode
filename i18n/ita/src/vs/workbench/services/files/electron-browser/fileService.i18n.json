@@ -10,7 +10,6 @@
 	"neverShowAgain": "Non visualizzare più questo messaggio",
 	"netVersionError": "Microsoft .NET Framework 4.5 è obbligatorio. Selezionare il collegamento per installarlo.",
 	"learnMore": "Istruzioni",
-	"enospcError": "{0} sta esaurendo gli handle di file. Per risolvere questo problema, seguire il collegamento alle istruzioni.",
 	"binFailed": "Non è stato possibile spostare '{0}' nel Cestino",
 	"trashFailed": "Non è stato possibile spostare '{0}' nel Cestino"
 }

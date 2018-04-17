@@ -77,6 +77,7 @@
 	"config.showInlineOpenFileAction": "控制是否在Git變更列表中的檔名旁顯示“開啟檔案”的動作按鈕。",
 	"config.inputValidation": "控制何時顯示認可訊息輸入驗證。",
 	"config.detectSubmodules": "控制是否自動偵測 Git 子模組。",
+	"config.detectSubmodulesLimit": "控制 Git 子模組的偵測限制",
 	"colors.modified": "修改資源的顏色。",
 	"colors.deleted": "刪除資源的顏色",
 	"colors.untracked": "未追蹤資源的顏色。",
