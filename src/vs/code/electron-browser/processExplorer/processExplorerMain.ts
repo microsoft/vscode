@@ -12,7 +12,7 @@ import { repeat } from 'vs/base/common/strings';
 import { totalmem } from 'os';
 import product from 'vs/platform/node/product';
 import { localize } from 'vs/nls';
-import { ProcessExplorerData, ProcessExplorerStyles } from '../../../platform/issue/common/issue';
+import { ProcessExplorerStyles, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import * as browser from 'vs/base/browser/browser';
 import * as platform from 'vs/base/common/platform';
 
