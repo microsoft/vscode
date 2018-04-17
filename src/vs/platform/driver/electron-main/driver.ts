@@ -68,7 +68,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 
 		const window = this.windowsService.getWindowById(windowId);
 		this.reloadingWindowIds.add(windowId);
-		window.reload();
+		this.windowsService.reload(window);
 	}
 
 	async dispatchKeybinding(windowId: number, keybinding: string): TPromise<void> {
