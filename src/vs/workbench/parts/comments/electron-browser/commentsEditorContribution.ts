@@ -59,8 +59,7 @@ export class ReviewViewZone implements IViewZone {
 		this.afterLineNumber = afterLineNumber;
 		this.callback = onDomNodeTop;
 
-		this.domNode = document.createElement('div');
-		this.domNode.className = 'review-viewzone';
+		this.domNode = $('.review-viewzone').getHTMLElement();
 	}
 
 	onDomNodeTop(top: number): void {
@@ -121,7 +120,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 	protected _fillHead(container: HTMLElement): void {
 		var titleElement = $('.review-title').
-			// on(dom.EventType.CLICK, e => this._onTitleClick(<MouseEvent>e)).
 			appendTo(this._headElement).
 			getHTMLElement();
 
@@ -141,57 +139,37 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._disposables.push(this._actionbarWidget);
 
 		this._toggleAction = new Action('review.expand', nls.localize('label.expand', "Expand"), 'expand-review-action octicon octicon-chevron-down', true, () => {
-			// let webView = await commentProvider.resolveComment(threadId)
-			// this._bodyElement.appendChild(webView);
-			if (this._isCollapsed) {
-				this._bodyElement.style.display = 'block';
-				this._toggleAction.class = 'expand-review-action octicon octicon-chevron-up';
-				this._isCollapsed = false;
-			} else {
-				this._bodyElement.style.display = 'none';
-				this._toggleAction.class = 'expand-review-action octicon octicon-chevron-down';
-				this._isCollapsed = true;
-			}
-
+			this.toggleExpand();
 			return null;
 		});
 
 		this._actionbarWidget.push(this._toggleAction, { label: false, icon: true });
+	}
 
-		// this._actionbarWidget.push(new Action('review.close', nls.localize('label.close', "Close"), 'close-review-action', true, () => {
-		// 	this.dispose();
-		// 	return null;
-		// }), { label: false, icon: true });
+	toggleExpand() {
+		if (this._isCollapsed) {
+			this._bodyElement.style.display = 'block';
+			this._toggleAction.class = 'expand-review-action octicon octicon-chevron-up';
+			this._isCollapsed = false;
+		}
+		else {
+			this._bodyElement.style.display = 'none';
+			this._toggleAction.class = 'expand-review-action octicon octicon-chevron-down';
+			this._isCollapsed = true;
+		}
 	}
 
 	createCommentElement(comment: modes.Comment) {
-		let singleCommentContainer = document.createElement('div');
-		singleCommentContainer.className = 'review-comment';
-		let avatar = document.createElement('span');
-		avatar.className = 'float-left';
-		let img = document.createElement('img');
-		img.className = 'avatar';
+		let singleCommentContainer = $('div.review-comment').getHTMLElement();
+		let avatar = $('span.float-left').appendTo(singleCommentContainer).getHTMLElement();
+		let img = <HTMLImageElement>$('img.avatar').appendTo(avatar).getHTMLElement();
 		img.src = comment.gravatar;
-		avatar.appendChild(img);
-		let commentDetailsContainer = document.createElement('div');
-		commentDetailsContainer.className = 'review-comment-contents';
+		let commentDetailsContainer = $('.review-comment-contents').appendTo(singleCommentContainer).getHTMLElement();
 
-		singleCommentContainer.appendChild(avatar);
-		singleCommentContainer.appendChild(commentDetailsContainer);
-
-		let header = document.createElement('h4');
-		let author = document.createElement('strong');
-		author.className = 'author';
+		let header = $('h4').appendTo(commentDetailsContainer).getHTMLElement();
+		let author = $('strong.author').appendTo(header).getHTMLElement();
 		author.innerText = comment.userName;
-		// let time = document.createElement('span');
-		// time.className = 'created_at';
-		// time.innerText = comment.created_at;
-		header.appendChild(author);
-		// header.appendChild(time);
-		commentDetailsContainer.appendChild(header);
-		let body = document.createElement('div');
-		body.className = 'comment-body';
-		commentDetailsContainer.appendChild(body);
+		let body = $('comment-body').appendTo(commentDetailsContainer).getHTMLElement();
 		let md = comment.body;
 		body.appendChild(renderMarkdown(md));
 
@@ -214,19 +192,13 @@ export class ReviewZoneWidget extends ZoneWidget {
 			this._commentsElement.appendChild(singleCommentContainer);
 		}
 
-		const commentForm = document.createElement('div');
-		commentForm.className = 'comment-form';
-		this._bodyElement.appendChild(commentForm);
+		const commentForm = $('.comment-form').appendTo(this._bodyElement).getHTMLElement();
+		const textArea = <HTMLTextAreaElement>$('textarea').appendTo(commentForm).getHTMLElement();
 
-		const textArea = document.createElement('textarea');
-		commentForm.appendChild(textArea);
-
-		const formActions = document.createElement('div');
-		formActions.className = 'form-actions';
-		commentForm.appendChild(formActions);
+		const formActions = $('.form-actions').appendTo(commentForm).getHTMLElement();
 
 		for (const action of commentThread.actions) {
-			const button = document.createElement('button');
+			const button = $('button').appendTo(formActions).getHTMLElement();
 			button.onclick = async () => {
 				let newComment = await this.commandService.executeCommand(action.id, commentThread.threadId, this.editor.getModel().uri, lineNumber, textArea.value);
 				if (newComment) {
@@ -239,7 +211,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 				}
 			};
 			button.textContent = action.title;
-			formActions.appendChild(button);
 		}
 
 		this._resizeObserver = new ResizeObserver(entries => {
@@ -306,8 +277,7 @@ export class ReviewController implements IEditorContribution {
 		this._zoneWidget = null;
 
 		this._reviewPanelVisible = ctxReviewPanelVisible.bindTo(contextKeyService);
-		this._domNode = document.createElement('div');
-		this._domNode.className = 'review-widget';
+		this._domNode = $('.review-widget').getHTMLElement();
 		this._reviewModel = new ReviewModel();
 
 		this._reviewModel.onDidChangeStyle(style => {
@@ -468,6 +438,7 @@ export class ReviewController implements IEditorContribution {
 				},
 				actions: newCommentAction.actions
 			}, lineNumber);
+			this._zoneWidget.toggleExpand();
 		}
 	}
 
