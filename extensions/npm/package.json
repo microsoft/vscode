@@ -80,17 +80,17 @@
           "group": "navigation"
         },
         {
-          "command": "npm.runScript",
+          "command": "npm.openScript",
           "when": "view == npm && viewItem == script",
           "group": "navigation@1"
         },
         {
-          "command": "npm.debugScript",
+          "command": "npm.runScript",
           "when": "view == npm && viewItem == script",
           "group": "navigation@2"
         },
         {
-          "command": "npm.openScript",
+          "command": "npm.debugScript",
           "when": "view == npm && viewItem == script",
           "group": "navigation@3"
         }

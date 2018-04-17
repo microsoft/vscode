@@ -73,7 +73,7 @@ class NpmScript extends TreeItem {
 		this.task = task;
 		this.command = {
 			title: 'Run Script',
-			command: 'npm.runScript',
+			command: 'npm.openScript',
 			arguments: [this]
 		};
 		this.iconPath = {
