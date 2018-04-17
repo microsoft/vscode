@@ -242,6 +242,11 @@ export class ActivitybarPart extends Part {
 		return sizes;
 	}
 
+	public shutdown(): void {
+		this.compositeBar.shutdown();
+		super.shutdown();
+	}
+
 	public dispose(): void {
 		if (this.compositeBar) {
 			this.compositeBar.dispose();
