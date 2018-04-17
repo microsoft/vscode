@@ -251,7 +251,6 @@ export class ReviewController implements IEditorContribution {
 	private editor: ICodeEditor;
 	private decorationIDs: string[];
 	private newCommentHintDecoration: string[];
-	private _domNode: HTMLElement;
 	private _zoneWidget: ReviewZoneWidget;
 	private _zoneWidgets: ReviewZoneWidget[];
 	private _reviewPanelVisible: IContextKey<boolean>;
@@ -278,7 +277,6 @@ export class ReviewController implements IEditorContribution {
 		this._zoneWidget = null;
 
 		this._reviewPanelVisible = ctxReviewPanelVisible.bindTo(contextKeyService);
-		this._domNode = $('.review-widget').getHTMLElement();
 		this._reviewModel = new ReviewModel();
 
 		this._reviewModel.onDidChangeStyle(style => {
@@ -335,10 +333,6 @@ export class ReviewController implements IEditorContribution {
 		if (commentThreadWidget.length === 1) {
 			commentThreadWidget[0].reveal();
 		}
-	}
-
-	getDomNode() {
-		return this._domNode;
 	}
 
 	getId(): string {

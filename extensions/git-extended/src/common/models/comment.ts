@@ -24,7 +24,7 @@ export interface Comment {
 	pull_request_review_id: string;
 	diff_hunk_range: DiffHunkRange;
 	position: number;
-	originalPosition: number;
+	original_position: number;
 	commit_id: string;
 	original_commit_id: string;
 	user: User;

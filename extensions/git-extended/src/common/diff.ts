@@ -163,7 +163,8 @@ export function mapCommentsToHead(patches: string, comments: Comment[]) {
 
 	for (let i = 0; i < comments.length; i++) {
 		let comment = comments[i];
-		let commentPosition = comment.diff_hunk_range.start + comment.position - 1;
+		const startPosition = comment.position === null ? comment.original_position : comment.position - 1;
+		let commentPosition = comment.diff_hunk_range.start + startPosition;
 		let delta = 0;
 		for (let j = 0; j < rangeMapping.length; j++) {
 			let map = rangeMapping[j];

@@ -146,7 +146,9 @@ export class ReviewMode {
 				let comments = sections[i];
 
 				const comment = comments[0];
-				const commentAbsolutePosition = comment.diff_hunk_range.start + (comment.position - 1);
+				// If the position is null, the comment is on a line that has been changed. Fall back to using original position.
+				const commentPosition = comment.position === null ? comment.original_position : comment.position - 1;
+				const commentAbsolutePosition = comment.diff_hunk_range.start + commentPosition;
 				const pos = new vscode.Position(comment.currentPosition ? comment.currentPosition - 1 - 1 : commentAbsolutePosition - /* after line */ 1 - /* it's zero based*/ 1, 0);
 				const range = new vscode.Range(pos, pos);
 
@@ -209,9 +211,14 @@ export class ReviewMode {
 				return commentsToCommentThreads(document.uri, matchingComments);
 			},
 			provideAllComments: async (token: vscode.CancellationToken) => {
-				return localFileChanges
-					.map(fileChange => commentsToCommentThreads(vscode.Uri.file(path.resolve(this._repository.path, fileChange.fileName)), fileChange.comments))
-					.reduce((prev, curr) => prev.concat(curr), []);
+				const comments = await Promise.all(localFileChanges.map(async fileChange => {
+					// const comments = fileChange.comments;
+					// let prHead = state['head'].sha;
+					// let contentDiff = await this._repository.diff(fileChange.fileName, prHead);
+					// const mappedComments =  mapCommentsToHead(contentDiff, comments);
+					return commentsToCommentThreads(vscode.Uri.file(path.resolve(this._repository.path, fileChange.fileName)), fileChange.comments);
+				}));
+				return comments.reduce((prev, curr) => prev.concat(curr), []);
 			}
 		});
 
