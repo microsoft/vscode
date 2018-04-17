@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { isFedora } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { isFedora } from 'vs/workbench/parts/terminal/node/terminal';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 suite('Workbench - TerminalConfigHelper', () => {

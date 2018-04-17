@@ -17,7 +17,8 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { ITerminalChildProcess, IMessageFromTerminalProcess } from 'vs/workbench/parts/terminal/node/terminal';
-import { TerminalProcessExtHostBridge } from 'vs/workbench/parts/terminal/node/terminalProcessExtHostBridge';
+import { TerminalProcessExtHostProxy } from 'vs/workbench/parts/terminal/node/terminalProcessExtHostProxy';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -54,6 +55,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private _logService: ILogService
 	) {
 	}
@@ -115,7 +117,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		const options = { env, cwd };
 		this._logService.debug(`Terminal process launching`, options);
 		if (shellLaunchConfig.extensionHostOwned) {
-			this._process = new TerminalProcessExtHostBridge();
+			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy);
 		} else {
 			this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], options);
 		}

@@ -206,6 +206,8 @@ export interface ITerminalService {
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	selectDefaultWindowsShell(): TPromise<string>;
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
+
+	requestExtHostProcess(proxy: ITerminalProcessExtHostProxy): TPromise<void>;
 }
 
 export const enum Direction {
@@ -518,4 +520,11 @@ export enum ProcessState {
 	// The process was killed by itself, for example the shell crashed or `exit`
 	// was run.
 	KILLED_BY_PROCESS
+}
+
+
+export interface ITerminalProcessExtHostProxy {
+	emitData(data: string): void;
+	emitTitle(title: string): void;
+	emitPid(pid: number): void;
 }

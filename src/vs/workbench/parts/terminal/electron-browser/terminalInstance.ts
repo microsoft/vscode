@@ -110,7 +110,6 @@ export class TerminalInstance implements ITerminalInstance {
 		@ILogService private _logService: ILogService
 	) {
 		this._shellLaunchConfig.extensionHostOwned = true;
-		this._shellLaunchConfig.name = 'Test terminal renderer';
 
 		this._disposables = [];
 		this._skipTerminalCommands = [];

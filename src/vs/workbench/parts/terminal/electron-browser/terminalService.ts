@@ -13,7 +13,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IQuickOpenService, IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
-import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfigHelper, NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfigHelper, NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, TERMINAL_PANEL_ID, ITerminalProcessExtHostProxy } from 'vs/workbench/parts/terminal/common/terminal';
 import { TerminalService as AbstractTerminalService } from 'vs/workbench/parts/terminal/common/terminalService';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -91,6 +91,19 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 
 	public createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance {
 		return this._instantiationService.createInstance(TerminalInstance, terminalFocusContextKey, configHelper, undefined, shellLaunchConfig, true);
+	}
+
+	public requestExtHostProcess(proxy: ITerminalProcessExtHostProxy): TPromise<void> {
+		let i = 0;
+		setTimeout(() => {
+			proxy.emitPid(-1);
+			proxy.emitTitle('test title');
+			proxy.emitData(`test ${i++}\r\n`);
+		}, 0);
+		setInterval(() => {
+			proxy.emitData(`test ${i++}\r\n`);
+		}, 1000);
+		return TPromise.as(void 0);
 	}
 
 	public focusFindWidget(): TPromise<void> {
