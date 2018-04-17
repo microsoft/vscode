@@ -128,8 +128,6 @@ export class ReviewMode {
 			}
 		];
 
-		// let localFileChanges = parseCommitDiff(this._repository, state.head.sha, state.base.sha, fileChanges);
-
 		const commentsCache = new Map<String, Comment[]>();
 		localFileChanges.forEach(changedItem => {
 			let matchingComments = comments.filter(comment => comment.path === changedItem.fileName);
@@ -211,8 +209,8 @@ export class ReviewMode {
 				return commentsToCommentThreads(document.uri, matchingComments);
 			},
 			provideAllComments: async (token: vscode.CancellationToken) => {
-				return fileChanges
-					.map(fileChange => commentsToCommentThreads(fileChange.filePath, fileChange.comments))
+				return localFileChanges
+					.map(fileChange => commentsToCommentThreads(vscode.Uri.file(path.resolve(this._repository.path, fileChange.fileName)), fileChange.comments))
 					.reduce((prev, curr) => prev.concat(curr), []);
 			}
 		});

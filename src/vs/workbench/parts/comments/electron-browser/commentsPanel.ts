@@ -15,7 +15,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ResourceLabel } from 'vs/workbench/browser/labels';
+import { FileLabel, ResourceLabel } from 'vs/workbench/browser/labels';
 import { Panel } from 'vs/workbench/browser/panel';
 import { ReviewController } from 'vs/workbench/parts/comments/electron-browser/commentsEditorContribution';
 import { ICommentService } from 'vs/workbench/services/comments/electron-browser/commentService';
@@ -113,16 +113,16 @@ export class CommentsModelRenderer implements IRenderer {
 		}
 	}
 
-	private renderCommentsThreadTemplate(container: HTMLElement): IResourceMarkersTemplateData {
-		const data = <IResourceMarkersTemplateData>Object.create(null);
+	private renderCommentsThreadTemplate(container: HTMLElement): ICommentThreadTemplateData {
+		const data = <ICommentThreadTemplateData>Object.create(null);
 		const labelContainer = dom.append(container, dom.$('.comment-thread-container'));
-		data.resourceLabel = this.instantiationService.createInstance(ResourceLabel, labelContainer, {});
+		data.resourceLabel = this.instantiationService.createInstance(FileLabel, labelContainer, {});
 
 		return data;
 	}
 
-	private renderCommentTemplate(container: HTMLElement): IResourceMarkersTemplateData {
-		const data = <IResourceMarkersTemplateData>Object.create(null);
+	private renderCommentTemplate(container: HTMLElement): ICommentTemplateData {
+		const data = <ICommentTemplateData>Object.create(null);
 		data.icon = dom.append(container, dom.$('img.icon'));
 		data.userName = dom.append(container, dom.$('span.user'));
 		const labelContainer = dom.append(container, dom.$('.comment-container'));
@@ -131,11 +131,11 @@ export class CommentsModelRenderer implements IRenderer {
 		return data;
 	}
 
-	private renderCommentsThreadElement(tree: ITree, element: ResourceCommentThreads, templateData: IResourceMarkersTemplateData) {
-		templateData.resourceLabel.setLabel({ name: element.resource.toString() });
+	private renderCommentsThreadElement(tree: ITree, element: ResourceCommentThreads, templateData: ICommentThreadTemplateData) {
+		templateData.resourceLabel.setFile(element.resource);
 	}
 
-	private renderCommentElement(tree: ITree, element: CommentNode, templateData: IResourceMarkersTemplateData) {
+	private renderCommentElement(tree: ITree, element: CommentNode, templateData: ICommentTemplateData) {
 		templateData.resourceLabel.setLabel({ name: element.comment.body.value });
 		templateData.icon.src = element.comment.gravatar;
 		templateData.userName.textContent = element.comment.userName;
@@ -154,7 +154,11 @@ export class DataFilter implements IFilter {
 	}
 }
 
-interface IResourceMarkersTemplateData {
+interface ICommentThreadTemplateData {
+	resourceLabel: FileLabel;
+}
+
+interface ICommentTemplateData {
 	icon: HTMLImageElement;
 	resourceLabel: ResourceLabel;
 	userName: HTMLSpanElement;
