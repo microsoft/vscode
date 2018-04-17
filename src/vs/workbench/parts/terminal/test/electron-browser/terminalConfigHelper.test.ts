@@ -140,7 +140,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 		configHelper.panelContainer = fixture;
 		assert.equal(configHelper.configFontIsMonospace(), true, "Monospace is mono-spaced");
 	})
-/*
+
 	test('TerminalConfigHelper - isMonospace Go', function() {
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration('terminal', {
@@ -152,5 +152,5 @@ suite('Workbench - TerminalConfigHelper', () => {
 		configHelper.panelContainer = fixture;
 		assert.equal(configHelper.configFontIsMonospace(), false, "Go is not mono-spaced");
 	});
-*/
+
 });
