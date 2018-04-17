@@ -17,7 +17,7 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { domEvent } from 'vs/base/browser/event';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { ISelectBoxDelegate, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
+import { ISelectBoxDelegate, ISelectBoxOptions, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
 import { isMacintosh } from 'vs/base/common/platform';
 
 const $ = dom.$;
@@ -74,9 +74,10 @@ class SelectListRenderer implements IRenderer<ISelectOptionItem, ISelectListTemp
 
 export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptionItem> {
 
-	private static SELECT_DROPDOWN_BOTTOM_MARGIN = 10;
+	private static readonly DEFAULT_DROPDOWN_MINIMUM_BOTTOM_MARGIN = 32;
 
 	private _isVisible: boolean;
+	private selectBoxOptions: ISelectBoxOptions;
 	private selectElement: HTMLSelectElement;
 	private options: string[];
 	private selected: number;
@@ -93,11 +94,15 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	private widthControlElement: HTMLElement;
 	private _currentSelection: number;
 
-	constructor(options: string[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles) {
+	constructor(options: string[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles, selectBoxOptions?: ISelectBoxOptions) {
 
 		this.toDispose = [];
 		this._isVisible = false;
 
+		this.selectBoxOptions = selectBoxOptions;
+		if (!this.selectBoxOptions.minBottomMargin) {
+			this.selectBoxOptions.minBottomMargin = SelectBoxList.DEFAULT_DROPDOWN_MINIMUM_BOTTOM_MARGIN;
+		}
 		this.selectElement = document.createElement('select');
 		this.selectElement.className = 'monaco-select-box';
 
@@ -405,8 +410,12 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		const selectPosition = dom.getDomNodePagePosition(this.selectElement);
 
 		// Set container height to max from select bottom to margin above status bar
-		const statusBarHeight = dom.getTotalHeight(document.getElementById('workbench.parts.statusbar'));
-		const maxSelectDropDownHeight = (window.innerHeight - selectPosition.top - selectPosition.height - statusBarHeight - SelectBoxList.SELECT_DROPDOWN_BOTTOM_MARGIN);
+
+		// const statusBarHeight = dom.getTotalHeight(document.getElementById('workbench.parts.statusbar'));
+		console.debug('status bar height ' + this.selectBoxOptions.minBottomMargin);
+
+
+		const maxSelectDropDownHeight = (window.innerHeight - selectPosition.top - selectPosition.height - this.selectBoxOptions.minBottomMargin);
 
 		// SetUp list dimensions and layout - account for container padding
 		if (this.selectList) {
