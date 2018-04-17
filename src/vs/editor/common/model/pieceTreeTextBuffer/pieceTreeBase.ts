@@ -536,14 +536,24 @@ export class PieceTreeBase {
 	}
 
 	public getLineCharCode(lineNumber: number, index: number): number {
-		return this.getLineContent(lineNumber).charCodeAt(index);
-		// TODO@peng: optimize the implementation to not allocate a string
-		// let nodePos = this.nodeAt2(lineNumber, index + 1);
-		// let buffer = this._buffers[nodePos.node.piece.bufferIndex];
-		// let startOffset = this.offsetInBuffer(nodePos.node.piece.bufferIndex, nodePos.node.piece.start);
-		// let targetOffset = startOffset + nodePos.remainder;
+		let nodePos = this.nodeAt2(lineNumber, index + 1);
+		if (nodePos.remainder === nodePos.node.piece.length) {
+			// the char we want to fetch is at the head of next node.
+			let matchingNode = nodePos.node.next();
+			if (!matchingNode) {
+				return 0;
+			}
 
-		// return buffer.buffer.charCodeAt(targetOffset);
+			let buffer = this._buffers[matchingNode.piece.bufferIndex];
+			let startOffset = this.offsetInBuffer(matchingNode.piece.bufferIndex, matchingNode.piece.start);
+			return buffer.buffer.charCodeAt(startOffset);
+		} else {
+			let buffer = this._buffers[nodePos.node.piece.bufferIndex];
+			let startOffset = this.offsetInBuffer(nodePos.node.piece.bufferIndex, nodePos.node.piece.start);
+			let targetOffset = startOffset + nodePos.remainder;
+
+			return buffer.buffer.charCodeAt(targetOffset);
+		}
 	}
 
 	public getLineLength(lineNumber: number): number {
