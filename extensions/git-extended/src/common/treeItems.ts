@@ -23,6 +23,9 @@ export class PRGroupTreeItem implements vscode.TreeItem {
 			case PRType.RequestReview:
 				this.label = 'Request Review';
 				break;
+			case PRType.ReviewedByMe:
+				this.label = 'Reviewed By Me';
+				break;
 			case PRType.Mine:
 				this.label = 'Mine';
 				break;

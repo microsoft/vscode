@@ -9,9 +9,10 @@ import { Comment } from './comment';
 
 export enum PRType {
 	RequestReview = 0,
-	Mine = 1,
-	Mention = 2,
-	All = 3
+	ReviewedByMe = 1,
+	Mine = 2,
+	Mention = 3,
+	All = 4
 }
 
 export class PullRequest {

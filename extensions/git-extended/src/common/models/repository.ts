@@ -294,6 +294,9 @@ export class GitHubRepository {
 			case PRType.RequestReview:
 				filter = `review-requested:${user}`;
 				break;
+			case PRType.ReviewedByMe:
+				filter = `reviewed-by:${user}`;
+				break;
 			case PRType.Mine:
 				filter = `author:${user}`;
 				break;

@@ -68,6 +68,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 		if (!element) {
 			return Promise.resolve([
 				new PRGroupTreeItem(PRType.RequestReview),
+				new PRGroupTreeItem(PRType.ReviewedByMe),
 				new PRGroupTreeItem(PRType.Mine),
 				new PRGroupTreeItem(PRType.All)
 			]);
