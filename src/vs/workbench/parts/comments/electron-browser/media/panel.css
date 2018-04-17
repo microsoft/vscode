@@ -37,3 +37,12 @@
 	text-overflow: ellipsis;
 	overflow: hidden;
 }
+
+.comments-panel .comments-panel-container .message-box-container {
+	line-height: 22px;
+	padding-left: 20px;
+}
+
+.comments-panel .comments-panel-container .message-box-container span:focus {
+	outline: none;
+}

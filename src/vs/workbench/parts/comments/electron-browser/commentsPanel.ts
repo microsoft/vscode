@@ -166,6 +166,8 @@ interface ICommentTemplateData {
 export class CommentsPanel extends Panel {
 	private tree: WorkbenchTree;
 	private treeContainer: HTMLElement;
+	private messageBoxContainer: HTMLElement;
+	private messageBox: HTMLElement;
 	private commentsModel: CommentsModel;
 
 	constructor(
@@ -188,6 +190,7 @@ export class CommentsPanel extends Panel {
 		this.commentsModel = new CommentsModel();
 
 		this.createTree();
+		this.createMessageBox(container);
 
 		this.commentService.onDidSetAllCommentThreads(this.onAllCommentsChanged, this);
 
@@ -196,16 +199,19 @@ export class CommentsPanel extends Panel {
 
 	private onAllCommentsChanged(e: CommentThread[]) {
 		this.commentsModel.setCommentThreads(e);
+		dom.toggleClass(this.treeContainer, 'hidden', !this.commentsModel.hasCommentThreads());
 		this.tree.refresh().then(() => {
-			console.log('tree refreshed');
+			this.renderMessage();
 		}, (e) => {
 			console.log(e);
 		});
 	}
 
 	private render(): TPromise<void> {
-		dom.toggleClass(this.treeContainer, 'hidden', false);
-		return this.tree.setInput(this.commentsModel);
+		dom.toggleClass(this.treeContainer, 'hidden', !this.commentsModel.hasCommentThreads());
+		return this.tree.setInput(this.commentsModel).then(() => {
+			this.renderMessage();
+		});
 	}
 
 	public layout(dimensions: dom.Dimension): void {
@@ -214,6 +220,17 @@ export class CommentsPanel extends Panel {
 
 	public getTitle(): string {
 		return COMMENTS_PANEL_TITLE;
+	}
+
+	private createMessageBox(parent: HTMLElement): void {
+		this.messageBoxContainer = dom.append(parent, dom.$('.message-box-container'));
+		this.messageBox = dom.append(this.messageBoxContainer, dom.$('span'));
+		this.messageBox.setAttribute('tabindex', '0');
+	}
+
+	private renderMessage(): void {
+		this.messageBox.textContent = this.commentsModel.getMessage();
+		dom.toggleClass(this.messageBoxContainer, 'hidden', this.commentsModel.hasCommentThreads());
 	}
 
 	private createTree(): void {

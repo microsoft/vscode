@@ -74,6 +74,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	$unregisterCommentProvider(handle: number): void {
 		this._providers.delete(handle);
 		this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, false);
+		this._commentService.removeAllComments();
 	}
 
 	dispose(): void {

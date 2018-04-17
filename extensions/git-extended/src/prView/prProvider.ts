@@ -209,6 +209,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 
 							ret.push({
 								threadId: comment.id,
+								resource: document.uri,
 								range,
 								comments: comments.map(comment => {
 									return {

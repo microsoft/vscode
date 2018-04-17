@@ -24,6 +24,7 @@ export interface ICommentService {
 	readonly onDidSetAllCommentThreads: Event<CommentThread[]>;
 	setComments(resource: URI, commentThreads: CommentThread[]): void;
 	setAllComments(commentsByResource: CommentThread[]): void;
+	removeAllComments(): void;
 }
 
 export class CommentService extends Disposable implements ICommentService {
@@ -46,5 +47,9 @@ export class CommentService extends Disposable implements ICommentService {
 
 	setAllComments(commentsByResource: CommentThread[]): void {
 		this._onDidSetAllCommentThreads.fire(commentsByResource);
+	}
+
+	removeAllComments(): void {
+		this._onDidSetAllCommentThreads.fire([]);
 	}
 }
