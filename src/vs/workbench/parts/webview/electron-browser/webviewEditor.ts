@@ -185,16 +185,14 @@ export class WebviewEditor extends BaseWebviewEditor {
 		}
 
 		this.webviewContent = input.container;
+
+		this.trackFocus();
+
 		const existing = input.webview;
 		if (existing) {
 			this._webview = existing;
 			return existing;
 		}
-
-		this._webviewFocusTracker = DOM.trackFocus(this.webviewContent);
-		this._webviewFocusListenerDisposable = this._webviewFocusTracker.onDidFocus(() => {
-			this._onDidFocusWebview.fire();
-		});
 
 		if (input.options.enableFindWidget) {
 			this._contextKeyService = this._contextKeyService.createScoped(this.webviewContent);
@@ -225,6 +223,20 @@ export class WebviewEditor extends BaseWebviewEditor {
 
 		this.doUpdateContainer();
 		return this._webview;
+	}
+
+	private trackFocus() {
+		if (this._webviewFocusTracker) {
+			this._webviewFocusTracker.dispose();
+		}
+		if (this._webviewFocusListenerDisposable) {
+			this._webviewFocusListenerDisposable.dispose();
+		}
+
+		this._webviewFocusTracker = DOM.trackFocus(this.webviewContent);
+		this._webviewFocusListenerDisposable = this._webviewFocusTracker.onDidFocus(() => {
+			this._onDidFocusWebview.fire();
+		});
 	}
 }
 
