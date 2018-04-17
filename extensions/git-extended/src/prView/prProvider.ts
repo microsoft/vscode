@@ -228,9 +228,6 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 					return [];
 				}
 			});
-			// fill in file changes and comments.
-			element.comments = comments;
-			element.fileChanges = fileChanges;
 			return fileChanges;
 		}
 	}

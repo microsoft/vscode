@@ -6,7 +6,6 @@
 import { Remote } from './remote';
 import { parseComments } from '../comment';
 import { Comment } from './comment';
-import { FileChange } from './filechange';
 
 export enum PRType {
 	RequestReview = 0,
@@ -16,9 +15,6 @@ export enum PRType {
 }
 
 export class PullRequest {
-	public comments?: Comment[];
-	public fileChanges?: FileChange[];
-
 	constructor(public readonly otcokit: any, public readonly remote: Remote, public prItem: any) { }
 
 	async getFiles() {
@@ -45,7 +41,7 @@ export class PullRequest {
 		return this.prItem.base.sha;
 	}
 
-	async getComments() {
+	async getComments(): Promise<Comment[]> {
 		const reviewData = await this.otcokit.pullRequests.getComments({
 			owner: this.remote.owner,
 			repo: this.remote.name,

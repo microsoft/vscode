@@ -242,10 +242,6 @@ export class ReviewMode {
 			head: pr.prItem.head,
 			base: pr.prItem.base
 		}).then(async e => {
-			if (!pr.fileChanges || !pr.comments) {
-				return;
-			}
-
 			await this._repository.status();
 		});
 	}
