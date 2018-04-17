@@ -57,7 +57,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { ContributableViewsModel, IViewDescriptorRef } from 'vs/workbench/browser/parts/views/contributableViews';
+import { IViewDescriptorRef, PersistentContributableViewsModel } from 'vs/workbench/browser/parts/views/contributableViews';
 import { ViewLocation, IViewDescriptor } from 'vs/workbench/common/views';
 import { ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 
@@ -1050,7 +1050,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 	get repositories(): ISCMRepository[] { return this._repositories; }
 	get selectedRepositories(): ISCMRepository[] { return this.repositoryPanels.map(p => p.repository); }
 
-	private contributedViews: ContributableViewsModel;
+	private contributedViews: PersistentContributableViewsModel;
 	private contextMenuDisposables: IDisposable[] = [];
 
 	constructor(
@@ -1077,7 +1077,8 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		this.menus = instantiationService.createInstance(SCMMenus, undefined);
 		this.menus.onDidChangeTitle(this.updateTitleArea, this, this.disposables);
 
-		this.contributedViews = new ContributableViewsModel(ViewLocation.SCM, contextKeyService);
+		this.contributedViews = new PersistentContributableViewsModel(ViewLocation.SCM, 'scm.views', contextKeyService, storageService, contextService);
+		this.disposables.push(this.contributedViews);
 	}
 
 	async create(parent: HTMLElement): TPromise<void> {
@@ -1391,6 +1392,11 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		}
 
 		this.mainPanel.hide(repository);
+	}
+
+	shutdown(): void {
+		this.contributedViews.saveViewsStates();
+		super.shutdown();
 	}
 
 	dispose(): void {

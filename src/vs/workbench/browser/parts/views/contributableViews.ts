@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ViewsRegistry, IViewDescriptor, ViewLocation } from 'vs/workbench/common/views';
 import { IContextKeyService, IContextKeyChangeEvent, IReadableSet } from 'vs/platform/contextkey/common/contextkey';
 import { Event, chain, filterEvent, Emitter } from 'vs/base/common/event';
 import { sortedDiff, firstIndex, move } from 'vs/base/common/arrays';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 
 function filterViewEvent(location: ViewLocation, event: Event<IViewDescriptor[]>): Event<IViewDescriptor[]> {
 	return chain(event)
@@ -161,6 +163,10 @@ class ViewDescriptorCollection {
 	private isViewDescriptorActive(viewDescriptor: IViewDescriptor): boolean {
 		return !viewDescriptor.when || this.contextKeyService.contextMatchesRules(viewDescriptor.when);
 	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
+	}
 }
 
 export interface IView {
@@ -180,7 +186,7 @@ export interface IViewDescriptorRef {
 
 export class ContributableViewsModel {
 
-	private viewStates = new Map<string, IViewState>();
+	protected viewStates = new Map<string, IViewState>();
 
 	readonly viewDescriptors: IViewDescriptor[] = [];
 	get visibleViewDescriptors(): IViewDescriptor[] {
@@ -203,6 +209,7 @@ export class ContributableViewsModel {
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		const viewDescriptorCollection = new ViewDescriptorCollection(location, contextKeyService);
+		this.disposables.push(viewDescriptorCollection);
 
 		viewDescriptorCollection.onDidChange(() => this.onDidChangeViewDescriptors(viewDescriptorCollection.viewDescriptors), this, this.disposables);
 		this.onDidChangeViewDescriptors(viewDescriptorCollection.viewDescriptors);
@@ -345,5 +352,53 @@ export class ContributableViewsModel {
 		}
 
 		this.viewDescriptors.splice(0, this.viewDescriptors.length, ...viewDescriptors);
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
+	}
+}
+
+interface ISerializedViewState {
+	id: string;
+	state: IViewState;
+}
+
+export class PersistentContributableViewsModel extends ContributableViewsModel {
+
+	constructor(
+		location: ViewLocation,
+		private readonly viewletStateStorageId: string,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IStorageService private storageService: IStorageService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
+	) {
+		super(location, contextKeyService);
+		this.loadViewsStates();
+	}
+
+	saveViewsStates(): void {
+		const serializedViewStates: ISerializedViewState[] = [];
+		this.viewStates.forEach((state, id) => serializedViewStates.push({ id, state }));
+		const raw = JSON.stringify(serializedViewStates);
+
+		const scope = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL;
+		this.storageService.store(this.viewletStateStorageId, raw, scope);
+	}
+
+	private loadViewsStates(): void {
+		const scope = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL;
+		const raw = this.storageService.get(this.viewletStateStorageId, scope, '[]');
+		const serializedViewsStates = JSON.parse(raw) as ISerializedViewState[];
+		console.log(serializedViewsStates);
+
+		for (const { id, state } of serializedViewsStates) {
+			this.viewStates.set(id, state);
+		}
+	}
+
+	dispose(): void {
+		this.saveViewsStates();
+		super.dispose();
 	}
 }
