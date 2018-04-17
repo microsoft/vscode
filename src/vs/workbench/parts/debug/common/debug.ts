@@ -404,8 +404,6 @@ export interface IAdapterExecutable {
 }
 
 export interface IPlatformSpecificAdapterContribution {
-	type?: string;		// TODO: doesn't belong here
-	label?: string;		// TODO: doesn't belong here
 	program?: string;
 	args?: string[];
 	runtime?: string;
@@ -413,9 +411,8 @@ export interface IPlatformSpecificAdapterContribution {
 }
 
 export interface IDebuggerContribution extends IPlatformSpecificAdapterContribution {
-	// type: string;		// TODO: host from IPlatformSpecificAdapterContribution
-	// label?: string;		// TODO: host from IPlatformSpecificAdapterContribution
-
+	type?: string;
+	label?: string;
 	// debug adapter executable
 	adapterExecutableCommand?: string;
 	win?: IPlatformSpecificAdapterContribution;
