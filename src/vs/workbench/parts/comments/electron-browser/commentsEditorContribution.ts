@@ -205,8 +205,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._headElement.style.lineHeight = this._headElement.style.height;
 
 		this._bodyElement.style.display = 'none';
-		this._commentsElement = $('div.comments-container').getHTMLElement();
-		this._bodyElement.appendChild(this._commentsElement);
+		this._commentsElement = $('div.comments-container').appendTo(this._bodyElement).getHTMLElement();
 		for (let i = 0; i < this._commentThread.comments.length; i++) {
 			let singleCommentContainer = this.createCommentElement(this._commentThread.comments[i]);
 			this._commentsElement.appendChild(singleCommentContainer);
@@ -214,7 +213,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		const commentForm = $('.comment-form').appendTo(this._bodyElement).getHTMLElement();
 		const textArea = <HTMLTextAreaElement>$('textarea').appendTo(commentForm).getHTMLElement();
-
 		const formActions = $('.form-actions').appendTo(commentForm).getHTMLElement();
 
 		for (const action of this._commentThread.actions) {
@@ -442,7 +440,18 @@ export class ReviewController implements IEditorContribution {
 
 			// add new comment
 			this._reviewPanelVisible.set(true);
-			this._zoneWidget = new ReviewZoneWidget(this.editor, null, {}, this.themeService, this.commandService);
+			this._zoneWidget = new ReviewZoneWidget(this.editor, {
+				threadId: null,
+				resource: null,
+				comments: [],
+				range: {
+					startLineNumber: lineNumber,
+					startColumn: 0,
+					endLineNumber: lineNumber,
+					endColumn: 0
+				},
+				actions: newCommentAction.actions
+			}, {}, this.themeService, this.commandService);
 			this._zoneWidget.onDidClose(e => {
 				this._zoneWidget = null;
 			});
