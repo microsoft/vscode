@@ -19,6 +19,7 @@ import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { TabCompletionController } from 'vs/workbench/parts/snippets/electron-browser/tabCompletion';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class SimpleDebugEditor extends CodeEditorWidget {
 	constructor(
@@ -28,9 +29,10 @@ export class SimpleDebugEditor extends CodeEditorWidget {
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@INotificationService notificationService: INotificationService,
 	) {
-		super(domElement, options, true, instantiationService, codeEditorService, commandService, contextKeyService, themeService);
+		super(domElement, options, true, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService);
 	}
 
 	protected _getContributions(): IEditorContributionCtor[] {

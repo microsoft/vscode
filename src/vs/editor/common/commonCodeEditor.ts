@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -30,6 +31,7 @@ import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceCompute
 import * as modes from 'vs/editor/common/modes';
 import { Schemas } from 'vs/base/common/network';
 import { ITextModel, EndOfLinePreference, IIdentifiedSingleEditOperation, IModelDecorationsChangeAccessor, IModelDecoration, IModelDeltaDecoration, IModelDecorationOptions } from 'vs/editor/common/model';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 let EDITOR_ID = 0;
 
@@ -104,6 +106,7 @@ export abstract class CommonCodeEditor extends Disposable {
 
 	protected readonly _instantiationService: IInstantiationService;
 	protected readonly _contextKeyService: IContextKeyService;
+	protected readonly _notificationService: INotificationService;
 
 	/**
 	 * map from "parent" decoration type to live decoration ids.
@@ -117,7 +120,8 @@ export abstract class CommonCodeEditor extends Disposable {
 		options: editorOptions.IEditorOptions,
 		isSimpleWidget: boolean,
 		instantiationService: IInstantiationService,
-		contextKeyService: IContextKeyService
+		contextKeyService: IContextKeyService,
+		notificationService: INotificationService,
 	) {
 		super();
 		this.domElement = domElement;
@@ -137,6 +141,7 @@ export abstract class CommonCodeEditor extends Disposable {
 		}));
 
 		this._contextKeyService = this._register(contextKeyService.createScoped(this.domElement));
+		this._notificationService = notificationService;
 		this._register(new EditorContextKeysManager(this, this._contextKeyService));
 		this._register(new EditorModeContext(this, this._contextKeyService));
 
@@ -965,6 +970,10 @@ export abstract class CommonCodeEditor extends Disposable {
 			);
 
 			this._createView();
+
+			this.listenersToRemove.push(this.cursor.onDidReachMaxCursorCount(() => {
+				this._notificationService.warn(nls.localize('cursors.maximum', "The number of cursors has been limited to {0}.", Cursor.MAX_CURSOR_COUNT));
+			}));
 
 			this.listenersToRemove.push(this.cursor.onDidChange((e: CursorStateChangedEvent) => {
 

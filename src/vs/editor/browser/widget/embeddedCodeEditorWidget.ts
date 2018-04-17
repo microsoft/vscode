@@ -30,9 +30,10 @@ export class EmbeddedCodeEditorWidget extends CodeEditor {
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@INotificationService notificationService: INotificationService
 	) {
-		super(domElement, parentEditor.getRawConfiguration(), instantiationService, codeEditorService, commandService, contextKeyService, themeService);
+		super(domElement, parentEditor.getRawConfiguration(), instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService);
 
 		this._parentEditor = parentEditor;
 		this._overwriteOptions = options;

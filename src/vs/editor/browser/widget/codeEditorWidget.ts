@@ -34,6 +34,7 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
 import { ITextModel, IModelDecorationOptions } from 'vs/editor/common/model';
 import { ICommandDelegate } from 'vs/editor/browser/view/viewController';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export abstract class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
@@ -92,9 +93,10 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@INotificationService notificationService: INotificationService
 	) {
-		super(domElement, options, isSimpleWidget, instantiationService, contextKeyService);
+		super(domElement, options, isSimpleWidget, instantiationService, contextKeyService, notificationService);
 		this._codeEditorService = codeEditorService;
 		this._commandService = commandService;
 		this._themeService = themeService;

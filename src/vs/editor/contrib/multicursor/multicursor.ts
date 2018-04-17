@@ -134,7 +134,6 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 		selections.forEach((sel) => this.getCursorsForSelection(sel, model, newSelections));
 
 		if (newSelections.length > 0) {
-			console.log(`calling setSelections with ${newSelections.length}`);
 			editor.setSelections(newSelections);
 		}
 	}
