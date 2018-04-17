@@ -424,7 +424,10 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	private _activateByEvent(activationEvent: string): TPromise<void> {
-		return this._extensionHostProcessManager.activateByEvent(activationEvent);
+		if (this._extensionHostProcessManager) {
+			return this._extensionHostProcessManager.activateByEvent(activationEvent);
+		}
+		return NO_OP_VOID_PROMISE;
 	}
 
 	public whenInstalledExtensionsRegistered(): TPromise<boolean> {
@@ -455,8 +458,8 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	public getExtensionsStatus(): { [id: string]: IExtensionsStatus; } {
-		const activationTimes = this._extensionHostProcessManager.getActivationTimes();
-		const runtimeErrors = this._extensionHostProcessManager.getRuntimeErrors();
+		const activationTimes = this._extensionHostProcessManager ? this._extensionHostProcessManager.getActivationTimes() : {};
+		const runtimeErrors = this._extensionHostProcessManager ? this._extensionHostProcessManager.getRuntimeErrors() : {};
 
 		let result: { [id: string]: IExtensionsStatus; } = Object.create(null);
 		if (this._registry) {
@@ -475,7 +478,10 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	public canProfileExtensionHost(): boolean {
-		return this._extensionHostProcessManager.canProfileExtensionHost();
+		if (this._extensionHostProcessManager) {
+			return this._extensionHostProcessManager.canProfileExtensionHost();
+		}
+		return false;
 	}
 
 	public startExtensionHostProfile(): TPromise<ProfileSession> {
