@@ -4932,9 +4932,12 @@ declare module 'vscode' {
 		readonly options: WebviewPanelOptions;
 
 		/**
-		 * Editor position of the panel.
+		 * Editor position of the panel. This property is only set if the webview is in
+		 * one of the three editor view columns.
+		 *
+		 * @deprecated
 		 */
-		readonly position?: ViewColumn;
+		readonly viewColumn?: ViewColumn;
 
 		/**
 		 * Is the panel currently visible?

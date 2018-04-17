@@ -151,12 +151,12 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 		return this._options;
 	}
 
-	get position(): vscode.ViewColumn {
+	get viewColumn(): vscode.ViewColumn {
 		this.assertNotDisposed();
 		return this._viewColumn;
 	}
 
-	set position(value: vscode.ViewColumn) {
+	set viewColumn(value: vscode.ViewColumn) {
 		this.assertNotDisposed();
 		this._viewColumn = value;
 	}
@@ -246,9 +246,9 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		const panel = this.getWebviewPanel(handle);
 		if (panel) {
 			const viewColumn = typeConverters.toViewColumn(position);
-			if (panel.visible !== visible || panel.position !== viewColumn) {
+			if (panel.visible !== visible || panel.viewColumn !== viewColumn) {
 				panel.visible = visible;
-				panel.position = viewColumn;
+				panel.viewColumn = viewColumn;
 				panel.onDidChangeViewStateEmitter.fire({ webviewPanel: panel });
 			}
 		}

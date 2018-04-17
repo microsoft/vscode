@@ -236,7 +236,7 @@ export class MarkdownPreview {
 	}
 
 	public get position(): vscode.ViewColumn | undefined {
-		return this.editor.position;
+		return this.editor.viewColumn;
 	}
 
 	public isWebviewOf(webview: vscode.WebviewPanel): boolean {
