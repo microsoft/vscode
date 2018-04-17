@@ -542,7 +542,7 @@ export interface ILaunch {
 	 * Returns the resolved configuration.
 	 * Replaces os specific values, system variables, interactive variables.
 	 */
-	resolveConfiguration(config: IConfig): TPromise<IConfig>;
+	substituteVariables(config: IConfig): TPromise<IConfig>;
 
 	/**
 	 * Opens the launch.json file. Creates if it does not exist.

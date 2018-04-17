@@ -788,7 +788,7 @@ export class DebugService implements debug.IDebugService {
 
 	private createProcess(launch: debug.ILaunch, config: debug.IConfig, sessionId: string): TPromise<void> {
 		return this.textFileService.saveAll().then(() =>
-			(launch ? launch.resolveConfiguration(config) : TPromise.as(config)).then(resolvedConfig => {
+			(launch ? launch.substituteVariables(config) : TPromise.as(config)).then(resolvedConfig => {
 				if (!resolvedConfig) {
 					// User canceled resolving of interactive variables, silently return
 					return undefined;
@@ -1205,7 +1205,7 @@ export class DebugService implements debug.IDebugService {
 				return TPromise.as(null);
 			}
 
-			const breakpointsToSend = this.model.getActivatedBreakpointsForResource(modelUri).filter(bp => bp.enabled);
+			const breakpointsToSend = this.model.getEnabledBreakpointsForResource(modelUri);
 
 			const source = process.getSourceForUri(modelUri);
 			let rawSource: DebugProtocol.Source;

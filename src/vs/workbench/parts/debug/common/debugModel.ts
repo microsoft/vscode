@@ -875,10 +875,10 @@ export class Model implements IModel {
 		return this.breakpoints.filter(bp => bp.uri.toString() === uriString);
 	}
 
-	public getActivatedBreakpointsForResource(resource: uri): IBreakpoint[] {
+	public getEnabledBreakpointsForResource(resource: uri): IBreakpoint[] {
 		if (this.breakpointsActivated) {
 			const uriString = resource.toString();
-			return this.breakpoints.filter(bp => bp.uri.toString() === uriString);
+			return this.breakpoints.filter(bp => bp.uri.toString() === uriString && bp.enabled);
 		}
 		return [];
 	}
