@@ -22,10 +22,17 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { CodeActionModel, CodeActionsComputeEvent, HAS_REFACTOR_PROVIDER, HAS_SOURCE_ACTION_PROVIDER, HAS_ORGANIZE_IMPORTS_PROVIDER } from './codeActionModel';
+import { CodeActionModel, CodeActionsComputeEvent, SUPPORTED_CODE_ACTIONS } from './codeActionModel';
 import { CodeActionAutoApply, CodeActionFilter, CodeActionKind } from './codeActionTrigger';
 import { CodeActionContextMenu } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
+
+function contextKeyForSupportedActions(kind: CodeActionKind) {
+	return ContextKeyExpr.regex(
+		SUPPORTED_CODE_ACTIONS.keys()[0],
+		new RegExp('\\b' + escapeRegExpCharacters(kind.value) + '(\\b|\\.)'));
+}
 
 export class QuickFixController implements IEditorContribution {
 
@@ -247,7 +254,9 @@ export class RefactorAction extends EditorAction {
 			menuOpts: {
 				group: '1_modification',
 				order: 2,
-				when: ContextKeyExpr.and(EditorContextKeys.writable, HAS_REFACTOR_PROVIDER),
+				when: ContextKeyExpr.and(
+					EditorContextKeys.writable,
+					contextKeyForSupportedActions(CodeActionKind.Refactor)),
 			}
 		});
 	}
@@ -274,8 +283,9 @@ export class SourceAction extends EditorAction {
 			menuOpts: {
 				group: '1_modification',
 				order: 2.1,
-				when: ContextKeyExpr.and(EditorContextKeys.writable, HAS_SOURCE_ACTION_PROVIDER),
-
+				when: ContextKeyExpr.and(
+					EditorContextKeys.writable,
+					contextKeyForSupportedActions(CodeActionKind.Source)),
 			}
 		});
 	}
@@ -297,7 +307,9 @@ export class OrganizeImportsAction extends EditorAction {
 			id: OrganizeImportsAction.Id,
 			label: nls.localize('organizeImports.label', "Organize Imports"),
 			alias: 'Organize Imports',
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, HAS_ORGANIZE_IMPORTS_PROVIDER),
+			precondition: ContextKeyExpr.and(
+				EditorContextKeys.writable,
+				contextKeyForSupportedActions(CodeActionKind.SourceOrganizeImports)),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_O
