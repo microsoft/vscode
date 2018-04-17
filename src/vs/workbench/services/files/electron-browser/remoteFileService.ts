@@ -305,10 +305,15 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
-	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): TPromise<IFileStat> {
+	async updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): TPromise<IFileStat> {
 		if (resource.scheme === Schemas.file) {
 			return super.updateContent(resource, value, options);
 		} else {
+			if (options && options.mkdirp) {
+				// use the lack of options and or the lack of an etag as a hint that
+				// the parent directories might not exist.
+				await this._mkdirp(resource.with({ path: posix.dirname(resource.path) }));
+			}
 			return this._withProvider(resource).then(provider => {
 				const snapshot = typeof value === 'string' ? new StringSnapshot(value) : value;
 				return this._writeFile(provider, resource, snapshot, options || {}, FileOpenFlags.Write);
@@ -344,6 +349,27 @@ export class RemoteFileService extends FileService {
 			content.value.on('error', reject);
 			content.value.on('end', () => resolve(result));
 		});
+	}
+
+	private async _mkdirp(directory: URI): Promise<void> {
+		let basenames: string[] = [];
+		while (directory.path !== '/') {
+			try {
+				let stat = await this.resolveFile(directory);
+				if (!stat.isDirectory) {
+					throw new Error(`${directory.toString()} is not a directory`);
+				}
+			} catch (e) {
+				// ENOENT
+				basenames.push(posix.basename(directory.path));
+				directory = directory.with({ path: posix.dirname(directory.path) });
+			}
+			break;
+		}
+		for (let i = basenames.length - 1; i >= 0; i--) {
+			directory = directory.with({ path: posix.join(directory.path, basenames[i]) });
+			await this.createFolder(directory);
+		}
 	}
 
 	// --- delete
