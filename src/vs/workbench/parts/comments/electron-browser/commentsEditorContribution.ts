@@ -337,6 +337,10 @@ export class ReviewController implements IEditorContribution {
 		}
 	}
 
+	getDomNode() {
+		return this._domNode;
+	}
+
 	getId(): string {
 		return ID;
 	}
