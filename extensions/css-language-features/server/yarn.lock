@@ -10,9 +10,9 @@
   version "7.0.43"
   resolved "https://registry.yarnpkg.com/@types/node/-/node-7.0.43.tgz#a187e08495a075f200ca946079c914e1a5fe962c"
 
-vscode-css-languageservice@^3.0.9-next.5:
-  version "3.0.9-next.5"
-  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-3.0.9-next.5.tgz#854048eafc91406af4b276d9f812e24c677e262e"
+vscode-css-languageservice@^3.0.9-next.7:
+  version "3.0.9-next.7"
+  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-3.0.9-next.7.tgz#1eb8deadaa6bfaf55187656ea6fb6b7e8d71cd7f"
   dependencies:
     vscode-languageserver-types "^3.6.1"
     vscode-nls "^3.2.1"
@@ -21,9 +21,9 @@ vscode-jsonrpc@^3.6.0:
   version "3.6.0"
   resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-3.6.0.tgz#848d56995d5168950d84feb5d9c237ae5c6a02d4"
 
-vscode-languageserver-protocol-foldingprovider@^1.0.1:
-  version "1.0.1"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol-foldingprovider/-/vscode-languageserver-protocol-foldingprovider-1.0.1.tgz#85514aaf8fe905e91bf21e4106e0847f60d40f44"
+vscode-languageserver-protocol-foldingprovider@^2.0.0-next.2:
+  version "2.0.0-next.2"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol-foldingprovider/-/vscode-languageserver-protocol-foldingprovider-2.0.0-next.2.tgz#fbb9cfdf5b8c4ac451826ba6312f1f88379f35b0"
   dependencies:
     vscode-languageserver-protocol "^3.6.0"
     vscode-languageserver-types "^3.6.0"
