@@ -20,9 +20,9 @@
     "postinstall": "cd server && yarn install",
     "install-client-next": "yarn add vscode-languageclient@next"
   },
-	"categories": [
-		"Programming Languages"
-	],
+  "categories": [
+    "Programming Languages"
+  ],
   "contributes": {
     "configuration": {
       "id": "json",
@@ -102,7 +102,7 @@
   "dependencies": {
     "vscode-extension-telemetry": "0.0.15",
     "vscode-languageclient": "^4.0.0",
-    "vscode-languageserver-protocol-foldingprovider": "^1.0.1",
+    "vscode-languageserver-protocol-foldingprovider": "^2.0.0-next.2",
     "vscode-nls": "^3.2.2"
   },
   "devDependencies": {
