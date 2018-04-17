@@ -490,25 +490,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joh: rename context
-
-	export interface RenameProvider2 extends RenameProvider {
-
-		/**
-		 * Optional function for resolving and validating a position at which rename is
-		 * being carried out.
-		 *
-		 * @param document The document in which rename will be invoked.
-		 * @param position The position at which rename will be invoked.
-		 * @param token A cancellation token.
-		 * @return The range of the identifier that is to be renamed. The lack of a result can signaled by returning `undefined` or `null`.
-		 */
-		resolveRenameLocation?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Range | { range: Range, placeholder: string }>;
-
-	}
-
-	//#endregion
-
 	//#region Joao: SCM validation
 
 	/**

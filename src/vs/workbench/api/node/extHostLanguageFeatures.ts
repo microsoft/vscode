@@ -467,14 +467,14 @@ class NavigateTypeAdapter {
 
 class RenameAdapter {
 
-	static supportsResolving(provider: vscode.RenameProvider2): boolean {
+	static supportsResolving(provider: vscode.RenameProvider): boolean {
 		return typeof provider.resolveRenameLocation === 'function';
 	}
 
 	private _documents: ExtHostDocuments;
-	private _provider: vscode.RenameProvider2;
+	private _provider: vscode.RenameProvider;
 
-	constructor(documents: ExtHostDocuments, provider: vscode.RenameProvider2) {
+	constructor(documents: ExtHostDocuments, provider: vscode.RenameProvider) {
 		this._documents = documents;
 		this._provider = provider;
 	}
