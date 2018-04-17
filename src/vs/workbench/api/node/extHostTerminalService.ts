@@ -5,8 +5,12 @@
 'use strict';
 
 import * as vscode from 'vscode';
+import * as cp from 'child_process';
+import * as path from 'path';
+import * as terminalEnvironment from 'vs/workbench/parts/terminal/node/terminalEnvironment';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext, ShellLaunchConfigDto } from 'vs/workbench/api/node/extHost.protocol';
+import { IMessageFromTerminalProcess } from 'vs/workbench/parts/terminal/node/terminal';
 
 export class ExtHostTerminal implements vscode.Terminal {
 
@@ -81,6 +85,7 @@ export class ExtHostTerminal implements vscode.Terminal {
 	}
 
 	public _setProcessId(processId: number): void {
+		console.log('extHostTerminalService#_setProcessId', processId);
 		this._pidPromiseComplete(processId);
 		this._pidPromiseComplete = null;
 	}
@@ -106,7 +111,8 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	private readonly _onDidCloseTerminal: Emitter<vscode.Terminal>;
 	private readonly _onDidOpenTerminal: Emitter<vscode.Terminal>;
 	private _proxy: MainThreadTerminalServiceShape;
-	private _terminals: ExtHostTerminal[];
+	private _terminals: ExtHostTerminal[] = [];
+	private _terminalProcesses: { [id: number]: cp.ChildProcess } = {};
 
 	public get terminals(): ExtHostTerminal[] { return this._terminals; }
 
@@ -114,7 +120,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		this._onDidCloseTerminal = new Emitter<vscode.Terminal>();
 		this._onDidOpenTerminal = new Emitter<vscode.Terminal>();
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTerminalService);
-		this._terminals = [];
 	}
 
 	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[]): vscode.Terminal {
@@ -150,6 +155,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	public $acceptTerminalOpened(id: number, name: string): void {
+		console.log('terminal opened: ' + id);
 		let index = this._getTerminalIndexById(id);
 		if (index !== null) {
 			// The terminal has already been created (via createTerminal*), only fire the event
@@ -163,13 +169,64 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 	public $acceptTerminalProcessId(id: number, processId: number): void {
 		let terminal = this._getTerminalById(id);
+		console.log('ExtHostTerminalService#$acceptTerminalProcessId ' + id + ' ' + processId);
 		if (terminal) {
 			terminal._setProcessId(processId);
 		}
 	}
 
-	public $createProcess(shellLaunchConfig: ShellLaunchConfigDto, cols: number, rows: number): void {
-		console.log('$createProcess');
+	public $createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, cols: number, rows: number): void {
+		shellLaunchConfig = {
+			env: {},
+			executable: 'bash'
+		};
+
+
+		// TODO: Launch process
+		// TODO: Associate the process with the terminal object/id
+		// TODO: terminal has incorrect name/options, fix up
+		const parentEnv = { ...process.env };
+		const env = terminalEnvironment.createTerminalEnv(parentEnv, shellLaunchConfig, '/home/daniel', undefined, cols, rows);
+		// TODO: Use Uri?
+		let cwd = path.dirname(require.toUrl('../../parts/terminal/node/terminalProcess')).replace('file://', '');
+		console.log(cwd);
+		const options = { env, cwd, execArgv: [] };
+
+		let bootstrapUri = require.toUrl('bootstrap').replace('file://', '') + '.js';
+		console.log(bootstrapUri);
+
+		// cwd = '/home/daniel/dev/Microsoft/vscode/out/vs/workbench/parts/terminal/node';
+		// bootstrapUri = '/home/daniel/dev/Microsoft/vscode/out/bootstrap';
+		// env['AMD_ENTRYPOINT'] = 'vs/workbench/parts/terminal/node/terminalProcess';
+		this._terminalProcesses[id] = cp.fork(bootstrapUri, ['--type=terminal'], options);
+
+		this._terminalProcesses[id].on('message', (message: IMessageFromTerminalProcess) => {
+			switch (message.type) {
+				case 'pid':
+					this._proxy.$sendProcessPid(id, <number>message.content);
+					break;
+				case 'title':
+					this._proxy.$sendProcessTitle(id, <string>message.content);
+					break;
+				case 'data':
+					this._proxy.$sendProcessData(id, <string>message.content);
+					break;
+			}
+			// console.log('message type: ' + d.type + ', content: ' + d.content)
+		});
+
+		// const processPath = require.toUrl('../../parts/terminal/node/terminalProcess').replace('file://', '');
+		// const process2 = cp.fork(processPath, [], options);
+		// process2.on('data', d => console.log('data ' + d));
+		// process2.on('exit', d => console.log('exit ' + d));
+		// process2.on('error', d => console.log('error ' + d));
+
+		const terminal = this._getTerminalById(id);
+		console.log('$createProcess terminal: ' + terminal.name);
+	}
+
+	public $acceptTerminalProcessWrite(id: number, data: string): void {
+		this._terminalProcesses[id].send({ event: 'input', data });
 	}
 
 	private _getTerminalById(id: number): ExtHostTerminal {
@@ -180,6 +237,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	private _getTerminalIndexById(id: number): number {
 		let index: number = null;
 		this._terminals.some((terminal, i) => {
+			// TODO: This shouldn't be cas
 			let thisId = (<any>terminal)._id;
 			if (thisId === id) {
 				index = i;

@@ -5,7 +5,7 @@
 'use strict';
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ITerminalService, ITerminalInstance, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalProcessExtHostProxy } from 'vs/workbench/parts/terminal/common/terminal';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
@@ -14,23 +14,24 @@ import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostC
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
 
 	private _proxy: ExtHostTerminalServiceShape;
-	private _toDispose: IDisposable[];
+	private _toDispose: IDisposable[] = [];
+	private _terminalProcesses: { [id: number]: ITerminalProcessExtHostProxy } = {};
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@ITerminalService private terminalService: ITerminalService
 	) {
+		console.log('MainThreadTerminalService#ctor');
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
-		this._toDispose = [];
 		this._toDispose.push(terminalService.onInstanceCreated((terminalInstance) => {
 			// Delay this message so the TerminalInstance constructor has a chance to finish and
 			// return the ID normally to the extension host. The ID that is passed here will be used
 			// to register non-extension API terminals in the extension host.
 			setTimeout(() => this._onTerminalOpened(terminalInstance), 100);
 		}));
-		this._toDispose.push(terminalService.onInstanceDisposed((terminalInstance) => this._onTerminalDisposed(terminalInstance)));
-		this._toDispose.push(terminalService.onInstanceProcessIdReady((terminalInstance) => this._onTerminalProcessIdReady(terminalInstance)));
-		this._toDispose.push(terminalService.onInstanceRequestExtHostProcess((terminalInstance) => this._onTerminalRequestExtHostProcess(terminalInstance)));
+		this._toDispose.push(terminalService.onInstanceDisposed(terminalInstance => this._onTerminalDisposed(terminalInstance)));
+		this._toDispose.push(terminalService.onInstanceProcessIdReady(terminalInstance => this._onTerminalProcessIdReady(terminalInstance)));
+		this._toDispose.push(terminalService.onInstanceRequestExtHostProcess(proxy => this._onTerminalRequestExtHostProcess(proxy)));
 
 		// Set initial ext host state
 		this.terminalService.terminalInstances.forEach(t => {
@@ -99,8 +100,27 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._proxy.$acceptTerminalProcessId(terminalInstance.id, terminalInstance.processId);
 	}
 
-	private _onTerminalRequestExtHostProcess(terminalInstance: ITerminalInstance): void {
+	private _onTerminalRequestExtHostProcess(proxy: ITerminalProcessExtHostProxy): void {
 		console.log('mainThreadTerminalService#_onTerminalRequestExtHostProcess', arguments);
-		this._proxy.$createProcess(null, 0, 0);
+		this._terminalProcesses[proxy.terminalId] = proxy;
+		this._proxy.$createProcess(proxy.terminalId, null, 0, 0);
+		// TODO: Dispose of this properly when the terminal/process dies
+		this._toDispose.push(proxy.onInput(data => this._onTerminalProcessWrite(proxy.terminalId, data)));
+	}
+
+	public $sendProcessTitle(terminalId: number, title: string): void {
+		this._terminalProcesses[terminalId].emitTitle(title);
+	}
+
+	public $sendProcessData(terminalId: number, data: string): void {
+		this._terminalProcesses[terminalId].emitData(data);
+	}
+
+	public $sendProcessPid(terminalId: number, pid: number): void {
+		this._terminalProcesses[terminalId].emitPid(pid);
+	}
+
+	private _onTerminalProcessWrite(terminalId: number, data: string): void {
+		this._proxy.$acceptTerminalProcessWrite(terminalId, data);
 	}
 }

@@ -6,17 +6,19 @@
 import { ITerminalChildProcess, IMessageToTerminalProcess, IMessageFromTerminalProcess } from 'vs/workbench/parts/terminal/node/terminal';
 import { EventEmitter } from 'events';
 import { ITerminalService, ITerminalProcessExtHostProxy } from 'vs/workbench/parts/terminal/common/terminal';
+import { IDisposable } from '../../../../base/common/lifecycle';
 
 export class TerminalProcessExtHostProxy extends EventEmitter implements ITerminalChildProcess, ITerminalProcessExtHostProxy {
 	public connected: boolean;
 
 	constructor(
+		public terminalId: number,
 		@ITerminalService private _terminalService: ITerminalService
 	) {
 		super();
 
-		this._terminalService.requestExtHostProcess(this).then(() => {
-		});
+		// TODO: Return TPromise<boolean> indicating success? Teardown if failure?
+		this._terminalService.requestExtHostProcess(this);
 	}
 
 	public emitData(data: string): void {
@@ -30,7 +32,21 @@ export class TerminalProcessExtHostProxy extends EventEmitter implements ITermin
 	}
 
 	public send(message: IMessageToTerminalProcess): boolean {
-		console.log('TerminalProcessExtHostBridge#send', arguments);
+		console.log('TerminalProcessExtHostProxy#send');
+		if (message.event === 'input') {
+			console.log('emit input', message.data);
+			this.emit('input', message.data);
+		}
 		return true;
+	}
+
+	public onInput(listener: (data: string) => void): IDisposable {
+		console.log('TerminalProcessExtHostProxy#onInput', arguments);
+		// TODO: Dispose of me
+		this.on('input', data => {
+			console.log('TerminalProcessExtHostProxy#onInput - listener');
+			listener(data);
+		});
+		return null;
 	}
 }

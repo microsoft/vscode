@@ -51,6 +51,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	public get onProcessExit(): Event<number> { return this._onProcessExit.event; }
 
 	constructor(
+		private _terminalId: number,
 		private _configHelper: ITerminalConfigHelper,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IHistoryService private readonly _historyService: IHistoryService,
@@ -117,7 +118,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		const options = { env, cwd };
 		this._logService.debug(`Terminal process launching`, options);
 		if (shellLaunchConfig.extensionHostOwned) {
-			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy);
+			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId);
 		} else {
 			this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], options);
 		}

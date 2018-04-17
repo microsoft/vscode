@@ -27,6 +27,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ipcRenderer as ipc } from 'electron';
 import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
+import { IExtensionService } from '../../../services/extensions/common/extensions';
 
 export class TerminalService extends AbstractTerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
@@ -47,7 +48,8 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IQuickOpenService private readonly _quickOpenService: IQuickOpenService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IDialogService private readonly _dialogService: IDialogService
+		@IDialogService private readonly _dialogService: IDialogService,
+		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 		super(contextKeyService, panelService, partService, lifecycleService, storageService);
 
@@ -93,17 +95,15 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		return this._instantiationService.createInstance(TerminalInstance, terminalFocusContextKey, configHelper, undefined, shellLaunchConfig, true);
 	}
 
-	public requestExtHostProcess(proxy: ITerminalProcessExtHostProxy): TPromise<void> {
-		let i = 0;
-		setTimeout(() => {
-			proxy.emitPid(-1);
-			proxy.emitTitle('test title');
-			proxy.emitData(`test ${i++}\r\n`);
-		}, 0);
-		setInterval(() => {
-			proxy.emitData(`test ${i++}\r\n`);
-		}, 1000);
-		return TPromise.as(void 0);
+	public requestExtHostProcess(proxy: ITerminalProcessExtHostProxy): void {
+		// Ensure extension host is ready before requesting a process
+		this._extensionService.whenInstalledExtensionsRegistered().then(() => {
+			// TODO: MainThreadTerminalService is not ready at this point, fix this
+			setTimeout(() => {
+				console.log('request');
+				this._onInstanceRequestExtHostProcess.fire(proxy);
+			}, 100);
+		});
 	}
 
 	public focusFindWidget(): TPromise<void> {
