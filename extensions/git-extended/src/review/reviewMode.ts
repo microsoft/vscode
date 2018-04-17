@@ -99,8 +99,8 @@ export class ReviewMode {
 				change.fileName,
 				change.status,
 				change.fileName,
-				toGitUri(vscode.Uri.parse(change.fileName), null, change.status === GitChangeType.DELETE ? '' : state.head.sha, {}),
-				toGitUri(vscode.Uri.parse(change.fileName), null, change.status === GitChangeType.ADD ? '' : state.base.sha, {}),
+				toGitUri(vscode.Uri.parse(change.fileName), null, change.status === GitChangeType.DELETE ? '' : pr.prItem.head.sha, {}),
+				toGitUri(vscode.Uri.parse(change.fileName), null, change.status === GitChangeType.ADD ? '' : pr.prItem.base.sha, {}),
 				this._repository.path,
 				change.patch
 			);
@@ -242,8 +242,12 @@ export class ReviewMode {
 
 	async switch(pr: PullRequest) {
 		try {
-			await this._repository.fetch(pr.remote.remoteName, `pull/${pr.prItem.number}/head:pull-request-${pr.prItem.number}`);
-			await this._repository.checkout(`pull-request-${pr.prItem.number}`);
+			if (pr.prItem.maintainer_can_modify) {
+				await this._repository.checkoutPR(pr);
+			} else {
+				await this._repository.fetch(pr.remote.remoteName, `pull/${pr.prItem.number}/head:pull-request-${pr.prItem.number}`);
+				await this._repository.checkout(`pull-request-${pr.prItem.number}`);
+			}
 		} catch (e) {
 			vscode.window.showErrorMessage(e);
 			return;

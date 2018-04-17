@@ -250,6 +250,26 @@ export class Repository {
 			return '';
 		}
 	}
+
+	async checkoutPR(pr: PullRequest) {
+		let cloneUrl = pr.prItem.head.repo.clone_url;
+		let result = await GitProcess.exec(['remote', 'add', `pull/${pr.prItem.number}`, cloneUrl], this.path);
+
+		if (result.exitCode !== 0) {
+			throw (result.exitCode);
+		}
+
+		result = await GitProcess.exec(['fetch', `pull/${pr.prItem.number}`], this.path);
+		if (result.exitCode !== 0) {
+			throw (result.exitCode);
+		}
+
+		result = await GitProcess.exec(['checkout', '-b', `pull-request-${pr.prItem.number}`, '--track', `pull/${pr.prItem.number}/${pr.prItem.head.ref}`], this.path);
+
+		if (result.exitCode !== 0) {
+			throw (result.exitCode);
+		}
+	}
 }
 
 export class GitHubRepository {
