@@ -230,7 +230,7 @@ export interface Hover {
 	 * editor will use the range at the current position or the
 	 * current position itself.
 	 */
-	range: IRange;
+	range?: IRange;
 }
 
 /**
