@@ -109,7 +109,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 						id: l.id,
 						enabled: l.enabled,
 						lineNumber: l.line + 1,
-						column: l.character > 0 ? l.character + 1 : 0,
+						column: l.character > 0 ? l.character + 1 : undefined, // a column value of 0 results in an omitted column attribute; see #46784
 						condition: l.condition,
 						hitCondition: l.hitCondition,
 						logMessage: l.logMessage
