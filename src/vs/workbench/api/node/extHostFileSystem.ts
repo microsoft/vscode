@@ -13,7 +13,6 @@ import * as files from 'vs/platform/files/common/files';
 import * as path from 'path';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { IPatternInfo } from 'vs/platform/search/common/search';
 import { values } from 'vs/base/common/map';
 import { Range, FileType, FileChangeType, FileChangeType2, FileType2 } from 'vs/workbench/api/node/extHostTypes';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
@@ -157,7 +156,6 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 
 	private readonly _proxy: MainThreadFileSystemShape;
 	private readonly _fsProvider = new Map<number, vscode.FileSystemProvider2>();
-	private readonly _searchProvider = new Map<number, vscode.SearchProvider>();
 	private readonly _linkProvider = new FsLinkProvider();
 
 	private _handlePool: number = 0;
@@ -216,18 +214,6 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		};
 	}
 
-	registerSearchProvider(scheme: string, provider: vscode.SearchProvider) {
-		const handle = this._handlePool++;
-		this._searchProvider.set(handle, provider);
-		this._proxy.$registerSearchProvider(handle, scheme);
-		return {
-			dispose: () => {
-				this._searchProvider.delete(handle);
-				this._proxy.$unregisterProvider(handle);
-			}
-		};
-	}
-
 	$stat(handle: number, resource: UriComponents): TPromise<files.IStat, any> {
 		return asWinJsPromise(token => this._fsProvider.get(handle).stat(URI.revive(resource), token));
 	}
@@ -252,34 +238,5 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	}
 	$mkdir(handle: number, resource: UriComponents): TPromise<files.IStat, any> {
 		return asWinJsPromise(token => this._fsProvider.get(handle).createDirectory(URI.revive(resource), token));
-	}
-
-	$provideFileSearchResults(handle: number, session: number, query: string): TPromise<void> {
-		const provider = this._searchProvider.get(handle);
-		if (!provider.provideFileSearchResults) {
-			return TPromise.as(undefined);
-		}
-		const progress = {
-			report: (uri) => {
-				this._proxy.$handleFindMatch(handle, session, uri);
-			}
-		};
-		return asWinJsPromise(token => provider.provideFileSearchResults(query, progress, token));
-	}
-	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, options: { includes: string[], excludes: string[] }): TPromise<void> {
-		const provider = this._searchProvider.get(handle);
-		if (!provider.provideTextSearchResults) {
-			return TPromise.as(undefined);
-		}
-		const progress = {
-			report: (data: vscode.TextSearchResult) => {
-				this._proxy.$handleFindMatch(handle, session, [data.uri, {
-					lineNumber: data.range.start.line,
-					preview: data.preview.leading + data.preview.matching + data.preview.trailing,
-					offsetAndLengths: [[data.preview.leading.length, data.preview.matching.length]]
-				}]);
-			}
-		};
-		return asWinJsPromise(token => provider.provideTextSearchResults(pattern, options, progress, token));
 	}
 }
