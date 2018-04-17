@@ -87,7 +87,7 @@ activityGroupExtensionPoint.setHandler((extensions) => {
 		if (!schema.isValidActivityGroup(value, collector)) {
 			return;
 		}
-		value.forEach(descriptor => {
+		value.forEach((descriptor, index) => {
 			const id = `workbench.view.extension.${descriptor.id}`;
 			const title = descriptor.title;
 			const cssClass = `extensionViewlet-${descriptor.id}`;
@@ -120,7 +120,7 @@ activityGroupExtensionPoint.setHandler((extensions) => {
 				id,
 				title,
 				cssClass,
-				-1
+				6 + index
 			);
 
 			Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(viewletDescriptor);
