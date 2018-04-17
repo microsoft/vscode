@@ -13,7 +13,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { Range } from 'vs/editor/common/core/range';
 import { registerEditorAction, IActionOptions, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
-import { Location } from 'vs/editor/common/modes';
+import { Location, SymbolDefinition } from 'vs/editor/common/modes';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from './goToDeclaration';
 import { ReferencesController } from 'vs/editor/contrib/referenceSearch/referencesController';
 import { ReferencesModel } from 'vs/editor/contrib/referenceSearch/referencesModel';
@@ -56,7 +56,8 @@ export class DefinitionAction extends EditorAction {
 		const model = editor.getModel();
 		const pos = editor.getPosition();
 
-		const definitionPromise = this._getDeclarationsAtPosition(model, pos).then(references => {
+		const definitionPromise = this._getDeclarationsAtPosition(model, pos).then(symbolDefinition => {
+			const references = symbolDefinition.definitions;
 
 			if (model.isDisposed() || editor.getModel() !== model) {
 				// new model, no more model
@@ -67,12 +68,11 @@ export class DefinitionAction extends EditorAction {
 			// * find reference at the current pos
 			let idxOfCurrent = -1;
 			let result: Location[] = [];
-			for (let i = 0; i < references.length; i++) {
-				let reference = references[i];
-				if (!reference || !reference.range) {
+			for (const location of references) {
+				if (!location || !location.range) {
 					continue;
 				}
-				let { uri, range } = reference;
+				let { uri, range } = location;
 				let newLen = result.push({
 					uri,
 					range
@@ -111,7 +111,7 @@ export class DefinitionAction extends EditorAction {
 		return definitionPromise;
 	}
 
-	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position): TPromise<Location[]> {
+	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position): TPromise<SymbolDefinition> {
 		return getDefinitionsAtPosition(model, position);
 	}
 
@@ -248,7 +248,7 @@ export class PeekDefinitionAction extends DefinitionAction {
 }
 
 export class ImplementationAction extends DefinitionAction {
-	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position): TPromise<Location[]> {
+	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position): TPromise<SymbolDefinition> {
 		return getImplementationsAtPosition(model, position);
 	}
 
@@ -304,7 +304,7 @@ export class PeekImplementationAction extends ImplementationAction {
 }
 
 export class TypeDefinitionAction extends DefinitionAction {
-	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position): TPromise<Location[]> {
+	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position): TPromise<SymbolDefinition> {
 		return getTypeDefinitionsAtPosition(model, position);
 	}
 

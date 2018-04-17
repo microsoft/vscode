@@ -739,6 +739,23 @@ export class DiagnosticRelatedInformation {
 	}
 }
 
+export class SymbolDefinition {
+	span: Location;
+	definitions: Location[];
+
+	constructor(span: Location, definitions: Location[]) {
+		this.span = span;
+
+		if (!definitions) {
+			// skip
+		} else if (Array.isArray(definitions)) {
+			this.definitions = definitions;
+		} else {
+			throw new Error('Illegal argument');
+		}
+	}
+}
+
 export class Diagnostic {
 
 	range: Range;

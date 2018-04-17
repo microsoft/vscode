@@ -4,23 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as modes from 'vs/editor/common/modes';
-import * as types from './extHostTypes';
-import { Position as EditorPosition, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { EndOfLineSequence } from 'vs/editor/common/model';
-import * as vscode from 'vscode';
+import { IRelativePattern } from 'vs/base/common/glob';
+import * as htmlContent from 'vs/base/common/htmlContent';
 import URI from 'vs/base/common/uri';
-import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
-import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
-import * as htmlContent from 'vs/base/common/htmlContent';
-import { IRelativePattern } from 'vs/base/common/glob';
-import { LanguageSelector, LanguageFilter } from 'vs/editor/common/modes/languageSelector';
-import { WorkspaceEditDto, ResourceTextEditDto } from 'vs/workbench/api/node/extHost.protocol';
-import { MarkerSeverity, IRelatedInformation, IMarkerData } from 'vs/platform/markers/common/markers';
+import { IDecorationOptions } from 'vs/editor/common/editorCommon';
+import { EndOfLineSequence } from 'vs/editor/common/model';
+import * as modes from 'vs/editor/common/modes';
+import { LanguageFilter, LanguageSelector } from 'vs/editor/common/modes/languageSelector';
+import { ITextEditorOptions, Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { IMarkerData, IRelatedInformation, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
+import { ResourceTextEditDto, WorkspaceEditDto } from 'vs/workbench/api/node/extHost.protocol';
+import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
+import * as vscode from 'vscode';
+import * as types from './extHostTypes';
 
 export interface PositionLike {
 	line: number;
@@ -363,6 +363,16 @@ export const location = {
 		return new types.Location(value.uri, toRange(value.range));
 	}
 };
+
+export namespace SymbolDefinition {
+	export function from(value: vscode.SymbolDefinition): modes.SymbolDefinition {
+		const span = value.definingSpan ? location.from(value.definingSpan) : undefined;
+		return {
+			definingSpan: span,
+			definitions: value.definitions.map(location.from)
+		};
+	}
+}
 
 export function fromHover(hover: vscode.Hover): modes.Hover {
 	return <modes.Hover>{

@@ -870,4 +870,19 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region Defintion symbol range: mjbvz
+
+	export interface SymbolDefinition {
+		definingSpan?: Location;
+
+		definitions: Location[];
+	}
+
+	export interface DefinitionProvider {
+
+		provideDefinition2?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Definition | SymbolDefinition>;
+	}
+
+	//#endregion
 }

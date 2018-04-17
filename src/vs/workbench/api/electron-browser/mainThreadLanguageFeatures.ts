@@ -14,7 +14,7 @@ import { wireCancellationToken } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange, IRange } from 'vs/editor/common/core/range';
-import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ISerializedLanguageConfiguration, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, LocationDto, SymbolInformationDto, CodeActionDto, reviveWorkspaceEditDto, ISerializedDocumentFilter } from '../node/extHost.protocol';
+import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ISerializedLanguageConfiguration, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, LocationDto, SymbolInformationDto, CodeActionDto, reviveWorkspaceEditDto, ISerializedDocumentFilter, SymbolDefinitionDto } from '../node/extHost.protocol';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { LanguageConfiguration, IndentationRule, OnEnterRule } from 'vs/editor/common/modes/languageConfiguration';
 import { IHeapService } from './mainThreadHeapService';
@@ -69,6 +69,19 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			data.uri = URI.revive(data.uri);
 			return <modes.Location>data;
 		}
+	}
+
+	private static _reviveSymbolDefinitionDto(data: SymbolDefinitionDto): modes.SymbolDefinition {
+		if (!data) {
+			return <modes.SymbolDefinition>data;
+		}
+
+		if (data.definingSpan) {
+			data.definingSpan = this._reviveLocationDto(data.definingSpan);
+		}
+
+		data.definitions = data.definitions.map(x => this._reviveLocationDto(x));
+		return <modes.SymbolDefinition>data;
 	}
 
 	private static _reviveSymbolInformationDto(data: SymbolInformationDto): modes.SymbolInformation;
@@ -137,8 +150,14 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	$registerDeclaractionSupport(handle: number, selector: ISerializedDocumentFilter[]): void {
 		this._registrations[handle] = modes.DefinitionProviderRegistry.register(toLanguageSelector(selector), <modes.DefinitionProvider>{
-			provideDefinition: (model, position, token): Thenable<modes.Definition> => {
-				return wireCancellationToken(token, this._proxy.$provideDefinition(handle, model.uri, position)).then(MainThreadLanguageFeatures._reviveLocationDto);
+			provideDefinition: (model, position, token): Thenable<modes.Definition | modes.SymbolDefinition> => {
+				return wireCancellationToken(token, this._proxy.$provideDefinition(handle, model.uri, position)).then(x => {
+					if ((x as any).definitions) {
+						return MainThreadLanguageFeatures._reviveSymbolDefinitionDto(x as any);
+					}
+
+					return MainThreadLanguageFeatures._reviveLocationDto(x as any);
+				});
 			}
 		});
 	}

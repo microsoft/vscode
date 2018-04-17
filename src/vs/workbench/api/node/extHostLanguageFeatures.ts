@@ -110,16 +110,36 @@ class DefinitionAdapter {
 		this._provider = provider;
 	}
 
-	provideDefinition(resource: URI, position: IPosition): TPromise<modes.Definition> {
+	provideDefinition(resource: URI, position: IPosition): TPromise<modes.Definition | modes.SymbolDefinition> {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
+
+		if (this._provider.provideDefinition2) {
+			return asWinJsPromise(token => this._provider.provideDefinition2(doc, pos, token)).then(value => {
+				if (!value) {
+					return undefined;
+				}
+
+				if (Array.isArray(value)) {
+					return value.map(TypeConverters.location.from);
+				} else if ((value as any).definitions) {
+					return TypeConverters.SymbolDefinition.from(value as any);
+				} else {
+					return TypeConverters.location.from(value as vscode.Location);
+				}
+			});
+		}
+
 		return asWinJsPromise(token => this._provider.provideDefinition(doc, pos, token)).then(value => {
+			if (!value) {
+				return undefined;
+			}
+
 			if (Array.isArray(value)) {
 				return value.map(TypeConverters.location.from);
-			} else if (value) {
-				return TypeConverters.location.from(value);
+			} else {
+				return TypeConverters.location.from(value as vscode.Location);
 			}
-			return undefined;
 		});
 	}
 }
@@ -951,7 +971,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideDefinition(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.Definition> {
+	$provideDefinition(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.Definition | modes.SymbolDefinition> {
 		return this._withAdapter(handle, DefinitionAdapter, adapter => adapter.provideDefinition(URI.revive(resource), position));
 	}
 

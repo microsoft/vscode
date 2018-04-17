@@ -520,6 +520,10 @@ export interface Location {
 	 */
 	range: IRange;
 }
+export interface SymbolDefinition {
+	definingSpan?: Location;
+	definitions: Location[];
+}
 /**
  * The definition of a symbol represented as one or many [locations](#Location).
  * For most programming languages there is only one location at which a symbol is
@@ -536,7 +540,7 @@ export interface DefinitionProvider {
 	/**
 	 * Provide the definition of the symbol at the given position and document.
 	 */
-	provideDefinition(model: model.ITextModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+	provideDefinition(model: model.ITextModel, position: Position, token: CancellationToken): Definition | SymbolDefinition | Thenable<Definition | SymbolDefinition>;
 }
 
 /**
