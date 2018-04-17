@@ -23,16 +23,16 @@ suite('WordPartOperations', () => {
 	function runEditorCommand(editor: ICodeEditor, command: EditorCommand): void {
 		command.runEditorCommand(null, editor, null);
 	}
-	function moveWordPartLeft(editor: ICodeEditor, inSelectionmode: boolean = false): void{
+	function moveWordPartLeft(editor: ICodeEditor, inSelectionmode: boolean = false): void {
 		runEditorCommand(editor, inSelectionmode ? _cursorWordPartLeft : _cursorWordPartLeft);
 	}
-	function moveWordPartRight(editor: ICodeEditor, inSelectionmode: boolean = false): void{
+	function moveWordPartRight(editor: ICodeEditor, inSelectionmode: boolean = false): void {
 		runEditorCommand(editor, inSelectionmode ? _cursorWordPartLeft : _cursorWordPartRight);
 	}
-	function deleteWordPartLeft(editor: ICodeEditor): void{
+	function deleteWordPartLeft(editor: ICodeEditor): void {
 		runEditorCommand(editor, _deleteWordPartLeft);
 	}
-	function deleteWordPartRight(editor: ICodeEditor): void{
+	function deleteWordPartRight(editor: ICodeEditor): void {
 		runEditorCommand(editor, _deleteWordPartRight);
 	}
 

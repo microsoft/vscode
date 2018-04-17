@@ -483,11 +483,11 @@ export class WordPartOperations extends WordOperations {
 		const lastWordPartEnd = strings.lastWordPartEnd(lineContent, startIndex);
 		const wordRange = WordOperations.deleteWordLeft(wordSeparators, model, selection, whitespaceHeuristics, wordNavigationType);
 
-		if (lastWordPartEnd === -1 || (wordRange.startColumn > lastWordPartEnd && wordRange.startColumn < column)){
+		if (lastWordPartEnd === -1 || (wordRange.startColumn > lastWordPartEnd && wordRange.startColumn < column)) {
 			return wordRange;
 		}
 		else {
-			const range = new Range(lineNumber, column, lineNumber, lastWordPartEnd+2);
+			const range = new Range(lineNumber, column, lineNumber, lastWordPartEnd + 2);
 			return range;
 		}
 
@@ -522,7 +522,7 @@ export class WordPartOperations extends WordOperations {
 		const nextWordPartBegin = strings.nextWordPartBegin(lineContent, startIndex);
 		const wordRange = WordOperations.deleteWordRight(wordSeparators, model, selection, whitespaceHeuristics, wordNavigationType);
 
-		if (nextWordPartBegin === -1 || (wordRange && wordRange.endColumn < nextWordPartBegin && wordRange.endColumn >= column)){
+		if (nextWordPartBegin === -1 || (wordRange && wordRange.endColumn < nextWordPartBegin && wordRange.endColumn >= column)) {
 			return wordRange;
 		}
 		else {
@@ -539,16 +539,16 @@ export class WordPartOperations extends WordOperations {
 
 		if (column === 1) {
 			if (lineNumber > 1) {
-				return new Position(lineNumber - 1, model.getLineMaxColumn(lineNumber-1));
+				return new Position(lineNumber - 1, model.getLineMaxColumn(lineNumber - 1));
 			}
 			return null;
 		}
 
-		if (wordPartCol === -1 || (wordPos.column > wordPartCol && wordPos.column < column && wordPos.lineNumber === lineNumber)){
+		if (wordPartCol === -1 || (wordPos.column > wordPartCol && wordPos.column < column && wordPos.lineNumber === lineNumber)) {
 			return wordPos;
 		}
-		else{
-			return new Position(lineNumber, wordPartCol+2);
+		else {
+			return new Position(lineNumber, wordPartCol + 2);
 		}
 	}
 
@@ -569,7 +569,7 @@ export class WordPartOperations extends WordOperations {
 		}
 
 
-		if (wordPartCol === -1 || (wordPos.column < wordPartCol && wordPos.column > column && wordPos.lineNumber === lineNumber)){
+		if (wordPartCol === -1 || (wordPos.column < wordPartCol && wordPos.column > column && wordPos.lineNumber === lineNumber)) {
 			return wordPos;
 		}
 		else {
