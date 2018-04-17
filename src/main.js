@@ -4,7 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-let perf = require('./vs/base/common/performance');
+const perf = require('./vs/base/common/performance');
+const app = require('electron').app;
+const fs = require('fs');
+const path = require('path');
+const minimist = require('minimist');
+const paths = require('./paths');
+
 perf.mark('main:started');
 
 // Perf measurements
@@ -35,12 +41,6 @@ Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https:
 	};
 })();
 //#endregion
-
-let app = require('electron').app;
-let fs = require('fs');
-let path = require('path');
-let minimist = require('minimist');
-let paths = require('./paths');
 
 let args = minimist(process.argv, {
 	string: ['user-data-dir', 'locale']
