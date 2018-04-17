@@ -390,7 +390,6 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 		const scope = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL;
 		const raw = this.storageService.get(this.viewletStateStorageId, scope, '[]');
 		const serializedViewsStates = JSON.parse(raw) as ISerializedViewState[];
-		console.log(serializedViewsStates);
 
 		for (const { id, state } of serializedViewsStates) {
 			this.viewStates.set(id, state);
