@@ -51,9 +51,11 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	}
 
 	public configFontIsMonospace(): boolean {
+		const editorConfig = this._configurationService.getValue<IEditorOptions>('editor');
+
 		this._createCharMeasureElementIfNecessary();
-		let fontSize = this.config.fontSize;
-		let fontFamily = this.config.fontFamily;
+		let fontSize = 15;
+		let fontFamily = this.config.fontFamily || editorConfig.fontFamily;
 		let i_rect = this._getBoundingRectFor('i', fontFamily, fontSize);
 		let w_rect = this._getBoundingRectFor('w', fontFamily, fontSize);
 
@@ -99,14 +101,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			this.panelContainer.appendChild(this._charMeasureElement);
 		}
 
-		const style = this._charMeasureElement.style;
-		style.display = 'block';
-		style.fontFamily = fontFamily;
-		style.fontSize = fontSize + 'px';
-		style.lineHeight = 'normal';
-		this._charMeasureElement.innerText = 'X';
-		const rect = this._charMeasureElement.getBoundingClientRect();
-		style.display = 'none';
+		let rect = this._getBoundingRectFor('X', fontFamily, fontSize);
 
 		// Bounding client rect was invalid, use last font measurement if available.
 		if (this._lastFontMeasurement && !rect.width && !rect.height) {
