@@ -145,7 +145,7 @@ export function createApiFactory(
 		let checkSelector = (function () {
 			let done = initData.environment.extensionDevelopmentPath !== extension.extensionFolderPath;
 			function inform(selector: vscode.DocumentSelector) {
-				console.info(`Extension '${extension.id}' uses a document selector that applies to all schemes.}`);
+				console.info(`Extension '${extension.id}' uses a document selector without scheme. Learn more about this: https://go.microsoft.com/fwlink/?linkid=872305`);
 				done = true;
 			}
 			return function perform(selector: vscode.DocumentSelector): vscode.DocumentSelector {
