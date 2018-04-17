@@ -229,7 +229,7 @@ export class WordOperations {
 		return new Position(lineNumber, column);
 	}
 
-	private static _deleteWordLeftWhitespace(model: ICursorSimpleModel, position: Position): Range {
+	protected static _deleteWordLeftWhitespace(model: ICursorSimpleModel, position: Position): Range {
 		const lineContent = model.getLineContent(position.lineNumber);
 		const startIndex = position.column - 2;
 		const lastNonWhitespace = strings.lastNonWhitespaceIndex(lineContent, startIndex);
@@ -304,7 +304,7 @@ export class WordOperations {
 		return len;
 	}
 
-	private static _deleteWordRightWhitespace(model: ICursorSimpleModel, position: Position): Range {
+	protected static _deleteWordRightWhitespace(model: ICursorSimpleModel, position: Position): Range {
 		const lineContent = model.getLineContent(position.lineNumber);
 		const startIndex = position.column - 1;
 		const firstNonWhitespace = this._findFirstNonWhitespaceChar(lineContent, startIndex);
@@ -453,4 +453,128 @@ export class WordOperations {
 
 		return cursor.move(true, lineNumber, column, 0);
 	}
+}
+
+export class WordPartOperations extends WordOperations {
+	public static deleteWordPartLeft(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, selection: Selection, whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType): Range {
+		if (!selection.isEmpty()) {
+			return selection;
+		}
+
+		const position = new Position(selection.positionLineNumber, selection.positionColumn);
+
+		let lineNumber = position.lineNumber;
+		let column = position.column;
+
+		if (lineNumber === 1 && column === 1) {
+			// Ignore deleting at beginning of file
+			return null;
+		}
+
+		if (whitespaceHeuristics) {
+			let r = WordOperations._deleteWordLeftWhitespace(model, position);
+			if (r) {
+				return r;
+			}
+		}
+
+		const lineContent = model.getLineContent(position.lineNumber);
+		const startIndex = position.column - 2;
+		const lastWordPartEnd = strings.lastWordPartEnd(lineContent, startIndex);
+		const wordRange = WordOperations.deleteWordLeft(wordSeparators, model, selection, whitespaceHeuristics, wordNavigationType);
+
+		if (lastWordPartEnd === -1 || (wordRange.startColumn > lastWordPartEnd && wordRange.startColumn < column)){
+			return wordRange;
+		}
+		else {
+			const range = new Range(lineNumber, column, lineNumber, lastWordPartEnd+2);
+			return range;
+		}
+
+	}
+
+	public static deleteWordPartRight(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, selection: Selection, whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType): Range {
+		if (!selection.isEmpty()) {
+			return selection;
+		}
+
+		const position = new Position(selection.positionLineNumber, selection.positionColumn);
+
+		let lineNumber = position.lineNumber;
+		let column = position.column;
+
+		const lineCount = model.getLineCount();
+		const maxColumn = model.getLineMaxColumn(lineNumber);
+		if (lineNumber === lineCount && column === maxColumn) {
+			// Ignore deleting at end of file
+			return null;
+		}
+
+		if (whitespaceHeuristics) {
+			let r = WordOperations._deleteWordRightWhitespace(model, position);
+			if (r) {
+				return r;
+			}
+		}
+
+		const lineContent = model.getLineContent(position.lineNumber);
+		const startIndex = position.column;
+		const nextWordPartBegin = strings.nextWordPartBegin(lineContent, startIndex);
+		const wordRange = WordOperations.deleteWordRight(wordSeparators, model, selection, whitespaceHeuristics, wordNavigationType);
+
+		if (nextWordPartBegin === -1 || (wordRange && wordRange.endColumn < nextWordPartBegin && wordRange.endColumn >= column)){
+			return wordRange;
+		}
+		else {
+			return new Range(lineNumber, column, lineNumber, nextWordPartBegin);
+		}
+	}
+
+	public static moveWordPartLeft(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position, wordNavigationType: WordNavigationType): Position {
+		const startIndex = position.column - 2;
+		const lineNumber = position.lineNumber;
+		const column = position.column;
+		const wordPartCol = strings.lastWordPartEnd(model.getLineContent(lineNumber), startIndex);
+		const wordPos = WordOperations.moveWordLeft(wordSeparators, model, position, wordNavigationType);
+
+		if (column === 1) {
+			if (lineNumber > 1) {
+				return new Position(lineNumber - 1, model.getLineMaxColumn(lineNumber-1));
+			}
+			return null;
+		}
+
+		if (wordPartCol === -1 || (wordPos.column > wordPartCol && wordPos.column < column && wordPos.lineNumber === lineNumber)){
+			return wordPos;
+		}
+		else{
+			return new Position(lineNumber, wordPartCol+2);
+		}
+	}
+
+	public static moveWordPartRight(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position, wordNavigationType: WordNavigationType): Position {
+		const startIndex = position.column;
+		const lineNumber = position.lineNumber;
+		const column = position.column;
+		const wordPartCol = strings.nextWordPartBegin(model.getLineContent(lineNumber), startIndex);
+		const wordPos = WordOperations.moveWordRight(wordSeparators, model, position, wordNavigationType);
+
+		const lineCount = model.getLineCount();
+		const maxColumn = model.getLineMaxColumn(lineNumber);
+		if (column === maxColumn) {
+			if (lineNumber < lineCount) {
+				return new Position(lineNumber + 1, 1);
+			}
+			return null;
+		}
+
+
+		if (wordPartCol === -1 || (wordPos.column < wordPartCol && wordPos.column > column && wordPos.lineNumber === lineNumber)){
+			return wordPos;
+		}
+		else {
+			return new Position(lineNumber, wordPartCol);
+		}
+	}
+
 }
