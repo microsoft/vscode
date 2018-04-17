@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 import { TextDocument, CancellationToken, Position, Range } from 'vscode-languageserver';
-import { FoldingRange, FoldingRangeList } from 'vscode-languageserver-protocol-foldingprovider';
+import { FoldingRange } from 'vscode-languageserver-protocol-foldingprovider';
 import { LanguageModes } from './languageModes';
 
-export function getFoldingRanges(languageModes: LanguageModes, document: TextDocument, maxRanges: number | undefined, cancellationToken: CancellationToken | null): FoldingRangeList {
+export function getFoldingRanges(languageModes: LanguageModes, document: TextDocument, maxRanges: number | undefined, cancellationToken: CancellationToken | null): FoldingRange[] {
 	let htmlMode = languageModes.getMode('html');
 	let range = Range.create(Position.create(0, 0), Position.create(document.lineCount, 0));
 	let ranges: FoldingRange[] = [];
@@ -24,7 +24,7 @@ export function getFoldingRanges(languageModes: LanguageModes, document: TextDoc
 	if (maxRanges && ranges.length > maxRanges) {
 		ranges = limitRanges(ranges, maxRanges);
 	}
-	return { ranges };
+	return ranges;
 }
 
 function limitRanges(ranges: FoldingRange[], maxRanges: number) {

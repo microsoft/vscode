@@ -64,7 +64,7 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 			return htmlLanguageService.format(document, range, formatSettings);
 		},
 		getFoldingRanges(document: TextDocument, range: Range): FoldingRange[] {
-			let ranges = htmlLanguageService.getFoldingRanges(document).ranges;
+			let ranges = htmlLanguageService.getFoldingRanges(document);
 			return ranges.filter(r => r.startLine >= range.start.line && r.endLine < range.end.line);
 		},
 		doAutoClose(document: TextDocument, position: Position) {

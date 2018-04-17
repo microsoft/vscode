@@ -12,7 +12,7 @@ import { HTMLDocumentRegions } from './embeddedSupport';
 
 import * as ts from 'typescript';
 import { join } from 'path';
-import { FoldingRange, FoldingRangeType } from 'vscode-languageserver-protocol-foldingprovider';
+import { FoldingRange, FoldingRangeKind } from 'vscode-languageserver-protocol-foldingprovider';
 
 const FILE_NAME = 'vscode://javascript/1';  // the same 'file' is used for all contents
 const JQUERY_D_TS = join(__dirname, '../../lib/jquery.d.ts');
@@ -291,7 +291,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 					let foldingRange: FoldingRange = { startLine, endLine };
 					let match = document.getText(curr).match(/^\s*\/(?:(\/\s*#(?:end)?region\b)|(\*|\/))/);
 					if (match) {
-						foldingRange.type = match[1] ? FoldingRangeType.Region : FoldingRangeType.Comment;
+						foldingRange.kind = match[1] ? FoldingRangeKind.Region : FoldingRangeKind.Comment;
 					}
 					ranges.push(foldingRange);
 				}

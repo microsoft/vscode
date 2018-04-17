@@ -77,7 +77,7 @@ export function getCSSMode(documentRegions: LanguageModelCache<HTMLDocumentRegio
 		},
 		getFoldingRanges(document: TextDocument, range: Range): FoldingRange[] {
 			let embedded = embeddedCSSDocuments.get(document);
-			let ranges = cssLanguageService.getFoldingRanges(embedded, {}).ranges;
+			let ranges = cssLanguageService.getFoldingRanges(embedded, {});
 			return ranges.filter(r => r.startLine >= range.start.line && r.endLine < range.end.line);
 		},
 		onDocumentRemoved(document: TextDocument) {
