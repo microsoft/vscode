@@ -14,6 +14,7 @@ phases:
       npm run gulp -- hygiene
       .\node_modules\.bin\tsc -p .\src\tsconfig.monaco.json --noEmit
       npm run compile
+      node build/lib/builtInExtensions.js
     name: build
   - powershell: |
       .\scripts\test.bat --tfs
@@ -49,6 +50,7 @@ phases:
       npm run gulp -- hygiene
       ./node_modules/.bin/tsc -p ./src/tsconfig.monaco.json --noEmit
       npm run compile
+      node build/lib/builtInExtensions.js
     name: build
   - script: |
       DISPLAY=:10 ./scripts/test.sh --tfs
@@ -74,6 +76,7 @@ phases:
       npm run gulp -- hygiene
       ./node_modules/.bin/tsc -p ./src/tsconfig.monaco.json --noEmit
       npm run compile
+      node build/lib/builtInExtensions.js
     name: build
   - script: |
       ./scripts/test.sh --tfs
