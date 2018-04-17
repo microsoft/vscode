@@ -16,8 +16,10 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { Panel } from 'vs/workbench/browser/panel';
-import { CommentNode, CommentsModel, ICommentService, ResourceCommentThreads } from 'vs/workbench/services/comments/electron-browser/commentService';
 import { ReviewController } from 'vs/workbench/parts/comments/electron-browser/commentsEditorContribution';
+import { ICommentService } from 'vs/workbench/services/comments/electron-browser/commentService';
+import { ResourceCommentThreads, CommentsModel, CommentNode } from 'vs/workbench/parts/comments/common/commentModel';
+import { CommentThread } from 'vs/editor/common/modes';
 
 export const COMMENTS_PANEL_ID = 'workbench.panel.comments';
 export const COMMENTS_PANEL_TITLE = 'Comments';
@@ -153,6 +155,7 @@ interface IResourceMarkersTemplateData {
 export class CommentsPanel extends Panel {
 	private tree: WorkbenchTree;
 	private treeContainer: HTMLElement;
+	private commentsModel: CommentsModel;
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -171,15 +174,17 @@ export class CommentsPanel extends Panel {
 
 		let container = dom.append(parent, dom.$('.markers-panel-container'));
 		this.treeContainer = dom.append(container, dom.$('.tree-container'));
+		this.commentsModel = new CommentsModel();
 
 		this.createTree();
 
-		this.commentService.onDidChangeCommentThreads(this.onCommentThreadChanged, this);
+		this.commentService.onDidSetAllCommentThreads(this.onAllCommentsChanged, this);
 
 		return this.render();
 	}
 
-	private onCommentThreadChanged() {
+	private onAllCommentsChanged(e: CommentThread[]) {
+		this.commentsModel.setCommentThreads(e);
 		this.tree.refresh().then(() => {
 			console.log('tree refreshed');
 		}, (e) => {
@@ -189,7 +194,7 @@ export class CommentsPanel extends Panel {
 
 	private render(): TPromise<void> {
 		dom.toggleClass(this.treeContainer, 'hidden', false);
-		return this.tree.setInput(this.commentService.commentsModel);
+		return this.tree.setInput(this.commentsModel);
 	}
 
 	public layout(dimensions: dom.Dimension): void {

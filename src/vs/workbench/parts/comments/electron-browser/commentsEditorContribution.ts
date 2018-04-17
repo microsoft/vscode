@@ -33,6 +33,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ZoneWidget, IOptions } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { ReviewModel, ReviewStyle } from 'vs/workbench/parts/comments/common/reviewModel';
+import { ICommentService } from '../../../services/comments/electron-browser/commentService';
 
 export const ctxReviewPanelVisible = new RawContextKey<boolean>('reviewPanelVisible', false);
 export const ID = 'editor.contrib.review';
@@ -291,6 +292,7 @@ export class ReviewController implements IEditorContribution {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService private themeService: IThemeService,
 		@ICommandService private commandService: ICommandService,
+		@ICommentService private commentService: ICommentService
 	) {
 		this.editor = editor;
 		this.globalToDispose = [];
@@ -340,6 +342,13 @@ export class ReviewController implements IEditorContribution {
 					zoneWidget.display(this.getCommentThread(thread.range.startLineNumber), thread.range.startLineNumber);
 					this._zoneWidgets.push(zoneWidget);
 				});
+			}
+		});
+
+		this.commentService.onDidSetResourceCommentThreads(e => {
+			const editorURI = this.editor && this.editor.getModel() && this.editor.getModel().uri;
+			if (editorURI && editorURI.toString() === e.resource.toString()) {
+				this.setComments(e.commentThreads);
 			}
 		});
 
@@ -449,6 +458,7 @@ export class ReviewController implements IEditorContribution {
 			});
 			this._zoneWidget.display({
 				threadId: null,
+				resource: null,
 				comments: [],
 				range: {
 					startLineNumber: lineNumber,

@@ -58,6 +58,22 @@ export class ExtHostComments implements ExtHostCommentsShape {
 			.then(comments => comments.map(x => convertCommentThread(x, this._commandsConverter)));
 	}
 
+	$provideAllComments(handle: number): TPromise<modes.CommentThread[]> {
+		let provider = this._providers.get(handle);
+		// provideAllComments is an optional method
+		if (!provider.provideAllComments) {
+			return TPromise.as(null);
+		}
+
+		return asWinJsPromise(token => {
+
+			return provider.provideAllComments(token);
+		}).then(comments =>
+			comments.map(x => convertCommentThread(x, this._commandsConverter)
+			));
+	}
+
+
 	$provideNewCommentRange(handle: number, uri: UriComponents): TPromise<modes.NewCommentAction> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 		if (!data || !data.document) {
@@ -87,6 +103,7 @@ function convertNewCommandAction(vscodeNewCommentAction: vscode.NewCommentAction
 function convertCommentThread(vscodeCommentThread: vscode.CommentThread, commandsConverter: CommandsConverter): modes.CommentThread {
 	return {
 		threadId: vscodeCommentThread.threadId,
+		resource: vscodeCommentThread.resource.toString(),
 		range: extHostTypeConverter.fromRange(vscodeCommentThread.range),
 		comments: vscodeCommentThread.comments.map(convertComment),
 		actions: vscodeCommentThread.actions.map(commandsConverter.toInternal)

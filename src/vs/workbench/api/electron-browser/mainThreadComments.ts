@@ -50,8 +50,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 			const outerEditorURI = outerEditor.getModel().uri;
 			this.provideComments(outerEditorURI).then(commentThreads => {
-				controller.setComments(commentThreads);
-				this._commentService.setCommentsForResource(outerEditorURI, commentThreads);
+				this._commentService.setComments(outerEditorURI, commentThreads);
 			});
 			this.provideNewCommentRange(outerEditor.getModel()).then(newActions => {
 				controller.setNewCommentActions(newActions);
@@ -61,11 +60,20 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 	$registerCommentProvider(handle: number): void {
 		this._providers.set(handle, undefined);
-		this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, true);
+		// Fetch all comments
+		this._proxy.$provideAllComments(handle).then(commentThreads => {
+			if (commentThreads) {
+				this._commentService.setAllComments(commentThreads);
+				this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, true);
+			}
+		});
+
+
 	}
 
 	$unregisterCommentProvider(handle: number): void {
 		this._providers.delete(handle);
+		this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, false);
 	}
 
 	dispose(): void {

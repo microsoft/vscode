@@ -136,6 +136,40 @@ export class ReviewMode {
 			commentsCache.set(changedItem.filePath.toString(), matchingComments);
 		});
 
+		function commentsToCommentThreads(uri: vscode.Uri, comments: Comment[]): vscode.CommentThread[] {
+			if (!comments || !comments.length) {
+				return [];
+			}
+
+			let sections = _.groupBy(comments, comment => comment.position);
+			let ret: vscode.CommentThread[] = [];
+
+			for (let i in sections) {
+				let comments = sections[i];
+
+				const comment = comments[0];
+				const commentAbsolutePosition = comment.diff_hunk_range.start + (comment.position - 1);
+				const pos = new vscode.Position(comment.currentPosition ? comment.currentPosition - 1 - 1 : commentAbsolutePosition - /* after line */ 1 - /* it's zero based*/ 1, 0);
+				const range = new vscode.Range(pos, pos);
+
+				ret.push({
+					threadId: comment.id,
+					resource: uri,
+					range,
+					comments: comments.map(comment => {
+						return {
+							body: new vscode.MarkdownString(comment.body),
+							userName: comment.user.login,
+							gravatar: comment.user.avatar_url
+						};
+					}),
+					actions: actions
+				});
+			}
+
+			return ret;
+		}
+
 		this._commentProvider = vscode.workspace.registerCommentProvider({
 			provideNewCommentRange: async (document: vscode.TextDocument, token: vscode.CancellationToken) => {
 				if (document.uri.scheme === 'review' || document.uri.scheme === 'file') {
@@ -174,36 +208,12 @@ export class ReviewMode {
 					}
 				}
 
-				if (!matchingComments || !matchingComments.length) {
-					return [];
-				}
-
-				let sections = _.groupBy(matchingComments, comment => comment.position);
-				let ret: vscode.CommentThread[] = [];
-
-				for (let i in sections) {
-					let comments = sections[i];
-
-					const comment = comments[0];
-					const commentAbsolutePosition = comment.diff_hunk_range.start + (comment.position - 1);
-					const pos = new vscode.Position(comment.currentPosition ? comment.currentPosition - 1 - 1 : commentAbsolutePosition - /* after line */ 1 - /* it's zero based*/ 1, 0);
-					const range = new vscode.Range(pos, pos);
-
-					ret.push({
-						threadId: comment.id,
-						range,
-						comments: comments.map(comment => {
-							return {
-								body: new vscode.MarkdownString(comment.body),
-								userName: comment.user.login,
-								gravatar: comment.user.avatar_url
-							};
-						}),
-						actions: actions
-					});
-				}
-
-				return ret;
+				return commentsToCommentThreads(document.uri, matchingComments);
+			},
+			provideAllComments: async (token: vscode.CancellationToken) => {
+				return fileChanges
+					.map(fileChange => commentsToCommentThreads(fileChange.filePath, fileChange.comments))
+					.reduce((prev, curr) => prev.concat(curr), []);
 			}
 		});
 
