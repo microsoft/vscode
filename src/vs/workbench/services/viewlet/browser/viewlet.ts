@@ -16,6 +16,7 @@ export const IViewletService = createDecorator<IViewletService>('viewletService'
 export interface IViewletService {
 	_serviceBrand: ServiceIdentifier<any>;
 
+	onDidViewletRegister: Event<ViewletDescriptor>;
 	onDidViewletOpen: Event<IViewlet>;
 	onDidViewletClose: Event<IViewlet>;
 	onDidViewletEnablementChange: Event<{ id: string, enabled: boolean }>;

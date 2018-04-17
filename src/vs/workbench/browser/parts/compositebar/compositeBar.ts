@@ -80,7 +80,7 @@ export class CompositeBar implements ICompositeBar {
 		return this._onDidContextMenu.event;
 	}
 
-	public addComposite(compositeData: { id: string; name: string, order: number }): void {
+	public addComposite(compositeData: { id: string; name: string, order: number }, pin: boolean): void {
 		if (this.options.composites.filter(c => c.id === compositeData.id).length) {
 			return;
 		}
@@ -89,7 +89,9 @@ export class CompositeBar implements ICompositeBar {
 			i++;
 		}
 		this.options.composites.push(compositeData);
-		this.pin(compositeData.id, true, i);
+		if (pin) {
+			this.pin(compositeData.id, true, i);
+		}
 	}
 
 	public removeComposite(id: string): void {
