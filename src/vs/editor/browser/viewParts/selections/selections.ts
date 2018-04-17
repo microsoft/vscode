@@ -158,7 +158,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		return false;
 	}
 
-	private _enrichVisibleRangesWithStyle(linesVisibleRanges: LineVisibleRangesWithStyle[], previousFrame: LineVisibleRangesWithStyle[]): void {
+	private _enrichVisibleRangesWithStyle(viewport: Range, linesVisibleRanges: LineVisibleRangesWithStyle[], previousFrame: LineVisibleRangesWithStyle[]): void {
 		const epsilon = this._typicalHalfwidthCharacterWidth / 4;
 		let previousFrameTop: HorizontalRangeWithStyle = null;
 		let previousFrameBottom: HorizontalRangeWithStyle = null;
@@ -166,16 +166,20 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		if (previousFrame && previousFrame.length > 0 && linesVisibleRanges.length > 0) {
 
 			let topLineNumber = linesVisibleRanges[0].lineNumber;
-			for (let i = 0; !previousFrameTop && i < previousFrame.length; i++) {
-				if (previousFrame[i].lineNumber === topLineNumber) {
-					previousFrameTop = previousFrame[i].ranges[0];
+			if (topLineNumber === viewport.startLineNumber) {
+				for (let i = 0; !previousFrameTop && i < previousFrame.length; i++) {
+					if (previousFrame[i].lineNumber === topLineNumber) {
+						previousFrameTop = previousFrame[i].ranges[0];
+					}
 				}
 			}
 
 			let bottomLineNumber = linesVisibleRanges[linesVisibleRanges.length - 1].lineNumber;
-			for (let i = previousFrame.length - 1; !previousFrameBottom && i >= 0; i--) {
-				if (previousFrame[i].lineNumber === bottomLineNumber) {
-					previousFrameBottom = previousFrame[i].ranges[0];
+			if (bottomLineNumber === viewport.endLineNumber) {
+				for (let i = previousFrame.length - 1; !previousFrameBottom && i >= 0; i--) {
+					if (previousFrame[i].lineNumber === bottomLineNumber) {
+						previousFrameBottom = previousFrame[i].ranges[0];
+					}
 				}
 			}
 
@@ -258,7 +262,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		let visibleRangesHaveGaps = this._visibleRangesHaveGaps(linesVisibleRanges);
 
 		if (!isIEWithZoomingIssuesNearRoundedBorders && !visibleRangesHaveGaps && this._roundedSelection) {
-			this._enrichVisibleRangesWithStyle(linesVisibleRanges, previousFrame);
+			this._enrichVisibleRangesWithStyle(ctx.visibleRange, linesVisibleRanges, previousFrame);
 		}
 
 		// The visible ranges are sorted TOP-BOTTOM and LEFT-RIGHT
