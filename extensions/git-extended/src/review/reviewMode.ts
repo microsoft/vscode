@@ -10,10 +10,10 @@ import { FileChangeTreeItem } from '../common/treeItems';
 import { mapCommentsToHead, parseDiff } from '../common/diff';
 import * as _ from 'lodash';
 import { GitContentProvider } from './gitContentProvider';
-import { parseCommitDiff } from './fileComments';
 import { Comment } from '../common/models/comment';
 import { PullRequest } from '../common/models/pullrequest';
-import { toPRUri } from '../common/uri';
+import { toGitUri } from '../common/uri';
+import { GitChangeType } from '../common/models/file';
 
 const REVIEW_STATE = 'git-extended.state';
 
@@ -93,15 +93,14 @@ export class ReviewMode {
 		const data = await pr.getFiles();
 		const baseSha = await pr.getBaseCommitSha();
 		const richContentChanges = await parseDiff(data, this._repository, baseSha);
-		let fileChanges = richContentChanges.map(change => {
-			let fileInRepo = path.resolve(this._repository.path, change.fileName);
+		let localFileChanges = richContentChanges.map(change => {
 			let changedItem = new FileChangeTreeItem(
 				pr.prItem,
 				change.fileName,
 				change.status,
 				change.fileName,
-				toPRUri(vscode.Uri.file(change.filePath), fileInRepo, change.fileName, true),
-				toPRUri(vscode.Uri.file(change.originalFilePath), fileInRepo, change.fileName, false),
+				toGitUri(vscode.Uri.parse(change.fileName), null, change.status === GitChangeType.DELETE ? '' : state.head.sha, {}),
+				toGitUri(vscode.Uri.parse(change.fileName), null, change.status === GitChangeType.ADD ? '' : state.base.sha, {}),
 				this._repository.path,
 				change.patch
 			);
@@ -129,7 +128,7 @@ export class ReviewMode {
 			}
 		];
 
-		let localFileChanges = parseCommitDiff(this._repository, state.head.sha, state.base.sha, fileChanges);
+		// let localFileChanges = parseCommitDiff(this._repository, state.head.sha, state.base.sha, fileChanges);
 
 		const commentsCache = new Map<String, Comment[]>();
 		localFileChanges.forEach(changedItem => {
