@@ -1364,9 +1364,9 @@ export function validateFileName(parent: ExplorerItem, name: string, allowOverwr
 		return nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name);
 	}
 
-	// a file must always be a leaf
-	if (pathMapping.last.isFile) {
-		return nls.localize('fileUsedAsFolderError', "**{0}** is a file and cannot have any descendants.", pathMapping.last.name);
+	// A file must always be a leaf
+	if (pathMapping.lastExistingPathSegment.isFile) {
+		return nls.localize('fileUsedAsFolderError', "**{0}** is a file and cannot have any descendants.", pathMapping.lastExistingPathSegment.name);
 	}
 
 	// Invalid File name
@@ -1388,32 +1388,27 @@ export function validateFileName(parent: ExplorerItem, name: string, allowOverwr
 
 interface IMappedPath {
 	fullPathAlreadyExists: boolean;
-	last: {
+	lastExistingPathSegment: {
 		isFile: boolean;
 		name: string;
 	};
 }
 
 function mapPathsToExistingFolders(parent: ExplorerItem, pathNames: string[]): IMappedPath {
-	let fullPathAlreadyExists = true;
-	let lastPath = { isFile: false, name: '' };
+	let lastExistingPathSegment = { isFile: false, name: '' };
 
 	for (const name of pathNames) {
 		const { exists, child } = alreadyExists(parent, name);
 
-		if (!exists) {
-			fullPathAlreadyExists = false;
-			break;
+		if (exists) {
+			lastExistingPathSegment = { isFile: !child.isDirectory, name };
+			parent = child;
+		} else {
+			return { fullPathAlreadyExists: false, lastExistingPathSegment };
 		}
-
-		const isFile: boolean = !child.isDirectory;
-		lastPath.isFile = isFile;
-		lastPath.name = name;
-
-		parent = child;
 	}
 
-	return { fullPathAlreadyExists, last: lastPath };
+	return { fullPathAlreadyExists: true, lastExistingPathSegment };
 }
 
 
