@@ -53,10 +53,11 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		this._proxy = context.getProxy(ExtHostContext.ExtHostWebviews);
 		editorGroupService.onEditorsChanged(this.onEditorsChanged, this, this._toDispose);
 
-		_webviewService.registerReviver(MainThreadWebviews.viewType, this);
-		this._toDispose.push(lifecycleService.onWillShutdown(e => {
+		this._toDispose.push(_webviewService.registerReviver(MainThreadWebviews.viewType, this));
+
+		lifecycleService.onWillShutdown(e => {
 			e.veto(this._onWillShutdown());
-		}));
+		}, this, this._toDispose);
 	}
 
 	dispose(): void {
