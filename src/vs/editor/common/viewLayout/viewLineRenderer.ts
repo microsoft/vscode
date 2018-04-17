@@ -248,7 +248,7 @@ export function renderViewLine(input: RenderLineInput, sb: IStringBuilder): Rend
 			let classNames: string[] = [];
 			for (let i = 0, len = input.lineDecorations.length; i < len; i++) {
 				const lineDecoration = input.lineDecorations[i];
-				if (lineDecoration.type !== InlineDecorationType.Regular) {
+				if (lineDecoration.type !== InlineDecorationType.Regular && lineDecoration.type !== InlineDecorationType.RegularAffectingLetterSpacing) {
 					classNames.push(input.lineDecorations[i].className);
 					containsForeignElements = true;
 				}

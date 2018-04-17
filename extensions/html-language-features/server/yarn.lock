@@ -18,9 +18,9 @@ jsonc-parser@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-1.0.0.tgz#ddcc864ae708e60a7a6dd36daea00172fa8d9272"
 
-vscode-css-languageservice@^3.0.9-next.6:
-  version "3.0.9-next.6"
-  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-3.0.9-next.6.tgz#4da4d25eabb101713f21e8eb60b6042e504fbd97"
+vscode-css-languageservice@^3.0.9-next.7:
+  version "3.0.9-next.7"
+  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-3.0.9-next.7.tgz#1eb8deadaa6bfaf55187656ea6fb6b7e8d71cd7f"
   dependencies:
     vscode-languageserver-types "^3.6.1"
     vscode-nls "^3.2.1"
@@ -33,9 +33,9 @@ vscode-emmet-helper@1.2.5:
     jsonc-parser "^1.0.0"
     vscode-languageserver-types "^3.6.0-next.1"
 
-vscode-html-languageservice@^2.1.3-next.1:
-  version "2.1.3-next.1"
-  resolved "https://registry.yarnpkg.com/vscode-html-languageservice/-/vscode-html-languageservice-2.1.3-next.1.tgz#bf8a36fc87d10b833211ff7adeb142a06fd18c61"
+vscode-html-languageservice@^2.1.3-next.2:
+  version "2.1.3-next.2"
+  resolved "https://registry.yarnpkg.com/vscode-html-languageservice/-/vscode-html-languageservice-2.1.3-next.2.tgz#911821cada8a237bd6773569851658c733409d65"
   dependencies:
     vscode-languageserver-types "^3.6.1"
     vscode-nls "^3.2.1"
@@ -45,9 +45,9 @@ vscode-jsonrpc@^3.6.0:
   version "3.6.0"
   resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-3.6.0.tgz#848d56995d5168950d84feb5d9c237ae5c6a02d4"
 
-vscode-languageserver-protocol-foldingprovider@^1.0.1:
-  version "1.0.1"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol-foldingprovider/-/vscode-languageserver-protocol-foldingprovider-1.0.1.tgz#85514aaf8fe905e91bf21e4106e0847f60d40f44"
+vscode-languageserver-protocol-foldingprovider@^2.0.0-next.2:
+  version "2.0.0-next.2"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol-foldingprovider/-/vscode-languageserver-protocol-foldingprovider-2.0.0-next.2.tgz#fbb9cfdf5b8c4ac451826ba6312f1f88379f35b0"
   dependencies:
     vscode-languageserver-protocol "^3.6.0"
     vscode-languageserver-types "^3.6.0"

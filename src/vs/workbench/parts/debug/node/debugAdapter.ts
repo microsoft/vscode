@@ -16,14 +16,14 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
+import { IDebugAdapter, IAdapterExecutable, IDebuggerContribution, IPlatformSpecificAdapterContribution } from 'vs/workbench/parts/debug/common/debug';
 
 /**
  * Abstract implementation of the low level API for a debug adapter.
  * Missing is how this API communicates with the debug adapter.
  */
-export abstract class AbstractDebugAdapter implements debug.IDebugAdapter {
+export abstract class AbstractDebugAdapter implements IDebugAdapter {
 
 	private sequence: number;
 	private pendingRequests: Map<number, (e: DebugProtocol.Response) => void>;
@@ -57,14 +57,14 @@ export abstract class AbstractDebugAdapter implements debug.IDebugAdapter {
 		return this._onExit.event;
 	}
 
-	public onEvent(callback: (event: DebugProtocol.Event) => void) {
+	public onEvent(callback: (event: DebugProtocol.Event) => void): void {
 		if (this.eventCallback) {
 			this._onError.fire(new Error(`attempt to set more than one 'Event' callback`));
 		}
 		this.eventCallback = callback;
 	}
 
-	public onRequest(callback: (request: DebugProtocol.Request) => void) {
+	public onRequest(callback: (request: DebugProtocol.Request) => void): void {
 		if (this.requestCallback) {
 			this._onError.fire(new Error(`attempt to set more than one 'Request' callback`));
 		}
@@ -96,7 +96,7 @@ export abstract class AbstractDebugAdapter implements debug.IDebugAdapter {
 		}
 	}
 
-	public acceptMessage(message: DebugProtocol.ProtocolMessage) {
+	public acceptMessage(message: DebugProtocol.ProtocolMessage): void {
 		switch (message.type) {
 			case 'event':
 				if (this.eventCallback) {
@@ -219,7 +219,7 @@ export class DebugAdapter extends StreamDebugAdapter {
 
 	private _serverProcess: cp.ChildProcess;
 
-	constructor(private _debugType: string, private _adapterExecutable: debug.IAdapterExecutable | null, extensionDescriptions: IExtensionDescription[], private _outputService?: IOutputService) {
+	constructor(private _debugType: string, private _adapterExecutable: IAdapterExecutable | null, extensionDescriptions: IExtensionDescription[], private _outputService?: IOutputService) {
 		super();
 
 		if (!this._adapterExecutable) {
@@ -306,61 +306,61 @@ export class DebugAdapter extends StreamDebugAdapter {
 		}
 	}
 
-	private static extract(dbg: debug.IDebuggerContribution, extensionFolderPath: string) {
-		if (!dbg) {
+	private static extract(contribution: IDebuggerContribution, extensionFolderPath: string): IDebuggerContribution {
+		if (!contribution) {
 			return undefined;
 		}
-		let x: debug.IDebuggerContribution = {};
+		let result: IDebuggerContribution = {};
 
-		if (dbg.runtime) {
-			if (dbg.runtime.indexOf('./') === 0) {	// TODO
-				x.runtime = paths.join(extensionFolderPath, dbg.runtime);
+		if (contribution.runtime) {
+			if (contribution.runtime.indexOf('./') === 0) {	// TODO
+				result.runtime = paths.join(extensionFolderPath, contribution.runtime);
 			} else {
-				x.runtime = dbg.runtime;
+				result.runtime = contribution.runtime;
 			}
 		}
-		if (dbg.runtimeArgs) {
-			x.runtimeArgs = dbg.runtimeArgs;
+		if (contribution.runtimeArgs) {
+			result.runtimeArgs = contribution.runtimeArgs;
 		}
-		if (dbg.program) {
-			if (!paths.isAbsolute(dbg.program)) {
-				x.program = paths.join(extensionFolderPath, dbg.program);
+		if (contribution.program) {
+			if (!paths.isAbsolute(contribution.program)) {
+				result.program = paths.join(extensionFolderPath, contribution.program);
 			} else {
-				x.program = dbg.program;
+				result.program = contribution.program;
 			}
 		}
-		if (dbg.args) {
-			x.args = dbg.args;
+		if (contribution.args) {
+			result.args = contribution.args;
 		}
 
-		if (dbg.win) {
-			x.win = DebugAdapter.extract(dbg.win, extensionFolderPath);
+		if (contribution.win) {
+			result.win = DebugAdapter.extract(contribution.win, extensionFolderPath);
 		}
-		if (dbg.winx86) {
-			x.winx86 = DebugAdapter.extract(dbg.winx86, extensionFolderPath);
+		if (contribution.winx86) {
+			result.winx86 = DebugAdapter.extract(contribution.winx86, extensionFolderPath);
 		}
-		if (dbg.windows) {
-			x.windows = DebugAdapter.extract(dbg.windows, extensionFolderPath);
+		if (contribution.windows) {
+			result.windows = DebugAdapter.extract(contribution.windows, extensionFolderPath);
 		}
-		if (dbg.osx) {
-			x.osx = DebugAdapter.extract(dbg.osx, extensionFolderPath);
+		if (contribution.osx) {
+			result.osx = DebugAdapter.extract(contribution.osx, extensionFolderPath);
 		}
-		if (dbg.linux) {
-			x.linux = DebugAdapter.extract(dbg.linux, extensionFolderPath);
+		if (contribution.linux) {
+			result.linux = DebugAdapter.extract(contribution.linux, extensionFolderPath);
 		}
-		return x;
+		return result;
 	}
 
-	static platformAdapterExecutable(extensionDescriptions: IExtensionDescription[], debugType: string): debug.IAdapterExecutable {
+	static platformAdapterExecutable(extensionDescriptions: IExtensionDescription[], debugType: string): IAdapterExecutable {
 
-		let result: debug.IDebuggerContribution = {};
+		let result: IDebuggerContribution = {};
 
 		debugType = debugType.toLowerCase();
 
 		// merge all contributions into one
 		for (const ed of extensionDescriptions) {
 			if (ed.contributes) {
-				const debuggers = <debug.IDebuggerContribution[]>ed.contributes['debuggers'];
+				const debuggers = <IDebuggerContribution[]>ed.contributes['debuggers'];
 				if (debuggers && debuggers.length > 0) {
 					const dbgs = debuggers.filter(d => strings.equalsIgnoreCase(d.type, debugType));
 					for (const dbg of dbgs) {
@@ -376,7 +376,7 @@ export class DebugAdapter extends StreamDebugAdapter {
 		}
 
 		// select the right platform
-		let platformInfo: debug.IPlatformSpecificAdapterContribution;
+		let platformInfo: IPlatformSpecificAdapterContribution;
 		if (platform.isWindows && !process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432')) {
 			platformInfo = result.winx86 || result.win || result.windows;
 		} else if (platform.isWindows) {
@@ -410,7 +410,7 @@ export class DebugAdapter extends StreamDebugAdapter {
 
 // path hooks helpers
 
-export function convertToDAPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePaths: (source: DebugProtocol.Source) => void) {
+export function convertToDAPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePaths: (source: DebugProtocol.Source) => void): void {
 	convertPaths(msg, (toDA: boolean, source: DebugProtocol.Source | undefined) => {
 		if (toDA && source) {
 			fixSourcePaths(source);
@@ -418,7 +418,7 @@ export function convertToDAPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePa
 	});
 }
 
-export function convertToVSCPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePaths: (source: DebugProtocol.Source) => void) {
+export function convertToVSCPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePaths: (source: DebugProtocol.Source) => void): void {
 	convertPaths(msg, (toDA: boolean, source: DebugProtocol.Source | undefined) => {
 		if (!toDA && source) {
 			fixSourcePaths(source);
@@ -426,7 +426,7 @@ export function convertToVSCPaths(msg: DebugProtocol.ProtocolMessage, fixSourceP
 	});
 }
 
-function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePaths: (toDA: boolean, source: DebugProtocol.Source | undefined) => void) {
+function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePaths: (toDA: boolean, source: DebugProtocol.Source | undefined) => void): void {
 	switch (msg.type) {
 		case 'event':
 			const event = <DebugProtocol.Event>msg;

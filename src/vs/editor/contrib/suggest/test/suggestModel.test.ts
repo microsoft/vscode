@@ -31,17 +31,21 @@ import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
+import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 function createMockEditor(model: TextModel): TestCodeEditor {
 	const contextKeyService = new MockContextKeyService();
 	const telemetryService = NullTelemetryService;
+	const notificationService = new TestNotificationService();
 	const instantiationService = new InstantiationService(new ServiceCollection(
 		[IContextKeyService, contextKeyService],
 		[ITelemetryService, telemetryService],
-		[IStorageService, NullStorageService]
+		[IStorageService, NullStorageService],
+		[INotificationService, TestNotificationService]
 	));
 
-	const editor = new TestCodeEditor(new MockScopeLocation(), {}, false, instantiationService, contextKeyService);
+	const editor = new TestCodeEditor(new MockScopeLocation(), {}, false, instantiationService, contextKeyService, notificationService);
 	editor.setModel(model);
 	return editor;
 }

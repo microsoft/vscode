@@ -19,7 +19,7 @@ import { formatError, runSafe, runSafeAsync } from './utils/runner';
 import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 
-import { FoldingRangesRequest, FoldingProviderServerCapabilities } from 'vscode-languageserver-protocol-foldingprovider';
+import { FoldingRangeRequest, FoldingRangeServerCapabilities } from 'vscode-languageserver-protocol-foldingprovider';
 
 interface ISchemaAssociations {
 	[pattern: string]: string[];
@@ -60,22 +60,28 @@ documents.listen(connection);
 
 let clientSnippetSupport = false;
 let clientDynamicRegisterSupport = false;
+let foldingRangeLimit = Number.MAX_VALUE;
 
 // After the server has started the client sends an initialize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
 connection.onInitialize((params: InitializeParams): InitializeResult => {
 
-	function hasClientCapability(...keys: string[]) {
-		let c = params.capabilities as any;
+	function getClientCapability<T>(name: string, def: T) {
+		let keys = name.split('.');
+		let c: any = params.capabilities;
 		for (let i = 0; c && i < keys.length; i++) {
+			if (!c.hasOwnProperty(keys[i])) {
+				return def;
+			}
 			c = c[keys[i]];
 		}
-		return !!c;
+		return c;
 	}
 
-	clientSnippetSupport = hasClientCapability('textDocument', 'completion', 'completionItem', 'snippetSupport');
-	clientDynamicRegisterSupport = hasClientCapability('workspace', 'symbol', 'dynamicRegistration');
-	let capabilities: ServerCapabilities & FoldingProviderServerCapabilities = {
+	clientSnippetSupport = getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
+	clientDynamicRegisterSupport = getClientCapability('workspace.symbol.dynamicRegistration', false);
+	foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
+	let capabilities: ServerCapabilities & FoldingRangeServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
 		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : void 0,
@@ -83,7 +89,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		documentSymbolProvider: true,
 		documentRangeFormattingProvider: false,
 		colorProvider: true,
-		foldingProvider: true
+		foldingRangeProvider: true
 	};
 
 	return { capabilities };
@@ -364,11 +370,11 @@ connection.onColorPresentation((params, token) => {
 	}, [], `Error while computing color presentations for ${params.textDocument.uri}`, token);
 });
 
-connection.onRequest(FoldingRangesRequest.type, (params, token) => {
+connection.onRequest(FoldingRangeRequest.type, (params, token) => {
 	return runSafe(() => {
 		let document = documents.get(params.textDocument.uri);
 		if (document) {
-			return languageService.getFoldingRanges(document, { maxRanges: params.maxRanges });
+			return languageService.getFoldingRanges(document, { rangeLimit: foldingRangeLimit });
 		}
 		return null;
 	}, null, `Error while computing folding ranges for ${params.textDocument.uri}`, token);

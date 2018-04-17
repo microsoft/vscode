@@ -126,6 +126,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
 	public className: string;
 	public inlineClassName: string;
+	public inlineClassNameAffectsLetterSpacing: boolean;
 	public beforeContentClassName: string;
 	public afterContentClassName: string;
 	public glyphMarginClassName: string;
@@ -145,9 +146,21 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 			}
 			return void 0;
 		};
+		let createInlineCSSRules = (type: ModelDecorationCSSRuleType) => {
+			let rules = new DecorationCSSRules(type, providerArgs, themeService);
+			if (rules.hasContent) {
+				this._disposables.push(rules);
+				return { className: rules.className, hasLetterSpacing: rules.hasLetterSpacing };
+			}
+			return null;
+		};
 
 		this.className = createCSSRules(ModelDecorationCSSRuleType.ClassName);
-		this.inlineClassName = createCSSRules(ModelDecorationCSSRuleType.InlineClassName);
+		const inlineData = createInlineCSSRules(ModelDecorationCSSRuleType.InlineClassName);
+		if (inlineData) {
+			this.inlineClassName = inlineData.className;
+			this.inlineClassNameAffectsLetterSpacing = inlineData.hasLetterSpacing;
+		}
 		this.beforeContentClassName = createCSSRules(ModelDecorationCSSRuleType.BeforeContentClassName);
 		this.afterContentClassName = createCSSRules(ModelDecorationCSSRuleType.AfterContentClassName);
 		this.glyphMarginClassName = createCSSRules(ModelDecorationCSSRuleType.GlyphMarginClassName);
@@ -232,6 +245,7 @@ class DecorationCSSRules {
 	private _className: string;
 	private _unThemedSelector: string;
 	private _hasContent: boolean;
+	private _hasLetterSpacing: boolean;
 	private _ruleType: ModelDecorationCSSRuleType;
 	private _themeListener: IDisposable;
 	private _providerArgs: ProviderArguments;
@@ -243,6 +257,7 @@ class DecorationCSSRules {
 		this._providerArgs = providerArgs;
 		this._usesThemeColors = false;
 		this._hasContent = false;
+		this._hasLetterSpacing = false;
 
 		let className = CSSNameHelper.getClassName(this._providerArgs.key, ruleType);
 		if (this._providerArgs.parentTypeKey) {
@@ -276,6 +291,10 @@ class DecorationCSSRules {
 
 	public get hasContent(): boolean {
 		return this._hasContent;
+	}
+
+	public get hasLetterSpacing(): boolean {
+		return this._hasLetterSpacing;
 	}
 
 	public get className(): string {
@@ -359,6 +378,9 @@ class DecorationCSSRules {
 		}
 		let cssTextArr: string[] = [];
 		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
+		if (opts.letterSpacing) {
+			this._hasLetterSpacing = true;
+		}
 		return cssTextArr.join('');
 	}
 

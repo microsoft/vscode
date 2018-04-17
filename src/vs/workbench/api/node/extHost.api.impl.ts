@@ -59,6 +59,7 @@ import { OverviewRulerLane } from 'vs/editor/common/model';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { ExtHostWebviews } from 'vs/workbench/api/node/extHostWebview';
 import * as files from 'vs/platform/files/common/files';
+import { ExtHostSearch } from './extHostSearch';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;
@@ -116,6 +117,7 @@ export function createApiFactory(
 	const extHostQuickOpen = rpcProtocol.set(ExtHostContext.ExtHostQuickOpen, new ExtHostQuickOpen(rpcProtocol, extHostWorkspace, extHostCommands));
 	const extHostTerminalService = rpcProtocol.set(ExtHostContext.ExtHostTerminalService, new ExtHostTerminalService(rpcProtocol));
 	const extHostSCM = rpcProtocol.set(ExtHostContext.ExtHostSCM, new ExtHostSCM(rpcProtocol, extHostCommands, extHostLogService));
+	const extHostSearch = rpcProtocol.set(ExtHostContext.ExtHostSearch, new ExtHostSearch(rpcProtocol));
 	const extHostTask = rpcProtocol.set(ExtHostContext.ExtHostTask, new ExtHostTask(rpcProtocol, extHostWorkspace));
 	const extHostWindow = rpcProtocol.set(ExtHostContext.ExtHostWindow, new ExtHostWindow(rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostExtensionService, extensionService);
@@ -145,7 +147,7 @@ export function createApiFactory(
 		let checkSelector = (function () {
 			let done = initData.environment.extensionDevelopmentPath !== extension.extensionFolderPath;
 			function inform(selector: vscode.DocumentSelector) {
-				console.info(`Extension '${extension.id}' uses a document selector that applies to all schemes.}`);
+				console.info(`Extension '${extension.id}' uses a document selector without scheme. Learn more about this: https://go.microsoft.com/fwlink/?linkid=872305`);
 				done = true;
 			}
 			return function perform(selector: vscode.DocumentSelector): vscode.DocumentSelector {
@@ -568,7 +570,7 @@ export function createApiFactory(
 				return extHostFileSystem.registerFileSystemProvider(scheme, provider, newProvider);
 			}),
 			registerSearchProvider: proposedApiFunction(extension, (scheme, provider) => {
-				return extHostFileSystem.registerSearchProvider(scheme, provider);
+				return extHostSearch.registerSearchProvider(scheme, provider);
 			})
 		};
 

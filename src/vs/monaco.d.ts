@@ -1221,6 +1221,10 @@ declare namespace monaco.editor {
 		 */
 		inlineClassName?: string;
 		/**
+		 * If there is an `inlineClassName` which affects letter spacing.
+		 */
+		inlineClassNameAffectsLetterSpacing?: boolean;
+		/**
 		 * If set, the decoration will be rendered before the text with this CSS class name.
 		 */
 		beforeContentClassName?: string;
@@ -3783,10 +3787,6 @@ declare namespace monaco.editor {
 		 */
 		getLayoutInfo(): EditorLayoutInfo;
 		/**
-		 * Returns the range that is currently centered in the view port.
-		 */
-		getCenteredRangeInViewport(): Range;
-		/**
 		 * Returns the ranges that are currently visible.
 		 * Does not account for horizontal scrolling.
 		 */
@@ -4556,7 +4556,7 @@ declare namespace monaco.languages {
 		 * editor will use the range at the current position or the
 		 * current position itself.
 		 */
-		range: IRange;
+		range?: IRange;
 	}
 
 	/**
@@ -5016,9 +5016,14 @@ declare namespace monaco.languages {
 		rejectReason?: string;
 	}
 
+	export interface RenameLocation {
+		range: IRange;
+		text: string;
+	}
+
 	export interface RenameProvider {
 		provideRenameEdits(model: editor.ITextModel, position: Position, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
-		resolveRenameLocation?(model: editor.ITextModel, position: Position, token: CancellationToken): IRange | Thenable<IRange>;
+		resolveRenameLocation?(model: editor.ITextModel, position: Position, token: CancellationToken): RenameLocation | Thenable<RenameLocation>;
 	}
 
 	export interface Command {

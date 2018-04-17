@@ -1613,6 +1613,28 @@ suite('buffer api', () => {
 
 	test('getLineCharCode - issue #45735', () => {
 		let pieceTable = createTextBuffer(['LINE1\nline2']);
+		assert.equal(pieceTable.getLineCharCode(1, 0), 'L'.charCodeAt(0), 'L');
+		assert.equal(pieceTable.getLineCharCode(1, 1), 'I'.charCodeAt(0), 'I');
+		assert.equal(pieceTable.getLineCharCode(1, 2), 'N'.charCodeAt(0), 'N');
+		assert.equal(pieceTable.getLineCharCode(1, 3), 'E'.charCodeAt(0), 'E');
+		assert.equal(pieceTable.getLineCharCode(1, 4), '1'.charCodeAt(0), '1');
+		assert.equal(pieceTable.getLineCharCode(1, 5), '\n'.charCodeAt(0), '\\n');
+		assert.equal(pieceTable.getLineCharCode(2, 0), 'l'.charCodeAt(0), 'l');
+		assert.equal(pieceTable.getLineCharCode(2, 1), 'i'.charCodeAt(0), 'i');
+		assert.equal(pieceTable.getLineCharCode(2, 2), 'n'.charCodeAt(0), 'n');
+		assert.equal(pieceTable.getLineCharCode(2, 3), 'e'.charCodeAt(0), 'e');
+		assert.equal(pieceTable.getLineCharCode(2, 4), '2'.charCodeAt(0), '2');
+	});
+
+
+	test('getLineCharCode - issue #47733', () => {
+		let pieceTable = createTextBuffer(['', 'LINE1\n', 'line2']);
+		assert.equal(pieceTable.getLineCharCode(1, 0), 'L'.charCodeAt(0), 'L');
+		assert.equal(pieceTable.getLineCharCode(1, 1), 'I'.charCodeAt(0), 'I');
+		assert.equal(pieceTable.getLineCharCode(1, 2), 'N'.charCodeAt(0), 'N');
+		assert.equal(pieceTable.getLineCharCode(1, 3), 'E'.charCodeAt(0), 'E');
+		assert.equal(pieceTable.getLineCharCode(1, 4), '1'.charCodeAt(0), '1');
+		assert.equal(pieceTable.getLineCharCode(1, 5), '\n'.charCodeAt(0), '\\n');
 		assert.equal(pieceTable.getLineCharCode(2, 0), 'l'.charCodeAt(0), 'l');
 		assert.equal(pieceTable.getLineCharCode(2, 1), 'i'.charCodeAt(0), 'i');
 		assert.equal(pieceTable.getLineCharCode(2, 2), 'n'.charCodeAt(0), 'n');

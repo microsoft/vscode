@@ -230,7 +230,7 @@ export interface Hover {
 	 * editor will use the range at the current position or the
 	 * current position itself.
 	 */
-	range: IRange;
+	range?: IRange;
 }
 
 /**
@@ -929,9 +929,14 @@ export interface WorkspaceEdit {
 	rejectReason?: string; // TODO@joh, move to rename
 }
 
+export interface RenameLocation {
+	range: IRange;
+	text: string;
+}
+
 export interface RenameProvider {
 	provideRenameEdits(model: model.ITextModel, position: Position, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
-	resolveRenameLocation?(model: model.ITextModel, position: Position, token: CancellationToken): IRange | Thenable<IRange>;
+	resolveRenameLocation?(model: model.ITextModel, position: Position, token: CancellationToken): RenameLocation | Thenable<RenameLocation>;
 }
 
 

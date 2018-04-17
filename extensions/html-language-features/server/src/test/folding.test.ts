@@ -14,7 +14,7 @@ import { getLanguageModes } from '../modes/languageModes';
 interface ExpectedIndentRange {
 	startLine: number;
 	endLine: number;
-	type?: string;
+	kind?: string;
 }
 
 function assertRanges(lines: string[], expected: ExpectedIndentRange[], message?: string, nRanges?: number): void {
@@ -24,18 +24,18 @@ function assertRanges(lines: string[], expected: ExpectedIndentRange[], message?
 		folders: [{ name: 'foo', uri: 'test://foo' }]
 	};
 	let languageModes = getLanguageModes({ css: true, javascript: true }, workspace);
-	let actual = getFoldingRanges(languageModes, document, nRanges, null)!.ranges;
+	let actual = getFoldingRanges(languageModes, document, nRanges, null);
 
 	let actualRanges = [];
 	for (let i = 0; i < actual.length; i++) {
-		actualRanges[i] = r(actual[i].startLine, actual[i].endLine, actual[i].type);
+		actualRanges[i] = r(actual[i].startLine, actual[i].endLine, actual[i].kind);
 	}
 	actualRanges = actualRanges.sort((r1, r2) => r1.startLine - r2.startLine);
 	assert.deepEqual(actualRanges, expected, message);
 }
 
-function r(startLine: number, endLine: number, type?: string): ExpectedIndentRange {
-	return { startLine, endLine, type };
+function r(startLine: number, endLine: number, kind?: string): ExpectedIndentRange {
+	return { startLine, endLine, kind };
 }
 
 suite('HTML Folding', () => {
@@ -160,7 +160,7 @@ suite('HTML Folding', () => {
 			/*10*/'</html>',
 		];
 		assertRanges(input, [r(0, 9), r(1, 8), r(2, 7), r(3, 7, 'region'), r(4, 6, 'region')]);
-	});	
+	});
 
 
 	// test('Embedded JavaScript - multi line comment', () => {

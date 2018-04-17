@@ -39,6 +39,7 @@ import './mainThreadOutputService';
 import './mainThreadProgress';
 import './mainThreadQuickOpen';
 import './mainThreadSCM';
+import './mainThreadSearch';
 import './mainThreadSaveParticipant';
 import './mainThreadStatusBar';
 import './mainThreadStorage';

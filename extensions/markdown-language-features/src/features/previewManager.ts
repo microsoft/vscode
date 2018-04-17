@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-
 import { Logger } from '../logger';
-import { MarkdownContentProvider } from './previewContentProvider';
-import { MarkdownPreview, PreviewSettings } from './preview';
+import { MarkdownContributions } from '../markdownExtensions';
 import { disposeAll } from '../util/dispose';
 import { MarkdownFileTopmostLineMonitor } from '../util/topmostLineMonitor';
-import { isMarkdownFile } from '../util/file';
+import { MarkdownPreview, PreviewSettings } from './preview';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
-import { MarkdownContributions } from '../markdownExtensions';
+import { MarkdownContentProvider } from './previewContentProvider';
+
 
 export class MarkdownPreviewManager implements vscode.WebviewPanelSerializer {
 	private static readonly markdownPreviewActiveContextKey = 'markdownPreviewFocus';
@@ -28,14 +27,6 @@ export class MarkdownPreviewManager implements vscode.WebviewPanelSerializer {
 		private readonly logger: Logger,
 		private readonly contributions: MarkdownContributions
 	) {
-		vscode.window.onDidChangeActiveTextEditor(editor => {
-			if (editor && isMarkdownFile(editor.document)) {
-				for (const preview of this.previews.filter(preview => !preview.locked)) {
-					preview.update(editor.document.uri);
-				}
-			}
-		}, null, this.disposables);
-
 		this.disposables.push(vscode.window.registerWebviewPanelSerializer(MarkdownPreview.viewType, this));
 	}
 

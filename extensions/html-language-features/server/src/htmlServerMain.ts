@@ -20,7 +20,7 @@ import uri from 'vscode-uri';
 import { formatError, runSafe, runSafeAsync } from './utils/runner';
 import { doComplete as emmetDoComplete, updateExtensionsPath as updateEmmetExtensionsPath, getEmmetCompletionParticipants } from 'vscode-emmet-helper';
 
-import { FoldingRangesRequest, FoldingProviderServerCapabilities } from 'vscode-languageserver-protocol-foldingprovider';
+import { FoldingRangeRequest, FoldingRangeServerCapabilities } from 'vscode-languageserver-protocol-foldingprovider';
 import { getFoldingRanges } from './modes/htmlFolding';
 
 namespace TagCloseRequest {
@@ -55,6 +55,7 @@ let clientSnippetSupport = false;
 let clientDynamicRegisterSupport = false;
 let scopedSettingsSupport = false;
 let workspaceFoldersSupport = false;
+let foldingRangeLimit = Number.MAX_VALUE;
 
 var globalSettings: Settings = {};
 let documentSettings: { [key: string]: Thenable<Settings> } = {};
@@ -106,19 +107,24 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		languageModes.dispose();
 	});
 
-	function hasClientCapability(...keys: string[]) {
-		let c = <any>params.capabilities;
+	function getClientCapability<T>(name: string, def: T) {
+		let keys = name.split('.');
+		let c: any = params.capabilities;
 		for (let i = 0; c && i < keys.length; i++) {
+			if (!c.hasOwnProperty(keys[i])) {
+				return def;
+			}
 			c = c[keys[i]];
 		}
-		return !!c;
+		return c;
 	}
 
-	clientSnippetSupport = hasClientCapability('textDocument', 'completion', 'completionItem', 'snippetSupport');
-	clientDynamicRegisterSupport = hasClientCapability('workspace', 'symbol', 'dynamicRegistration');
-	scopedSettingsSupport = hasClientCapability('workspace', 'configuration');
-	workspaceFoldersSupport = hasClientCapability('workspace', 'workspaceFolders');
-	let capabilities: ServerCapabilities & FoldingProviderServerCapabilities = {
+	clientSnippetSupport = getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
+	clientDynamicRegisterSupport = getClientCapability('workspace.symbol.dynamicRegistration', false);
+	scopedSettingsSupport = getClientCapability('workspace.configuration', false);
+	workspaceFoldersSupport = getClientCapability('workspace.workspaceFolders', false);
+	foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
+	let capabilities: ServerCapabilities & FoldingRangeServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
 		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: [...emmetTriggerCharacters, '.', ':', '<', '"', '=', '/'] } : undefined,
@@ -131,7 +137,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		signatureHelpProvider: { triggerCharacters: ['('] },
 		referencesProvider: true,
 		colorProvider: true,
-		foldingProvider: true
+		foldingRangeProvider: true
 	};
 	return { capabilities };
 });
@@ -461,11 +467,11 @@ connection.onRequest(TagCloseRequest.type, (params, token) => {
 	}, null, `Error while computing tag close actions for ${params.textDocument.uri}`, token);
 });
 
-connection.onRequest(FoldingRangesRequest.type, (params, token) => {
+connection.onRequest(FoldingRangeRequest.type, (params, token) => {
 	return runSafe(() => {
 		let document = documents.get(params.textDocument.uri);
 		if (document) {
-			return getFoldingRanges(languageModes, document, params.maxRanges, token);
+			return getFoldingRanges(languageModes, document, foldingRangeLimit, token);
 		}
 		return null;
 	}, null, `Error while computing folding regions for ${params.textDocument.uri}`, token);
