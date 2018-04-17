@@ -6,7 +6,7 @@
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import uri from 'vs/base/common/uri';
-import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IAdapterExecutable, ITerminalSettings, IDebugAdapter } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IAdapterExecutable, ITerminalSettings, IDebugAdapter, IDebugAdapterProvider } from 'vs/workbench/parts/debug/common/debug';
 import { TPromise } from 'vs/base/common/winjs.base';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
@@ -19,12 +19,14 @@ import * as paths from 'vs/base/common/paths';
 
 
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
-export class MainThreadDebugService implements MainThreadDebugServiceShape {
+export class MainThreadDebugService implements MainThreadDebugServiceShape, IDebugAdapterProvider {
 
 	private _proxy: ExtHostDebugServiceShape;
 	private _toDispose: IDisposable[];
 	private _breakpointEventsActive: boolean;
-	private _extensionHostDebugAdapterProvider: ExtensionHostDebugAdapterProvider;
+	private _debugAdapters: Map<number, ExtensionHostDebugAdapter>;
+	private _debugAdaptersHandleCounter = 1;
+
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -50,12 +52,22 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 				}
 			}
 		}));
-
-		this._extensionHostDebugAdapterProvider = new ExtensionHostDebugAdapterProvider(this._proxy);
+		this._debugAdapters = new Map<number, ExtensionHostDebugAdapter>();
 	}
 
 	public $registerDebugTypes(debugTypes: string[]) {
-		this._toDispose.push(this.debugService.getConfigurationManager().registerDebugAdapterProvider(debugTypes, this._extensionHostDebugAdapterProvider));
+		this._toDispose.push(this.debugService.getConfigurationManager().registerDebugAdapterProvider(debugTypes, this));
+	}
+
+	createDebugAdapter(debugType: string, adapterInfo): IDebugAdapter {
+		const handle = this._debugAdaptersHandleCounter++;
+		const da = new ExtensionHostDebugAdapter(handle, this._proxy, debugType, adapterInfo);
+		this._debugAdapters.set(handle, da);
+		return da;
+	}
+
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
+		return this._proxy.$runInTerminal(args, config);
 	}
 
 	public dispose(): void {
@@ -227,15 +239,15 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 			}
 		});
 
-		this._extensionHostDebugAdapterProvider.acceptMessage(handle, message);
+		this._debugAdapters.get(handle).acceptMessage(message);
 	}
 
 	public $acceptDAError(handle: number, name: string, message: string, stack: string) {
-		this._extensionHostDebugAdapterProvider.acceptDAError(handle, new Error(`${name}: ${message}\n${stack}`));
+		this._debugAdapters.get(handle).fireError(handle, new Error(`${name}: ${message}\n${stack}`));
 	}
 
 	public $acceptDAExit(handle: number, code: number, signal: string) {
-		this._extensionHostDebugAdapterProvider.acceptDAExit(handle, code, signal);
+		this._debugAdapters.get(handle).fireExit(handle, code, signal);
 	}
 }
 
@@ -275,41 +287,5 @@ class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 
 	public stopSession(): TPromise<void> {
 		return this._proxy.$stopDASession(this._handle);
-	}
-}
-
-/**
- * Interim abstraction for managing debug funtionality in EH.
- */
-class ExtensionHostDebugAdapterProvider {
-
-	private _debugAdapters: Map<number, ExtensionHostDebugAdapter>;
-	private _debugAdaptersHandleCounter = 1;
-
-	constructor(private _proxy: ExtHostDebugServiceShape) {
-		this._debugAdapters = new Map<number, ExtensionHostDebugAdapter>();
-	}
-
-	acceptMessage(handle: number, message: DebugProtocol.ProtocolMessage) {
-		this._debugAdapters.get(handle).acceptMessage(message);
-	}
-
-	acceptDAError(handle: number, error: Error) {
-		this._debugAdapters.get(handle).fireError(handle, error);
-	}
-
-	acceptDAExit(handle: number, code: number, signal: string) {
-		this._debugAdapters.get(handle).fireExit(handle, code, signal);
-	}
-
-	createDebugAdapter(debugType: string, adapterInfo): IDebugAdapter {
-		const handle = this._debugAdaptersHandleCounter++;
-		const da = new ExtensionHostDebugAdapter(handle, this._proxy, debugType, adapterInfo);
-		this._debugAdapters.set(handle, da);
-		return da;
-	}
-
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
-		return this._proxy.$runInTerminal(args, config);
 	}
 }
