@@ -2090,6 +2090,41 @@ suite('Editor Controller - Regression tests', () => {
 
 		model.dispose();
 	});
+
+	test('issue #15761: Cursor doesn\'t move in a redo operation', () => {
+		let model = createTextModel(
+			[
+				'hello'
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			editor.setSelections([
+				new Selection(1, 4, 1, 4)
+			]);
+
+			editor.executeEdits('test', [{
+				range: new Range(1, 1, 1, 1),
+				text: '*',
+				forceMoveMarkers: true
+			}]);
+			assertCursor(cursor, [
+				new Selection(1, 5, 1, 5),
+			]);
+
+			cursorCommand(cursor, H.Undo, null, 'keyboard');
+			assertCursor(cursor, [
+				new Selection(1, 4, 1, 4),
+			]);
+
+			cursorCommand(cursor, H.Redo, null, 'keyboard');
+			assertCursor(cursor, [
+				new Selection(1, 5, 1, 5),
+			]);
+		});
+
+		model.dispose();
+	});
 });
 
 suite('Editor Controller - Cursor Configuration', () => {

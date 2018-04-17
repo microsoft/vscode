@@ -797,7 +797,7 @@ export abstract class CommonCodeEditor extends Disposable {
 		}
 
 		this.model.pushEditOperations(this.cursor.getSelections(), edits, () => {
-			return endCursorState ? endCursorState : this.cursor.getSelections();
+			return endCursorState ? endCursorState : null;
 		});
 
 		if (endCursorState) {
