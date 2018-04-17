@@ -59,7 +59,7 @@ class FsLinkProvider implements vscode.DocumentLinkProvider {
 
 class FileSystemProviderShim implements vscode.FileSystemProvider2 {
 
-	_version: 5;
+	_version: 6;
 
 	onDidChange: vscode.Event<vscode.FileChange2[]>;
 
@@ -131,14 +131,8 @@ class FileSystemProviderShim implements vscode.FileSystemProvider2 {
 			}
 		});
 	}
-	create(resource: vscode.Uri, options: { type: vscode.FileType2; }): Thenable<vscode.FileStat2> {
-		if (options.type === FileType2.Directory) {
-			return this._delegate.mkdir(resource).then(stat => FileSystemProviderShim._modernizeFileStat(stat));
-		} else {
-			return this._delegate.write(resource, Buffer.from([]))
-				.then(() => this._delegate.stat(resource))
-				.then(stat => FileSystemProviderShim._modernizeFileStat(stat));
-		}
+	createDirectory(resource: vscode.Uri): Thenable<vscode.FileStat2> {
+		return this._delegate.mkdir(resource).then(stat => FileSystemProviderShim._modernizeFileStat(stat));
 	}
 
 	// --- read/write
@@ -174,7 +168,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	}
 
 	registerFileSystemProvider(scheme: string, provider: vscode.FileSystemProvider, newProvider: vscode.FileSystemProvider2) {
-		if (newProvider && newProvider._version === 5) {
+		if (newProvider && newProvider._version === 6) {
 			return this._doRegisterFileSystemProvider(scheme, newProvider);
 		} else if (provider) {
 			return this._doRegisterFileSystemProvider(scheme, new FileSystemProviderShim(provider));
@@ -257,7 +251,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		return asWinJsPromise(token => this._fsProvider.get(handle).rename(URI.revive(oldUri), URI.revive(newUri), { flags }, token));
 	}
 	$mkdir(handle: number, resource: UriComponents): TPromise<files.IStat, any> {
-		return asWinJsPromise(token => this._fsProvider.get(handle).create(URI.revive(resource), { type: FileType2.Directory }, token));
+		return asWinJsPromise(token => this._fsProvider.get(handle).createDirectory(URI.revive(resource), token));
 	}
 
 	$provideFileSearchResults(handle: number, session: number, query: string): TPromise<void> {
