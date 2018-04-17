@@ -342,26 +342,30 @@ export class ReindentSelectedLinesAction extends EditorAction {
 		if (!model) {
 			return;
 		}
+
 		let edits: IIdentifiedSingleEditOperation[] = [];
 
 		for (let selection of editor.getSelections()) {
 			let startLineNumber = selection.startLineNumber;
 			let endLineNumber = selection.endLineNumber;
+
 			if (startLineNumber !== endLineNumber && selection.endColumn === 1) {
 				endLineNumber--;
 			}
+
 			if (startLineNumber === 1) {
-				if (startLineNumber === endLineNumber) { continue; }
+				if (startLineNumber === endLineNumber) {
+					continue;
+				}
 			} else {
 				startLineNumber--;
 			}
+
 			let editOperations = getReindentEditOperations(model, startLineNumber, endLineNumber) || [];
-			for (let editOp of editOperations) {
-				edits.push(editOp);
-			}
+			edits.push(...editOperations);
 		}
 
-		if (edits) {
+		if (edits.length > 0) {
 			editor.pushUndoStop();
 			editor.executeEdits(this.id, edits);
 			editor.pushUndoStop();
