@@ -324,7 +324,7 @@ export class WorkbenchShell {
 				perf.mark('didStatLocalStorage');
 
 				/* __GDPR__
-					"localStorageTimers4" : {
+					"localStorageTimers<NUMBER>" : {
 						"statTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"accessTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"firstReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
