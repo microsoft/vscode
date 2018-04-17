@@ -147,16 +147,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	}
 
 	toggleExpand() {
-		if (this._isCollapsed) {
-			this._bodyElement.style.display = 'block';
-			this._toggleAction.class = 'expand-review-action octicon octicon-chevron-up';
-			this._isCollapsed = false;
-		}
-		else {
-			this._bodyElement.style.display = 'none';
-			this._toggleAction.class = 'expand-review-action octicon octicon-chevron-down';
-			this._isCollapsed = true;
-		}
+		this._toggleAction.run();
 	}
 
 	createCommentElement(comment: modes.Comment) {
