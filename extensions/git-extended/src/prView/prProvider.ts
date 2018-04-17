@@ -93,7 +93,6 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 					element.prItem,
 					change.fileName,
 					change.status,
-					this.context,
 					change.fileName,
 					toPRUri(vscode.Uri.file(change.filePath), fileInRepo, change.fileName, true),
 					toPRUri(vscode.Uri.file(change.originalFilePath), fileInRepo, change.fileName, false),

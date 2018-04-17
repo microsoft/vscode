@@ -43,7 +43,6 @@ export class FileChangeTreeItem implements vscode.TreeItem {
 		public readonly prItem: any,
 		public readonly label: string,
 		public readonly status: GitChangeType,
-		public readonly context: vscode.ExtensionContext,
 		public readonly fileName: string,
 		public readonly filePath: vscode.Uri,
 		public readonly parentFilePath: vscode.Uri,

@@ -274,6 +274,16 @@ export class GitHubRepository {
 		}
 	}
 
+	async getPullRequest(id: number) {
+		let { data } = await this.octokit.pullRequests.get({
+			owner: this.remote.owner,
+			repo: this.remote.name,
+			number: id
+		});
+		let ret = new PullRequest(this.octokit, this.remote, data);
+		return ret;
+	}
+
 	async getUser() {
 		return await this.octokit.users.get();
 	}

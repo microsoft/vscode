@@ -6,14 +6,14 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { Repository } from '../common/models/repository';
-import { CredentialStore } from '../credentials';
 import { FileChangeTreeItem } from '../common/treeItems';
-import { mapCommentsToHead } from '../common/diff';
+import { mapCommentsToHead, parseDiff } from '../common/diff';
 import * as _ from 'lodash';
 import { GitContentProvider } from './gitContentProvider';
 import { parseCommitDiff } from './fileComments';
 import { Comment } from '../common/models/comment';
 import { PullRequest } from '../common/models/pullrequest';
+import { toPRUri } from '../common/uri';
 
 const REVIEW_STATE = 'git-extended.state';
 
@@ -36,7 +36,6 @@ export class ReviewMode {
 
 	constructor(
 		private _repository: Repository,
-		private _credentialStore: CredentialStore,
 		private _workspaceState: vscode.Memento,
 		private _gitRepo: any
 	) {
@@ -83,18 +82,36 @@ export class ReviewMode {
 
 		// we switch to another PR, let's clean up first.
 		this.clear();
-		let fileChanges: FileChangeTreeItem[] = state.fileChanges;
-		let comments: Comment[] = state.comments;
-		let otcokit = await this._credentialStore.getOctokit(remote);
+		let githubRepo = this._repository.githubRepositories.find(repo => repo.remote.equals(remote));
+
+		if (!githubRepo) {
+			return; // todo, should show warning
+		}
+
+		let pr = await githubRepo.getPullRequest(this._prNumber);
+		const comments = await pr.getComments();
+		const data = await pr.getFiles();
+		const baseSha = await pr.getBaseCommitSha();
+		const richContentChanges = await parseDiff(data, this._repository, baseSha);
+		let fileChanges = richContentChanges.map(change => {
+			let fileInRepo = path.resolve(this._repository.path, change.fileName);
+			let changedItem = new FileChangeTreeItem(
+				pr.prItem,
+				change.fileName,
+				change.status,
+				change.fileName,
+				toPRUri(vscode.Uri.file(change.filePath), fileInRepo, change.fileName, true),
+				toPRUri(vscode.Uri.file(change.originalFilePath), fileInRepo, change.fileName, false),
+				this._repository.path,
+				change.patch
+			);
+			changedItem.comments = comments.filter(comment => comment.path === changedItem.fileName);
+			return changedItem;
+		});
+
 		this._command = vscode.commands.registerCommand(this._prNumber + '-post', async (id: string, uri: vscode.Uri, lineNumber: number, text: string) => {
 			try {
-				let ret = await otcokit.pullRequests.createCommentReply({
-					owner: remote.owner,
-					repo: remote.name,
-					number: this._prNumber,
-					body: text,
-					in_reply_to: id
-				});
+				let ret = await pr.createCommentReply(text, id);
 				return {
 					body: new vscode.MarkdownString(ret.data.body),
 					userName: ret.data.user.login,
@@ -223,14 +240,7 @@ export class ReviewMode {
 			prNumber: pr.prItem.number,
 			branch: `pull-request-${pr.prItem.number}`,
 			head: pr.prItem.head,
-			base: pr.prItem.base,
-			fileChanges: pr.fileChanges.map(filechange => (
-				{
-					fileName: filechange.fileName,
-					parentFilePath: filechange.parentFilePath,
-					filePath: filechange.filePath
-				})),
-			comments: pr.comments
+			base: pr.prItem.base
 		}).then(async e => {
 			if (!pr.fileChanges || !pr.comments) {
 				return;
