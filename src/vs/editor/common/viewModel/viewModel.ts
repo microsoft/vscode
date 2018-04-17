@@ -270,7 +270,8 @@ export class ViewLineRenderingData {
 export const enum InlineDecorationType {
 	Regular = 0,
 	Before = 1,
-	After = 2
+	After = 2,
+	RegularAffectingLetterSpacing = 3
 }
 
 export class InlineDecoration {

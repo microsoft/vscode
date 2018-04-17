@@ -2619,6 +2619,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly linesDecorationsClassName: string;
 	readonly marginClassName: string;
 	readonly inlineClassName: string;
+	readonly inlineClassNameAffectsLetterSpacing: boolean;
 	readonly beforeContentClassName: string;
 	readonly afterContentClassName: string;
 
@@ -2635,6 +2636,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.linesDecorationsClassName = options.linesDecorationsClassName ? cleanClassName(options.linesDecorationsClassName) : strings.empty;
 		this.marginClassName = options.marginClassName ? cleanClassName(options.marginClassName) : strings.empty;
 		this.inlineClassName = options.inlineClassName ? cleanClassName(options.inlineClassName) : strings.empty;
+		this.inlineClassNameAffectsLetterSpacing = options.inlineClassNameAffectsLetterSpacing || false;
 		this.beforeContentClassName = options.beforeContentClassName ? cleanClassName(options.beforeContentClassName) : strings.empty;
 		this.afterContentClassName = options.afterContentClassName ? cleanClassName(options.afterContentClassName) : strings.empty;
 	}

@@ -110,6 +110,10 @@ export interface IModelDecorationOptions {
 	 */
 	inlineClassName?: string;
 	/**
+	 * If there is an `inlineClassName` which affects letter spacing.
+	 */
+	inlineClassNameAffectsLetterSpacing?: boolean;
+	/**
 	 * If set, the decoration will be rendered before the text with this CSS class name.
 	 */
 	beforeContentClassName?: string;
