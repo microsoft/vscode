@@ -202,24 +202,11 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 		this._terminalProcesses[id].on('message', (message: IMessageFromTerminalProcess) => {
 			switch (message.type) {
-				case 'pid':
-					this._proxy.$sendProcessPid(id, <number>message.content);
-					break;
-				case 'title':
-					this._proxy.$sendProcessTitle(id, <string>message.content);
-					break;
-				case 'data':
-					this._proxy.$sendProcessData(id, <string>message.content);
-					break;
+				case 'pid': this._proxy.$sendProcessPid(id, <number>message.content); break;
+				case 'title': this._proxy.$sendProcessTitle(id, <string>message.content); break;
+				case 'data': this._proxy.$sendProcessData(id, <string>message.content); break;
 			}
-			// console.log('message type: ' + d.type + ', content: ' + d.content)
 		});
-
-		// const processPath = require.toUrl('../../parts/terminal/node/terminalProcess').replace('file://', '');
-		// const process2 = cp.fork(processPath, [], options);
-		// process2.on('data', d => console.log('data ' + d));
-		// process2.on('exit', d => console.log('exit ' + d));
-		// process2.on('error', d => console.log('error ' + d));
 
 		const terminal = this._getTerminalById(id);
 		console.log('$createProcess terminal: ' + terminal.name);
