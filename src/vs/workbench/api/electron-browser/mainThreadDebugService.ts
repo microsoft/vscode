@@ -141,7 +141,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return void 0;
 	}
 
-	private convertToDto(bps: (IBreakpoint | IFunctionBreakpoint)[]): (ISourceBreakpointDto | IFunctionBreakpointDto)[] {
+	private convertToDto(bps: (ReadonlyArray<IBreakpoint | IFunctionBreakpoint>)): (ISourceBreakpointDto | IFunctionBreakpointDto)[] {
 		return bps.map(bp => {
 			if ('name' in bp) {
 				const fbp = <IFunctionBreakpoint>bp;

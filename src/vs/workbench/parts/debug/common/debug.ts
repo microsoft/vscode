@@ -306,13 +306,13 @@ export interface IViewModel extends ITreeElement {
 }
 
 export interface IModel extends ITreeElement {
-	getProcesses(): IProcess[];
-	getBreakpoints(): IBreakpoint[];
+	getProcesses(): ReadonlyArray<IProcess>;
+	getBreakpoints(): ReadonlyArray<IBreakpoint>;
 	areBreakpointsActivated(): boolean;
-	getFunctionBreakpoints(): IFunctionBreakpoint[];
-	getExceptionBreakpoints(): IExceptionBreakpoint[];
-	getWatchExpressions(): IExpression[];
-	getReplElements(): IReplElement[];
+	getFunctionBreakpoints(): ReadonlyArray<IFunctionBreakpoint>;
+	getExceptionBreakpoints(): ReadonlyArray<IExceptionBreakpoint>;
+	getWatchExpressions(): ReadonlyArray<IExpression>;
+	getReplElements(): ReadonlyArray<IReplElement>;
 
 	onDidChangeBreakpoints: Event<IBreakpointsChangeEvent>;
 	onDidChangeCallStack: Event<void>;
