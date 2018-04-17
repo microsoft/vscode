@@ -24,7 +24,7 @@ export class MessageController implements editorCommon.IEditorContribution {
 
 	private static readonly _id = 'editor.contrib.messageController';
 
-	static CONTEXT_SNIPPET_MODE = new RawContextKey<boolean>('messageVisible', false);
+	static MESSAGE_VISIBLE = new RawContextKey<boolean>('messageVisible', false);
 
 	static get(editor: ICodeEditor): MessageController {
 		return editor.getContribution<MessageController>(MessageController._id);
@@ -44,7 +44,7 @@ export class MessageController implements editorCommon.IEditorContribution {
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this._editor = editor;
-		this._visible = MessageController.CONTEXT_SNIPPET_MODE.bindTo(contextKeyService);
+		this._visible = MessageController.MESSAGE_VISIBLE.bindTo(contextKeyService);
 	}
 
 	dispose(): void {
@@ -103,7 +103,7 @@ const MessageCommand = EditorCommand.bindToContribution<MessageController>(Messa
 
 registerEditorCommand(new MessageCommand({
 	id: 'leaveEditorMessage',
-	precondition: MessageController.CONTEXT_SNIPPET_MODE,
+	precondition: MessageController.MESSAGE_VISIBLE,
 	handler: c => c.closeMessage(),
 	kbOpts: {
 		weight: KeybindingsRegistry.WEIGHT.editorContrib(30),
