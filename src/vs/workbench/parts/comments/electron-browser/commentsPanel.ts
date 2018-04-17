@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/panel';
 import * as dom from 'vs/base/browser/dom';
 import { debounceEvent } from 'vs/base/common/event';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
@@ -122,6 +123,8 @@ export class CommentsModelRenderer implements IRenderer {
 
 	private renderCommentTemplate(container: HTMLElement): IResourceMarkersTemplateData {
 		const data = <IResourceMarkersTemplateData>Object.create(null);
+		data.icon = dom.append(container, dom.$('img.icon'));
+		data.userName = dom.append(container, dom.$('span.user'));
 		const labelContainer = dom.append(container, dom.$('.comment-container'));
 		data.resourceLabel = this.instantiationService.createInstance(ResourceLabel, labelContainer, {});
 
@@ -134,6 +137,8 @@ export class CommentsModelRenderer implements IRenderer {
 
 	private renderCommentElement(tree: ITree, element: CommentNode, templateData: IResourceMarkersTemplateData) {
 		templateData.resourceLabel.setLabel({ name: element.comment.body.value });
+		templateData.icon.src = element.comment.gravatar;
+		templateData.userName.textContent = element.comment.userName;
 	}
 }
 
@@ -150,7 +155,9 @@ export class DataFilter implements IFilter {
 }
 
 interface IResourceMarkersTemplateData {
+	icon: HTMLImageElement;
 	resourceLabel: ResourceLabel;
+	userName: HTMLSpanElement;
 }
 export class CommentsPanel extends Panel {
 	private tree: WorkbenchTree;
@@ -170,9 +177,9 @@ export class CommentsPanel extends Panel {
 	public create(parent: HTMLElement): TPromise<void> {
 		super.create(parent);
 
-		dom.addClass(parent, 'markers-panel');
+		dom.addClass(parent, 'comments-panel');
 
-		let container = dom.append(parent, dom.$('.markers-panel-container'));
+		let container = dom.append(parent, dom.$('.comments-panel-container'));
 		this.treeContainer = dom.append(container, dom.$('.tree-container'));
 		this.commentsModel = new CommentsModel();
 
