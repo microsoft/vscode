@@ -1802,6 +1802,21 @@ suite('Editor Controller - Regression tests', () => {
 		model.dispose();
 	});
 
+	test('issue #12887: Double-click highlighting separating white space', () => {
+		let model = createTextModel(
+			[
+				'abc def'
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			CoreNavigationCommands.WordSelect.runCoreEditorCommand(cursor, { position: new Position(1, 5) });
+			assert.deepEqual(cursor.getSelection(), new Selection(1, 5, 1, 8));
+		});
+
+		model.dispose();
+	});
+
 	test('issue #9675: Undo/Redo adds a stop in between CHN Characters', () => {
 		usingCursor({
 			text: [
