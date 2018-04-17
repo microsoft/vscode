@@ -171,6 +171,12 @@ export class WordOperations {
 		let prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, column));
 
 		if (wordNavigationType === WordNavigationType.WordStart) {
+			if (prevWordOnLine && prevWordOnLine.wordType === WordType.Separator) {
+				if (prevWordOnLine.end - prevWordOnLine.start === 1 && prevWordOnLine.nextCharClass === WordCharacterClass.Regular) {
+					// Skip over a word made up of one single separator and followed by a regular character
+					prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, prevWordOnLine.start + 1));
+				}
+			}
 			if (prevWordOnLine) {
 				column = prevWordOnLine.start + 1;
 			} else {
