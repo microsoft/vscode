@@ -18,6 +18,7 @@ phases:
   - powershell: |
       .\scripts\test.bat --tfs
       .\scripts\test-integration.bat
+      yarn smoketest
     name: test
   - task: PublishTestResults@2
     inputs:
@@ -77,6 +78,7 @@ phases:
   - script: |
       ./scripts/test.sh --tfs
       ./scripts/test-integration.sh
+      yarn smoketest
     name: test
   - task: PublishTestResults@2
     inputs:
