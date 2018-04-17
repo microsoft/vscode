@@ -11,7 +11,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as types from 'vs/base/common/types';
 import * as paths from 'vs/base/common/paths';
 import { Action } from 'vs/base/common/actions';
-import { VIEWLET_ID, TEXT_FILE_EDITOR_ID, IExplorerViewlet } from 'vs/workbench/parts/files/common/files';
+import { VIEWLET_ID, IExplorerViewlet, TEXT_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { EditorOptions, TextEditorOptions, IEditorCloseEvent } from 'vs/workbench/common/editor';
@@ -24,7 +24,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';

@@ -13,6 +13,10 @@ import { isSupportedLanguageMode } from '../utils/languageModeIds';
 import API from '../utils/api';
 import { Lazy } from '../utils/lazy';
 import TypeScriptServiceClientHost from '../typeScriptServiceClientHost';
+import { ITypeScriptServiceClient } from '../typescriptService';
+import * as nls from 'vscode-nls';
+const localize = nls.loadMessageBundle();
+
 
 export class OrganizeImportsCommand implements Command {
 	public static readonly Ids = ['javascript.organizeImports', 'typescript.organizeImports'];
@@ -82,5 +86,37 @@ export class OrganizeImportsContextManager {
 
 		vscode.commands.executeCommand('setContext', contextName, newValue);
 		this.currentValue = newValue;
+	}
+}
+
+
+export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvider {
+	private static readonly organizeImportsKind = vscode.CodeActionKind.Source.append('organizeImports');
+
+	public constructor(
+		private readonly client: ITypeScriptServiceClient
+	) { }
+
+	public readonly metadata: vscode.CodeActionProviderMetadata = {
+		providedCodeActionKinds: [OrganizeImportsCodeActionProvider.organizeImportsKind]
+	};
+
+	public provideCodeActions(
+		document: vscode.TextDocument,
+		_range: vscode.Range,
+		_context: vscode.CodeActionContext,
+		_token: vscode.CancellationToken
+	): vscode.CodeAction[] {
+		if (!isSupportedLanguageMode(document)) {
+			return [];
+		}
+
+		if (!this.client.apiVersion.has280Features()) {
+			return [];
+		}
+
+		const action = new vscode.CodeAction(localize('oraganizeImportsAction.title', "Organize Imports"), OrganizeImportsCodeActionProvider.organizeImportsKind);
+		action.command = { title: '', command: OrganizeImportsCommand.Ids[0] };
+		return [action];
 	}
 }

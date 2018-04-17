@@ -509,6 +509,7 @@ export interface IThemeDecorationRenderOptions {
 	textDecoration?: string;
 	cursor?: string;
 	color?: string | ThemeColor;
+	opacity?: number;
 	letterSpacing?: string;
 
 	gutterIconPath?: string | UriComponents;

@@ -18,6 +18,7 @@ export class CopyValueAction extends Action {
 
 	constructor(id: string, label: string, private value: any, @IDebugService private debugService: IDebugService) {
 		super(id, label, 'debug-action copy-value');
+		this._enabled = typeof this.value === 'string' || (this.value instanceof Variable && !!this.value.evaluateName);
 	}
 
 	public run(): TPromise<any> {
@@ -38,15 +39,13 @@ export class CopyEvaluatePathAction extends Action {
 	static readonly ID = 'workbench.debug.viewlet.action.copyEvaluatePath';
 	static LABEL = nls.localize('copyAsExpression', "Copy as Expression");
 
-	constructor(id: string, label: string, private value: any) {
+	constructor(id: string, label: string, private value: Variable) {
 		super(id, label);
+		this._enabled = this.value && !!this.value.evaluateName;
 	}
 
 	public run(): TPromise<any> {
-		if (this.value instanceof Variable) {
-			clipboard.writeText(this.value.evaluateName);
-		}
-
+		clipboard.writeText(this.value.evaluateName);
 		return TPromise.as(null);
 	}
 }

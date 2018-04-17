@@ -119,7 +119,12 @@ export default class LanguageProvider {
 		this.disposables.push(languages.registerSignatureHelpProvider(selector, new (await import('./features/signatureHelpProvider')).default(client), '(', ','));
 		this.disposables.push(languages.registerRenameProvider(selector, new (await import('./features/renameProvider')).default(client)));
 		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/quickFixProvider')).default(client, this.formattingOptionsManager, commandManager, this.diagnosticsManager, this.bufferSyncSupport)));
-		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/refactorProvider')).default(client, this.formattingOptionsManager, commandManager)));
+
+		const refactorProvider = new (await import('./features/refactorProvider')).default(client, this.formattingOptionsManager, commandManager);
+		this.disposables.push(languages.registerCodeActionsProvider(selector, refactorProvider, refactorProvider.metadata));
+
+		const organizeImportsProvider = new (await import('./features/organizeImports')).OrganizeImportsCodeActionProvider(client);
+		this.disposables.push(languages.registerCodeActionsProvider(selector, organizeImportsProvider, organizeImportsProvider.metadata));
 
 		await this.initFoldingProvider();
 		this.disposables.push(workspace.onDidChangeConfiguration(c => {
@@ -154,7 +159,7 @@ export default class LanguageProvider {
 		let enable = workspace.getConfiguration().get(foldingSetting, false);
 		if (enable && this.client.apiVersion.has280Features()) {
 			if (!this.foldingProviderRegistration) {
-				this.foldingProviderRegistration = languages.registerFoldingProvider(this.documentSelector, new (await import('./features/folderingProvider')).default(this.client));
+				this.foldingProviderRegistration = languages.registerFoldingProvider(this.documentSelector, new (await import('./features/foldingProvider')).default(this.client));
 			}
 		} else {
 			if (this.foldingProviderRegistration) {

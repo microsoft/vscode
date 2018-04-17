@@ -743,6 +743,24 @@ export class LinkedMap<K, V> {
 			this._tail = item;
 		}
 	}
+
+	public toJSON(): [K, V][] {
+		const data: [K, V][] = [];
+
+		this.forEach((value, key) => {
+			data.push([key, value]);
+		});
+
+		return data;
+	}
+
+	public fromJSON(data: [K, V][]): void {
+		this.clear();
+
+		for (const [key, value] of data) {
+			this.set(key, value);
+		}
+	}
 }
 
 export class LRUCache<K, V> extends LinkedMap<K, V> {

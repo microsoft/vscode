@@ -11,22 +11,27 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { INavigator } from 'vs/base/common/iterator';
 import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
-import { Match, FileMatch, FileMatchOrMatch, FolderMatch, RenderableMatch } from 'vs/workbench/parts/search/common/searchModel';
+import { Match, FileMatch, FileMatchOrMatch, FolderMatch, RenderableMatch, SearchResult } from 'vs/workbench/parts/search/common/searchModel';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ResolvedKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { OS } from 'vs/base/common/platform';
+import { OS, isWindows } from 'vs/base/common/platform';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { VIEW_ID } from 'vs/platform/search/common/search';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { ICommandHandler } from 'vs/platform/commands/common/commands';
+import { Schemas } from 'vs/base/common/network';
+import { getPathLabel } from 'vs/base/common/labels';
+import URI from 'vs/base/common/uri';
 
 export function isSearchViewFocused(viewletService: IViewletService, panelService: IPanelService): boolean {
 	let searchView = getSearchView(viewletService, panelService);
 	let activeElement = document.activeElement;
-	return searchView && activeElement && DOM.isAncestor(activeElement, searchView.getContainer().getHTMLElement());
+	return searchView && activeElement && DOM.isAncestor(activeElement, searchView.getContainer());
 }
 
 export function appendKeyBindingLabel(label: string, keyBinding: number | ResolvedKeybinding, keyBindingService2: IKeybindingService): string {
@@ -216,20 +221,15 @@ export abstract class FindOrReplaceInFilesAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const searchView = getSearchView(this.viewletService, this.panelService);
 		return openSearchView(this.viewletService, this.panelService, true).then(openedView => {
-			if (!searchView || this.expandSearchReplaceWidget) {
-				const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
-				searchAndReplaceWidget.toggleReplace(this.expandSearchReplaceWidget);
-				// Focus replace only when there is text in the searchInput box
-				const focusReplace = this.focusReplace && searchAndReplaceWidget.searchInput.getValue();
-				searchAndReplaceWidget.focus(this.selectWidgetText, !!focusReplace);
-			}
+			const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
+			searchAndReplaceWidget.toggleReplace(this.expandSearchReplaceWidget);
+			// Focus replace only when there is text in the searchInput box
+			const focusReplace = this.focusReplace && searchAndReplaceWidget.searchInput.getValue();
+			searchAndReplaceWidget.focus(this.selectWidgetText, !!focusReplace);
 		});
 	}
 }
-
-export const SHOW_SEARCH_LABEL = nls.localize('showSearchViewlet', "Show Search");
 
 export class FindInFilesAction extends FindOrReplaceInFilesAction {
 
@@ -630,3 +630,92 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 		return false;
 	}
 }
+
+function uriToClipboardString(resource: URI): string {
+	return resource.scheme === Schemas.file ? getPathLabel(resource) : resource.toString();
+}
+
+export const copyPathCommand: ICommandHandler = (accessor, fileMatch: FileMatch | FolderMatch) => {
+	const clipboardService = accessor.get(IClipboardService);
+
+	const text = uriToClipboardString(fileMatch.resource());
+	clipboardService.writeText(text);
+};
+
+function matchToString(match: Match): string {
+	return `${match.range().startLineNumber},${match.range().startColumn}: ${match.text()}`;
+}
+
+const lineDelimiter = isWindows ? '\r\n' : '\n';
+function fileMatchToString(fileMatch: FileMatch, maxMatches: number): { text: string, count: number } {
+	const matchTextRows = fileMatch.matches()
+		.slice(0, maxMatches)
+		.map(matchToString)
+		.map(matchText => '  ' + matchText);
+
+	return {
+		text: `${uriToClipboardString(fileMatch.resource())}${lineDelimiter}${matchTextRows.join(lineDelimiter)}`,
+		count: matchTextRows.length
+	};
+}
+
+function folderMatchToString(folderMatch: FolderMatch, maxMatches: number): { text: string, count: number } {
+	const fileResults: string[] = [];
+	let numMatches = 0;
+
+	for (let i = 0; i < folderMatch.fileCount() && numMatches < maxMatches; i++) {
+		const fileResult = fileMatchToString(folderMatch.matches()[i], maxMatches - numMatches);
+		numMatches += fileResult.count;
+		fileResults.push(fileResult.text);
+	}
+
+	return {
+		text: fileResults.join(lineDelimiter + lineDelimiter),
+		count: numMatches
+	};
+}
+
+const maxClipboardMatches = 1e4;
+export const copyMatchCommand: ICommandHandler = (accessor, match: RenderableMatch) => {
+	const clipboardService = accessor.get(IClipboardService);
+
+	let text: string;
+	if (match instanceof Match) {
+		text = matchToString(match);
+	} else if (match instanceof FileMatch) {
+		text = fileMatchToString(match, maxClipboardMatches).text;
+	} else if (match instanceof FolderMatch) {
+		text = folderMatchToString(match, maxClipboardMatches).text;
+	}
+
+	if (text) {
+		clipboardService.writeText(text);
+	}
+};
+
+function allFolderMatchesToString(folderMatches: FolderMatch[], maxMatches: number): string {
+	const folderResults: string[] = [];
+	let numMatches = 0;
+
+	for (let i = 0; i < folderMatches.length && numMatches < maxMatches; i++) {
+		const folderResult = folderMatchToString(folderMatches[i], maxMatches - numMatches);
+		if (folderResult.count) {
+			numMatches += folderResult.count;
+			folderResults.push(folderResult.text);
+		}
+	}
+
+	return folderResults.join(lineDelimiter + lineDelimiter);
+}
+
+export const copyAllCommand: ICommandHandler = (accessor) => {
+	const viewletService = accessor.get(IViewletService);
+	const panelService = accessor.get(IPanelService);
+	const clipboardService = accessor.get(IClipboardService);
+
+	const searchView = getSearchView(viewletService, panelService);
+	const root: SearchResult = searchView.getControl().getInput();
+
+	const text = allFolderMatchesToString(root.folderMatches(), maxClipboardMatches);
+	clipboardService.writeText(text);
+};

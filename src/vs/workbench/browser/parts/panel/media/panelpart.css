@@ -30,10 +30,6 @@
 	border-left-style: solid;
 }
 
-.monaco-workbench > .part.panel > .composite.title > .title-actions {
-	flex-grow: 0;
-}
-
 .monaco-workbench > .part.panel > .title > .title-actions .monaco-action-bar .action-item .action-label {
 	outline-offset: -2px;
 }

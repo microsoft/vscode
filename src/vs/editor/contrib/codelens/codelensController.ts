@@ -10,6 +10,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CodeLensProviderRegistry, ICodeLensSymbol } from 'vs/editor/common/modes';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
@@ -218,12 +219,15 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			}
 		}
 
-		const visibleRanges = this._editor.getVisibleRanges();
-		const visiblePosition = (visibleRanges.length > 0 ? visibleRanges[0].getStartPosition() : null);
+		let visiblePosition: Position = null;
 		let visiblePositionScrollDelta = 0;
-		if (visiblePosition) {
-			const visiblePositionScrollTop = this._editor.getTopForPosition(visiblePosition.lineNumber, visiblePosition.column);
-			visiblePositionScrollDelta = this._editor.getScrollTop() - visiblePositionScrollTop;
+		if (this._editor.getScrollTop() !== 0) {
+			const visibleRanges = this._editor.getVisibleRanges();
+			if (visibleRanges.length > 0) {
+				visiblePosition = visibleRanges[0].getStartPosition();
+				const visiblePositionScrollTop = this._editor.getTopForPosition(visiblePosition.lineNumber, visiblePosition.column);
+				visiblePositionScrollDelta = this._editor.getScrollTop() - visiblePositionScrollTop;
+			}
 		}
 
 		this._editor.changeDecorations((changeAccessor) => {

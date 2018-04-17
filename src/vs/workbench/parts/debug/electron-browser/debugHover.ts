@@ -27,6 +27,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 
 const $ = dom.$;
 const MAX_ELEMENTS_SHOWN = 18;
@@ -208,14 +209,16 @@ export class DebugHoverWidget implements IContentWidget {
 
 			this.highlightDecorations = this.editor.deltaDecorations(this.highlightDecorations, [{
 				range: new Range(pos.lineNumber, expressionRange.startColumn, pos.lineNumber, expressionRange.startColumn + matchingExpression.length),
-				options: {
-					className: 'hoverHighlight'
-				}
+				options: DebugHoverWidget._HOVER_HIGHLIGHT_DECORATION_OPTIONS
 			}]);
 
 			return this.doShow(pos, expression, focus);
 		});
 	}
+
+	private static _HOVER_HIGHLIGHT_DECORATION_OPTIONS = ModelDecorationOptions.register({
+		className: 'hoverHighlight'
+	});
 
 	private doFindExpression(container: IExpressionContainer, namesToFind: string[]): TPromise<IExpression> {
 		if (!container) {

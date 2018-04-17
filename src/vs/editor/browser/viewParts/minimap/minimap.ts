@@ -7,6 +7,7 @@
 
 import 'vs/css!./minimap';
 import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
+import * as strings from 'vs/base/common/strings';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { getOrCreateMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
@@ -897,17 +898,22 @@ export class Minimap extends ViewPart {
 					// No need to render anything since space is invisible
 					dx += charWidth;
 				} else {
-					if (renderMinimap === RenderMinimap.Large) {
-						minimapCharRenderer.x2RenderChar(target, dx, dy, charCode, tokenColor, backgroundColor, useLighterFont);
-					} else if (renderMinimap === RenderMinimap.Small) {
-						minimapCharRenderer.x1RenderChar(target, dx, dy, charCode, tokenColor, backgroundColor, useLighterFont);
-					} else if (renderMinimap === RenderMinimap.LargeBlocks) {
-						minimapCharRenderer.x2BlockRenderChar(target, dx, dy, tokenColor, backgroundColor, useLighterFont);
-					} else {
-						// RenderMinimap.SmallBlocks
-						minimapCharRenderer.x1BlockRenderChar(target, dx, dy, tokenColor, backgroundColor, useLighterFont);
+					// Render twice for a full width character
+					let count = strings.isFullWidthCharacter(charCode) ? 2 : 1;
+
+					for (let i = 0; i < count; i++) {
+						if (renderMinimap === RenderMinimap.Large) {
+							minimapCharRenderer.x2RenderChar(target, dx, dy, charCode, tokenColor, backgroundColor, useLighterFont);
+						} else if (renderMinimap === RenderMinimap.Small) {
+							minimapCharRenderer.x1RenderChar(target, dx, dy, charCode, tokenColor, backgroundColor, useLighterFont);
+						} else if (renderMinimap === RenderMinimap.LargeBlocks) {
+							minimapCharRenderer.x2BlockRenderChar(target, dx, dy, tokenColor, backgroundColor, useLighterFont);
+						} else {
+							// RenderMinimap.SmallBlocks
+							minimapCharRenderer.x1BlockRenderChar(target, dx, dy, tokenColor, backgroundColor, useLighterFont);
+						}
+						dx += charWidth;
 					}
-					dx += charWidth;
 				}
 			}
 		}

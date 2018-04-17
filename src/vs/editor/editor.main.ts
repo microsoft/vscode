@@ -13,5 +13,6 @@ import 'vs/editor/standalone/browser/quickOpen/quickOutline';
 import 'vs/editor/standalone/browser/quickOpen/gotoLine';
 import 'vs/editor/standalone/browser/quickOpen/quickCommand';
 import 'vs/editor/standalone/browser/toggleHighContrast/toggleHighContrast';
+import 'vs/editor/standalone/browser/referenceSearch/standaloneReferenceSearch';
 
 export * from 'vs/editor/editor.api';

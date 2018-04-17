@@ -154,7 +154,7 @@ export class ToggleViewletAction extends Action {
 		const activeViewlet = this.viewletService.getActiveViewlet();
 		const activeElement = document.activeElement;
 
-		return activeViewlet && activeElement && DOM.isAncestor(activeElement, (<Viewlet>activeViewlet).getContainer().getHTMLElement());
+		return activeViewlet && activeElement && DOM.isAncestor(activeElement, (<Viewlet>activeViewlet).getContainer());
 	}
 }
 

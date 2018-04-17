@@ -12,7 +12,7 @@ import { workspace, languages, ExtensionContext, extensions, Uri, LanguageConfig
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, CancellationToken } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
-import { FoldingRangesRequest, FoldingRangeRequestParam } from 'vscode-languageserver-protocol-foldingprovider';
+import { FoldingRangeRequest, FoldingRangeRequestParam, FoldingRangeClientCapabilities } from 'vscode-languageserver-protocol-foldingprovider';
 
 import { hash } from './utils/hash';
 
@@ -97,6 +97,21 @@ export function activate(context: ExtensionContext) {
 	// Create the language client and start the client.
 	let client = new LanguageClient('json', localize('jsonserver.name', 'JSON Language Server'), serverOptions, clientOptions);
 	client.registerProposedFeatures();
+	client.registerFeature({
+		fillClientCapabilities(capabilities: FoldingRangeClientCapabilities): void {
+			let textDocumentCap = capabilities.textDocument;
+			if (!textDocumentCap) {
+				textDocumentCap = capabilities.textDocument = {};
+			}
+			textDocumentCap.foldingRange = {
+				dynamicRegistration: false,
+				rangeLimit: 5000,
+				lineFoldingOnly: true
+			};
+		},
+		initialize(capabilities, documentSelector): void {
+		}
+	});
 
 	let disposable = client.start();
 	toDispose.push(disposable);
@@ -144,16 +159,15 @@ export function activate(context: ExtensionContext) {
 		return languages.registerFoldingProvider(documentSelector, {
 			provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken) {
 				const param: FoldingRangeRequestParam = {
-					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
-					maxRanges: context.maxRanges
+					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document)
 				};
-				return client.sendRequest(FoldingRangesRequest.type, param, token).then(res => {
-					if (res && Array.isArray(res.ranges)) {
-						return new FoldingRangeList(res.ranges.map(r => new FoldingRange(r.startLine, r.endLine, r.type)));
+				return client.sendRequest(FoldingRangeRequest.type, param, token).then(ranges => {
+					if (Array.isArray(ranges)) {
+						return new FoldingRangeList(ranges.map(r => new FoldingRange(r.startLine, r.endLine, r.kind)));
 					}
 					return null;
 				}, error => {
-					client.logFailedRequest(FoldingRangesRequest.type, error);
+					client.logFailedRequest(FoldingRangeRequest.type, error);
 					return null;
 				});
 			}

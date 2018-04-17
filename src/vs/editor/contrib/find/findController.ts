@@ -446,8 +446,8 @@ export class StartFindWithSelectionAction extends EditorAction {
 	constructor() {
 		super({
 			id: FIND_IDS.StartFindWithSelection,
-			label: nls.localize('startFindAction', "Find"),
-			alias: 'Find',
+			label: nls.localize('startFindWithSelectionAction', "Find With Selection"),
+			alias: 'Find With Selection',
 			precondition: null,
 			kbOpts: {
 				kbExpr: null,

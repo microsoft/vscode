@@ -43,42 +43,12 @@ export interface QuickBuilder {
 	(builder: Builder): Builder;
 }
 
-/**
- * Create a new builder from the element that is uniquely identified by the given identifier. If the
- *  second parameter "offdom" is set to true, the created elements will only be added to the provided
- *  element when the build() method is called.
- */
-export function withElementById(id: string, offdom?: boolean): Builder {
-	assert.ok(types.isString(id), 'Expected String as parameter');
-
-	let element = document.getElementById(id);
-	if (element) {
-		return new Builder(element, offdom);
-	}
-
-	return null;
-}
-
-export const Build = {
-	withElementById: withElementById
-};
-
 // --- Implementation starts here
 
 let MS_DATA_KEY = '_msDataKey';
 let DATA_BINDING_ID = '__$binding';
 let LISTENER_BINDING_ID = '__$listeners';
 let VISIBILITY_BINDING_ID = '__$visibility';
-
-export class Dimension {
-	public width: number;
-	public height: number;
-
-	constructor(width: number, height: number) {
-		this.width = width;
-		this.height = height;
-	}
-}
 
 function data(element: any): any {
 	if (!element[MS_DATA_KEY]) {
@@ -1206,39 +1176,18 @@ export class Builder implements IDisposable {
 	/**
 	 *  Gets the size (in pixels) of an element, including the margin.
 	 */
-	public getTotalSize(): Dimension {
+	public getTotalSize(): DOM.Dimension {
 		let totalWidth = DOM.getTotalWidth(this.currentElement);
 		let totalHeight = DOM.getTotalHeight(this.currentElement);
 
-		return new Dimension(totalWidth, totalHeight);
+		return new DOM.Dimension(totalWidth, totalHeight);
 	}
 
 	/**
 	 *  Another variant of getting the inner dimensions of an element.
 	 */
-	public getClientArea(): Dimension {
-
-		// 0.) Try with DOM clientWidth / clientHeight
-		if (this.currentElement !== document.body) {
-			return new Dimension(this.currentElement.clientWidth, this.currentElement.clientHeight);
-		}
-
-		// 1.) Try innerWidth / innerHeight
-		if (window.innerWidth && window.innerHeight) {
-			return new Dimension(window.innerWidth, window.innerHeight);
-		}
-
-		// 2.) Try with document.body.clientWidth / document.body.clientHeigh
-		if (document.body && document.body.clientWidth && document.body.clientWidth) {
-			return new Dimension(document.body.clientWidth, document.body.clientHeight);
-		}
-
-		// 3.) Try with document.documentElement.clientWidth / document.documentElement.clientHeight
-		if (document.documentElement && document.documentElement.clientWidth && document.documentElement.clientHeight) {
-			return new Dimension(document.documentElement.clientWidth, document.documentElement.clientHeight);
-		}
-
-		throw new Error('Unable to figure out browser width and height');
+	public getClientArea(): DOM.Dimension {
+		return DOM.getClientArea(this.currentElement);
 	}
 }
 
@@ -1484,7 +1433,3 @@ export const $: QuickBuilder = function (arg?: any): Builder {
 		throw new Error('Bad use of $');
 	}
 };
-
-(<any>$).Dimension = Dimension;
-(<any>$).Builder = Builder;
-(<any>$).Build = Build;

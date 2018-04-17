@@ -37,7 +37,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 		let rootNode: Stylesheet | undefined = undefined;
 
 		if (context.triggerKind !== vscode.CompletionTriggerKind.TriggerForIncompleteCompletions) {
-			validateLocation = syntax === 'html' || isStyleSheet(document.languageId);
+			validateLocation = syntax === 'html' || syntax === 'jsx' || syntax === 'xml' || isStyleSheet(document.languageId);
 			// If document can be css parsed, get currentNode
 			if (isStyleSheet(document.languageId)) {
 				let usePartialParsing = vscode.workspace.getConfiguration('emmet')['optimizeStylesheetParsing'] === true;

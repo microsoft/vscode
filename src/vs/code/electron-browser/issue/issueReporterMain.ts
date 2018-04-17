@@ -326,7 +326,7 @@ export class IssueReporter extends Disposable {
 
 		this.addEventListener('issue-source', 'change', (event: Event) => {
 			const fileOnExtension = JSON.parse((<HTMLInputElement>event.target).value);
-			this.issueReporterModel.update({ fileOnExtension: fileOnExtension, includeExtensions: !fileOnExtension, selectedExtension: null });
+			this.issueReporterModel.update({ fileOnExtension: fileOnExtension, includeExtensions: !fileOnExtension });
 			this.render();
 
 			const title = (<HTMLInputElement>document.getElementById('issue-title')).value;
@@ -343,8 +343,7 @@ export class IssueReporter extends Disposable {
 			this.issueReporterModel.update({ issueDescription });
 
 			// Only search for extension issues on title change
-			const fileOnExtension = this.issueReporterModel.getData().fileOnExtension;
-			if (!fileOnExtension) {
+			if (!this.issueReporterModel.fileOnExtension()) {
 				const title = (<HTMLInputElement>document.getElementById('issue-title')).value;
 				this.searchVSCodeIssues(title, issueDescription);
 			}
@@ -359,8 +358,7 @@ export class IssueReporter extends Disposable {
 				hide(lengthValidationMessage);
 			}
 
-			const fileOnExtension = this.issueReporterModel.getData().fileOnExtension;
-			if (fileOnExtension) {
+			if (this.issueReporterModel.fileOnExtension()) {
 				this.searchExtensionIssues(title);
 			} else {
 				const description = this.issueReporterModel.getData().issueDescription;
@@ -375,33 +373,32 @@ export class IssueReporter extends Disposable {
 		});
 
 		this.addEventListener('disableExtensions', 'keydown', (e: KeyboardEvent) => {
+			e.stopPropagation();
 			if (e.keyCode === 13 || e.keyCode === 32) {
 				ipcRenderer.send('workbenchCommand', 'workbench.extensions.action.disableAll');
 				ipcRenderer.send('workbenchCommand', 'workbench.action.reloadWindow');
 			}
 		});
 
-		// Cmd+Enter or Mac or Ctrl+Enter on other platforms previews issue and closes window
-		if (platform.isMacintosh) {
-			let prevKeyWasCommand = false;
-			document.onkeydown = (e: KeyboardEvent) => {
-				if (prevKeyWasCommand && e.keyCode === 13) {
-					if (this.createIssue()) {
-						remote.getCurrentWindow().close();
-					}
+		document.onkeydown = (e: KeyboardEvent) => {
+			const cmdOrCtrlKey = platform.isMacintosh ? e.metaKey : e.ctrlKey;
+			// Cmd/Ctrl+Enter previews issue and closes window
+			if (cmdOrCtrlKey && e.keyCode === 13) {
+				if (this.createIssue()) {
+					remote.getCurrentWindow().close();
 				}
+			}
 
-				prevKeyWasCommand = e.keyCode === 91 || e.keyCode === 93;
-			};
-		} else {
-			document.onkeydown = (e: KeyboardEvent) => {
-				if (e.ctrlKey && e.keyCode === 13) {
-					if (this.createIssue()) {
-						remote.getCurrentWindow().close();
-					}
-				}
-			};
-		}
+			// Cmd/Ctrl + zooms in
+			if (cmdOrCtrlKey && e.keyCode === 187) {
+				this.applyZoom(webFrame.getZoomLevel() + 1);
+			}
+
+			// Cmd/Ctrl - zooms out
+			if (cmdOrCtrlKey && e.keyCode === 189) {
+				this.applyZoom(webFrame.getZoomLevel() - 1);
+			}
+		};
 	}
 
 	private updatePreviewButtonState() {
@@ -447,7 +444,7 @@ export class IssueReporter extends Disposable {
 	}
 
 	private searchVSCodeIssues(title: string, issueDescription: string): void {
-		if (title || issueDescription) {
+		if (title) {
 			this.searchDuplicates(title, issueDescription);
 		} else {
 			this.clearSearchResults();
@@ -578,7 +575,7 @@ export class IssueReporter extends Disposable {
 			similarIssues.appendChild(issues);
 		} else {
 			const message = $('div.list-title');
-			message.textContent = localize('noResults', "No results found");
+			message.textContent = localize('noSimilarIssues', "No similar issues found");
 			similarIssues.appendChild(message);
 		}
 	}
@@ -660,7 +657,6 @@ export class IssueReporter extends Disposable {
 			show(systemBlock);
 			show(processBlock);
 			show(workspaceBlock);
-			show(extensionsBlock);
 			show(problemSource);
 
 			if (fileOnExtension) {
@@ -675,6 +671,11 @@ export class IssueReporter extends Disposable {
 		} else if (issueType === IssueType.FeatureRequest) {
 			descriptionTitle.innerHTML = `${localize('description', "Description")} <span class="required-input">*</span>`;
 			descriptionSubtitle.innerHTML = localize('featureRequestDescription', "Please describe the feature you would like to see. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub.");
+			show(problemSource);
+
+			if (fileOnExtension) {
+				show(extensionSelector);
+			}
 		} else if (issueType === IssueType.SettingsSearchIssue) {
 			show(blockContainer);
 			show(searchedExtensionsBlock);
@@ -702,7 +703,7 @@ export class IssueReporter extends Disposable {
 			isValid = this.validateInput(elementId) && isValid;
 		});
 
-		if (this.issueReporterModel.getData().fileOnExtension) {
+		if (this.issueReporterModel.fileOnExtension()) {
 			isValid = this.validateInput('extension-selector') && isValid;
 		}
 
@@ -752,7 +753,7 @@ export class IssueReporter extends Disposable {
 
 	private getIssueUrlWithTitle(issueTitle: string): string {
 		let repositoryUrl = product.reportIssueUrl;
-		if (this.issueReporterModel.getData().fileOnExtension) {
+		if (this.issueReporterModel.fileOnExtension()) {
 			const bugsUrl = this.getExtensionBugsUrl();
 			const extensionUrl = this.getExtensionRepositoryUrl();
 			// If given, try to match the extension's bug url
@@ -771,10 +772,14 @@ export class IssueReporter extends Disposable {
 		const target = document.querySelector('.block-system .block-info');
 		let tableHtml = '';
 		Object.keys(state.systemInfo).forEach(k => {
+			const data = typeof state.systemInfo[k] === 'object'
+				? Object.keys(state.systemInfo[k]).map(key => `${key}: ${state.systemInfo[k][key]}`).join('<br>')
+				: state.systemInfo[k];
+
 			tableHtml += `
 				<tr>
 					<td>${k}</td>
-					<td>${state.systemInfo[k]}</td>
+					<td>${data}</td>
 				</tr>`;
 		});
 		target.innerHTML = `<table>${tableHtml}</table>`;

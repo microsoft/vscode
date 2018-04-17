@@ -102,17 +102,17 @@ export class WorkbenchProgressService extends ScopedService implements IProgress
 
 		// Replay Infinite Progress
 		else if (this.progressState.infinite) {
-			this.progressbar.infinite().getContainer().show();
+			this.progressbar.infinite().show();
 		}
 
 		// Replay Finite Progress (Total & Worked)
 		else {
 			if (this.progressState.total) {
-				this.progressbar.total(this.progressState.total).getContainer().show();
+				this.progressbar.total(this.progressState.total).show();
 			}
 
 			if (this.progressState.worked) {
-				this.progressbar.worked(this.progressState.worked).getContainer().show();
+				this.progressbar.worked(this.progressState.worked).show();
 			}
 		}
 	}
@@ -152,20 +152,12 @@ export class WorkbenchProgressService extends ScopedService implements IProgress
 
 			// Infinite: Start Progressbar and Show after Delay
 			if (!types.isUndefinedOrNull(infinite)) {
-				if (types.isUndefinedOrNull(delay)) {
-					this.progressbar.infinite().getContainer().show();
-				} else {
-					this.progressbar.infinite().getContainer().showDelayed(delay);
-				}
+				this.progressbar.infinite().show(delay);
 			}
 
 			// Finite: Start Progressbar and Show after Delay
 			else if (!types.isUndefinedOrNull(total)) {
-				if (types.isUndefinedOrNull(delay)) {
-					this.progressbar.total(total).getContainer().show();
-				} else {
-					this.progressbar.total(total).getContainer().showDelayed(delay);
-				}
+				this.progressbar.total(total).show(delay);
 			}
 		}
 
@@ -200,7 +192,7 @@ export class WorkbenchProgressService extends ScopedService implements IProgress
 					this.progressState.infinite = true;
 					this.progressState.worked = void 0;
 					this.progressState.total = void 0;
-					this.progressbar.infinite().getContainer().show();
+					this.progressbar.infinite().show();
 				}
 			},
 
@@ -209,7 +201,7 @@ export class WorkbenchProgressService extends ScopedService implements IProgress
 				this.progressState.done = true;
 
 				if (this.isActive) {
-					this.progressbar.stop().getContainer().hide();
+					this.progressbar.stop().hide();
 				}
 			}
 		};
@@ -244,7 +236,7 @@ export class WorkbenchProgressService extends ScopedService implements IProgress
 			this.clearProgressState();
 
 			if (this.isActive) {
-				this.progressbar.stop().getContainer().hide();
+				this.progressbar.stop().hide();
 			}
 		};
 
@@ -257,11 +249,7 @@ export class WorkbenchProgressService extends ScopedService implements IProgress
 
 		// Show Progress when active
 		if (this.isActive) {
-			if (types.isUndefinedOrNull(delay)) {
-				this.progressbar.infinite().getContainer().show();
-			} else {
-				this.progressbar.infinite().getContainer().showDelayed(delay);
-			}
+			this.progressbar.infinite().show(delay);
 		}
 	}
 

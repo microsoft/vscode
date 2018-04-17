@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Dimension, Builder } from 'vs/base/browser/builder';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import { Part } from 'vs/workbench/browser/part';
@@ -23,6 +22,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { memoize } from 'vs/base/common/decorators';
 import { NotificationsCenter } from 'vs/workbench/browser/parts/notifications/notificationsCenter';
 import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
+import { Dimension, getClientArea, size, position, hide, show } from 'vs/base/browser/dom';
 
 const MIN_SIDEBAR_PART_WIDTH = 170;
 const DEFAULT_SIDEBAR_PART_WIDTH = 300;
@@ -59,8 +59,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	private static readonly sashYHeightSettingsKey = 'workbench.panel.height';
 	private static readonly panelSizeBeforeMaximizedKey = 'workbench.panel.sizeBeforeMaximized';
 
-	private parent: Builder;
-	private workbenchContainer: Builder;
+	private parent: HTMLElement;
+	private workbenchContainer: HTMLElement;
 	private titlebar: Part;
 	private activitybar: Part;
 	private editor: Part;
@@ -88,8 +88,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 	// Take parts as an object bag since instatation service does not have typings for constructors with 9+ arguments
 	constructor(
-		parent: Builder,
-		workbenchContainer: Builder,
+		parent: HTMLElement,
+		workbenchContainer: HTMLElement,
 		parts: {
 			titlebar: Part,
 			activitybar: Part,
@@ -126,15 +126,15 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.panelSizeBeforeMaximized = this.storageService.getInteger(WorkbenchLayout.panelSizeBeforeMaximizedKey, StorageScope.GLOBAL, 0);
 		this.panelMaximized = false;
 
-		this.sashXOne = new Sash(this.workbenchContainer.getHTMLElement(), this, {
+		this.sashXOne = new Sash(this.workbenchContainer, this, {
 			baseSize: 5
 		});
 
-		this.sashXTwo = new Sash(this.workbenchContainer.getHTMLElement(), this, {
+		this.sashXTwo = new Sash(this.workbenchContainer, this, {
 			baseSize: 5
 		});
 
-		this.sashY = new Sash(this.workbenchContainer.getHTMLElement(), this, {
+		this.sashY = new Sash(this.workbenchContainer, this, {
 			baseSize: 4,
 			orientation: Orientation.HORIZONTAL
 		});
@@ -447,7 +447,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	}
 
 	public layout(options?: ILayoutOptions): void {
-		this.workbenchSize = this.parent.getClientArea();
+		this.workbenchSize = getClientArea(this.parent);
 
 		const isActivityBarHidden = !this.partService.isVisible(Parts.ACTIVITYBAR_PART);
 		const isTitlebarHidden = !this.partService.isVisible(Parts.TITLEBAR_PART);
@@ -578,12 +578,11 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		}
 
 		// Workbench
-		this.workbenchContainer
-			.position(0, 0, 0, 0, 'relative')
-			.size(this.workbenchSize.width, this.workbenchSize.height);
+		position(this.workbenchContainer, 0, 0, 0, 0, 'relative');
+		size(this.workbenchContainer, this.workbenchSize.width, this.workbenchSize.height);
 
 		// Bug on Chrome: Sometimes Chrome wants to scroll the workbench container on layout changes. The fix is to reset scrolling in this case.
-		const workbenchContainer = this.workbenchContainer.getHTMLElement();
+		const workbenchContainer = this.workbenchContainer;
 		if (workbenchContainer.scrollTop > 0) {
 			workbenchContainer.scrollTop = 0;
 		}
@@ -592,64 +591,70 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		}
 
 		// Title Part
+		const titleContainer = this.titlebar.getContainer();
 		if (isTitlebarHidden) {
-			this.titlebar.getContainer().hide();
+			hide(titleContainer);
 		} else {
-			this.titlebar.getContainer().show();
+			show(titleContainer);
 		}
 
 		// Editor Part and Panel part
-		this.editor.getContainer().size(editorSize.width, editorSize.height);
-		this.panel.getContainer().size(panelDimension.width, panelDimension.height);
+		const editorContainer = this.editor.getContainer();
+		const panelContainer = this.panel.getContainer();
+		size(editorContainer, editorSize.width, editorSize.height);
+		size(panelContainer, panelDimension.width, panelDimension.height);
 
 		if (panelPosition === Position.BOTTOM) {
 			if (sidebarPosition === Position.LEFT) {
-				this.editor.getContainer().position(this.titlebarHeight, 0, this.statusbarHeight + panelDimension.height, sidebarSize.width + activityBarSize.width);
-				this.panel.getContainer().position(editorSize.height + this.titlebarHeight, 0, this.statusbarHeight, sidebarSize.width + activityBarSize.width);
+				position(editorContainer, this.titlebarHeight, 0, this.statusbarHeight + panelDimension.height, sidebarSize.width + activityBarSize.width);
+				position(panelContainer, editorSize.height + this.titlebarHeight, 0, this.statusbarHeight, sidebarSize.width + activityBarSize.width);
 			} else {
-				this.editor.getContainer().position(this.titlebarHeight, sidebarSize.width, this.statusbarHeight + panelDimension.height, 0);
-				this.panel.getContainer().position(editorSize.height + this.titlebarHeight, sidebarSize.width, this.statusbarHeight, 0);
+				position(editorContainer, this.titlebarHeight, sidebarSize.width, this.statusbarHeight + panelDimension.height, 0);
+				position(panelContainer, editorSize.height + this.titlebarHeight, sidebarSize.width, this.statusbarHeight, 0);
 			}
 		} else {
 			if (sidebarPosition === Position.LEFT) {
-				this.editor.getContainer().position(this.titlebarHeight, panelDimension.width, this.statusbarHeight, sidebarSize.width + activityBarSize.width);
-				this.panel.getContainer().position(this.titlebarHeight, 0, this.statusbarHeight, sidebarSize.width + activityBarSize.width + editorSize.width);
+				position(editorContainer, this.titlebarHeight, panelDimension.width, this.statusbarHeight, sidebarSize.width + activityBarSize.width);
+				position(panelContainer, this.titlebarHeight, 0, this.statusbarHeight, sidebarSize.width + activityBarSize.width + editorSize.width);
 			} else {
-				this.editor.getContainer().position(this.titlebarHeight, sidebarSize.width + activityBarSize.width + panelWidth, this.statusbarHeight, 0);
-				this.panel.getContainer().position(this.titlebarHeight, sidebarSize.width + activityBarSize.width, this.statusbarHeight, editorSize.width);
+				position(editorContainer, this.titlebarHeight, sidebarSize.width + activityBarSize.width + panelWidth, this.statusbarHeight, 0);
+				position(panelContainer, this.titlebarHeight, sidebarSize.width + activityBarSize.width, this.statusbarHeight, editorSize.width);
 			}
 		}
 
 		// Activity Bar Part
-		this.activitybar.getContainer().size(null, activityBarSize.height);
+		const activitybarContainer = this.activitybar.getContainer();
+		size(activitybarContainer, null, activityBarSize.height);
 		if (sidebarPosition === Position.LEFT) {
-			this.activitybar.getContainer().getHTMLElement().style.right = '';
-			this.activitybar.getContainer().position(this.titlebarHeight, null, 0, 0);
+			this.activitybar.getContainer().style.right = '';
+			position(activitybarContainer, this.titlebarHeight, null, 0, 0);
 		} else {
-			this.activitybar.getContainer().getHTMLElement().style.left = '';
-			this.activitybar.getContainer().position(this.titlebarHeight, 0, 0, null);
+			this.activitybar.getContainer().style.left = '';
+			position(activitybarContainer, this.titlebarHeight, 0, 0, null);
 		}
 		if (isActivityBarHidden) {
-			this.activitybar.getContainer().hide();
+			hide(activitybarContainer);
 		} else {
-			this.activitybar.getContainer().show();
+			show(activitybarContainer);
 		}
 
 		// Sidebar Part
-		this.sidebar.getContainer().size(sidebarSize.width, sidebarSize.height);
+		const sidebarContainer = this.sidebar.getContainer();
+		size(sidebarContainer, sidebarSize.width, sidebarSize.height);
 		const editorAndPanelWidth = editorSize.width + (panelPosition === Position.RIGHT ? panelWidth : 0);
 		if (sidebarPosition === Position.LEFT) {
-			this.sidebar.getContainer().position(this.titlebarHeight, editorAndPanelWidth, this.statusbarHeight, activityBarSize.width);
+			position(sidebarContainer, this.titlebarHeight, editorAndPanelWidth, this.statusbarHeight, activityBarSize.width);
 		} else {
-			this.sidebar.getContainer().position(this.titlebarHeight, activityBarSize.width, this.statusbarHeight, editorAndPanelWidth);
+			position(sidebarContainer, this.titlebarHeight, activityBarSize.width, this.statusbarHeight, editorAndPanelWidth);
 		}
 
 		// Statusbar Part
-		this.statusbar.getContainer().position(this.workbenchSize.height - this.statusbarHeight);
+		const statusbarContainer = this.statusbar.getContainer();
+		position(statusbarContainer, this.workbenchSize.height - this.statusbarHeight);
 		if (isStatusbarHidden) {
-			this.statusbar.getContainer().hide();
+			hide(statusbarContainer);
 		} else {
-			this.statusbar.getContainer().show();
+			show(statusbarContainer);
 		}
 
 		// Quick open

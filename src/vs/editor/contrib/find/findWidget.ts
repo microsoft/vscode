@@ -1066,48 +1066,50 @@ export class SimpleButton extends Widget {
 // theming
 
 registerThemingParticipant((theme, collector) => {
-	function addBackgroundColorRule(selector: string, color: Color): void {
+	const addBackgroundColorRule = (selector: string, color: Color): void => {
 		if (color) {
 			collector.addRule(`.monaco-editor ${selector} { background-color: ${color}; }`);
 		}
-	}
+	};
 
 	addBackgroundColorRule('.findMatch', theme.getColor(editorFindMatchHighlight));
 	addBackgroundColorRule('.currentFindMatch', theme.getColor(editorFindMatch));
 	addBackgroundColorRule('.findScope', theme.getColor(editorFindRangeHighlight));
 
-	let widgetBackground = theme.getColor(editorWidgetBackground);
+	const widgetBackground = theme.getColor(editorWidgetBackground);
 	addBackgroundColorRule('.find-widget', widgetBackground);
 
-	let widgetShadowColor = theme.getColor(widgetShadow);
+	const widgetShadowColor = theme.getColor(widgetShadow);
 	if (widgetShadowColor) {
 		collector.addRule(`.monaco-editor .find-widget { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
 	}
 
-	let findMatchHighlightBorder = theme.getColor(editorFindMatchHighlightBorder);
+	const findMatchHighlightBorder = theme.getColor(editorFindMatchHighlightBorder);
 	if (findMatchHighlightBorder) {
-		collector.addRule(`.monaco-editor .findMatch { border: 1px dotted ${findMatchHighlightBorder}; -moz-box-sizing: border-box; box-sizing: border-box; }`);
-	}
-	let findMatchBorder = theme.getColor(editorFindMatchBorder);
-	if (findMatchBorder) {
-		collector.addRule(`.monaco-editor .currentFindMatch { border: 2px solid ${findMatchBorder}; padding: 1px; -moz-box-sizing: border-box; box-sizing: border-box; }`);
-	}
-	let findRangeHighlightBorder = theme.getColor(editorFindRangeHighlightBorder);
-	if (findRangeHighlightBorder) {
-		collector.addRule(`.monaco-editor .findScope { border: 1px dashed ${findRangeHighlightBorder}; }`);
+		collector.addRule(`.monaco-editor .findMatch { border: 1px ${theme.type === 'hc' ? 'dotted' : 'solid'} ${findMatchHighlightBorder}; box-sizing: border-box; }`);
 	}
 
-	let hcBorder = theme.getColor(contrastBorder);
+	const findMatchBorder = theme.getColor(editorFindMatchBorder);
+	if (findMatchBorder) {
+		collector.addRule(`.monaco-editor .currentFindMatch { border: 2px solid ${findMatchBorder}; padding: 1px; box-sizing: border-box; }`);
+	}
+
+	const findRangeHighlightBorder = theme.getColor(editorFindRangeHighlightBorder);
+	if (findRangeHighlightBorder) {
+		collector.addRule(`.monaco-editor .findScope { border: 1px ${theme.type === 'hc' ? 'dashed' : 'solid'} ${findRangeHighlightBorder}; }`);
+	}
+
+	const hcBorder = theme.getColor(contrastBorder);
 	if (hcBorder) {
 		collector.addRule(`.monaco-editor .find-widget { border: 2px solid ${hcBorder}; }`);
 	}
 
-	let error = theme.getColor(errorForeground);
+	const error = theme.getColor(errorForeground);
 	if (error) {
 		collector.addRule(`.monaco-editor .find-widget.no-results .matchesCount { color: ${error}; }`);
 	}
 
-	let border = theme.getColor(editorWidgetBorder);
+	const border = theme.getColor(editorWidgetBorder);
 	if (border) {
 		collector.addRule(`.monaco-editor .find-widget .monaco-sash { background-color: ${border}; width: 3px !important; margin-left: -4px;}`);
 	}

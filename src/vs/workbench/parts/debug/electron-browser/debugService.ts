@@ -352,10 +352,10 @@ export class DebugService implements debug.IDebugService {
 
 			const outputSeverity = event.body.category === 'stderr' ? severity.Error : event.body.category === 'console' ? severity.Warning : severity.Info;
 			if (event.body.category === 'telemetry') {
-				// only log telemetry events from debug adapter if the adapter provided the telemetry key
+				// only log telemetry events from debug adapter if the debug extension provided the telemetry key
 				// and the user opted in telemetry
 				if (session.customTelemetryService && this.telemetryService.isOptedIn) {
-					// __GDPR__TODO__ We're sending events in the name of the debug adapter and we can not ensure that those are declared correctly.
+					// __GDPR__TODO__ We're sending events in the name of the debug extension and we can not ensure that those are declared correctly.
 					session.customTelemetryService.publicLog(event.body.output, event.body.data);
 				}
 
@@ -766,7 +766,7 @@ export class DebugService implements debug.IDebugService {
 					config.noDebug = true;
 				}
 
-				return (type ? TPromise.as(null) : this.configurationManager.guessAdapter().then(a => type = a && a.type)).then(() =>
+				return (type ? TPromise.as(null) : this.configurationManager.guessDebugger().then(a => type = a && a.type)).then(() =>
 					(type ? this.extensionService.activateByEvent(`onDebugResolve:${type}`) : TPromise.as(null)).then(() =>
 						this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config).then(config => {
 							// a falsy config indicates an aborted launch
@@ -788,13 +788,13 @@ export class DebugService implements debug.IDebugService {
 
 	private createProcess(launch: debug.ILaunch, config: debug.IConfig, sessionId: string): TPromise<void> {
 		return this.textFileService.saveAll().then(() =>
-			(launch ? launch.resolveConfiguration(config) : TPromise.as(config)).then(resolvedConfig => {
+			(launch ? launch.substituteVariables(config) : TPromise.as(config)).then(resolvedConfig => {
 				if (!resolvedConfig) {
 					// User canceled resolving of interactive variables, silently return
 					return undefined;
 				}
 
-				if (!this.configurationManager.getAdapter(resolvedConfig.type) || (config.request !== 'attach' && config.request !== 'launch')) {
+				if (!this.configurationManager.getDebugger(resolvedConfig.type) || (config.request !== 'attach' && config.request !== 'launch')) {
 					let message: string;
 					if (config.request !== 'attach' && config.request !== 'launch') {
 						message = config.request ? nls.localize('debugRequestNotSupported', "Attribute '{0}' has an unsupported value '{1}' in the chosen debug configuration.", 'request', config.request)
@@ -855,9 +855,9 @@ export class DebugService implements debug.IDebugService {
 			telemetryInfo['common.vscodesessionid'] = info.sessionId;
 			return telemetryInfo;
 		}).then(data => {
-			const adapter = this.configurationManager.getAdapter(configuration.type);
-			const { aiKey, type } = adapter;
-			const publisher = adapter.extensionDescription.publisher;
+			const dbg = this.configurationManager.getDebugger(configuration.type);
+			const { aiKey, type } = dbg;
+			const publisher = dbg.extensionDescription.publisher;
 			let client: TelemetryClient;
 
 			let customTelemetryService: TelemetryService;
@@ -882,7 +882,7 @@ export class DebugService implements debug.IDebugService {
 				customTelemetryService = new TelemetryService({ appender }, this.configurationService);
 			}
 
-			const session = this.instantiationService.createInstance(RawDebugSession, sessionId, configuration.debugServer, adapter, customTelemetryService, root);
+			const session = this.instantiationService.createInstance(RawDebugSession, sessionId, configuration.debugServer, dbg, customTelemetryService, root);
 			const process = this.model.addProcess(configuration, session);
 			this.allProcesses.set(process.getId(), process);
 
@@ -946,8 +946,8 @@ export class DebugService implements debug.IDebugService {
 					breakpointCount: this.model.getBreakpoints().length,
 					exceptionBreakpoints: this.model.getExceptionBreakpoints(),
 					watchExpressionsCount: this.model.getWatchExpressions().length,
-					extensionName: adapter.extensionDescription.id,
-					isBuiltin: adapter.extensionDescription.isBuiltin,
+					extensionName: dbg.extensionDescription.id,
+					isBuiltin: dbg.extensionDescription.isBuiltin,
 					launchJsonExists: root && !!this.configurationService.getValue<debug.IGlobalConfig>('launch', { resource: root.uri })
 				});
 			}).then(() => process, (error: Error | string) => {
@@ -1205,7 +1205,7 @@ export class DebugService implements debug.IDebugService {
 				return TPromise.as(null);
 			}
 
-			const breakpointsToSend = this.model.getActivatedBreakpointsForResource(modelUri).filter(bp => bp.enabled);
+			const breakpointsToSend = this.model.getEnabledBreakpointsForResource(modelUri);
 
 			const source = process.getSourceForUri(modelUri);
 			let rawSource: DebugProtocol.Source;
@@ -1307,7 +1307,7 @@ export class DebugService implements debug.IDebugService {
 			if (this.breakpointsToSendOnResourceSaved.delete(event.resource.toString())) {
 				this.sendBreakpoints(event.resource, true).done(null, errors.onUnexpectedError);
 			}
-			if (event.resource.toString().indexOf('.vscode/launch.json') >= 0) {
+			if (strings.endsWith(event.resource.toString(), '.vscode/launch.json')) {
 				this.launchJsonChanged = true;
 			}
 		});

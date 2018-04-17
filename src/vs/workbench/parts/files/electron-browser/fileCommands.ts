@@ -322,7 +322,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			const name = paths.basename(uri.fsPath);
 			const editorLabel = nls.localize('modifiedLabel', "{0} (on disk) ↔ {1}", name, name);
 
-			return editorService.openEditor({ leftResource: URI.from({ scheme: COMPARE_WITH_SAVED_SCHEMA, path: uri.fsPath }), rightResource: resource, label: editorLabel }).then(() => void 0);
+			return editorService.openEditor({ leftResource: URI.from({ scheme: COMPARE_WITH_SAVED_SCHEMA, path: uri.fsPath }), rightResource: uri, label: editorLabel }).then(() => void 0);
 		}
 
 		return TPromise.as(true);
@@ -396,7 +396,7 @@ function revealResourcesInOS(resources: URI[], windowsService: IWindowsService, 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: REVEAL_IN_OS_COMMAND_ID,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: ExplorerFocusCondition,
+	when: undefined,
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R,
 	win: {
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_R
@@ -430,7 +430,7 @@ function resourcesToClipboard(resources: URI[], clipboardService: IClipboardServ
 }
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: ExplorerFocusCondition,
+	when: undefined,
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C,
 	win: {
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_C

@@ -12,6 +12,9 @@
   "engines": {
     "vscode": "*"
   },
+	"categories": [
+		"Programming Languages"
+	],
   "dependencies": {
     "semver": "4.3.6",
     "vscode-extension-telemetry": "0.0.15",
@@ -68,8 +71,7 @@
           ],
           "default": null,
           "description": "%typescript.npm%",
-          "isExecutable": true,
-          "scope": "window"
+          "scope": "application"
         },
         "typescript.check.npmIsInstalled": {
           "type": "boolean",
@@ -115,8 +117,7 @@
           },
           "default": [],
           "description": "%typescript.tsserver.pluginPaths%",
-          "scope": "window",
-          "isExecutable": true
+          "scope": "application"
         },
         "typescript.tsserver.trace": {
           "type": "string",

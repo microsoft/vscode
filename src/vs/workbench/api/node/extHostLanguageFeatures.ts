@@ -22,6 +22,7 @@ import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isObject } from 'vs/base/common/types';
 
 // --- adapter
 
@@ -466,14 +467,14 @@ class NavigateTypeAdapter {
 
 class RenameAdapter {
 
-	static supportsResolving(provider: vscode.RenameProvider2): boolean {
+	static supportsResolving(provider: vscode.RenameProvider): boolean {
 		return typeof provider.resolveRenameLocation === 'function';
 	}
 
 	private _documents: ExtHostDocuments;
-	private _provider: vscode.RenameProvider2;
+	private _provider: vscode.RenameProvider;
 
-	constructor(documents: ExtHostDocuments, provider: vscode.RenameProvider2) {
+	constructor(documents: ExtHostDocuments, provider: vscode.RenameProvider) {
 		this._documents = documents;
 		this._provider = provider;
 	}
@@ -506,7 +507,7 @@ class RenameAdapter {
 		});
 	}
 
-	resolveRenameLocation(resource: URI, position: IPosition): TPromise<IRange> {
+	resolveRenameLocation(resource: URI, position: IPosition): TPromise<modes.RenameLocation> {
 		if (typeof this._provider.resolveRenameLocation !== 'function') {
 			return TPromise.as(undefined);
 		}
@@ -514,15 +515,28 @@ class RenameAdapter {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
 
-		return asWinJsPromise(token => this._provider.resolveRenameLocation(doc, pos, token)).then(range => {
+		return asWinJsPromise(token => this._provider.resolveRenameLocation(doc, pos, token)).then(rangeOrLocation => {
+
+			let range: vscode.Range;
+			let text: string;
+			if (Range.isRange(rangeOrLocation)) {
+				range = rangeOrLocation;
+				text = doc.getText(rangeOrLocation);
+
+			} else if (isObject(rangeOrLocation)) {
+				range = rangeOrLocation.range;
+				text = rangeOrLocation.placeholder;
+			}
+
 			if (!range) {
 				return undefined;
 			}
-			if (range && (!range.isSingleLine || range.start.line !== pos.line)) {
-				console.warn('INVALID rename context, range must be single line and on the same line');
+
+			if (!range.contains(pos)) {
+				console.warn('INVALID rename location: range must contain position');
 				return undefined;
 			}
-			return TypeConverters.fromRange(range);
+			return { range: TypeConverters.fromRange(range), text };
 		});
 	}
 }
@@ -1013,9 +1027,9 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	// --- quick fix
 
-	registerCodeActionProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider): vscode.Disposable {
+	registerCodeActionProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider, metadata?: vscode.CodeActionProviderMetadata): vscode.Disposable {
 		const handle = this._addNewAdapter(new CodeActionAdapter(this._documents, this._commands.converter, this._diagnostics, provider));
-		this._proxy.$registerQuickFixSupport(handle, this._transformDocumentSelector(selector));
+		this._proxy.$registerQuickFixSupport(handle, this._transformDocumentSelector(selector), metadata && metadata.providedCodeActionKinds ? metadata.providedCodeActionKinds.map(kind => kind.value) : undefined);
 		return this._createDisposable(handle);
 	}
 
@@ -1088,7 +1102,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, RenameAdapter, adapter => adapter.provideRenameEdits(URI.revive(resource), position, newName));
 	}
 
-	$resolveRenameLocation(handle: number, resource: URI, position: IPosition): TPromise<IRange> {
+	$resolveRenameLocation(handle: number, resource: URI, position: IPosition): TPromise<modes.RenameLocation> {
 		return this._withAdapter(handle, RenameAdapter, adapter => adapter.resolveRenameLocation(resource, position));
 	}
 

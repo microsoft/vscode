@@ -19,7 +19,7 @@ import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/brows
 import { ModesContentHoverWidget } from './modesContentHover';
 import { ModesGlyphHoverWidget } from './modesGlyphHover';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorHoverHighlight, editorHoverBackground, editorHoverBorder, textLinkForeground, textCodeBlockBackground } from 'vs/platform/theme/common/colorRegistry';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
@@ -57,7 +57,8 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 
 	constructor(editor: ICodeEditor,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@IModeService private readonly _modeService: IModeService
+		@IModeService private readonly _modeService: IModeService,
+		@IThemeService private readonly _themeService: IThemeService
 	) {
 		this._editor = editor;
 
@@ -159,7 +160,7 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 
 	private _createHoverWidget() {
 		const renderer = new MarkdownRenderer(this._editor, this._modeService, this._openerService);
-		this._contentWidget = new ModesContentHoverWidget(this._editor, renderer);
+		this._contentWidget = new ModesContentHoverWidget(this._editor, renderer, this._themeService);
 		this._glyphWidget = new ModesGlyphHoverWidget(this._editor, renderer);
 	}
 

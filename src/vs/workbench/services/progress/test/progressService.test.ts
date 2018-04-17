@@ -212,11 +212,12 @@ class TestProgressBar {
 		return this.done();
 	}
 
-	public getContainer() {
-		return {
-			show: function () { },
-			hide: function () { }
-		};
+	public show(): void {
+
+	}
+
+	public hide(): void {
+
 	}
 }
 

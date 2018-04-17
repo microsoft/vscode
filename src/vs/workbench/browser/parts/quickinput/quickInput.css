@@ -45,13 +45,12 @@
 
 .quick-input-action {
 	margin-left: 6px;
-	border: 0;
-	padding: 6px;
-	cursor: pointer;
 }
 
-.quick-input-action:focus {
-	outline:0;
+.quick-input-action .monaco-text-button {
+	font-size: 85%;
+	padding: 7px 6px 6px 6px;
+	line-height: initial;
 }
 
 .quick-input-progress.monaco-progress-container,

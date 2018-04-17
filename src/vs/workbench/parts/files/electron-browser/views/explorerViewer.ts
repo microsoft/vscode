@@ -8,6 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import * as DOM from 'vs/base/browser/dom';
+import * as path from 'path';
 import URI from 'vs/base/common/uri';
 import { once } from 'vs/base/common/functional';
 import * as paths from 'vs/base/common/paths';
@@ -24,7 +25,7 @@ import { IFilesConfiguration, SortOrder } from 'vs/workbench/parts/files/common/
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationError, FileOperationResult, IFileService, FileKind } from 'vs/platform/files/common/files';
 import { ResourceMap } from 'vs/base/common/map';
-import { DuplicateFileAction, ImportFileAction, IEditableData, IFileViewletState, FileCopiedContext } from 'vs/workbench/parts/files/electron-browser/fileActions';
+import { DuplicateFileAction, AddFilesAction, IEditableData, IFileViewletState, FileCopiedContext } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { IDataSource, ITree, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
 import { DesktopDragAndDropData, ExternalElementsDragAndDropData } from 'vs/base/parts/tree/browser/treeDnd';
 import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
@@ -49,7 +50,6 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { extractResources, SimpleFileResourceDragAndDrop, CodeDataTransfers, fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
-import { relative } from 'path';
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { DataTransfers } from 'vs/base/browser/dnd';
@@ -99,9 +99,12 @@ export class FileDataSource implements IDataSource {
 				const modelDirStat = ExplorerItem.create(dirStat, stat.root);
 
 				// Add children to folder
-				modelDirStat.getChildrenArray().forEach(child => {
-					stat.addChild(child);
-				});
+				const children = modelDirStat.getChildrenArray();
+				if (children) {
+					children.forEach(child => {
+						stat.addChild(child);
+					});
+				}
 
 				stat.isDirectoryResolved = true;
 
@@ -324,7 +327,7 @@ export class FileRenderer implements IRenderer {
 				}
 			}),
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_UP, (e: IKeyboardEvent) => {
-				const initialRelPath: string = relative(stat.root.resource.fsPath, stat.parent.resource.fsPath);
+				const initialRelPath: string = path.relative(stat.root.resource.fsPath, stat.parent.resource.fsPath);
 				let projectFolderName: string = '';
 				if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 					projectFolderName = paths.basename(stat.root.resource.fsPath);	// show root folder name in multi-folder project
@@ -343,15 +346,18 @@ export class FileRenderer implements IRenderer {
 		if (inputBox.validate()) {
 			const value = inputBox.value;
 			if (value && value.search(/[\\/]/) !== -1) {	// only show if there's a slash
-				let newPath = paths.normalize(paths.join(initialRelPath, value), true);
-				newPath = rtrim(newPath, paths.nativeSep);
+				let displayPath = path.normalize(path.join(projectFolderName, initialRelPath, value));
+				displayPath = rtrim(displayPath, paths.nativeSep);
 				const fileType: string = FileKind[fileKind].toLowerCase();
 
 				inputBox.showMessage({
 					type: MessageType.INFO,
-					content: nls.localize('constructedPath', "Create {0} in **{1}**", fileType, newPath),
+					content: nls.localize('constructedPath', "Create {0} in **{1}**", fileType, displayPath),
 					formatContent: true
 				});
+			}
+			else {	// fixes #46744: inputbox hides again if all slashes are removed
+				inputBox.hideMessage();
 			}
 		}
 	}
@@ -694,15 +700,17 @@ export class FileFilter implements IFilter {
 		}
 
 		// Workaround for O(N^2) complexity (https://github.com/Microsoft/vscode/issues/9962)
-		let siblingNames = stat.parent && stat.parent.getChildrenNames();
-		if (siblingNames && siblingNames.length > FileFilter.MAX_SIBLINGS_FILTER_THRESHOLD) {
-			siblingNames = void 0;
+		let siblingsFn: () => string[];
+		let siblingCount = stat.parent && stat.parent.getChildrenCount();
+		if (siblingCount && siblingCount > FileFilter.MAX_SIBLINGS_FILTER_THRESHOLD) {
+			siblingsFn = () => void 0;
+		} else {
+			siblingsFn = () => stat.parent ? stat.parent.getChildrenNames() : void 0;
 		}
 
 		// Hide those that match Hidden Patterns
-		const siblingsFn = () => siblingNames;
 		const expression = this.hiddenExpressionPerRoot.get(stat.root.resource.toString()) || Object.create(null);
-		if (glob.match(expression, paths.normalize(relative(stat.root.resource.fsPath, stat.resource.fsPath), true), siblingsFn)) {
+		if (glob.match(expression, paths.normalize(path.relative(stat.root.resource.fsPath, stat.resource.fsPath), true), siblingsFn)) {
 			return false; // hidden through pattern
 		}
 
@@ -919,9 +927,9 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 			// Handle dropped files (only support FileStat as target)
 			else if (target instanceof ExplorerItem) {
-				const importAction = this.instantiationService.createInstance(ImportFileAction, tree, target, null);
+				const addFilesAction = this.instantiationService.createInstance(AddFilesAction, tree, target, null);
 
-				return importAction.run(droppedResources.map(res => res.resource));
+				return addFilesAction.run(droppedResources.map(res => res.resource));
 			}
 
 			return void 0;

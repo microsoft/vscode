@@ -43,8 +43,15 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 			const privacyUrl = product.privacyStatementUrl || product.telemetryOptOutUrl;
 			const optOutNotice = localize('telemetryOptOut.optOutNotice', "Help improve VS Code by allowing Microsoft to collect usage data. Read our [privacy statement]({0}) and learn how to [opt out]({1}).", privacyUrl, optOutUrl);
 			const optInNotice = localize('telemetryOptOut.optInNotice', "Help improve VS Code by allowing Microsoft to collect usage data. Read our [privacy statement]({0}) and learn how to [opt in]({1}).", privacyUrl, optOutUrl);
-			return notificationService.prompt(Severity.Info, telemetryService.isOptedIn ? optOutNotice : optInNotice, [localize('telemetryOptOut.readMore', "Read More")])
-				.then(() => openerService.open(URI.parse(optOutUrl)));
+
+			notificationService.prompt(
+				Severity.Info,
+				telemetryService.isOptedIn ? optOutNotice : optInNotice,
+				[{
+					label: localize('telemetryOptOut.readMore', "Read More"),
+					run: () => openerService.open(URI.parse(optOutUrl))
+				}]
+			);
 		})
 			.then(null, onUnexpectedError);
 	}

@@ -130,15 +130,16 @@ export class TelemetryService implements ITelemetryService {
 			}
 		}
 
-		const fileRegex = /(file:\/\/)?([a-z,A-Z]:)?([\\\/]\w+)+/g;
+		const nodeModulesRegex = /^[\\\/]?(node_modules|node_modules\.asar)[\\\/]/;
+		const fileRegex = /(file:\/\/)?([a-zA-Z]:(\\\\|\\|\/)|(\\\\|\\|\/))?([\w-\._]+(\\\\|\\|\/))+[\w-\._]*/g;
 		let updatedStack = stack;
 		while (true) {
 			const result = fileRegex.exec(stack);
 			if (!result) {
 				break;
 			}
-			// Anoynimize user file paths that do not need cleanup.
-			if (cleanUpIndexes.every(([x, y]) => result.index < x || result.index >= y)) {
+			// Anoynimize user file paths that do not need to be retained or cleaned up.
+			if (!nodeModulesRegex.test(result[0]) && cleanUpIndexes.every(([x, y]) => result.index < x || result.index >= y)) {
 				updatedStack = updatedStack.slice(0, result.index) + result[0].replace(/./g, 'a') + updatedStack.slice(fileRegex.lastIndex);
 			}
 		}

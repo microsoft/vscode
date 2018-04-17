@@ -121,7 +121,8 @@ export class ExtHostApiCommands {
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
 				{ name: 'position', description: 'Position in a text document', constraint: types.Position },
-				{ name: 'triggerCharacter', description: '(optional) Trigger completion when the user types the character, like `,` or `(`', constraint: value => value === void 0 || typeof value === 'string' }
+				{ name: 'triggerCharacter', description: '(optional) Trigger completion when the user types the character, like `,` or `(`', constraint: value => value === void 0 || typeof value === 'string' },
+				{ name: 'itemResolveCount', description: '(optional) Number of completions to resolve (too large numbers slow down completions)', constraint: value => value === void 0 || typeof value === 'number' }
 			],
 			returns: 'A promise that resolves to a CompletionList-instance.'
 		});
@@ -202,9 +203,9 @@ export class ExtHostApiCommands {
 				options);
 		}, {
 				description: `
-					Render the html of the resource in an editor view.
+					Render the HTML of the resource in an editor view.
 
-					See [working with the html preview](https://code.visualstudio.com/docs/extensionAPI/vscode-api-commands#working-with-the-html-preview) for more information about the html preview's intergration with the editor and for best practices for extension authors.
+					See [working with the HTML preview](https://code.visualstudio.com/docs/extensionAPI/vscode-api-commands#working-with-the-html-preview) for more information about the HTML preview's integration with the editor and for best practices for extension authors.
 				`,
 				args: [
 					{ name: 'uri', description: 'Uri of the resource to preview.', constraint: value => value instanceof URI || typeof value === 'string' },
@@ -392,11 +393,12 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeCompletionItemProvider(resource: URI, position: types.Position, triggerCharacter: string): Thenable<types.CompletionList> {
+	private _executeCompletionItemProvider(resource: URI, position: types.Position, triggerCharacter: string, maxItemsToResolve: number): Thenable<types.CompletionList> {
 		const args = {
 			resource,
 			position: position && typeConverters.fromPosition(position),
-			triggerCharacter
+			triggerCharacter,
+			maxItemsToResolve
 		};
 		return this._commands.executeCommand<modes.ISuggestResult>('_executeCompletionItemProvider', args).then(result => {
 			if (result) {

@@ -202,7 +202,7 @@ export class BreakpointsView extends ViewsViewletPanel {
 
 	private get elements(): IEnablement[] {
 		const model = this.debugService.getModel();
-		const elements = (<IEnablement[]>model.getExceptionBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getBreakpoints());
+		const elements = (<ReadonlyArray<IEnablement>>model.getExceptionBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getBreakpoints());
 
 		return elements;
 	}

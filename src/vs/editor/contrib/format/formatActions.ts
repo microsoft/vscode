@@ -285,7 +285,7 @@ export abstract class AbstractFormatAction extends EditorAction {
 			editor.focus();
 		}, err => {
 			if (err instanceof Error && err.name === NoProviderError.Name) {
-				notificationService.info(nls.localize('no.provider', "There is no formatter for '{0}'-files installed.", editor.getModel().getLanguageIdentifier().language));
+				this._notifyNoProviderError(notificationService, editor.getModel().getLanguageIdentifier().language);
 			} else {
 				throw err;
 			}
@@ -293,6 +293,9 @@ export abstract class AbstractFormatAction extends EditorAction {
 	}
 
 	protected abstract _getFormattingEdits(editor: ICodeEditor): TPromise<ISingleEditOperation[]>;
+	protected _notifyNoProviderError(notificationService: INotificationService, language: string): void {
+		notificationService.info(nls.localize('no.provider', "There is no formatter for '{0}'-files installed.", language));
+	}
 }
 
 export class FormatDocumentAction extends AbstractFormatAction {
@@ -322,6 +325,10 @@ export class FormatDocumentAction extends AbstractFormatAction {
 		const { tabSize, insertSpaces } = model.getOptions();
 		return getDocumentFormattingEdits(model, { tabSize, insertSpaces });
 	}
+
+	protected _notifyNoProviderError(notificationService: INotificationService, language: string): void {
+		notificationService.info(nls.localize('no.documentprovider', "There is no document formatter for '{0}'-files installed.", language));
+	}
 }
 
 export class FormatSelectionAction extends AbstractFormatAction {
@@ -348,6 +355,10 @@ export class FormatSelectionAction extends AbstractFormatAction {
 		const model = editor.getModel();
 		const { tabSize, insertSpaces } = model.getOptions();
 		return getDocumentRangeFormattingEdits(model, editor.getSelection(), { tabSize, insertSpaces });
+	}
+
+	protected _notifyNoProviderError(notificationService: INotificationService, language: string): void {
+		notificationService.info(nls.localize('no.selectionprovider', "There is no selection formatter for '{0}'-files installed.", language));
 	}
 }
 
