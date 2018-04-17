@@ -3783,10 +3783,6 @@ declare namespace monaco.editor {
 		 */
 		getLayoutInfo(): EditorLayoutInfo;
 		/**
-		 * Returns the range that is currently centered in the view port.
-		 */
-		getCenteredRangeInViewport(): Range;
-		/**
 		 * Returns the ranges that are currently visible.
 		 * Does not account for horizontal scrolling.
 		 */

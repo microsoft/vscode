@@ -253,13 +253,6 @@ export abstract class CommonCodeEditor extends Disposable {
 		}
 	}
 
-	public getCenteredRangeInViewport(): Range {
-		if (!this.hasView) {
-			return null;
-		}
-		return this.viewModel.getCenteredRangeInViewport();
-	}
-
 	public getVisibleRanges(): Range[] {
 		if (!this.hasView) {
 			return [];
