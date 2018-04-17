@@ -310,8 +310,6 @@ export class RemoteFileService extends FileService {
 			return super.updateContent(resource, value, options);
 		} else {
 			if (options && options.mkdirp) {
-				// use the lack of options and or the lack of an etag as a hint that
-				// the parent directories might not exist.
 				await this._mkdirp(resource.with({ path: posix.dirname(resource.path) }));
 			}
 			return this._withProvider(resource).then(provider => {
