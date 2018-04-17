@@ -176,7 +176,6 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 	}
 
 	disposeTemplate(templateData: ISuggestionTemplateData): void {
-		templateData.highlightedLabel.dispose();
 		templateData.disposables = dispose(templateData.disposables);
 	}
 }

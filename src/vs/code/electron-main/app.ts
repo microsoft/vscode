@@ -60,6 +60,9 @@ import { IssueService } from 'vs/platform/issue/electron-main/issueService';
 import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
+import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
+import { join } from 'path';
+import { copy, exists, rename } from 'vs/base/node/pfs';
 
 export class CodeApplication {
 
@@ -261,38 +264,56 @@ export class CodeApplication {
 		this.logService.debug(`from: ${this.environmentService.appRoot}`);
 		this.logService.debug('args:', this.environmentService.args);
 
-		// Make sure we associate the program with the app user model id
-		// This will help Windows to associate the running program with
-		// any shortcut that is pinned to the taskbar and prevent showing
-		// two icons in the taskbar for the same app.
-		if (platform.isWindows && product.win32AppUserModelId) {
-			app.setAppUserModelId(product.win32AppUserModelId);
-		}
+		// Handle local storage (TODO@Ben remove me after a while)
+		this.logService.trace('Handling localStorage if needed...');
+		return this.handleLocalStorage().then(() => {
 
-		// Create Electron IPC Server
-		this.electronIpcServer = new ElectronIPCServer();
+			// Make sure we associate the program with the app user model id
+			// This will help Windows to associate the running program with
+			// any shortcut that is pinned to the taskbar and prevent showing
+			// two icons in the taskbar for the same app.
+			if (platform.isWindows && product.win32AppUserModelId) {
+				app.setAppUserModelId(product.win32AppUserModelId);
+			}
 
-		// Resolve unique machine ID
-		this.logService.trace('Resolving machine identifier...');
-		return this.resolveMachineId().then(machineId => {
-			this.logService.trace(`Resolved machine identifier: ${machineId}`);
+			// Create Electron IPC Server
+			this.electronIpcServer = new ElectronIPCServer();
 
-			// Spawn shared process
-			this.sharedProcess = new SharedProcess(this.environmentService, this.lifecycleService, this.logService, machineId, this.userEnv);
-			this.sharedProcessClient = this.sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
+			// Resolve unique machine ID
+			this.logService.trace('Resolving machine identifier...');
+			return this.resolveMachineId().then(machineId => {
+				this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
-			// Services
-			const appInstantiationService = this.initServices(machineId);
+				// Spawn shared process
+				this.sharedProcess = new SharedProcess(this.environmentService, this.lifecycleService, this.logService, machineId, this.userEnv);
+				this.sharedProcessClient = this.sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
 
-			// Setup Auth Handler
-			const authHandler = appInstantiationService.createInstance(ProxyAuthHandler);
-			this.toDispose.push(authHandler);
+				// Services
+				const appInstantiationService = this.initServices(machineId);
 
-			// Open Windows
-			appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor));
+				let promise: TPromise<any> = TPromise.as(null);
 
-			// Post Open Windows Tasks
-			appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
+				// Create driver
+				if (this.environmentService.driverHandle) {
+					serveDriver(this.electronIpcServer, this.environmentService.driverHandle, appInstantiationService).then(server => {
+						this.logService.info('Driver started at:', this.environmentService.driverHandle);
+						this.toDispose.push(server);
+					});
+				}
+
+				return promise.then(() => {
+
+					// Setup Auth Handler
+					const authHandler = appInstantiationService.createInstance(ProxyAuthHandler);
+					this.toDispose.push(authHandler);
+
+					// Open Windows
+					appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor));
+
+					// Post Open Windows Tasks
+					appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
+				});
+			});
 		});
 	}
 
@@ -309,6 +330,36 @@ export class CodeApplication {
 
 			return machineId;
 		});
+	}
+
+	private handleLocalStorage(): TPromise<void> {
+		const localStorageFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage');
+		const localStorageJournalFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage-journal');
+		const localStorageBackupFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage.vscbak');
+		const localStorageJournalBackupFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage-journal.vscbak');
+
+		// Electron 1.7.12: Restore storage
+		if (process.versions.electron === '1.7.12') {
+			return exists(localStorageBackupFile).then(localStorageBackupFileExists => {
+				return exists(localStorageJournalBackupFile).then(localStorageJournalBackupFileExists => {
+					return TPromise.join([
+						localStorageBackupFileExists ? rename(localStorageBackupFile, localStorageFile) : TPromise.as(void 0),
+						localStorageJournalBackupFileExists ? rename(localStorageJournalBackupFile, localStorageJournalFile) : TPromise.as(void 0)
+					]);
+				});
+			}).then(() => void 0, () => void 0);
+		}
+
+		// Electron 2.0: Backup
+		else {
+			return exists(localStorageBackupFile).then(backupExists => {
+				if (backupExists) {
+					return void 0; // do not backup if backup already exists
+				}
+
+				return copy(localStorageFile, localStorageBackupFile).then(() => copy(localStorageJournalFile, localStorageJournalBackupFile));
+			}).then(() => void 0, () => void 0);
+		}
 	}
 
 	private initServices(machineId: string): IInstantiationService {

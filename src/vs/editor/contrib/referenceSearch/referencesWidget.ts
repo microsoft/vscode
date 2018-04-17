@@ -528,6 +528,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 	constructor(
 		editor: ICodeEditor,
+		private _defaultTreeKeyboardSupport: boolean,
 		public layoutData: LayoutData,
 		private _textModelResolverService: ITextModelService,
 		private _contextService: IWorkspaceContextService,
@@ -630,7 +631,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		// tree
 		container.div({ 'class': 'ref-tree inline' }, (div: Builder) => {
-			var controller = this._instantiationService.createInstance(Controller, { clickBehavior: ClickBehavior.ON_MOUSE_UP /* our controller already deals with this */ });
+			var controller = this._instantiationService.createInstance(Controller, { keyboardSupport: this._defaultTreeKeyboardSupport, clickBehavior: ClickBehavior.ON_MOUSE_UP /* our controller already deals with this */ });
 			this._callOnDispose.push(controller);
 
 			var config = <tree.ITreeConfiguration>{

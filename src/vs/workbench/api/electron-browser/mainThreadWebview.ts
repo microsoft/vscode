@@ -129,7 +129,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			this._webviews.set(handle, webview);
 			webview._events = this.createWebviewEventDelegate(handle);
 
-			return this._proxy.$deserializeWebview(handle, webview.state.viewType, webview.state.state, webview.position, webview.options)
+			return this._proxy.$deserializeWebview(handle, webview.state.viewType, webview.getTitle(), webview.state.state, webview.position, webview.options)
 				.then(undefined, () => {
 					webview.html = MainThreadWebviews.getDeserializationFailedContents(viewType);
 				});
@@ -176,7 +176,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			onDidClickLink: uri => this.onDidClickLink(handle, uri),
 			onMessage: message => this._proxy.$onMessage(handle, message),
 			onDispose: () => {
-				this._proxy.$onDidDisposeWeview(handle).then(() => {
+				this._proxy.$onDidDisposeWebview(handle).then(() => {
 					this._webviews.delete(handle);
 				});
 			}
@@ -213,13 +213,13 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		if (typeof this._activeWebview !== 'undefined') {
 			const oldActiveWebview = this._webviews.get(this._activeWebview);
 			if (oldActiveWebview) {
-				this._proxy.$onDidChangeWeviewViewState(this._activeWebview, false, oldActiveWebview.position);
+				this._proxy.$onDidChangeWebviewViewState(this._activeWebview, false, oldActiveWebview.position);
 			}
 		}
 
 		// Then for newly active
 		if (newActiveWebview) {
-			this._proxy.$onDidChangeWeviewViewState(newActiveWebview.handle, true, activeEditor.position);
+			this._proxy.$onDidChangeWebviewViewState(newActiveWebview.handle, true, activeEditor.position);
 			this._activeWebview = newActiveWebview.handle;
 		} else {
 			this._activeWebview = undefined;

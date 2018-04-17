@@ -584,7 +584,7 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'string',
 			'enum': ['auto', 'indentation'],
 			'enumDescriptions': [
-				nls.localize('foldingStrategyAuto', 'If available, use a langauge specific folding strategy, otherwise falls back to the indentation based strategy.'),
+				nls.localize('foldingStrategyAuto', 'If available, use a language specific folding strategy, otherwise falls back to the indentation based strategy.'),
 				nls.localize('foldingStrategyIndentation', 'Always use the indentation based folding strategy')
 			],
 			'default': EDITOR_DEFAULTS.contribInfo.foldingStrategy,
@@ -667,6 +667,16 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': true,
 			'description': nls.localize('ignoreTrimWhitespace', "Controls if the diff editor shows changes in leading or trailing whitespace as diffs")
+		},
+		'editor.largeFileSize': {
+			'type': 'number',
+			'default': EDITOR_MODEL_DEFAULTS.largeFileSize,
+			'description': nls.localize('largeFileSize', "Controls file size threshold in bytes beyond which special optimization rules are applied")
+		},
+		'editor.largeFileLineCount': {
+			'type': 'number',
+			'default': EDITOR_MODEL_DEFAULTS.largeFileLineCount,
+			'description': nls.localize('largeFileLineCount', "Controls file size threshold in terms of line count beyond which special optimization rules are applied")
 		},
 		'diffEditor.renderIndicators': {
 			'type': 'boolean',

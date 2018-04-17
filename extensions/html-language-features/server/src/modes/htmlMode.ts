@@ -10,7 +10,6 @@ import { TextDocument, Position, Range, CompletionItem } from 'vscode-languagese
 import { LanguageMode, Workspace } from './languageModes';
 
 import { FoldingRange } from 'vscode-languageserver-protocol-foldingprovider';
-import { getHTMLFoldingRegions } from './htmlFolding';
 import { getPathCompletionParticipant } from './pathCompletion';
 
 export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace: Workspace): LanguageMode {
@@ -65,9 +64,9 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 			return htmlLanguageService.format(document, range, formatSettings);
 		},
 		getFoldingRanges(document: TextDocument, range: Range): FoldingRange[] {
-			return getHTMLFoldingRegions(htmlLanguageService, document, range);
+			let ranges = htmlLanguageService.getFoldingRanges(document).ranges;
+			return ranges.filter(r => r.startLine >= range.start.line && r.endLine < range.end.line);
 		},
-
 		doAutoClose(document: TextDocument, position: Position) {
 			let offset = document.offsetAt(position);
 			let text = document.getText();

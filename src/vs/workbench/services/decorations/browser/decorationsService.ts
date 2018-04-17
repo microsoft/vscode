@@ -249,10 +249,7 @@ class DecorationProviderWrapper {
 				// we make us of that and ignore all uris in which we have never
 				// been interested.
 				for (const uri of uris) {
-					const value = this.data.get(uri.toString());
-					if (value !== undefined) {
-						this._fetchData(uri);
-					}
+					this._fetchData(uri);
 				}
 			}
 		});

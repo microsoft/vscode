@@ -101,13 +101,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 
 		this._focusTracker = new CodeEditorWidgetFocusTracker(domElement);
 		this._focusTracker.onChange(() => {
-			let hasFocus = this._focusTracker.hasFocus();
-
-			if (hasFocus) {
-				this._onDidFocusEditor.fire();
-			} else {
-				this._onDidBlurEditor.fire();
-			}
+			this._editorFocus.setValue(this._focusTracker.hasFocus());
 		});
 
 		this.contentWidgets = {};
@@ -431,13 +425,13 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		const viewEventBus = this._view.getInternalEventBus();
 
 		viewEventBus.onDidGainFocus = () => {
-			this._onDidFocusEditorText.fire();
+			this._editorTextFocus.setValue(true);
 			// In IE, the focus is not synchronous, so we give it a little help
-			this._onDidFocusEditor.fire();
+			this._editorFocus.setValue(true);
 		};
 
 		viewEventBus.onDidScroll = (e) => this._onDidScrollChange.fire(e);
-		viewEventBus.onDidLoseFocus = () => this._onDidBlurEditorText.fire();
+		viewEventBus.onDidLoseFocus = () => this._editorTextFocus.setValue(false);
 		viewEventBus.onContextMenu = (e) => this._onContextMenu.fire(e);
 		viewEventBus.onMouseDown = (e) => this._onMouseDown.fire(e);
 		viewEventBus.onMouseUp = (e) => this._onMouseUp.fire(e);

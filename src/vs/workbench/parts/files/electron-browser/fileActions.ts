@@ -13,6 +13,7 @@ import { sequence, ITask, always } from 'vs/base/common/async';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
 import URI from 'vs/base/common/uri';
+import { posix } from 'path';
 import * as errors from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as strings from 'vs/base/common/strings';
@@ -725,8 +726,8 @@ class BaseDeleteFileAction extends BaseFileAction {
 	}
 }
 
-/* Import File */
-export class ImportFileAction extends BaseFileAction {
+/* Add File */
+export class AddFilesAction extends BaseFileAction {
 
 	private tree: ITree;
 
@@ -740,7 +741,7 @@ export class ImportFileAction extends BaseFileAction {
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super('workbench.files.action.importFile', nls.localize('importFiles', "Import Files"), fileService, notificationService, textFileService);
+		super('workbench.files.action.addFile', nls.localize('addFiles', "Add Files"), fileService, notificationService, textFileService);
 
 		this.tree = tree;
 		this.element = element;
@@ -753,10 +754,10 @@ export class ImportFileAction extends BaseFileAction {
 	}
 
 	public run(resources: URI[]): TPromise<any> {
-		const importPromise = TPromise.as(null).then(() => {
+		const addPromise = TPromise.as(null).then(() => {
 			if (resources && resources.length > 0) {
 
-				// Find parent for import
+				// Find parent to add to
 				let targetElement: ExplorerItem;
 				if (this.element) {
 					targetElement = this.element;
@@ -797,15 +798,15 @@ export class ImportFileAction extends BaseFileAction {
 							return void 0;
 						}
 
-						// Run import in sequence
-						const importPromisesFactory: ITask<TPromise<void>>[] = [];
+						// Run add in sequence
+						const addPromisesFactory: ITask<TPromise<void>>[] = [];
 						resources.forEach(resource => {
-							importPromisesFactory.push(() => {
+							addPromisesFactory.push(() => {
 								const sourceFile = resource;
 								const targetFile = targetElement.resource.with({ path: paths.join(targetElement.resource.path, paths.basename(sourceFile.path)) });
 
 								// if the target exists and is dirty, make sure to revert it. otherwise the dirty contents
-								// of the target file would replace the contents of the imported file. since we already
+								// of the target file would replace the contents of the added file. since we already
 								// confirmed the overwrite before, this is OK.
 								let revertPromise = TPromise.wrap(null);
 								if (this.textFileService.isDirty(targetFile)) {
@@ -813,18 +814,19 @@ export class ImportFileAction extends BaseFileAction {
 								}
 
 								return revertPromise.then(() => {
-									return this.fileService.importFile(sourceFile, targetElement.resource).then(res => {
+									const target = targetElement.resource.with({ path: posix.join(targetElement.resource.path, posix.basename(sourceFile.path)) });
+									return this.fileService.copyFile(sourceFile, target, true).then(stat => {
 
-										// if we only import one file, just open it directly
+										// if we only add one file, just open it directly
 										if (resources.length === 1) {
-											this.editorService.openEditor({ resource: res.stat.resource, options: { pinned: true } }).done(null, errors.onUnexpectedError);
+											this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } }).done(null, errors.onUnexpectedError);
 										}
 									}, error => this.onError(error));
 								});
 							});
 						});
 
-						return sequence(importPromisesFactory);
+						return sequence(addPromisesFactory);
 					});
 				});
 			}
@@ -832,7 +834,7 @@ export class ImportFileAction extends BaseFileAction {
 			return void 0;
 		});
 
-		return importPromise.then(() => {
+		return addPromise.then(() => {
 			this.tree.clearHighlight();
 		}, (error: any) => {
 			this.onError(error);

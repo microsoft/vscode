@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Command, ICommandOptions } from 'vs/editor/browser/editorExtensions';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Action } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { Command, ICommandOptions } from 'vs/editor/browser/editorExtensions';
+import * as nls from 'vs/nls';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { BaseWebviewEditor } from './baseWebviewEditor';
 
 export class ShowWebViewEditorFindWidgetCommand extends Command {

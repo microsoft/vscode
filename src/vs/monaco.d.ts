@@ -1489,6 +1489,10 @@ declare namespace monaco.editor {
 		 */
 		getLineContent(lineNumber: number): string;
 		/**
+		 * Get the text length for a certain line.
+		 */
+		getLineLength(lineNumber: number): number;
+		/**
 		 * Get the text for all lines.
 		 */
 		getLinesContent(): string[];

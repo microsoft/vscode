@@ -468,7 +468,10 @@ export function getEmmetConfiguration(syntax: string) {
 			&& !syntaxProfiles[syntax].hasOwnProperty('self_closing_tag') // Old Emmet format
 			&& !syntaxProfiles[syntax].hasOwnProperty('selfClosingStyle') // Emmet 2.0 format
 		) {
-			syntaxProfiles[syntax]['selfClosingStyle'] = 'xml';
+			syntaxProfiles[syntax] = {
+				...syntaxProfiles[syntax],
+				selfClosingStyle: 'xml'
+			};
 		}
 	}
 

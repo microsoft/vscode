@@ -148,8 +148,12 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 	}
 
 	private _renderNormalDecorations(ctx: RenderingContext, decorations: ViewModelDecoration[], output: string[]): void {
-		let lineHeight = String(this._lineHeight);
-		let visibleStartLineNumber = ctx.visibleRange.startLineNumber;
+		const lineHeight = String(this._lineHeight);
+		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
+
+		let prevClassName: string = null;
+		let prevShowIfCollapsed: boolean = false;
+		let prevRange: Range = null;
 
 		for (let i = 0, lenI = decorations.length; i < lenI; i++) {
 			const d = decorations[i];
@@ -166,38 +170,59 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 				range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber - 1, this._context.model.getLineMaxColumn(range.endLineNumber - 1));
 			}
 
-			let linesVisibleRanges = ctx.linesVisibleRangesForRange(range, /*TODO@Alex*/className === 'findMatch');
-			if (!linesVisibleRanges) {
+			if (prevClassName === className && prevShowIfCollapsed === showIfCollapsed && Range.areIntersectingOrTouching(prevRange, range)) {
+				// merge into previous decoration
+				prevRange = Range.plusRange(prevRange, range);
 				continue;
 			}
 
-			for (let j = 0, lenJ = linesVisibleRanges.length; j < lenJ; j++) {
-				let lineVisibleRanges = linesVisibleRanges[j];
-				const lineIndex = lineVisibleRanges.lineNumber - visibleStartLineNumber;
+			// flush previous decoration
+			if (prevClassName !== null) {
+				this._renderNormalDecoration(ctx, prevRange, prevClassName, prevShowIfCollapsed, lineHeight, visibleStartLineNumber, output);
+			}
 
-				if (showIfCollapsed && lineVisibleRanges.ranges.length === 1) {
-					const singleVisibleRange = lineVisibleRanges.ranges[0];
-					if (singleVisibleRange.width === 0) {
-						// collapsed range case => make the decoration visible by faking its width
-						lineVisibleRanges.ranges[0] = new HorizontalRange(singleVisibleRange.left, this._typicalHalfwidthCharacterWidth);
-					}
-				}
+			prevClassName = className;
+			prevShowIfCollapsed = showIfCollapsed;
+			prevRange = range;
+		}
 
-				for (let k = 0, lenK = lineVisibleRanges.ranges.length; k < lenK; k++) {
-					const visibleRange = lineVisibleRanges.ranges[k];
-					const decorationOutput = (
-						'<div class="cdr '
-						+ className
-						+ '" style="left:'
-						+ String(visibleRange.left)
-						+ 'px;width:'
-						+ String(visibleRange.width)
-						+ 'px;height:'
-						+ lineHeight
-						+ 'px;"></div>'
-					);
-					output[lineIndex] += decorationOutput;
+		if (prevClassName !== null) {
+			this._renderNormalDecoration(ctx, prevRange, prevClassName, prevShowIfCollapsed, lineHeight, visibleStartLineNumber, output);
+		}
+	}
+
+	private _renderNormalDecoration(ctx: RenderingContext, range: Range, className: string, showIfCollapsed: boolean, lineHeight: string, visibleStartLineNumber: number, output: string[]): void {
+		let linesVisibleRanges = ctx.linesVisibleRangesForRange(range, /*TODO@Alex*/className === 'findMatch');
+		if (!linesVisibleRanges) {
+			return;
+		}
+
+		for (let j = 0, lenJ = linesVisibleRanges.length; j < lenJ; j++) {
+			let lineVisibleRanges = linesVisibleRanges[j];
+			const lineIndex = lineVisibleRanges.lineNumber - visibleStartLineNumber;
+
+			if (showIfCollapsed && lineVisibleRanges.ranges.length === 1) {
+				const singleVisibleRange = lineVisibleRanges.ranges[0];
+				if (singleVisibleRange.width === 0) {
+					// collapsed range case => make the decoration visible by faking its width
+					lineVisibleRanges.ranges[0] = new HorizontalRange(singleVisibleRange.left, this._typicalHalfwidthCharacterWidth);
 				}
+			}
+
+			for (let k = 0, lenK = lineVisibleRanges.ranges.length; k < lenK; k++) {
+				const visibleRange = lineVisibleRanges.ranges[k];
+				const decorationOutput = (
+					'<div class="cdr '
+					+ className
+					+ '" style="left:'
+					+ String(visibleRange.left)
+					+ 'px;width:'
+					+ String(visibleRange.width)
+					+ 'px;height:'
+					+ lineHeight
+					+ 'px;"></div>'
+				);
+				output[lineIndex] += decorationOutput;
 			}
 		}
 	}

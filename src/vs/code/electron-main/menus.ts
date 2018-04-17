@@ -942,6 +942,8 @@ export class CodeMenu {
 			}
 		}, false));
 
+		const openProcessExplorer = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miOpenProcessExplorerer', comment: ['&& denotes a mnemonic'] }, "Open &&Process Explorer")), click: () => this.runActionInRenderer('workbench.action.openProcessExplorer') });
+
 		let reportIssuesItem: Electron.MenuItem = null;
 		if (product.reportIssueUrl) {
 			const label = nls.localize({ key: 'miReportIssue', comment: ['&& denotes a mnemonic', 'Translate this to "Report Issue in English" in all languages please!'] }, "Report &&Issue");
@@ -990,7 +992,8 @@ export class CodeMenu {
 			}) : null,
 			(product.licenseUrl || product.privacyStatementUrl) ? __separator__() : null,
 			toggleDevToolsItem,
-			isWindows && product.quality !== 'stable' ? showAccessibilityOptions : null
+			openProcessExplorer,
+			isWindows && product.quality !== 'stable' ? showAccessibilityOptions : null,
 		]).forEach(item => helpMenu.append(item));
 
 		if (!isMacintosh) {
@@ -1029,7 +1032,7 @@ export class CodeMenu {
 	}
 
 	private openAccessibilityOptions(): void {
-		let win = new BrowserWindow({
+		const win = new BrowserWindow({
 			alwaysOnTop: true,
 			skipTaskbar: true,
 			resizable: false,

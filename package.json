@@ -47,7 +47,7 @@
     "vscode-nsfw": "1.0.17",
     "vscode-ripgrep": "^0.8.1",
     "vscode-textmate": "^3.3.3",
-    "vscode-xterm": "3.3.0-beta8",
+    "vscode-xterm": "3.4.0-beta3",
     "yauzl": "2.8.0"
   },
   "devDependencies": {
@@ -113,7 +113,7 @@
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
     "tslint": "^5.9.1",
-    "typescript": "2.7.2",
+    "typescript": "2.8.1",
     "typescript-formatter": "7.1.0",
     "uglify-es": "^3.0.18",
     "underscore": "^1.8.2",
@@ -132,6 +132,6 @@
   "optionalDependencies": {
     "windows-foreground-love": "0.1.0",
     "windows-mutex": "^0.2.0",
-    "windows-process-tree": "0.2.0"
+    "windows-process-tree": "0.2.1"
   }
 }

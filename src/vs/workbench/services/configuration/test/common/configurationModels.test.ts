@@ -32,10 +32,10 @@ suite('FolderSettingsModelParser', () => {
 					'default': 'isSet',
 					scope: ConfigurationScope.RESOURCE
 				},
-				'FolderSettingsModelParser.executable': {
+				'FolderSettingsModelParser.application': {
 					'type': 'string',
 					'default': 'isSet',
-					isExecutable: true
+					scope: ConfigurationScope.APPLICATION
 				}
 			}
 		});
@@ -44,7 +44,7 @@ suite('FolderSettingsModelParser', () => {
 	test('parse all folder settings', () => {
 		const testObject = new FolderSettingsModelParser('settings', [ConfigurationScope.RESOURCE, ConfigurationScope.WINDOW]);
 
-		testObject.parse(JSON.stringify({ 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.executable': 'executable' }));
+		testObject.parse(JSON.stringify({ 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.application': 'executable' }));
 
 		assert.deepEqual(testObject.configurationModel.contents, { 'FolderSettingsModelParser': { 'window': 'window', 'resource': 'resource' } });
 	});
@@ -52,27 +52,27 @@ suite('FolderSettingsModelParser', () => {
 	test('parse resource folder settings', () => {
 		const testObject = new FolderSettingsModelParser('settings', [ConfigurationScope.RESOURCE]);
 
-		testObject.parse(JSON.stringify({ 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.executable': 'executable' }));
+		testObject.parse(JSON.stringify({ 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.application': 'executable' }));
 
 		assert.deepEqual(testObject.configurationModel.contents, { 'FolderSettingsModelParser': { 'resource': 'resource' } });
 	});
 
-	test('reprocess folder settings excludes executable', () => {
+	test('reprocess folder settings excludes application setting', () => {
 		const testObject = new FolderSettingsModelParser('settings', [ConfigurationScope.RESOURCE, ConfigurationScope.WINDOW]);
 
-		testObject.parse(JSON.stringify({ 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.anotherExecutable': 'executable' }));
+		testObject.parse(JSON.stringify({ 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.anotherApplicationSetting': 'executable' }));
 
-		assert.deepEqual(testObject.configurationModel.contents, { 'FolderSettingsModelParser': { 'resource': 'resource', 'anotherExecutable': 'executable' } });
+		assert.deepEqual(testObject.configurationModel.contents, { 'FolderSettingsModelParser': { 'resource': 'resource', 'anotherApplicationSetting': 'executable' } });
 
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 		configurationRegistry.registerConfiguration({
 			'id': 'FolderSettingsModelParser_2',
 			'type': 'object',
 			'properties': {
-				'FolderSettingsModelParser.anotherExecutable': {
+				'FolderSettingsModelParser.anotherApplicationSetting': {
 					'type': 'string',
 					'default': 'isSet',
-					isExecutable: true
+					scope: ConfigurationScope.APPLICATION
 				}
 			}
 		});

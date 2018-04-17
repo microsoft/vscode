@@ -5583,9 +5583,9 @@ typescript-formatter@7.1.0:
     commandpost "^1.0.0"
     editorconfig "^0.15.0"
 
-typescript@2.7.2:
-  version "2.7.2"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.7.2.tgz#2d615a1ef4aee4f574425cdff7026edf81919836"
+typescript@2.8.1:
+  version "2.8.1"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.8.1.tgz#6160e4f8f195d5ba81d4876f9c0cc1fbc0820624"
 
 typescript@^2.6.2:
   version "2.6.2"
@@ -5927,9 +5927,9 @@ vscode-textmate@^3.3.3:
     fast-plist "^0.1.2"
     oniguruma "^6.0.1"
 
-vscode-xterm@3.3.0-beta8:
-  version "3.3.0-beta8"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.3.0-beta8.tgz#092403d293250e09a38d89a53ce120135e92c778"
+vscode-xterm@3.4.0-beta3:
+  version "3.4.0-beta3"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.4.0-beta3.tgz#349db387bd3669ad4d6044a6ea6d699e6d649fb5"
 
 vso-node-api@^6.1.2-preview:
   version "6.1.2-preview"
@@ -5969,9 +5969,9 @@ windows-mutex@^0.2.0:
     bindings "^1.2.1"
     nan "^2.1.0"
 
-windows-process-tree@0.2.0:
-  version "0.2.0"
-  resolved "https://registry.yarnpkg.com/windows-process-tree/-/windows-process-tree-0.2.0.tgz#04dc0507df292a7984daf0d35861bd1ebaff7ae8"
+windows-process-tree@0.2.1:
+  version "0.2.1"
+  resolved "https://registry.yarnpkg.com/windows-process-tree/-/windows-process-tree-0.2.1.tgz#d750f8592bd956e89f8dc565bc47be6430d3df6e"
   dependencies:
     nan "^2.6.2"
 

@@ -6,7 +6,6 @@
 
 import * as nls from 'vs/nls';
 import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/binaryEditor';
-import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
@@ -15,6 +14,7 @@ import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import URI from 'vs/base/common/uri';
+import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 
 /**
  * An implementation of editor for binary files like images.

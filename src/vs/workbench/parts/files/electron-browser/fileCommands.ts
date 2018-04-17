@@ -322,7 +322,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			const name = paths.basename(uri.fsPath);
 			const editorLabel = nls.localize('modifiedLabel', "{0} (on disk) ↔ {1}", name, name);
 
-			return editorService.openEditor({ leftResource: URI.from({ scheme: COMPARE_WITH_SAVED_SCHEMA, path: uri.fsPath }), rightResource: resource, label: editorLabel }).then(() => void 0);
+			return editorService.openEditor({ leftResource: URI.from({ scheme: COMPARE_WITH_SAVED_SCHEMA, path: uri.fsPath }), rightResource: uri, label: editorLabel }).then(() => void 0);
 		}
 
 		return TPromise.as(true);

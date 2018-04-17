@@ -91,7 +91,7 @@ process.on('message', function (message) {
 sendProcessId();
 setupTitlePolling();
 
-function getArgs(): pty.ArgvOrCommandLine {
+function getArgs(): string | string[] {
 	if (process.env['PTYSHELLCMDLINE']) {
 		return process.env['PTYSHELLCMDLINE'];
 	}

@@ -1,0 +1,63 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+html,
+body {
+	margin: 0;
+	padding: 0;
+	height: 100%;
+	width: 100%;
+	-webkit-touch-callout: none;
+	-webkit-user-select: none;
+	user-select: none;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
+	font-size: 13px;
+	color: #cccccc;
+}
+
+.cpu {
+	width: 45px;
+}
+
+.pid {
+	width: 50px
+}
+
+.memory {
+	width: 90px;
+}
+
+.process-item {
+	line-height: 22px;
+}
+
+table {
+	border-collapse: collapse;
+	width: 100%;
+	table-layout: fixed;
+}
+th {
+	vertical-align: bottom;
+	border-bottom: 1px solid #cccccc;
+	padding: .5rem;
+	border-top: 1px solid #cccccc;
+	text-align: center;
+}
+td {
+	padding: .25rem;
+	vertical-align: top;
+}
+
+.centered {
+	text-align: center;
+}
+
+.data {
+	white-space: pre;
+}
+
+tbody > tr:hover {
+	background-color: #2A2D2E;
+}

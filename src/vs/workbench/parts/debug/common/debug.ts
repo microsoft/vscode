@@ -394,7 +394,7 @@ export interface IDebugAdapter extends IDisposable {
 	stopSession(): TPromise<void>;
 }
 
-export interface IDebugAdapterProvider {
+export interface IDebugAdapterProvider extends ITerminalLauncher {
 	createDebugAdapter(debugType: string, adapterInfo: IAdapterExecutable | null): IDebugAdapter;
 }
 
@@ -403,29 +403,39 @@ export interface IAdapterExecutable {
 	args?: string[];
 }
 
-export interface IRawEnvAdapter {
-	type?: string;
-	label?: string;
+export interface IPlatformSpecificAdapterContribution {
+	type?: string;		// TODO: doesn't belong here
+	label?: string;		// TODO: doesn't belong here
 	program?: string;
 	args?: string[];
 	runtime?: string;
 	runtimeArgs?: string[];
 }
 
-export interface IRawAdapter extends IRawEnvAdapter {
+export interface IDebuggerContribution extends IPlatformSpecificAdapterContribution {
+	// type: string;		// TODO: host from IPlatformSpecificAdapterContribution
+	// label?: string;		// TODO: host from IPlatformSpecificAdapterContribution
+
+	// debug adapter executable
 	adapterExecutableCommand?: string;
-	enableBreakpointsFor?: { languageIds: string[] };
-	configurationAttributes?: any;
-	configurationSnippets?: IJSONSchemaSnippet[];
-	initialConfigurations?: any[];
-	languages?: string[];
-	variables?: { [key: string]: string };
+	win?: IPlatformSpecificAdapterContribution;
+	winx86?: IPlatformSpecificAdapterContribution;
+	windows?: IPlatformSpecificAdapterContribution;
+	osx?: IPlatformSpecificAdapterContribution;
+	linux?: IPlatformSpecificAdapterContribution;
+
+	// internal
 	aiKey?: string;
-	win?: IRawEnvAdapter;
-	winx86?: IRawEnvAdapter;
-	windows?: IRawEnvAdapter;
-	osx?: IRawEnvAdapter;
-	linux?: IRawEnvAdapter;
+
+	// supported languages
+	languages?: string[];
+	enableBreakpointsFor?: { languageIds: string[] };
+
+	// debug configuration support
+	configurationAttributes?: any;
+	initialConfigurations?: any[];
+	configurationSnippets?: IJSONSchemaSnippet[];
+	variables?: { [key: string]: string };
 }
 
 export interface IDebugConfigurationProvider {
@@ -434,6 +444,25 @@ export interface IDebugConfigurationProvider {
 	resolveDebugConfiguration?(folderUri: uri | undefined, debugConfiguration: IConfig): TPromise<IConfig>;
 	provideDebugConfigurations?(folderUri: uri | undefined): TPromise<IConfig[]>;
 	debugAdapterExecutable(folderUri: uri | undefined): TPromise<IAdapterExecutable>;
+}
+
+export interface ITerminalLauncher {
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void>;
+}
+
+export interface ITerminalSettings {
+	external: {
+		windowsExec: string,
+		osxExec: string,
+		linuxExec: string
+	};
+	integrated: {
+		shell: {
+			osx: string,
+			windows: string,
+			linux: string
+		}
+	};
 }
 
 export interface IConfigurationManager {
@@ -467,8 +496,9 @@ export interface IConfigurationManager {
 	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any): TPromise<any>;
 	debugAdapterExecutable(folderUri: uri | undefined, type: string): TPromise<IAdapterExecutable | undefined>;
 
-	registerDebugAdapterProvider(debugType: string, debugAdapterLauncher: IDebugAdapterProvider);
-	createDebugAdapter(debugType: string, adapterExecutable: IAdapterExecutable | null): IDebugAdapter;
+	registerDebugAdapterProvider(debugTypes: string[], debugAdapterLauncher: IDebugAdapterProvider): IDisposable;
+	createDebugAdapter(debugType: string, adapterExecutable: IAdapterExecutable | null): IDebugAdapter | undefined;
+	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void>;
 }
 
 export interface ILaunch {

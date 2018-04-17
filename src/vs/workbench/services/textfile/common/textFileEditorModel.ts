@@ -278,8 +278,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// It is very important to not reload the model when the model is dirty. We only want to reload the model from the disk
 		// if no save is pending to avoid data loss. This might cause a save conflict in case the file has been modified on the disk
 		// meanwhile, but this is a very low risk.
-		if (this.dirty) {
-			diag('load() - exit - without loading because model is dirty', this.resource, new Date());
+		if (this.dirty || this.saveSequentializer.hasPendingSave()) {
+			diag('load() - exit - without loading because model is dirty or being saved', this.resource, new Date());
 
 			return TPromise.as(this);
 		}
@@ -309,7 +309,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					mtime: Date.now(),
 					etag: void 0,
 					value: createTextBufferFactory(''), /* will be filled later from backup */
-					encoding: this.fileService.getEncoding(this.resource, this.preferredEncoding)
+					encoding: this.fileService.encoding.getWriteEncoding(this.resource, this.preferredEncoding)
 				};
 
 				return this.loadWithContent(content, backup);
@@ -692,16 +692,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// mark the save participant as current pending save operation
 		return this.saveSequentializer.setPending(versionId, saveParticipantPromise.then(newVersionId => {
 
-			// Under certain conditions a save to the model will not cause the contents to the flushed on
-			// disk because we can assume that the contents are already on disk. Instead, we just touch the
-			// file to still trigger external file watchers for example.
+			// Under certain conditions we do a short-cut of flushing contents to disk when we can assume that
+			// the file has not changed and as such was not dirty before.
 			// The conditions are all of:
 			// - a forced, explicit save (Ctrl+S)
 			// - the model is not dirty (otherwise we know there are changed which needs to go to the file)
 			// - the model is not in orphan mode (because in that case we know the file does not exist on disk)
 			// - the model version did not change due to save participants running
 			if (options.force && !this.dirty && !this.inOrphanMode && options.reason === SaveReason.EXPLICIT && versionId === newVersionId) {
-				return this.doTouch();
+				return this.doTouch(newVersionId);
 			}
 
 			// update versionId with its new value (if pre-save changes happened)
@@ -791,12 +790,16 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		});
 	}
 
-	private doTouch(): TPromise<void> {
-		return this.fileService.touchFile(this.resource).then(stat => {
+	private doTouch(versionId: number): TPromise<void> {
+		return this.saveSequentializer.setPending(versionId, this.fileService.updateContent(this.lastResolvedDiskStat.resource, this.createSnapshot(), {
+			mtime: this.lastResolvedDiskStat.mtime,
+			encoding: this.getEncoding(),
+			etag: this.lastResolvedDiskStat.etag
+		}).then(stat => {
 
 			// Updated resolved stat with updated stat since touching it might have changed mtime
 			this.updateLastResolvedDiskStat(stat);
-		}, () => void 0 /* gracefully ignore errors if just touching */);
+		}, () => void 0 /* gracefully ignore errors if just touching */));
 	}
 
 	private setDirty(dirty: boolean): () => void {
@@ -842,8 +845,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Subsequent resolve - make sure that we only assign it if the mtime is equal or has advanced.
-		// This is essential a If-Modified-Since check on the client ot prevent race conditions from loading
-		// and saving. If a save comes in late after a revert was called, the mtime could be out of sync.
+		// This prevents race conditions from loading and saving. If a save comes in late after a revert
+		// was called, the mtime could be out of sync.
 		else if (this.lastResolvedDiskStat.mtime <= newVersionOnDiskStat.mtime) {
 			this.lastResolvedDiskStat = newVersionOnDiskStat;
 		}

@@ -4,17 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-
 import { Logger } from '../logger';
-import { MarkdownContentProvider } from './previewContentProvider';
-import { MarkdownPreview, PreviewSettings } from './preview';
+import { MarkdownContributions } from '../markdownExtensions';
 import { disposeAll } from '../util/dispose';
 import { MarkdownFileTopmostLineMonitor } from '../util/topmostLineMonitor';
-import { isMarkdownFile } from '../util/file';
+import { MarkdownPreview, PreviewSettings } from './preview';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
-import { MarkdownContributions } from '../markdownExtensions';
+import { MarkdownContentProvider } from './previewContentProvider';
 
-export class MarkdownPreviewManager implements vscode.WebviewSerializer {
+
+export class MarkdownPreviewManager implements vscode.WebviewPanelSerializer {
 	private static readonly markdownPreviewActiveContextKey = 'markdownPreviewFocus';
 
 	private readonly topmostLineMonitor = new MarkdownFileTopmostLineMonitor();
@@ -28,15 +27,7 @@ export class MarkdownPreviewManager implements vscode.WebviewSerializer {
 		private readonly logger: Logger,
 		private readonly contributions: MarkdownContributions
 	) {
-		vscode.window.onDidChangeActiveTextEditor(editor => {
-			if (editor && isMarkdownFile(editor.document)) {
-				for (const preview of this.previews.filter(preview => !preview.locked)) {
-					preview.update(editor.document.uri);
-				}
-			}
-		}, null, this.disposables);
-
-		this.disposables.push(vscode.window.registerWebviewSerializer(MarkdownPreview.viewType, this));
+		this.disposables.push(vscode.window.registerWebviewPanelSerializer(MarkdownPreview.viewType, this));
 	}
 
 	public dispose(): void {
@@ -88,8 +79,8 @@ export class MarkdownPreviewManager implements vscode.WebviewSerializer {
 		}
 	}
 
-	public async deserializeWebview(
-		webview: vscode.Webview,
+	public async deserializeWebviewPanel(
+		webview: vscode.WebviewPanel,
 		state: any
 	): Promise<void> {
 		const preview = await MarkdownPreview.revive(
@@ -103,8 +94,8 @@ export class MarkdownPreviewManager implements vscode.WebviewSerializer {
 		this.registerPreview(preview);
 	}
 
-	public async serializeWebview(
-		webview: vscode.Webview,
+	public async serializeWebviewPanel(
+		webview: vscode.WebviewPanel,
 	): Promise<any> {
 		const preview = this.previews.find(preview => preview.isWebviewOf(webview));
 		return preview ? preview.state : undefined;
@@ -147,13 +138,13 @@ export class MarkdownPreviewManager implements vscode.WebviewSerializer {
 			}
 		});
 
-		preview.onDidChangeViewState(({ active }) => {
+		preview.onDidChangeViewState(({ webviewPanel }) => {
 			disposeAll(this.previews.filter(otherPreview => preview !== otherPreview && preview!.matches(otherPreview)));
 
 			vscode.commands.executeCommand('setContext', MarkdownPreviewManager.markdownPreviewActiveContextKey,
-				active);
+				webviewPanel.visible);
 
-			this.activePreview = active ? preview : undefined;
+			this.activePreview = webviewPanel.visible ? preview : undefined;
 		});
 
 		return preview;

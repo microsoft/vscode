@@ -15,13 +15,17 @@ export class InMemoryDocument implements vscode.TextDocument {
 		this._lines = this._contents.split(/\n/g);
 	}
 
-	fileName: string = '';
+
 	isUntitled: boolean = false;
 	languageId: string = '';
 	version: number = 1;
 	isDirty: boolean = false;
 	isClosed: boolean = false;
 	eol: vscode.EndOfLine = vscode.EndOfLine.LF;
+
+	get fileName(): string {
+		return this.uri.fsPath;
+	}
 
 	get lineCount(): number {
 		return this._lines.length;

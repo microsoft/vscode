@@ -18,7 +18,6 @@ import { startsWith } from './utils/strings';
 import { formatError, runSafe, runSafeAsync } from './utils/runner';
 import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
-import { getFoldingRegions } from './jsonFolding';
 
 import { FoldingRangesRequest, FoldingProviderServerCapabilities } from 'vscode-languageserver-protocol-foldingprovider';
 
@@ -62,7 +61,7 @@ documents.listen(connection);
 let clientSnippetSupport = false;
 let clientDynamicRegisterSupport = false;
 
-// After the server has started the client sends an initilize request. The server receives
+// After the server has started the client sends an initialize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
 connection.onInitialize((params: InitializeParams): InitializeResult => {
 
@@ -369,7 +368,7 @@ connection.onRequest(FoldingRangesRequest.type, (params, token) => {
 	return runSafe(() => {
 		let document = documents.get(params.textDocument.uri);
 		if (document) {
-			return getFoldingRegions(document, params.maxRanges, token);
+			return languageService.getFoldingRanges(document, { maxRanges: params.maxRanges });
 		}
 		return null;
 	}, null, `Error while computing folding ranges for ${params.textDocument.uri}`, token);

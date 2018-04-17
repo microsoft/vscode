@@ -11,7 +11,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as types from 'vs/base/common/types';
 import * as paths from 'vs/base/common/paths';
 import { Action } from 'vs/base/common/actions';
-import { VIEWLET_ID, TEXT_FILE_EDITOR_ID, IExplorerViewlet } from 'vs/workbench/parts/files/common/files';
+import { VIEWLET_ID, IExplorerViewlet, TEXT_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { EditorOptions, TextEditorOptions, IEditorCloseEvent } from 'vs/workbench/common/editor';
