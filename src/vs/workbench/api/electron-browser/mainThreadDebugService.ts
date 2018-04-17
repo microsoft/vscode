@@ -239,6 +239,9 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 	}
 }
 
+/**
+ * DebugAdapter that communicates via extension protocol with another debug adapter.
+ */
 class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 
 	constructor(private _handle: number, private _proxy: ExtHostDebugServiceShape, private _debugType: string, private _adapterExecutable: IAdapterExecutable | null) {
@@ -275,6 +278,9 @@ class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 	}
 }
 
+/**
+ * Interim abstraction for managing debug funtionality in EH.
+ */
 class ExtensionHostDebugAdapterProvider {
 
 	private _debugAdapters: Map<number, ExtensionHostDebugAdapter>;
