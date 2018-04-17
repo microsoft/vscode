@@ -355,7 +355,7 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$reveal(handle: WebviewPanelHandle, column: EditorPosition): void;
 	$setTitle(handle: WebviewPanelHandle, value: string): void;
 	$setHtml(handle: WebviewPanelHandle, value: string): void;
-	$sendMessage(handle: WebviewPanelHandle, value: any): Thenable<boolean>;
+	$postMessage(handle: WebviewPanelHandle, value: any): Thenable<boolean>;
 
 	$registerSerializer(viewType: string): void;
 	$unregisterSerializer(viewType: string): void;

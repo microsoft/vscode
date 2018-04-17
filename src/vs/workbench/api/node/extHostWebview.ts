@@ -74,7 +74,7 @@ export class ExtHostWebview implements vscode.Webview {
 
 	public postMessage(message: any): Thenable<boolean> {
 		this.assertNotDisposed();
-		return this._proxy.$sendMessage(this._handle, message);
+		return this._proxy.$postMessage(this._handle, message);
 	}
 
 	public reveal(viewColumn: vscode.ViewColumn): void {
@@ -173,7 +173,7 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 
 	public postMessage(message: any): Thenable<boolean> {
 		this.assertNotDisposed();
-		return this._proxy.$sendMessage(this._handle, message);
+		return this._proxy.$postMessage(this._handle, message);
 	}
 
 	public reveal(viewColumn: vscode.ViewColumn): void {

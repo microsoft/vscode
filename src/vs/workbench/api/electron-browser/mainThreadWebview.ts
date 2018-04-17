@@ -101,7 +101,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		this._webviewService.revealWebview(webview, column);
 	}
 
-	async $sendMessage(handle: WebviewPanelHandle, message: any): TPromise<boolean> {
+	async $postMessage(handle: WebviewPanelHandle, message: any): TPromise<boolean> {
 		const webview = this.getWebview(handle);
 		const editors = this._editorService.getVisibleEditors()
 			.filter(e => e instanceof WebviewEditor)
