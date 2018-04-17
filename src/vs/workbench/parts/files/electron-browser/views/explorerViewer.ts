@@ -356,6 +356,9 @@ export class FileRenderer implements IRenderer {
 					formatContent: true
 				});
 			}
+			else {	// fixes #46744: inputbox hides again if all slashes are removed
+				inputBox.hideMessage();
+			}
 		}
 	}
 }
