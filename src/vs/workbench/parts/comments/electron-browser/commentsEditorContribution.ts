@@ -72,8 +72,8 @@ export class CommentNode {
 	public get domNode(): HTMLElement {
 		return this._domNode;
 	}
-	constructor(public readonly comment: modes.Comment) {
-		this._domNode = $('div.review-comment').getHTMLElement();
+	constructor(public readonly comment: modes.Comment, public readonly container: HTMLElement) {
+		this._domNode = $('div.review-comment').appendTo(container).getHTMLElement();
 		let avatar = $('span.float-left').appendTo(this._domNode).getHTMLElement();
 		let img = <HTMLImageElement>$('img.avatar').appendTo(avatar).getHTMLElement();
 		img.src = comment.gravatar;
@@ -96,6 +96,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	protected _actionbarWidget: ActionBar;
 	private _bodyElement: HTMLElement;
 	private _commentsElement: HTMLElement;
+	private _commentElements: HTMLElement[];
 	private _resizeObserver: any;
 	private _onDidClose = new Emitter<ReviewZoneWidget>();
 	private _isCollapsed = true;
@@ -180,23 +181,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._toggleAction.run();
 	}
 
-	createCommentElement(comment: modes.Comment) {
-		let singleCommentContainer = $('div.review-comment').getHTMLElement();
-		let avatar = $('span.float-left').appendTo(singleCommentContainer).getHTMLElement();
-		let img = <HTMLImageElement>$('img.avatar').appendTo(avatar).getHTMLElement();
-		img.src = comment.gravatar;
-		let commentDetailsContainer = $('.review-comment-contents').appendTo(singleCommentContainer).getHTMLElement();
-
-		let header = $('h4').appendTo(commentDetailsContainer).getHTMLElement();
-		let author = $('strong.author').appendTo(header).getHTMLElement();
-		author.innerText = comment.userName;
-		let body = $('comment-body').appendTo(commentDetailsContainer).getHTMLElement();
-		let md = comment.body;
-		body.appendChild(renderMarkdown(md));
-
-		return singleCommentContainer;
-	}
-
 	display(lineNumber: number) {
 		this.show({ lineNumber: lineNumber, column: 1 }, 2);
 
@@ -206,9 +190,9 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		this._bodyElement.style.display = 'none';
 		this._commentsElement = $('div.comments-container').appendTo(this._bodyElement).getHTMLElement();
+		this._commentElements = [];
 		for (let i = 0; i < this._commentThread.comments.length; i++) {
-			let singleCommentContainer = this.createCommentElement(this._commentThread.comments[i]);
-			this._commentsElement.appendChild(singleCommentContainer);
+			this._commentElements.push((new CommentNode(this._commentThread.comments[i], this._commentsElement)).domNode);
 		}
 
 		const commentForm = $('.comment-form').appendTo(this._bodyElement).getHTMLElement();
@@ -222,8 +206,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 				if (newComment) {
 					textArea.value = '';
 					this._commentThread.comments.push(newComment);
-					let singleCommentContainer = this.createCommentElement(newComment);
-					this._commentsElement.appendChild(singleCommentContainer);
+					this._commentElements.push((new CommentNode(newComment, this._commentsElement)).domNode);
 					let secondaryHeading = this._commentThread.comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
 					$(this._secondaryHeading).safeInnerHtml(secondaryHeading);
 				}
