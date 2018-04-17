@@ -67,8 +67,28 @@ export class ReviewViewZone implements IViewZone {
 	}
 }
 
+export class CommentNode {
+	private _domNode: HTMLElement;
+	public get domNode(): HTMLElement {
+		return this._domNode;
+	}
+	constructor(public readonly comment: modes.Comment) {
+		this._domNode = $('div.review-comment').getHTMLElement();
+		let avatar = $('span.float-left').appendTo(this._domNode).getHTMLElement();
+		let img = <HTMLImageElement>$('img.avatar').appendTo(avatar).getHTMLElement();
+		img.src = comment.gravatar;
+		let commentDetailsContainer = $('.review-comment-contents').appendTo(this._domNode).getHTMLElement();
+
+		let header = $('h4').appendTo(commentDetailsContainer).getHTMLElement();
+		let author = $('strong.author').appendTo(header).getHTMLElement();
+		author.innerText = comment.userName;
+		let body = $('comment-body').appendTo(commentDetailsContainer).getHTMLElement();
+		let md = comment.body;
+		body.appendChild(renderMarkdown(md));
+	}
+}
+
 export class ReviewZoneWidget extends ZoneWidget {
-	public id: string;
 	private _headElement: HTMLElement;
 	protected _primaryHeading: HTMLElement;
 	protected _secondaryHeading: HTMLElement;
@@ -77,23 +97,24 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _bodyElement: HTMLElement;
 	private _commentsElement: HTMLElement;
 	private _resizeObserver: any;
-	private _comments: modes.Comment[];
 	private _onDidClose = new Emitter<ReviewZoneWidget>();
 	private _isCollapsed = true;
 	private _toggleAction: Action;
+	private _commentThread: modes.CommentThread;
+	public get commentThread(): modes.CommentThread {
+		return this._commentThread;
+	}
 
 	constructor(
-		id: string,
 		editor: ICodeEditor,
-		comments: modes.Comment[],
+		commentThread: modes.CommentThread,
 		options: IOptions = {},
 		private readonly themeService: IThemeService,
 		private readonly commandService: ICommandService
 	) {
 		super(editor, options);
 		this._resizeObserver = null;
-		this.id = id;
-		this._comments = comments;
+		this._commentThread = commentThread;
 		this.create();
 		this.themeService.onThemeChange(this._applyTheme, this);
 	}
@@ -131,7 +152,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		$(this._primaryHeading).safeInnerHtml(primaryHeading);
 		this._primaryHeading.setAttribute('aria-label', primaryHeading);
 
-		let secondaryHeading = this._comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
+		let secondaryHeading = this._commentThread.comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
 		$(this._secondaryHeading).safeInnerHtml(secondaryHeading);
 
 		const actionsContainer = $('.review-actions').appendTo(this._headElement);
@@ -139,7 +160,16 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._disposables.push(this._actionbarWidget);
 
 		this._toggleAction = new Action('review.expand', nls.localize('label.expand', "Expand"), 'expand-review-action octicon octicon-chevron-down', true, () => {
-			this.toggleExpand();
+			if (this._isCollapsed) {
+				this._bodyElement.style.display = 'block';
+				this._toggleAction.class = 'expand-review-action octicon octicon-chevron-up';
+				this._isCollapsed = false;
+			}
+			else {
+				this._bodyElement.style.display = 'none';
+				this._toggleAction.class = 'expand-review-action octicon octicon-chevron-down';
+				this._isCollapsed = true;
+			}
 			return null;
 		});
 
@@ -167,8 +197,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		return singleCommentContainer;
 	}
 
-	display(commentThread: modes.CommentThread, lineNumber: number) {
-		const comments = commentThread.comments;
+	display(lineNumber: number) {
 		this.show({ lineNumber: lineNumber, column: 1 }, 2);
 
 		var headHeight = Math.ceil(this.editor.getConfiguration().lineHeight * 1.2);
@@ -178,8 +207,8 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._bodyElement.style.display = 'none';
 		this._commentsElement = $('div.comments-container').getHTMLElement();
 		this._bodyElement.appendChild(this._commentsElement);
-		for (let i = 0; i < comments.length; i++) {
-			let singleCommentContainer = this.createCommentElement(comments[i]);
+		for (let i = 0; i < this._commentThread.comments.length; i++) {
+			let singleCommentContainer = this.createCommentElement(this._commentThread.comments[i]);
 			this._commentsElement.appendChild(singleCommentContainer);
 		}
 
@@ -188,16 +217,16 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		const formActions = $('.form-actions').appendTo(commentForm).getHTMLElement();
 
-		for (const action of commentThread.actions) {
+		for (const action of this._commentThread.actions) {
 			const button = $('button').appendTo(formActions).getHTMLElement();
 			button.onclick = async () => {
-				let newComment = await this.commandService.executeCommand(action.id, commentThread.threadId, this.editor.getModel().uri, lineNumber, textArea.value);
+				let newComment = await this.commandService.executeCommand(action.id, this._commentThread.threadId, this.editor.getModel().uri, lineNumber, textArea.value);
 				if (newComment) {
 					textArea.value = '';
-					this._comments.push(newComment);
+					this._commentThread.comments.push(newComment);
 					let singleCommentContainer = this.createCommentElement(newComment);
 					this._commentsElement.appendChild(singleCommentContainer);
-					let secondaryHeading = this._comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
+					let secondaryHeading = this._commentThread.comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
 					$(this._secondaryHeading).safeInnerHtml(secondaryHeading);
 				}
 			};
@@ -299,8 +328,8 @@ export class ReviewController implements IEditorContribution {
 				});
 
 				this._commentThreads.forEach(thread => {
-					let zoneWidget = new ReviewZoneWidget(thread.threadId, this.editor, thread.comments, {}, this.themeService, this.commandService);
-					zoneWidget.display(this.getCommentThread(thread.range.startLineNumber), thread.range.startLineNumber);
+					let zoneWidget = new ReviewZoneWidget(this.editor, thread, {}, this.themeService, this.commandService);
+					zoneWidget.display(thread.range.startLineNumber);
 					this._zoneWidgets.push(zoneWidget);
 				});
 			}
@@ -321,7 +350,7 @@ export class ReviewController implements IEditorContribution {
 	}
 
 	public revealCommentThread(threadId: string): void {
-		const commentThreadWidget = this._zoneWidgets.filter(widget => widget.id === threadId);
+		const commentThreadWidget = this._zoneWidgets.filter(widget => widget.commentThread.threadId === threadId);
 		if (commentThreadWidget.length === 1) {
 			commentThreadWidget[0].reveal();
 		}
@@ -413,22 +442,11 @@ export class ReviewController implements IEditorContribution {
 
 			// add new comment
 			this._reviewPanelVisible.set(true);
-			this._zoneWidget = new ReviewZoneWidget(null, this.editor, [], {}, this.themeService, this.commandService);
+			this._zoneWidget = new ReviewZoneWidget(this.editor, null, {}, this.themeService, this.commandService);
 			this._zoneWidget.onDidClose(e => {
 				this._zoneWidget = null;
 			});
-			this._zoneWidget.display({
-				threadId: null,
-				resource: null,
-				comments: [],
-				range: {
-					startLineNumber: lineNumber,
-					startColumn: 0,
-					endLineNumber: lineNumber,
-					endColumn: 0
-				},
-				actions: newCommentAction.actions
-			}, lineNumber);
+			this._zoneWidget.display(lineNumber);
 			this._zoneWidget.toggleExpand();
 		}
 	}
@@ -552,8 +570,8 @@ export class ReviewController implements IEditorContribution {
 			});
 
 			this._commentThreads.forEach(thread => {
-				let zoneWidget = new ReviewZoneWidget(thread.threadId, this.editor, thread.comments, {}, this.themeService, this.commandService);
-				zoneWidget.display(this.getCommentThread(thread.range.startLineNumber), thread.range.startLineNumber);
+				let zoneWidget = new ReviewZoneWidget(this.editor, thread, {}, this.themeService, this.commandService);
+				zoneWidget.display(thread.range.startLineNumber);
 				this._zoneWidgets.push(zoneWidget);
 			});
 		}
