@@ -67,6 +67,9 @@ export abstract class CommonCodeEditor extends Disposable {
 	private readonly _onDidChangeCursorSelection: Emitter<ICursorSelectionChangedEvent> = this._register(new Emitter<ICursorSelectionChangedEvent>());
 	public readonly onDidChangeCursorSelection: Event<ICursorSelectionChangedEvent> = this._onDidChangeCursorSelection.event;
 
+	private readonly _onDidAttemptReadOnlyEdit: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidAttemptReadOnlyEdit: Event<void> = this._onDidAttemptReadOnlyEdit.event;
+
 	private readonly _onDidLayoutChange: Emitter<editorOptions.EditorLayoutInfo> = this._register(new Emitter<editorOptions.EditorLayoutInfo>());
 	public readonly onDidLayoutChange: Event<editorOptions.EditorLayoutInfo> = this._onDidLayoutChange.event;
 
@@ -966,6 +969,10 @@ export abstract class CommonCodeEditor extends Disposable {
 
 			this.listenersToRemove.push(this.cursor.onDidReachMaxCursorCount(() => {
 				this._notificationService.warn(nls.localize('cursors.maximum', "The number of cursors has been limited to {0}.", Cursor.MAX_CURSOR_COUNT));
+			}));
+
+			this.listenersToRemove.push(this.cursor.onDidAttemptReadOnlyEdit(() => {
+				this._onDidAttemptReadOnlyEdit.fire(void 0);
 			}));
 
 			this.listenersToRemove.push(this.cursor.onDidChange((e: CursorStateChangedEvent) => {

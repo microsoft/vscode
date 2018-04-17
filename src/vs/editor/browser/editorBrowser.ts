@@ -392,6 +392,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	onDidType(listener: (text: string) => void): IDisposable;
 	/**
+	 * An event emitted when editing failed because the editor is read-only.
+	 * @event
+	 * @internal
+	 */
+	onDidAttemptReadOnlyEdit(listener: () => void): IDisposable;
+	/**
 	 * An event emitted when users paste text in the editor.
 	 * @event
 	 * @internal
