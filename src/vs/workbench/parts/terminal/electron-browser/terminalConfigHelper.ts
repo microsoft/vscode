@@ -62,7 +62,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		let invalidBounds = !i_rect.width || !w_rect.width;
 		if(invalidBounds) {
 			// There is no reason to believe the font is not Monospace.
-			return false;
+			return true;
 		}
 
 		if(i_rect.width === w_rect.width) {
