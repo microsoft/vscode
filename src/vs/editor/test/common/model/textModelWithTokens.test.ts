@@ -380,9 +380,38 @@ suite('TextModel.getLineIndentGuide', () => {
 			actual[line - 1] = [actualIndents[line - 1], model.getLineContent(line)];
 		}
 
-		// let expected = lines.map(l => l[0]);
-
 		assert.deepEqual(actual, lines);
+
+		// Also test getActiveIndentGuide
+		for (let lineNumber = 1; lineNumber <= model.getLineCount(); lineNumber++) {
+			let startLineNumber = lineNumber;
+			let endLineNumber = lineNumber;
+			let indent = actualIndents[lineNumber - 1];
+
+			if (indent !== 0) {
+				for (let i = lineNumber - 1; i >= 1; i--) {
+					const currIndent = actualIndents[i - 1];
+					if (currIndent >= indent) {
+						startLineNumber = i;
+					} else {
+						break;
+					}
+				}
+				for (let i = lineNumber + 1; i <= model.getLineCount(); i++) {
+					const currIndent = actualIndents[i - 1];
+					if (currIndent >= indent) {
+						endLineNumber = i;
+					} else {
+						break;
+					}
+				}
+			}
+
+			const expected = { startLineNumber, endLineNumber, indent };
+			const actual = model.getActiveIndentGuide(lineNumber);
+
+			assert.deepEqual(actual, expected, `line number ${lineNumber}`);
+		}
 
 		model.dispose();
 	}

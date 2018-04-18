@@ -447,6 +447,15 @@ export enum TrackedRangeStickiness {
 }
 
 /**
+ * @internal
+ */
+export interface IActiveIndentGuideInfo {
+	startLineNumber: number;
+	endLineNumber: number;
+	indent: number;
+}
+
+/**
  * A model.
  */
 export interface ITextModel {
@@ -856,6 +865,11 @@ export interface ITextModel {
 	 * @internal
 	 */
 	matchBracket(position: IPosition): [Range, Range];
+
+	/**
+	 * @internal
+	 */
+	getActiveIndentGuide(lineNumber: number): IActiveIndentGuideInfo;
 
 	/**
 	 * @internal
