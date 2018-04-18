@@ -8,7 +8,7 @@ import * as path from 'path';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { languages, window, commands, ExtensionContext, Range, Position, TextDocument, CompletionItem, CompletionItemKind, TextEdit, SnippetString, FoldingRangeList, FoldingRange, FoldingContext, CancellationToken } from 'vscode';
+import { languages, window, commands, ExtensionContext, Range, Position, TextDocument, CompletionItem, CompletionItemKind, TextEdit, SnippetString, FoldingRangeKind, FoldingRange, FoldingContext, CancellationToken } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Disposable } from 'vscode-languageclient';
 import { FoldingRangeRequest, FoldingRangeRequestParam, FoldingRangeClientCapabilities } from 'vscode-languageserver-protocol-foldingprovider';
 
@@ -117,14 +117,26 @@ export function activate(context: ExtensionContext) {
 	}
 
 	function initFoldingProvider(): Disposable {
-		return languages.registerFoldingProvider(documentSelector, {
+		const kinds: { [value: string]: FoldingRangeKind } = Object.create(null);
+		function getKind(value: string | undefined) {
+			if (!value) {
+				return void 0;
+			}
+			let kind = kinds[value];
+			if (!kind) {
+				kind = new FoldingRangeKind(value);
+				kinds[value] = kind;
+			}
+			return kind;
+		}
+		return languages.registerFoldingRangeProvider(documentSelector, {
 			provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken) {
 				const param: FoldingRangeRequestParam = {
 					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document)
 				};
 				return client.sendRequest(FoldingRangeRequest.type, param, token).then(ranges => {
 					if (Array.isArray(ranges)) {
-						return new FoldingRangeList(ranges.map(r => new FoldingRange(r.startLine, r.endLine, r.kind)));
+						return ranges.map(r => new FoldingRange(r.startLine, r.endLine, getKind(r.kind)));
 					}
 					return null;
 				}, error => {

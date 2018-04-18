@@ -1841,43 +1841,43 @@ export enum FileType2 {
 
 //#region folding api
 
-export class FoldingRangeList {
-
-	ranges: FoldingRange[];
-
-	constructor(ranges: FoldingRange[]) {
-		this.ranges = ranges;
-	}
-}
-
 export class FoldingRange {
 
-	startLine: number;
+	start: number;
 
-	endLine: number;
+	end: number;
 
-	type?: FoldingRangeType | string;
+	kind?: FoldingRangeKind;
 
-	constructor(startLine: number, endLine: number, type?: FoldingRangeType | string) {
-		this.startLine = startLine;
-		this.endLine = endLine;
-		this.type = type;
+	constructor(start: number, end: number, kind?: FoldingRangeKind) {
+		this.start = start;
+		this.end = end;
+		this.kind = kind;
 	}
 }
 
-export enum FoldingRangeType {
+export class FoldingRangeKind {
 	/**
-	 * Folding range for a comment
+	 * Kind for folding range representing a comment. The value of the kind is 'comment'.
 	 */
-	Comment = 'comment',
+	static readonly Comment = new FoldingRangeKind('comment');
 	/**
-	 * Folding range for a imports or includes
+	 * Kind for folding range representing a import. The value of the kind is 'imports'.
 	 */
-	Imports = 'imports',
+	static readonly Imports = new FoldingRangeKind('imports');
 	/**
-	 * Folding range for a region (e.g. `#region`)
+	 * Kind for folding range representing regions (for example marked by `#region`, `#endregion`).
+	 * The value of the kind is 'region'.
 	 */
-	Region = 'region'
+	static readonly Region = new FoldingRangeKind('region');
+
+	/**
+	 * Creates a new [FoldingRangeKind](#FoldingRangeKind).
+	 *
+	 * @param value of the kind.
+	 */
+	public constructor(public value: string) {
+	}
 }
 
 //#endregion

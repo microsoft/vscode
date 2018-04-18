@@ -39,7 +39,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(vscode.languages.registerDocumentSymbolProvider(selector, symbolProvider));
 	context.subscriptions.push(vscode.languages.registerDocumentLinkProvider(selector, new LinkProvider()));
-	context.subscriptions.push(vscode.languages.registerFoldingProvider(selector, new MarkdownFoldingProvider(engine)));
+	context.subscriptions.push(vscode.languages.registerFoldingRangeProvider(selector, new MarkdownFoldingProvider(engine)));
 	context.subscriptions.push(vscode.languages.registerWorkspaceSymbolProvider(new MarkdownWorkspaceSymbolProvider(symbolProvider)));
 
 	const previewSecuritySelector = new PreviewSecuritySelector(cspArbiter, previewManager);

@@ -349,9 +349,9 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- folding
 
-	$registerFoldingProvider(handle: number, selector: ISerializedDocumentFilter[]): void {
+	$registerFoldingRangeProvider(handle: number, selector: ISerializedDocumentFilter[]): void {
 		const proxy = this._proxy;
-		this._registrations[handle] = modes.FoldingProviderRegistry.register(toLanguageSelector(selector), <modes.FoldingProvider>{
+		this._registrations[handle] = modes.FoldingRangeProviderRegistry.register(toLanguageSelector(selector), <modes.FoldingRangeProvider>{
 			provideFoldingRanges: (model, context, token) => {
 				return wireCancellationToken(token, proxy.$provideFoldingRanges(handle, model.uri, context));
 			}

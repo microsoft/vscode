@@ -159,7 +159,7 @@ export default class LanguageProvider {
 		let enable = workspace.getConfiguration().get(foldingSetting, false);
 		if (enable && this.client.apiVersion.has280Features()) {
 			if (!this.foldingProviderRegistration) {
-				this.foldingProviderRegistration = languages.registerFoldingProvider(this.documentSelector, new (await import('./features/foldingProvider')).default(this.client));
+				this.foldingProviderRegistration = languages.registerFoldingRangeProvider(this.documentSelector, new (await import('./features/foldingProvider')).default(this.client));
 			}
 		} else {
 			if (this.foldingProviderRegistration) {

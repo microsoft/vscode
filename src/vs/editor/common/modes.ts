@@ -835,7 +835,6 @@ export interface DocumentColorProvider {
  * @internal
  */
 export interface FoldingContext {
-	maxRanges?: number;
 }
 
 /**
@@ -844,59 +843,61 @@ export interface FoldingContext {
 /**
  * @internal
  */
-export interface FoldingProvider {
+export interface FoldingRangeProvider {
 	/**
 	 * Provides the color ranges for a specific model.
 	 */
-	provideFoldingRanges(model: model.ITextModel, context: FoldingContext, token: CancellationToken): IFoldingRangeList | Thenable<IFoldingRangeList>;
+	provideFoldingRanges(model: model.ITextModel, context: FoldingContext, token: CancellationToken): IFoldingRange[] | Thenable<IFoldingRange[]>;
 }
-/**
- * @internal
- */
-export interface IFoldingRangeList {
 
-	ranges: IFoldingRange[];
-}
 /**
  * @internal
  */
 export interface IFoldingRange {
 
 	/**
-	 * The start line number
+	 * The zero-based start line of the range to fold. The folded area starts after the line's last character.
 	 */
-	startLineNumber: number;
+	start: number;
 
 	/**
-	 * The end line number
+	 * The zero-based end line of the range to fold. The folded area ends with the line's last character.
 	 */
-	endLineNumber: number;
+	end: number;
 
 	/**
-	 * The optional type of the folding range
+	 * Describes the [Kind](#FoldingRangeKind) of the folding range such as [Comment](#FoldingRangeKind.Comment) or
+	 * [Region](#FoldingRangeKind.Region). The kind is used to categorize folding ranges and used by commands
+	 * like 'Fold all comments'. See
+	 * [FoldingRangeKind](#FoldingRangeKind) for an enumeration of standardized kinds.
 	 */
-	type?: FoldingRangeType | string;
-
-	// auto-collapse
-	// header span
-
+	kind?: FoldingRangeKind;
 }
 /**
  * @internal
  */
-export enum FoldingRangeType {
+export class FoldingRangeKind {
 	/**
-	 * Folding range for a comment
+	 * Kind for folding range representing a comment. The value of the kind is 'comment'.
 	 */
-	Comment = 'comment',
+	static readonly Comment = new FoldingRangeKind('comment');
 	/**
-	 * Folding range for a imports or includes
+	 * Kind for folding range representing a import. The value of the kind is 'imports'.
 	 */
-	Imports = 'imports',
+	static readonly Imports = new FoldingRangeKind('imports');
 	/**
-	 * Folding range for a region (e.g. `#region`)
+	 * Kind for folding range representing regions (for example marked by `#region`, `#endregion`).
+	 * The value of the kind is 'region'.
 	 */
-	Region = 'region'
+	static readonly Region = new FoldingRangeKind('region');
+
+	/**
+	 * Creates a new [FoldingRangeKind](#FoldingRangeKind).
+	 *
+	 * @param value of the kind.
+	 */
+	public constructor(public value: string) {
+	}
 }
 
 /**
@@ -1047,7 +1048,7 @@ export const ColorProviderRegistry = new LanguageFeatureRegistry<DocumentColorPr
 /**
  * @internal
  */
-export const FoldingProviderRegistry = new LanguageFeatureRegistry<FoldingProvider>();
+export const FoldingRangeProviderRegistry = new LanguageFeatureRegistry<FoldingRangeProvider>();
 
 /**
  * @internal
