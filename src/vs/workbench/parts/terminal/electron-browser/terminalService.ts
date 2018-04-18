@@ -100,7 +100,6 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		this._extensionService.whenInstalledExtensionsRegistered().then(() => {
 			// TODO: MainThreadTerminalService is not ready at this point, fix this
 			setTimeout(() => {
-				console.log('cols, rows', cols, rows);
 				this._onInstanceRequestExtHostProcess.fire({ proxy, shellLaunchConfig, cols, rows });
 			}, 100);
 		});

@@ -109,9 +109,6 @@ export class TerminalInstance implements ITerminalInstance {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private _logService: ILogService
 	) {
-		// TODO: Delete me
-		this._shellLaunchConfig.extensionHostOwned = true;
-
 		this._disposables = [];
 		this._skipTerminalCommands = [];
 		this._onLineDataListeners = [];

@@ -148,11 +148,6 @@ export interface IShellLaunchConfig {
 	 * of the terminal. Use \x1b over \033 or \e for the escape control character.
 	 */
 	initialText?: string;
-
-	/**
-	 * Whether the process should live on the extension host, not the renderer process.
-	 */
-	extensionHostOwned?: boolean;
 }
 
 export interface ITerminalService {

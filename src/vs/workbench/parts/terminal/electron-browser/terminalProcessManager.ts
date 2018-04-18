@@ -90,7 +90,8 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		cols: number,
 		rows: number
 	): void {
-		if (shellLaunchConfig.extensionHostOwned) {
+		const extensionHostOwned = (<any>this._configHelper.config).extHostProcess;
+		if (extensionHostOwned) {
 			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, cols, rows);
 		} else {
 			const locale = this._configHelper.config.setLocaleVariables ? platform.locale : undefined;
