@@ -84,6 +84,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 	$onDidCommentThreadsChange(handle: number, event: modes.CommentThreadChangedEvent) {
 		// notify comment service
+		this._commentService.updateComments(event);
 	}
 
 	$unregisterCommentProvider(handle: number): void {

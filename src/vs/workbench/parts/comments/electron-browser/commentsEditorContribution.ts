@@ -72,8 +72,8 @@ export class CommentNode {
 	public get domNode(): HTMLElement {
 		return this._domNode;
 	}
-	constructor(public readonly comment: modes.Comment, public readonly container: HTMLElement) {
-		this._domNode = $('div.review-comment').appendTo(container).getHTMLElement();
+	constructor(public readonly comment: modes.Comment, ) {
+		this._domNode = $('div.review-comment').getHTMLElement();
 		let avatar = $('span.float-left').appendTo(this._domNode).getHTMLElement();
 		let img = <HTMLImageElement>$('img.avatar').appendTo(avatar).getHTMLElement();
 		img.src = comment.gravatar;
@@ -96,7 +96,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	protected _actionbarWidget: ActionBar;
 	private _bodyElement: HTMLElement;
 	private _commentsElement: HTMLElement;
-	private _commentElements: HTMLElement[];
+	private _commentElements: CommentNode[];
 	private _resizeObserver: any;
 	private _onDidClose = new Emitter<ReviewZoneWidget>();
 	private _isCollapsed = true;
@@ -181,6 +181,61 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._toggleAction.run();
 	}
 
+	update(commentThread: modes.CommentThread) {
+		const oldCommentsLen = this._commentElements.length;
+		const newCommentsLen = commentThread.comments.length;
+
+		let commentElementsToDel: CommentNode[] = [];
+		let commentElementsToDelIndex: number[] = [];
+		for (let i = 0; i < oldCommentsLen; i++) {
+			let comment = this._commentElements[i].comment;
+			if (!commentThread.comments.some(c => c.commentId === comment.commentId)) {
+				commentElementsToDelIndex.push(i);
+				commentElementsToDel.push(this._commentElements[i]);
+			}
+		}
+
+		// del removed elements
+		for (let i = commentElementsToDel.length - 1; i >= 0; i--) {
+			this._commentElements.splice(commentElementsToDelIndex[i]);
+			this._commentsElement.removeChild(commentElementsToDel[i].domNode);
+		}
+
+		if (this._commentElements.length === 0) {
+			this._commentThread = commentThread;
+			commentThread.comments.forEach(comment => {
+				let newElement = new CommentNode(comment);
+				this._commentElements.push(newElement);
+				this._commentsElement.appendChild(newElement.domNode);
+			});
+			return;
+		}
+
+		let lastCommentElement: HTMLElement = null;
+		let newCommentNodeList: CommentNode[] = [];
+		for (let i = newCommentsLen - 1; i >= 0; i--) {
+			let currentComment = commentThread.comments[i];
+			let oldCommentNode = this._commentElements.filter(commentNode => commentNode.comment.commentId === currentComment.commentId);
+			if (oldCommentNode.length) {
+				lastCommentElement = oldCommentNode[0].domNode;
+				newCommentNodeList.unshift(oldCommentNode[0]);
+			} else {
+				let newElement = new CommentNode(currentComment);
+				newCommentNodeList.unshift(newElement);
+				if (lastCommentElement) {
+					this._commentsElement.insertBefore(newElement.domNode, lastCommentElement);
+					lastCommentElement = newElement.domNode;
+				} else {
+					this._commentsElement.appendChild(newElement.domNode);
+					lastCommentElement = newElement.domNode;
+				}
+			}
+		}
+
+		this._commentThread = commentThread;
+		this._commentElements = newCommentNodeList;
+	}
+
 	display(lineNumber: number) {
 		this.show({ lineNumber: lineNumber, column: 1 }, 2);
 
@@ -192,7 +247,9 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._commentsElement = $('div.comments-container').appendTo(this._bodyElement).getHTMLElement();
 		this._commentElements = [];
 		for (let i = 0; i < this._commentThread.comments.length; i++) {
-			this._commentElements.push((new CommentNode(this._commentThread.comments[i], this._commentsElement)).domNode);
+			let newCommentNode = new CommentNode(this._commentThread.comments[i]);
+			this._commentElements.push(newCommentNode);
+			this._commentsElement.appendChild(newCommentNode.domNode);
 		}
 
 		const commentForm = $('.comment-form').appendTo(this._bodyElement).getHTMLElement();
@@ -206,7 +263,9 @@ export class ReviewZoneWidget extends ZoneWidget {
 				if (newComment) {
 					textArea.value = '';
 					this._commentThread.comments.push(newComment);
-					this._commentElements.push((new CommentNode(newComment, this._commentsElement)).domNode);
+					let newCommentNode = new CommentNode(this._commentThread.comments[i]);
+					this._commentElements.push(newCommentNode);
+					this._commentsElement.appendChild(newCommentNode.domNode);
 					let secondaryHeading = this._commentThread.comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
 					$(this._secondaryHeading).safeInnerHtml(secondaryHeading);
 				}
@@ -314,12 +373,45 @@ export class ReviewController implements IEditorContribution {
 			}
 		});
 
-		this.commentService.onDidSetResourceCommentThreads(e => {
+		this.globalToDispose.push(this.commentService.onDidSetResourceCommentThreads(e => {
 			const editorURI = this.editor && this.editor.getModel() && this.editor.getModel().uri;
 			if (editorURI && editorURI.toString() === e.resource.toString()) {
 				this.setComments(e.commentThreads);
 			}
-		});
+		}));
+
+		this.globalToDispose.push(this.commentService.onDidUpdateCommentThreads(e => {
+			const editorURI = this.editor && this.editor.getModel() && this.editor.getModel().uri;
+			if (!editorURI) {
+				return;
+			}
+			let added = e.added.filter(thread => thread.resource.toString() === editorURI.toString());
+			let removed = e.removed.filter(thread => thread.resource.toString() === editorURI.toString());
+			let changed = e.changed.filter(thread => thread.resource.toString() === editorURI.toString());
+
+			removed.forEach(thread => {
+				let matchedZones = this._zoneWidgets.filter(zoneWidget => zoneWidget.commentThread.threadId === thread.threadId);
+				if (matchedZones.length) {
+					let matchedZone = matchedZones[0];
+					let index = this._zoneWidgets.indexOf(matchedZone);
+					this._zoneWidgets.splice(index, 1);
+				}
+			});
+
+			changed.forEach(thread => {
+				let matchedZones = this._zoneWidgets.filter(zoneWidget => zoneWidget.commentThread.threadId === thread.threadId);
+				if (matchedZones.length) {
+					let matchedZone = matchedZones[0];
+					matchedZone.update(thread);
+				}
+			});
+			added.forEach(thread => {
+				let zoneWidget = new ReviewZoneWidget(this.editor, thread, {}, this.themeService, this.commandService);
+				zoneWidget.display(thread.range.startLineNumber);
+				this._zoneWidgets.push(zoneWidget);
+				this._commentThreads.push(thread);
+			});
+		}));
 
 		this.globalToDispose.push(this.editor.onDidChangeModel(() => this.onModelChanged()));
 	}

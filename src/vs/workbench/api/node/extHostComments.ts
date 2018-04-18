@@ -124,6 +124,7 @@ function convertCommentThread(vscodeCommentThread: vscode.CommentThread, command
 
 function convertComment(vscodeComment: vscode.Comment): modes.Comment {
 	return {
+		commentId: vscodeComment.commentId,
 		body: extHostTypeConverter.MarkdownString.from(vscodeComment.body),
 		userName: vscodeComment.userName,
 		gravatar: vscodeComment.gravatar

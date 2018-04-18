@@ -220,6 +220,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 								range,
 								comments: comments.map(comment => {
 									return {
+										commentId: comment.id,
 										body: new vscode.MarkdownString(comment.body),
 										userName: comment.user.login,
 										gravatar: comment.user.avatar_url

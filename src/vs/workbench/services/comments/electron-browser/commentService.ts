@@ -24,10 +24,12 @@ export interface ICommentService {
 	_serviceBrand: any;
 	readonly onDidSetResourceCommentThreads: Event<IResourceCommentThreadEvent>;
 	readonly onDidSetAllCommentThreads: Event<CommentThread[]>;
+	readonly onDidUpdateCommentThreads: Event<CommentThreadChangedEvent>;
 	setComments(resource: URI, commentThreads: CommentThread[]): void;
 	setAllComments(commentsByResource: CommentThread[]): void;
 	removeAllComments(): void;
 	registerDataProvider(commentProvider: CommentProvider): void;
+	updateComments(event: CommentThreadChangedEvent): void;
 }
 
 export class CommentService extends Disposable implements ICommentService {
@@ -38,6 +40,9 @@ export class CommentService extends Disposable implements ICommentService {
 
 	private readonly _onDidSetAllCommentThreads: Emitter<CommentThread[]> = this._register(new Emitter<CommentThread[]>());
 	readonly onDidSetAllCommentThreads: Event<CommentThread[]> = this._onDidSetAllCommentThreads.event;
+
+	private readonly _onDidUpdateCommentThreads: Emitter<CommentThreadChangedEvent> = this._register(new Emitter<CommentThreadChangedEvent>());
+	readonly onDidUpdateCommentThreads: Event<CommentThreadChangedEvent> = this._onDidUpdateCommentThreads.event;
 
 	private _commentProvider: CommentProvider;
 
@@ -60,6 +65,10 @@ export class CommentService extends Disposable implements ICommentService {
 
 	registerDataProvider(commentProvider: CommentProvider) {
 		this._commentProvider = commentProvider;
+	}
+
+	updateComments(event: CommentThreadChangedEvent): void {
+		this._onDidUpdateCommentThreads.fire(event);
 	}
 
 	async provideComments(model: ITextModel, token: CancellationToken): Promise<CommentThread[]> {

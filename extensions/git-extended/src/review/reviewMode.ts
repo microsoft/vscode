@@ -158,6 +158,7 @@ export class ReviewMode {
 					range,
 					comments: comments.map(comment => {
 						return {
+							commentId: comment.id,
 							body: new vscode.MarkdownString(comment.body),
 							userName: comment.user.login,
 							gravatar: comment.user.avatar_url
