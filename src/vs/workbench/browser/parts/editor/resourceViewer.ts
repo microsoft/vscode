@@ -19,7 +19,6 @@ import { clamp } from 'vs/base/common/numbers';
 import { Themable } from 'vs/workbench/common/theme';
 import { IStatusbarItem, StatusbarItemDescriptor, IStatusbarRegistry, Extensions, StatusbarAlignment } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { } from 'vs/platform/workspace/common/workspace';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/registry/common/platform';
