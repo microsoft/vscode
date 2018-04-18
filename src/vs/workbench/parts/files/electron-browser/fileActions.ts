@@ -161,6 +161,14 @@ class TriggerRenameFileAction extends BaseFileAction {
 	}
 
 	public validateFileName(parent: ExplorerItem, name: string): string {
+		const names: string[] = name.split(/[\\/]/).filter(part => !!part);
+		if (names.length > 1) {	// error only occurs on multi-path
+			const comparer = isLinux ? strings.compare : strings.compareIgnoreCase;
+			if (comparer(names[0], this.element.name) === 0) {
+				return nls.localize('renameWhenSourcePathIsParentOfTargetError', "Cannot move/copy when source path is parent of target path.");
+			}
+		}
+
 		return this.renameAction.validateFileName(this.element.parent, name);
 	}
 
