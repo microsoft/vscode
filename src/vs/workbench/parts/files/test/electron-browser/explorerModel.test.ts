@@ -239,7 +239,7 @@ suite('Files - View Model', () => {
 		assert(validateFileName(wsFolder, 'foo\\bar') === null);
 		assert(validateFileName(wsFolder, 'all/slashes/are/same') === null);
 		assert(validateFileName(wsFolder, 'theres/one/different\\slash') === null);
-		assert(validateFileName(wsFolder, '/slashAtBeginning') === null);
+		assert(validateFileName(wsFolder, '/slashAtBeginning') !== null);
 
 		// validation should detect if user tries to add a child to a file
 		const fileInRoot = createStat('/fileInRoot', 'fileInRoot', false, false, 8096, d);
