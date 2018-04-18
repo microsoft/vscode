@@ -2111,6 +2111,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 	}
 
 	private _matchFoundBracket(foundBracket: Range, data: RichEditBracket, isOpen: boolean): [Range, Range] {
+		if (!data) {
+			return null;
+		}
+
 		if (isOpen) {
 			let matched = this._findMatchingBracketDown(data, foundBracket.getEndPosition());
 			if (matched) {
