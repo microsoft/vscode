@@ -254,7 +254,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 	}
 
-	onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Thenable<void> {
+	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Thenable<void> {
 		const panel = this.getWebviewPanel(handle);
 		if (panel) {
 			panel.dispose();

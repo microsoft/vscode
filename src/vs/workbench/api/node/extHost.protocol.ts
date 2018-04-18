@@ -364,7 +364,7 @@ export interface MainThreadWebviewsShape extends IDisposable {
 export interface ExtHostWebviewsShape {
 	$onMessage(handle: WebviewPanelHandle, message: any): void;
 	$onDidChangeWebviewPanelViewState(handle: WebviewPanelHandle, active: boolean, position: EditorPosition): void;
-	onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Thenable<void>;
+	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Thenable<void>;
 	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorPosition, options: vscode.WebviewOptions): Thenable<void>;
 	$serializeWebviewPanel(webviewHandle: WebviewPanelHandle): Thenable<any>;
 }
