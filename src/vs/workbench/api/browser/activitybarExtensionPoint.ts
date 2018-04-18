@@ -91,7 +91,7 @@ activityGroupExtensionPoint.setHandler((extensions) => {
 			const id = `workbench.view.extension.${descriptor.id}`;
 			const title = descriptor.title;
 			const cssClass = `extensionViewlet-${descriptor.id}`;
-			const location: ViewLocation = ViewLocation.register(id, true);
+			const location: ViewLocation = ViewLocation.register(id);
 
 			// Generate CSS to show the icon in the activity bar
 			const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${cssClass}`;

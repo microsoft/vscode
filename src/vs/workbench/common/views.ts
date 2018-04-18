@@ -18,8 +18,8 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 export class ViewLocation {
 
 	private static locations: Map<string, ViewLocation> = new Map<string, ViewLocation>();
-	static register(id: string, contributed: boolean): ViewLocation {
-		const viewLocation = new ViewLocation(id, contributed);
+	static register(id: string): ViewLocation {
+		const viewLocation = new ViewLocation(id);
 		ViewLocation.locations.set(id, viewLocation);
 		return viewLocation;
 	}
@@ -27,13 +27,12 @@ export class ViewLocation {
 		return ViewLocation.locations.get(value);
 	}
 
-	static readonly Explorer: ViewLocation = ViewLocation.register('workbench.view.explorer', false);
-	static readonly Debug: ViewLocation = ViewLocation.register('workbench.view.debug', false);
-	static readonly Extensions: ViewLocation = ViewLocation.register('workbench.view.extensions', false);
+	static readonly Explorer: ViewLocation = ViewLocation.register('workbench.view.explorer');
+	static readonly Debug: ViewLocation = ViewLocation.register('workbench.view.debug');
+	static readonly Extensions: ViewLocation = ViewLocation.register('workbench.view.extensions');
 
-	private constructor(private _id: string, private _contributed: boolean) { }
+	private constructor(private _id: string) { }
 	get id(): string { return this._id; }
-	get contributed(): boolean { return this._contributed; }
 
 }
 

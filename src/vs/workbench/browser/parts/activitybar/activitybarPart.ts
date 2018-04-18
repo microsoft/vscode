@@ -236,7 +236,7 @@ export class ActivitybarPart extends Part {
 
 	private canShow(viewlet: ViewletDescriptor): boolean {
 		const viewLocation = ViewLocation.get(viewlet.id);
-		if (viewLocation && viewLocation.contributed) {
+		if (viewLocation) {
 			return ViewsRegistry.getViews(viewLocation).length > 0;
 		}
 		return true;
