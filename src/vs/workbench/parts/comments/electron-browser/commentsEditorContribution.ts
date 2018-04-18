@@ -263,7 +263,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 				if (newComment) {
 					textArea.value = '';
 					this._commentThread.comments.push(newComment);
-					let newCommentNode = new CommentNode(this._commentThread.comments[i]);
+					let newCommentNode = new CommentNode(newComment);
 					this._commentElements.push(newCommentNode);
 					this._commentsElement.appendChild(newCommentNode.domNode);
 					let secondaryHeading = this._commentThread.comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
