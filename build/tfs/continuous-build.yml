@@ -26,6 +26,7 @@ phases:
       PathtoPublish: '$(Build.ArtifactStagingDirectory)/screenshots'
       ArtifactName: Screenshots
       publishLocation: Container
+    condition: succeededOrFailed()
 
 - phase: Linux
   queue: Hosted Linux Preview
@@ -87,3 +88,4 @@ phases:
       PathtoPublish: '$(Build.ArtifactStagingDirectory)/screenshots'
       ArtifactName: Screenshots
       publishLocation: Container
+    condition: succeededOrFailed()
