@@ -345,7 +345,7 @@ export class FileRenderer implements IRenderer {
 	private displayCurrentPath(inputBox: InputBox, initialRelPath: string, projectFolderName: string = '', actionID: string) {
 		if (inputBox.validate()) {
 			const value = inputBox.value;
-			if (value && value.search(/[\\/]/) !== -1) {	// only show if there's a slash
+			if (value && /.[\\/]./.test(value)) {	// only show if there's at least one slash enclosed in the string
 				let displayPath = path.normalize(path.join(projectFolderName, initialRelPath, value));
 				displayPath = rtrim(displayPath, paths.nativeSep);
 
