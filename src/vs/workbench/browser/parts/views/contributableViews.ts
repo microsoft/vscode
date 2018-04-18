@@ -186,8 +186,6 @@ export interface IViewDescriptorRef {
 
 export class ContributableViewsModel {
 
-	protected viewStates = new Map<string, IViewState>();
-
 	readonly viewDescriptors: IViewDescriptor[] = [];
 	get visibleViewDescriptors(): IViewDescriptor[] {
 		return this.viewDescriptors.filter(v => this.viewStates.get(v.id).visible);
@@ -206,7 +204,8 @@ export class ContributableViewsModel {
 
 	constructor(
 		location: ViewLocation,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		protected viewStates = new Map<string, IViewState>()
 	) {
 		const viewDescriptorCollection = new ViewDescriptorCollection(location, contextKeyService);
 		this.disposables.push(viewDescriptorCollection);
@@ -366,15 +365,31 @@ interface ISerializedViewState {
 
 export class PersistentContributableViewsModel extends ContributableViewsModel {
 
+	private viewletStateStorageId: string;
+	private storageService: IStorageService;
+	private contextService: IWorkspaceContextService;
+
 	constructor(
 		location: ViewLocation,
-		private readonly viewletStateStorageId: string,
+		viewletStateStorageId: string,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IStorageService private storageService: IStorageService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IStorageService storageService: IStorageService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
-		super(location, contextKeyService);
-		this.loadViewsStates();
+		const scope = contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL;
+		const raw = storageService.get(viewletStateStorageId, scope, '[]');
+		const serializedViewsStates = JSON.parse(raw) as ISerializedViewState[];
+		const viewStates = new Map<string, IViewState>();
+
+		for (const { id, state } of serializedViewsStates) {
+			viewStates.set(id, state);
+		}
+
+		super(location, contextKeyService, viewStates);
+
+		this.viewletStateStorageId = viewletStateStorageId;
+		this.storageService = storageService;
+		this.contextService = contextService;
 	}
 
 	saveViewsStates(): void {
@@ -384,16 +399,6 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 
 		const scope = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL;
 		this.storageService.store(this.viewletStateStorageId, raw, scope);
-	}
-
-	private loadViewsStates(): void {
-		const scope = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL;
-		const raw = this.storageService.get(this.viewletStateStorageId, scope, '[]');
-		const serializedViewsStates = JSON.parse(raw) as ISerializedViewState[];
-
-		for (const { id, state } of serializedViewsStates) {
-			this.viewStates.set(id, state);
-		}
 	}
 
 	dispose(): void {

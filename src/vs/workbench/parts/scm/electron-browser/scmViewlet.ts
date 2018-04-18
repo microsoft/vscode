@@ -51,7 +51,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import * as platform from 'vs/base/common/platform';
 import { format } from 'vs/base/common/strings';
 import { ISpliceable, ISequence, ISplice } from 'vs/base/common/sequence';
-import { firstIndex, move } from 'vs/base/common/arrays';
+import { firstIndex } from 'vs/base/common/arrays';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -1112,7 +1112,6 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 
 		this.contributedViews.onDidAdd(this.onDidAddContributedView, this, this.disposables);
 		this.contributedViews.onDidRemove(this.onDidRemoveContributedView, this, this.disposables);
-		this.contributedViews.onDidMove(this.onDidMoveContributedView, this, this.disposables);
 
 		let index = this.getContributedViewsStartIndex();
 		for (const viewDescriptor of this.contributedViews.visibleViewDescriptors) {
@@ -1250,6 +1249,17 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		this._height = dimension.height;
 	}
 
+	movePanel(from: ViewletPanel, to: ViewletPanel): void {
+		const start = this.getContributedViewsStartIndex();
+		const fromIndex = firstIndex(this.panels, panel => panel === from) - start;
+		const toIndex = firstIndex(this.panels, panel => panel === to) - start;
+		const fromViewDescriptor = this.contributedViews.viewDescriptors[fromIndex];
+		const toViewDescriptor = this.contributedViews.viewDescriptors[toIndex];
+
+		super.movePanel(from, to);
+		this.contributedViews.move(fromViewDescriptor.id, toViewDescriptor.id);
+	}
+
 	private onSelectionChange(repositories: ISCMRepository[]): void {
 		const wasSingleView = this.isSingleView();
 		const contributableViewsHeight = this.getContributableViewsSize();
@@ -1383,15 +1393,6 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 
 		const [disposable] = this.contextMenuDisposables.splice(index, 1);
 		disposable.dispose();
-	}
-
-	onDidMoveContributedView({ from, to }: { from: IViewDescriptorRef, to: IViewDescriptorRef }): void {
-		const start = this.getContributedViewsStartIndex();
-		const fromPanel = this.panels[start + from.index];
-		const toPanel = this.panels[start + to.index];
-
-		this.movePanel(fromPanel, toPanel);
-		move(this.contextMenuDisposables, from.index, to.index);
 	}
 
 	protected isSingleView(): boolean {
