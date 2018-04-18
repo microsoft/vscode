@@ -243,9 +243,15 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	public $acceptProcessResize(id: number, cols: number, rows: number): void {
-		console.log('send resize');
 		if (this._terminalProcesses[id].connected) {
-			this._terminalProcesses[id].send({ event: 'resize', cols, rows });
+			try {
+				this._terminalProcesses[id].send({ event: 'resize', cols, rows });
+			} catch (error) {
+				// We tried to write to a closed pipe / channel.
+				if (error.code !== 'EPIPE' && error.code !== 'ERR_IPC_CHANNEL_CLOSED') {
+					throw (error);
+				}
+			}
 		}
 	}
 
@@ -256,7 +262,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	private _onProcessExit(id: number, exitCode: number): void {
-		console.log('exit');
 		// Remove listeners
 		const process = this._terminalProcesses[id];
 		process.removeAllListeners('message');

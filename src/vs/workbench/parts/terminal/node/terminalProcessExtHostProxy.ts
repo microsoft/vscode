@@ -52,7 +52,7 @@ export class TerminalProcessExtHostProxy extends EventEmitter implements ITermin
 
 	public onInput(listener: (data: string) => void): IDisposable {
 		const outerListener = (data) => listener(data);
-		this.on('input', data => outerListener);
+		this.on('input', outerListener);
 		return toDisposable(() => this.removeListener('input', outerListener));
 	}
 

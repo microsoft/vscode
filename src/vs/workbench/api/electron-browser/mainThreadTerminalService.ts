@@ -129,5 +129,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	public $sendProcessExit(terminalId: number, exitCode: number): void {
 		this._terminalProcesses[terminalId].emitExit(exitCode);
+		delete this._terminalProcesses[terminalId];
 	}
 }
