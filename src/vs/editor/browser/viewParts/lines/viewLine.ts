@@ -223,12 +223,15 @@ export class ViewLine implements IVisibleLine {
 
 		let renderedViewLine: IRenderedViewLine = null;
 		if (canUseFastRenderedViewLine && lineData.isBasicASCII && options.useMonospaceOptimizations && output.containsForeignElements === ForeignElementType.None) {
-			if (lineData.content.length < 1000 && renderLineInput.lineTokens.getCount() < 100) {
+			if (lineData.content.length < 300 && renderLineInput.lineTokens.getCount() < 100) {
 				// Browser rounding errors have been observed in Chrome and IE, so using the fast
 				// view line only for short lines. Please test before removing the length check...
 				// ---
 				// Another rounding error has been observed on Linux in VSCode, where <span> width
 				// rounding errors add up to an observable large number...
+				// ---
+				// Also see another example of rounding errors on Windows in 
+				// https://github.com/Microsoft/vscode/issues/33178
 				renderedViewLine = new FastRenderedViewLine(
 					this._renderedViewLine ? this._renderedViewLine.domNode : null,
 					renderLineInput,
