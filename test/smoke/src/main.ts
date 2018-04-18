@@ -38,7 +38,8 @@ const opts = minimist(args, {
 		'stable-build',
 		'wait-time',
 		'test-repo',
-		'keybindings'
+		'keybindings',
+		'screenshots'
 	],
 	boolean: [
 		'verbose'
@@ -54,6 +55,12 @@ const workspacePath = path.join(testDataPath, 'vscode-smoketest-express');
 const keybindingsPath = path.join(testDataPath, 'keybindings.json');
 const extensionsPath = path.join(testDataPath, 'extensions-dir');
 mkdirp.sync(extensionsPath);
+
+const screenshotsPath = opts.screenshots ? path.resolve(opts.screenshots) : null;
+
+if (screenshotsPath) {
+	mkdirp.sync(screenshotsPath);
+}
 
 function fail(errorMessage): void {
 	console.error(errorMessage);
@@ -256,7 +263,7 @@ describe('Data Migration', () => {
 	setupDataMigrationTests(userDataDir, createApp);
 });
 
-describe('Everything Else', () => {
+describe('Test', () => {
 	before(async function () {
 		const app = createApp(quality);
 		await app!.start();
@@ -266,6 +273,22 @@ describe('Everything Else', () => {
 	after(async function () {
 		await this.app.stop();
 	});
+
+	if (screenshotsPath) {
+		afterEach(async function () {
+			if (this.currentTest.state !== 'failed') {
+				return;
+			}
+
+			const app = this.app as Application;
+			const raw = await app.capturePage();
+			const buffer = new Buffer(raw, 'base64');
+
+			const name = this.currentTest.fullTitle().replace(/[^a-z0-9\-]/ig, '_');
+			const screenshotPath = path.join(screenshotsPath, `${name}.png`);
+			fs.writeFileSync(screenshotPath, buffer);
+		});
+	}
 
 	setupDataLossTests();
 	setupDataExplorerTests();

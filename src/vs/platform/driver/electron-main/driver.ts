@@ -20,6 +20,7 @@ import { Emitter, toPromise } from 'vs/base/common/event';
 // TODO@joao: bad layering!
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
+import { NativeImage } from 'electron';
 
 class WindowRouter implements IClientRouter {
 
@@ -61,6 +62,17 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		return this.windowsService.getWindows()
 			.map(w => w.id)
 			.filter(id => this.registeredWindowIds.has(id) && !this.reloadingWindowIds.has(id));
+	}
+
+	async capturePage(windowId: number): TPromise<string> {
+		await this.whenUnfrozen(windowId);
+
+		const window = this.windowsService.getWindowById(windowId);
+		const webContents = window.win.webContents;
+		const image = await new Promise<NativeImage>(c => webContents.capturePage(c));
+		const buffer = image.toPNG();
+
+		return buffer.toString('base64');
 	}
 
 	async reloadWindow(windowId: number): TPromise<void> {

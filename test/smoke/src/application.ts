@@ -93,6 +93,10 @@ export class Application {
 		}
 	}
 
+	async capturePage(): Promise<string> {
+		return this.code.capturePage();
+	}
+
 	private async startApplication(workspaceOrFolder: string, extraArgs: string[] = []): Promise<any> {
 		this._code = await spawn({
 			codePath: this.options.codePath,
