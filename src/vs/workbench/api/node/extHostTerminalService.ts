@@ -88,8 +88,11 @@ export class ExtHostTerminal implements vscode.Terminal {
 	}
 
 	public _setProcessId(processId: number): void {
-		this._pidPromiseComplete(processId);
-		this._pidPromiseComplete = null;
+		// The event may fire 2 times when the panel is restored
+		if (this._pidPromiseComplete) {
+			this._pidPromiseComplete(processId);
+			this._pidPromiseComplete = null;
+		}
 	}
 
 	private _queueApiRequest(callback: (...args: any[]) => void, args: any[]) {
