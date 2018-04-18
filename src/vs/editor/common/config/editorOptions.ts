@@ -10,6 +10,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Constants } from 'vs/editor/common/core/uint';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
+import * as arrays from 'vs/base/common/arrays';
 
 /**
  * Configuration options for editor scrollbars
@@ -1070,7 +1071,7 @@ export class InternalEditorOptions {
 		return (
 			a.extraEditorClassName === b.extraEditorClassName
 			&& a.disableMonospaceOptimizations === b.disableMonospaceOptimizations
-			&& this._equalsNumberArrays(a.rulers, b.rulers)
+			&& arrays.equals(a.rulers, b.rulers)
 			&& a.ariaLabel === b.ariaLabel
 			&& a.renderLineNumbers === b.renderLineNumbers
 			&& a.renderCustomLineNumbers === b.renderCustomLineNumbers
@@ -1130,18 +1131,6 @@ export class InternalEditorOptions {
 			&& a.renderCharacters === b.renderCharacters
 			&& a.maxColumn === b.maxColumn
 		);
-	}
-
-	private static _equalsNumberArrays(a: number[], b: number[]): boolean {
-		if (a.length !== b.length) {
-			return false;
-		}
-		for (let i = 0; i < a.length; i++) {
-			if (a[i] !== b[i]) {
-				return false;
-			}
-		}
-		return true;
 	}
 
 	/**
