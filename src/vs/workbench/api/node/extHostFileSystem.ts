@@ -16,6 +16,7 @@ import { asWinJsPromise } from 'vs/base/common/async';
 import { values } from 'vs/base/common/map';
 import { Range, FileType, FileChangeType, FileChangeType2, FileType2 } from 'vs/workbench/api/node/extHostTypes';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
+import { Schemas } from 'vs/base/common/network';
 
 class FsLinkProvider implements vscode.DocumentLinkProvider {
 
@@ -161,19 +162,30 @@ class FileSystemProviderShim implements vscode.FileSystemProvider2 {
 export class ExtHostFileSystem implements ExtHostFileSystemShape {
 
 	private readonly _proxy: MainThreadFileSystemShape;
-	private readonly _fsProvider = new Map<number, vscode.FileSystemProvider2>();
 	private readonly _linkProvider = new FsLinkProvider();
+	private readonly _fsProvider = new Map<number, vscode.FileSystemProvider2>();
+	private readonly _usedSchemes = new Set<string>();
 	private readonly _watches = new Map<number, IDisposable>();
 
 	private _handlePool: number = 0;
 
 	constructor(mainContext: IMainContext, extHostLanguageFeatures: ExtHostLanguageFeatures) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadFileSystem);
+		this._usedSchemes.add(Schemas.file);
+		this._usedSchemes.add(Schemas.untitled);
+		this._usedSchemes.add(Schemas.vscode);
+		this._usedSchemes.add(Schemas.inMemory);
+		this._usedSchemes.add(Schemas.internal);
+		this._usedSchemes.add(Schemas.http);
+		this._usedSchemes.add(Schemas.https);
+		this._usedSchemes.add(Schemas.mailto);
+		this._usedSchemes.add(Schemas.data);
+
 		extHostLanguageFeatures.registerDocumentLinkProvider('*', this._linkProvider);
 	}
 
 	registerDeprecatedFileSystemProvider(scheme: string, provider: vscode.FileSystemProvider) {
-		return this.registerFileSystemProvider(scheme, null, new FileSystemProviderShim(provider));
+		return this._doRegisterFileSystemProvider(scheme, new FileSystemProviderShim(provider));
 	}
 
 	registerFileSystemProvider(scheme: string, provider: vscode.FileSystemProvider, newProvider: vscode.FileSystemProvider2) {
@@ -182,43 +194,47 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		} else if (provider) {
 			return this._doRegisterFileSystemProvider(scheme, new FileSystemProviderShim(provider));
 		} else {
-			throw new Error('FAILED to register file system provider, the new provider does not meet the version-constraint and there is no fallback, old provider');
+			throw new Error('FAILED to register file system provider, the new provider does not meet the version-constraint and there is no old provider');
 		}
 	}
 
 	private _doRegisterFileSystemProvider(scheme: string, provider: vscode.FileSystemProvider2) {
+
+		if (this._usedSchemes.has(scheme)) {
+			throw new Error(`a provider for the scheme '${scheme}' is already registered`);
+		}
+
 		const handle = this._handlePool++;
 		this._linkProvider.add(scheme);
+		this._usedSchemes.add(scheme);
 		this._fsProvider.set(handle, provider);
 		this._proxy.$registerFileSystemProvider(handle, scheme);
-		let reg: IDisposable;
-		if (provider.onDidChangeFile) {
-			reg = provider.onDidChangeFile(event => {
-				let newEvent = event.map(e => {
-					let { uri: resource, type } = e;
-					let newType: files.FileChangeType;
-					switch (type) {
-						case FileChangeType2.Changed:
-							newType = files.FileChangeType.UPDATED;
-							break;
-						case FileChangeType2.Created:
-							newType = files.FileChangeType.ADDED;
-							break;
-						case FileChangeType2.Deleted:
-							newType = files.FileChangeType.DELETED;
-							break;
-					}
-					return { resource, type: newType };
-				});
-				this._proxy.$onFileSystemChange(handle, newEvent);
+
+		const subscription = provider.onDidChangeFile(event => {
+			let newEvent = event.map(e => {
+				let { uri: resource, type } = e;
+				let newType: files.FileChangeType;
+				switch (type) {
+					case FileChangeType2.Changed:
+						newType = files.FileChangeType.UPDATED;
+						break;
+					case FileChangeType2.Created:
+						newType = files.FileChangeType.ADDED;
+						break;
+					case FileChangeType2.Deleted:
+						newType = files.FileChangeType.DELETED;
+						break;
+				}
+				return { resource, type: newType };
 			});
-		}
+			this._proxy.$onFileSystemChange(handle, newEvent);
+		});
+
 		return {
 			dispose: () => {
-				if (reg) {
-					reg.dispose();
-				}
+				subscription.dispose();
 				this._linkProvider.delete(scheme);
+				this._usedSchemes.delete(scheme);
 				this._fsProvider.delete(handle);
 				this._proxy.$unregisterProvider(handle);
 			}

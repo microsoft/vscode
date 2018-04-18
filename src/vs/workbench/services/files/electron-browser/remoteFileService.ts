@@ -172,22 +172,22 @@ export class RemoteFileService extends FileService {
 		this.toDispose.push(new WorkspaceWatchLogic(this, configurationService, contextService));
 	}
 
-	registerProvider(authority: string, provider: IFileSystemProvider): IDisposable {
-		if (this._provider.has(authority)) {
-			throw new Error();
+	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable {
+		if (this._provider.has(scheme)) {
+			throw new Error('a provider for that scheme is already registered');
 		}
 
-		this._supportedSchemes.push(authority);
+		this._supportedSchemes.push(scheme);
 		this._storageService.store('remote_schemes', JSON.stringify(distinct(this._supportedSchemes)));
 
-		this._provider.set(authority, provider);
+		this._provider.set(scheme, provider);
 		const reg = provider.onDidChangeFile(changes => {
 			// forward change events
 			this._onFileChanges.fire(new FileChangesEvent(changes));
 		});
 		return {
 			dispose: () => {
-				this._provider.delete(authority);
+				this._provider.delete(scheme);
 				reg.dispose();
 			}
 		};
