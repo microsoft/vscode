@@ -57,7 +57,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { IViewDescriptorRef, PersistentContributableViewsModel } from 'vs/workbench/browser/parts/views/contributableViews';
+import { IViewDescriptorRef, PersistentContributableViewsModel, IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/contributableViews';
 import { ViewLocation, IViewDescriptor } from 'vs/workbench/common/views';
 import { ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IPanelDndController, Panel } from '../../../../base/browser/ui/splitview/panelview';
@@ -1117,6 +1117,8 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		for (const viewDescriptor of this.contributedViews.visibleViewDescriptors) {
 			this.onDidAddContributedView({ viewDescriptor, index: index++ });
 		}
+
+		this.onDidSashChange(this.saveContributedViewSizes, this, this.disposables);
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
@@ -1244,9 +1246,17 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		return new ContextAwareMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
 	}
 
+	private didLayout = false;
 	layout(dimension: Dimension): void {
 		super.layout(dimension);
 		this._height = dimension.height;
+
+		if (this.didLayout) {
+			// 	this.saveViewSizes();
+		} else {
+			this.didLayout = true;
+			this.restoreContributedViewSizes();
+		}
 	}
 
 	movePanel(from: ViewletPanel, to: ViewletPanel): void {
@@ -1302,6 +1312,9 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 			this.resizePanel(panel, size);
 		}
 
+		// Resize contributed view sizes
+		this.restoreContributedViewSizes();
+
 		// React to menu changes for single view mode
 		if (wasSingleView !== this.isSingleView()) {
 			this.singleRepositoryPanelTitleActionsDisposable.dispose();
@@ -1324,7 +1337,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		return value;
 	}
 
-	onDidAddContributedView({ viewDescriptor, index }: IViewDescriptorRef): void {
+	onDidAddContributedView({ viewDescriptor, index, size }: IAddedViewDescriptorRef): void {
 		const start = this.getContributedViewsStartIndex();
 		const panel = this.instantiationService.createInstance(viewDescriptor.ctor, {
 			id: viewDescriptor.id,
@@ -1334,7 +1347,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 			viewletSettings: {}//this.viewletSettings
 		}) as ViewsViewletPanel;
 
-		this.addPanel(panel, /* (viewState && viewState.size) ||*/ 200, start + index);
+		this.addPanel(panel, size || panel.minimumSize, start + index);
 
 		const contextMenuDisposable = addDisposableListener(panel.draggableElement, 'contextmenu', e => {
 			e.stopPropagation();
@@ -1393,6 +1406,35 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 
 		const [disposable] = this.contextMenuDisposables.splice(index, 1);
 		disposable.dispose();
+	}
+
+	private saveContributedViewSizes(): void {
+		const start = this.getContributedViewsStartIndex();
+
+		for (let i = 0; i < this.contributedViews.viewDescriptors.length; i++) {
+			const viewDescriptor = this.contributedViews.viewDescriptors[i];
+			const size = this.getPanelSize(this.panels[start + i]);
+
+			this.contributedViews.setSize(viewDescriptor.id, size);
+		}
+	}
+
+	private restoreContributedViewSizes(): void {
+		if (!this.didLayout) {
+			return;
+		}
+
+		const start = this.getContributedViewsStartIndex();
+
+		for (let i = 0; i < this.contributedViews.viewDescriptors.length; i++) {
+			const panel = this.panels[start + i];
+			const viewDescriptor = this.contributedViews.viewDescriptors[i];
+			const size = this.contributedViews.getSize(viewDescriptor.id);
+
+			if (typeof size === 'number') {
+				this.resizePanel(panel, size);
+			}
+		}
 	}
 
 	protected isSingleView(): boolean {

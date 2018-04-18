@@ -177,11 +177,16 @@ export interface IView {
 export interface IViewState {
 	visible: boolean;
 	order?: number;
+	size?: number;
 }
 
 export interface IViewDescriptorRef {
 	viewDescriptor: IViewDescriptor;
 	index: number;
+}
+
+export interface IAddedViewDescriptorRef extends IViewDescriptorRef {
+	size?: number;
 }
 
 export class ContributableViewsModel {
@@ -191,8 +196,8 @@ export class ContributableViewsModel {
 		return this.viewDescriptors.filter(v => this.viewStates.get(v.id).visible);
 	}
 
-	private _onDidAdd = new Emitter<IViewDescriptorRef>();
-	readonly onDidAdd: Event<IViewDescriptorRef> = this._onDidAdd.event;
+	private _onDidAdd = new Emitter<IAddedViewDescriptorRef>();
+	readonly onDidAdd: Event<IAddedViewDescriptorRef> = this._onDidAdd.event;
 
 	private _onDidRemove = new Emitter<IViewDescriptorRef>();
 	readonly onDidRemove: Event<IViewDescriptorRef> = this._onDidRemove.event;
@@ -228,7 +233,7 @@ export class ContributableViewsModel {
 		const { visibleIndex, viewDescriptor, state } = this.find(id);
 
 		if (!viewDescriptor.canToggleVisibility) {
-			throw new Error('Can\'t toggle this view\'s visibility');
+			throw new Error(`Can't toggle this view's visibility`);
 		}
 
 		if (state.visible === visible) {
@@ -238,10 +243,30 @@ export class ContributableViewsModel {
 		state.visible = visible;
 
 		if (visible) {
-			this._onDidAdd.fire({ index: visibleIndex, viewDescriptor });
+			this._onDidAdd.fire({ index: visibleIndex, viewDescriptor, size: state.size });
 		} else {
 			this._onDidRemove.fire({ index: visibleIndex, viewDescriptor });
 		}
+	}
+
+	getSize(id: string): number | undefined {
+		const state = this.viewStates.get(id);
+
+		if (!state) {
+			throw new Error(`Unknown view ${id}`);
+		}
+
+		return state.size;
+	}
+
+	setSize(id: string, size: number): void {
+		const { viewDescriptor, state } = this.find(id);
+
+		if (!viewDescriptor.canToggleVisibility) {
+			throw new Error(`Can't resize this view ${id}`);
+		}
+
+		state.size = size;
 	}
 
 	move(from: string, to: string): void {
