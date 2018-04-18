@@ -172,13 +172,13 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWi
 						condition,
 						hitCondition,
 						verified: this.breakpoint.verified,
+						column: this.breakpoint.column,
 						logMessage
 					}
 				}, false);
 			} else {
 				this.debugService.addBreakpoints(this.editor.getModel().uri, [{
 					lineNumber: this.lineNumber,
-					column: this.breakpoint ? this.breakpoint.column : undefined,
 					enabled: true,
 					condition,
 					hitCondition,
