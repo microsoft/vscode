@@ -96,7 +96,7 @@ activityGroupExtensionPoint.setHandler((extensions) => {
 			// Generate CSS to show the icon in the activity bar
 			const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${cssClass}`;
 			const iconPath = join(extension.description.extensionFolderPath, descriptor.icon);
-			createCSSRule(iconClass, `-webkit-mask: url('${iconPath}') no-repeat 50% 50%; -webkit-mask-size: contain;`);
+			createCSSRule(iconClass, `-webkit-mask: url('${iconPath}') no-repeat 50% 50%; -webkit-mask-size: 22px;`);
 
 			// Register as viewlet
 			class CustomViewlet extends PersistentViewsViewlet {
