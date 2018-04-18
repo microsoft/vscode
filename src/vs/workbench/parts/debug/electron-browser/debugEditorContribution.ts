@@ -11,6 +11,7 @@ import * as lifecycle from 'vs/base/common/lifecycle';
 import * as env from 'vs/base/common/platform';
 import uri from 'vs/base/common/uri';
 import { visit } from 'vs/base/common/json';
+import severity from 'vs/base/common/severity';
 import { Constants } from 'vs/editor/common/core/uint';
 import { IAction, Action } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -43,6 +44,7 @@ import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 import { memoize } from 'vs/base/common/decorators';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;
@@ -77,7 +79,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IThemeService themeService: IThemeService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IDialogService private dialogService: IDialogService,
 	) {
 		this.breakpointHintDecoration = [];
 		this.hoverWidget = new DebugHoverWidget(this.editor, this.debugService, this.instantiationService, themeService);
@@ -145,7 +148,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			));
 			actions.push(new Action(
 				'addConditionalBreakpoint',
-				nls.localize('conditionalBreakpoint', "Add Conditional Breakpoint..."),
+				nls.localize('addConditionalBreakpoint', "Add Conditional Breakpoint..."),
 				null,
 				true,
 				() => TPromise.as(this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(lineNumber, undefined))
@@ -190,7 +193,24 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 					.filter(bp => bp.uri.toString() === uri.toString() && bp.lineNumber === lineNumber);
 
 				if (breakpoints.length) {
-					breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
+					if (breakpoints.some(bp => !!bp.condition || !!bp.logMessage || !!bp.hitCondition)) {
+						const logPoint = breakpoints.every(bp => !!bp.logMessage);
+						this.dialogService.show(severity.Info, nls.localize('breakpointHasCondition', "This {0} has a valuable {1} that will get lost on remove. Consider disabling the {0} instead.",
+							logPoint ? nls.localize('logPoint', "log point") : nls.localize('breakpoint', "breakpoint"), logPoint ? nls.localize('message', "message") : nls.localize('condition', "condition")), [
+								logPoint ? nls.localize('removeLogPoint', "Remove Log Point") : nls.localize('removeBreakpoint', "Remove Breakpoint"),
+								logPoint ? nls.localize('disableLogPoint', "Disable Log Point") : nls.localize('disableBreakpoint', "Disable Breakpoint"),
+								nls.localize('cancel', "Cancel")
+							], { cancelId: 2 }).then(choice => {
+								if (choice === 0) {
+									breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
+								}
+								if (choice === 1) {
+									breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(false, bp));
+								}
+							});
+					} else {
+						breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
+					}
 				} else if (canSetBreakpoints) {
 					this.debugService.addBreakpoints(uri, [{ lineNumber }]);
 				}
