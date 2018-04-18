@@ -158,14 +158,13 @@ export enum FileType2 {
 
 export class FileError extends Error {
 
+	static readonly EntryExists = new FileError('EEXIST');
+	static readonly EntryNotFound = new FileError('ENOENT');
+	static readonly EntryNotADirectory = new FileError('ENOTDIR');
+	static readonly EntryIsADirectory = new FileError('EISDIR');
 
-	static readonly EEXIST = new FileError('EEXIST');
-	static readonly ENOENT = new FileError('ENOENT');
-	static readonly ENOTDIR = new FileError('ENOTDIR');
-	static readonly EISDIR = new FileError('EISDIR');
-
-	constructor(readonly code: string) {
-		super(code);
+	constructor(readonly code: string, message?: string) {
+		super(message || code);
 	}
 	is(err: any): err is FileError {
 		if (!err || typeof err !== 'object') {

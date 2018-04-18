@@ -172,32 +172,32 @@ declare module 'vscode' {
 		// create(resource: Uri): Thenable<FileStat>;
 	}
 
-	export class FileError extends Error {
+	// export class FileError extends Error {
 
-		/**
-		 * Entry already exists.
-		 */
-		static readonly EEXIST: FileError;
+	// 	/**
+	// 	 * Entry already exists, e.g. when creating a file or folder.
+	// 	 */
+	// 	static readonly EntryExists: FileError;
 
-		/**
-		 * Entry does not exist.
-		 */
-		static readonly ENOENT: FileError;
+	// 	/**
+	// 	 * Entry does not exist.
+	// 	 */
+	// 	static readonly EntryNotFound: FileError;
 
-		/**
-		 * Entry is not a directory.
-		 */
-		static readonly ENOTDIR: FileError;
+	// 	/**
+	// 	 * Entry is not a directory.
+	// 	 */
+	// 	static readonly EntryNotADirectory: FileError;
 
-		/**
-		 * Entry is a directory.
-		 */
-		static readonly EISDIR: FileError;
+	// 	/**
+	// 	 * Entry is a directory.
+	// 	 */
+	// 	static readonly EntryIsADirectory: FileError;
 
-		readonly code: string;
+	// 	readonly code: string;
 
-		constructor(code: string, message?: string);
-	}
+	// 	constructor(code: string, message?: string);
+	// }
 
 	export enum FileChangeType2 {
 		Changed = 1,
@@ -229,7 +229,9 @@ declare module 'vscode' {
 		Exclusive = 0b1000
 	}
 
-	// todo@joh add open/close calls?
+	/**
+	 *
+	 */
 	export interface FileSystemProvider2 {
 
 		_version: 7;
@@ -242,15 +244,14 @@ declare module 'vscode' {
 		readonly onDidChangeFile: Event<FileChange2[]>;
 
 		/**
-		 * Subscribe to events in the file or folder denoted by `uri`. 
-		 * @param uri 
-		 * @param options 
+		 * Subscribe to events in the file or folder denoted by `uri`.
+		 * @param uri
+		 * @param options
 		 */
 		watch(uri: Uri, options: { recursive?: boolean; excludes?: string[] }): Disposable;
 
 		/**
-		 * Retrieve metadata about a file. Must throw an [`ENOENT`](#FileError.ENOENT)-error
-		 * when the file doesn't exist.
+		 * Retrieve metadata about a file.
 		 *
 		 * @param uri The uri of the file to retrieve meta data about.
 		 * @param token A cancellation token.
@@ -269,7 +270,7 @@ declare module 'vscode' {
 
 		/**
 		 * Create a new directory. *Note* that new files are created via `write`-calls.
-		 * 
+		 *
 		 * @param uri The uri of the *new* folder.
 		 * @param token A cancellation token.
 		 */

@@ -369,8 +369,8 @@ export class RemoteFileService extends FileService {
 				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
 				return fileStat;
 			}, err => {
-				if (FileError.EEXIST.is(err)) {
-					return TPromise.wrapError(new FileOperationError('EEXIST', FileOperationResult.FILE_MODIFIED_SINCE, options));
+				if (FileError.EntryExists.is(err)) {
+					return TPromise.wrapError(new FileOperationError(err.code, FileOperationResult.FILE_MODIFIED_SINCE, options));
 				}
 				throw err;
 			});

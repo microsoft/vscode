@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { FileOpenFlags, IFileChange, IFileService, IFileSystemProviderBase, ISimpleReadWriteProvider, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { FileOpenFlags, IFileChange, IFileService, IFileSystemProviderBase, ISimpleReadWriteProvider, IStat, IWatchOptions, FileError } from 'vs/platform/files/common/files';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../node/extHost.protocol';
 
@@ -86,8 +86,10 @@ class RemoteFileSystemProvider implements ISimpleReadWriteProvider, IFileSystemP
 
 	// --- forwarding calls
 
-	stat(resource: URI): TPromise<IStat, any> {
-		return this._proxy.$stat(this._handle, resource);
+	stat(resource: URI): TPromise<IStat, FileError> {
+		return this._proxy.$stat(this._handle, resource).then(undefined, err => {
+			throw err;
+		});
 	}
 	readFile(resource: URI, opts: { flags: FileOpenFlags }): TPromise<Uint8Array, any> {
 		return this._proxy.$readFile(this._handle, resource, opts.flags).then(encoded => {
@@ -112,4 +114,6 @@ class RemoteFileSystemProvider implements ISimpleReadWriteProvider, IFileSystemP
 	readdir(resource: URI): TPromise<[string, IStat][], any> {
 		return this._proxy.$readdir(this._handle, resource);
 	}
+
+
 }
