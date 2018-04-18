@@ -6,7 +6,7 @@
 import { ITerminalChildProcess, IMessageToTerminalProcess, IMessageFromTerminalProcess } from 'vs/workbench/parts/terminal/node/terminal';
 import { EventEmitter } from 'events';
 import { ITerminalService, ITerminalProcessExtHostProxy, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
-import { IDisposable } from '../../../../base/common/lifecycle';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle';
 
 export class TerminalProcessExtHostProxy extends EventEmitter implements ITerminalChildProcess, ITerminalProcessExtHostProxy {
 	// For ext host processes connected checks happen on the ext host
@@ -45,20 +45,20 @@ export class TerminalProcessExtHostProxy extends EventEmitter implements ITermin
 	}
 
 	public onInput(listener: (data: string) => void): IDisposable {
-		// TODO: Dispose of me
-		this.on('input', data => listener(data));
-		return null;
+		const outerListener = (data) => listener(data);
+		this.on('input', data => outerListener);
+		return toDisposable(() => this.removeListener('input', outerListener));
 	}
 
 	public onResize(listener: (cols: number, rows: number) => void): IDisposable {
-		// TODO: Dispose of me
-		this.on('resize', (cols, rows) => listener(cols, rows));
-		return null;
+		const outerListener = (cols, rows) => listener(cols, rows);
+		this.on('resize', outerListener);
+		return toDisposable(() => this.removeListener('resize', outerListener));
 	}
 
 	public onShutdown(listener: () => void): IDisposable {
-		// TODO: Dispose of me
-		this.on('shutdown', () => listener());
-		return null;
+		const outerListener = () => listener();
+		this.on('shutdown', outerListener);
+		return toDisposable(() => this.removeListener('shutdown', outerListener));
 	}
 }
