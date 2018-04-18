@@ -297,15 +297,21 @@ declare module 'vscode' {
 		/**
 		 * Rename a file or folder.
 		 *
-		 * @param oldUri The exiting file or folder
-		 * @param newUri The target location
+		 * @param oldUri The existing file or folder.
+		 * @param newUri The target location.
 		 * @param token A cancellation token.
 		 */
 		rename(oldUri: Uri, newUri: Uri, options: { flags: FileOpenFlags }, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
 
-		// todo@remote
-		// helps with performance bigly
-		// copy?(from: Uri, to: Uri): FileStat2 | Thenable<FileStat2>;
+		/**
+		 * Copy files or folders. Implementing this function is optional but it will speedup
+		 * the copy operation.
+		 *
+		 * @param uri The existing file or folder.
+		 * @param target The target location.
+		 * @param token A cancellation token.
+		 */
+		copy?(uri: Uri, target: Uri, options: { flags: FileOpenFlags }, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
 
 		// todo@remote
 		// ? useTrash, expose trash

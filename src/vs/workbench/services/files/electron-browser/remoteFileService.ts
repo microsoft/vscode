@@ -16,7 +16,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileChangesEvent, FileError, FileOpenFlags, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileType2, IContent, ICreateFileOptions, IFileStat, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IResolveFileOptions, IResolveFileResult, IStat, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot } from 'vs/platform/files/common/files';
+import { FileChangesEvent, FileError, FileOpenFlags, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileType2, IContent, ICreateFileOptions, IFileStat, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IResolveFileOptions, IResolveFileResult, IStat, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -522,31 +522,39 @@ export class RemoteFileService extends FileService {
 			return super.copyFile(source, target, overwrite);
 		}
 
-		const prepare = overwrite
-			? this.del(target).then(undefined, err => { /*ignore*/ })
-			: TPromise.as(null);
+		return this._withProvider(target).then(provider => {
 
-		return prepare.then(() => {
-			// todo@ben, can only copy text files
-			// https://github.com/Microsoft/vscode/issues/41543
-			return this.resolveContent(source, { acceptTextOnly: true }).then(content => {
-				return this._withProvider(target).then(provider => {
-					return this._writeFile(
-						provider, target,
-						new StringSnapshot(content.value),
-						{ encoding: content.encoding },
-						FileOpenFlags.Create | FileOpenFlags.Write
-					).then(fileStat => {
-						this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, fileStat));
-						return fileStat;
+			if (source.scheme === target.scheme && (provider.capabilities & FileSystemProviderCapabilities.FileFolderCopy)) {
+				// good: provider supports copy withing scheme
+				return provider.copy(source, target, { flags: 0 }).then(stat => toIFileStat(provider, [target, stat]));
+			}
+
+			const prepare = overwrite
+				? this.del(target).then(undefined, err => { /*ignore*/ })
+				: TPromise.as(null);
+
+			return prepare.then(() => {
+				// todo@ben, can only copy text files
+				// https://github.com/Microsoft/vscode/issues/41543
+				return this.resolveContent(source, { acceptTextOnly: true }).then(content => {
+					return this._withProvider(target).then(provider => {
+						return this._writeFile(
+							provider, target,
+							new StringSnapshot(content.value),
+							{ encoding: content.encoding },
+							FileOpenFlags.Create | FileOpenFlags.Write
+						).then(fileStat => {
+							this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, fileStat));
+							return fileStat;
+						});
+					}, err => {
+						if (err instanceof Error && err.name === 'ENOPRO') {
+							// file scheme
+							return super.updateContent(target, content.value, { encoding: content.encoding });
+						} else {
+							return TPromise.wrapError(err);
+						}
 					});
-				}, err => {
-					if (err instanceof Error && err.name === 'ENOPRO') {
-						// file scheme
-						return super.updateContent(target, content.value, { encoding: content.encoding });
-					} else {
-						return TPromise.wrapError(err);
-					}
 				});
 			});
 		});

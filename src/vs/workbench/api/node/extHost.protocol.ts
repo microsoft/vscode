@@ -42,7 +42,7 @@ import { ITreeItem } from 'vs/workbench/common/views';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { SerializedError } from 'vs/base/common/errors';
-import { IStat, FileChangeType, FileOpenFlags, IWatchOptions } from 'vs/platform/files/common/files';
+import { IStat, FileChangeType, FileOpenFlags, IWatchOptions, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { CommentRule, CharacterPair, EnterAction } from 'vs/editor/common/modes/languageConfiguration';
 import { ISingleEditOperation } from 'vs/editor/common/model';
@@ -382,7 +382,7 @@ export interface IFileChangeDto {
 }
 
 export interface MainThreadFileSystemShape extends IDisposable {
-	$registerFileSystemProvider(handle: number, scheme: string): void;
+	$registerFileSystemProvider(handle: number, scheme: string, capabilities: FileSystemProviderCapabilities): void;
 	$unregisterProvider(handle: number): void;
 	$onFileSystemChange(handle: number, resource: IFileChangeDto[]): void;
 }
@@ -572,6 +572,7 @@ export interface ExtHostFileSystemShape {
 	$readFile(handle: number, resource: UriComponents, flags: FileOpenFlags): TPromise<string>;
 	$writeFile(handle: number, resource: UriComponents, base64Encoded: string, flags: FileOpenFlags): TPromise<void>;
 	$rename(handle: number, resource: UriComponents, target: UriComponents, flags: FileOpenFlags): TPromise<IStat>;
+	$copy(handle: number, resource: UriComponents, target: UriComponents, flags: FileOpenFlags): TPromise<IStat>;
 	$mkdir(handle: number, resource: UriComponents): TPromise<IStat>;
 	$readdir(handle: number, resource: UriComponents): TPromise<[string, IStat][]>;
 	$delete(handle: number, resource: UriComponents): TPromise<void>;
