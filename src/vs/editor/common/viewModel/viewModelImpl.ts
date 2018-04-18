@@ -23,7 +23,7 @@ import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ITheme } from 'vs/platform/theme/common/themeService';
 import { ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
-import { ITextModel, EndOfLinePreference, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { ITextModel, EndOfLinePreference, TrackedRangeStickiness, IActiveIndentGuideInfo } from 'vs/editor/common/model';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -449,6 +449,10 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		let position = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(startLineNumber, this.getLineMinColumn(startLineNumber)));
 		this.viewportStartLineTrackedRange = this.model._setTrackedRange(this.viewportStartLineTrackedRange, new Range(position.lineNumber, position.column, position.lineNumber, position.column), TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
 		this.viewportStartLineTop = this.viewLayout.getVerticalOffsetForLineNumber(startLineNumber);
+	}
+
+	public getActiveIndentGuide(lineNumber: number): IActiveIndentGuideInfo {
+		return this.lines.getActiveIndentGuide(lineNumber);
 	}
 
 	public getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[] {
