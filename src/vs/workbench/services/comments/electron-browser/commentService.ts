@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { CommentThread, CommentProvider, NewCommentAction } from 'vs/editor/common/modes';
+import { CommentThread, CommentProvider, NewCommentAction, CommentThreadChangedEvent } from 'vs/editor/common/modes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -30,7 +30,7 @@ export interface ICommentService {
 	registerDataProvider(commentProvider: CommentProvider): void;
 }
 
-export class CommentService extends Disposable implements ICommentService, CommentProvider {
+export class CommentService extends Disposable implements ICommentService {
 	_serviceBrand: any;
 
 	private readonly _onDidSetResourceCommentThreads: Emitter<IResourceCommentThreadEvent> = this._register(new Emitter<IResourceCommentThreadEvent>());
