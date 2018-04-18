@@ -1887,17 +1887,17 @@ declare module 'vscode' {
 		static readonly Empty: CodeActionKind;
 
 		/**
-		 * Base kind for quickfix actions.
+		 * Base kind for quickfix actions: `quickfix`
 		 */
 		static readonly QuickFix: CodeActionKind;
 
 		/**
-		 * Base kind for refactoring actions.
+		 * Base kind for refactoring actions: `refactor`
 		 */
 		static readonly Refactor: CodeActionKind;
 
 		/**
-		 * Base kind for refactoring extraction actions.
+		 * Base kind for refactoring extraction actions: `refactor.extract`
 		 *
 		 * Example extract actions:
 		 *
@@ -1910,7 +1910,7 @@ declare module 'vscode' {
 		static readonly RefactorExtract: CodeActionKind;
 
 		/**
-		 * Base kind for refactoring inline actions.
+		 * Base kind for refactoring inline actions: `refactor.inline`
 		 *
 		 * Example inline actions:
 		 *
@@ -1922,7 +1922,7 @@ declare module 'vscode' {
 		static readonly RefactorInline: CodeActionKind;
 
 		/**
-		 * Base kind for refactoring rewrite actions.
+		 * Base kind for refactoring rewrite actions: `refactor.rewrite`
 		 *
 		 * Example rewrite actions:
 		 *
@@ -1936,11 +1936,16 @@ declare module 'vscode' {
 		static readonly RefactorRewrite: CodeActionKind;
 
 		/**
-		 * Base kind for source actions.
+		 * Base kind for source actions: `source`
 		 *
 		 * Source code actions apply to the entire file.
 		 */
 		static readonly Source: CodeActionKind;
+
+		/**
+		 * Base kind for an organize imports source action: `source.organizeImports`
+		 */
+		static readonly SourceOrganizeImports: CodeActionKind;
 
 		private constructor(value: string);
 

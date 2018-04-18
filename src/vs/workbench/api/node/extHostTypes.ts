@@ -904,6 +904,7 @@ export class CodeActionKind {
 	public static readonly RefactorInline = CodeActionKind.Refactor.append('inline');
 	public static readonly RefactorRewrite = CodeActionKind.Refactor.append('rewrite');
 	public static readonly Source = CodeActionKind.Empty.append('source');
+	public static readonly SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
 
 	constructor(
 		public readonly value: string

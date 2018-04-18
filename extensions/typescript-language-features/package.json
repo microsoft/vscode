@@ -39,7 +39,6 @@
     "onCommand:javascript.goToProjectConfig",
     "onCommand:typescript.goToProjectConfig",
     "onCommand:typescript.openTsServerLog",
-    "onCommand:typescript.organizeImports",
     "onCommand:workbench.action.tasks.runTask"
   ],
   "main": "./out/extension",
@@ -464,23 +463,6 @@
         "command": "typescript.restartTsServer",
         "title": "%typescript.restartTsServer%",
         "category": "TypeScript"
-      },
-      {
-        "command": "typescript.organizeImports",
-        "title": "%typescript.organizeImports%",
-        "category": "TypeScript"
-      },
-      {
-        "command": "javascript.organizeImports",
-        "title": "%typescript.organizeImports%",
-        "category": "JavaScript"
-      }
-    ],
-    "keybindings": [
-      {
-        "command": "typescript.organizeImports",
-        "key": "shift+alt+o",
-        "when": "typescript.isManagedFile && typescript.canOrganizeImports"
       }
     ],
     "menus": {
@@ -528,22 +510,6 @@
         {
           "command": "typescript.restartTsServer",
           "when": "typescript.isManagedFile"
-        },
-        {
-          "command": "typescript.organizeImports",
-          "when": "editorLangId == typescriptreact && typescript.isManagedFile && typescript.canOrganizeImports"
-        },
-        {
-          "command": "typescript.organizeImports",
-          "when": "editorLangId == typescript && typescript.isManagedFile && typescript.canOrganizeImports"
-        },
-        {
-          "command": "javascript.organizeImports",
-          "when": "editorLangId == javascriptreact && typescript.isManagedFile && typescript.canOrganizeImports"
-        },
-        {
-          "command": "javascript.organizeImports",
-          "when": "editorLangId == javascript && typescript.isManagedFile && typescript.canOrganizeImports"
         }
       ]
     },
