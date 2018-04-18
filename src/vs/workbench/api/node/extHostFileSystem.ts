@@ -58,16 +58,22 @@ class FsLinkProvider implements vscode.DocumentLinkProvider {
 
 class FileSystemProviderShim implements vscode.FileSystemProvider2 {
 
-	_version: 6;
+	_version: 7 = 7;
 
-	onDidChange: vscode.Event<vscode.FileChange2[]>;
+	onDidChangeFile: vscode.Event<vscode.FileChange2[]>;
 
 	constructor(private readonly _delegate: vscode.FileSystemProvider) {
 		if (!this._delegate.onDidChange) {
-			this.onDidChange = Event.None;
+			this.onDidChangeFile = Event.None;
 		} else {
-			this.onDidChange = mapEvent(this._delegate.onDidChange, old => old.map(FileSystemProviderShim._modernizeFileChange));
+			this.onDidChangeFile = mapEvent(this._delegate.onDidChange, old => old.map(FileSystemProviderShim._modernizeFileChange));
 		}
+	}
+
+	watch(uri: vscode.Uri, options: {}): vscode.Disposable {
+		// does nothing because in the old API there was no notion of
+		// watch and provider decide what file events to generate...
+		return { dispose() { } };
 	}
 
 	stat(resource: vscode.Uri): Thenable<vscode.FileStat2> {
@@ -157,6 +163,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	private readonly _proxy: MainThreadFileSystemShape;
 	private readonly _fsProvider = new Map<number, vscode.FileSystemProvider2>();
 	private readonly _linkProvider = new FsLinkProvider();
+	private readonly _watches = new Map<number, IDisposable>();
 
 	private _handlePool: number = 0;
 
@@ -170,12 +177,12 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	}
 
 	registerFileSystemProvider(scheme: string, provider: vscode.FileSystemProvider, newProvider: vscode.FileSystemProvider2) {
-		if (newProvider && newProvider._version === 6) {
+		if (newProvider && newProvider._version === 7) {
 			return this._doRegisterFileSystemProvider(scheme, newProvider);
 		} else if (provider) {
 			return this._doRegisterFileSystemProvider(scheme, new FileSystemProviderShim(provider));
 		} else {
-			throw new Error('IGNORED both provider');
+			throw new Error('FAILED to register file system provider, the new provider does not meet the version-constraint and there is no fallback, old provider');
 		}
 	}
 
@@ -185,8 +192,8 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		this._fsProvider.set(handle, provider);
 		this._proxy.$registerFileSystemProvider(handle, scheme);
 		let reg: IDisposable;
-		if (provider.onDidChange) {
-			reg = provider.onDidChange(event => {
+		if (provider.onDidChangeFile) {
+			reg = provider.onDidChangeFile(event => {
 				let newEvent = event.map(e => {
 					let { uri: resource, type } = e;
 					let newType: files.FileChangeType;
@@ -242,5 +249,18 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	}
 	$mkdir(handle: number, resource: UriComponents): TPromise<files.IStat, any> {
 		return asWinJsPromise(token => this._fsProvider.get(handle).createDirectory(URI.revive(resource), token));
+	}
+	$watch(handle: number, session: number, resource: UriComponents, opts: files.IWatchOptions): void {
+		asWinJsPromise(token => {
+			let subscription = this._fsProvider.get(handle).watch(URI.revive(resource), opts);
+			this._watches.set(session, subscription);
+		});
+	}
+	$unwatch(handle: number, session: number): void {
+		let subscription = this._watches.get(session);
+		if (subscription) {
+			subscription.dispose();
+			this._watches.delete(session);
+		}
 	}
 }

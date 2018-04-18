@@ -232,12 +232,21 @@ declare module 'vscode' {
 	// todo@joh add open/close calls?
 	export interface FileSystemProvider2 {
 
-		_version: 6;
+		_version: 7;
 
 		/**
-		 * An event to signal that a resource has been created, changed, or deleted.
+		 * An event to signal that a resource has been created, changed, or deleted. This
+		 * event should fire for resources that are being [watched](#FileSystemProvider2.watch)
+		 * by clients of this provider.
 		 */
-		readonly onDidChange: Event<FileChange2[]>;
+		readonly onDidChangeFile: Event<FileChange2[]>;
+
+		/**
+		 * Subscribe to events in the file or folder denoted by `uri`. 
+		 * @param uri 
+		 * @param options 
+		 */
+		watch(uri: Uri, options: { recursive?: boolean; excludes?: string[] }): Disposable;
 
 		/**
 		 * Retrieve metadata about a file. Must throw an [`ENOENT`](#FileError.ENOENT)-error

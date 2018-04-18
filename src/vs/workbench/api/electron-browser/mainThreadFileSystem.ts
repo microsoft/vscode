@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { FileOpenFlags, IFileChange, IFileService, IFileSystemProviderBase, ISimpleReadWriteProvider, IStat } from 'vs/platform/files/common/files';
+import { FileOpenFlags, IFileChange, IFileService, IFileSystemProviderBase, ISimpleReadWriteProvider, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../node/extHost.protocol';
 
@@ -50,7 +50,7 @@ class RemoteFileSystemProvider implements ISimpleReadWriteProvider, IFileSystemP
 	private readonly _onDidChange = new Emitter<IFileChange[]>();
 	private readonly _registrations: IDisposable[];
 
-	readonly onDidChange: Event<IFileChange[]> = this._onDidChange.event;
+	readonly onDidChangeFile: Event<IFileChange[]> = this._onDidChange.event;
 
 	constructor(
 		fileService: IFileService,
@@ -64,6 +64,16 @@ class RemoteFileSystemProvider implements ISimpleReadWriteProvider, IFileSystemP
 	dispose(): void {
 		dispose(this._registrations);
 		this._onDidChange.dispose();
+	}
+
+	watch(resource: URI, opts: IWatchOptions) {
+		const session = Math.random();
+		this._proxy.$watch(this._handle, session, resource, opts);
+		return {
+			dispose: () => {
+				this._proxy.$unwatch(this._handle, session);
+			}
+		};
 	}
 
 	$onFileSystemChange(changes: IFileChangeDto[]): void {
