@@ -19,8 +19,13 @@ phases:
   - powershell: |
       .\scripts\test.bat --tfs
       .\scripts\test-integration.bat
-      yarn smoketest
+      yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)\screenshots"
     name: test
+  - task: PublishBuildArtifacts@1
+    inputs:
+      PathtoPublish: '$(Build.ArtifactStagingDirectory)/screenshots'
+      ArtifactName: Screenshots
+      publishLocation: Container
 
 - phase: Linux
   queue: Hosted Linux Preview
@@ -75,5 +80,10 @@ phases:
   - script: |
       ./scripts/test.sh --tfs
       ./scripts/test-integration.sh
-      yarn smoketest
+      yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)/screenshots"
     name: test
+  - task: PublishBuildArtifacts@1
+    inputs:
+      PathtoPublish: '$(Build.ArtifactStagingDirectory)/screenshots'
+      ArtifactName: Screenshots
+      publishLocation: Container
