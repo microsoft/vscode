@@ -16,7 +16,7 @@ export class TerminalProcessExtHostProxy extends EventEmitter implements ITermin
 		public terminalId: number,
 		shellLaunchConfig: IShellLaunchConfig,
 		cols: number,
-		rows: number
+		rows: number,
 		@ITerminalService private _terminalService: ITerminalService
 	) {
 		super();

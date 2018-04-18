@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
-import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/parts/terminal/node/terminalEnvironment';
 import Uri from 'vs/base/common/uri';
@@ -116,7 +115,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			// Continue env initialization, merging in the env from the launch
 			// config and adding keys that are needed to create the process
 			const env = terminalEnvironment.createTerminalEnv(parentEnv, shellLaunchConfig, this.initialCwd, locale, cols, rows);
-			const cwd = Uri.parse(paths.dirname(require.toUrl('../node/terminalProcess'))).fsPath;
+			const cwd = Uri.parse(require.toUrl('../node')).fsPath;
 			const options = { env, cwd };
 			this._logService.debug(`Terminal process launching`, options);
 

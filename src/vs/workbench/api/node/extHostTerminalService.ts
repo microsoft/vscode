@@ -6,9 +6,9 @@
 
 import * as vscode from 'vscode';
 import * as cp from 'child_process';
-import * as path from 'path';
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/parts/terminal/node/terminalEnvironment';
+import Uri from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext, ShellLaunchConfigDto } from 'vs/workbench/api/node/extHost.protocol';
 import { IMessageFromTerminalProcess } from 'vs/workbench/parts/terminal/node/terminal';
@@ -232,10 +232,10 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		const parentEnv = { ...process.env };
 		const env = terminalEnvironment.createTerminalEnv(parentEnv, shellLaunchConfig, '/home/daniel', locale, cols, rows);
 		// TODO: Use Uri?
-		let cwd = path.dirname(require.toUrl('../../parts/terminal/node/terminalProcess')).replace('file://', '');
+		let cwd = Uri.parse(require.toUrl('../../parts/terminal/node')).fsPath;
 		const options = { env, cwd, execArgv: [] };
 
-		let bootstrapUri = require.toUrl('bootstrap').replace('file://', '') + '.js';
+		let bootstrapUri = Uri.parse(require.toUrl('bootstrap')).fsPath;
 
 		this._logService.debug(`Terminal process launching on ext host`, options);
 		this._terminalProcesses[id] = cp.fork(bootstrapUri, ['--type=terminal'], options);
