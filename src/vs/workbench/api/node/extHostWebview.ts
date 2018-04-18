@@ -19,11 +19,11 @@ export class ExtHostWebview implements vscode.Webview {
 	private _options: vscode.WebviewOptions;
 	private _isDisposed: boolean = false;
 
+	public readonly onDisposeEmitter = new Emitter<void>();
+	public readonly onDidDispose: Event<void> = this.onDisposeEmitter.event;
+
 	public readonly onMessageEmitter = new Emitter<any>();
 	public readonly onDidReceiveMessage: Event<any> = this.onMessageEmitter.event;
-
-	public readonly onDidChangeViewStateEmitter = new Emitter<vscode.WebviewPanelOnDidChangeViewStateEvent>();
-	public readonly onDidChangeViewState: Event<vscode.WebviewPanelOnDidChangeViewStateEvent> = this.onDidChangeViewStateEmitter.event;
 
 	constructor(
 		handle: WebviewPanelHandle,
@@ -37,8 +37,17 @@ export class ExtHostWebview implements vscode.Webview {
 		this._options = options;
 	}
 
-	dispose() {
-		this.onDidChangeViewStateEmitter.dispose();
+	public dispose() {
+		if (this._isDisposed) {
+			return;
+		}
+
+		this._isDisposed = true;
+		this.onDisposeEmitter.fire();
+
+		this._proxy.$disposeWebview(this._handle);
+
+		this.onDisposeEmitter.dispose();
 	}
 
 	get title(): string {
@@ -100,12 +109,8 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 	private _viewColumn: vscode.ViewColumn;
 	private _visible: boolean = true;
 
-	public readonly onDisposeEmitter = new Emitter<void>();
-	public readonly onDidDispose: Event<void> = this.onDisposeEmitter.event;
-
 	public readonly onDidChangeViewStateEmitter = new Emitter<vscode.WebviewPanelOnDidChangeViewStateEvent>();
 	public readonly onDidChangeViewState: Event<vscode.WebviewPanelOnDidChangeViewStateEvent> = this.onDidChangeViewStateEmitter.event;
-
 
 	constructor(
 		handle: WebviewPanelHandle,
@@ -121,6 +126,8 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 		this._options = editorOptions;
 		this._viewColumn = viewColumn;
 		this._webview = webview;
+
+		webview.onDidDispose(this.dispose, this);
 	}
 
 	public dispose() {
@@ -129,44 +136,35 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 		}
 
 		this._isDisposed = true;
-		this.onDisposeEmitter.fire();
-
-		this._proxy.$disposeWebview(this._handle);
-
-		this.onDisposeEmitter.dispose();
 		this.onDidChangeViewStateEmitter.dispose();
 	}
 
-	get webview() {
-		this.assertNotDisposed();
+	public get webview() {
 		return this._webview;
 	}
 
-	get viewType(): string {
-		this.assertNotDisposed();
+	public get viewType(): string {
 		return this._viewType;
 	}
 
-	get options() {
+	public get options() {
 		return this._options;
 	}
 
-	get viewColumn(): vscode.ViewColumn {
-		this.assertNotDisposed();
-		return this._viewColumn;
+	public get viewColumn(): vscode.ViewColumn | undefined {
+		return this._isDisposed ? undefined : this._viewColumn;
 	}
 
-	set viewColumn(value: vscode.ViewColumn) {
+	_setViewColumn(value: vscode.ViewColumn) {
 		this.assertNotDisposed();
 		this._viewColumn = value;
 	}
 
-	get visible(): boolean {
-		this.assertNotDisposed();
-		return this._visible;
+	public get visible(): boolean {
+		return !this._isDisposed && this._visible;
 	}
 
-	set visible(value: boolean) {
+	_setVisible(value: boolean) {
 		this.assertNotDisposed();
 		this._visible = value;
 	}
@@ -247,8 +245,8 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		if (panel) {
 			const viewColumn = typeConverters.toViewColumn(position);
 			if (panel.visible !== visible || panel.viewColumn !== viewColumn) {
-				panel.visible = visible;
-				panel.viewColumn = viewColumn;
+				panel._setVisible(visible);
+				panel._setViewColumn(viewColumn);
 				panel.onDidChangeViewStateEmitter.fire({ webviewPanel: panel });
 			}
 		}
@@ -257,7 +255,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Thenable<void> {
 		const panel = this.getWebviewPanel(handle);
 		if (panel) {
-			panel.dispose();
+			panel.webview.dispose();
 			this._webviewPanels.delete(handle);
 		}
 		return TPromise.as(void 0);
