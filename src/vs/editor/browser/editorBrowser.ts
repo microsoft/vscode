@@ -310,6 +310,11 @@ export interface IOverviewRuler {
  */
 export interface ICodeEditor extends editorCommon.IEditor {
 	/**
+	 * This editor is used as an alternative to an <input> box, i.e. as a simple widget.
+	 * @internal
+	 */
+	readonly isSimpleWidget: boolean;
+	/**
 	 * An event emitted when the content of the current model has changed.
 	 * @event
 	 */
@@ -386,6 +391,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @internal
 	 */
 	onDidType(listener: (text: string) => void): IDisposable;
+	/**
+	 * An event emitted when editing failed because the editor is read-only.
+	 * @event
+	 * @internal
+	 */
+	onDidAttemptReadOnlyEdit(listener: () => void): IDisposable;
 	/**
 	 * An event emitted when users paste text in the editor.
 	 * @event
@@ -613,11 +624,6 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Get the layout info for the editor.
 	 */
 	getLayoutInfo(): editorOptions.EditorLayoutInfo;
-
-	/**
-	 * Returns the range that is currently centered in the view port.
-	 */
-	getCenteredRangeInViewport(): Range;
 
 	/**
 	 * Returns the ranges that are currently visible.

@@ -18,7 +18,7 @@ import * as types from 'vs/base/common/types';
 import { IMode } from 'vs/editor/common/modes';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, ISaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, ISaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, IRawTextContent, ILoadOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -128,37 +128,50 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private onFileChanges(e: FileChangesEvent): void {
+		let fileEventImpactsModel = false;
+		let newInOrphanModeGuess: boolean;
 
-		// Track ADD and DELETES for updates of this model to orphan-mode
-		const modelFileDeleted = e.contains(this.resource, FileChangeType.DELETED);
-		const modelFileAdded = e.contains(this.resource, FileChangeType.ADDED);
-
-		if (modelFileDeleted || modelFileAdded) {
-			const newInOrphanModeGuess = modelFileDeleted && !modelFileAdded;
-			if (this.inOrphanMode !== newInOrphanModeGuess) {
-				let checkOrphanedPromise: TPromise<boolean>;
-				if (newInOrphanModeGuess) {
-					// We have received reports of users seeing delete events even though the file still
-					// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
-					// Since we do not want to mark the model as orphaned, we have to check if the
-					// file is really gone and not just a faulty file event.
-					checkOrphanedPromise = TPromise.timeout(100).then(() => {
-						if (this.disposed) {
-							return true;
-						}
-
-						return this.fileService.existsFile(this.resource).then(exists => !exists);
-					});
-				} else {
-					checkOrphanedPromise = TPromise.as(false);
-				}
-
-				checkOrphanedPromise.done(newInOrphanModeValidated => {
-					if (this.inOrphanMode !== newInOrphanModeValidated && !this.disposed) {
-						this.setOrphaned(newInOrphanModeValidated);
-					}
-				});
+		// If we are currently orphaned, we check if the model file was added back
+		if (this.inOrphanMode) {
+			const modelFileAdded = e.contains(this.resource, FileChangeType.ADDED);
+			if (modelFileAdded) {
+				newInOrphanModeGuess = false;
+				fileEventImpactsModel = true;
 			}
+		}
+
+		// Otherwise we check if the model file was deleted
+		else {
+			const modelFileDeleted = e.contains(this.resource, FileChangeType.DELETED);
+			if (modelFileDeleted) {
+				newInOrphanModeGuess = true;
+				fileEventImpactsModel = true;
+			}
+		}
+
+		if (fileEventImpactsModel && this.inOrphanMode !== newInOrphanModeGuess) {
+			let checkOrphanedPromise: TPromise<boolean>;
+			if (newInOrphanModeGuess) {
+				// We have received reports of users seeing delete events even though the file still
+				// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
+				// Since we do not want to mark the model as orphaned, we have to check if the
+				// file is really gone and not just a faulty file event.
+				checkOrphanedPromise = TPromise.timeout(100).then(() => {
+					if (this.disposed) {
+						return true;
+					}
+
+					return this.fileService.existsFile(this.resource).then(exists => !exists);
+				});
+			} else {
+				checkOrphanedPromise = TPromise.as(false);
+			}
+
+			checkOrphanedPromise.done(newInOrphanModeValidated => {
+				if (this.inOrphanMode !== newInOrphanModeValidated && !this.disposed) {
+					this.setOrphaned(newInOrphanModeValidated);
+				}
+			});
 		}
 	}
 
@@ -243,7 +256,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		if (soft) {
 			loadPromise = TPromise.as(this);
 		} else {
-			loadPromise = this.load(true /* force */);
+			loadPromise = this.load({ forceReadFromDisk: true });
 		}
 
 		return loadPromise.then(() => {
@@ -259,28 +272,28 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		});
 	}
 
-	public load(force?: boolean /* bypass any caches and really go to disk */): TPromise<TextFileEditorModel> {
+	public load(options?: ILoadOptions): TPromise<TextFileEditorModel> {
 		diag('load() - enter', this.resource, new Date());
 
 		// It is very important to not reload the model when the model is dirty. We only want to reload the model from the disk
 		// if no save is pending to avoid data loss. This might cause a save conflict in case the file has been modified on the disk
 		// meanwhile, but this is a very low risk.
-		if (this.dirty) {
-			diag('load() - exit - without loading because model is dirty', this.resource, new Date());
+		if (this.dirty || this.saveSequentializer.hasPendingSave()) {
+			diag('load() - exit - without loading because model is dirty or being saved', this.resource, new Date());
 
 			return TPromise.as(this);
 		}
 
 		// Only for new models we support to load from backup
 		if (!this.textEditorModel && !this.createTextEditorModelPromise) {
-			return this.loadWithBackup(force);
+			return this.loadWithBackup(options);
 		}
 
 		// Otherwise load from file resource
-		return this.loadFromFile(force);
+		return this.loadFromFile(options);
 	}
 
-	private loadWithBackup(force: boolean): TPromise<TextFileEditorModel> {
+	private loadWithBackup(options?: ILoadOptions): TPromise<TextFileEditorModel> {
 		return this.backupFileService.loadBackupResource(this.resource).then(backup => {
 
 			// Make sure meanwhile someone else did not suceed or start loading
@@ -296,30 +309,32 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					mtime: Date.now(),
 					etag: void 0,
 					value: createTextBufferFactory(''), /* will be filled later from backup */
-					encoding: this.fileService.getEncoding(this.resource, this.preferredEncoding)
+					encoding: this.fileService.encoding.getWriteEncoding(this.resource, this.preferredEncoding)
 				};
 
 				return this.loadWithContent(content, backup);
 			}
 
 			// Otherwise load from file
-			return this.loadFromFile(force);
+			return this.loadFromFile(options);
 		});
 	}
 
-	private loadFromFile(force: boolean): TPromise<TextFileEditorModel> {
+	private loadFromFile(options?: ILoadOptions): TPromise<TextFileEditorModel> {
+		const forceReadFromDisk = options && options.forceReadFromDisk;
+		const allowBinary = this.isResolved() /* always allow if we resolved previously */ || (options && options.allowBinary);
 
 		// Decide on etag
 		let etag: string;
-		if (force) {
-			etag = void 0; // bypass cache if force loading is true
+		if (forceReadFromDisk) {
+			etag = void 0; // reset ETag if we enforce to read from disk
 		} else if (this.lastResolvedDiskStat) {
 			etag = this.lastResolvedDiskStat.etag; // otherwise respect etag to support caching
 		}
 
 		// Resolve Content
 		return this.textFileService
-			.resolveTextContent(this.resource, { acceptTextOnly: true, etag, encoding: this.preferredEncoding })
+			.resolveTextContent(this.resource, { acceptTextOnly: !allowBinary, etag, encoding: this.preferredEncoding })
 			.then(content => this.handleLoadSuccess(content), error => this.handleLoadError(error));
 	}
 
@@ -677,16 +692,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// mark the save participant as current pending save operation
 		return this.saveSequentializer.setPending(versionId, saveParticipantPromise.then(newVersionId => {
 
-			// Under certain conditions a save to the model will not cause the contents to the flushed on
-			// disk because we can assume that the contents are already on disk. Instead, we just touch the
-			// file to still trigger external file watchers for example.
+			// Under certain conditions we do a short-cut of flushing contents to disk when we can assume that
+			// the file has not changed and as such was not dirty before.
 			// The conditions are all of:
 			// - a forced, explicit save (Ctrl+S)
 			// - the model is not dirty (otherwise we know there are changed which needs to go to the file)
 			// - the model is not in orphan mode (because in that case we know the file does not exist on disk)
 			// - the model version did not change due to save participants running
 			if (options.force && !this.dirty && !this.inOrphanMode && options.reason === SaveReason.EXPLICIT && versionId === newVersionId) {
-				return this.doTouch();
+				return this.doTouch(newVersionId);
 			}
 
 			// update versionId with its new value (if pre-save changes happened)
@@ -776,12 +790,16 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		});
 	}
 
-	private doTouch(): TPromise<void> {
-		return this.fileService.touchFile(this.resource).then(stat => {
+	private doTouch(versionId: number): TPromise<void> {
+		return this.saveSequentializer.setPending(versionId, this.fileService.updateContent(this.lastResolvedDiskStat.resource, this.createSnapshot(), {
+			mtime: this.lastResolvedDiskStat.mtime,
+			encoding: this.getEncoding(),
+			etag: this.lastResolvedDiskStat.etag
+		}).then(stat => {
 
 			// Updated resolved stat with updated stat since touching it might have changed mtime
 			this.updateLastResolvedDiskStat(stat);
-		}, () => void 0 /* gracefully ignore errors if just touching */);
+		}, () => void 0 /* gracefully ignore errors if just touching */));
 	}
 
 	private setDirty(dirty: boolean): () => void {
@@ -827,8 +845,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Subsequent resolve - make sure that we only assign it if the mtime is equal or has advanced.
-		// This is essential a If-Modified-Since check on the client ot prevent race conditions from loading
-		// and saving. If a save comes in late after a revert was called, the mtime could be out of sync.
+		// This prevents race conditions from loading and saving. If a save comes in late after a revert
+		// was called, the mtime could be out of sync.
 		else if (this.lastResolvedDiskStat.mtime <= newVersionOnDiskStat.mtime) {
 			this.lastResolvedDiskStat = newVersionOnDiskStat;
 		}
@@ -921,7 +939,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.updatePreferredEncoding(encoding);
 
 			// Load
-			this.load(true /* force because encoding has changed */).done(null, onUnexpectedError);
+			this.load({
+				forceReadFromDisk: true	// because encoding has changed
+			}).done(null, onUnexpectedError);
 		}
 	}
 

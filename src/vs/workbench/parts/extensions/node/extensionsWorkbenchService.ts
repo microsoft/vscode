@@ -9,7 +9,7 @@ import * as nls from 'vs/nls';
 import { readFile } from 'vs/base/node/pfs';
 import * as semver from 'semver';
 import * as path from 'path';
-import { Event, Emitter, chain } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { index } from 'vs/base/common/arrays';
 import { assign } from 'vs/base/common/objects';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -30,7 +30,7 @@ import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { IExtension, IExtensionDependencies, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IURLService } from 'vs/platform/url/common/url';
+import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import product from 'vs/platform/node/product';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -345,7 +345,7 @@ function toTelemetryEventName(operation: Operation) {
 	return '';
 }
 
-export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
+export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, IURLHandler {
 
 	private static readonly SyncPeriod = 1000 * 60 * 60 * 12; // 12 hours
 
@@ -390,9 +390,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		this.syncDelayer = new ThrottledDelayer<void>(ExtensionsWorkbenchService.SyncPeriod);
 		this.autoUpdateDelayer = new ThrottledDelayer<void>(1000);
 
-		chain(urlService.onOpenURL)
-			.filter(uri => /^extension/.test(uri.path))
-			.on(this.onOpenExtensionUrl, this, this.disposables);
+		urlService.registerHandler(this);
 
 		this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
@@ -588,7 +586,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return this.progressService.withProgress({
 				location: ProgressLocation.Extensions,
 				title: nls.localize('installingVSIXExtension', 'Installing extension from VSIX...'),
-				tooltip: `${extension}`
+				source: `${extension}`
 			}, () => this.extensionService.install(extension).then(() => null));
 		}
 
@@ -610,7 +608,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		return this.progressService.withProgress({
 			location: ProgressLocation.Extensions,
 			title: nls.localize('installingMarketPlaceExtension', 'Installing extension from Marketplace....'),
-			tooltip: `${extension.id}`
+			source: `${extension.id}`
 		}, () => this.extensionService.installFromGallery(gallery).then(() => null));
 	}
 
@@ -651,7 +649,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		return this.progressService.withProgress({
 			location: ProgressLocation.Extensions,
 			title: nls.localize('uninstallingExtension', 'Uninstalling extension....'),
-			tooltip: `${local.identifier.id}`
+			source: `${local.identifier.id}`
 		}, () => this.extensionService.uninstall(local));
 	}
 
@@ -669,7 +667,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 		return this.progressService.withProgress({
 			location: ProgressLocation.Extensions,
-			tooltip: `${local.identifier.id}`
+			source: `${local.identifier.id}`
 		}, () => this.extensionService.reinstallFromGallery(local).then(() => null));
 	}
 
@@ -970,6 +968,15 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		this.notificationService.error(err);
 	}
 
+	async handleURL(uri: URI): TPromise<boolean> {
+		if (!/^extension/.test(uri.path)) {
+			return false;
+		}
+
+		this.onOpenExtensionUrl(uri);
+		return true;
+	}
+
 	private onOpenExtensionUrl(uri: URI): void {
 		const match = /^extension\/([^/]+)$/.exec(uri.path);
 
@@ -996,17 +1003,14 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 				return this.windowService.show().then(() => {
 					return this.open(extension).then(() => {
-						const message = nls.localize('installConfirmation', "Would you like to install the '{0}' extension?", extension.displayName, extension.publisher);
-						const options = [
-							nls.localize('install', "Install")
-						];
-						return this.notificationService.prompt(Severity.Info, message, options).then(value => {
-							if (value === 0) {
-								return this.install(extension);
-							}
-
-							return TPromise.as(null);
-						});
+						this.notificationService.prompt(
+							Severity.Info,
+							nls.localize('installConfirmation', "Would you like to install the '{0}' extension?", extension.displayName, extension.publisher),
+							[{
+								label: nls.localize('install', "Install"),
+								run: () => this.install(extension).done(undefined, error => this.onError(error))
+							}]
+						);
 					});
 				});
 			});

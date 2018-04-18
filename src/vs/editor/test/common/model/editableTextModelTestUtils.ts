@@ -31,8 +31,17 @@ export function testApplyEditsWithSyncedModels(original: string[], edits: IIdent
 		assert.deepEqual(model.getValue(EndOfLinePreference.LF), originalStr);
 
 		if (!inputEditsAreInvalid) {
+			const simplifyEdit = (edit: IIdentifiedSingleEditOperation) => {
+				return {
+					identifier: edit.identifier,
+					range: edit.range,
+					text: edit.text,
+					forceMoveMarkers: edit.forceMoveMarkers,
+					isAutoWhitespaceEdit: edit.isAutoWhitespaceEdit
+				};
+			};
 			// Assert the inverse of the inverse edits are the original edits
-			assert.deepEqual(inverseInverseEdits, edits);
+			assert.deepEqual(inverseInverseEdits.map(simplifyEdit), edits.map(simplifyEdit));
 		}
 
 		assertMirrorModels();

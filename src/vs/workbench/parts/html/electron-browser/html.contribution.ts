@@ -18,8 +18,6 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 
-import './webview.contribution';
-
 function getActivePreviewsForResource(accessor: ServicesAccessor, resource: URI | string) {
 	const uri = resource instanceof URI ? resource : URI.parse(resource);
 	return accessor.get(IWorkbenchEditorService).getVisibleEditors()

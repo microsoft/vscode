@@ -95,11 +95,6 @@
 	font-weight: normal !important;
 }
 
-.monaco-workbench .panel.integrated-terminal .xterm a.active {
-	cursor: pointer;
-	text-decoration: underline;
-}
-
 /* Use the default cursor when alt is active to help with clicking to move cursor */
 .monaco-workbench .panel.integrated-terminal .terminal-outer-container.alt-active .xterm {
 	cursor: default;

@@ -11,32 +11,6 @@ declare module 'vscode' {
 		export function sampleFunction(): Thenable<any>;
 	}
 
-	//#region Joh: readable diagnostics
-
-	export interface DiagnosticChangeEvent {
-		uris: Uri[];
-	}
-
-	export namespace languages {
-
-		/**
-		 *
-		 */
-		export const onDidChangeDiagnostics: Event<DiagnosticChangeEvent>;
-
-		/**
-		 *
-		 */
-		export function getDiagnostics(resource: Uri): Diagnostic[];
-
-		/**
-		 *
-		 */
-		export function getDiagnostics(): [Uri, Diagnostic[]][];
-	}
-
-	//#endregion
-
 	//#region Aeschli: folding
 
 	export class FoldingRangeList {
@@ -47,7 +21,7 @@ declare module 'vscode' {
 		ranges: FoldingRange[];
 
 		/**
-		 * Creates mew folding range list.
+		 * Creates new folding range list.
 		 *
 		 * @param ranges The folding ranges
 		 */
@@ -58,12 +32,12 @@ declare module 'vscode' {
 	export class FoldingRange {
 
 		/**
-		 * The start line number (0-based)
+		 * The start line number (zero-based) of the range to fold. The hidden area starts after the last character of that line.
 		 */
 		startLine: number;
 
 		/**
-		 * The end line number (0-based)
+		 * The end line number (0-based) of the range to fold. The hidden area ends at the last character of that line.
 		 */
 		endLine: number;
 
@@ -127,57 +101,6 @@ declare module 'vscode' {
 
 	//#region Joh: file system provider
 
-	// export enum FileErrorCodes {
-	// 	/**
-	// 	 * Not owner.
-	// 	 */
-	// 	EPERM = 1,
-	// 	/**
-	// 	 * No such file or directory.
-	// 	 */
-	// 	ENOENT = 2,
-	// 	/**
-	// 	 * I/O error.
-	// 	 */
-	// 	EIO = 5,
-	// 	/**
-	// 	 * Permission denied.
-	// 	 */
-	// 	EACCES = 13,
-	// 	/**
-	// 	 * File exists.
-	// 	 */
-	// 	EEXIST = 17,
-	// 	/**
-	// 	 * Not a directory.
-	// 	 */
-	// 	ENOTDIR = 20,
-	// 	/**
-	// 	 * Is a directory.
-	// 	 */
-	// 	EISDIR = 21,
-	// 	/**
-	// 	 *  File too large.
-	// 	 */
-	// 	EFBIG = 27,
-	// 	/**
-	// 	 * No space left on device.
-	// 	 */
-	// 	ENOSPC = 28,
-	// 	/**
-	// 	 * Directory is not empty.
-	// 	 */
-	// 	ENOTEMPTY = 66,
-	// 	/**
-	// 	 * Invalid file handle.
-	// 	 */
-	// 	ESTALE = 70,
-	// 	/**
-	// 	 * Illegal NFS file handle.
-	// 	 */
-	// 	EBADHANDLE = 10001,
-	// }
-
 	export enum FileChangeType {
 		Updated = 0,
 		Added = 1,
@@ -203,24 +126,6 @@ declare module 'vscode' {
 		type: FileType;
 	}
 
-	export interface TextSearchQuery {
-		pattern: string;
-		isRegex?: boolean;
-		isCaseSensitive?: boolean;
-		isWordMatch?: boolean;
-	}
-
-	export interface TextSearchOptions {
-		includes: GlobPattern[];
-		excludes: GlobPattern[];
-	}
-
-	export interface TextSearchResult {
-		uri: Uri;
-		range: Range;
-		preview: { leading: string, matching: string, trailing: string };
-	}
-
 	// todo@joh discover files etc
 	// todo@joh CancellationToken everywhere
 	// todo@joh add open/close calls?
@@ -228,11 +133,8 @@ declare module 'vscode' {
 
 		readonly onDidChange?: Event<FileChange[]>;
 
-		// todo@joh - remove this
-		readonly root?: Uri;
-
 		// more...
-		//
+		// @deprecated - will go away
 		utimes(resource: Uri, mtime: number, atime: number): Thenable<FileStat>;
 
 		stat(resource: Uri): Thenable<FileStat>;
@@ -268,15 +170,171 @@ declare module 'vscode' {
 
 		// todo@remote
 		// create(resource: Uri): Thenable<FileStat>;
+	}
 
-		// find files by names
-		// todo@joh, move into its own provider
-		findFiles?(query: string, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
+	export class FileError extends Error {
+
+		/**
+		 * Entry already exists.
+		 */
+		static readonly EEXIST: FileError;
+
+		/**
+		 * Entry does not exist.
+		 */
+		static readonly ENOENT: FileError;
+
+		/**
+		 * Entry is not a directory.
+		 */
+		static readonly ENOTDIR: FileError;
+
+		/**
+		 * Entry is a directory.
+		 */
+		static readonly EISDIR: FileError;
+
+		readonly code: string;
+
+		constructor(code: string, message?: string);
+	}
+
+	export enum FileChangeType2 {
+		Changed = 1,
+		Created = 2,
+		Deleted = 3,
+	}
+
+	export interface FileChange2 {
+		type: FileChangeType2;
+		uri: Uri;
+	}
+
+	export enum FileType2 {
+		File = 0b001,
+		Directory = 0b010,
+		SymbolicLink = 0b100,
+	}
+
+	export interface FileStat2 {
+		type: FileType2;
+		mtime: number;
+		size: number;
+	}
+
+	export enum FileOpenFlags {
+		Read = 0b0001,
+		Write = 0b0010,
+		Create = 0b0100,
+		Exclusive = 0b1000
+	}
+
+	// todo@joh add open/close calls?
+	export interface FileSystemProvider2 {
+
+		_version: 6;
+
+		/**
+		 * An event to signal that a resource has been created, changed, or deleted.
+		 */
+		readonly onDidChange: Event<FileChange2[]>;
+
+		/**
+		 * Retrieve metadata about a file. Must throw an [`ENOENT`](#FileError.ENOENT)-error
+		 * when the file doesn't exist.
+		 *
+		 * @param uri The uri of the file to retrieve meta data about.
+		 * @param token A cancellation token.
+		 * @return The file metadata about the file.
+		 */
+		stat(uri: Uri, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
+
+		/**
+		 * Retrieve the meta data of all entries of a [directory](#FileType2.Directory)
+		 *
+		 * @param uri The uri of the folder.
+		 * @param token A cancellation token.
+		 * @return A thenable that resolves to an array of tuples of file names and files stats.
+		 */
+		readDirectory(uri: Uri, token: CancellationToken): [string, FileStat2][] | Thenable<[string, FileStat2][]>;
+
+		/**
+		 * Create a new directory. *Note* that new files are created via `write`-calls.
+		 * 
+		 * @param uri The uri of the *new* folder.
+		 * @param token A cancellation token.
+		 */
+		createDirectory(uri: Uri, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
+
+		/**
+		 * Read the entire contents of a file.
+		 *
+		 * @param uri The uri of the file.
+		 * @param token A cancellation token.
+		 * @return A thenable that resolves to an array of bytes.
+		 */
+		readFile(uri: Uri, options: { flags: FileOpenFlags }, token: CancellationToken): Uint8Array | Thenable<Uint8Array>;
+
+		/**
+		 * Write data to a file, replacing its entire contents.
+		 *
+		 * @param uri The uri of the file.
+		 * @param content The new content of the file.
+		 * @param token A cancellation token.
+		 */
+		writeFile(uri: Uri, content: Uint8Array, options: { flags: FileOpenFlags }, token: CancellationToken): void | Thenable<void>;
+
+		/**
+		 * Rename a file or folder.
+		 *
+		 * @param oldUri The exiting file or folder
+		 * @param newUri The target location
+		 * @param token A cancellation token.
+		 */
+		rename(oldUri: Uri, newUri: Uri, options: { flags: FileOpenFlags }, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
+
+		// todo@remote
+		// helps with performance bigly
+		// copy?(from: Uri, to: Uri): FileStat2 | Thenable<FileStat2>;
+
+		// todo@remote
+		// ? useTrash, expose trash
+		delete(uri: Uri, token: CancellationToken): void | Thenable<void>;
+	}
+
+	export namespace workspace {
+		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, newProvider?: FileSystemProvider2): Disposable;
+	}
+
+	//#endregion
+
+	//#region Joh: remote, search provider
+
+	export interface TextSearchQuery {
+		pattern: string;
+		isRegExp?: boolean;
+		isCaseSensitive?: boolean;
+		isWordMatch?: boolean;
+	}
+
+	export interface TextSearchOptions {
+		includes: GlobPattern[];
+		excludes: GlobPattern[];
+	}
+
+	export interface TextSearchResult {
+		uri: Uri;
+		range: Range;
+		preview: { leading: string, matching: string, trailing: string };
+	}
+
+	export interface SearchProvider {
+		provideFileSearchResults?(query: string, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
 		provideTextSearchResults?(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
 	}
 
 	export namespace workspace {
-		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider): Disposable;
+		export function registerSearchProvider(scheme: string, provider: SearchProvider): Disposable;
 	}
 
 	//#endregion
@@ -378,13 +436,6 @@ declare module 'vscode' {
 		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
 	}
 
-	export interface Breakpoint {
-		/**
-		 * An optional message that gets logged when this breakpoint is hit.
-		 */
-		readonly logMessage?: string;
-	}
-
 	//#endregion
 
 	//#region Rob, Matt: logging
@@ -406,9 +457,6 @@ declare module 'vscode' {
 	 * A logger for writing to an extension's log file, and accessing its dedicated log directory.
 	 */
 	export interface Logger {
-		readonly onDidChangeLogLevel: Event<LogLevel>;
-		readonly currentLevel: LogLevel;
-
 		trace(message: string, ...args: any[]): void;
 		debug(message: string, ...args: any[]): void;
 		info(message: string, ...args: any[]): void;
@@ -431,22 +479,13 @@ declare module 'vscode' {
 		readonly logDirectory: string;
 	}
 
-	//#endregion
-
-	//#region Joh: rename context
-
-	export class RenameContext {
-		range: Range;
-		newName?: string;
-		constructor(range: Range, newName?: string);
-	}
-
-	export interface RenameProvider2 extends RenameProvider {
-
+	export namespace env {
 		/**
-		 * Optional function to resolve and validate a rename location.
+		 * Current logging level.
+		 *
+		 * @readonly
 		 */
-		resolveRenameContext?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<RenameContext>;
+		export const logLevel: LogLevel;
 	}
 
 	//#endregion
@@ -522,44 +561,19 @@ declare module 'vscode' {
 		readonly enableCommandUris?: boolean;
 
 		/**
-		 * Should the webview's context be kept around even when the webview is no longer visible?
-		 *
-		 * Normally a webview's context is created when the webview becomes visible
-		 * and destroyed when the webview is hidden. Apps that have complex state
-		 * or UI can set the `retainContextWhenHidden` to make VS Code keep the webview
-		 * context around, even when the webview moves to a background tab. When
-		 * the webview becomes visible again, the context is automatically restored
-		 * in the exact same state it was in originally.
-		 *
-		 * `retainContextWhenHidden` has a high memory overhead and should only be used if
-		 * your webview's context cannot be quickly saved and restored.
-		 */
-		readonly retainContextWhenHidden?: boolean;
-
-		/**
 		 * Root paths from which the webview can load local (filesystem) resources using the `vscode-resource:` scheme.
 		 *
 		 * Default to the root folders of the current workspace plus the extension's install directory.
 		 *
 		 * Pass in an empty array to disallow access to any local resources.
 		 */
-		readonly localResourceRoots?: Uri[];
+		readonly localResourceRoots?: ReadonlyArray<Uri>;
 	}
 
 	/**
-	 * A webview is an editor with html content, like an iframe.
+	 * A webview displays html content, like an iframe.
 	 */
 	export interface Webview {
-		/**
-		 * Type identifying the editor as a webview editor.
-		 */
-		readonly editorType: 'webview';
-
-		/**
-		 * Unique identifer of the webview.
-		 */
-		readonly uri: Uri;
-
 		/**
 		 * Content settings for the webview.
 		 */
@@ -578,24 +592,9 @@ declare module 'vscode' {
 		html: string;
 
 		/**
-		 * The column in which the webview is showing.
-		 */
-		readonly viewColumn?: ViewColumn;
-
-		/**
 		 * Fired when the webview content posts a message.
 		 */
 		readonly onDidReceiveMessage: Event<any>;
-
-		/**
-		 * Fired when the webview is disposed.
-		 */
-		readonly onDidDispose: Event<void>;
-
-		/**
-		 * Fired when the webview's view column changes.
-		 */
-		readonly onDidChangeViewColumn: Event<ViewColumn>;
 
 		/**
 		 * Post a message to the webview content.
@@ -605,150 +604,162 @@ declare module 'vscode' {
 		 * @param message Body of the message.
 		 */
 		postMessage(message: any): Thenable<boolean>;
+	}
 
+	/**
+	 * Content settings for a webview panel.
+	 */
+	export interface WebviewPanelOptions {
 		/**
-		 * Shows the webview in a given column.
+		 * Should the find widget be enabled in the panel?
 		 *
-		 * A webview may only show in a single column at a time. If it is already showing, this
-		 * command moves it to a new column.
+		 * Defaults to false.
 		 */
-		show(viewColumn: ViewColumn): void;
+		readonly enableFindWidget?: boolean;
 
 		/**
-		 * Dispose of the the webview.
+		 * Should the webview panel's content (iframe) be kept around even when the panel
+		 * is no longer visible?
 		 *
-		 * This closes the webview if it showing and disposes of the resources owned by the webview.
-		 * Webview are also disposed when the user closes the webview editor. Both cases fire `onDispose`
-		 * event. Trying to use the webview after it has been disposed throws an exception.
+		 * Normally the webview panel's html context is created when the panel becomes visible
+		 * and destroyed when it is is hidden. Extensions that have complex state
+		 * or UI can set the `retainContextWhenHidden` to make VS Code keep the webview
+		 * context around, even when the webview moves to a background tab. When
+		 * the panel becomes visible again, the context is automatically restored
+		 * in the exact same state it was in originally.
+		 *
+		 * `retainContextWhenHidden` has a high memory overhead and should only be used if
+		 * your panel's context cannot be quickly saved and restored.
+		 */
+		readonly retainContextWhenHidden?: boolean;
+	}
+
+	/**
+	 * A panel that contains a webview.
+	 */
+	interface WebviewPanel {
+		/**
+		 * Type of the webview panel, such as `'markdown.preview'`.
+		 */
+		readonly viewType: string;
+
+		/**
+		 * Webview belonging to the panel.
+		 */
+		readonly webview: Webview;
+
+		/**
+		 * Content settings for the webview panel.
+		 */
+		readonly options: WebviewPanelOptions;
+
+		/**
+		 * Editor position of the panel.
+		 */
+		readonly position?: ViewColumn;
+
+		/**
+		 * Is the panel current visible?
+		 */
+		readonly visible: boolean;
+
+		/**
+		 * Fired when the panel's view state changes.
+		 */
+		readonly onDidChangeViewState: Event<WebviewPanelOnDidChangeViewStateEvent>;
+
+		/**
+		 * Fired when the panel is disposed.
+		 *
+		 * This may be because the user closed the panel or because `.dispose()` was
+		 * called on it.
+		 *
+		 * Trying to use the panel after it has been disposed throws an exception.
+		 */
+		readonly onDidDispose: Event<void>;
+
+		/**
+		 * Show the webview panel in a given column.
+		 *
+		 * A webview panel may only show in a single column at a time. If it is already showing, this
+		 * method moves it to a new column.
+		 */
+		reveal(viewColumn: ViewColumn): void;
+
+		/**
+		 * Dispose of the webview panel.
+		 *
+		 * This closes the panel if it showing and disposes of the resources owned by the webview.
+		 * Webview panels are also disposed when the user closes the webview panel. Both cases
+		 * fire the `onDispose` event.
 		 */
 		dispose(): any;
 	}
 
-	export interface TextEditor {
+	/**
+	 * Event fired when a webview panel's view state changes.
+	 */
+	export interface WebviewPanelOnDidChangeViewStateEvent {
 		/**
-		 * Type identifying the editor as a text editor.
+		 * Webview panel whose view state changed.
 		 */
-		readonly editorType: 'texteditor';
+		readonly webviewPanel: WebviewPanel;
+	}
+
+	/**
+	 * Save and restore webview panels that have been persisted when vscode shuts down.
+	 */
+	interface WebviewPanelSerializer {
+		/**
+		 * Save a webview panel's `state`.
+		 *
+		 * Called before shutdown. Extensions have a 250ms timeframe to return a state. If serialization
+		 * takes longer than 250ms, the panel will not be serialized.
+		 *
+		 * @param webviewPanel webview Panel to serialize. May or may not be visible.
+		 *
+		 * @returns JSON serializable state blob.
+		 */
+		serializeWebviewPanel(webviewPanel: WebviewPanel): Thenable<any>;
+
+		/**
+		 * Restore a webview panel from its seriailzed `state`.
+		 *
+		 * Called when a serialized webview first becomes visible.
+		 *
+		 * @param webviewPanel Webview panel to restore. The serializer should take ownership of this panel.
+		 * @param state Persisted state.
+		 *
+		 * @return Thanble indicating that the webview has been fully restored.
+		 */
+		deserializeWebviewPanel(webviewPanel: WebviewPanel, state: any): Thenable<void>;
 	}
 
 	namespace window {
 		/**
-		 * Create and show a new webview.
+		 * Create and show a new webview panel.
 		 *
-		 * @param uri Unique identifier for the webview.
-		 * @param title Title of the webview.
-		 * @param column Editor column to show the new webview in.
-		 * @param options Content settings for the webview.
-		 */
-		export function createWebview(uri: Uri, title: string, column: ViewColumn, options: WebviewOptions): Webview;
-
-		/**
-		 * Event fired when the active editor changes.
-		 */
-		export const onDidChangeActiveEditor: Event<TextEditor | Webview | undefined>;
-	}
-
-	//#endregion
-
-	//#region Sandeep: TreeView
-
-	export namespace window {
-
-		/**
-		 * Register a [TreeDataProvider](#TreeDataProvider) for the view contributed using the extension point `views`.
-		 * @param viewId Id of the view contributed using the extension point `views`.
-		 * @param treeDataProvider A [TreeDataProvider](#TreeDataProvider) that provides tree data for the view
-		 * @return handle to the [treeview](#TreeView) that can be disposable.
-		 */
-		export function registerTreeDataProvider<T>(viewId: string, treeDataProvider: TreeDataProvider<T>): TreeView<T>;
-
-	}
-
-	/**
-	 * Represents a Tree view
-	 */
-	export interface TreeView<T> extends Disposable {
-
-		/**
-		 * Reveal an element. By default revealed element is selected.
+		 * @param viewType Identifies the type of the webview panel.
+		 * @param title Title of the panel.
+		 * @param position Editor column to show the new panel in.
+		 * @param options Settings for the new webview panel.
 		 *
-		 * In order to not to select, set the option `select` to `false`.
+		 * @return New webview panel.
+		 */
+		export function createWebviewPanel(viewType: string, title: string, position: ViewColumn, options: WebviewPanelOptions & WebviewOptions): WebviewPanel;
+
+		/**
+		 * Registers a webview panel serializer.
 		 *
-		 * **NOTE:** [TreeDataProvider](#TreeDataProvider) is required to implement [getParent](#TreeDataProvider.getParent) method to access this API.
-		 */
-		reveal(element: T, options?: { select?: boolean }): Thenable<void>;
-	}
-
-	/**
-	 * A data provider that provides tree data
-	 */
-	export interface TreeDataProvider<T> {
-		/**
-		 * An optional event to signal that an element or root has changed.
-		 * This will trigger the view to update the changed element/root and its children recursively (if shown).
-		 * To signal that root has changed, do not pass any argument or pass `undefined` or `null`.
-		 */
-		onDidChangeTreeData?: Event<T | undefined | null>;
-
-		/**
-		 * Get [TreeItem](#TreeItem) representation of the `element`
+		 * Extensions that support reviving should have an `"onView:viewType"` activation method and
+		 * make sure that [registerWebviewPanelSerializer](#registerWebviewPanelSerializer) is called during activation.
 		 *
-		 * @param element The element for which [TreeItem](#TreeItem) representation is asked for.
-		 * @return [TreeItem](#TreeItem) representation of the element
-		 */
-		getTreeItem(element: T): TreeItem | Thenable<TreeItem>;
-
-		/**
-		 * Get the children of `element` or root if no element is passed.
+		 * Only a single serializer may be registered at a time for a given `viewType`.
 		 *
-		 * @param element The element from which the provider gets children. Can be `undefined`.
-		 * @return Children of `element` or root if no element is passed.
+		 * @param viewType Type of the webview panel that can be serialized.
+		 * @param reviver Webview serializer.
 		 */
-		getChildren(element?: T): ProviderResult<T[]>;
-
-		/**
-		 * Optional method to return the parent of `element`.
-		 * Return `null` or `undefined` if `element` is a child of root.
-		 *
-		 * **NOTE:** This method should be implemented in order to access [reveal](#TreeView.reveal) API.
-		 *
-		 * @param element The element for which the parent has to be returned.
-		 * @return Parent of `element`.
-		 */
-		getParent?(element: T): ProviderResult<T>;
-	}
-
-	//#endregion
-
-	//#region Alex: TextEditor.visibleRange and related event
-
-	export interface TextEditor {
-		/**
-		 * The current visible ranges in the editor (vertically).
-		 * This accounts only for vertical scrolling, and not for horizontal scrolling.
-		 */
-		readonly visibleRanges: Range[];
-	}
-
-	/**
-	 * Represents an event describing the change in a [text editor's visible ranges](#TextEditor.visibleRanges).
-	 */
-	export interface TextEditorVisibleRangesChangeEvent {
-		/**
-		 * The [text editor](#TextEditor) for which the visible ranges have changed.
-		 */
-		textEditor: TextEditor;
-		/**
-		 * The new value for the [text editor's visible ranges](#TextEditor.visibleRanges).
-		 */
-		visibleRanges: Range[];
-	}
-
-	export namespace window {
-		/**
-		 * An [event](#Event) which fires when the selection in an editor has changed.
-		 */
-		export const onDidChangeTextEditorVisibleRanges: Event<TextEditorVisibleRangesChangeEvent>;
+		export function registerWebviewPanelSerializer(viewType: string, reviver: WebviewPanelSerializer): Disposable;
 	}
 
 	//#endregion
@@ -756,32 +767,92 @@ declare module 'vscode' {
 	//#region Tasks
 
 	/**
-	 * A task item represents a task in the system. It can be used to
-	 * present task information in the user interface or to execute the
-	 * underlying task.
+	 * An object representing an executed Task. It can be used
+	 * to terminate a task.
+	 *
+	 * This interface is not intended to be implemented.
 	 */
-	export interface TaskItem {
+	export interface TaskExecution {
+		/**
+		 * The task that got started.
+		 */
+		task: Task;
 
 		/**
-		 * A unique ID representing the underlying task.
+		 * Terminates the task execution.
 		 */
-		readonly id: string;
+		terminate(): void;
+	}
+
+	/**
+	 * An event signaling the start of a task execution.
+	 *
+	 * This interface is not intended to be implemented.
+	 */
+	interface TaskStartEvent {
+		/**
+		 * The task item representing the task that got started.
+		 */
+		execution: TaskExecution;
+	}
+
+	/**
+	 * An event signaling the end of an executed task.
+	 *
+	 * This interface is not intended to be implemented.
+	 */
+	interface TaskEndEvent {
+		/**
+		 * The task item representing the task that finished.
+		 */
+		execution: TaskExecution;
+	}
+
+	export namespace workspace {
 
 		/**
-		 * A human readable label of the task.
+		 * Fetches all task available in the systems. Thisweweb includes tasks
+		 * from `tasks.json` files as well as tasks from task providers
+		 * contributed through extensions.
 		 */
-		readonly label: string;
+		export function fetchTasks(): Thenable<Task[]>;
 
 		/**
-		 * The task definition.
+		 * Executes a task that is managed by VS Code. The returned
+		 * task execution can be used to terminate the task.
+		 *
+		 * @param task the task to execute
 		 */
-		readonly definition: TaskDefinition;
+		export function executeTask(task: Task): Thenable<TaskExecution>;
 
 		/**
-		 * The workspace folder the task belongs to. Is undefined
-		 * to tasks that aren't scoped to a workspace folder.
+		 * Fires when a task starts.
 		 */
-		readonly workspaceFolder: WorkspaceFolder | undefined;
+		export const onDidStartTask: Event<TaskStartEvent>;
+
+		/**
+		 * Fires when a task ends.
+		 */
+		export const onDidEndTask: Event<TaskEndEvent>;
+	}
+
+	//#endregion
+
+	//#region Terminal
+
+	export namespace window {
+		/**
+		 * The currently active terminals or an empty array.
+		 *
+		 * @readonly
+		 */
+		export let terminals: Terminal[];
+
+		/**
+		 * An [event](#Event) which fires when a terminal has been created, either through the
+		 * [createTerminal](#window.createTerminal) API or commands.
+		 */
+		export const onDidOpenTerminal: Event<Terminal>;
 	}
 
 	//#endregion

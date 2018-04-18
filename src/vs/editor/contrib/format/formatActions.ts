@@ -161,7 +161,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 				return;
 			}
 
-			EditOperationsCommand.execute(this.editor, edits, true);
+			EditOperationsCommand.executeAsCommand(this.editor, edits);
 			alertFormattingEdits(edits);
 
 		}, (err) => {
@@ -244,7 +244,7 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 			if (!state.validate(this.editor) || isFalsyOrEmpty(edits)) {
 				return;
 			}
-			EditOperationsCommand.execute(this.editor, edits, false);
+			EditOperationsCommand.execute(this.editor, edits);
 			alertFormattingEdits(edits);
 		});
 	}
@@ -280,12 +280,12 @@ export abstract class AbstractFormatAction extends EditorAction {
 				return;
 			}
 
-			EditOperationsCommand.execute(editor, edits, false);
+			EditOperationsCommand.execute(editor, edits);
 			alertFormattingEdits(edits);
 			editor.focus();
 		}, err => {
 			if (err instanceof Error && err.name === NoProviderError.Name) {
-				notificationService.info(nls.localize('no.provider', "There is no formatter for '{0}'-files installed.", editor.getModel().getLanguageIdentifier().language));
+				this._notifyNoProviderError(notificationService, editor.getModel().getLanguageIdentifier().language);
 			} else {
 				throw err;
 			}
@@ -293,6 +293,9 @@ export abstract class AbstractFormatAction extends EditorAction {
 	}
 
 	protected abstract _getFormattingEdits(editor: ICodeEditor): TPromise<ISingleEditOperation[]>;
+	protected _notifyNoProviderError(notificationService: INotificationService, language: string): void {
+		notificationService.info(nls.localize('no.provider', "There is no formatter for '{0}'-files installed.", language));
+	}
 }
 
 export class FormatDocumentAction extends AbstractFormatAction {
@@ -304,7 +307,7 @@ export class FormatDocumentAction extends AbstractFormatAction {
 			alias: 'Format Document',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
 				// secondary: [KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_D)],
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I }
@@ -322,6 +325,10 @@ export class FormatDocumentAction extends AbstractFormatAction {
 		const { tabSize, insertSpaces } = model.getOptions();
 		return getDocumentFormattingEdits(model, { tabSize, insertSpaces });
 	}
+
+	protected _notifyNoProviderError(notificationService: INotificationService, language: string): void {
+		notificationService.info(nls.localize('no.documentprovider', "There is no document formatter for '{0}'-files installed.", language));
+	}
 }
 
 export class FormatSelectionAction extends AbstractFormatAction {
@@ -333,7 +340,7 @@ export class FormatSelectionAction extends AbstractFormatAction {
 			alias: 'Format Code',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasNonEmptySelection),
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_F)
 			},
 			menuOpts: {
@@ -348,6 +355,10 @@ export class FormatSelectionAction extends AbstractFormatAction {
 		const model = editor.getModel();
 		const { tabSize, insertSpaces } = model.getOptions();
 		return getDocumentRangeFormattingEdits(model, editor.getSelection(), { tabSize, insertSpaces });
+	}
+
+	protected _notifyNoProviderError(notificationService: INotificationService, language: string): void {
+		notificationService.info(nls.localize('no.selectionprovider', "There is no selection formatter for '{0}'-files installed.", language));
 	}
 }
 

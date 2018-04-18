@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { $, Dimension } from 'vs/base/browser/builder';
 import { QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenWidget } from 'vs/base/parts/quickopen/browser/quickOpenWidget';
 import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
@@ -13,6 +12,7 @@ import { attachQuickOpenStyler } from 'vs/platform/theme/common/styler';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
+import { Dimension } from 'vs/base/browser/dom';
 
 export interface IQuickOpenEditorWidgetOptions {
 	inputAriaLabel: string;
@@ -37,7 +37,7 @@ export class QuickOpenEditorWidget implements IOverlayWidget {
 	}
 
 	private create(onOk: () => void, onCancel: () => void, onType: (value: string) => void, configuration: IQuickOpenEditorWidgetOptions): void {
-		this.domNode = $().div().getHTMLElement();
+		this.domNode = document.createElement('div');
 
 		this.quickOpenWidget = new QuickOpenWidget(
 			this.domNode,

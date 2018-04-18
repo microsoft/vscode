@@ -174,6 +174,14 @@ class ElementPath {
 		);
 	}
 
+	public static isStrictChildOfViewLines(path: Uint8Array): boolean {
+		return (
+			path.length > 4
+			&& path[0] === PartFingerprint.OverflowGuard
+			&& path[3] === PartFingerprint.ViewLines
+		);
+	}
+
 	public static isChildOfScrollableElement(path: Uint8Array): boolean {
 		return (
 			path.length >= 2
@@ -621,6 +629,15 @@ export class MouseTargetFactory {
 		}
 
 		if (domHitTestExecuted) {
+			// Check if we are hitting a view-line (can happen in the case of inline decorations on empty lines)
+			// See https://github.com/Microsoft/vscode/issues/46942
+			if (ElementPath.isStrictChildOfViewLines(request.targetPath)) {
+				const lineNumber = ctx.getLineNumberAtVerticalOffset(request.mouseVerticalOffset);
+				if (ctx.model.getLineLength(lineNumber) === 0) {
+					return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(lineNumber, 1), void 0, EMPTY_CONTENT_IN_LINES);
+				}
+			}
+
 			// We have already executed hit test...
 			return request.fulfill(MouseTargetType.UNKNOWN);
 		}

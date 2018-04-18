@@ -193,7 +193,7 @@ export class GoToDefinitionAction extends DefinitionAction {
 				EditorContextKeys.hasDefinitionProvider,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: goToDeclarationKb
 			},
 			menuOpts: {
@@ -217,7 +217,7 @@ export class OpenDefinitionToSideAction extends DefinitionAction {
 				EditorContextKeys.hasDefinitionProvider,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, goToDeclarationKb)
 			}
 		});
@@ -235,7 +235,7 @@ export class PeekDefinitionAction extends DefinitionAction {
 				PeekContext.notInPeekEditor,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Alt | KeyCode.F12,
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F10 }
 			},
@@ -276,7 +276,7 @@ export class GoToImplementationAction extends ImplementationAction {
 				EditorContextKeys.hasImplementationProvider,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.F12
 			}
 		});
@@ -296,7 +296,7 @@ export class PeekImplementationAction extends ImplementationAction {
 				EditorContextKeys.hasImplementationProvider,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F12
 			}
 		});
@@ -332,7 +332,7 @@ export class GoToTypeDefintionAction extends TypeDefinitionAction {
 				EditorContextKeys.hasTypeDefinitionProvider,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: 0
 			},
 			menuOpts: {
@@ -356,7 +356,7 @@ export class PeekTypeDefinitionAction extends TypeDefinitionAction {
 				EditorContextKeys.hasTypeDefinitionProvider,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: 0
 			}
 		});

@@ -13,6 +13,7 @@ import { SearchData, isValidMatch, Searcher, createFindMatch } from 'vs/editor/c
 import { FindMatch } from 'vs/editor/common/model';
 
 // const lfRegex = new RegExp(/\r\n|\r|\n/g);
+export const AverageBufferSize = 65535;
 
 export function createUintArray(arr: number[]): Uint32Array | Uint16Array {
 	let r;
@@ -311,7 +312,7 @@ export class PieceTreeBase {
 	}
 
 	normalizeEOL(eol: '\r\n' | '\n') {
-		let averageBufferSize = 65536;
+		let averageBufferSize = AverageBufferSize;
 		let min = averageBufferSize - Math.floor(averageBufferSize / 3);
 		let max = min * 2;
 
@@ -536,11 +537,23 @@ export class PieceTreeBase {
 
 	public getLineCharCode(lineNumber: number, index: number): number {
 		let nodePos = this.nodeAt2(lineNumber, index + 1);
-		let buffer = this._buffers[nodePos.node.piece.bufferIndex];
-		let startOffset = this.offsetInBuffer(nodePos.node.piece.bufferIndex, nodePos.node.piece.start);
-		let targetOffset = startOffset + index;
+		if (nodePos.remainder === nodePos.node.piece.length) {
+			// the char we want to fetch is at the head of next node.
+			let matchingNode = nodePos.node.next();
+			if (!matchingNode) {
+				return 0;
+			}
 
-		return buffer.buffer.charCodeAt(targetOffset);
+			let buffer = this._buffers[matchingNode.piece.bufferIndex];
+			let startOffset = this.offsetInBuffer(matchingNode.piece.bufferIndex, matchingNode.piece.start);
+			return buffer.buffer.charCodeAt(startOffset);
+		} else {
+			let buffer = this._buffers[nodePos.node.piece.bufferIndex];
+			let startOffset = this.offsetInBuffer(nodePos.node.piece.bufferIndex, nodePos.node.piece.start);
+			let targetOffset = startOffset + nodePos.remainder;
+
+			return buffer.buffer.charCodeAt(targetOffset);
+		}
 	}
 
 	public getLineLength(lineNumber: number): number {
@@ -551,7 +564,7 @@ export class PieceTreeBase {
 		return this.getOffsetAt(lineNumber + 1, 1) - this.getOffsetAt(lineNumber, 1) - this._EOLLength;
 	}
 
-	public findMatchesInNode(node: TreeNode, searcher: Searcher, startLineNumber: number, startCursor: BufferCursor, endCursor: BufferCursor, searchData: SearchData, captureMatches: boolean, limitResultCount: number, resultLen: number, result: FindMatch[]) {
+	public findMatchesInNode(node: TreeNode, searcher: Searcher, startLineNumber: number, startColumn: number, startCursor: BufferCursor, endCursor: BufferCursor, searchData: SearchData, captureMatches: boolean, limitResultCount: number, resultLen: number, result: FindMatch[]) {
 		let buffer = this._buffers[node.piece.bufferIndex];
 		let startOffsetInBuffer = this.offsetInBuffer(node.piece.bufferIndex, node.piece.start);
 		let start = this.offsetInBuffer(node.piece.bufferIndex, startCursor);
@@ -571,7 +584,9 @@ export class PieceTreeBase {
 				}
 				this.positionInBuffer(node, m.index - startOffsetInBuffer, ret);
 				let lineFeedCnt = this.getLineFeedCnt(node.piece.bufferIndex, startCursor, ret);
-				result[resultLen++] = createFindMatch(new Range(startLineNumber + lineFeedCnt, ret.column + 1, startLineNumber + lineFeedCnt, ret.column + 1 + m[0].length), m, captureMatches);
+				let retStartColumn = ret.line === startCursor.line ? ret.column - startCursor.column + startColumn : ret.column + 1;
+				let retEndColumn = retStartColumn + m[0].length;
+				result[resultLen++] = createFindMatch(new Range(startLineNumber + lineFeedCnt, retStartColumn, startLineNumber + lineFeedCnt, retEndColumn), m, captureMatches);
 
 				if (m.index + m[0].length >= end) {
 					return resultLen;
@@ -603,7 +618,7 @@ export class PieceTreeBase {
 		let end = this.positionInBuffer(endPosition.node, endPosition.remainder);
 
 		if (startPostion.node === endPosition.node) {
-			this.findMatchesInNode(startPostion.node, searcher, searchRange.startLineNumber, start, end, searchData, captureMatches, limitResultCount, resultLen, result);
+			this.findMatchesInNode(startPostion.node, searcher, searchRange.startLineNumber, searchRange.startColumn, start, end, searchData, captureMatches, limitResultCount, resultLen, result);
 			return result;
 		}
 
@@ -618,7 +633,8 @@ export class PieceTreeBase {
 				let lineStarts = this._buffers[currentNode.piece.bufferIndex].lineStarts;
 				let startOffsetInBuffer = this.offsetInBuffer(currentNode.piece.bufferIndex, currentNode.piece.start);
 				let nextLineStartOffset = lineStarts[start.line + lineBreakCnt];
-				resultLen = this.findMatchesInNode(currentNode, searcher, startLineNumber, start, this.positionInBuffer(currentNode, nextLineStartOffset - startOffsetInBuffer), searchData, captureMatches, limitResultCount, resultLen, result);
+				let startColumn = startLineNumber === searchRange.startLineNumber ? searchRange.startColumn : 1;
+				resultLen = this.findMatchesInNode(currentNode, searcher, startLineNumber, startColumn, start, this.positionInBuffer(currentNode, nextLineStartOffset - startOffsetInBuffer), searchData, captureMatches, limitResultCount, resultLen, result);
 
 				if (resultLen >= limitResultCount) {
 					return result;
@@ -627,14 +643,15 @@ export class PieceTreeBase {
 				startLineNumber += lineBreakCnt;
 			}
 
+			let startColumn = startLineNumber === searchRange.startLineNumber ? searchRange.startColumn - 1 : 0;
 			// search for the remaining content
 			if (startLineNumber === searchRange.endLineNumber) {
-				const text = this.getLineContent(startLineNumber).substring(0, searchRange.endColumn - 1);
-				resultLen = this._findMatchesInLine(searchData, searcher, text, searchRange.endLineNumber, 0, resultLen, result, captureMatches, limitResultCount);
+				const text = this.getLineContent(startLineNumber).substring(startColumn, searchRange.endColumn - 1);
+				resultLen = this._findMatchesInLine(searchData, searcher, text, searchRange.endLineNumber, startColumn, resultLen, result, captureMatches, limitResultCount);
 				return result;
 			}
 
-			resultLen = this._findMatchesInLine(searchData, searcher, this.getLineContent(startLineNumber), startLineNumber, 0, resultLen, result, captureMatches, limitResultCount);
+			resultLen = this._findMatchesInLine(searchData, searcher, this.getLineContent(startLineNumber).substr(startColumn), startLineNumber, startColumn, resultLen, result, captureMatches, limitResultCount);
 
 			if (resultLen >= limitResultCount) {
 				return result;
@@ -647,12 +664,14 @@ export class PieceTreeBase {
 		}
 
 		if (startLineNumber === searchRange.endLineNumber) {
-			const text = this.getLineContent(startLineNumber).substring(0, searchRange.endColumn - 1);
-			resultLen = this._findMatchesInLine(searchData, searcher, text, searchRange.endLineNumber, 0, resultLen, result, captureMatches, limitResultCount);
+			let startColumn = startLineNumber === searchRange.startLineNumber ? searchRange.startColumn - 1 : 0;
+			const text = this.getLineContent(startLineNumber).substring(startColumn, searchRange.endColumn - 1);
+			resultLen = this._findMatchesInLine(searchData, searcher, text, searchRange.endLineNumber, startColumn, resultLen, result, captureMatches, limitResultCount);
 			return result;
 		}
 
-		resultLen = this.findMatchesInNode(endPosition.node, searcher, startLineNumber, start, end, searchData, captureMatches, limitResultCount, resultLen, result);
+		let startColumn = startLineNumber === searchRange.startLineNumber ? searchRange.startColumn : 1;
+		resultLen = this.findMatchesInNode(endPosition.node, searcher, startLineNumber, startColumn, start, end, searchData, captureMatches, limitResultCount, resultLen, result);
 		return result;
 	}
 
@@ -706,7 +725,8 @@ export class PieceTreeBase {
 			if (node.piece.bufferIndex === 0 &&
 				piece.end.line === this._lastChangeBufferPos.line &&
 				piece.end.column === this._lastChangeBufferPos.column &&
-				(nodeStartOffset + piece.length === offset)
+				(nodeStartOffset + piece.length === offset) &&
+				value.length < AverageBufferSize
 			) {
 				// changed buffer
 				this.appendToNode(node, value);
@@ -763,19 +783,27 @@ export class PieceTreeBase {
 					this.deleteNodeTail(node, insertPosInBuffer);
 				}
 
-				let newPiece = this.createNewPiece(value);
+				let newPieces = this.createNewPieces(value);
 				if (newRightPiece.length > 0) {
 					this.rbInsertRight(node, newRightPiece);
 				}
-				this.rbInsertRight(node, newPiece);
+
+				let tmpNode = node;
+				for (let k = 0; k < newPieces.length; k++) {
+					tmpNode = this.rbInsertRight(tmpNode, newPieces[k]);
+				}
 				this.deleteNodes(nodesToDel);
 			} else {
 				this.insertContentToNodeRight(value, node);
 			}
 		} else {
 			// insert new node
-			let piece = this.createNewPiece(value);
-			this.rbInsertLeft(null, piece);
+			let pieces = this.createNewPieces(value);
+			let node = this.rbInsertLeft(null, pieces[0]);
+
+			for (let k = 1; k < pieces.length; k++) {
+				node = this.rbInsertRight(node, pieces[k]);
+			}
 		}
 
 		// todo, this is too brutal. Total line feed count should be updated the same way as lf_left.
@@ -881,8 +909,11 @@ export class PieceTreeBase {
 			}
 		}
 
-		let newPiece = this.createNewPiece(value);
-		let newNode = this.rbInsertLeft(node, newPiece);
+		let newPieces = this.createNewPieces(value);
+		let newNode = this.rbInsertLeft(node, newPieces[newPieces.length - 1]);
+		for (let k = newPieces.length - 2; k >= 0; k--) {
+			newNode = this.rbInsertLeft(newNode, newPieces[k]);
+		}
 		this.validateCRLFWithPrevNode(newNode);
 		this.deleteNodes(nodesToDel);
 	}
@@ -894,8 +925,14 @@ export class PieceTreeBase {
 			value += '\n';
 		}
 
-		let newPiece = this.createNewPiece(value);
-		let newNode = this.rbInsertRight(node, newPiece);
+		let newPieces = this.createNewPieces(value);
+		let newNode = this.rbInsertRight(node, newPieces[0]);
+		let tmpNode = newNode;
+
+		for (let k = 1; k < newPieces.length; k++) {
+			tmpNode = this.rbInsertRight(tmpNode, newPieces[k]);
+		}
+
 		this.validateCRLFWithPrevNode(newNode);
 	}
 
@@ -988,7 +1025,47 @@ export class PieceTreeBase {
 		}
 	}
 
-	createNewPiece(text: string): Piece {
+	createNewPieces(text: string): Piece[] {
+		if (text.length > AverageBufferSize) {
+			// the content is large, operations like substring, charCode becomes slow
+			// so here we split it into smaller chunks, just like what we did for CR/LF normalization
+			let newPieces = [];
+			while (text.length > AverageBufferSize) {
+				const lastChar = text.charCodeAt(AverageBufferSize - 1);
+				let splitText;
+				if (lastChar === CharCode.CarriageReturn || (lastChar >= 0xd800 && lastChar <= 0xdbff)) {
+					// last character is \r or a high surrogate => keep it back
+					splitText = text.substring(0, AverageBufferSize - 1);
+					text = text.substring(AverageBufferSize - 1);
+				} else {
+					splitText = text.substring(0, AverageBufferSize);
+					text = text.substring(AverageBufferSize);
+				}
+
+				let lineStarts = createLineStartsFast(splitText);
+				newPieces.push(new Piece(
+					this._buffers.length, /* buffer index */
+					{ line: 0, column: 0 },
+					{ line: lineStarts.length - 1, column: splitText.length - lineStarts[lineStarts.length - 1] },
+					lineStarts.length - 1,
+					splitText.length
+				));
+				this._buffers.push(new StringBuffer(splitText, lineStarts));
+			}
+
+			let lineStarts = createLineStartsFast(text);
+			newPieces.push(new Piece(
+				this._buffers.length, /* buffer index */
+				{ line: 0, column: 0 },
+				{ line: lineStarts.length - 1, column: text.length - lineStarts[lineStarts.length - 1] },
+				lineStarts.length - 1,
+				text.length
+			));
+			this._buffers.push(new StringBuffer(text, lineStarts));
+
+			return newPieces;
+		}
+
 		let startOffset = this._buffers[0].buffer.length;
 		const lineStarts = createLineStartsFast(text, false);
 
@@ -1023,14 +1100,14 @@ export class PieceTreeBase {
 		let endColumn = endOffset - this._buffers[0].lineStarts[endIndex];
 		let endPos = { line: endIndex, column: endColumn };
 		let newPiece = new Piece(
-			0,
+			0, /** todo */
 			start,
 			endPos,
 			this.getLineFeedCnt(0, start, endPos),
 			endOffset - startOffset
 		);
 		this._lastChangeBufferPos = endPos;
-		return newPiece;
+		return [newPiece];
 	}
 
 	getLinesRawContent(): string {
@@ -1513,8 +1590,8 @@ export class PieceTreeBase {
 		}
 
 		// create new piece which contains \r\n
-		let piece = this.createNewPiece('\r\n');
-		this.rbInsertRight(prev, piece);
+		let pieces = this.createNewPieces('\r\n');
+		this.rbInsertRight(prev, pieces[0]);
 		// delete empty nodes
 
 		for (let i = 0; i < nodesToDel.length; i++) {

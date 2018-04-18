@@ -95,7 +95,7 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 		super.updateStyles();
 
 		if (this.dropdown) {
-			this.dropdown.label.style('background-color', this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND));
+			$(this.dropdown.label).style('background-color', this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND));
 		}
 	}
 

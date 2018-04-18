@@ -223,7 +223,7 @@ export function isVersionValid(currentVersion: string, requestedVersion: string,
 
 	let desiredVersion = normalizeVersion(parseVersion(requestedVersion));
 	if (!desiredVersion) {
-		notices.push(nls.localize('versionSyntax', "Could not parse `engines.vscode` value {0}. Please use, for example: ^0.10.0, ^1.2.3, ^0.11.0, ^0.10.x, etc.", requestedVersion));
+		notices.push(nls.localize('versionSyntax', "Could not parse `engines.vscode` value {0}. Please use, for example: ^1.22.0, ^1.22.x, etc.", requestedVersion));
 		return false;
 	}
 

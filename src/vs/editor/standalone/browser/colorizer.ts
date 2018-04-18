@@ -13,6 +13,7 @@ import { renderViewLine2 as renderViewLine, RenderLineInput } from 'vs/editor/co
 import { LineTokens, IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import * as strings from 'vs/base/common/strings';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
+import { ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
 
 export interface IColorizerOptions {
 	tabSize?: number;
@@ -93,11 +94,14 @@ export class Colorizer {
 		});
 	}
 
-	public static colorizeLine(line: string, mightContainRTL: boolean, tokens: IViewLineTokens, tabSize: number = 4): string {
+	public static colorizeLine(line: string, mightContainNonBasicASCII: boolean, mightContainRTL: boolean, tokens: IViewLineTokens, tabSize: number = 4): string {
+		const isBasicASCII = ViewLineRenderingData.isBasicASCII(line, mightContainNonBasicASCII);
+		const containsRTL = ViewLineRenderingData.containsRTL(line, isBasicASCII, mightContainRTL);
 		let renderResult = renderViewLine(new RenderLineInput(
 			false,
 			line,
-			mightContainRTL,
+			isBasicASCII,
+			containsRTL,
 			0,
 			tokens,
 			[],
@@ -116,7 +120,7 @@ export class Colorizer {
 		model.forceTokenization(lineNumber);
 		let tokens = model.getLineTokens(lineNumber);
 		let inflatedTokens = tokens.inflate();
-		return this.colorizeLine(content, model.mightContainRTL(), inflatedTokens, tabSize);
+		return this.colorizeLine(content, model.mightContainNonBasicASCII(), model.mightContainRTL(), inflatedTokens, tabSize);
 	}
 }
 
@@ -143,10 +147,13 @@ function _fakeColorize(lines: string[], tabSize: number): string {
 		tokens[0] = line.length;
 		const lineTokens = new LineTokens(tokens, line);
 
+		const isBasicASCII = ViewLineRenderingData.isBasicASCII(line, /* check for basic ASCII */true);
+		const containsRTL = ViewLineRenderingData.containsRTL(line, isBasicASCII, /* check for RTL */true);
 		let renderResult = renderViewLine(new RenderLineInput(
 			false,
 			line,
-			false,
+			isBasicASCII,
+			containsRTL,
 			0,
 			lineTokens,
 			[],
@@ -174,10 +181,13 @@ function _actualColorize(lines: string[], tabSize: number, tokenizationSupport: 
 		let tokenizeResult = tokenizationSupport.tokenize2(line, state, 0);
 		LineTokens.convertToEndOffset(tokenizeResult.tokens, line.length);
 		let lineTokens = new LineTokens(tokenizeResult.tokens, line);
+		const isBasicASCII = ViewLineRenderingData.isBasicASCII(line, /* check for basic ASCII */true);
+		const containsRTL = ViewLineRenderingData.containsRTL(line, isBasicASCII, /* check for RTL */true);
 		let renderResult = renderViewLine(new RenderLineInput(
 			false,
 			line,
-			true/* check for RTL */,
+			isBasicASCII,
+			containsRTL,
 			0,
 			lineTokens.inflate(),
 			[],

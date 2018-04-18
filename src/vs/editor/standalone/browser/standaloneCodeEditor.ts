@@ -164,7 +164,8 @@ export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeE
 		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@INotificationService notificationService: INotificationService
 	) {
 		options = options || {};
 		options.ariaLabel = options.ariaLabel || nls.localize('editorViewAccessibleLabel', "Editor content");
@@ -173,7 +174,7 @@ export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeE
 				? nls.localize('accessibilityHelpMessageIE', "Press Ctrl+F1 for Accessibility Options.")
 				: nls.localize('accessibilityHelpMessage', "Press Alt+F1 for Accessibility Options.")
 		);
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, themeService);
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = keybindingService;
@@ -295,7 +296,8 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IStandaloneThemeService themeService: IStandaloneThemeService
+		@IStandaloneThemeService themeService: IStandaloneThemeService,
+		@INotificationService notificationService: INotificationService,
 	) {
 		options = options || {};
 		if (typeof options.theme === 'string') {
@@ -303,7 +305,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		}
 		let model: ITextModel = options.model;
 		delete options.model;
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService, themeService);
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService, themeService, notificationService);
 
 		this._contextViewService = <IEditorContextViewService>contextViewService;
 		this._register(toDispose);

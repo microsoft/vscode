@@ -49,7 +49,6 @@ const indentationFilter = [
 	'!src/vs/base/common/marked/marked.js',
 	'!src/vs/base/common/winjs.base.js',
 	'!src/vs/base/node/terminateProcess.sh',
-	'!src/vs/base/node/ps-win.ps1',
 	'!test/assert.js',
 
 	// except specific folders
@@ -62,6 +61,7 @@ const indentationFilter = [
 	// except multiple specific files
 	'!**/package.json',
 	'!**/yarn.lock',
+	'!**/yarn-error.log',
 
 	// except multiple specific folders
 	'!**/octicons/**',
@@ -82,7 +82,7 @@ const indentationFilter = [
 	'!build/**/*.sh',
 	'!build/tfs/**/*.js',
 	'!**/Dockerfile',
-	'!extensions/markdown/media/*.js'
+	'!extensions/markdown-language-features/media/*.js'
 ];
 
 const copyrightFilter = [
@@ -104,8 +104,9 @@ const copyrightFilter = [
 	'!build/**/*.init',
 	'!resources/linux/snap/snapcraft.yaml',
 	'!resources/win32/bin/code.js',
-	'!extensions/markdown/media/tomorrow.css',
-	'!extensions/html/server/src/modes/typescript/*'
+	'!extensions/markdown-language-features/media/tomorrow.css',
+	'!extensions/html-language-features/server/src/modes/typescript/*',
+	'!extensions/*/server/bin/*'
 ];
 
 const eslintFilter = [
@@ -132,7 +133,7 @@ const tslintFilter = [
 	'!extensions/vscode-api-tests/testWorkspace/**',
 	'!extensions/vscode-api-tests/testWorkspace2/**',
 	'!extensions/**/*.test.ts',
-	'!extensions/html/server/lib/jquery.d.ts'
+	'!extensions/html-language-features/server/lib/jquery.d.ts'
 ];
 
 const copyrightHeaderLines = [

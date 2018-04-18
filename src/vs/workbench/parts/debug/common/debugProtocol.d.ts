@@ -82,6 +82,8 @@ declare module DebugProtocol {
 			description?: string;
 			/** The thread which was stopped. */
 			threadId?: number;
+			/** A value of true hints to the frontend that this event should not change the focus. */
+			preserveFocusHint?: boolean;
 			/** Additional information. E.g. if reason is 'exception', text contains the exception name. This string is shown in the UI. */
 			text?: string;
 			/** If allThreadsStopped is true, a debug adapter can announce that all threads have stopped.

@@ -11,7 +11,7 @@ import * as util from 'gulp-util';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const allErrors: Error[][] = [];
+const allErrors: string[][] = [];
 let startTime: number = null;
 let count = 0;
 
@@ -42,7 +42,14 @@ try {
 
 function log(): void {
 	const errors = _.flatten(allErrors);
-	errors.map(err => util.log(`${util.colors.red('Error')}: ${err}`));
+	const seen = new Set<string>();
+
+	errors.map(err => {
+		if (!seen.has(err)) {
+			seen.add(err);
+			util.log(`${util.colors.red('Error')}: ${err}`);
+		}
+	});
 
 	const regex = /^([^(]+)\((\d+),(\d+)\): (.*)$/;
 	const messages = errors
@@ -61,17 +68,17 @@ function log(): void {
 }
 
 export interface IReporter {
-	(err: Error): void;
+	(err: string): void;
 	hasErrors(): boolean;
 	end(emitError: boolean): NodeJS.ReadWriteStream;
 }
 
 export function createReporter(): IReporter {
-	const errors: Error[] = [];
+	const errors: string[] = [];
 	allErrors.push(errors);
 
 	class ReportFunc {
-		constructor(err: Error) {
+		constructor(err: string) {
 			errors.push(err);
 		}
 
@@ -97,4 +104,4 @@ export function createReporter(): IReporter {
 	}
 
 	return <IReporter><any>ReportFunc;
-};
+}

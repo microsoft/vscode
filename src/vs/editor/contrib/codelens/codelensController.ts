@@ -10,6 +10,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CodeLensProviderRegistry, ICodeLensSymbol } from 'vs/editor/common/modes';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
@@ -218,8 +219,17 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			}
 		}
 
-		const centeredRange = this._editor.getCenteredRangeInViewport();
-		const shouldRestoreCenteredRange = centeredRange && (groups.length !== this._lenses.length && this._editor.getScrollTop() !== 0);
+		let visiblePosition: Position = null;
+		let visiblePositionScrollDelta = 0;
+		if (this._editor.getScrollTop() !== 0) {
+			const visibleRanges = this._editor.getVisibleRanges();
+			if (visibleRanges.length > 0) {
+				visiblePosition = visibleRanges[0].getStartPosition();
+				const visiblePositionScrollTop = this._editor.getTopForPosition(visiblePosition.lineNumber, visiblePosition.column);
+				visiblePositionScrollDelta = this._editor.getScrollTop() - visiblePositionScrollTop;
+			}
+		}
+
 		this._editor.changeDecorations((changeAccessor) => {
 			this._editor.changeViewZones((accessor) => {
 
@@ -259,8 +269,10 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 				helper.commit(changeAccessor);
 			});
 		});
-		if (shouldRestoreCenteredRange) {
-			this._editor.revealRangeInCenter(centeredRange, editorCommon.ScrollType.Immediate);
+
+		if (visiblePosition) {
+			const visiblePositionScrollTop = this._editor.getTopForPosition(visiblePosition.lineNumber, visiblePosition.column);
+			this._editor.setScrollTop(visiblePositionScrollTop + visiblePositionScrollDelta);
 		}
 	}
 

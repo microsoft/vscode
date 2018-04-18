@@ -78,7 +78,13 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 	}
 
 	canChangeEnablement(extension: ILocalExtension): boolean {
-		return !this.environmentService.disableExtensions && !(extension.manifest && extension.manifest.contributes && extension.manifest.contributes.localizations && extension.manifest.contributes.localizations.length);
+		if (extension.manifest && extension.manifest.contributes && extension.manifest.contributes.localizations && extension.manifest.contributes.localizations.length) {
+			return false;
+		}
+		if (extension.type === LocalExtensionType.User && this.environmentService.disableExtensions) {
+			return false;
+		}
+		return true;
 	}
 
 	setEnablement(arg: ILocalExtension | IExtensionIdentifier, newState: EnablementState): TPromise<boolean> {

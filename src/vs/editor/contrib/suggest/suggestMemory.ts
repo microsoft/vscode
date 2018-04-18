@@ -58,7 +58,7 @@ export class LRUMemory extends Memory {
 		this._cache.set(key, {
 			touch: this._seq++,
 			type: item.suggestion.type,
-			insertText: undefined
+			insertText: item.suggestion.insertText
 		});
 	}
 
@@ -66,18 +66,24 @@ export class LRUMemory extends Memory {
 		// in order of completions, select the first
 		// that has been used in the past
 		let { word } = model.getWordUntilPosition(pos);
+		if (word.length !== 0) {
+			return 0;
+		}
+
+		let lineSuffix = model.getLineContent(pos.lineNumber).substr(pos.column - 10, pos.column - 1);
+		if (/\s$/.test(lineSuffix)) {
+			return 0;
+		}
 
 		let res = 0;
 		let seq = -1;
-		if (word.length === 0) {
-			for (let i = 0; i < items.length; i++) {
-				const { suggestion } = items[i];
-				const key = `${model.getLanguageIdentifier().language}/${suggestion.label}`;
-				const item = this._cache.get(key);
-				if (item && item.touch > seq && item.type === suggestion.type) {
-					seq = item.touch;
-					res = i;
-				}
+		for (let i = 0; i < items.length; i++) {
+			const { suggestion } = items[i];
+			const key = `${model.getLanguageIdentifier().language}/${suggestion.label}`;
+			const item = this._cache.get(key);
+			if (item && item.touch > seq && item.type === suggestion.type && item.insertText === suggestion.insertText) {
+				seq = item.touch;
+				res = i;
 			}
 		}
 		return res;

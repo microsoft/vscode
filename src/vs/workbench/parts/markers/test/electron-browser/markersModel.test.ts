@@ -7,20 +7,20 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { MarkersModel, Marker, Resource } from 'vs/workbench/parts/markers/electron-browser/markersModel';
+import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
+import { MarkersModel, Marker, ResourceMarkers, RelatedInformation } from 'vs/workbench/parts/markers/electron-browser/markersModel';
 
 class TestMarkersModel extends MarkersModel {
 
-	get filteredResources(): Resource[] {
-		let res: Resource[] = [];
+	get filteredResources(): ResourceMarkers[] {
+		let res: ResourceMarkers[] = [];
 		this.forEachFilteredResource(resource => res.push(resource));
 		return res;
 	}
 
 	static compare(a: any, b: any): number {
-		if (a instanceof Resource && b instanceof Resource) {
-			return Resource.compare(a, b);
+		if (a instanceof ResourceMarkers && b instanceof ResourceMarkers) {
+			return ResourceMarkers.compare(a, b);
 		}
 		if (a instanceof Marker && b instanceof Marker) {
 			return Marker.compare(a, b);
@@ -139,12 +139,23 @@ suite('MarkersModel Test', () => {
 	});
 
 	test('toString()', function () {
-		const res1Marker = aMarker('a/res1');
-		res1Marker.code = '1234';
-		assert.equal(`file: 'file:///a/res1'\nseverity: 'Error'\nmessage: 'some message'\nat: '10,5'\nsource: 'tslint'\ncode: '1234'`, new Marker('', res1Marker).toString());
-		assert.equal(`file: 'file:///a/res2'\nseverity: 'Warning'\nmessage: 'some message'\nat: '10,5'\nsource: 'tslint'\ncode: ''`, new Marker('', aMarker('a/res2', MarkerSeverity.Warning)).toString());
-		assert.equal(`file: 'file:///a/res2'\nseverity: 'Info'\nmessage: 'Info'\nat: '1,2'\nsource: ''\ncode: ''`, new Marker('', aMarker('a/res2', MarkerSeverity.Info, 1, 2, 1, 8, 'Info', '')).toString());
-		assert.equal(`file: 'file:///a/res2'\nseverity: ''\nmessage: 'Ignore message'\nat: '1,2'\nsource: 'Ignore'\ncode: ''`, new Marker('', aMarker('a/res2', MarkerSeverity.Hint, 1, 2, 1, 8, 'Ignore message', 'Ignore')).toString());
+		let marker = aMarker('a/res1');
+		marker.code = '1234';
+		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), new Marker('', marker).toString());
+
+		marker = aMarker('a/res2', MarkerSeverity.Warning);
+		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), new Marker('', marker).toString());
+
+		marker = aMarker('a/res2', MarkerSeverity.Info, 1, 2, 1, 8, 'Info', '');
+		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), new Marker('', marker).toString());
+
+		marker = aMarker('a/res2', MarkerSeverity.Hint, 1, 2, 1, 8, 'Ignore message', 'Ignore');
+		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), new Marker('', marker).toString());
+
+		marker = aMarker('a/res2', MarkerSeverity.Warning, 1, 2, 1, 8, 'Warning message', '', [{ startLineNumber: 2, startColumn: 5, endLineNumber: 2, endColumn: 10, message: 'some info', resource: URI.file('a/res3') }]);
+		const testObject = new Marker('', marker);
+		testObject.resourceRelatedInformation = marker.relatedInformation.map(r => new RelatedInformation('', r));
+		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path, relatedInformation: marker.relatedInformation.map(r => ({ ...r, resource: r.resource.path })) }, null, '\t'), testObject.toString());
 	});
 
 	function hasMarker(markers: Marker[], marker: IMarker): boolean {
@@ -153,7 +164,7 @@ suite('MarkersModel Test', () => {
 		}).length === 1;
 	}
 
-	function compareResource(a: Resource, b: string): boolean {
+	function compareResource(a: ResourceMarkers, b: string): boolean {
 		return a.uri.toString() === URI.file(b).toString();
 	}
 
@@ -200,7 +211,8 @@ suite('MarkersModel Test', () => {
 		endLineNumber: number = startLineNumber + 1,
 		endColumn: number = startColumn + 5,
 		message: string = 'some message',
-		source: string = 'tslint'
+		source: string = 'tslint',
+		relatedInformation?: IRelatedInformation[]
 	): IMarker {
 		return {
 			owner: 'someOwner',
@@ -211,7 +223,8 @@ suite('MarkersModel Test', () => {
 			startColumn,
 			endLineNumber,
 			endColumn,
-			source
+			source,
+			relatedInformation
 		};
 	}
 });

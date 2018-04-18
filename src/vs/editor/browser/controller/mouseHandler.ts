@@ -220,8 +220,8 @@ export class MouseHandler extends ViewEventHandler {
 		let targetIsViewZone = (t.type === editorBrowser.MouseTargetType.CONTENT_VIEW_ZONE || t.type === editorBrowser.MouseTargetType.GUTTER_VIEW_ZONE);
 		let targetIsWidget = (t.type === editorBrowser.MouseTargetType.CONTENT_WIDGET);
 
-		let shouldHandle = e.leftButton;
-		if (platform.isMacintosh && e.ctrlKey) {
+		let shouldHandle = e.leftButton || e.middleButton;
+		if (platform.isMacintosh && e.leftButton && e.ctrlKey) {
 			shouldHandle = false;
 		}
 
@@ -334,6 +334,7 @@ class MouseDownOperation extends Disposable {
 		this._lastMouseEvent = e;
 
 		this._mouseState.setStartedOnLineNumbers(targetType === editorBrowser.MouseTargetType.GUTTER_LINE_NUMBERS);
+		this._mouseState.setStartButtons(e);
 		this._mouseState.setModifiers(e);
 		let position = this._findMousePosition(e, true);
 		if (!position) {
@@ -488,6 +489,9 @@ class MouseDownOperation extends Disposable {
 			ctrlKey: this._mouseState.ctrlKey,
 			metaKey: this._mouseState.metaKey,
 			shiftKey: this._mouseState.shiftKey,
+
+			leftButton: this._mouseState.leftButton,
+			middleButton: this._mouseState.middleButton,
 		});
 	}
 }
@@ -508,6 +512,12 @@ class MouseDownState {
 	private _shiftKey: boolean;
 	public get shiftKey(): boolean { return this._shiftKey; }
 
+	private _leftButton: boolean;
+	public get leftButton(): boolean { return this._leftButton; }
+
+	private _middleButton: boolean;
+	public get middleButton(): boolean { return this._middleButton; }
+
 	private _startedOnLineNumbers: boolean;
 	public get startedOnLineNumbers(): boolean { return this._startedOnLineNumbers; }
 
@@ -522,6 +532,8 @@ class MouseDownState {
 		this._ctrlKey = false;
 		this._metaKey = false;
 		this._shiftKey = false;
+		this._leftButton = false;
+		this._middleButton = false;
 		this._startedOnLineNumbers = false;
 		this._lastMouseDownPosition = null;
 		this._lastMouseDownPositionEqualCount = 0;
@@ -539,6 +551,11 @@ class MouseDownState {
 		this._ctrlKey = source.ctrlKey;
 		this._metaKey = source.metaKey;
 		this._shiftKey = source.shiftKey;
+	}
+
+	public setStartButtons(source: EditorMouseEvent) {
+		this._leftButton = source.leftButton;
+		this._middleButton = source.middleButton;
 	}
 
 	public setStartedOnLineNumbers(startedOnLineNumbers: boolean): void {

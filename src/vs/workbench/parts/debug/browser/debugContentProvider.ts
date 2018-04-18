@@ -23,7 +23,7 @@ import { Source } from 'vs/workbench/parts/debug/common/debugSource';
  *       debug:arbitrary_path?session=123e4567-e89b-12d3-a456-426655440000&ref=1016
  *       \___/ \____________/ \__________________________________________/ \______/
  *         |          |                             |                          |
- *      scheme   source.path                    session id            source.referencequery
+ *      scheme   source.path                    session id            source.reference
  *
  * the arbitrary_path and the session id are encoded with 'encodeURIComponent'
  *
@@ -58,7 +58,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		if (!process) {
 			return TPromise.wrapError<ITextModel>(new Error(localize('unable', "Unable to resolve the resource without a debug session")));
 		}
-		const source = process.sources.get(resource.toString());
+		const source = process.getSourceForUri(resource);
 		let rawSource: DebugProtocol.Source;
 		if (source) {
 			rawSource = source.raw;

@@ -18,6 +18,7 @@
 	"debugRequest": "A konfiguráció kérési típusa. Lehet \"launch\" vagy \"attach\".",
 	"debugServer": "Csak hibakeresési kiegészítők fejlesztéséhez: ha a port meg van adva, akkor a VS Code egy szerver módban futó hibakeresési illesztőhöz próbál meg csatlakozni.",
 	"debugPrelaunchTask": "A hibakeresési folyamat előtt futtatandó feladat.",
+	"debugPostDebugTask": "A hibakeresési folyamat vége után futtatandó feladat.",
 	"debugWindowsConfiguration": "Windows-specifikus indítási konfigurációs attribútumok.",
 	"debugOSXConfiguration": "OS X-specifikus indítási konfigurációs attribútumok.",
 	"debugLinuxConfiguration": "Linux-specifikus indítási konfigurációs attribútumok.",

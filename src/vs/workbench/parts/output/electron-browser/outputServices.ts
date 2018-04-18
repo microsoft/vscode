@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
-import * as strings from 'vs/base/common/strings';
 import * as extfs from 'vs/base/node/extfs';
 import * as fs from 'fs';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -16,7 +15,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorOptions } from 'vs/workbench/common/editor';
-import { IOutputChannelIdentifier, IOutputChannel, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, OUTPUT_SCHEME, OUTPUT_MIME, MAX_OUTPUT_LENGTH, LOG_SCHEME, LOG_MIME, CONTEXT_ACTIVE_LOG_OUTPUT } from 'vs/workbench/parts/output/common/output';
+import { IOutputChannelIdentifier, IOutputChannel, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, OUTPUT_SCHEME, OUTPUT_MIME, LOG_SCHEME, LOG_MIME, CONTEXT_ACTIVE_LOG_OUTPUT } from 'vs/workbench/parts/output/common/output';
 import { OutputPanel } from 'vs/workbench/parts/output/browser/outputPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -36,8 +35,6 @@ import { RotatingLogger } from 'spdlog';
 import { toLocalISOString } from 'vs/base/common/date';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILogService } from 'vs/platform/log/common/log';
-import { binarySearch } from 'vs/base/common/arrays';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Schemas } from 'vs/base/common/network';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -437,7 +434,6 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IWindowService windowService: IWindowService,
-		@ITelemetryService private telemetryService: ITelemetryService,
 		@ILogService private logService: ILogService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
@@ -472,7 +468,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	}
 
 	provideTextContent(resource: URI): TPromise<ITextModel> {
-		const channel = <OutputChannel>this.getChannel(resource.fsPath);
+		const channel = <OutputChannel>this.getChannel(resource.path);
 		if (channel) {
 			return channel.loadModel();
 		}
@@ -570,16 +566,9 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		}
 
 		const uri = URI.from({ scheme: OUTPUT_SCHEME, path: id });
-		if (channelData && channelData.file) {
-			return this.instantiationService.createInstance(FileOutputChannel, channelData, uri);
-		}
-		try {
-			return this.instantiationService.createInstance(OutputChannelBackedByFile, { id, label: channelData ? channelData.label : '' }, this.outputDir, uri);
-		} catch (e) {
-			this.logService.error(e);
-			this.telemetryService.publicLog('output.used.bufferedChannel');
-			return this.instantiationService.createInstance(BufferredOutputChannel, { id, label: channelData ? channelData.label : '' });
-		}
+		return channelData && channelData.file
+			? this.instantiationService.createInstance(FileOutputChannel, channelData, uri)
+			: this.instantiationService.createInstance(OutputChannelBackedByFile, { id, label: channelData ? channelData.label : '' }, this.outputDir, uri);
 	}
 
 	private doShowChannel(channel: IOutputChannel, preserveFocus: boolean): TPromise<void> {
@@ -646,146 +635,5 @@ export class LogContentProvider {
 			this.channels.set(id, channel);
 		}
 		return channel;
-	}
-}
-
-// Remove this channel when there are no issues using Output channel backed by file
-class BufferredOutputChannel extends Disposable implements OutputChannel {
-
-	readonly id: string;
-	readonly label: string;
-	readonly file: URI = null;
-	scrollLock: boolean = false;
-
-	protected _onDidAppendedContent: Emitter<void> = new Emitter<void>();
-	readonly onDidAppendedContent: Event<void> = this._onDidAppendedContent.event;
-
-	private readonly _onDispose: Emitter<void> = new Emitter<void>();
-	readonly onDispose: Event<void> = this._onDispose.event;
-
-	private modelUpdater: RunOnceScheduler;
-	private model: ITextModel;
-	private readonly bufferredContent: BufferedContent;
-	private lastReadId: number = void 0;
-
-	constructor(
-		protected readonly outputChannelIdentifier: IOutputChannelIdentifier,
-		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService
-	) {
-		super();
-
-		this.id = outputChannelIdentifier.id;
-		this.label = outputChannelIdentifier.label;
-
-		this.modelUpdater = new RunOnceScheduler(() => this.updateModel(), 300);
-		this._register(toDisposable(() => this.modelUpdater.cancel()));
-
-		this.bufferredContent = new BufferedContent();
-		this._register(toDisposable(() => this.bufferredContent.clear()));
-	}
-
-	append(output: string) {
-		this.bufferredContent.append(output);
-		if (!this.modelUpdater.isScheduled()) {
-			this.modelUpdater.schedule();
-		}
-	}
-
-	clear(): void {
-		if (this.modelUpdater.isScheduled()) {
-			this.modelUpdater.cancel();
-		}
-		if (this.model) {
-			this.model.setValue('');
-		}
-		this.bufferredContent.clear();
-		this.lastReadId = void 0;
-	}
-
-	loadModel(): TPromise<ITextModel> {
-		const { value, id } = this.bufferredContent.getDelta(this.lastReadId);
-		if (this.model) {
-			this.model.setValue(value);
-		} else {
-			this.model = this.createModel(value);
-		}
-		this.lastReadId = id;
-		return TPromise.as(this.model);
-	}
-
-	private createModel(content: string): ITextModel {
-		const model = this.modelService.createModel(content, this.modeService.getOrCreateMode(OUTPUT_MIME), URI.from({ scheme: OUTPUT_SCHEME, path: this.id }));
-		const disposables: IDisposable[] = [];
-		disposables.push(model.onWillDispose(() => {
-			this.model = null;
-			dispose(disposables);
-		}));
-		return model;
-	}
-
-	private updateModel(): void {
-		if (this.model) {
-			const { value, id } = this.bufferredContent.getDelta(this.lastReadId);
-			this.lastReadId = id;
-			const lastLine = this.model.getLineCount();
-			const lastLineMaxColumn = this.model.getLineMaxColumn(lastLine);
-			this.model.applyEdits([EditOperation.insert(new Position(lastLine, lastLineMaxColumn), value)]);
-			this._onDidAppendedContent.fire();
-		}
-	}
-
-	dispose(): void {
-		this._onDispose.fire();
-		super.dispose();
-	}
-}
-
-class BufferedContent {
-
-	private data: string[] = [];
-	private dataIds: number[] = [];
-	private idPool = 0;
-	private length = 0;
-
-	public append(content: string): void {
-		this.data.push(content);
-		this.dataIds.push(++this.idPool);
-		this.length += content.length;
-		this.trim();
-	}
-
-	public clear(): void {
-		this.data.length = 0;
-		this.dataIds.length = 0;
-		this.length = 0;
-	}
-
-	private trim(): void {
-		if (this.length < MAX_OUTPUT_LENGTH * 1.2) {
-			return;
-		}
-
-		while (this.length > MAX_OUTPUT_LENGTH) {
-			this.dataIds.shift();
-			const removed = this.data.shift();
-			this.length -= removed.length;
-		}
-	}
-
-	public getDelta(previousId?: number): { value: string, id: number } {
-		let idx = -1;
-		if (previousId !== void 0) {
-			idx = binarySearch(this.dataIds, previousId, (a, b) => a - b);
-		}
-
-		const id = this.idPool;
-		if (idx >= 0) {
-			const value = strings.removeAnsiEscapeCodes(this.data.slice(idx + 1).join(''));
-			return { value, id };
-		} else {
-			const value = strings.removeAnsiEscapeCodes(this.data.join(''));
-			return { value, id };
-		}
 	}
 }

@@ -10,11 +10,100 @@ import * as iconv from 'iconv-lite';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { exec } from 'child_process';
+import { Readable, Writable, WritableOptions } from 'stream';
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';
 export const UTF16be = 'utf16be';
 export const UTF16le = 'utf16le';
+
+export interface IDecodeStreamOptions {
+	guessEncoding?: boolean;
+	minBytesRequiredForDetection?: number;
+	overwriteEncoding?(detectedEncoding: string): string;
+}
+
+export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions): Promise<{ detected: IDetectedEncodingResult, stream: NodeJS.ReadableStream }> {
+
+	if (!options.minBytesRequiredForDetection) {
+		options.minBytesRequiredForDetection = options.guessEncoding ? AUTO_GUESS_BUFFER_MAX_LEN : NO_GUESS_BUFFER_MAX_LEN;
+	}
+
+	if (!options.overwriteEncoding) {
+		options.overwriteEncoding = detected => detected || UTF8;
+	}
+
+	return new Promise<{ detected: IDetectedEncodingResult, stream: NodeJS.ReadableStream }>((resolve, reject) => {
+		readable.pipe(new class extends Writable {
+
+			private _decodeStream: NodeJS.ReadWriteStream;
+			private _decodeStreamConstruction: Thenable<any>;
+			private _buffer: Buffer[] = [];
+			private _bytesBuffered = 0;
+
+			constructor(opts?: WritableOptions) {
+				super(opts);
+				this.once('finish', () => this._finish());
+			}
+
+			_write(chunk: any, encoding: string, callback: Function): void {
+				if (!Buffer.isBuffer(chunk)) {
+					callback(new Error('data must be a buffer'));
+				}
+
+				if (this._decodeStream) {
+					// just a forwarder now
+					this._decodeStream.write(chunk, callback);
+					return;
+				}
+
+				this._buffer.push(chunk);
+				this._bytesBuffered += chunk.length;
+
+				if (this._decodeStreamConstruction) {
+					// waiting for the decoder to be ready
+					this._decodeStreamConstruction.then(_ => callback(), err => callback(err));
+
+				} else if (this._bytesBuffered >= options.minBytesRequiredForDetection) {
+					// buffered enough data, create stream and forward data
+					this._startDecodeStream(callback);
+
+				} else {
+					// only buffering
+					callback();
+				}
+			}
+
+			_startDecodeStream(callback: Function): void {
+
+				this._decodeStreamConstruction = Promise.resolve(detectEncodingFromBuffer({
+					buffer: Buffer.concat(this._buffer), bytesRead: this._bytesBuffered
+				}, options.guessEncoding)).then(detected => {
+					detected.encoding = options.overwriteEncoding(detected.encoding);
+					this._decodeStream = decodeStream(detected.encoding);
+					for (const buffer of this._buffer) {
+						this._decodeStream.write(buffer);
+					}
+					callback();
+					resolve({ detected, stream: this._decodeStream });
+
+				}, err => {
+					callback(err);
+				});
+			}
+
+			_finish(): void {
+				if (this._decodeStream) {
+					// normal finish
+					this._decodeStream.end();
+				} else {
+					// we were still waiting for data...
+					this._startDecodeStream(() => this._decodeStream.end());
+				}
+			}
+		});
+	});
+}
 
 export function bomLength(encoding: string): number {
 	switch (encoding) {
@@ -170,6 +259,89 @@ export function toCanonicalName(enc: string): string {
 
 			return enc;
 	}
+}
+
+const ZERO_BYTE_DETECTION_BUFFER_MAX_LEN = 512; // number of bytes to look at to decide about a file being binary or not
+const NO_GUESS_BUFFER_MAX_LEN = 512; 			// when not auto guessing the encoding, small number of bytes are enough
+const AUTO_GUESS_BUFFER_MAX_LEN = 512 * 8; 		// with auto guessing we want a lot more content to be read for guessing
+
+export interface IDetectedEncodingResult {
+	encoding: string;
+	seemsBinary: boolean;
+}
+
+export interface DetectEncodingOption {
+	autoGuessEncoding?: boolean;
+}
+
+export function detectEncodingFromBuffer(readResult: stream.ReadResult, autoGuessEncoding?: false): IDetectedEncodingResult;
+export function detectEncodingFromBuffer(readResult: stream.ReadResult, autoGuessEncoding?: boolean): TPromise<IDetectedEncodingResult>;
+export function detectEncodingFromBuffer({ buffer, bytesRead }: stream.ReadResult, autoGuessEncoding?: boolean): TPromise<IDetectedEncodingResult> | IDetectedEncodingResult {
+
+	// Always first check for BOM to find out about encoding
+	let encoding = detectEncodingByBOMFromBuffer(buffer, bytesRead);
+
+	// Detect 0 bytes to see if file is binary or UTF-16 LE/BE
+	// unless we already know that this file has a UTF-16 encoding
+	let seemsBinary = false;
+	if (encoding !== UTF16be && encoding !== UTF16le) {
+		let couldBeUTF16LE = true; // e.g. 0xAA 0x00
+		let couldBeUTF16BE = true; // e.g. 0x00 0xAA
+		let containsZeroByte = false;
+
+		// This is a simplified guess to detect UTF-16 BE or LE by just checking if
+		// the first 512 bytes have the 0-byte at a specific location. For UTF-16 LE
+		// this would be the odd byte index and for UTF-16 BE the even one.
+		// Note: this can produce false positives (a binary file that uses a 2-byte
+		// encoding of the same format as UTF-16) and false negatives (a UTF-16 file
+		// that is using 4 bytes to encode a character).
+		for (let i = 0; i < bytesRead && i < ZERO_BYTE_DETECTION_BUFFER_MAX_LEN; i++) {
+			const isEndian = (i % 2 === 1); // assume 2-byte sequences typical for UTF-16
+			const isZeroByte = (buffer.readInt8(i) === 0);
+
+			if (isZeroByte) {
+				containsZeroByte = true;
+			}
+
+			// UTF-16 LE: expect e.g. 0xAA 0x00
+			if (couldBeUTF16LE && (isEndian && !isZeroByte || !isEndian && isZeroByte)) {
+				couldBeUTF16LE = false;
+			}
+
+			// UTF-16 BE: expect e.g. 0x00 0xAA
+			if (couldBeUTF16BE && (isEndian && isZeroByte || !isEndian && !isZeroByte)) {
+				couldBeUTF16BE = false;
+			}
+
+			// Return if this is neither UTF16-LE nor UTF16-BE and thus treat as binary
+			if (isZeroByte && !couldBeUTF16LE && !couldBeUTF16BE) {
+				break;
+			}
+		}
+
+		// Handle case of 0-byte included
+		if (containsZeroByte) {
+			if (couldBeUTF16LE) {
+				encoding = UTF16le;
+			} else if (couldBeUTF16BE) {
+				encoding = UTF16be;
+			} else {
+				seemsBinary = true;
+			}
+		}
+	}
+
+	// Auto guess encoding if configured
+	if (autoGuessEncoding && !seemsBinary && !encoding) {
+		return guessEncodingByBuffer(buffer.slice(0, bytesRead)).then(encoding => {
+			return {
+				seemsBinary: false,
+				encoding
+			};
+		});
+	}
+
+	return { seemsBinary, encoding };
 }
 
 // https://ss64.com/nt/chcp.html

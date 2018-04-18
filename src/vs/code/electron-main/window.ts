@@ -151,8 +151,16 @@ export class CodeWindow implements ICodeWindow {
 
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 
+		if (isMacintosh) {
+			options.acceptFirstMouse = true; // enabled by default
+
+			if (windowConfig && windowConfig.clickThroughInactive === false) {
+				options.acceptFirstMouse = false;
+			}
+		}
+
 		let useNativeTabs = false;
-		if (windowConfig && windowConfig.nativeTabs) {
+		if (isMacintosh && windowConfig && windowConfig.nativeTabs === true) {
 			options.tabbingIdentifier = product.nameShort; // this opts in to sierra tabs
 			useNativeTabs = true;
 		}
@@ -177,23 +185,6 @@ export class CodeWindow implements ICodeWindow {
 		// Create the browser window.
 		this._win = new BrowserWindow(options);
 		this._id = this._win.id;
-
-		// Bug in Electron (https://github.com/electron/electron/issues/10862). On multi-monitor setups,
-		// it can happen that the position we set to the window is not the correct one on the display.
-		// To workaround, we ask the window for its position and set it again if not matching.
-		// This only applies if the window is not fullscreen or maximized and multiple monitors are used.
-		if (isWindows && !isFullscreenOrMaximized) {
-			try {
-				if (screen.getAllDisplays().length > 1) {
-					const [x, y] = this._win.getPosition();
-					if (x !== this.windowState.x || y !== this.windowState.y) {
-						this._win.setPosition(this.windowState.x, this.windowState.y, false);
-					}
-				}
-			} catch (err) {
-				this.logService.warn(`Unexpected error fixing window position on windows with multiple windows: ${err}\n${err.stack}`);
-			}
-		}
 
 		if (useCustomTitleStyle) {
 			this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
@@ -414,6 +405,34 @@ export class CodeWindow implements ICodeWindow {
 
 		// Handle Workspace events
 		this.toDispose.push(this.workspacesMainService.onUntitledWorkspaceDeleted(e => this.onUntitledWorkspaceDeleted(e)));
+
+		// TODO@Ben workaround for https://github.com/Microsoft/vscode/issues/13612
+		// It looks like smooth scrolling disappears as soon as the window is minimized
+		// and maximized again. Touching some window properties "fixes" it, like toggling
+		// the visibility of the menu.
+		if (isWindows) {
+			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+			if (windowConfig && windowConfig.smoothScrollingWorkaround === true) {
+				let minimized = false;
+
+				const restoreSmoothScrolling = () => {
+					if (minimized) {
+						const visibility = this.getMenuBarVisibility();
+						const temporaryVisibility: MenuBarVisibility = (visibility === 'hidden' || visibility === 'toggle') ? 'default' : 'hidden';
+						setTimeout(() => {
+							this.doSetMenuBarVisibility(temporaryVisibility);
+							this.doSetMenuBarVisibility(visibility);
+						}, 0);
+					}
+
+					minimized = false;
+				};
+
+				this._win.on('minimize', () => minimized = true);
+				this._win.on('restore', () => restoreSmoothScrolling());
+				this._win.on('maximize', () => restoreSmoothScrolling());
+			}
+		}
 	}
 
 	private onUntitledWorkspaceDeleted(workspace: IWorkspaceIdentifier): void {
@@ -570,7 +589,7 @@ export class CodeWindow implements ICodeWindow {
 
 		// Perf Counters
 		windowConfiguration.perfEntries = exportEntries();
-		windowConfiguration.perfStartTime = global.perfStartTime;
+		windowConfiguration.perfStartTime = (<any>global).perfStartTime;
 		windowConfiguration.perfWindowLoadTime = Date.now();
 
 		// Config (combination of process.argv and window configuration)
@@ -797,11 +816,32 @@ export class CodeWindow implements ICodeWindow {
 		return menuBarVisibility;
 	}
 
-	public setMenuBarVisibility(visibility: MenuBarVisibility, notify: boolean = true): void {
+	private setMenuBarVisibility(visibility: MenuBarVisibility, notify: boolean = true): void {
 		if (isMacintosh) {
 			return; // ignore for macOS platform
 		}
 
+		if (visibility === 'toggle') {
+			if (notify) {
+				this.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', "You can still access the menu bar by pressing the Alt-key."));
+			}
+		}
+
+		if (visibility === 'hidden') {
+			// for some weird reason that I have no explanation for, the menu bar is not hiding when calling
+			// this without timeout (see https://github.com/Microsoft/vscode/issues/19777). there seems to be
+			// a timing issue with us opening the first window and the menu bar getting created. somehow the
+			// fact that we want to hide the menu without being able to bring it back via Alt key makes Electron
+			// still show the menu. Unable to reproduce from a simple Hello World application though...
+			setTimeout(() => {
+				this.doSetMenuBarVisibility(visibility);
+			});
+		} else {
+			this.doSetMenuBarVisibility(visibility);
+		}
+	}
+
+	private doSetMenuBarVisibility(visibility: MenuBarVisibility): void {
 		const isFullscreen = this._win.isFullScreen();
 
 		switch (visibility) {
@@ -818,22 +858,11 @@ export class CodeWindow implements ICodeWindow {
 			case ('toggle'):
 				this._win.setMenuBarVisibility(false);
 				this._win.setAutoHideMenuBar(true);
-
-				if (notify) {
-					this.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', "You can still access the menu bar by pressing the Alt-key."));
-				}
 				break;
 
 			case ('hidden'):
-				// for some weird reason that I have no explanation for, the menu bar is not hiding when calling
-				// this without timeout (see https://github.com/Microsoft/vscode/issues/19777). there seems to be
-				// a timing issue with us opening the first window and the menu bar getting created. somehow the
-				// fact that we want to hide the menu without being able to bring it back via Alt key makes Electron
-				// still show the menu. Unable to reproduce from a simple Hello World application though...
-				setTimeout(() => {
-					this._win.setMenuBarVisibility(false);
-					this._win.setAutoHideMenuBar(false);
-				});
+				this._win.setMenuBarVisibility(false);
+				this._win.setAutoHideMenuBar(false);
 				break;
 		}
 	}
@@ -908,11 +937,6 @@ export class CodeWindow implements ICodeWindow {
 			const groupTouchBar = this.createTouchBarGroup();
 			this.touchBarGroups.push(groupTouchBar);
 		}
-
-		// Ugly workaround for native crash on macOS 10.12.1. We are not
-		// leveraging the API for changing the ESC touch bar item.
-		// See https://github.com/electron/electron/issues/10442
-		(<any>this._win)._setEscapeTouchBarItem = () => { };
 
 		this._win.setTouchBar(new TouchBar({ items: this.touchBarGroups }));
 	}

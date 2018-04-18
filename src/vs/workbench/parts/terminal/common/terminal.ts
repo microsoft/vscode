@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -149,6 +148,7 @@ export interface ITerminalService {
 	configHelper: ITerminalConfigHelper;
 	onActiveTabChanged: Event<void>;
 	onTabDisposed: Event<ITerminalTab>;
+	onInstanceCreated: Event<ITerminalInstance>;
 	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
 	onInstancesChanged: Event<void>;
@@ -156,7 +156,17 @@ export interface ITerminalService {
 	terminalInstances: ITerminalInstance[];
 	terminalTabs: ITerminalTab[];
 
-	createInstance(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
+	/**
+	 * Creates a terminal.
+	 * @param shell The shell launch configuration to use.
+	 * @param wasNewTerminalAction Whether this was triggered by a new terminal action, if so a
+	 * default shell selection dialog may display.
+	 */
+	createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
+	/**
+	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
+	 */
+	createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
 	getTabLabels(): string[];
@@ -164,7 +174,7 @@ export interface ITerminalService {
 	setActiveInstance(terminalInstance: ITerminalInstance): void;
 	setActiveInstanceByIndex(terminalIndex: number): void;
 	getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
-	splitInstance(instance: ITerminalInstance): void;
+	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig): void;
 
 	getActiveTab(): ITerminalTab;
 	setActiveTabToNext(): void;
@@ -234,6 +244,8 @@ export interface ITerminalInstance {
 
 	onProcessIdReady: Event<ITerminalInstance>;
 
+	processReady: TPromise<void>;
+
 	/**
 	 * The title of the terminal. This is either title or the process currently running or an
 	 * explicit name given to the terminal instance through the extension API.
@@ -266,6 +278,12 @@ export interface ITerminalInstance {
 	 * resize events.
 	 */
 	disableLayout: boolean;
+
+	/**
+	 * An object that tracks when commands are run and enables navigating and selecting between
+	 * them.
+	 */
+	readonly commandTracker: ITerminalCommandTracker;
 
 	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
@@ -439,4 +457,52 @@ export interface ITerminalInstance {
 	setTitle(title: string, eventFromProcess: boolean): void;
 
 	addDisposable(disposable: IDisposable): void;
+}
+
+export interface ITerminalCommandTracker {
+	scrollToPreviousCommand(): void;
+	scrollToNextCommand(): void;
+	selectToPreviousCommand(): void;
+	selectToNextCommand(): void;
+}
+
+export interface ITerminalProcessMessage {
+	type: 'pid' | 'data' | 'title';
+	content: number | string;
+}
+
+export interface ITerminalProcessManager extends IDisposable {
+	readonly processState: ProcessState;
+	readonly ptyProcessReady: TPromise<void>;
+	readonly shellProcessId: number;
+	readonly initialCwd: string;
+
+	readonly onProcessReady: Event<void>;
+	readonly onProcessData: Event<string>;
+	readonly onProcessTitle: Event<string>;
+	readonly onProcessExit: Event<number>;
+
+	addDisposable(disposable: IDisposable);
+	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number);
+	write(data: string): void;
+	setDimensions(cols: number, rows: number): void;
+}
+
+export enum ProcessState {
+	// The process has not been initialized yet.
+	UNINITIALIZED,
+	// The process is currently launching, the process is marked as launching
+	// for a short duration after being created and is helpful to indicate
+	// whether the process died as a result of bad shell and args.
+	LAUNCHING,
+	// The process is running normally.
+	RUNNING,
+	// The process was killed during launch, likely as a result of bad shell and
+	// args.
+	KILLED_DURING_LAUNCH,
+	// The process was killed by the user (the event originated from VS Code).
+	KILLED_BY_USER,
+	// The process was killed by itself, for example the shell crashed or `exit`
+	// was run.
+	KILLED_BY_PROCESS
 }

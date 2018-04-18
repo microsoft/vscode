@@ -45,6 +45,7 @@
 	"PatternTypeSchema.description": "问题模式或者所提供或预定义问题模式的名称。如果已指定基准，则可以省略。",
 	"ProblemMatcherSchema.base": "要使用的基问题匹配程序的名称。",
 	"ProblemMatcherSchema.owner": "代码内问题的所有者。如果指定了基准，则可省略。如果省略，并且未指定基准，则默认值为“外部”。",
+	"ProblemMatcherSchema.source": "描述此诊断信息来源的人类可读字符串。如，\"typescript\" 或 \"super lint\"。",
 	"ProblemMatcherSchema.severity": "捕获问题的默认严重性。如果模式未定义严重性的匹配组，则使用。",
 	"ProblemMatcherSchema.applyTo": "控制文本文档上报告的问题是否仅应用于打开、关闭或所有文档。",
 	"ProblemMatcherSchema.fileLocation": "定义应如何解释问题模式中报告的文件名。",

@@ -10,7 +10,6 @@
 	"neverShowAgain": "다시 표시 안 함",
 	"netVersionError": "Microsoft .NET Framework 4.5가 필요합니다. 설치하려면 링크를 클릭하세요.",
 	"learnMore": "지침",
-	"enospcError": "{0}에 파일 핸들이 부족합니다. 지침 링크를 클릭하여 문제를 해결하세요.",
 	"binFailed": "'{0}'을(를) 휴지통으로 이동하지 못함",
 	"trashFailed": "'{0}'을(를) 휴지통으로 이동하지 못함"
 }

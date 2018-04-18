@@ -6,11 +6,12 @@
 
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as Objects from 'vs/base/common/objects';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import * as types from 'vs/workbench/api/node/extHostTypes';
+import { IRawColorInfo } from 'vs/workbench/api/node/extHost.protocol';
+
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
@@ -18,22 +19,21 @@ import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
 import { Position as EditorPosition, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { CustomCodeAction } from 'vs/workbench/api/node/extHostLanguageFeatures';
-import * as TaskSystem from 'vs/workbench/parts/tasks/common/tasks';
-import { ExtHostWorkspace } from './extHostWorkspace';
+import { ExtHostTask } from './extHostTask';
 
 export class ExtHostApiCommands {
 
-	static register(commands: ExtHostCommands, workspace: ExtHostWorkspace) {
+	static register(commands: ExtHostCommands, workspace: ExtHostTask) {
 		return new ExtHostApiCommands(commands, workspace).registerCommands();
 	}
 
 	private _commands: ExtHostCommands;
-	private _workspace: ExtHostWorkspace;
+	private _tasks: ExtHostTask;
 	private _disposables: IDisposable[] = [];
 
-	private constructor(commands: ExtHostCommands, workspace: ExtHostWorkspace) {
+	private constructor(commands: ExtHostCommands, task: ExtHostTask) {
 		this._commands = commands;
-		this._workspace = workspace;
+		this._tasks = task;
 	}
 
 	registerCommands() {
@@ -121,7 +121,8 @@ export class ExtHostApiCommands {
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
 				{ name: 'position', description: 'Position in a text document', constraint: types.Position },
-				{ name: 'triggerCharacter', description: '(optional) Trigger completion when the user types the character, like `,` or `(`', constraint: value => value === void 0 || typeof value === 'string' }
+				{ name: 'triggerCharacter', description: '(optional) Trigger completion when the user types the character, like `,` or `(`', constraint: value => value === void 0 || typeof value === 'string' },
+				{ name: 'itemResolveCount', description: '(optional) Number of completions to resolve (too large numbers slow down completions)', constraint: value => value === void 0 || typeof value === 'number' }
 			],
 			returns: 'A promise that resolves to a CompletionList-instance.'
 		});
@@ -179,7 +180,21 @@ export class ExtHostApiCommands {
 			args: [],
 			returns: 'An array of task handles'
 		});
-
+		this._register('vscode.executeDocumentColorProvider', this._executeDocumentColorProvider, {
+			description: 'Execute document color provider.',
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+			],
+			returns: 'A promise that resolves to an array of ColorInformation objects.'
+		});
+		this._register('vscode.executeColorPresentationProvider', this._executeColorPresentationProvider, {
+			description: 'Execute color presentation provider.',
+			args: [
+				{ name: 'color', description: 'The color to show and insert', constraint: types.Color },
+				{ name: 'context', description: 'Context object with uri and range' }
+			],
+			returns: 'A promise that resolves to an array of ColorPresentation objects.'
+		});
 		this._register('vscode.previewHtml', (uri: URI, position?: vscode.ViewColumn, label?: string, options?: any) => {
 			return this._commands.executeCommand('_workbench.previewHtml',
 				uri,
@@ -188,9 +203,9 @@ export class ExtHostApiCommands {
 				options);
 		}, {
 				description: `
-					Render the html of the resource in an editor view.
+					Render the HTML of the resource in an editor view.
 
-					See [working with the html preview](https://code.visualstudio.com/docs/extensionAPI/vscode-api-commands#working-with-the-html-preview) for more information about the html preview's intergration with the editor and for best practices for extension authors.
+					See [working with the HTML preview](https://code.visualstudio.com/docs/extensionAPI/vscode-api-commands#working-with-the-html-preview) for more information about the HTML preview's integration with the editor and for best practices for extension authors.
 				`,
 				args: [
 					{ name: 'uri', description: 'Uri of the resource to preview.', constraint: value => value instanceof URI || typeof value === 'string' },
@@ -271,7 +286,7 @@ export class ExtHostApiCommands {
 	// --- command impl
 
 	private _register(id: string, handler: (...args: any[]) => any, description?: ICommandHandlerDescription): void {
-		let disposable = this._commands.registerCommand(id, handler, this, description);
+		let disposable = this._commands.registerCommand(false, id, handler, this, description);
 		this._disposables.push(disposable);
 	}
 
@@ -378,11 +393,12 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeCompletionItemProvider(resource: URI, position: types.Position, triggerCharacter: string): Thenable<types.CompletionList> {
+	private _executeCompletionItemProvider(resource: URI, position: types.Position, triggerCharacter: string, maxItemsToResolve: number): Thenable<types.CompletionList> {
 		const args = {
 			resource,
 			position: position && typeConverters.fromPosition(position),
-			triggerCharacter
+			triggerCharacter,
+			maxItemsToResolve
 		};
 		return this._commands.executeCommand<modes.ISuggestResult>('_executeCompletionItemProvider', args).then(result => {
 			if (result) {
@@ -390,6 +406,32 @@ export class ExtHostApiCommands {
 				return new types.CompletionList(items, result.incomplete);
 			}
 			return undefined;
+		});
+	}
+
+	private _executeDocumentColorProvider(resource: URI): Thenable<types.ColorInformation[]> {
+		const args = {
+			resource
+		};
+		return this._commands.executeCommand<IRawColorInfo[]>('_executeDocumentColorProvider', args).then(result => {
+			if (result) {
+				return result.map(ci => ({ range: typeConverters.toRange(ci.range), color: typeConverters.Color.to(ci.color) }));
+			}
+			return [];
+		});
+	}
+
+	private _executeColorPresentationProvider(color: types.Color, context: { uri: URI, range: types.Range }): Thenable<types.ColorPresentation[]> {
+		const args = {
+			resource: context.uri,
+			color: typeConverters.Color.from(color),
+			range: typeConverters.fromRange(context.range),
+		};
+		return this._commands.executeCommand<modes.IColorPresentation[]>('_executeColorPresentationProvider', args).then(result => {
+			if (result) {
+				return result.map(typeConverters.ColorPresentation.to);
+			}
+			return [];
 		});
 	}
 
@@ -476,29 +518,8 @@ export class ExtHostApiCommands {
 			.then(tryMapWith(typeConverters.DocumentLink.to));
 	}
 
-	private _executeTaskProvider(): Thenable<vscode.TaskItem[]> {
-		return this._commands.executeCommand<TaskSystem.TaskItemTransfer[]>('_executeTaskProvider').then<vscode.TaskItem[]>((values) => {
-			let workspace = this._workspace;
-			return values.map(handle => {
-				let definition: vscode.TaskDefinition = Objects.assign(Object.create(null), handle.definition);
-				delete definition._key;
-				let uri = URI.revive(handle.workspaceFolderUri);
-				return new class {
-					get id(): string {
-						return handle.id;
-					}
-					get label(): string {
-						return handle.label;
-					}
-					get definition(): vscode.TaskDefinition {
-						return definition;
-					}
-					get workspaceFolder(): vscode.WorkspaceFolder {
-						return uri ? workspace.resolveWorkspaceFolder(uri) : undefined;
-					}
-				};
-			});
-		});
+	private _executeTaskProvider(): Thenable<vscode.Task[]> {
+		return this._tasks.executeTaskProvider();
 	}
 }
 

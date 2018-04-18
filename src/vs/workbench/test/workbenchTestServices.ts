@@ -20,7 +20,7 @@ import Severity from 'vs/base/common/severity';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IPartService, Parts, Position as PartPosition, Dimension } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Parts, Position as PartPosition, IDimension } from 'vs/workbench/services/part/common/partService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IEditorInput, IEditorOptions, Position, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
@@ -32,7 +32,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEditorGroupService, GroupArrangement, GroupOrientation, IEditorTabOptions, IMoveOptions } from 'vs/workbench/services/group/common/groupService';
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
-import { FileOperationEvent, IFileService, IResolveContentOptions, FileOperationError, IFileStat, IResolveFileResult, IImportResult, FileChangesEvent, IResolveFileOptions, IContent, IUpdateContentOptions, IStreamContent, ICreateFileOptions, ITextSnapshot } from 'vs/platform/files/common/files';
+import { FileOperationEvent, IFileService, IResolveContentOptions, FileOperationError, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, IContent, IUpdateContentOptions, IStreamContent, ICreateFileOptions, ITextSnapshot, IResourceEncodings } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
@@ -63,7 +63,8 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService, INotificationHandle, INotification, NoOpNotification, PromptOption } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -257,6 +258,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(INotificationService, new TestNotificationService());
 	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
+	instantiationService.stub(IWindowService, new TestWindowService());
 	instantiationService.stub(IWindowsService, new TestWindowsService());
 	instantiationService.stub(ITextFileService, <ITextFileService>instantiationService.createInstance(TestTextFileService));
 	instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
@@ -305,33 +307,6 @@ export class TestHistoryService implements IHistoryService {
 	}
 }
 
-export class TestNotificationService implements INotificationService {
-
-	public _serviceBrand: any;
-
-	private static readonly NO_OP: INotificationHandle = new NoOpNotification();
-
-	public info(message: string): INotificationHandle {
-		return this.notify({ severity: Severity.Info, message });
-	}
-
-	public warn(message: string): INotificationHandle {
-		return this.notify({ severity: Severity.Warning, message });
-	}
-
-	public error(error: string | Error): INotificationHandle {
-		return this.notify({ severity: Severity.Error, message: error });
-	}
-
-	public notify(notification: INotification): INotificationHandle {
-		return TestNotificationService.NO_OP;
-	}
-
-	public prompt(severity: Severity, message: string, choices: PromptOption[]): TPromise<number> {
-		return TPromise.as(0);
-	}
-}
-
 export class TestDialogService implements IDialogService {
 
 	public _serviceBrand: any;
@@ -350,13 +325,13 @@ export class TestPartService implements IPartService {
 	public _serviceBrand: any;
 
 	private _onTitleBarVisibilityChange = new Emitter<void>();
-	private _onEditorLayout = new Emitter<Dimension>();
+	private _onEditorLayout = new Emitter<IDimension>();
 
 	public get onTitleBarVisibilityChange(): Event<void> {
 		return this._onTitleBarVisibilityChange.event;
 	}
 
-	public get onEditorLayout(): Event<Dimension> {
+	public get onEditorLayout(): Event<IDimension> {
 		return this._onEditorLayout.event;
 	}
 
@@ -679,6 +654,8 @@ export class TestFileService implements IFileService {
 
 	public _serviceBrand: any;
 
+	public encoding: IResourceEncodings;
+
 	private readonly _onFileChanges: Emitter<FileChangesEvent>;
 	private readonly _onAfterOperation: Emitter<FileOperationEvent>;
 
@@ -796,19 +773,11 @@ export class TestFileService implements IFileService {
 		return TPromise.as(null);
 	}
 
-	touchFile(resource: URI): TPromise<IFileStat> {
-		return TPromise.as(null);
-	}
-
 	canHandleResource(resource: URI): boolean {
 		return resource.scheme === 'file';
 	}
 
 	del(resource: URI, useTrash?: boolean): TPromise<void> {
-		return TPromise.as(null);
-	}
-
-	importFile(source: URI, targetFolder: URI): TPromise<IImportResult> {
 		return TPromise.as(null);
 	}
 
@@ -818,10 +787,7 @@ export class TestFileService implements IFileService {
 	unwatchFileChanges(resource: URI): void {
 	}
 
-	updateOptions(options: any): void {
-	}
-
-	getEncoding(resource: URI): string {
+	getWriteEncoding(resource: URI): string {
 		return 'utf8';
 	}
 
@@ -896,7 +862,7 @@ export class TestWindowService implements IWindowService {
 
 	public _serviceBrand: any;
 
-	onDidChangeFocus: Event<boolean>;
+	onDidChangeFocus: Event<boolean> = new Emitter<boolean>().event;
 
 	isFocused(): TPromise<boolean> {
 		return TPromise.as(false);

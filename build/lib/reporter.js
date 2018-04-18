@@ -34,7 +34,13 @@ catch (err) {
 }
 function log() {
     var errors = _.flatten(allErrors);
-    errors.map(function (err) { return util.log(util.colors.red('Error') + ": " + err); });
+    var seen = new Set();
+    errors.map(function (err) {
+        if (!seen.has(err)) {
+            seen.add(err);
+            util.log(util.colors.red('Error') + ": " + err);
+        }
+    });
     var regex = /^([^(]+)\((\d+),(\d+)\): (.*)$/;
     var messages = errors
         .map(function (err) { return regex.exec(err); })
@@ -80,4 +86,3 @@ function createReporter() {
     return ReportFunc;
 }
 exports.createReporter = createReporter;
-;

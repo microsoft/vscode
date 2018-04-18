@@ -10,19 +10,17 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
-import * as builder from 'vs/base/browser/builder';
-import { IAction, Action } from 'vs/base/common/actions';
-import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction, IActionItem } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { Panel } from 'vs/workbench/browser/panel';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
-import { Marker, Resource } from 'vs/workbench/parts/markers/electron-browser/markersModel';
+import { Marker, ResourceMarkers, RelatedInformation } from 'vs/workbench/parts/markers/electron-browser/markersModel';
 import { Controller } from 'vs/workbench/parts/markers/electron-browser/markersTreeController';
 import * as Viewer from 'vs/workbench/parts/markers/electron-browser/markersTreeViewer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CollapseAllAction, FilterAction, FilterInputBoxActionItem } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
+import { CollapseAllAction, MarkersFilterActionItem, MarkersFilterAction } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
@@ -32,6 +30,9 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IMarkersWorkbenchService } from 'vs/workbench/parts/markers/electron-browser/markers';
 import { SimpleFileResourceDragAndDrop } from 'vs/workbench/browser/dnd';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { Scope } from 'vs/workbench/common/memento';
+import { localize } from 'vs/nls';
 
 export class MarkersPanel extends Panel {
 
@@ -45,12 +46,12 @@ export class MarkersPanel extends Panel {
 	private rangeHighlightDecorations: RangeHighlightDecorations;
 
 	private actions: IAction[];
-	private filterAction: FilterAction;
 	private collapseAllAction: IAction;
+	private filterInputActionItem: MarkersFilterActionItem;
 
 	private treeContainer: HTMLElement;
 	private messageBoxContainer: HTMLElement;
-	private messageBox: HTMLElement;
+	private panelSettings: any;
 
 	private currentResourceGotAddedToMarkersData: boolean = false;
 
@@ -61,28 +62,31 @@ export class MarkersPanel extends Panel {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IMarkersWorkbenchService private markersWorkbenchService: IMarkersWorkbenchService
+		@IMarkersWorkbenchService private markersWorkbenchService: IMarkersWorkbenchService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super(Constants.MARKERS_PANEL_ID, telemetryService, themeService);
 		this.delayedRefresh = new Delayer<void>(500);
 		this.autoExpanded = new Set<string>();
+		this.panelSettings = this.getMemento(storageService, Scope.WORKSPACE);
 	}
 
-	public create(parent: builder.Builder): TPromise<void> {
+	public create(parent: HTMLElement): TPromise<void> {
 		super.create(parent);
 
 		this.rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
 		this.toUnbind.push(this.rangeHighlightDecorations);
 
-		dom.addClass(parent.getHTMLElement(), 'markers-panel');
+		dom.addClass(parent, 'markers-panel');
 
-		let container = dom.append(parent.getHTMLElement(), dom.$('.markers-panel-container'));
+		let container = dom.append(parent, dom.$('.markers-panel-container'));
 
 		this.createMessageBox(container);
 		this.createTree(container);
-
 		this.createActions();
 		this.createListeners();
+
+		this.updateFilter();
 
 		return this.render();
 	}
@@ -91,8 +95,11 @@ export class MarkersPanel extends Panel {
 		return Messages.MARKERS_PANEL_TITLE_PROBLEMS;
 	}
 
-	public layout(dimension: builder.Dimension): void {
-		this.tree.layout(dimension.height);
+	public layout(dimension: dom.Dimension): void {
+		const height = dimension.height - 38;
+		this.treeContainer.style.height = `${height}px`;
+		this.tree.layout(height, dimension.width);
+		this.filterInputActionItem.toggleLayout(dimension.width < 1200);
 	}
 
 	public focus(): void {
@@ -108,7 +115,7 @@ export class MarkersPanel extends Panel {
 			this.highlightCurrentSelectedMarkerRange();
 			this.autoReveal(true);
 		} else {
-			this.messageBox.focus();
+			this.messageBoxContainer.focus();
 		}
 	}
 
@@ -127,30 +134,27 @@ export class MarkersPanel extends Panel {
 	}
 
 	public getActions(): IAction[] {
-		this.collapseAllAction.enabled = this.markersWorkbenchService.markersModel.hasFilteredResources();
+		if (!this.actions) {
+			this.createActions();
+		}
 		return this.actions;
 	}
 
 	public openFileAtElement(element: any, preserveFocus: boolean, sideByside: boolean, pinned: boolean): boolean {
-		if (element instanceof Marker) {
-			const marker: Marker = element;
-			/* __GDPR__
-				"problems.marker.opened" : {
-					"source" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.telemetryService.publicLog('problems.marker.opened', { source: marker.raw.source });
+		const { resource, selection } = element instanceof Marker ? { resource: element.resource, selection: element.range } :
+			element instanceof RelatedInformation ? { resource: element.raw.resource, selection: element.raw } : { resource: null, selection: null };
+		if (resource && selection) {
 			this.editorService.openEditor({
-				resource: marker.resource,
+				resource,
 				options: {
-					selection: marker.range,
+					selection,
 					preserveFocus,
 					pinned,
 					revealIfVisible: true
 				},
 			}, sideByside).done(editor => {
 				if (editor && preserveFocus) {
-					this.rangeHighlightDecorations.highlightRange(marker, <ICodeEditor>editor.getControl());
+					this.rangeHighlightDecorations.highlightRange({ resource, range: selection }, <ICodeEditor>editor.getControl());
 				} else {
 					this.rangeHighlightDecorations.removeHighlightRange();
 				}
@@ -176,24 +180,20 @@ export class MarkersPanel extends Panel {
 		return TPromise.as(null);
 	}
 
-	public updateFilter(filter: string) {
-		this.markersWorkbenchService.filter(filter);
+	private updateFilter() {
 		this.autoExpanded = new Set<string>();
-		this.refreshPanel();
-		this.autoReveal();
+		this.markersWorkbenchService.filter({ filterText: this.filterInputActionItem.getFilterText(), useFilesExclude: this.filterInputActionItem.useFilesExclude });
 	}
 
 	private createMessageBox(parent: HTMLElement): void {
 		this.messageBoxContainer = dom.append(parent, dom.$('.message-box-container'));
-		this.messageBox = dom.append(this.messageBoxContainer, dom.$('span'));
-		this.messageBox.setAttribute('tabindex', '0');
 	}
 
 	private createTree(parent: HTMLElement): void {
 		this.treeContainer = dom.append(parent, dom.$('.tree-container'));
 		dom.addClass(this.treeContainer, 'show-file-icons');
 		const renderer = this.instantiationService.createInstance(Viewer.Renderer);
-		const dnd = this.instantiationService.createInstance(SimpleFileResourceDragAndDrop, obj => obj instanceof Resource ? obj.uri : void 0);
+		const dnd = this.instantiationService.createInstance(SimpleFileResourceDragAndDrop, obj => obj instanceof ResourceMarkers ? obj.uri : void 0);
 		const controller = this.instantiationService.createInstance(Controller);
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new Viewer.DataSource(),
@@ -203,12 +203,21 @@ export class MarkersPanel extends Panel {
 			accessibilityProvider: new Viewer.MarkersTreeAccessibilityProvider(),
 			dnd
 		}, {
-				indentPixels: 0,
 				twistiePixels: 20,
 				ariaLabel: Messages.MARKERS_PANEL_ARIA_LABEL_PROBLEMS_TREE
 			});
 
-		Constants.MarkerFocusContextKey.bindTo(this.tree.contextKeyService);
+		const markerFocusContextKey = Constants.MarkerFocusContextKey.bindTo(this.tree.contextKeyService);
+		const relatedInformationFocusContextKey = Constants.RelatedInformationFocusContextKey.bindTo(this.tree.contextKeyService);
+		this._register(this.tree.onDidChangeFocus((e: { focus: any }) => {
+			markerFocusContextKey.set(e.focus instanceof Marker);
+			relatedInformationFocusContextKey.set(e.focus instanceof RelatedInformation);
+		}));
+		const focusTracker = this._register(dom.trackFocus(this.tree.getHTMLElement()));
+		this._register(focusTracker.onDidBlur(() => {
+			markerFocusContextKey.set(false);
+			relatedInformationFocusContextKey.set(false);
+		}));
 
 		const markersNavigator = this._register(new TreeResourceNavigator(this.tree, { openOnFocus: true }));
 		this._register(debounceEvent(markersNavigator.openResource, (last, event) => event, 75, true)(options => {
@@ -218,25 +227,22 @@ export class MarkersPanel extends Panel {
 
 	private createActions(): void {
 		this.collapseAllAction = this.instantiationService.createInstance(CollapseAllAction, this.tree, true);
-		this.filterAction = new FilterAction();
-		this.actions = [
-			this.filterAction,
-			this.collapseAllAction
-		];
-		this.actions.forEach(a => {
-			this.toUnbind.push(a);
-		});
+		const filterAction = this.instantiationService.createInstance(MarkersFilterAction);
+		this.filterInputActionItem = this.instantiationService.createInstance(MarkersFilterActionItem, { filterText: this.panelSettings['filter'] || '', filterHistory: this.panelSettings['filterHistory'] || [], useFilesExclude: !!this.panelSettings['useFilesExclude'] }, filterAction);
+		this.actions = [filterAction, this.collapseAllAction];
 	}
 
 	private createListeners(): void {
-		this.toUnbind.push(this.markersWorkbenchService.onDidChangeMarkersForResources(this.onMarkerChanged, this));
+		this.toUnbind.push(this.markersWorkbenchService.onDidChange(resources => this.onDidChange(resources)));
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(this.onEditorsChanged, this));
 		this.toUnbind.push(this.tree.onDidChangeSelection(() => this.onSelected()));
+		this.toUnbind.push(this.filterInputActionItem.onDidChange(() => this.updateFilter()));
+		this.actions.forEach(a => this.toUnbind.push(a));
 	}
 
-	private onMarkerChanged(changedResources: URI[]) {
-		this.currentResourceGotAddedToMarkersData = this.currentResourceGotAddedToMarkersData || this.isCurrentResourceGotAddedToMarkersData(changedResources);
-		this.updateResources(changedResources);
+	private onDidChange(resources: URI[]) {
+		this.currentResourceGotAddedToMarkersData = this.currentResourceGotAddedToMarkersData || this.isCurrentResourceGotAddedToMarkersData(resources);
+		this.updateResources(resources);
 		this.delayedRefresh.trigger(() => {
 			this.refreshPanel();
 			this.updateRangeHighlights();
@@ -289,8 +295,44 @@ export class MarkersPanel extends Panel {
 	}
 
 	private renderMessage(): void {
-		this.messageBox.textContent = this.markersWorkbenchService.markersModel.getMessage();
-		dom.toggleClass(this.messageBoxContainer, 'hidden', this.markersWorkbenchService.markersModel.hasFilteredResources());
+		const markersModel = this.markersWorkbenchService.markersModel;
+		const hasFilteredResources = markersModel.hasFilteredResources();
+		dom.clearNode(this.messageBoxContainer);
+		dom.toggleClass(this.messageBoxContainer, 'hidden', hasFilteredResources);
+		if (!hasFilteredResources) {
+			if (markersModel.hasResources()) {
+				if (markersModel.filterOptions.filter) {
+					this.renderFilteredByFilterMessage(this.messageBoxContainer);
+				} else {
+					this.renderFilteredByFilesExcludeMessage(this.messageBoxContainer);
+				}
+			} else {
+				this.renderNoProblemsMessage(this.messageBoxContainer);
+			}
+		}
+	}
+
+	private renderFilteredByFilesExcludeMessage(container: HTMLElement) {
+		const span1 = dom.append(container, dom.$('span'));
+		span1.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_FILE_EXCLUSIONS_FILTER;
+		const link = dom.append(container, dom.$('a.messageAction'));
+		link.textContent = localize('disableFilesExclude', "Disable Files Exclude.");
+		link.setAttribute('tabIndex', '0');
+		dom.addDisposableListener(link, dom.EventType.CLICK, () => this.filterInputActionItem.useFilesExclude = false);
+	}
+
+	private renderFilteredByFilterMessage(container: HTMLElement) {
+		const span1 = dom.append(container, dom.$('span'));
+		span1.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_FILTERS;
+		const link = dom.append(container, dom.$('a.messageAction'));
+		link.textContent = localize('clearFilter', "Clear Filter.");
+		link.setAttribute('tabIndex', '0');
+		dom.addDisposableListener(link, dom.EventType.CLICK, () => this.filterInputActionItem.clear());
+	}
+
+	private renderNoProblemsMessage(container: HTMLElement) {
+		const span = dom.append(container, dom.$('span'));
+		span.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT;
 	}
 
 	private autoExpand(): void {
@@ -330,8 +372,8 @@ export class MarkersPanel extends Panel {
 		}
 	}
 
-	private getResourceForCurrentActiveResource(): Resource {
-		let res: Resource = null;
+	private getResourceForCurrentActiveResource(): ResourceMarkers {
+		let res: ResourceMarkers = null;
 		if (this.currentActiveResource) {
 			this.markersWorkbenchService.markersModel.forEachFilteredResource(resource => {
 				if (!res && resource.uri.toString() === this.currentActiveResource.toString()) {
@@ -342,7 +384,7 @@ export class MarkersPanel extends Panel {
 		return res;
 	}
 
-	private hasSelectedMarkerFor(resource: Resource): boolean {
+	private hasSelectedMarkerFor(resource: ResourceMarkers): boolean {
 		let selectedElement = this.tree.getSelection();
 		if (selectedElement && selectedElement.length > 0) {
 			if (selectedElement[0] instanceof Marker) {
@@ -369,15 +411,24 @@ export class MarkersPanel extends Panel {
 		}
 	}
 
-	public getActionItem(action: Action): IActionItem {
-		if (action.id === FilterAction.ID) {
-			return this.instantiationService.createInstance(FilterInputBoxActionItem, this, action);
+	public getFocusElement(): ResourceMarkers | Marker {
+		return this.tree.getFocus();
+	}
+
+	public getActionItem(action: IAction): IActionItem {
+		if (action.id === MarkersFilterAction.ID) {
+			return this.filterInputActionItem;
 		}
 		return super.getActionItem(action);
 	}
 
-	public getFocusElement(): Resource | Marker {
-		return this.tree.getFocus();
+	public shutdown(): void {
+		// store memento
+		this.panelSettings['filter'] = this.filterInputActionItem.getFilterText();
+		this.panelSettings['filterHistory'] = this.filterInputActionItem.getFilterHistory();
+		this.panelSettings['useFilesExclude'] = this.filterInputActionItem.useFilesExclude;
+
+		super.shutdown();
 	}
 
 	public dispose(): void {

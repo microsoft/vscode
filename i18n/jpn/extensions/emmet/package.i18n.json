@@ -59,5 +59,6 @@
 	"emmetPreferencesCssWebkitProperties": "Emmet 省略記法で使用される場合に `-` で始まる 'webkit' ベンダー プレフィックスを取得するカンマ区切りの CSS プロパティ。常に 'webkit' プレフィックスを避ける場合は空の文字列に設定します。",
 	"emmetPreferencesCssMozProperties": "Emmet 省略記法で使用される場合に `-` で始まる 'moz' ベンダー プレフィックスを取得するカンマ区切りの CSS プロパティ。常に 'moz' プレフィックスを避ける場合は空の文字列に設定します。",
 	"emmetPreferencesCssOProperties": "Emmet 省略記法で使用される場合に `-` で始まる 'o' ベンダー プレフィックスを取得するカンマ区切りの CSS プロパティ。常に 'o' プレフィックスを避ける場合は空の文字列に設定します。",
-	"emmetPreferencesCssMsProperties": "Emmet 省略記法で使用される場合に `-` で始まる 'ms' ベンダー プレフィックスを取得するカンマ区切りの CSS プロパティ。常に 'ms' プレフィックスを避ける場合は空の文字列に設定します。"
+	"emmetPreferencesCssMsProperties": "Emmet 省略記法で使用される場合に `-` で始まる 'ms' ベンダー プレフィックスを取得するカンマ区切りの CSS プロパティ。常に 'ms' プレフィックスを避ける場合は空の文字列に設定します。",
+	"emmetPreferencesCssFuzzySearchMinScore": "あいまい検索の省略形が達成すべき (0 から 1 の) 最小スコア。値が低ければ多くの誤検出が発生する可能性があります。値が高ければ一致する見込みが減る可能性があります。"
 }
