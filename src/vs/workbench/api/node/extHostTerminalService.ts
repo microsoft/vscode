@@ -17,7 +17,6 @@ import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class ExtHostTerminal implements vscode.Terminal {
-
 	private _name: string;
 	private _id: number;
 	private _proxy: MainThreadTerminalServiceShape;
@@ -110,7 +109,6 @@ export class ExtHostTerminal implements vscode.Terminal {
 }
 
 export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
-
 	private readonly _onDidCloseTerminal: Emitter<vscode.Terminal>;
 	private readonly _onDidOpenTerminal: Emitter<vscode.Terminal>;
 	private _proxy: MainThreadTerminalServiceShape;
@@ -234,19 +232,19 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		});
 	}
 
-	public $acceptTerminalProcessInput(id: number, data: string): void {
+	public $acceptProcessInput(id: number, data: string): void {
 		if (this._terminalProcesses[id].connected) {
 			this._terminalProcesses[id].send({ event: 'input', data });
 		}
 	}
 
-	public $acceptTerminalProcessResize(id: number, cols: number, rows: number): void {
+	public $acceptProcessResize(id: number, cols: number, rows: number): void {
 		if (this._terminalProcesses[id].connected) {
 			this._terminalProcesses[id].send({ event: 'resize', cols, rows });
 		}
 	}
 
-	public $acceptTerminalProcessShutdown(id: number): void {
+	public $acceptProcessShutdown(id: number): void {
 		if (this._terminalProcesses[id].connected) {
 			this._terminalProcesses[id].send({ event: 'shutdown' });
 		}
