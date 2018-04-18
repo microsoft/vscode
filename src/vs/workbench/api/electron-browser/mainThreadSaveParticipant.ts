@@ -30,6 +30,9 @@ import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export interface ISaveParticipantParticipant extends ISaveParticipant {
 	// progressMessage: string;
@@ -259,6 +262,49 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 	}
 }
 
+class CodeActionOnParticipant implements ISaveParticipant {
+
+	constructor(
+		@ITextModelService private readonly _textModelService: ITextModelService,
+		@IFileService private readonly _fileService: IFileService,
+		@ICommandService private readonly _commandService: ICommandService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
+	) { }
+
+	async participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): Promise<void> {
+		if (env.reason === SaveReason.AUTO) {
+			return undefined;
+		}
+
+		const model = editorModel.textEditorModel;
+		const editor = findEditor(model, this._codeEditorService);
+		if (!editor) {
+			return undefined;
+		}
+
+		const codeActionsOnSave = this._configurationService.getValue<string[]>('editor.codeActionsOnSave', { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() }).map(x => new CodeActionKind(x));
+		if (!codeActionsOnSave.length) {
+			return undefined;
+		}
+
+		const actionsToRun = await this.getActionsToRun(model, codeActionsOnSave);
+		await this.applyCodeActions(actionsToRun, editor);
+	}
+
+	private async applyCodeActions(actionsToRun: CodeAction[], editor: ICodeEditor) {
+		for (const action of actionsToRun) {
+			await applyCodeAction(action, this._textModelService, this._fileService, this._commandService, editor);
+		}
+	}
+
+	private async getActionsToRun(model: ITextModel, codeActionsOnSave: CodeActionKind[]) {
+		const actions = await getCodeActions(model, model.getFullModelRange(), { kind: CodeActionKind.Source, includeSourceActions: true });
+		const actionsToRun = actions.filter(returnedAction => returnedAction.kind && codeActionsOnSave.some(onSaveKind => onSaveKind.contains(returnedAction.kind)));
+		return actionsToRun;
+	}
+}
+
 class ExtHostSaveParticipant implements ISaveParticipantParticipant {
 
 	private _proxy: ExtHostDocumentSaveParticipantShape;
@@ -303,6 +349,7 @@ export class SaveParticipant implements ISaveParticipant {
 	) {
 		this._saveParticipants = [
 			instantiationService.createInstance(TrimWhitespaceParticipant),
+			instantiationService.createInstance(CodeActionOnParticipant),
 			instantiationService.createInstance(FormatOnSaveParticipant),
 			instantiationService.createInstance(FinalNewLineParticipant),
 			instantiationService.createInstance(TrimFinalNewLinesParticipant),

@@ -652,6 +652,14 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.contribInfo.lightbulbEnabled,
 			'description': nls.localize('codeActions', "Enables the code action lightbulb")
 		},
+		'editor.codeActionsOnSave': {
+			'type': 'array',
+			'items': {
+				'type': 'string'
+			},
+			'default': EDITOR_DEFAULTS.contribInfo.codeActionsOnSave,
+			'description': nls.localize('codeActionsOnSave', "List of code actions kinds to be run on save.")
+		},
 		'editor.selectionClipboard': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.selectionClipboard,

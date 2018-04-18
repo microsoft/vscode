@@ -2824,6 +2824,10 @@ declare namespace monaco.editor {
 		 */
 		lightbulb?: IEditorLightbulbOptions;
 		/**
+		 * Code action kinds to be run on save.
+		 */
+		codeActionsOnSave?: string[];
+		/**
 		 * Enable code folding
 		 * Defaults to true.
 		 */
@@ -3118,6 +3122,7 @@ declare namespace monaco.editor {
 		readonly find: InternalEditorFindOptions;
 		readonly colorDecorators: boolean;
 		readonly lightbulbEnabled: boolean;
+		readonly codeActionsOnSave: string[];
 	}
 
 	/**

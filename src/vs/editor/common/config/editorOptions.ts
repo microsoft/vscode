@@ -497,6 +497,10 @@ export interface IEditorOptions {
 	 */
 	lightbulb?: IEditorLightbulbOptions;
 	/**
+	 * Code action kinds to be run on save.
+	 */
+	codeActionsOnSave?: string[];
+	/**
 	 * Enable code folding
 	 * Defaults to true.
 	 */
@@ -850,6 +854,7 @@ export interface EditorContribOptions {
 	readonly find: InternalEditorFindOptions;
 	readonly colorDecorators: boolean;
 	readonly lightbulbEnabled: boolean;
+	readonly codeActionsOnSave: string[];
 }
 
 /**
@@ -1194,6 +1199,7 @@ export class InternalEditorOptions {
 			&& a.matchBrackets === b.matchBrackets
 			&& this._equalFindOptions(a.find, b.find)
 			&& a.colorDecorators === b.colorDecorators
+			&& arrays.equals(a.codeActionsOnSave, b.codeActionsOnSave)
 			&& a.lightbulbEnabled === b.lightbulbEnabled
 		);
 	}
@@ -1406,6 +1412,13 @@ function _stringSet<T>(value: T, defaultValue: T, allowedValues: T[]): T {
 		return defaultValue;
 	}
 	return value;
+}
+
+function _stringArray(value: any, defaultValue: string[]): string[] {
+	if (!Array.isArray(value)) {
+		return defaultValue;
+	}
+	return value.filter(x => typeof x === 'string');
 }
 
 function _clampedInt(value: any, defaultValue: number, minimum: number, maximum: number): number {
@@ -1736,7 +1749,8 @@ export class EditorOptionsValidator {
 			matchBrackets: _boolean(opts.matchBrackets, defaults.matchBrackets),
 			find: find,
 			colorDecorators: _boolean(opts.colorDecorators, defaults.colorDecorators),
-			lightbulbEnabled: _boolean(opts.lightbulb ? opts.lightbulb.enabled : false, defaults.lightbulbEnabled)
+			lightbulbEnabled: _boolean(opts.lightbulb ? opts.lightbulb.enabled : false, defaults.lightbulbEnabled),
+			codeActionsOnSave: _stringArray(opts.codeActionsOnSave, [])
 		};
 	}
 }
@@ -1839,7 +1853,8 @@ export class InternalEditorOptionsFactory {
 				matchBrackets: (accessibilityIsOn ? false : opts.contribInfo.matchBrackets), // DISABLED WHEN SCREEN READER IS ATTACHED
 				find: opts.contribInfo.find,
 				colorDecorators: opts.contribInfo.colorDecorators,
-				lightbulbEnabled: opts.contribInfo.lightbulbEnabled
+				lightbulbEnabled: opts.contribInfo.lightbulbEnabled,
+				codeActionsOnSave: opts.contribInfo.codeActionsOnSave
 			}
 		};
 	}
@@ -2305,6 +2320,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			globalFindClipboard: false
 		},
 		colorDecorators: true,
-		lightbulbEnabled: true
+		lightbulbEnabled: true,
+		codeActionsOnSave: []
 	},
 };

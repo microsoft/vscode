@@ -131,13 +131,22 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	private async _onApplyCodeAction(action: CodeAction): TPromise<void> {
-		if (action.edit) {
-			await BulkEdit.perform(action.edit.edits, this._textModelService, this._fileService, this._editor);
-		}
+		await applyCodeAction(action, this._textModelService, this._fileService, this._commandService, this._editor);
+	}
+}
 
-		if (action.command) {
-			await this._commandService.executeCommand(action.command.id, ...action.command.arguments);
-		}
+export async function applyCodeAction(
+	action: CodeAction,
+	textModelService: ITextModelService,
+	fileService: IFileService,
+	commandService: ICommandService,
+	editor: ICodeEditor,
+) {
+	if (action.edit) {
+		await BulkEdit.perform(action.edit.edits, textModelService, fileService, editor);
+	}
+	if (action.command) {
+		await commandService.executeCommand(action.command.id, ...action.command.arguments);
 	}
 }
 
