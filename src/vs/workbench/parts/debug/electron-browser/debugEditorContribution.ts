@@ -95,10 +95,11 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private getContextMenuActions(breakpoints: IBreakpoint[], uri: uri, lineNumber: number): TPromise<(IAction | ContextSubMenu)[]> {
 		const actions: (IAction | ContextSubMenu)[] = [];
 		if (breakpoints.length === 1) {
-			actions.push(new RemoveBreakpointAction(RemoveBreakpointAction.ID, RemoveBreakpointAction.LABEL, this.debugService, this.keybindingService));
+			const breakpointType = breakpoints[0].logMessage ? nls.localize('logPoint', "Log Point") : nls.localize('breakpoint', "Breakpoint");
+			actions.push(new RemoveBreakpointAction(RemoveBreakpointAction.ID, nls.localize('removeBreakpoint', "Remove {0}", breakpointType), this.debugService, this.keybindingService));
 			actions.push(new Action(
 				'workbench.debug.action.editBreakpointAction',
-				nls.localize('editBreakpoint', "Edit Breakpoint..."),
+				nls.localize('editBreakpoint', "Edit {0}...", breakpointType),
 				undefined,
 				true,
 				() => TPromise.as(this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(breakpoints[0].lineNumber, breakpoints[0].column))
@@ -106,7 +107,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 			actions.push(new Action(
 				`workbench.debug.viewlet.action.toggleBreakpoint`,
-				breakpoints[0].enabled ? nls.localize('disableBreakpoint', "Disable Breakpoint") : nls.localize('enableBreakpoint', "Enable Breakpoint"),
+				breakpoints[0].enabled ? nls.localize('disableBreakpoint', "Disable {0}", breakpointType) : nls.localize('enableBreakpoint', "Enable {0}", breakpointType),
 				undefined,
 				true,
 				() => this.debugService.enableOrDisableBreakpoints(!breakpoints[0].enabled, breakpoints[0])
@@ -195,10 +196,11 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				if (breakpoints.length) {
 					if (breakpoints.some(bp => !!bp.condition || !!bp.logMessage || !!bp.hitCondition)) {
 						const logPoint = breakpoints.every(bp => !!bp.logMessage);
+						const breakpointType = logPoint ? nls.localize('logPoint', "Log Point") : nls.localize('breakpoint', "Breakpoint");
 						this.dialogService.show(severity.Info, nls.localize('breakpointHasCondition', "This {0} has a valuable {1} that will get lost on remove. Consider disabling the {0} instead.",
-							logPoint ? nls.localize('logPoint', "log point") : nls.localize('breakpoint', "breakpoint"), logPoint ? nls.localize('message', "message") : nls.localize('condition', "condition")), [
-								logPoint ? nls.localize('removeLogPoint', "Remove Log Point") : nls.localize('removeBreakpoint', "Remove Breakpoint"),
-								logPoint ? nls.localize('disableLogPoint', "Disable Log Point") : nls.localize('disableBreakpoint', "Disable Breakpoint"),
+							breakpointType.toLowerCase(), logPoint ? nls.localize('message', "message") : nls.localize('condition', "condition")), [
+								nls.localize('removeLogPoint', "Remove {0}", breakpointType),
+								nls.localize('disableLogPoint', "Disable {0}", breakpointType),
 								nls.localize('cancel', "Cancel")
 							], { cancelId: 2 }).then(choice => {
 								if (choice === 0) {
