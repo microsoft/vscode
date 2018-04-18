@@ -185,13 +185,13 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 							matches = regex.exec(fileChange.patch);
 						}
 
-						return {
+						return [{
 							ranges: ret,
 							actions: actions
-						};
+						}];
 					}
 
-					return null;
+					return [];
 				},
 				provideComments: async (document: vscode.TextDocument, token: vscode.CancellationToken) => {
 					if (document.uri.scheme === 'pr') {

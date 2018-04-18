@@ -177,17 +177,17 @@ export class ReviewMode {
 				if (document.uri.scheme === 'review' || document.uri.scheme === 'file') {
 					let lastLine = document.lineCount;
 					let lastColumn = document.lineAt(lastLine - 1).text.length;
-					return {
+					return [{
 						ranges: [
 							new vscode.Range(1, 1, lastLine, lastColumn)
 						],
 						actions: actions
-					};
+					}];
 				} else {
-					return {
+					return [{
 						ranges: [],
 						actions: []
-					};
+					}];
 				}
 			},
 			provideComments: async (document: vscode.TextDocument, token: vscode.CancellationToken) => {

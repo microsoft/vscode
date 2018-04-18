@@ -55,6 +55,18 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			this.provideNewCommentRange(outerEditor.getModel()).then(newActions => {
 				controller.setNewCommentActions(newActions);
 			});
+
+			_commentService.registerDataProvider({
+				provideAllComments: async (token) => {
+					return await this.provideAllComments();
+				},
+				provideComments: async (model, token) => {
+					return await this.provideComments(model.uri);
+				},
+				provideNewCommentRange: async (model, token) => {
+					return await this.provideNewCommentRange(model);
+				}
+			});
 		});
 	}
 
@@ -92,7 +104,15 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		return editor;
 	}
 
-	async provideComments(resource: URI): Promise<any> {
+	async provideAllComments(): Promise<modes.CommentThread[]> {
+		const result: modes.CommentThread[] = [];
+		for (const handle of keys(this._providers)) {
+			result.push(...await this._proxy.$provideAllComments(handle));
+		}
+		return result;
+	}
+
+	async provideComments(resource: URI): Promise<modes.CommentThread[]> {
 		const result: modes.CommentThread[] = [];
 		for (const handle of keys(this._providers)) {
 			result.push(...await this._proxy.$provideComments(handle, resource));
@@ -104,8 +124,8 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		const result: modes.NewCommentAction[] = [];
 		for (const handle of keys(this._providers)) {
 			let newCommentRange = await this._proxy.$provideNewCommentRange(handle, model.uri);
-			if (newCommentRange) {
-				result.push(newCommentRange);
+			if (newCommentRange.length > 0) {
+				result.push(...newCommentRange);
 			}
 		}
 		return result;

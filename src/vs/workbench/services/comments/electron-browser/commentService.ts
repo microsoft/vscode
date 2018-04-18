@@ -5,11 +5,13 @@
 
 'use strict';
 
-import { CommentThread } from 'vs/editor/common/modes';
+import { CommentThread, CommentProvider, NewCommentAction } from 'vs/editor/common/modes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
+import { ITextModel } from 'vs/editor/common/model';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
 
@@ -25,9 +27,10 @@ export interface ICommentService {
 	setComments(resource: URI, commentThreads: CommentThread[]): void;
 	setAllComments(commentsByResource: CommentThread[]): void;
 	removeAllComments(): void;
+	registerDataProvider(commentProvider: CommentProvider): void;
 }
 
-export class CommentService extends Disposable implements ICommentService {
+export class CommentService extends Disposable implements ICommentService, CommentProvider {
 	_serviceBrand: any;
 
 	private readonly _onDidSetResourceCommentThreads: Emitter<IResourceCommentThreadEvent> = this._register(new Emitter<IResourceCommentThreadEvent>());
@@ -36,10 +39,12 @@ export class CommentService extends Disposable implements ICommentService {
 	private readonly _onDidSetAllCommentThreads: Emitter<CommentThread[]> = this._register(new Emitter<CommentThread[]>());
 	readonly onDidSetAllCommentThreads: Event<CommentThread[]> = this._onDidSetAllCommentThreads.event;
 
+	private _commentProvider: CommentProvider;
+
 	constructor() {
 		super();
+		this._commentProvider = null;
 	}
-
 
 	setComments(resource: URI, commentThreads: CommentThread[]): void {
 		this._onDidSetResourceCommentThreads.fire({ resource, commentThreads });
@@ -51,5 +56,21 @@ export class CommentService extends Disposable implements ICommentService {
 
 	removeAllComments(): void {
 		this._onDidSetAllCommentThreads.fire([]);
+	}
+
+	registerDataProvider(commentProvider: CommentProvider) {
+		this._commentProvider = commentProvider;
+	}
+
+	async provideComments(model: ITextModel, token: CancellationToken): Promise<CommentThread[]> {
+		return this._commentProvider.provideComments(model, token);
+	}
+
+	async provideNewCommentRange(model: ITextModel, token: CancellationToken): Promise<NewCommentAction[]> {
+		return this._commentProvider.provideNewCommentRange(model, token);
+	}
+
+	async provideAllComments(token: CancellationToken): Promise<CommentThread[]> {
+		return this._commentProvider.provideAllComments(token);
 	}
 }

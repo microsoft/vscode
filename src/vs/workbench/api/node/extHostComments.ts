@@ -87,7 +87,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 	}
 
 
-	$provideNewCommentRange(handle: number, uri: UriComponents): TPromise<modes.NewCommentAction> {
+	$provideNewCommentRange(handle: number, uri: UriComponents): TPromise<modes.NewCommentAction[]> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 		if (!data || !data.document) {
 			return TPromise.as(null);
@@ -97,8 +97,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 			let provider = this._providers.get(handle);
 			return provider.provideNewCommentRange(data.document, token);
 		})
-			.then(newCommentAction => convertNewCommandAction(newCommentAction, this._commandsConverter));
-
+			.then(newCommentActions => newCommentActions.map(newCommentAction => convertNewCommandAction(newCommentAction, this._commandsConverter)));
 	}
 }
 
