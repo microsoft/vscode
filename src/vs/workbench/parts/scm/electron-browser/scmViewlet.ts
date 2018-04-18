@@ -60,6 +60,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IViewDescriptorRef, PersistentContributableViewsModel } from 'vs/workbench/browser/parts/views/contributableViews';
 import { ViewLocation, IViewDescriptor } from 'vs/workbench/common/views';
 import { ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { IPanelDndController, Panel } from '../../../../base/browser/ui/splitview/panelview';
 
 export interface ISpliceEvent<T> {
 	index: number;
@@ -1026,6 +1027,17 @@ class InstallAdditionalSCMProvidersAction extends Action {
 	}
 }
 
+class SCMPanelDndController implements IPanelDndController {
+
+	canDrag(panel: Panel): boolean {
+		return !(panel instanceof MainPanel) && !(panel instanceof RepositoryPanel);
+	}
+
+	canDrop(panel: Panel, overPanel: Panel): boolean {
+		return !(overPanel instanceof MainPanel) && !(overPanel instanceof RepositoryPanel);
+	}
+}
+
 export class SCMViewlet extends PanelViewlet implements IViewModel {
 
 	private el: HTMLElement;
@@ -1072,7 +1084,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		@IExtensionService extensionService: IExtensionService,
 		@IConfigurationService private configurationService: IConfigurationService,
 	) {
-		super(VIEWLET_ID, { showHeaderInTitleWhenSingleView: true }, partService, contextMenuService, telemetryService, themeService);
+		super(VIEWLET_ID, { showHeaderInTitleWhenSingleView: true, dnd: new SCMPanelDndController() }, partService, contextMenuService, telemetryService, themeService);
 
 		this.menus = instantiationService.createInstance(SCMMenus, undefined);
 		this.menus.onDidChangeTitle(this.updateTitleArea, this, this.disposables);
