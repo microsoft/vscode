@@ -830,30 +830,19 @@ export interface DocumentColorProvider {
 	 */
 	provideColorPresentations(model: model.ITextModel, colorInfo: IColorInformation, token: CancellationToken): IColorPresentation[] | Thenable<IColorPresentation[]>;
 }
-
-/**
- * @internal
- */
 export interface FoldingContext {
 }
-
 /**
  * A provider of colors for editor models.
- */
-/**
- * @internal
  */
 export interface FoldingRangeProvider {
 	/**
 	 * Provides the color ranges for a specific model.
 	 */
-	provideFoldingRanges(model: model.ITextModel, context: FoldingContext, token: CancellationToken): IFoldingRange[] | Thenable<IFoldingRange[]>;
+	provideFoldingRanges(model: model.ITextModel, context: FoldingContext, token: CancellationToken): FoldingRange[] | Thenable<FoldingRange[]>;
 }
 
-/**
- * @internal
- */
-export interface IFoldingRange {
+export interface FoldingRange {
 
 	/**
 	 * The zero-based start line of the range to fold. The folded area starts after the line's last character.
@@ -873,9 +862,6 @@ export interface IFoldingRange {
 	 */
 	kind?: FoldingRangeKind;
 }
-/**
- * @internal
- */
 export class FoldingRangeKind {
 	/**
 	 * Kind for folding range representing a comment. The value of the kind is 'comment'.

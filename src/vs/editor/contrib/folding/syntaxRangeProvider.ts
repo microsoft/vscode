@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { FoldingRangeProvider, IFoldingRange, FoldingContext } from 'vs/editor/common/modes';
+import { FoldingRangeProvider, FoldingRange, FoldingContext } from 'vs/editor/common/modes';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { toThenable } from 'vs/base/common/async';
 import { ITextModel } from 'vs/editor/common/model';
@@ -16,7 +16,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 
 const MAX_FOLDING_REGIONS_FOR_INDENT_LIMIT = 5000;
 
-export interface IFoldingRangeData extends IFoldingRange {
+export interface IFoldingRangeData extends FoldingRange {
 	rank: number;
 }
 
