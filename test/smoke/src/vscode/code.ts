@@ -202,6 +202,11 @@ export class Code {
 		}
 	}
 
+	async capturePage(): Promise<string> {
+		const windowId = await this.getActiveWindowId();
+		return await this.driver.capturePage(windowId);
+	}
+
 	async waitForWindowIds(fn: (windowIds: number[]) => boolean): Promise<void> {
 		await poll(() => this.driver.getWindowIds(), fn, `get window ids`);
 	}

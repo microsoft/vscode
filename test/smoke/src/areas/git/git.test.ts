@@ -11,6 +11,13 @@ const SYNC_STATUSBAR = 'div[id="workbench.parts.statusbar"] .statusbar-entry a[t
 
 export function setup() {
 	describe('Git', () => {
+		before(async function () {
+			const app = this.app as Application;
+
+			cp.execSync('git config user.name testuser', { cwd: app.workspacePath });
+			cp.execSync('git config user.email monacotools@microsoft.com', { cwd: app.workspacePath });
+		});
+
 		it('reflects working tree changes', async function () {
 			const app = this.app as Application;
 
