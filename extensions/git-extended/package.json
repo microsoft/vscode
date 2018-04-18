@@ -62,7 +62,7 @@
       },
       {
         "command": "pr.pick",
-        "title": "Checkout & Review"
+        "title": "Checkout Source Branch"
       },
       {
         "command": "review.openFile",

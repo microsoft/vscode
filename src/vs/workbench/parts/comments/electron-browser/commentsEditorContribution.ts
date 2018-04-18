@@ -69,10 +69,12 @@ export class ReviewViewZone implements IViewZone {
 
 export class CommentNode {
 	private _domNode: HTMLElement;
+	private _body: HTMLElement;
+	private _md: HTMLElement;
 	public get domNode(): HTMLElement {
 		return this._domNode;
 	}
-	constructor(public readonly comment: modes.Comment, ) {
+	constructor(public comment: modes.Comment, ) {
 		this._domNode = $('div.review-comment').getHTMLElement();
 		let avatar = $('span.float-left').appendTo(this._domNode).getHTMLElement();
 		let img = <HTMLImageElement>$('img.avatar').appendTo(avatar).getHTMLElement();
@@ -82,9 +84,17 @@ export class CommentNode {
 		let header = $('h4').appendTo(commentDetailsContainer).getHTMLElement();
 		let author = $('strong.author').appendTo(header).getHTMLElement();
 		author.innerText = comment.userName;
-		let body = $('comment-body').appendTo(commentDetailsContainer).getHTMLElement();
-		let md = comment.body;
-		body.appendChild(renderMarkdown(md));
+		this._body = $('comment-body').appendTo(commentDetailsContainer).getHTMLElement();
+		this._md = renderMarkdown(comment.body);
+		this._body.appendChild(this._md);
+	}
+
+	update(newComment: modes.Comment) {
+		if (newComment.body !== this.comment.body) {
+			this._body.removeChild(this._md);
+			this._md = renderMarkdown(newComment.body);
+			this._body.appendChild(this._md);
+		}
 	}
 }
 
@@ -189,7 +199,11 @@ export class ReviewZoneWidget extends ZoneWidget {
 		let commentElementsToDelIndex: number[] = [];
 		for (let i = 0; i < oldCommentsLen; i++) {
 			let comment = this._commentElements[i].comment;
-			if (!commentThread.comments.some(c => c.commentId === comment.commentId)) {
+			let newComment = commentThread.comments.filter(c => c.commentId === comment.commentId);
+
+			if (newComment.length) {
+				this._commentElements[i].update(newComment[0]);
+			} else {
 				commentElementsToDelIndex.push(i);
 				commentElementsToDel.push(this._commentElements[i]);
 			}
@@ -380,40 +394,6 @@ export class ReviewController implements IEditorContribution {
 			}
 		}));
 
-		this.globalToDispose.push(this.commentService.onDidUpdateCommentThreads(e => {
-			const editorURI = this.editor && this.editor.getModel() && this.editor.getModel().uri;
-			if (!editorURI) {
-				return;
-			}
-			let added = e.added.filter(thread => thread.resource.toString() === editorURI.toString());
-			let removed = e.removed.filter(thread => thread.resource.toString() === editorURI.toString());
-			let changed = e.changed.filter(thread => thread.resource.toString() === editorURI.toString());
-
-			removed.forEach(thread => {
-				let matchedZones = this._zoneWidgets.filter(zoneWidget => zoneWidget.commentThread.threadId === thread.threadId);
-				if (matchedZones.length) {
-					let matchedZone = matchedZones[0];
-					let index = this._zoneWidgets.indexOf(matchedZone);
-					this._zoneWidgets.splice(index, 1);
-					matchedZone.dispose();
-				}
-			});
-
-			changed.forEach(thread => {
-				let matchedZones = this._zoneWidgets.filter(zoneWidget => zoneWidget.commentThread.threadId === thread.threadId);
-				if (matchedZones.length) {
-					let matchedZone = matchedZones[0];
-					matchedZone.update(thread);
-				}
-			});
-			added.forEach(thread => {
-				let zoneWidget = new ReviewZoneWidget(this.editor, thread, {}, this.themeService, this.commandService);
-				zoneWidget.display(thread.range.startLineNumber);
-				this._zoneWidgets.push(zoneWidget);
-				this._commentThreads.push(thread);
-			});
-		}));
-
 		this.globalToDispose.push(this.editor.onDidChangeModel(() => this.onModelChanged()));
 	}
 
@@ -458,6 +438,38 @@ export class ReviewController implements IEditorContribution {
 		this.localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this.localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
 		this.localToDispose.push(this.editor.onMouseMove(e => this.onEditorMouseMove(e)));
+		this.localToDispose.push(this.commentService.onDidUpdateCommentThreads(e => {
+			const editorURI = this.editor && this.editor.getModel() && this.editor.getModel().uri;
+			if (!editorURI) {
+				return;
+			}
+			let added = e.added.filter(thread => thread.resource.toString() === editorURI.toString());
+			let removed = e.removed.filter(thread => thread.resource.toString() === editorURI.toString());
+			let changed = e.changed.filter(thread => thread.resource.toString() === editorURI.toString());
+
+			removed.forEach(thread => {
+				let matchedZones = this._zoneWidgets.filter(zoneWidget => zoneWidget.commentThread.threadId === thread.threadId);
+				if (matchedZones.length) {
+					let matchedZone = matchedZones[0];
+					let index = this._zoneWidgets.indexOf(matchedZone);
+					this._zoneWidgets.splice(index, 1);
+				}
+			});
+
+			changed.forEach(thread => {
+				let matchedZones = this._zoneWidgets.filter(zoneWidget => zoneWidget.commentThread.threadId === thread.threadId);
+				if (matchedZones.length) {
+					let matchedZone = matchedZones[0];
+					matchedZone.update(thread);
+				}
+			});
+			added.forEach(thread => {
+				let zoneWidget = new ReviewZoneWidget(this.editor, thread, {}, this.themeService, this.commandService);
+				zoneWidget.display(thread.range.startLineNumber);
+				this._zoneWidgets.push(zoneWidget);
+				this._commentThreads.push(thread);
+			});
+		}));
 	}
 
 	private mouseDownInfo: { lineNumber: number, iconClicked: boolean };
