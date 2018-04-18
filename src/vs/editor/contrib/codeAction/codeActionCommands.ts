@@ -31,7 +31,7 @@ import { escapeRegExpCharacters } from 'vs/base/common/strings';
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(
 		SUPPORTED_CODE_ACTIONS.keys()[0],
-		new RegExp('\\b' + escapeRegExpCharacters(kind.value) + '(\\b|\\.)'));
+		new RegExp('(\\s|^)' + escapeRegExpCharacters(kind.value) + '\\b'));
 }
 
 export class QuickFixController implements IEditorContribution {
