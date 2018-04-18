@@ -34,6 +34,7 @@ export interface IDriver {
 	doubleClick(windowId: number, selector: string): TPromise<void>;
 	move(windowId: number, selector: string): TPromise<void>;
 	setValue(windowId: number, selector: string, text: string): TPromise<void>;
+	paste(windowId: number, selector: string, text: string): TPromise<void>;
 	getTitle(windowId: number): TPromise<string>;
 	isActiveElement(windowId: number, selector: string): TPromise<boolean>;
 	getElements(windowId: number, selector: string, recursive?: boolean): TPromise<IElement[]>;
@@ -51,6 +52,7 @@ export interface IDriverChannel extends IChannel {
 	call(command: 'doubleClick', arg: [number, string]): TPromise<void>;
 	call(command: 'move', arg: [number, string]): TPromise<void>;
 	call(command: 'setValue', arg: [number, string, string]): TPromise<void>;
+	call(command: 'paste', arg: [number, string, string]): TPromise<void>;
 	call(command: 'getTitle', arg: [number]): TPromise<string>;
 	call(command: 'isActiveElement', arg: [number, string]): TPromise<boolean>;
 	call(command: 'getElements', arg: [number, string, boolean]): TPromise<IElement[]>;
@@ -73,6 +75,7 @@ export class DriverChannel implements IDriverChannel {
 			case 'doubleClick': return this.driver.doubleClick(arg[0], arg[1]);
 			case 'move': return this.driver.move(arg[0], arg[1]);
 			case 'setValue': return this.driver.setValue(arg[0], arg[1], arg[2]);
+			case 'paste': return this.driver.paste(arg[0], arg[1], arg[2]);
 			case 'getTitle': return this.driver.getTitle(arg[0]);
 			case 'isActiveElement': return this.driver.isActiveElement(arg[0], arg[1]);
 			case 'getElements': return this.driver.getElements(arg[0], arg[1], arg[2]);
@@ -120,6 +123,10 @@ export class DriverChannelClient implements IDriver {
 
 	setValue(windowId: number, selector: string, text: string): TPromise<void> {
 		return this.channel.call('setValue', [windowId, selector, text]);
+	}
+
+	paste(windowId: number, selector: string, text: string): TPromise<void> {
+		return this.channel.call('paste', [windowId, selector, text]);
 	}
 
 	getTitle(windowId: number): TPromise<string> {
@@ -188,6 +195,7 @@ export interface IWindowDriver {
 	doubleClick(selector: string): TPromise<void>;
 	move(selector: string): TPromise<void>;
 	setValue(selector: string, text: string): TPromise<void>;
+	paste(selector: string, text: string): TPromise<void>;
 	getTitle(): TPromise<string>;
 	isActiveElement(selector: string): TPromise<boolean>;
 	getElements(selector: string, recursive: boolean): TPromise<IElement[]>;
@@ -200,6 +208,7 @@ export interface IWindowDriverChannel extends IChannel {
 	call(command: 'doubleClick', arg: string): TPromise<void>;
 	call(command: 'move', arg: string): TPromise<void>;
 	call(command: 'setValue', arg: [string, string]): TPromise<void>;
+	call(command: 'paste', arg: [string, string]): TPromise<void>;
 	call(command: 'getTitle'): TPromise<string>;
 	call(command: 'isActiveElement', arg: string): TPromise<boolean>;
 	call(command: 'getElements', arg: [string, boolean]): TPromise<IElement[]>;
@@ -218,6 +227,7 @@ export class WindowDriverChannel implements IWindowDriverChannel {
 			case 'doubleClick': return this.driver.doubleClick(arg);
 			case 'move': return this.driver.move(arg);
 			case 'setValue': return this.driver.setValue(arg[0], arg[1]);
+			case 'paste': return this.driver.paste(arg[0], arg[1]);
 			case 'getTitle': return this.driver.getTitle();
 			case 'isActiveElement': return this.driver.isActiveElement(arg);
 			case 'getElements': return this.driver.getElements(arg[0], arg[1]);
@@ -249,6 +259,10 @@ export class WindowDriverChannelClient implements IWindowDriver {
 
 	setValue(selector: string, text: string): TPromise<void> {
 		return this.channel.call('setValue', [selector, text]);
+	}
+
+	paste(selector: string, text: string): TPromise<void> {
+		return this.channel.call('paste', [selector, text]);
 	}
 
 	getTitle(): TPromise<string> {

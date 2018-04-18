@@ -247,6 +247,11 @@ export class Code {
 		await poll(() => this.driver.setValue(windowId, selector, value), () => true, `set value '${selector}'`);
 	}
 
+	async waitForPaste(selector: string, value: string): Promise<void> {
+		const windowId = await this.getActiveWindowId();
+		await poll(() => this.driver.paste(windowId, selector, value), () => true, `paste '${selector}'`);
+	}
+
 	async waitForElements(selector: string, recursive: boolean, accept: (result: IElement[]) => boolean = result => result.length > 0): Promise<IElement[]> {
 		const windowId = await this.getActiveWindowId();
 		return await poll(() => this.driver.getElements(windowId, selector, recursive), accept, `get elements '${selector}'`);
@@ -270,6 +275,11 @@ export class Code {
 	async waitForTypeInEditor(selector: string, text: string): Promise<void> {
 		const windowId = await this.getActiveWindowId();
 		await poll(() => this.driver.typeInEditor(windowId, selector, text), () => true, `type in editor '${selector}'`);
+	}
+
+	async waitForTerminalBuffer(selector: string, accept: (result: string[]) => boolean): Promise<void> {
+		const windowId = await this.getActiveWindowId();
+		await poll(() => this.driver.getTerminalBuffer(windowId, selector), accept, `get terminal buffer '${selector}'`);
 	}
 
 	private async getActiveWindowId(): Promise<number> {
