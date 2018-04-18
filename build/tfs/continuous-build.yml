@@ -19,12 +19,18 @@ phases:
   - powershell: |
       .\scripts\test.bat --tfs
       .\scripts\test-integration.bat
-      yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)\screenshots"
+      yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)\screenshots" --log "$(Build.ArtifactStagingDirectory)\smoketest.log"
     name: test
   - task: PublishBuildArtifacts@1
     inputs:
       PathtoPublish: '$(Build.ArtifactStagingDirectory)/screenshots'
-      ArtifactName: Screenshots
+      ArtifactName: screenshots-win32
+      publishLocation: Container
+    condition: succeededOrFailed()
+  - task: PublishBuildArtifacts@1
+    inputs:
+      PathtoPublish: '$(Build.ArtifactStagingDirectory)/smoketest.log'
+      ArtifactName: logfile-win32
       publishLocation: Container
     condition: succeededOrFailed()
 
@@ -81,11 +87,17 @@ phases:
   - script: |
       ./scripts/test.sh --tfs
       ./scripts/test-integration.sh
-      yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)/screenshots"
+      yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)/screenshots" --log "$(Build.ArtifactStagingDirectory)/smoketest.log"
     name: test
   - task: PublishBuildArtifacts@1
     inputs:
       PathtoPublish: '$(Build.ArtifactStagingDirectory)/screenshots'
-      ArtifactName: Screenshots
+      ArtifactName: screenshots-darwin
+      publishLocation: Container
+    condition: succeededOrFailed()
+  - task: PublishBuildArtifacts@1
+    inputs:
+      PathtoPublish: '$(Build.ArtifactStagingDirectory)/smoketest.log'
+      ArtifactName: logfile-darwin
       publishLocation: Container
     condition: succeededOrFailed()
