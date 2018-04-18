@@ -1,15 +1,15 @@
-import * as ts from './typescript/typescriptServices';
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import * as ts from 'typescript';
 import * as lazy from 'lazy.js';
-import { duplex, through, mapSync, readArray, merge } from 'event-stream';
-import { Stream } from 'stream';
-import { ThroughStream } from 'through';
+import { duplex, through } from 'event-stream';
 import File = require('vinyl');
 import * as sm from 'source-map';
 import assign = require('object-assign');
-import clone = require('clone');
-import filter = require('gulp-filter');
 import path = require('path');
-import fs = require('fs');
 
 declare class FileSourceMap extends File {
 	public sourceMap: sm.RawSourceMap;
@@ -41,28 +41,12 @@ function collect(node: ts.Node, fn: (node: ts.Node) => CollectStepResult): ts.No
 	return result;
 }
 
-function zip<A,B,R>(stream: Stream, zipper: (a: A, b: B) => R = (a,b) => <any> [a, b]): ThroughStream {
-	const pass = through();
-	const oneBuffer: any[] = [];
-	const otherBuffer: any[] = [];
-
-	const result = pass.pipe(through(f => {
-		oneBuffer.push(f);
-		flush();
-	}), () => {
-		flush();
-		result.emit('end');
-	});
-
-	function flush() {
-		while (oneBuffer.length > 0 && otherBuffer.length > 0) {
-			result.emit('data', zipper(oneBuffer.shift(), otherBuffer.shift()));
-		}
+function clone<T>(object: T): T {
+	var result = <T>{};
+	for (var id in object) {
+		result[id] = object[id];
 	}
-
-	stream.pipe(through(f => otherBuffer.push(f)));
-
-	return duplex(pass, result);
+	return result;
 }
 
 function template(lines: string[]): string {
@@ -76,22 +60,22 @@ function template(lines: string[]): string {
 	return `/*---------------------------------------------------------
  * Copyright (C) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------*/
-define([], [${ wrap + lines.map(l => indent + l).join(',\n') + wrap }]);`;
+define([], [${ wrap + lines.map(l => indent + l).join(',\n') + wrap}]);`;
 }
 
 /**
  * Returns a stream containing the patched JavaScript and source maps.
  */
-function nls(): Stream {
+function nls(): NodeJS.ReadWriteStream {
 	var input = through();
 	var output = input.pipe(through(function (f: FileSourceMap) {
 		if (!f.sourceMap) {
-			return this.emit('error', new Error(`File ${ f.relative } does not have sourcemaps.`));
+			return this.emit('error', new Error(`File ${f.relative} does not have sourcemaps.`));
 		}
 
 		let source = f.sourceMap.sources[0];
 		if (!source) {
-			return this.emit('error', new Error(`File ${ f.relative } does not have a source in the source map.`));
+			return this.emit('error', new Error(`File ${f.relative} does not have a source in the source map.`));
 		}
 
 		const root = f.sourceMap.sourceRoot;
@@ -101,7 +85,7 @@ function nls(): Stream {
 
 		const typescript = f.sourceMap.sourcesContent[0];
 		if (!typescript) {
-			return this.emit('error', new Error(`File ${ f.relative } does not have the original content in the source map.`));
+			return this.emit('error', new Error(`File ${f.relative} does not have the original content in the source map.`));
 		}
 
 		nls.patchFiles(f, typescript).forEach(f => this.emit('data', f));
@@ -147,7 +131,7 @@ module nls {
 
 	export function fileFrom(file: File, contents: string, path: string = file.path) {
 		return new File({
-			contents: new Buffer(contents),
+			contents: Buffer.from(contents),
 			base: file.base,
 			cwd: file.cwd,
 			path: path
@@ -172,12 +156,12 @@ module nls {
 			this.lib = ts.ScriptSnapshot.fromString('');
 		}
 
-	    getCompilationSettings = () => this.options;
-	    getScriptFileNames = () => [this.filename];
-	    getScriptVersion = () => '1';
-	    getScriptSnapshot = (name: string) => name === this.filename ? this.file : this.lib;
-	    getCurrentDirectory = () => '';
-	    getDefaultLibFileName = () => 'lib.d.ts';
+		getCompilationSettings = () => this.options;
+		getScriptFileNames = () => [this.filename];
+		getScriptVersion = () => '1';
+		getScriptSnapshot = (name: string) => name === this.filename ? this.file : this.lib;
+		getCurrentDirectory = () => '';
+		getDefaultLibFileName = () => 'lib.d.ts';
 	}
 
 	function isCallExpressionWithinTextSpanCollectStep(textSpan: ts.TextSpan, node: ts.Node): CollectStepResult {
@@ -192,7 +176,7 @@ module nls {
 		const filename = 'file.ts';
 		const serviceHost = new SingleFileServiceHost(assign(clone(options), { noResolve: true }), filename, contents);
 		const service = ts.createLanguageService(serviceHost);
-		const sourceFile = service.getSourceFile(filename);
+		const sourceFile = ts.createSourceFile(filename, contents, ts.ScriptTarget.ES5, true);
 
 		// all imports
 		const imports = lazy(collect(sourceFile, n => isImportNode(n) ? CollectStepResult.YesAndRecurse : CollectStepResult.NoAndRecurse));
@@ -200,16 +184,16 @@ module nls {
 		// import nls = require('vs/nls');
 		const importEqualsDeclarations = imports
 			.filter(n => n.kind === ts.SyntaxKind.ImportEqualsDeclaration)
-			.map(n => <ts.ImportEqualsDeclaration> n)
+			.map(n => <ts.ImportEqualsDeclaration>n)
 			.filter(d => d.moduleReference.kind === ts.SyntaxKind.ExternalModuleReference)
-			.filter(d => (<ts.ExternalModuleReference>d.moduleReference).expression.getText() === "'vs/nls'");
+			.filter(d => (<ts.ExternalModuleReference>d.moduleReference).expression.getText() === '\'vs/nls\'');
 
 		// import ... from 'vs/nls';
 		const importDeclarations = imports
 			.filter(n => n.kind === ts.SyntaxKind.ImportDeclaration)
-			.map(n => <ts.ImportDeclaration> n)
+			.map(n => <ts.ImportDeclaration>n)
 			.filter(d => d.moduleSpecifier.kind === ts.SyntaxKind.StringLiteral)
-			.filter(d => d.moduleSpecifier.getText() === "'vs/nls'")
+			.filter(d => d.moduleSpecifier.getText() === '\'vs/nls\'')
 			.filter(d => !!d.importClause && !!d.importClause.namedBindings);
 
 		const nlsExpressions = importEqualsDeclarations
@@ -223,7 +207,7 @@ module nls {
 		// `nls.localize(...)` calls
 		const nlsLocalizeCallExpressions = importDeclarations
 			.filter(d => d.importClause.namedBindings.kind === ts.SyntaxKind.NamespaceImport)
-			.map(d => (<ts.NamespaceImport> d.importClause.namedBindings).name)
+			.map(d => (<ts.NamespaceImport>d.importClause.namedBindings).name)
 			.concat(importEqualsDeclarations.map(d => d.name))
 
 			// find read-only references to `nls`
@@ -235,16 +219,16 @@ module nls {
 			.map(r => collect(sourceFile, n => isCallExpressionWithinTextSpanCollectStep(r.textSpan, n)))
 			.map(a => lazy(a).last())
 			.filter(n => !!n)
-			.map(n => <ts.CallExpression> n)
+			.map(n => <ts.CallExpression>n)
 
 			// only `localize` calls
-			.filter(n => n.expression.kind === ts.SyntaxKind.PropertyAccessExpression && (<ts.PropertyAccessExpression> n.expression).name.getText() === 'localize');
+			.filter(n => n.expression.kind === ts.SyntaxKind.PropertyAccessExpression && (<ts.PropertyAccessExpression>n.expression).name.getText() === 'localize');
 
 		// `localize` named imports
 		const allLocalizeImportDeclarations = importDeclarations
 			.filter(d => d.importClause.namedBindings.kind === ts.SyntaxKind.NamedImports)
-			.map(d => (<ts.NamedImports> d.importClause.namedBindings).elements)
-			.flatten()
+			.map(d => [].concat((<ts.NamedImports>d.importClause.namedBindings).elements))
+			.flatten();
 
 		// `localize` read-only references
 		const localizeReferences = allLocalizeImportDeclarations
@@ -266,7 +250,7 @@ module nls {
 			.map(r => collect(sourceFile, n => isCallExpressionWithinTextSpanCollectStep(r.textSpan, n)))
 			.map(a => lazy(a).last())
 			.filter(n => !!n)
-			.map(n => <ts.CallExpression> n);
+			.map(n => <ts.CallExpression>n);
 
 		// collect everything
 		const localizeCalls = nlsLocalizeCallExpressions
@@ -361,7 +345,7 @@ module nls {
 
 		// patch the 'vs/nls' imports
 		const firstLine = model.get(0);
-		const patchedFirstLine = firstLine.replace(/(['"])vs\/nls\1/g, `$1vs/nls!${ moduleId }$1`);
+		const patchedFirstLine = firstLine.replace(/(['"])vs\/nls\1/g, `$1vs/nls!${moduleId}$1`);
 		model.set(0, patchedFirstLine);
 
 		return model.toString();
@@ -402,7 +386,7 @@ module nls {
 
 			source = rsm.sourceRoot ? path.relative(rsm.sourceRoot, m.source) : m.source;
 			source = source.replace(/\\/g, '/');
-			smg.addMapping({ source, name: m.name, original, generated});
+			smg.addMapping({ source, name: m.name, original, generated });
 		}, null, sm.SourceMapConsumer.GENERATED_ORDER);
 
 		if (source) {
@@ -445,7 +429,7 @@ module nls {
 		// we must do this MacGyver style
 		if (nlsExpressions.length) {
 			javascript = javascript.replace(/^define\(.*$/m, line => {
-				return line.replace(/(['"])vs\/nls\1/g, `$1vs/nls!${ moduleId }$1`);
+				return line.replace(/(['"])vs\/nls\1/g, `$1vs/nls!${moduleId}$1`);
 			});
 		}
 

@@ -6,95 +6,121 @@
 'use strict';
 
 import 'vs/css!./checkbox';
-import nls = require('vs/nls');
-import Builder = require('vs/base/browser/builder');
-import mouse = require('vs/base/browser/mouseEvent');
-import keyboard = require('vs/base/browser/keyboardEvent');
-import {KeyCode} from 'vs/base/common/keyCodes';
 
-var $ = Builder.$;
+import * as DOM from 'vs/base/browser/dom';
+import * as objects from 'vs/base/common/objects';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { Widget } from 'vs/base/browser/ui/widget';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { Color } from 'vs/base/common/color';
 
-export class Checkbox {
+export interface ICheckboxOpts extends ICheckboxStyles {
+	readonly actionClassName: string;
+	readonly title: string;
+	readonly isChecked: boolean;
+	readonly onChange: (viaKeyboard: boolean) => void;
+	readonly onKeyDown?: (e: IKeyboardEvent) => void;
+}
 
-	private actionClassName: string;
-	private title: string;
-	public isChecked: boolean;
-	private onChange: () => void;
-	private listenersToRemove: { (): void; }[];
-	public domNode: HTMLElement;
+export interface ICheckboxStyles {
+	inputActiveOptionBorder?: Color;
+}
 
-	constructor(actionClassName: string, title: string, isChecked: boolean, onChange: () => void) {
-		this.actionClassName = actionClassName;
-		this.title = title;
-		this.isChecked = isChecked;
-		this.onChange = onChange;
+const defaultOpts = {
+	inputActiveOptionBorder: Color.fromHex('#007ACC')
+};
 
-		this.listenersToRemove = [];
+export class Checkbox extends Widget {
+
+	private readonly _opts: ICheckboxOpts;
+	public readonly domNode: HTMLElement;
+
+	private _checked: boolean;
+
+	constructor(opts: ICheckboxOpts) {
+		super();
+		this._opts = objects.deepClone(opts);
+		objects.mixin(this._opts, defaultOpts, false);
+		this._checked = this._opts.isChecked;
 
 		this.domNode = document.createElement('div');
-		this.domNode.title = title;
-		this.render();
+		this.domNode.title = this._opts.title;
+		this.domNode.className = 'monaco-custom-checkbox ' + this._opts.actionClassName + ' ' + (this._checked ? 'checked' : 'unchecked');
+		this.domNode.tabIndex = 0;
+		this.domNode.setAttribute('role', 'checkbox');
+		this.domNode.setAttribute('aria-checked', String(this._checked));
+		this.domNode.setAttribute('aria-label', this._opts.title);
 
-		$(this.domNode).attr({
-			'aria-checked': 'false',
-			'aria-label': this.title,
-			'tabindex': 0,
-			'role': 'checkbox'
+		this.applyStyles();
+
+		this.onclick(this.domNode, (ev) => {
+			this.checked = !this._checked;
+			this._opts.onChange(false);
+			ev.preventDefault();
 		});
 
-		$(this.domNode).on('click', (e: MouseEvent) => {
-			var ev = new mouse.StandardMouseEvent(e);
-			this.isChecked = !this.isChecked;
-			this.render();
-			this.onChange();
-			ev.preventDefault();
-		}, this.listenersToRemove);
-
-		$(this.domNode).on('keydown', (browserEvent: KeyboardEvent) => {
-			var keyboardEvent = new keyboard.StandardKeyboardEvent(browserEvent);
+		this.onkeydown(this.domNode, (keyboardEvent) => {
 			if (keyboardEvent.keyCode === KeyCode.Space || keyboardEvent.keyCode === KeyCode.Enter) {
-				this.isChecked = !this.isChecked;
-				this.render();
-				this.onChange();
+				this.checked = !this._checked;
+				this._opts.onChange(true);
 				keyboardEvent.preventDefault();
+				return;
 			}
-		}, this.listenersToRemove);
+
+			if (this._opts.onKeyDown) {
+				this._opts.onKeyDown(keyboardEvent);
+			}
+		});
+	}
+
+	public get enabled(): boolean {
+		return this.domNode.getAttribute('aria-disabled') !== 'true';
 	}
 
 	public focus(): void {
 		this.domNode.focus();
 	}
 
-	private render(): void {
-		this.domNode.className = this.className();
+	public get checked(): boolean {
+		return this._checked;
 	}
 
-	public setChecked(newIsChecked: boolean): void {
-		this.isChecked = newIsChecked;
-		$(this.domNode).attr('aria-checked', this.isChecked);
-		this.render();
-	}
+	public set checked(newIsChecked: boolean) {
+		this._checked = newIsChecked;
+		this.domNode.setAttribute('aria-checked', String(this._checked));
+		if (this._checked) {
+			this.domNode.classList.add('checked');
+		} else {
+			this.domNode.classList.remove('checked');
+		}
 
-	private className(): string {
-		return 'custom-checkbox ' + this.actionClassName + ' ' + (this.isChecked ? 'checked' : 'unchecked');
+		this.applyStyles();
 	}
 
 	public width(): number {
 		return 2 /*marginleft*/ + 2 /*border*/ + 2 /*padding*/ + 16 /* icon width */;
 	}
 
+	public style(styles: ICheckboxStyles): void {
+		if (styles.inputActiveOptionBorder) {
+			this._opts.inputActiveOptionBorder = styles.inputActiveOptionBorder;
+		}
+		this.applyStyles();
+	}
+
+	protected applyStyles(): void {
+		if (this.domNode) {
+			this.domNode.style.borderColor = this._checked && this._opts.inputActiveOptionBorder ? this._opts.inputActiveOptionBorder.toString() : 'transparent';
+		}
+	}
+
 	public enable(): void {
 		this.domNode.tabIndex = 0;
+		this.domNode.setAttribute('aria-disabled', String(false));
 	}
 
 	public disable(): void {
-		this.domNode.tabIndex = -1;
-	}
-
-	public destroy(): void {
-		this.listenersToRemove.forEach((element) => {
-			element();
-		});
-		this.listenersToRemove = [];
+		DOM.removeTabIndexAndUpdateFocus(this.domNode);
+		this.domNode.setAttribute('aria-disabled', String(true));
 	}
 }

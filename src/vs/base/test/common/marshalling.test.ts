@@ -5,46 +5,36 @@
 'use strict';
 
 import * as assert from 'assert';
-import { IMarshallingContribution, marshallObject, demarshallObject } from 'vs/base/common/marshalling';
-
-class ObjWithRegExp {
-
-	public member:RegExp;
-
-	constructor(something:RegExp) {
-		this.member = something;
-	}
-}
+import URI from 'vs/base/common/uri';
+import { parse, stringify } from 'vs/base/common/marshalling';
 
 suite('Marshalling', () => {
-	test('bug #17587:[plugin] Language plugin can\'t define a TokenTypeClassificationSupport#wordDefinition', () => {
 
-		var simpleMarshallingContrib: IMarshallingContribution = {
-			canSerialize: (obj:any) => {
-				return obj instanceof ObjWithRegExp;
-			},
-			serialize: (obj:any, serialize:(obj:any)=>any) => {
-				return {
-					$ObjWithRegExp: true,
-					member: serialize(obj.member)
-				};
-			},
-			canDeserialize: (obj:any) => {
-				return (obj.$ObjWithRegExp === true);
-			},
-			deserialize: (obj:any, deserialize:(obj:any)=>any) => {
-				return new ObjWithRegExp(deserialize(obj.member));
-			}
-		};
+	test('RegExp', function () {
+		let value = /foo/img;
+		let raw = stringify(value);
+		let clone = <RegExp>parse(raw);
 
-		var initial = new ObjWithRegExp(/test/g);
-		var transported = <ObjWithRegExp>demarshallObject(marshallObject(initial, simpleMarshallingContrib), simpleMarshallingContrib);
+		assert.equal(value.source, clone.source);
+		assert.equal(value.global, clone.global);
+		assert.equal(value.ignoreCase, clone.ignoreCase);
+		assert.equal(value.multiline, clone.multiline);
+	});
 
-		assert(transported instanceof ObjWithRegExp);
-		assert(transported.member instanceof RegExp);
-		assert.equal(transported.member.source, 'test');
-		assert.equal(transported.member.global, true);
-		assert.equal(transported.member.ignoreCase, false);
-		assert.equal(transported.member.multiline, false);
+	test('URI', function () {
+		let value = URI.from({ scheme: 'file', authority: 'server', path: '/shares/c#files', query: 'q', fragment: 'f' });
+		let raw = stringify(value);
+		let clone = <URI>parse(raw);
+
+		assert.equal(value.scheme, clone.scheme);
+		assert.equal(value.authority, clone.authority);
+		assert.equal(value.path, clone.path);
+		assert.equal(value.query, clone.query);
+		assert.equal(value.fragment, clone.fragment);
+	});
+
+	test('Bug 16793:# in folder name => mirror models get out of sync', () => {
+		var uri1 = URI.file('C:\\C#\\file.txt');
+		assert.equal(parse(stringify(uri1)).toString(), uri1.toString());
 	});
 });

@@ -1,37 +1,72 @@
 {
-	"version": "0.1.0",
-	"command": "gulp",
-	"isShellCommand": true,
+	"version": "2.0.0",
 	"tasks": [
 		{
-			"taskName": "watch",
-			"args": [
-				"--no-color"
-			],
-			"isBuildCommand": true,
-			"isWatching": true,
+			"type": "npm",
+			"script": "watch",
+			"label": "Build VS Code",
+			"group": "build",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "never"
+			},
 			"problemMatcher": {
 				"owner": "typescript",
-				"fileLocation": ["absolute"],
+				"applyTo": "closedDocuments",
+				"fileLocation": [
+					"absolute"
+				],
 				"pattern": {
-					"regexp": "^\\*\\*\\* Error: ([^(]+)\\((\\d+|\\d+,\\d+|\\d+,\\d+,\\d+,\\d+)\\): (.*)$",
+					"regexp": "Error: ([^(]+)\\((\\d+|\\d+,\\d+|\\d+,\\d+,\\d+,\\d+)\\): (.*)$",
 					"file": 1,
 					"location": 2,
 					"message": 3
 				},
-				"watching": {
-					"beginsPattern": "^\\*\\*\\* Starting\\.\\.\\.$",
-					"endsPattern": "^\\*\\*\\* Finished"
+				"background": {
+					"beginsPattern": "Starting compilation",
+					"endsPattern": "Finished compilation"
 				}
 			}
 		},
 		{
-			"taskName": "test",
-			"args": [
-				"--no-color"
-			],
-			"showOutput": "always",
-			"isTestCommand": true
+			"type": "gulp",
+			"task": "tslint",
+			"label": "Run tslint",
+			"problemMatcher": [
+				"$tslint5"
+			]
+		},
+		{
+			"label": "Run tests",
+			"type": "shell",
+			"command": "./scripts/test.sh",
+			"windows": {
+				"command": ".\\scripts\\test.bat"
+			},
+			"group": "test",
+			"presentation": {
+				"echo": true,
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "Run Dev",
+			"type": "shell",
+			"command": "./scripts/code.sh",
+			"windows": {
+				"command": ".\\scripts\\code.bat"
+			},
+			"problemMatcher": []
+		},
+		{
+			"type": "gulp",
+			"task": "electron",
+			"label": "Download electron"
+		},
+		{
+			"type": "gulp",
+			"task": "hygiene",
+			"problemMatcher": []
 		}
 	]
 }

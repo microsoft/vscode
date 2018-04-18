@@ -1,42 +1,63 @@
 {
 	"name": "php",
-	"version": "0.1.0",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "1.0.0",
 	"publisher": "vscode",
-	"engines": { "vscode": "*" },
-	"activationEvents": ["onLanguage:php"],
-	"main": "./out/phpMain",
+	"engines": {
+		"vscode": "0.10.x"
+	},
 	"contributes": {
-		"languages": [{
-			"id": "php",
-			"extensions": [ ".php", ".phtml", ".ctp" ],
-			"aliases": [ "PHP", "php" ],
-			"mimetypes": ["application/x-php"],
-			"configuration": "./php.configuration.json"
-		}],
-		"snippets": [{
-			"language": "php",
-			"path": "./snippets/php.json"
-		}],
-		"configuration": {
-			"title": "PHP Configuration options",
-			"type": "object",
-			"properties": {
-				"php.validate.executablePath": {
-					"type": "string",
-					"default": null,
-					"description": "Points to the php exectuable."
-				},
-				"php.validate.run": {
-					"type": "string",
-					"enum": ["onSave", "onType"],
-					"default": "onSave",
-					"description": "Whether the linter is run on save or on type."
+		"languages": [
+			{
+				"id": "php",
+				"extensions": [
+					".php",
+					".php4",
+					".php5",
+					".phtml",
+					".ctp"
+				],
+				"aliases": [
+					"PHP",
+					"php"
+				],
+				"firstLine": "^#!/.*\\bphp\\b",
+				"mimetypes": [
+					"application/x-php"
+				],
+				"configuration": "./language-configuration.json"
+			}
+		],
+		"grammars": [
+			{
+				"language": "php",
+				"scopeName": "source.php",
+				"path": "./syntaxes/php.tmLanguage.json"
+			},
+			{
+				"language": "php",
+				"scopeName": "text.html.php",
+				"path": "./syntaxes/html.tmLanguage.json",
+				"embeddedLanguages": {
+					"text.html": "html",
+					"source.php": "php",
+					"source.sql": "sql",
+					"text.xml": "xml",
+					"source.js": "javascript",
+					"source.json": "json",
+					"source.css": "css"
 				}
 			}
-		}
+		],
+		"snippets": [
+			{
+				"language": "php",
+				"path": "./snippets/php.snippets.json"
+			}
+		]
 	},
-	"isAMD": true,
 	"scripts": {
-		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../gulpfile.plugins.js compile-plugin:php"
+		"update-grammar": "node ./build/update-grammar.js"
 	}
 }

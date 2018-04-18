@@ -5,80 +5,129 @@
 
 'use strict';
 
-import 'vs/css!./media/binaryeditor';
-import nls = require('vs/nls');
-import DOM = require('vs/base/browser/dom');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {Dimension, Builder, $} from 'vs/base/browser/builder';
-import {ResourceViewer} from 'vs/base/browser/ui/resourceviewer/resourceViewer';
-import {EditorModel, EditorInput, EditorOptions} from 'vs/workbench/common/editor';
-import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {BinaryResourceEditorModel} from 'vs/workbench/browser/parts/editor/resourceEditorModel';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import * as nls from 'vs/nls';
+import { Event, Emitter } from 'vs/base/common/event';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Builder, $ } from 'vs/base/browser/builder';
+import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ResourceViewerContext, ResourceViewer } from 'vs/workbench/browser/parts/editor/resourceViewer';
+import URI from 'vs/base/common/uri';
+import { Dimension } from 'vs/base/browser/dom';
+
+export interface IOpenCallbacks {
+	openInternal: (input: EditorInput, options: EditorOptions) => void;
+	openExternal: (uri: URI) => void;
+}
 
 /*
  * This class is only intended to be subclassed and not instantiated.
  */
 export abstract class BaseBinaryResourceEditor extends BaseEditor {
-	private binaryContainer: Builder;
 
-	constructor(id: string, telemetryService: ITelemetryService, private _editorService: IWorkbenchEditorService) {
-		super(id, telemetryService);
+	private readonly _onMetadataChanged: Emitter<void>;
+
+	private callbacks: IOpenCallbacks;
+	private metadata: string;
+	private binaryContainer: Builder;
+	private scrollbar: DomScrollableElement;
+	private resourceViewerContext: ResourceViewerContext;
+
+	constructor(
+		id: string,
+		callbacks: IOpenCallbacks,
+		telemetryService: ITelemetryService,
+		themeService: IThemeService
+	) {
+		super(id, telemetryService, themeService);
+
+		this._onMetadataChanged = new Emitter<void>();
+		this.toUnbind.push(this._onMetadataChanged);
+
+		this.callbacks = callbacks;
+	}
+
+	public get onMetadataChanged(): Event<void> {
+		return this._onMetadataChanged.event;
 	}
 
 	public getTitle(): string {
-		return this.getInput() ? this.getInput().getName() : nls.localize('binaryEditor', "Binary Viewer");
+		return this.input ? this.input.getName() : nls.localize('binaryEditor', "Binary Viewer");
 	}
 
-	public get editorService() {
-		return this._editorService;
-	}
-
-	public createEditor(parent: Builder): void {
+	protected createEditor(parent: HTMLElement): void {
 
 		// Container for Binary
-		let binaryContainerElement = document.createElement('div');
-		binaryContainerElement.className = 'binary-container monaco-editor-background'; // Inherit the background color from selected theme'
+		const binaryContainerElement = document.createElement('div');
+		binaryContainerElement.className = 'binary-container';
 		this.binaryContainer = $(binaryContainerElement);
-		this.binaryContainer.tabindex(0); // enable focus support
-		parent.getHTMLElement().appendChild(this.binaryContainer.getHTMLElement());
+		this.binaryContainer.style('outline', 'none');
+		this.binaryContainer.tabindex(0); // enable focus support from the editor part (do not remove)
+
+		// Custom Scrollbars
+		this.scrollbar = new DomScrollableElement(binaryContainerElement, { horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Auto });
+		parent.appendChild(this.scrollbar.getDomNode());
 	}
 
-	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
-		let oldInput = this.getInput();
-		super.setInput(input, options);
+	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
 
-		// Detect options
-		let forceOpen = options && options.forceOpen;
-
-		// Same Input
-		if (!forceOpen && input.matches(oldInput)) {
-			return TPromise.as<void>(null);
+		// Return early for same input unless we force to open
+		const forceOpen = options && options.forceOpen;
+		if (!forceOpen && input.matches(this.input)) {
+			return TPromise.wrap<void>(null);
 		}
 
-		// Different Input (Reload)
-		return this._editorService.resolveEditorModel(input, true /* Reload */).then((resolvedModel: EditorModel) => {
+		// Otherwise set input and resolve
+		return super.setInput(input, options).then(() => {
+			return input.resolve(true).then(model => {
 
-			// Assert Model instance
-			if (!(resolvedModel instanceof BinaryResourceEditorModel)) {
-				return TPromise.wrapError<void>('Invalid editor input. Binary resource editor requires a model instance of BinaryResourceEditorModel.');
-			}
+				// Assert Model instance
+				if (!(model instanceof BinaryEditorModel)) {
+					return TPromise.wrapError<void>(new Error('Unable to open file as binary'));
+				}
 
-			// Assert that the current input is still the one we expect. This prevents a race condition when loading takes long and another input was set meanwhile
-			if (!this.getInput() || this.getInput() !== input) {
-				return null;
-			}
+				// Assert that the current input is still the one we expect. This prevents a race condition when loading takes long and another input was set meanwhile
+				if (!this.input || this.input !== input) {
+					return null;
+				}
 
-			// Render Input
-			let binaryResourceModel = <BinaryResourceEditorModel>resolvedModel;
-			ResourceViewer.show(binaryResourceModel.getName(), binaryResourceModel.getUrl(), this.binaryContainer);
+				// Render Input
+				this.resourceViewerContext = ResourceViewer.show(
+					{ name: model.getName(), resource: model.getResource(), size: model.getSize(), etag: model.getETag(), mime: model.getMime() },
+					this.binaryContainer.getHTMLElement(),
+					this.scrollbar,
+					resource => this.callbacks.openInternal(input, options),
+					resource => this.callbacks.openExternal(resource),
+					meta => this.handleMetadataChanged(meta)
+				);
 
-			return TPromise.as<void>(null);
+				return TPromise.as<void>(null);
+			});
 		});
 	}
 
+	private handleMetadataChanged(meta: string): void {
+		this.metadata = meta;
+		this._onMetadataChanged.fire();
+	}
+
+	public getMetadata(): string {
+		return this.metadata;
+	}
+
+	public supportsCenteredLayout(): boolean {
+		return false;
+	}
+
 	public clearInput(): void {
+
+		// Clear Meta
+		this.handleMetadataChanged(null);
 
 		// Empty HTML Container
 		$(this.binaryContainer).empty();
@@ -90,6 +139,10 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
 		// Pass on to Binary Container
 		this.binaryContainer.size(dimension.width, dimension.height);
+		this.scrollbar.scanDomNode();
+		if (this.resourceViewerContext) {
+			this.resourceViewerContext.layout(dimension);
+		}
 	}
 
 	public focus(): void {
@@ -100,22 +153,8 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
 		// Destroy Container
 		this.binaryContainer.destroy();
+		this.scrollbar.dispose();
 
 		super.dispose();
-	}
-}
-
-/**
- * An implementation of editor for binary files like images or videos leveraging the ResourceEditorInput.
- */
-export class BinaryResourceEditor extends BaseBinaryResourceEditor {
-
-	public static ID = 'workbench.editors.binaryResourceEditor';
-
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
-	) {
-		super(BinaryResourceEditor.ID, telemetryService, editorService);
 	}
 }

@@ -1,0 +1,284 @@
+-----------------------------------------------------------------------------------------------------------------------------------------
+|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |        User settings       | WYSIWYG |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyA |   a   |                         A |                         A |                          a |         |
+|                     Shift+KeyA |   A   |                   Shift+A |                   Shift+A |                    shift+a |         |
+|                  Ctrl+Alt+KeyA |  ---  |                Ctrl+Alt+A |                Ctrl+Alt+A |                 ctrl+alt+a |         |
+|            Ctrl+Shift+Alt+KeyA |  ---  |          Ctrl+Shift+Alt+A |          Ctrl+Shift+Alt+A |           ctrl+shift+alt+a |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyB |   b   |                         B |                         B |                          b |         |
+|                     Shift+KeyB |   B   |                   Shift+B |                   Shift+B |                    shift+b |         |
+|                  Ctrl+Alt+KeyB |  ---  |                Ctrl+Alt+B |                Ctrl+Alt+B |                 ctrl+alt+b |         |
+|            Ctrl+Shift+Alt+KeyB |  ---  |          Ctrl+Shift+Alt+B |          Ctrl+Shift+Alt+B |           ctrl+shift+alt+b |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyC |   c   |                         C |                         C |                          c |         |
+|                     Shift+KeyC |   C   |                   Shift+C |                   Shift+C |                    shift+c |         |
+|                  Ctrl+Alt+KeyC |  ---  |                Ctrl+Alt+C |                Ctrl+Alt+C |                 ctrl+alt+c |         |
+|            Ctrl+Shift+Alt+KeyC |  ---  |          Ctrl+Shift+Alt+C |          Ctrl+Shift+Alt+C |           ctrl+shift+alt+c |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyD |   d   |                         D |                         D |                          d |         |
+|                     Shift+KeyD |   D   |                   Shift+D |                   Shift+D |                    shift+d |         |
+|                  Ctrl+Alt+KeyD |  ---  |                Ctrl+Alt+D |                Ctrl+Alt+D |                 ctrl+alt+d |         |
+|            Ctrl+Shift+Alt+KeyD |  ---  |          Ctrl+Shift+Alt+D |          Ctrl+Shift+Alt+D |           ctrl+shift+alt+d |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyE |   e   |                         E |                         E |                          e |         |
+|                     Shift+KeyE |   E   |                   Shift+E |                   Shift+E |                    shift+e |         |
+|                  Ctrl+Alt+KeyE |  ---  |                Ctrl+Alt+E |                Ctrl+Alt+E |                 ctrl+alt+e |         |
+|            Ctrl+Shift+Alt+KeyE |  ---  |          Ctrl+Shift+Alt+E |          Ctrl+Shift+Alt+E |           ctrl+shift+alt+e |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyF |   f   |                         F |                         F |                          f |         |
+|                     Shift+KeyF |   F   |                   Shift+F |                   Shift+F |                    shift+f |         |
+|                  Ctrl+Alt+KeyF |  ---  |                Ctrl+Alt+F |                Ctrl+Alt+F |                 ctrl+alt+f |         |
+|            Ctrl+Shift+Alt+KeyF |  ---  |          Ctrl+Shift+Alt+F |          Ctrl+Shift+Alt+F |           ctrl+shift+alt+f |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |        User settings       | WYSIWYG |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyG |   g   |                         G |                         G |                          g |         |
+|                     Shift+KeyG |   G   |                   Shift+G |                   Shift+G |                    shift+g |         |
+|                  Ctrl+Alt+KeyG |  ---  |                Ctrl+Alt+G |                Ctrl+Alt+G |                 ctrl+alt+g |         |
+|            Ctrl+Shift+Alt+KeyG |  ---  |          Ctrl+Shift+Alt+G |          Ctrl+Shift+Alt+G |           ctrl+shift+alt+g |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyH |   h   |                         H |                         H |                          h |         |
+|                     Shift+KeyH |   H   |                   Shift+H |                   Shift+H |                    shift+h |         |
+|                  Ctrl+Alt+KeyH |  ---  |                Ctrl+Alt+H |                Ctrl+Alt+H |                 ctrl+alt+h |         |
+|            Ctrl+Shift+Alt+KeyH |  ---  |          Ctrl+Shift+Alt+H |          Ctrl+Shift+Alt+H |           ctrl+shift+alt+h |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyI |   i   |                         I |                         I |                          i |         |
+|                     Shift+KeyI |   I   |                   Shift+I |                   Shift+I |                    shift+i |         |
+|                  Ctrl+Alt+KeyI |  ---  |                Ctrl+Alt+I |                Ctrl+Alt+I |                 ctrl+alt+i |         |
+|            Ctrl+Shift+Alt+KeyI |  ---  |          Ctrl+Shift+Alt+I |          Ctrl+Shift+Alt+I |           ctrl+shift+alt+i |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyJ |   j   |                         J |                         J |                          j |         |
+|                     Shift+KeyJ |   J   |                   Shift+J |                   Shift+J |                    shift+j |         |
+|                  Ctrl+Alt+KeyJ |  ---  |                Ctrl+Alt+J |                Ctrl+Alt+J |                 ctrl+alt+j |         |
+|            Ctrl+Shift+Alt+KeyJ |  ---  |          Ctrl+Shift+Alt+J |          Ctrl+Shift+Alt+J |           ctrl+shift+alt+j |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyK |   k   |                         K |                         K |                          k |         |
+|                     Shift+KeyK |   K   |                   Shift+K |                   Shift+K |                    shift+k |         |
+|                  Ctrl+Alt+KeyK |  ---  |                Ctrl+Alt+K |                Ctrl+Alt+K |                 ctrl+alt+k |         |
+|            Ctrl+Shift+Alt+KeyK |  ---  |          Ctrl+Shift+Alt+K |          Ctrl+Shift+Alt+K |           ctrl+shift+alt+k |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyL |   l   |                         L |                         L |                          l |         |
+|                     Shift+KeyL |   L   |                   Shift+L |                   Shift+L |                    shift+l |         |
+|                  Ctrl+Alt+KeyL |  ---  |                Ctrl+Alt+L |                Ctrl+Alt+L |                 ctrl+alt+l |         |
+|            Ctrl+Shift+Alt+KeyL |  ---  |          Ctrl+Shift+Alt+L |          Ctrl+Shift+Alt+L |           ctrl+shift+alt+l |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |        User settings       | WYSIWYG |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyM |   m   |                         M |                         M |                          m |         |
+|                     Shift+KeyM |   M   |                   Shift+M |                   Shift+M |                    shift+m |         |
+|                  Ctrl+Alt+KeyM |  ---  |                Ctrl+Alt+M |                Ctrl+Alt+M |                 ctrl+alt+m |         |
+|            Ctrl+Shift+Alt+KeyM |  ---  |          Ctrl+Shift+Alt+M |          Ctrl+Shift+Alt+M |           ctrl+shift+alt+m |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyN |   n   |                         N |                         N |                          n |         |
+|                     Shift+KeyN |   N   |                   Shift+N |                   Shift+N |                    shift+n |         |
+|                  Ctrl+Alt+KeyN |  ---  |                Ctrl+Alt+N |                Ctrl+Alt+N |                 ctrl+alt+n |         |
+|            Ctrl+Shift+Alt+KeyN |  ---  |          Ctrl+Shift+Alt+N |          Ctrl+Shift+Alt+N |           ctrl+shift+alt+n |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyO |   o   |                         O |                         O |                          o |         |
+|                     Shift+KeyO |   O   |                   Shift+O |                   Shift+O |                    shift+o |         |
+|                  Ctrl+Alt+KeyO |  ---  |                Ctrl+Alt+O |                Ctrl+Alt+O |                 ctrl+alt+o |         |
+|            Ctrl+Shift+Alt+KeyO |  ---  |          Ctrl+Shift+Alt+O |          Ctrl+Shift+Alt+O |           ctrl+shift+alt+o |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyP |   p   |                         P |                         P |                          p |         |
+|                     Shift+KeyP |   P   |                   Shift+P |                   Shift+P |                    shift+p |         |
+|                  Ctrl+Alt+KeyP |  ---  |                Ctrl+Alt+P |                Ctrl+Alt+P |                 ctrl+alt+p |         |
+|            Ctrl+Shift+Alt+KeyP |  ---  |          Ctrl+Shift+Alt+P |          Ctrl+Shift+Alt+P |           ctrl+shift+alt+p |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyQ |   q   |                         Q |                         Q |                          q |         |
+|                     Shift+KeyQ |   Q   |                   Shift+Q |                   Shift+Q |                    shift+q |         |
+|                  Ctrl+Alt+KeyQ |  ---  |                Ctrl+Alt+Q |                Ctrl+Alt+Q |                 ctrl+alt+q |         |
+|            Ctrl+Shift+Alt+KeyQ |  ---  |          Ctrl+Shift+Alt+Q |          Ctrl+Shift+Alt+Q |           ctrl+shift+alt+q |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyR |   r   |                         R |                         R |                          r |         |
+|                     Shift+KeyR |   R   |                   Shift+R |                   Shift+R |                    shift+r |         |
+|                  Ctrl+Alt+KeyR |  ---  |                Ctrl+Alt+R |                Ctrl+Alt+R |                 ctrl+alt+r |         |
+|            Ctrl+Shift+Alt+KeyR |  ---  |          Ctrl+Shift+Alt+R |          Ctrl+Shift+Alt+R |           ctrl+shift+alt+r |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |        User settings       | WYSIWYG |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyS |   s   |                         S |                         S |                          s |         |
+|                     Shift+KeyS |   S   |                   Shift+S |                   Shift+S |                    shift+s |         |
+|                  Ctrl+Alt+KeyS |  ---  |                Ctrl+Alt+S |                Ctrl+Alt+S |                 ctrl+alt+s |         |
+|            Ctrl+Shift+Alt+KeyS |  ---  |          Ctrl+Shift+Alt+S |          Ctrl+Shift+Alt+S |           ctrl+shift+alt+s |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyT |   t   |                         T |                         T |                          t |         |
+|                     Shift+KeyT |   T   |                   Shift+T |                   Shift+T |                    shift+t |         |
+|                  Ctrl+Alt+KeyT |  ---  |                Ctrl+Alt+T |                Ctrl+Alt+T |                 ctrl+alt+t |         |
+|            Ctrl+Shift+Alt+KeyT |  ---  |          Ctrl+Shift+Alt+T |          Ctrl+Shift+Alt+T |           ctrl+shift+alt+t |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyU |   u   |                         U |                         U |                          u |         |
+|                     Shift+KeyU |   U   |                   Shift+U |                   Shift+U |                    shift+u |         |
+|                  Ctrl+Alt+KeyU |  ---  |                Ctrl+Alt+U |                Ctrl+Alt+U |                 ctrl+alt+u |         |
+|            Ctrl+Shift+Alt+KeyU |  ---  |          Ctrl+Shift+Alt+U |          Ctrl+Shift+Alt+U |           ctrl+shift+alt+u |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyV |   v   |                         V |                         V |                          v |         |
+|                     Shift+KeyV |   V   |                   Shift+V |                   Shift+V |                    shift+v |         |
+|                  Ctrl+Alt+KeyV |  ---  |                Ctrl+Alt+V |                Ctrl+Alt+V |                 ctrl+alt+v |         |
+|            Ctrl+Shift+Alt+KeyV |  ---  |          Ctrl+Shift+Alt+V |          Ctrl+Shift+Alt+V |           ctrl+shift+alt+v |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyW |   w   |                         W |                         W |                          w |         |
+|                     Shift+KeyW |   W   |                   Shift+W |                   Shift+W |                    shift+w |         |
+|                  Ctrl+Alt+KeyW |  ---  |                Ctrl+Alt+W |                Ctrl+Alt+W |                 ctrl+alt+w |         |
+|            Ctrl+Shift+Alt+KeyW |  ---  |          Ctrl+Shift+Alt+W |          Ctrl+Shift+Alt+W |           ctrl+shift+alt+w |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyX |   x   |                         X |                         X |                          x |         |
+|                     Shift+KeyX |   X   |                   Shift+X |                   Shift+X |                    shift+x |         |
+|                  Ctrl+Alt+KeyX |  ---  |                Ctrl+Alt+X |                Ctrl+Alt+X |                 ctrl+alt+x |         |
+|            Ctrl+Shift+Alt+KeyX |  ---  |          Ctrl+Shift+Alt+X |          Ctrl+Shift+Alt+X |           ctrl+shift+alt+x |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |        User settings       | WYSIWYG |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyY |   y   |                         Y |                         Y |                          y |         |
+|                     Shift+KeyY |   Y   |                   Shift+Y |                   Shift+Y |                    shift+y |         |
+|                  Ctrl+Alt+KeyY |  ---  |                Ctrl+Alt+Y |                Ctrl+Alt+Y |                 ctrl+alt+y |         |
+|            Ctrl+Shift+Alt+KeyY |  ---  |          Ctrl+Shift+Alt+Y |          Ctrl+Shift+Alt+Y |           ctrl+shift+alt+y |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyZ |   z   |                         Z |                         Z |                          z |         |
+|                     Shift+KeyZ |   Z   |                   Shift+Z |                   Shift+Z |                    shift+z |         |
+|                  Ctrl+Alt+KeyZ |  ---  |                Ctrl+Alt+Z |                Ctrl+Alt+Z |                 ctrl+alt+z |         |
+|            Ctrl+Shift+Alt+KeyZ |  ---  |          Ctrl+Shift+Alt+Z |          Ctrl+Shift+Alt+Z |           ctrl+shift+alt+z |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                         Digit1 |   1   |                         1 |                         1 |                          1 |         |
+|                   Shift+Digit1 |   !   |                   Shift+1 |                   Shift+1 |                    shift+1 |         |
+|                Ctrl+Alt+Digit1 |  ---  |                Ctrl+Alt+1 |                Ctrl+Alt+1 |                 ctrl+alt+1 |         |
+|          Ctrl+Shift+Alt+Digit1 |  ---  |          Ctrl+Shift+Alt+1 |          Ctrl+Shift+Alt+1 |           ctrl+shift+alt+1 |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                         Digit2 |   2   |                         2 |                         2 |                          2 |         |
+|                   Shift+Digit2 |   @   |                   Shift+2 |                   Shift+2 |                    shift+2 |         |
+|                Ctrl+Alt+Digit2 |  ---  |                Ctrl+Alt+2 |                Ctrl+Alt+2 |                 ctrl+alt+2 |         |
+|          Ctrl+Shift+Alt+Digit2 |  ---  |          Ctrl+Shift+Alt+2 |          Ctrl+Shift+Alt+2 |           ctrl+shift+alt+2 |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                         Digit3 |   3   |                         3 |                         3 |                          3 |         |
+|                   Shift+Digit3 |   #   |                   Shift+3 |                   Shift+3 |                    shift+3 |         |
+|                Ctrl+Alt+Digit3 |  ---  |                Ctrl+Alt+3 |                Ctrl+Alt+3 |                 ctrl+alt+3 |         |
+|          Ctrl+Shift+Alt+Digit3 |  ---  |          Ctrl+Shift+Alt+3 |          Ctrl+Shift+Alt+3 |           ctrl+shift+alt+3 |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                         Digit4 |   4   |                         4 |                         4 |                          4 |         |
+|                   Shift+Digit4 |   $   |                   Shift+4 |                   Shift+4 |                    shift+4 |         |
+|                Ctrl+Alt+Digit4 |  ---  |                Ctrl+Alt+4 |                Ctrl+Alt+4 |                 ctrl+alt+4 |         |
+|          Ctrl+Shift+Alt+Digit4 |  ---  |          Ctrl+Shift+Alt+4 |          Ctrl+Shift+Alt+4 |           ctrl+shift+alt+4 |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |        User settings       | WYSIWYG |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                         Digit5 |   5   |                         5 |                         5 |                          5 |         |
+|                   Shift+Digit5 |   %   |                   Shift+5 |                   Shift+5 |                    shift+5 |         |
+|                Ctrl+Alt+Digit5 |  ---  |                Ctrl+Alt+5 |                Ctrl+Alt+5 |                 ctrl+alt+5 |         |
+|          Ctrl+Shift+Alt+Digit5 |  ---  |          Ctrl+Shift+Alt+5 |          Ctrl+Shift+Alt+5 |           ctrl+shift+alt+5 |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                         Digit6 |   6   |                         6 |                         6 |                          6 |         |
+|                   Shift+Digit6 |   ^   |                   Shift+6 |                   Shift+6 |                    shift+6 |         |
+|                Ctrl+Alt+Digit6 |  ---  |                Ctrl+Alt+6 |                Ctrl+Alt+6 |                 ctrl+alt+6 |         |
+|          Ctrl+Shift+Alt+Digit6 |  ---  |          Ctrl+Shift+Alt+6 |          Ctrl+Shift+Alt+6 |           ctrl+shift+alt+6 |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                         Digit7 |   7   |                         7 |                         7 |                          7 |         |
+|                   Shift+Digit7 |   &   |                   Shift+7 |                   Shift+7 |                    shift+7 |         |
+|                Ctrl+Alt+Digit7 |  ---  |                Ctrl+Alt+7 |                Ctrl+Alt+7 |                 ctrl+alt+7 |         |
+|          Ctrl+Shift+Alt+Digit7 |  ---  |          Ctrl+Shift+Alt+7 |          Ctrl+Shift+Alt+7 |           ctrl+shift+alt+7 |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                         Digit8 |   8   |                         8 |                         8 |                          8 |         |
+|                   Shift+Digit8 |   *   |                   Shift+8 |                   Shift+8 |                    shift+8 |         |
+|                Ctrl+Alt+Digit8 |  ---  |                Ctrl+Alt+8 |                Ctrl+Alt+8 |                 ctrl+alt+8 |         |
+|          Ctrl+Shift+Alt+Digit8 |  ---  |          Ctrl+Shift+Alt+8 |          Ctrl+Shift+Alt+8 |           ctrl+shift+alt+8 |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                         Digit9 |   9   |                         9 |                         9 |                          9 |         |
+|                   Shift+Digit9 |   (   |                   Shift+9 |                   Shift+9 |                    shift+9 |         |
+|                Ctrl+Alt+Digit9 |  ---  |                Ctrl+Alt+9 |                Ctrl+Alt+9 |                 ctrl+alt+9 |         |
+|          Ctrl+Shift+Alt+Digit9 |  ---  |          Ctrl+Shift+Alt+9 |          Ctrl+Shift+Alt+9 |           ctrl+shift+alt+9 |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                         Digit0 |   0   |                         0 |                         0 |                          0 |         |
+|                   Shift+Digit0 |   )   |                   Shift+0 |                   Shift+0 |                    shift+0 |         |
+|                Ctrl+Alt+Digit0 |  ---  |                Ctrl+Alt+0 |                Ctrl+Alt+0 |                 ctrl+alt+0 |         |
+|          Ctrl+Shift+Alt+Digit0 |  ---  |          Ctrl+Shift+Alt+0 |          Ctrl+Shift+Alt+0 |           ctrl+shift+alt+0 |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |        User settings       | WYSIWYG |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                          Minus |   -   |                         - |                         - |                          - |         |
+|                    Shift+Minus |   _   |                   Shift+- |                   Shift+- |                    shift+- |         |
+|                 Ctrl+Alt+Minus |  ---  |                Ctrl+Alt+- |                Ctrl+Alt+- |                 ctrl+alt+- |         |
+|           Ctrl+Shift+Alt+Minus |  ---  |          Ctrl+Shift+Alt+- |          Ctrl+Shift+Alt+- |           ctrl+shift+alt+- |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                          Equal |   =   |                         = |                         = |                          = |         |
+|                    Shift+Equal |   +   |                   Shift+= |                   Shift+= |                    shift+= |         |
+|                 Ctrl+Alt+Equal |  ---  |                Ctrl+Alt+= |                Ctrl+Alt+= |                 ctrl+alt+= |         |
+|           Ctrl+Shift+Alt+Equal |  ---  |          Ctrl+Shift+Alt+= |          Ctrl+Shift+Alt+= |           ctrl+shift+alt+= |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                    BracketLeft |   [   |                         [ |                         [ |                          [ |         |
+|              Shift+BracketLeft |   {   |                   Shift+[ |                   Shift+[ |                    shift+[ |         |
+|           Ctrl+Alt+BracketLeft |  ---  |                Ctrl+Alt+[ |                Ctrl+Alt+[ |                 ctrl+alt+[ |         |
+|     Ctrl+Shift+Alt+BracketLeft |  ---  |          Ctrl+Shift+Alt+[ |          Ctrl+Shift+Alt+[ |           ctrl+shift+alt+[ |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                   BracketRight |   ]   |                         ] |                         ] |                          ] |         |
+|             Shift+BracketRight |   }   |                   Shift+] |                   Shift+] |                    shift+] |         |
+|          Ctrl+Alt+BracketRight |  ---  |                Ctrl+Alt+] |                Ctrl+Alt+] |                 ctrl+alt+] |         |
+|    Ctrl+Shift+Alt+BracketRight |  ---  |          Ctrl+Shift+Alt+] |          Ctrl+Shift+Alt+] |           ctrl+shift+alt+] |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                      Backslash |   \   |                         \ |                         \ |                          \ |         |
+|                Shift+Backslash |   |   |                   Shift+\ |                   Shift+\ |                    shift+\ |         |
+|             Ctrl+Alt+Backslash |  ---  |                Ctrl+Alt+\ |                Ctrl+Alt+\ |                 ctrl+alt+\ |         |
+|       Ctrl+Shift+Alt+Backslash |  ---  |          Ctrl+Shift+Alt+\ |          Ctrl+Shift+Alt+\ |           ctrl+shift+alt+\ |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                       IntlHash |  ---  |                      null |                      null |                       null |    NO   |
+|                 Shift+IntlHash |  ---  |                      null |                      null |                       null |    NO   |
+|              Ctrl+Alt+IntlHash |  ---  |                      null |                      null |                       null |    NO   |
+|        Ctrl+Shift+Alt+IntlHash |  ---  |                      null |                      null |                       null |    NO   |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |        User settings       | WYSIWYG |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                      Semicolon |   ;   |                         ; |                         ; |                          ; |         |
+|                Shift+Semicolon |   :   |                   Shift+; |                   Shift+; |                    shift+; |         |
+|             Ctrl+Alt+Semicolon |  ---  |                Ctrl+Alt+; |                Ctrl+Alt+; |                 ctrl+alt+; |         |
+|       Ctrl+Shift+Alt+Semicolon |  ---  |          Ctrl+Shift+Alt+; |          Ctrl+Shift+Alt+; |           ctrl+shift+alt+; |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                          Quote |   '   |                         ' |                         ' |                          ' |         |
+|                    Shift+Quote |   "   |                   Shift+' |                   Shift+' |                    shift+' |         |
+|                 Ctrl+Alt+Quote |  ---  |                Ctrl+Alt+' |                Ctrl+Alt+' |                 ctrl+alt+' |         |
+|           Ctrl+Shift+Alt+Quote |  ---  |          Ctrl+Shift+Alt+' |          Ctrl+Shift+Alt+' |           ctrl+shift+alt+' |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                      Backquote |   `   |                         ` |                         ` |                          ` |         |
+|                Shift+Backquote |   ~   |                   Shift+` |                   Shift+` |                    shift+` |         |
+|             Ctrl+Alt+Backquote |  ---  |                Ctrl+Alt+` |                Ctrl+Alt+` |                 ctrl+alt+` |         |
+|       Ctrl+Shift+Alt+Backquote |  ---  |          Ctrl+Shift+Alt+` |          Ctrl+Shift+Alt+` |           ctrl+shift+alt+` |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                          Comma |   ,   |                         , |                         , |                          , |         |
+|                    Shift+Comma |   <   |                   Shift+, |                   Shift+, |                    shift+, |         |
+|                 Ctrl+Alt+Comma |  ---  |                Ctrl+Alt+, |                Ctrl+Alt+, |                 ctrl+alt+, |         |
+|           Ctrl+Shift+Alt+Comma |  ---  |          Ctrl+Shift+Alt+, |          Ctrl+Shift+Alt+, |           ctrl+shift+alt+, |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                         Period |   .   |                         . |                         . |                          . |         |
+|                   Shift+Period |   >   |                   Shift+. |                   Shift+. |                    shift+. |         |
+|                Ctrl+Alt+Period |  ---  |                Ctrl+Alt+. |                Ctrl+Alt+. |                 ctrl+alt+. |         |
+|          Ctrl+Shift+Alt+Period |  ---  |          Ctrl+Shift+Alt+. |          Ctrl+Shift+Alt+. |           ctrl+shift+alt+. |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                          Slash |   /   |                         / |                         / |                          / |         |
+|                    Shift+Slash |   ?   |                   Shift+/ |                   Shift+/ |                    shift+/ |         |
+|                 Ctrl+Alt+Slash |  ---  |                Ctrl+Alt+/ |                Ctrl+Alt+/ |                 ctrl+alt+/ |         |
+|           Ctrl+Shift+Alt+Slash |  ---  |          Ctrl+Shift+Alt+/ |          Ctrl+Shift+Alt+/ |           ctrl+shift+alt+/ |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |        User settings       | WYSIWYG |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                        ArrowUp |  ---  |                   UpArrow |                   UpArrow |                         up |         |
+|                  Shift+ArrowUp |  ---  |             Shift+UpArrow |             Shift+UpArrow |                   shift+up |         |
+|               Ctrl+Alt+ArrowUp |  ---  |          Ctrl+Alt+UpArrow |          Ctrl+Alt+UpArrow |                ctrl+alt+up |         |
+|         Ctrl+Shift+Alt+ArrowUp |  ---  |    Ctrl+Shift+Alt+UpArrow |    Ctrl+Shift+Alt+UpArrow |          ctrl+shift+alt+up |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                        Numpad0 |  ---  |                   NumPad0 |                   NumPad0 |                    numpad0 |         |
+|                  Shift+Numpad0 |  ---  |             Shift+NumPad0 |             Shift+NumPad0 |              shift+numpad0 |         |
+|               Ctrl+Alt+Numpad0 |  ---  |          Ctrl+Alt+NumPad0 |          Ctrl+Alt+NumPad0 |           ctrl+alt+numpad0 |         |
+|         Ctrl+Shift+Alt+Numpad0 |  ---  |    Ctrl+Shift+Alt+NumPad0 |    Ctrl+Shift+Alt+NumPad0 |     ctrl+shift+alt+numpad0 |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                  IntlBackslash |   \   |                   OEM_102 |                         \ |                    oem_102 |    NO   |
+|            Shift+IntlBackslash |   |   |             Shift+OEM_102 |                   Shift+\ |              shift+oem_102 |    NO   |
+|         Ctrl+Alt+IntlBackslash |  ---  |          Ctrl+Alt+OEM_102 |                Ctrl+Alt+\ |           ctrl+alt+oem_102 |    NO   |
+|   Ctrl+Shift+Alt+IntlBackslash |  ---  |    Ctrl+Shift+Alt+OEM_102 |          Ctrl+Shift+Alt+\ |     ctrl+shift+alt+oem_102 |    NO   |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                         IntlRo |  ---  |                      null |                      null |                       null |    NO   |
+|                   Shift+IntlRo |  ---  |                      null |                      null |                       null |    NO   |
+|                Ctrl+Alt+IntlRo |  ---  |                      null |                      null |                       null |    NO   |
+|          Ctrl+Shift+Alt+IntlRo |  ---  |                      null |                      null |                       null |    NO   |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                        IntlYen |  ---  |                      null |                      null |                       null |    NO   |
+|                  Shift+IntlYen |  ---  |                      null |                      null |                       null |    NO   |
+|               Ctrl+Alt+IntlYen |  ---  |                      null |                      null |                       null |    NO   |
+|         Ctrl+Shift+Alt+IntlYen |  ---  |                      null |                      null |                       null |    NO   |
+-----------------------------------------------------------------------------------------------------------------------------------------

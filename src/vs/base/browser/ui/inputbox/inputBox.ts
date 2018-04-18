@@ -5,26 +5,41 @@
 'use strict';
 
 import 'vs/css!./inputBox';
-import Bal = require('vs/base/browser/browser');
-import dom = require('vs/base/browser/dom');
-import browser = require('vs/base/browser/browserService');
-import htmlcontent = require('vs/base/common/htmlContent');
-import renderer = require('vs/base/browser/htmlContentRenderer');
-import ee = require('vs/base/common/eventEmitter');
-import actions = require('vs/base/common/actions');
-import actionBar = require('vs/base/browser/ui/actionbar/actionbar');
-import lifecycle = require('vs/base/common/lifecycle');
-import contextview = require('vs/base/browser/ui/contextview/contextview');
 
-var $ = dom.emmet;
+import * as nls from 'vs/nls';
+import * as Bal from 'vs/base/browser/browser';
+import * as dom from 'vs/base/browser/dom';
+import { RenderOptions, renderFormattedText, renderText } from 'vs/base/browser/htmlContentRenderer';
+import * as aria from 'vs/base/browser/ui/aria/aria';
+import { IAction } from 'vs/base/common/actions';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IContextViewProvider, AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import { Event, Emitter } from 'vs/base/common/event';
+import { Widget } from 'vs/base/browser/ui/widget';
+import { Color } from 'vs/base/common/color';
+import { mixin } from 'vs/base/common/objects';
 
-export interface IInputOptions {
-	placeholder?:string;
-	ariaLabel?:string;
-	type?:string;
-	validationOptions?:IInputValidationOptions;
+const $ = dom.$;
+
+export interface IInputOptions extends IInputBoxStyles {
+	placeholder?: string;
+	ariaLabel?: string;
+	type?: string;
+	validationOptions?: IInputValidationOptions;
 	flexibleHeight?: boolean;
-	actions?:actions.IAction[];
+	actions?: IAction[];
+}
+
+export interface IInputBoxStyles {
+	inputBackground?: Color;
+	inputForeground?: Color;
+	inputBorder?: Color;
+	inputValidationInfoBorder?: Color;
+	inputValidationInfoBackground?: Color;
+	inputValidationWarningBorder?: Color;
+	inputValidationWarningBackground?: Color;
+	inputValidationErrorBorder?: Color;
+	inputValidationErrorBackground?: Color;
 }
 
 export interface IInputValidator {
@@ -39,7 +54,6 @@ export interface IMessage {
 
 export interface IInputValidationOptions {
 	validation: IInputValidator;
-	showMessage?: boolean;
 }
 
 export enum MessageType {
@@ -53,49 +67,86 @@ export interface IRange {
 	end: number;
 }
 
-export class InputBox extends ee.EventEmitter {
+const defaultOpts = {
+	inputBackground: Color.fromHex('#3C3C3C'),
+	inputForeground: Color.fromHex('#CCCCCC'),
+	inputValidationInfoBorder: Color.fromHex('#55AAFF'),
+	inputValidationInfoBackground: Color.fromHex('#063B49'),
+	inputValidationWarningBorder: Color.fromHex('#B89500'),
+	inputValidationWarningBackground: Color.fromHex('#352A05'),
+	inputValidationErrorBorder: Color.fromHex('#BE1100'),
+	inputValidationErrorBackground: Color.fromHex('#5A1D1D')
+};
 
-	private contextViewProvider: contextview.IContextViewProvider;
-
+export class InputBox extends Widget {
+	private contextViewProvider: IContextViewProvider;
 	private element: HTMLElement;
 	private input: HTMLInputElement;
 	private mirror: HTMLElement;
-	private actionbar: actionBar.ActionBar;
+	private actionbar: ActionBar;
 	private options: IInputOptions;
 	private message: IMessage;
 	private placeholder: string;
 	private ariaLabel: string;
 	private validation: IInputValidator;
-	private showValidationMessage: boolean;
 	private state = 'idle';
 	private cachedHeight: number;
-	private toDispose: lifecycle.IDisposable[];
 
-	constructor(container:HTMLElement, contextViewProvider: contextview.IContextViewProvider, options?: IInputOptions) {
+	private inputBackground: Color;
+	private inputForeground: Color;
+	private inputBorder: Color;
+
+	private inputValidationInfoBorder: Color;
+	private inputValidationInfoBackground: Color;
+	private inputValidationWarningBorder: Color;
+	private inputValidationWarningBackground: Color;
+	private inputValidationErrorBorder: Color;
+	private inputValidationErrorBackground: Color;
+
+	private _onDidChange = this._register(new Emitter<string>());
+	public readonly onDidChange: Event<string> = this._onDidChange.event;
+
+	private _onDidHeightChange = this._register(new Emitter<number>());
+	public readonly onDidHeightChange: Event<number> = this._onDidHeightChange.event;
+
+	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider, options?: IInputOptions) {
 		super();
 
 		this.contextViewProvider = contextViewProvider;
 		this.options = options || Object.create(null);
-		this.toDispose = [];
+		mixin(this.options, defaultOpts, false);
 		this.message = null;
 		this.cachedHeight = null;
 		this.placeholder = this.options.placeholder || '';
 		this.ariaLabel = this.options.ariaLabel || '';
 
+		this.inputBackground = this.options.inputBackground;
+		this.inputForeground = this.options.inputForeground;
+		this.inputBorder = this.options.inputBorder;
+
+		this.inputValidationInfoBorder = this.options.inputValidationInfoBorder;
+		this.inputValidationInfoBackground = this.options.inputValidationInfoBackground;
+		this.inputValidationWarningBorder = this.options.inputValidationWarningBorder;
+		this.inputValidationWarningBackground = this.options.inputValidationWarningBackground;
+		this.inputValidationErrorBorder = this.options.inputValidationErrorBorder;
+		this.inputValidationErrorBackground = this.options.inputValidationErrorBackground;
+
 		if (this.options.validationOptions) {
 			this.validation = this.options.validationOptions.validation;
-			this.showValidationMessage = this.options.validationOptions.showMessage || false;
 		}
 
 		this.element = dom.append(container, $('.monaco-inputbox.idle'));
 
-		var tagName = this.options.flexibleHeight ? 'textarea' : 'input';
+		let tagName = this.options.flexibleHeight ? 'textarea' : 'input';
 
-		var wrapper = dom.append(this.element, $('.wrapper'));
-		this.input = <HTMLInputElement> dom.append(wrapper, $(tagName + '.input'));
+		let wrapper = dom.append(this.element, $('.wrapper'));
+		this.input = <HTMLInputElement>dom.append(wrapper, $(tagName + '.input'));
 		this.input.setAttribute('autocorrect', 'off');
 		this.input.setAttribute('autocapitalize', 'off');
 		this.input.setAttribute('spellcheck', 'false');
+
+		this.onfocus(this.input, () => dom.addClass(this.element, 'synthetic-focus'));
+		this.onblur(this.input, () => dom.removeClass(this.element, 'synthetic-focus'));
 
 		if (this.options.flexibleHeight) {
 			this.mirror = dom.append(wrapper, $('div.mirror'));
@@ -109,35 +160,36 @@ export class InputBox extends ee.EventEmitter {
 		}
 
 		if (this.placeholder) {
-			this.input.setAttribute('placeholder', this.placeholder);
+			this.setPlaceHolder(this.placeholder);
 		}
 
-		this.toDispose.push(
-			dom.addDisposableListener(this.input, dom.EventType.INPUT, () => this.onValueChange()),
-			dom.addDisposableListener(this.input, dom.EventType.BLUR, () => this.onBlur()),
-			dom.addDisposableListener(this.input, dom.EventType.FOCUS, () => this.onFocus())
-		);
+		this.oninput(this.input, () => this.onValueChange());
+		this.onblur(this.input, () => this.onBlur());
+		this.onfocus(this.input, () => this.onFocus());
 
 		// Add placeholder shim for IE because IE decides to hide the placeholder on focus (we dont want that!)
-		if (this.placeholder && Bal.isIE11orEarlier) {
-
-			this.toDispose.push(dom.addDisposableListener(this.input, dom.EventType.CLICK, (e) => {
+		if (this.placeholder && Bal.isIE) {
+			this.onclick(this.input, (e) => {
 				dom.EventHelper.stop(e, true);
 				this.input.focus();
-			}));
-
-			if (Bal.isIE9) {
-				this.toDispose.push(dom.addDisposableListener(this.input, 'keyup', () => this.onValueChange()));
-			}
+			});
 		}
 
-		setTimeout(() =>this.adjustHeight(), 0);
+		setTimeout(() => {
+			if (!this.input) {
+				return;
+			}
+
+			this.updateMirror();
+		}, 0);
 
 		// Support actions
 		if (this.options.actions) {
-			this.actionbar = new actionBar.ActionBar(this.element);
+			this.actionbar = this._register(new ActionBar(this.element));
 			this.actionbar.push(this.options.actions, { icon: true, label: false });
 		}
+
+		this.applyStyles();
 	}
 
 	private onBlur(): void {
@@ -148,25 +200,34 @@ export class InputBox extends ee.EventEmitter {
 		this._showMessage();
 	}
 
-	public setPlaceHolder(placeHolder:string): void {
+	public setPlaceHolder(placeHolder: string): void {
 		if (this.input) {
 			this.input.setAttribute('placeholder', placeHolder);
+			this.input.title = placeHolder;
 		}
 	}
 
-	public setContextViewProvider(contextViewProvider: contextview.IContextViewProvider): void {
-		this.contextViewProvider = contextViewProvider;
+	public setAriaLabel(label: string): void {
+		this.ariaLabel = label;
+
+		if (this.input) {
+			if (label) {
+				this.input.setAttribute('aria-label', this.ariaLabel);
+			} else {
+				this.input.removeAttribute('aria-label');
+			}
+		}
 	}
 
 	public get inputElement(): HTMLInputElement {
 		return this.input;
 	}
 
-	public get value():string {
+	public get value(): string {
 		return this.input.value;
 	}
 
-	public set value(newValue:string) {
+	public set value(newValue: string) {
 		if (this.input.value !== newValue) {
 			this.input.value = newValue;
 			this.onValueChange();
@@ -186,7 +247,7 @@ export class InputBox extends ee.EventEmitter {
 	}
 
 	public hasFocus(): boolean {
-		return browser.getService().document.activeElement === this.input;
+		return document.activeElement === this.input;
 	}
 
 	public select(range: IRange = null): void {
@@ -206,15 +267,23 @@ export class InputBox extends ee.EventEmitter {
 		this._hideMessage();
 	}
 
-	public get width():number {
+	public setEnabled(enabled: boolean): void {
+		if (enabled) {
+			this.enable();
+		} else {
+			this.disable();
+		}
+	}
+
+	public get width(): number {
 		return dom.getTotalWidth(this.input);
 	}
 
-	public set width(width:number) {
+	public set width(width: number) {
 		this.input.style.width = width + 'px';
 	}
 
-	public showMessage(message: IMessage, force?:boolean): void {
+	public showMessage(message: IMessage, force?: boolean): void {
 		this.message = message;
 
 		dom.removeClass(this.element, 'idle');
@@ -222,6 +291,21 @@ export class InputBox extends ee.EventEmitter {
 		dom.removeClass(this.element, 'warning');
 		dom.removeClass(this.element, 'error');
 		dom.addClass(this.element, this.classForType(message.type));
+
+		const styles = this.stylesForType(this.message.type);
+		this.element.style.border = styles.border ? `1px solid ${styles.border}` : null;
+
+		// ARIA Support
+		let alertText: string;
+		if (message.type === MessageType.ERROR) {
+			alertText = nls.localize('alertErrorMessage', "Error: {0}", message.content);
+		} else if (message.type === MessageType.WARNING) {
+			alertText = nls.localize('alertWarningMessage', "Warning: {0}", message.content);
+		} else {
+			alertText = nls.localize('alertInfoMessage', "Info: {0}", message.content);
+		}
+
+		aria.alert(alertText);
 
 		if (this.hasFocus() || force) {
 			this._showMessage();
@@ -237,6 +321,7 @@ export class InputBox extends ee.EventEmitter {
 		dom.addClass(this.element, 'idle');
 
 		this._hideMessage();
+		this.applyStyles();
 	}
 
 	public isInputValid(): boolean {
@@ -244,20 +329,30 @@ export class InputBox extends ee.EventEmitter {
 	}
 
 	public validate(): boolean {
-		var result: IMessage = null;
+		let errorMsg: IMessage = null;
 
 		if (this.validation) {
-			result = this.validation(this.value);
+			errorMsg = this.validation(this.value);
 
-			if (!result) {
-				this.hideMessage();
-			} else {
-				this.showMessage(result);
+			if (errorMsg) {
+				this.inputElement.setAttribute('aria-invalid', 'true');
+				this.showMessage(errorMsg);
 			}
-
+			else if (this.inputElement.hasAttribute('aria-invalid')) {
+				this.inputElement.removeAttribute('aria-invalid');
+				this.hideMessage();
+			}
 		}
 
-		return !result;
+		return !errorMsg;
+	}
+
+	private stylesForType(type: MessageType): { border: Color; background: Color } {
+		switch (type) {
+			case MessageType.INFO: return { border: this.inputValidationInfoBorder, background: this.inputValidationInfoBackground };
+			case MessageType.WARNING: return { border: this.inputValidationWarningBorder, background: this.inputValidationWarningBackground };
+			default: return { border: this.inputValidationErrorBorder, background: this.inputValidationErrorBackground };
+		}
 	}
 
 	private classForType(type: MessageType): string {
@@ -273,32 +368,34 @@ export class InputBox extends ee.EventEmitter {
 			return;
 		}
 
-		var div: HTMLElement;
-		var layout = () => div.style.width = dom.getTotalWidth(this.element) + 'px';
+		let div: HTMLElement;
+		let layout = () => div.style.width = dom.getTotalWidth(this.element) + 'px';
 
 		this.state = 'open';
 
 		this.contextViewProvider.showContextView({
 			getAnchor: () => this.element,
-			anchorAlignment: contextview.AnchorAlignment.RIGHT,
+			anchorAlignment: AnchorAlignment.RIGHT,
 			render: (container: HTMLElement) => {
 				div = dom.append(container, $('.monaco-inputbox-container'));
 				layout();
 
-				var renderOptions: htmlcontent.IHTMLContentElement = {
-					tagName: 'span',
-					className: 'monaco-inputbox-message',
+				const renderOptions: RenderOptions = {
+					inline: true,
+					className: 'monaco-inputbox-message'
 				};
 
-				if (this.message.formatContent) {
-					renderOptions.formattedText = this.message.content;
-				} else {
-					renderOptions.text = this.message.content;
-				}
-
-				var spanElement:HTMLElement = <any>renderer.renderHtml(renderOptions);
+				const spanElement = (this.message.formatContent
+					? renderFormattedText(this.message.content, renderOptions)
+					: renderText(this.message.content, renderOptions));
 				dom.addClass(spanElement, this.classForType(this.message.type));
+
+				const styles = this.stylesForType(this.message.type);
+				spanElement.style.backgroundColor = styles.background ? styles.background.toString() : null;
+				spanElement.style.border = styles.border ? `1px solid ${styles.border}` : null;
+
 				dom.append(div, spanElement);
+
 				return null;
 			},
 			layout: layout
@@ -316,27 +413,72 @@ export class InputBox extends ee.EventEmitter {
 	}
 
 	private onValueChange(): void {
-		this.emit('change', this.value);
+		this._onDidChange.fire(this.value);
 
 		this.validate();
+		this.updateMirror();
 
-		if (this.mirror) {
-			var lastCharCode = this.value.charCodeAt(this.value.length - 1);
-			var suffix = lastCharCode === 10 ? ' ' : '';
-			this.mirror.textContent = this.value + suffix;
-			this.adjustHeight();
+		if (this.state === 'open') {
+			this.contextViewProvider.layout();
 		}
 	}
 
-	private adjustHeight(): void {
+	private updateMirror(): void {
 		if (!this.mirror) {
 			return;
 		}
 
-		this.cachedHeight = dom.getTotalHeight(this.mirror);
-		this.input.style.height = this.cachedHeight + 'px';
+		const value = this.value || this.placeholder;
+		let lastCharCode = value.charCodeAt(value.length - 1);
+		let suffix = lastCharCode === 10 ? ' ' : '';
+		this.mirror.textContent = value + suffix;
+		this.layout();
+	}
 
-		this.emit('heightchange', this.cachedHeight);
+	public style(styles: IInputBoxStyles): void {
+		this.inputBackground = styles.inputBackground;
+		this.inputForeground = styles.inputForeground;
+		this.inputBorder = styles.inputBorder;
+
+		this.inputValidationInfoBackground = styles.inputValidationInfoBackground;
+		this.inputValidationInfoBorder = styles.inputValidationInfoBorder;
+		this.inputValidationWarningBackground = styles.inputValidationWarningBackground;
+		this.inputValidationWarningBorder = styles.inputValidationWarningBorder;
+		this.inputValidationErrorBackground = styles.inputValidationErrorBackground;
+		this.inputValidationErrorBorder = styles.inputValidationErrorBorder;
+
+		this.applyStyles();
+	}
+
+	protected applyStyles(): void {
+		if (this.element) {
+			const background = this.inputBackground ? this.inputBackground.toString() : null;
+			const foreground = this.inputForeground ? this.inputForeground.toString() : null;
+			const border = this.inputBorder ? this.inputBorder.toString() : null;
+
+			this.element.style.backgroundColor = background;
+			this.element.style.color = foreground;
+			this.input.style.backgroundColor = background;
+			this.input.style.color = foreground;
+
+			this.element.style.borderWidth = border ? '1px' : null;
+			this.element.style.borderStyle = border ? 'solid' : null;
+			this.element.style.borderColor = border;
+		}
+	}
+
+	public layout(): void {
+		if (!this.mirror) {
+			return;
+		}
+
+		const previousHeight = this.cachedHeight;
+		this.cachedHeight = dom.getTotalHeight(this.mirror);
+
+		if (previousHeight !== this.cachedHeight) {
+			this.input.style.height = this.cachedHeight + 'px';
+			this._onDidHeightChange.fire(this.cachedHeight);
+		}
 	}
 
 	public dispose(): void {
@@ -349,13 +491,8 @@ export class InputBox extends ee.EventEmitter {
 		this.placeholder = null;
 		this.ariaLabel = null;
 		this.validation = null;
-		this.showValidationMessage = null;
 		this.state = null;
-
-		if (this.actionbar) {
-			this.actionbar.dispose();
-			this.actionbar = null;
-		}
+		this.actionbar = null;
 
 		super.dispose();
 	}

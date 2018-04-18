@@ -6,28 +6,90 @@
 'use strict';
 
 import 'vs/css!./glyphMargin';
-import DomUtils = require('vs/base/browser/dom');
+import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { RenderingContext } from 'vs/editor/common/view/renderingContext';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
-import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+export class DecorationToRender {
+	_decorationToRenderBrand: void;
 
-interface IRenderResult {
-	[lineNumber:string]:string[];
+	public startLineNumber: number;
+	public endLineNumber: number;
+	public className: string;
+
+	constructor(startLineNumber: number, endLineNumber: number, className: string) {
+		this.startLineNumber = +startLineNumber;
+		this.endLineNumber = +endLineNumber;
+		this.className = String(className);
+	}
 }
 
-export class GlyphMarginOverlay extends ViewEventHandler implements EditorBrowser.IDynamicViewOverlay {
+export abstract class DedupOverlay extends DynamicViewOverlay {
 
-	private _context:EditorBrowser.IViewContext;
-	private _glyphMarginLeft:number;
-	private _glyphMarginWidth:number;
-	private _renderResult:IRenderResult;
+	protected _render(visibleStartLineNumber: number, visibleEndLineNumber: number, decorations: DecorationToRender[]): string[][] {
 
-	constructor(context:EditorBrowser.IViewContext) {
+		let output: string[][] = [];
+		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
+			let lineIndex = lineNumber - visibleStartLineNumber;
+			output[lineIndex] = [];
+		}
+
+		if (decorations.length === 0) {
+			return output;
+		}
+
+		decorations.sort((a, b) => {
+			if (a.className === b.className) {
+				if (a.startLineNumber === b.startLineNumber) {
+					return a.endLineNumber - b.endLineNumber;
+				}
+				return a.startLineNumber - b.startLineNumber;
+			}
+			return (a.className < b.className ? -1 : 1);
+		});
+
+		let prevClassName: string = null;
+		let prevEndLineIndex = 0;
+		for (let i = 0, len = decorations.length; i < len; i++) {
+			let d = decorations[i];
+			let className = d.className;
+			let startLineIndex = Math.max(d.startLineNumber, visibleStartLineNumber) - visibleStartLineNumber;
+			let endLineIndex = Math.min(d.endLineNumber, visibleEndLineNumber) - visibleStartLineNumber;
+
+			if (prevClassName === className) {
+				startLineIndex = Math.max(prevEndLineIndex + 1, startLineIndex);
+				prevEndLineIndex = Math.max(prevEndLineIndex, endLineIndex);
+			} else {
+				prevClassName = className;
+				prevEndLineIndex = endLineIndex;
+			}
+
+			for (let i = startLineIndex; i <= prevEndLineIndex; i++) {
+				output[i].push(prevClassName);
+			}
+		}
+
+		return output;
+	}
+}
+
+export class GlyphMarginOverlay extends DedupOverlay {
+
+	private _context: ViewContext;
+	private _lineHeight: number;
+	private _glyphMargin: boolean;
+	private _glyphMarginLeft: number;
+	private _glyphMarginWidth: number;
+	private _renderResult: string[];
+
+	constructor(context: ViewContext) {
 		super();
 		this._context = context;
-		this._glyphMarginLeft = 0;
-		this._glyphMarginWidth = 0;
+		this._lineHeight = this._context.configuration.editor.lineHeight;
+		this._glyphMargin = this._context.configuration.editor.viewInfo.glyphMargin;
+		this._glyphMarginLeft = this._context.configuration.editor.layoutInfo.glyphMarginLeft;
+		this._glyphMarginWidth = this._context.configuration.editor.layoutInfo.glyphMarginWidth;
 		this._renderResult = null;
 		this._context.addEventHandler(this);
 	}
@@ -36,132 +98,103 @@ export class GlyphMarginOverlay extends ViewEventHandler implements EditorBrowse
 		this._context.removeEventHandler(this);
 		this._context = null;
 		this._renderResult = null;
+		super.dispose();
 	}
 
 	// --- begin event handlers
 
-	public onModelFlushed(): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		if (e.lineHeight) {
+			this._lineHeight = this._context.configuration.editor.lineHeight;
+		}
+		if (e.viewInfo) {
+			this._glyphMargin = this._context.configuration.editor.viewInfo.glyphMargin;
+		}
+		if (e.layoutInfo) {
+			this._glyphMarginLeft = this._context.configuration.editor.layoutInfo.glyphMarginLeft;
+			this._glyphMarginWidth = this._context.configuration.editor.layoutInfo.glyphMarginWidth;
+		}
 		return true;
 	}
-	public onModelDecorationsChanged(e:EditorCommon.IViewDecorationsChangedEvent): boolean {
+	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		return true;
 	}
-	public onModelLinesDeleted(e:EditorCommon.IViewLinesDeletedEvent): boolean {
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		return true;
 	}
-	public onModelLineChanged(e:EditorCommon.IViewLineChangedEvent): boolean {
+	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
 		return true;
 	}
-	public onModelLinesInserted(e:EditorCommon.IViewLinesInsertedEvent): boolean {
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
 		return true;
 	}
-	public onCursorPositionChanged(e:EditorCommon.IViewCursorPositionChangedEvent): boolean {
-		return false;
-	}
-	public onCursorSelectionChanged(e:EditorCommon.IViewCursorSelectionChangedEvent): boolean {
-		return false;
-	}
-	public onCursorRevealRange(e:EditorCommon.IViewRevealRangeEvent): boolean {
-		return false;
-	}
-	public onConfigurationChanged(e:EditorCommon.IConfigurationChangedEvent): boolean {
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return true;
 	}
-	public onLayoutChanged(layoutInfo:EditorCommon.IEditorLayoutInfo): boolean {
-		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
-		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		return e.scrollTopChanged;
+	}
+	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
-	}
-	public onScrollChanged(e:EditorCommon.IScrollEvent): boolean {
-		return e.vertical;
-	}
-	public onZonesChanged(): boolean {
-		return true;
-	}
-	public onScrollWidthChanged(scrollWidth:number): boolean {
-		return false;
-	}
-	public onScrollHeightChanged(scrollHeight:number): boolean {
-		return false;
 	}
 
 	// --- end event handlers
 
-	public shouldCallRender2(ctx:EditorBrowser.IRenderingContext): boolean {
-		if (!this.shouldRender) {
-			return false;
+	protected _getDecorations(ctx: RenderingContext): DecorationToRender[] {
+		let decorations = ctx.getDecorationsInViewport();
+		let r: DecorationToRender[] = [], rLen = 0;
+		for (let i = 0, len = decorations.length; i < len; i++) {
+			let d = decorations[i];
+			let glyphMarginClassName = d.options.glyphMarginClassName;
+			if (glyphMarginClassName) {
+				r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, glyphMarginClassName);
+			}
 		}
-		this.shouldRender = false;
+		return r;
+	}
 
-		if (!this._context.configuration.editor.glyphMargin) {
+	public prepareRender(ctx: RenderingContext): void {
+		if (!this._glyphMargin) {
 			this._renderResult = null;
-			return false;
+			return;
 		}
 
-		var output: IRenderResult = {};
-		var count = 0;
+		let visibleStartLineNumber = ctx.visibleRange.startLineNumber;
+		let visibleEndLineNumber = ctx.visibleRange.endLineNumber;
+		let toRender = this._render(visibleStartLineNumber, visibleEndLineNumber, this._getDecorations(ctx));
 
-		var decorations = ctx.getDecorationsInViewport(),
-			lineHeight = this._context.configuration.editor.lineHeight.toString(),
-			d:EditorCommon.IModelDecoration,
-			rng:EditorCommon.IRange,
-			i:number, lenI:number,
-			classNames:{[lineNumber:string]:{[className:string]:boolean;};} = {},
-			lineClassNames:{[className:string]:boolean;},
-			className:string,
-			lineOutput:string[],
-			lineNumber: number,
-			lineNumberStr: string;
+		let lineHeight = this._lineHeight.toString();
+		let left = this._glyphMarginLeft.toString();
+		let width = this._glyphMarginWidth.toString();
+		let common = '" style="left:' + left + 'px;width:' + width + 'px' + ';height:' + lineHeight + 'px;"></div>';
 
-		for (i = 0, lenI = decorations.length; i < lenI; i++) {
-			d = decorations[i];
-			if (!d.options.glyphMarginClassName) {
-				continue;
+		let output: string[] = [];
+		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
+			let lineIndex = lineNumber - visibleStartLineNumber;
+			let classNames = toRender[lineIndex];
+
+			if (classNames.length === 0) {
+				output[lineIndex] = '';
+			} else {
+				output[lineIndex] = (
+					'<div class="cgmr '
+					+ classNames.join(' ')
+					+ common
+				);
 			}
-
-			rng = d.range;
-			for (lineNumber = rng.startLineNumber; lineNumber <= rng.endLineNumber; lineNumber++) {
-				if (!ctx.lineIsVisible(lineNumber)) {
-					continue;
-				}
-
-				lineNumberStr = lineNumber.toString();
-
-				if (!classNames.hasOwnProperty(lineNumberStr)) {
-					classNames[lineNumberStr] = {};
-				}
-				classNames[lineNumberStr][d.options.glyphMarginClassName] = true;
-			}
-		}
-
-		var left = this._glyphMarginLeft.toString(),
-			width = this._glyphMarginWidth.toString();
-
-		var common = '" style="left:' + left + 'px;width:' + width + 'px' + ';height:' + lineHeight + 'px;"></div>';
-
-		for (lineNumberStr in classNames) {
-			lineClassNames = classNames[lineNumberStr];
-			lineOutput = [];
-			lineOutput.push('<div class="cgmr');
-			for (className in lineClassNames) {
-				// Count one more glyph
-				count++;
-				lineOutput.push(' ');
-				lineOutput.push(className);
-			}
-			lineOutput.push(common);
-			output[lineNumberStr] = lineOutput;
 		}
 
 		this._renderResult = output;
-
-		return true;
 	}
 
-	public render2(lineNumber:number): string[] {
-		if (this._renderResult && this._renderResult.hasOwnProperty(lineNumber.toString())) {
-			return this._renderResult[lineNumber.toString()];
+	public render(startLineNumber: number, lineNumber: number): string {
+		if (!this._renderResult) {
+			return '';
 		}
-		return null;
+		let lineIndex = lineNumber - startLineNumber;
+		if (lineIndex < 0 || lineIndex >= this._renderResult.length) {
+			return '';
+		}
+		return this._renderResult[lineIndex];
 	}
 }

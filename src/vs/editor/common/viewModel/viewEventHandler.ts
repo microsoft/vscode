@@ -4,157 +4,200 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EventEmitter = require('vs/base/common/eventEmitter');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-export class ViewEventHandler {
+export class ViewEventHandler extends Disposable {
 
-	public shouldRender:boolean;
+	private _shouldRender: boolean;
 
 	constructor() {
-		this.shouldRender = true;
+		super();
+		this._shouldRender = true;
+	}
+
+	public shouldRender(): boolean {
+		return this._shouldRender;
+	}
+
+	public forceShouldRender(): void {
+		this._shouldRender = true;
+	}
+
+	protected setShouldRender(): void {
+		this._shouldRender = true;
+	}
+
+	public onDidRender(): void {
+		this._shouldRender = false;
 	}
 
 	// --- begin event handlers
 
-	public onLineMappingChanged(): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		return false;
 	}
-	public onModelFlushed(): boolean {
+	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		return false;
 	}
-	public onModelDecorationsChanged(e:EditorCommon.IViewDecorationsChangedEvent): boolean {
+	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		return false;
 	}
-	public onModelLinesDeleted(e:EditorCommon.IViewLinesDeletedEvent): boolean {
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		return false;
 	}
-	public onModelLineChanged(e:EditorCommon.IViewLineChangedEvent): boolean {
+	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
 		return false;
 	}
-	public onModelLinesInserted(e:EditorCommon.IViewLinesInsertedEvent): boolean {
+	public onLanguageConfigurationChanged(e: viewEvents.ViewLanguageConfigurationEvent): boolean {
 		return false;
 	}
-	public onModelTokensChanged(e:EditorCommon.IViewTokensChangedEvent): boolean {
+	public onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): boolean {
 		return false;
 	}
-	public onCursorPositionChanged(e:EditorCommon.IViewCursorPositionChangedEvent): boolean {
+	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
 		return false;
 	}
-	public onCursorSelectionChanged(e:EditorCommon.IViewCursorSelectionChangedEvent): boolean {
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
 		return false;
 	}
-	public onCursorRevealRange(e:EditorCommon.IViewRevealRangeEvent): boolean {
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return false;
 	}
-	public onConfigurationChanged(e:EditorCommon.IConfigurationChangedEvent): boolean {
+	public onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
 		return false;
 	}
-	public onLayoutChanged(layoutInfo:EditorCommon.IEditorLayoutInfo): boolean {
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return false;
 	}
-	public onScrollChanged(e:EditorCommon.IScrollEvent): boolean {
+	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
 		return false;
 	}
-	public onZonesChanged(): boolean {
+	public onTokensColorsChanged(e: viewEvents.ViewTokensColorsChangedEvent): boolean {
 		return false;
 	}
-	public onScrollWidthChanged(scrollWidth:number): boolean {
+	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return false;
 	}
-	public onScrollHeightChanged(scrollHeight:number): boolean {
-		return false;
-	}
-	public onViewFocusChanged(isFocused:boolean): boolean {
+	public onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
 		return false;
 	}
 
 	// --- end event handlers
 
-	public handleEvents(events:EventEmitter.IEmitterEvent[]): void {
-		var i:number,
-			len:number,
-			e:EventEmitter.IEmitterEvent,
-			data:any;
+	public handleEvents(events: viewEvents.ViewEvent[]): void {
 
-		for (i = 0, len = events.length; i < len; i++) {
-			e = events[i];
-			data = e.getData();
+		let shouldRender = false;
 
-			switch (e.getType()) {
+		for (let i = 0, len = events.length; i < len; i++) {
+			let e = events[i];
 
-				case EditorCommon.ViewEventNames.LineMappingChangedEvent:
-					this.shouldRender = this.onLineMappingChanged() || this.shouldRender;
+			switch (e.type) {
+
+				case viewEvents.ViewEventType.ViewConfigurationChanged:
+					if (this.onConfigurationChanged(e)) {
+						shouldRender = true;
+					}
 					break;
 
-				case EditorCommon.ViewEventNames.ModelFlushedEvent:
-					this.shouldRender = this.onModelFlushed() || this.shouldRender;
+				case viewEvents.ViewEventType.ViewCursorStateChanged:
+					if (this.onCursorStateChanged(e)) {
+						shouldRender = true;
+					}
 					break;
 
-				case EditorCommon.ViewEventNames.LinesDeletedEvent:
-					this.shouldRender = this.onModelLinesDeleted(<EditorCommon.IViewLinesDeletedEvent>data) || this.shouldRender;
+				case viewEvents.ViewEventType.ViewDecorationsChanged:
+					if (this.onDecorationsChanged(e)) {
+						shouldRender = true;
+					}
 					break;
 
-				case EditorCommon.ViewEventNames.LinesInsertedEvent:
-					this.shouldRender = this.onModelLinesInserted(<EditorCommon.IViewLinesInsertedEvent>data) || this.shouldRender;
+				case viewEvents.ViewEventType.ViewFlushed:
+					if (this.onFlushed(e)) {
+						shouldRender = true;
+					}
 					break;
 
-				case EditorCommon.ViewEventNames.LineChangedEvent:
-					this.shouldRender = this.onModelLineChanged(<EditorCommon.IViewLineChangedEvent>data) || this.shouldRender;
+				case viewEvents.ViewEventType.ViewFocusChanged:
+					if (this.onFocusChanged(e)) {
+						shouldRender = true;
+					}
 					break;
 
-				case EditorCommon.ViewEventNames.TokensChangedEvent:
-					this.shouldRender = this.onModelTokensChanged(<EditorCommon.IViewTokensChangedEvent>data) || this.shouldRender;
+				case viewEvents.ViewEventType.ViewLanguageConfigurationChanged:
+					if (this.onLanguageConfigurationChanged(e)) {
+						shouldRender = true;
+					}
 					break;
 
-				case EditorCommon.ViewEventNames.DecorationsChangedEvent:
-					this.shouldRender = this.onModelDecorationsChanged(<EditorCommon.IViewDecorationsChangedEvent>data) || this.shouldRender;
+				case viewEvents.ViewEventType.ViewLineMappingChanged:
+					if (this.onLineMappingChanged(e)) {
+						shouldRender = true;
+					}
 					break;
 
-				case EditorCommon.ViewEventNames.CursorPositionChangedEvent:
-					this.shouldRender = this.onCursorPositionChanged(<EditorCommon.IViewCursorPositionChangedEvent>data) || this.shouldRender;
+				case viewEvents.ViewEventType.ViewLinesChanged:
+					if (this.onLinesChanged(e)) {
+						shouldRender = true;
+					}
 					break;
 
-				case EditorCommon.ViewEventNames.CursorSelectionChangedEvent:
-					this.shouldRender = this.onCursorSelectionChanged(<EditorCommon.IViewCursorSelectionChangedEvent>data) || this.shouldRender;
+				case viewEvents.ViewEventType.ViewLinesDeleted:
+					if (this.onLinesDeleted(e)) {
+						shouldRender = true;
+					}
 					break;
 
-				case EditorCommon.ViewEventNames.RevealRangeEvent:
-					this.shouldRender = this.onCursorRevealRange(<EditorCommon.IViewRevealRangeEvent>data) || this.shouldRender;
+				case viewEvents.ViewEventType.ViewLinesInserted:
+					if (this.onLinesInserted(e)) {
+						shouldRender = true;
+					}
 					break;
 
-				case EditorCommon.EventType.ConfigurationChanged:
-					this.shouldRender = this.onConfigurationChanged(<EditorCommon.IConfigurationChangedEvent>data) || this.shouldRender;
+				case viewEvents.ViewEventType.ViewRevealRangeRequest:
+					if (this.onRevealRangeRequest(e)) {
+						shouldRender = true;
+					}
 					break;
 
-				case EditorCommon.EventType.ViewLayoutChanged:
-					this.shouldRender = this.onLayoutChanged(<EditorCommon.IEditorLayoutInfo>data) || this.shouldRender;
+				case viewEvents.ViewEventType.ViewScrollChanged:
+					if (this.onScrollChanged(e)) {
+						shouldRender = true;
+					}
 					break;
 
-				case EditorCommon.EventType.ViewScrollChanged:
-					this.shouldRender = this.onScrollChanged(<EditorCommon.IScrollEvent>data) || this.shouldRender;
+				case viewEvents.ViewEventType.ViewTokensChanged:
+					if (this.onTokensChanged(e)) {
+						shouldRender = true;
+					}
 					break;
 
-				case EditorCommon.EventType.ViewZonesChanged:
-					this.shouldRender = this.onZonesChanged() || this.shouldRender;
+				case viewEvents.ViewEventType.ViewTokensColorsChanged:
+					if (this.onTokensColorsChanged(e)) {
+						shouldRender = true;
+					}
 					break;
 
-				case EditorCommon.EventType.ViewScrollWidthChanged:
-					this.shouldRender = this.onScrollWidthChanged(<number>data) || this.shouldRender;
+				case viewEvents.ViewEventType.ViewZonesChanged:
+					if (this.onZonesChanged(e)) {
+						shouldRender = true;
+					}
 					break;
 
-				case EditorCommon.EventType.ViewScrollHeightChanged:
-					this.shouldRender = this.onScrollHeightChanged(<number>data) || this.shouldRender;
-					break;
-
-				case EditorCommon.EventType.ViewFocusChanged:
-					this.shouldRender = this.onViewFocusChanged(<boolean>data) || this.shouldRender;
+				case viewEvents.ViewEventType.ViewThemeChanged:
+					if (this.onThemeChanged(e)) {
+						shouldRender = true;
+					}
 					break;
 
 				default:
 					console.info('View received unknown event: ');
 					console.info(e);
 			}
+		}
+
+		if (shouldRender) {
+			this._shouldRender = true;
 		}
 	}
 }

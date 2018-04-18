@@ -4,105 +4,52 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import {Builder, $} from 'vs/base/browser/builder';
-import types = require('vs/base/common/types');
-import {Registry} from 'vs/platform/platform';
-import {Mode, IContext, IAutoFocus} from 'vs/base/parts/quickopen/browser/quickOpen';
-import {QuickOpenEntry, QuickOpenEntryItem, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {ITree, IElementCallback} from 'vs/base/parts/tree/common/tree';
-import {QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, QuickOpenHandler} from 'vs/workbench/browser/quickopen';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import { TPromise } from 'vs/base/common/winjs.base';
+import * as nls from 'vs/nls';
+import * as types from 'vs/base/common/types';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Mode, IEntryRunContext, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
+import { QuickOpenModel, QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { IQuickOpenRegistry, Extensions, QuickOpenHandler } from 'vs/workbench/browser/quickopen';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
-const HELP_PREFIX = '?';
+export const HELP_PREFIX = '?';
 
-class HelpEntry extends QuickOpenEntryItem {
+class HelpEntry extends QuickOpenEntryGroup {
+	private prefixLabel: string;
 	private prefix: string;
 	private description: string;
-	private groupLabel: string;
-	private useBorder: boolean;
 	private quickOpenService: IQuickOpenService;
 	private openOnPreview: boolean;
 
 	constructor(prefix: string, description: string, quickOpenService: IQuickOpenService, openOnPreview: boolean) {
 		super();
 
-		this.prefix = prefix;
+		if (!prefix) {
+			this.prefix = '';
+			this.prefixLabel = '\u2026' /* ... */;
+		} else {
+			this.prefix = this.prefixLabel = prefix;
+		}
+
 		this.description = description;
 		this.quickOpenService = quickOpenService;
 		this.openOnPreview = openOnPreview;
 	}
 
 	public getLabel(): string {
-		return this.prefix;
+		return this.prefixLabel;
+	}
+
+	public getAriaLabel(): string {
+		return nls.localize('entryAriaLabel', "{0}, picker help", this.getLabel());
 	}
 
 	public getDescription(): string {
 		return this.description;
 	}
 
-	public getHeight(): number {
-		return 24;
-	}
-
-	public getGroupLabel(): string {
-		return this.groupLabel;
-	}
-
-	public setGroupLabel(groupLabel: string): void {
-		this.groupLabel = groupLabel;
-	}
-
-	public showBorder(): boolean {
-		return this.useBorder;
-	}
-
-	public setShowBorder(showBorder: boolean): void {
-		this.useBorder = showBorder;
-	}
-
-	public render(tree: ITree, container: HTMLElement, previousCleanupFn: IElementCallback): IElementCallback {
-		let builder = $(container);
-		builder.addClass('quick-open-entry');
-
-		// Support border
-		if (this.showBorder()) {
-			$(container).addClass('results-group-separator');
-		} else {
-			$(container).removeClass('results-group-separator');
-		}
-
-		// Add a container for the group
-		if (this.getGroupLabel()) {
-			$(container).div((div: Builder) => {
-				div.addClass('results-group');
-				div.attr({
-					text: this.getGroupLabel()
-				});
-			});
-		}
-
-		// Prefix
-		let label = builder.clone().div({
-			text: this.prefix,
-			'class': 'quick-open-help-entry-label'
-		});
-
-		if (!this.prefix) {
-			label.text('\u2026');
-		}
-
-		// Description
-		builder.span({
-			text: this.description,
-			'class': 'quick-open-entry-description'
-		});
-
-		return null;
-	}
-
-	public run(mode: Mode, context: IContext): boolean {
+	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN || this.openOnPreview) {
 			this.quickOpenService.show(this.prefix);
 		}
@@ -113,32 +60,34 @@ class HelpEntry extends QuickOpenEntryItem {
 
 export class HelpHandler extends QuickOpenHandler {
 
-	constructor( @IQuickOpenService private quickOpenService: IQuickOpenService) {
+	public static readonly ID = 'workbench.picker.help';
+
+	constructor(@IQuickOpenService private quickOpenService: IQuickOpenService) {
 		super();
 	}
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
-		let registry = (<IQuickOpenRegistry>Registry.as(Extensions.Quickopen));
-		let handlerDescriptors = registry.getQuickOpenHandlers();
+		const registry = (Registry.as<IQuickOpenRegistry>(Extensions.Quickopen));
+		const handlerDescriptors = registry.getQuickOpenHandlers();
 
-		let defaultHandlers = registry.getDefaultQuickOpenHandlers();
-		if (defaultHandlers.length > 0) {
-			handlerDescriptors.push(...defaultHandlers);
+		const defaultHandler = registry.getDefaultQuickOpenHandler();
+		if (defaultHandler) {
+			handlerDescriptors.push(defaultHandler);
 		}
 
-		let workbenchScoped: HelpEntry[] = [];
-		let editorScoped: HelpEntry[] = [];
+		const workbenchScoped: HelpEntry[] = [];
+		const editorScoped: HelpEntry[] = [];
 		let entry: HelpEntry;
-		for (let i = 0; i < handlerDescriptors.length; i++) {
-			let handlerDescriptor = handlerDescriptors[i];
+
+		handlerDescriptors.sort((h1, h2) => h1.prefix.localeCompare(h2.prefix)).forEach((handlerDescriptor) => {
 			if (handlerDescriptor.prefix !== HELP_PREFIX) {
 
 				// Descriptor has multiple help entries
 				if (types.isArray(handlerDescriptor.helpEntries)) {
 					for (let j = 0; j < handlerDescriptor.helpEntries.length; j++) {
-						let helpEntry = handlerDescriptor.helpEntries[j];
+						const helpEntry = handlerDescriptor.helpEntries[j];
 
 						if (helpEntry.prefix.indexOf(searchValue) === 0) {
 							entry = new HelpEntry(helpEntry.prefix, helpEntry.description, this.quickOpenService, searchValue.length > 0);
@@ -157,7 +106,7 @@ export class HelpHandler extends QuickOpenHandler {
 					workbenchScoped.push(entry);
 				}
 			}
-		}
+		});
 
 		// Add separator for workbench scoped handlers
 		if (workbenchScoped.length > 0) {
@@ -183,13 +132,3 @@ export class HelpHandler extends QuickOpenHandler {
 		};
 	}
 }
-
-// Register Quick Open Handler
-(<IQuickOpenRegistry>Registry.as(Extensions.Quickopen)).registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/quickopen/browser/helpHandler',
-		'HelpHandler',
-		HELP_PREFIX,
-		nls.localize('helpDescription', "Show Help")
-	)
-);

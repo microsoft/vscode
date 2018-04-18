@@ -4,18 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import PrefixSumComputer = require('vs/editor/common/viewModel/prefixSumComputer');
+import * as assert from 'assert';
+import { PrefixSumComputer, PrefixSumIndexOfResult } from 'vs/editor/common/viewModel/prefixSumComputer';
+import { toUint32Array } from 'vs/editor/common/core/uint';
 
 suite('Editor ViewModel - PrefixSumComputer', () => {
 
 	test('PrefixSumComputer', () => {
-		var indexOfResult:PrefixSumComputer.IPrefixSumIndexOfResult = {
-			index: 0,
-			remainder: 0
-		};
+		let indexOfResult: PrefixSumIndexOfResult;
 
-		var psc = new PrefixSumComputer.PrefixSumComputer([1, 1, 2, 1, 3]);
+		var psc = new PrefixSumComputer(toUint32Array([1, 1, 2, 1, 3]));
 		assert.equal(psc.getTotalValue(), 8);
 		assert.equal(psc.getAccumulatedValue(-1), 0);
 		assert.equal(psc.getAccumulatedValue(0), 1);
@@ -23,31 +21,31 @@ suite('Editor ViewModel - PrefixSumComputer', () => {
 		assert.equal(psc.getAccumulatedValue(2), 4);
 		assert.equal(psc.getAccumulatedValue(3), 5);
 		assert.equal(psc.getAccumulatedValue(4), 8);
-		psc.getIndexOf(0, indexOfResult);
+		indexOfResult = psc.getIndexOf(0);
 		assert.equal(indexOfResult.index, 0);
 		assert.equal(indexOfResult.remainder, 0);
-		psc.getIndexOf(1, indexOfResult);
+		indexOfResult = psc.getIndexOf(1);
 		assert.equal(indexOfResult.index, 1);
 		assert.equal(indexOfResult.remainder, 0);
-		psc.getIndexOf(2, indexOfResult);
+		indexOfResult = psc.getIndexOf(2);
 		assert.equal(indexOfResult.index, 2);
 		assert.equal(indexOfResult.remainder, 0);
-		psc.getIndexOf(3, indexOfResult);
+		indexOfResult = psc.getIndexOf(3);
 		assert.equal(indexOfResult.index, 2);
 		assert.equal(indexOfResult.remainder, 1);
-		psc.getIndexOf(4, indexOfResult);
+		indexOfResult = psc.getIndexOf(4);
 		assert.equal(indexOfResult.index, 3);
 		assert.equal(indexOfResult.remainder, 0);
-		psc.getIndexOf(5, indexOfResult);
+		indexOfResult = psc.getIndexOf(5);
 		assert.equal(indexOfResult.index, 4);
 		assert.equal(indexOfResult.remainder, 0);
-		psc.getIndexOf(6, indexOfResult);
+		indexOfResult = psc.getIndexOf(6);
 		assert.equal(indexOfResult.index, 4);
 		assert.equal(indexOfResult.remainder, 1);
-		psc.getIndexOf(7, indexOfResult);
+		indexOfResult = psc.getIndexOf(7);
 		assert.equal(indexOfResult.index, 4);
 		assert.equal(indexOfResult.remainder, 2);
-		psc.getIndexOf(8, indexOfResult);
+		indexOfResult = psc.getIndexOf(8);
 		assert.equal(indexOfResult.index, 4);
 		assert.equal(indexOfResult.remainder, 3);
 
@@ -68,28 +66,28 @@ suite('Editor ViewModel - PrefixSumComputer', () => {
 		assert.equal(psc.getAccumulatedValue(2), 3);
 		assert.equal(psc.getAccumulatedValue(3), 4);
 		assert.equal(psc.getAccumulatedValue(4), 7);
-		psc.getIndexOf(0, indexOfResult);
+		indexOfResult = psc.getIndexOf(0);
 		assert.equal(indexOfResult.index, 0);
 		assert.equal(indexOfResult.remainder, 0);
-		psc.getIndexOf(1, indexOfResult);
+		indexOfResult = psc.getIndexOf(1);
 		assert.equal(indexOfResult.index, 2);
 		assert.equal(indexOfResult.remainder, 0);
-		psc.getIndexOf(2, indexOfResult);
+		indexOfResult = psc.getIndexOf(2);
 		assert.equal(indexOfResult.index, 2);
 		assert.equal(indexOfResult.remainder, 1);
-		psc.getIndexOf(3, indexOfResult);
+		indexOfResult = psc.getIndexOf(3);
 		assert.equal(indexOfResult.index, 3);
 		assert.equal(indexOfResult.remainder, 0);
-		psc.getIndexOf(4, indexOfResult);
+		indexOfResult = psc.getIndexOf(4);
 		assert.equal(indexOfResult.index, 4);
 		assert.equal(indexOfResult.remainder, 0);
-		psc.getIndexOf(5, indexOfResult);
+		indexOfResult = psc.getIndexOf(5);
 		assert.equal(indexOfResult.index, 4);
 		assert.equal(indexOfResult.remainder, 1);
-		psc.getIndexOf(6, indexOfResult);
+		indexOfResult = psc.getIndexOf(6);
 		assert.equal(indexOfResult.index, 4);
 		assert.equal(indexOfResult.remainder, 2);
-		psc.getIndexOf(7, indexOfResult);
+		indexOfResult = psc.getIndexOf(7);
 		assert.equal(indexOfResult.index, 4);
 		assert.equal(indexOfResult.remainder, 3);
 
@@ -101,22 +99,22 @@ suite('Editor ViewModel - PrefixSumComputer', () => {
 		assert.equal(psc.getAccumulatedValue(2), 1);
 		assert.equal(psc.getAccumulatedValue(3), 2);
 		assert.equal(psc.getAccumulatedValue(4), 5);
-		psc.getIndexOf(0, indexOfResult);
+		indexOfResult = psc.getIndexOf(0);
 		assert.equal(indexOfResult.index, 0);
 		assert.equal(indexOfResult.remainder, 0);
-		psc.getIndexOf(1, indexOfResult);
+		indexOfResult = psc.getIndexOf(1);
 		assert.equal(indexOfResult.index, 3);
 		assert.equal(indexOfResult.remainder, 0);
-		psc.getIndexOf(2, indexOfResult);
+		indexOfResult = psc.getIndexOf(2);
 		assert.equal(indexOfResult.index, 4);
 		assert.equal(indexOfResult.remainder, 0);
-		psc.getIndexOf(3, indexOfResult);
+		indexOfResult = psc.getIndexOf(3);
 		assert.equal(indexOfResult.index, 4);
 		assert.equal(indexOfResult.remainder, 1);
-		psc.getIndexOf(4, indexOfResult);
+		indexOfResult = psc.getIndexOf(4);
 		assert.equal(indexOfResult.index, 4);
 		assert.equal(indexOfResult.remainder, 2);
-		psc.getIndexOf(5, indexOfResult);
+		indexOfResult = psc.getIndexOf(5);
 		assert.equal(indexOfResult.index, 4);
 		assert.equal(indexOfResult.remainder, 3);
 
@@ -128,19 +126,19 @@ suite('Editor ViewModel - PrefixSumComputer', () => {
 		assert.equal(psc.getAccumulatedValue(2), 1);
 		assert.equal(psc.getAccumulatedValue(3), 1);
 		assert.equal(psc.getAccumulatedValue(4), 4);
-		psc.getIndexOf(0, indexOfResult);
+		indexOfResult = psc.getIndexOf(0);
 		assert.equal(indexOfResult.index, 0);
 		assert.equal(indexOfResult.remainder, 0);
-		psc.getIndexOf(1, indexOfResult);
+		indexOfResult = psc.getIndexOf(1);
 		assert.equal(indexOfResult.index, 4);
 		assert.equal(indexOfResult.remainder, 0);
-		psc.getIndexOf(2, indexOfResult);
+		indexOfResult = psc.getIndexOf(2);
 		assert.equal(indexOfResult.index, 4);
 		assert.equal(indexOfResult.remainder, 1);
-		psc.getIndexOf(3, indexOfResult);
+		indexOfResult = psc.getIndexOf(3);
 		assert.equal(indexOfResult.index, 4);
 		assert.equal(indexOfResult.remainder, 2);
-		psc.getIndexOf(4, indexOfResult);
+		indexOfResult = psc.getIndexOf(4);
 		assert.equal(indexOfResult.index, 4);
 		assert.equal(indexOfResult.remainder, 3);
 
@@ -154,19 +152,19 @@ suite('Editor ViewModel - PrefixSumComputer', () => {
 		assert.equal(psc.getAccumulatedValue(2), 2);
 		assert.equal(psc.getAccumulatedValue(3), 3);
 		assert.equal(psc.getAccumulatedValue(4), 4);
-		psc.getIndexOf(0, indexOfResult);
+		indexOfResult = psc.getIndexOf(0);
 		assert.equal(indexOfResult.index, 0);
 		assert.equal(indexOfResult.remainder, 0);
-		psc.getIndexOf(1, indexOfResult);
+		indexOfResult = psc.getIndexOf(1);
 		assert.equal(indexOfResult.index, 1);
 		assert.equal(indexOfResult.remainder, 0);
-		psc.getIndexOf(2, indexOfResult);
+		indexOfResult = psc.getIndexOf(2);
 		assert.equal(indexOfResult.index, 3);
 		assert.equal(indexOfResult.remainder, 0);
-		psc.getIndexOf(3, indexOfResult);
+		indexOfResult = psc.getIndexOf(3);
 		assert.equal(indexOfResult.index, 4);
 		assert.equal(indexOfResult.remainder, 0);
-		psc.getIndexOf(4, indexOfResult);
+		indexOfResult = psc.getIndexOf(4);
 		assert.equal(indexOfResult.index, 4);
 		assert.equal(indexOfResult.remainder, 1);
 	});

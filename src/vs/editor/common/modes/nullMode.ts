@@ -4,118 +4,40 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Modes = require('vs/editor/common/modes');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import { IState, ColorId, MetadataConsts, LanguageIdentifier, FontStyle, StandardTokenType, LanguageId } from 'vs/editor/common/modes';
+import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 
-export class NullState implements Modes.IState {
+class NullStateImpl implements IState {
 
-	private mode: Modes.IMode;
-	private stateData: Modes.IState;
-
-	constructor(mode: Modes.IMode, stateData: Modes.IState) {
-		this.mode = mode;
-		this.stateData = stateData;
+	public clone(): IState {
+		return this;
 	}
 
-	public clone(): Modes.IState {
-		var stateDataClone:Modes.IState = (this.stateData ? this.stateData.clone() : null);
-		return new NullState(this.mode, stateDataClone);
-	}
-
-	public equals(other:Modes.IState): boolean {
-		if (this.mode !== other.getMode()) {
-			return false;
-		}
-		var otherStateData = other.getStateData();
-		if (!this.stateData && !otherStateData) {
-			return true;
-		}
-		if (this.stateData && otherStateData) {
-			return this.stateData.equals(otherStateData);
-		}
-		return false;
-	}
-
-	public getMode(): Modes.IMode {
-		return this.mode;
-	}
-
-	public tokenize(stream:Modes.IStream):Modes.ITokenizationResult {
-		stream.advanceToEOS();
-		return { type:'' };
-	}
-
-	public getStateData(): Modes.IState {
-		return this.stateData;
-	}
-
-	public setStateData(stateData:Modes.IState):void {
-		this.stateData = stateData;
+	public equals(other: IState): boolean {
+		return (this === other);
 	}
 }
 
-export class NullMode implements Modes.IMode {
+export const NULL_STATE: IState = new NullStateImpl();
 
-	/**
-	 * Create a word definition regular expression based on default word separators.
-	 * Optionally provide allowed separators that should be included in words.
-	 *
-	 * The default would look like this:
-	 * /(-?\d*\.\d\w*)|([^\`\~\!\@\#\$\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g
-	 */
-	public static createWordRegExp(allowInWords:string = ''): RegExp {
-		var usualSeparators = '`~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?';
-		var source = '(-?\\d*\\.\\d\\w*)|([^';
-		for (var i = 0; i < usualSeparators.length; i++) {
-			if (allowInWords.indexOf(usualSeparators[i]) >= 0) {
-				continue;
-			}
-			source += '\\' + usualSeparators[i];
-		}
-		source += '\\s]+)';
-		return new RegExp(source, 'g');
-	}
+export const NULL_MODE_ID = 'vs.editor.nullMode';
 
-	// catches numbers (including floating numbers) in the first group, and alphanum in the second
-	static DEFAULT_WORD_REGEXP = NullMode.createWordRegExp();
+export const NULL_LANGUAGE_IDENTIFIER = new LanguageIdentifier(NULL_MODE_ID, LanguageId.Null);
 
-	public static ID = 'vs.editor.modes.nullMode';
-
-	public tokenTypeClassificationSupport: Modes.ITokenTypeClassificationSupport;
-
-	constructor() {
-		this.tokenTypeClassificationSupport = this;
-	}
-
-	public getId():string {
-		return NullMode.ID;
-	}
-
-	public getWordDefinition():RegExp {
-		return NullMode.DEFAULT_WORD_REGEXP;
-	}
+export function nullTokenize(modeId: string, buffer: string, state: IState, deltaOffset: number): TokenizationResult {
+	return new TokenizationResult([new Token(deltaOffset, '', modeId)], state);
 }
 
-export function nullTokenize(mode: Modes.IMode, buffer:string, state: Modes.IState, deltaOffset:number = 0, stopAtOffset?:number): Modes.ILineTokens {
-	var tokens:Modes.IToken[] = [
-		{
-			startIndex: deltaOffset,
-			type: '',
-			bracket: Modes.Bracket.None
-		}
-	];
+export function nullTokenize2(languageId: LanguageId, buffer: string, state: IState, deltaOffset: number): TokenizationResult2 {
+	let tokens = new Uint32Array(2);
+	tokens[0] = deltaOffset;
+	tokens[1] = (
+		(languageId << MetadataConsts.LANGUAGEID_OFFSET)
+		| (StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET)
+		| (FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)
+		| (ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
+		| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
+	) >>> 0;
 
-	var modeTransitions:Modes.IModeTransition[] = [
-		{
-			startIndex: deltaOffset,
-			mode: mode
-		}
-	];
-
-	return {
-		tokens: tokens,
-		actualStopOffset: deltaOffset + buffer.length,
-		endState: state,
-		modeTransitions: modeTransitions
-	};
+	return new TokenizationResult2(tokens, state);
 }

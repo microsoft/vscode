@@ -1,19 +1,28 @@
 {
 	"name": "fsharp",
-	"version": "0.1.0",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "1.0.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js ionide/ionide-fsgrammar grammar/fsharp.json ./syntaxes/fsharp.tmLanguage.json"
+	},
 	"contributes": {
 		"languages": [{
 			"id": "fsharp",
-			"extensions": [ ".fs", ".fsi", ".ml", ".mli", ".fsx", ".fsscript" ],
+			"extensions": [ ".fs", ".fsi", ".fsx", ".fsscript" ],
 			"aliases": [ "F#", "FSharp", "fsharp" ],
-			"configuration": "./fsharp.configuration.json"
+			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "fsharp",
 			"scopeName": "source.fsharp",
-			"path": "./syntaxes/fsharp.json"
+			"path": "./syntaxes/fsharp.tmLanguage.json"
+		}],
+		"snippets": [{
+			"language": "fsharp",
+			"path": "./snippets/fsharp.json"
 		}]
 	}
 }

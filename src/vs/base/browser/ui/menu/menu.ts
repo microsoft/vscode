@@ -6,51 +6,56 @@
 'use strict';
 
 import 'vs/css!./menu';
-import Lifecycle = require('vs/base/common/lifecycle');
-import Builder = require('vs/base/browser/builder');
-import Actions = require('vs/base/common/actions');
-import ActionBar = require('vs/base/browser/ui/actionbar/actionbar');
-import EventEmitter = require('vs/base/common/eventEmitter');
-
-var $ = Builder.$;
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IActionRunner, IAction } from 'vs/base/common/actions';
+import { ActionBar, IActionItemProvider, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { Event } from 'vs/base/common/event';
+import { addClass } from 'vs/base/browser/dom';
 
 export interface IMenuOptions {
-	context?:any;
-	actionItemProvider?:ActionBar.IActionItemProvider;
-	actionRunner?:Actions.IActionRunner;
+	context?: any;
+	actionItemProvider?: IActionItemProvider;
+	actionRunner?: IActionRunner;
+	getKeyBinding?: (action: IAction) => ResolvedKeybinding;
 }
 
-export class Menu extends EventEmitter.EventEmitter {
+export class Menu {
 
-	private actionBar: ActionBar.ActionBar;
-	private listener: Lifecycle.IDisposable;
+	private actionBar: ActionBar;
+	private listener: IDisposable;
 
-	constructor (container:HTMLElement, actions:Actions.IAction[], options:IMenuOptions = {}) {
-		super();
+	constructor(container: HTMLElement, actions: IAction[], options: IMenuOptions = {}) {
+		addClass(container, 'monaco-menu-container');
 
-		$(container).addClass('monaco-menu-container');
+		let menuContainer = document.createElement('div');
+		addClass(menuContainer, 'monaco-menu');
+		container.appendChild(menuContainer);
 
-		var $menu = $('.monaco-menu').appendTo(container);
-
-		this.actionBar = new ActionBar.ActionBar($menu, {
-			orientation: ActionBar.ActionsOrientation.VERTICAL,
+		this.actionBar = new ActionBar(menuContainer, {
+			orientation: ActionsOrientation.VERTICAL,
 			actionItemProvider: options.actionItemProvider,
 			context: options.context,
-			actionRunner: options.actionRunner
+			actionRunner: options.actionRunner,
+			isMenu: true
 		});
-
-		this.listener = this.addEmitter2(this.actionBar);
 
 		this.actionBar.push(actions, { icon: true, label: true });
 	}
 
+	public get onDidCancel(): Event<void> {
+		return this.actionBar.onDidCancel;
+	}
+
+	public get onDidBlur(): Event<void> {
+		return this.actionBar.onDidBlur;
+	}
+
 	public focus() {
-		this.actionBar.focus();
+		this.actionBar.focus(true);
 	}
 
 	public dispose() {
-		super.dispose();
-
 		if (this.actionBar) {
 			this.actionBar.dispose();
 			this.actionBar = null;

@@ -1,14 +1,18 @@
 {
 	"name": "theme-monokai-dimmed",
-	"version": "0.1.0",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "1.0.0",
 	"publisher": "vscode",
-	"engines": { "vscode": "*" },
+	"engines": {
+		"vscode": "*"
+	},
 	"contributes": {
 		"themes": [
 			{
 				"label": "Monokai Dimmed",
 				"uiTheme": "vs-dark",
-				"path": "./themes/dimmed-monokai.tmTheme"
+				"path": "./themes/dimmed-monokai-color-theme.json"
 			}
 		]
 	}

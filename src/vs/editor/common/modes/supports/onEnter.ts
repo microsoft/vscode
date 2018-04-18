@@ -4,98 +4,47 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {handleEvent} from 'vs/editor/common/modes/supports';
-import {IEnterAction, IndentAction, IOnEnterSupport, ILineContext, IMode} from 'vs/editor/common/modes';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Errors = require('vs/base/common/errors');
-import Strings = require('vs/base/common/strings');
-
-export interface IBracketPair {
-	open: string;
-	close: string;
-}
-
-export interface IIndentationRules {
-	decreaseIndentPattern: RegExp;
-	increaseIndentPattern: RegExp;
-	indentNextLinePattern?: RegExp;
-	unIndentedLinePattern?: RegExp;
-}
-
-export interface IOnEnterRegExpRules {
-	beforeText: RegExp;
-	afterText?: RegExp;
-	action: IEnterAction;
-}
+import { onUnexpectedError } from 'vs/base/common/errors';
+import * as strings from 'vs/base/common/strings';
+import { CharacterPair, IndentAction, EnterAction, OnEnterRule } from 'vs/editor/common/modes/languageConfiguration';
 
 export interface IOnEnterSupportOptions {
-	brackets?: IBracketPair[];
-	indentationRules?: IIndentationRules;
-	regExpRules?: IOnEnterRegExpRules[];
+	brackets?: CharacterPair[];
+	regExpRules?: OnEnterRule[];
 }
 
-interface IProcessedBracketPair extends IBracketPair {
+interface IProcessedBracketPair {
+	open: string;
+	close: string;
 	openRegExp: RegExp;
 	closeRegExp: RegExp;
 }
 
-export class OnEnterSupport implements IOnEnterSupport {
+export class OnEnterSupport {
 
-	private static _INDENT: IEnterAction = { indentAction: IndentAction.Indent };
-	private static _INDENT_OUTDENT: IEnterAction = { indentAction: IndentAction.IndentOutdent };
-	private static _OUTDENT: IEnterAction = { indentAction: IndentAction.Outdent };
+	private readonly _brackets: IProcessedBracketPair[];
+	private readonly _regExpRules: OnEnterRule[];
 
-	private _modeId: string;
-	private _brackets: IProcessedBracketPair[];
-	private _indentationRules: IIndentationRules;
-	private _regExpRules: IOnEnterRegExpRules[];
-
-	constructor(modeId: string, opts?:IOnEnterSupportOptions) {
+	constructor(opts?: IOnEnterSupportOptions) {
 		opts = opts || {};
 		opts.brackets = opts.brackets || [
-			{ open: '(', close: ')' },
-			{ open: '{', close: '}' },
-			{ open: '[', close: ']' }
+			['(', ')'],
+			['{', '}'],
+			['[', ']']
 		];
 
-		this._modeId = modeId;
 		this._brackets = opts.brackets.map((bracket) => {
 			return {
-				open: bracket.open,
-				openRegExp: OnEnterSupport._createOpenBracketRegExp(bracket.open),
-				close: bracket.close,
-				closeRegExp: OnEnterSupport._createCloseBracketRegExp(bracket.close),
+				open: bracket[0],
+				openRegExp: OnEnterSupport._createOpenBracketRegExp(bracket[0]),
+				close: bracket[1],
+				closeRegExp: OnEnterSupport._createCloseBracketRegExp(bracket[1]),
 			};
 		});
 		this._regExpRules = opts.regExpRules || [];
-		this._indentationRules = opts.indentationRules;
 	}
 
-	public onEnter(model:EditorCommon.ITokenizedModel, position: EditorCommon.IPosition): IEnterAction {
-		var context = model.getLineContext(position.lineNumber);
-
-		return handleEvent(context, position.column - 1, (nestedMode:IMode, context:ILineContext, offset:number) => {
-			if (this._modeId === nestedMode.getId()) {
-				return this._onEnter(model, position);
-			} else if (nestedMode.onEnterSupport) {
-				return nestedMode.onEnterSupport.onEnter(model, position);
-			} else {
-				return null;
-			}
-		});
-	}
-
-	private _onEnter(model:EditorCommon.ITextModel, position: EditorCommon.IPosition): IEnterAction {
-		let lineText = model.getLineContent(position.lineNumber);
-		let beforeEnterText = lineText.substr(0, position.column - 1);
-		let afterEnterText = lineText.substr(position.column - 1);
-
-		let oneLineAboveText = position.lineNumber === 1 ? '' : model.getLineContent(position.lineNumber - 1);
-
-		return this._actualOnEnter(oneLineAboveText, beforeEnterText, afterEnterText);
-	}
-
-	_actualOnEnter(oneLineAboveText:string, beforeEnterText:string, afterEnterText:string): IEnterAction {
+	public onEnter(oneLineAboveText: string, beforeEnterText: string, afterEnterText: string): EnterAction {
 		// (1): `regExpRules`
 		for (let i = 0, len = this._regExpRules.length; i < len; i++) {
 			let rule = this._regExpRules[i];
@@ -115,36 +64,18 @@ export class OnEnterSupport implements IOnEnterSupport {
 			for (let i = 0, len = this._brackets.length; i < len; i++) {
 				let bracket = this._brackets[i];
 				if (bracket.openRegExp.test(beforeEnterText) && bracket.closeRegExp.test(afterEnterText)) {
-					return OnEnterSupport._INDENT_OUTDENT;
+					return { indentAction: IndentAction.IndentOutdent };
 				}
 			}
 		}
 
-		// (3): Indentation Support
-		if (this._indentationRules) {
-			if (this._indentationRules.increaseIndentPattern && this._indentationRules.increaseIndentPattern.test(beforeEnterText)) {
-				return OnEnterSupport._INDENT;
-			}
-			if (this._indentationRules.indentNextLinePattern && this._indentationRules.indentNextLinePattern.test(beforeEnterText)) {
-				return OnEnterSupport._INDENT;
-			}
-			if (/^\s/.test(beforeEnterText)) {
-				// No reason to run regular expressions if there is nothing to outdent from
-				if (this._indentationRules.decreaseIndentPattern && this._indentationRules.decreaseIndentPattern.test(afterEnterText)) {
-					return OnEnterSupport._OUTDENT;
-				}
-				if (this._indentationRules.indentNextLinePattern && this._indentationRules.indentNextLinePattern.test(oneLineAboveText)) {
-					return OnEnterSupport._OUTDENT;
-				}
-			}
-		}
 
-		// (4): Open Bracket based logic
+		// (4): Open bracket based logic
 		if (beforeEnterText.length > 0) {
 			for (let i = 0, len = this._brackets.length; i < len; i++) {
 				let bracket = this._brackets[i];
 				if (bracket.openRegExp.test(beforeEnterText)) {
-					return OnEnterSupport._INDENT;
+					return { indentAction: IndentAction.Indent };
 				}
 			}
 		}
@@ -152,8 +83,8 @@ export class OnEnterSupport implements IOnEnterSupport {
 		return null;
 	}
 
-	private static _createOpenBracketRegExp(bracket:string): RegExp {
-		var str = Strings.escapeRegExpCharacters(bracket);
+	private static _createOpenBracketRegExp(bracket: string): RegExp {
+		let str = strings.escapeRegExpCharacters(bracket);
 		if (!/\B/.test(str.charAt(0))) {
 			str = '\\b' + str;
 		}
@@ -161,8 +92,8 @@ export class OnEnterSupport implements IOnEnterSupport {
 		return OnEnterSupport._safeRegExp(str);
 	}
 
-	private static _createCloseBracketRegExp(bracket:string): RegExp {
-		var str = Strings.escapeRegExpCharacters(bracket);
+	private static _createCloseBracketRegExp(bracket: string): RegExp {
+		let str = strings.escapeRegExpCharacters(bracket);
 		if (!/\B/.test(str.charAt(str.length - 1))) {
 			str = str + '\\b';
 		}
@@ -170,11 +101,11 @@ export class OnEnterSupport implements IOnEnterSupport {
 		return OnEnterSupport._safeRegExp(str);
 	}
 
-	private static _safeRegExp(def:string): RegExp {
+	private static _safeRegExp(def: string): RegExp {
 		try {
 			return new RegExp(def);
-		} catch(err) {
-			Errors.onUnexpectedError(err);
+		} catch (err) {
+			onUnexpectedError(err);
 			return null;
 		}
 	}

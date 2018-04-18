@@ -4,51 +4,72 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise, Promise, PPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import {ThrottledDelayer} from 'vs/base/common/async';
-import paths = require('vs/base/common/paths');
-import labels = require('vs/base/common/labels');
-import strings = require('vs/base/common/strings');
+import { TPromise } from 'vs/base/common/winjs.base';
+import * as errors from 'vs/base/common/errors';
+import * as nls from 'vs/nls';
+import * as paths from 'vs/base/common/paths';
+import * as labels from 'vs/base/common/labels';
+import * as objects from 'vs/base/common/objects';
+import { defaultGenerator } from 'vs/base/common/idGenerator';
 import URI from 'vs/base/common/uri';
-import {IRange} from 'vs/editor/common/editorCommon';
-import {IAutoFocus} from 'vs/base/parts/quickopen/browser/quickOpen';
-import {QuickOpenEntry, QuickOpenModel, IHighlight} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import filters = require('vs/base/common/filters');
-import comparers = require('vs/base/common/comparers');
-import {QuickOpenHandler, EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
-import {FileMatch, SearchResult} from 'vs/workbench/parts/search/common/searchModel';
-import {QueryBuilder} from 'vs/workbench/parts/search/common/searchQuery';
-import {ITextFileService} from 'vs/workbench/parts/files/common/files';
-import {EditorInput} from 'vs/workbench/common/editor';
-import {IWorkbenchEditorService, IFileInput} from 'vs/workbench/services/editor/common/editorService';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {IQueryOptions, ISearchService, ISearchComplete, ISearchProgressItem} from 'vs/platform/search/common/search';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import * as resources from 'vs/base/common/resources';
+import { IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { getIconClasses } from 'vs/workbench/browser/labels';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
+import { QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { QuickOpenHandler, EditorQuickOpenEntry } from 'vs/workbench/browser/quickopen';
+import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
+import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IQueryOptions, ISearchService, ISearchStats, ISearchQuery } from 'vs/platform/search/common/search';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IRange } from 'vs/editor/common/core/range';
+import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
+
+export class FileQuickOpenModel extends QuickOpenModel {
+
+	constructor(entries: QuickOpenEntry[], public stats?: ISearchStats) {
+		super(entries);
+	}
+}
 
 export class FileEntry extends EditorQuickOpenEntry {
-	private name: string;
-	private description: string;
-	private resource: URI;
 	private range: IRange;
 
-	constructor(name: string, resource: URI, highlights: IHighlight[],
+	constructor(
+		private resource: URI,
+		private name: string,
+		private description: string,
+		private icon: string,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IModeService private modeService: IModeService,
+		@IModelService private modelService: IModelService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
 		super(editorService);
-
-		this.resource = resource;
-		this.name = name;
-		this.description = labels.getPathLabel(paths.dirname(this.resource.fsPath), contextService);
-		this.setHighlights(highlights);
 	}
 
 	public getLabel(): string {
 		return this.name;
+	}
+
+	public getLabelOptions(): IIconLabelValueOptions {
+		return {
+			extraClasses: getIconClasses(this.modelService, this.modeService, this.resource)
+		};
+	}
+
+	public getAriaLabel(): string {
+		return nls.localize('entryAriaLabel', "{0}, file picker", this.getLabel());
 	}
 
 	public getDescription(): string {
@@ -56,7 +77,7 @@ export class FileEntry extends EditorQuickOpenEntry {
 	}
 
 	public getIcon(): string {
-		return 'file';
+		return this.icon;
 	}
 
 	public getResource(): URI {
@@ -67,129 +88,126 @@ export class FileEntry extends EditorQuickOpenEntry {
 		this.range = range;
 	}
 
-	public getInput(): IFileInput | EditorInput {
-		let input: IFileInput = {
+	public mergeWithEditorHistory(): boolean {
+		return true;
+	}
+
+	public getInput(): IResourceInput | EditorInput {
+		const input: IResourceInput = {
 			resource: this.resource,
+			options: {
+				pinned: !this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen
+			}
 		};
 
 		if (this.range) {
-			input.options = {
-				selection: this.range
-			};
+			input.options.selection = this.range;
 		}
 
 		return input;
 	}
 }
 
+export interface IOpenFileOptions {
+	forceUseIcons: boolean;
+}
+
 export class OpenFileHandler extends QuickOpenHandler {
-
-	private static SEARCH_DELAY = 500; // This delay acommodates for the user typing a word and then stops typing to start searching
-
+	private options: IOpenFileOptions;
 	private queryBuilder: QueryBuilder;
-	private delayer: ThrottledDelayer;
-	private isStandalone: boolean;
-	private pendingSearch: PPromise<ISearchComplete, ISearchProgressItem>
+	private cacheState: CacheState;
 
 	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IMessageService private messageService: IMessageService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ITextFileService private textFileService: ITextFileService,
-		@ISearchService private searchService: ISearchService
+		@ISearchService private searchService: ISearchService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super();
 
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
-		this.delayer = new ThrottledDelayer(OpenFileHandler.SEARCH_DELAY);
-		this.isStandalone = true;
 	}
 
-	public setStandalone(standalone: boolean) {
-		this.delayer = standalone ? new ThrottledDelayer(OpenFileHandler.SEARCH_DELAY) : null;
-		this.isStandalone = standalone;
+	public setOptions(options: IOpenFileOptions) {
+		this.options = options;
 	}
 
-	public getResults(searchValue: string): TPromise<QuickOpenModel> {
+	public getResults(searchValue: string, maxSortedResults?: number): TPromise<FileQuickOpenModel> {
 		searchValue = searchValue.trim();
-		let promise: TPromise<QuickOpenEntry[]>;
 
 		// Respond directly to empty search
 		if (!searchValue) {
-			promise = TPromise.as([]);
-		} else if (this.delayer) {
-			promise = this.delayer.trigger(() => this.doFindResults(searchValue)); // Run search with delay as needed
-		} else {
-			promise = this.doFindResults(searchValue);
+			return TPromise.as(new FileQuickOpenModel([]));
 		}
 
-		return promise.then(e => new QuickOpenModel(e));
+		// Untildify file pattern
+		searchValue = labels.untildify(searchValue, this.environmentService.userHome);
+
+		// Do find results
+		return this.doFindResults(searchValue, this.cacheState.cacheKey, maxSortedResults);
 	}
 
-	private doFindResults(searchValue: string): TPromise<QuickOpenEntry[]> {
+	private doFindResults(searchValue: string, cacheKey?: string, maxSortedResults?: number): TPromise<FileQuickOpenModel> {
+		const query: IQueryOptions = {
+			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
+			filePattern: searchValue,
+			cacheKey: cacheKey
+		};
 
-		// clear previous searches if still running
-		this.cancelPendingSearch();
-
-		let rootResources = this.textFileService.getWorkingFilesModel().getOutOfWorkspaceContextEntries().map((e) => e.resource);
-		if (this.contextService.getWorkspace()) {
-			rootResources.push(this.contextService.getWorkspace().resource);
+		if (typeof maxSortedResults === 'number') {
+			query.maxResults = maxSortedResults;
+			query.sortByScore = true;
 		}
 
-		let query: IQueryOptions = { filePatterns: [{ pattern: searchValue }], rootResources: rootResources };
+		let iconClass: string;
+		if (this.options && this.options.forceUseIcons && !this.themeService.getFileIconTheme()) {
+			iconClass = 'file'; // only use a generic file icon if we are forced to use an icon and have no icon theme set otherwise
+		}
 
-		return this.queryBuilder.file(query).then((query) => {
-			this.pendingSearch = this.searchService.search(query);
+		const folderResources = this.contextService.getWorkspace().folders.map(folder => folder.uri);
+		return this.searchService.search(this.queryBuilder.file(folderResources, query)).then((complete) => {
+			const results: QuickOpenEntry[] = [];
+			for (let i = 0; i < complete.results.length; i++) {
+				const fileMatch = complete.results[i];
 
-			return this.pendingSearch;
-		}).then((complete) => {
-			this.pendingSearch = null;
+				const label = paths.basename(fileMatch.resource.fsPath);
+				const description = labels.getPathLabel(resources.dirname(fileMatch.resource), this.contextService, this.environmentService);
 
-			let searchResult = this.instantiationService.createInstance(SearchResult, null);
-			searchResult.append(complete.results);
-
-			let results: QuickOpenEntry[] = [];
-
-			// Sort (standalone only)
-			let matches = searchResult.matches();
-			if (this.isStandalone) {
-				matches = matches.sort((elementA, elementB) => this.sort(elementA, elementB, searchValue.toLowerCase()));
+				results.push(this.instantiationService.createInstance(FileEntry, fileMatch.resource, label, description, iconClass));
 			}
 
-			// Highlight
-			for (let i = 0; i < matches.length; i++) {
-				let fileMatch = matches[i];
-				let highlights = filters.matchesFuzzy(searchValue, fileMatch.name());
-
-				results.push(this.instantiationService.createInstance(FileEntry, fileMatch.name(), fileMatch.resource(), highlights));
-			}
-
-			return results;
+			return new FileQuickOpenModel(results, complete.stats);
 		});
 	}
 
-	private sort(elementA: FileMatch, elementB: FileMatch, searchValue: string): number {
-		let elementAName = elementA.name().toLowerCase();
-		let elementBName = elementB.name().toLowerCase();
+	public hasShortResponseTime(): boolean {
+		return this.isCacheLoaded;
+	}
 
-		// Sort matches that have search value in beginning to the top
-		let elementAPrefixMatch = elementAName.indexOf(searchValue) === 0;
-		let elementBPrefixMatch = elementBName.indexOf(searchValue) === 0;
-		if (elementAPrefixMatch !== elementBPrefixMatch) {
-			return elementAPrefixMatch ? -1 : 1;
-		}
+	public onOpen(): void {
+		this.cacheState = new CacheState(cacheKey => this.cacheQuery(cacheKey), query => this.searchService.search(query), cacheKey => this.searchService.clearCache(cacheKey), this.cacheState);
+		this.cacheState.load();
+	}
 
-		// Compare by name
+	private cacheQuery(cacheKey: string): ISearchQuery {
+		const options: IQueryOptions = {
+			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
+			filePattern: '',
+			cacheKey: cacheKey,
+			maxResults: 0,
+			sortByScore: true,
+		};
 
-		let r = comparers.compareFileNames(elementAName, elementBName);
-		if (r !== 0) {
-			return r;
-		}
+		const folderResources = this.contextService.getWorkspace().folders.map(folder => folder.uri);
+		const query = this.queryBuilder.file(folderResources, options);
 
-		// Otherwise do full compare with path info
-		return strings.localeCompare(elementA.resource().fsPath, elementB.resource().fsPath);
+		return query;
+	}
+
+	public get isCacheLoaded(): boolean {
+		return this.cacheState && this.cacheState.isLoaded;
 	}
 
 	public getGroupLabel(): string {
@@ -201,15 +219,86 @@ export class OpenFileHandler extends QuickOpenHandler {
 			autoFocusFirstEntry: true
 		};
 	}
+}
 
-	private cancelPendingSearch(): void {
-		if (this.pendingSearch) {
-			this.pendingSearch.cancel();
-			this.pendingSearch = null;
+enum LoadingPhase {
+	Created = 1,
+	Loading,
+	Loaded,
+	Errored,
+	Disposed
+}
+
+/**
+ * Exported for testing.
+ */
+export class CacheState {
+
+	private _cacheKey = defaultGenerator.nextId();
+	private query: ISearchQuery;
+
+	private loadingPhase = LoadingPhase.Created;
+	private promise: TPromise<void>;
+
+	constructor(cacheQuery: (cacheKey: string) => ISearchQuery, private doLoad: (query: ISearchQuery) => TPromise<any>, private doDispose: (cacheKey: string) => TPromise<void>, private previous: CacheState) {
+		this.query = cacheQuery(this._cacheKey);
+		if (this.previous) {
+			const current = objects.assign({}, this.query, { cacheKey: null });
+			const previous = objects.assign({}, this.previous.query, { cacheKey: null });
+			if (!objects.equals(current, previous)) {
+				this.previous.dispose();
+				this.previous = null;
+			}
 		}
 	}
 
-	public onClose(canceled: boolean): void {
-		this.cancelPendingSearch();
+	public get cacheKey(): string {
+		return this.loadingPhase === LoadingPhase.Loaded || !this.previous ? this._cacheKey : this.previous.cacheKey;
+	}
+
+	public get isLoaded(): boolean {
+		const isLoaded = this.loadingPhase === LoadingPhase.Loaded;
+		return isLoaded || !this.previous ? isLoaded : this.previous.isLoaded;
+	}
+
+	public get isUpdating(): boolean {
+		const isUpdating = this.loadingPhase === LoadingPhase.Loading;
+		return isUpdating || !this.previous ? isUpdating : this.previous.isUpdating;
+	}
+
+	public load(): void {
+		if (this.isUpdating) {
+			return;
+		}
+		this.loadingPhase = LoadingPhase.Loading;
+		this.promise = this.doLoad(this.query)
+			.then(() => {
+				this.loadingPhase = LoadingPhase.Loaded;
+				if (this.previous) {
+					this.previous.dispose();
+					this.previous = null;
+				}
+			}, err => {
+				this.loadingPhase = LoadingPhase.Errored;
+				errors.onUnexpectedError(err);
+			});
+	}
+
+	public dispose(): void {
+		if (this.promise) {
+			this.promise.then(null, () => { })
+				.then(() => {
+					this.loadingPhase = LoadingPhase.Disposed;
+					return this.doDispose(this._cacheKey);
+				}).then(null, err => {
+					errors.onUnexpectedError(err);
+				});
+		} else {
+			this.loadingPhase = LoadingPhase.Disposed;
+		}
+		if (this.previous) {
+			this.previous.dispose();
+			this.previous = null;
+		}
 	}
 }

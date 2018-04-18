@@ -1,19 +1,29 @@
 {
 	"name": "go",
-	"version": "0.1.0",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "1.0.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js atom/language-go grammars/go.cson ./syntaxes/go.tmLanguage.json"
+	},
 	"contributes": {
 		"languages": [{
 			"id": "go",
 			"extensions": [ ".go" ],
 			"aliases": [ "Go" ],
-			"configuration": "./go.configuration.json"
+			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "go",
 			"scopeName": "source.go",
-			"path": "./syntaxes/go.json"
-		}]
+			"path": "./syntaxes/go.tmLanguage.json"
+		}],
+		"configurationDefaults": {
+			"[go]": {
+				"editor.insertSpaces": false
+			}
+		}
 	}
 }

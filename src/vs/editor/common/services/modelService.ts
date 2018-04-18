@@ -4,33 +4,41 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import {EventProvider} from 'vs/base/common/eventProvider';
+import { Event } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
-import {URL} from 'vs/base/common/network';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ITextModel, ITextModelCreationOptions, ITextBufferFactory } from 'vs/editor/common/model';
+import { IMode } from 'vs/editor/common/modes';
 
-export var IModelService = createDecorator<IModelService>('modelService');
+export const IModelService = createDecorator<IModelService>('modelService');
 
 export interface IModelService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
-	createModel(value:string, modeOrPromise:TPromise<Modes.IMode>|Modes.IMode, resource: URL): EditorCommon.IModel;
+	createModel(value: string | ITextBufferFactory, modeOrPromise: TPromise<IMode> | IMode, resource: URI, isForSimpleWidget?: boolean): ITextModel;
 
-	destroyModel(resource: URL): void;
+	updateModel(model: ITextModel, value: string | ITextBufferFactory): void;
 
-	removeModel(model: EditorCommon.IModel): void;
+	setMode(model: ITextModel, modeOrPromise: TPromise<IMode> | IMode): void;
 
-	getModels(): EditorCommon.IModel[];
+	destroyModel(resource: URI): void;
 
-	getModel(resource: URI): EditorCommon.IModel;
+	getModels(): ITextModel[];
 
-	onModelAdded: EventProvider<(model: EditorCommon.IModel) => void>;
+	getCreationOptions(language: string, resource: URI, isForSimpleWidget: boolean): ITextModelCreationOptions;
 
-	onModelRemoved: EventProvider<(model: EditorCommon.IModel) => void>;
+	getModel(resource: URI): ITextModel;
 
-	onModelModeChanged: EventProvider<(model: EditorCommon.IModel, oldModeId:string) => void>;
+	onModelAdded: Event<ITextModel>;
+
+	onModelRemoved: Event<ITextModel>;
+
+	onModelModeChanged: Event<{ model: ITextModel; oldModeId: string; }>;
 }
 
+export function shouldSynchronizeModel(model: ITextModel): boolean {
+	return (
+		!model.isTooLargeForHavingARichMode() && !model.isForSimpleWidget
+	);
+}

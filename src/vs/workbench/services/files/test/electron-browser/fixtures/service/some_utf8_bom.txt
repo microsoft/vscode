@@ -1,0 +1,1 @@
+﻿This is some UTF 8 with BOM file.

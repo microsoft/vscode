@@ -4,26 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Promise} from 'vs/base/common/winjs.base';
-import { IEventEmitter, EventEmitter, ListenerCallback, IBulkListenerCallback, ListenerUnbind } from 'vs/base/common/eventEmitter';
-import Lifecycle = require('vs/base/common/lifecycle');
-import Events = require('vs/base/common/events');
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { Event, Emitter } from 'vs/base/common/event';
 
-export interface IAction extends Lifecycle.IDisposable {
+export interface ITelemetryData {
+	from?: string;
+	target?: string;
+	[key: string]: any;
+}
+
+export interface IAction extends IDisposable {
 	id: string;
 	label: string;
 	tooltip: string;
 	class: string;
 	enabled: boolean;
 	checked: boolean;
-	run(event?: any): Promise;
+	radio: boolean;
+	run(event?: any): TPromise<any>;
 }
 
-export interface IActionRunner extends IEventEmitter {
-	run(action: IAction, context?: any): Promise;
+export interface IActionRunner extends IDisposable {
+	run(action: IAction, context?: any): TPromise<any>;
+	onDidRun: Event<IRunEvent>;
+	onDidBeforeRun: Event<IRunEvent>;
 }
 
-export interface IActionItem extends IEventEmitter {
+export interface IActionItem {
 	actionRunner: IActionRunner;
 	setActionContext(context: any): void;
 	render(element: any /* HTMLElement */): void;
@@ -33,66 +41,42 @@ export interface IActionItem extends IEventEmitter {
 	dispose(): void;
 }
 
-/**
- * Checks if the provided object is compatabile
- * with the IAction interface.
- * @param thing an object
- */
-export function isAction(thing: any): thing is IAction {
-	if (!thing) {
-		return false;
-	} else if (thing instanceof Action) {
-		return true;
-	} else if (typeof thing.id !== 'string') {
-		return false;
-	} else if (typeof thing.label !== 'string') {
-		return false;
-	} else if (typeof thing.class !== 'string') {
-		return false;
-	} else if (typeof thing.enabled !== 'boolean') {
-		return false;
-	} else if (typeof thing.checked !== 'boolean') {
-		return false;
-	} else if (typeof thing.run !== 'function') {
-		return false;
-	} else {
-		return true;
-	}
+export interface IActionChangeEvent {
+	label?: string;
+	tooltip?: string;
+	class?: string;
+	enabled?: boolean;
+	checked?: boolean;
+	radio?: boolean;
 }
 
-export interface IActionCallback {
-	(event: any): Promise;
-}
+export class Action implements IAction {
 
-export interface IActionProvider {
-	getAction(id: string): IAction;
-}
+	protected _onDidChange = new Emitter<IActionChangeEvent>();
+	protected _id: string;
+	protected _label: string;
+	protected _tooltip: string;
+	protected _cssClass: string;
+	protected _enabled: boolean;
+	protected _checked: boolean;
+	protected _radio: boolean;
+	protected _order: number;
+	protected _actionCallback: (event?: any) => TPromise<any>;
 
-export class Action extends EventEmitter implements IAction {
-
-	static LABEL = 'label';
-	static TOOLTIP = 'tooltip';
-	static CLASS = 'class';
-	static ENABLED = 'enabled';
-	static CHECKED = 'checked';
-
-	public _id: string;
-	public _label: string;
-	public _tooltip: string;
-	public _cssClass: string;
-	public _enabled: boolean;
-	public _checked: boolean;
-	public _actionCallback: IActionCallback;
-	public _order: number;
-
-	constructor(id: string, label = '', cssClass = '', enabled = true, actionCallback: IActionCallback = null) {
-		super();
-
+	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: any) => TPromise<any>) {
 		this._id = id;
 		this._label = label;
 		this._cssClass = cssClass;
 		this._enabled = enabled;
 		this._actionCallback = actionCallback;
+	}
+
+	public dispose() {
+		this._onDidChange.dispose();
+	}
+
+	public get onDidChange(): Event<IActionChangeEvent> {
+		return this._onDidChange.event;
 	}
 
 	public get id(): string {
@@ -107,10 +91,10 @@ export class Action extends EventEmitter implements IAction {
 		this._setLabel(value);
 	}
 
-	_setLabel(value: string): void {
+	protected _setLabel(value: string): void {
 		if (this._label !== value) {
 			this._label = value;
-			this.emit(Action.LABEL, { source: this });
+			this._onDidChange.fire({ label: value });
 		}
 	}
 
@@ -122,10 +106,10 @@ export class Action extends EventEmitter implements IAction {
 		this._setTooltip(value);
 	}
 
-	_setTooltip(value: string): void {
+	protected _setTooltip(value: string): void {
 		if (this._tooltip !== value) {
 			this._tooltip = value;
-			this.emit(Action.TOOLTIP, { source: this });
+			this._onDidChange.fire({ tooltip: value });
 		}
 	}
 
@@ -137,10 +121,10 @@ export class Action extends EventEmitter implements IAction {
 		this._setClass(value);
 	}
 
-	_setClass(value: string): void {
+	protected _setClass(value: string): void {
 		if (this._cssClass !== value) {
 			this._cssClass = value;
-			this.emit(Action.CLASS, { source: this });
+			this._onDidChange.fire({ class: value });
 		}
 	}
 
@@ -152,10 +136,10 @@ export class Action extends EventEmitter implements IAction {
 		this._setEnabled(value);
 	}
 
-	_setEnabled(value: boolean): void {
+	protected _setEnabled(value: boolean): void {
 		if (this._enabled !== value) {
 			this._enabled = value;
-			this.emit(Action.ENABLED, { source: this });
+			this._onDidChange.fire({ enabled: value });
 		}
 	}
 
@@ -167,10 +151,25 @@ export class Action extends EventEmitter implements IAction {
 		this._setChecked(value);
 	}
 
-	_setChecked(value: boolean): void {
+	public get radio(): boolean {
+		return this._radio;
+	}
+
+	public set radio(value: boolean) {
+		this._setRadio(value);
+	}
+
+	protected _setChecked(value: boolean): void {
 		if (this._checked !== value) {
 			this._checked = value;
-			this.emit(Action.CHECKED, { source: this });
+			this._onDidChange.fire({ checked: value });
+		}
+	}
+
+	protected _setRadio(value: boolean): void {
+		if (this._radio !== value) {
+			this._radio = value;
+			this._onDidChange.fire({ radio: value });
 		}
 	}
 
@@ -182,105 +181,12 @@ export class Action extends EventEmitter implements IAction {
 		this._order = value;
 	}
 
-	public get actionCallback(): IActionCallback {
-		return this._actionCallback;
-	}
-
-	public set actionCallback(value: IActionCallback) {
-		this._actionCallback = value;
-	}
-
-	public run(event?: any): Promise {
-		if (this._actionCallback !== null) {
+	public run(event?: any, data?: ITelemetryData): TPromise<any> {
+		if (this._actionCallback !== void 0) {
 			return this._actionCallback(event);
-		} else {
-			return Promise.as(true);
 		}
+		return TPromise.as(true);
 	}
-}
-
-class ProxyAction extends Action implements IEventEmitter {
-
-	constructor(private delegate: Action, private runHandler: (e: any) => void) {
-		super(delegate.id, delegate.label, delegate.class, delegate.enabled, null);
-	}
-
-	public get id(): string {
-		return this.delegate.id;
-	}
-
-	public get label(): string {
-		return this.delegate.label;
-	}
-
-	public set label(value: string) {
-		this.delegate.label = value;
-	}
-
-	public get class(): string {
-		return this.delegate.class;
-	}
-
-	public set class(value: string) {
-		this.delegate.class = value;
-	}
-
-	public get enabled(): boolean {
-		return this.delegate.enabled;
-	}
-
-	public set enabled(value: boolean) {
-		this.delegate.enabled = value;
-	}
-
-	public get checked(): boolean {
-		return this.delegate.checked;
-	}
-
-	public set checked(value: boolean) {
-		this.delegate.checked = value;
-	}
-
-	public run(event?: any): Promise {
-		this.runHandler(event);
-		return this.delegate.run(event);
-	}
-
-	public addListener(eventType: string, listener: ListenerCallback): ListenerUnbind {
-		return this.delegate.addListener(eventType, listener);
-	}
-
-	public addBulkListener(listener: IBulkListenerCallback): ListenerUnbind {
-		return this.delegate.addBulkListener(listener);
-	}
-
-	public addEmitter(eventEmitter: IEventEmitter, emitterType?: string): ListenerUnbind {
-		return this.delegate.addEmitter(eventEmitter, emitterType);
-	}
-
-	public addEmitterTypeListener(eventType: string, emitterType: string, listener: ListenerCallback): ListenerUnbind {
-		return this.delegate.addEmitterTypeListener(eventType, emitterType, listener);
-	}
-
-	public emit(eventType: string, data?: any): void {
-		this.delegate.emit(eventType, data);
-	}
-}
-
-export function radioGroup(actions: Action[]): Action[] {
-
-	function newCecker(action: Action): any {
-		return function() {
-			actions.forEach((otherAction: Action) => {
-				otherAction.checked = (otherAction === action);
-			});
-		};
-	};
-
-	return actions.map(function(action) {
-		return new ProxyAction(action, newCecker(action));
-	});
-
 }
 
 export interface IRunEvent {
@@ -289,19 +195,45 @@ export interface IRunEvent {
 	error?: any;
 }
 
-export class ActionRunner extends EventEmitter implements IActionRunner {
+export class ActionRunner implements IActionRunner {
 
-	public run(action: IAction, context?: any): Promise {
+	private _onDidBeforeRun = new Emitter<IRunEvent>();
+	private _onDidRun = new Emitter<IRunEvent>();
+
+	public get onDidRun(): Event<IRunEvent> {
+		return this._onDidRun.event;
+	}
+
+	public get onDidBeforeRun(): Event<IRunEvent> {
+		return this._onDidBeforeRun.event;
+	}
+
+	public run(action: IAction, context?: any): TPromise<any> {
 		if (!action.enabled) {
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
-		this.emit(Events.EventType.BEFORE_RUN, { action: action });
+		this._onDidBeforeRun.fire({ action: action });
 
-		return Promise.as(action.run(context)).then((result: any) => {
-			this.emit(Events.EventType.RUN, <IRunEvent>{ action: action, result: result });
+		return this.runAction(action, context).then((result: any) => {
+			this._onDidRun.fire({ action: action, result: result });
 		}, (error: any) => {
-			this.emit(Events.EventType.RUN, <IRunEvent>{ action: action, error: error });
+			this._onDidRun.fire({ action: action, error: error });
 		});
+	}
+
+	protected runAction(action: IAction, context?: any): TPromise<any> {
+		const res = context ? action.run(context) : action.run();
+
+		if (TPromise.is(res)) {
+			return res;
+		}
+
+		return TPromise.wrap(res);
+	}
+
+	public dispose(): void {
+		this._onDidBeforeRun.dispose();
+		this._onDidRun.dispose();
 	}
 }

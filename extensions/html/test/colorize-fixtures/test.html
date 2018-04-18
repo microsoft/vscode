@@ -1,0 +1,42 @@
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>VSCode Tests</title>
+	<link href="https://cdn.rawgit.com/mochajs/mocha/2.2.5/mocha.css" rel="stylesheet" />
+
+	<style type="text/css">
+		body {
+			color: purple;
+			background-color: #d8da3d;
+		}
+	</style>
+</head>
+<body>
+	<div id="mocha"></div>
+
+	<!--<script src="https://cdn.rawgit.com/jquery/jquery/2.1.4/dist/jquery.min.js"></script>
+	<script src="https://cdn.rawgit.com/Automattic/expect.js/0.3.1/index.js"></script>-->
+	<script src="/out/vs/loader.js"></script>
+	<script src="https://cdn.rawgit.com/mochajs/mocha/2.2.5/mocha.js"></script>
+
+	<script>
+		mocha.setup('tdd');
+
+		require.config({
+			baseUrl: '/out',
+			paths: {
+				assert: '/test/assert.js'
+			}
+		});
+
+		require({{ modules }}, function () {
+			mocha.run();
+		});
+	</script>
+	<div class="js-stale-session-flash stale-session-flash flash flash-warn flash-banner hidden">
+		<span class=octicon></span>
+		<span class="signed-in-tab-flash">You signed in with another tab or window. <a href="">Reload</a> to refresh your session.</span>
+		<span class="signed-out-tab-flash">You signed out in another tab or window. <a href="">Reload</a> to refresh your session.</span>
+	</div>
+</body>
+</html>

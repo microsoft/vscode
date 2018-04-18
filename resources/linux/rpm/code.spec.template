@@ -1,0 +1,54 @@
+Name:     @@NAME@@
+Version:  @@VERSION@@
+Release:  @@RELEASE@@.el7
+Summary:  Code editing. Redefined.
+Group:    Development/Tools
+Vendor:   Microsoft Corporation
+Packager: Visual Studio Code Team <vscode-linux@microsoft.com>
+License:  @@LICENSE@@
+URL:      https://code.visualstudio.com/
+Icon:     @@NAME@@.xpm
+Requires: @@DEPENDENCIES@@
+AutoReq:  0
+
+%description
+Visual Studio Code is a new choice of tool that combines the simplicity of a code editor with what developers need for the core edit-build-debug cycle. See https://code.visualstudio.com/docs/setup/linux for installation instructions and FAQ.
+
+%install
+mkdir -p %{buildroot}/usr/share/@@NAME@@
+mkdir -p %{buildroot}/usr/share/applications
+mkdir -p %{buildroot}/usr/share/pixmaps
+cp -r usr/share/@@NAME@@/* %{buildroot}/usr/share/@@NAME@@
+cp -r usr/share/applications/@@NAME@@.desktop %{buildroot}/usr/share/applications
+cp -r usr/share/pixmaps/@@NAME@@.png %{buildroot}/usr/share/pixmaps
+
+%post
+# Remove the legacy bin command if this is the stable build
+if [ "@@NAME@@" = "code" ]; then
+	rm -f /usr/local/bin/code
+fi
+
+# Symlink bin command to /usr/bin
+ln -sf /usr/share/@@NAME@@/bin/@@NAME@@ %{_bindir}/@@NAME@@
+
+# Register yum repository
+# TODO: #229: Enable once the yum repository is signed
+#if [ "@@NAME@@" != "code-oss" ]; then
+#	if [ -d "/etc/yum.repos.d" ]; then
+#		REPO_FILE=/etc/yum.repos.d/@@NAME@@.repo
+#		rm -f $REPO_FILE
+#		echo -e "[@@NAME@@]\nname=@@NAME_LONG@@\nbaseurl=@@UPDATEURL@@/api/rpm/@@QUALITY@@/@@ARCHITECTURE@@/rpm" > $REPO_FILE
+#	fi
+#fi
+
+%postun
+if [ $1 = 0 ]; then
+  rm -f /usr/bin/@@NAME@@
+fi
+
+%files
+%defattr(-,root,root)
+
+/usr/share/@@NAME@@/
+/usr/share/applications/@@NAME@@.desktop
+/usr/share/pixmaps/@@NAME@@.png

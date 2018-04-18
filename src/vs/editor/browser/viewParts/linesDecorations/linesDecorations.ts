@@ -6,27 +6,24 @@
 'use strict';
 
 import 'vs/css!./linesDecorations';
-import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import { DecorationToRender, DedupOverlay } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { RenderingContext } from 'vs/editor/common/view/renderingContext';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
-interface IRenderResult {
-	[lineNumber:string]:string[];
-}
+export class LinesDecorationsOverlay extends DedupOverlay {
 
-export class LinesDecorationsOverlay extends ViewEventHandler implements EditorBrowser.IDynamicViewOverlay {
+	private _context: ViewContext;
 
-	private _context:EditorBrowser.IViewContext;
+	private _decorationsLeft: number;
+	private _decorationsWidth: number;
+	private _renderResult: string[];
 
-	private _decorationsLeft:number;
-	private _decorationsWidth:number;
-	private _renderResult:IRenderResult;
-
-	constructor(context:EditorBrowser.IViewContext) {
+	constructor(context: ViewContext) {
 		super();
 		this._context = context;
-		this._decorationsLeft = 0;
-		this._decorationsWidth = 0;
+		this._decorationsLeft = this._context.configuration.editor.layoutInfo.decorationsLeft;
+		this._decorationsWidth = this._context.configuration.editor.layoutInfo.decorationsWidth;
 		this._renderResult = null;
 		this._context.addEventHandler(this);
 	}
@@ -35,129 +32,82 @@ export class LinesDecorationsOverlay extends ViewEventHandler implements EditorB
 		this._context.removeEventHandler(this);
 		this._context = null;
 		this._renderResult = null;
+		super.dispose();
 	}
 
 	// --- begin event handlers
 
-	public onModelFlushed(): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		if (e.layoutInfo) {
+			this._decorationsLeft = this._context.configuration.editor.layoutInfo.decorationsLeft;
+			this._decorationsWidth = this._context.configuration.editor.layoutInfo.decorationsWidth;
+		}
 		return true;
 	}
-	public onModelDecorationsChanged(e:EditorCommon.IViewDecorationsChangedEvent): boolean {
+	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		return true;
 	}
-	public onModelLinesDeleted(e:EditorCommon.IViewLinesDeletedEvent): boolean {
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		return true;
 	}
-	public onModelLineChanged(e:EditorCommon.IViewLineChangedEvent): boolean {
+	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
 		return true;
 	}
-	public onModelLinesInserted(e:EditorCommon.IViewLinesInsertedEvent): boolean {
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
 		return true;
 	}
-	public onCursorPositionChanged(e:EditorCommon.IViewCursorPositionChangedEvent): boolean {
-		return false;
-	}
-	public onCursorSelectionChanged(e:EditorCommon.IViewCursorSelectionChangedEvent): boolean {
-		return false;
-	}
-	public onCursorRevealRange(e:EditorCommon.IViewRevealRangeEvent): boolean {
-		return false;
-	}
-	public onConfigurationChanged(e:EditorCommon.IConfigurationChangedEvent): boolean {
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return true;
 	}
-	public onLayoutChanged(layoutInfo:EditorCommon.IEditorLayoutInfo): boolean {
-		this._decorationsLeft = layoutInfo.decorationsLeft;
-		this._decorationsWidth = layoutInfo.decorationsWidth;
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		return e.scrollTopChanged;
+	}
+	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
-	}
-	public onScrollChanged(e:EditorCommon.IScrollEvent): boolean {
-		return e.vertical;
-	}
-	public onZonesChanged(): boolean {
-		return true;
-	}
-	public onScrollWidthChanged(scrollWidth:number): boolean {
-		return false;
-	}
-	public onScrollHeightChanged(scrollHeight:number): boolean {
-		return false;
 	}
 
 	// --- end event handlers
 
-	public shouldCallRender2(ctx:EditorBrowser.IRenderingContext): boolean {
-		if (!this.shouldRender) {
-			return false;
-		}
-		this.shouldRender = false;
-
-		var output: IRenderResult = {};
-		var renderedCount = 0;
-
-		var decorations = ctx.getDecorationsInViewport(),
-			lineHeight = this._context.configuration.editor.lineHeight.toString(),
-			d:EditorCommon.IModelDecoration,
-			rng:EditorCommon.IRange,
-			i:number, lenI:number,
-			classNames:{[top:string]:{[className:string]:boolean;};} = {},
-			lineClassNames:{[className:string]:boolean;},
-			className:string,
-			lineOutput:string[],
-			lineNumber: number,
-			lineNumberStr: string;;
-
-		for (i = 0, lenI = decorations.length; i < lenI; i++) {
-			d = decorations[i];
-			if (!d.options.linesDecorationsClassName) {
-				continue;
-			}
-
-			rng = d.range;
-
-			for (lineNumber = rng.startLineNumber; lineNumber <= rng.endLineNumber; lineNumber++) {
-				if (!ctx.lineIsVisible(lineNumber)) {
-					continue;
-				}
-
-				lineNumberStr = lineNumber.toString();
-
-//					oldTop = ctx.getViewportVerticalOffsetForLineNumber(j);
-
-				if (!classNames.hasOwnProperty(lineNumberStr)) {
-					classNames[lineNumberStr] = {};
-				}
-				classNames[lineNumberStr][d.options.linesDecorationsClassName] = true;
+	protected _getDecorations(ctx: RenderingContext): DecorationToRender[] {
+		let decorations = ctx.getDecorationsInViewport();
+		let r: DecorationToRender[] = [], rLen = 0;
+		for (let i = 0, len = decorations.length; i < len; i++) {
+			let d = decorations[i];
+			let linesDecorationsClassName = d.options.linesDecorationsClassName;
+			if (linesDecorationsClassName) {
+				r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, linesDecorationsClassName);
 			}
 		}
+		return r;
+	}
 
-		var left = this._decorationsLeft.toString(),
-			width = this._decorationsWidth.toString();
+	public prepareRender(ctx: RenderingContext): void {
+		let visibleStartLineNumber = ctx.visibleRange.startLineNumber;
+		let visibleEndLineNumber = ctx.visibleRange.endLineNumber;
+		let toRender = this._render(visibleStartLineNumber, visibleEndLineNumber, this._getDecorations(ctx));
 
-		var common = '" style="left:' + left + 'px;width:' + width + 'px' + ';height:' + lineHeight + 'px;"></div>';
-		for (lineNumberStr in classNames) {
-			lineClassNames = classNames[lineNumberStr];
-			lineOutput = [];
-			lineOutput.push('<div class="cldr');
-			for (className in lineClassNames) {
-				// Count one more glyph
-				renderedCount++;
-				lineOutput.push(' ');
-				lineOutput.push(className);
+		let left = this._decorationsLeft.toString();
+		let width = this._decorationsWidth.toString();
+		let common = '" style="left:' + left + 'px;width:' + width + 'px;"></div>';
+
+		let output: string[] = [];
+		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
+			let lineIndex = lineNumber - visibleStartLineNumber;
+			let classNames = toRender[lineIndex];
+			let lineOutput = '';
+			for (let i = 0, len = classNames.length; i < len; i++) {
+				lineOutput += '<div class="cldr ' + classNames[i] + common;
 			}
-			lineOutput.push(common);
-			output[lineNumberStr] = lineOutput;
+			output[lineIndex] = lineOutput;
 		}
 
 		this._renderResult = output;
-
-		return true;
 	}
 
-	public render2(lineNumber:number): string[] {
-		if (this._renderResult && this._renderResult.hasOwnProperty(lineNumber.toString())) {
-			return this._renderResult[lineNumber.toString()];
+	public render(startLineNumber: number, lineNumber: number): string {
+		if (!this._renderResult) {
+			return '';
 		}
-		return null;
+		return this._renderResult[lineNumber - startLineNumber];
 	}
 }

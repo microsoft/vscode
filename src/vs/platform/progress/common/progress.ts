@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Promise} from 'vs/base/common/winjs.base';
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export var IProgressService = createDecorator<IProgressService>('progressService');
+export const IProgressService = createDecorator<IProgressService>('progressService');
 
 export interface IProgressService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	/**
 	 * Show progress customized with the provided flags.
@@ -22,11 +22,72 @@ export interface IProgressService {
 	 * Indicate progress for the duration of the provided promise. Progress will stop in
 	 * any case of promise completion, error or cancellation.
 	 */
-	showWhile(promise: Promise, delay?: number): Promise;
+	showWhile(promise: TPromise<any>, delay?: number): TPromise<void>;
 }
 
 export interface IProgressRunner {
 	total(value: number): void;
 	worked(value: number): void;
 	done(): void;
+}
+
+export const emptyProgressRunner: IProgressRunner = Object.freeze({
+	total() { },
+	worked() { },
+	done() { }
+});
+
+export interface IProgress<T> {
+	report(item: T): void;
+}
+
+export const emptyProgress: IProgress<any> = Object.freeze({ report() { } });
+
+export class Progress<T> implements IProgress<T> {
+
+	private _callback: (data: T) => void;
+	private _value: T;
+
+	constructor(callback: (data: T) => void) {
+		this._callback = callback;
+	}
+
+	get value() {
+		return this._value;
+	}
+
+	report(item: T) {
+		this._value = item;
+		this._callback(this._value);
+	}
+}
+
+export enum ProgressLocation {
+	Explorer = 1,
+	Scm = 3,
+	Extensions = 5,
+	Window = 10,
+	Notification = 15
+}
+
+export interface IProgressOptions {
+	location: ProgressLocation;
+	title?: string;
+	source?: string;
+	total?: number;
+	cancellable?: boolean;
+}
+
+export interface IProgressStep {
+	message?: string;
+	increment?: number;
+}
+
+export const IProgressService2 = createDecorator<IProgressService2>('progressService2');
+
+export interface IProgressService2 {
+
+	_serviceBrand: any;
+
+	withProgress<P extends Thenable<R>, R=any>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => P, onDidCancel?: () => void): P;
 }

@@ -3,209 +3,75 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+'use strict';
+
 // Increase max listeners for event emitters
 require('events').EventEmitter.defaultMaxListeners = 100;
 
-var gulp = require('gulp');
-var tsb = require('gulp-tsb');
-var filter = require('gulp-filter');
-var mocha = require('gulp-mocha');
-var es = require('event-stream');
-var watch = require('./build/lib/watch');
-var nls = require('./build/lib/nls');
-var style = require('./build/lib/style');
-var copyrights = require('./build/lib/copyrights');
-var util = require('./build/lib/util');
-var reporter = require('./build/lib/reporter')();
-var remote = require('gulp-remote-src');
-var rename = require('gulp-rename');
-var zip = require('gulp-vinyl-zip');
-var path = require('path');
-var bom = require('gulp-bom');
-var sourcemaps = require('gulp-sourcemaps');
-var _ = require('underscore');
-var quiet = !!process.env['VSCODE_BUILD_QUIET'];
-
-var rootDir = path.join(__dirname, 'src');
-var tsOptions = {
-	target: 'ES5',
-	module: 'amd',
-	verbose: !quiet,
-	preserveConstEnums: true,
-	experimentalDecorators: true,
-	sourceMap: true,
-	rootDir: rootDir,
-	sourceRoot: util.toFileUri(rootDir)
-};
-
-function createCompile(build) {
-	var opts = _.clone(tsOptions);
-	opts.inlineSources = !!build;
-
-	var ts = tsb.create(opts, null, null, quiet ? null : function (err) { reporter(err.toString()); });
-
-	return function (token) {
-		var utf8Filter = filter('**/test/**/*utf8*', { restore: true });
-		var tsFilter = filter([
-			'**/*.ts',
-			'!vs/languages/typescript/common/lib/lib.**.ts'
-		], { restore: true });
-
-		var input = es.through();
-		var output = input
-			.pipe(utf8Filter)
-			.pipe(bom())
-			.pipe(utf8Filter.restore)
-			.pipe(tsFilter)
-			.pipe(util.loadSourcemaps())
-			.pipe(ts(token))
-			.pipe(build ? nls() : es.through())
-			.pipe(sourcemaps.write('.', {
-				addComment: false,
-				includeContent: !!build,
-				sourceRoot: tsOptions.sourceRoot
-			}))
-			.pipe(tsFilter.restore)
-			.pipe(quiet ? es.through() : reporter());
-
-		return es.duplex(input, output);
-	};
-}
-
-function compileTask(out, build) {
-	var compile = createCompile(build);
-
-	return function () {
-		var src = gulp.src('src/**', { base: 'src' });
-
-		return src
-			.pipe(compile())
-			.pipe(gulp.dest(out));
-	};
-}
-
-function watchTask(out, build) {
-	var compile = createCompile(build);
-
-	return function () {
-		var src = gulp.src('src/**', { base: 'src' });
-		var watchSrc = watch('src/**', { base: 'src' });
-
-		return watchSrc
-			.pipe(util.incremental(compile, src, true))
-			.pipe(gulp.dest(out));
-	};
-}
+const gulp = require('gulp');
+const util = require('./build/lib/util');
+const path = require('path');
+const compilation = require('./build/lib/compilation');
 
 // Fast compile for development time
 gulp.task('clean-client', util.rimraf('out'));
-gulp.task('compile-client', ['clean-client'], compileTask('out', false));
-gulp.task('watch-client', ['clean-client'], watchTask('out', false));
+gulp.task('compile-client', ['clean-client'], compilation.compileTask('out', false));
+gulp.task('watch-client', ['clean-client'], compilation.watchTask('out', false));
 
 // Full compile, including nls and inline sources in sourcemaps, for build
-gulp.task('clean-build', util.rimraf('out-build'));
-gulp.task('compile-build', ['clean-build'], compileTask('out-build', true));
-gulp.task('watch-build', ['clean-build'], watchTask('out-build', true));
+gulp.task('clean-client-build', util.rimraf('out-build'));
+gulp.task('compile-client-build', ['clean-client-build'], compilation.compileTask('out-build', true));
+gulp.task('watch-client-build', ['clean-client-build'], compilation.watchTask('out-build', true));
 
 // Default
-gulp.task('default', ['compile-all']);
+gulp.task('default', ['compile']);
 
 // All
-gulp.task('clean', ['clean-client', 'clean-plugins']);
-gulp.task('compile', ['compile-client', 'compile-plugins']);
-gulp.task('watch', ['watch-client', 'watch-plugins']);
+gulp.task('clean', ['clean-client', 'clean-extensions']);
+gulp.task('compile', ['monaco-typecheck', 'compile-client', 'compile-extensions']);
+gulp.task('watch', [/* 'monaco-typecheck-watch', */ 'watch-client', 'watch-extensions']);
 
-var LINE_FEED_FILES = [
-	'build/**/*',
-	'extensions/**/*',
-	'scripts/**/*',
-	'src/**/*',
-	'test/**/*',
-	'!extensions/csharp-o/bin/**',
-	'!extensions/**/out/**',
-	'!**/node_modules/**',
-	'!**/fixtures/**',
-	'!**/*.{svg,exe,png,scpt,bat,cur,ttf,woff,eot}',
+// All Build
+gulp.task('clean-build', ['clean-client-build', 'clean-extensions-build']);
+gulp.task('compile-build', ['compile-client-build', 'compile-extensions-build']);
+gulp.task('watch-build', ['watch-client-build', 'watch-extensions-build']);
+
+var ALL_EDITOR_TASKS = [
+	// Always defined tasks
+	'clean-client',
+	'compile-client',
+	'watch-client',
+	'clean-client-build',
+	'compile-client-build',
+	'watch-client-build',
+
+	// Editor tasks (defined in gulpfile.editor)
+	'clean-optimized-editor',
+	'optimize-editor',
+	'clean-minified-editor',
+	'minify-editor',
+	'clean-editor-distro',
+	'editor-distro',
+	'analyze-editor-distro',
+
+	// hygiene tasks
+	'tslint',
+	'hygiene',
 ];
 
-gulp.task('eol-style', function() {
-	return gulp.src(LINE_FEED_FILES).pipe(style({complain:true}));
-});
-gulp.task('fix-eol-style', function() {
-	return gulp.src(LINE_FEED_FILES, { base: '.' }).pipe(style({})).pipe(gulp.dest('.'));
-});
-var WHITESPACE_FILES = LINE_FEED_FILES.concat([
-	'!**/lib/**',
-	'!**/*.d.ts',
-	'!extensions/typescript/server/**',
-	'!test/assert.js',
-	'!**/octicons/**',
-	'!**/vs/languages/sass/test/common/example.scss',
-	'!**/vs/languages/less/common/parser/less.grammar.txt',
-	'!**/vs/languages/css/common/buildscripts/css-schema.xml',
-	'!**/vs/languages/markdown/common/raw.marked.js',
-	'!**/vs/base/common/winjs.base.raw.js',
-	'!**/vs/base/node/terminateProcess.sh',
-	'!extensions/csharp-o/gulpfile.js',
-	'!**/vs/base/node/terminateProcess.sh',
-	'!**/vs/text.js',
-	'!**/vs/nls.js',
-	'!**/vs/css.js',
-	'!**/vs/loader.js',
-	'!extensions/**/snippets/**',
-	'!extensions/**/syntaxes/**',
-	'!extensions/**/themes/**',
-]);
-gulp.task('whitespace-style', function() {
-	return gulp.src(WHITESPACE_FILES).pipe(style({complain:true, whitespace:true}));
-});
-gulp.task('fix-whitespace-style', function() {
-	return gulp.src(WHITESPACE_FILES, { base: '.' }).pipe(style({whitespace:true})).pipe(gulp.dest('.'));
+var runningEditorTasks = process.argv.length > 2 && process.argv.slice(2).every(function (arg) { return (ALL_EDITOR_TASKS.indexOf(arg) !== -1); });
+
+process.on('unhandledRejection', (reason, p) => {
+	console.log('Unhandled Rejection at: Promise', p, 'reason:', reason);
+	process.exit(1);
 });
 
-gulp.task('copyrights', function() {
-	return gulp.src(['src/vs/**/*.ts', 'src/vs/**/*.css', 'extensions/**/*.ts', 'extensions/**/*.css']).pipe(copyrights.copyrights());
-});
-
-gulp.task('insert-copyrights', function() {
-	return gulp.src(['src/vs/**/*.ts', 'src/vs/**/*.css', 'extensions/**/*.ts', 'extensions/**/*.css']).pipe(copyrights.insertCopyrights());
-});
-
-gulp.task('test', function () {
-	return gulp.src('test/all.js')
-		.pipe(mocha({ ui: 'tdd', delay: true }))
-		.once('end', function () { process.exit(); });
-});
-
-gulp.task('mixin', function () {
-	var repo = process.env['VSCODE_MIXIN_REPO'];
-
-	if (!repo) {
-		return;
-	}
-
-	var url = 'https://github.com/' + repo + '/archive/master.zip';
-	var opts = { base: '' };
-	var username = process.env['VSCODE_MIXIN_USERNAME'];
-	var password = process.env['VSCODE_MIXIN_PASSWORD'];
-
-	if (username || password) {
-		opts.auth = { user: username || '', pass: password || '' };
-	}
-
-	console.log('Mixing in sources from \'' + url + '\':');
-	return remote(url, opts)
-		.pipe(zip.src())
-		.pipe(rename(function (f) {
-			f.dirname = f.dirname.replace(/^[^\/\\]+[\/\\]?/, '');
-		}))
-		.pipe(es.mapSync(function (f) {
-			console.log(f.relative);
-			return f;
-		}))
-		.pipe(gulp.dest('.'));
-});
-
-require('./build/gulpfile.vscode');
-require('./build/gulpfile.editor');
-require('./build/gulpfile.plugins');
+if (runningEditorTasks) {
+	require(`./build/gulpfile.editor`);
+	require(`./build/gulpfile.hygiene`);
+} else {
+	// Load all the gulpfiles only if running tasks other than the editor tasks
+	const build = path.join(__dirname, 'build');
+	require('glob').sync('gulpfile.*.js', { cwd: build })
+		.forEach(f => require(`./build/${f}`));
+}

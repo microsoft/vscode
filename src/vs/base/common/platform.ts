@@ -4,41 +4,69 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-// --- THIS FILE IS TEMPORARY UNTIL ENV.TS IS CLEANED UP. IT CAN SAFELY BE USED IN ALL TARGET EXECUTION ENVIRONMENTS (node & dom) ---
+let _isWindows = false;
+let _isMacintosh = false;
+let _isLinux = false;
+let _isNative = false;
+let _isWeb = false;
+let _locale: string = undefined;
+let _language: string = undefined;
+let _translationsConfigFile: string = undefined;
 
-var _isWindows = false;
-var _isMacintosh = false;
-var _isLinux = false;
-var _isNative = false;
-var _isWeb = false;
-var _isQunit = false;
+interface NLSConfig {
+	locale: string;
+	availableLanguages: { [key: string]: string; };
+	_translationsConfigFile: string;
+}
+
+export interface IProcessEnvironment {
+	[key: string]: string;
+}
 
 interface INodeProcess {
 	platform: string;
+	env: IProcessEnvironment;
+	getuid(): number;
+	nextTick: Function;
 }
-declare var process: INodeProcess;
-declare var global: any;
+declare let process: INodeProcess;
+declare let global: any;
 
 interface INavigator {
-	userAgent:string;
+	userAgent: string;
+	language: string;
 }
-declare var navigator: INavigator;
-declare var self: any;
+declare let navigator: INavigator;
+declare let self: any;
+
+export const LANGUAGE_DEFAULT = 'en';
 
 // OS detection
-if (typeof process === 'object') {
+if (typeof process === 'object' && typeof process.nextTick === 'function' && typeof process.platform === 'string') {
 	_isWindows = (process.platform === 'win32');
 	_isMacintosh = (process.platform === 'darwin');
 	_isLinux = (process.platform === 'linux');
+	const rawNlsConfig = process.env['VSCODE_NLS_CONFIG'];
+	if (rawNlsConfig) {
+		try {
+			const nlsConfig: NLSConfig = JSON.parse(rawNlsConfig);
+			const resolved = nlsConfig.availableLanguages['*'];
+			_locale = nlsConfig.locale;
+			// VSCode's default language is 'en'
+			_language = resolved ? resolved : LANGUAGE_DEFAULT;
+			_translationsConfigFile = nlsConfig._translationsConfigFile;
+		} catch (e) {
+		}
+	}
 	_isNative = true;
 } else if (typeof navigator === 'object') {
-	var userAgent = navigator.userAgent;
+	const userAgent = navigator.userAgent;
 	_isWindows = userAgent.indexOf('Windows') >= 0;
 	_isMacintosh = userAgent.indexOf('Macintosh') >= 0;
 	_isLinux = userAgent.indexOf('Linux') >= 0;
 	_isWeb = true;
-
-	_isQunit = !!(<any>self).QUnit;
+	_locale = navigator.language;
+	_language = _locale;
 }
 
 export enum Platform {
@@ -48,7 +76,7 @@ export enum Platform {
 	Windows
 }
 
-export var _platform:Platform = Platform.Web;
+let _platform: Platform = Platform.Web;
 if (_isNative) {
 	if (_isMacintosh) {
 		_platform = Platform.Mac;
@@ -64,32 +92,62 @@ export const isMacintosh = _isMacintosh;
 export const isLinux = _isLinux;
 export const isNative = _isNative;
 export const isWeb = _isWeb;
-export const isQunit = _isQunit;
 export const platform = _platform;
 
-export interface TimeoutToken {
+export function isRootUser(): boolean {
+	return _isNative && !_isWindows && (process.getuid() === 0);
 }
 
-export interface IntervalToken {
-}
+/**
+ * The language used for the user interface. The format of
+ * the string is all lower case (e.g. zh-tw for Traditional
+ * Chinese)
+ */
+export const language = _language;
 
-interface IGlobals {
-	Worker?: any;
-	setTimeout(callback: (...args: any[]) => void, delay: number, ...args: any[]): TimeoutToken;
-	clearTimeout(token: TimeoutToken): void;
+/**
+ * The OS locale or the locale specified by --locale. The format of
+ * the string is all lower case (e.g. zh-tw for Traditional
+ * Chinese). The UI is not necessarily shown in the provided locale.
+ */
+export const locale = _locale;
 
-	setInterval(callback: (...args: any[]) => void, delay: number, ...args: any[]): IntervalToken;
-	clearInterval(token: IntervalToken);
-}
+/**
+ * The translatios that are available through language packs.
+ */
+export const translationsConfigFile = _translationsConfigFile;
 
-var _globals = <IGlobals> (typeof self === 'object' ? self : global);
+const _globals = (typeof self === 'object' ? self : typeof global === 'object' ? global : {} as any);
 export const globals: any = _globals;
 
-export function hasWebWorkerSupport(): boolean {
-	return typeof _globals.Worker !== 'undefined';
+let _setImmediate: (callback: (...args: any[]) => void) => number = null;
+export function setImmediate(callback: (...args: any[]) => void): number {
+	if (_setImmediate === null) {
+		if (globals.setImmediate) {
+			_setImmediate = globals.setImmediate.bind(globals);
+		} else if (typeof process !== 'undefined' && typeof process.nextTick === 'function') {
+			_setImmediate = process.nextTick.bind(process);
+		} else {
+			_setImmediate = globals.setTimeout.bind(globals);
+		}
+	}
+	return _setImmediate(callback);
 }
-export const setTimeout = _globals.setTimeout.bind(_globals);
-export const clearTimeout = _globals.clearTimeout.bind(_globals);
 
-export const setInterval = _globals.setInterval.bind(_globals);
-export const clearInterval = _globals.clearInterval.bind(_globals);
+export const enum OperatingSystem {
+	Windows = 1,
+	Macintosh = 2,
+	Linux = 3
+}
+export const OS = (_isMacintosh ? OperatingSystem.Macintosh : (_isWindows ? OperatingSystem.Windows : OperatingSystem.Linux));
+
+export const enum AccessibilitySupport {
+	/**
+	 * This should be the browser case where it is not known if a screen reader is attached or no.
+	 */
+	Unknown = 0,
+
+	Disabled = 1,
+
+	Enabled = 2
+}

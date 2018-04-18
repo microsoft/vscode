@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import * as path from 'path';
-import { createWriteStream } from 'fs';
+import { createWriteStream, WriteStream } from 'fs';
 import { Readable } from 'stream';
-import { nfcall, ninvoke } from 'vs/base/common/async';
+import { nfcall, ninvoke, SimpleThrottler } from 'vs/base/common/async';
 import { mkdirp, rimraf } from 'vs/base/node/pfs';
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import { open as openZip, Entry, ZipFile } from 'yauzl';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { open as _openZip, Entry, ZipFile } from 'yauzl';
 
 export interface IExtractOptions {
 	overwrite?: boolean;
@@ -26,62 +26,124 @@ interface IOptions {
 	sourcePathRegex: RegExp;
 }
 
+export enum ExtractErrorType {
+	Undefined,
+	CorruptZip
+}
+
+export class ExtractError extends Error {
+
+	readonly type: ExtractErrorType;
+	readonly cause: Error;
+
+	constructor(type: ExtractErrorType, cause: Error) {
+		let message = cause.message;
+
+		switch (type) {
+			case ExtractErrorType.CorruptZip: message = `Corrupt ZIP: ${message}`; break;
+		}
+
+		super(message);
+		this.type = type;
+		this.cause = cause;
+	}
+}
+
 function modeFromEntry(entry: Entry) {
-	var attr = entry.externalFileAttributes >> 16 || 33188;
+	let attr = entry.externalFileAttributes >> 16 || 33188;
 
 	return [448 /* S_IRWXU */, 56 /* S_IRWXG */, 7 /* S_IRWXO */]
 		.map(mask => attr & mask)
 		.reduce((a, b) => a + b, attr & 61440 /* S_IFMT */);
 }
 
-function extractEntry(zipfile: ZipFile, entry: Entry, targetPath: string, options: IOptions): Promise {
-	const fileName = entry.fileName.replace(options.sourcePathRegex, '');
+function toExtractError(err: Error): ExtractError {
+	let type = ExtractErrorType.CorruptZip;
+
+	if (/end of central directory record signature not found/.test(err.message)) {
+		type = ExtractErrorType.CorruptZip;
+	}
+
+	return new ExtractError(type, err);
+}
+
+function extractEntry(stream: Readable, fileName: string, mode: number, targetPath: string, options: IOptions): TPromise<void> {
 	const dirName = path.dirname(fileName);
 	const targetDirName = path.join(targetPath, dirName);
 	const targetFileName = path.join(targetPath, fileName);
-	const mode = modeFromEntry(entry);
 
-	return ninvoke(zipfile, zipfile.openReadStream, entry)
-		.then(ostream => mkdirp(targetDirName)
-			.then(() => new Promise((c, e) => {
-				var istream = createWriteStream(targetFileName, { mode });
-				istream.once('finish', () => c(null));
-				istream.once('error', e);
-				ostream.once('error', e);
-				ostream.pipe(istream);
-			})));
+	let istream: WriteStream;
+	return mkdirp(targetDirName).then(() => new TPromise((c, e) => {
+		istream = createWriteStream(targetFileName, { mode });
+		istream.once('close', () => c(null));
+		istream.once('error', e);
+		stream.once('error', e);
+		stream.pipe(istream);
+	}, () => {
+		if (istream) {
+			istream.close();
+		}
+	}));
 }
 
-function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions): Promise {
-	return new Promise((c, e) => {
-		const promises: Promise[] = [];
+function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions): TPromise<void> {
+	let isCanceled = false;
+	let last = TPromise.wrap<any>(null);
+
+	return new TPromise((c, e) => {
+		const throttler = new SimpleThrottler();
 
 		zipfile.once('error', e);
+		zipfile.once('close', () => last.then(c, e));
 		zipfile.on('entry', (entry: Entry) => {
+			if (isCanceled) {
+				return;
+			}
+
 			if (!options.sourcePathRegex.test(entry.fileName)) {
 				return;
 			}
 
-			promises.push(extractEntry(zipfile, entry, targetPath, options));
+			const fileName = entry.fileName.replace(options.sourcePathRegex, '');
+
+			// directory file names end with '/'
+			if (/\/$/.test(fileName)) {
+				const targetFileName = path.join(targetPath, fileName);
+				last = mkdirp(targetFileName);
+				return;
+			}
+
+			const stream = ninvoke(zipfile, zipfile.openReadStream, entry);
+			const mode = modeFromEntry(entry);
+
+			last = throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options)));
 		});
-		zipfile.once('close', () => Promise.join(promises).done(c, e));
-	});
+	}, () => {
+		isCanceled = true;
+		last.cancel();
+		zipfile.close();
+	}).then(null, err => TPromise.wrapError(toExtractError(err)));
 }
 
-export function extract(zipPath: string, targetPath: string, options: IExtractOptions): Promise {
-	const sourcePathRegex = new RegExp(options.sourcePath ? `^${ options.sourcePath }` : '');
+function openZip(zipFile: string): TPromise<ZipFile> {
+	return nfcall<ZipFile>(_openZip, zipFile)
+		.then(null, err => TPromise.wrapError(toExtractError(err)));
+}
 
-	let promise = nfcall<ZipFile>(openZip, zipPath);
+export function extract(zipPath: string, targetPath: string, options: IExtractOptions = {}): TPromise<void> {
+	const sourcePathRegex = new RegExp(options.sourcePath ? `^${options.sourcePath}` : '');
+
+	let promise = openZip(zipPath);
 
 	if (options.overwrite) {
-		promise = promise.then(zipfile => { rimraf(targetPath); return zipfile; });
+		promise = promise.then(zipfile => rimraf(targetPath).then(() => zipfile));
 	}
 
 	return promise.then(zipfile => extractZip(zipfile, targetPath, { sourcePathRegex }));
 }
 
 function read(zipPath: string, filePath: string): TPromise<Readable> {
-	return nfcall(openZip, zipPath).then((zipfile: ZipFile) => {
+	return openZip(zipPath).then(zipfile => {
 		return new TPromise<Readable>((c, e) => {
 			zipfile.on('entry', (entry: Entry) => {
 				if (entry.fileName === filePath) {
@@ -97,9 +159,9 @@ function read(zipPath: string, filePath: string): TPromise<Readable> {
 export function buffer(zipPath: string, filePath: string): TPromise<Buffer> {
 	return read(zipPath, filePath).then(stream => {
 		return new TPromise<Buffer>((c, e) => {
-			const buffers = [];
+			const buffers: Buffer[] = [];
 			stream.once('error', e);
-			stream.on('data', b => buffers.push(b));
+			stream.on('data', b => buffers.push(b as Buffer));
 			stream.on('end', () => c(Buffer.concat(buffers)));
 		});
 	});

@@ -4,26 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-action-bar {
-	text-align: center;
+	text-align: right;
 	overflow: hidden;
 	white-space: nowrap;
 }
 
 .monaco-action-bar .actions-container {
-	display: inline-block;
+	display: flex;
 	margin: 0 auto;
 	padding: 0;
 	width: 100%;
+	justify-content: flex-end;
+}
+
+.monaco-action-bar.vertical .actions-container {
+	display: inline-block;
+}
+
+.monaco-action-bar.reverse .actions-container {
+	flex-direction: row-reverse;
 }
 
 .monaco-action-bar .action-item {
 	cursor: pointer;
 	display: inline-block;
-	-ms-transition: -ms-transform 100ms ease;
-	-webkit-transition: -webkit-transform 100ms ease;
-	-moz-transition: -moz-transform 100ms ease;
-	-o-transition: -o-transform 100ms ease;
-	transition: transform 100ms ease;
+	-ms-transition: -ms-transform 50ms ease;
+	-webkit-transition: -webkit-transform 50ms ease;
+	-moz-transition: -moz-transform 50ms ease;
+	-o-transition: -o-transform 50ms ease;
+	transition: transform 50ms ease;
 	position: relative;  /* DO NOT REMOVE - this is the key to preventing the ghosting icon bug in Chrome 42 */
 }
 
@@ -31,12 +40,12 @@
 	cursor: default;
 }
 
-.monaco-action-bar .action-item.active {
-	-ms-transform: translate(0, -3px);
-	-webkit-transform: translate(0, -3px);
-	-moz-transform: translate(0, -3px);
-	-o-transform: translate(0, -3px);
-	transform: translate(0, -3px);
+.monaco-action-bar.animated .action-item.active {
+	-ms-transform: scale(1.272019649, 1.272019649); /* 1.272019649 = √φ */
+	-webkit-transform: scale(1.272019649, 1.272019649);
+	-moz-transform: scale(1.272019649, 1.272019649);
+	-o-transform: scale(1.272019649, 1.272019649);
+	transform: scale(1.272019649, 1.272019649);
 }
 
 .monaco-action-bar .action-item .icon {
@@ -48,12 +57,10 @@
 	margin-right: 0.3em;
 }
 
-.monaco-action-bar:focus {
-	outline: 0;
-}
-
-.monaco-action-bar .action-label:focus {
-	outline: 0;
+.monaco-action-bar .action-label.octicon {
+	font-size: 15px;
+	line-height: 35px;
+	text-align: center;
 }
 
 .monaco-action-bar .action-item.disabled .action-label,
@@ -68,7 +75,6 @@
 }
 
 .monaco-action-bar.vertical .action-item {
-	padding-bottom: 0.1em;
 	display: block;
 }
 
@@ -80,7 +86,7 @@
 	margin-right: .8em;
 }
 
-.monaco-action-bar.vertical .action-item.active {
+.monaco-action-bar.animated.vertical .action-item.active {
 	-ms-transform: translate(5px, 0);
 	-webkit-transform: translate(5px, 0);
 	-moz-transform: translate(5px, 0);
@@ -92,102 +98,11 @@
 	margin-left: 6px;
 }
 
-.monaco-action-bar .action-item .progress-item .label {
-	padding: 0.7em;
-	background-color: #1382CE;
-	display: inline-block;
-	vertical-align: top;
-	cursor: pointer;
-}
-
-.monaco-action-bar .action-item .progress-item .tag {
-	display: inline-block;
-	vertical-align: top;
-	padding: 0.7em 0;
-	color: white;
-	font-weight: bold;
-	text-align: center;
-	overflow: hidden;
-	width: 0;
-	transition: width 200ms;
-	-webkit-transition: width 200ms;
-	-o-transition: width 200ms;
-	-moz-transition: width 200ms;
-	-ms-transition: width 200ms;
-}
-
-.monaco-action-bar .action-item .progress-item .tag.active {
-	width: 1.5em;
-}
-
-.monaco-action-bar .action-item .progress-item .tag.progress {
-	background-color: gray;
-}
-
-.monaco-action-bar .action-item .progress-item .tag.done {
-	background-color: green;
-}
-
-.monaco-action-bar .progress-item .tag.error {
-	background-color: #C33;
-}
-
-/* Actions widget */
-
-.monaco-actions-widget {
-	position: relative;
-}
-
-.monaco-actions-widget .more {
-	position: absolute;
-	top: 0;
-	right: 1em;
-	font-weight: bold;
-	cursor: pointer;
-	display: none;
-}
-
-.monaco-actions-widget .more.active {
-	-ms-transform: translate(0, -3px);
-	-webkit-transform: translate(0, -3px);
-	-moz-transform: translate(0, -3px);
-	-o-transform: translate(0, -3px);
-	transform: translate(0, -3px);
-}
-
-.monaco-actions-widget .primary {
-	display: none;
-}
-
-.monaco-actions-widget.hasPrimary .primary {
-	display: inherit;
-}
-
-.monaco-actions-widget.hasSecondary .more {
-	display: inherit;
-}
-
-.monaco-actions-widget .secondary.monaco-action-bar {
-	display: none;
-}
-
-.monaco-actions-widget.more .secondary.monaco-action-bar {
-	display: inherit;
-}
-
 /* Action Items */
 .monaco-action-bar .action-item.select-container {
 	overflow: hidden; /* somehow the dropdown overflows its container, we prevent it here to not push */
-}
-
-.monaco-workbench .action-bar-select {
-	height: 20px;
-	margin: 5px 4px;
-	outline: none;
-}
-
-.vs-dark.monaco-workbench .action-bar-select {
-	background-color: #3C3C3C;
-	border-color: #3C3C3C;
-	color: rgb(204, 204, 204);
+	flex: 1;
+	max-width: 170px;
+	min-width: 60px;
+	margin-right: 10px;
 }

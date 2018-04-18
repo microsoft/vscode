@@ -6,31 +6,32 @@
 
 import * as assert from 'assert';
 import uri from 'vs/base/common/uri';
-import {Match, FileMatch, SearchResult} from 'vs/workbench/parts/search/common/searchModel';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {create} from 'vs/platform/instantiation/common/instantiationService';
-import {SearchSorter, SearchDataSource} from 'vs/workbench/parts/search/browser/searchViewlet';
-import {TestContextService} from 'vs/workbench/test/browser/servicesTestUtils';
+import { Match, FileMatch, SearchResult } from 'vs/workbench/parts/search/common/searchModel';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { SearchSorter, SearchDataSource } from 'vs/workbench/parts/search/browser/searchResultsView';
+import { IFileMatch, ILineMatch } from 'vs/platform/search/common/search';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
+import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 suite('Search - Viewlet', () => {
-	let instantiation: IInstantiationService;
+	let instantiation: TestInstantiationService;
 
 	setup(() => {
-		instantiation = create({
-			modelService: {
-				getModel: () => null
-			},
-			requestService: {
-				getRequestUrl: () => 'file:///folder/file.txt'
-			},
-			contextService: new TestContextService()
-		});
+		instantiation = new TestInstantiationService();
+		instantiation.stub(IModelService, stubModelService(instantiation));
+		instantiation.set(IWorkspaceContextService, new TestContextService(TestWorkspace));
 	});
 
-	test('Data Source', function() {
-		let ds = new SearchDataSource();
-		let result = instantiation.createInstance(SearchResult, null);
-		result.append([{
+	test('Data Source', function () {
+		let ds = instantiation.createInstance(SearchDataSource);
+		let result: SearchResult = instantiation.createInstance(SearchResult, null);
+		result.query = { type: 1, folderQueries: [{ folder: uri.parse('file://c:/') }] };
+		result.add([{
 			resource: uri.parse('file:///c:/foo'),
 			lineMatches: [{ lineNumber: 1, preview: 'bar', offsetAndLengths: [[0, 1]] }]
 		}]);
@@ -40,7 +41,7 @@ suite('Search - Viewlet', () => {
 
 		assert.equal(ds.getId(null, result), 'root');
 		assert.equal(ds.getId(null, fileMatch), 'file:///c%3A/foo');
-		assert.equal(ds.getId(null, lineMatch), 'file:///c%3A/foo>1>0');
+		assert.equal(ds.getId(null, lineMatch), 'file:///c%3A/foo>1>0b');
 
 		assert(!ds.hasChildren(null, 'foo'));
 		assert(ds.hasChildren(null, result));
@@ -48,10 +49,10 @@ suite('Search - Viewlet', () => {
 		assert(!ds.hasChildren(null, lineMatch));
 	});
 
-	test('Sorter', function() {
-		let fileMatch1 = new FileMatch(null, uri.file('C:\\foo'));
-		let fileMatch2 = new FileMatch(null, uri.file('C:\\with\\path'));
-		let fileMatch3 = new FileMatch(null, uri.file('C:\\with\\path\\foo'));
+	test('Sorter', function () {
+		let fileMatch1 = aFileMatch('C:\\foo');
+		let fileMatch2 = aFileMatch('C:\\with\\path');
+		let fileMatch3 = aFileMatch('C:\\with\\path\\foo');
 		let lineMatch1 = new Match(fileMatch1, 'bar', 1, 1, 1);
 		let lineMatch2 = new Match(fileMatch1, 'bar', 2, 1, 1);
 		let lineMatch3 = new Match(fileMatch1, 'bar', 2, 1, 1);
@@ -67,4 +68,17 @@ suite('Search - Viewlet', () => {
 		assert(s.compare(null, lineMatch2, lineMatch1) > 0);
 		assert(s.compare(null, lineMatch2, lineMatch3) === 0);
 	});
+
+	function aFileMatch(path: string, searchResult?: SearchResult, ...lineMatches: ILineMatch[]): FileMatch {
+		let rawMatch: IFileMatch = {
+			resource: uri.file('C:\\' + path),
+			lineMatches: lineMatches
+		};
+		return instantiation.createInstance(FileMatch, null, null, searchResult, rawMatch);
+	}
+
+	function stubModelService(instantiationService: TestInstantiationService): IModelService {
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		return instantiationService.createInstance(ModelServiceImpl);
+	}
 });

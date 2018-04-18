@@ -6,40 +6,47 @@
 'use strict';
 
 import 'vs/css!./overlayWidgets';
-import DomUtils = require('vs/base/browser/dom');
-
-import {ViewPart} from 'vs/editor/browser/view/viewPart';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { IOverlayWidget, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
+import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 interface IWidgetData {
-	widget: EditorBrowser.IOverlayWidget;
-	preference: EditorBrowser.OverlayWidgetPositionPreference;
+	widget: IOverlayWidget;
+	preference: OverlayWidgetPositionPreference;
+	domNode: FastDomNode<HTMLElement>;
 }
 
 interface IWidgetMap {
-	[key:string]: IWidgetData;
+	[key: string]: IWidgetData;
 }
 
 export class ViewOverlayWidgets extends ViewPart {
 
 	private _widgets: IWidgetMap;
-	public domNode: HTMLElement;
+	private _domNode: FastDomNode<HTMLElement>;
 
 	private _verticalScrollbarWidth: number;
-	private _horizontalScrollbarHeight:number;
-	private _editorHeight:number;
+	private _minimapWidth: number;
+	private _horizontalScrollbarHeight: number;
+	private _editorHeight: number;
+	private _editorWidth: number;
 
-	constructor(context:EditorBrowser.IViewContext) {
+	constructor(context: ViewContext) {
 		super(context);
 
 		this._widgets = {};
-		this._verticalScrollbarWidth = 0;
-		this._horizontalScrollbarHeight = 0;
-		this._editorHeight = 0;
+		this._verticalScrollbarWidth = this._context.configuration.editor.layoutInfo.verticalScrollbarWidth;
+		this._minimapWidth = this._context.configuration.editor.layoutInfo.minimapWidth;
+		this._horizontalScrollbarHeight = this._context.configuration.editor.layoutInfo.horizontalScrollbarHeight;
+		this._editorHeight = this._context.configuration.editor.layoutInfo.height;
+		this._editorWidth = this._context.configuration.editor.layoutInfo.width;
 
-		this.domNode = document.createElement('div');
-		this.domNode.className = EditorBrowser.ClassNames.OVERLAY_WIDGETS;
+		this._domNode = createFastDomNode(document.createElement('div'));
+		PartFingerprints.write(this._domNode, PartFingerprint.OverlayWidgets);
+		this._domNode.setClassName('overlayWidgets');
 	}
 
 	public dispose(): void {
@@ -47,111 +54,99 @@ export class ViewOverlayWidgets extends ViewPart {
 		this._widgets = null;
 	}
 
+	public getDomNode(): FastDomNode<HTMLElement> {
+		return this._domNode;
+	}
+
 	// ---- begin view event handlers
 
-	public onLayoutChanged(layoutInfo:EditorCommon.IEditorLayoutInfo): boolean {
-		this._verticalScrollbarWidth = layoutInfo.verticalScrollbarWidth;
-		this._horizontalScrollbarHeight = layoutInfo.horizontalScrollbarHeight;
-		this._editorHeight = layoutInfo.height;
-
-		this._requestModificationFrame(() => {
-			DomUtils.StyleMutator.setWidth(this.domNode, layoutInfo.width);
-		});
-		return true;
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		if (e.layoutInfo) {
+			this._verticalScrollbarWidth = this._context.configuration.editor.layoutInfo.verticalScrollbarWidth;
+			this._minimapWidth = this._context.configuration.editor.layoutInfo.minimapWidth;
+			this._horizontalScrollbarHeight = this._context.configuration.editor.layoutInfo.horizontalScrollbarHeight;
+			this._editorHeight = this._context.configuration.editor.layoutInfo.height;
+			this._editorWidth = this._context.configuration.editor.layoutInfo.width;
+			return true;
+		}
+		return false;
 	}
 
 	// ---- end view event handlers
 
-	public addWidget(widget: EditorBrowser.IOverlayWidget): void {
+	public addWidget(widget: IOverlayWidget): void {
+		const domNode = createFastDomNode(widget.getDomNode());
+
 		this._widgets[widget.getId()] = {
 			widget: widget,
-			preference: null
+			preference: null,
+			domNode: domNode
 		};
 
 		// This is sync because a widget wants to be in the dom
-		var domNode = widget.getDomNode();
-		domNode.style.position = 'absolute';
+		domNode.setPosition('absolute');
 		domNode.setAttribute('widgetId', widget.getId());
-		this.domNode.appendChild(domNode);
+		this._domNode.appendChild(domNode);
+
+		this.setShouldRender();
 	}
 
-	public setWidgetPosition(widget: EditorBrowser.IOverlayWidget, preference:EditorBrowser.OverlayWidgetPositionPreference): void {
-		var widgetData = this._widgets[widget.getId()];
+	public setWidgetPosition(widget: IOverlayWidget, preference: OverlayWidgetPositionPreference): boolean {
+		let widgetData = this._widgets[widget.getId()];
+		if (widgetData.preference === preference) {
+			return false;
+		}
+
 		widgetData.preference = preference;
+		this.setShouldRender();
 
-		this._requestModificationFrame(() => {
-			if(this._widgets.hasOwnProperty(widget.getId())) {
-				this._renderWidget(widgetData);
-			}
-		});
+		return true;
 	}
 
-	public removeWidget(widget: EditorBrowser.IOverlayWidget): void {
-		var widgetId = widget.getId();
+	public removeWidget(widget: IOverlayWidget): void {
+		let widgetId = widget.getId();
 		if (this._widgets.hasOwnProperty(widgetId)) {
-			var widgetData = this._widgets[widgetId];
-			var domNode = widgetData.widget.getDomNode();
+			const widgetData = this._widgets[widgetId];
+			const domNode = widgetData.domNode.domNode;
 			delete this._widgets[widgetId];
 
 			domNode.parentNode.removeChild(domNode);
+			this.setShouldRender();
 		}
 	}
 
 	private _renderWidget(widgetData: IWidgetData): void {
-		var _RESTORE_STYLE_TOP = 'data-editor-restoreStyleTop',
-			domNode = widgetData.widget.getDomNode();
+		const domNode = widgetData.domNode;
 
 		if (widgetData.preference === null) {
-			if (domNode.hasAttribute(_RESTORE_STYLE_TOP)) {
-				var previousTop = domNode.getAttribute(_RESTORE_STYLE_TOP);
-				domNode.removeAttribute(_RESTORE_STYLE_TOP);
-				domNode.style.top = previousTop;
-			}
+			domNode.unsetTop();
 			return;
 		}
 
-		if (widgetData.preference === EditorBrowser.OverlayWidgetPositionPreference.TOP_RIGHT_CORNER) {
-			if (!domNode.hasAttribute(_RESTORE_STYLE_TOP)) {
-				domNode.setAttribute(_RESTORE_STYLE_TOP, domNode.style.top);
-			}
-			DomUtils.StyleMutator.setTop(domNode, 0);
-			DomUtils.StyleMutator.setRight(domNode, (2 * this._verticalScrollbarWidth));
-		} else if (widgetData.preference === EditorBrowser.OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER) {
-			if (!domNode.hasAttribute(_RESTORE_STYLE_TOP)) {
-				domNode.setAttribute(_RESTORE_STYLE_TOP, domNode.style.top);
-			}
-			var widgetHeight = domNode.clientHeight;
-			DomUtils.StyleMutator.setTop(domNode, (this._editorHeight - widgetHeight - 2 * this._horizontalScrollbarHeight));
-			DomUtils.StyleMutator.setRight(domNode, (2 * this._verticalScrollbarWidth));
-		} else if (widgetData.preference === EditorBrowser.OverlayWidgetPositionPreference.TOP_CENTER) {
-			if (!domNode.hasAttribute(_RESTORE_STYLE_TOP)) {
-				domNode.setAttribute(_RESTORE_STYLE_TOP, domNode.style.top);
-			}
-			DomUtils.StyleMutator.setTop(domNode, 0);
-			domNode.style.right = '50%';
+		if (widgetData.preference === OverlayWidgetPositionPreference.TOP_RIGHT_CORNER) {
+			domNode.setTop(0);
+			domNode.setRight((2 * this._verticalScrollbarWidth) + this._minimapWidth);
+		} else if (widgetData.preference === OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER) {
+			let widgetHeight = domNode.domNode.clientHeight;
+			domNode.setTop((this._editorHeight - widgetHeight - 2 * this._horizontalScrollbarHeight));
+			domNode.setRight((2 * this._verticalScrollbarWidth) + this._minimapWidth);
+		} else if (widgetData.preference === OverlayWidgetPositionPreference.TOP_CENTER) {
+			domNode.setTop(0);
+			domNode.domNode.style.right = '50%';
 		}
 	}
 
-	_render(ctx:EditorBrowser.IRenderingContext): void {
-		var widgetId:string;
-
-		this._requestModificationFrame(() => {
-			for (widgetId in this._widgets) {
-				if (this._widgets.hasOwnProperty(widgetId)) {
-					this._renderWidget(this._widgets[widgetId]);
-				}
-			}
-		});
+	public prepareRender(ctx: RenderingContext): void {
+		// Nothing to read
 	}
 
-	public onReadAfterForcedLayout(ctx:EditorBrowser.IRenderingContext): void {
-		// Overwriting to bypass `shouldRender` flag
-		this._render(ctx);
-		return null;
-	}
+	public render(ctx: RestrictedRenderingContext): void {
+		this._domNode.setWidth(this._editorWidth);
 
-	public onWriteAfterForcedLayout(): void {
-		// Overwriting to bypass `shouldRender` flag
-		this._executeModificationRunners();
+		let keys = Object.keys(this._widgets);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let widgetId = keys[i];
+			this._renderWidget(this._widgets[widgetId]);
+		}
 	}
 }

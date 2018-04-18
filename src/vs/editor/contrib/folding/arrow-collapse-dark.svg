@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" viewBox="0 0 15 15" style="enable-background:new 0 0 15 15;">
+<rect x="3" y="3" style="opacity:0.1;fill:#FFFFFF" width="9" height="9"/>
+<path style="fill:#5A5A5A" d="M11,4v7H4V4H11 M12,3H3v9h9V3L12,3z"/>
+<line style="fill:none;stroke:#C5C5C5;stroke-miterlimit:10" x1="10" y1="7.5" x2="5" y2="7.5"/>
+<line style="fill:none;stroke:#C5C5C5;stroke-miterlimit:10" x1="7.5" y1="5" x2="7.5" y2="10"/>
+</svg>

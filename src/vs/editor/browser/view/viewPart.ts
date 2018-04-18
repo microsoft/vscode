@@ -4,83 +4,78 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
+import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { FastDomNode } from 'vs/base/browser/fastDomNode';
 
-export interface IRunner {
-	(): void;
-}
+export abstract class ViewPart extends ViewEventHandler {
 
-export class ViewPart extends ViewEventHandler implements EditorBrowser.IViewPart {
+	_context: ViewContext;
 
-	_context:EditorBrowser.IViewContext;
-	private _modificationBeforeRenderingRunners:IRunner[];
-	private _modificationRunners:IRunner[];
-
-	constructor(context:EditorBrowser.IViewContext) {
+	constructor(context: ViewContext) {
 		super();
 		this._context = context;
 		this._context.addEventHandler(this);
-		this._modificationBeforeRenderingRunners = [];
-		this._modificationRunners = [];
 	}
 
 	public dispose(): void {
 		this._context.removeEventHandler(this);
 		this._context = null;
-		this._modificationBeforeRenderingRunners = [];
-		this._modificationRunners = [];
+		super.dispose();
 	}
 
-	/**
-	 * Modify the DOM right before when the orchestrated rendering occurs.
-	 */
-	_requestModificationFrameBeforeRendering(runner:IRunner): void {
-		this._modificationBeforeRenderingRunners.push(runner);
+	public abstract prepareRender(ctx: RenderingContext): void;
+	public abstract render(ctx: RestrictedRenderingContext): void;
+}
+
+export const enum PartFingerprint {
+	None,
+	ContentWidgets,
+	OverflowingContentWidgets,
+	OverflowGuard,
+	OverlayWidgets,
+	ScrollableElement,
+	TextArea,
+	ViewLines,
+	Minimap
+}
+
+export class PartFingerprints {
+
+	public static write(target: Element | FastDomNode<HTMLElement>, partId: PartFingerprint) {
+		if (target instanceof FastDomNode) {
+			target.setAttribute('data-mprt', String(partId));
+		} else {
+			target.setAttribute('data-mprt', String(partId));
+		}
 	}
 
-	/**
-	 * Modify the DOM when the orchestrated rendering occurs.
-	 */
-	_requestModificationFrame(runner:IRunner): void {
-		this._modificationRunners.push(runner);
+	public static read(target: Element): PartFingerprint {
+		let r = target.getAttribute('data-mprt');
+		if (r === null) {
+			return PartFingerprint.None;
+		}
+		return parseInt(r, 10);
 	}
 
-	public onBeforeForcedLayout(): void {
-		if (this._modificationBeforeRenderingRunners.length > 0) {
-			for (var i = 0; i < this._modificationBeforeRenderingRunners.length; i++) {
-				this._modificationBeforeRenderingRunners[i]();
+	public static collect(child: Element, stopAt: Element): Uint8Array {
+		let result: PartFingerprint[] = [], resultLen = 0;
+
+		while (child && child !== document.body) {
+			if (child === stopAt) {
+				break;
 			}
-			this._modificationBeforeRenderingRunners = [];
-		}
-	}
-
-	public onReadAfterForcedLayout(ctx:EditorBrowser.IRenderingContext): void {
-		if (!this.shouldRender) {
-			return;
-		}
-		this._render(ctx);
-	}
-
-	public onWriteAfterForcedLayout(): void {
-		if (!this.shouldRender) {
-			return;
-		}
-		this.shouldRender = false;
-
-		this._executeModificationRunners();
-	}
-
-	_executeModificationRunners(): void {
-		if (this._modificationRunners.length > 0) {
-			for (var i = 0; i < this._modificationRunners.length; i++) {
-				this._modificationRunners[i]();
+			if (child.nodeType === child.ELEMENT_NODE) {
+				result[resultLen++] = this.read(child);
 			}
-			this._modificationRunners = [];
+			child = child.parentElement;
 		}
-	}
 
-	_render(ctx:EditorBrowser.IRenderingContext): void {
-		throw new Error('Implement me!');
+		let r = new Uint8Array(resultLen);
+		for (let i = 0; i < resultLen; i++) {
+			r[i] = result[resultLen - i - 1];
+		}
+		return r;
 	}
 }

@@ -9,40 +9,15 @@
 }
 
 .monaco-findInput .monaco-inputbox {
-	font-family: "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
 	font-size: 13px;
 	width: 100%;
 	height: 25px;
-}
-
-.monaco-findInput .monaco-inputbox > .wrapper > .input {
-	outline: none;
-}
-
-.fl:after {
-	clear: both;
-	content: '';
-	display: block;
-	visibility: hidden;
-	height: 0;
 }
 
 .monaco-findInput > .controls {
 	position: absolute;
 	top: 3px;
 	right: 2px;
-}
-
-.vs .monaco-findInput > .controls > .custom-checkbox.case-sensitive {
-	background: url('case-sensitive.svg') center center no-repeat;
-}
-
-.vs .monaco-findInput > .controls > .custom-checkbox.whole-word {
-	background: url('whole-word.svg') center center no-repeat;
-}
-
-.vs .monaco-findInput > .controls > .custom-checkbox.regex {
-	background: url('regex.svg') center center no-repeat;
 }
 
 .vs .monaco-findInput.disabled {
@@ -54,27 +29,38 @@
 	background-color: #333;
 }
 
-.vs-dark .monaco-findInput > .controls > .custom-checkbox.case-sensitive {
-	background: url('case-sensitive-dark.svg') center center no-repeat;
+/* Highlighting */
+.monaco-findInput.highlight-0 .controls {
+	animation: monaco-findInput-highlight-0 100ms linear 0s;
+}
+.monaco-findInput.highlight-1 .controls {
+	animation: monaco-findInput-highlight-1 100ms linear 0s;
+}
+.hc-black .monaco-findInput.highlight-0 .controls,
+.vs-dark  .monaco-findInput.highlight-0 .controls {
+	animation: monaco-findInput-highlight-dark-0 100ms linear 0s;
+}
+.hc-black .monaco-findInput.highlight-1 .controls,
+.vs-dark  .monaco-findInput.highlight-1 .controls {
+	animation: monaco-findInput-highlight-dark-1 100ms linear 0s;
 }
 
-.vs-dark .monaco-findInput > .controls > .custom-checkbox.whole-word {
-	background: url('whole-word-dark.svg') center center no-repeat;
+@keyframes monaco-findInput-highlight-0 {
+	0% { background: rgba(253, 255, 0, 0.8); }
+	100% { background: transparent; }
+}
+@keyframes monaco-findInput-highlight-1 {
+	0% { background: rgba(253, 255, 0, 0.8); }
+	/* Made intentionally different such that the CSS minifier does not collapse the two animations into a single one*/
+	99% { background: transparent; }
 }
 
-.vs-dark .monaco-findInput > .controls > .custom-checkbox.regex {
-	background: url('regex-dark.svg') center center no-repeat;
+@keyframes monaco-findInput-highlight-dark-0 {
+	0% { background: rgba(255, 255, 255, 0.44); }
+	100% { background: transparent; }
 }
-
-/* High Contrast Theming */
-.hc-black .monaco-findInput > .controls > .custom-checkbox.case-sensitive:before {
-	content: url('case-sensitive-dark.svg');
-}
-
-.hc-black .monaco-findInput > .controls > .custom-checkbox.whole-word:before {
-	content: url('whole-word-dark.svg');
-}
-
-.hc-black .monaco-findInput > .controls > .custom-checkbox.regex:before {
-	content: url('regex-dark.svg');
+@keyframes monaco-findInput-highlight-dark-1 {
+	0% { background: rgba(255, 255, 255, 0.44); }
+	/* Made intentionally different such that the CSS minifier does not collapse the two animations into a single one*/
+	99% { background: transparent; }
 }

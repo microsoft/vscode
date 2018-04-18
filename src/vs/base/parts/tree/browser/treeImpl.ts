@@ -5,27 +5,32 @@
 'use strict';
 
 import 'vs/css!./tree';
-import WinJS = require('vs/base/common/winjs.base');
-import TreeDefaults = require('vs/base/parts/tree/browser/treeDefaults');
-import Events = require('vs/base/common/eventEmitter');
-import Model = require('vs/base/parts/tree/common/treeModel');
-import View = require('./treeView');
-import _ = require('vs/base/parts/tree/common/tree');
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as TreeDefaults from 'vs/base/parts/tree/browser/treeDefaults';
+import * as Model from 'vs/base/parts/tree/browser/treeModel';
+import * as View from './treeView';
+import * as _ from 'vs/base/parts/tree/browser/tree';
+import { INavigator, MappedNavigator } from 'vs/base/common/iterator';
+import { Event, Emitter, Relay } from 'vs/base/common/event';
+import { Color } from 'vs/base/common/color';
+import { mixin } from 'vs/base/common/objects';
 
 export class TreeContext implements _.ITreeContext {
 
-	public tree:_.ITree;
-	public configuration:_.ITreeConfiguration;
-	public options:_.ITreeOptions;
+	public tree: _.ITree;
+	public configuration: _.ITreeConfiguration;
+	public options: _.ITreeOptions;
 
-	public dataSource:_.IDataSource;
-	public renderer:_.IRenderer;
-	public controller:_.IController;
-	public dnd:_.IDragAndDrop;
-	public filter:_.IFilter;
-	public sorter:_.ISorter;
+	public dataSource: _.IDataSource;
+	public renderer: _.IRenderer;
+	public controller: _.IController;
+	public dnd: _.IDragAndDrop;
+	public filter: _.IFilter;
+	public sorter: _.ISorter;
+	public accessibilityProvider: _.IAccessibilityProvider;
+	public styler: _.ITreeStyler;
 
-	constructor(tree:_.ITree, configuration:_.ITreeConfiguration, options:_.ITreeOptions = {}) {
+	constructor(tree: _.ITree, configuration: _.ITreeConfiguration, options: _.ITreeOptions = {}) {
 		this.tree = tree;
 		this.configuration = configuration;
 		this.options = options;
@@ -35,37 +40,58 @@ export class TreeContext implements _.ITreeContext {
 		}
 
 		this.dataSource = configuration.dataSource;
-		this.renderer = configuration.renderer || new TreeDefaults.LegacyRenderer();
-		this.controller = configuration.controller || new TreeDefaults.DefaultController();
+		this.renderer = configuration.renderer;
+		this.controller = configuration.controller || new TreeDefaults.DefaultController({ clickBehavior: TreeDefaults.ClickBehavior.ON_MOUSE_UP, keyboardSupport: typeof options.keyboardSupport !== 'boolean' || options.keyboardSupport });
 		this.dnd = configuration.dnd || new TreeDefaults.DefaultDragAndDrop();
 		this.filter = configuration.filter || new TreeDefaults.DefaultFilter();
 		this.sorter = configuration.sorter || null;
+		this.accessibilityProvider = configuration.accessibilityProvider || new TreeDefaults.DefaultAccessibilityProvider();
+		this.styler = configuration.styler || null;
 	}
 }
 
-export class Tree extends Events.EventEmitter implements _.ITree {
+const defaultStyles: _.ITreeStyles = {
+	listFocusBackground: Color.fromHex('#073655'),
+	listActiveSelectionBackground: Color.fromHex('#0E639C'),
+	listActiveSelectionForeground: Color.fromHex('#FFFFFF'),
+	listFocusAndSelectionBackground: Color.fromHex('#094771'),
+	listFocusAndSelectionForeground: Color.fromHex('#FFFFFF'),
+	listInactiveSelectionBackground: Color.fromHex('#3F3F46'),
+	listHoverBackground: Color.fromHex('#2A2D2E'),
+	listDropBackground: Color.fromHex('#383B3D')
+};
 
-	private container:HTMLElement;
-	private configuration:_.ITreeConfiguration;
-	private options:_.ITreeOptions;
+export class Tree implements _.ITree {
 
-	private context:_.ITreeContext;
-	private model:Model.TreeModel;
-	private view:View.TreeView;
+	private container: HTMLElement;
 
-	constructor(container:HTMLElement, configuration:_.ITreeConfiguration, options:_.ITreeOptions = {}) {
-		super();
+	private context: _.ITreeContext;
+	private model: Model.TreeModel;
+	private view: View.TreeView;
 
+	private _onDidChangeFocus = new Relay<_.IFocusEvent>();
+	readonly onDidChangeFocus: Event<_.IFocusEvent> = this._onDidChangeFocus.event;
+	private _onDidChangeSelection = new Relay<_.ISelectionEvent>();
+	readonly onDidChangeSelection: Event<_.ISelectionEvent> = this._onDidChangeSelection.event;
+	private _onHighlightChange = new Relay<_.IHighlightEvent>();
+	readonly onDidChangeHighlight: Event<_.IHighlightEvent> = this._onHighlightChange.event;
+	private _onDidExpandItem = new Relay<Model.IItemExpandEvent>();
+	readonly onDidExpandItem: Event<Model.IItemExpandEvent> = this._onDidExpandItem.event;
+	private _onDidCollapseItem = new Relay<Model.IItemCollapseEvent>();
+	readonly onDidCollapseItem: Event<Model.IItemCollapseEvent> = this._onDidCollapseItem.event;
+	private _onDispose = new Emitter<void>();
+	readonly onDidDispose: Event<void> = this._onDispose.event;
+
+	constructor(container: HTMLElement, configuration: _.ITreeConfiguration, options: _.ITreeOptions = {}) {
 		this.container = container;
-		this.configuration = configuration;
-		this.options = options;
+		mixin(options, defaultStyles, false);
 
-		this.options.twistiePixels = typeof this.options.twistiePixels === 'number' ? this.options.twistiePixels : 32;
-		this.options.indentPixels = typeof this.options.indentPixels === 'number' ? this.options.indentPixels : 12;
-		this.options.alwaysFocused = this.options.alwaysFocused === true ? true : false;
-		this.options.bare = this.options.bare === true ? true : false;
-		this.options.useShadows = this.options.useShadows === false ? false : true;
-		this.options.paddingOnRow = this.options.paddingOnRow === false ? false : true;
+		options.twistiePixels = typeof options.twistiePixels === 'number' ? options.twistiePixels : 32;
+		options.showTwistie = options.showTwistie === false ? false : true;
+		options.indentPixels = typeof options.indentPixels === 'number' ? options.indentPixels : 12;
+		options.alwaysFocused = options.alwaysFocused === true ? true : false;
+		options.useShadows = options.useShadows === false ? false : true;
+		options.paddingOnRow = options.paddingOnRow === false ? false : true;
 
 		this.context = new TreeContext(this, configuration, options);
 		this.model = new Model.TreeModel(this.context);
@@ -73,19 +99,34 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 
 		this.view.setModel(this.model);
 
-		this.addEmitter(this.model);
-		this.addEmitter(this.view);
+		this._onDidChangeFocus.input = this.model.onDidFocus;
+		this._onDidChangeSelection.input = this.model.onDidSelect;
+		this._onHighlightChange.input = this.model.onDidHighlight;
+		this._onDidExpandItem.input = this.model.onDidExpandItem;
+		this._onDidCollapseItem.input = this.model.onDidCollapseItem;
+	}
+
+	public style(styles: _.ITreeStyles): void {
+		this.view.applyStyles(styles);
+	}
+
+	get onDidFocus(): Event<void> {
+		return this.view && this.view.onDOMFocus;
+	}
+
+	get onDidBlur(): Event<void> {
+		return this.view && this.view.onDOMBlur;
 	}
 
 	public getHTMLElement(): HTMLElement {
 		return this.view.getHTMLElement();
 	}
 
-	public layout(height?:number): void {
-		this.view.layout(height);
+	public layout(height?: number, width?: number): void {
+		this.view.layout(height, width);
 	}
 
-	public DOMFocus(): void {
+	public domFocus(): void {
 		this.view.focus();
 	}
 
@@ -93,7 +134,7 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		return this.view.isFocused();
 	}
 
-	public DOMBlur(): void {
+	public domBlur(): void {
 		this.view.blur();
 	}
 
@@ -105,7 +146,7 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		this.view.onHidden();
 	}
 
-	public setInput(element:any): WinJS.Promise {
+	public setInput(element: any): WinJS.Promise {
 		return this.model.setInput(element);
 	}
 
@@ -113,39 +154,44 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		return this.model.getInput();
 	}
 
-	public refresh(element:any = null, recursive = true): WinJS.Promise {
+	public refresh(element: any = null, recursive = true): WinJS.Promise {
 		return this.model.refresh(element, recursive);
 	}
 
-	public refreshAll(elements:any[], recursive = true): WinJS.Promise {
-		return this.model.refreshAll(elements, recursive);
+	public updateWidth(element: any): void {
+		let item = this.model.getItem(element);
+		return this.view.updateWidth(item);
 	}
 
-	public expand(element:any):WinJS.Promise {
+	public expand(element: any): WinJS.Promise {
 		return this.model.expand(element);
 	}
 
-	public expandAll(elements:any[]):WinJS.Promise {
+	public expandAll(elements: any[]): WinJS.Promise {
 		return this.model.expandAll(elements);
 	}
 
-	public collapse(element:any, recursive:boolean = false):WinJS.Promise {
-		return this.model.collapse(element);
+	public collapse(element: any, recursive: boolean = false): WinJS.Promise {
+		return this.model.collapse(element, recursive);
 	}
 
-	public collapseAll(elements:any[] = null, recursive:boolean = false):WinJS.Promise {
+	public collapseAll(elements: any[] = null, recursive: boolean = false): WinJS.Promise {
 		return this.model.collapseAll(elements, recursive);
 	}
 
-	public toggleExpansion(element:any):WinJS.Promise {
-		return this.model.toggleExpansion(element);
+	public collapseDeepestExpandedLevel(): WinJS.Promise {
+		return this.model.collapseDeepestExpandedLevel();
 	}
 
-	public toggleExpansionAll(elements:any[]):WinJS.Promise {
+	public toggleExpansion(element: any, recursive: boolean = false): WinJS.Promise {
+		return this.model.toggleExpansion(element, recursive);
+	}
+
+	public toggleExpansionAll(elements: any[]): WinJS.Promise {
 		return this.model.toggleExpansionAll(elements);
 	}
 
-	public isExpanded(element:any):boolean {
+	public isExpanded(element: any): boolean {
 		return this.model.isExpanded(element);
 	}
 
@@ -153,8 +199,13 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		return this.model.getExpandedElements();
 	}
 
-	public reveal(element:any, relativeTop:number = null): WinJS.Promise {
+	public reveal(element: any, relativeTop: number = null): WinJS.Promise {
 		return this.model.reveal(element, relativeTop);
+	}
+
+	public getRelativeTop(element: any): number {
+		let item = this.model.getItem(element);
+		return this.view.getRelativeTop(item);
 	}
 
 	public getScrollPosition(): number {
@@ -165,55 +216,59 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		this.view.setScrollPosition(pos);
 	}
 
-	public setHighlight(element?:any, eventPayload?:any):void {
+	getContentHeight(): number {
+		return this.view.getContentHeight();
+	}
+
+	public setHighlight(element?: any, eventPayload?: any): void {
 		this.model.setHighlight(element, eventPayload);
 	}
 
-	public getHighlight():any {
+	public getHighlight(): any {
 		return this.model.getHighlight();
 	}
 
-	public isHighlighted(element:any):boolean {
+	public isHighlighted(element: any): boolean {
 		return this.model.isFocused(element);
 	}
 
-	public clearHighlight(eventPayload?:any): void {
+	public clearHighlight(eventPayload?: any): void {
 		this.model.setHighlight(null, eventPayload);
 	}
 
-	public select(element:any, eventPayload?:any): void {
+	public select(element: any, eventPayload?: any): void {
 		this.model.select(element, eventPayload);
 	}
 
-	public selectRange(fromElement: any, toElement: any, eventPayload?:any): void {
+	public selectRange(fromElement: any, toElement: any, eventPayload?: any): void {
 		this.model.selectRange(fromElement, toElement, eventPayload);
 	}
 
-	public deselectRange(fromElement: any, toElement: any, eventPayload?:any): void {
+	public deselectRange(fromElement: any, toElement: any, eventPayload?: any): void {
 		this.model.deselectRange(fromElement, toElement, eventPayload);
 	}
 
-	public selectAll(elements:any[], eventPayload?:any): void {
+	public selectAll(elements: any[], eventPayload?: any): void {
 		this.model.selectAll(elements, eventPayload);
 	}
 
-	public deselect(element:any, eventPayload?:any): void {
+	public deselect(element: any, eventPayload?: any): void {
 		this.model.deselect(element, eventPayload);
 	}
 
-	public deselectAll(elements:any[], eventPayload?:any): void {
+	public deselectAll(elements: any[], eventPayload?: any): void {
 		this.model.deselectAll(elements, eventPayload);
 	}
 
-	public setSelection(elements:any[], eventPayload?:any): void {
+	public setSelection(elements: any[], eventPayload?: any): void {
 		this.model.setSelection(elements, eventPayload);
 	}
 
-	public toggleSelection(element:any, eventPayload?:any): void {
+	public toggleSelection(element: any, eventPayload?: any): void {
 		this.model.toggleSelection(element, eventPayload);
 	}
 
-	public isSelected(element:any):boolean {
+	public isSelected(element: any): boolean {
 		return this.model.isSelected(element);
 	}
 
@@ -221,27 +276,27 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		return this.model.getSelection();
 	}
 
-	public clearSelection(eventPayload?:any): void {
+	public clearSelection(eventPayload?: any): void {
 		this.model.setSelection([], eventPayload);
 	}
 
-	public selectNext(count?:number, clearSelection?: boolean, eventPayload?:any): void {
+	public selectNext(count?: number, clearSelection?: boolean, eventPayload?: any): void {
 		this.model.selectNext(count, clearSelection, eventPayload);
 	}
 
-	public selectPrevious(count?:number, clearSelection?: boolean, eventPayload?:any): void {
+	public selectPrevious(count?: number, clearSelection?: boolean, eventPayload?: any): void {
 		this.model.selectPrevious(count, clearSelection, eventPayload);
 	}
 
-	public selectParent(clearSelection?: boolean, eventPayload?:any): void {
+	public selectParent(clearSelection?: boolean, eventPayload?: any): void {
 		this.model.selectParent(clearSelection, eventPayload);
 	}
 
-	public setFocus(element?:any, eventPayload?:any): void {
+	public setFocus(element?: any, eventPayload?: any): void {
 		this.model.setFocus(element, eventPayload);
 	}
 
-	public isFocused(element:any):boolean {
+	public isFocused(element: any): boolean {
 		return this.model.isFocused(element);
 	}
 
@@ -249,43 +304,47 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		return this.model.getFocus();
 	}
 
-	public focusNext(count?:number, eventPayload?:any): void {
+	public focusNext(count?: number, eventPayload?: any): void {
 		this.model.focusNext(count, eventPayload);
 	}
 
-	public focusPrevious(count?:number, eventPayload?:any): void {
+	public focusPrevious(count?: number, eventPayload?: any): void {
 		this.model.focusPrevious(count, eventPayload);
 	}
 
-	public focusParent(eventPayload?:any): void {
+	public focusParent(eventPayload?: any): void {
 		this.model.focusParent(eventPayload);
 	}
 
-	public focusFirst(eventPayload?:any): void {
-		this.model.focusFirst(eventPayload);
+	public focusFirstChild(eventPayload?: any): void {
+		this.model.focusFirstChild(eventPayload);
 	}
 
-	public focusNth(index:number, eventPayload?:any): void {
+	public focusFirst(eventPayload?: any, from?: any): void {
+		this.model.focusFirst(eventPayload, from);
+	}
+
+	public focusNth(index: number, eventPayload?: any): void {
 		this.model.focusNth(index, eventPayload);
 	}
 
-	public focusLast(eventPayload?:any): void {
-		this.model.focusLast(eventPayload);
+	public focusLast(eventPayload?: any, from?: any): void {
+		this.model.focusLast(eventPayload, from);
 	}
 
-	public focusNextPage(eventPayload?:any): void {
+	public focusNextPage(eventPayload?: any): void {
 		this.view.focusNextPage(eventPayload);
 	}
 
-	public focusPreviousPage(eventPayload?:any): void {
+	public focusPreviousPage(eventPayload?: any): void {
 		this.view.focusPreviousPage(eventPayload);
 	}
 
-	public clearFocus(eventPayload?:any): void {
+	public clearFocus(eventPayload?: any): void {
 		this.model.setFocus(null, eventPayload);
 	}
 
-	public addTraits(trait:string, elements: any[]): void {
+	public addTraits(trait: string, elements: any[]): void {
 		this.model.addTraits(trait, elements);
 	}
 
@@ -302,11 +361,13 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		return this.model.hasTrait(trait, element);
 	}
 
-	public withFakeRow(fn:(container:HTMLElement)=>any):any {
-		return this.view.withFakeRow(fn);
+	getNavigator(fromElement?: any, subTreeOnly?: boolean): INavigator<any> {
+		return new MappedNavigator(this.model.getNavigator(fromElement, subTreeOnly), i => i && i.getElement());
 	}
 
 	public dispose(): void {
+		this._onDispose.fire();
+
 		if (this.model !== null) {
 			this.model.dispose();
 			this.model = null;
@@ -316,6 +377,11 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 			this.view = null;
 		}
 
-		super.dispose();
+		this._onDidChangeFocus.dispose();
+		this._onDidChangeSelection.dispose();
+		this._onHighlightChange.dispose();
+		this._onDidExpandItem.dispose();
+		this._onDidCollapseItem.dispose();
+		this._onDispose.dispose();
 	}
 }

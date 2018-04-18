@@ -4,497 +4,591 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IEmitterEvent} from 'vs/base/common/eventEmitter';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
-import {MirrorModel} from 'vs/editor/common/model/mirrorModel';
-import {Range} from 'vs/editor/common/core/range';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import {IResourceService} from 'vs/editor/common/services/resourceService';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {Remotable, IThreadService, ThreadAffinity, IThreadSynchronizableObject} from 'vs/platform/thread/common/thread';
-import {AllWorkersAttr} from 'vs/platform/thread/common/threadService';
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
-import {EventSource} from 'vs/base/common/eventSource';
+import * as nls from 'vs/nls';
+import * as network from 'vs/base/common/network';
+import { Event, Emitter } from 'vs/base/common/event';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
-import {URL} from 'vs/base/common/network';
-import Severity from 'vs/base/common/severity';
-import {EventProvider} from 'vs/base/common/eventProvider';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {TPromise} from 'vs/base/common/winjs.base';
-import Errors = require('vs/base/common/errors');
-import {anonymize} from 'vs/platform/telemetry/common/telemetry';
-import {Model} from 'vs/editor/common/model/model';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IMarker, IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { Range } from 'vs/editor/common/core/range';
+import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
+import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import * as platform from 'vs/base/common/platform';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
+import { IModelLanguageChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { ClassName } from 'vs/editor/common/model/intervalTree';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { themeColorFromId, ThemeColor } from 'vs/platform/theme/common/themeService';
+import { overviewRulerWarning, overviewRulerError, overviewRulerInfo } from 'vs/editor/common/view/editorColorRegistry';
+import { ITextModel, IModelDeltaDecoration, IModelDecorationOptions, TrackedRangeStickiness, OverviewRulerLane, DefaultEndOfLine, ITextModelCreationOptions, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextBufferFactory, ITextBuffer, EndOfLinePreference } from 'vs/editor/common/model';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { basename } from 'vs/base/common/paths';
 
-export interface IRawModelData {
-	url:URL;
-	versionId:number;
-	value:EditorCommon.IRawText;
-	properties:any;
-	modeId:string;
+function MODEL_ID(resource: URI): string {
+	return resource.toString();
 }
 
-class BoundModel implements IDisposable {
+class ModelData implements IDisposable {
+	model: ITextModel;
 
-	model:EditorCommon.IModel;
-	toUnbind:Function;
-	private _decorationIds: string[];
+	private _markerDecorations: string[];
+	private _modelEventListeners: IDisposable[];
 
-	constructor(model:EditorCommon.IModel) {
+	constructor(
+		model: ITextModel,
+		onWillDispose: (model: ITextModel) => void,
+		onDidChangeLanguage: (model: ITextModel, e: IModelLanguageChangedEvent) => void
+	) {
 		this.model = model;
-		this.toUnbind = null;
+
+		this._markerDecorations = [];
+
+		this._modelEventListeners = [];
+		this._modelEventListeners.push(model.onWillDispose(() => onWillDispose(model)));
+		this._modelEventListeners.push(model.onDidChangeLanguage((e) => onDidChangeLanguage(model, e)));
 	}
 
 	public dispose(): void {
-
-		this._decorationIds = this.model.deltaDecorations(this._decorationIds, []);
+		this._markerDecorations = this.model.deltaDecorations(this._markerDecorations, []);
+		this._modelEventListeners = dispose(this._modelEventListeners);
 		this.model = null;
-
-		if (this.toUnbind) {
-			this.toUnbind();
-			this.toUnbind = null;
-		}
 	}
 
-	public deltaMarkers(markers:IMarker[]):void {
+	public acceptMarkerDecorations(newDecorations: IModelDeltaDecoration[]): void {
+		this._markerDecorations = this.model.deltaDecorations(this._markerDecorations, newDecorations);
+	}
+}
+
+class ModelMarkerHandler {
+
+	public static setMarkers(modelData: ModelData, markerService: IMarkerService): void {
 
 		// Limit to the first 500 errors/warnings
-		markers = markers.slice(0, 500);
+		const markers = markerService.read({ resource: modelData.model.uri, take: 500 });
 
-		var newModelDecorations = markers.map(marker => {
-			return <EditorCommon.IModelDeltaDecoration> {
-				range: this._createDecorationRange(marker),
+		let newModelDecorations: IModelDeltaDecoration[] = markers.map((marker) => {
+			return {
+				range: this._createDecorationRange(modelData.model, marker),
 				options: this._createDecorationOption(marker)
 			};
 		});
-		this._decorationIds = this.model.deltaDecorations(this._decorationIds, newModelDecorations);
+
+		modelData.acceptMarkerDecorations(newModelDecorations);
 	}
 
-	private _createDecorationRange(rawMarker: IMarker): EditorCommon.IRange {
-		var marker = this.model.validateRange(new Range(rawMarker.startLineNumber, rawMarker.startColumn, rawMarker.endLineNumber, rawMarker.endColumn));
-		var ret: EditorCommon.IEditorRange = new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn);
+	private static _createDecorationRange(model: ITextModel, rawMarker: IMarker): Range {
+
+		let ret = Range.lift(rawMarker);
+
+		if (rawMarker.severity === MarkerSeverity.Hint && Range.spansMultipleLines(ret)) {
+			// never render hints on multiple lines
+			ret = ret.setEndPosition(ret.startLineNumber, ret.startColumn);
+		}
+
+		ret = model.validateRange(ret);
+
 		if (ret.isEmpty()) {
-			var word = this.model.getWordAtPosition(ret.getStartPosition());
+			let word = model.getWordAtPosition(ret.getStartPosition());
 			if (word) {
-				ret.startColumn = word.startColumn;
-				ret.endColumn = word.endColumn;
+				ret = new Range(ret.startLineNumber, word.startColumn, ret.endLineNumber, word.endColumn);
 			} else {
-				var maxColumn = this.model.getLineLastNonWhitespaceColumn(marker.startLineNumber) ||
-					this.model.getLineMaxColumn(marker.startLineNumber);
+				let maxColumn = model.getLineLastNonWhitespaceColumn(ret.startLineNumber) ||
+					model.getLineMaxColumn(ret.startLineNumber);
 
 				if (maxColumn === 1) {
 					// empty line
-//					console.warn('marker on empty line:', marker);
+					// console.warn('marker on empty line:', marker);
 				} else if (ret.endColumn >= maxColumn) {
 					// behind eol
-					ret.endColumn = maxColumn;
-					ret.startColumn = maxColumn - 1;
+					ret = new Range(ret.startLineNumber, maxColumn - 1, ret.endLineNumber, maxColumn);
 				} else {
 					// extend marker to width = 1
-					ret.endColumn += 1;
+					ret = new Range(ret.startLineNumber, ret.startColumn, ret.endLineNumber, ret.endColumn + 1);
 				}
 			}
 		} else if (rawMarker.endColumn === Number.MAX_VALUE && rawMarker.startColumn === 1 && ret.startLineNumber === ret.endLineNumber) {
-			var minColumn = this.model.getLineFirstNonWhitespaceColumn(rawMarker.startLineNumber);
+			let minColumn = model.getLineFirstNonWhitespaceColumn(rawMarker.startLineNumber);
 			if (minColumn < ret.endColumn) {
-				ret.startColumn = minColumn;
+				ret = new Range(ret.startLineNumber, minColumn, ret.endLineNumber, ret.endColumn);
 				rawMarker.startColumn = minColumn;
 			}
 		}
 		return ret;
 	}
 
-	private _createDecorationOption(marker:IMarker): EditorCommon.IModelDecorationOptions {
+	private static _createDecorationOption(marker: IMarker): IModelDecorationOptions {
 
 		let className: string;
-		let color: string;
-		let darkColor: string;
-		let htmlMessage: IHTMLContentElement[] = null;
+		let color: ThemeColor;
+		let darkColor: ThemeColor;
+		let zIndex: number;
 
 		switch (marker.severity) {
-			case Severity.Ignore:
-				// do something
+			case MarkerSeverity.Hint:
+				className = ClassName.EditorHintDecoration;
+				zIndex = 0;
 				break;
-			case Severity.Warning:
-			case Severity.Info:
-				className = EditorCommon.ClassName.EditorWarningDecoration;
-				color = 'rgba(18,136,18,0.7)';
-				darkColor = 'rgba(18,136,18,0.7)';
+			case MarkerSeverity.Warning:
+				className = ClassName.EditorWarningDecoration;
+				color = themeColorFromId(overviewRulerWarning);
+				darkColor = themeColorFromId(overviewRulerWarning);
+				zIndex = 20;
 				break;
-			case Severity.Error:
+			case MarkerSeverity.Info:
+				className = ClassName.EditorInfoDecoration;
+				color = themeColorFromId(overviewRulerInfo);
+				darkColor = themeColorFromId(overviewRulerInfo);
+				zIndex = 10;
+				break;
+			case MarkerSeverity.Error:
 			default:
-				className = EditorCommon.ClassName.EditorErrorDecoration;
-				color = 'rgba(255,18,18,0.7)';
-				darkColor = 'rgba(255,18,18,0.7)';
+				className = ClassName.EditorErrorDecoration;
+				color = themeColorFromId(overviewRulerError);
+				darkColor = themeColorFromId(overviewRulerError);
+				zIndex = 30;
 				break;
 		}
 
-		if (typeof marker.message === 'string') {
-			htmlMessage = [{ isText: true, text: marker.message }];
-		} else if (Array.isArray(marker.message)) {
-			htmlMessage = <IHTMLContentElement[]><any>marker.message;
-		} else if (marker.message) {
-			htmlMessage = [marker.message];
+		let hoverMessage: MarkdownString = null;
+		let { message, source, relatedInformation } = marker;
+
+		if (typeof message === 'string') {
+			message = message.trim();
+
+			if (source) {
+				if (/\n/g.test(message)) {
+					message = nls.localize('diagAndSourceMultiline', "[{0}]\n{1}", source, message);
+				} else {
+					message = nls.localize('diagAndSource', "[{0}] {1}", source, message);
+				}
+			}
+
+			hoverMessage = new MarkdownString().appendCodeblock('_', message);
+
+			if (!isFalsyOrEmpty(relatedInformation)) {
+				hoverMessage.appendMarkdown('\n');
+				for (const { message, resource, startLineNumber, startColumn } of relatedInformation) {
+					hoverMessage.appendMarkdown(
+						`* [${basename(resource.path)}(${startLineNumber}, ${startColumn})](${resource.toString(false)}#${startLineNumber},${startColumn}): \`${message}\` \n`
+					);
+				}
+				hoverMessage.appendMarkdown('\n');
+			}
 		}
 
 		return {
-			stickiness: EditorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 			className,
-			htmlMessage: htmlMessage,
+			hoverMessage,
+			showIfCollapsed: true,
 			overviewRuler: {
 				color,
 				darkColor,
-				position: EditorCommon.OverviewRulerLane.Right
-			}
+				position: OverviewRulerLane.Right
+			},
+			zIndex
 		};
 	}
 }
 
-export interface IModelsEvents {
-	[url:string]: any[];
+interface IRawConfig {
+	files?: {
+		eol?: any;
+	};
+	editor?: {
+		tabSize?: any;
+		insertSpaces?: any;
+		detectIndentation?: any;
+		trimAutoWhitespace?: any;
+		largeFileSize?: any;
+		largeFileLineCount?: any;
+	};
 }
 
-export class ModelServiceImpl implements IModelService {
-	public serviceId = IModelService;
+const DEFAULT_EOL = (platform.isLinux || platform.isMacintosh) ? DefaultEndOfLine.LF : DefaultEndOfLine.CRLF;
 
-	private _models: {[modelId:string]:BoundModel;};
+export class ModelServiceImpl implements IModelService {
+	public _serviceBrand: any;
+
 	private _markerService: IMarkerService;
 	private _markerServiceSubscription: IDisposable;
-	private _threadService: IThreadService;
-	private _workerHelper: ModelServiceWorkerHelper;
+	private _configurationService: IConfigurationService;
+	private _configurationServiceSubscription: IDisposable;
 
-	private _onModelAdded: EventSource<(model: EditorCommon.IModel) => void>;
-	private _onModelRemoved: EventSource<(model: EditorCommon.IModel) => void>;
-	private _onModelModeChanged: EventSource<(model: EditorCommon.IModel, oldModeId:string) => void>;
-	private _accumulatedModelEvents: IModelsEvents;
-	private _lastSentModelEventsTime: number;
-	private _sendModelEventsTimerId: number;
+	private readonly _onModelAdded: Emitter<ITextModel>;
+	private readonly _onModelRemoved: Emitter<ITextModel>;
+	private readonly _onModelModeChanged: Emitter<{ model: ITextModel; oldModeId: string; }>;
 
-	constructor(threadService: IThreadService, markerService: IMarkerService) {
-		this._threadService = threadService;
+	private _modelCreationOptionsByLanguageAndResource: {
+		[languageAndResource: string]: ITextModelCreationOptions;
+	};
+
+	/**
+	 * All the models known in the system.
+	 */
+	private _models: { [modelId: string]: ModelData; };
+
+	constructor(
+		@IMarkerService markerService: IMarkerService,
+		@IConfigurationService configurationService: IConfigurationService,
+	) {
 		this._markerService = markerService;
-		this._workerHelper = this._threadService.getRemotable(ModelServiceWorkerHelper);
-
+		this._configurationService = configurationService;
 		this._models = {};
+		this._modelCreationOptionsByLanguageAndResource = Object.create(null);
+		this._onModelAdded = new Emitter<ITextModel>();
+		this._onModelRemoved = new Emitter<ITextModel>();
+		this._onModelModeChanged = new Emitter<{ model: ITextModel; oldModeId: string; }>();
 
-		this._onModelAdded = new EventSource<(model: EditorCommon.IModel) => void>();
-		this._onModelRemoved = new EventSource<(model: EditorCommon.IModel) => void>();
-		this._onModelModeChanged = new EventSource<(model: EditorCommon.IModel, oldModeId:string) => void>();
-
-		if(this._markerService) {
+		if (this._markerService) {
 			this._markerServiceSubscription = this._markerService.onMarkerChanged(this._handleMarkerChange, this);
 		}
 
-		this._accumulatedModelEvents = {};
-		this._lastSentModelEventsTime = -1;
-		this._sendModelEventsTimerId = -1;
+		this._configurationServiceSubscription = this._configurationService.onDidChangeConfiguration(e => this._updateModelOptions());
+		this._updateModelOptions();
+	}
+
+	private static _readModelOptions(config: IRawConfig, isForSimpleWidget: boolean): ITextModelCreationOptions {
+		let tabSize = EDITOR_MODEL_DEFAULTS.tabSize;
+		if (config.editor && typeof config.editor.tabSize !== 'undefined') {
+			let parsedTabSize = parseInt(config.editor.tabSize, 10);
+			if (!isNaN(parsedTabSize)) {
+				tabSize = parsedTabSize;
+			}
+		}
+
+		let insertSpaces = EDITOR_MODEL_DEFAULTS.insertSpaces;
+		if (config.editor && typeof config.editor.insertSpaces !== 'undefined') {
+			insertSpaces = (config.editor.insertSpaces === 'false' ? false : Boolean(config.editor.insertSpaces));
+		}
+
+		let newDefaultEOL = DEFAULT_EOL;
+		const eol = config.files && config.files.eol;
+		if (eol === '\r\n') {
+			newDefaultEOL = DefaultEndOfLine.CRLF;
+		} else if (eol === '\n') {
+			newDefaultEOL = DefaultEndOfLine.LF;
+		}
+
+		let trimAutoWhitespace = EDITOR_MODEL_DEFAULTS.trimAutoWhitespace;
+		if (config.editor && typeof config.editor.trimAutoWhitespace !== 'undefined') {
+			trimAutoWhitespace = (config.editor.trimAutoWhitespace === 'false' ? false : Boolean(config.editor.trimAutoWhitespace));
+		}
+
+		let detectIndentation = EDITOR_MODEL_DEFAULTS.detectIndentation;
+		if (config.editor && typeof config.editor.detectIndentation !== 'undefined') {
+			detectIndentation = (config.editor.detectIndentation === 'false' ? false : Boolean(config.editor.detectIndentation));
+		}
+
+		let largeFileSize = EDITOR_MODEL_DEFAULTS.largeFileSize;
+		if (config.editor && typeof config.editor.largeFileSize !== 'undefined') {
+			let parsedlargeFileSize = parseInt(config.editor.largeFileSize, 10);
+			if (!isNaN(parsedlargeFileSize)) {
+				largeFileSize = parsedlargeFileSize;
+			}
+		}
+
+		let largeFileLineCount = EDITOR_MODEL_DEFAULTS.largeFileLineCount;
+		if (config.editor && typeof config.editor.largeFileLineCount !== 'undefined') {
+			let parsedlargeFileLineCount = parseInt(config.editor.largeFileLineCount, 10);
+			if (!isNaN(parsedlargeFileLineCount)) {
+				largeFileLineCount = parsedlargeFileLineCount;
+			}
+		}
+
+		return {
+			isForSimpleWidget: isForSimpleWidget,
+			tabSize: tabSize,
+			insertSpaces: insertSpaces,
+			detectIndentation: detectIndentation,
+			defaultEOL: newDefaultEOL,
+			trimAutoWhitespace: trimAutoWhitespace,
+			largeFileSize: largeFileSize,
+			largeFileLineCount: largeFileLineCount
+		};
+	}
+
+	public getCreationOptions(language: string, resource: URI, isForSimpleWidget: boolean): ITextModelCreationOptions {
+		let creationOptions = this._modelCreationOptionsByLanguageAndResource[language + resource];
+		if (!creationOptions) {
+			creationOptions = ModelServiceImpl._readModelOptions(this._configurationService.getValue({ overrideIdentifier: language, resource }), isForSimpleWidget);
+			this._modelCreationOptionsByLanguageAndResource[language + resource] = creationOptions;
+		}
+		return creationOptions;
+	}
+
+	private _updateModelOptions(): void {
+		let oldOptionsByLanguageAndResource = this._modelCreationOptionsByLanguageAndResource;
+		this._modelCreationOptionsByLanguageAndResource = Object.create(null);
+
+		// Update options on all models
+		let keys = Object.keys(this._models);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let modelId = keys[i];
+			let modelData = this._models[modelId];
+			const language = modelData.model.getLanguageIdentifier().language;
+			const uri = modelData.model.uri;
+			const oldOptions = oldOptionsByLanguageAndResource[language + uri];
+			const newOptions = this.getCreationOptions(language, uri, modelData.model.isForSimpleWidget);
+			ModelServiceImpl._setModelOptionsForModel(modelData.model, newOptions, oldOptions);
+		}
+	}
+
+	private static _setModelOptionsForModel(model: ITextModel, newOptions: ITextModelCreationOptions, currentOptions: ITextModelCreationOptions): void {
+		if (currentOptions
+			&& (currentOptions.detectIndentation === newOptions.detectIndentation)
+			&& (currentOptions.insertSpaces === newOptions.insertSpaces)
+			&& (currentOptions.tabSize === newOptions.tabSize)
+			&& (currentOptions.trimAutoWhitespace === newOptions.trimAutoWhitespace)
+		) {
+			// Same indent opts, no need to touch the model
+			return;
+		}
+
+		if (newOptions.detectIndentation) {
+			model.detectIndentation(newOptions.insertSpaces, newOptions.tabSize);
+			model.updateOptions({
+				trimAutoWhitespace: newOptions.trimAutoWhitespace
+			});
+		} else {
+			model.updateOptions({
+				insertSpaces: newOptions.insertSpaces,
+				tabSize: newOptions.tabSize,
+				trimAutoWhitespace: newOptions.trimAutoWhitespace
+			});
+		}
 	}
 
 	public dispose(): void {
-		if(this._markerServiceSubscription) {
+		if (this._markerServiceSubscription) {
 			this._markerServiceSubscription.dispose();
 		}
-		if (this._sendModelEventsTimerId !== -1) {
-			clearTimeout(this._sendModelEventsTimerId);
-			this._sendModelEventsTimerId = -1;
-		}
-	}
-
-	private _sendModelEvents(url:URL, events:any[]): void {
-		let modelId = url.toString();
-		this._accumulatedModelEvents[modelId] = this._accumulatedModelEvents[modelId] || [];
-		this._accumulatedModelEvents[modelId] = this._accumulatedModelEvents[modelId].concat(events);
-
-		this._sendModelEventsNow();
-		// this._scheduleSendModelEvents();
-	}
-
-	// private _scheduleSendModelEvents(): void {
-	// 	if (this._sendModelEventsTimerId !== -1) {
-	// 		// sending model events already scheduled
-	// 		return;
-	// 	}
-
-	// 	let elapsed = Date.now() - this._lastSentModelEventsTime;
-	// 	if (elapsed >= 100) {
-	// 		// more than 100ms have passed since last model events have been sent => send events now
-	// 		this._sendModelEventsNow();
-	// 	} else {
-	// 		this._sendModelEventsTimerId = setTimeout(() => {
-	// 			this._sendModelEventsTimerId = -1;
-	// 			this._sendModelEventsNow();
-	// 		}, 100 - elapsed);
-	// 	}
-	// }
-
-	private _sendModelEventsNow(): void {
-		this._lastSentModelEventsTime = Date.now();
-
-		let sendingEvents = this._accumulatedModelEvents;
-		this._accumulatedModelEvents = {};
-		this._workerHelper.$onModelsEvents(sendingEvents);
+		this._configurationServiceSubscription.dispose();
 	}
 
 	private _handleMarkerChange(changedResources: URI[]): void {
-
-		changedResources.forEach(resource => {
-			var boundModel = this._models[resource.toString()];
-			if (!boundModel) {
+		changedResources.forEach((resource) => {
+			let modelId = MODEL_ID(resource);
+			let modelData = this._models[modelId];
+			if (!modelData) {
 				return;
 			}
-			boundModel.deltaMarkers(this._markerService.read({ resource: resource, take: 500 }));
+			ModelMarkerHandler.setMarkers(modelData, this._markerService);
 		});
+	}
+
+	private _cleanUp(model: ITextModel): void {
+		// clean up markers for internal, transient models
+		if (model.uri.scheme === network.Schemas.inMemory
+			|| model.uri.scheme === network.Schemas.internal
+			|| model.uri.scheme === network.Schemas.vscode) {
+			if (this._markerService) {
+				this._markerService.read({ resource: model.uri }).map(marker => marker.owner).forEach(owner => this._markerService.remove(owner, [model.uri]));
+			}
+		}
+
+		// clean up cache
+		delete this._modelCreationOptionsByLanguageAndResource[model.getLanguageIdentifier().language + model.uri];
 	}
 
 	// --- begin IModelService
 
-	public createModel(value:string, modeOrPromise:TPromise<Modes.IMode>|Modes.IMode, resource: URL): EditorCommon.IModel {
-		var model = new Model(value, modeOrPromise, resource);
-		this.addModel(model);
-		return model;
-	}
-
-	public addModel(model:EditorCommon.IModel): void {
-		var modelId = model.getAssociatedResource().toString();
+	private _createModelData(value: string | ITextBufferFactory, languageIdentifier: LanguageIdentifier, resource: URI, isForSimpleWidget: boolean): ModelData {
+		// create & save the model
+		const options = this.getCreationOptions(languageIdentifier.language, resource, isForSimpleWidget);
+		const model: TextModel = new TextModel(value, options, languageIdentifier, resource);
+		const modelId = MODEL_ID(model.uri);
 
 		if (this._models[modelId]) {
 			// There already exists a model with this id => this is a programmer error
-			throw new Error('BoundModels: Cannot add model ' + anonymize(modelId) + ' because it already exists!');
+			throw new Error('ModelService: Cannot add model because it already exists!');
 		}
 
-		var boundModel = new BoundModel(model);
+		const modelData = new ModelData(
+			model,
+			(model) => this._onWillDispose(model),
+			(model, e) => this._onDidChangeLanguage(model, e)
+		);
+		this._models[modelId] = modelData;
 
-		boundModel.toUnbind = model.addBulkListener((events) => this._onModelEvents(modelId, events));
-		if(this._markerService) {
-			boundModel.deltaMarkers(this._markerService.read({ resource: model.getAssociatedResource() }));
-		}
-		this._models[modelId] = boundModel;
-
-		// Create model in workers
-		this._workerHelper.$createModel(ModelServiceImpl._getBoundModelData(model));
-		this._onModelAdded.fire(model);
+		return modelData;
 	}
 
-	public removeModel(model:EditorCommon.IModel): void {
-		var modelId = model.getAssociatedResource().toString();
+	public updateModel(model: ITextModel, value: string | ITextBufferFactory): void {
+		const options = this.getCreationOptions(model.getLanguageIdentifier().language, model.uri, model.isForSimpleWidget);
+		const textBuffer = createTextBuffer(value, options.defaultEOL);
 
-		if (this._accumulatedModelEvents[modelId]) {
-			delete this._accumulatedModelEvents[modelId];
+		// Return early if the text is already set in that form
+		if (model.equalsTextBuffer(textBuffer)) {
+			return;
 		}
 
-		if (!this._models[modelId]) {
-			// There is no model with this id => this is a programmer error
-			throw new Error('BoundModels: Cannot remove model ' + anonymize(modelId) + ' because it doesn\'t exist!');
+		// Otherwise find a diff between the values and update model
+		model.pushStackElement();
+		model.setEOL(textBuffer.getEOL() === '\r\n' ? EndOfLineSequence.CRLF : EndOfLineSequence.LF);
+		model.pushEditOperations(
+			[],
+			ModelServiceImpl._computeEdits(model, textBuffer),
+			(inverseEditOperations: IIdentifiedSingleEditOperation[]) => []
+		);
+		model.pushStackElement();
+	}
+
+	private static _commonPrefix(a: ILineSequence, aLen: number, aDelta: number, b: ILineSequence, bLen: number, bDelta: number): number {
+		const maxResult = Math.min(aLen, bLen);
+
+		let result = 0;
+		for (let i = 0; i < maxResult && a.getLineContent(aDelta + i) === b.getLineContent(bDelta + i); i++) {
+			result++;
+		}
+		return result;
+	}
+
+	private static _commonSuffix(a: ILineSequence, aLen: number, aDelta: number, b: ILineSequence, bLen: number, bDelta: number): number {
+		const maxResult = Math.min(aLen, bLen);
+
+		let result = 0;
+		for (let i = 0; i < maxResult && a.getLineContent(aDelta + aLen - i) === b.getLineContent(bDelta + bLen - i); i++) {
+			result++;
+		}
+		return result;
+	}
+
+	/**
+	 * Compute edits to bring `model` to the state of `textSource`.
+	 */
+	public static _computeEdits(model: ITextModel, textBuffer: ITextBuffer): IIdentifiedSingleEditOperation[] {
+		const modelLineCount = model.getLineCount();
+		const textBufferLineCount = textBuffer.getLineCount();
+		const commonPrefix = this._commonPrefix(model, modelLineCount, 1, textBuffer, textBufferLineCount, 1);
+
+		if (modelLineCount === textBufferLineCount && commonPrefix === modelLineCount) {
+			// equality case
+			return [];
 		}
 
-		// Dispose model in workers
-		this._workerHelper.$disposeModel(model.getAssociatedResource());
-		// this._modelDispose(model.getAssociatedResource());
-		this._models[modelId].dispose();
+		const commonSuffix = this._commonSuffix(model, modelLineCount - commonPrefix, commonPrefix, textBuffer, textBufferLineCount - commonPrefix, commonPrefix);
 
-		delete this._models[modelId];
+		let oldRange: Range, newRange: Range;
+		if (commonSuffix > 0) {
+			oldRange = new Range(commonPrefix + 1, 1, modelLineCount - commonSuffix + 1, 1);
+			newRange = new Range(commonPrefix + 1, 1, textBufferLineCount - commonSuffix + 1, 1);
+		} else if (commonPrefix > 0) {
+			oldRange = new Range(commonPrefix, model.getLineMaxColumn(commonPrefix), modelLineCount, model.getLineMaxColumn(modelLineCount));
+			newRange = new Range(commonPrefix, 1 + textBuffer.getLineLength(commonPrefix), textBufferLineCount, 1 + textBuffer.getLineLength(textBufferLineCount));
+		} else {
+			oldRange = new Range(1, 1, modelLineCount, model.getLineMaxColumn(modelLineCount));
+			newRange = new Range(1, 1, textBufferLineCount, 1 + textBuffer.getLineLength(textBufferLineCount));
+		}
 
+		return [EditOperation.replaceMove(oldRange, textBuffer.getValueInRange(newRange, EndOfLinePreference.TextDefined))];
+	}
+
+	public createModel(value: string | ITextBufferFactory, modeOrPromise: TPromise<IMode> | IMode, resource: URI, isForSimpleWidget: boolean = false): ITextModel {
+		let modelData: ModelData;
+
+		if (!modeOrPromise || TPromise.is(modeOrPromise)) {
+			modelData = this._createModelData(value, PLAINTEXT_LANGUAGE_IDENTIFIER, resource, isForSimpleWidget);
+			this.setMode(modelData.model, modeOrPromise);
+		} else {
+			modelData = this._createModelData(value, modeOrPromise.getLanguageIdentifier(), resource, isForSimpleWidget);
+		}
+
+		// handle markers (marker service => model)
 		if (this._markerService) {
-			var markers = this._markerService.read({ resource: model.getAssociatedResource() }),
-				owners: { [o: string]: any } = Object.create(null);
-
-			markers.forEach(marker => owners[marker.owner] = this);
-			Object.keys(owners).forEach(owner => this._markerService.changeOne(owner, model.getAssociatedResource(), []));
+			ModelMarkerHandler.setMarkers(modelData, this._markerService);
 		}
 
-		this._onModelRemoved.fire(model);
+		this._onModelAdded.fire(modelData.model);
+
+		return modelData.model;
 	}
 
-	public destroyModel(resource: URL): void {
-		let model = this.getModel(resource);
-		if (model) {
-			model.destroy();
+	public setMode(model: ITextModel, modeOrPromise: TPromise<IMode> | IMode): void {
+		if (!modeOrPromise) {
+			return;
+		}
+		if (TPromise.is(modeOrPromise)) {
+			modeOrPromise.then((mode) => {
+				if (!model.isDisposed()) {
+					model.setMode(mode.getLanguageIdentifier());
+				}
+			});
+		} else {
+			model.setMode(modeOrPromise.getLanguageIdentifier());
 		}
 	}
 
-	public getModels(): EditorCommon.IModel[] {
-		var ret: EditorCommon.IModel[] = [];
-		for (var modelId in this._models) {
-			if (this._models.hasOwnProperty(modelId)) {
-				ret.push(this._models[modelId].model);
-			}
+	public destroyModel(resource: URI): void {
+		// We need to support that not all models get disposed through this service (i.e. model.dispose() should work!)
+		let modelData = this._models[MODEL_ID(resource)];
+		if (!modelData) {
+			return;
 		}
+		modelData.model.dispose();
+	}
+
+	public getModels(): ITextModel[] {
+		let ret: ITextModel[] = [];
+
+		let keys = Object.keys(this._models);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let modelId = keys[i];
+			ret.push(this._models[modelId].model);
+		}
+
 		return ret;
 	}
 
-	public getModel(resource: URL): EditorCommon.IModel {
-		var boundModel = this._models[resource.toString()];
-		if (boundModel) {
-			return boundModel.model;
+	public getModel(resource: URI): ITextModel {
+		let modelId = MODEL_ID(resource);
+		let modelData = this._models[modelId];
+		if (!modelData) {
+			return null;
 		}
-		return null;
+		return modelData.model;
 	}
 
-	public get onModelAdded(): EventProvider<(model:EditorCommon.IModel)=>void> {
-		return this._onModelAdded ? this._onModelAdded.value : null;
+	public get onModelAdded(): Event<ITextModel> {
+		return this._onModelAdded ? this._onModelAdded.event : null;
 	}
 
-	public get onModelRemoved(): EventProvider<(model:EditorCommon.IModel)=>void> {
-		return this._onModelRemoved ? this._onModelRemoved.value : null;
+	public get onModelRemoved(): Event<ITextModel> {
+		return this._onModelRemoved ? this._onModelRemoved.event : null;
 	}
 
-	public get onModelModeChanged(): EventProvider<(model:EditorCommon.IModel, oldModeId:string)=>void> {
-		return this._onModelModeChanged ? this._onModelModeChanged.value : null;
+	public get onModelModeChanged(): Event<{ model: ITextModel; oldModeId: string; }> {
+		return this._onModelModeChanged ? this._onModelModeChanged.event : null;
 	}
 
 	// --- end IModelService
 
-	private static _getBoundModelData(model:EditorCommon.IModel): IRawModelData {
-		return {
-			url: model.getAssociatedResource(),
-			versionId: model.getVersionId(),
-			properties: model.getProperties(),
-			value: model.toRawText(),
-			modeId: model.getMode().getId()
-		};
+	private _onWillDispose(model: ITextModel): void {
+		let modelId = MODEL_ID(model.uri);
+		let modelData = this._models[modelId];
+
+		delete this._models[modelId];
+		modelData.dispose();
+
+		this._cleanUp(model);
+		this._onModelRemoved.fire(model);
 	}
 
-	private _onModelEvents(modelId:string, events:IEmitterEvent[]): void {
-
-		var resultingEvents:any[] = [],
-			changed = false,
-			i:number,
-			len:number;
-
-		for (i = 0, len = events.length; i < len; i++) {
-			var e = events[i];
-			var data = e.getData();
-			switch (e.getType()) {
-
-				case EditorCommon.EventType.ModelDispose:
-					this.removeModel(this._models[modelId].model);
-					return;
-
-				case EditorCommon.EventType.ModelContentChanged:
-					switch (data.changeType) {
-						case EditorCommon.EventType.ModelContentChangedFlush:
-							resultingEvents.push(this._mixinProperties({ type: e.getType() }, data, ['changeType', 'detail', 'versionId']));
-							break;
-
-						case EditorCommon.EventType.ModelContentChangedLinesDeleted:
-							resultingEvents.push(this._mixinProperties({ type: e.getType() }, data, ['changeType', 'fromLineNumber', 'toLineNumber', 'versionId']));
-							break;
-
-						case EditorCommon.EventType.ModelContentChangedLinesInserted:
-							resultingEvents.push(this._mixinProperties({ type: e.getType() }, data, ['changeType', 'fromLineNumber', 'toLineNumber', 'detail', 'versionId']));
-							break;
-
-						case EditorCommon.EventType.ModelContentChangedLineChanged:
-							resultingEvents.push(this._mixinProperties({ type: e.getType() }, data, ['changeType', 'lineNumber', 'detail', 'versionId']));
-							break;
-					}
-					changed = true;
-					break;
-
-				case EditorCommon.EventType.ModelPropertiesChanged:
-					resultingEvents.push(this._mixinProperties({ type: e.getType() }, data, ['properties']));
-					break;
-
-				case EditorCommon.EventType.ModelModeChanged:
-					let modeChangedEvent = <EditorCommon.IModelModeChangedEvent>data;
-					this._workerHelper.$onModelModeChanged(modelId, modeChangedEvent.oldMode.getId(), modeChangedEvent.newMode.getId());
-					this._onModelModeChanged.fire(this._models[modelId].model, modeChangedEvent.oldMode.getId());
-					break;
-			}
-		}
-
-		if (resultingEvents.length > 0) {
-			// Forward events to all the workers
-			this._sendModelEvents(this._models[modelId].model.getAssociatedResource(), resultingEvents);
-		}
-	}
-
-	private _mixinProperties(dst:any, src:any, properties:string[]): any {
-		for (var i = 0; i < properties.length; i++) {
-			dst[properties[i]] = src[properties[i]];
-		}
-		return dst;
+	private _onDidChangeLanguage(model: ITextModel, e: IModelLanguageChangedEvent): void {
+		const oldModeId = e.oldLanguage;
+		const newModeId = model.getLanguageIdentifier().language;
+		const oldOptions = this.getCreationOptions(oldModeId, model.uri, model.isForSimpleWidget);
+		const newOptions = this.getCreationOptions(newModeId, model.uri, model.isForSimpleWidget);
+		ModelServiceImpl._setModelOptionsForModel(model, newOptions, oldOptions);
+		this._onModelModeChanged.fire({ model, oldModeId });
 	}
 }
 
-@Remotable.WorkerContext('ModelServiceWorkerHelper', ThreadAffinity.All)
-export class ModelServiceWorkerHelper {
-
-	private _resourceService:IResourceService;
-	private _modeService:IModeService;
-
-	constructor(
-		@IResourceService resourceService: IResourceService,
-		@IModeService modeService: IModeService
-	) {
-		this._resourceService = resourceService;
-		this._modeService = modeService;
-	}
-
-	public $createModel(data:IRawModelData): TPromise<void> {
-		// Create & insert the mirror model eagerly in the resource service
-		var mirrorModel = new MirrorModel(this._resourceService, data.versionId, data.value, null, data.url, data.properties);
-		this._resourceService.insert(mirrorModel.getAssociatedResource(), mirrorModel);
-
-		// Block worker execution until the mode is instantiated
-		return this._modeService.getOrCreateMode(data.modeId).then((mode) => {
-			// Changing mode should trigger a remove & an add, therefore:
-
-			// (1) Remove from resource service
-			this._resourceService.remove(mirrorModel.getAssociatedResource());
-
-			// (2) Change mode
-			mirrorModel.setMode(mode);
-
-			// (3) Insert again to resource service (it will have the new mode)
-			this._resourceService.insert(mirrorModel.getAssociatedResource(), mirrorModel);
-		});
-	}
-
-	public $onModelModeChanged(modelId:string, oldModeId:string, newModeId:string): TPromise<void> {
-		var mirrorModel = this._resourceService.get(URI.parse(modelId));
-
-		// Block worker execution until the mode is instantiated
-		return this._modeService.getOrCreateMode(newModeId).then((mode) => {
-			// Changing mode should trigger a remove & an add, therefore:
-
-			// (1) Remove from resource service
-			this._resourceService.remove(mirrorModel.getAssociatedResource());
-
-			// (2) Change mode
-			mirrorModel.setMode(mode);
-
-			// (3) Insert again to resource service (it will have the new mode)
-			this._resourceService.insert(mirrorModel.getAssociatedResource(), mirrorModel);
-		});
-	}
-
-	public $disposeModel(url:URL): void {
-		var model = <MirrorModel>this._resourceService.get(url);
-		this._resourceService.remove(url);
-		if (model) {
-			model.dispose();
-		}
-	}
-
-	public $onModelsEvents(events:IModelsEvents): void {
-		let missingModels: string[] = [];
-		Object.keys(events).forEach((strURL:string) => {
-			var model = <MirrorModel>this._resourceService.get(new URL(strURL));
-			if (!model) {
-				missingModels.push(strURL);
-				return;
-			}
-			try {
-				model.onEvents(events[strURL]);
-			} catch (err) {
-				Errors.onUnexpectedError(err);
-			}
-		});
-
-		if (missingModels.length > 0) {
-			throw new Error('Received model events for missing models ' + missingModels.map(anonymize).join(' AND '));
-		}
-	}
+export interface ILineSequence {
+	getLineContent(lineNumber: number): string;
 }

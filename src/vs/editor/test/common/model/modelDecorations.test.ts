@@ -4,39 +4,45 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import {Position} from 'vs/editor/common/core/position';
-import {Range} from 'vs/editor/common/core/range';
-import Model = require('vs/editor/common/model/model');
-import {EditOperation} from 'vs/editor/common/core/editOperation';
+import * as assert from 'assert';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { IModelDeltaDecoration, TrackedRangeStickiness, EndOfLineSequence } from 'vs/editor/common/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 
 // --------- utils
 
-function modelHasDecorations(model, decorations) {
-	var modelDecorations = [];
-	var actualDecorations = model.getAllDecorations();
-	for (var i = 0, len = actualDecorations.length; i < len; i++) {
+interface ILightWeightDecoration2 {
+	range: Range;
+	className: string;
+}
+
+function modelHasDecorations(model: TextModel, decorations: ILightWeightDecoration2[]) {
+	let modelDecorations: ILightWeightDecoration2[] = [];
+	let actualDecorations = model.getAllDecorations();
+	for (let i = 0, len = actualDecorations.length; i < len; i++) {
 		modelDecorations.push({
 			range: actualDecorations[i].range,
 			className: actualDecorations[i].options.className
 		});
 	}
-	assert.deepEqual(modelDecorations, decorations, 'Model decorations');
+	modelDecorations.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
+	assert.deepEqual(modelDecorations, decorations);
 }
 
-function modelHasDecoration(model, startLineNumber, startColumn, endLineNumber, endColumn, className) {
+function modelHasDecoration(model: TextModel, startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, className: string) {
 	modelHasDecorations(model, [{
 		range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 		className: className
 	}]);
 }
 
-function modelHasNoDecorations(model) {
+function modelHasNoDecorations(model: TextModel) {
 	assert.equal(model.getAllDecorations().length, 0, 'Model has no decoration');
 }
 
-function addDecoration(model, startLineNumber, startColumn, endLineNumber, endColumn, className) {
+function addDecoration(model: TextModel, startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, className: string): string {
 	return model.changeDecorations((changeAccessor) => {
 		return changeAccessor.addDecoration(new Range(startLineNumber, startColumn, endLineNumber, endColumn), {
 			className: className
@@ -44,7 +50,7 @@ function addDecoration(model, startLineNumber, startColumn, endLineNumber, endCo
 	});
 }
 
-function lineHasDecorations(model, lineNumber, decorations) {
+function lineHasDecorations(model: TextModel, lineNumber: number, decorations: { start: number; end: number; className: string; }[]) {
 	var lineDecorations = [];
 	var decs = model.getLineDecorations(lineNumber);
 	for (var i = 0, len = decs.length; i < len; i++) {
@@ -57,11 +63,11 @@ function lineHasDecorations(model, lineNumber, decorations) {
 	assert.deepEqual(lineDecorations, decorations, 'Line decorations');
 }
 
-function lineHasNoDecorations(model, lineNumber) {
+function lineHasNoDecorations(model: TextModel, lineNumber: number) {
 	lineHasDecorations(model, lineNumber, []);
 }
 
-function lineHasDecoration(model, lineNumber, start, end, className) {
+function lineHasDecoration(model: TextModel, lineNumber: number, start: number, end: number, className: string) {
 	lineHasDecorations(model, lineNumber, [{
 		start: start,
 		end: end,
@@ -78,7 +84,7 @@ suite('Editor Model - Model Decorations', () => {
 
 	// --------- Model Decorations
 
-	var thisModel:Model.Model;
+	var thisModel: TextModel;
 
 	setup(() => {
 		var text =
@@ -87,7 +93,7 @@ suite('Editor Model - Model Decorations', () => {
 			LINE3 + '\n' +
 			LINE4 + '\r\n' +
 			LINE5;
-		thisModel = new Model.Model(text, null);
+		thisModel = TextModel.createFromString(text);
 	});
 
 	teardown(() => {
@@ -164,12 +170,12 @@ suite('Editor Model - Model Decorations', () => {
 		var decId2 = addDecoration(thisModel, 1, 2, 3, 1, 'myType2');
 		modelHasDecorations(thisModel, [
 			{
-				range: new Range(1, 2, 3, 2),
-				className: 'myType1'
-			},
-			{
 				range: new Range(1, 2, 3, 1),
 				className: 'myType2'
+			},
+			{
+				range: new Range(1, 2, 3, 2),
+				className: 'myType1'
 			}
 		]);
 		thisModel.changeDecorations((changeAccessor) => {
@@ -199,43 +205,19 @@ suite('Editor Model - Model Decorations', () => {
 	// --------- eventing
 
 	test('decorations emit event on add', () => {
-		var listenerCalled = 0;
-		thisModel.addListener(EditorCommon.EventType.ModelDecorationsChanged, (e) => {
+		let listenerCalled = 0;
+		thisModel.onDidChangeDecorations((e) => {
 			listenerCalled++;
-			assert.equal(e.ids.length, 1);
-			assert.equal(e.addedOrChangedDecorations.length, 1);
-			assert.ok(Range.equalsRange(e.addedOrChangedDecorations[0].range, {
-				startLineNumber: 1,
-				startColumn: 2,
-				endLineNumber: 3,
-				endColumn: 2
-			}));
-			assert.equal(e.removedDecorations.length, 0);
 		});
 		addDecoration(thisModel, 1, 2, 3, 2, 'myType');
 		assert.equal(listenerCalled, 1, 'listener called');
 	});
 
 	test('decorations emit event on change', () => {
-		var listenerCalled = 0;
-		var decId = addDecoration(thisModel, 1, 2, 3, 2, 'myType');
-		thisModel.addListener(EditorCommon.EventType.ModelDecorationsChanged, (e) => {
+		let listenerCalled = 0;
+		let decId = addDecoration(thisModel, 1, 2, 3, 2, 'myType');
+		thisModel.onDidChangeDecorations((e) => {
 			listenerCalled++;
-			assert.equal(e.ids.length, 1);
-			assert.equal(e.addedOrChangedDecorations.length, 1);
-			assert.ok(Range.equalsRange(e.addedOrChangedDecorations[0].range, {
-				startLineNumber: 1,
-				startColumn: 1,
-				endLineNumber: 1,
-				endColumn: 2
-			}));
-			assert.ok(Range.equalsRange(e.oldRanges[decId], {
-				startLineNumber: 1,
-				startColumn: 2,
-				endLineNumber: 3,
-				endColumn: 2
-			}));
-			assert.equal(e.removedDecorations.length, 0);
 		});
 		thisModel.changeDecorations((changeAccessor) => {
 			changeAccessor.changeDecoration(decId, new Range(1, 1, 1, 2));
@@ -244,20 +226,10 @@ suite('Editor Model - Model Decorations', () => {
 	});
 
 	test('decorations emit event on remove', () => {
-		var listenerCalled = 0;
-		var decId = addDecoration(thisModel, 1, 2, 3, 2, 'myType');
-		thisModel.addListener(EditorCommon.EventType.ModelDecorationsChanged, (e) => {
+		let listenerCalled = 0;
+		let decId = addDecoration(thisModel, 1, 2, 3, 2, 'myType');
+		thisModel.onDidChangeDecorations((e) => {
 			listenerCalled++;
-			assert.equal(e.ids.length, 1);
-			assert.equal(e.addedOrChangedDecorations.length, 0);
-			assert.ok(Range.equalsRange(e.oldRanges[decId], {
-				startLineNumber: 1,
-				startColumn: 2,
-				endLineNumber: 3,
-				endColumn: 2
-			}));
-			assert.equal(e.removedDecorations.length, 1);
-			assert.equal(e.removedDecorations[0], decId);
 		});
 		thisModel.changeDecorations((changeAccessor) => {
 			changeAccessor.removeDecoration(decId);
@@ -266,30 +238,30 @@ suite('Editor Model - Model Decorations', () => {
 	});
 
 	test('decorations emit event when inserting one line text before it', () => {
-		var listenerCalled = 0;
-		var decId = addDecoration(thisModel, 1, 2, 3, 2, 'myType');
+		let listenerCalled = 0;
+		addDecoration(thisModel, 1, 2, 3, 2, 'myType');
 
-		thisModel.addListener(EditorCommon.EventType.ModelDecorationsChanged, (e) => {
+		thisModel.onDidChangeDecorations((e) => {
 			listenerCalled++;
-			assert.equal(e.ids.length, 1);
-			assert.equal(e.addedOrChangedDecorations.length, 1);
-			assert.ok(Range.equalsRange(e.addedOrChangedDecorations[0].range, {
-				startLineNumber: 1,
-				startColumn: 8,
-				endLineNumber: 3,
-				endColumn: 2
-			}));
-			assert.ok(Range.equalsRange(e.oldRanges[decId], {
-				startLineNumber: 1,
-				startColumn: 2,
-				endLineNumber: 3,
-				endColumn: 2
-			}));
-			assert.equal(e.removedDecorations.length, 0);
 		});
 
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), 'Hallo ')]);
 		assert.equal(listenerCalled, 1, 'listener called');
+	});
+
+	test('decorations do not emit event on no-op deltaDecorations', () => {
+		let listenerCalled = 0;
+
+		thisModel.onDidChangeDecorations((e) => {
+			listenerCalled++;
+		});
+
+		thisModel.deltaDecorations([], []);
+		thisModel.changeDecorations((accessor) => {
+			accessor.deltaDecorations([], []);
+		});
+
+		assert.equal(listenerCalled, 0, 'listener not called');
 	});
 
 	// --------- editing text & effects on decorations
@@ -394,28 +366,761 @@ suite('Editor Model - Model Decorations', () => {
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 3, 1))]);
 		modelHasDecoration(thisModel, 1, 1, 2, 1, 'myType');
 	});
+
+	test('decorations are updated when changing EOL', () => {
+		addDecoration(thisModel, 1, 2, 4, 1, 'myType1');
+		addDecoration(thisModel, 1, 3, 4, 1, 'myType2');
+		addDecoration(thisModel, 1, 4, 4, 1, 'myType3');
+		addDecoration(thisModel, 1, 5, 4, 1, 'myType4');
+		addDecoration(thisModel, 1, 6, 4, 1, 'myType5');
+		addDecoration(thisModel, 1, 7, 4, 1, 'myType6');
+		addDecoration(thisModel, 1, 8, 4, 1, 'myType7');
+		addDecoration(thisModel, 1, 9, 4, 1, 'myType8');
+		addDecoration(thisModel, 1, 10, 4, 1, 'myType9');
+		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), 'x')]);
+		thisModel.setEOL(EndOfLineSequence.CRLF);
+		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), 'x')]);
+		modelHasDecorations(thisModel, [
+			{ range: new Range(1, 4, 4, 1), className: 'myType1' },
+			{ range: new Range(1, 5, 4, 1), className: 'myType2' },
+			{ range: new Range(1, 6, 4, 1), className: 'myType3' },
+			{ range: new Range(1, 7, 4, 1), className: 'myType4' },
+			{ range: new Range(1, 8, 4, 1), className: 'myType5' },
+			{ range: new Range(1, 9, 4, 1), className: 'myType6' },
+			{ range: new Range(1, 10, 4, 1), className: 'myType7' },
+			{ range: new Range(1, 11, 4, 1), className: 'myType8' },
+			{ range: new Range(1, 12, 4, 1), className: 'myType9' },
+		]);
+	});
+
+	test('an apparently simple edit', () => {
+		addDecoration(thisModel, 1, 2, 4, 1, 'myType1');
+		thisModel.applyEdits([EditOperation.replace(new Range(1, 14, 2, 1), 'x')]);
+		modelHasDecorations(thisModel, [
+			{ range: new Range(1, 2, 3, 1), className: 'myType1' },
+		]);
+	});
+
+	test('removeAllDecorationsWithOwnerId can be called after model dispose', () => {
+		let model = TextModel.createFromString('asd');
+		model.dispose();
+		model.removeAllDecorationsWithOwnerId(1);
+	});
+
+	test('removeAllDecorationsWithOwnerId works', () => {
+		thisModel.deltaDecorations([], [{ range: new Range(1, 2, 4, 1), options: { className: 'myType1' } }], 1);
+		thisModel.removeAllDecorationsWithOwnerId(1);
+		modelHasNoDecorations(thisModel);
+	});
 });
 
-export interface ILightWeightDecoration {
+suite('Decorations and editing', () => {
+
+	function _runTest(decRange: Range, stickiness: TrackedRangeStickiness, editRange: Range, editText: string, editForceMoveMarkers: boolean, expectedDecRange: Range, msg: string): void {
+		let model = TextModel.createFromString([
+			'My First Line',
+			'My Second Line',
+			'Third Line'
+		].join('\n'));
+
+		const id = model.deltaDecorations([], [{ range: decRange, options: { stickiness: stickiness } }])[0];
+		model.applyEdits([{
+			range: editRange,
+			text: editText,
+			forceMoveMarkers: editForceMoveMarkers
+		}]);
+		const actual = model.getDecorationRange(id);
+		assert.deepEqual(actual, expectedDecRange, msg);
+
+		model.dispose();
+	}
+
+	function runTest(decRange: Range, editRange: Range, editText: string, expectedDecRange: Range[][]): void {
+		_runTest(decRange, 0, editRange, editText, false, expectedDecRange[0][0], 'no-0-AlwaysGrowsWhenTypingAtEdges');
+		_runTest(decRange, 1, editRange, editText, false, expectedDecRange[0][1], 'no-1-NeverGrowsWhenTypingAtEdges');
+		_runTest(decRange, 2, editRange, editText, false, expectedDecRange[0][2], 'no-2-GrowsOnlyWhenTypingBefore');
+		_runTest(decRange, 3, editRange, editText, false, expectedDecRange[0][3], 'no-3-GrowsOnlyWhenTypingAfter');
+
+		_runTest(decRange, 0, editRange, editText, true, expectedDecRange[1][0], 'force-0-AlwaysGrowsWhenTypingAtEdges');
+		_runTest(decRange, 1, editRange, editText, true, expectedDecRange[1][1], 'force-1-NeverGrowsWhenTypingAtEdges');
+		_runTest(decRange, 2, editRange, editText, true, expectedDecRange[1][2], 'force-2-GrowsOnlyWhenTypingBefore');
+		_runTest(decRange, 3, editRange, editText, true, expectedDecRange[1][3], 'force-3-GrowsOnlyWhenTypingAfter');
+	}
+
+	suite('insert', () => {
+		suite('collapsed dec', () => {
+			test('before', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 3, 1, 3), 'xx',
+					[
+						[new Range(1, 6, 1, 6), new Range(1, 6, 1, 6), new Range(1, 6, 1, 6), new Range(1, 6, 1, 6)],
+						[new Range(1, 6, 1, 6), new Range(1, 6, 1, 6), new Range(1, 6, 1, 6), new Range(1, 6, 1, 6)],
+					]
+				);
+			});
+			test('equal', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 4, 1, 4), 'xx',
+					[
+						[new Range(1, 4, 1, 6), new Range(1, 6, 1, 6), new Range(1, 4, 1, 4), new Range(1, 6, 1, 6)],
+						[new Range(1, 6, 1, 6), new Range(1, 6, 1, 6), new Range(1, 6, 1, 6), new Range(1, 6, 1, 6)],
+					]
+				);
+			});
+			test('after', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 5, 1, 5), 'xx',
+					[
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+					]
+				);
+			});
+		});
+		suite('non-collapsed dec', () => {
+			test('before', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 3, 1, 3), 'xx',
+					[
+						[new Range(1, 6, 1, 11), new Range(1, 6, 1, 11), new Range(1, 6, 1, 11), new Range(1, 6, 1, 11)],
+						[new Range(1, 6, 1, 11), new Range(1, 6, 1, 11), new Range(1, 6, 1, 11), new Range(1, 6, 1, 11)],
+					]
+				);
+			});
+			test('start', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 4, 1, 4), 'xx',
+					[
+						[new Range(1, 4, 1, 11), new Range(1, 6, 1, 11), new Range(1, 4, 1, 11), new Range(1, 6, 1, 11)],
+						[new Range(1, 6, 1, 11), new Range(1, 6, 1, 11), new Range(1, 6, 1, 11), new Range(1, 6, 1, 11)],
+					]
+				);
+			});
+			test('inside', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 5, 1, 5), 'xx',
+					[
+						[new Range(1, 4, 1, 11), new Range(1, 4, 1, 11), new Range(1, 4, 1, 11), new Range(1, 4, 1, 11)],
+						[new Range(1, 4, 1, 11), new Range(1, 4, 1, 11), new Range(1, 4, 1, 11), new Range(1, 4, 1, 11)],
+					]
+				);
+			});
+			test('end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 9, 1, 9), 'xx',
+					[
+						[new Range(1, 4, 1, 11), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 11)],
+						[new Range(1, 4, 1, 11), new Range(1, 4, 1, 11), new Range(1, 4, 1, 11), new Range(1, 4, 1, 11)],
+					]
+				);
+			});
+			test('after', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 10, 1, 10), 'xx',
+					[
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+					]
+				);
+			});
+		});
+	});
+
+	suite('delete', () => {
+		suite('collapsed dec', () => {
+			test('edit.end < range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 1, 1, 3), '',
+					[
+						[new Range(1, 2, 1, 2), new Range(1, 2, 1, 2), new Range(1, 2, 1, 2), new Range(1, 2, 1, 2)],
+						[new Range(1, 2, 1, 2), new Range(1, 2, 1, 2), new Range(1, 2, 1, 2), new Range(1, 2, 1, 2)],
+					]
+				);
+			});
+			test('edit.end <= range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 2, 1, 4), '',
+					[
+						[new Range(1, 2, 1, 2), new Range(1, 2, 1, 2), new Range(1, 2, 1, 2), new Range(1, 2, 1, 2)],
+						[new Range(1, 2, 1, 2), new Range(1, 2, 1, 2), new Range(1, 2, 1, 2), new Range(1, 2, 1, 2)],
+					]
+				);
+			});
+			test('edit.start < range.start && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 3, 1, 5), '',
+					[
+						[new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3)],
+						[new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3)],
+					]
+				);
+			});
+			test('edit.start >= range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 4, 1, 6), '',
+					[
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+					]
+				);
+			});
+			test('edit.start > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 5, 1, 7), '',
+					[
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+					]
+				);
+			});
+		});
+		suite('non-collapsed dec', () => {
+			test('edit.end < range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 1, 1, 3), '',
+					[
+						[new Range(1, 2, 1, 7), new Range(1, 2, 1, 7), new Range(1, 2, 1, 7), new Range(1, 2, 1, 7)],
+						[new Range(1, 2, 1, 7), new Range(1, 2, 1, 7), new Range(1, 2, 1, 7), new Range(1, 2, 1, 7)],
+					]
+				);
+			});
+			test('edit.end <= range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 2, 1, 4), '',
+					[
+						[new Range(1, 2, 1, 7), new Range(1, 2, 1, 7), new Range(1, 2, 1, 7), new Range(1, 2, 1, 7)],
+						[new Range(1, 2, 1, 7), new Range(1, 2, 1, 7), new Range(1, 2, 1, 7), new Range(1, 2, 1, 7)],
+					]
+				);
+			});
+			test('edit.start < range.start && edit.end < range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 3, 1, 5), '',
+					[
+						[new Range(1, 3, 1, 7), new Range(1, 3, 1, 7), new Range(1, 3, 1, 7), new Range(1, 3, 1, 7)],
+						[new Range(1, 3, 1, 7), new Range(1, 3, 1, 7), new Range(1, 3, 1, 7), new Range(1, 3, 1, 7)],
+					]
+				);
+			});
+
+			test('edit.start < range.start && edit.end == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 3, 1, 9), '',
+					[
+						[new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3)],
+						[new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3)],
+					]
+				);
+			});
+
+			test('edit.start < range.start && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 3, 1, 10), '',
+					[
+						[new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3)],
+						[new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3)],
+					]
+				);
+			});
+
+			test('edit.start == range.start && edit.end < range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 4, 1, 6), '',
+					[
+						[new Range(1, 4, 1, 7), new Range(1, 4, 1, 7), new Range(1, 4, 1, 7), new Range(1, 4, 1, 7)],
+						[new Range(1, 4, 1, 7), new Range(1, 4, 1, 7), new Range(1, 4, 1, 7), new Range(1, 4, 1, 7)],
+					]
+				);
+			});
+
+			test('edit.start == range.start && edit.end == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 4, 1, 9), '',
+					[
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+					]
+				);
+			});
+
+			test('edit.start == range.start && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 4, 1, 10), '',
+					[
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+					]
+				);
+			});
+
+			test('edit.start > range.start && edit.start < range.end && edit.end < range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 5, 1, 7), '',
+					[
+						[new Range(1, 4, 1, 7), new Range(1, 4, 1, 7), new Range(1, 4, 1, 7), new Range(1, 4, 1, 7)],
+						[new Range(1, 4, 1, 7), new Range(1, 4, 1, 7), new Range(1, 4, 1, 7), new Range(1, 4, 1, 7)],
+					]
+				);
+			});
+
+			test('edit.start > range.start && edit.start < range.end && edit.end == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 5, 1, 9), '',
+					[
+						[new Range(1, 4, 1, 5), new Range(1, 4, 1, 5), new Range(1, 4, 1, 5), new Range(1, 4, 1, 5)],
+						[new Range(1, 4, 1, 5), new Range(1, 4, 1, 5), new Range(1, 4, 1, 5), new Range(1, 4, 1, 5)],
+					]
+				);
+			});
+
+			test('edit.start > range.start && edit.start < range.end && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 5, 1, 10), '',
+					[
+						[new Range(1, 4, 1, 5), new Range(1, 4, 1, 5), new Range(1, 4, 1, 5), new Range(1, 4, 1, 5)],
+						[new Range(1, 4, 1, 5), new Range(1, 4, 1, 5), new Range(1, 4, 1, 5), new Range(1, 4, 1, 5)],
+					]
+				);
+			});
+
+			test('edit.start == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 9, 1, 11), '',
+					[
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+					]
+				);
+			});
+
+			test('edit.start > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 10, 1, 11), '',
+					[
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+					]
+				);
+			});
+		});
+	});
+
+	suite('replace short', () => {
+		suite('collapsed dec', () => {
+			test('edit.end < range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 1, 1, 3), 'c',
+					[
+						[new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3)],
+						[new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3)],
+					]
+				);
+			});
+			test('edit.end <= range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 2, 1, 4), 'c',
+					[
+						[new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3)],
+						[new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3)],
+					]
+				);
+			});
+			test('edit.start < range.start && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 3, 1, 5), 'c',
+					[
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+					]
+				);
+			});
+			test('edit.start >= range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 4, 1, 6), 'c',
+					[
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+						[new Range(1, 5, 1, 5), new Range(1, 5, 1, 5), new Range(1, 5, 1, 5), new Range(1, 5, 1, 5)],
+					]
+				);
+			});
+			test('edit.start > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 5, 1, 7), 'c',
+					[
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+					]
+				);
+			});
+		});
+		suite('non-collapsed dec', () => {
+			test('edit.end < range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 1, 1, 3), 'c',
+					[
+						[new Range(1, 3, 1, 8), new Range(1, 3, 1, 8), new Range(1, 3, 1, 8), new Range(1, 3, 1, 8)],
+						[new Range(1, 3, 1, 8), new Range(1, 3, 1, 8), new Range(1, 3, 1, 8), new Range(1, 3, 1, 8)],
+					]
+				);
+			});
+			test('edit.end <= range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 2, 1, 4), 'c',
+					[
+						[new Range(1, 3, 1, 8), new Range(1, 3, 1, 8), new Range(1, 3, 1, 8), new Range(1, 3, 1, 8)],
+						[new Range(1, 3, 1, 8), new Range(1, 3, 1, 8), new Range(1, 3, 1, 8), new Range(1, 3, 1, 8)],
+					]
+				);
+			});
+			test('edit.start < range.start && edit.end < range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 3, 1, 5), 'c',
+					[
+						[new Range(1, 4, 1, 8), new Range(1, 4, 1, 8), new Range(1, 4, 1, 8), new Range(1, 4, 1, 8)],
+						[new Range(1, 4, 1, 8), new Range(1, 4, 1, 8), new Range(1, 4, 1, 8), new Range(1, 4, 1, 8)],
+					]
+				);
+			});
+			test('edit.start < range.start && edit.end == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 3, 1, 9), 'c',
+					[
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+					]
+				);
+			});
+			test('edit.start < range.start && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 3, 1, 10), 'c',
+					[
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+					]
+				);
+			});
+			test('edit.start == range.start && edit.end < range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 4, 1, 6), 'c',
+					[
+						[new Range(1, 4, 1, 8), new Range(1, 4, 1, 8), new Range(1, 4, 1, 8), new Range(1, 4, 1, 8)],
+						[new Range(1, 5, 1, 8), new Range(1, 5, 1, 8), new Range(1, 5, 1, 8), new Range(1, 5, 1, 8)],
+					]
+				);
+			});
+			test('edit.start == range.start && edit.end == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 4, 1, 9), 'c',
+					[
+						[new Range(1, 4, 1, 5), new Range(1, 4, 1, 5), new Range(1, 4, 1, 5), new Range(1, 4, 1, 5)],
+						[new Range(1, 5, 1, 5), new Range(1, 5, 1, 5), new Range(1, 5, 1, 5), new Range(1, 5, 1, 5)],
+					]
+				);
+			});
+			test('edit.start == range.start && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 4, 1, 10), 'c',
+					[
+						[new Range(1, 4, 1, 5), new Range(1, 4, 1, 5), new Range(1, 4, 1, 5), new Range(1, 4, 1, 5)],
+						[new Range(1, 5, 1, 5), new Range(1, 5, 1, 5), new Range(1, 5, 1, 5), new Range(1, 5, 1, 5)],
+					]
+				);
+			});
+			test('edit.start > range.start && edit.start < range.end && edit.end < range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 5, 1, 7), 'c',
+					[
+						[new Range(1, 4, 1, 8), new Range(1, 4, 1, 8), new Range(1, 4, 1, 8), new Range(1, 4, 1, 8)],
+						[new Range(1, 4, 1, 8), new Range(1, 4, 1, 8), new Range(1, 4, 1, 8), new Range(1, 4, 1, 8)],
+					]
+				);
+			});
+			test('edit.start > range.start && edit.start < range.end && edit.end == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 5, 1, 9), 'c',
+					[
+						[new Range(1, 4, 1, 6), new Range(1, 4, 1, 6), new Range(1, 4, 1, 6), new Range(1, 4, 1, 6)],
+						[new Range(1, 4, 1, 6), new Range(1, 4, 1, 6), new Range(1, 4, 1, 6), new Range(1, 4, 1, 6)],
+					]
+				);
+			});
+			test('edit.start > range.start && edit.start < range.end && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 5, 1, 10), 'c',
+					[
+						[new Range(1, 4, 1, 6), new Range(1, 4, 1, 6), new Range(1, 4, 1, 6), new Range(1, 4, 1, 6)],
+						[new Range(1, 4, 1, 6), new Range(1, 4, 1, 6), new Range(1, 4, 1, 6), new Range(1, 4, 1, 6)],
+					]
+				);
+			});
+			test('edit.start == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 9, 1, 11), 'c',
+					[
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+						[new Range(1, 4, 1, 10), new Range(1, 4, 1, 10), new Range(1, 4, 1, 10), new Range(1, 4, 1, 10)],
+					]
+				);
+			});
+			test('edit.start > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 10, 1, 11), 'c',
+					[
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+					]
+				);
+			});
+		});
+	});
+
+	suite('replace long', () => {
+		suite('collapsed dec', () => {
+			test('edit.end < range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 1, 1, 3), 'cccc',
+					[
+						[new Range(1, 6, 1, 6), new Range(1, 6, 1, 6), new Range(1, 6, 1, 6), new Range(1, 6, 1, 6)],
+						[new Range(1, 6, 1, 6), new Range(1, 6, 1, 6), new Range(1, 6, 1, 6), new Range(1, 6, 1, 6)],
+					]
+				);
+			});
+			test('edit.end <= range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 2, 1, 4), 'cccc',
+					[
+						[new Range(1, 4, 1, 6), new Range(1, 6, 1, 6), new Range(1, 4, 1, 4), new Range(1, 6, 1, 6)],
+						[new Range(1, 6, 1, 6), new Range(1, 6, 1, 6), new Range(1, 6, 1, 6), new Range(1, 6, 1, 6)],
+					]
+				);
+			});
+			test('edit.start < range.start && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 3, 1, 5), 'cccc',
+					[
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+						[new Range(1, 7, 1, 7), new Range(1, 7, 1, 7), new Range(1, 7, 1, 7), new Range(1, 7, 1, 7)],
+					]
+				);
+			});
+			test('edit.start >= range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 4, 1, 6), 'cccc',
+					[
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+						[new Range(1, 8, 1, 8), new Range(1, 8, 1, 8), new Range(1, 8, 1, 8), new Range(1, 8, 1, 8)],
+					]
+				);
+			});
+			test('edit.start > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 5, 1, 7), 'cccc',
+					[
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+					]
+				);
+			});
+		});
+		suite('non-collapsed dec', () => {
+			test('edit.end < range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 1, 1, 3), 'cccc',
+					[
+						[new Range(1, 6, 1, 11), new Range(1, 6, 1, 11), new Range(1, 6, 1, 11), new Range(1, 6, 1, 11)],
+						[new Range(1, 6, 1, 11), new Range(1, 6, 1, 11), new Range(1, 6, 1, 11), new Range(1, 6, 1, 11)],
+					]
+				);
+			});
+			test('edit.end <= range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 2, 1, 4), 'cccc',
+					[
+						[new Range(1, 4, 1, 11), new Range(1, 6, 1, 11), new Range(1, 4, 1, 11), new Range(1, 6, 1, 11)],
+						[new Range(1, 6, 1, 11), new Range(1, 6, 1, 11), new Range(1, 6, 1, 11), new Range(1, 6, 1, 11)],
+					]
+				);
+			});
+			test('edit.start < range.start && edit.end < range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 3, 1, 5), 'cccc',
+					[
+						[new Range(1, 4, 1, 11), new Range(1, 4, 1, 11), new Range(1, 4, 1, 11), new Range(1, 4, 1, 11)],
+						[new Range(1, 7, 1, 11), new Range(1, 7, 1, 11), new Range(1, 7, 1, 11), new Range(1, 7, 1, 11)],
+					]
+				);
+			});
+			test('edit.start < range.start && edit.end == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 3, 1, 9), 'cccc',
+					[
+						[new Range(1, 4, 1, 7), new Range(1, 4, 1, 7), new Range(1, 4, 1, 7), new Range(1, 4, 1, 7)],
+						[new Range(1, 7, 1, 7), new Range(1, 7, 1, 7), new Range(1, 7, 1, 7), new Range(1, 7, 1, 7)],
+					]
+				);
+			});
+			test('edit.start < range.start && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 3, 1, 10), 'cccc',
+					[
+						[new Range(1, 4, 1, 7), new Range(1, 4, 1, 7), new Range(1, 4, 1, 7), new Range(1, 4, 1, 7)],
+						[new Range(1, 7, 1, 7), new Range(1, 7, 1, 7), new Range(1, 7, 1, 7), new Range(1, 7, 1, 7)],
+					]
+				);
+			});
+			test('edit.start == range.start && edit.end < range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 4, 1, 6), 'cccc',
+					[
+						[new Range(1, 4, 1, 11), new Range(1, 4, 1, 11), new Range(1, 4, 1, 11), new Range(1, 4, 1, 11)],
+						[new Range(1, 8, 1, 11), new Range(1, 8, 1, 11), new Range(1, 8, 1, 11), new Range(1, 8, 1, 11)],
+					]
+				);
+			});
+			test('edit.start == range.start && edit.end == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 4, 1, 9), 'cccc',
+					[
+						[new Range(1, 4, 1, 8), new Range(1, 4, 1, 8), new Range(1, 4, 1, 8), new Range(1, 4, 1, 8)],
+						[new Range(1, 8, 1, 8), new Range(1, 8, 1, 8), new Range(1, 8, 1, 8), new Range(1, 8, 1, 8)],
+					]
+				);
+			});
+			test('edit.start == range.start && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 4, 1, 10), 'cccc',
+					[
+						[new Range(1, 4, 1, 8), new Range(1, 4, 1, 8), new Range(1, 4, 1, 8), new Range(1, 4, 1, 8)],
+						[new Range(1, 8, 1, 8), new Range(1, 8, 1, 8), new Range(1, 8, 1, 8), new Range(1, 8, 1, 8)],
+					]
+				);
+			});
+			test('edit.start > range.start && edit.start < range.end && edit.end < range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 5, 1, 7), 'cccc',
+					[
+						[new Range(1, 4, 1, 11), new Range(1, 4, 1, 11), new Range(1, 4, 1, 11), new Range(1, 4, 1, 11)],
+						[new Range(1, 4, 1, 11), new Range(1, 4, 1, 11), new Range(1, 4, 1, 11), new Range(1, 4, 1, 11)],
+					]
+				);
+			});
+			test('edit.start > range.start && edit.start < range.end && edit.end == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 5, 1, 9), 'cccc',
+					[
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+					]
+				);
+			});
+			test('edit.start > range.start && edit.start < range.end && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 5, 1, 10), 'cccc',
+					[
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+					]
+				);
+			});
+			test('edit.start == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 9, 1, 11), 'cccc',
+					[
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+						[new Range(1, 4, 1, 13), new Range(1, 4, 1, 13), new Range(1, 4, 1, 13), new Range(1, 4, 1, 13)],
+					]
+				);
+			});
+			test('edit.start > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 10, 1, 11), 'cccc',
+					[
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+					]
+				);
+			});
+		});
+	});
+});
+
+interface ILightWeightDecoration {
 	id: string;
-	range: EditorCommon.IRange;
+	range: Range;
 }
 
 suite('deltaDecorations', () => {
 
-	function decoration(id:string, startLineNumber:number, startColumn:number, endLineNumber:number, endColum:number): ILightWeightDecoration {
+	function decoration(id: string, startLineNumber: number, startColumn: number, endLineNumber: number, endColum: number): ILightWeightDecoration {
 		return {
 			id: id,
-			range: {
-				startLineNumber: startLineNumber,
-				startColumn: startColumn,
-				endLineNumber: endLineNumber,
-				endColumn: endColum
-			}
+			range: new Range(startLineNumber, startColumn, endLineNumber, endColum)
 		};
 	}
 
-	function toModelDeltaDecoration(dec:ILightWeightDecoration): EditorCommon.IModelDeltaDecoration {
+	function toModelDeltaDecoration(dec: ILightWeightDecoration): IModelDeltaDecoration {
 		return {
 			range: dec.range,
 			options: {
@@ -424,7 +1129,7 @@ suite('deltaDecorations', () => {
 		};
 	}
 
-	function strcmp(a:string, b:string): number {
+	function strcmp(a: string, b: string): number {
 		if (a === b) {
 			return 0;
 		}
@@ -434,7 +1139,7 @@ suite('deltaDecorations', () => {
 		return 1;
 	}
 
-	function readModelDecorations(model:Model.Model, ids:string[]): ILightWeightDecoration[] {
+	function readModelDecorations(model: TextModel, ids: string[]): ILightWeightDecoration[] {
 		return ids.map((id) => {
 			return {
 				range: model.getDecorationRange(id),
@@ -443,9 +1148,9 @@ suite('deltaDecorations', () => {
 		});
 	}
 
-	function testDeltaDecorations(text:string[], decorations:ILightWeightDecoration[], newDecorations:ILightWeightDecoration[]): void {
+	function testDeltaDecorations(text: string[], decorations: ILightWeightDecoration[], newDecorations: ILightWeightDecoration[]): void {
 
-		var model = new Model.Model(text.join('\n'), null);
+		var model = TextModel.createFromString(text.join('\n'));
 
 		// Add initial decorations & assert they are added
 		var initialIds = model.deltaDecorations([], decorations.map(toModelDeltaDecoration));
@@ -453,8 +1158,6 @@ suite('deltaDecorations', () => {
 
 		assert.equal(initialIds.length, decorations.length, 'returns expected cnt of ids');
 		assert.equal(initialIds.length, model.getAllDecorations().length, 'does not leak decorations');
-		assert.equal(initialIds.length, model._getTrackedRangesCount(), 'does not leak tracked ranges');
-		assert.equal(2 * initialIds.length, model._getMarkersCount(), 'does not leak markers');
 		actualDecorations.sort((a, b) => strcmp(a.id, b.id));
 		decorations.sort((a, b) => strcmp(a.id, b.id));
 		assert.deepEqual(actualDecorations, decorations);
@@ -464,8 +1167,6 @@ suite('deltaDecorations', () => {
 
 		assert.equal(newIds.length, newDecorations.length, 'returns expected cnt of ids');
 		assert.equal(newIds.length, model.getAllDecorations().length, 'does not leak decorations');
-		assert.equal(newIds.length, model._getTrackedRangesCount(), 'does not leak tracked ranges');
-		assert.equal(2 * newIds.length, model._getMarkersCount(), 'does not leak markers');
 		actualNewDecorations.sort((a, b) => strcmp(a.id, b.id));
 		newDecorations.sort((a, b) => strcmp(a.id, b.id));
 		assert.deepEqual(actualDecorations, decorations);
@@ -473,23 +1174,23 @@ suite('deltaDecorations', () => {
 		model.dispose();
 	}
 
-	function range(startLineNumber:number, startColumn:number, endLineNumber:number, endColumn:number): Range {
+	function range(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number): Range {
 		return new Range(startLineNumber, startColumn, endLineNumber, endColumn);
 	}
 
 	test('result respects input', () => {
-		var model = new Model.Model([
+		var model = TextModel.createFromString([
 			'Hello world,',
 			'How are you?'
-		].join('\n'), null);
+		].join('\n'));
 
 		var ids = model.deltaDecorations([], [
 			toModelDeltaDecoration(decoration('a', 1, 1, 1, 12)),
 			toModelDeltaDecoration(decoration('b', 2, 1, 2, 13))
 		]);
 
-		assert.deepEqual(model.getDecorationRange(ids[0]), range(1,1,1,12));
-		assert.deepEqual(model.getDecorationRange(ids[1]), range(2,1,2,13));
+		assert.deepEqual(model.getDecorationRange(ids[0]), range(1, 1, 1, 12));
+		assert.deepEqual(model.getDecorationRange(ids[1]), range(2, 1, 2, 13));
 
 		model.dispose();
 	});
@@ -518,7 +1219,7 @@ suite('deltaDecorations', () => {
 				decoration('e', 2, 1, 2, 21),
 				decoration('f', 2, 17, 4, 16)
 			]
-		)
+		);
 	});
 
 	test('deltaDecorations 2', () => {
@@ -542,7 +1243,7 @@ suite('deltaDecorations', () => {
 				decoration('c', 1, 4, 1, 5),
 				decoration('d', 1, 5, 1, 6)
 			]
-		)
+		);
 	});
 
 	test('deltaDecorations 3', () => {
@@ -561,38 +1262,111 @@ suite('deltaDecorations', () => {
 				decoration('e', 1, 5, 1, 6)
 			],
 			[]
-		)
+		);
+	});
+
+	test('issue #4317: editor.setDecorations doesn\'t update the hover message', () => {
+
+		let model = TextModel.createFromString('Hello world!');
+
+		let ids = model.deltaDecorations([], [{
+			range: {
+				startLineNumber: 1,
+				startColumn: 1,
+				endLineNumber: 100,
+				endColumn: 1
+			},
+			options: {
+				hoverMessage: { value: 'hello1' }
+			}
+		}]);
+
+		ids = model.deltaDecorations(ids, [{
+			range: {
+				startLineNumber: 1,
+				startColumn: 1,
+				endLineNumber: 100,
+				endColumn: 1
+			},
+			options: {
+				hoverMessage: { value: 'hello2' }
+			}
+		}]);
+
+		let actualDecoration = model.getDecorationOptions(ids[0]);
+
+		assert.deepEqual(actualDecoration.hoverMessage, { value: 'hello2' });
+
+		model.dispose();
 	});
 
 	test('model doesn\'t get confused with individual tracked ranges', () => {
-		var model = new Model.Model([
+		var model = TextModel.createFromString([
 			'Hello world,',
 			'How are you?'
-		].join('\n'), null);
+		].join('\n'));
 
-		var trackedRangeId = model.addTrackedRange({
-			startLineNumber: 1,
-			startColumn: 1,
-			endLineNumber: 1,
-			endColumn: 1
-		}, EditorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
-		model.removeTrackedRange(trackedRangeId);
+		var trackedRangeId = model.changeDecorations((changeAcessor) => {
+			return changeAcessor.addDecoration(
+				{
+					startLineNumber: 1,
+					startColumn: 1,
+					endLineNumber: 1,
+					endColumn: 1
+				}, {
+					stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+				}
+			);
+		});
+		model.changeDecorations((changeAccessor) => {
+			changeAccessor.removeDecoration(trackedRangeId);
+		});
 
 		var ids = model.deltaDecorations([], [
 			toModelDeltaDecoration(decoration('a', 1, 1, 1, 12)),
 			toModelDeltaDecoration(decoration('b', 2, 1, 2, 13))
 		]);
 
-		assert.deepEqual(model.getDecorationRange(ids[0]), range(1,1,1,12));
-		assert.deepEqual(model.getDecorationRange(ids[1]), range(2,1,2,13));
+		assert.deepEqual(model.getDecorationRange(ids[0]), range(1, 1, 1, 12));
+		assert.deepEqual(model.getDecorationRange(ids[1]), range(2, 1, 2, 13));
 
-		var ids = model.deltaDecorations(ids, [
+		ids = model.deltaDecorations(ids, [
 			toModelDeltaDecoration(decoration('a', 1, 1, 1, 12)),
 			toModelDeltaDecoration(decoration('b', 2, 1, 2, 13))
 		]);
 
-		assert.deepEqual(model.getDecorationRange(ids[0]), range(1,1,1,12));
-		assert.deepEqual(model.getDecorationRange(ids[1]), range(2,1,2,13));
+		assert.deepEqual(model.getDecorationRange(ids[0]), range(1, 1, 1, 12));
+		assert.deepEqual(model.getDecorationRange(ids[1]), range(2, 1, 2, 13));
+
+		model.dispose();
+	});
+
+	test('issue #16922: Clicking on link doesn\'t seem to do anything', () => {
+		var model = TextModel.createFromString([
+			'Hello world,',
+			'How are you?',
+			'Fine.',
+			'Good.',
+		].join('\n'));
+
+		model.deltaDecorations([], [
+			{ range: new Range(1, 1, 1, 1), options: { className: '1' } },
+			{ range: new Range(1, 13, 1, 13), options: { className: '2' } },
+			{ range: new Range(2, 1, 2, 1), options: { className: '3' } },
+			{ range: new Range(2, 1, 2, 4), options: { className: '4' } },
+			{ range: new Range(2, 8, 2, 13), options: { className: '5' } },
+			{ range: new Range(3, 1, 4, 6), options: { className: '6' } },
+			{ range: new Range(1, 1, 3, 6), options: { className: 'x1' } },
+			{ range: new Range(2, 5, 2, 8), options: { className: 'x2' } },
+			{ range: new Range(1, 1, 2, 8), options: { className: 'x3' } },
+			{ range: new Range(2, 5, 3, 1), options: { className: 'x4' } },
+		]);
+
+		let inRange = model.getDecorationsInRange(new Range(2, 6, 2, 6));
+
+		let inRangeClassNames = inRange.map(d => d.options.className);
+		inRangeClassNames.sort();
+		assert.deepEqual(inRangeClassNames, ['x1', 'x2', 'x3', 'x4']);
 
 		model.dispose();
 	});

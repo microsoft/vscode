@@ -5,17 +5,17 @@
 
 'use strict';
 
-import assert = require('assert');
+import * as assert from 'assert';
 
 /**
  * Executes the given function (fn) over the given array of items (list) in parallel and returns the resulting errors and results as
  * array to the callback (callback). The resulting errors and results are evaluated by calling the provided callback function.
  */
 export function parallel<T, E>(list: T[], fn: (item: T, callback: (err: Error, result: E) => void) => void, callback: (err: Error[], result: E[]) => void): void {
-	var results = new Array(list.length);
-	var errors = new Array<Error>(list.length);
-	var didErrorOccur = false;
-	var doneCount = 0;
+	let results = new Array(list.length);
+	let errors = new Array<Error>(list.length);
+	let didErrorOccur = false;
+	let doneCount = 0;
 
 	if (list.length === 0) {
 		return callback(null, []);
@@ -37,7 +37,7 @@ export function parallel<T, E>(list: T[], fn: (item: T, callback: (err: Error, r
 			}
 		});
 	});
-};
+}
 
 /**
  * Executes the given function (fn) over the given array of items (param) in sequential order and returns the first occurred error or the result as
@@ -70,9 +70,9 @@ export function loop<E>(param: any, fn: (item: any, callback: (error: Error, res
 
 	// Expect the param to be an array and loop over it
 	else {
-		var results: E[] = [];
+		let results: E[] = [];
 
-		var looper: (i: number) => void = function (i: number): void {
+		let looper: (i: number) => void = function (i: number): void {
 
 			// Still work to do
 			if (i < param.length) {
@@ -117,7 +117,7 @@ export function loop<E>(param: any, fn: (item: any, callback: (error: Error, res
 		// Start looping with first element in array
 		looper(0);
 	}
-};
+}
 
 function Sequence(sequences: { (...param: any[]): void; }[]): void {
 
@@ -128,11 +128,11 @@ function Sequence(sequences: { (...param: any[]): void; }[]): void {
 	});
 
 	// Execute in Loop
-	var errorHandler = sequences.splice(0, 1)[0]; //Remove error handler
-	var sequenceResult: any = null;
+	let errorHandler = sequences.splice(0, 1)[0]; //Remove error handler
+	let sequenceResult: any = null;
 
 	loop(sequences, (sequence, clb) => {
-		var sequenceFunction = function (error: any, result: any): void {
+		let sequenceFunction = function (error: any, result: any): void {
 
 			// A method might only send a boolean value as return value (e.g. fs.exists), support this case gracefully
 			if (error === true || error === false) {
@@ -145,7 +145,7 @@ function Sequence(sequences: { (...param: any[]): void; }[]): void {
 				clb(error, null);
 			} else {
 				sequenceResult = result; //Remember result of sequence
-				clb(null, null); //Dont pass on result to Looper as we are not aggregating it
+				clb(null, null); //Don't pass on result to Looper as we are not aggregating it
 			}
 		};
 
@@ -166,7 +166,7 @@ function Sequence(sequences: { (...param: any[]): void; }[]): void {
 
 /**
  * Takes a variable list of functions to execute in sequence. The first function must be the error handler and the
- * following functions can do arbritrary work. "this" must be used as callback value for async functions to continue
+ * following functions can do arbitrary work. "this" must be used as callback value for async functions to continue
  * through the sequence:
  * 	sequence(
  * 		function errorHandler(error) {
@@ -186,4 +186,4 @@ export function sequence(errorHandler: (error: Error) => void, ...sequences: Fun
 export function sequence(sequences: Function[]): void;
 export function sequence(sequences: any): void {
 	Sequence((Array.isArray(sequences)) ? sequences : Array.prototype.slice.call(arguments));
-};
+}

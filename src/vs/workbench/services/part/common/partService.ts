@@ -4,30 +4,54 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation'
+import { TPromise } from 'vs/base/common/winjs.base';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from 'vs/base/common/event';
 
 export enum Parts {
 	ACTIVITYBAR_PART,
 	SIDEBAR_PART,
+	PANEL_PART,
 	EDITOR_PART,
-	STATUSBAR_PART
+	STATUSBAR_PART,
+	TITLEBAR_PART
 }
 
 export enum Position {
 	LEFT,
-	RIGHT
+	RIGHT,
+	BOTTOM
 }
 
-export var IPartService = createDecorator<IPartService>('partService');
+export interface ILayoutOptions {
+	toggleMaximizedPanel?: boolean;
+	source?: Parts;
+}
+
+export interface IDimension {
+	readonly width: number;
+	readonly height: number;
+}
+
+export const IPartService = createDecorator<IPartService>('partService');
 
 export interface IPartService {
-	serviceId : ServiceIdentifier<any>;
+	_serviceBrand: ServiceIdentifier<any>;
+
+	/**
+	 * Emits when the visibility of the title bar changes.
+	 */
+	onTitleBarVisibilityChange: Event<void>;
+
+	/**
+	 * Emits when the editor part's layout changes.
+	 */
+	onEditorLayout: Event<IDimension>;
 
 	/**
 	 * Asks the part service to layout all parts.
 	 */
-	layout(): void;
+	layout(options?: ILayoutOptions): void;
 
 	/**
 	 * Asks the part service to if all parts have been created.
@@ -35,29 +59,50 @@ export interface IPartService {
 	isCreated(): boolean;
 
 	/**
-	 * Promise is complete when all parts have been created.
-	 */
-	joinCreation(): TPromise<boolean>;
-
-	/**
-	 * Returns wether the given part has the keyboard focus or not.
+	 * Returns whether the given part has the keyboard focus or not.
 	 */
 	hasFocus(part: Parts): boolean;
 
 	/**
-	 * Returns iff the part is visible.
+	 * Returns the parts HTML element, if there is one.
+	 */
+	getContainer(part: Parts): HTMLElement;
+
+	/**
+	 * Returns if the part is visible.
 	 */
 	isVisible(part: Parts): boolean;
 
 	/**
-	 * Checks if the sidebar is currently hidden or not
+	 * Set activity bar hidden or not
 	 */
-	isSideBarHidden(): boolean;
+	setActivityBarHidden(hidden: boolean): void;
+
+	/**
+	 * Number of pixels (adjusted for zooming) that the title bar (if visible) pushes down the workbench contents.
+	 */
+	getTitleBarOffset(): number;
 
 	/**
 	 * Set sidebar hidden or not
 	 */
-	setSideBarHidden(hidden: boolean): void;
+	setSideBarHidden(hidden: boolean): TPromise<void>;
+
+	/**
+	 * Set panel part hidden or not
+	 */
+	setPanelHidden(hidden: boolean): TPromise<void>;
+
+	/**
+	 * Maximizes the panel height if the panel is not already maximized.
+	 * Shrinks the panel to the default starting size if the panel is maximized.
+	 */
+	toggleMaximizedPanel(): void;
+
+	/**
+	 * Returns true if the panel is maximized.
+	 */
+	isPanelMaximized(): boolean;
 
 	/**
 	 * Gets the current side bar position. Note that the sidebar can be hidden too.
@@ -65,18 +110,37 @@ export interface IPartService {
 	getSideBarPosition(): Position;
 
 	/**
-	 * Sets the side bar position. If the side bar is hidden, the side bar will
-	 * also be made visible.
+	 * Gets the current panel position. Note that the panel can be hidden too.
 	 */
-	setSideBarPosition(position: Position): void;
+	getPanelPosition(): Position;
 
 	/**
-	 * Adds a class to the workbench part.
+	 * Sets the panel position.
 	 */
-	addClass(clazz: string): void;
+	setPanelPosition(position: Position): TPromise<void>;
 
 	/**
-	 * Removes a class from the workbench part.
+	 * Returns the identifier of the element that contains the workbench.
 	 */
-	removeClass(clazz: string): void;
+	getWorkbenchElementId(): string;
+
+	/**
+	 * Toggles the workbench in and out of zen mode - parts get hidden and window goes fullscreen.
+	 */
+	toggleZenMode(): void;
+
+	/**
+	 * Returns whether the centered editor layout is active.
+	 */
+	isEditorLayoutCentered(): boolean;
+
+	/**
+	 * Sets the workbench in and out of centered editor layout.
+	 */
+	centerEditorLayout(active: boolean): void;
+
+	/**
+	 * Resizes currently focused part on main access
+	 */
+	resizePart(part: Parts, sizeChange: number): void;
 }

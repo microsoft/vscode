@@ -3,13 +3,41 @@
 	"files.trimTrailingWhitespace": true,
 	"files.exclude": {
 		".git": true,
+		".build": true,
 		"**/.DS_Store": true,
-		"**/coverage": true
+		"build/**/*.js": {
+			"when": "$(basename).ts"
+		}
+	},
+	"files.associations": {
+		"OSSREADME.json": "jsonc"
 	},
 	"search.exclude": {
-		"**/node_modules/**": true,
+		"**/node_modules": true,
 		"**/bower_components": true,
-		"out*/**": true,
-		"extensions/**/out/**": true
-	}
+		".build/**": true,
+		"out/**": true,
+		"out-build/**": true,
+		"out-vscode/**": true,
+		"i18n/**": true,
+		"extensions/**/out/**": true,
+		"test/smoke/out/**": true
+	},
+	"tslint.enable": true,
+	"lcov.path": [
+		"./.build/coverage/lcov.info",
+		"./.build/coverage-single/lcov.info"
+	],
+	"lcov.watch": [
+		{
+			"pattern": "**/*.test.js",
+			"command": "${workspaceFolder}/scripts/test.sh --coverage --run ${file}",
+			"windows": {
+				"command": "${workspaceFolder}\\scripts\\test.bat --coverage --run ${file}"
+			}
+		}
+	],
+	"typescript.tsdk": "node_modules/typescript/lib",
+	"npm.exclude": "**/extensions/**",
+	"emmet.excludeLanguages": []
 }

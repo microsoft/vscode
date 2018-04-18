@@ -4,22 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ContextMenuHandler} from './contextMenuHandler';
-import {IContextViewService, IContextMenuService, IContextViewDelegate, IContextMenuDelegate} from './contextView';
-import {ContextView} from 'vs/base/browser/ui/contextview/contextview';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IMessageService} from 'vs/platform/message/common/message';
+import { ContextMenuHandler } from './contextMenuHandler';
+import { IContextViewService, IContextMenuService } from './contextView';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Event, Emitter } from 'vs/base/common/event';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
+
 
 export class ContextMenuService implements IContextMenuService {
-	public serviceId = IContextMenuService;
+	public _serviceBrand: any;
 
 	private contextMenuHandler: ContextMenuHandler;
+	private _onDidContextMenu = new Emitter<void>();
 
-	constructor(container: HTMLElement, telemetryService:ITelemetryService, messageService:IMessageService, contextViewService: IContextViewService) {
-		this.contextMenuHandler = new ContextMenuHandler(container, contextViewService, telemetryService, messageService);
+	constructor(container: HTMLElement, telemetryService: ITelemetryService, notificationService: INotificationService, contextViewService: IContextViewService) {
+		this.contextMenuHandler = new ContextMenuHandler(container, contextViewService, telemetryService, notificationService);
 	}
 
-	public dispose():void {
+	public dispose(): void {
 		this.contextMenuHandler.dispose();
 	}
 
@@ -29,7 +32,12 @@ export class ContextMenuService implements IContextMenuService {
 
 	// ContextMenu
 
-	public showContextMenu(delegate: IContextMenuDelegate):void {
+	public showContextMenu(delegate: IContextMenuDelegate): void {
 		this.contextMenuHandler.showContextMenu(delegate);
+		this._onDidContextMenu.fire();
+	}
+
+	public get onDidContextMenu(): Event<void> {
+		return this._onDidContextMenu.event;
 	}
 }

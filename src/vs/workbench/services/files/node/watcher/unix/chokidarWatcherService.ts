@@ -5,74 +5,95 @@
 
 'use strict';
 
-import chokidar = require('chokidar');
-import paths = require('path');
-import fs = require('fs');
+import * as chokidar from 'vscode-chokidar';
+import * as fs from 'fs';
 
-import gracefulFs = require('graceful-fs');
+import * as gracefulFs from 'graceful-fs';
 gracefulFs.gracefulify(fs);
 
-import {Promise} from 'vs/base/common/winjs.base';
-import {FileChangeType} from 'vs/platform/files/common/files';
-import {ThrottledDelayer} from 'vs/base/common/async';
-import strings = require('vs/base/common/strings');
-import basePaths = require('vs/base/common/paths');
-import arrays = require('vs/base/common/arrays');
+import { TPromise } from 'vs/base/common/winjs.base';
+import { FileChangeType } from 'vs/platform/files/common/files';
+import { ThrottledDelayer } from 'vs/base/common/async';
+import * as strings from 'vs/base/common/strings';
+import { realcaseSync } from 'vs/base/node/extfs';
+import { isMacintosh } from 'vs/base/common/platform';
+import * as watcher from 'vs/workbench/services/files/node/watcher/common';
+import { IWatcherRequest, IWatcherService } from 'vs/workbench/services/files/node/watcher/unix/watcher';
 
-import {IWatcherRequest, WatcherService} from 'vs/workbench/services/files/node/watcher/unix/watcherService';
-import watcher = require('vs/workbench/services/files/node/watcher/common');
+export class ChokidarWatcherService implements IWatcherService {
 
-export class ChokidarWatcherService extends WatcherService {
+	private static readonly FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
+	private static readonly EVENT_SPAM_WARNING_THRESHOLD = 60 * 1000; // warn after certain time span of event spam
 
-	private static FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
-	private static EVENT_SPAM_WARNING_THRESHOLD = 60 * 1000; // warn after certain time span of event spam
+	private spamCheckStartTime: number;
+	private spamWarningLogged: boolean;
+	private enospcErrorLogged: boolean;
 
-	private spamCheckStartTime:number;
-	private spamWarningLogged:boolean;
-
-	public watch(request: IWatcherRequest): Promise {
-		let watcherOpts: any = {
+	public watch(request: IWatcherRequest): TPromise<void> {
+		const watcherOpts: chokidar.IOptions = {
 			ignoreInitial: true,
 			ignorePermissionErrors: true,
 			followSymlinks: true, // this is the default of chokidar and supports file events through symlinks
-			ignored: request.ignored
+			ignored: request.ignored,
+			interval: 1000, // while not used in normal cases, if any error causes chokidar to fallback to polling, increase its intervals
+			binaryInterval: 1000,
+			disableGlobbing: true // fix https://github.com/Microsoft/vscode/issues/4586
 		};
 
-		let chokidarWatcher = chokidar.watch(request.basePath, watcherOpts);
+		// Chokidar fails when the basePath does not match case-identical to the path on disk
+		// so we have to find the real casing of the path and do some path massaging to fix this
+		// see https://github.com/paulmillr/chokidar/issues/418
+		const originalBasePath = request.basePath;
+		const realBasePath = isMacintosh ? (realcaseSync(originalBasePath) || originalBasePath) : originalBasePath;
+		const realBasePathLength = realBasePath.length;
+		const realBasePathDiffers = (originalBasePath !== realBasePath);
+
+		if (realBasePathDiffers) {
+			console.warn(`Watcher basePath does not match version on disk and was corrected (original: ${originalBasePath}, real: ${realBasePath})`);
+		}
+
+		const chokidarWatcher = chokidar.watch(realBasePath, watcherOpts);
+
+		// Detect if for some reason the native watcher library fails to load
+		if (isMacintosh && !chokidarWatcher.options.useFsEvents) {
+			console.error('Watcher is not using native fsevents library and is falling back to unefficient polling.');
+		}
 
 		let undeliveredFileEvents: watcher.IRawFileChange[] = [];
-		let fileEventDelayer = new ThrottledDelayer(ChokidarWatcherService.FS_EVENT_DELAY);
+		const fileEventDelayer = new ThrottledDelayer(ChokidarWatcherService.FS_EVENT_DELAY);
 
-		return new Promise((c, e, p) => {
+		return new TPromise<void>((c, e, p) => {
 			chokidarWatcher.on('all', (type: string, path: string) => {
-				if (path.indexOf(request.basePath) < 0) {
+				if (isMacintosh) {
+					// Mac: uses NFD unicode form on disk, but we want NFC
+					// See also https://github.com/nodejs/node/issues/2165
+					path = strings.normalizeNFC(path);
+				}
+
+				if (path.indexOf(realBasePath) < 0) {
 					return; // we really only care about absolute paths here in our basepath context here
+				}
+
+				// Make sure to convert the path back to its original basePath form if the realpath is different
+				if (realBasePathDiffers) {
+					path = originalBasePath + path.substr(realBasePathLength);
 				}
 
 				let event: watcher.IRawFileChange = null;
 
 				// Change
 				if (type === 'change') {
-					event = {
-						type: 0,
-						path: path
-					};
+					event = { type: 0, path };
 				}
 
 				// Add
 				else if (type === 'add' || type === 'addDir') {
-					event = {
-						type: 1,
-						path: path
-					};
+					event = { type: 1, path };
 				}
 
 				// Delete
 				else if (type === 'unlink' || type === 'unlinkDir') {
-					event = {
-						type: 2,
-						path: path
-					};
+					event = { type: 2, path };
 				}
 
 				if (event) {
@@ -83,7 +104,7 @@ export class ChokidarWatcherService extends WatcherService {
 					}
 
 					// Check for spam
-					let now = Date.now();
+					const now = Date.now();
 					if (undeliveredFileEvents.length === 0) {
 						this.spamWarningLogged = false;
 						this.spamCheckStartTime = now;
@@ -97,11 +118,11 @@ export class ChokidarWatcherService extends WatcherService {
 
 					// Delay and send buffer
 					fileEventDelayer.trigger(() => {
-						let events = undeliveredFileEvents;
+						const events = undeliveredFileEvents;
 						undeliveredFileEvents = [];
 
 						// Broadcast to clients normalized
-						let res = watcher.normalize(events);
+						const res = watcher.normalize(events);
 						p(res);
 
 						// Logging
@@ -111,14 +132,27 @@ export class ChokidarWatcherService extends WatcherService {
 							});
 						}
 
-						return Promise.as(null);
+						return TPromise.as(null);
 					});
 				}
 			});
 
 			chokidarWatcher.on('error', (error: Error) => {
 				if (error) {
-					console.error(error.toString());
+
+					// Specially handle ENOSPC errors that can happen when
+					// the watcher consumes so many file descriptors that
+					// we are running into a limit. We only want to warn
+					// once in this case to avoid log spam.
+					// See https://github.com/Microsoft/vscode/issues/7950
+					if ((<any>error).code === 'ENOSPC') {
+						if (!this.enospcErrorLogged) {
+							this.enospcErrorLogged = true;
+							e(new Error('Inotify limit reached (ENOSPC)'));
+						}
+					} else {
+						console.error(error.toString());
+					}
 				}
 			});
 		}, () => {

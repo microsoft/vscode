@@ -3,16 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 'use strict';
 
 import 'vs/css!./contextview';
-import Builder = require('vs/base/browser/builder');
-import DOM = require('vs/base/browser/dom');
-import Lifecycle = require('vs/base/common/lifecycle');
-import EventEmitter = require('vs/base/common/eventEmitter');
-
-var $ = Builder.$;
+import { Builder, $ } from 'vs/base/browser/builder';
+import * as DOM from 'vs/base/browser/dom';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export interface IAnchor {
 	x: number;
@@ -30,20 +26,20 @@ export enum AnchorPosition {
 }
 
 export interface IDelegate {
-	getAnchor(): HTMLElement|IAnchor;
-	render(container: HTMLElement): Lifecycle.IDisposable;
+	getAnchor(): HTMLElement | IAnchor;
+	render(container: HTMLElement): IDisposable;
 	layout?(): void;
-	anchorAlignment?:AnchorAlignment; // default: left
-	anchorPosition?:AnchorPosition; // default: below
-	canRelayout?:boolean; // default: true
-	onDOMEvent?(e:Event, activeElement: HTMLElement):void;
-	onHide?(data?: any):void;
+	anchorAlignment?: AnchorAlignment; // default: left
+	anchorPosition?: AnchorPosition; // default: below
+	canRelayout?: boolean; // default: true
+	onDOMEvent?(e: Event, activeElement: HTMLElement): void;
+	onHide?(data?: any): void;
 }
 
 export interface IContextViewProvider {
 	showContextView(delegate: IDelegate): void;
 	hideContextView(): void;
-	layout():void;
+	layout(): void;
 }
 
 export interface IPosition {
@@ -58,49 +54,65 @@ export interface ISize {
 
 export interface IView extends IPosition, ISize { }
 
-export function layout(view: ISize, around: IView, inside: IView, anchorPosition: AnchorPosition, anchorAlignment: AnchorAlignment) : IPosition {
-	var top: number, left: number;
+function layout(view: ISize, around: IView, viewport: IView, anchorPosition: AnchorPosition, anchorAlignment: AnchorAlignment): IPosition {
 
-	if (anchorPosition === AnchorPosition.BELOW) {
-		top = around.top + around.height - inside.top;
-		if (inside.top + top + view.height > inside.height && around.top - inside.top > view.height) {
-			top = around.top - view.height - inside.top;
+	let chooseBiased = (a: number, aIsGood: boolean, b: number, bIsGood: boolean) => {
+		if (aIsGood) {
+			return a;
 		}
-	} else {
-		top = around.top - view.height - inside.top;
-		if (top + inside.top < 0 && around.top + around.height + view.height - inside.top < inside.height) {
-			top = around.top + around.height - inside.top;
+		if (bIsGood) {
+			return b;
 		}
-	}
+		return a;
+	};
 
-	if (anchorAlignment === AnchorAlignment.LEFT) {
-		left = around.left - inside.left;
-		if (inside.left + left + view.width > inside.width) {
-			left -= view.width - around.width;
+	let chooseOne = (a: number, aIsGood: boolean, b: number, bIsGood: boolean, aIsPreferred: boolean) => {
+		if (aIsPreferred) {
+			return chooseBiased(a, aIsGood, b, bIsGood);
+		} else {
+			return chooseBiased(b, bIsGood, a, aIsGood);
 		}
-	} else {
-		left = around.left + around.width - view.width - inside.left;
-		if (left + inside.left < 0 && around.left + view.width < inside.width) {
-			left = around.left - inside.left;
-		}
-	}
+	};
+
+	let top = (() => {
+		// Compute both options (putting the segment above and below)
+		let posAbove = around.top - view.height;
+		let posBelow = around.top + around.height;
+
+		// Check for both options if they are good
+		let aboveIsGood = (posAbove >= viewport.top && posAbove + view.height <= viewport.top + viewport.height);
+		let belowIsGood = (posBelow >= viewport.top && posBelow + view.height <= viewport.top + viewport.height);
+
+		return chooseOne(posAbove, aboveIsGood, posBelow, belowIsGood, anchorPosition === AnchorPosition.ABOVE);
+	})();
+
+	let left = (() => {
+		// Compute both options (aligning left and right)
+		let posLeft = around.left;
+		let posRight = around.left + around.width - view.width;
+
+		// Check for both options if they are good
+		let leftIsGood = (posLeft >= viewport.left && posLeft + view.width <= viewport.left + viewport.width);
+		let rightIsGood = (posRight >= viewport.left && posRight + view.width <= viewport.left + viewport.width);
+
+		return chooseOne(posLeft, leftIsGood, posRight, rightIsGood, anchorAlignment === AnchorAlignment.LEFT);
+	})();
 
 	return { top: top, left: left };
 }
 
-export class ContextView extends EventEmitter.EventEmitter {
+export class ContextView {
 
-	private static BUBBLE_UP_EVENTS = ['click', 'keydown', 'focus', 'blur'];
-	private static BUBBLE_DOWN_EVENTS = ['click'];
+	private static readonly BUBBLE_UP_EVENTS = ['click', 'keydown', 'focus', 'blur'];
+	private static readonly BUBBLE_DOWN_EVENTS = ['click'];
 
-	private $container: Builder.Builder;
-	private $view: Builder.Builder;
+	private $container: Builder;
+	private $view: Builder;
 	private delegate: IDelegate;
-	private toDispose: Lifecycle.IDisposable[];
-	private toDisposeOnClean: Lifecycle.IDisposable;
+	private toDispose: IDisposable[];
+	private toDisposeOnClean: IDisposable;
 
 	constructor(container: HTMLElement) {
-		super();
 		this.$view = $('.context-view').hide();
 		this.setContainer(container);
 
@@ -115,6 +127,7 @@ export class ContextView extends EventEmitter.EventEmitter {
 
 	public setContainer(container: HTMLElement): void {
 		if (this.$container) {
+			this.$container.getHTMLElement().removeChild(this.$view.getHTMLElement());
 			this.$container.off(ContextView.BUBBLE_UP_EVENTS);
 			this.$container.off(ContextView.BUBBLE_DOWN_EVENTS, true);
 			this.$container = null;
@@ -122,11 +135,11 @@ export class ContextView extends EventEmitter.EventEmitter {
 		if (container) {
 			this.$container = $(container);
 			this.$view.appendTo(this.$container);
-			this.$container.on(ContextView.BUBBLE_UP_EVENTS, (e:Event) => {
-				this.onDOMEvent(e, <HTMLElement> document.activeElement, false);
+			this.$container.on(ContextView.BUBBLE_UP_EVENTS, (e: Event) => {
+				this.onDOMEvent(e, <HTMLElement>document.activeElement, false);
 			});
-			this.$container.on(ContextView.BUBBLE_DOWN_EVENTS, (e:Event) => {
-				this.onDOMEvent(e, <HTMLElement> document.activeElement, true);
+			this.$container.on(ContextView.BUBBLE_DOWN_EVENTS, (e: Event) => {
+				this.onDOMEvent(e, <HTMLElement>document.activeElement, true);
 			}, null, true);
 		}
 	}
@@ -168,25 +181,23 @@ export class ContextView extends EventEmitter.EventEmitter {
 
 	private doLayout(): void {
 		// Get anchor
-		var anchor = this.delegate.getAnchor();
+		let anchor = this.delegate.getAnchor();
 
 		// Compute around
-		var around: IView;
+		let around: IView;
 
 		// Get the element's position and size (to anchor the view)
 		if (DOM.isHTMLElement(anchor)) {
-			var $anchor = $(<HTMLElement> anchor);
-			var elementPosition = $anchor.getPosition();
-			var elementSize = $anchor.getTotalSize();
+			let elementPosition = DOM.getDomNodePagePosition(anchor);
 
 			around = {
 				top: elementPosition.top,
 				left: elementPosition.left,
-				width: elementSize.width,
-				height: elementSize.height
+				width: elementPosition.width,
+				height: elementPosition.height
 			};
 		} else {
-			var realAnchor = <IAnchor> anchor;
+			let realAnchor = <IAnchor>anchor;
 
 			around = {
 				top: realAnchor.y,
@@ -196,23 +207,25 @@ export class ContextView extends EventEmitter.EventEmitter {
 			};
 		}
 
-		// Get the container's position
-		var insidePosition = this.$container.getPosition();
-		var inside = {
-			top: insidePosition.top,
-			left: insidePosition.left,
+		let viewport = {
+			top: DOM.StandardWindow.scrollY,
+			left: DOM.StandardWindow.scrollX,
 			height: window.innerHeight,
 			width: window.innerWidth
 		};
 
 		// Get the view's size
-		var viewSize = this.$view.getTotalSize();
-		var view = { width: viewSize.width, height: viewSize.height };
+		let viewSize = this.$view.getTotalSize();
+		let view = { width: viewSize.width, height: viewSize.height };
 
-		var anchorPosition = this.delegate.anchorPosition || AnchorPosition.BELOW;
-		var anchorAlignment = this.delegate.anchorAlignment || AnchorAlignment.LEFT;
+		let anchorPosition = this.delegate.anchorPosition || AnchorPosition.BELOW;
+		let anchorAlignment = this.delegate.anchorAlignment || AnchorAlignment.LEFT;
 
-		var result = layout(view, around, inside, anchorPosition, anchorAlignment);
+		let result = layout(view, around, viewport, anchorPosition, anchorAlignment);
+
+		let containerPosition = DOM.getDomNodePagePosition(this.$container.getHTMLElement());
+		result.top -= containerPosition.top;
+		result.left -= containerPosition.left;
 
 		this.$view.removeClass('top', 'bottom', 'left', 'right');
 		this.$view.addClass(anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
@@ -242,17 +255,16 @@ export class ContextView extends EventEmitter.EventEmitter {
 	private onDOMEvent(e: Event, element: HTMLElement, onCapture: boolean): void {
 		if (this.delegate) {
 			if (this.delegate.onDOMEvent) {
-				this.delegate.onDOMEvent(e, <HTMLElement> document.activeElement);
-			} else if (onCapture && !DOM.isAncestor(<HTMLElement> e.target, this.$container.getHTMLElement())) {
+				this.delegate.onDOMEvent(e, <HTMLElement>document.activeElement);
+			} else if (onCapture && !DOM.isAncestor(<HTMLElement>e.target, this.$container.getHTMLElement())) {
 				this.hide();
 			}
 		}
 	}
 
 	public dispose(): void {
-		super.dispose();
 		this.hide();
 
-		this.toDispose = Lifecycle.disposeAll(this.toDispose);
+		this.toDispose = dispose(this.toDispose);
 	}
 }

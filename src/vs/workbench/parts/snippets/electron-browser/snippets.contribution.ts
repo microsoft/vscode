@@ -4,161 +4,100 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import winjs = require('vs/base/common/winjs.base');
-import paths = require('vs/base/common/paths');
-import actions = require('vs/base/common/actions');
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import platform = require('vs/platform/platform');
-import workbenchActionRegistry = require('vs/workbench/browser/actionRegistry');
-import workbenchContributions = require('vs/workbench/common/contributions');
-import snippetsTracker = require('./snippetsTracker');
-import modesExtensions = require('vs/editor/common/modes/modesRegistry');
-import errors = require('vs/base/common/errors');
-import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/browser/quickOpenService';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import * as JSONContributionRegistry from 'vs/languages/json/common/jsonContributionRegistry';
-import {IJSONSchema} from 'vs/base/common/jsonSchema';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { Registry } from 'vs/platform/registry/common/platform';
+import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import * as nls from 'vs/nls';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { LanguageId } from 'vs/editor/common/modes';
+import { SnippetFile, Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
 
-import ipc = require('ipc');
-import fs = require('fs');
+export const ISnippetsService = createDecorator<ISnippetsService>('snippetService');
 
-class OpenSnippetsAction extends actions.Action {
+export interface ISnippetsService {
 
-	public static ID = 'workbench.action.openSnippets';
-	public static LABEL = nls.localize('openSnippet.label', 'Snippets');
+	_serviceBrand: any;
 
-	constructor(
-		id: string,
-		label:string,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IQuickOpenService private quickOpenService:IQuickOpenService
-	) {
-		super(id, label);
-	}
+	getSnippetFiles(): Promise<SnippetFile[]>;
 
-	private openFile(filePath: string): void {
-		ipc.send('vscode:windowOpen', [filePath], false /* force new window */); // handled from browser process
-	}
+	getSnippets(languageId: LanguageId): Promise<Snippet[]>;
 
-	public run(): winjs.Promise {
-		var modesRegistry = <modesExtensions.IEditorModesRegistry>platform.Registry.as(modesExtensions.Extensions.EditorModes);
-		var modeIds = modesRegistry.getRegisteredModes();
-		var picks: IPickOpenEntry[] = [];
-		modeIds.forEach((modeId) => {
-			var name = modesRegistry.getLanguageName(modeId);
-			if (name) {
-				picks.push({ label: name, id: modeId });
-			}
-		});
-		picks = picks.sort((e1, e2) =>
-			e1.label.localeCompare(e2.label)
-		);
-
-		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('openSnippet.pickLanguage', "Select Language for Snippet") }).then((language) => {
-			if (language) {
-				var snippetPath = paths.join(this.contextService.getConfiguration().env.appSettingsHome, 'snippets', language.id + '.json');
-				return fileExists(snippetPath).then((success) => {
-					if (success) {
-						this.openFile(snippetPath);
-						return winjs.Promise.as(null);
-					}
-					var defaultContent = [
-						'{',
-						'/*',
-						'\t // Place your snippets for ' + language.label + ' here. Each snippet is defined under a snippet name and has a prefix, body and ',
-						'\t // description. The prefix is what is used to trigger the snippet and the body will be expanded and inserted. Possible variables are:',
-						'\t // $1, $2 for tab stops, ${id} and ${id:label} and ${1:label} for variables. Variables with the same id are connected.',
-						'\t // Example:',
-						'\t "Print to console": {',
-						'\t\t"prefix": "log",',
-						'\t\t"body": [',
-						'\t\t\t"console.log(\'$1\');",',
-						'\t\t\t"$2"',
-						'\t\t],',
-						'\t\t"description": "Log output to console"',
-						'\t}',
-						'*/',
-						'}'
-					].join('\n');
-					return createFile(snippetPath, defaultContent).then(() => {
-						this.openFile(snippetPath);
-					}, (err) => {
-						errors.onUnexpectedError(nls.localize('openSnippet.errorOnCreate', 'Unable to create {0}', snippetPath));
-					});
-				});
-			}
-			return winjs.Promise.as(null);
-		});
-	}
+	getSnippetsSync(languageId: LanguageId): Snippet[];
 }
 
-function fileExists(path: string): winjs.TPromise<boolean> {
-	return new winjs.TPromise<boolean>((c, e, p) => {
-		fs.stat(path,(err, stats) => {
-			if (err) {
-				return c(false);
-			}
-
-			if (stats.isFile()) {
-				return c(true);
-			}
-
-			c(false);
-		});
-	});
-}
-
-function createFile(path: string, content: string): winjs.Promise {
-	return new winjs.Promise((c, e, p) => {
-		fs.writeFile(path, content, function(err) {
-			if(err) {
-				e(err);
-			}
-			c(true);
-		});
-	});
-}
-
-var preferencesCategory = nls.localize('preferences', "Preferences");
-var workbenchActionsRegistry = <workbenchActionRegistry.IWorkbenchActionRegistry> platform.Registry.as(workbenchActionRegistry.Extensions.WorkbenchActions);
-
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenSnippetsAction, OpenSnippetsAction.ID, OpenSnippetsAction.LABEL), preferencesCategory);
-
-(<workbenchContributions.IWorkbenchContributionsRegistry>platform.Registry.as(workbenchContributions.Extensions.Workbench)).registerWorkbenchContribution(
-	snippetsTracker.SnippetsTracker
-);
-
-let schemaId = 'local://schemas/snippets';
-let schema : IJSONSchema = {
-	'id': schemaId,
-	'default': { '{{snippetName}}': { 'prefix': '{{prefix}}', 'body': '{{snippet}}', 'description': '{{description}}' } },
-	'type': 'object',
-	'description': nls.localize('snippetSchema.json', 'User snippet configuration'),
-	'additionalProperties': {
-		'type': 'object',
-		'required': ['prefix', 'body'],
-		'properties': {
-			'prefix': {
-				'description': nls.localize('snippetSchema.json.prefix', 'The prefix to used when selecting the snippet in intellisense'),
-				'type': 'string'
+const languageScopeSchemaId = 'vscode://schemas/snippets';
+const languageScopeSchema: IJSONSchema = {
+	id: languageScopeSchemaId,
+	allowComments: true,
+	defaultSnippets: [{
+		label: nls.localize('snippetSchema.json.default', "Empty snippet"),
+		body: { '${1:snippetName}': { 'prefix': '${2:prefix}', 'body': '${3:snippet}', 'description': '${4:description}' } }
+	}],
+	type: 'object',
+	description: nls.localize('snippetSchema.json', 'User snippet configuration'),
+	additionalProperties: {
+		type: 'object',
+		required: ['prefix', 'body'],
+		properties: {
+			prefix: {
+				description: nls.localize('snippetSchema.json.prefix', 'The prefix to used when selecting the snippet in intellisense'),
+				type: 'string'
 			},
-			'body': {
-				'description': nls.localize('snippetSchema.json.body', 'The snippet content. Use \'${id}\', \'${id:label}\', \'${1:label}\' for variables and \'$0\', \'$1\' for the cursor positions'),
-				'type': ['string', 'array'],
-				'items': {
-					'type': 'string'
+			body: {
+				description: nls.localize('snippetSchema.json.body', 'The snippet content. Use \'$1\', \'${1:defaultText}\' to define cursor positions, use \'$0\' for the final cursor position. Insert variable values with \'${varName}\' and \'${varName:defaultText}\', e.g \'This is file: $TM_FILENAME\'.'),
+				type: ['string', 'array'],
+				items: {
+					type: 'string'
 				}
 			},
-			'description': {
-				'description': nls.localize('snippetSchema.json.description', 'The snippet description.'),
-				'type': 'string'
+			description: {
+				description: nls.localize('snippetSchema.json.description', 'The snippet description.'),
+				type: 'string'
 			}
 		},
-		'additionalProperties': false
+		additionalProperties: false
 	}
 };
 
-let schemaRegistry = <JSONContributionRegistry.IJSONContributionRegistry>platform.Registry.as(JSONContributionRegistry.Extensions.JSONContribution);
-schemaRegistry.registerSchema(schemaId, schema);
-schemaRegistry.addSchemaFileAssociation('%APP_SETTINGS_HOME%/snippets/*.json', schemaId);
+
+const globalSchemaId = 'vscode://schemas/global-snippets';
+const globalSchema: IJSONSchema = {
+	id: globalSchemaId,
+	allowComments: true,
+	defaultSnippets: [{
+		label: nls.localize('snippetSchema.json.default', "Empty snippet"),
+		body: { '${1:snippetName}': { 'scope': '${2:scope}', 'prefix': '${3:prefix}', 'body': '${4:snippet}', 'description': '${5:description}' } }
+	}],
+	type: 'object',
+	description: nls.localize('snippetSchema.json', 'User snippet configuration'),
+	additionalProperties: {
+		type: 'object',
+		required: ['prefix', 'body'],
+		properties: {
+			prefix: {
+				description: nls.localize('snippetSchema.json.prefix', 'The prefix to used when selecting the snippet in intellisense'),
+				type: 'string'
+			},
+			scope: {
+				description: nls.localize('snippetSchema.json.scope', "A list of language names to which this snippet applies, e.g 'typescript,javascript'."),
+				type: 'string'
+			},
+			body: {
+				description: nls.localize('snippetSchema.json.body', 'The snippet content. Use \'$1\', \'${1:defaultText}\' to define cursor positions, use \'$0\' for the final cursor position. Insert variable values with \'${varName}\' and \'${varName:defaultText}\', e.g \'This is file: $TM_FILENAME\'.'),
+				type: ['string', 'array'],
+				items: {
+					type: 'string'
+				}
+			},
+			description: {
+				description: nls.localize('snippetSchema.json.description', 'The snippet description.'),
+				type: 'string'
+			}
+		},
+		additionalProperties: false
+	}
+};
+
+const reg = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
+reg.registerSchema(languageScopeSchemaId, languageScopeSchema);
+reg.registerSchema(globalSchemaId, globalSchema);

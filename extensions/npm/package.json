@@ -1,0 +1,107 @@
+{
+  "name": "npm",
+  "publisher": "vscode",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.1",
+  "engines": {
+    "vscode": "0.10.x"
+  },
+  "icon": "images/npm_icon.png",
+  "categories": [
+    "Other"
+  ],
+  "scripts": {
+    "compile": "gulp compile-extension:npm",
+    "watch": "gulp watch-extension:npm"
+  },
+  "dependencies": {
+    "jsonc-parser": "^1.0.0",
+    "minimatch": "^3.0.4",
+    "request-light": "^0.2.2",
+    "vscode-nls": "^3.2.1"
+  },
+  "devDependencies": {
+    "@types/minimatch": "^3.0.3",
+    "@types/node": "7.0.43"
+  },
+  "main": "./out/main",
+  "activationEvents": [
+    "onCommand:workbench.action.tasks.runTask",
+    "onLanguage:json"
+  ],
+  "contributes": {
+    "configuration": {
+      "id": "npm",
+      "type": "object",
+      "title": "Npm",
+      "properties": {
+        "npm.autoDetect": {
+          "type": "string",
+          "enum": [
+            "off",
+            "on"
+          ],
+          "default": "on",
+          "scope": "resource",
+          "description": "%config.npm.autoDetect%"
+        },
+        "npm.runSilent": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource",
+          "description": "%config.npm.runSilent%"
+        },
+        "npm.packageManager": {
+          "scope": "resource",
+          "type": "string",
+          "enum": [
+            "npm",
+            "yarn"
+          ],
+          "default": "npm",
+          "description": "%config.npm.packageManager%"
+        },
+        "npm.exclude": {
+          "type": [
+            "string",
+            "array"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "%config.npm.exclude%",
+          "scope": "resource"
+        }
+      }
+    },
+    "jsonValidation": [
+      {
+        "fileMatch": "package.json",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/package.json"
+      },
+      {
+        "fileMatch": "bower.json",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/bower.json"
+      }
+    ],
+    "taskDefinitions": [
+      {
+        "type": "npm",
+        "required": [
+          "script"
+        ],
+        "properties": {
+          "script": {
+            "type": "string",
+            "description": "%taskdef.script%"
+          },
+          "path": {
+            "type": "string",
+            "description": "%taskdef.path%"
+          }
+        }
+      }
+    ]
+  }
+}

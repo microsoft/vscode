@@ -6,30 +6,42 @@
 (function () {
 	'use strict';
 
-	var MonacoEnvironment = (<any>self).MonacoEnvironment;
-	var monacoBaseUrl = MonacoEnvironment && MonacoEnvironment.baseUrl ? MonacoEnvironment.baseUrl : '../../../';
+	let MonacoEnvironment = (<any>self).MonacoEnvironment;
+	let monacoBaseUrl = MonacoEnvironment && MonacoEnvironment.baseUrl ? MonacoEnvironment.baseUrl : '../../../';
 
-	importScripts(monacoBaseUrl + 'vs/loader.js');
+	if (typeof (<any>self).define !== 'function' || !(<any>self).define.amd) {
+		importScripts(monacoBaseUrl + 'vs/loader.js');
+	}
 
 	require.config({
 		baseUrl: monacoBaseUrl,
 		catchError: true
 	});
 
-	var beforeReadyMessages:any[] = [];
-	self.onmessage = (message) => beforeReadyMessages.push(message);
+	let loadCode = function (moduleId: string) {
+		require([moduleId], function (ws) {
+			setTimeout(function () {
+				let messageHandler = ws.create((msg: any) => {
+					(<any>self).postMessage(msg);
+				}, null);
 
-	// Note: not using a import-module statement here, because
-	// it would wrap above statements in the define call.
+				self.onmessage = (e) => messageHandler.onmessage(e.data);
+				while (beforeReadyMessages.length > 0) {
+					self.onmessage(beforeReadyMessages.shift());
+				}
+			}, 0);
+		});
+	};
 
-	require(['vs/base/common/worker/workerServer'], function(ws) {
-		var messageHandler = ws.create((msg:any) => {
-			(<any>self).postMessage(msg);
-		}, null);
-
-		self.onmessage = (e) => messageHandler.onmessage(e.data);
-		while(beforeReadyMessages.length > 0) {
-			self.onmessage(beforeReadyMessages.shift());
+	let isFirstMessage = true;
+	let beforeReadyMessages: MessageEvent[] = [];
+	self.onmessage = (message) => {
+		if (!isFirstMessage) {
+			beforeReadyMessages.push(message);
+			return;
 		}
-	});
+
+		isFirstMessage = false;
+		loadCode(message.data);
+	};
 })();
