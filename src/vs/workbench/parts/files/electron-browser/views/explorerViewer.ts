@@ -327,10 +327,10 @@ export class FileRenderer implements IRenderer {
 				}
 			}),
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_UP, (e: IKeyboardEvent) => {
-				const initialRelPath: string = path.relative(stat.root.resource.fsPath, stat.parent.resource.fsPath);
+				const initialRelPath: string = path.relative(stat.root.resource.path, stat.parent.resource.path);
 				let projectFolderName: string = '';
 				if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-					projectFolderName = paths.basename(stat.root.resource.fsPath);	// show root folder name in multi-folder project
+					projectFolderName = paths.basename(stat.root.resource.path);	// show root folder name in multi-folder project
 				}
 				this.displayCurrentPath(inputBox, initialRelPath, projectFolderName, editableData.action.id);
 			}),
@@ -726,7 +726,7 @@ export class FileFilter implements IFilter {
 
 		// Hide those that match Hidden Patterns
 		const expression = this.hiddenExpressionPerRoot.get(stat.root.resource.toString()) || Object.create(null);
-		if (glob.match(expression, paths.normalize(path.relative(stat.root.resource.fsPath, stat.resource.fsPath), true), siblingsFn)) {
+		if (glob.match(expression, paths.normalize(path.relative(stat.root.resource.path, stat.resource.path), true), siblingsFn)) {
 			return false; // hidden through pattern
 		}
 
