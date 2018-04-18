@@ -345,7 +345,7 @@ export function createApiFactory(
 				return extHostEditors.getVisibleTextEditors();
 			},
 			get terminals() {
-				return extHostTerminalService.terminals;
+				return proposedApiFunction(extension, extHostTerminalService.terminals);
 			},
 			showTextDocument(documentOrUri: vscode.TextDocument | vscode.Uri, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): TPromise<vscode.TextEditor> {
 				let documentPromise: TPromise<vscode.TextDocument>;
@@ -382,9 +382,9 @@ export function createApiFactory(
 			onDidCloseTerminal(listener, thisArg?, disposables?) {
 				return extHostTerminalService.onDidCloseTerminal(listener, thisArg, disposables);
 			},
-			onDidOpenTerminal(listener, thisArg?, disposables?) {
+			onDidOpenTerminal: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
 				return extHostTerminalService.onDidOpenTerminal(listener, thisArg, disposables);
-			},
+			}),
 			get state() {
 				return extHostWindow.state;
 			},
