@@ -36,7 +36,6 @@ export interface ISelectBoxDelegate {
 
 export interface ISelectBoxOptions {
 	minBottomMargin?: number;
-
 }
 
 export interface ISelectBoxStyles extends IListStyles {
