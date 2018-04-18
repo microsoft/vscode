@@ -12,7 +12,7 @@ import * as errors from 'vs/base/common/errors';
 import { assign } from 'vs/base/common/objects';
 import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { flatten, distinct } from 'vs/base/common/arrays';
-import { extract, buffer } from 'vs/base/node/zip';
+import { extract, buffer, ExtractError } from 'vs/base/node/zip';
 import { TPromise } from 'vs/base/common/winjs.base';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension,
@@ -444,17 +444,19 @@ export class ExtensionManagementService extends Disposable implements IExtension
 					.then(
 						() => this.logService.info(`Extracted extension to ${extractPath}:`, id),
 						e => always(pfs.rimraf(extractPath), () => null)
-							.then(() => TPromise.wrapError(new ExtensionManagementError(e.message, INSTALL_ERROR_EXTRACTING)))),
+							.then(() => TPromise.wrapError(new ExtensionManagementError(e.message, e instanceof ExtractError ? e.type : INSTALL_ERROR_EXTRACTING)))),
 				e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_DELETING)));
 	}
 
 	private rename(id: string, extractPath: string, renamePath: string, retryUntil: number): TPromise<void> {
 		return pfs.rename(extractPath, renamePath)
-			.then(null, error =>
-				isWindows && error && error.code === 'EPERM' && Date.now() < retryUntil
-					? this.rename(id, extractPath, renamePath, retryUntil)
-					: TPromise.wrapError(new ExtensionManagementError(error.message || nls.localize('renameError', "Unknown error while"), error.code || INSTALL_ERROR_RENAMING))
-			);
+			.then(null, error => {
+				if (isWindows && error && error.code === 'EPERM' && Date.now() < retryUntil) {
+					this.logService.info(`Failed renaming ${extractPath} to ${renamePath} with 'EPERM' error. Trying again...`);
+					return this.rename(id, extractPath, renamePath, retryUntil);
+				}
+				return TPromise.wrapError(new ExtensionManagementError(error.message || nls.localize('renameError', "Unknown error while"), error.code || INSTALL_ERROR_RENAMING));
+			});
 	}
 
 	private rollback(extensions: IGalleryExtension[]): TPromise<void> {
