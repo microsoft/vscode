@@ -21,7 +21,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		extHostContext: IExtHostContext,
 		@ITerminalService private terminalService: ITerminalService
 	) {
-		console.log('MainThreadTerminalService#ctor');
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
 		this._toDispose.push(terminalService.onInstanceCreated((terminalInstance) => {
 			// Delay this message so the TerminalInstance constructor has a chance to finish and
@@ -101,7 +100,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	private _onTerminalRequestExtHostProcess(request: ITerminalProcessExtHostRequest): void {
-		console.log('mainThreadTerminalService#_onTerminalRequestExtHostProcess', arguments);
 		this._terminalProcesses[request.proxy.terminalId] = request.proxy;
 		const shellLaunchConfigDto: ShellLaunchConfigDto = {
 			name: request.shellLaunchConfig.name,

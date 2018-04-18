@@ -89,7 +89,6 @@ export class ExtHostTerminal implements vscode.Terminal {
 	}
 
 	public _setProcessId(processId: number): void {
-		console.log('extHostTerminalService#_setProcessId', processId);
 		this._pidPromiseComplete(processId);
 		this._pidPromiseComplete = null;
 	}
@@ -163,7 +162,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	public $acceptTerminalOpened(id: number, name: string): void {
-		console.log('terminal opened: ' + id);
 		let index = this._getTerminalIndexById(id);
 		if (index !== null) {
 			// The terminal has already been created (via createTerminal*), only fire the event
@@ -177,7 +175,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 	public $acceptTerminalProcessId(id: number, processId: number): void {
 		let terminal = this._getTerminalById(id);
-		console.log('ExtHostTerminalService#$acceptTerminalProcessId ' + id + ' ' + processId);
 		if (terminal) {
 			terminal._setProcessId(processId);
 		}
@@ -201,7 +198,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			shellLaunchConfig.executable = shellConfigValue;
 			shellLaunchConfig.args = shellArgsConfigValue;
 		}
-		this._logService.info('$createProcess', id, shellLaunchConfig, cols, rows);
 
 		// TODO: Base the cwd on the last active workspace root
 		// const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot('file');

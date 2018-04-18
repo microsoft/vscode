@@ -591,7 +591,6 @@ export class TerminalInstance implements ITerminalInstance {
 		this._processManager = this._instantiationService.createInstance(TerminalProcessManager, this._id, this._configHelper);
 		this._processManager.onProcessReady(() => this._onProcessIdReady.fire(this));
 		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
-		console.log('_createProcess', this._cols, this._rows);
 		this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows);
 
 		if (this._shellLaunchConfig.name) {
