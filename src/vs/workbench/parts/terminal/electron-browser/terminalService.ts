@@ -95,13 +95,12 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		return this._instantiationService.createInstance(TerminalInstance, terminalFocusContextKey, configHelper, undefined, shellLaunchConfig, true);
 	}
 
-	public requestExtHostProcess(proxy: ITerminalProcessExtHostProxy): void {
+	public requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): void {
 		// Ensure extension host is ready before requesting a process
 		this._extensionService.whenInstalledExtensionsRegistered().then(() => {
 			// TODO: MainThreadTerminalService is not ready at this point, fix this
 			setTimeout(() => {
-				console.log('request');
-				this._onInstanceRequestExtHostProcess.fire(proxy);
+				this._onInstanceRequestExtHostProcess.fire({ proxy, shellLaunchConfig, cols, rows });
 			}, 100);
 		});
 	}

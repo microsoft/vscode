@@ -165,7 +165,7 @@ export interface ITerminalService {
 	onInstanceCreated: Event<ITerminalInstance>;
 	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
-	onInstanceRequestExtHostProcess: Event<ITerminalProcessExtHostProxy>;
+	onInstanceRequestExtHostProcess: Event<ITerminalProcessExtHostRequest>;
 	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<string>;
 	terminalInstances: ITerminalInstance[];
@@ -207,7 +207,7 @@ export interface ITerminalService {
 	selectDefaultWindowsShell(): TPromise<string>;
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
 
-	requestExtHostProcess(proxy: ITerminalProcessExtHostProxy): void;
+	requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): void;
 }
 
 export const enum Direction {
@@ -532,4 +532,11 @@ export interface ITerminalProcessExtHostProxy {
 	onInput(listener: (data: string) => void): IDisposable;
 	onResize(listener: (cols: number, rows: number) => void): IDisposable;
 	onShutdown(listener: () => void): IDisposable;
+}
+
+export interface ITerminalProcessExtHostRequest {
+	proxy: ITerminalProcessExtHostProxy;
+	shellLaunchConfig: IShellLaunchConfig;
+	cols: number;
+	rows: number;
 }

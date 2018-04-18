@@ -79,7 +79,6 @@ export function createTerminalEnv(parentEnv: IStringDictionary<string>, shell: I
 	return env;
 }
 
-// TODO:should be protected/non-static
 export function resolveConfigurationVariables(configurationResolverService: IConfigurationResolverService, env: IStringDictionary<string>, lastActiveWorkspaceRoot: IWorkspaceFolder): IStringDictionary<string> {
 	Object.keys(env).forEach((key) => {
 		if (typeof env[key] === 'string') {

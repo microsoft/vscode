@@ -7,10 +7,13 @@
 import * as vscode from 'vscode';
 import * as cp from 'child_process';
 import * as path from 'path';
+import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/parts/terminal/node/terminalEnvironment';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext, ShellLaunchConfigDto } from 'vs/workbench/api/node/extHost.protocol';
 import { IMessageFromTerminalProcess } from 'vs/workbench/parts/terminal/node/terminal';
+import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class ExtHostTerminal implements vscode.Terminal {
 
@@ -116,7 +119,11 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 	public get terminals(): ExtHostTerminal[] { return this._terminals; }
 
-	constructor(mainContext: IMainContext) {
+	constructor(
+		mainContext: IMainContext,
+		private _extHostConfiguration: ExtHostConfiguration,
+		private _logService: ILogService
+	) {
 		this._onDidCloseTerminal = new Emitter<vscode.Terminal>();
 		this._onDidOpenTerminal = new Emitter<vscode.Terminal>();
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTerminalService);
@@ -176,28 +183,61 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	public $createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, cols: number, rows: number): void {
-		shellLaunchConfig = {
-			env: {},
-			executable: 'bash'
-		};
+		// TODO: This function duplicates a lot of TerminalProcessManager.createProcess, ideally
+		// they would be merged into a single implementation.
+
+		const terminalConfig = this._extHostConfiguration.getConfiguration('terminal.integrated');
+
+		const locale = terminalConfig.get('setLocaleVariables') ? platform.locale : undefined;
+		if (!shellLaunchConfig.executable) {
+			// TODO: This duplicates some of TerminalConfigHelper.mergeDefaultShellPathAndArgs and should be merged
+			// this._configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig);
+
+			const platformKey = platform.isWindows ? 'windows' : platform.isMacintosh ? 'osx' : 'linux';
+			const shellConfigValue: string = terminalConfig.get(`shell.${platformKey}`);
+			const shellArgsConfigValue: string = terminalConfig.get(`shellArgs.${platformKey}`);
+
+			shellLaunchConfig.executable = shellConfigValue;
+			shellLaunchConfig.args = shellArgsConfigValue;
+		}
+		this._logService.info('$createProcess', id, shellLaunchConfig, cols, rows);
+
+		// const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot('file');
+		// this.initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, lastActiveWorkspaceRootUri, this._configHelper);
+
+		// // Resolve env vars from config and shell
+		// const lastActiveWorkspaceRoot = this._workspaceContextService.getWorkspaceFolder(lastActiveWorkspaceRootUri);
+		// const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
+		// const envFromConfig = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...this._configHelper.config.env[platformKey] }, lastActiveWorkspaceRoot);
+		// const envFromShell = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...shellLaunchConfig.env }, lastActiveWorkspaceRoot);
+		// shellLaunchConfig.env = envFromShell;
+
+		// // Merge process env with the env from config
+		// const parentEnv = { ...process.env };
+		// terminalEnvironment.mergeEnvironments(parentEnv, envFromConfig);
+
+		// // Continue env initialization, merging in the env from the launch
+		// // config and adding keys that are needed to create the process
+		// const env = terminalEnvironment.createTerminalEnv(parentEnv, shellLaunchConfig, this.initialCwd, locale, cols, rows);
+		// const cwd = Uri.parse(paths.dirname(require.toUrl('../node/terminalProcess'))).fsPath;
+		// const options = { env, cwd };
+
+
+
 
 
 		// TODO: Launch process
 		// TODO: Associate the process with the terminal object/id
 		// TODO: terminal has incorrect name/options, fix up
 		const parentEnv = { ...process.env };
-		const env = terminalEnvironment.createTerminalEnv(parentEnv, shellLaunchConfig, '/home/daniel', undefined, cols, rows);
+		const env = terminalEnvironment.createTerminalEnv(parentEnv, shellLaunchConfig, '/home/daniel', locale, cols, rows);
 		// TODO: Use Uri?
 		let cwd = path.dirname(require.toUrl('../../parts/terminal/node/terminalProcess')).replace('file://', '');
-		console.log(cwd);
 		const options = { env, cwd, execArgv: [] };
 
 		let bootstrapUri = require.toUrl('bootstrap').replace('file://', '') + '.js';
-		console.log(bootstrapUri);
 
-		// cwd = '/home/daniel/dev/Microsoft/vscode/out/vs/workbench/parts/terminal/node';
-		// bootstrapUri = '/home/daniel/dev/Microsoft/vscode/out/bootstrap';
-		// env['AMD_ENTRYPOINT'] = 'vs/workbench/parts/terminal/node/terminalProcess';
+		this._logService.debug(`Terminal process launching on ext host`, options);
 		this._terminalProcesses[id] = cp.fork(bootstrapUri, ['--type=terminal'], options);
 
 		this._terminalProcesses[id].on('message', (message: IMessageFromTerminalProcess) => {
@@ -207,9 +247,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 				case 'data': this._proxy.$sendProcessData(id, <string>message.content); break;
 			}
 		});
-
-		const terminal = this._getTerminalById(id);
-		console.log('$createProcess terminal: ' + terminal.name);
 	}
 
 	public $acceptTerminalProcessInput(id: number, data: string): void {

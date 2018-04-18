@@ -5,7 +5,7 @@
 
 import { ITerminalChildProcess, IMessageToTerminalProcess, IMessageFromTerminalProcess } from 'vs/workbench/parts/terminal/node/terminal';
 import { EventEmitter } from 'events';
-import { ITerminalService, ITerminalProcessExtHostProxy } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, ITerminalProcessExtHostProxy, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { IDisposable } from '../../../../base/common/lifecycle';
 
 export class TerminalProcessExtHostProxy extends EventEmitter implements ITerminalChildProcess, ITerminalProcessExtHostProxy {
@@ -14,12 +14,15 @@ export class TerminalProcessExtHostProxy extends EventEmitter implements ITermin
 
 	constructor(
 		public terminalId: number,
+		shellLaunchConfig: IShellLaunchConfig,
+		cols: number,
+		rows: number
 		@ITerminalService private _terminalService: ITerminalService
 	) {
 		super();
 
 		// TODO: Return TPromise<boolean> indicating success? Teardown if failure?
-		this._terminalService.requestExtHostProcess(this);
+		this._terminalService.requestExtHostProcess(this, shellLaunchConfig, cols, rows);
 	}
 
 	public emitData(data: string): void {

@@ -5,9 +5,9 @@
 'use strict';
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalProcessExtHostProxy } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest } from 'vs/workbench/parts/terminal/common/terminal';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
+import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, ShellLaunchConfigDto } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
@@ -31,7 +31,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		}));
 		this._toDispose.push(terminalService.onInstanceDisposed(terminalInstance => this._onTerminalDisposed(terminalInstance)));
 		this._toDispose.push(terminalService.onInstanceProcessIdReady(terminalInstance => this._onTerminalProcessIdReady(terminalInstance)));
-		this._toDispose.push(terminalService.onInstanceRequestExtHostProcess(proxy => this._onTerminalRequestExtHostProcess(proxy)));
+		this._toDispose.push(terminalService.onInstanceRequestExtHostProcess(request => this._onTerminalRequestExtHostProcess(request)));
 
 		// Set initial ext host state
 		this.terminalService.terminalInstances.forEach(t => {
@@ -100,14 +100,21 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._proxy.$acceptTerminalProcessId(terminalInstance.id, terminalInstance.processId);
 	}
 
-	private _onTerminalRequestExtHostProcess(proxy: ITerminalProcessExtHostProxy): void {
+	private _onTerminalRequestExtHostProcess(request: ITerminalProcessExtHostRequest): void {
 		console.log('mainThreadTerminalService#_onTerminalRequestExtHostProcess', arguments);
-		this._terminalProcesses[proxy.terminalId] = proxy;
-		this._proxy.$createProcess(proxy.terminalId, null, 0, 0);
+		this._terminalProcesses[request.proxy.terminalId] = request.proxy;
+		const shellLaunchConfigDto: ShellLaunchConfigDto = {
+			name: request.shellLaunchConfig.name,
+			executable: request.shellLaunchConfig.executable,
+			args: request.shellLaunchConfig.args,
+			cwd: request.shellLaunchConfig.cwd,
+			env: request.shellLaunchConfig.env
+		};
+		this._proxy.$createProcess(request.proxy.terminalId, shellLaunchConfigDto, request.cols, request.rows);
 		// TODO: Dispose of this properly when the terminal/process dies
-		this._toDispose.push(proxy.onInput(data => this._proxy.$acceptTerminalProcessInput(proxy.terminalId, data)));
-		this._toDispose.push(proxy.onResize((cols, rows) => this._proxy.$acceptTerminalProcessResize(proxy.terminalId, cols, rows)));
-		this._toDispose.push(proxy.onShutdown(() => this._proxy.$acceptTerminalProcessShutdown(proxy.terminalId)));
+		this._toDispose.push(request.proxy.onInput(data => this._proxy.$acceptTerminalProcessInput(request.proxy.terminalId, data)));
+		this._toDispose.push(request.proxy.onResize((cols, rows) => this._proxy.$acceptTerminalProcessResize(request.proxy.terminalId, cols, rows)));
+		this._toDispose.push(request.proxy.onShutdown(() => this._proxy.$acceptTerminalProcessShutdown(request.proxy.terminalId)));
 	}
 
 	public $sendProcessTitle(terminalId: number, title: string): void {

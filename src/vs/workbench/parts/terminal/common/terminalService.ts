@@ -9,7 +9,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TERMINAL_PANEL_ID, ITerminalTab, ITerminalProcessExtHostProxy } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TERMINAL_PANEL_ID, ITerminalTab, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest } from 'vs/workbench/parts/terminal/common/terminal';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
@@ -39,8 +39,8 @@ export abstract class TerminalService implements ITerminalService {
 	public get onInstanceDisposed(): Event<ITerminalInstance> { return this._onInstanceDisposed.event; }
 	protected readonly _onInstanceProcessIdReady: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
 	public get onInstanceProcessIdReady(): Event<ITerminalInstance> { return this._onInstanceProcessIdReady.event; }
-	protected readonly _onInstanceRequestExtHostProcess: Emitter<ITerminalProcessExtHostProxy> = new Emitter<ITerminalProcessExtHostProxy>();
-	public get onInstanceRequestExtHostProcess(): Event<ITerminalProcessExtHostProxy> { return this._onInstanceRequestExtHostProcess.event; }
+	protected readonly _onInstanceRequestExtHostProcess: Emitter<ITerminalProcessExtHostRequest> = new Emitter<ITerminalProcessExtHostRequest>();
+	public get onInstanceRequestExtHostProcess(): Event<ITerminalProcessExtHostRequest> { return this._onInstanceRequestExtHostProcess.event; }
 	protected readonly _onInstancesChanged: Emitter<void> = new Emitter<void>();
 	public get onInstancesChanged(): Event<void> { return this._onInstancesChanged.event; }
 	protected readonly _onInstanceTitleChanged: Emitter<string> = new Emitter<string>();
@@ -75,7 +75,7 @@ export abstract class TerminalService implements ITerminalService {
 	public abstract getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract selectDefaultWindowsShell(): TPromise<string>;
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
-	public abstract requestExtHostProcess(proxy: ITerminalProcessExtHostProxy): void;
+	public abstract requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): void;
 
 	private _restoreTabs(): void {
 		if (!this.configHelper.config.experimentalRestore) {
