@@ -14,14 +14,19 @@ phases:
       npm run gulp -- hygiene
       .\node_modules\.bin\tsc -p .\src\tsconfig.monaco.json --noEmit
       npm run compile
+      node build/lib/builtInExtensions.js
     name: build
   - powershell: |
       .\scripts\test.bat --tfs
       .\scripts\test-integration.bat
+      yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)\screenshots"
     name: test
-  - task: PublishTestResults@2
+  - task: PublishBuildArtifacts@1
     inputs:
-      testResultsFiles: '.build\tests\unit-test-results.xml'
+      PathtoPublish: '$(Build.ArtifactStagingDirectory)/screenshots'
+      ArtifactName: Screenshots
+      publishLocation: Container
+    condition: succeededOrFailed()
 
 - phase: Linux
   queue: Hosted Linux Preview
@@ -48,14 +53,12 @@ phases:
       npm run gulp -- hygiene
       ./node_modules/.bin/tsc -p ./src/tsconfig.monaco.json --noEmit
       npm run compile
+      node build/lib/builtInExtensions.js
     name: build
   - script: |
       DISPLAY=:10 ./scripts/test.sh --tfs
       # DISPLAY=:10 ./scripts/test-integration.sh
     name: test
-  - task: PublishTestResults@2
-    inputs:
-      testResultsFiles: '.build/tests/unit-test-results.xml'
 
 - phase: macOS
   queue: Hosted macOS Preview
@@ -73,11 +76,16 @@ phases:
       npm run gulp -- hygiene
       ./node_modules/.bin/tsc -p ./src/tsconfig.monaco.json --noEmit
       npm run compile
+      node build/lib/builtInExtensions.js
     name: build
   - script: |
       ./scripts/test.sh --tfs
       ./scripts/test-integration.sh
+      yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)/screenshots"
     name: test
-  - task: PublishTestResults@2
+  - task: PublishBuildArtifacts@1
     inputs:
-      testResultsFiles: '.build/tests/unit-test-results.xml'
+      PathtoPublish: '$(Build.ArtifactStagingDirectory)/screenshots'
+      ArtifactName: Screenshots
+      publishLocation: Container
+    condition: succeededOrFailed()

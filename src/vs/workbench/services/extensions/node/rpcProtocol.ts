@@ -10,11 +10,88 @@ import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { LazyPromise } from 'vs/workbench/services/extensions/node/lazyPromise';
 import { ProxyIdentifier, IRPCProtocol } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { CharCode } from 'vs/base/common/charCode';
+import URI, { UriComponents } from 'vs/base/common/uri';
+import { MarshalledObject } from 'vs/base/common/marshalling';
 
 declare var Proxy: any; // TODO@TypeScript
 
+export interface IURITransformer {
+	transformIncoming(uri: UriComponents): UriComponents;
+	transformOutgoing(uri: URI): URI;
+}
+
+function _transformOutgoingURIs(obj: any, transformer: IURITransformer, depth: number): any {
+
+	if (!obj || depth > 200) {
+		return null;
+	}
+
+	if (typeof obj === 'object') {
+		if (obj instanceof URI) {
+			return transformer.transformOutgoing(obj);
+		}
+
+		// walk object (or array)
+		for (let key in obj) {
+			if (Object.hasOwnProperty.call(obj, key)) {
+				const r = _transformOutgoingURIs(obj[key], transformer, depth + 1);
+				if (r !== null) {
+					obj[key] = r;
+				}
+			}
+		}
+	}
+
+	return null;
+}
+
+function transformOutgoingURIs(obj: any, transformer: IURITransformer): any {
+	const result = _transformOutgoingURIs(obj, transformer, 0);
+	if (result === null) {
+		// no change
+		return obj;
+	}
+	return result;
+}
+
+function _transformIncomingURIs(obj: any, transformer: IURITransformer, depth: number): any {
+
+	if (!obj || depth > 200) {
+		return null;
+	}
+
+	if (typeof obj === 'object') {
+
+		if ((<MarshalledObject>obj).$mid === 1) {
+			return transformer.transformIncoming(obj);
+		}
+
+		// walk object (or array)
+		for (let key in obj) {
+			if (Object.hasOwnProperty.call(obj, key)) {
+				const r = _transformIncomingURIs(obj[key], transformer, depth + 1);
+				if (r !== null) {
+					obj[key] = r;
+				}
+			}
+		}
+	}
+
+	return null;
+}
+
+function transformIncomingURIs(obj: any, transformer: IURITransformer): any {
+	const result = _transformIncomingURIs(obj, transformer, 0);
+	if (result === null) {
+		// no change
+		return obj;
+	}
+	return result;
+}
+
 export class RPCProtocol implements IRPCProtocol {
 
+	private readonly _uriTransformer: IURITransformer;
 	private _isDisposed: boolean;
 	private readonly _locals: { [id: string]: any; };
 	private readonly _proxies: { [id: string]: any; };
@@ -23,7 +100,8 @@ export class RPCProtocol implements IRPCProtocol {
 	private readonly _pendingRPCReplies: { [msgId: string]: LazyPromise; };
 	private readonly _multiplexor: RPCMultiplexer;
 
-	constructor(protocol: IMessagePassingProtocol) {
+	constructor(protocol: IMessagePassingProtocol, transformer: IURITransformer = null) {
+		this._uriTransformer = transformer;
 		this._isDisposed = false;
 		this._locals = Object.create(null);
 		this._proxies = Object.create(null);
@@ -41,6 +119,13 @@ export class RPCProtocol implements IRPCProtocol {
 			const pending = this._pendingRPCReplies[msgId];
 			pending.resolveErr(errors.canceled());
 		});
+	}
+
+	public transformIncomingURIs<T>(obj: T): T {
+		if (!this._uriTransformer) {
+			return obj;
+		}
+		return transformIncomingURIs(obj, this._uriTransformer);
 	}
 
 	public getProxy<T>(identifier: ProxyIdentifier<T>): T {
@@ -84,6 +169,9 @@ export class RPCProtocol implements IRPCProtocol {
 		}
 
 		let msg = <RPCMessage>JSON.parse(rawmsg);
+		if (this._uriTransformer) {
+			msg = transformIncomingURIs(msg, this._uriTransformer);
+		}
 
 		switch (msg.type) {
 			case MessageType.Request:
@@ -109,6 +197,9 @@ export class RPCProtocol implements IRPCProtocol {
 
 		this._invokedHandlers[callId].then((r) => {
 			delete this._invokedHandlers[callId];
+			if (this._uriTransformer) {
+				r = transformOutgoingURIs(r, this._uriTransformer);
+			}
 			this._multiplexor.send(MessageFactory.replyOK(callId, r));
 		}, (err) => {
 			delete this._invokedHandlers[callId];
@@ -185,6 +276,9 @@ export class RPCProtocol implements IRPCProtocol {
 		});
 
 		this._pendingRPCReplies[callId] = result;
+		if (this._uriTransformer) {
+			args = transformOutgoingURIs(args, this._uriTransformer);
+		}
 		this._multiplexor.send(MessageFactory.request(callId, proxyId, methodName, args));
 		return result;
 	}

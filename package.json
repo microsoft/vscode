@@ -102,7 +102,6 @@
     "minimatch": "^2.0.10",
     "mkdirp": "^0.5.0",
     "mocha": "^2.2.5",
-    "mocha-junit-reporter": "^1.17.0",
     "object-assign": "^4.0.1",
     "optimist": "0.3.5",
     "p-all": "^1.0.0",

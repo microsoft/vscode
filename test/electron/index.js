@@ -8,7 +8,6 @@ const { tmpdir } = require('os');
 const { join } = require('path');
 const path = require('path');
 const mocha = require('mocha');
-const JUnitReporter = require('mocha-junit-reporter');
 const events = require('events');
 
 const defaultReporterName = process.platform === 'win32' ? 'list' : 'spec';
@@ -143,11 +142,6 @@ app.on('ready', () => {
 
 	if (argv.tfs) {
 		new TFSReporter(runner);
-		new JUnitReporter(runner, {
-			reporterOptions: {
-				mochaFile: '.build/tests/unit-test-results.xml'
-			}
-		});
 	} else {
 		const reporterPath = path.join(path.dirname(require.resolve('mocha')), 'lib', 'reporters', argv.reporter);
 		let Reporter;

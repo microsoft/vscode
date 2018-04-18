@@ -837,10 +837,15 @@ type Adapter = OutlineAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapt
 	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter | TypeDefinitionAdapter
 	| ColorProviderAdapter | FoldingProviderAdapter;
 
+export interface ISchemeTransformer {
+	transformOutgoing(scheme: string): string;
+}
+
 export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	private static _handlePool: number = 0;
 
+	private readonly _schemeTransformer: ISchemeTransformer;
 	private _proxy: MainThreadLanguageFeaturesShape;
 	private _documents: ExtHostDocuments;
 	private _commands: ExtHostCommands;
@@ -850,11 +855,13 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	constructor(
 		mainContext: IMainContext,
+		schemeTransformer: ISchemeTransformer,
 		documents: ExtHostDocuments,
 		commands: ExtHostCommands,
 		heapMonitor: ExtHostHeapService,
 		diagnostics: ExtHostDiagnostics
 	) {
+		this._schemeTransformer = schemeTransformer;
 		this._proxy = mainContext.getProxy(MainContext.MainThreadLanguageFeatures);
 		this._documents = documents;
 		this._commands = commands;
@@ -891,6 +898,9 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	}
 
 	private _transformScheme(scheme: string): string {
+		if (this._schemeTransformer && typeof scheme === 'string') {
+			return this._schemeTransformer.transformOutgoing(scheme);
+		}
 		return scheme;
 	}
 

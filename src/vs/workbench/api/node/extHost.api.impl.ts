@@ -111,7 +111,7 @@ export function createApiFactory(
 	const extHostDebugService = rpcProtocol.set(ExtHostContext.ExtHostDebugService, new ExtHostDebugService(rpcProtocol, extHostWorkspace, extensionService));
 	rpcProtocol.set(ExtHostContext.ExtHostConfiguration, extHostConfiguration);
 	const extHostDiagnostics = rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, new ExtHostDiagnostics(rpcProtocol));
-	const extHostLanguageFeatures = rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, new ExtHostLanguageFeatures(rpcProtocol, extHostDocuments, extHostCommands, extHostHeapService, extHostDiagnostics));
+	const extHostLanguageFeatures = rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, new ExtHostLanguageFeatures(rpcProtocol, null, extHostDocuments, extHostCommands, extHostHeapService, extHostDiagnostics));
 	const extHostFileSystem = rpcProtocol.set(ExtHostContext.ExtHostFileSystem, new ExtHostFileSystem(rpcProtocol, extHostLanguageFeatures));
 	const extHostFileSystemEvent = rpcProtocol.set(ExtHostContext.ExtHostFileSystemEventService, new ExtHostFileSystemEventService());
 	const extHostQuickOpen = rpcProtocol.set(ExtHostContext.ExtHostQuickOpen, new ExtHostQuickOpen(rpcProtocol, extHostWorkspace, extHostCommands));
@@ -568,6 +568,9 @@ export function createApiFactory(
 			},
 			registerFileSystemProvider: proposedApiFunction(extension, (scheme, provider, newProvider?) => {
 				return extHostFileSystem.registerFileSystemProvider(scheme, provider, newProvider);
+			}),
+			registerDeprecatedFileSystemProvider: proposedApiFunction(extension, (scheme, provider) => {
+				return extHostFileSystem.registerDeprecatedFileSystemProvider(scheme, provider);
 			}),
 			registerSearchProvider: proposedApiFunction(extension, (scheme, provider) => {
 				return extHostSearch.registerSearchProvider(scheme, provider);

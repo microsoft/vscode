@@ -20,6 +20,7 @@ import { Emitter, toPromise } from 'vs/base/common/event';
 // TODO@joao: bad layering!
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
+import { NativeImage } from 'electron';
 
 class WindowRouter implements IClientRouter {
 
@@ -63,12 +64,23 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 			.filter(id => this.registeredWindowIds.has(id) && !this.reloadingWindowIds.has(id));
 	}
 
+	async capturePage(windowId: number): TPromise<string> {
+		await this.whenUnfrozen(windowId);
+
+		const window = this.windowsService.getWindowById(windowId);
+		const webContents = window.win.webContents;
+		const image = await new Promise<NativeImage>(c => webContents.capturePage(c));
+		const buffer = image.toPNG();
+
+		return buffer.toString('base64');
+	}
+
 	async reloadWindow(windowId: number): TPromise<void> {
 		await this.whenUnfrozen(windowId);
 
 		const window = this.windowsService.getWindowById(windowId);
 		this.reloadingWindowIds.add(windowId);
-		window.reload();
+		this.windowsService.reload(window);
 	}
 
 	async dispatchKeybinding(windowId: number, keybinding: string): TPromise<void> {
@@ -141,6 +153,11 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	async setValue(windowId: number, selector: string, text: string): TPromise<void> {
 		const windowDriver = await this.getWindowDriver(windowId);
 		return windowDriver.setValue(selector, text);
+	}
+
+	async paste(windowId: number, selector: string, text: string): TPromise<void> {
+		const windowDriver = await this.getWindowDriver(windowId);
+		return windowDriver.paste(selector, text);
 	}
 
 	async getTitle(windowId: number): TPromise<string> {
