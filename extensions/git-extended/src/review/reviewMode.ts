@@ -166,41 +166,58 @@ export class ReviewMode {
 
 		const comments = await pr.getComments();
 
-		let added: Comment[] = [];
-		let removed: Comment[] = [];
-		let changed: Comment[] = [];
+		let added: vscode.CommentThread[] = [];
+		let removed: vscode.CommentThread[] = [];
+		let changed: vscode.CommentThread[] = [];
 
-		comments.forEach(comment => {
-			const matchingComments = this._comments.filter(oldComment => oldComment.id === comment.id);
+		const oldCommentThreads = this.commentsToCommentThreads(this._comments);
+		const newCommentThreads = this.commentsToCommentThreads(comments);
 
-			// No old comments match this comment, it is new
-			if (matchingComments.length === 0) {
-				added.push(comment);
+		oldCommentThreads.forEach(thread => {
+			// No current threads match old thread, it has been removed
+			const matchingThreads = newCommentThreads.filter(newThread => newThread.threadId === thread.threadId);
+			if (matchingThreads.length === 0) {
+				removed.push(thread);
+			}
+		});
+
+		function commentsEditedInThread(oldComments: vscode.Comment[], newComments: vscode.Comment[]): boolean {
+			oldComments.forEach(oldComment => {
+				const matchingComment = newComments.filter(newComment => newComment.commentId === oldComment.commentId);
+				if (matchingComment.length !== 1) {
+					return true;
+				}
+
+				if (matchingComment[0].body !== oldComment.body) {
+					return true;
+				}
+			});
+			return true;
+		}
+
+		newCommentThreads.forEach(thread => {
+			const matchingCommentThread = oldCommentThreads.filter(oldComment => oldComment.threadId === thread.threadId);
+
+			// No old threads match this thread, it is new
+			if (matchingCommentThread.length === 0) {
+				added.push(thread);
 			}
 
 			// Check if comment has been updated
-			matchingComments.forEach(match => {
-				if (new Date(match.updated_at) < new Date(comment.updated_at)) {
-					changed.push(match);
+			matchingCommentThread.forEach(match => {
+				if (match.comments.length !== thread.comments.length || commentsEditedInThread(matchingCommentThread[0].comments, thread.comments)) {
+					changed.push(thread);
 				}
 			});
 		});
 
-		this._comments.forEach(comment => {
-			// No current comments match old comment, it has been removed
-			const matchingComments = comments.filter(newComment => newComment.id === comment.id);
-			if (matchingComments.length === 0) {
-				removed.push(comment);
-			}
-		});
-
 		if (added.length || removed.length || changed.length) {
 			this._onDidChangeCommentThreads.fire({
-				added: this.commentsToCommentThreads(added),
-				removed: this.commentsToCommentThreads(removed),
-				changed: this.commentsToCommentThreads(changed)
+				added: added,
+				removed: removed,
+				changed: changed
 			});
-	
+
 			this._comments = comments;
 		}
 
