@@ -233,6 +233,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 				case 'data': this._proxy.$sendProcessData(id, <string>message.content); break;
 			}
 		});
+		this._terminalProcesses[id].on('exit', (exitCode) => this._onProcessExit(id, exitCode));
 	}
 
 	public $acceptProcessInput(id: number, data: string): void {
@@ -242,6 +243,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	public $acceptProcessResize(id: number, cols: number, rows: number): void {
+		console.log('send resize');
 		if (this._terminalProcesses[id].connected) {
 			this._terminalProcesses[id].send({ event: 'resize', cols, rows });
 		}
@@ -251,6 +253,20 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		if (this._terminalProcesses[id].connected) {
 			this._terminalProcesses[id].send({ event: 'shutdown' });
 		}
+	}
+
+	private _onProcessExit(id: number, exitCode: number): void {
+		console.log('exit');
+		// Remove listeners
+		const process = this._terminalProcesses[id];
+		process.removeAllListeners('message');
+		process.removeAllListeners('exit');
+
+		// Remove process reference
+		delete this._terminalProcesses[id];
+
+		// Send exit event to main side
+		this._proxy.$sendProcessExit(id, exitCode);
 	}
 
 	private _getTerminalById(id: number): ExtHostTerminal {

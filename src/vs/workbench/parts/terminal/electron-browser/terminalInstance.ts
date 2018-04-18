@@ -667,7 +667,11 @@ export class TerminalInstance implements ITerminalInstance {
 							return a;
 						}).join(' ');
 					}
-					this._notificationService.error(nls.localize('terminal.integrated.launchFailed', 'The terminal process command \'{0}{1}\' failed to launch (exit code: {2})', this._shellLaunchConfig.executable, args, exitCode));
+					if (this._shellLaunchConfig.executable) {
+						this._notificationService.error(nls.localize('terminal.integrated.launchFailed', 'The terminal process command \'{0}{1}\' failed to launch (exit code: {2})', this._shellLaunchConfig.executable, args, exitCode));
+					} else {
+						this._notificationService.error(nls.localize('terminal.integrated.launchFailedExtHost', 'The terminal process failed to launch (exit code: {0})', exitCode));
+					}
 				} else {
 					if (this._configHelper.config.showExitAlert) {
 						this._notificationService.error(exitCodeMessage);

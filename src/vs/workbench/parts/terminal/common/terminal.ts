@@ -524,6 +524,7 @@ export interface ITerminalProcessExtHostProxy {
 	emitData(data: string): void;
 	emitTitle(title: string): void;
 	emitPid(pid: number): void;
+	emitExit(exitCode: number): void;
 	onInput(listener: (data: string) => void): IDisposable;
 	onResize(listener: (cols: number, rows: number) => void): IDisposable;
 	onShutdown(listener: () => void): IDisposable;

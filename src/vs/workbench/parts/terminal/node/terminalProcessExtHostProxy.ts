@@ -28,11 +28,17 @@ export class TerminalProcessExtHostProxy extends EventEmitter implements ITermin
 	public emitData(data: string): void {
 		this.emit('message', { type: 'data', content: data } as IMessageFromTerminalProcess);
 	}
+
 	public emitTitle(title: string): void {
 		this.emit('message', { type: 'title', content: title } as IMessageFromTerminalProcess);
 	}
+
 	public emitPid(pid: number): void {
 		this.emit('message', { type: 'pid', content: pid } as IMessageFromTerminalProcess);
+	}
+
+	public emitExit(exitCode: number): void {
+		this.emit('exit', exitCode);
 	}
 
 	public send(message: IMessageToTerminalProcess): boolean {
