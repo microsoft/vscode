@@ -139,6 +139,10 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 	return connect(child, outPath, handle, options.verbose);
 }
 
+export const polling = {
+	lastTimeoutMessage: ''
+};
+
 async function poll<T>(
 	fn: () => Promise<T>,
 	acceptFn: (result: T) => boolean,
@@ -155,6 +159,7 @@ async function poll<T>(
 
 		let result;
 		try {
+			polling.lastTimeoutMessage = timeoutMessage;
 			result = await fn();
 
 			if (acceptFn(result)) {

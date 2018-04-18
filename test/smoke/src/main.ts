@@ -27,6 +27,7 @@ import { setup as setupDataExtensionTests } from './areas/extensions/extensions.
 import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
 import { setup as setupDataMultirootTests } from './areas/multiroot/multiroot.test';
 import { setup as setupDataLocalizationTests } from './areas/workbench/localization.test';
+import { polling } from './vscode/code';
 
 const tmpDir = tmp.dirSync({ prefix: 't' }) as { name: string; removeCallback: Function; };
 const testDataPath = tmpDir.name;
@@ -287,6 +288,8 @@ describe('Test', () => {
 
 			const name = this.currentTest.fullTitle().replace(/[^a-z0-9\-]/ig, '_');
 			const screenshotPath = path.join(screenshotsPath, `${name}.png`);
+
+			console.log('Last poll message: ', polling.lastTimeoutMessage);
 			fs.writeFileSync(screenshotPath, buffer);
 		});
 	}
