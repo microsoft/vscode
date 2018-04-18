@@ -65,7 +65,8 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 				},
 				provideNewCommentRange: async (model, token) => {
 					return await this.provideNewCommentRange(model);
-				}
+				},
+				onDidChangeCommentThreads: null
 			});
 		});
 	}
