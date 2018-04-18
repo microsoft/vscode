@@ -34,6 +34,13 @@ export class ReviewMode {
 	private _resourceGroups: vscode.SourceControlResourceGroup[] = [];
 	private _disposables: vscode.Disposable[];
 
+	private _comments: Comment[] = [];
+	private _commentsCache: Map<String, Comment[]>;
+	private _localFileChanges: FileChangeTreeItem[] = [];
+	private _actions: vscode.Command[] = [];
+	private _lastCommitSha: string;
+
+	private _onDidChangeCommentThreads = new vscode.EventEmitter<vscode.CommentThreadChangedEvent>();
 	constructor(
 		private _repository: Repository,
 		private _workspaceState: vscode.Memento,
@@ -42,6 +49,7 @@ export class ReviewMode {
 		this._commentProvider = null;
 		this._command = null;
 		this._disposables = [];
+		this._commentsCache = new Map<String, Comment[]>();
 		this._disposables.push(vscode.workspace.registerTextDocumentContentProvider('review', new GitContentProvider(_repository)));
 		this._disposables.push(vscode.commands.registerCommand('review.openFile', (uri: vscode.Uri) => {
 			let params = JSON.parse(uri.query);
@@ -51,6 +59,16 @@ export class ReviewMode {
 			this.validateState();
 		}));
 		this.validateState();
+
+
+		this.pollForStatusChange();
+	}
+
+	private pollForStatusChange() {
+		setTimeout(async () => {
+			await this.updateComments();
+			this.pollForStatusChange();
+		}, 1000 * 10);
 	}
 
 	async validateState() {
@@ -74,11 +92,8 @@ export class ReviewMode {
 			return;
 		}
 
-		if (state.prNumber === this._prNumber) {
-			return;
-		}
-
 		this._prNumber = state.prNumber;
+		this._lastCommitSha = state['head'].sha;
 
 		// we switch to another PR, let's clean up first.
 		this.clear();
@@ -88,25 +103,21 @@ export class ReviewMode {
 			return; // todo, should show warning
 		}
 
-		let pr = await githubRepo.getPullRequest(this._prNumber);
-		const comments = await pr.getComments();
-		const data = await pr.getFiles();
-		const baseSha = await pr.getBaseCommitSha();
-		const richContentChanges = await parseDiff(data, this._repository, baseSha);
-		let localFileChanges = richContentChanges.map(change => {
-			let changedItem = new FileChangeTreeItem(
-				pr.prItem,
-				change.fileName,
-				change.status,
-				change.fileName,
-				toGitUri(vscode.Uri.parse(change.fileName), null, change.status === GitChangeType.DELETE ? '' : pr.prItem.head.sha, {}),
-				toGitUri(vscode.Uri.parse(change.fileName), null, change.status === GitChangeType.ADD ? '' : pr.prItem.base.sha, {}),
-				this._repository.path,
-				change.patch
-			);
-			changedItem.comments = comments.filter(comment => comment.path === changedItem.fileName);
-			return changedItem;
-		});
+		const pr = await githubRepo.getPullRequest(this._prNumber);
+		await this.getPullRequestData(pr);
+
+		let prChangeResources = this._localFileChanges.map(fileChange => ({
+			resourceUri: vscode.Uri.file(path.resolve(this._repository.path, fileChange.fileName)),
+			command: {
+				title: 'show diff',
+				command: 'vscode.diff',
+				arguments: [
+					fileChange.parentFilePath,
+					fileChange.filePath,
+					fileChange.fileName
+				]
+			}
+		}));
 
 		this._command = vscode.commands.registerCommand(this._prNumber + '-post', async (id: string, uri: vscode.Uri, lineNumber: number, text: string) => {
 			try {
@@ -121,59 +132,149 @@ export class ReviewMode {
 			}
 		});
 
-		let actions = [
+		this._actions = [
 			{
 				command: this._prNumber + '-post',
 				title: 'Add single comment'
 			}
 		];
 
-		const commentsCache = new Map<String, Comment[]>();
-		localFileChanges.forEach(changedItem => {
-			let matchingComments = comments.filter(comment => comment.path === changedItem.fileName);
-			commentsCache.set(changedItem.filePath.toString(), matchingComments);
-		});
+		this.registerCommentProvider();
 
-		function commentsToCommentThreads(uri: vscode.Uri, comments: Comment[]): vscode.CommentThread[] {
-			if (!comments || !comments.length) {
-				return [];
-			}
+		let prGroup: vscode.SourceControlResourceGroup = this._gitRepo.sourceControl.createResourceGroup('pr', 'Changes from PR');
+		this._resourceGroups.push(prGroup);
+		prGroup.resourceStates = prChangeResources;
+	}
 
-			let sections = _.groupBy(comments, comment => comment.position);
-			let ret: vscode.CommentThread[] = [];
+	private async updateComments(): Promise<void> {
+		const branch = this._repository.HEAD.name;
+		const state = this._workspaceState.get(`${REVIEW_STATE}:${branch}`) as ReviewState;
+		if (!state) { return; }
 
-			for (let i in sections) {
-				let comments = sections[i];
+		const remote = this._repository.remotes.find(remote => remote.remoteName === state.remote);
+		if (!remote) { return; }
 
-				const comment = comments[0];
-				// If the position is null, the comment is on a line that has been changed. Fall back to using original position.
-				const commentPosition = comment.position === null ? comment.original_position : comment.position - 1;
-				const commentAbsolutePosition = comment.diff_hunk_range.start + commentPosition;
-				const pos = new vscode.Position(comment.currentPosition ? comment.currentPosition - 1 - 1 : commentAbsolutePosition - /* after line */ 1 - /* it's zero based*/ 1, 0);
-				const range = new vscode.Range(pos, pos);
+		const githubRepo = this._repository.githubRepositories.find(repo => repo.remote.equals(remote));
+		if (!githubRepo) { return; }
 
-				ret.push({
-					threadId: comment.id,
-					resource: uri,
-					range,
-					comments: comments.map(comment => {
-						return {
-							commentId: comment.id,
-							body: new vscode.MarkdownString(comment.body),
-							userName: comment.user.login,
-							gravatar: comment.user.avatar_url
-						};
-					}),
-					actions: actions
-				});
-			}
-
-			return ret;
+		const pr = await githubRepo.getPullRequest(this._prNumber);
+		if (pr.prItem.head.sha !== this._lastCommitSha) {
+			await vscode.window.showInformationMessage('There are updates available for this branch.');
+			// TODO: Have 'Pull' option that will fetch latest from ref branch and apply to read only branch
+			// TODO: Prevent repeatedly popping this message up if user has already dismissed it
 		}
 
-		const _onDidChangeCommentThreads = new vscode.EventEmitter<vscode.CommentThreadChangedEvent>();
+		const comments = await pr.getComments();
+
+		let added: Comment[] = [];
+		let removed: Comment[] = [];
+		let changed: Comment[] = [];
+
+		comments.forEach(comment => {
+			const matchingComments = this._comments.filter(oldComment => oldComment.id === comment.id);
+
+			// No old comments match this comment, it is new
+			if (matchingComments.length === 0) {
+				added.push(comment);
+			}
+
+			// Check if comment has been updated
+			matchingComments.forEach(match => {
+				if (new Date(match.updated_at) < new Date(comment.updated_at)) {
+					changed.push(match);
+				}
+			});
+		});
+
+		this._comments.forEach(comment => {
+			// No current comments match old comment, it has been removed
+			const matchingComments = comments.filter(newComment => newComment.id === comment.id);
+			if (matchingComments.length === 0) {
+				removed.push(comment);
+			}
+		});
+
+		if (added.length || removed.length || changed.length) {
+			this._onDidChangeCommentThreads.fire({
+				added: this.commentsToCommentThreads(added),
+				removed: this.commentsToCommentThreads(removed),
+				changed: this.commentsToCommentThreads(changed)
+			});
+	
+			this._comments = comments;
+		}
+
+		return Promise.resolve(null);
+	}
+
+	private async getPullRequestData(pr: PullRequest): Promise<void> {
+		this._comments = await pr.getComments();
+		const data = await pr.getFiles();
+		const baseSha = await pr.getBaseCommitSha();
+		const richContentChanges = await parseDiff(data, this._repository, baseSha);
+		this._localFileChanges = richContentChanges.map(change => {
+			let changedItem = new FileChangeTreeItem(
+				pr.prItem,
+				change.fileName,
+				change.status,
+				change.fileName,
+				toGitUri(vscode.Uri.parse(change.fileName), null, change.status === GitChangeType.DELETE ? '' : pr.prItem.head.sha, {}),
+				toGitUri(vscode.Uri.parse(change.fileName), null, change.status === GitChangeType.ADD ? '' : pr.prItem.base.sha, {}),
+				this._repository.path,
+				change.patch
+			);
+			changedItem.comments = this._comments.filter(comment => comment.path === changedItem.fileName);
+			return changedItem;
+		});
+
+		this._localFileChanges.forEach(changedItem => {
+			let matchingComments = this._comments.filter(comment => comment.path === changedItem.fileName);
+			this._commentsCache.set(changedItem.filePath.toString(), matchingComments);
+		});
+
+		return Promise.resolve(null);
+	}
+
+	private commentsToCommentThreads(comments: Comment[]): vscode.CommentThread[] {
+		if (!comments || !comments.length) {
+			return [];
+		}
+
+		let sections = _.groupBy(comments, comment => comment.position);
+		let ret: vscode.CommentThread[] = [];
+
+		for (let i in sections) {
+			let comments = sections[i];
+
+			const comment = comments[0];
+			// If the position is null, the comment is on a line that has been changed. Fall back to using original position.
+			const commentPosition = comment.position === null ? comment.original_position : comment.position - 1;
+			const commentAbsolutePosition = comment.diff_hunk_range.start + commentPosition;
+			const pos = new vscode.Position(comment.currentPosition ? comment.currentPosition - 1 - 1 : commentAbsolutePosition - /* after line */ 1 - /* it's zero based*/ 1, 0);
+			const range = new vscode.Range(pos, pos);
+
+			ret.push({
+				threadId: comment.id,
+				resource: vscode.Uri.file(path.resolve(this._repository.path, comment.path)),
+				range,
+				comments: comments.map(comment => {
+					return {
+						commentId: comment.id,
+						body: new vscode.MarkdownString(comment.body),
+						userName: comment.user.login,
+						gravatar: comment.user.avatar_url
+					};
+				}),
+				actions: this._actions
+			});
+		}
+
+		return ret;
+	}
+
+	registerCommentProvider() {
 		vscode.workspace.registerCommentProvider({
-			onDidChangeCommentThreads: _onDidChangeCommentThreads.event,
+			onDidChangeCommentThreads: this._onDidChangeCommentThreads.event,
 			provideNewCommentRange: async (document: vscode.TextDocument, token: vscode.CancellationToken) => {
 				if (document.uri.scheme === 'review' || document.uri.scheme === 'file') {
 					let lastLine = document.lineCount;
@@ -182,7 +283,7 @@ export class ReviewMode {
 						ranges: [
 							new vscode.Range(1, 1, lastLine, lastColumn)
 						],
-						actions: actions
+						actions: this._actions
 					}];
 				} else {
 					return [{
@@ -195,52 +296,30 @@ export class ReviewMode {
 				let matchingComments: Comment[];
 				if (document.uri.scheme === 'review') {
 					// from scm viewlet
-					matchingComments = commentsCache.get(document.uri.toString());
+					matchingComments = this._commentsCache.get(document.uri.toString());
 				} else if (document.uri.scheme === 'file') {
 					// local file
 					let fileName = document.uri.path;
-					let matchedFiles = localFileChanges.filter(fileChange => path.resolve(this._repository.path, fileChange.fileName) === fileName);
+					let matchedFiles = this._localFileChanges.filter(fileChange => path.resolve(this._repository.path, fileChange.fileName) === fileName);
 					if (matchedFiles && matchedFiles.length) {
 						let matchedFile = matchedFiles[0];
-						// last commit sha of pr
-						let prHead = state['head'].sha;
 						// git diff sha -- fileName
-						let contentDiff = await this._repository.diff(matchedFile.fileName, prHead);
-						matchingComments = comments.filter(comment => path.resolve(this._repository.path, comment.path) === fileName);
+						let contentDiff = await this._repository.diff(matchedFile.fileName, this._lastCommitSha);
+						matchingComments = this._comments.filter(comment => path.resolve(this._repository.path, comment.path) === fileName);
 						matchingComments = mapCommentsToHead(contentDiff, matchingComments);
 					}
 				}
 
-				return commentsToCommentThreads(document.uri, matchingComments);
+				return this.commentsToCommentThreads(matchingComments);
 			},
 			provideAllComments: async (token: vscode.CancellationToken) => {
-				const comments = await Promise.all(localFileChanges.map(async fileChange => {
-					// const comments = fileChange.comments;
-					// let prHead = state['head'].sha;
-					// let contentDiff = await this._repository.diff(fileChange.fileName, prHead);
-					// const mappedComments =  mapCommentsToHead(contentDiff, comments);
-					return commentsToCommentThreads(vscode.Uri.file(path.resolve(this._repository.path, fileChange.fileName)), fileChange.comments);
+				const comments = await Promise.all(this._localFileChanges.map(async fileChange => {
+					return this.commentsToCommentThreads(fileChange.comments);
 				}));
 				return comments.reduce((prev, curr) => prev.concat(curr), []);
 			}
 		});
 
-		let prChangeResources = localFileChanges.map(fileChange => ({
-			resourceUri: vscode.Uri.file(path.resolve(this._repository.path, fileChange.fileName)),
-			command: {
-				title: 'show diff',
-				command: 'vscode.diff',
-				arguments: [
-					fileChange.parentFilePath,
-					fileChange.filePath,
-					fileChange.fileName
-				]
-			}
-		}));
-
-		let prGroup: vscode.SourceControlResourceGroup = this._gitRepo.sourceControl.createResourceGroup('pr', 'Changes from PR');
-		this._resourceGroups.push(prGroup);
-		prGroup.resourceStates = prChangeResources;
 	}
 
 	async switch(pr: PullRequest) {
