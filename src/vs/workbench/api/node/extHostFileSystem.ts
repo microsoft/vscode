@@ -165,6 +165,10 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		extHostLanguageFeatures.registerDocumentLinkProvider('*', this._linkProvider);
 	}
 
+	registerDeprecatedFileSystemProvider(scheme: string, provider: vscode.FileSystemProvider) {
+		return this.registerFileSystemProvider(scheme, null, new FileSystemProviderShim(provider));
+	}
+
 	registerFileSystemProvider(scheme: string, provider: vscode.FileSystemProvider, newProvider: vscode.FileSystemProvider2) {
 		if (newProvider && newProvider._version === 6) {
 			return this._doRegisterFileSystemProvider(scheme, newProvider);

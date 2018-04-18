@@ -304,6 +304,7 @@ declare module 'vscode' {
 
 	export namespace workspace {
 		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, newProvider?: FileSystemProvider2): Disposable;
+		export function registerDeprecatedFileSystemProvider(scheme: string, provider: FileSystemProvider): Disposable;
 	}
 
 	//#endregion
