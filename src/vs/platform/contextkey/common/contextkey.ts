@@ -554,8 +554,12 @@ export interface IContextKeyServiceTarget {
 
 export const IContextKeyService = createDecorator<IContextKeyService>('contextKeyService');
 
+export interface IReadableSet<T> {
+	has(value: T): boolean;
+}
+
 export interface IContextKeyChangeEvent {
-	affectsSome(keys: Set<string>): boolean;
+	affectsSome(keys: IReadableSet<string>): boolean;
 }
 
 export interface IContextKeyService {

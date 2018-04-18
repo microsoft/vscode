@@ -150,6 +150,10 @@ export class PanelViewlet extends Viewlet {
 		return this.panelview.onDidSashChange;
 	}
 
+	protected get panels(): ViewletPanel[] {
+		return this.panelItems.map(i => i.panel);
+	}
+
 	protected get length(): number {
 		return this.panelItems.length;
 	}

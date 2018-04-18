@@ -7,7 +7,7 @@
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IContextKey, IContext, IContextKeyServiceTarget, IContextKeyService, SET_CONTEXT_COMMAND_ID, ContextKeyExpr, IContextKeyChangeEvent } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContext, IContextKeyServiceTarget, IContextKeyService, SET_CONTEXT_COMMAND_ID, ContextKeyExpr, IContextKeyChangeEvent, IReadableSet } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService, IConfigurationChangeEvent, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { Event, Emitter, debounceEvent } from 'vs/base/common/event';
 
@@ -179,7 +179,7 @@ export class ContextKeyChangeEvent implements IContextKeyChangeEvent {
 		this._keys = this._keys.concat(oneOrManyKeys);
 	}
 
-	affectsSome(keys: Set<string>): boolean {
+	affectsSome(keys: IReadableSet<string>): boolean {
 		for (const key of this._keys) {
 			if (keys.has(key)) {
 				return true;
