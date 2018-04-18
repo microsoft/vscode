@@ -100,8 +100,10 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		this._isVisible = false;
 		this.selectBoxOptions = selectBoxOptions || Object.create(null);
 
-		if (!this.selectBoxOptions.minBottomMargin) {
+		if (typeof this.selectBoxOptions.minBottomMargin !== 'number') {
 			this.selectBoxOptions.minBottomMargin = SelectBoxList.DEFAULT_DROPDOWN_MINIMUM_BOTTOM_MARGIN;
+		} else if (this.selectBoxOptions.minBottomMargin < 0) {
+			this.selectBoxOptions.minBottomMargin = 0;
 		}
 
 		this.selectElement = document.createElement('select');
@@ -411,10 +413,6 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		const selectPosition = dom.getDomNodePagePosition(this.selectElement);
 
 		// Set container height to max from select bottom to margin (default/minBottomMargin)
-		if (this.selectBoxOptions.minBottomMargin < 0) {
-			this.selectBoxOptions.minBottomMargin = 0;
-		}
-
 		let maxSelectDropDownHeight = (window.innerHeight - selectPosition.top - selectPosition.height - this.selectBoxOptions.minBottomMargin);
 
 		if (maxSelectDropDownHeight < 0) {
