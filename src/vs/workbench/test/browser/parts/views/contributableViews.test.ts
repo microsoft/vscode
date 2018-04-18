@@ -10,6 +10,7 @@ import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyServ
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { SimpleConfigurationService } from 'vs/editor/standalone/browser/simpleServices';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { move } from 'vs/base/common/arrays';
 
 const location = ViewLocation.register('test');
 
@@ -22,6 +23,7 @@ class ViewDescriptorSequence {
 		this.elements = [...model.visibleViewDescriptors];
 		model.onDidAdd(({ viewDescriptor, index }) => this.elements.splice(index, 0, viewDescriptor), null, this.disposables);
 		model.onDidRemove(({ viewDescriptor, index }) => this.elements.splice(index, 1), null, this.disposables);
+		model.onDidMove(({ from, to }) => move(this.elements, from.index, to.index), null, this.disposables);
 	}
 
 	dispose() {
@@ -218,8 +220,8 @@ suite('ContributableViewsModel', () => {
 		const view3: IViewDescriptor = { id: 'view3', ctor: null, location, name: 'Test View 3' };
 
 		ViewsRegistry.registerViews([view1, view2, view3]);
-		assert.deepEqual(model.visibleViewDescriptors, [view1, view2, view3]);
-		assert.deepEqual(seq.elements, [view1, view2, view3]);
+		assert.deepEqual(model.visibleViewDescriptors, [view1, view2, view3], 'model views should be OK');
+		assert.deepEqual(seq.elements, [view1, view2, view3], 'sql views should be OK');
 
 		model.move('view3', 'view1');
 		assert.deepEqual(model.visibleViewDescriptors, [view3, view1, view2], 'view3 should go to the front');
