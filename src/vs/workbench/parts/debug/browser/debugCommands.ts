@@ -188,13 +188,13 @@ export function registerCommands(): void {
 				const position = control.getPosition();
 				const modelUri = control.getModel().uri;
 				const bp = debugService.getModel().getBreakpoints()
-					.filter(bp => bp.lineNumber === position.lineNumber && bp.column === position.column && bp.uri.toString() === modelUri.toString()).pop();
+					.filter(bp => bp.lineNumber === position.lineNumber && (bp.column === position.column || !bp.column && position.column <= 1) && bp.uri.toString() === modelUri.toString()).pop();
 
 				if (bp) {
 					return TPromise.as(null);
 				}
 				if (debugService.getConfigurationManager().canSetBreakpointsIn(control.getModel())) {
-					return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column }]);
+					return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column > 1 ? position.column : undefined }]);
 				}
 			}
 

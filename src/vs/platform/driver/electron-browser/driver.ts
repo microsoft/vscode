@@ -106,6 +106,21 @@ class WindowDriver implements IWindowDriver {
 		inputElement.dispatchEvent(event);
 	}
 
+	async paste(selector: string, text: string): TPromise<void> {
+		const element = document.querySelector(selector);
+
+		if (!element) {
+			throw new Error('Element not found');
+		}
+
+		const inputElement = element as HTMLInputElement;
+		const clipboardData = new DataTransfer();
+		clipboardData.setData('text/plain', text);
+		const event = new ClipboardEvent('paste', { clipboardData } as any);
+
+		inputElement.dispatchEvent(event);
+	}
+
 	async getTitle(): TPromise<string> {
 		return document.title;
 	}
@@ -154,12 +169,16 @@ class WindowDriver implements IWindowDriver {
 			throw new Error('Terminal not found: ' + selector);
 		}
 
-		const buffer = (element as any).xterm.buffer;
+		const xterm = (element as any).xterm;
+
+		if (!xterm) {
+			throw new Error('Xterm not found: ' + selector);
+		}
 
 		const lines: string[] = [];
 
-		for (let i = 0; i < buffer.lines.length; i++) {
-			lines.push(buffer.translateBufferLineToString(i, true));
+		for (let i = 0; i < xterm.buffer.lines.length; i++) {
+			lines.push(xterm.buffer.translateBufferLineToString(i, true));
 		}
 
 		return lines;

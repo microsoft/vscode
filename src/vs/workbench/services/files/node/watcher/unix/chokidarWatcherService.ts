@@ -19,6 +19,7 @@ import { realcaseSync } from 'vs/base/node/extfs';
 import { isMacintosh } from 'vs/base/common/platform';
 import * as watcher from 'vs/workbench/services/files/node/watcher/common';
 import { IWatcherRequest, IWatcherService } from 'vs/workbench/services/files/node/watcher/unix/watcher';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 
 export class ChokidarWatcherService implements IWatcherService {
 
@@ -28,6 +29,7 @@ export class ChokidarWatcherService implements IWatcherService {
 	private spamCheckStartTime: number;
 	private spamWarningLogged: boolean;
 	private enospcErrorLogged: boolean;
+	private toDispose: IDisposable[] = [];
 
 	public watch(request: IWatcherRequest): TPromise<void> {
 		const watcherOpts: chokidar.IOptions = {
@@ -61,6 +63,11 @@ export class ChokidarWatcherService implements IWatcherService {
 
 		let undeliveredFileEvents: watcher.IRawFileChange[] = [];
 		const fileEventDelayer = new ThrottledDelayer(ChokidarWatcherService.FS_EVENT_DELAY);
+
+		this.toDispose.push(toDisposable(() => {
+			chokidarWatcher.close();
+			fileEventDelayer.cancel();
+		}));
 
 		return new TPromise<void>((c, e, p) => {
 			chokidarWatcher.on('all', (type: string, path: string) => {
@@ -156,8 +163,12 @@ export class ChokidarWatcherService implements IWatcherService {
 				}
 			});
 		}, () => {
-			chokidarWatcher.close();
-			fileEventDelayer.cancel();
+			this.toDispose = dispose(this.toDispose);
 		});
+	}
+
+	public stop(): TPromise<void> {
+		this.toDispose = dispose(this.toDispose);
+		return TPromise.as(void 0);
 	}
 }

@@ -17,6 +17,7 @@ import { SettingsEditor } from '../preferences/settings';
 import { KeybindingsEditor } from '../preferences/keybindings';
 import { Editors } from '../editor/editors';
 import { Code } from '../../vscode/code';
+import { Terminal } from '../terminal/terminal';
 
 export interface Commands {
 	runCommand(command: string): Promise<any>;
@@ -37,6 +38,7 @@ export class Workbench implements Commands {
 	readonly problems: Problems;
 	readonly settingsEditor: SettingsEditor;
 	readonly keybindingsEditor: KeybindingsEditor;
+	readonly terminal: Terminal;
 
 	constructor(private code: Code, private keybindings: any[], userDataPath: string) {
 		this.editors = new Editors(code, this);
@@ -52,6 +54,7 @@ export class Workbench implements Commands {
 		this.problems = new Problems(code, this);
 		this.settingsEditor = new SettingsEditor(code, userDataPath, this, this.editors, this.editor);
 		this.keybindingsEditor = new KeybindingsEditor(code, this);
+		this.terminal = new Terminal(code, this);
 	}
 
 	/**

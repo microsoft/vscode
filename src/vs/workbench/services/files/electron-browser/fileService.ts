@@ -93,7 +93,7 @@ export class FileService implements IFileService {
 	protected readonly _onFileChanges: Emitter<FileChangesEvent>;
 	protected readonly _onAfterOperation: Emitter<FileOperationEvent>;
 
-	private toDispose: IDisposable[];
+	protected toDispose: IDisposable[];
 
 	private activeWorkspaceFileChangeWatcher: IDisposable;
 	private activeFileChangesWatchers: ResourceMap<fs.FSWatcher>;

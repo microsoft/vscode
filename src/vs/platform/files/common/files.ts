@@ -188,8 +188,14 @@ export interface IStat {
 	type: FileType2;
 }
 
+export interface IWatchOptions {
+	recursive?: boolean;
+	exclude?: string[];
+}
+
 export interface IFileSystemProviderBase {
-	onDidChange: Event<IFileChange[]>;
+	onDidChangeFile: Event<IFileChange[]>;
+	watch(resource: URI, opts: IWatchOptions): IDisposable;
 	stat(resource: URI): TPromise<IStat>;
 	rename(from: URI, to: URI, opts: { flags: FileOpenFlags }): TPromise<IStat>;
 	mkdir(resource: URI): TPromise<IStat>;
