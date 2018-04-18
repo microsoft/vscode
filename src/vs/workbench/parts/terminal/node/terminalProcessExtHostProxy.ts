@@ -9,7 +9,7 @@ import { ITerminalService, ITerminalProcessExtHostProxy, IShellLaunchConfig } fr
 import { IDisposable } from '../../../../base/common/lifecycle';
 
 export class TerminalProcessExtHostProxy extends EventEmitter implements ITerminalChildProcess, ITerminalProcessExtHostProxy {
-	// TODO: Set this properly
+	// For ext host processes connected checks happen on the ext host
 	public connected: boolean = true;
 
 	constructor(

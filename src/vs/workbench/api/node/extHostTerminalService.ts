@@ -6,6 +6,7 @@
 
 import * as vscode from 'vscode';
 import * as cp from 'child_process';
+import * as os from 'os';
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/parts/terminal/node/terminalEnvironment';
 import Uri from 'vs/base/common/uri';
@@ -202,9 +203,12 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		}
 		this._logService.info('$createProcess', id, shellLaunchConfig, cols, rows);
 
+		// TODO: Base the cwd on the last active workspace root
 		// const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot('file');
 		// this.initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, lastActiveWorkspaceRootUri, this._configHelper);
+		const initialCwd = os.homedir();
 
+		// TODO: Pull in and resolve config settings
 		// // Resolve env vars from config and shell
 		// const lastActiveWorkspaceRoot = this._workspaceContextService.getWorkspaceFolder(lastActiveWorkspaceRootUri);
 		// const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
@@ -212,34 +216,19 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		// const envFromShell = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...shellLaunchConfig.env }, lastActiveWorkspaceRoot);
 		// shellLaunchConfig.env = envFromShell;
 
-		// // Merge process env with the env from config
-		// const parentEnv = { ...process.env };
+		// Merge process env with the env from config
+		const parentEnv = { ...process.env };
 		// terminalEnvironment.mergeEnvironments(parentEnv, envFromConfig);
 
-		// // Continue env initialization, merging in the env from the launch
-		// // config and adding keys that are needed to create the process
-		// const env = terminalEnvironment.createTerminalEnv(parentEnv, shellLaunchConfig, this.initialCwd, locale, cols, rows);
-		// const cwd = Uri.parse(paths.dirname(require.toUrl('../node/terminalProcess'))).fsPath;
-		// const options = { env, cwd };
-
-
-
-
-
-		// TODO: Launch process
-		// TODO: Associate the process with the terminal object/id
-		// TODO: terminal has incorrect name/options, fix up
-		const parentEnv = { ...process.env };
-		const env = terminalEnvironment.createTerminalEnv(parentEnv, shellLaunchConfig, '/home/daniel', locale, cols, rows);
-		// TODO: Use Uri?
+		// Continue env initialization, merging in the env from the launch
+		// config and adding keys that are needed to create the process
+		const env = terminalEnvironment.createTerminalEnv(parentEnv, shellLaunchConfig, initialCwd, locale, cols, rows);
 		let cwd = Uri.parse(require.toUrl('../../parts/terminal/node')).fsPath;
 		const options = { env, cwd, execArgv: [] };
 
-		let bootstrapUri = Uri.parse(require.toUrl('bootstrap')).fsPath;
-
+		// Fork the process and listen for messages
 		this._logService.debug(`Terminal process launching on ext host`, options);
-		this._terminalProcesses[id] = cp.fork(bootstrapUri, ['--type=terminal'], options);
-
+		this._terminalProcesses[id] = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], options);
 		this._terminalProcesses[id].on('message', (message: IMessageFromTerminalProcess) => {
 			switch (message.type) {
 				case 'pid': this._proxy.$sendProcessPid(id, <number>message.content); break;
@@ -250,16 +239,21 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	public $acceptTerminalProcessInput(id: number, data: string): void {
-		this._terminalProcesses[id].send({ event: 'input', data });
+		if (this._terminalProcesses[id].connected) {
+			this._terminalProcesses[id].send({ event: 'input', data });
+		}
 	}
 
 	public $acceptTerminalProcessResize(id: number, cols: number, rows: number): void {
-		console.log('resize' + cols + ',' + rows);
-		this._terminalProcesses[id].send({ event: 'resize', cols, rows });
+		if (this._terminalProcesses[id].connected) {
+			this._terminalProcesses[id].send({ event: 'resize', cols, rows });
+		}
 	}
 
 	public $acceptTerminalProcessShutdown(id: number): void {
-		this._terminalProcesses[id].send({ event: 'shutdown' });
+		if (this._terminalProcesses[id].connected) {
+			this._terminalProcesses[id].send({ event: 'shutdown' });
+		}
 	}
 
 	private _getTerminalById(id: number): ExtHostTerminal {
@@ -283,7 +277,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 }
 
 class ApiRequest {
-
 	private _callback: (...args: any[]) => void;
 	private _args: any[];
 
