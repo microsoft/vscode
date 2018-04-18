@@ -1355,6 +1355,11 @@ export function validateFileName(parent: ExplorerItem, name: string, allowOverwr
 		return nls.localize('emptyFileNameError', "A file or folder name must be provided.");
 	}
 
+	// Relative paths only
+	if (name[0] === '/' || name[0] === '\\') {
+		return nls.localize('fileNameStartsWithSlashError', "A file or folder name cannot start with a slash.");
+	}
+
 	const names: string[] = name.split(/[\\/]/).filter(part => !!part);
 
 	// Do not allow to overwrite existing file
