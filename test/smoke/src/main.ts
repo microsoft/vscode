@@ -301,7 +301,7 @@ describe('Test', () => {
 			const screenshotPath = path.join(screenshotsPath, `${name}.png`);
 
 			if (opts.log) {
-				app.logger.log('*** Scr eenshot recorded:', screenshotPath);
+				app.logger.log('*** Screenshot recorded:', screenshotPath);
 			}
 
 			fs.writeFileSync(screenshotPath, buffer);
@@ -313,7 +313,7 @@ describe('Test', () => {
 			const app = this.app as Application;
 			const title = this.currentTest.fullTitle();
 
-			app.logger.log('***', title.replace(/./g, '='));
+			app.logger.log('*** Test start:', title);
 		});
 	}
 
