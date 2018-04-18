@@ -28,7 +28,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { IndentRangeProvider } from 'vs/editor/contrib/folding/indentRangeProvider';
 import { IPosition } from 'vs/editor/common/core/position';
-import { FoldingProviderRegistry, FoldingRangeType } from 'vs/editor/common/modes';
+import { FoldingRangeProviderRegistry, FoldingRangeKind } from 'vs/editor/common/modes';
 import { SyntaxRangeProvider } from './syntaxRangeProvider';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
@@ -82,7 +82,7 @@ export class FoldingController implements IEditorContribution {
 		this.foldingDecorationProvider.autoHideFoldingControls = this._autoHideFoldingControls;
 
 		this.globalToDispose.push(this.editor.onDidChangeModel(() => this.onModelChanged()));
-		this.globalToDispose.push(FoldingProviderRegistry.onDidChange(() => this.onFoldingStrategyChanged()));
+		this.globalToDispose.push(FoldingRangeProviderRegistry.onDidChange(() => this.onFoldingStrategyChanged()));
 
 		this.globalToDispose.push(this.editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
 			if (e.contribInfo) {
@@ -205,7 +205,7 @@ export class FoldingController implements IEditorContribution {
 	private getRangeProvider(): RangeProvider {
 		if (!this.rangeProvider) {
 			if (this._useFoldingProviders) {
-				let foldingProviders = FoldingProviderRegistry.ordered(this.foldingModel.textModel);
+				let foldingProviders = FoldingRangeProviderRegistry.ordered(this.foldingModel.textModel);
 				this.rangeProvider = foldingProviders.length ? new SyntaxRangeProvider(foldingProviders) : new IndentRangeProvider();
 			} else {
 				this.rangeProvider = new IndentRangeProvider();
@@ -584,7 +584,7 @@ class FoldAllBlockCommentsAction extends FoldingAction<void> {
 
 	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
 		if (foldingModel.regions.hasTypes()) {
-			setCollapseStateForType(foldingModel, FoldingRangeType.Comment, true);
+			setCollapseStateForType(foldingModel, FoldingRangeKind.Comment.value, true);
 		} else {
 			let comments = LanguageConfigurationRegistry.getComments(editor.getModel().getLanguageIdentifier().id);
 			if (comments && comments.blockCommentStartToken) {
@@ -612,7 +612,7 @@ class FoldAllRegionsAction extends FoldingAction<void> {
 
 	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
 		if (foldingModel.regions.hasTypes()) {
-			setCollapseStateForType(foldingModel, FoldingRangeType.Region, true);
+			setCollapseStateForType(foldingModel, FoldingRangeKind.Region.value, true);
 		} else {
 			let foldingRules = LanguageConfigurationRegistry.getFoldingRules(editor.getModel().getLanguageIdentifier().id);
 			if (foldingRules && foldingRules.markers && foldingRules.markers.start) {
@@ -640,7 +640,7 @@ class UnfoldAllRegionsAction extends FoldingAction<void> {
 
 	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
 		if (foldingModel.regions.hasTypes()) {
-			setCollapseStateForType(foldingModel, FoldingRangeType.Region, false);
+			setCollapseStateForType(foldingModel, FoldingRangeKind.Region.value, false);
 		} else {
 			let foldingRules = LanguageConfigurationRegistry.getFoldingRules(editor.getModel().getLanguageIdentifier().id);
 			if (foldingRules && foldingRules.markers && foldingRules.markers.start) {
