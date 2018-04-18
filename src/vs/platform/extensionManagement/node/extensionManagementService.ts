@@ -455,7 +455,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 					this.logService.info(`Failed renaming ${extractPath} to ${renamePath} with 'EPERM' error. Trying again...`);
 					return this.rename(id, extractPath, renamePath, retryUntil);
 				}
-				return TPromise.wrapError(new ExtensionManagementError(error.message || nls.localize('renameError', "Unknown error while"), error.code || INSTALL_ERROR_RENAMING));
+				return TPromise.wrapError(new ExtensionManagementError(error.message || nls.localize('renameError', "Unknown error while renaming {0} to {1}", extractPath, renamePath), error.code || INSTALL_ERROR_RENAMING));
 			});
 	}
 
