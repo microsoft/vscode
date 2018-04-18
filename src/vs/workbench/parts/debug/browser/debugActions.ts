@@ -215,15 +215,21 @@ export class RestartAction extends AbstractDebugAction {
 	static LABEL = nls.localize('restartDebug', "Restart");
 	static RECONNECT_LABEL = nls.localize('reconnectDebug', "Reconnect");
 
+	private startAction: StartAction;
+
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IWorkspaceContextService private contextService?: IWorkspaceContextService,
-		@IHistoryService private historyService?: IHistoryService
+		@IHistoryService historyService?: IHistoryService
 	) {
 		super(id, label, 'debug-action restart', debugService, keybindingService, 70);
 		this.setLabel(this.debugService.getViewModel().focusedProcess);
 		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => this.setLabel(this.debugService.getViewModel().focusedProcess)));
+
+		if (contextService !== undefined && historyService !== undefined) {
+			this.startAction = new StartAction(id, label, debugService, keybindingService, contextService, historyService);
+		}
 	}
 
 	private setLabel(process: IProcess): void {
@@ -234,21 +240,9 @@ export class RestartAction extends AbstractDebugAction {
 		if (!(process instanceof Process)) {
 			process = this.debugService.getViewModel().focusedProcess;
 		}
+
 		if (!process) {
-			const configurationManager = this.debugService.getConfigurationManager();
-			let launch = configurationManager.selectedConfiguration.launch;
-			if (!launch) {
-				const rootUri = this.historyService.getLastActiveWorkspaceRoot();
-				launch = configurationManager.getLaunch(rootUri);
-				if (!launch || launch.getConfigurationNames().length === 0) {
-					const launches = configurationManager.getLaunches();
-					launch = first(launches, l => !!l.getConfigurationNames().length, launches.length ? launches[0] : launch);
-				}
-
-				configurationManager.selectConfiguration(launch);
-			}
-
-			return this.debugService.startDebugging(launch, undefined, false);
+			return this.startAction.run();
 		}
 
 		if (this.debugService.getModel().getProcesses().length <= 1) {
