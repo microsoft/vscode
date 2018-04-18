@@ -98,11 +98,12 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 
 		this.toDispose = [];
 		this._isVisible = false;
+		this.selectBoxOptions = selectBoxOptions || Object.create(null);
 
-		this.selectBoxOptions = selectBoxOptions;
 		if (!this.selectBoxOptions.minBottomMargin) {
 			this.selectBoxOptions.minBottomMargin = SelectBoxList.DEFAULT_DROPDOWN_MINIMUM_BOTTOM_MARGIN;
 		}
+
 		this.selectElement = document.createElement('select');
 		this.selectElement.className = 'monaco-select-box';
 
@@ -409,13 +410,16 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		const selectWidth = dom.getTotalWidth(this.selectElement);
 		const selectPosition = dom.getDomNodePagePosition(this.selectElement);
 
-		// Set container height to max from select bottom to margin above status bar
+		// Set container height to max from select bottom to margin (default/minBottomMargin)
+		if (this.selectBoxOptions.minBottomMargin < 0) {
+			this.selectBoxOptions.minBottomMargin = 0;
+		}
 
-		// const statusBarHeight = dom.getTotalHeight(document.getElementById('workbench.parts.statusbar'));
-		console.debug('status bar height ' + this.selectBoxOptions.minBottomMargin);
+		let maxSelectDropDownHeight = (window.innerHeight - selectPosition.top - selectPosition.height - this.selectBoxOptions.minBottomMargin);
 
-
-		const maxSelectDropDownHeight = (window.innerHeight - selectPosition.top - selectPosition.height - this.selectBoxOptions.minBottomMargin);
+		if (maxSelectDropDownHeight < 0) {
+			maxSelectDropDownHeight = 0;
+		}
 
 		// SetUp list dimensions and layout - account for container padding
 		if (this.selectList) {
