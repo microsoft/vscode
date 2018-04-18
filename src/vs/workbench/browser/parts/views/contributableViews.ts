@@ -176,6 +176,7 @@ export interface IView {
 
 export interface IViewState {
 	visible: boolean;
+	collapsed: boolean;
 	order?: number;
 	size?: number;
 }
@@ -186,6 +187,7 @@ export interface IViewDescriptorRef {
 }
 
 export interface IAddedViewDescriptorRef extends IViewDescriptorRef {
+	collapsed: boolean;
 	size?: number;
 }
 
@@ -243,10 +245,25 @@ export class ContributableViewsModel {
 		state.visible = visible;
 
 		if (visible) {
-			this._onDidAdd.fire({ index: visibleIndex, viewDescriptor, size: state.size });
+			this._onDidAdd.fire({ index: visibleIndex, viewDescriptor, size: state.size, collapsed: state.collapsed });
 		} else {
 			this._onDidRemove.fire({ index: visibleIndex, viewDescriptor });
 		}
+	}
+
+	isCollapsed(id: string): boolean {
+		const state = this.viewStates.get(id);
+
+		if (!state) {
+			throw new Error(`Unknown view ${id}`);
+		}
+
+		return state.collapsed;
+	}
+
+	setCollapsed(id: string, collapsed: boolean): void {
+		const { state } = this.find(id);
+		state.collapsed = collapsed;
 	}
 
 	getSize(id: string): number | undefined {
@@ -260,12 +277,7 @@ export class ContributableViewsModel {
 	}
 
 	setSize(id: string, size: number): void {
-		const { viewDescriptor, state } = this.find(id);
-
-		if (!viewDescriptor.canToggleVisibility) {
-			throw new Error(`Can't resize this view ${id}`);
-		}
-
+		const { state } = this.find(id);
 		state.size = size;
 	}
 
@@ -341,7 +353,8 @@ export class ContributableViewsModel {
 		for (const viewDescriptor of viewDescriptors) {
 			if (!this.viewStates.has(viewDescriptor.id)) {
 				this.viewStates.set(viewDescriptor.id, {
-					visible: true
+					visible: true,
+					collapsed: false
 				});
 			}
 		}
@@ -370,7 +383,7 @@ export class ContributableViewsModel {
 				const state = this.viewStates.get(viewDescriptor.id);
 
 				if (state.visible) {
-					this._onDidAdd.fire({ index: startIndex++, viewDescriptor });
+					this._onDidAdd.fire({ index: startIndex++, viewDescriptor, size: state.size, collapsed: state.collapsed });
 				}
 			}
 		}

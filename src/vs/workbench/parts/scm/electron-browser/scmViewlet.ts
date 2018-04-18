@@ -8,7 +8,7 @@
 import 'vs/css!./media/scmViewlet';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Event, Emitter, chain, mapEvent, anyEvent, filterEvent } from 'vs/base/common/event';
+import { Event, Emitter, chain, mapEvent, anyEvent, filterEvent, latch } from 'vs/base/common/event';
 import { domEvent, stop } from 'vs/base/browser/event';
 import { basename } from 'vs/base/common/paths';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -1063,7 +1063,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 	get selectedRepositories(): ISCMRepository[] { return this.repositoryPanels.map(p => p.repository); }
 
 	private contributedViews: PersistentContributableViewsModel;
-	private contextMenuDisposables: IDisposable[] = [];
+	private contributedViewDisposables: IDisposable[] = [];
 
 	constructor(
 		@IPartService partService: IPartService,
@@ -1115,7 +1115,10 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 
 		let index = this.getContributedViewsStartIndex();
 		for (const viewDescriptor of this.contributedViews.visibleViewDescriptors) {
-			this.onDidAddContributedView({ viewDescriptor, index: index++ });
+			const size = this.contributedViews.getSize(viewDescriptor.id);
+			const collapsed = this.contributedViews.isCollapsed(viewDescriptor.id);
+
+			this.onDidAddContributedView({ viewDescriptor, index: index++, size, collapsed });
 		}
 
 		this.onDidSashChange(this.saveContributedViewSizes, this, this.disposables);
@@ -1337,14 +1340,14 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		return value;
 	}
 
-	onDidAddContributedView({ viewDescriptor, index, size }: IAddedViewDescriptorRef): void {
+	onDidAddContributedView({ viewDescriptor, index, size, collapsed }: IAddedViewDescriptorRef): void {
 		const start = this.getContributedViewsStartIndex();
 		const panel = this.instantiationService.createInstance(viewDescriptor.ctor, {
 			id: viewDescriptor.id,
 			name: viewDescriptor.name,
 			actionRunner: this.getActionRunner(),
-			expanded: true, //!(viewState ? viewState.collapsed : viewDescriptor.collapsed),
-			viewletSettings: {}//this.viewletSettings
+			expanded: !collapsed,
+			viewletSettings: {} // what is this
 		}) as ViewsViewletPanel;
 
 		this.addPanel(panel, size || panel.minimumSize, start + index);
@@ -1355,7 +1358,11 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 			this.onViewHeaderContextMenu(new StandardMouseEvent(e), viewDescriptor);
 		});
 
-		this.contextMenuDisposables.splice(index, 0, contextMenuDisposable);
+		const collapseDisposable = latch(mapEvent(panel.onDidChange, () => !panel.isExpanded()))(collapsed => {
+			this.contributedViews.setCollapsed(viewDescriptor.id, collapsed);
+		});
+
+		this.contributedViewDisposables.splice(index, 0, combinedDisposable([contextMenuDisposable, collapseDisposable]));
 	}
 
 	private onViewHeaderContextMenu(event: StandardMouseEvent, viewDescriptor: IViewDescriptor): void {
@@ -1404,7 +1411,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 
 		this.removePanel(panel);
 
-		const [disposable] = this.contextMenuDisposables.splice(index, 1);
+		const [disposable] = this.contributedViewDisposables.splice(index, 1);
 		disposable.dispose();
 	}
 
@@ -1456,7 +1463,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
-		this.contextMenuDisposables = dispose(this.contextMenuDisposables);
+		this.contributedViewDisposables = dispose(this.contributedViewDisposables);
 		this.mainPanelDisposable.dispose();
 		super.dispose();
 	}
