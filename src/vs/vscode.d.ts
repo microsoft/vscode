@@ -3728,7 +3728,7 @@ declare module 'vscode' {
 		/**
 		 * An array of resources for which diagnostics have changed.
 		 */
-		readonly uris: Uri[];
+		readonly uris: ReadonlyArray<Uri>;
 	}
 
 	/**
@@ -6108,7 +6108,7 @@ declare module 'vscode' {
 		 * @param resource A resource
 		 * @returns An arrary of [diagnostics](#Diagnostic) objects or an empty array.
 		 */
-		export function getDiagnostics(resource: Uri): Diagnostic[];
+		export function getDiagnostics(resource: Uri): ReadonlyArray<Diagnostic>;
 
 		/**
 		 * Get all diagnostics. *Note* that this includes diagnostics from
@@ -6116,7 +6116,7 @@ declare module 'vscode' {
 		 *
 		 * @returns An array of uri-diagnostics tuples or an empty array.
 		 */
-		export function getDiagnostics(): [Uri, Diagnostic[]][];
+		export function getDiagnostics(): [Uri, ReadonlyArray<Diagnostic>][];
 
 		/**
 		 * Create a diagnostics collection.
