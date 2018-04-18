@@ -2749,7 +2749,7 @@ declare module 'vscode' {
 
 		/**
 		 * Optional function for resolving and validating a position *before* running rename. The result can
-		 * be a range or a range and a placeholder text. The placeholder text should be the identifier of the symbol 
+		 * be a range or a range and a placeholder text. The placeholder text should be the identifier of the symbol
 		 * which is being renamed - when omitted the text in the returned range is used.
 		 *
 		 * @param document The document in which rename will be invoked.
@@ -3382,6 +3382,90 @@ declare module 'vscode' {
 		 * can be signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		provideColorPresentations(color: Color, context: { document: TextDocument, range: Range }, token: CancellationToken): ProviderResult<ColorPresentation[]>;
+	}
+
+	export class FoldingRange {
+
+		/**
+		 * The zero-based start line of the range to fold. The folded area starts after the line's last character.
+		 */
+		start: number;
+
+		/**
+		 * The zero-based end line of the range to fold. The folded area ends with the line's last character.
+		 */
+		end: number;
+
+		/**
+		 * Describes the [Kind](#FoldingRangeKind) of the folding range such as [Comment](#FoldingRangeKind.Comment) or
+		 * [Region](#FoldingRangeKind.Region). The kind is used to categorize folding ranges and used by commands
+		 * like 'Fold all comments'. See
+		 * [FoldingRangeKind](#FoldingRangeKind) for an enumeration of standardized kinds.
+		 */
+		kind?: FoldingRangeKind;
+
+		/**
+		 * Creates a new folding range.
+		 *
+		 * @param start The start line of the folded range.
+		 * @param end The end line of the folded range.
+		 * @param kind The kind of the folding range.
+		 */
+		constructor(start: number, end: number, kind?: FoldingRangeKind);
+	}
+
+	export class FoldingRangeKind {
+		/**
+		 * Kind for folding range representing a comment. The value of the kind is 'comment'.
+		 */
+		static readonly Comment: FoldingRangeKind;
+		/**
+		 * Kind for folding range representing a import. The value of the kind is 'imports'.
+		 */
+		static readonly Imports: FoldingRangeKind;
+		/**
+		 * Kind for folding range representing regions (for example a folding range marked by `#region` and `#endregion`).
+		 * The value of the kind is 'region'.
+		 */
+		static readonly Region: FoldingRangeKind;
+		/**
+		 * String value of the kind, e.g. `comment`.
+		 */
+		readonly value: string;
+		/**
+		 * Creates a new [FoldingRangeKind](#FoldingRangeKind).
+		 *
+		 * @param value of the kind.
+		 */
+		public constructor(value: string);
+	}
+
+
+	/**
+	 * Metadata about the kind of folding ranges that a [FoldingRangeProvider](#FoldingRangeProvider) providers uses.
+	 */
+	export interface FoldingRangeProviderMetadata {
+		/**
+		 * [FoldingRangeKind](#FoldingRangeKind) that this provider may return.
+		 */
+		readonly providedFoldingRangeKinds?: ReadonlyArray<FoldingRangeKind>;
+	}
+
+	/**
+	 * Folding context (for future use)
+	 */
+	export interface FoldingContext {
+	}
+
+	export interface FoldingRangeProvider {
+		/**
+		 * Returns a list of folding ranges or null and undefined if the provider
+		 * does not want to participate or was cancelled.
+		 * @param document The document in which the command was invoked.
+		 * @param context Additional context information (for future use)
+		 * @param token A cancellation token.
+		 */
+		provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken): ProviderResult<FoldingRange[]>;
 	}
 
 	/**
@@ -6369,6 +6453,20 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerColorProvider(selector: DocumentSelector, provider: DocumentColorProvider): Disposable;
+
+		/**
+		 * Register a folding range provider.
+		 *
+		 * Multiple folding can be registered for a language. In that case providers are sorted
+		 * by their [score](#languages.match) and the best-matching provider is used. Failure
+		 * of the selected provider will cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A folding range provider.
+		 * @param metadata Metadata about the kind of code actions the provider providers.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerFoldingRangeProvider(selector: DocumentSelector, provider: FoldingRangeProvider, metadata?: FoldingRangeProviderMetadata): Disposable;
 
 		/**
 		 * Set a [language configuration](#LanguageConfiguration) for a language.
