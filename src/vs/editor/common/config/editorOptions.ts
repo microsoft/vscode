@@ -11,6 +11,7 @@ import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Constants } from 'vs/editor/common/core/uint';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 import * as arrays from 'vs/base/common/arrays';
+import * as objects from 'vs/base/common/objects';
 
 /**
  * Configuration options for editor scrollbars
@@ -134,6 +135,13 @@ export interface IEditorLightbulbOptions {
 	 * Defaults to true.
 	 */
 	enabled?: boolean;
+}
+
+/**
+ * Configuration map for codeActionsOnSave
+ */
+export interface ICodeActionsOnSaveOptions {
+	[kind: string]: boolean;
 }
 
 /**
@@ -499,7 +507,7 @@ export interface IEditorOptions {
 	/**
 	 * Code action kinds to be run on save.
 	 */
-	codeActionsOnSave?: string[];
+	codeActionsOnSave?: ICodeActionsOnSaveOptions;
 	/**
 	 * Enable code folding
 	 * Defaults to true.
@@ -854,7 +862,7 @@ export interface EditorContribOptions {
 	readonly find: InternalEditorFindOptions;
 	readonly colorDecorators: boolean;
 	readonly lightbulbEnabled: boolean;
-	readonly codeActionsOnSave: string[];
+	readonly codeActionsOnSave: ICodeActionsOnSaveOptions;
 }
 
 /**
@@ -1199,7 +1207,7 @@ export class InternalEditorOptions {
 			&& a.matchBrackets === b.matchBrackets
 			&& this._equalFindOptions(a.find, b.find)
 			&& a.colorDecorators === b.colorDecorators
-			&& arrays.equals(a.codeActionsOnSave, b.codeActionsOnSave)
+			&& objects.equals(a.codeActionsOnSave, b.codeActionsOnSave)
 			&& a.lightbulbEnabled === b.lightbulbEnabled
 		);
 	}
@@ -1397,6 +1405,21 @@ function _boolean<T>(value: any, defaultValue: T): boolean | T {
 	return Boolean(value);
 }
 
+function _booleanMap(value: { [key: string]: boolean }, defaultValue: { [key: string]: boolean }): { [key: string]: boolean } {
+	if (!value) {
+		return defaultValue;
+	}
+
+	const out = Object.create(null);
+	for (const k of Object.keys(value)) {
+		const v = value[k];
+		if (typeof v === 'boolean') {
+			out[k] = v;
+		}
+	}
+	return out;
+}
+
 function _string(value: any, defaultValue: string): string {
 	if (typeof value !== 'string') {
 		return defaultValue;
@@ -1412,13 +1435,6 @@ function _stringSet<T>(value: T, defaultValue: T, allowedValues: T[]): T {
 		return defaultValue;
 	}
 	return value;
-}
-
-function _stringArray(value: any, defaultValue: string[]): string[] {
-	if (!Array.isArray(value)) {
-		return defaultValue;
-	}
-	return value.filter(x => typeof x === 'string');
 }
 
 function _clampedInt(value: any, defaultValue: number, minimum: number, maximum: number): number {
@@ -1750,7 +1766,7 @@ export class EditorOptionsValidator {
 			find: find,
 			colorDecorators: _boolean(opts.colorDecorators, defaults.colorDecorators),
 			lightbulbEnabled: _boolean(opts.lightbulb ? opts.lightbulb.enabled : false, defaults.lightbulbEnabled),
-			codeActionsOnSave: _stringArray(opts.codeActionsOnSave, [])
+			codeActionsOnSave: _booleanMap(opts.codeActionsOnSave, {})
 		};
 	}
 }
@@ -2321,6 +2337,6 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		},
 		colorDecorators: true,
 		lightbulbEnabled: true,
-		codeActionsOnSave: []
+		codeActionsOnSave: {}
 	},
 };

@@ -33,6 +33,11 @@ import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IFileService } from 'vs/platform/files/common/files';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
+import { CodeAction } from 'vs/editor/common/modes';
+import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
+import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
+import { ICodeActionsOnSaveOptions } from '../../../editor/common/config/editorOptions';
 
 export interface ISaveParticipantParticipant extends ISaveParticipant {
 	// progressMessage: string;
@@ -283,7 +288,12 @@ class CodeActionOnParticipant implements ISaveParticipant {
 			return undefined;
 		}
 
-		const codeActionsOnSave = this._configurationService.getValue<string[]>('editor.codeActionsOnSave', { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() }).map(x => new CodeActionKind(x));
+		const setting = this._configurationService.getValue<ICodeActionsOnSaveOptions>('editor.codeActionsOnSave', { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() });
+		if (!setting) {
+			return undefined;
+		}
+
+		const codeActionsOnSave = Object.keys(setting).filter(x => setting[x]).map(x => new CodeActionKind(x));
 		if (!codeActionsOnSave.length) {
 			return undefined;
 		}

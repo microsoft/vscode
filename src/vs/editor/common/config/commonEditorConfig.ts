@@ -653,12 +653,18 @@ const editorConfiguration: IConfigurationNode = {
 			'description': nls.localize('codeActions', "Enables the code action lightbulb")
 		},
 		'editor.codeActionsOnSave': {
-			'type': 'array',
-			'items': {
-				'type': 'string'
+			'type': 'object',
+			'properties': {
+				'source.organizeImports': {
+					'type': 'boolean',
+					'description': nls.localize('codeActionsOnSave.organizeImports', "Run organize imports on save?")
+				}
+			},
+			'additionalProperties': {
+				'type': 'boolean'
 			},
 			'default': EDITOR_DEFAULTS.contribInfo.codeActionsOnSave,
-			'description': nls.localize('codeActionsOnSave', "List of code actions kinds to be run on save.")
+			'description': nls.localize('codeActionsOnSave', "Code actions kinds to be run on save.")
 		},
 		'editor.selectionClipboard': {
 			'type': 'boolean',
