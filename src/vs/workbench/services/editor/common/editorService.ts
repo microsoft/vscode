@@ -6,12 +6,12 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { createDecorator, ServiceIdentifier, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, ServiceIdentifier, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService, IEditor, IEditorInput, IEditorOptions, ITextEditorOptions, Position, Direction, IResourceInput, IResourceDiffInput, IResourceSideBySideInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import URI from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { basename } from 'vs/base/common/paths';
-import { EditorInput, EditorOptions, TextEditorOptions, Extensions as EditorExtensions, SideBySideEditorInput, IFileEditorInput, IFileInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, TextEditorOptions, Extensions as EditorExtensions, SideBySideEditorInput, IFileEditorInput, IFileInputFactory, IEditorInputFactoryRegistry, IEditorStacksModel, IEditorOpeningEvent, IEditorGroup, IStacksModelChangeEvent, IEditorCloseEvent, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -19,11 +19,12 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import * as nls from 'vs/nls';
 import { getPathLabel } from 'vs/base/common/labels';
 import { ResourceMap } from 'vs/base/common/map';
-import { once } from 'vs/base/common/event';
+import { Event, Emitter, once } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
 import { Schemas } from 'vs/base/common/network';
+import { IEditorGroupService, IEditorTabOptions, GroupArrangement } from 'vs/workbench/services/group/common/groupService';
 
 export const IWorkbenchEditorService = createDecorator<IWorkbenchEditorService>('editorService');
 
@@ -136,6 +137,144 @@ export interface IEditorPart {
 	getActiveEditor(): IEditor;
 	getVisibleEditors(): IEditor[];
 	getActiveEditorInput(): IEditorInput;
+}
+
+// TODO@next temporary
+export class NoOpEditorPart implements IEditorPart, IEditorGroupService {
+
+	_serviceBrand: ServiceIdentifier<any>;
+	stacks: IEditorStacksModel;
+
+	constructor(private instantiationService: IInstantiationService) {
+		this.stacks = new NoOpEditorStacksModel();
+	}
+
+	onEditorsChanged: Event<void> = new Emitter<void>().event;
+	onEditorOpening: Event<IEditorOpeningEvent> = new Emitter<IEditorOpeningEvent>().event;
+	onEditorOpenFail: Event<IEditorInput> = new Emitter<IEditorInput>().event;
+	onEditorGroupMoved: Event<void> = new Emitter<void>().event;
+	onGroupOrientationChanged: Event<void> = new Emitter<void>().event;
+	onTabOptionsChanged: Event<IEditorTabOptions> = new Emitter<IEditorTabOptions>().event;
+
+	focusGroup(...args: any[]) { }
+
+	activateGroup(...args: any[]) { }
+
+	moveGroup(...args: any[]) { }
+
+	arrangeGroups(arrangement: GroupArrangement): void { }
+
+	setGroupOrientation(orientation: 'vertical' | 'horizontal'): void { }
+
+	getGroupOrientation(): 'vertical' | 'horizontal' {
+		return 'vertical';
+	}
+
+	resizeGroup(position: Position, groupSizeChange: number): void { }
+
+	pinEditor(...args: any[]) { }
+
+	moveEditor(...args: any[]) { }
+
+	getStacksModel(): IEditorStacksModel {
+		return this.stacks;
+	}
+
+	getTabOptions(): IEditorTabOptions {
+		return Object.create(null);
+	}
+
+	invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T {
+		return this.instantiationService.invokeFunction(fn);
+	}
+
+	openEditor(...args: any[]) {
+		return TPromise.as(void 0);
+	}
+
+	openEditors(...args: any[]) {
+		return TPromise.as([]);
+	}
+
+	replaceEditors(editors: { toReplace: IEditorInput; replaceWith: IEditorInput; options?: IEditorOptions | ITextEditorOptions; }[], position?: Position): TPromise<IEditor[], any> {
+		return TPromise.as(void 0);
+	}
+
+	closeEditors(...args: any[]) {
+		return TPromise.as(void 0);
+	}
+
+	closeEditor(position: Position, input: IEditorInput): TPromise<void, any> {
+		return TPromise.as(void 0);
+	}
+
+	getActiveEditor(): IEditor {
+		return null;
+	}
+
+	getVisibleEditors(): IEditor[] {
+		return [];
+	}
+
+	getActiveEditorInput(): IEditorInput {
+		return null;
+	}
+
+	hideTabs(...args: any[]): void { }
+
+	hasEditorsToRestore(): boolean {
+		return false;
+	}
+
+	restoreEditors(): any {
+		return TPromise.as([]);
+	}
+}
+
+class NoOpEditorStacksModel implements IEditorStacksModel {
+
+	onModelChanged: Event<IStacksModelChangeEvent> = new Emitter<IStacksModelChangeEvent>().event;
+	onWillCloseEditor: Event<IEditorCloseEvent> = new Emitter<IEditorCloseEvent>().event;
+	onEditorClosed: Event<IEditorCloseEvent> = new Emitter<IEditorCloseEvent>().event;
+
+	groups: IEditorGroup[] = [];
+	activeGroup: IEditorGroup;
+
+	isActive(group: IEditorGroup): boolean {
+		return false;
+	}
+
+	getGroup(id: number): IEditorGroup {
+		return null;
+	}
+
+	positionOfGroup(group: IEditorGroup): Position {
+		return Position.ONE;
+	}
+
+	groupAt(position: Position): IEditorGroup {
+		return null;
+	}
+
+	next(jumpGroups: boolean, cycleAtEnd?: boolean): IEditorIdentifier {
+		return null;
+	}
+
+	previous(jumpGroups: boolean, cycleAtStart?: boolean): IEditorIdentifier {
+		return null;
+	}
+
+	last(): IEditorIdentifier {
+		return null;
+	}
+
+	isOpen(resource: URI): boolean {
+		return false;
+	}
+
+	toString(): string {
+		return '';
+	}
 }
 
 type ICachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;

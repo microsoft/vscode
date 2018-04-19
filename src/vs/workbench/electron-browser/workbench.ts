@@ -26,7 +26,6 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { IEditorInputFactoryRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { HistoryService } from 'vs/workbench/services/history/electron-browser/history';
 import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
-import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { StatusbarPart } from 'vs/workbench/browser/parts/statusbar/statusbarPart';
@@ -60,7 +59,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/electron-browser/configurationResolverService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
-import { IWorkbenchEditorService, IResourceInputType, WorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkbenchEditorService, IResourceInputType, WorkbenchEditorService, NoOpEditorPart } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
@@ -110,6 +109,9 @@ import { IPCClient } from 'vs/base/parts/ipc/common/ipc';
 import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
+import { NextEditorPart } from 'vs/workbench/browser/parts/nexteditor/nextEditorPart';
+import { INextEditorGroupService } from 'vs/workbench/services/group/common/nextGroupService';
 
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
 export const InZenModeContext = new RawContextKey<boolean>('inZenMode', false);
@@ -191,8 +193,9 @@ export class Workbench implements IPartService {
 	private workbench: Builder;
 	private workbenchStarted: boolean;
 	private workbenchCreated: boolean;
+	private editorService: IWorkbenchEditorService;
+	private editorGroupService: IEditorGroupService;
 	private workbenchShutdown: boolean;
-	private editorService: WorkbenchEditorService;
 	private viewletService: IViewletService;
 	private contextKeyService: IContextKeyService;
 	private keybindingService: IKeybindingService;
@@ -202,7 +205,8 @@ export class Workbench implements IPartService {
 	private activitybarPart: ActivitybarPart;
 	private sidebarPart: SidebarPart;
 	private panelPart: PanelPart;
-	private editorPart: EditorPart;
+	private noOpEditorPart: NoOpEditorPart; // TODO@next adopt methods in next editor part
+	private editorPart: NextEditorPart;
 	private statusbarPart: StatusbarPart;
 	private quickOpen: QuickOpenController;
 	private quickInput: QuickInputService;
@@ -352,7 +356,7 @@ export class Workbench implements IPartService {
 			if (inputs.length) {
 				editorOpenPromise = this.editorService.openEditors(inputs.map(input => { return { input, position: EditorPosition.ONE }; }));
 			} else {
-				editorOpenPromise = this.editorPart.restoreEditors();
+				editorOpenPromise = this.noOpEditorPart.restoreEditors();
 			}
 
 			return editorOpenPromise.then(editors => {
@@ -472,7 +476,7 @@ export class Workbench implements IPartService {
 
 		// Empty workbench
 		else if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && this.openUntitledFile()) {
-			if (this.editorPart.hasEditorsToRestore()) {
+			if (this.noOpEditorPart.hasEditorsToRestore()) {
 				return TPromise.as([]); // do not open any empty untitled file if we have editors to restore
 			}
 
@@ -588,12 +592,18 @@ export class Workbench implements IPartService {
 		serviceCollection.set(IFileService, this.fileService);
 		this.configurationService.acquireFileService(this.fileService);
 
-		// Editor service (editor part)
-		this.editorPart = this.instantiationService.createInstance(EditorPart, Identifiers.EDITOR_PART, !this.hasFilesToCreateOpenOrDiff);
+		// Editor service (next editor part)
+		this.editorPart = this.instantiationService.createInstance(NextEditorPart, Identifiers.EDITOR_PART /*, !this.hasFilesToCreateOpenOrDiff*/);
 		this.toUnbind.push({ dispose: () => this.editorPart.shutdown() });
-		this.editorService = this.instantiationService.createInstance(WorkbenchEditorService, this.editorPart);
+		serviceCollection.set(INextEditorService, this.editorPart);
+		serviceCollection.set(INextEditorGroupService, this.editorPart);
+
+		// Legacy Editor Services
+		this.noOpEditorPart = new NoOpEditorPart(this.instantiationService);
+		this.editorService = this.instantiationService.createInstance(WorkbenchEditorService, this.noOpEditorPart);
+		this.editorGroupService = this.noOpEditorPart;
 		serviceCollection.set(IWorkbenchEditorService, this.editorService);
-		serviceCollection.set(IEditorGroupService, this.editorPart);
+		serviceCollection.set(IEditorGroupService, this.noOpEditorPart);
 
 		// Title bar
 		this.titlebarPart = this.instantiationService.createInstance(TitlebarPart, Identifiers.TITLEBAR_PART);
@@ -852,7 +862,7 @@ export class Workbench implements IPartService {
 		let promise = TPromise.wrap<any>(null);
 		if (hidden && this.sidebarPart.getActiveViewlet()) {
 			promise = this.sidebarPart.hideActiveViewlet().then(() => {
-				const activeEditor = this.editorPart.getActiveEditor();
+				const activeEditor = this.editorService.getActiveEditor();
 				const activePanel = this.panelPart.getActivePanel();
 
 				// Pass Focus to Editor or Panel if Sidebar is now hidden
@@ -903,8 +913,9 @@ export class Workbench implements IPartService {
 		let promise = TPromise.wrap<any>(null);
 		if (hidden && this.panelPart.getActivePanel()) {
 			promise = this.panelPart.hideActivePanel().then(() => {
+
 				// Pass Focus to Editor if Panel part is now hidden
-				const editor = this.editorPart.getActiveEditor();
+				const editor = this.editorService.getActiveEditor();
 				if (editor) {
 					editor.focus();
 				}
@@ -1044,14 +1055,14 @@ export class Workbench implements IPartService {
 	private registerListeners(): void {
 
 		// Listen to editor changes
-		this.toUnbind.push(this.editorPart.onEditorsChanged(() => this.onEditorsChanged()));
+		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 
 		// Listen to editor closing (if we run with --wait)
 		const filesToWait = this.workbenchParams.configuration.filesToWait;
 		if (filesToWait) {
 			const resourcesToWaitFor = filesToWait.paths.map(p => URI.file(p.filePath));
 			const waitMarkerFile = URI.file(filesToWait.waitMarkerFilePath);
-			const listenerDispose = this.editorPart.getStacksModel().onEditorClosed(() => this.onEditorClosed(listenerDispose, resourcesToWaitFor, waitMarkerFile));
+			const listenerDispose = this.editorGroupService.getStacksModel().onEditorClosed(() => this.onEditorClosed(listenerDispose, resourcesToWaitFor, waitMarkerFile));
 
 			this.toUnbind.push(listenerDispose);
 		}
@@ -1092,7 +1103,7 @@ export class Workbench implements IPartService {
 		// In wait mode, listen to changes to the editors and wait until the files
 		// are closed that the user wants to wait for. When this happens we delete
 		// the wait marker file to signal to the outside that editing is done.
-		const stacks = this.editorPart.getStacksModel();
+		const stacks = this.editorGroupService.getStacksModel();
 		if (resourcesToWaitFor.every(r => !stacks.isOpen(r))) {
 			listenerDispose.dispose();
 			this.fileService.del(waitMarkerFile).done(null, errors.onUnexpectedError);
@@ -1344,9 +1355,9 @@ export class Workbench implements IPartService {
 	public toggleZenMode(skipLayout?: boolean): void {
 		this.zenMode.active = !this.zenMode.active;
 
-		// Check if zen mode transitioned to full screen and if now we are out of zen mode -> we need to go out of full screen
+		// Check if zen mode transitioned to full screen and if now we are out of zen mode
+		// -> we need to go out of full screen (same goes for the centered editor layout)
 		let toggleFullScreen = false;
-		// Same goes for the centered editor layout
 		if (this.zenMode.active) {
 			const config = this.configurationService.getValue<IZenModeSettings>('zenMode');
 			toggleFullScreen = !browser.isFullscreen() && config.fullScreen;
@@ -1366,7 +1377,7 @@ export class Workbench implements IPartService {
 			}
 
 			if (config.hideTabs) {
-				this.editorPart.hideTabs(true);
+				this.noOpEditorPart.hideTabs(true);
 			}
 
 			if (config.centerLayout) {
@@ -1385,8 +1396,8 @@ export class Workbench implements IPartService {
 
 			// Status bar and activity bar visibility come from settings -> update their visibility.
 			this.onDidUpdateConfiguration(true);
-			this.editorPart.hideTabs(false);
-			const activeEditor = this.editorPart.getActiveEditor();
+			this.noOpEditorPart.hideTabs(false);
+			const activeEditor = this.editorService.getActiveEditor();
 			if (activeEditor) {
 				activeEditor.focus();
 			}
