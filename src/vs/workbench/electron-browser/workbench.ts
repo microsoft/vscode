@@ -206,7 +206,7 @@ export class Workbench implements IPartService {
 	private activitybarPart: ActivitybarPart;
 	private sidebarPart: SidebarPart;
 	private panelPart: PanelPart;
-	private noOpEditorPart: NoOpEditorPart; // TODO@next adopt methods in next editor part
+	private noOpEditorPart: NoOpEditorPart; // TODO@grid adopt methods in next editor part
 	private editorPart: NextEditorPart;
 	private statusbarPart: StatusbarPart;
 	private quickOpen: QuickOpenController;

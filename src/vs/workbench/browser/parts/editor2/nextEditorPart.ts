@@ -17,6 +17,7 @@ import { join } from 'vs/base/common/paths';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { INextEditorPartService } from 'vs/workbench/services/editor/common/nextEditorPartService';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { NextEditorViewer, GridOrientation } from './nextEditorViewer';
 // import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class NextEditorPart extends Part implements INextEditorPartService {
@@ -27,6 +28,8 @@ export class NextEditorPart extends Part implements INextEditorPartService {
 
 	// private dimension: Dimension;
 	// private memento: object;
+
+	private viewer: NextEditorViewer;
 
 	constructor(
 		id: string,
@@ -40,13 +43,18 @@ export class NextEditorPart extends Part implements INextEditorPartService {
 
 		// this.memento = this.getMemento(this.storageService, Scope.WORKSPACE);
 
+		this.viewer = new NextEditorViewer();
+
 		this.initStyles();
 	}
 
 	public openEditor(input: EditorInput, options?: EditorOptions): TPromise<void> {
-		console.log('open: ', input);
 
-		return TPromise.as(void 0);
+		// TODO@grid arguments validation
+		// TODO@grid editor opening event and prevention
+		// TODO@grid support options
+
+		return this.viewer.split([], GridOrientation.HORIZONTAL, input, options);
 	}
 
 	private initStyles(): void {
@@ -64,7 +72,7 @@ export class NextEditorPart extends Part implements INextEditorPartService {
 		const container = this.getContainer();
 		container.style.backgroundColor = this.getColor(editorBackground);
 
-		// TODO@next set editor group color depending on group size
+		// TODO@grid set editor group color depending on group size
 
 		// Content area
 		// const content = this.getContentArea();
@@ -84,9 +92,14 @@ export class NextEditorPart extends Part implements INextEditorPartService {
 	}
 
 	public createContentArea(parent: HTMLElement): HTMLElement {
+
+		// Container
 		const contentArea = document.createElement('div');
 		addClass(contentArea, 'content');
 		parent.appendChild(contentArea);
+
+		// Viewer
+		contentArea.appendChild(this.viewer.element);
 
 		return contentArea;
 	}
@@ -96,7 +109,7 @@ export class NextEditorPart extends Part implements INextEditorPartService {
 
 		// this.dimension = sizes[1];
 
-		// TODO@next propagate layout
+		// TODO@grid propagate layout
 
 		this._onLayout.fire(dimension);
 
@@ -105,7 +118,7 @@ export class NextEditorPart extends Part implements INextEditorPartService {
 
 	public shutdown(): void {
 
-		// TODO@next shutdown
+		// TODO@grid shutdown
 		// - persist part view state
 		// - pass on to instantiated editors
 
@@ -117,7 +130,7 @@ export class NextEditorPart extends Part implements INextEditorPartService {
 		// Emitters
 		this._onLayout.dispose();
 
-		// TODO@next dispose
+		// TODO@grid dispose
 		// - all visible and instantiated editors
 		// - tokens for opening
 
