@@ -21,28 +21,84 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ViewLocation } from 'vs/workbench/common/views';
 import { PersistentViewsViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { forEach } from 'vs/base/common/collections';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
-export namespace schema {
 
-	// --activity group contribution point
-	export interface IUserFriendlyActivityGroupDescriptor {
-		id: string;
-		title: string;
-		icon: string;
+export interface IUserFriendlyViewsContainerDescriptor {
+	id: string;
+	title: string;
+	icon: string;
+}
+
+const viewsContainerSchema: IJSONSchema = {
+	type: 'object',
+	properties: {
+		id: {
+			description: localize('vscode.extension.contributes.views.containers.id', "Unique id used to identify the container in which views can be contributed using 'views' contribution point"),
+			type: 'string'
+		},
+		label: {
+			description: localize('vscode.extension.contributes.views.containers.title', 'Human readable string used to render the container'),
+			type: 'string'
+		},
+		icon: {
+			description: localize('vscode.extension.contributes.views.containers.icon', 'Path to the container icon'),
+			type: 'string'
+		}
+	}
+};
+
+export const viewsContainerContribution: IJSONSchema = {
+	description: localize('vscode.extension.contributes.viewsContainer', 'Contributes views containers to the editor'),
+	type: 'object',
+	properties: {
+		'activitybar': {
+			description: localize('views.container.activitybar', "Activity Bar"),
+			type: 'array',
+			items: viewsContainerSchema
+		}
+	}
+};
+
+export const viewsContainersExtensionPoint: IExtensionPoint<{ [loc: string]: IUserFriendlyViewsContainerDescriptor[] }> = ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: IUserFriendlyViewsContainerDescriptor[] }>('viewsContainers', [], viewsContainerContribution);
+class ViewsContainersExtensionHandler implements IWorkbenchContribution {
+
+	constructor() {
+		this.handleViewsContainersExtensionPoint();
 	}
 
-	export function isValidActivityGroup(activityGroupDescriptors: IUserFriendlyActivityGroupDescriptor[], collector: ExtensionMessageCollector): boolean {
-		if (!Array.isArray(activityGroupDescriptors)) {
-			collector.error(localize('requirearray', "activity groups must be an array"));
+	private handleViewsContainersExtensionPoint() {
+		viewsContainersExtensionPoint.setHandler((extensions) => {
+			for (let extension of extensions) {
+				const { value, collector } = extension;
+				forEach(value, entry => {
+					if (!this.isValidViewsContainer(entry.value, collector)) {
+						return;
+					}
+					switch (entry.key) {
+						case 'activitybar':
+							this.contributeToActivitybar(entry.value, extension.description);
+							break;
+					}
+				});
+			}
+		});
+	}
+
+	private isValidViewsContainer(viewsContainersDescriptors: IUserFriendlyViewsContainerDescriptor[], collector: ExtensionMessageCollector): boolean {
+		if (!Array.isArray(viewsContainersDescriptors)) {
+			collector.error(localize('requirearray', "views containers must be an array"));
 			return false;
 		}
 
-		for (let descriptor of activityGroupDescriptors) {
+		for (let descriptor of viewsContainersDescriptors) {
 			if (typeof descriptor.id !== 'string') {
 				collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'id'));
 				return false;
@@ -60,34 +116,8 @@ export namespace schema {
 		return true;
 	}
 
-	export const activityGroupContribution: IJSONSchema = {
-		description: localize('vscode.extension.contributes.activityGroup', 'Contributes an activity group to activity bar'),
-		type: 'object',
-		properties: {
-			id: {
-				description: localize('vscode.extension.contributes.activityGroup.id', "Unique id used to identify the activity group in which views can be contributed using 'views' contribution point"),
-				type: 'string'
-			},
-			label: {
-				description: localize('vscode.extension.contributes.activityGroup.title', 'Human readable string used to render the activity group'),
-				type: 'string'
-			},
-			icon: {
-				description: localize('vscode.extension.contributes.activityGroup.icon', 'Path to the activityGroup icon'),
-				type: 'string'
-			}
-		}
-	};
-}
-
-export const activityGroupExtensionPoint: IExtensionPoint<schema.IUserFriendlyActivityGroupDescriptor[]> = ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyActivityGroupDescriptor[]>('activityGroups', [], schema.activityGroupContribution);
-activityGroupExtensionPoint.setHandler((extensions) => {
-	for (let extension of extensions) {
-		const { value, collector } = extension;
-		if (!schema.isValidActivityGroup(value, collector)) {
-			return;
-		}
-		value.forEach((descriptor, index) => {
+	private contributeToActivitybar(containers: IUserFriendlyViewsContainerDescriptor[], extension: IExtensionDescription) {
+		containers.forEach((descriptor, index) => {
 			const id = `workbench.view.extension.${descriptor.id}`;
 			const title = descriptor.title;
 			const cssClass = `extensionViewlet-${descriptor.id}`;
@@ -95,7 +125,7 @@ activityGroupExtensionPoint.setHandler((extensions) => {
 
 			// Generate CSS to show the icon in the activity bar
 			const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${cssClass}`;
-			const iconPath = join(extension.description.extensionFolderPath, descriptor.icon);
+			const iconPath = join(extension.extensionFolderPath, descriptor.icon);
 			createCSSRule(iconClass, `-webkit-mask: url('${iconPath}') no-repeat 50% 50%; -webkit-mask-size: 22px;`);
 
 			// Register as viewlet
@@ -143,4 +173,7 @@ activityGroupExtensionPoint.setHandler((extensions) => {
 			);
 		});
 	}
-});
+}
+
+const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+workbenchRegistry.registerWorkbenchContribution(ViewsContainersExtensionHandler, LifecyclePhase.Starting);
