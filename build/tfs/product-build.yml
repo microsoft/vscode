@@ -40,7 +40,7 @@ phases:
   - powershell: |
       npm run gulp -- "electron-$(VSCODE_ARCH)"
       .\scripts\test.bat --build --tfs
-      yarn smoketest -- --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
+      # yarn smoketest -- --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
     name: test
 
   - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
@@ -362,7 +362,7 @@ phases:
   - script: |
       ./scripts/test.sh --build --tfs
       APP_NAME="`ls $(agent.builddirectory)/VSCode-darwin | head -n 1`"
-      yarn smoketest -- --build "$(agent.builddirectory)/VSCode-darwin/$APP_NAME"
+      # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-darwin/$APP_NAME"
     name: test
 
   - script: |
