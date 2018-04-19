@@ -14,6 +14,10 @@ export function basenameOrAuthority(resource: uri): string {
 
 export function isEqualOrParent(resource: uri, candidate: uri, ignoreCase?: boolean): boolean {
 	if (resource.scheme === candidate.scheme && resource.authority === candidate.authority) {
+		if (resource.scheme === 'file') {
+			return paths.isEqualOrParent(resource.fsPath, candidate.fsPath, ignoreCase);
+		}
+
 		return paths.isEqualOrParent(resource.path, candidate.path, ignoreCase);
 	}
 
