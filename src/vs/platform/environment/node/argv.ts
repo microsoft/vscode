@@ -164,8 +164,8 @@ const troubleshootingHelp: { [name: string]: string; } = {
 	'-p, --performance': localize('performance', "Start with the 'Developer: Startup Performance' command enabled."),
 	'--prof-startup': localize('prof-startup', "Run CPU profiler during startup"),
 	'--disable-extensions': localize('disableExtensions', "Disable all installed extensions."),
-	'--inspect-extensions': localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection uri."),
-	'--inspect-brk-extensions': localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection uri."),
+	'--inspect-extensions': localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection URI."),
+	'--inspect-brk-extensions': localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection URI."),
 	'--disable-gpu': localize('disableGPU', "Disable GPU hardware acceleration."),
 	'--upload-logs': localize('uploadLogs', "Uploads logs from current session to a secure endpoint."),
 	'--max-memory': localize('maxMemory', "Max memory size for a window (in Mbytes).")
