@@ -667,7 +667,7 @@ export class IssueReporter extends Disposable {
 			}
 
 			descriptionTitle.innerHTML = `${localize('stepsToReproduce', "Steps to Reproduce")} <span class="required-input">*</span>`;
-			descriptionSubtitle.innerHTML = localize('performanceIssueDesciption', "When did this performance issue happen? Does it occur on startup or after a specific series of actions? We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub.");
+			descriptionSubtitle.innerHTML = localize('performanceIssueDescription', "When did this performance issue happen? Does it occur on startup or after a specific series of actions? We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub.");
 		} else if (issueType === IssueType.FeatureRequest) {
 			descriptionTitle.innerHTML = `${localize('description', "Description")} <span class="required-input">*</span>`;
 			descriptionSubtitle.innerHTML = localize('featureRequestDescription', "Please describe the feature you would like to see. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub.");

@@ -185,7 +185,7 @@ export class ActivitybarPart extends Part {
 
 		const actions: Action[] = this.viewletService.getViewlets().map(viewlet => this.instantiationService.createInstance(ToggleCompositePinnedAction, viewlet, this.compositeBar));
 		actions.push(new Separator());
-		actions.push(this.instantiationService.createInstance(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, nls.localize('hideActivitBar', "Hide Activity Bar")));
+		actions.push(this.instantiationService.createInstance(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, nls.localize('hideActivityBar', "Hide Activity Bar")));
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => { return { x: event.posx, y: event.posy }; },

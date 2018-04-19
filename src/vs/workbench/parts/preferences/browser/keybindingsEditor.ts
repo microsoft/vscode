@@ -298,7 +298,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			actionClassName: 'sort-by-precedence',
 			isChecked: false,
 			onChange: () => this.renderKeybindingsEntries(false),
-			title: localize('sortByPrecedene', "Sort by Precedence")
+			title: localize('sortByPrecedence', "Sort by Precedence")
 		}));
 		searchContainer.appendChild(this.sortByPrecedence.domNode);
 
