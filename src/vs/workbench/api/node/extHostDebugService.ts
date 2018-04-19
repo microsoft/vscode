@@ -526,7 +526,7 @@ export class ExtHostDebugConsole implements vscode.DebugConsole {
 	}
 }
 
-class ExtHostVariableResolverService implements IConfigurationResolverService {
+export class ExtHostVariableResolverService implements IConfigurationResolverService {
 
 	_serviceBrand: any;
 	_variableResolver: VariableResolver;
