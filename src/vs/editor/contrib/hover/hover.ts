@@ -190,7 +190,13 @@ class ShowHoverAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.showHover',
-			label: nls.localize('showHover', "Show Hover"),
+			label: nls.localize({
+				key: 'showHover',
+				comment: [
+					'Label for action that will trigger the showing of a hover in the editor.',
+					'This allows for users to show the hover without using the mouse.'
+				]
+			}, "Show Hover"),
 			alias: 'Show Hover',
 			precondition: null,
 			kbOpts: {
