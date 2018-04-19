@@ -299,12 +299,17 @@ export class FileRenderer implements IRenderer {
 		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
 		inputBox.focus();
 
+		const parentTreeRowElement = container.parentElement;
+		parentTreeRowElement.tabIndex = -1;
+
 		const done = once((commit: boolean, blur: boolean) => {
 			tree.clearHighlight();
 
 			if (commit && inputBox.value) {
 				editableData.action.run({ value: inputBox.value });
 			}
+
+			parentTreeRowElement.removeAttribute('tabindex');
 
 			setTimeout(() => {
 				if (!blur) { // https://github.com/Microsoft/vscode/issues/20269
@@ -334,8 +339,17 @@ export class FileRenderer implements IRenderer {
 				}
 				this.displayCurrentPath(inputBox, initialRelPath, projectFolderName, editableData.action.id);
 			}),
-			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
+			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, (e: FocusEvent) => {
+				if (e.relatedTarget === parentTreeRowElement) {
+					e.preventDefault();
+					return;
+				}
+
 				done(inputBox.isInputValid(), true);
+			}),
+			DOM.addDisposableListener(parentTreeRowElement, DOM.EventType.FOCUS, (e: FocusEvent) => {
+				e.preventDefault();
+				inputBox.focus();
 			}),
 			label,
 			styler
@@ -414,13 +428,18 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 		const isDoubleClick = (origin === 'mouse' && event.detail === 2);
 
 		// Handle Highlight Mode
-		if (tree.getHighlight()) {
+		const hightlight = tree.getHighlight();
+		if (hightlight) {
 
 			// Cancel Event
 			event.preventDefault();
 			event.stopPropagation();
 
-			tree.clearHighlight(payload);
+			// Don't clear Highlight if it's the inputBox container
+			if (hightlight !== stat) {
+				tree.clearHighlight(payload);
+				tree.domFocus();
+			}
 
 			return false;
 		}
@@ -508,6 +527,12 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 
 		event.preventDefault();
 		event.stopPropagation();
+
+		// Don't show context menu on inputBox container
+		const hightlight = tree.getHighlight();
+		if (hightlight && hightlight === stat) {
+			return false;
+		}
 
 		tree.setFocus(stat);
 
