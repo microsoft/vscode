@@ -60,7 +60,11 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 				iconPath: Resource.getGravatarUri(element)
 			};
 		} else {
-			element.iconPath = Resource.getFileStatusUri(element);
+			if (element.comments && element.comments.length) {
+				element.iconPath = Resource.icons.light.Comment;
+			} else {
+				element.iconPath = Resource.getFileStatusUri(element);
+			}
 			element.resourceUri = element.filePath;
 			return element;
 		}
