@@ -284,7 +284,18 @@ export class WorkspaceStats implements IWorkbenchContribution {
 								content => {
 									try {
 										const packageJsonContents = JSON.parse(content.value);
-										return !!(packageJsonContents['dependencies'] && packageJsonContents['dependencies']['react-native']);
+										let modulesToLookFor = [
+											'react-native',
+											'azure-storage'
+											//add more packages here
+										];
+
+										if (packageJsonContents['dependencies']) {
+											for (let module of modulesToLookFor) {
+												tags['workspace.npm.' + module] = packageJsonContents['dependencies'][module] ? true : false;
+											}
+										}
+										return false;
 									} catch (e) {
 
 									}
@@ -294,9 +305,6 @@ export class WorkspaceStats implements IWorkbenchContribution {
 							);
 						}, err => false);
 					})).then(reactNatives => {
-						if (reactNatives.indexOf(true) !== -1) {
-							tags['workspace.reactNative'] = true;
-						}
 						return tags;
 					});
 				}
