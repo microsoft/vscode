@@ -21,9 +21,6 @@ export class ExtHostWebview implements vscode.Webview {
 	public readonly onMessageEmitter = new Emitter<any>();
 	public readonly onDidReceiveMessage: Event<any> = this.onMessageEmitter.event;
 
-	public readonly onDidChangeViewStateEmitter = new Emitter<vscode.WebviewPanelOnDidChangeViewStateEvent>();
-	public readonly onDidChangeViewState: Event<vscode.WebviewPanelOnDidChangeViewStateEvent> = this.onDidChangeViewStateEmitter.event;
-
 	constructor(
 		handle: WebviewPanelHandle,
 		proxy: MainThreadWebviewsShape,
@@ -35,7 +32,7 @@ export class ExtHostWebview implements vscode.Webview {
 	}
 
 	dispose() {
-		this.onDidChangeViewStateEmitter.dispose();
+		this.onMessageEmitter.dispose();
 	}
 
 	get html(): string {
@@ -120,6 +117,8 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 		this.onDisposeEmitter.fire();
 
 		this._proxy.$disposeWebview(this._handle);
+
+		this._webview.dispose();
 
 		this.onDisposeEmitter.dispose();
 		this.onDidChangeViewStateEmitter.dispose();
