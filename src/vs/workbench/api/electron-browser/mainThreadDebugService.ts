@@ -16,6 +16,7 @@ import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostC
 import severity from 'vs/base/common/severity';
 import { AbstractDebugAdapter, convertToVSCPaths, convertToDAPaths } from 'vs/workbench/parts/debug/node/debugAdapter';
 import * as paths from 'vs/base/common/paths';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
@@ -64,6 +65,10 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		const da = new ExtensionHostDebugAdapter(handle, this._proxy, debugType, adapterInfo);
 		this._debugAdapters.set(handle, da);
 		return da;
+	}
+
+	substituteVariables(folder: IWorkspaceFolder, config: IConfig): TPromise<IConfig> {
+		return this._proxy.$substituteVariables(folder.uri, config);
 	}
 
 	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
