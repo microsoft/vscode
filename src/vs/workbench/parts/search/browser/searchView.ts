@@ -183,13 +183,42 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.createSearchWidget(this.searchWidgetsContainer);
 
 		const filePatterns = this.viewletSettings['query.filePatterns'] || '';
-		const patternExclusions = this.viewletSettings['query.folderExclusions'] || '';
-		const patternExclusionsHistory = this.viewletSettings['query.folderExclusionsHistory'] || [];
-		const patternIncludes = this.viewletSettings['query.folderIncludes'] || '';
-		const patternIncludesHistory = this.viewletSettings['query.folderIncludesHistory'] || [];
+		let patternExclusions = this.viewletSettings['query.folderExclusions'] || '';
+		const patternExclusionsHistory: string[] = this.viewletSettings['query.folderExclusionsHistory'] || [];
+		let patternIncludes = this.viewletSettings['query.folderIncludes'] || '';
+		let patternIncludesHistory: string[] = this.viewletSettings['query.folderIncludesHistory'] || [];
 		const queryDetailsExpanded = this.viewletSettings['query.queryDetailsExpanded'] || '';
 		const useExcludesAndIgnoreFiles = typeof this.viewletSettings['query.useExcludesAndIgnoreFiles'] === 'boolean' ?
 			this.viewletSettings['query.useExcludesAndIgnoreFiles'] : true;
+
+		// Transition history from 1.22 combined include+exclude, to split include/exclude histories
+		const patternIncludesHistoryWithoutExcludes: string[] = [];
+		const patternExcludesHistoryFromIncludes: string[] = [];
+		patternIncludesHistory.forEach(historyEntry => {
+			const includeExclude = this.queryBuilder.parseIncludeExcludePattern(historyEntry);
+			if (includeExclude.includePattern) {
+				patternIncludesHistoryWithoutExcludes.push(includeExclude.includePattern);
+			}
+
+			if (includeExclude.excludePattern) {
+				patternExcludesHistoryFromIncludes.push(includeExclude.excludePattern);
+			}
+		});
+
+		patternIncludesHistory = patternIncludesHistoryWithoutExcludes;
+		patternExclusionsHistory.push(...patternExcludesHistoryFromIncludes);
+
+		// Split combined include/exclude to split include/exclude boxes
+		const includeExclude = this.queryBuilder.parseIncludeExcludePattern(patternIncludes);
+		patternIncludes = includeExclude.includePattern || '';
+
+		if (includeExclude.excludePattern) {
+			if (patternExclusions) {
+				patternExclusions += ', ' + includeExclude.excludePattern;
+			} else {
+				patternExclusions = includeExclude.excludePattern;
+			}
+		}
 
 		this.queryDetails = this.searchWidgetsContainer.div({ 'class': ['query-details'] }, (builder) => {
 			builder.div({ 'class': 'more', 'tabindex': 0, 'role': 'button', 'title': nls.localize('moreSearch', "Toggle Search Details") })

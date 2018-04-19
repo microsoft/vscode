@@ -182,6 +182,28 @@ export class QueryBuilder {
 		return Object.keys(excludeExpression).length ? excludeExpression : undefined;
 	}
 
+	/**
+	 * A helper that splits positive and negative patterns from a string that combines both.
+	 */
+	public parseIncludeExcludePattern(pattern: string): { includePattern?: string, excludePattern?: string } {
+		const grouped = collections.groupBy(
+			splitGlobPattern(pattern),
+			s => strings.startsWith(s, '!') ? 'excludePattern' : 'includePattern');
+
+		const result = {};
+		if (grouped.includePattern) {
+			result['includePattern'] = grouped.includePattern.join(', ');
+		}
+
+		if (grouped.excludePattern) {
+			result['excludePattern'] = grouped.excludePattern
+				.map(s => strings.ltrim(s, '!'))
+				.join(', ');
+		}
+
+		return result;
+	}
+
 	private mergeExcludesFromFolderQueries(folderQueries: IFolderQuery[]): glob.IExpression | undefined {
 		const mergedExcludes = folderQueries.reduce((merged: glob.IExpression, fq: IFolderQuery) => {
 			if (fq.excludePattern) {
