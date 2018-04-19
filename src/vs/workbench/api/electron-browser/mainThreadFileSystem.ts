@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { FileOpenFlags, IFileChange, IFileService, IStat, IWatchOptions, FileError, FileSystemProviderCapabilities, IFileSystemProvider } from 'vs/platform/files/common/files';
+import { FileOpenFlags, FileSystemProviderCapabilities, IFileChange, IFileService, IFileSystemProvider, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../node/extHost.protocol';
 
@@ -88,7 +88,7 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 
 	// --- forwarding calls
 
-	stat(resource: URI): TPromise<IStat, FileError> {
+	stat(resource: URI): TPromise<IStat> {
 		return this._proxy.$stat(this._handle, resource).then(undefined, err => {
 			throw err;
 		});

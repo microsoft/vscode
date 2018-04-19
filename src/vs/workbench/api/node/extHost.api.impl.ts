@@ -713,7 +713,7 @@ export function createApiFactory(
 			FileChangeType2: extHostTypes.FileChangeType2,
 			FileType2: extHostTypes.FileType2,
 			FileOpenFlags: files.FileOpenFlags,
-			FileError: files.FileError,
+			FileError: extHostTypes.FileError,
 			FoldingRange: extHostTypes.FoldingRange,
 			FoldingRangeKind: extHostTypes.FoldingRangeKind
 		};

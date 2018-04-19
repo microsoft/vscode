@@ -84,32 +84,18 @@ declare module 'vscode' {
 		// create(resource: Uri): Thenable<FileStat>;
 	}
 
-	// export class FileError extends Error {
+	/**
+	 * 
+	 */
+	export class FileError extends Error {
 
-	// 	/**
-	// 	 * Entry already exists, e.g. when creating a file or folder.
-	// 	 */
-	// 	static readonly EntryExists: FileError;
+		static EntryExists(message?: string): FileError;
+		static EntryNotFound(message?: string): FileError;
+		static EntryNotADirectory(message?: string): FileError;
+		static EntryIsADirectory(message?: string): FileError;
 
-	// 	/**
-	// 	 * Entry does not exist.
-	// 	 */
-	// 	static readonly EntryNotFound: FileError;
-
-	// 	/**
-	// 	 * Entry is not a directory.
-	// 	 */
-	// 	static readonly EntryNotADirectory: FileError;
-
-	// 	/**
-	// 	 * Entry is a directory.
-	// 	 */
-	// 	static readonly EntryIsADirectory: FileError;
-
-	// 	readonly code: string;
-
-	// 	constructor(code: string, message?: string);
-	// }
+		constructor(message?: string);
+	}
 
 	export enum FileChangeType2 {
 		Changed = 1,
