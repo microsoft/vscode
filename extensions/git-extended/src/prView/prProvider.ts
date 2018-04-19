@@ -105,10 +105,10 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 				return changedItem;
 			});
 
-			vscode.commands.registerCommand('diff-' + element.prItem.number + '-post', async (id: string, uri: vscode.Uri, lineNumber: number, text: string) => {
-				if (id) {
+			vscode.commands.registerCommand('diff-' + element.prItem.number + '-post', async (uri: vscode.Uri, range: vscode.Range, thread: vscode.CommentThread, text: string) => {
+				if (thread) {
 					try {
-						let ret = await element.createCommentReply(text, id);
+						let ret = await element.createCommentReply(text, thread.threadId);
 						return {
 							body: new vscode.MarkdownString(ret.data.body),
 							userName: ret.data.user.login,
@@ -129,8 +129,8 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 						let newStartLine = Number(matches[5]);
 						let newLen = Number(matches[7]) | 0;
 
-						if (lineNumber >= newStartLine && lineNumber <= newStartLine + newLen - 1) {
-							position = lineNumber - newStartLine + 1;
+						if (range.start.line >= newStartLine && range.start.line <= newStartLine + newLen - 1) {
+							position = range.start.line - newStartLine + 1;
 							break;
 						}
 
@@ -155,25 +155,23 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 				title: 'Add single comment'
 			};
 
-			let actions = [reply];
-
 			const _onDidChangeCommentThreads = new vscode.EventEmitter<vscode.CommentThreadChangedEvent>();
 			setTimeout(() => _onDidChangeCommentThreads.fire({ changed: [], added: [], removed: [] }), 5000);
 			vscode.workspace.registerCommentProvider({
 				onDidChangeCommentThreads: _onDidChangeCommentThreads.event,
-				provideNewCommentRange: async (document: vscode.TextDocument, token: vscode.CancellationToken) => {
+				provideComments: async (document: vscode.TextDocument, token: vscode.CancellationToken) => {
 					if (document.uri.scheme === 'pr') {
 						let params = JSON.parse(document.uri.query);
 						let fileChange = richContentChanges.find(change => change.fileName === params.fileName);
 						let regex = new RegExp(DIFF_HUNK_INFO, 'g');
 						let matches = regex.exec(fileChange.patch);
 
-						let ret: vscode.Range[] = [];
+						let commentingRanges: vscode.Range[] = [];
 						while (matches) {
 							let newStartLine = Number(matches[5]);
 							let newLen = Number(matches[7]) | 0;
 
-							ret.push(new vscode.Range(
+							commentingRanges.push(new vscode.Range(
 								newStartLine - 1,
 								0,
 								newStartLine + newLen - 1 - 1,
@@ -183,24 +181,18 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 							matches = regex.exec(fileChange.patch);
 						}
 
-						return [{
-							ranges: ret,
-							actions: actions
-						}];
-					}
-
-					return [];
-				},
-				provideComments: async (document: vscode.TextDocument, token: vscode.CancellationToken) => {
-					if (document.uri.scheme === 'pr') {
 						let matchingComments = commentsCache.get(document.uri.toString());
 
 						if (!matchingComments || !matchingComments.length) {
-							return [];
+							return {
+								threads: [],
+								commentingRanges,
+								reply: reply
+							};
 						}
 
 						let sections = _.groupBy(matchingComments, comment => comment.position);
-						let ret: vscode.CommentThread[] = [];
+						let threads: vscode.CommentThread[] = [];
 
 						for (let i in sections) {
 							let comments = sections[i];
@@ -212,7 +204,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 							const pos = new vscode.Position(comment.currentPosition ? comment.currentPosition - 1 - 1 : commentAbsolutePosition - /* after line */ 1 - /* it's zero based*/ 1, 0);
 							const range = new vscode.Range(pos, pos);
 
-							ret.push({
+							threads.push({
 								threadId: comment.id,
 								resource: document.uri,
 								range,
@@ -228,11 +220,15 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 							});
 						}
 
-						return ret;
+						return {
+							threads,
+							commentingRanges,
+							reply: reply
+						};
 
 					}
 
-					return [];
+					return null;
 				}
 			});
 			return fileChanges;

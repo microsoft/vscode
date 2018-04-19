@@ -770,6 +770,12 @@ declare module 'vscode' {
 
 	//#endregion
 
+	interface CommentInfo {
+		threads: CommentThread[];
+		commentingRanges?: Range[];
+		reply?: Command;
+	}
+
 	interface CommentThread {
 		threadId: string;
 		resource: Uri;
@@ -812,8 +818,7 @@ declare module 'vscode' {
 	 * TODO: resolve step?
 	 */
 	interface CommentProvider {
-		provideComments(document: TextDocument, token: CancellationToken): Promise<CommentThread[]>;
-		provideNewCommentRange(document: TextDocument, token: CancellationToken): Promise<NewCommentAction[]>;
+		provideComments(document: TextDocument, token: CancellationToken): Promise<CommentInfo>;
 		provideAllComments?(token: CancellationToken): Promise<CommentThread[]>;
 		onDidChangeCommentThreads?: Event<CommentThreadChangedEvent>;
 	}

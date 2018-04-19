@@ -37,7 +37,6 @@ export class ReviewMode {
 	private _comments: Comment[] = [];
 	private _commentsCache: Map<String, Comment[]>;
 	private _localFileChanges: FileChangeTreeItem[] = [];
-	private _actions: vscode.Command[] = [];
 	private _reply: vscode.Command = null;
 	private _lastCommitSha: string;
 
@@ -120,9 +119,9 @@ export class ReviewMode {
 			}
 		}));
 
-		this._command = vscode.commands.registerCommand(this._prNumber + '-post', async (id: string, uri: vscode.Uri, lineNumber: number, text: string) => {
+		this._command = vscode.commands.registerCommand(this._prNumber + '-post', async (uri: vscode.Uri, range: vscode.Range, thread: vscode.CommentThread, text: string) => {
 			try {
-				let ret = await pr.createCommentReply(text, id);
+				let ret = await pr.createCommentReply(text, thread.threadId);
 				return {
 					body: new vscode.MarkdownString(ret.data.body),
 					userName: ret.data.user.login,
@@ -137,8 +136,6 @@ export class ReviewMode {
 			command: this._prNumber + '-post',
 			title: 'Add single comment'
 		};
-
-		this._actions = [this._reply];
 
 		this.registerCommentProvider();
 
@@ -293,24 +290,13 @@ export class ReviewMode {
 	registerCommentProvider() {
 		vscode.workspace.registerCommentProvider({
 			onDidChangeCommentThreads: this._onDidChangeCommentThreads.event,
-			provideNewCommentRange: async (document: vscode.TextDocument, token: vscode.CancellationToken) => {
-				if (document.uri.scheme === 'review' || document.uri.scheme === 'file') {
-					let lastLine = document.lineCount;
-					let lastColumn = document.lineAt(lastLine - 1).text.length;
-					return [{
-						ranges: [
-							new vscode.Range(1, 1, lastLine, lastColumn)
-						],
-						actions: this._actions
-					}];
-				} else {
-					return [{
-						ranges: [],
-						actions: []
-					}];
-				}
-			},
 			provideComments: async (document: vscode.TextDocument, token: vscode.CancellationToken) => {
+				let lastLine = document.lineCount;
+				let lastColumn = document.lineAt(lastLine - 1).text.length;
+				let ranges = [
+					new vscode.Range(1, 1, lastLine, lastColumn)
+				];
+
 				let matchingComments: Comment[];
 				if (document.uri.scheme === 'review') {
 					// from scm viewlet
@@ -328,7 +314,11 @@ export class ReviewMode {
 					}
 				}
 
-				return this.commentsToCommentThreads(matchingComments);
+				return {
+					threads: this.commentsToCommentThreads(matchingComments),
+					commentingRanges: ranges,
+					reply: this._reply
+				};
 			},
 			provideAllComments: async (token: vscode.CancellationToken) => {
 				const comments = await Promise.all(this._localFileChanges.map(async fileChange => {
@@ -337,7 +327,6 @@ export class ReviewMode {
 				return comments.reduce((prev, curr) => prev.concat(curr), []);
 			}
 		});
-
 	}
 
 	async switch(pr: PullRequest) {

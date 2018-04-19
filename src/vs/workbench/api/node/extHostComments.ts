@@ -41,6 +41,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		provider.onDidChangeCommentThreads(event => {
 
 			this._proxy.$onDidCommentThreadsChange(handle, {
+				owner: handle,
 				changed: event.changed.map(x => convertCommentThread(x, this._commandsConverter)),
 				added: event.added.map(x => convertCommentThread(x, this._commandsConverter)),
 				removed: event.removed.map(x => convertCommentThread(x, this._commandsConverter))
@@ -58,17 +59,17 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		return TPromise.as(null);
 	}
 
-	$provideComments(handle: number, uri: UriComponents): TPromise<modes.CommentThread[]> {
+	$provideComments(handle: number, uri: UriComponents): TPromise<modes.CommentInfo> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 		if (!data || !data.document) {
-			return TPromise.as([]);
+			return TPromise.as(null);
 		}
 
 		return asWinJsPromise(token => {
 			let provider = this._providers.get(handle);
 			return provider.provideComments(data.document, token);
 		})
-			.then(comments => comments.map(x => convertCommentThread(x, this._commandsConverter)));
+			.then(commentInfo => convertCommentInfo(handle, commentInfo, this._commandsConverter));
 	}
 
 	$provideAllComments(handle: number): TPromise<modes.CommentThread[]> {
@@ -85,31 +86,15 @@ export class ExtHostComments implements ExtHostCommentsShape {
 			comments.map(x => convertCommentThread(x, this._commandsConverter)
 			));
 	}
-
-
-	$provideNewCommentRange(handle: number, uri: UriComponents): TPromise<modes.NewCommentAction[]> {
-		const data = this._documents.getDocumentData(URI.revive(uri));
-		if (!data || !data.document) {
-			return TPromise.as(null);
-		}
-
-		return asWinJsPromise(token => {
-			let provider = this._providers.get(handle);
-			return provider.provideNewCommentRange(data.document, token);
-		})
-			.then(newCommentActions => newCommentActions.map(newCommentAction => convertNewCommandAction(newCommentAction, this._commandsConverter)));
-	}
 }
 
-function convertNewCommandAction(vscodeNewCommentAction: vscode.NewCommentAction, commandsConverter: CommandsConverter): modes.NewCommentAction {
-	if (vscodeNewCommentAction) {
-		return {
-			ranges: vscodeNewCommentAction.ranges.map(range => extHostTypeConverter.fromRange(range)),
-			actions: vscodeNewCommentAction.actions.map(commandsConverter.toInternal)
-		};
-	} else {
-		return null;
-	}
+function convertCommentInfo(owner: number, vscodeCommentInfo: vscode.CommentInfo, commandsConverter: CommandsConverter): modes.CommentInfo {
+	return {
+		owner: owner,
+		threads: vscodeCommentInfo.threads.map(x => convertCommentThread(x, commandsConverter)),
+		commentingRanges: vscodeCommentInfo.commentingRanges ? vscodeCommentInfo.commentingRanges.map(range => extHostTypeConverter.fromRange(range)) : [],
+		reply: vscodeCommentInfo.reply ? commandsConverter.toInternal(vscodeCommentInfo.reply) : null
+	};
 }
 
 function convertCommentThread(vscodeCommentThread: vscode.CommentThread, commandsConverter: CommandsConverter): modes.CommentThread {

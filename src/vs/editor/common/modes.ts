@@ -937,6 +937,12 @@ export interface Command {
 	arguments?: any[];
 }
 
+export interface CommentInfo {
+	owner: number;
+	threads: CommentThread[];
+	commentingRanges?: IRange[];
+	reply?: Command;
+}
 
 export interface CommentThread {
 	readonly threadId: string;
@@ -959,6 +965,7 @@ export interface Comment {
 }
 
 export interface CommentThreadChangedEvent {
+	readonly owner: number;
 	/**
 	 * Added comment threads.
 	 */
@@ -977,8 +984,7 @@ export interface CommentThreadChangedEvent {
 
 
 export interface CommentProvider {
-	provideComments(model: model.ITextModel, token: CancellationToken): Promise<CommentThread[]>;
-	provideNewCommentRange(model: model.ITextModel, token: CancellationToken): Promise<NewCommentAction[]>;
+	provideComments(model: model.ITextModel, token: CancellationToken): Promise<CommentInfo>;
 	provideAllComments(token: CancellationToken): Promise<CommentThread[]>;
 	onDidChangeCommentThreads(): Event<CommentThreadChangedEvent>;
 }

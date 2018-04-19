@@ -5,27 +5,25 @@
 
 'use strict';
 
-import { CommentThread, CommentProvider, NewCommentAction, CommentThreadChangedEvent } from 'vs/editor/common/modes';
+import { CommentThread, CommentProvider, CommentThreadChangedEvent, CommentInfo } from 'vs/editor/common/modes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
-import { ITextModel } from 'vs/editor/common/model';
-import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
 
 export interface IResourceCommentThreadEvent {
 	resource: URI;
-	commentThreads: CommentThread[];
+	commentInfos: CommentInfo[];
 }
 
 export interface ICommentService {
 	_serviceBrand: any;
-	readonly onDidSetResourceCommentThreads: Event<IResourceCommentThreadEvent>;
+	readonly onDidSetResourceCommentInfos: Event<IResourceCommentThreadEvent>;
 	readonly onDidSetAllCommentThreads: Event<CommentThread[]>;
 	readonly onDidUpdateCommentThreads: Event<CommentThreadChangedEvent>;
-	setComments(resource: URI, commentThreads: CommentThread[]): void;
+	setComments(resource: URI, commentInfos: CommentInfo[]): void;
 	setAllComments(commentsByResource: CommentThread[]): void;
 	removeAllComments(): void;
 	registerDataProvider(commentProvider: CommentProvider): void;
@@ -35,8 +33,8 @@ export interface ICommentService {
 export class CommentService extends Disposable implements ICommentService {
 	_serviceBrand: any;
 
-	private readonly _onDidSetResourceCommentThreads: Emitter<IResourceCommentThreadEvent> = this._register(new Emitter<IResourceCommentThreadEvent>());
-	readonly onDidSetResourceCommentThreads: Event<IResourceCommentThreadEvent> = this._onDidSetResourceCommentThreads.event;
+	private readonly _onDidSetResourceCommentInfos: Emitter<IResourceCommentThreadEvent> = this._register(new Emitter<IResourceCommentThreadEvent>());
+	readonly onDidSetResourceCommentInfos: Event<IResourceCommentThreadEvent> = this._onDidSetResourceCommentInfos.event;
 
 	private readonly _onDidSetAllCommentThreads: Emitter<CommentThread[]> = this._register(new Emitter<CommentThread[]>());
 	readonly onDidSetAllCommentThreads: Event<CommentThread[]> = this._onDidSetAllCommentThreads.event;
@@ -44,15 +42,14 @@ export class CommentService extends Disposable implements ICommentService {
 	private readonly _onDidUpdateCommentThreads: Emitter<CommentThreadChangedEvent> = this._register(new Emitter<CommentThreadChangedEvent>());
 	readonly onDidUpdateCommentThreads: Event<CommentThreadChangedEvent> = this._onDidUpdateCommentThreads.event;
 
-	private _commentProvider: CommentProvider;
+	private _commentProviders: CommentProvider[] = [];
 
 	constructor() {
 		super();
-		this._commentProvider = null;
 	}
 
-	setComments(resource: URI, commentThreads: CommentThread[]): void {
-		this._onDidSetResourceCommentThreads.fire({ resource, commentThreads });
+	setComments(resource: URI, commentInfos: CommentInfo[]): void {
+		this._onDidSetResourceCommentInfos.fire({ resource, commentInfos });
 	}
 
 	setAllComments(commentsByResource: CommentThread[]): void {
@@ -64,22 +61,11 @@ export class CommentService extends Disposable implements ICommentService {
 	}
 
 	registerDataProvider(commentProvider: CommentProvider) {
-		this._commentProvider = commentProvider;
+		// @todo use map
+		this._commentProviders.push(commentProvider);
 	}
 
 	updateComments(event: CommentThreadChangedEvent): void {
 		this._onDidUpdateCommentThreads.fire(event);
-	}
-
-	async provideComments(model: ITextModel, token: CancellationToken): Promise<CommentThread[]> {
-		return this._commentProvider.provideComments(model, token);
-	}
-
-	async provideNewCommentRange(model: ITextModel, token: CancellationToken): Promise<NewCommentAction[]> {
-		return this._commentProvider.provideNewCommentRange(model, token);
-	}
-
-	async provideAllComments(token: CancellationToken): Promise<CommentThread[]> {
-		return this._commentProvider.provideAllComments(token);
 	}
 }

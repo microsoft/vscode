@@ -5028,6 +5028,13 @@ declare namespace monaco.languages {
 		arguments?: any[];
 	}
 
+	export interface CommentInfo {
+		owner: number;
+		threads: CommentThread[];
+		commentingRanges?: IRange[];
+		reply?: Command;
+	}
+
 	export interface CommentThread {
 		readonly threadId: string;
 		readonly resource: string;
@@ -5049,6 +5056,7 @@ declare namespace monaco.languages {
 	}
 
 	export interface CommentThreadChangedEvent {
+		readonly owner: number;
 		/**
 		 * Added comment threads.
 		 */
@@ -5064,8 +5072,7 @@ declare namespace monaco.languages {
 	}
 
 	export interface CommentProvider {
-		provideComments(model: editor.ITextModel, token: CancellationToken): Promise<CommentThread[]>;
-		provideNewCommentRange(model: editor.ITextModel, token: CancellationToken): Promise<NewCommentAction[]>;
+		provideComments(model: editor.ITextModel, token: CancellationToken): Promise<CommentInfo>;
 		provideAllComments(token: CancellationToken): Promise<CommentThread[]>;
 		onDidChangeCommentThreads(): IEvent<CommentThreadChangedEvent>;
 	}

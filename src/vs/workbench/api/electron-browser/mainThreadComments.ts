@@ -18,7 +18,6 @@ import { ICommentService } from 'vs/workbench/services/comments/electron-browser
 import { COMMENTS_PANEL_ID } from 'vs/workbench/parts/comments/electron-browser/commentsPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import URI from 'vs/base/common/uri';
-import { ITextModel } from 'vs/editor/common/model';
 import { ReviewController } from 'vs/workbench/parts/comments/electron-browser/commentsEditorContribution';
 
 @extHostNamedCustomer(MainContext.MainThreadComments)
@@ -49,25 +48,21 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			}
 
 			const outerEditorURI = outerEditor.getModel().uri;
-			this.provideComments(outerEditorURI).then(commentThreads => {
-				this._commentService.setComments(outerEditorURI, commentThreads);
-			});
-			this.provideNewCommentRange(outerEditor.getModel()).then(newActions => {
-				controller.setNewCommentActions(newActions);
+			this.provideComments(outerEditorURI).then(commentInfos => {
+				this._commentService.setComments(outerEditorURI, commentInfos);
 			});
 
-			_commentService.registerDataProvider({
-				provideAllComments: async (token) => {
-					return await this.provideAllComments();
-				},
-				provideComments: async (model, token) => {
-					return await this.provideComments(model.uri);
-				},
-				provideNewCommentRange: async (model, token) => {
-					return await this.provideNewCommentRange(model);
-				},
-				onDidChangeCommentThreads: null
-			});
+			for (const handle of keys(this._providers)) {
+				_commentService.registerDataProvider({
+					provideAllComments: async (token) => {
+						return await this._proxy.$provideAllComments(handle);
+					},
+					provideComments: async (model, token) => {
+						return this._proxy.$provideComments(handle, model.uri);
+					},
+					onDidChangeCommentThreads: null
+				});
+			}
 		});
 	}
 
@@ -114,21 +109,10 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		return result;
 	}
 
-	async provideComments(resource: URI): Promise<modes.CommentThread[]> {
-		const result: modes.CommentThread[] = [];
+	async provideComments(resource: URI): Promise<modes.CommentInfo[]> {
+		const result: modes.CommentInfo[] = [];
 		for (const handle of keys(this._providers)) {
-			result.push(...await this._proxy.$provideComments(handle, resource));
-		}
-		return result;
-	}
-
-	async provideNewCommentRange(model: ITextModel): Promise<modes.NewCommentAction[]> {
-		const result: modes.NewCommentAction[] = [];
-		for (const handle of keys(this._providers)) {
-			let newCommentRange = await this._proxy.$provideNewCommentRange(handle, model.uri);
-			if (newCommentRange.length > 0) {
-				result.push(...newCommentRange);
-			}
+			result.push(await this._proxy.$provideComments(handle, resource));
 		}
 		return result;
 	}
