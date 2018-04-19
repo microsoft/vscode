@@ -76,7 +76,7 @@ export class FileDataSource implements IDataSource {
 	}
 
 	public hasChildren(tree: ITree, stat: ExplorerItem | Model): boolean {
-		return stat instanceof Model || (stat instanceof ExplorerItem && stat.isDirectory);
+		return stat instanceof Model || (stat instanceof ExplorerItem && (stat.isDirectory || stat.isRoot));
 	}
 
 	public getChildren(tree: ITree, stat: ExplorerItem | Model): TPromise<ExplorerItem[]> {
