@@ -5,13 +5,17 @@
 
 'use strict';
 
+import 'vs/css!./media/nextEditorpart';
 import 'vs/workbench/browser/parts/editor/editor.contribution';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
 import { INextEditorGroupService } from 'vs/workbench/services/group/common/nextGroupService';
-import { Dimension, addClass } from 'vs/base/browser/dom';
+import { Dimension, addClass, createCSSRule } from 'vs/base/browser/dom';
 import { Event, Emitter } from 'vs/base/common/event';
 import { INextWorkbenchEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { join } from 'vs/base/common/paths';
+import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 
 export class NextEditorPart extends Part implements INextWorkbenchEditorService, INextEditorGroupService {
 
@@ -23,11 +27,44 @@ export class NextEditorPart extends Part implements INextWorkbenchEditorService,
 
 	constructor(
 		id: string,
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IThemeService themeService: IThemeService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
 		this._onLayout = new Emitter<Dimension>();
+
+		this.initStyles();
+	}
+
+	private initStyles(): void {
+
+		// Letterpress Background when Empty
+		createCSSRule('.vs .monaco-workbench > .part.editor.empty', `background-image: url('${join(this.environmentService.appRoot, 'resources/letterpress.svg')}')`);
+		createCSSRule('.vs-dark .monaco-workbench > .part.editor.empty', `background-image: url('${join(this.environmentService.appRoot, 'resources/letterpress-dark.svg')}')`);
+		createCSSRule('.hc-black .monaco-workbench > .part.editor.empty', `background-image: url('${join(this.environmentService.appRoot, 'resources/letterpress-hc.svg')}')`);
+	}
+
+	protected updateStyles(): void {
+		super.updateStyles();
+
+		// Part container
+		const container = this.getContainer();
+		container.style.backgroundColor = this.getColor(editorBackground);
+
+		// TODO@next set editor group color depending on group size
+
+		// Content area
+		// const content = this.getContentArea();
+
+		// const groupCount = this.stacks.groups.length;
+		// if (groupCount > 1) {
+		// 	addClass(content, 'multiple-groups');
+		// } else {
+		// 	removeClass(content, 'multiple-groups');
+		// }
+
+		// content.style.backgroundColor = groupCount > 0 ? this.getColor(EDITOR_GROUP_BACKGROUND) : null;
 	}
 
 	public get onLayout(): Event<Dimension> {
@@ -40,12 +77,6 @@ export class NextEditorPart extends Part implements INextWorkbenchEditorService,
 		parent.appendChild(contentArea);
 
 		return contentArea;
-	}
-
-	protected updateStyles(): void {
-		super.updateStyles();
-
-		// TODO@next update styles
 	}
 
 	public layout(dimension: Dimension): Dimension[] {

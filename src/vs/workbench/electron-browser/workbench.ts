@@ -110,7 +110,7 @@ import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
-import { NextEditorPart } from 'vs/workbench/browser/parts/nexteditor/nextEditorPart';
+import { NextEditorPart } from 'vs/workbench/browser/parts/editor2/nextEditorPart';
 import { INextEditorGroupService } from 'vs/workbench/services/group/common/nextGroupService';
 
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
