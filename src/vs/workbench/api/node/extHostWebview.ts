@@ -18,8 +18,8 @@ export class ExtHostWebview implements vscode.Webview {
 	private _options: vscode.WebviewOptions;
 	private _isDisposed: boolean = false;
 
-	public readonly onMessageEmitter = new Emitter<any>();
-	public readonly onDidReceiveMessage: Event<any> = this.onMessageEmitter.event;
+	readonly _onMessageEmitter = new Emitter<any>();
+	public readonly onDidReceiveMessage: Event<any> = this._onMessageEmitter.event;
 
 	constructor(
 		handle: WebviewPanelHandle,
@@ -32,7 +32,7 @@ export class ExtHostWebview implements vscode.Webview {
 	}
 
 	dispose() {
-		this.onMessageEmitter.dispose();
+		this._onMessageEmitter.dispose();
 	}
 
 	get html(): string {
@@ -83,11 +83,11 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 	private _viewColumn: vscode.ViewColumn;
 	private _visible: boolean = true;
 
-	public readonly onDisposeEmitter = new Emitter<void>();
-	public readonly onDidDispose: Event<void> = this.onDisposeEmitter.event;
+	readonly _onDisposeEmitter = new Emitter<void>();
+	public readonly onDidDispose: Event<void> = this._onDisposeEmitter.event;
 
-	public readonly onDidChangeViewStateEmitter = new Emitter<vscode.WebviewPanelOnDidChangeViewStateEvent>();
-	public readonly onDidChangeViewState: Event<vscode.WebviewPanelOnDidChangeViewStateEvent> = this.onDidChangeViewStateEmitter.event;
+	readonly _onDidChangeViewStateEmitter = new Emitter<vscode.WebviewPanelOnDidChangeViewStateEvent>();
+	public readonly onDidChangeViewState: Event<vscode.WebviewPanelOnDidChangeViewStateEvent> = this._onDidChangeViewStateEmitter.event;
 
 
 	constructor(
@@ -114,14 +114,14 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 		}
 
 		this._isDisposed = true;
-		this.onDisposeEmitter.fire();
+		this._onDisposeEmitter.fire();
 
 		this._proxy.$disposeWebview(this._handle);
 
 		this._webview.dispose();
 
-		this.onDisposeEmitter.dispose();
-		this.onDidChangeViewStateEmitter.dispose();
+		this._onDisposeEmitter.dispose();
+		this._onDidChangeViewStateEmitter.dispose();
 	}
 
 	get webview() {
@@ -238,7 +238,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 	$onMessage(handle: WebviewPanelHandle, message: any): void {
 		const panel = this.getWebviewPanel(handle);
 		if (panel) {
-			panel.webview.onMessageEmitter.fire(message);
+			panel.webview._onMessageEmitter.fire(message);
 		}
 	}
 
@@ -249,7 +249,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 			if (panel.visible !== visible || panel.viewColumn !== viewColumn) {
 				panel._setVisible(visible);
 				panel._setViewColumn(viewColumn);
-				panel.onDidChangeViewStateEmitter.fire({ webviewPanel: panel });
+				panel._onDidChangeViewStateEmitter.fire({ webviewPanel: panel });
 			}
 		}
 	}
