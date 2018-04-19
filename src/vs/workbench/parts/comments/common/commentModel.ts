@@ -7,8 +7,8 @@
 
 import URI from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
-import { Comment, CommentThread } from 'vs/editor/common/modes';
-import { groupBy } from 'vs/base/common/arrays';
+import { Comment, CommentThread, CommentThreadChangedEvent } from 'vs/editor/common/modes';
+import { groupBy, firstIndex } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 
 export class CommentNode {
@@ -30,7 +30,7 @@ export class CommentNode {
 	}
 }
 
-export class ResourceCommentThreads {
+export class ResourceWithCommentThreads {
 	id: string;
 	comments: CommentNode[]; // The top level comments on the file. Replys are nested under each node.
 	resource: URI;
@@ -38,10 +38,10 @@ export class ResourceCommentThreads {
 	constructor(resource: URI, commentThreads: CommentThread[]) {
 		this.id = resource.toString();
 		this.resource = resource;
-		this.comments = commentThreads.map(thread => this.createCommentNode(resource, thread));
+		this.comments = commentThreads.map(thread => ResourceWithCommentThreads.createCommentNode(resource, thread));
 	}
 
-	private createCommentNode(resource: URI, commentThread: CommentThread): CommentNode {
+	public static createCommentNode(resource: URI, commentThread: CommentThread): CommentNode {
 		const { threadId, comments, range } = commentThread;
 		const commentNodes: CommentNode[] = comments.map(comment => new CommentNode(threadId, resource, comment, range));
 		for (var i = 0; i < commentNodes.length - 1; i++) {
@@ -56,34 +56,67 @@ export class ResourceCommentThreads {
 }
 
 export class CommentsModel {
-	commentThreads: ResourceCommentThreads[];
+	resourceCommentThreads: ResourceWithCommentThreads[];
 
 	constructor() {
-		this.commentThreads = [];
+		this.resourceCommentThreads = [];
 	}
 
 	public setCommentThreads(commentThreads: CommentThread[]): void {
-		const commentThreadsByResource = new Map<string, ResourceCommentThreads>();
-		for (const group of groupBy(commentThreads, CommentsModel._compareURIs)) {
-			commentThreadsByResource.set(group[0].resource, new ResourceCommentThreads(URI.parse(group[0].resource), group));
-		}
+		this.resourceCommentThreads = [];
+		this.addCommentThreads(commentThreads);
+	}
 
-		this.commentThreads = [];
-		commentThreadsByResource.forEach((v, i, m) => {
-			this.commentThreads.push(v);
+	public updateCommentThreads(event: CommentThreadChangedEvent): void {
+		event.removed.forEach(thread => {
+			// Find resource that has the comment thread
+			const matchingResourceIndex = firstIndex(this.resourceCommentThreads, (resourceData) => resourceData.id === thread.resource);
+			const matchingResourceData = this.resourceCommentThreads[matchingResourceIndex];
+
+			// Find comment node on resource that is that thread and remove it
+			const index = firstIndex(matchingResourceData.comments, (commentNode) => commentNode.threadId === thread.threadId);
+			matchingResourceData.comments.splice(index, 1);
+
+			// If the comment thread was the last thread for a resource, remove that resource from the list
+			if (matchingResourceData.comments.length === 0) {
+				this.resourceCommentThreads.splice(matchingResourceIndex, 1);
+			}
 		});
+
+		event.changed.forEach(thread => {
+			// Find resource that has the comment thread
+			const matchingResourceIndex = firstIndex(this.resourceCommentThreads, (resourceData) => resourceData.id === thread.resource);
+			const matchingResourceData = this.resourceCommentThreads[matchingResourceIndex];
+
+			// Find comment node on resource that is that thread and replace it
+			const index = firstIndex(matchingResourceData.comments, (commentNode) => commentNode.threadId === thread.threadId);
+			matchingResourceData.comments[index] = ResourceWithCommentThreads.createCommentNode(matchingResourceData.resource, thread);
+		});
+
+		this.addCommentThreads(event.added);
 	}
 
 	public hasCommentThreads(): boolean {
-		return !!this.commentThreads.length;
+		return !!this.resourceCommentThreads.length;
 	}
 
 	public getMessage(): string {
-		if (!this.commentThreads.length) {
+		if (!this.resourceCommentThreads.length) {
 			return localize('noComments', "There are no comments on this review.");
 		} else {
 			return '';
 		}
+	}
+
+	private addCommentThreads(commentThreads: CommentThread[]): void {
+		const commentThreadsByResource = new Map<string, ResourceWithCommentThreads>();
+		for (const group of groupBy(commentThreads, CommentsModel._compareURIs)) {
+			commentThreadsByResource.set(group[0].resource, new ResourceWithCommentThreads(URI.parse(group[0].resource), group));
+		}
+
+		commentThreadsByResource.forEach((v, i, m) => {
+			this.resourceCommentThreads.push(v);
+		});
 	}
 
 	private static _compareURIs(a: CommentThread, b: CommentThread) {

@@ -19,8 +19,8 @@ import { FileLabel, ResourceLabel } from 'vs/workbench/browser/labels';
 import { Panel } from 'vs/workbench/browser/panel';
 import { ReviewController } from 'vs/workbench/parts/comments/electron-browser/commentsEditorContribution';
 import { ICommentService } from 'vs/workbench/services/comments/electron-browser/commentService';
-import { ResourceCommentThreads, CommentsModel, CommentNode } from 'vs/workbench/parts/comments/common/commentModel';
-import { CommentThread } from 'vs/editor/common/modes';
+import { ResourceWithCommentThreads, CommentsModel, CommentNode } from 'vs/workbench/parts/comments/common/commentModel';
+import { CommentThread, CommentThreadChangedEvent } from 'vs/editor/common/modes';
 
 export const COMMENTS_PANEL_ID = 'workbench.panel.comments';
 export const COMMENTS_PANEL_TITLE = 'Comments';
@@ -30,7 +30,7 @@ export class CommentsDataSource implements IDataSource {
 		if (element instanceof CommentsModel) {
 			return 'root';
 		}
-		if (element instanceof ResourceCommentThreads) {
+		if (element instanceof ResourceWithCommentThreads) {
 			return element.id;
 		}
 		if (element instanceof CommentNode) {
@@ -41,14 +41,14 @@ export class CommentsDataSource implements IDataSource {
 	}
 
 	public hasChildren(tree: ITree, element: any): boolean {
-		return element instanceof CommentsModel || element instanceof ResourceCommentThreads || (element instanceof CommentNode && element.hasReply());
+		return element instanceof CommentsModel || element instanceof ResourceWithCommentThreads || (element instanceof CommentNode && element.hasReply());
 	}
 
 	public getChildren(tree: ITree, element: any): Promise {
 		if (element instanceof CommentsModel) {
-			return Promise.as(element.commentThreads);
+			return Promise.as(element.resourceCommentThreads);
 		}
-		if (element instanceof ResourceCommentThreads) {
+		if (element instanceof ResourceWithCommentThreads) {
 			return Promise.as([element.comments[0]]);
 		}
 		if (element instanceof CommentNode && element.hasReply()) {
@@ -81,7 +81,7 @@ export class CommentsModelRenderer implements IRenderer {
 	}
 
 	public getTemplateId(tree: ITree, element: any): string {
-		if (element instanceof ResourceCommentThreads) {
+		if (element instanceof ResourceWithCommentThreads) {
 			return CommentsModelRenderer.COMMENTS_THREAD_ID;
 		}
 		if (element instanceof CommentNode) {
@@ -131,7 +131,7 @@ export class CommentsModelRenderer implements IRenderer {
 		return data;
 	}
 
-	private renderCommentsThreadElement(tree: ITree, element: ResourceCommentThreads, templateData: ICommentThreadTemplateData) {
+	private renderCommentsThreadElement(tree: ITree, element: ResourceWithCommentThreads, templateData: ICommentThreadTemplateData) {
 		templateData.resourceLabel.setFile(element.resource);
 	}
 
@@ -145,9 +145,9 @@ export class CommentsModelRenderer implements IRenderer {
 export class DataFilter implements IFilter {
 	public isVisible(tree: ITree, element: any): boolean {
 		if (element instanceof CommentsModel) {
-			return element.commentThreads.length > 0;
+			return element.resourceCommentThreads.length > 0;
 		}
-		if (element instanceof ResourceCommentThreads) {
+		if (element instanceof ResourceWithCommentThreads) {
 			return element.comments.length > 0;
 		}
 		return true;
@@ -193,12 +193,22 @@ export class CommentsPanel extends Panel {
 		this.createMessageBox(container);
 
 		this.commentService.onDidSetAllCommentThreads(this.onAllCommentsChanged, this);
+		this.commentService.onDidUpdateCommentThreads(this.onCommentsUpdated, this);
 
 		return this.render();
 	}
 
-	private onAllCommentsChanged(e: CommentThread[]) {
+	private onAllCommentsChanged(e: CommentThread[]): void {
 		this.commentsModel.setCommentThreads(e);
+		this.refresh();
+	}
+
+	private onCommentsUpdated(e: CommentThreadChangedEvent): void {
+		this.commentsModel.updateCommentThreads(e);
+		this.refresh();
+	}
+
+	private refresh(): void {
 		dom.toggleClass(this.treeContainer, 'hidden', !this.commentsModel.hasCommentThreads());
 		this.tree.refresh().then(() => {
 			this.renderMessage();
@@ -253,15 +263,15 @@ export class CommentsPanel extends Panel {
 	}
 
 	private openFile(element: any, pinned: boolean, sideBySide: boolean): boolean {
-		if (!(element instanceof ResourceCommentThreads || element instanceof CommentNode)) {
+		if (!(element instanceof ResourceWithCommentThreads || element instanceof CommentNode)) {
 			return false;
 		}
 
-		const range = element instanceof ResourceCommentThreads ? element.comments[0].range : element.range;
+		const range = element instanceof ResourceWithCommentThreads ? element.comments[0].range : element.range;
 		this.editorService.openEditor({ resource: element.resource, options: { pinned: pinned, selection: range } }, sideBySide)
 			.done(editor => {
 				// If clicking on the file name, open the first comment thread. If clicking on a comment, open its thread
-				const threadToReveal = element instanceof ResourceCommentThreads ? element.comments[0].threadId : element.threadId;
+				const threadToReveal = element instanceof ResourceWithCommentThreads ? element.comments[0].threadId : element.threadId;
 				const control = editor.getControl();
 				if (threadToReveal && isCodeEditor(control)) {
 					const controller = ReviewController.get(control);
