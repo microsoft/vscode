@@ -160,8 +160,15 @@ class TriggerRenameFileAction extends BaseFileAction {
 		this._updateEnablement();
 	}
 
-
 	public validateFileName(name: string): string {
+		const names: string[] = name.split(/[\\/]/).filter(part => !!part);
+		if (names.length > 1) {	// error only occurs on multi-path
+			const comparer = isLinux ? strings.compare : strings.compareIgnoreCase;
+			if (comparer(names[0], this.element.name) === 0) {
+				return nls.localize('renameWhenSourcePathIsParentOfTargetError', "Please use the 'New Folder' or 'New File' command to add children to an existing folder");
+			}
+		}
+
 		return this.renameAction.validateFileName(this.element.parent, name);
 	}
 
