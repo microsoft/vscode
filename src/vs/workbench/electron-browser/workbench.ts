@@ -9,7 +9,7 @@ import 'vs/css!./media/workbench';
 
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as DOM from 'vs/base/browser/dom';
 import { Builder, $ } from 'vs/base/browser/builder';
@@ -112,6 +112,7 @@ import { PreferencesService } from 'vs/workbench/services/preferences/browser/pr
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { NextEditorPart } from 'vs/workbench/browser/parts/editor2/nextEditorPart';
 import { INextEditorPartService } from 'vs/workbench/services/editor/common/nextEditorPartService';
+import { NextEditorService } from 'vs/workbench/services/editor/browser/nextEditorService';
 
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
 export const InZenModeContext = new RawContextKey<boolean>('inZenMode', false);
@@ -542,7 +543,7 @@ export class Workbench implements IPartService {
 
 		// Status bar
 		this.statusbarPart = this.instantiationService.createInstance(StatusbarPart, Identifiers.STATUSBAR_PART);
-		this.toUnbind.push({ dispose: () => this.statusbarPart.shutdown() });
+		this.toUnbind.push(toDisposable(() => this.statusbarPart.shutdown()));
 		serviceCollection.set(IStatusbarService, this.statusbarPart);
 
 		// Progress 2
@@ -566,7 +567,7 @@ export class Workbench implements IPartService {
 
 		// Sidebar part
 		this.sidebarPart = this.instantiationService.createInstance(SidebarPart, Identifiers.SIDEBAR_PART);
-		this.toUnbind.push({ dispose: () => this.sidebarPart.shutdown() });
+		this.toUnbind.push(toDisposable(() => this.sidebarPart.shutdown()));
 
 		// Viewlet service
 		this.viewletService = this.instantiationService.createInstance(ViewletService, this.sidebarPart);
@@ -574,7 +575,7 @@ export class Workbench implements IPartService {
 
 		// Panel service (panel part)
 		this.panelPart = this.instantiationService.createInstance(PanelPart, Identifiers.PANEL_PART);
-		this.toUnbind.push({ dispose: () => this.panelPart.shutdown() });
+		this.toUnbind.push(toDisposable(() => this.panelPart.shutdown()));
 		serviceCollection.set(IPanelService, this.panelPart);
 
 		// Custom views service
@@ -583,7 +584,7 @@ export class Workbench implements IPartService {
 
 		// Activity service (activitybar part)
 		this.activitybarPart = this.instantiationService.createInstance(ActivitybarPart, Identifiers.ACTIVITYBAR_PART);
-		this.toUnbind.push({ dispose: () => this.activitybarPart.shutdown() });
+		this.toUnbind.push(toDisposable(() => this.activitybarPart.shutdown()));
 		const activityService = this.instantiationService.createInstance(ActivityService, this.activitybarPart, this.panelPart);
 		serviceCollection.set(IActivityService, activityService);
 
@@ -594,8 +595,8 @@ export class Workbench implements IPartService {
 
 		// Editor service (next editor part)
 		this.editorPart = this.instantiationService.createInstance(NextEditorPart, Identifiers.EDITOR_PART /*, !this.hasFilesToCreateOpenOrDiff*/);
-		this.toUnbind.push({ dispose: () => this.editorPart.shutdown() });
-		serviceCollection.set(INextEditorService, this.editorPart);
+		this.toUnbind.push(toDisposable(() => this.editorPart.shutdown()));
+		serviceCollection.set(INextEditorService, new SyncDescriptor(NextEditorService, this.editorPart));
 		serviceCollection.set(INextEditorPartService, this.editorPart);
 
 		// Legacy Editor Services
@@ -607,7 +608,7 @@ export class Workbench implements IPartService {
 
 		// Title bar
 		this.titlebarPart = this.instantiationService.createInstance(TitlebarPart, Identifiers.TITLEBAR_PART);
-		this.toUnbind.push({ dispose: () => this.titlebarPart.shutdown() });
+		this.toUnbind.push(toDisposable(() => this.titlebarPart.shutdown()));
 		serviceCollection.set(ITitleService, this.titlebarPart);
 
 		// History
@@ -644,12 +645,12 @@ export class Workbench implements IPartService {
 
 		// Quick open service (quick open controller)
 		this.quickOpen = this.instantiationService.createInstance(QuickOpenController);
-		this.toUnbind.push({ dispose: () => this.quickOpen.shutdown() });
+		this.toUnbind.push(toDisposable(() => this.quickOpen.shutdown()));
 		serviceCollection.set(IQuickOpenService, this.quickOpen);
 
 		// Quick input service
 		this.quickInput = this.instantiationService.createInstance(QuickInputService);
-		this.toUnbind.push({ dispose: () => this.quickInput.shutdown() });
+		this.toUnbind.push(toDisposable(() => this.quickInput.shutdown()));
 		serviceCollection.set(IQuickInputService, this.quickInput);
 
 		// PreferencesService

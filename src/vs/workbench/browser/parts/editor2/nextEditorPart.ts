@@ -11,28 +11,32 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
 import { Dimension, addClass, createCSSRule } from 'vs/base/browser/dom';
 import { Event, Emitter } from 'vs/base/common/event';
-import { INextWorkbenchEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { join } from 'vs/base/common/paths';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { INextEditorPartService } from 'vs/workbench/services/editor/common/nextEditorPartService';
+// import { IStorageService } from 'vs/platform/storage/common/storage';
 
-export class NextEditorPart extends Part implements INextWorkbenchEditorService, INextEditorPartService {
+export class NextEditorPart extends Part implements INextEditorPartService {
 
 	public _serviceBrand: any;
 
 	private readonly _onLayout: Emitter<Dimension>;
 
 	// private dimension: Dimension;
+	// private memento: object;
 
 	constructor(
 		id: string,
 		@IEnvironmentService private environmentService: IEnvironmentService,
+		// @IStorageService private storageService: IStorageService,
 		@IThemeService themeService: IThemeService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
 		this._onLayout = new Emitter<Dimension>();
+
+		// this.memento = this.getMemento(this.storageService, Scope.WORKSPACE);
 
 		this.initStyles();
 	}
@@ -89,6 +93,15 @@ export class NextEditorPart extends Part implements INextWorkbenchEditorService,
 		this._onLayout.fire(dimension);
 
 		return sizes;
+	}
+
+	public shutdown(): void {
+
+		// TODO@next shutdown
+		// - persist part view state
+		// - pass on to instantiated editors
+
+		super.shutdown();
 	}
 
 	public dispose(): void {
