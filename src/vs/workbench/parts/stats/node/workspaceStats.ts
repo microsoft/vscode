@@ -9,7 +9,7 @@ import * as crypto from 'crypto';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
-import { IFileService, IFileStat } from 'vs/platform/files/common/files';
+import { IFileService, IFileStat, IResolveFileResult } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -192,7 +192,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.reactNative" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		}
 	*/
-	private getWorkspaceTags(configuration: IWindowConfiguration): TPromise<Tags> {
+	private async getWorkspaceTags(configuration: IWindowConfiguration): TPromise<Tags> {
 		const tags: Tags = Object.create(null);
 
 		const state = this.contextService.getWorkbenchState();
@@ -223,97 +223,81 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 		const folders = !isEmpty ? workspace.folders.map(folder => folder.uri) : this.environmentService.appQuality !== 'stable' && this.findFolders(configuration);
 		if (folders && folders.length && this.fileService) {
-			return this.fileService.resolveFiles(folders.map(resource => ({ resource }))).then(results => {
-				const names = (<IFileStat[]>[]).concat(...results.map(result => result.success ? (result.stat.children || []) : [])).map(c => c.name);
-				const nameSet = names.reduce((s, n) => s.add(n.toLowerCase()), new Set());
+			//return
+			let files: IResolveFileResult[] = await this.fileService.resolveFiles(folders.map(resource => ({ resource })));
+			const names = (<IFileStat[]>[]).concat(...files.map(result => result.success ? (result.stat.children || []) : [])).map(c => c.name);
+			const nameSet = names.reduce((s, n) => s.add(n.toLowerCase()), new Set());
 
-				tags['workspace.grunt'] = nameSet.has('gruntfile.js');
-				tags['workspace.gulp'] = nameSet.has('gulpfile.js');
-				tags['workspace.jake'] = nameSet.has('jakefile.js');
+			tags['workspace.grunt'] = nameSet.has('gruntfile.js');
+			tags['workspace.gulp'] = nameSet.has('gulpfile.js');
+			tags['workspace.jake'] = nameSet.has('jakefile.js');
 
-				tags['workspace.tsconfig'] = nameSet.has('tsconfig.json');
-				tags['workspace.jsconfig'] = nameSet.has('jsconfig.json');
-				tags['workspace.config.xml'] = nameSet.has('config.xml');
-				tags['workspace.vsc.extension'] = nameSet.has('vsc-extension-quickstart.md');
+			tags['workspace.tsconfig'] = nameSet.has('tsconfig.json');
+			tags['workspace.jsconfig'] = nameSet.has('jsconfig.json');
+			tags['workspace.config.xml'] = nameSet.has('config.xml');
+			tags['workspace.vsc.extension'] = nameSet.has('vsc-extension-quickstart.md');
 
-				tags['workspace.ASP5'] = nameSet.has('project.json') && this.searchArray(names, /^.+\.cs$/i);
-				tags['workspace.sln'] = this.searchArray(names, /^.+\.sln$|^.+\.csproj$/i);
-				tags['workspace.unity'] = nameSet.has('assets') && nameSet.has('library') && nameSet.has('projectsettings');
-				tags['workspace.npm'] = nameSet.has('package.json') || nameSet.has('node_modules');
-				tags['workspace.bower'] = nameSet.has('bower.json') || nameSet.has('bower_components');
+			tags['workspace.ASP5'] = nameSet.has('project.json') && this.searchArray(names, /^.+\.cs$/i);
+			tags['workspace.sln'] = this.searchArray(names, /^.+\.sln$|^.+\.csproj$/i);
+			tags['workspace.unity'] = nameSet.has('assets') && nameSet.has('library') && nameSet.has('projectsettings');
+			tags['workspace.npm'] = nameSet.has('package.json') || nameSet.has('node_modules');
+			tags['workspace.bower'] = nameSet.has('bower.json') || nameSet.has('bower_components');
 
-				tags['workspace.yeoman.code.ext'] = nameSet.has('vsc-extension-quickstart.md');
+			tags['workspace.yeoman.code.ext'] = nameSet.has('vsc-extension-quickstart.md');
 
-				let mainActivity = nameSet.has('mainactivity.cs') || nameSet.has('mainactivity.fs');
-				let appDelegate = nameSet.has('appdelegate.cs') || nameSet.has('appdelegate.fs');
-				let androidManifest = nameSet.has('androidmanifest.xml');
+			let mainActivity = nameSet.has('mainactivity.cs') || nameSet.has('mainactivity.fs');
+			let appDelegate = nameSet.has('appdelegate.cs') || nameSet.has('appdelegate.fs');
+			let androidManifest = nameSet.has('androidmanifest.xml');
 
-				let platforms = nameSet.has('platforms');
-				let plugins = nameSet.has('plugins');
-				let www = nameSet.has('www');
-				let properties = nameSet.has('properties');
-				let resources = nameSet.has('resources');
-				let jni = nameSet.has('jni');
+			let platforms = nameSet.has('platforms');
+			let plugins = nameSet.has('plugins');
+			let www = nameSet.has('www');
+			let properties = nameSet.has('properties');
+			let resources = nameSet.has('resources');
+			let jni = nameSet.has('jni');
 
-				if (tags['workspace.config.xml'] &&
-					!tags['workspace.language.cs'] && !tags['workspace.language.vb'] && !tags['workspace.language.aspx']) {
-					if (platforms && plugins && www) {
-						tags['workspace.cordova.high'] = true;
-					} else {
-						tags['workspace.cordova.low'] = true;
+			if (tags['workspace.config.xml'] &&
+				!tags['workspace.language.cs'] && !tags['workspace.language.vb'] && !tags['workspace.language.aspx']) {
+				if (platforms && plugins && www) {
+					tags['workspace.cordova.high'] = true;
+				} else {
+					tags['workspace.cordova.low'] = true;
+				}
+			}
+
+			if (mainActivity && properties && resources) {
+				tags['workspace.xamarin.android'] = true;
+			}
+
+			if (appDelegate && resources) {
+				tags['workspace.xamarin.ios'] = true;
+			}
+
+			if (androidManifest && jni) {
+				tags['workspace.android.cpp'] = true;
+			}
+
+			if (nameSet.has('package.json')) {
+				await TPromise.join(folders.map(async workspaceUri => {
+					const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/package.json` });
+					//let stats = await this.fileService.resolveFile(uri);
+					let content = await this.fileService.resolveContent(uri, { acceptTextOnly: true });
+					const packageJsonContents = JSON.parse(content.value);
+					let modulesToLookFor = [
+						'react-native',
+						'azure-storage'
+						//add more packages here
+					];
+
+					if (packageJsonContents['dependencies']) {
+						for (let module of modulesToLookFor) {
+							tags['workspace.npm.' + module] = packageJsonContents['dependencies'][module] ? true : false;
+						}
 					}
-				}
-
-				if (mainActivity && properties && resources) {
-					tags['workspace.xamarin.android'] = true;
-				}
-
-				if (appDelegate && resources) {
-					tags['workspace.xamarin.ios'] = true;
-				}
-
-				if (androidManifest && jni) {
-					tags['workspace.android.cpp'] = true;
-				}
-
-				if (nameSet.has('package.json')) {
-					return TPromise.join(folders.map(workspaceUri => {
-						const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/package.json` });
-						return this.fileService.resolveFile(uri).then(stats => {
-							return this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
-								content => {
-									try {
-										const packageJsonContents = JSON.parse(content.value);
-										let modulesToLookFor = [
-											'react-native',
-											'azure-storage'
-											//add more packages here
-										];
-
-										if (packageJsonContents['dependencies']) {
-											for (let module of modulesToLookFor) {
-												tags['workspace.npm.' + module] = packageJsonContents['dependencies'][module] ? true : false;
-											}
-										}
-										return false;
-									} catch (e) {
-
-									}
-									return false;
-								},
-								err => false
-							);
-						}, err => false);
-					})).then(reactNatives => {
-						return tags;
-					});
-				}
-
-				return tags;
-			}, error => { onUnexpectedError(error); return null; });
-		} else {
-			return TPromise.as(tags);
+				}));
+			}
 		}
+		return TPromise.as(tags);
 	}
 
 	private findFolders(configuration: IWindowConfiguration): URI[] {
