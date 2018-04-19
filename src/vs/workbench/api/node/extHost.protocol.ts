@@ -319,6 +319,11 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$hide(terminalId: number): void;
 	$sendText(terminalId: number, text: string, addNewLine: boolean): void;
 	$show(terminalId: number, preserveFocus: boolean): void;
+
+	$sendProcessTitle(terminalId: number, title: string): void;
+	$sendProcessData(terminalId: number, data: string): void;
+	$sendProcessPid(terminalId: number, pid: number): void;
+	$sendProcessExit(terminalId: number, exitCode: number): void;
 }
 
 export interface MyQuickPickItems extends IPickOpenEntry {
@@ -729,10 +734,22 @@ export interface ExtHostQuickOpenShape {
 	$validateInput(input: string): TPromise<string>;
 }
 
+export interface ShellLaunchConfigDto {
+	name?: string;
+	executable?: string;
+	args?: string[] | string;
+	cwd?: string;
+	env?: { [key: string]: string };
+}
+
 export interface ExtHostTerminalServiceShape {
 	$acceptTerminalClosed(id: number): void;
 	$acceptTerminalOpened(id: number, name: string): void;
 	$acceptTerminalProcessId(id: number, processId: number): void;
+	$createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, cols: number, rows: number): void;
+	$acceptProcessInput(id: number, data: string): void;
+	$acceptProcessResize(id: number, cols: number, rows: number): void;
+	$acceptProcessShutdown(id: number): void;
 }
 
 export interface ExtHostSCMShape {

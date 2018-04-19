@@ -8,6 +8,31 @@ import * as platform from 'vs/base/common/platform';
 import * as processes from 'vs/base/node/processes';
 import { readFile, fileExists } from 'vs/base/node/pfs';
 
+export interface IMessageFromTerminalProcess {
+	type: 'pid' | 'data' | 'title';
+	content: number | string;
+}
+
+export interface IMessageToTerminalProcess {
+	event: 'resize' | 'input' | 'shutdown';
+	data?: string;
+	cols?: number;
+	rows?: number;
+}
+
+/**
+ * An interface representing a raw terminal child process, this is a subset of the
+ * child_process.ChildProcess node.js interface.
+ */
+export interface ITerminalChildProcess {
+	readonly connected: boolean;
+
+	send(message: IMessageToTerminalProcess): boolean;
+
+	on(event: 'exit', listener: (code: number) => void): this;
+	on(event: 'message', listener: (message: IMessageFromTerminalProcess) => void): this;
+}
+
 let _TERMINAL_DEFAULT_SHELL_UNIX_LIKE: string = null;
 export function getTerminalDefaultShellUnixLike(): string {
 	if (!_TERMINAL_DEFAULT_SHELL_UNIX_LIKE) {

@@ -12,7 +12,7 @@ import { IWorkspaceConfigurationService } from 'vs/workbench/services/configurat
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLaunchConfig, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, TERMINAL_CONFIG_SECTION } from 'vs/workbench/parts/terminal/common/terminal';
 import Severity from 'vs/base/common/severity';
-import { isFedora } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { isFedora } from 'vs/workbench/parts/terminal/node/terminal';
 import { Terminal as XTermTerminal } from 'vscode-xterm';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
