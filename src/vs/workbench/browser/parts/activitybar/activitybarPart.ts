@@ -33,6 +33,8 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Dimension, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { Color } from 'vs/base/common/color';
+import { ViewLocation, ViewsRegistry } from 'vs/workbench/common/views';
+import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 
 export class ActivitybarPart extends Part {
 
@@ -83,11 +85,14 @@ export class ActivitybarPart extends Part {
 		});
 
 		this.registerListeners();
+		this.updateCompositebar();
 	}
 
 	private registerListeners(): void {
 
-		this.toUnbind.push(this.viewletService.onDidViewletRegister(viewletDescriptor => this.compositeBar.addComposite(viewletDescriptor, false)));
+		this.toUnbind.push(this.viewletService.onDidViewletRegister(() => this.updateCompositebar()));
+		this.toUnbind.push(ViewsRegistry.onViewsRegistered(() => this.updateCompositebar()));
+		this.toUnbind.push(ViewsRegistry.onViewsDeregistered(() => this.updateCompositebar()));
 
 		// Activate viewlet action on opening of a viewlet
 		this.toUnbind.push(this.viewletService.onDidViewletOpen(viewlet => this.compositeBar.activateComposite(viewlet.getId())));
@@ -183,7 +188,9 @@ export class ActivitybarPart extends Part {
 	private showContextMenu(e: MouseEvent): void {
 		const event = new StandardMouseEvent(e);
 
-		const actions: Action[] = this.viewletService.getViewlets().map(viewlet => this.instantiationService.createInstance(ToggleCompositePinnedAction, viewlet, this.compositeBar));
+		const actions: Action[] = this.viewletService.getViewlets()
+			.filter(viewlet => this.canShow(viewlet))
+			.map(viewlet => this.instantiationService.createInstance(ToggleCompositePinnedAction, viewlet, this.compositeBar));
 		actions.push(new Separator());
 		actions.push(this.instantiationService.createInstance(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, nls.localize('hideActivitBar', "Hide Activity Bar")));
 
@@ -213,6 +220,26 @@ export class ActivitybarPart extends Part {
 			this.globalActivityIdToActions[a.id] = a;
 			this.globalActionBar.push(a);
 		});
+	}
+
+	private updateCompositebar(): void {
+		const viewlets = this.viewletService.getViewlets();
+		for (const viewlet of viewlets) {
+			const canShow = this.canShow(viewlet);
+			if (canShow) {
+				this.compositeBar.addComposite(viewlet, false);
+			} else {
+				this.compositeBar.removeComposite(viewlet.id);
+			}
+		}
+	}
+
+	private canShow(viewlet: ViewletDescriptor): boolean {
+		const viewLocation = ViewLocation.get(viewlet.id);
+		if (viewLocation) {
+			return ViewsRegistry.getViews(viewLocation).length > 0;
+		}
+		return true;
 	}
 
 	public getPinned(): string[] {

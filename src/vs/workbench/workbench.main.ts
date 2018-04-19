@@ -19,6 +19,7 @@ import 'vs/editor/editor.all';
 import 'vs/workbench/services/actions/electron-browser/menusExtensionPoint';
 
 // Views
+import 'vs/workbench/api/browser/viewsContainersExtensionPoint';
 import 'vs/workbench/api/browser/viewsExtensionPoint';
 
 // Localizations

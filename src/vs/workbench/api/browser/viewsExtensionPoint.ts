@@ -12,10 +12,9 @@ import { ViewLocation, ViewsRegistry, ICustomViewDescriptor } from 'vs/workbench
 import { CustomTreeViewPanel } from 'vs/workbench/browser/parts/views/customViewPanel';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { coalesce, } from 'vs/base/common/arrays';
+import { viewsContainersExtensionPoint } from 'vs/workbench/api/browser/viewsContainersExtensionPoint';
 
 namespace schema {
-
-	// --views contribution point
 
 	export interface IUserFriendlyViewDescriptor {
 		id: string;
@@ -91,7 +90,7 @@ function getViewLocation(value: string): ViewLocation {
 	}
 }
 
-ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyViewDescriptor[] }>('views', [], schema.viewsContribution)
+ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyViewDescriptor[] }>('views', [viewsContainersExtensionPoint], schema.viewsContribution)
 	.setHandler((extensions) => {
 		for (let extension of extensions) {
 			const { value, collector } = extension;
