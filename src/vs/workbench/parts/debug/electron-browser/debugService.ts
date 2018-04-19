@@ -1144,7 +1144,9 @@ export class DebugService implements debug.IDebugService {
 			process.inactive = true;
 			this._onDidEndProcess.fire(process);
 			if (process.configuration.postDebugTask) {
-				this.runTask(process.getId(), process.session.root, process.configuration.postDebugTask);
+				this.runTask(process.getId(), process.session.root, process.configuration.postDebugTask).done(undefined, err =>
+					this.notificationService.error(err)
+				);
 			}
 		}
 
