@@ -17,7 +17,7 @@ import { ToggleViewletAction, Extensions as ViewletExtensions, ViewletRegistry, 
 import { TogglePanelAction, Extensions as PanelExtensions, PanelRegistry, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { StatusbarItemDescriptor, StatusbarAlignment, IStatusbarRegistry, Extensions as StatusExtensions } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { VariablesView } from 'vs/workbench/parts/debug/electron-browser/variablesView';
-import { BreakpointsView } from 'vs/workbench/parts/debug/electron-browser/breakpointsView';
+import { BreakpointsView } from 'vs/workbench/parts/debug/browser/breakpointsView';
 import { WatchExpressionsView } from 'vs/workbench/parts/debug/electron-browser/watchExpressionsView';
 import { CallStackView } from 'vs/workbench/parts/debug/electron-browser/callStackView';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
@@ -30,7 +30,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { DebugEditorModelManager } from 'vs/workbench/parts/debug/browser/debugEditorModelManager';
 import {
 	StepOverAction, ClearReplAction, FocusReplAction, StepIntoAction, StepOutAction, StartAction, RestartAction, ContinueAction, StopAction, DisconnectAction, PauseAction, AddFunctionBreakpointAction,
-	ConfigureAction, DisableAllBreakpointsAction, EnableAllBreakpointsAction, RemoveAllBreakpointsAction, RunAction, ReapplyBreakpointsAction, SelectAndStartAction
+	ConfigureAction, DisableAllBreakpointsAction, EnableAllBreakpointsAction, RemoveAllBreakpointsAction, RunAction, ReapplyBreakpointsAction, SelectAndStartAction, TerminateThreadAction
 } from 'vs/workbench/parts/debug/browser/debugActions';
 import { DebugActionsWidget } from 'vs/workbench/parts/debug/browser/debugActionsWidget';
 import * as service from 'vs/workbench/parts/debug/electron-browser/debugService';
@@ -38,10 +38,10 @@ import { DebugContentProvider } from 'vs/workbench/parts/debug/browser/debugCont
 import 'vs/workbench/parts/debug/electron-browser/debugEditorContribution';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import * as debugCommands from 'vs/workbench/parts/debug/electron-browser/debugCommands';
+import { registerCommands } from 'vs/workbench/parts/debug/browser/debugCommands';
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
-import { StatusBarColorProvider } from 'vs/workbench/parts/debug/electron-browser/statusbarColorProvider';
-import { ViewLocation, ViewsRegistry } from 'vs/workbench/browser/parts/views/viewsRegistry';
+import { StatusBarColorProvider } from 'vs/workbench/parts/debug/browser/statusbarColorProvider';
+import { ViewLocation, ViewsRegistry } from 'vs/workbench/common/views';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import URI from 'vs/base/common/uri';
@@ -50,6 +50,7 @@ import { Repl } from 'vs/workbench/parts/debug/electron-browser/repl';
 import { DebugQuickOpenHandler } from 'vs/workbench/parts/debug/browser/debugQuickOpen';
 import { DebugStatus } from 'vs/workbench/parts/debug/browser/debugStatus';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 
 class OpenDebugViewletAction extends ToggleViewletAction {
 	public static readonly ID = VIEWLET_ID;
@@ -85,7 +86,7 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new Vie
 	VIEWLET_ID,
 	nls.localize('debug', "Debug"),
 	'debug',
-	40
+	3
 ));
 
 const openViewletKb: IKeybindings = {
@@ -133,6 +134,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(StopAction, StopAction
 registry.registerWorkbenchAction(new SyncActionDescriptor(DisconnectAction, DisconnectAction.ID, DisconnectAction.LABEL), 'Debug: Disconnect', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ContinueAction, ContinueAction.ID, ContinueAction.LABEL, { primary: KeyCode.F5 }, CONTEXT_IN_DEBUG_MODE), 'Debug: Continue', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(PauseAction, PauseAction.ID, PauseAction.LABEL, { primary: KeyCode.F6 }, CONTEXT_IN_DEBUG_MODE), 'Debug: Pause', debugCategory);
+registry.registerWorkbenchAction(new SyncActionDescriptor(TerminateThreadAction, TerminateThreadAction.ID, TerminateThreadAction.LABEL, undefined, CONTEXT_IN_DEBUG_MODE), 'Debug: Terminate Thread', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureAction, ConfigureAction.ID, ConfigureAction.LABEL), 'Debug: Open launch.json', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(AddFunctionBreakpointAction, AddFunctionBreakpointAction.ID, AddFunctionBreakpointAction.LABEL), 'Debug: Add Function Breakpoint', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ReapplyBreakpointsAction, ReapplyBreakpointsAction.ID, ReapplyBreakpointsAction.LABEL), 'Debug: Reapply All Breakpoints', debugCategory);
@@ -150,7 +152,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(FocusBreakpointsViewAc
 
 
 // Register Quick Open
-(<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
+(Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
 		DebugQuickOpenHandler,
 		DebugQuickOpenHandler.ID,
@@ -201,17 +203,23 @@ configurationRegistry.registerConfiguration({
 		'debug.openDebug': {
 			enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart'],
 			default: 'openOnFirstSessionStart',
-			description: nls.localize('openDebug', "Controls whether debug viewlet should be open on debugging session start.")
+			description: nls.localize('openDebug', "Controls whether debug view should be open on debugging session start.")
 		},
 		'launch': {
 			type: 'object',
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'launch' }, "Global debug launch configuration. Should be used as an alternative to 'launch.json' that is shared across workspaces"),
-			default: {}
+			default: { configurations: [], compounds: [] },
+			$ref: launchSchemaId
+		},
+		'debug.extensionHostDebugAdapter': {
+			type: 'boolean',
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'extensionHostDebugAdapter' }, "Run debug adapter in extension host"),
+			default: false
 		}
 	}
 });
 
-debugCommands.registerCommands();
+registerCommands();
 
 // Register Debug Status
 const statusBar = Registry.as<IStatusbarRegistry>(StatusExtensions.Statusbar);
@@ -223,7 +231,7 @@ if (isMacintosh) {
 	const registerTouchBarEntry = (id: string, title: string, order, when: ContextKeyExpr, icon: string) => {
 		MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
 			command: {
-				id, title, iconPath: URI.parse(require.toUrl(`vs/workbench/parts/debug/electron-browser/media/${icon}`)).fsPath
+				id, title, iconPath: { dark: URI.parse(require.toUrl(`vs/workbench/parts/debug/electron-browser/media/${icon}`)).fsPath }
 			},
 			when,
 			group: '9_debug',

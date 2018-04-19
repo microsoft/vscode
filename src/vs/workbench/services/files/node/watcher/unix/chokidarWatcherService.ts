@@ -5,20 +5,21 @@
 
 'use strict';
 
-import chokidar = require('vscode-chokidar');
-import fs = require('fs');
+import * as chokidar from 'vscode-chokidar';
+import * as fs from 'fs';
 
-import gracefulFs = require('graceful-fs');
+import * as gracefulFs from 'graceful-fs';
 gracefulFs.gracefulify(fs);
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { ThrottledDelayer } from 'vs/base/common/async';
-import strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
 import { realcaseSync } from 'vs/base/node/extfs';
 import { isMacintosh } from 'vs/base/common/platform';
-import watcher = require('vs/workbench/services/files/node/watcher/common');
-import { IWatcherRequest, IWatcherService } from './watcher';
+import * as watcher from 'vs/workbench/services/files/node/watcher/common';
+import { IWatcherRequest, IWatcherService } from 'vs/workbench/services/files/node/watcher/unix/watcher';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 
 export class ChokidarWatcherService implements IWatcherService {
 
@@ -27,6 +28,8 @@ export class ChokidarWatcherService implements IWatcherService {
 
 	private spamCheckStartTime: number;
 	private spamWarningLogged: boolean;
+	private enospcErrorLogged: boolean;
+	private toDispose: IDisposable[] = [];
 
 	public watch(request: IWatcherRequest): TPromise<void> {
 		const watcherOpts: chokidar.IOptions = {
@@ -60,6 +63,11 @@ export class ChokidarWatcherService implements IWatcherService {
 
 		let undeliveredFileEvents: watcher.IRawFileChange[] = [];
 		const fileEventDelayer = new ThrottledDelayer(ChokidarWatcherService.FS_EVENT_DELAY);
+
+		this.toDispose.push(toDisposable(() => {
+			chokidarWatcher.close();
+			fileEventDelayer.cancel();
+		}));
 
 		return new TPromise<void>((c, e, p) => {
 			chokidarWatcher.on('all', (type: string, path: string) => {
@@ -138,12 +146,29 @@ export class ChokidarWatcherService implements IWatcherService {
 
 			chokidarWatcher.on('error', (error: Error) => {
 				if (error) {
-					console.error(error.toString());
+
+					// Specially handle ENOSPC errors that can happen when
+					// the watcher consumes so many file descriptors that
+					// we are running into a limit. We only want to warn
+					// once in this case to avoid log spam.
+					// See https://github.com/Microsoft/vscode/issues/7950
+					if ((<any>error).code === 'ENOSPC') {
+						if (!this.enospcErrorLogged) {
+							this.enospcErrorLogged = true;
+							e(new Error('Inotify limit reached (ENOSPC)'));
+						}
+					} else {
+						console.error(error.toString());
+					}
 				}
 			});
 		}, () => {
-			chokidarWatcher.close();
-			fileEventDelayer.cancel();
+			this.toDispose = dispose(this.toDispose);
 		});
+	}
+
+	public stop(): TPromise<void> {
+		this.toDispose = dispose(this.toDispose);
+		return TPromise.as(void 0);
 	}
 }

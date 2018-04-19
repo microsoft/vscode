@@ -2,20 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import Event from 'vs/base/common/event';
-import platform = require('vs/base/common/platform');
+import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const TERMINAL_PANEL_ID = 'workbench.panel.terminal';
 
 export const TERMINAL_SERVICE_ID = 'terminalService';
-
-export const TERMINAL_DEFAULT_RIGHT_CLICK_COPY_PASTE = platform.isWindows;
 
 /**  A context key that is set when the integrated terminal has focus. */
 export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new RawContextKey<boolean>('terminalFocus', undefined);
@@ -47,6 +43,10 @@ export const TerminalCursorStyle = {
 	UNDERLINE: 'underline'
 };
 
+export const TERMINAL_CONFIG_SECTION = 'terminal.integrated';
+
+export type FontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
+
 export interface ITerminalConfiguration {
 	shell: {
 		linux: string;
@@ -58,11 +58,13 @@ export interface ITerminalConfiguration {
 		osx: string[];
 		windows: string[];
 	};
-	enableBold: boolean;
-	rightClickCopyPaste: boolean;
+	macOptionIsMeta: boolean;
+	rightClickBehavior: 'default' | 'copyPaste' | 'selectWord';
 	cursorBlinking: boolean;
 	cursorStyle: string;
 	fontFamily: string;
+	fontWeight: FontWeight;
+	fontWeightBold: FontWeight;
 	// fontLigatures: boolean;
 	fontSize: number;
 	lineHeight: number;
@@ -71,11 +73,14 @@ export interface ITerminalConfiguration {
 	commandsToSkipShell: string[];
 	cwd: string;
 	confirmOnExit: boolean;
+	enableBell: boolean;
 	env: {
 		linux: { [key: string]: string };
 		osx: { [key: string]: string };
 		windows: { [key: string]: string };
 	};
+	showExitAlert: boolean;
+	experimentalRestore: boolean;
 }
 
 export interface ITerminalConfigHelper {
@@ -139,26 +144,42 @@ export interface IShellLaunchConfig {
 export interface ITerminalService {
 	_serviceBrand: any;
 
-	activeTerminalInstanceIndex: number;
+	activeTabIndex: number;
 	configHelper: ITerminalConfigHelper;
-	onActiveInstanceChanged: Event<string>;
+	onActiveTabChanged: Event<void>;
+	onTabDisposed: Event<ITerminalTab>;
+	onInstanceCreated: Event<ITerminalInstance>;
 	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
-	onInstanceData: Event<{ instance: ITerminalInstance, data: string }>;
-	onInstancesChanged: Event<string>;
+	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<string>;
 	terminalInstances: ITerminalInstance[];
+	terminalTabs: ITerminalTab[];
 
-	createInstance(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
+	/**
+	 * Creates a terminal.
+	 * @param shell The shell launch configuration to use.
+	 * @param wasNewTerminalAction Whether this was triggered by a new terminal action, if so a
+	 * default shell selection dialog may display.
+	 */
+	createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
+	/**
+	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
+	 */
+	createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
-	getInstanceLabels(): string[];
+	getTabLabels(): string[];
 	getActiveInstance(): ITerminalInstance;
 	setActiveInstance(terminalInstance: ITerminalInstance): void;
 	setActiveInstanceByIndex(terminalIndex: number): void;
-	setActiveInstanceToNext(): void;
-	setActiveInstanceToPrevious(): void;
 	getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
+	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig): void;
+
+	getActiveTab(): ITerminalTab;
+	setActiveTabToNext(): void;
+	setActiveTabToPrevious(): void;
+	setActiveTabByIndex(tabIndex: number): void;
 
 	showPanel(focus?: boolean): TPromise<void>;
 	hidePanel(): void;
@@ -168,9 +189,33 @@ export interface ITerminalService {
 	showPreviousFindTermFindWidget(): void;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
-	updateConfig(): void;
 	selectDefaultWindowsShell(): TPromise<string>;
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
+}
+
+export const enum Direction {
+	Left = 0,
+	Right = 1,
+	Up = 2,
+	Down = 3
+}
+
+export interface ITerminalTab {
+	activeInstance: ITerminalInstance;
+	terminalInstances: ITerminalInstance[];
+	title: string;
+	onDisposed: Event<ITerminalTab>;
+	onInstancesChanged: Event<void>;
+
+	focusPreviousPane(): void;
+	focusNextPane(): void;
+	resizePane(direction: Direction): void;
+	setActiveInstanceByIndex(index: number): void;
+	attachToElement(element: HTMLElement): void;
+	setVisible(visible: boolean): void;
+	layout(width: number, height: number): void;
+	addDisposable(disposable: IDisposable): void;
+	split(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
 }
 
 export interface ITerminalInstance {
@@ -195,6 +240,12 @@ export interface ITerminalInstance {
 	 */
 	onDisposed: Event<ITerminalInstance>;
 
+	onFocused: Event<ITerminalInstance>;
+
+	onProcessIdReady: Event<ITerminalInstance>;
+
+	processReady: TPromise<void>;
+
 	/**
 	 * The title of the terminal. This is either title or the process currently running or an
 	 * explicit name given to the terminal instance through the extension API.
@@ -215,6 +266,24 @@ export interface ITerminalInstance {
 	 * do not override the title when the process title changes in the terminal.
 	 */
 	isTitleSetByProcess: boolean;
+
+	/**
+	 * The shell launch config used to launch the shell.
+	 */
+	shellLaunchConfig: IShellLaunchConfig;
+
+	/**
+	 * Whether to disable layout for the terminal. This is useful when the size of the terminal is
+	 * being manipulating (eg. adding a split pane) and we want the terminal to ignore particular
+	 * resize events.
+	 */
+	disableLayout: boolean;
+
+	/**
+	 * An object that tracks when commands are run and enables navigating and selecting between
+	 * them.
+	 */
+	readonly commandTracker: ITerminalCommandTracker;
 
 	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
@@ -336,6 +405,12 @@ export interface ITerminalInstance {
 	updateConfig(): void;
 
 	/**
+	 * Updates the accessibility support state of the terminal instance.
+	 * @param isEnabled Whether it's enabled.
+	 */
+	updateAccessibilitySupport(isEnabled: boolean): void;
+
+	/**
 	 * Configure the dimensions of the terminal instance.
 	 *
 	 * @param dimension The dimensions of the container.
@@ -380,4 +455,54 @@ export interface ITerminalInstance {
 	 * Sets the title of the terminal instance.
 	 */
 	setTitle(title: string, eventFromProcess: boolean): void;
+
+	addDisposable(disposable: IDisposable): void;
+}
+
+export interface ITerminalCommandTracker {
+	scrollToPreviousCommand(): void;
+	scrollToNextCommand(): void;
+	selectToPreviousCommand(): void;
+	selectToNextCommand(): void;
+}
+
+export interface ITerminalProcessMessage {
+	type: 'pid' | 'data' | 'title';
+	content: number | string;
+}
+
+export interface ITerminalProcessManager extends IDisposable {
+	readonly processState: ProcessState;
+	readonly ptyProcessReady: TPromise<void>;
+	readonly shellProcessId: number;
+	readonly initialCwd: string;
+
+	readonly onProcessReady: Event<void>;
+	readonly onProcessData: Event<string>;
+	readonly onProcessTitle: Event<string>;
+	readonly onProcessExit: Event<number>;
+
+	addDisposable(disposable: IDisposable);
+	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number);
+	write(data: string): void;
+	setDimensions(cols: number, rows: number): void;
+}
+
+export enum ProcessState {
+	// The process has not been initialized yet.
+	UNINITIALIZED,
+	// The process is currently launching, the process is marked as launching
+	// for a short duration after being created and is helpful to indicate
+	// whether the process died as a result of bad shell and args.
+	LAUNCHING,
+	// The process is running normally.
+	RUNNING,
+	// The process was killed during launch, likely as a result of bad shell and
+	// args.
+	KILLED_DURING_LAUNCH,
+	// The process was killed by the user (the event originated from VS Code).
+	KILLED_BY_USER,
+	// The process was killed by itself, for example the shell crashed or `exit`
+	// was run.
+	KILLED_BY_PROCESS
 }

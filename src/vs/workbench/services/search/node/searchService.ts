@@ -6,11 +6,11 @@
 
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
-import objects = require('vs/base/common/objects');
-import strings = require('vs/base/common/strings');
+import * as objects from 'vs/base/common/objects';
+import * as strings from 'vs/base/common/strings';
 import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
-import { IProgress, LineMatch, FileMatch, ISearchComplete, ISearchProgressItem, QueryType, IFileMatch, ISearchQuery, ISearchConfiguration, ISearchService, pathIncludedInQuery, ISearchResultProvider } from 'vs/platform/search/common/search';
+import { IProgress, LineMatch, FileMatch, ISearchComplete, ISearchProgressItem, QueryType, IFileMatch, ISearchQuery, IFolderQuery, ISearchConfiguration, ISearchService, pathIncludedInQuery, ISearchResultProvider } from 'vs/platform/search/common/search';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -22,6 +22,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
+import * as pfs from 'vs/base/node/pfs';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class SearchService implements ISearchService {
 	public _serviceBrand: any;
@@ -35,7 +37,8 @@ export class SearchService implements ISearchService {
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@ILogService private logService: ILogService
 	) {
 		this.diskSearch = new DiskSearch(!environmentService.isBuilt || environmentService.verbose, /*timeout=*/undefined, environmentService.debugSearch);
 		this.registerSearchResultProvider(this.diskSearch);
@@ -88,6 +91,7 @@ export class SearchService implements ISearchService {
 			// Allow caller to register progress callback
 			process.nextTick(() => localResults.values().filter((res) => !!res).forEach(onProgress));
 
+			this.logService.trace('SearchService#search', JSON.stringify(query));
 			const providerPromises = this.searchProvider.map(provider => TPromise.wrap(provider.search(query)).then(e => e,
 				err => {
 					// TODO@joh
@@ -103,6 +107,10 @@ export class SearchService implements ISearchService {
 					} else {
 						// Progress
 						onProgress(<IProgress>progress);
+					}
+
+					if (progress.message) {
+						this.logService.debug('SearchService#search', progress.message);
 					}
 				}
 			));
@@ -151,14 +159,17 @@ export class SearchService implements ISearchService {
 				}
 
 				// Support untitled files
-				if (resource.scheme === 'untitled') {
+				if (resource.scheme === Schemas.untitled) {
 					if (!this.untitledEditorService.exists(resource)) {
 						return;
 					}
 				}
 
 				// Don't support other resource schemes than files for now
-				else if (resource.scheme !== 'file') {
+				// todo@remote
+				// why is that? we should search for resources from other
+				// schemes
+				else if (resource.scheme !== Schemas.file) {
 					return;
 				}
 
@@ -187,7 +198,7 @@ export class SearchService implements ISearchService {
 	private matches(resource: uri, query: ISearchQuery): boolean {
 		// file pattern
 		if (query.filePattern) {
-			if (resource.scheme !== 'file') {
+			if (resource.scheme !== Schemas.file) {
 				return false; // if we match on file pattern, we have to ignore non file resources
 			}
 
@@ -198,7 +209,7 @@ export class SearchService implements ISearchService {
 
 		// includes
 		if (query.includePattern) {
-			if (resource.scheme !== 'file') {
+			if (resource.scheme !== Schemas.file) {
 				return false; // if we match on file patterns, we have to ignore non file resources
 			}
 		}
@@ -258,8 +269,24 @@ export class DiskSearch implements ISearchResultProvider {
 	}
 
 	public search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
-		let request: PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>;
+		const folderQueries = query.folderQueries || [];
+		return TPromise.join(folderQueries.map(q => q.folder.scheme === Schemas.file && pfs.exists(q.folder.fsPath)))
+			.then(exists => {
+				const existingFolders = folderQueries.filter((q, index) => exists[index]);
+				const rawSearch = this.rawSearchQuery(query, existingFolders);
 
+				let request: PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>;
+				if (query.type === QueryType.File) {
+					request = this.raw.fileSearch(rawSearch);
+				} else {
+					request = this.raw.textSearch(rawSearch);
+				}
+
+				return DiskSearch.collectResults(request);
+			});
+	}
+
+	private rawSearchQuery(query: ISearchQuery, existingFolders: IFolderQuery[]) {
 		let rawSearch: IRawSearch = {
 			folderQueries: [],
 			extraFiles: [],
@@ -275,18 +302,14 @@ export class DiskSearch implements ISearchResultProvider {
 			ignoreSymlinks: query.ignoreSymlinks
 		};
 
-		if (query.folderQueries) {
-			for (const q of query.folderQueries) {
-				if (q.folder.scheme === Schemas.file) {
-					rawSearch.folderQueries.push({
-						excludePattern: q.excludePattern,
-						includePattern: q.includePattern,
-						fileEncoding: q.fileEncoding,
-						disregardIgnoreFiles: q.disregardIgnoreFiles,
-						folder: q.folder.fsPath
-					});
-				}
-			}
+		for (const q of existingFolders) {
+			rawSearch.folderQueries.push({
+				excludePattern: q.excludePattern,
+				includePattern: q.includePattern,
+				fileEncoding: q.fileEncoding,
+				disregardIgnoreFiles: q.disregardIgnoreFiles,
+				folder: q.folder.fsPath
+			});
 		}
 
 		if (query.extraFileResources) {
@@ -301,13 +324,7 @@ export class DiskSearch implements ISearchResultProvider {
 			rawSearch.contentPattern = query.contentPattern;
 		}
 
-		if (query.type === QueryType.File) {
-			request = this.raw.fileSearch(rawSearch);
-		} else {
-			request = this.raw.textSearch(rawSearch);
-		}
-
-		return DiskSearch.collectResults(request);
+		return rawSearch;
 	}
 
 	public static collectResults(request: PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>): PPromise<ISearchComplete, ISearchProgressItem> {

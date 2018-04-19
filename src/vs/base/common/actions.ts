@@ -6,7 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 export interface ITelemetryData {
 	from?: string;
@@ -233,6 +233,7 @@ export class ActionRunner implements IActionRunner {
 	}
 
 	public dispose(): void {
-		// noop
+		this._onDidBeforeRun.dispose();
+		this._onDidRun.dispose();
 	}
 }

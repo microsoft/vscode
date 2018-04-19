@@ -67,7 +67,9 @@
 .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon {
 	height: 20px;
 	width: 20px;
-	background: url('continue.svg') center center no-repeat;
+	background: url('continue.svg') no-repeat;
+	background-size: 16px 16px;
+	background-position: center center;
 	flex-shrink: 0;
 	transition: transform 50ms ease;
 	-webkit-transition: -webkit-transform 50ms ease;
@@ -75,16 +77,16 @@
 
 .vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon,
 .hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon {
-	background: url('continue-inverse.svg') center center no-repeat;
+	background-image: url('continue-inverse.svg');
 }
 
-.monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .select-box {
+.monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .monaco-select-box {
 	border: none;
 	margin-top: 0px;
 	cursor: pointer;
 }
 
-.monaco-workbench .monaco-action-bar .start-debug-action-item .configuration.disabled .select-box {
+.monaco-workbench .monaco-action-bar .start-debug-action-item .configuration.disabled .monaco-select-box {
 	opacity: 0.7;
 	font-style: italic;
 	cursor: initial;
@@ -348,7 +350,11 @@
 
 /* Breakpoints */
 
-.debug-viewlet .debug-breakpoints .monaco-list-row {
+.debug-viewlet .debug-breakpoints .monaco-list-row .breakpoint {
+	padding-left: 2px;
+}
+
+.debug-viewlet .debug-breakpoints .breakpoint.exception {
 	padding-left: 20px;
 }
 
@@ -361,6 +367,11 @@
 
 .debug-viewlet .debug-breakpoints .breakpoint input {
 	flex-shrink: 0;
+}
+
+.debug-viewlet .debug-breakpoints .breakpoint > .icon {
+	width: 19px;
+	height: 19px;
 }
 
 .debug-viewlet .debug-breakpoints .breakpoint > .file-path {

@@ -11,6 +11,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICommentsConfiguration, LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { CharCode } from 'vs/base/common/charCode';
+import { ITextModel, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 
 export class BlockCommentCommand implements editorCommon.ICommand {
 
@@ -31,15 +32,29 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		if (offset + needleLength > haystackLength) {
 			return false;
 		}
+
 		for (let i = 0; i < needleLength; i++) {
-			if (haystack.charCodeAt(offset + i) !== needle.charCodeAt(i)) {
-				return false;
+			const codeA = haystack.charCodeAt(offset + i);
+			const codeB = needle.charCodeAt(i);
+
+			if (codeA === codeB) {
+				continue;
 			}
+			if (codeA >= CharCode.A && codeA <= CharCode.Z && codeA + 32 === codeB) {
+				// codeA is upper-case variant of codeB
+				continue;
+			}
+			if (codeB >= CharCode.A && codeB <= CharCode.Z && codeB + 32 === codeA) {
+				// codeB is upper-case variant of codeA
+				continue;
+			}
+
+			return false;
 		}
 		return true;
 	}
 
-	private _createOperationsForBlockComment(selection: Range, config: ICommentsConfiguration, model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
+	private _createOperationsForBlockComment(selection: Range, config: ICommentsConfiguration, model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
 		const startLineNumber = selection.startLineNumber;
 		const startColumn = selection.startColumn;
 		const endLineNumber = selection.endLineNumber;
@@ -76,7 +91,7 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 			}
 		}
 
-		let ops: editorCommon.IIdentifiedSingleEditOperation[];
+		let ops: IIdentifiedSingleEditOperation[];
 
 		if (startTokenIndex !== -1 && endTokenIndex !== -1) {
 			// Consider spaces as part of the comment tokens
@@ -107,8 +122,8 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		}
 	}
 
-	public static _createRemoveBlockCommentOperations(r: Range, startToken: string, endToken: string): editorCommon.IIdentifiedSingleEditOperation[] {
-		let res: editorCommon.IIdentifiedSingleEditOperation[] = [];
+	public static _createRemoveBlockCommentOperations(r: Range, startToken: string, endToken: string): IIdentifiedSingleEditOperation[] {
+		let res: IIdentifiedSingleEditOperation[] = [];
 
 		if (!Range.isEmpty(r)) {
 			// Remove block comment start
@@ -133,8 +148,8 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		return res;
 	}
 
-	public static _createAddBlockCommentOperations(r: Range, startToken: string, endToken: string): editorCommon.IIdentifiedSingleEditOperation[] {
-		let res: editorCommon.IIdentifiedSingleEditOperation[] = [];
+	public static _createAddBlockCommentOperations(r: Range, startToken: string, endToken: string): IIdentifiedSingleEditOperation[] {
+		let res: IIdentifiedSingleEditOperation[] = [];
 
 		if (!Range.isEmpty(r)) {
 			// Insert block comment start
@@ -153,7 +168,7 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		return res;
 	}
 
-	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
 		const startLineNumber = this._selection.startLineNumber;
 		const startColumn = this._selection.startColumn;
 
@@ -170,7 +185,7 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		);
 	}
 
-	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
+	public computeCursorState(model: ITextModel, helper: editorCommon.ICursorStateComputerData): Selection {
 		const inverseEditOperations = helper.getInverseEditOperations();
 		if (inverseEditOperations.length === 2) {
 			const startTokenEditOperation = inverseEditOperations[0];

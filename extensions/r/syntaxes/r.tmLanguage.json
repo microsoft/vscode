@@ -4,18 +4,9 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Ikuyadeu/vscode-R/commit/b3ef459a3999160d97ea28f4754fda810417f99f",
-	"fileTypes": [
-		"R",
-		"r",
-		"S",
-		"s",
-		"Rprofile"
-	],
-	"foldingStartMarker": "(\\(\\s*$|\\{\\s*$)",
-	"foldingStopMarker": "(^\\s*\\)|^\\s*\\})",
-	"keyEquivalent": "^~R",
+	"version": "https://github.com/Ikuyadeu/vscode-R/commit/1cd3d42a6b2e54276ef2d71fe33bb3fefb1d6cff",
 	"name": "R",
+	"scopeName": "source.r",
 	"patterns": [
 		{
 			"include": "#roxygen"
@@ -178,6 +169,10 @@
 					"name": "keyword.operator.arithmetic.r"
 				},
 				{
+					"match": "<=|>=",
+					"name": "keyword.operator.comparison.r"
+				},
+				{
 					"match": "==",
 					"name": "keyword.operator.comarison.r"
 				},
@@ -186,7 +181,7 @@
 					"name": "keyword.operator.assignment.r"
 				},
 				{
-					"match": "(!=|<>|<|>|<=|>=|%in%)",
+					"match": "(!=|<>|<|>|%in%)",
 					"name": "keyword.operator.comparison.r"
 				},
 				{
@@ -549,7 +544,5 @@
 				}
 			]
 		}
-	},
-	"scopeName": "source.r",
-	"uuid": "B2E6B78D-6E70-11D9-A369-000D93B3A10A"
+	}
 }

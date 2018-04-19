@@ -5,16 +5,16 @@
 
 'use strict';
 
-import cp = require('child_process');
-import path = require('path');
-import processes = require('vs/base/node/processes');
-import nls = require('vs/nls');
-import errors = require('vs/base/common/errors');
+import * as cp from 'child_process';
+import * as path from 'path';
+import * as processes from 'vs/base/node/processes';
+import * as nls from 'vs/nls';
+import * as errors from 'vs/base/common/errors';
 import { assign } from 'vs/base/common/objects';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITerminalService } from 'vs/workbench/parts/execution/common/execution';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalConfiguration, DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX_READY, DEFAULT_TERMINAL_OSX } from 'vs/workbench/parts/execution/electron-browser/terminal';
+import { ITerminalConfiguration, getDefaultTerminalWindows, getDefaultTerminalLinuxReady, DEFAULT_TERMINAL_OSX } from 'vs/workbench/parts/execution/electron-browser/terminal';
 import uri from 'vs/base/common/uri';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 
@@ -31,7 +31,7 @@ export class WinTerminalService implements ITerminalService {
 	private static readonly CMD = 'cmd.exe';
 
 	constructor(
-		@IConfigurationService private _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 	}
 
@@ -46,7 +46,7 @@ export class WinTerminalService implements ITerminalService {
 
 		const configuration = this._configurationService.getValue<ITerminalConfiguration>();
 		const terminalConfig = configuration.terminal.external;
-		const exec = terminalConfig.windowsExec || DEFAULT_TERMINAL_WINDOWS;
+		const exec = terminalConfig.windowsExec || getDefaultTerminalWindows();
 
 		return new TPromise<void>((c, e) => {
 
@@ -78,7 +78,7 @@ export class WinTerminalService implements ITerminalService {
 
 	private spawnTerminal(spawner, configuration: ITerminalConfiguration, command: string, cwd?: string): TPromise<void> {
 		const terminalConfig = configuration.terminal.external;
-		const exec = terminalConfig.windowsExec || DEFAULT_TERMINAL_WINDOWS;
+		const exec = terminalConfig.windowsExec || getDefaultTerminalWindows();
 		const spawnType = this.getSpawnType(exec);
 
 		// Make the drive letter uppercase on Windows (see #9448)
@@ -120,7 +120,7 @@ export class MacTerminalService implements ITerminalService {
 	private static readonly OSASCRIPT = '/usr/bin/osascript';	// osascript is the AppleScript interpreter on OS X
 
 	constructor(
-		@IConfigurationService private _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) { }
 
 	public openTerminal(cwd?: string): void {
@@ -211,7 +211,7 @@ export class LinuxTerminalService implements ITerminalService {
 	private static readonly WAIT_MESSAGE = nls.localize('press.any.key', "Press any key to continue...");
 
 	constructor(
-		@IConfigurationService private _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) { }
 
 
@@ -226,7 +226,7 @@ export class LinuxTerminalService implements ITerminalService {
 
 		const configuration = this._configurationService.getValue<ITerminalConfiguration>();
 		const terminalConfig = configuration.terminal.external;
-		const execPromise = terminalConfig.linuxExec ? TPromise.as(terminalConfig.linuxExec) : DEFAULT_TERMINAL_LINUX_READY;
+		const execPromise = terminalConfig.linuxExec ? TPromise.as(terminalConfig.linuxExec) : getDefaultTerminalLinuxReady();
 
 		return new TPromise<void>((c, e) => {
 
@@ -280,7 +280,7 @@ export class LinuxTerminalService implements ITerminalService {
 
 	private spawnTerminal(spawner, configuration: ITerminalConfiguration, cwd?: string): TPromise<void> {
 		const terminalConfig = configuration.terminal.external;
-		const execPromise = terminalConfig.linuxExec ? TPromise.as(terminalConfig.linuxExec) : DEFAULT_TERMINAL_LINUX_READY;
+		const execPromise = terminalConfig.linuxExec ? TPromise.as(terminalConfig.linuxExec) : getDefaultTerminalLinuxReady();
 		const env = cwd ? { cwd: cwd } : void 0;
 
 		return new TPromise<void>((c, e) => {

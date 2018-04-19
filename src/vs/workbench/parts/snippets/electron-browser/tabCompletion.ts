@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { RawContextKey, IContextKeyService, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ISnippetsService, Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
+import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 import { getNonWhitespacePrefix, SnippetSuggestion } from 'vs/workbench/parts/snippets/electron-browser/snippetsService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { endsWith } from 'vs/base/common/strings';
@@ -23,6 +23,7 @@ import { IConfigurationRegistry, Extensions as ConfigExt } from 'vs/platform/con
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
 
 export class TabCompletionController implements editorCommon.IEditorContribution {
 
@@ -143,7 +144,7 @@ registerEditorCommand(new TabCompletionCommand({
 	kbOpts: {
 		weight: KeybindingsRegistry.WEIGHT.editorContrib(),
 		kbExpr: ContextKeyExpr.and(
-			EditorContextKeys.textFocus,
+			EditorContextKeys.editorTextFocus,
 			EditorContextKeys.tabDoesNotMoveFocus,
 			SnippetController2.InSnippetMode.toNegated()
 		),

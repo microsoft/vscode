@@ -12,23 +12,26 @@ import { Action } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { FindInput, IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';
 import { InputBox, IMessage } from 'vs/base/browser/ui/inputbox/inputBox';
-import { Button } from 'vs/base/browser/ui/button/button';
+import { Button, IButtonOptions } from 'vs/base/browser/ui/button/button';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Builder } from 'vs/base/browser/builder';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { isSearchViewletFocused, appendKeyBindingLabel } from 'vs/workbench/parts/search/browser/searchActions';
+import { isSearchViewFocused, appendKeyBindingLabel } from 'vs/workbench/parts/search/browser/searchActions';
 import { HistoryNavigator } from 'vs/base/common/history';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
-import { attachInputBoxStyler, attachFindInputBoxStyler, attachButtonStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachFindInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/findModel';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { ISearchConfigurationProperties } from 'vs/platform/search/common/search';
 
 export interface ISearchWidgetOptions {
 	value?: string;
@@ -41,7 +44,7 @@ export interface ISearchWidgetOptions {
 class ReplaceAllAction extends Action {
 
 	private static fgInstance: ReplaceAllAction = null;
-	public static ID: string = 'search.action.replaceAll';
+	public static readonly ID: string = 'search.action.replaceAll';
 
 	static get INSTANCE(): ReplaceAllAction {
 		if (ReplaceAllAction.fgInstance === null) {
@@ -92,24 +95,26 @@ export class SearchWidget extends Widget {
 	private replaceActionBar: ActionBar;
 
 	private searchHistory: HistoryNavigator<string>;
+	private ignoreGlobalFindBufferOnNextFocus = false;
+	private previousGlobalFindBufferValue: string;
 
 	private _onSearchSubmit = this._register(new Emitter<boolean>());
-	public onSearchSubmit: Event<boolean> = this._onSearchSubmit.event;
+	public readonly onSearchSubmit: Event<boolean> = this._onSearchSubmit.event;
 
 	private _onSearchCancel = this._register(new Emitter<void>());
-	public onSearchCancel: Event<void> = this._onSearchCancel.event;
+	public readonly onSearchCancel: Event<void> = this._onSearchCancel.event;
 
 	private _onReplaceToggled = this._register(new Emitter<void>());
-	public onReplaceToggled: Event<void> = this._onReplaceToggled.event;
+	public readonly onReplaceToggled: Event<void> = this._onReplaceToggled.event;
 
 	private _onReplaceStateChange = this._register(new Emitter<boolean>());
-	public onReplaceStateChange: Event<boolean> = this._onReplaceStateChange.event;
+	public readonly onReplaceStateChange: Event<boolean> = this._onReplaceStateChange.event;
 
 	private _onReplaceValueChanged = this._register(new Emitter<string>());
-	public onReplaceValueChanged: Event<string> = this._onReplaceValueChanged.event;
+	public readonly onReplaceValueChanged: Event<string> = this._onReplaceValueChanged.event;
 
 	private _onReplaceAll = this._register(new Emitter<void>());
-	public onReplaceAll: Event<void> = this._onReplaceAll.event;
+	public readonly onReplaceAll: Event<void> = this._onReplaceAll.event;
 
 	constructor(
 		container: Builder,
@@ -118,6 +123,8 @@ export class SearchWidget extends Widget {
 		@IThemeService private themeService: IThemeService,
 		@IContextKeyService private keyBindingService: IContextKeyService,
 		@IKeybindingService private keyBindingService2: IKeybindingService,
+		@IClipboardService private clipboardServce: IClipboardService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
 		this.searchHistory = new HistoryNavigator<string>(options.history);
@@ -127,7 +134,9 @@ export class SearchWidget extends Widget {
 		this.render(container, options);
 	}
 
-	public focus(select: boolean = true, focusReplace: boolean = false): void {
+	public focus(select: boolean = true, focusReplace: boolean = false, suppressGlobalSearchBuffer = false): void {
+		this.ignoreGlobalFindBufferOnNextFocus = suppressGlobalSearchBuffer;
+
 		if (focusReplace && this.isReplaceShown()) {
 			this.replaceInput.focus();
 			if (select) {
@@ -207,15 +216,17 @@ export class SearchWidget extends Widget {
 	}
 
 	private renderToggleReplaceButton(parent: HTMLElement): void {
-		this.toggleReplaceButton = this._register(new Button(parent));
-		attachButtonStyler(this.toggleReplaceButton, this.themeService, {
-			buttonBackground: SIDE_BAR_BACKGROUND,
-			buttonHoverBackground: SIDE_BAR_BACKGROUND
-		});
+		const opts: IButtonOptions = {
+			buttonBackground: null,
+			buttonBorder: null,
+			buttonForeground: null,
+			buttonHoverBackground: null
+		};
+		this.toggleReplaceButton = this._register(new Button(parent, opts));
 		this.toggleReplaceButton.icon = 'toggle-replace-button collapse';
 		// TODO@joh need to dispose this listener eventually
 		this.toggleReplaceButton.onDidClick(() => this.onToggleReplaceButton());
-		this.toggleReplaceButton.getElement().title = nls.localize('search.replace.toggle.button.title', "Toggle Replace");
+		this.toggleReplaceButton.element.title = nls.localize('search.replace.toggle.button.title', "Toggle Replace");
 	}
 
 	private renderSearchInput(parent: HTMLElement, options: ISearchWidgetOptions): void {
@@ -241,7 +252,23 @@ export class SearchWidget extends Widget {
 		}));
 
 		this.searchInputFocusTracker = this._register(dom.trackFocus(this.searchInput.inputBox.inputElement));
-		this._register(this.searchInputFocusTracker.onDidFocus(() => this.searchInputBoxFocused.set(true)));
+		this._register(this.searchInputFocusTracker.onDidFocus(() => {
+			this.searchInputBoxFocused.set(true);
+
+			const useGlobalFindBuffer = this.configurationService.getValue<ISearchConfigurationProperties>('search').globalFindClipboard;
+			if (!this.ignoreGlobalFindBufferOnNextFocus && useGlobalFindBuffer) {
+				const globalBufferText = this.clipboardServce.readFindText();
+				if (this.previousGlobalFindBufferValue !== globalBufferText) {
+					this.searchHistory.add(this.searchInput.getValue());
+					this.searchInput.setValue(globalBufferText);
+					this.searchInput.select();
+				}
+
+				this.previousGlobalFindBufferValue = globalBufferText;
+			}
+
+			this.ignoreGlobalFindBufferOnNextFocus = false;
+		}));
 		this._register(this.searchInputFocusTracker.onDidBlur(() => this.searchInputBoxFocused.set(false)));
 	}
 
@@ -275,8 +302,8 @@ export class SearchWidget extends Widget {
 
 	private onToggleReplaceButton(): void {
 		dom.toggleClass(this.replaceContainer, 'disabled');
-		dom.toggleClass(this.toggleReplaceButton.getElement(), 'collapse');
-		dom.toggleClass(this.toggleReplaceButton.getElement(), 'expand');
+		dom.toggleClass(this.toggleReplaceButton.element, 'collapse');
+		dom.toggleClass(this.toggleReplaceButton.element, 'expand');
 		this.updateReplaceActiveState();
 		this._onReplaceToggled.fire();
 	}
@@ -354,7 +381,13 @@ export class SearchWidget extends Widget {
 	}
 
 	private submitSearch(refresh: boolean = true): void {
-		if (this.searchInput.getValue()) {
+		const value = this.searchInput.getValue();
+		const useGlobalFindBuffer = this.configurationService.getValue<ISearchConfigurationProperties>('search').globalFindClipboard;
+		if (value) {
+			if (useGlobalFindBuffer) {
+				this.clipboardServce.writeFindText(value);
+			}
+
 			this._onSearchSubmit.fire(refresh);
 		}
 	}
@@ -371,10 +404,10 @@ export function registerContributions() {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: ReplaceAllAction.ID,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.ReplaceActiveKey, CONTEXT_FIND_WIDGET_NOT_VISIBLE),
+		when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, CONTEXT_FIND_WIDGET_NOT_VISIBLE),
 		primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.Enter,
 		handler: accessor => {
-			if (isSearchViewletFocused(accessor.get(IViewletService))) {
+			if (isSearchViewFocused(accessor.get(IViewletService), accessor.get(IPanelService))) {
 				ReplaceAllAction.INSTANCE.run();
 			}
 		}

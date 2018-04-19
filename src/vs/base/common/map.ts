@@ -7,10 +7,11 @@
 
 import URI from 'vs/base/common/uri';
 
-export function values<K, V>(map: Map<K, V>): V[] {
+export function values<V = any>(set: Set<V>): V[];
+export function values<K = any, V = any>(map: Map<K, V>): V[];
+export function values<V>(forEachable: { forEach(callback: (value: V, ...more: any[]) => any) }): V[] {
 	const result: V[] = [];
-	map.forEach(value => result.push(value));
-
+	forEachable.forEach(value => result.push(value));
 	return result;
 }
 
@@ -740,6 +741,24 @@ export class LinkedMap<K, V> {
 			item.previous = this._tail;
 			this._tail.next = item;
 			this._tail = item;
+		}
+	}
+
+	public toJSON(): [K, V][] {
+		const data: [K, V][] = [];
+
+		this.forEach((value, key) => {
+			data.push([key, value]);
+		});
+
+		return data;
+	}
+
+	public fromJSON(data: [K, V][]): void {
+		this.clear();
+
+		for (const [key, value] of data) {
+			this.set(key, value);
 		}
 	}
 }

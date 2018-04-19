@@ -5,16 +5,19 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event, { Emitter, once } from 'vs/base/common/event';
+import { Event, Emitter, once } from 'vs/base/common/event';
 import * as objects from 'vs/base/common/objects';
-import types = require('vs/base/common/types');
+import * as types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { IEditor, IEditorViewState, IModel, ScrollType } from 'vs/editor/common/editorCommon';
+import { IEditor, IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position, Verbosity, IEditor as IBaseEditor, IRevertOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { ITextModel } from 'vs/editor/common/model';
+import { Schemas } from 'vs/base/common/network';
+import { LRUCache } from 'vs/base/common/map';
 
 export const TextCompareEditorVisible = new RawContextKey<boolean>('textCompareEditorVisible', false);
 
@@ -35,7 +38,10 @@ export const TEXT_DIFF_EDITOR_ID = 'workbench.editors.textDiffEditor';
 export const BINARY_DIFF_EDITOR_ID = 'workbench.editors.binaryResourceDiffEditor';
 
 export interface IFileInputFactory {
+
 	createFileInput(resource: URI, encoding: string, instantiationService: IInstantiationService): IFileEditorInput;
+
+	isFileInput(obj: any): obj is IFileEditorInput;
 }
 
 export interface IEditorInputFactoryRegistry {
@@ -89,7 +95,7 @@ export interface IEditorInputFactory {
  * Each editor input is mapped to an editor that is capable of opening it through the Platform facade.
  */
 export abstract class EditorInput implements IEditorInput {
-	private _onDispose: Emitter<void>;
+	private readonly _onDispose: Emitter<void>;
 	protected _onDidChangeDirty: Emitter<void>;
 	protected _onDidChangeLabel: Emitter<void>;
 
@@ -350,7 +356,7 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport {
  */
 export class SideBySideEditorInput extends EditorInput {
 
-	public static ID: string = 'workbench.editorinputs.sidebysideEditorInput';
+	public static readonly ID: string = 'workbench.editorinputs.sidebysideEditorInput';
 
 	private _toUnbind: IDisposable[];
 
@@ -459,7 +465,7 @@ export class SideBySideEditorInput extends EditorInput {
 }
 
 export interface ITextEditorModel extends IEditorModel {
-	textEditorModel: IModel;
+	textEditorModel: ITextModel;
 }
 
 /**
@@ -468,7 +474,7 @@ export interface ITextEditorModel extends IEditorModel {
  * are typically cached for some while because they are expensive to construct.
  */
 export class EditorModel extends Disposable implements IEditorModel {
-	private _onDispose: Emitter<void>;
+	private readonly _onDispose: Emitter<void>;
 
 	constructor() {
 		super();
@@ -787,8 +793,14 @@ export interface IEditorIdentifier {
 	editor: IEditorInput;
 }
 
-export interface IEditorContext extends IEditorIdentifier {
-	event?: any;
+/**
+ * The editor commands context is used for editor commands (e.g. in the editor title)
+ * and we must ensure that the context is serializable because it potentially travels
+ * to the extension host!
+ */
+export interface IEditorCommandsContext {
+	groupId: GroupIdentifier;
+	editorIndex?: number;
 }
 
 export interface IEditorCloseEvent extends IEditorIdentifier {
@@ -852,7 +864,7 @@ export const EditorCommands = {
 
 export interface IResourceOptions {
 	supportSideBySide?: boolean;
-	filter?: 'file' | 'untitled' | ['file', 'untitled'] | ['untitled', 'file'];
+	filter?: string | string[];
 }
 
 export function toResource(editor: IEditorInput, options?: IResourceOptions): URI {
@@ -877,22 +889,130 @@ export function toResource(editor: IEditorInput, options?: IResourceOptions): UR
 	let includeFiles: boolean;
 	let includeUntitled: boolean;
 	if (Array.isArray(options.filter)) {
-		includeFiles = (options.filter.indexOf('file') >= 0);
-		includeUntitled = (options.filter.indexOf('untitled') >= 0);
+		includeFiles = (options.filter.indexOf(Schemas.file) >= 0);
+		includeUntitled = (options.filter.indexOf(Schemas.untitled) >= 0);
 	} else {
-		includeFiles = (options.filter === 'file');
-		includeUntitled = (options.filter === 'untitled');
+		includeFiles = (options.filter === Schemas.file);
+		includeUntitled = (options.filter === Schemas.untitled);
 	}
 
-	if (includeFiles && resource.scheme === 'file') {
+	if (includeFiles && resource.scheme === Schemas.file) {
 		return resource;
 	}
 
-	if (includeUntitled && resource.scheme === 'untitled') {
+	if (includeUntitled && resource.scheme === Schemas.untitled) {
 		return resource;
 	}
 
 	return null;
+}
+
+export interface IEditorViewStates<T> {
+	[Position.ONE]?: T;
+	[Position.TWO]?: T;
+	[Position.THREE]?: T;
+}
+
+export class EditorViewStateMemento<T> {
+	private cache: LRUCache<string, IEditorViewStates<T>>;
+
+	constructor(private memento: object, private key: string, private limit: number = 10) { }
+
+	public saveState(resource: URI, position: Position, state: T): void;
+	public saveState(editor: EditorInput, position: Position, state: T): void;
+	public saveState(resourceOrEditor: URI | EditorInput, position: Position, state: T): void {
+		if (typeof position !== 'number') {
+			return; // we need a position at least
+		}
+
+		const resource = this.doGetResource(resourceOrEditor);
+		if (resource) {
+			const cache = this.doLoad();
+
+			let viewStates = cache.get(resource.toString());
+			if (!viewStates) {
+				viewStates = Object.create(null) as IEditorViewStates<T>;
+				cache.set(resource.toString(), viewStates);
+			}
+
+			viewStates[position] = state;
+
+			// Automatically clear when editor input gets disposed if any
+			if (resourceOrEditor instanceof EditorInput) {
+				once(resourceOrEditor.onDispose)(() => {
+					this.clearState(resource);
+				});
+			}
+		}
+	}
+
+	public loadState(resource: URI, position: Position): T;
+	public loadState(editor: EditorInput, position: Position): T;
+	public loadState(resourceOrEditor: URI | EditorInput, position: Position): T {
+		if (typeof position !== 'number') {
+			return void 0; // we need a position at least
+		}
+
+		const resource = this.doGetResource(resourceOrEditor);
+		if (resource) {
+			const cache = this.doLoad();
+
+			const viewStates = cache.get(resource.toString());
+			if (viewStates) {
+				return viewStates[position];
+			}
+		}
+
+		return void 0;
+	}
+
+	public clearState(resource: URI): void;
+	public clearState(editor: EditorInput): void;
+	public clearState(resourceOrEditor: URI | EditorInput): void {
+		const resource = this.doGetResource(resourceOrEditor);
+		if (resource) {
+			const cache = this.doLoad();
+			cache.delete(resource.toString());
+		}
+	}
+
+	private doGetResource(resourceOrEditor: URI | EditorInput): URI {
+		if (resourceOrEditor instanceof EditorInput) {
+			return resourceOrEditor.getResource();
+		}
+
+		return resourceOrEditor;
+	}
+
+	private doLoad(): LRUCache<string, IEditorViewStates<T>> {
+		if (!this.cache) {
+			this.cache = new LRUCache<string, T>(this.limit);
+
+			// Restore from serialized map state
+			const rawViewState = this.memento[this.key];
+			if (Array.isArray(rawViewState)) {
+				this.cache.fromJSON(rawViewState);
+			}
+
+			// Migration from old object state
+			else if (rawViewState) {
+				const keys = Object.keys(rawViewState);
+				keys.forEach((key, index) => {
+					if (index < this.limit) {
+						this.cache.set(key, rawViewState[key]);
+					}
+				});
+			}
+		}
+
+		return this.cache;
+	}
+
+	public save(): void {
+		const cache = this.doLoad();
+
+		this.memento[this.key] = cache.toJSON();
+	}
 }
 
 class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {

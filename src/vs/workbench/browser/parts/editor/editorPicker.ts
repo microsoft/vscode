@@ -6,17 +6,17 @@
 
 import 'vs/css!./media/editorpicker';
 import { TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
-import errors = require('vs/base/common/errors');
-import { IIconLabelOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import * as errors from 'vs/base/common/errors';
+import { IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IAutoFocus, Mode, IEntryRunContext, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenModel, QuickOpenEntry, QuickOpenEntryGroup, QuickOpenItemAccessor } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/workbench/browser/labels';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
-import { Position, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { Position } from 'vs/platform/editor/common/editor';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -39,7 +39,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 		this.stacks = editorGroupService.getStacksModel();
 	}
 
-	public getLabelOptions(): IIconLabelOptions {
+	public getLabelOptions(): IIconLabelValueOptions {
 		return {
 			extraClasses: getIconClasses(this.modelService, this.modeService, this.getResource()),
 			italic: this._group.isPreview(this.editor)
@@ -71,13 +71,15 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 	}
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {
-		let options: IEditorOptions;
-		if (mode === Mode.PREVIEW) {
-			options = { preserveFocus: true }; // in preview, make sure to keep focus in quick open
+		if (mode === Mode.OPEN) {
+			return this.runOpen(context);
 		}
 
-		// Open Editor
-		this.editorService.openEditor(this.editor, options, this.stacks.positionOfGroup(this.group)).done(null, errors.onUnexpectedError);
+		return super.run(mode, context);
+	}
+
+	private runOpen(context: IEntryRunContext): boolean {
+		this.editorService.openEditor(this.editor, null, this.stacks.positionOfGroup(this.group)).done(null, errors.onUnexpectedError);
 
 		return true;
 	}

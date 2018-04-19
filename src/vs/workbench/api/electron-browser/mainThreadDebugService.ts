@@ -6,24 +6,31 @@
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import uri from 'vs/base/common/uri';
-import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IAdapterExecutable, ITerminalSettings, IDebugAdapter, IDebugAdapterProvider } from 'vs/workbench/parts/debug/common/debug';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext, IExtHostContext, IBreakpointsDelta, ISourceBreakpointData, IFunctionBreakpointData } from '../node/extHost.protocol';
+import {
+	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
+	IExtHostContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto
+} from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import severity from 'vs/base/common/severity';
+import { AbstractDebugAdapter, convertToVSCPaths, convertToDAPaths } from 'vs/workbench/parts/debug/node/debugAdapter';
+import * as paths from 'vs/base/common/paths';
+
 
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
-export class MainThreadDebugService implements MainThreadDebugServiceShape {
+export class MainThreadDebugService implements MainThreadDebugServiceShape, IDebugAdapterProvider {
 
 	private _proxy: ExtHostDebugServiceShape;
 	private _toDispose: IDisposable[];
 	private _breakpointEventsActive: boolean;
+	private _debugAdapters: Map<number, ExtensionHostDebugAdapter>;
+	private _debugAdaptersHandleCounter = 1;
+
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IDebugService private debugService: IDebugService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IDebugService private debugService: IDebugService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDebugService);
 		this._toDispose = [];
@@ -45,6 +52,22 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 				}
 			}
 		}));
+		this._debugAdapters = new Map<number, ExtensionHostDebugAdapter>();
+	}
+
+	public $registerDebugTypes(debugTypes: string[]) {
+		this._toDispose.push(this.debugService.getConfigurationManager().registerDebugAdapterProvider(debugTypes, this));
+	}
+
+	createDebugAdapter(debugType: string, adapterInfo): IDebugAdapter {
+		const handle = this._debugAdaptersHandleCounter++;
+		const da = new ExtensionHostDebugAdapter(handle, this._proxy, debugType, adapterInfo);
+		this._debugAdapters.set(handle, da);
+		return da;
+	}
+
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
+		return this._proxy.$runInTerminal(args, config);
 	}
 
 	public dispose(): void {
@@ -59,15 +82,15 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 			// set up a handler to send more
 			this._toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(e => {
 				if (e) {
-					const delta: IBreakpointsDelta = {};
+					const delta: IBreakpointsDeltaDto = {};
 					if (e.added) {
-						delta.added = this.toWire(e.added);
+						delta.added = this.convertToDto(e.added);
 					}
 					if (e.removed) {
 						delta.removed = e.removed.map(x => x.getId());
 					}
 					if (e.changed) {
-						delta.changed = this.toWire(e.changed);
+						delta.changed = this.convertToDto(e.changed);
 					}
 
 					if (delta.added || delta.removed || delta.changed) {
@@ -81,7 +104,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 			const fbps = this.debugService.getModel().getFunctionBreakpoints();
 			if (bps.length > 0 || fbps.length > 0) {
 				this._proxy.$acceptBreakpointsDelta({
-					added: this.toWire(bps).concat(this.toWire(fbps))
+					added: this.convertToDto(bps).concat(this.convertToDto(fbps))
 				});
 			}
 		}
@@ -89,36 +112,66 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 		return TPromise.wrap<void>(undefined);
 	}
 
-	private toWire(bps: (IBreakpoint | IFunctionBreakpoint)[]): (ISourceBreakpointData | IFunctionBreakpointData)[] {
+	public $registerBreakpoints(DTOs: (ISourceMultiBreakpointDto | IFunctionBreakpointDto)[]): TPromise<void> {
 
+		for (let dto of DTOs) {
+			if (dto.type === 'sourceMulti') {
+				const rawbps = dto.lines.map(l =>
+					<IBreakpointData>{
+						id: l.id,
+						enabled: l.enabled,
+						lineNumber: l.line + 1,
+						column: l.character > 0 ? l.character + 1 : undefined, // a column value of 0 results in an omitted column attribute; see #46784
+						condition: l.condition,
+						hitCondition: l.hitCondition,
+						logMessage: l.logMessage
+					}
+				);
+				this.debugService.addBreakpoints(uri.revive(dto.uri), rawbps);
+			} else if (dto.type === 'function') {
+				this.debugService.addFunctionBreakpoint(dto.functionName, dto.id);
+			}
+		}
+		return void 0;
+	}
+
+	public $unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[]): TPromise<void> {
+		breakpointIds.forEach(id => this.debugService.removeBreakpoints(id));
+		functionBreakpointIds.forEach(id => this.debugService.removeFunctionBreakpoints(id));
+		return void 0;
+	}
+
+	private convertToDto(bps: (ReadonlyArray<IBreakpoint | IFunctionBreakpoint>)): (ISourceBreakpointDto | IFunctionBreakpointDto)[] {
 		return bps.map(bp => {
 			if ('name' in bp) {
 				const fbp = <IFunctionBreakpoint>bp;
-				return <IFunctionBreakpointData>{
+				return <IFunctionBreakpointDto>{
 					type: 'function',
-					id: bp.getId(),
-					enabled: bp.enabled,
-					functionName: fbp.name,
-					hitCondition: bp.hitCondition,
-					/* condition: bp.condition */
+					id: fbp.getId(),
+					enabled: fbp.enabled,
+					condition: fbp.condition,
+					hitCondition: fbp.hitCondition,
+					logMessage: fbp.logMessage,
+					functionName: fbp.name
 				};
 			} else {
 				const sbp = <IBreakpoint>bp;
-				return <ISourceBreakpointData>{
+				return <ISourceBreakpointDto>{
 					type: 'source',
-					id: bp.getId(),
-					enabled: bp.enabled,
+					id: sbp.getId(),
+					enabled: sbp.enabled,
 					condition: sbp.condition,
-					hitCondition: bp.hitCondition,
+					hitCondition: sbp.hitCondition,
+					logMessage: sbp.logMessage,
 					uri: sbp.uri,
 					line: sbp.lineNumber > 0 ? sbp.lineNumber - 1 : 0,
-					character: (typeof sbp.column === 'number' && sbp.column > 0) ? sbp.column - 1 : 0
+					character: (typeof sbp.column === 'number' && sbp.column > 0) ? sbp.column - 1 : 0,
 				};
 			}
 		});
 	}
 
-	public $registerDebugConfigurationProvider(debugType: string, hasProvide: boolean, hasResolve: boolean, handle: number): TPromise<void> {
+	public $registerDebugConfigurationProvider(debugType: string, hasProvide: boolean, hasResolve: boolean, hasDebugAdapterExecutable: boolean, handle: number): TPromise<void> {
 
 		const provider = <IDebugConfigurationProvider>{
 			type: debugType
@@ -133,6 +186,11 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 				return this._proxy.$resolveDebugConfiguration(handle, folder, debugConfiguration);
 			};
 		}
+		if (hasDebugAdapterExecutable) {
+			provider.debugAdapterExecutable = (folder) => {
+				return this._proxy.$debugAdapterExecutable(handle, folder);
+			};
+		}
 		this.debugService.getConfigurationManager().registerDebugConfigurationProvider(handle, provider);
 
 		return TPromise.wrap<void>(undefined);
@@ -144,9 +202,9 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 	}
 
 	public $startDebugging(_folderUri: uri | undefined, nameOrConfiguration: string | IConfig): TPromise<boolean> {
-		const folderUriString = _folderUri ? uri.revive(_folderUri).toString() : undefined;
-		const folder = folderUriString ? this.contextService.getWorkspace().folders.filter(wf => wf.uri.toString() === folderUriString).pop() : undefined;
-		return this.debugService.startDebugging(folder, nameOrConfiguration).then(x => {
+		const folderUri = _folderUri ? uri.revive(_folderUri) : undefined;
+		const launch = this.debugService.getConfigurationManager().getLaunch(folderUri);
+		return this.debugService.startDebugging(launch, nameOrConfiguration).then(x => {
 			return true;
 		}, err => {
 			return TPromise.wrapError(err && err.message ? err.message : 'cannot start debugging');
@@ -157,10 +215,10 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 		const process = this.debugService.getModel().getProcesses().filter(p => p.getId() === sessionId).pop();
 		if (process) {
 			return process.session.custom(request, args).then(response => {
-				if (response.success) {
+				if (response && response.success) {
 					return response.body;
 				} else {
-					return TPromise.wrapError(new Error(response.message));
+					return TPromise.wrapError(new Error(response ? response.message : 'custom request failed'));
 				}
 			});
 		}
@@ -171,5 +229,63 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 		// Use warning as severity to get the orange color for messages coming from the debug extension
 		this.debugService.logToRepl(value, severity.Warning);
 		return TPromise.wrap<void>(undefined);
+	}
+
+	public $acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage) {
+
+		convertToVSCPaths(message, source => {
+			if (typeof source.path === 'object') {
+				source.path = uri.revive(source.path).toString();
+			}
+		});
+
+		this._debugAdapters.get(handle).acceptMessage(message);
+	}
+
+	public $acceptDAError(handle: number, name: string, message: string, stack: string) {
+		this._debugAdapters.get(handle).fireError(handle, new Error(`${name}: ${message}\n${stack}`));
+	}
+
+	public $acceptDAExit(handle: number, code: number, signal: string) {
+		this._debugAdapters.get(handle).fireExit(handle, code, signal);
+	}
+}
+
+/**
+ * DebugAdapter that communicates via extension protocol with another debug adapter.
+ */
+class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
+
+	constructor(private _handle: number, private _proxy: ExtHostDebugServiceShape, private _debugType: string, private _adapterExecutable: IAdapterExecutable | null) {
+		super();
+	}
+
+	public fireError(handle: number, err: Error) {
+		this._onError.fire(err);
+	}
+
+	public fireExit(handle: number, code: number, signal: string) {
+		this._onExit.fire(code);
+	}
+
+	public startSession(): TPromise<void> {
+		return this._proxy.$startDASession(this._handle, this._debugType, this._adapterExecutable);
+	}
+
+	public sendMessage(message: DebugProtocol.ProtocolMessage): void {
+
+		convertToDAPaths(message, source => {
+			if (paths.isAbsolute(source.path)) {
+				(<any>source).path = uri.file(source.path);
+			} else {
+				(<any>source).path = uri.parse(source.path);
+			}
+		});
+
+		this._proxy.$sendDAMessage(this._handle, message);
+	}
+
+	public stopSession(): TPromise<void> {
+		return this._proxy.$stopDASession(this._handle);
 	}
 }

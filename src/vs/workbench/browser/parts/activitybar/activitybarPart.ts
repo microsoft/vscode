@@ -6,10 +6,10 @@
 'use strict';
 
 import 'vs/css!./media/activitybarpart';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { illegalArgument } from 'vs/base/common/errors';
-import { Builder, $, Dimension } from 'vs/base/browser/builder';
+import { $ } from 'vs/base/browser/builder';
 import { Action } from 'vs/base/common/actions';
 import { ActionsOrientation, ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { GlobalActivityExtensions, IGlobalActivityRegistry } from 'vs/workbench/common/activity';
@@ -24,11 +24,15 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/toggleActivityBarVisibility';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar } from 'vs/workbench/browser/parts/compositebar/compositeBar';
 import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
+import { isMacintosh } from 'vs/base/common/platform';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { Dimension, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { Color } from 'vs/base/common/color';
 
 export class ActivitybarPart extends Part {
 
@@ -56,11 +60,13 @@ export class ActivitybarPart extends Part {
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@ILifecycleService private lifecycleService: ILifecycleService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
 		this.globalActivityIdToActions = Object.create(null);
+
 		this.compositeBar = this.instantiationService.createInstance(CompositeBar, {
 			icon: true,
 			storageId: ActivitybarPart.PINNED_VIEWLETS,
@@ -75,10 +81,13 @@ export class ActivitybarPart extends Part {
 			colors: ActivitybarPart.COLORS,
 			overflowActionSize: ActivitybarPart.ACTION_HEIGHT
 		});
+
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
+
+		this.toUnbind.push(this.viewletService.onDidViewletRegister(viewletDescriptor => this.compositeBar.addComposite(viewletDescriptor, false)));
 
 		// Activate viewlet action on opening of a viewlet
 		this.toUnbind.push(this.viewletService.onDidViewletOpen(viewlet => this.compositeBar.activateComposite(viewlet.getId())));
@@ -86,6 +95,13 @@ export class ActivitybarPart extends Part {
 		// Deactivate viewlet action on close
 		this.toUnbind.push(this.viewletService.onDidViewletClose(viewlet => this.compositeBar.deactivateComposite(viewlet.getId())));
 		this.toUnbind.push(this.compositeBar.onDidContextMenu(e => this.showContextMenu(e)));
+		this.toUnbind.push(this.viewletService.onDidViewletEnablementChange(({ id, enabled }) => {
+			if (enabled) {
+				this.compositeBar.addComposite(this.viewletService.getViewlet(id), true);
+			} else {
+				this.compositeBar.removeComposite(id);
+			}
+		}));
 	}
 
 	public showActivity(viewletOrActionId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {
@@ -93,10 +109,10 @@ export class ActivitybarPart extends Part {
 			return this.compositeBar.showActivity(viewletOrActionId, badge, clazz, priority);
 		}
 
-		return this.showGlobalActivity(viewletOrActionId, badge);
+		return this.showGlobalActivity(viewletOrActionId, badge, clazz);
 	}
 
-	private showGlobalActivity(globalActivityId: string, badge: IBadge): IDisposable {
+	private showGlobalActivity(globalActivityId: string, badge: IBadge, clazz?: string): IDisposable {
 		if (!badge) {
 			throw illegalArgument('badge');
 		}
@@ -106,12 +122,12 @@ export class ActivitybarPart extends Part {
 			throw illegalArgument('globalActivityId');
 		}
 
-		action.setBadge(badge);
+		action.setBadge(badge, clazz);
 
 		return toDisposable(() => action.setBadge(undefined));
 	}
 
-	public createContentArea(parent: Builder): Builder {
+	public createContentArea(parent: HTMLElement): HTMLElement {
 		const $el = $(parent);
 		const $result = $('.content').appendTo($el);
 
@@ -121,14 +137,35 @@ export class ActivitybarPart extends Part {
 		// Top Actionbar with action items for each viewlet action
 		this.createGlobalActivityActionBar($('.global-activity').appendTo($result).getHTMLElement());
 
-		return $result;
+		// TODO@Ben: workaround for https://github.com/Microsoft/vscode/issues/45700
+		// It looks like there are rendering glitches on macOS with Chrome 61 when
+		// using --webkit-mask with a background color that is different from the image
+		// The workaround is to promote the element onto its own drawing layer. We do
+		// this only after the workbench has loaded because otherwise there is ugly flicker.
+		if (isMacintosh) {
+			this.lifecycleService.when(LifecyclePhase.Running).then(() => {
+				scheduleAtNextAnimationFrame(() => { // another delay...
+					scheduleAtNextAnimationFrame(() => { // ...to prevent more flickering on startup
+						registerThemingParticipant((theme, collector) => {
+							const activityBarForeground = theme.getColor(ACTIVITY_BAR_FOREGROUND);
+							if (activityBarForeground && !activityBarForeground.equals(Color.white)) {
+								// only apply this workaround if the color is different from the image one (white)
+								collector.addRule('.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-label { will-change: transform; }');
+							}
+						});
+					});
+				});
+			});
+		}
+
+		return $result.getHTMLElement();
 	}
 
 	public updateStyles(): void {
 		super.updateStyles();
 
 		// Part container
-		const container = this.getContainer();
+		const container = $(this.getContainer());
 		const background = this.getColor(ACTIVITY_BAR_BACKGROUND);
 		container.style('background-color', background);
 
@@ -170,6 +207,7 @@ export class ActivitybarPart extends Part {
 			ariaLabel: nls.localize('globalActions', "Global Actions"),
 			animated: false
 		});
+		this.toUnbind.push(this.globalActionBar);
 
 		actions.forEach(a => {
 			this.globalActivityIdToActions[a.id] = a;
@@ -204,6 +242,11 @@ export class ActivitybarPart extends Part {
 		return sizes;
 	}
 
+	public shutdown(): void {
+		this.compositeBar.shutdown();
+		super.shutdown();
+	}
+
 	public dispose(): void {
 		if (this.compositeBar) {
 			this.compositeBar.dispose();
@@ -216,13 +259,5 @@ export class ActivitybarPart extends Part {
 		}
 
 		super.dispose();
-	}
-
-	public shutdown(): void {
-		// Persist Hidden State
-		this.compositeBar.store();
-
-		// Pass to super
-		super.shutdown();
 	}
 }

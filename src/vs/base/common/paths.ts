@@ -5,7 +5,7 @@
 'use strict';
 
 import { isWindows } from 'vs/base/common/platform';
-import { beginsWithIgnoreCase, equalsIgnoreCase } from 'vs/base/common/strings';
+import { startsWithIgnoreCase, equalsIgnoreCase } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
 
 /**
@@ -340,7 +340,7 @@ export function isEqualOrParent(path: string, candidate: string, ignoreCase?: bo
 	}
 
 	if (ignoreCase) {
-		const beginsWith = beginsWithIgnoreCase(path, candidate);
+		const beginsWith = startsWithIgnoreCase(path, candidate);
 		if (!beginsWith) {
 			return false;
 		}

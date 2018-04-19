@@ -32,8 +32,9 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { SearchModel } from 'vs/workbench/parts/search/common/searchModel';
 import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
 
-import Event, * as event from 'vs/base/common/event';
+import * as event from 'vs/base/common/event';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { NullLogService, ILogService } from 'vs/platform/log/common/log';
 
 declare var __dirname: string;
 
@@ -41,7 +42,7 @@ declare var __dirname: string;
 // git clone --separate-git-dir=testGit --no-checkout --single-branch https://chromium.googlesource.com/chromium/src testWorkspace
 // cd testWorkspace; git checkout 39a7f93d67f7
 // Run from repository root folder with (test.bat on Windows): ./scripts/test-int-mocha.sh --grep TextSearch.performance --timeout 500000 --testWorkspace <path>
-suite.skip('TextSearch performance (integration)', () => {
+suite('TextSearch performance (integration)', () => {
 
 	test('Measure', () => {
 		if (process.env['VSCODE_PID']) {
@@ -67,7 +68,8 @@ suite.skip('TextSearch performance (integration)', () => {
 			[IEditorGroupService, new TestEditorGroupService()],
 			[IEnvironmentService, TestEnvironmentService],
 			[IUntitledEditorService, createSyncDescriptor(UntitledEditorService)],
-			[ISearchService, createSyncDescriptor(SearchService)]
+			[ISearchService, createSyncDescriptor(SearchService)],
+			[ILogService, new NullLogService()]
 		));
 
 		const queryOptions: IQueryOptions = {
@@ -148,7 +150,7 @@ class TestTelemetryService implements ITelemetryService {
 
 	private emitter = new event.Emitter<any>();
 
-	public get eventLogged(): Event<any> {
+	public get eventLogged(): event.Event<any> {
 		return this.emitter.event;
 	}
 

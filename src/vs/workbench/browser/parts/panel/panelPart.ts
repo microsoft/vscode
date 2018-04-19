@@ -6,19 +6,17 @@
 import 'vs/css!./media/panelpart';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, Action } from 'vs/base/common/actions';
-import Event from 'vs/base/common/event';
-import { Builder, Dimension } from 'vs/base/browser/builder';
+import { Event } from 'vs/base/common/event';
+import { $ } from 'vs/base/browser/builder';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Scope } from 'vs/workbench/browser/actions';
 import { IPanel } from 'vs/workbench/common/panel';
 import { CompositePart, ICompositeTitleLabel } from 'vs/workbench/browser/parts/compositePart';
-import { Panel, PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
+import { Panel, PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { IPanelService, IPanelIdentifier } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts, Position } from 'vs/workbench/services/part/common/partService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -31,6 +29,8 @@ import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/composit
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { Dimension } from 'vs/base/browser/dom';
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
@@ -43,21 +43,20 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private blockOpeningPanel: boolean;
 	private compositeBar: CompositeBar;
 	private dimension: Dimension;
-	private toolbarWidth = new Map<string, number>();
 
 	constructor(
 		id: string,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IPartService partService: IPartService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
+		@IThemeService themeService: IThemeService
 	) {
 		super(
-			messageService,
+			notificationService,
 			storageService,
 			telemetryService,
 			contextMenuService,
@@ -70,7 +69,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId(),
 			'panel',
 			'panel',
-			Scope.PANEL,
 			null,
 			id,
 			{ hasTitle: true }
@@ -102,16 +100,18 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	private registerListeners(): void {
 
+		this.toUnbind.push(this.registry.onDidRegister(panelDescriptor => this.compositeBar.addComposite(panelDescriptor, false)));
+
 		// Activate panel action on opening of a panel
 		this.toUnbind.push(this.onDidPanelOpen(panel => {
 			this.compositeBar.activateComposite(panel.getId());
 			// Need to relayout composite bar since different panels have different action bar width
 			this.layoutCompositeBar();
 		}));
+		this.toUnbind.push(this.compositeBar.onDidContextMenu(e => this.showContextMenu(e)));
 
 		// Deactivate panel action on close
 		this.toUnbind.push(this.onDidPanelClose(panel => this.compositeBar.deactivateComposite(panel.getId())));
-		this.toUnbind.push(this.compositeBar.onDidContextMenu(e => this.showContextMenu(e)));
 	}
 
 	public get onDidPanelOpen(): Event<IPanel> {
@@ -125,11 +125,11 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	public updateStyles(): void {
 		super.updateStyles();
 
-		const container = this.getContainer();
+		const container = $(this.getContainer());
 		container.style('background-color', this.getColor(PANEL_BACKGROUND));
 		container.style('border-left-color', this.getColor(PANEL_BORDER) || this.getColor(contrastBorder));
 
-		const title = this.getTitleArea();
+		const title = $(this.getTitleArea());
 		title.style('border-top-color', this.getColor(PANEL_BORDER) || this.getColor(contrastBorder));
 	}
 
@@ -157,7 +157,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	private getPanel(panelId: string): IPanelIdentifier {
-		return Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels().filter(p => p.id === panelId).pop();
+		return this.getPanels().filter(p => p.id === panelId).pop();
 	}
 
 	private showContextMenu(e: MouseEvent): void {
@@ -171,9 +171,22 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		});
 	}
 
-	public getPanels(): IPanelIdentifier[] {
+	public getPanels(): PanelDescriptor[] {
 		return Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels()
+			.filter(p => p.enabled)
 			.sort((v1, v2) => v1.order - v2.order);
+	}
+
+	public setPanelEnablement(id: string, enabled: boolean): void {
+		const descriptor = Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels().filter(p => p.id === id).pop();
+		if (descriptor && descriptor.enabled !== enabled) {
+			descriptor.enabled = enabled;
+			if (enabled) {
+				this.compositeBar.addComposite(descriptor, true);
+			} else {
+				this.compositeBar.removeComposite(id);
+			}
+		}
 	}
 
 	protected getActions(): IAction[] {
@@ -196,8 +209,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return this.hideActiveComposite().then(composite => void 0);
 	}
 
-	protected createTitleLabel(parent: Builder): ICompositeTitleLabel {
-		const titleArea = this.compositeBar.create(parent.getHTMLElement());
+	protected createTitleLabel(parent: HTMLElement): ICompositeTitleLabel {
+		const titleArea = this.compositeBar.create(parent);
 		titleArea.classList.add('panel-switcher-container');
 
 		return {
@@ -230,6 +243,11 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return sizes;
 	}
 
+	public shutdown(): void {
+		this.compositeBar.shutdown();
+		super.shutdown();
+	}
+
 	private layoutCompositeBar(): void {
 		if (this.dimension) {
 			let availableWidth = this.dimension.width - 40; // take padding into account
@@ -246,19 +264,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		if (!activePanel) {
 			return 0;
 		}
-		if (!this.toolbarWidth.has(activePanel.getId())) {
-			this.toolbarWidth.set(activePanel.getId(), this.toolBar.getContainer().getHTMLElement().offsetWidth);
-		}
-
-		return this.toolbarWidth.get(activePanel.getId());
-	}
-
-	public shutdown(): void {
-		// Persist Hidden State
-		this.compositeBar.store();
-
-		// Pass to super
-		super.shutdown();
+		return this.toolBar.getItemsWidth();
 	}
 }
 

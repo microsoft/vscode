@@ -6,9 +6,10 @@
 'use strict';
 
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
-import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository } from './scm';
+import { Event, Emitter } from 'vs/base/common/event';
+import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator } from './scm';
 import { ILogService } from 'vs/platform/log/common/log';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 class SCMInput implements ISCMInput {
 
@@ -40,7 +41,19 @@ class SCMInput implements ISCMInput {
 	private _onDidChangePlaceholder = new Emitter<string>();
 	get onDidChangePlaceholder(): Event<string> { return this._onDidChangePlaceholder.event; }
 
-	public lineWarningLength: number | undefined = undefined;
+	private _validateInput: IInputValidator = () => TPromise.as(undefined);
+
+	get validateInput(): IInputValidator {
+		return this._validateInput;
+	}
+
+	set validateInput(validateInput: IInputValidator) {
+		this._validateInput = validateInput;
+		this._onDidChangeValidateInput.fire();
+	}
+
+	private _onDidChangeValidateInput = new Emitter<void>();
+	get onDidChangeValidateInput(): Event<void> { return this._onDidChangeValidateInput.event; }
 }
 
 class SCMRepository implements ISCMRepository {
@@ -79,7 +92,7 @@ export class SCMService implements ISCMService {
 	private _onDidRemoveProvider = new Emitter<ISCMRepository>();
 	get onDidRemoveRepository(): Event<ISCMRepository> { return this._onDidRemoveProvider.event; }
 
-	constructor( @ILogService private logService: ILogService) { }
+	constructor(@ILogService private logService: ILogService) { }
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository {
 		this.logService.trace('SCMService#registerSCMProvider');

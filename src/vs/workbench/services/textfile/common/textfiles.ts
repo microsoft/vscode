@@ -6,14 +6,15 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEncodingSupport, ConfirmResult } from 'vs/workbench/common/editor';
-import { IBaseStat, IResolveContentOptions } from 'vs/platform/files/common/files';
+import { IBaseStat, IResolveContentOptions, ITextSnapshot } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IRawTextSource } from 'vs/editor/common/model/textSource';
+import { ITextBufferFactory } from 'vs/editor/common/model';
 import { IRevertOptions } from 'vs/platform/editor/common/editor';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 /**
  * The save error handler can be installed on the text text file editor model to install code that executes when save errors occur.
@@ -90,6 +91,7 @@ export class TextFileModelChangeEvent {
 }
 
 export const TEXT_FILE_SERVICE_ID = 'textFileService';
+export const AutoSaveContext = new RawContextKey<string>('config.files.autoSave', undefined);
 
 export interface ITextFileOperationResult {
 	results: IResult[];
@@ -129,12 +131,7 @@ export interface IRawTextContent extends IBaseStat {
 	/**
 	 * The line grouped content of a text file.
 	 */
-	value: IRawTextSource;
-
-	/**
-	 * The line grouped logical hash of a text file.
-	 */
-	valueLogicalHash: string;
+	value: ITextBufferFactory;
 
 	/**
 	 * The encoding of the content if known.
@@ -143,8 +140,22 @@ export interface IRawTextContent extends IBaseStat {
 }
 
 export interface IModelLoadOrCreateOptions {
+
+
+	/**
+	 * The encoding to use when resolving the model text content.
+	 */
 	encoding?: string;
+
+	/**
+	 * Wether to reload the model if it already exists.
+	 */
 	reload?: boolean;
+
+	/**
+	 * Allow to load a model even if we think it is a binary file.
+	 */
+	allowBinary?: boolean;
 }
 
 export interface ITextFileEditorModelManager {
@@ -182,6 +193,19 @@ export interface ISaveOptions {
 	writeElevated?: boolean;
 }
 
+export interface ILoadOptions {
+
+	/**
+	 * Go to disk bypassing any cache of the model if any.
+	 */
+	forceReadFromDisk?: boolean;
+
+	/**
+	 * Allow to load a model even if we think it is a binary file.
+	 */
+	allowBinary?: boolean;
+}
+
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport {
 
 	onDidContentChange: Event<StateChange>;
@@ -199,11 +223,11 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	save(options?: ISaveOptions): TPromise<void>;
 
-	load(): TPromise<ITextFileEditorModel>;
+	load(options?: ILoadOptions): TPromise<ITextFileEditorModel>;
 
 	revert(soft?: boolean): TPromise<void>;
 
-	getValue(): string;
+	createSnapshot(): ITextSnapshot;
 
 	isDirty(): boolean;
 

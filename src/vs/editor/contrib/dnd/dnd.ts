@@ -17,7 +17,8 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { DragAndDropCommand } from 'vs/editor/contrib/dnd/dragAndDropCommand';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { IModelDeltaDecoration } from 'vs/editor/common/model';
 
 export class DragAndDropController implements editorCommon.IEditorContribution {
 
@@ -172,22 +173,17 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 	});
 
 	public showAt(position: Position): void {
-		this._editor.changeDecorations(changeAccessor => {
-			let newDecorations: editorCommon.IModelDeltaDecoration[] = [];
-			newDecorations.push({
-				range: new Range(position.lineNumber, position.column, position.lineNumber, position.column),
-				options: DragAndDropController._DECORATION_OPTIONS
-			});
+		let newDecorations: IModelDeltaDecoration[] = [{
+			range: new Range(position.lineNumber, position.column, position.lineNumber, position.column),
+			options: DragAndDropController._DECORATION_OPTIONS
+		}];
 
-			this._dndDecorationIds = changeAccessor.deltaDecorations(this._dndDecorationIds, newDecorations);
-		});
+		this._dndDecorationIds = this._editor.deltaDecorations(this._dndDecorationIds, newDecorations);
 		this._editor.revealPosition(position, editorCommon.ScrollType.Immediate);
 	}
 
 	private _removeDecoration(): void {
-		this._editor.changeDecorations(changeAccessor => {
-			changeAccessor.deltaDecorations(this._dndDecorationIds, []);
-		});
+		this._dndDecorationIds = this._editor.deltaDecorations(this._dndDecorationIds, []);
 	}
 
 	private _hitContent(target: IMouseTarget): boolean {

@@ -5,10 +5,10 @@
 
 'use strict';
 
-import path = require('path');
-import os = require('os');
-import net = require('net');
-import cp = require('child_process');
+import * as path from 'path';
+import * as os from 'os';
+import * as net from 'net';
+import * as cp from 'child_process';
 import uri from 'vs/base/common/uri';
 
 export interface IForkOpts {
@@ -50,7 +50,6 @@ function generatePatchedEnv(env: any, stdInPipeName: string, stdOutPipeName: str
 	newEnv['STDOUT_PIPE_NAME'] = stdOutPipeName;
 	newEnv['STDERR_PIPE_NAME'] = stdErrPipeName;
 	newEnv['ELECTRON_RUN_AS_NODE'] = '1';
-	newEnv['ELECTRON_NO_ASAR'] = '1';
 
 	return newEnv;
 }

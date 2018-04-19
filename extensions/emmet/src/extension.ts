@@ -142,6 +142,7 @@ export function activate(context: vscode.ExtensionContext) {
  */
 const languageMappingForCompletionProviders: Map<string, string> = new Map<string, string>();
 const completionProvidersMapping: Map<string, vscode.Disposable> = new Map<string, vscode.Disposable>();
+const languagesToSkipCompletionProviders = ['html'];
 
 function registerCompletionProviders(context: vscode.ExtensionContext) {
 	let completionProvider = new DefaultCompletionItemProvider();
@@ -169,7 +170,7 @@ function registerCompletionProviders(context: vscode.ExtensionContext) {
 	});
 
 	Object.keys(LANGUAGE_MODES).forEach(language => {
-		if (!languageMappingForCompletionProviders.has(language)) {
+		if (languagesToSkipCompletionProviders.indexOf(language) === -1 && !languageMappingForCompletionProviders.has(language)) {
 			const provider = vscode.languages.registerCompletionItemProvider(language, completionProvider, ...LANGUAGE_MODES[language]);
 			context.subscriptions.push(provider);
 

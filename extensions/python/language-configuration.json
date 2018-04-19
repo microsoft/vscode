@@ -1,7 +1,7 @@
 {
 	"comments": {
 		"lineComment": "#",
-		"blockComment": [ "'''", "'''" ]
+		"blockComment": [ "\"\"\"", "\"\"\"" ]
 	},
 	"brackets": [
 		["{", "}"],
@@ -29,20 +29,22 @@
 		{ "open": "f'", "close": "'", "notIn": ["string", "comment"] },
 		{ "open": "F'", "close": "'", "notIn": ["string", "comment"] },
 		{ "open": "b'", "close": "'", "notIn": ["string", "comment"] },
-		{ "open": "B'", "close": "'", "notIn": ["string", "comment"] }
+		{ "open": "B'", "close": "'", "notIn": ["string", "comment"] },
+		{ "open": "`", "close": "`", "notIn": ["string"] }
 	],
 	"surroundingPairs": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
 		["\"", "\""],
-		["'", "'"]
+		["'", "'"],
+		["`", "`"]
 	],
 	"folding": {
 		"offSide": true,
 		"markers": {
-			"start": "^\\s*#region\\b",
-			"end": "^\\s*#endregion\\b"
+			"start": "^\\s*#\\s*region\\b",
+			"end": "^\\s*#\\s*endregion\\b"
 		}
 	}
 }

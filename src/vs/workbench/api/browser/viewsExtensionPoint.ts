@@ -7,9 +7,9 @@
 import { localize } from 'vs/nls';
 import { forEach } from 'vs/base/common/collections';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
-import { ViewLocation, ViewsRegistry, IViewDescriptor } from 'vs/workbench/browser/parts/views/viewsRegistry';
-import { TreeView } from 'vs/workbench/browser/parts/views/treeView';
+import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { ViewLocation, ViewsRegistry, ICustomViewDescriptor } from 'vs/workbench/common/views';
+import { CustomTreeViewPanel } from 'vs/workbench/browser/parts/views/customViewPanel';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { coalesce, } from 'vs/base/common/arrays';
 
@@ -83,6 +83,14 @@ namespace schema {
 	};
 }
 
+function getViewLocation(value: string): ViewLocation {
+	switch (value) {
+		case 'explorer': return ViewLocation.Explorer;
+		case 'debug': return ViewLocation.Debug;
+		default: return ViewLocation.get(`workbench.view.extension.${value}`) || ViewLocation.Explorer;
+	}
+}
+
 ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyViewDescriptor[] }>('views', [], schema.viewsContribution)
 	.setHandler((extensions) => {
 		for (let extension of extensions) {
@@ -93,23 +101,19 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyV
 					return;
 				}
 
-				const location = ViewLocation.getContributedViewLocation(entry.key);
-				if (!location) {
-					collector.warn(localize('locationId.invalid', "`{0}` is not a valid view location", entry.key));
-					return;
-				}
-
+				const location = getViewLocation(entry.key);
 				const registeredViews = ViewsRegistry.getViews(location);
 				const viewIds = [];
 				const viewDescriptors = coalesce(entry.value.map(item => {
-					const viewDescriptor = <IViewDescriptor>{
+					const viewDescriptor = <ICustomViewDescriptor>{
 						id: item.id,
 						name: item.name,
-						ctor: TreeView,
+						ctor: CustomTreeViewPanel,
 						location,
 						when: ContextKeyExpr.deserialize(item.when),
 						canToggleVisibility: true,
-						collapsed: true
+						collapsed: true,
+						treeView: true
 					};
 
 					// validate

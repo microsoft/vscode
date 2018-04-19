@@ -16,13 +16,14 @@ import { HoverOperation, IHoverComputer } from './hoverOperation';
 import { ContentHoverWidget } from './hoverWidgets';
 import { IMarkdownString, MarkdownString, isEmptyMarkdownString, markedStringsEquals } from 'vs/base/common/htmlContent';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel';
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidget';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
 import { Color, RGBA } from 'vs/base/common/color';
 import { IDisposable, empty as EmptyDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { getColorPresentations } from 'vs/editor/contrib/colorPicker/color';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 const $ = dom.$;
 
 class ColorHover {
@@ -167,15 +168,21 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	private _colorPicker: ColorPickerWidget;
 
 	private renderDisposable: IDisposable = EmptyDisposable;
-	private toDispose: IDisposable[];
+	private toDispose: IDisposable[] = [];
 
-	constructor(editor: ICodeEditor, markdownRenderner: MarkdownRenderer) {
+	constructor(
+		editor: ICodeEditor,
+		markdownRenderner: MarkdownRenderer,
+		private readonly _themeService: IThemeService
+	) {
 		super(ModesContentHoverWidget.ID, editor);
 
 		this._computer = new ModesContentComputer(this._editor);
 		this._highlightDecorations = [];
 		this._isChangingDecorations = false;
+
 		this._markdownRenderer = markdownRenderner;
+		markdownRenderner.onDidRenderCodeBlock(this.onContentsChange, this, this.toDispose);
 
 		this._hoverOperation = new HoverOperation(
 			this._computer,
@@ -184,7 +191,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			result => this._withResult(result, false)
 		);
 
-		this.toDispose = [];
 		this.toDispose.push(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.FOCUS, () => {
 			if (this._colorPicker) {
 				dom.addClass(this.getDomNode(), 'colorpicker-hover');
@@ -299,6 +305,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			isEmptyHoverContent = true;
 
 		let containColorPicker = false;
+		let markdownDisposeable: IDisposable;
 		messages.forEach((msg) => {
 			if (!msg.range) {
 				return;
@@ -312,7 +319,8 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					.filter(contents => !isEmptyMarkdownString(contents))
 					.forEach(contents => {
 						const renderedContents = this._markdownRenderer.render(contents);
-						fragment.appendChild($('div.hover-row', null, renderedContents));
+						markdownDisposeable = renderedContents;
+						fragment.appendChild($('div.hover-row', null, renderedContents.element));
 						isEmptyHoverContent = false;
 					});
 			} else {
@@ -328,7 +336,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 				// create blank olor picker model and widget first to ensure it's positioned correctly.
 				const model = new ColorPickerModel(color, [], 0);
-				const widget = new ColorPickerWidget(fragment, model, this._editor.getConfiguration().pixelRatio);
+				const widget = new ColorPickerWidget(fragment, model, this._editor.getConfiguration().pixelRatio, this._themeService);
 
 				getColorPresentations(editorModel, colorInfo, msg.provider).then(colorPresentations => {
 					model.colorPresentations = colorPresentations;
@@ -387,7 +395,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					this.updateContents(fragment);
 					this._colorPicker.layout();
 
-					this.renderDisposable = combinedDisposable([colorListener, colorChangeListener, widget]);
+					this.renderDisposable = combinedDisposable([colorListener, colorChangeListener, widget, markdownDisposeable]);
 				});
 			}
 		});

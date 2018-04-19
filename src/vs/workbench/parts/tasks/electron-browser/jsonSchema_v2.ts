@@ -10,7 +10,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 import commonSchema from './jsonSchemaCommon';
 
-import { ProblemMatcherRegistry } from 'vs/platform/markers/common/problemMatcher';
+import { ProblemMatcherRegistry } from 'vs/workbench/parts/tasks/common/problemMatcher';
 import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry';
 
 function fixReferences(literal: any) {
@@ -133,10 +133,10 @@ const group: IJSONSchema = {
 		'none'
 	],
 	enumDescriptions: [
-		nls.localize('JsonSchema.tasks.group.defaultBuild', 'Marks the tasks as the default build task.'),
-		nls.localize('JsonSchema.tasks.group.defaultTest', 'Marks the tasks as the default test task.'),
-		nls.localize('JsonSchema.tasks.group.build', 'Marks the tasks as a build task accesible through the \'Run Build Task\' command.'),
-		nls.localize('JsonSchema.tasks.group.test', 'Marks the tasks as a test task accesible through the \'Run Test Task\' command.'),
+		nls.localize('JsonSchema.tasks.group.defaultBuild', 'Marks the task as the default build task.'),
+		nls.localize('JsonSchema.tasks.group.defaultTest', 'Marks the task as the default test task.'),
+		nls.localize('JsonSchema.tasks.group.build', 'Marks the task as a build task accesible through the \'Run Build Task\' command.'),
+		nls.localize('JsonSchema.tasks.group.test', 'Marks the task as a test task accesible through the \'Run Test Task\' command.'),
 		nls.localize('JsonSchema.tasks.group.none', 'Assigns the task to no group')
 	],
 	description: nls.localize('JsonSchema.tasks.group', 'Defines to which execution group this task belongs to. It supports "build" to add it to the build group and "test" to add it to the test group.')
@@ -147,6 +147,71 @@ const taskType: IJSONSchema = {
 	enum: ['shell', 'process'],
 	default: 'shell',
 	description: nls.localize('JsonSchema.tasks.type', 'Defines whether the task is run as a process or as a command inside a shell.')
+};
+
+const command: IJSONSchema = {
+	oneOf: [
+		{
+			type: 'string',
+		},
+		{
+			type: 'object',
+			required: ['value', 'quoting'],
+			properties: {
+				value: {
+					type: 'string',
+					description: nls.localize('JsonSchema.command.quotedString.value', 'The actual command value')
+				},
+				quoting: {
+					type: 'string',
+					enum: ['escape', 'strong', 'weak'],
+					enumDescriptions: [
+						nls.localize('JsonSchema.tasks.quoting.escape', 'Escapes characters using the shell\'s escape character (e.g. ` under PowerShell and \\ under bash).'),
+						nls.localize('JsonSchema.tasks.quoting.strong', 'Quotes the argument using the shell\'s strong quote character (e.g. " under PowerShell and bash).'),
+						nls.localize('JsonSchema.tasks.quoting.weak', 'Quotes the argument using the shell\'s weak quote character (e.g. \' under PowerShell and bash).'),
+					],
+					default: 'strong',
+					description: nls.localize('JsonSchema.command.quotesString.quote', 'How the command value should be quoted.')
+				}
+			}
+
+		}
+	],
+	description: nls.localize('JsonSchema.command', 'The command to be executed. Can be an external program or a shell command.')
+};
+
+const args: IJSONSchema = {
+	type: 'array',
+	items: {
+		oneOf: [
+			{
+				type: 'string',
+			},
+			{
+				type: 'object',
+				required: ['value', 'quoting'],
+				properties: {
+					value: {
+						type: 'string',
+						description: nls.localize('JsonSchema.args.quotedString.value', 'The actual argument value')
+					},
+					quoting: {
+						type: 'string',
+						enum: ['escape', 'strong', 'weak'],
+						enumDescriptions: [
+							nls.localize('JsonSchema.tasks.quoting.escape', 'Escapes characters using the shell\'s escape character (e.g. ` under PowerShell and \\ under bash).'),
+							nls.localize('JsonSchema.tasks.quoting.strong', 'Quotes the argument using the shell\'s strong quote character (e.g. " under PowerShell and bash).'),
+							nls.localize('JsonSchema.tasks.quoting.weak', 'Quotes the argument using the shell\'s weak quote character (e.g. \' under PowerShell and bash).'),
+						],
+						default: 'strong',
+						description: nls.localize('JsonSchema.args.quotesString.quote', 'How the argument value should be quoted.')
+					}
+				}
+
+			}
+		]
+	},
+	description: nls.localize('JsonSchema.tasks.args', 'Arguments passed to the command when this task is invoked.')
 };
 
 const label: IJSONSchema = {
@@ -164,6 +229,9 @@ const identifier: IJSONSchema = {
 	type: 'string',
 	description: nls.localize('JsonSchema.tasks.identifier', 'A user defined identifier to reference the task in launch.json or a dependsOn clause.')
 };
+
+const options: IJSONSchema = Objects.deepClone(commonSchema.definitions.options);
+options.properties.shell = Objects.deepClone(commonSchema.definitions.shellConfiguration);
 
 let taskConfiguration: IJSONSchema = {
 	type: 'object',
@@ -191,6 +259,7 @@ let taskConfiguration: IJSONSchema = {
 			default: false
 		},
 		presentation: Objects.deepClone(presentation),
+		options: options,
 		problemMatcher: {
 			$ref: '#/definitions/problemMatcherType',
 			description: nls.localize('JsonSchema.tasks.matchers', 'The problem matcher(s) to use. Can either be a string or a problem matcher definition or an array of strings and problem matchers.')
@@ -231,6 +300,8 @@ let definitions = Objects.deepClone(commonSchema.definitions);
 let taskDescription: IJSONSchema = definitions.taskDescription;
 taskDescription.required = ['label'];
 taskDescription.properties.label = Objects.deepClone(label);
+taskDescription.properties.command = Objects.deepClone(command);
+taskDescription.properties.args = Objects.deepClone(args);
 taskDescription.properties.isShellCommand = Objects.deepClone(shellCommand);
 taskDescription.properties.dependsOn = dependsOn;
 taskDescription.properties.identifier = Objects.deepClone(identifier);

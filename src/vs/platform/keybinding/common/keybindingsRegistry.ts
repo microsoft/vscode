@@ -52,15 +52,20 @@ export interface IKeybindingRule2 {
 	when: ContextKeyExpr;
 }
 
+export const enum KeybindingRuleSource {
+	Core = 0,
+	Extension = 1
+}
+
 export interface ICommandAndKeybindingRule extends IKeybindingRule {
 	handler: ICommandHandler;
 	description?: ICommandHandlerDescription;
 }
 
 export interface IKeybindingsRegistry {
-	registerKeybindingRule(rule: IKeybindingRule): void;
-	registerKeybindingRule2(rule: IKeybindingRule2): void;
-	registerCommandAndKeybindingRule(desc: ICommandAndKeybindingRule): void;
+	registerKeybindingRule(rule: IKeybindingRule, source?: KeybindingRuleSource): void;
+	registerKeybindingRule2(rule: IKeybindingRule2, source?: KeybindingRuleSource): void;
+	registerCommandAndKeybindingRule(desc: ICommandAndKeybindingRule, source?: KeybindingRuleSource): void;
 	getDefaultKeybindings(): IKeybindingItem[];
 
 	WEIGHT: {
@@ -142,31 +147,31 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		return kb;
 	}
 
-	public registerKeybindingRule(rule: IKeybindingRule): void {
+	public registerKeybindingRule(rule: IKeybindingRule, source: KeybindingRuleSource = KeybindingRuleSource.Core): void {
 		let actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform(rule);
 
 		if (actualKb && actualKb.primary) {
-			this._registerDefaultKeybinding(createKeybinding(actualKb.primary, OS), rule.id, rule.weight, 0, rule.when);
+			this._registerDefaultKeybinding(createKeybinding(actualKb.primary, OS), rule.id, rule.weight, 0, rule.when, source);
 		}
 
 		if (actualKb && Array.isArray(actualKb.secondary)) {
 			for (let i = 0, len = actualKb.secondary.length; i < len; i++) {
 				const k = actualKb.secondary[i];
-				this._registerDefaultKeybinding(createKeybinding(k, OS), rule.id, rule.weight, -i - 1, rule.when);
+				this._registerDefaultKeybinding(createKeybinding(k, OS), rule.id, rule.weight, -i - 1, rule.when, source);
 			}
 		}
 	}
 
-	public registerKeybindingRule2(rule: IKeybindingRule2): void {
+	public registerKeybindingRule2(rule: IKeybindingRule2, source: KeybindingRuleSource = KeybindingRuleSource.Core): void {
 		let actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform2(rule);
 
 		if (actualKb && actualKb.primary) {
-			this._registerDefaultKeybinding(actualKb.primary, rule.id, rule.weight, 0, rule.when);
+			this._registerDefaultKeybinding(actualKb.primary, rule.id, rule.weight, 0, rule.when, source);
 		}
 	}
 
-	public registerCommandAndKeybindingRule(desc: ICommandAndKeybindingRule): void {
-		this.registerKeybindingRule(desc);
+	public registerCommandAndKeybindingRule(desc: ICommandAndKeybindingRule, source: KeybindingRuleSource = KeybindingRuleSource.Core): void {
+		this.registerKeybindingRule(desc, source);
 		CommandsRegistry.registerCommand(desc);
 	}
 
@@ -204,8 +209,8 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		}
 	}
 
-	private _registerDefaultKeybinding(keybinding: Keybinding, commandId: string, weight1: number, weight2: number, when: ContextKeyExpr): void {
-		if (OS === OperatingSystem.Windows) {
+	private _registerDefaultKeybinding(keybinding: Keybinding, commandId: string, weight1: number, weight2: number, when: ContextKeyExpr, source: KeybindingRuleSource): void {
+		if (source === KeybindingRuleSource.Core && OS === OperatingSystem.Windows) {
 			if (keybinding.type === KeybindingType.Chord) {
 				this._assertNoCtrlAlt(keybinding.firstPart, commandId);
 			} else {

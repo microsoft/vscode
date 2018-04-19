@@ -12,11 +12,11 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Color } from 'vs/base/common/color';
 
 export interface IFindInputCheckboxOpts {
-	appendTitle: string;
-	isChecked: boolean;
-	onChange: (viaKeyboard: boolean) => void;
-	onKeyDown?: (e: IKeyboardEvent) => void;
-	inputActiveOptionBorder?: Color;
+	readonly appendTitle: string;
+	readonly isChecked: boolean;
+	readonly onChange: (viaKeyboard: boolean) => void;
+	readonly onKeyDown?: (e: IKeyboardEvent) => void;
+	readonly inputActiveOptionBorder?: Color;
 }
 
 const NLS_CASE_SENSITIVE_CHECKBOX_LABEL = nls.localize('caseDescription', "Match Case");

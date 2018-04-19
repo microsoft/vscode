@@ -7,10 +7,10 @@ import * as nls from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { ExtensionsRegistry, IExtensionPointUser } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, editorConfigurationSchemaId, IDefaultConfigurationExtension, validateProperty, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { workspaceSettingsSchemaId } from 'vs/workbench/services/configuration/common/configuration';
+import { workspaceSettingsSchemaId, launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 
@@ -32,13 +32,15 @@ const configurationEntrySchema: IJSONSchema = {
 						type: 'object',
 						properties: {
 							isExecutable: {
-								type: 'boolean'
+								type: 'boolean',
+								deprecationMessage: 'This property is deprecated. Instead use `scope` property and set it to `application` value.'
 							},
 							scope: {
 								type: 'string',
-								enum: ['window', 'resource'],
+								enum: ['application', 'window', 'resource'],
 								default: 'window',
 								enumDescriptions: [
+									nls.localize('scope.application.description', "Application specific configuration, which can be configured only in User settings."),
 									nls.localize('scope.window.description', "Window specific configuration, which can be configured in the User or Workspace settings."),
 									nls.localize('scope.resource.description', "Resource specific configuration, which can be configured in the User, Workspace or Folder settings.")
 								],
@@ -94,7 +96,7 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigu
 configurationExtPoint.setHandler(extensions => {
 	const configurations: IConfigurationNode[] = [];
 
-	function handleConfiguration(node: IConfigurationNode, id: string, extension: IExtensionPointUser<any>) {
+	function handleConfiguration(node: IConfigurationNode, extension: IExtensionPointUser<any>) {
 		let configuration = objects.deepClone(node);
 
 		if (configuration.title && (typeof configuration.title !== 'string')) {
@@ -103,17 +105,17 @@ configurationExtPoint.setHandler(extensions => {
 
 		validateProperties(configuration, extension);
 
-		configuration.id = id;
+		configuration.id = extension.description.uuid || extension.description.id;
+		configuration.title = configuration.title || extension.description.displayName || extension.description.id;
 		configurations.push(configuration);
 	}
 
 	for (let extension of extensions) {
 		const value = <IConfigurationNode | IConfigurationNode[]>extension.value;
-		const id = extension.description.id;
 		if (!Array.isArray(value)) {
-			handleConfiguration(value, id, extension);
+			handleConfiguration(value, extension);
 		} else {
-			value.forEach(v => handleConfiguration(v, id, extension));
+			value.forEach(v => handleConfiguration(v, extension));
 		}
 	}
 	configurationRegistry.registerConfigurations(configurations, registeredDefaultConfigurations, false);
@@ -130,7 +132,17 @@ function validateProperties(configuration: IConfigurationNode, extension: IExten
 		for (let key in properties) {
 			const message = validateProperty(key);
 			const propertyConfiguration = configuration.properties[key];
-			propertyConfiguration.scope = propertyConfiguration.scope && propertyConfiguration.scope.toString() === 'resource' ? ConfigurationScope.RESOURCE : ConfigurationScope.WINDOW;
+			if (propertyConfiguration.scope) {
+				if (propertyConfiguration.scope.toString() === 'application') {
+					propertyConfiguration.scope = ConfigurationScope.APPLICATION;
+				} else if (propertyConfiguration.scope.toString() === 'resource') {
+					propertyConfiguration.scope = ConfigurationScope.RESOURCE;
+				} else {
+					propertyConfiguration.scope = ConfigurationScope.WINDOW;
+				}
+			} else {
+				propertyConfiguration.scope = ConfigurationScope.WINDOW;
+			}
 			propertyConfiguration.notMultiRootAdopted = !(extension.description.isBuiltin || (Array.isArray(extension.description.keywords) && extension.description.keywords.indexOf('multi-root ready') !== -1));
 			if (message) {
 				extension.collector.warn(message);
@@ -200,6 +212,12 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 			default: {},
 			description: nls.localize('workspaceConfig.settings.description', "Workspace settings"),
 			$ref: workspaceSettingsSchemaId
+		},
+		'launch': {
+			type: 'object',
+			default: { configurations: [], compounds: [] },
+			description: nls.localize('workspaceConfig.launch.description', "Workspace launch configurations"),
+			$ref: launchSchemaId
 		},
 		'extensions': {
 			type: 'object',

@@ -13,16 +13,19 @@ import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorC
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IPosition } from 'vs/editor/common/core/position';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
+import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class TestCodeEditor extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
@@ -77,7 +80,7 @@ export class TestCodeEditor extends CommonCodeEditor implements editorBrowser.IC
 
 	protected _registerDecorationType(key: string, options: editorCommon.IDecorationRenderOptions, parentTypeKey?: string): void { throw new Error('NotImplemented'); }
 	protected _removeDecorationType(key: string): void { throw new Error('NotImplemented'); }
-	protected _resolveDecorationOptions(typeKey: string, writable: boolean): editorCommon.IModelDecorationOptions { throw new Error('NotImplemented'); }
+	protected _resolveDecorationOptions(typeKey: string, writable: boolean): IModelDecorationOptions { throw new Error('NotImplemented'); }
 
 	// --- test utils
 	getCursor(): Cursor {
@@ -139,15 +142,15 @@ export interface TestCodeEditorCreationOptions extends editorOptions.IEditorOpti
 	/**
 	 * The initial model associated with this code editor.
 	 */
-	model?: editorCommon.IModel;
+	model?: ITextModel;
 	serviceCollection?: ServiceCollection;
 }
 
 export function withTestCodeEditor(text: string[], options: TestCodeEditorCreationOptions, callback: (editor: TestCodeEditor, cursor: Cursor) => void): void {
 	// create a model if necessary and remember it in order to dispose it.
-	let modelToDispose: Model = null;
+	let modelToDispose: TextModel = null;
 	if (!options.model) {
-		modelToDispose = Model.createFromString(text.join('\n'));
+		modelToDispose = TextModel.createFromString(text.join('\n'));
 		options.model = modelToDispose;
 	}
 
@@ -160,19 +163,21 @@ export function withTestCodeEditor(text: string[], options: TestCodeEditorCreati
 	editor.dispose();
 }
 
-export function createTestCodeEditor(model: editorCommon.IModel): TestCodeEditor {
+export function createTestCodeEditor(model: ITextModel): TestCodeEditor {
 	return _createTestCodeEditor({ model: model });
 }
 
 function _createTestCodeEditor(options: TestCodeEditorCreationOptions): TestCodeEditor {
 
 	let contextKeyService = new MockContextKeyService();
+	let notificationService = new TestNotificationService();
 
 	let services = options.serviceCollection || new ServiceCollection();
 	services.set(IContextKeyService, contextKeyService);
+	services.set(INotificationService, notificationService);
 	let instantiationService = new InstantiationService(services);
 
-	let editor = new TestCodeEditor(new MockScopeLocation(), options, instantiationService, contextKeyService);
+	let editor = new TestCodeEditor(new MockScopeLocation(), options, false, instantiationService, contextKeyService, notificationService);
 	editor.setModel(options.model);
 	return editor;
 }

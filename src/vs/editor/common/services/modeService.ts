@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IMode, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 
-export var IModeService = createDecorator<IModeService>('modeService');
+export const IModeService = createDecorator<IModeService>('modeService');
 
 export interface ILanguageExtensionPoint {
 	id: string;

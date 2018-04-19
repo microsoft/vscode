@@ -5,23 +5,24 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { mixin } from 'vs/base/common/objects';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
-import { EditorInput, TextEditorOptions, EditorOptions, IEditorIdentifier, IEditorContext, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands, ConfirmResult } from 'vs/workbench/common/editor';
+import { EditorInput, TextEditorOptions, EditorOptions, IEditorIdentifier, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands, ConfirmResult, IEditorCommandsContext } from 'vs/workbench/common/editor';
 import { QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { Position, IEditor, Direction, IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
+import { Position, IEditor, Direction, IResourceInput, IEditorInput, POSITIONS } from 'vs/platform/editor/common/editor';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorGroupService, GroupArrangement } from 'vs/workbench/services/group/common/groupService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { CLOSE_EDITOR_COMMAND_ID, NAVIGATE_IN_GROUP_ONE_PREFIX, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, NAVIGATE_IN_GROUP_THREE_PREFIX, NAVIGATE_IN_GROUP_TWO_PREFIX } from 'vs/workbench/browser/parts/editor/editorCommands';
 
 export class SplitEditorAction extends Action {
 
@@ -37,10 +38,11 @@ export class SplitEditorAction extends Action {
 		super(id, label, 'split-editor-action');
 	}
 
-	public run(context?: IEditorContext): TPromise<any> {
+	public run(context?: IEditorCommandsContext): TPromise<any> {
 		let editorToSplit: IEditor;
 		if (context) {
-			editorToSplit = this.editorService.getVisibleEditors()[this.editorGroupService.getStacksModel().positionOfGroup(context.group)];
+			const stacks = this.editorGroupService.getStacksModel();
+			editorToSplit = this.editorService.getVisibleEditors()[stacks.positionOfGroup(stacks.getGroup(context.groupId))];
 		} else {
 			editorToSplit = this.editorService.getActiveEditor();
 		}
@@ -118,7 +120,7 @@ export class JoinTwoGroupsAction extends Action {
 		super(id, label);
 	}
 
-	public run(context?: IEditorContext): TPromise<any> {
+	public run(context?: IEditorIdentifier): TPromise<any> {
 
 		const editorStacksModel = this.editorGroupService.getStacksModel();
 
@@ -531,14 +533,35 @@ export class CloseEditorAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@ICommandService private commandService: ICommandService
 	) {
 		super(id, label, 'close-editor-action');
 	}
 
-	public run(context?: IEditorContext): TPromise<any> {
-		const position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
+	public run(context?: IEditorCommandsContext): TPromise<any> {
+		return this.commandService.executeCommand(CLOSE_EDITOR_COMMAND_ID, void 0, context);
+	}
+}
+
+export class CloseOneEditorAction extends Action {
+
+	public static readonly ID = 'workbench.action.closeActiveEditor';
+	public static readonly LABEL = nls.localize('closeOneEditor', "Close");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService
+	) {
+		super(id, label, 'close-editor-action');
+	}
+
+	public run(context?: IEditorCommandsContext): TPromise<any> {
+		const model = this.editorGroupService.getStacksModel();
+
+		const group = context ? model.getGroup(context.groupId) : null;
+		const position = group ? model.positionOfGroup(group) : null;
 
 		// Close Active Editor
 		if (typeof position !== 'number') {
@@ -548,18 +571,16 @@ export class CloseEditorAction extends Action {
 			}
 		}
 
-		let input = context ? context.editor : null;
-		if (!input) {
-
-			// Get Top Editor at Position
-			const visibleEditors = this.editorService.getVisibleEditors();
-			if (visibleEditors[position]) {
-				input = visibleEditors[position].input;
-			}
+		// Close Specific Editor
+		const editor = group && context && typeof context.editorIndex === 'number' ? group.getEditor(context.editorIndex) : null;
+		if (editor) {
+			return this.editorService.closeEditor(position, editor);
 		}
 
-		if (input) {
-			return this.editorService.closeEditor(position, input);
+		// Close First Editor at Position
+		const visibleEditors = this.editorService.getVisibleEditors();
+		if (visibleEditors[position]) {
+			return this.editorService.closeEditor(position, visibleEditors[position].input);
 		}
 
 		return TPromise.as(false);
@@ -613,34 +634,10 @@ export class CloseLeftEditorsInGroupAction extends Action {
 		super(id, label);
 	}
 
-	public run(context?: IEditorContext): TPromise<any> {
+	public run(context?: IEditorIdentifier): TPromise<any> {
 		const editor = getTarget(this.editorService, this.groupService, context);
 		if (editor) {
 			return this.editorService.closeEditors(editor.position, { except: editor.input, direction: Direction.LEFT });
-		}
-
-		return TPromise.as(false);
-	}
-}
-
-export class CloseRightEditorsInGroupAction extends Action {
-
-	public static readonly ID = 'workbench.action.closeEditorsToTheRight';
-	public static readonly LABEL = nls.localize('closeEditorsToTheRight', "Close Editors to the Right");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private groupService: IEditorGroupService
-	) {
-		super(id, label);
-	}
-
-	public run(context?: IEditorContext): TPromise<any> {
-		const editor = getTarget(this.editorService, this.groupService, context);
-		if (editor) {
-			return this.editorService.closeEditors(editor.position, { except: editor.input, direction: Direction.RIGHT });
 		}
 
 		return TPromise.as(false);
@@ -665,7 +662,7 @@ export class CloseAllEditorsAction extends Action {
 
 		// Just close all if there are no or one dirty editor
 		if (this.textFileService.getDirty().length < 2) {
-			return this.editorService.closeAllEditors();
+			return this.editorService.closeEditors();
 		}
 
 		// Otherwise ask for combined confirmation
@@ -683,45 +680,12 @@ export class CloseAllEditorsAction extends Action {
 
 			return saveOrRevertPromise.then(success => {
 				if (success) {
-					return this.editorService.closeAllEditors();
+					return this.editorService.closeEditors();
 				}
 
 				return void 0;
 			});
 		});
-	}
-}
-
-export class CloseUnmodifiedEditorsInGroupAction extends Action {
-
-	public static readonly ID = 'workbench.action.closeUnmodifiedEditors';
-	public static readonly LABEL = nls.localize('closeUnmodifiedEditors', "Close Unmodified Editors in Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(context?: IEditorContext): TPromise<any> {
-		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
-
-		// If position is not passed in take the position of the active editor.
-		if (typeof position !== 'number') {
-			const active = this.editorService.getActiveEditor();
-			if (active) {
-				position = active.position;
-			}
-		}
-
-		if (typeof position === 'number') {
-			return this.editorService.closeEditors(position, { unmodifiedOnly: true });
-		}
-
-		return TPromise.as(false);
 	}
 }
 
@@ -739,7 +703,7 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 		super(id, label);
 	}
 
-	public run(context?: IEditorContext): TPromise<any> {
+	public run(context?: IEditorIdentifier): TPromise<any> {
 		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
 		if (typeof position !== 'number') {
 			const activeEditor = this.editorService.getActiveEditor();
@@ -749,71 +713,7 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 		}
 
 		if (typeof position === 'number') {
-			return this.editorService.closeAllEditors(position);
-		}
-
-		return TPromise.as(false);
-	}
-}
-
-export class CloseOtherEditorsInGroupAction extends Action {
-
-	public static readonly ID = 'workbench.action.closeOtherEditors';
-	public static readonly LABEL = nls.localize('closeOtherEditorsInGroup', "Close Other Editors");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(context?: IEditorContext): TPromise<any> {
-		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
-		let input = context ? context.editor : null;
-
-		// If position or input are not passed in take the position and input of the active editor.
-		const active = this.editorService.getActiveEditor();
-		if (active) {
-			position = typeof position === 'number' ? position : active.position;
-			input = input ? input : <EditorInput>active.input;
-		}
-
-		if (typeof position === 'number' && input) {
-			return this.editorService.closeEditors(position, { except: input });
-		}
-
-		return TPromise.as(false);
-	}
-}
-
-export class CloseEditorsInGroupAction extends Action {
-
-	public static readonly ID = 'workbench.action.closeEditorsInGroup';
-	public static readonly LABEL = nls.localize('closeEditorsInGroup', "Close All Editors in Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(context?: IEditorContext): TPromise<any> {
-		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
-		if (typeof position !== 'number') {
-			const activeEditor = this.editorService.getActiveEditor();
-			if (activeEditor) {
-				position = activeEditor.position;
-			}
-		}
-
-		if (typeof position === 'number') {
-			return this.editorService.closeEditors(position);
+			return this.editorService.closeEditors(POSITIONS.filter(p => p !== position));
 		}
 
 		return TPromise.as(false);
@@ -834,7 +734,7 @@ export class MoveGroupLeftAction extends Action {
 		super(id, label);
 	}
 
-	public run(context?: IEditorContext): TPromise<any> {
+	public run(context?: IEditorIdentifier): TPromise<any> {
 		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
 		if (typeof position !== 'number') {
 			const activeEditor = this.editorService.getActiveEditor();
@@ -868,7 +768,7 @@ export class MoveGroupRightAction extends Action {
 		super(id, label);
 	}
 
-	public run(context?: IEditorContext): TPromise<any> {
+	public run(context?: IEditorIdentifier): TPromise<any> {
 		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
 		if (typeof position !== 'number') {
 			const activeEditor = this.editorService.getActiveEditor();
@@ -947,31 +847,7 @@ export class MaximizeGroupAction extends Action {
 	}
 }
 
-export class KeepEditorAction extends Action {
-
-	public static readonly ID = 'workbench.action.keepEditor';
-	public static readonly LABEL = nls.localize('keepEditor', "Keep Editor");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(context?: IEditorContext): TPromise<any> {
-		const target = getTarget(this.editorService, this.editorGroupService, context);
-		if (target) {
-			this.editorGroupService.pinEditor(target.position, target.input);
-		}
-
-		return TPromise.as(true);
-	}
-}
-
-function getTarget(editorService: IWorkbenchEditorService, editorGroupService: IEditorGroupService, context?: IEditorContext): { input: IEditorInput, position: Position } {
+function getTarget(editorService: IWorkbenchEditorService, editorGroupService: IEditorGroupService, context?: IEditorIdentifier): { input: IEditorInput, position: Position } {
 	if (context) {
 		return { input: context.editor, position: editorGroupService.getStacksModel().positionOfGroup(context.group) };
 	}
@@ -1191,8 +1067,6 @@ export class ClearRecentFilesAction extends Action {
 	}
 }
 
-export const NAVIGATE_IN_GROUP_ONE_PREFIX = 'edt one ';
-
 export class ShowEditorsInGroupOneAction extends QuickOpenAction {
 
 	public static readonly ID = 'workbench.action.showEditorsInFirstGroup';
@@ -1208,8 +1082,6 @@ export class ShowEditorsInGroupOneAction extends QuickOpenAction {
 		this.class = 'show-group-editors-action';
 	}
 }
-
-export const NAVIGATE_IN_GROUP_TWO_PREFIX = 'edt two ';
 
 export class ShowEditorsInGroupTwoAction extends QuickOpenAction {
 
@@ -1227,8 +1099,6 @@ export class ShowEditorsInGroupTwoAction extends QuickOpenAction {
 	}
 }
 
-export const NAVIGATE_IN_GROUP_THREE_PREFIX = 'edt three ';
-
 export class ShowEditorsInGroupThreeAction extends QuickOpenAction {
 
 	public static readonly ID = 'workbench.action.showEditorsInThirdGroup';
@@ -1244,40 +1114,6 @@ export class ShowEditorsInGroupThreeAction extends QuickOpenAction {
 		this.class = 'show-group-editors-action';
 	}
 }
-
-export class ShowEditorsInGroupAction extends Action {
-
-	public static readonly ID = 'workbench.action.showEditorsInGroup';
-	public static readonly LABEL = nls.localize('showEditorsInGroup', "Show Editors in Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService
-	) {
-		super(id, label);
-	}
-
-	public run(context?: IEditorContext): TPromise<any> {
-		const stacks = this.editorGroupService.getStacksModel();
-		const groupCount = stacks.groups.length;
-		if (groupCount <= 1 || !context) {
-			return this.quickOpenService.show(NAVIGATE_ALL_EDITORS_GROUP_PREFIX);
-		}
-
-		switch (stacks.positionOfGroup(context.group)) {
-			case Position.TWO:
-				return this.quickOpenService.show(NAVIGATE_IN_GROUP_TWO_PREFIX);
-			case Position.THREE:
-				return this.quickOpenService.show(NAVIGATE_IN_GROUP_THREE_PREFIX);
-		}
-
-		return this.quickOpenService.show(NAVIGATE_IN_GROUP_ONE_PREFIX);
-	}
-}
-
-export const NAVIGATE_ALL_EDITORS_GROUP_PREFIX = 'edt ';
 
 export class ShowAllEditorsAction extends QuickOpenAction {
 
@@ -1551,5 +1387,72 @@ export class MoveEditorToNextGroupAction extends Action {
 		}
 
 		return TPromise.as(true);
+	}
+}
+
+export abstract class MoveEditorToSpecificGroup extends Action {
+
+	constructor(
+		id: string,
+		label: string,
+		private position: Position,
+		private editorGroupService: IEditorGroupService,
+		private editorService: IWorkbenchEditorService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const activeEditor = this.editorService.getActiveEditor();
+		if (activeEditor && activeEditor.position !== this.position) {
+			this.editorGroupService.moveEditor(activeEditor.input, activeEditor.position, this.position);
+		}
+
+		return TPromise.as(true);
+	}
+}
+
+export class MoveEditorToFirstGroupAction extends MoveEditorToSpecificGroup {
+
+	public static readonly ID = 'workbench.action.moveEditorToFirstGroup';
+	public static readonly LABEL = nls.localize('moveEditorToFirstGroup', "Move Editor into First Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+	) {
+		super(id, label, Position.ONE, editorGroupService, editorService);
+	}
+}
+
+export class MoveEditorToSecondGroupAction extends MoveEditorToSpecificGroup {
+
+	public static readonly ID = 'workbench.action.moveEditorToSecondGroup';
+	public static readonly LABEL = nls.localize('moveEditorToSecondGroup', "Move Editor into Second Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+	) {
+		super(id, label, Position.TWO, editorGroupService, editorService);
+	}
+}
+
+export class MoveEditorToThirdGroupAction extends MoveEditorToSpecificGroup {
+
+	public static readonly ID = 'workbench.action.moveEditorToThirdGroup';
+	public static readonly LABEL = nls.localize('moveEditorToThirdGroup', "Move Editor into Third Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+	) {
+		super(id, label, Position.THREE, editorGroupService, editorService);
 	}
 }

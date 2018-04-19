@@ -4,13 +4,9 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/a334939a6493290f874264712447107bc9545835",
+	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/7689494edad006eafb9025aa6d72f8a634011a00",
 	"name": "C#",
 	"scopeName": "source.cs",
-	"fileTypes": [
-		"cs"
-	],
-	"uuid": "f7de61e2-bdde-4e2a-a139-8221b179584e",
 	"patterns": [
 		{
 			"include": "#preprocessor"
@@ -2054,6 +2050,9 @@
 			"patterns": [
 				{
 					"include": "#block"
+				},
+				{
+					"include": "#comment"
 				}
 			]
 		},
@@ -3634,7 +3633,7 @@
 		},
 		"ref-modifier": {
 			"name": "storage.modifier.cs",
-			"match": "ref"
+			"match": "\\b(ref)\\b"
 		},
 		"tuple-type": {
 			"begin": "\\(",
@@ -3674,7 +3673,7 @@
 			}
 		},
 		"type-builtin": {
-			"match": "\\b(bool|byte|char|decimal|double|float|int|long|object|sbyte|short|string|uint|ulong|ushort|void)\\b",
+			"match": "\\b(bool|byte|char|decimal|double|float|int|long|object|sbyte|short|string|uint|ulong|ushort|void|dynamic)\\b",
 			"captures": {
 				"1": {
 					"name": "keyword.type.cs"
@@ -4135,7 +4134,7 @@
 						},
 						{
 							"name": "comment.line.double-slash.cs",
-							"begin": "(?<!/)//(?!/)",
+							"begin": "(?<!/)//(?:(?!/)|(?=//))",
 							"beginCaptures": {
 								"0": {
 									"name": "punctuation.definition.comment.cs"

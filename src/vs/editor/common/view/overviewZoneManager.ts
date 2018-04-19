@@ -180,6 +180,7 @@ export class OverviewZoneManager {
 		const totalHeight = Math.floor(this.getCanvasHeight()); // @perf
 		const outerHeight = Math.floor(this._outerHeight); // @perf
 		const heightRatio = totalHeight / outerHeight;
+		const halfMinimumHeight = Math.floor(Constants.MINIMUM_HEIGHT * this._pixelRatio / 2);
 
 		let allColorZones: ColorZone[] = [];
 		for (let i = 0, len = this._zones.length; i < len; i++) {
@@ -199,8 +200,8 @@ export class OverviewZoneManager {
 			let ycenter = Math.floor((y1 + y2) / 2);
 			let halfHeight = (y2 - ycenter);
 
-			if (halfHeight < Constants.MINIMUM_HEIGHT / 2) {
-				halfHeight = Constants.MINIMUM_HEIGHT / 2;
+			if (halfHeight < halfMinimumHeight) {
+				halfHeight = halfMinimumHeight;
 			}
 
 			if (ycenter - halfHeight < 0) {

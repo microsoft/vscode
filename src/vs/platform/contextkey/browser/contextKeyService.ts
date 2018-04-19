@@ -7,9 +7,9 @@
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IContextKey, IContext, IContextKeyServiceTarget, IContextKeyService, SET_CONTEXT_COMMAND_ID, ContextKeyExpr, IContextKeyChangeEvent } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContext, IContextKeyServiceTarget, IContextKeyService, SET_CONTEXT_COMMAND_ID, ContextKeyExpr, IContextKeyChangeEvent, IReadableSet } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService, IConfigurationChangeEvent, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import Event, { Emitter, debounceEvent } from 'vs/base/common/event';
+import { Event, Emitter, debounceEvent } from 'vs/base/common/event';
 
 const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
 
@@ -50,6 +50,13 @@ export class Context implements IContext {
 			return this._parent.getValue<T>(key);
 		}
 		return ret;
+	}
+
+	collectAllValues(): { [key: string]: any; } {
+		let result = this._parent ? this._parent.collectAllValues() : Object.create(null);
+		result = { ...result, ...this._value };
+		delete result['_contextId'];
+		return result;
 	}
 }
 
@@ -169,14 +176,10 @@ export class ContextKeyChangeEvent implements IContextKeyChangeEvent {
 	private _keys: string[] = [];
 
 	collect(oneOrManyKeys: string | string[]): void {
-		if (Array.isArray(oneOrManyKeys)) {
-			this._keys = this._keys.concat(oneOrManyKeys);
-		} else {
-			this._keys.push(oneOrManyKeys);
-		}
+		this._keys = this._keys.concat(oneOrManyKeys);
 	}
 
-	affectsSome(keys: Set<string>): boolean {
+	affectsSome(keys: IReadableSet<string>): boolean {
 		for (const key of this._keys) {
 			if (keys.has(key)) {
 				return true;
@@ -268,7 +271,7 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 
 	private _toDispose: IDisposable[] = [];
 
-	constructor( @IConfigurationService configurationService: IConfigurationService) {
+	constructor(@IConfigurationService configurationService: IConfigurationService) {
 		super(0);
 		this._lastContextId = 0;
 		this._contexts = Object.create(null);

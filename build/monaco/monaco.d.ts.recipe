@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module monaco {
+declare namespace monaco {
 
-	type Thenable<T> = PromiseLike<T>;
+	export type Thenable<T> = PromiseLike<T>;
 
 	export interface IDisposable {
 		dispose(): void;
@@ -32,6 +32,14 @@ declare module monaco {
 		Error = 3,
 	}
 
+	export enum MarkerSeverity {
+		Hint = 1,
+		Info = 2,
+		Warning = 4,
+		Error = 8,
+	}
+
+
 #include(vs/base/common/winjs.base.d.ts): TValueCallback, ProgressCallback, Promise
 #include(vs/base/common/cancellation): CancellationTokenSource, CancellationToken
 #include(vs/base/common/uri): URI, UriComponents
@@ -46,7 +54,7 @@ declare module monaco {
 #include(vs/editor/common/core/token): Token
 }
 
-declare module monaco.editor {
+declare namespace monaco.editor {
 
 #includeAll(vs/editor/standalone/browser/standaloneEditor;modes.=>languages.;editorCommon.=>):
 #include(vs/editor/standalone/common/standaloneThemeService): BuiltinTheme, IStandaloneThemeData, IColors
@@ -58,29 +66,34 @@ export interface ICommandHandler {
 }
 #include(vs/platform/contextkey/common/contextkey): IContextKey
 #include(vs/editor/standalone/browser/standaloneServices): IEditorOverrideServices
-#include(vs/platform/markers/common/markers): IMarker, IMarkerData
+#include(vs/platform/markers/common/markers): IMarker, IMarkerData, IRelatedInformation
 #include(vs/editor/standalone/browser/colorizer): IColorizerOptions, IColorizerElementOptions
 #include(vs/base/common/scrollable): ScrollbarVisibility
 #include(vs/platform/theme/common/themeService): ThemeColor
-#includeAll(vs/editor/common/editorCommon;IMode=>languages.IMode;LanguageIdentifier=>languages.LanguageIdentifier;editorOptions.=>): ISelection, IScrollEvent
+#includeAll(vs/editor/common/model;LanguageIdentifier=>languages.LanguageIdentifier): IScrollEvent
+#includeAll(vs/editor/common/editorCommon;editorOptions.=>): IScrollEvent
 #includeAll(vs/editor/common/model/textModelEvents):
 #includeAll(vs/editor/common/controller/cursorEvents):
 #includeAll(vs/editor/common/config/editorOptions):
 #includeAll(vs/editor/browser/editorBrowser;editorCommon.=>;editorOptions.=>):
 #include(vs/editor/common/config/fontInfo): FontInfo, BareFontInfo
+
+//compatibility:
+export type IReadOnlyModel = ITextModel;
+export type IModel = ITextModel;
 }
 
-declare module monaco.languages {
+declare namespace monaco.languages {
 
-#includeAll(vs/editor/standalone/browser/standaloneLanguages;modes.=>;editorCommon.=>editor.;IMarkerData=>editor.IMarkerData):
+#includeAll(vs/editor/standalone/browser/standaloneLanguages;modes.=>;editorCommon.=>editor.;model.=>editor.;IMarkerData=>editor.IMarkerData):
 #includeAll(vs/editor/common/modes/languageConfiguration):
-#includeAll(vs/editor/common/modes;editorCommon.IRange=>IRange;editorCommon.IPosition=>IPosition;editorCommon.=>editor.;IMarkerData=>editor.IMarkerData):
+#includeAll(vs/editor/common/modes;editorCommon.IRange=>IRange;editorCommon.IPosition=>IPosition;editorCommon.=>editor.;IMarkerData=>editor.IMarkerData;model.=>editor.):
 #include(vs/editor/common/services/modeService): ILanguageExtensionPoint
 #includeAll(vs/editor/standalone/common/monarch/monarchTypes):
 
 }
 
-declare module monaco.worker {
+declare namespace monaco.worker {
 
 #includeAll(vs/editor/common/services/editorSimpleWorker;):
 

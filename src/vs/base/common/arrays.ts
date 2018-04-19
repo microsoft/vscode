@@ -53,7 +53,7 @@ export function binarySearch<T>(array: T[], key: T, comparator: (op1: T, op2: T)
  * are located before all elements where p(x) is true.
  * @returns the least x for which p(x) is true or array.length if no element fullfills the given function.
  */
-export function findFirst<T>(array: T[], p: (x: T) => boolean): number {
+export function findFirstInSorted<T>(array: T[], p: (x: T) => boolean): number {
 	let low = 0, high = array.length;
 	if (high === 0) {
 		return 0; // no children
@@ -267,7 +267,7 @@ function topStep<T>(array: T[], compare: (a: T, b: T) => number, result: T[], i:
 		const element = array[i];
 		if (compare(element, result[n - 1]) < 0) {
 			result.pop();
-			const j = findFirst(result, e => compare(element, e) < 0);
+			const j = findFirstInSorted(result, e => compare(element, e) < 0);
 			result.splice(j, 0, element);
 		}
 	}
@@ -437,4 +437,21 @@ export function arrayInsert<T>(target: T[], insertIndex: number, insertArr: T[])
 	const before = target.slice(0, insertIndex);
 	const after = target.slice(insertIndex);
 	return before.concat(insertArr, after);
+}
+
+/**
+ * Uses Fisher-Yates shuffle to shuffle the given array
+ * @param array
+ */
+export function shuffle<T>(array: T[]): void {
+	var i = 0
+		, j = 0
+		, temp = null;
+
+	for (i = array.length - 1; i > 0; i -= 1) {
+		j = Math.floor(Math.random() * (i + 1));
+		temp = array[i];
+		array[i] = array[j];
+		array[j] = temp;
+	}
 }

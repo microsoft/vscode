@@ -6,7 +6,7 @@
 
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
 import { CharCode } from 'vs/base/common/charCode';
 
@@ -229,10 +229,8 @@ class TestModel {
 			let startPosition = offsetToPosition[edits[i].offset];
 			let endPosition = offsetToPosition[edits[i].offset + edits[i].length];
 			this.edits.push({
-				identifier: null,
 				range: new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column),
-				text: edits[i].text,
-				forceMoveMarkers: false
+				text: edits[i].text
 			});
 		}
 

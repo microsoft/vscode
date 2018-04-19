@@ -8,13 +8,13 @@
 import Uri from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IResolveContentOptions, IUpdateContentOptions } from 'vs/platform/files/common/files';
-import { IRawTextSource } from 'vs/editor/common/model/textSource';
+import { IResolveContentOptions, IUpdateContentOptions, ITextSnapshot } from 'vs/platform/files/common/files';
+import { ITextBufferFactory } from 'vs/editor/common/model';
 
 export const IBackupFileService = createDecorator<IBackupFileService>('backupFileService');
 
-export const BACKUP_FILE_RESOLVE_OPTIONS: IResolveContentOptions = { acceptTextOnly: true, encoding: 'utf-8' };
-export const BACKUP_FILE_UPDATE_OPTIONS: IUpdateContentOptions = { encoding: 'utf-8' };
+export const BACKUP_FILE_RESOLVE_OPTIONS: IResolveContentOptions = { acceptTextOnly: true, encoding: 'utf8' };
+export const BACKUP_FILE_UPDATE_OPTIONS: IUpdateContentOptions = { encoding: 'utf8' };
 
 /**
  * A service that handles any I/O and state associated with the backup system.
@@ -52,10 +52,10 @@ export interface IBackupFileService {
 	 * Backs up a resource.
 	 *
 	 * @param resource The resource to back up.
-	 * @param content The content of the resource.
+	 * @param content The content of the resource as snapshot.
 	 * @param versionId The version id of the resource to backup.
 	 */
-	backupResource(resource: Uri, content: string, versionId?: number): TPromise<void>;
+	backupResource(resource: Uri, content: ITextSnapshot, versionId?: number): TPromise<void>;
 
 	/**
 	 * Gets a list of file backups for the current workspace.
@@ -65,13 +65,12 @@ export interface IBackupFileService {
 	getWorkspaceFileBackups(): TPromise<Uri[]>;
 
 	/**
-	 * Parses backup raw text content into the content, removing the metadata that is also stored
-	 * in the file.
+	 * Resolves the backup for the given resource.
 	 *
-	 * @param rawText The IRawTextProvider from a backup resource.
-	 * @return The backup file's backed up content.
+	 * @param value The contents from a backup resource as stream.
+	 * @return The backup file's backed up content as text buffer factory.
 	 */
-	parseBackupContent(textSource: IRawTextSource): string;
+	resolveBackupContent(backup: Uri): TPromise<ITextBufferFactory>;
 
 	/**
 	 * Discards the backup associated with a resource if it exists..

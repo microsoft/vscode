@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import * as path from 'path';
-import glob = require('vs/base/common/glob');
+import * as glob from 'vs/base/common/glob';
 import { isWindows } from 'vs/base/common/platform';
 
 suite('Glob', () => {
@@ -299,6 +299,22 @@ suite('Glob', () => {
 		assert(glob.match(p, '/package.json'));
 		assert(!glob.match(p, 'xpackage.json'));
 		assert(!glob.match(p, '/xpackage.json'));
+	});
+
+	test('issue 41724', function () {
+		let p = 'some/**/*.js';
+
+		assert(glob.match(p, 'some/foo.js'));
+		assert(glob.match(p, 'some/folder/foo.js'));
+		assert(!glob.match(p, 'something/foo.js'));
+		assert(!glob.match(p, 'something/folder/foo.js'));
+
+		p = 'some/**/*';
+
+		assert(glob.match(p, 'some/foo.js'));
+		assert(glob.match(p, 'some/folder/foo.js'));
+		assert(!glob.match(p, 'something/foo.js'));
+		assert(!glob.match(p, 'something/folder/foo.js'));
 	});
 
 	test('brace expansion', function () {

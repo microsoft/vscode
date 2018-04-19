@@ -10,13 +10,13 @@ import { Range } from 'vs/editor/common/core/range';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { SnippetSession } from 'vs/editor/contrib/snippet/snippetSession';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 suite('SnippetSession', function () {
 
 	let editor: ICodeEditor;
-	let model: Model;
+	let model: TextModel;
 
 	function assertSelections(editor: ICodeEditor, ...s: Selection[]) {
 		for (const selection of editor.getSelections()) {
@@ -27,7 +27,7 @@ suite('SnippetSession', function () {
 	}
 
 	setup(function () {
-		model = Model.createFromString('function foo() {\n    console.log(a);\n}');
+		model = TextModel.createFromString('function foo() {\n    console.log(a);\n}');
 		editor = createTestCodeEditor(model);
 		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5)]);
 		assert.equal(model.getEOL(), '\n');

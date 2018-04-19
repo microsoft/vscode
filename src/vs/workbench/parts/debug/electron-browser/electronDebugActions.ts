@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { Variable } from 'vs/workbench/parts/debug/common/debugModel';
-import { IDebugService, IStackFrame } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IStackFrame, IReplElement } from 'vs/workbench/parts/debug/common/debug';
 import { clipboard } from 'electron';
 
 export class CopyValueAction extends Action {
@@ -18,6 +18,7 @@ export class CopyValueAction extends Action {
 
 	constructor(id: string, label: string, private value: any, @IDebugService private debugService: IDebugService) {
 		super(id, label, 'debug-action copy-value');
+		this._enabled = typeof this.value === 'string' || (this.value instanceof Variable && !!this.value.evaluateName);
 	}
 
 	public run(): TPromise<any> {
@@ -30,6 +31,21 @@ export class CopyValueAction extends Action {
 		}
 
 		clipboard.writeText(this.value);
+		return TPromise.as(null);
+	}
+}
+
+export class CopyEvaluatePathAction extends Action {
+	static readonly ID = 'workbench.debug.viewlet.action.copyEvaluatePath';
+	static LABEL = nls.localize('copyAsExpression', "Copy as Expression");
+
+	constructor(id: string, label: string, private value: Variable) {
+		super(id, label);
+		this._enabled = this.value && !!this.value.evaluateName;
+	}
+
+	public run(): TPromise<any> {
+		clipboard.writeText(this.value.evaluateName);
 		return TPromise.as(null);
 	}
 }
@@ -60,7 +76,7 @@ export class CopyAllAction extends Action {
 			if (text) {
 				text += `\n`;
 			}
-			text += navigator.current().toString();
+			text += (<IReplElement>navigator.current()).toString();
 		}
 
 		clipboard.writeText(removeAnsiEscapeCodes(text));

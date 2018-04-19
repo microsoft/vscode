@@ -5,7 +5,7 @@
 
 'use strict';
 
-import fs = require('fs');
+import * as fs from 'fs';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 
@@ -38,7 +38,7 @@ export function readExactlyByFile(file: string, totalBytes: number): TPromise<Re
 				});
 			}
 
-			const buffer = new Buffer(totalBytes);
+			const buffer = Buffer.allocUnsafe(totalBytes);
 			let offset = 0;
 
 			function readChunk(): void {
@@ -96,7 +96,7 @@ export function readToMatchingString(file: string, matchingString: string, chunk
 				});
 			}
 
-			let buffer = new Buffer(maximumBytesToRead);
+			let buffer = Buffer.allocUnsafe(maximumBytesToRead);
 			let offset = 0;
 
 			function readChunk(): void {

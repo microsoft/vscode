@@ -7,8 +7,8 @@
 
 import * as assert from 'assert';
 import { BoundModelReferenceCollection } from 'vs/workbench/api/electron-browser/mainThreadDocuments';
-import { Model } from 'vs/editor/common/model/model';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { timeout } from 'vs/base/common/async';
 
 suite('BoundModelReferenceCollection', () => {
 
@@ -23,13 +23,13 @@ suite('BoundModelReferenceCollection', () => {
 		let didDispose = false;
 
 		col.add({
-			object: <any>{ textEditorModel: Model.createFromString('farboo') },
+			object: <any>{ textEditorModel: TextModel.createFromString('farboo') },
 			dispose() {
 				didDispose = true;
 			}
 		});
 
-		return TPromise.timeout(30).then(() => {
+		return timeout(30).then(() => {
 			assert.equal(didDispose, true);
 		});
 	});
@@ -39,20 +39,20 @@ suite('BoundModelReferenceCollection', () => {
 		let disposed: number[] = [];
 
 		col.add({
-			object: <any>{ textEditorModel: Model.createFromString('farboo') },
+			object: <any>{ textEditorModel: TextModel.createFromString('farboo') },
 			dispose() {
 				disposed.push(0);
 			}
 		});
 		col.add({
-			object: <any>{ textEditorModel: Model.createFromString('boofar') },
+			object: <any>{ textEditorModel: TextModel.createFromString('boofar') },
 			dispose() {
 				disposed.push(1);
 			}
 		});
 
 		col.add({
-			object: <any>{ textEditorModel: Model.createFromString(new Array(71).join('x')) },
+			object: <any>{ textEditorModel: TextModel.createFromString(new Array(71).join('x')) },
 			dispose() {
 				disposed.push(2);
 			}

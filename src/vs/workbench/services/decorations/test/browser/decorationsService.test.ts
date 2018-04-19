@@ -9,7 +9,7 @@ import * as assert from 'assert';
 import { FileDecorationsService } from 'vs/workbench/services/decorations/browser/decorationsService';
 import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import URI from 'vs/base/common/uri';
-import Event, { toPromise } from 'vs/base/common/event';
+import { Event, toPromise } from 'vs/base/common/event';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 suite('DecorationsService', function () {
@@ -75,7 +75,7 @@ suite('DecorationsService', function () {
 		assert.equal(callCounter, 1);
 	});
 
-	test('Clear decorations on provider dispose', function () {
+	test('Clear decorations on provider dispose', async function () {
 		let uri = URI.parse('foo:bar');
 		let callCounter = 0;
 
@@ -94,13 +94,14 @@ suite('DecorationsService', function () {
 
 		// un-register -> ensure good event
 		let didSeeEvent = false;
-		service.onDidChangeDecorations(e => {
+		let p = toPromise(service.onDidChangeDecorations).then(e => {
 			assert.equal(e.affectsResource(uri), true);
 			assert.deepEqual(service.getDecoration(uri, false), undefined);
 			assert.equal(callCounter, 1);
 			didSeeEvent = true;
 		});
 		reg.dispose();
+		await p;
 		assert.equal(didSeeEvent, true);
 	});
 

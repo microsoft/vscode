@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import Event, { Emitter } from 'vs/base/common/event';
+import * as nls from 'vs/nls';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Registry } from 'vs/platform/registry/common/platform';
-import types = require('vs/base/common/types');
+import * as types from 'vs/base/common/types';
 import * as strings from 'vs/base/common/strings';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { deepClone } from 'vs/base/common/objects';
 
 export const Extensions = {
 	Configuration: 'base.contributions.configuration'
@@ -63,13 +62,13 @@ export interface IConfigurationRegistry {
 }
 
 export enum ConfigurationScope {
-	WINDOW = 1,
-	RESOURCE
+	APPLICATION = 1,
+	WINDOW,
+	RESOURCE,
 }
 
 export interface IConfigurationPropertySchema extends IJSONSchema {
 	overridable?: boolean;
-	isExecutable?: boolean;
 	scope?: ConfigurationScope;
 	notMultiRootAdopted?: boolean;
 	included?: boolean;
@@ -93,8 +92,10 @@ export interface IDefaultConfigurationExtension {
 	defaults: { [key: string]: {} };
 }
 
-export const settingsSchema: IJSONSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
-export const resourceSettingsSchema: IJSONSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
+export const allSettings: { properties: {}, patternProperties: {} } = { properties: {}, patternProperties: {} };
+export const applicationSettings: { properties: {}, patternProperties: {} } = { properties: {}, patternProperties: {} };
+export const windowSettings: { properties: {}, patternProperties: {} } = { properties: {}, patternProperties: {} };
+export const resourceSettings: { properties: {}, patternProperties: {} } = { properties: {}, patternProperties: {} };
 
 export const editorConfigurationSchemaId = 'vscode://schemas/settings/editor';
 const contributionRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
@@ -108,7 +109,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	private overrideIdentifiers: string[] = [];
 	private overridePropertyPattern: string;
 
-	private _onDidRegisterConfiguration: Emitter<string[]> = new Emitter<string[]>();
+	private readonly _onDidRegisterConfiguration: Emitter<string[]> = new Emitter<string[]>();
 	readonly onDidRegisterConfiguration: Event<string[]> = this._onDidRegisterConfiguration.event;
 
 	constructor() {
@@ -143,7 +144,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	public notifyConfigurationSchemaUpdated(configuration: IConfigurationNode) {
-		contributionRegistry.registerSchema(editorConfigurationSchemaId, this.editorConfigurationSchema);
+		contributionRegistry.notifySchemaChanged(editorConfigurationSchemaId);
 	}
 
 	public registerOverrideIdentifiers(overrideIdentifiers: string[]): void {
@@ -239,10 +240,17 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 			let properties = configuration.properties;
 			if (properties) {
 				for (let key in properties) {
-					settingsSchema.properties[key] = properties[key];
-					resourceSettingsSchema.properties[key] = deepClone(properties[key]);
-					if (properties[key].scope !== ConfigurationScope.RESOURCE) {
-						resourceSettingsSchema.properties[key].doNotSuggest = true;
+					allSettings.properties[key] = properties[key];
+					switch (properties[key].scope) {
+						case ConfigurationScope.APPLICATION:
+							applicationSettings.properties[key] = properties[key];
+							break;
+						case ConfigurationScope.WINDOW:
+							windowSettings.properties[key] = properties[key];
+							break;
+						case ConfigurationScope.RESOURCE:
+							resourceSettings.properties[key] = properties[key];
+							break;
 					}
 				}
 			}
@@ -262,7 +270,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	private updateOverridePropertyPatternKey(): void {
-		let patternProperties: IJSONSchema = settingsSchema.patternProperties[this.overridePropertyPattern];
+		let patternProperties: IJSONSchema = allSettings.patternProperties[this.overridePropertyPattern];
 		if (!patternProperties) {
 			patternProperties = {
 				type: 'object',
@@ -271,11 +279,18 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				$ref: editorConfigurationSchemaId
 			};
 		}
-		delete settingsSchema.patternProperties[this.overridePropertyPattern];
+
+		delete allSettings.patternProperties[this.overridePropertyPattern];
+		delete applicationSettings.patternProperties[this.overridePropertyPattern];
+		delete windowSettings.patternProperties[this.overridePropertyPattern];
+		delete resourceSettings.patternProperties[this.overridePropertyPattern];
+
 		this.computeOverridePropertyPattern();
 
-		settingsSchema.patternProperties[this.overridePropertyPattern] = patternProperties;
-		resourceSettingsSchema.patternProperties[this.overridePropertyPattern] = patternProperties;
+		allSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
+		applicationSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
+		windowSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
+		resourceSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
 	}
 
 	private update(configuration: IConfigurationNode): void {
@@ -336,7 +351,13 @@ export function validateProperty(property: string): string {
 	return null;
 }
 
-export function getScopes(keys: string[]): ConfigurationScope[] {
+export function getScopes(): { [key: string]: ConfigurationScope } {
+	const scopes = {};
 	const configurationProperties = configurationRegistry.getConfigurationProperties();
-	return keys.map(key => configurationProperties[key].scope);
+	for (const key of Object.keys(configurationProperties)) {
+		scopes[key] = configurationProperties[key].scope;
+	}
+	scopes['launch'] = ConfigurationScope.RESOURCE;
+	scopes['task'] = ConfigurationScope.RESOURCE;
+	return scopes;
 }

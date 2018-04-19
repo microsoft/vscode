@@ -14,7 +14,7 @@ import { mkdirp, writeFile, readFile } from 'vs/base/node/pfs';
 import { readFileSync, existsSync, mkdirSync } from 'fs';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { delSync, readdirSync, writeFileAndFlushSync } from 'vs/base/node/extfs';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { isEqual } from 'vs/base/common/paths';
 import { coalesce } from 'vs/base/common/arrays';
@@ -25,6 +25,7 @@ import { applyEdit } from 'vs/base/common/jsonFormatter';
 import { massageFolderPathForWorkspace } from 'vs/platform/workspaces/node/workspaces';
 import { toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import URI from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
 
 export interface IStoredWorkspace {
 	folders: IStoredWorkspaceFolder[];
@@ -36,8 +37,8 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 
 	protected workspacesHome: string;
 
-	private _onWorkspaceSaved: Emitter<IWorkspaceSavedEvent>;
-	private _onUntitledWorkspaceDeleted: Emitter<IWorkspaceIdentifier>;
+	private readonly _onWorkspaceSaved: Emitter<IWorkspaceSavedEvent>;
+	private readonly _onUntitledWorkspaceDeleted: Emitter<IWorkspaceIdentifier>;
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -152,7 +153,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 				let storedWorkspace: IStoredWorkspaceFolder;
 
 				// File URI
-				if (folderResource.scheme === 'file') {
+				if (folderResource.scheme === Schemas.file) {
 					storedWorkspace = { path: massageFolderPathForWorkspace(folderResource.fsPath, untitledWorkspaceConfigFolder, []) };
 				}
 

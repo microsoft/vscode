@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { dispose } from 'vs/base/common/lifecycle';
 import { MainContext, ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, IMainContext } from './extHost.protocol';
 import { ExtHostDocumentData } from './extHostDocumentData';
@@ -12,10 +12,14 @@ import { ExtHostTextEditor } from './extHostTextEditor';
 import * as assert from 'assert';
 import * as typeConverters from './extHostTypeConverters';
 import URI from 'vs/base/common/uri';
+import { Disposable } from './extHostTypes';
 
 export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsShape {
 
+	private _disposables: Disposable[] = [];
+
 	private _activeEditorId: string;
+
 	private readonly _editors = new Map<string, ExtHostTextEditor>();
 	private readonly _documents = new Map<string, ExtHostDocumentData>();
 
@@ -30,8 +34,11 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 	readonly onDidChangeActiveTextEditor: Event<ExtHostTextEditor> = this._onDidChangeActiveTextEditor.event;
 
 	constructor(
-		private readonly _mainContext: IMainContext
-	) {
+		private readonly _mainContext: IMainContext,
+	) { }
+
+	dispose() {
+		this._disposables = dispose(this._disposables);
 	}
 
 	$acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta): void {
@@ -41,7 +48,9 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 		const removedEditors: ExtHostTextEditor[] = [];
 
 		if (delta.removedDocuments) {
-			for (const id of delta.removedDocuments) {
+			for (const uriComponent of delta.removedDocuments) {
+				const uri = URI.revive(uriComponent);
+				const id = uri.toString();
 				const data = this._documents.get(id);
 				this._documents.delete(id);
 				removedDocuments.push(data);
@@ -83,11 +92,12 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 
 				const documentData = this._documents.get(resource.toString());
 				const editor = new ExtHostTextEditor(
-					this._mainContext.getProxy(MainContext.MainThreadEditors),
+					this._mainContext.getProxy(MainContext.MainThreadTextEditors),
 					data.id,
 					documentData,
 					data.selections.map(typeConverters.toSelection),
 					data.options,
+					data.visibleRanges.map(typeConverters.toRange),
 					typeConverters.toViewColumn(data.editorPosition)
 				);
 				this._editors.set(data.id, editor);

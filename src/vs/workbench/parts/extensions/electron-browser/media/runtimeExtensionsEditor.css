@@ -3,12 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.runtime-extensions-editor .monaco-list .monaco-list-rows > .monaco-list-row.odd {
-	background-color: #f5f5f5;
-}
-
-.runtime-extensions-editor .monaco-list .monaco-list-rows > .monaco-list-row:hover:not(.odd) {
-	background-color: transparent;
+.runtime-extensions-editor .monaco-list .monaco-list-rows > .monaco-list-row.odd:not(:hover):not(.focused) {
+	background-color: rgba(130, 130, 130, 0.08);
 }
 
 .runtime-extensions-editor .extension {
@@ -74,7 +70,6 @@
 .hc-black .monaco-action-bar .extension-host-profile-stop {
 	background: url('profile-stop-inverse.svg') center center no-repeat;
 	animation:fade 1000ms infinite;
-	-webkit-animation:fade 1000ms infinite;
 }
 
 .monaco-action-bar .save-extension-host-profile {
@@ -84,11 +79,6 @@
 .vs-dark .monaco-action-bar .save-extension-host-profile,
 .hc-black .monaco-action-bar .save-extension-host-profile {
 	background: url('save-inverse.svg') center center no-repeat;
-}
-
-.vs-dark .runtime-extensions-editor .monaco-list .monaco-list-rows > .monaco-list-row.odd,
-.hc-black .runtime-extensions-editor .monaco-list .monaco-list-rows > .monaco-list-row.odd {
-	background-color: #262829;
 }
 
 .runtime-extensions-editor .monaco-action-bar {
@@ -110,16 +100,9 @@
 	height: 16px;
 	vertical-align: middle;
 	animation:fade 1000ms infinite;
-	-webkit-animation:fade 1000ms infinite;
 }
 
 @keyframes fade {
-	from { opacity: 1.0; }
-	50% { opacity: 0.5; }
-	to { opacity: 1.0; }
-}
-
-@-webkit-keyframes fade {
 	from { opacity: 1.0; }
 	50% { opacity: 0.5; }
 	to { opacity: 1.0; }

@@ -5,17 +5,93 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as marshalling from 'vs/base/common/marshalling';
 import * as errors from 'vs/base/common/errors';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { LazyPromise } from 'vs/workbench/services/extensions/node/lazyPromise';
 import { ProxyIdentifier, IRPCProtocol } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { CharCode } from 'vs/base/common/charCode';
+import URI, { UriComponents } from 'vs/base/common/uri';
+import { MarshalledObject } from 'vs/base/common/marshalling';
 
 declare var Proxy: any; // TODO@TypeScript
 
+export interface IURITransformer {
+	transformIncoming(uri: UriComponents): UriComponents;
+	transformOutgoing(uri: URI): URI;
+}
+
+function _transformOutgoingURIs(obj: any, transformer: IURITransformer, depth: number): any {
+
+	if (!obj || depth > 200) {
+		return null;
+	}
+
+	if (typeof obj === 'object') {
+		if (obj instanceof URI) {
+			return transformer.transformOutgoing(obj);
+		}
+
+		// walk object (or array)
+		for (let key in obj) {
+			if (Object.hasOwnProperty.call(obj, key)) {
+				const r = _transformOutgoingURIs(obj[key], transformer, depth + 1);
+				if (r !== null) {
+					obj[key] = r;
+				}
+			}
+		}
+	}
+
+	return null;
+}
+
+function transformOutgoingURIs(obj: any, transformer: IURITransformer): any {
+	const result = _transformOutgoingURIs(obj, transformer, 0);
+	if (result === null) {
+		// no change
+		return obj;
+	}
+	return result;
+}
+
+function _transformIncomingURIs(obj: any, transformer: IURITransformer, depth: number): any {
+
+	if (!obj || depth > 200) {
+		return null;
+	}
+
+	if (typeof obj === 'object') {
+
+		if ((<MarshalledObject>obj).$mid === 1) {
+			return transformer.transformIncoming(obj);
+		}
+
+		// walk object (or array)
+		for (let key in obj) {
+			if (Object.hasOwnProperty.call(obj, key)) {
+				const r = _transformIncomingURIs(obj[key], transformer, depth + 1);
+				if (r !== null) {
+					obj[key] = r;
+				}
+			}
+		}
+	}
+
+	return null;
+}
+
+function transformIncomingURIs(obj: any, transformer: IURITransformer): any {
+	const result = _transformIncomingURIs(obj, transformer, 0);
+	if (result === null) {
+		// no change
+		return obj;
+	}
+	return result;
+}
+
 export class RPCProtocol implements IRPCProtocol {
 
+	private readonly _uriTransformer: IURITransformer;
 	private _isDisposed: boolean;
 	private readonly _locals: { [id: string]: any; };
 	private readonly _proxies: { [id: string]: any; };
@@ -24,7 +100,8 @@ export class RPCProtocol implements IRPCProtocol {
 	private readonly _pendingRPCReplies: { [msgId: string]: LazyPromise; };
 	private readonly _multiplexor: RPCMultiplexer;
 
-	constructor(protocol: IMessagePassingProtocol) {
+	constructor(protocol: IMessagePassingProtocol, transformer: IURITransformer = null) {
+		this._uriTransformer = transformer;
 		this._isDisposed = false;
 		this._locals = Object.create(null);
 		this._proxies = Object.create(null);
@@ -44,23 +121,26 @@ export class RPCProtocol implements IRPCProtocol {
 		});
 	}
 
+	public transformIncomingURIs<T>(obj: T): T {
+		if (!this._uriTransformer) {
+			return obj;
+		}
+		return transformIncomingURIs(obj, this._uriTransformer);
+	}
+
 	public getProxy<T>(identifier: ProxyIdentifier<T>): T {
 		if (!this._proxies[identifier.id]) {
-			this._proxies[identifier.id] = this._createProxy(identifier.id, identifier.isFancy);
+			this._proxies[identifier.id] = this._createProxy(identifier.id);
 		}
 		return this._proxies[identifier.id];
 	}
 
-	private _createProxy<T>(proxyId: string, isFancy: boolean): T {
+	private _createProxy<T>(proxyId: string): T {
 		let handler = {
 			get: (target, name: string) => {
 				if (!target[name] && name.charCodeAt(0) === CharCode.DollarSign) {
 					target[name] = (...myArgs: any[]) => {
-						return (
-							isFancy
-								? this.fancyRemoteCall(proxyId, name, myArgs)
-								: this.remoteCall(proxyId, name, myArgs)
-						);
+						return this._remoteCall(proxyId, name, myArgs);
 					};
 				}
 				return target[name];
@@ -89,13 +169,13 @@ export class RPCProtocol implements IRPCProtocol {
 		}
 
 		let msg = <RPCMessage>JSON.parse(rawmsg);
+		if (this._uriTransformer) {
+			msg = transformIncomingURIs(msg, this._uriTransformer);
+		}
 
 		switch (msg.type) {
 			case MessageType.Request:
 				this._receiveRequest(msg);
-				break;
-			case MessageType.FancyRequest:
-				this._receiveRequest(marshalling.revive(msg, 0));
 				break;
 			case MessageType.Cancel:
 				this._receiveCancel(msg);
@@ -103,29 +183,24 @@ export class RPCProtocol implements IRPCProtocol {
 			case MessageType.Reply:
 				this._receiveReply(msg);
 				break;
-			case MessageType.FancyReply:
-				this._receiveReply(marshalling.revive(msg, 0));
-				break;
 			case MessageType.ReplyErr:
 				this._receiveReplyErr(msg);
 				break;
 		}
 	}
 
-	private _receiveRequest(msg: RequestMessage | FancyRequestMessage): void {
+	private _receiveRequest(msg: RequestMessage): void {
 		const callId = msg.id;
 		const proxyId = msg.proxyId;
-		const isFancy = (msg.type === MessageType.FancyRequest); // a fancy request gets a fancy reply
 
 		this._invokedHandlers[callId] = this._invokeHandler(proxyId, msg.method, msg.args);
 
 		this._invokedHandlers[callId].then((r) => {
 			delete this._invokedHandlers[callId];
-			if (isFancy) {
-				this._multiplexor.send(MessageFactory.fancyReplyOK(callId, r));
-			} else {
-				this._multiplexor.send(MessageFactory.replyOK(callId, r));
+			if (this._uriTransformer) {
+				r = transformOutgoingURIs(r, this._uriTransformer);
 			}
+			this._multiplexor.send(MessageFactory.replyOK(callId, r));
 		}, (err) => {
 			delete this._invokedHandlers[callId];
 			this._multiplexor.send(MessageFactory.replyErr(callId, err));
@@ -139,7 +214,7 @@ export class RPCProtocol implements IRPCProtocol {
 		}
 	}
 
-	private _receiveReply(msg: ReplyMessage | FancyReplyMessage): void {
+	private _receiveReply(msg: ReplyMessage): void {
 		const callId = msg.id;
 		if (!this._pendingRPCReplies.hasOwnProperty(callId)) {
 			return;
@@ -190,15 +265,7 @@ export class RPCProtocol implements IRPCProtocol {
 		return method.apply(actor, args);
 	}
 
-	private remoteCall(proxyId: string, methodName: string, args: any[]): TPromise<any> {
-		return this._remoteCall(proxyId, methodName, args, false);
-	}
-
-	private fancyRemoteCall(proxyId: string, methodName: string, args: any[]): TPromise<any> {
-		return this._remoteCall(proxyId, methodName, args, true);
-	}
-
-	private _remoteCall(proxyId: string, methodName: string, args: any[], isFancy: boolean): TPromise<any> {
+	private _remoteCall(proxyId: string, methodName: string, args: any[]): TPromise<any> {
 		if (this._isDisposed) {
 			return TPromise.wrapError<any>(errors.canceled());
 		}
@@ -209,13 +276,10 @@ export class RPCProtocol implements IRPCProtocol {
 		});
 
 		this._pendingRPCReplies[callId] = result;
-
-		if (isFancy) {
-			this._multiplexor.send(MessageFactory.fancyRequest(callId, proxyId, methodName, args));
-		} else {
-			this._multiplexor.send(MessageFactory.request(callId, proxyId, methodName, args));
+		if (this._uriTransformer) {
+			args = transformOutgoingURIs(args, this._uriTransformer);
 		}
-
+		this._multiplexor.send(MessageFactory.request(callId, proxyId, methodName, args));
 		return result;
 	}
 }
@@ -268,22 +332,11 @@ class MessageFactory {
 		return `{"type":${MessageType.Request},"id":"${req}","proxyId":"${rpcId}","method":"${method}","args":${JSON.stringify(args)}}`;
 	}
 
-	public static fancyRequest(req: string, rpcId: string, method: string, args: any[]): string {
-		return `{"type":${MessageType.FancyRequest},"id":"${req}","proxyId":"${rpcId}","method":"${method}","args":${marshalling.stringify(args)}}`;
-	}
-
 	public static replyOK(req: string, res: any): string {
 		if (typeof res === 'undefined') {
 			return `{"type":${MessageType.Reply},"id":"${req}"}`;
 		}
 		return `{"type":${MessageType.Reply},"id":"${req}","res":${JSON.stringify(res)}}`;
-	}
-
-	public static fancyReplyOK(req: string, res: any): string {
-		if (typeof res === 'undefined') {
-			return `{"type":${MessageType.Reply},"id":"${req}"}`;
-		}
-		return `{"type":${MessageType.FancyReply},"id":"${req}","res":${marshalling.stringify(res)}}`;
 	}
 
 	public static replyErr(req: string, err: any): string {
@@ -296,22 +349,13 @@ class MessageFactory {
 
 const enum MessageType {
 	Request = 1,
-	FancyRequest = 2,
-	Cancel = 3,
-	Reply = 4,
-	FancyReply = 5,
-	ReplyErr = 6
+	Cancel = 2,
+	Reply = 3,
+	ReplyErr = 4
 }
 
 class RequestMessage {
 	type: MessageType.Request;
-	id: string;
-	proxyId: string;
-	method: string;
-	args: any[];
-}
-class FancyRequestMessage {
-	type: MessageType.FancyRequest;
 	id: string;
 	proxyId: string;
 	method: string;
@@ -326,15 +370,10 @@ class ReplyMessage {
 	id: string;
 	res: any;
 }
-class FancyReplyMessage {
-	type: MessageType.FancyReply;
-	id: string;
-	res: any;
-}
 class ReplyErrMessage {
 	type: MessageType.ReplyErr;
 	id: string;
 	err: errors.SerializedError;
 }
 
-type RPCMessage = RequestMessage | FancyRequestMessage | CancelMessage | ReplyMessage | FancyReplyMessage | ReplyErrMessage;
+type RPCMessage = RequestMessage | CancelMessage | ReplyMessage | ReplyErrMessage;

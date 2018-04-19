@@ -22,11 +22,12 @@ var rootDir = path.join(__dirname, '../../src');
 var options = require('../../src/tsconfig.json').compilerOptions;
 options.verbose = false;
 options.sourceMap = true;
-if (process.env['VSCODE_NO_SOURCEMAP']) {
+if (process.env['VSCODE_NO_SOURCEMAP']) { // To be used by developers in a hurry
     options.sourceMap = false;
 }
 options.rootDir = rootDir;
 options.sourceRoot = util.toFileUri(rootDir);
+options.newLine = /\r\n/.test(fs.readFileSync(__filename, 'utf8')) ? 'CRLF' : 'LF';
 function createCompile(build, emitError) {
     var opts = _.clone(options);
     opts.inlineSources = !!build;

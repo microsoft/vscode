@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import _Event, { Emitter, mapEvent } from 'vs/base/common/event';
+import { Event as _Event, Emitter, mapEvent } from 'vs/base/common/event';
 
 export type EventHandler = HTMLElement | HTMLDocument | Window;
 
@@ -19,7 +19,6 @@ export interface IDomEvent {
 	(element: EventHandler, type: 'MSGotPointerCapture', useCapture?: boolean): _Event<MSPointerEvent>;
 	(element: EventHandler, type: 'MSInertiaStart', useCapture?: boolean): _Event<MSGestureEvent>;
 	(element: EventHandler, type: 'MSLostPointerCapture', useCapture?: boolean): _Event<MSPointerEvent>;
-	(element: EventHandler, type: 'MSManipulationStateChanged', useCapture?: boolean): _Event<MSManipulationEvent>;
 	(element: EventHandler, type: 'MSPointerCancel', useCapture?: boolean): _Event<MSPointerEvent>;
 	(element: EventHandler, type: 'MSPointerDown', useCapture?: boolean): _Event<MSPointerEvent>;
 	(element: EventHandler, type: 'MSPointerEnter', useCapture?: boolean): _Event<MSPointerEvent>;
@@ -126,7 +125,12 @@ export const domEvent: IDomEvent = (element: EventHandler, type: string, useCapt
 	return emitter.event;
 };
 
-export function stop<T extends Event>(event: _Event<T>): _Event<T> {
+export interface CancellableEvent {
+	preventDefault();
+	stopPropagation();
+}
+
+export function stop<T extends CancellableEvent>(event: _Event<T>): _Event<T> {
 	return mapEvent(event, e => {
 		e.preventDefault();
 		e.stopPropagation();

@@ -8,7 +8,7 @@
 	user-select: none;
 }
 
-.monaco-shell .colorpicker-hover[tabindex="0"]:focus {
+.monaco-editor .colorpicker-hover:focus {
 	outline: none;
 }
 

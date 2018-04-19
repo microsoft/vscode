@@ -7,10 +7,11 @@
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ISingleEditOperation } from 'vs/editor/common/editorCommon';
-import { Model } from 'vs/editor/common/model/model';
+import { ISingleEditOperation } from 'vs/editor/common/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { EditOperationsCommand } from 'vs/editor/contrib/format/formatCommand';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
+import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
 function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): ISingleEditOperation {
 	return {
@@ -22,7 +23,7 @@ function editOp(startLineNumber: number, startColumn: number, endLineNumber: num
 
 suite('FormatCommand.trimEdit', () => {
 	function testTrimEdit(lines: string[], edit: ISingleEditOperation, expected: ISingleEditOperation): void {
-		let model = Model.createFromString(lines.join('\n'));
+		let model = TextModel.createFromString(lines.join('\n'));
 		let actual = EditOperationsCommand.trimEdit(edit, model);
 		assert.deepEqual(actual, expected);
 		model.dispose();
@@ -308,6 +309,54 @@ suite('FormatCommand', () => {
 			],
 			new Selection(1, 1, 1, 1)
 		);
+	});
+
+	test('issue #44870', () => {
+		const initialText = [
+			'[',
+			'    {},{',
+			'    }',
+			']',
+		];
+		withTestCodeEditor(initialText, {}, (editor) => {
+			editor.setSelection(new Selection(2, 8, 2, 8));
+			EditOperationsCommand.execute(editor, [
+				editOp(2, 8, 2, 8, ['', '    ']),
+				editOp(2, 9, 3, 5, ['']),
+			]);
+			assert.equal(editor.getValue(), [
+				'[',
+				'    {},',
+				'    {}',
+				']',
+			].join('\n'));
+			assert.deepEqual(editor.getSelection(), new Selection(3, 5, 3, 5));
+		});
+	});
+
+	test('issue #47382: full model replace moves cursor to end of file', () => {
+		const initialText = [
+			'just some',
+			'Text',
+			'...more text'
+		];
+		withTestCodeEditor(initialText, {}, (editor) => {
+			editor.setSelection(new Selection(2, 1, 2, 1));
+			EditOperationsCommand.execute(editor, [{
+				range: new Range(1, 1, 3, 13),
+				text: [
+					'just some',
+					'\tText',
+					'...more text'
+				].join('\n')
+			}]);
+			assert.equal(editor.getValue(), [
+				'just some',
+				'\tText',
+				'...more text'
+			].join('\n'));
+			assert.deepEqual(editor.getSelection(), new Selection(2, 1, 2, 1));
+		});
 	});
 
 });

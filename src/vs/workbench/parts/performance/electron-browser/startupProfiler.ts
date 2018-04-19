@@ -6,9 +6,8 @@
 'use strict';
 
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions } from 'vs/workbench/common/contributions';
@@ -19,12 +18,13 @@ import { join, dirname } from 'path';
 import { localize } from 'vs/nls';
 import { readdir, del, readFile } from 'vs/base/node/pfs';
 import { basename } from 'vs/base/common/paths';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 class StartupProfiler implements IWorkbenchContribution {
 
 	constructor(
 		@IWindowsService private readonly _windowsService: IWindowsService,
-		@IMessageService private readonly _messageService: IMessageService,
+		@IDialogService private readonly _dialogService: IDialogService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILifecycleService lifecycleService: ILifecycleService,
@@ -59,21 +59,21 @@ class StartupProfiler implements IWorkbenchContribution {
 		}).then(files => {
 			const profileFiles = files.reduce((prev, cur) => `${prev}${join(dir, cur)}\n`, '\n');
 
-			return this._messageService.confirm({
+			return this._dialogService.confirm({
 				type: 'info',
 				message: localize('prof.message', "Successfully created profiles."),
 				detail: localize('prof.detail', "Please create an issue and manually attach the following files:\n{0}", profileFiles),
 				primaryButton: localize('prof.restartAndFileIssue', "Create Issue and Restart"),
 				secondaryButton: localize('prof.restart', "Restart")
-			}).then(primaryButton => {
-				if (primaryButton) {
+			}).then(res => {
+				if (res.confirmed) {
 					const action = this._instantiationService.createInstance(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL);
 					TPromise.join<any>([
 						this._windowsService.showItemInFolder(join(dir, files[0])),
 						action.run(`:warning: Make sure to **attach** these files from your *home*-directory: :warning:\n${files.map(file => `-\`${file}\``).join('\n')}`)
 					]).then(() => {
 						// keep window stable until restart is selected
-						return this._messageService.confirm({
+						return this._dialogService.confirm({
 							type: 'info',
 							message: localize('prof.thanks', "Thanks for helping us."),
 							detail: localize('prof.detail.restart', "A final restart is required to continue to use '{0}'. Again, thank you for your contribution.", this._environmentService.appNameLong),
