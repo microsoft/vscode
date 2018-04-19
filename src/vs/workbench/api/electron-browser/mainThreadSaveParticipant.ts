@@ -29,6 +29,7 @@ import { localize } from 'vs/nls';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 
 export interface ISaveParticipantParticipant extends ISaveParticipant {
 	// progressMessage: string;
@@ -60,6 +61,12 @@ class TrimWhitespaceParticipant implements ISaveParticipantParticipant {
 			prevSelection = editor.getSelections();
 			if (isAutoSaved) {
 				cursors.push(...prevSelection.map(s => new Position(s.positionLineNumber, s.positionColumn)));
+				const snippetsRange = SnippetController2.get(editor).getSessionEnclosingRange();
+				if (snippetsRange) {
+					for (let lineNumber = snippetsRange.startLineNumber; lineNumber <= snippetsRange.endLineNumber; lineNumber++) {
+						cursors.push(new Position(lineNumber, model.getLineMaxColumn(lineNumber)));
+					}
+				}
 			}
 		}
 
