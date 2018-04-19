@@ -235,7 +235,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				});
 
 			//folder includes list
-			builder.div({ 'class': 'file-types' }, (builder) => {
+			builder.div({ 'class': 'file-types includes' }, (builder) => {
 				let title = nls.localize('searchScope.includes', "files to include");
 				builder.element('h4', { text: title });
 
@@ -257,7 +257,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			});
 
 			//pattern exclusion list
-			builder.div({ 'class': 'file-types' }, (builder) => {
+			builder.div({ 'class': 'file-types excludes' }, (builder) => {
 				let title = nls.localize('searchScope.excludes', "files to exclude");
 				builder.element('h4', { text: title });
 

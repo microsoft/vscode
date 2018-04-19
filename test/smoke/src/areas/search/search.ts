@@ -9,7 +9,7 @@ import { Code } from '../../vscode/code';
 
 const VIEWLET = 'div[id="workbench.view.search"] .search-view';
 const INPUT = `${VIEWLET} .search-widget .search-container .monaco-inputbox input`;
-const INCLUDE_INPUT = `${VIEWLET} .query-details .monaco-inputbox input[aria-label="Search Include/Exclude Patterns"]`;
+const INCLUDE_INPUT = `${VIEWLET} .query-details .file-types.includes .monaco-inputbox input`;
 
 export class Search extends Viewlet {
 
