@@ -7,8 +7,8 @@
 
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
-export const INextEditorGroupService = createDecorator<INextEditorGroupService>('nextEditorGroupService');
+export const INextEditorPartService = createDecorator<INextEditorPartService>('nextEditorPartService');
 
-export interface INextEditorGroupService {
+export interface INextEditorPartService {
 	_serviceBrand: ServiceIdentifier<any>;
 }

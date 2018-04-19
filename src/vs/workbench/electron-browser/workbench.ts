@@ -111,7 +111,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { NextEditorPart } from 'vs/workbench/browser/parts/editor2/nextEditorPart';
-import { INextEditorGroupService } from 'vs/workbench/services/group/common/nextGroupService';
+import { INextEditorPartService } from 'vs/workbench/services/editor/common/nextEditorPartService';
 
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
 export const InZenModeContext = new RawContextKey<boolean>('inZenMode', false);
@@ -596,7 +596,7 @@ export class Workbench implements IPartService {
 		this.editorPart = this.instantiationService.createInstance(NextEditorPart, Identifiers.EDITOR_PART /*, !this.hasFilesToCreateOpenOrDiff*/);
 		this.toUnbind.push({ dispose: () => this.editorPart.shutdown() });
 		serviceCollection.set(INextEditorService, this.editorPart);
-		serviceCollection.set(INextEditorGroupService, this.editorPart);
+		serviceCollection.set(INextEditorPartService, this.editorPart);
 
 		// Legacy Editor Services
 		this.noOpEditorPart = new NoOpEditorPart(this.instantiationService);

@@ -9,15 +9,15 @@ import 'vs/css!./media/nextEditorpart';
 import 'vs/workbench/browser/parts/editor/editor.contribution';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
-import { INextEditorGroupService } from 'vs/workbench/services/group/common/nextGroupService';
 import { Dimension, addClass, createCSSRule } from 'vs/base/browser/dom';
 import { Event, Emitter } from 'vs/base/common/event';
 import { INextWorkbenchEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { join } from 'vs/base/common/paths';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { INextEditorPartService } from 'vs/workbench/services/editor/common/nextEditorPartService';
 
-export class NextEditorPart extends Part implements INextWorkbenchEditorService, INextEditorGroupService {
+export class NextEditorPart extends Part implements INextWorkbenchEditorService, INextEditorPartService {
 
 	public _serviceBrand: any;
 
