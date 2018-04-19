@@ -391,6 +391,10 @@ export class BaseNewAction extends BaseFileAction {
 		if (!folder) {
 			return TPromise.wrapError(new Error('Invalid parent folder to create.'));
 		}
+		if (!!folder.getChild(NewStatPlaceholder.NAME)) {
+			// Do not allow to creatae a new file/folder while in the process of creating a new file/folder #47606
+			return TPromise.as(new Error('Parent folder is already in the process of creating a file'));
+		}
 
 		return this.tree.reveal(folder, 0.5).then(() => {
 			return this.tree.expand(folder).then(() => {
