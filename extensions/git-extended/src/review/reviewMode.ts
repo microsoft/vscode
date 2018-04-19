@@ -23,8 +23,6 @@ export interface ReviewState {
 	branch: string;
 	head: any;
 	base: any;
-	fileChanges: any;
-	comments: any;
 }
 
 export class ReviewMode {
@@ -60,7 +58,6 @@ export class ReviewMode {
 		}));
 		this.validateState();
 
-
 		this.pollForStatusChange();
 	}
 
@@ -93,7 +90,12 @@ export class ReviewMode {
 		}
 
 		this._prNumber = state.prNumber;
-		this._lastCommitSha = state['head'].sha;
+		if (!state.head || !state.base) {
+			// load pr
+			this._lastCommitSha = null;
+		} else {
+			this._lastCommitSha = state['head'].sha;
+		}
 
 		// we switch to another PR, let's clean up first.
 		this.clear();
@@ -104,6 +106,13 @@ export class ReviewMode {
 		}
 
 		const pr = await githubRepo.getPullRequest(this._prNumber);
+		state.base = pr.prItem.base;
+		state.head = pr.prItem.head;
+		this._workspaceState.update(`${REVIEW_STATE}:${branch}`, state);
+		if (!this._lastCommitSha) {
+			this._lastCommitSha = state.head.sha;
+		}
+
 		await this.getPullRequestData(pr);
 
 		let prChangeResources = this._localFileChanges.map(fileChange => ({
@@ -288,7 +297,7 @@ export class ReviewMode {
 	}
 
 	registerCommentProvider() {
-		vscode.workspace.registerCommentProvider({
+		this._commentProvider = vscode.workspace.registerCommentProvider({
 			onDidChangeCommentThreads: this._onDidChangeCommentThreads.event,
 			provideComments: async (document: vscode.TextDocument, token: vscode.CancellationToken) => {
 				let lastLine = document.lineCount;

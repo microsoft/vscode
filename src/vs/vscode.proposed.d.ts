@@ -784,11 +784,6 @@ declare module 'vscode' {
 		reply?: Command;
 	}
 
-	interface NewCommentAction {
-		ranges: Range[];
-		actions?: Command[];
-	}
-
 	interface Comment {
 		commentId: string;
 		body: MarkdownString;

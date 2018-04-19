@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { Remote } from './remote';
 import { GitProcess } from 'dugite';
-import { uniqBy } from '../util';
+import { uniqBy, anyEvent, filterEvent, isDescendant } from '../util';
 import { parseRemote } from '../remote';
 import { CredentialStore } from '../../credentials';
 import { PullRequest, PRType } from './pullrequest';
@@ -58,9 +58,29 @@ export class Repository {
 		return this._remotes;
 	}
 
+	private statusTimeout: any;
+	private disposables: vscode.Disposable[] = [];
+
 	constructor(path: string, workspaceState: vscode.Memento) {
 		this.path = path;
+
+		const fsWatcher = vscode.workspace.createFileSystemWatcher('**');
+		this.disposables.push(fsWatcher);
+
+		const onWorkspaceChange = anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate, fsWatcher.onDidDelete);
+		const onRepositoryChange = filterEvent(onWorkspaceChange, uri => isDescendant(this.path, uri.fsPath));
+		const onRelevantRepositoryChange = filterEvent(onRepositoryChange, uri => !/\/\.git(\/index\.lock)?$/.test(uri.path));
+		onRelevantRepositoryChange(this.onFSChange, this, this.disposables);
+
 		this.status();
+	}
+
+	onFSChange() {
+		clearTimeout(this.statusTimeout);
+
+		this.statusTimeout = setTimeout(() => {
+			this.status();
+		}, 1000);
 	}
 
 	async status() {
