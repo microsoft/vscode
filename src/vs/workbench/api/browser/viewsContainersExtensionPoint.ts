@@ -78,6 +78,10 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 		viewsContainersExtensionPoint.setHandler((extensions) => {
 			for (let extension of extensions) {
 				const { value, collector } = extension;
+				if (extension.description.enableProposedApi) {
+					collector.error(localize('proposed', "'{0}' contribution is only available when running out of dev or with the following command line switch: --enable-proposed-api {1}", 'viewsContainer', extension.description.id));
+					continue;
+				}
 				forEach(value, entry => {
 					if (!this.isValidViewsContainer(entry.value, collector)) {
 						return;
