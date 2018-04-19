@@ -634,9 +634,13 @@ class Launch implements ILaunch {
 		setOSProperties(isLinux, result.linux);
 
 		// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
-		Object.keys(result).forEach(key => {
-			result[key] = this.configurationResolverService.resolveAny(this.getWorkspaceForResolving(), result[key]);
-		});
+		try {
+			Object.keys(result).forEach(key => {
+				result[key] = this.configurationResolverService.resolveAny(this.getWorkspaceForResolving(), result[key]);
+			});
+		} catch (e) {
+			return TPromise.wrapError(e);
+		}
 
 		const adapter = this.configurationManager.getDebugger(result.type);
 		return this.configurationResolverService.resolveInteractiveVariables(result, adapter ? adapter.variables : null);

@@ -786,7 +786,7 @@ export class DebugService implements debug.IDebugService {
 
 	private createProcess(launch: debug.ILaunch, config: debug.IConfig, sessionId: string): TPromise<void> {
 		return this.textFileService.saveAll().then(() =>
-			(launch ? launch.substituteVariables(config) : TPromise.as(config)).then(resolvedConfig => {
+			(launch ? launch.substituteVariables(config).then(config => config, (err: Error) => this.showError(err.message)) : TPromise.as(config)).then(resolvedConfig => {
 				if (!resolvedConfig) {
 					// User canceled resolving of interactive variables, silently return
 					return undefined;
