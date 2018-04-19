@@ -170,10 +170,7 @@ export class PanelActivityAction extends ActivityAction {
 	}
 }
 
-export class PreviousPanelItemAction extends Action {
-	static readonly ID = 'workbench.action.previousPanelItem';
-	static LABEL = nls.localize('previousPanelItem', 'Previous Panel item');
-
+export class SwitchPanelItemAction extends Action {
 	constructor(id: string,
 		name: string,
 		@IPanelService private panelService: IPanelService
@@ -181,7 +178,7 @@ export class PreviousPanelItemAction extends Action {
 		super(id, name);
 	}
 
-	public run(): TPromise<any> {
+	public run(offset: number): TPromise<any> {
 		const panels = this.panelService.getOrderedPanels();
 		const activePanel = this.panelService.getActivePanel();
 
@@ -192,7 +189,7 @@ export class PreviousPanelItemAction extends Action {
 		let targetPanelId: string;
 		for (let i = 0; i < panels.length; i++) {
 			if (panels[i] === activePanel.getId()) {
-				targetPanelId = panels[(i + panels.length - 1) % panels.length];
+				targetPanelId = panels[(i + panels.length + offset) % panels.length];
 				break;
 			}
 		}
@@ -201,35 +198,36 @@ export class PreviousPanelItemAction extends Action {
 	}
 }
 
-export class NextPanelItemAction extends Action {
+export class PreviousPanelItemAction extends SwitchPanelItemAction {
+	static readonly ID = 'workbench.action.previousPanelItem';
+	static LABEL = nls.localize('previousPanelItem', 'Previous Panel item');
+
+	constructor(id: string,
+		name: string,
+		@IPanelService panelService: IPanelService
+	) {
+		super(id, name, panelService);
+	}
+
+	public run(): TPromise<any> {
+		return super.run(-1);
+	}
+}
+
+export class NextPanelItemAction extends SwitchPanelItemAction {
 	static readonly ID = 'workbench.action.nextPanelItem';
 	static LABEL = nls.localize('nextPanelItem', 'Next Panel item');
 
 	constructor(id: string,
 		name: string,
-		@IPanelService private panelService: IPanelService
+		@IPanelService panelService: IPanelService
 	) {
-		super(id, name);
+		super(id, name, panelService);
 	}
 
 
 	public run(): TPromise<any> {
-		const panels = this.panelService.getOrderedPanels();
-		const activePanel = this.panelService.getActivePanel();
-
-		if (!activePanel) {
-			return TPromise.as(null);
-		}
-
-		let targetPanelId: string;
-		for (let i = 0; i < panels.length; i++) {
-			if (panels[i] === activePanel.getId()) {
-				targetPanelId = panels[(i + 1) % panels.length];
-				break;
-			}
-		}
-
-		return this.panelService.openPanel(targetPanelId, true);
+		return super.run(1);
 	}
 }
 
