@@ -27,7 +27,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ipcRenderer as ipc } from 'electron';
 import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
-import { IExtensionService } from '../../../services/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class TerminalService extends AbstractTerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;

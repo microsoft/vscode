@@ -6,7 +6,7 @@
 import { ITerminalChildProcess, IMessageToTerminalProcess, IMessageFromTerminalProcess } from 'vs/workbench/parts/terminal/node/terminal';
 import { EventEmitter } from 'events';
 import { ITerminalService, ITerminalProcessExtHostProxy, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
-import { IDisposable, toDisposable } from '../../../../base/common/lifecycle';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 export class TerminalProcessExtHostProxy extends EventEmitter implements ITerminalChildProcess, ITerminalProcessExtHostProxy {
 	// For ext host processes connected checks happen on the ext host
