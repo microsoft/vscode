@@ -75,7 +75,7 @@ export function setup() {
 			await app.workbench.quickopen.waitForQuickOpenOpened();
 
 			await app.workbench.quickopen.submit(':15');
-			await app.workbench.editor.waitForHighlightingLine(15);
+			await app.workbench.editor.waitForHighlightingLine('app.js', 15);
 		});
 
 		it(`verifies if changing EOL is reflected in the status bar`, async function () {

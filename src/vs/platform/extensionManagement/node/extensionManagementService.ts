@@ -12,7 +12,7 @@ import * as errors from 'vs/base/common/errors';
 import { assign } from 'vs/base/common/objects';
 import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { flatten, distinct } from 'vs/base/common/arrays';
-import { extract, buffer } from 'vs/base/node/zip';
+import { extract, buffer, ExtractError } from 'vs/base/node/zip';
 import { TPromise } from 'vs/base/common/winjs.base';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension,
@@ -38,6 +38,7 @@ import Severity from 'vs/base/common/severity';
 import { ExtensionsLifecycle } from 'vs/platform/extensionManagement/node/extensionLifecycle';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { isEngineValid } from 'vs/platform/extensions/node/extensionValidator';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 const ERROR_SCANNING_SYS_EXTENSIONS = 'scanningSystem';
@@ -149,6 +150,9 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return validateLocalExtension(zipPath)
 			.then(manifest => {
 				const identifier = { id: getLocalExtensionIdFromManifest(manifest) };
+				if (manifest.engines && manifest.engines.vscode && !isEngineValid(manifest.engines.vscode)) {
+					return TPromise.wrapError<ILocalExtension>(new Error(nls.localize('incompatible', "Unable to install Extension '{0}' as it is not compatible with Code '{1}'.", identifier.id, pkg.version)));
+				}
 				return this.removeIfExists(identifier.id)
 					.then(
 						() => this.checkOutdated(manifest)
@@ -444,17 +448,19 @@ export class ExtensionManagementService extends Disposable implements IExtension
 					.then(
 						() => this.logService.info(`Extracted extension to ${extractPath}:`, id),
 						e => always(pfs.rimraf(extractPath), () => null)
-							.then(() => TPromise.wrapError(new ExtensionManagementError(e.message, INSTALL_ERROR_EXTRACTING)))),
+							.then(() => TPromise.wrapError(new ExtensionManagementError(e.message, e instanceof ExtractError ? e.type : INSTALL_ERROR_EXTRACTING)))),
 				e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_DELETING)));
 	}
 
 	private rename(id: string, extractPath: string, renamePath: string, retryUntil: number): TPromise<void> {
 		return pfs.rename(extractPath, renamePath)
-			.then(null, error =>
-				isWindows && error && error.code === 'EPERM' && Date.now() < retryUntil
-					? this.rename(id, extractPath, renamePath, retryUntil)
-					: TPromise.wrapError(new ExtensionManagementError(error.message || nls.localize('renameError', "Unknown error while"), error.code || INSTALL_ERROR_RENAMING))
-			);
+			.then(null, error => {
+				if (isWindows && error && error.code === 'EPERM' && Date.now() < retryUntil) {
+					this.logService.info(`Failed renaming ${extractPath} to ${renamePath} with 'EPERM' error. Trying again...`);
+					return this.rename(id, extractPath, renamePath, retryUntil);
+				}
+				return TPromise.wrapError(new ExtensionManagementError(error.message || nls.localize('renameError', "Unknown error while renaming {0} to {1}", extractPath, renamePath), error.code || INSTALL_ERROR_RENAMING));
+			});
 	}
 
 	private rollback(extensions: IGalleryExtension[]): TPromise<void> {

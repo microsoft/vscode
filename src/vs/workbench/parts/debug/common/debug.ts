@@ -123,6 +123,7 @@ export interface ISession {
 	stepOut(args: DebugProtocol.StepOutArguments): TPromise<DebugProtocol.StepOutResponse>;
 	continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse>;
 	pause(args: DebugProtocol.PauseArguments): TPromise<DebugProtocol.PauseResponse>;
+	terminateThreads(args: DebugProtocol.TerminateThreadsArguments): TPromise<DebugProtocol.TerminateThreadsResponse>;
 	stepBack(args: DebugProtocol.StepBackArguments): TPromise<DebugProtocol.StepBackResponse>;
 	reverseContinue(args: DebugProtocol.ReverseContinueArguments): TPromise<DebugProtocol.ReverseContinueResponse>;
 
@@ -199,6 +200,7 @@ export interface IThread extends ITreeElement {
 	stepBack(): TPromise<any>;
 	continue(): TPromise<any>;
 	pause(): TPromise<any>;
+	terminate(): TPromise<any>;
 	reverseContinue(): TPromise<any>;
 }
 

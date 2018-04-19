@@ -158,14 +158,13 @@ export enum FileType2 {
 
 export class FileError extends Error {
 
+	static readonly EntryExists = new FileError('EEXIST');
+	static readonly EntryNotFound = new FileError('ENOENT');
+	static readonly EntryNotADirectory = new FileError('ENOTDIR');
+	static readonly EntryIsADirectory = new FileError('EISDIR');
 
-	static readonly EEXIST = new FileError('EEXIST');
-	static readonly ENOENT = new FileError('ENOENT');
-	static readonly ENOTDIR = new FileError('ENOTDIR');
-	static readonly EISDIR = new FileError('EISDIR');
-
-	constructor(readonly code: string) {
-		super(code);
+	constructor(readonly code: string, message?: string) {
+		super(message || code);
 	}
 	is(err: any): err is FileError {
 		if (!err || typeof err !== 'object') {
@@ -193,31 +192,35 @@ export interface IWatchOptions {
 	exclude?: string[];
 }
 
-export interface IFileSystemProviderBase {
+export enum FileSystemProviderCapabilities {
+	FileReadWrite = 0b1,
+	FileOpenReadWriteClose = 0b10,
+	FileFolderCopy = 0b100
+}
+
+export interface IFileSystemProvider {
+
+	readonly capabilities: FileSystemProviderCapabilities;
+
 	onDidChangeFile: Event<IFileChange[]>;
 	watch(resource: URI, opts: IWatchOptions): IDisposable;
+
 	stat(resource: URI): TPromise<IStat>;
-	rename(from: URI, to: URI, opts: { flags: FileOpenFlags }): TPromise<IStat>;
 	mkdir(resource: URI): TPromise<IStat>;
 	readdir(resource: URI): TPromise<[string, IStat][]>;
 	delete(resource: URI): TPromise<void>;
-}
 
-export interface ISimpleReadWriteProvider {
-	_type: 'simple';
-	readFile(resource: URI, opts: { flags: FileOpenFlags }): TPromise<Uint8Array>;
-	writeFile(resource: URI, content: Uint8Array, opts: { flags: FileOpenFlags }): TPromise<void>;
-}
+	rename(from: URI, to: URI, opts: { flags: FileOpenFlags }): TPromise<IStat>;
+	copy?(from: URI, to: URI, opts: { flags: FileOpenFlags }): TPromise<IStat>;
 
-export interface IReadWriteProvider {
-	_type: 'chunked';
-	open(resource: URI, opts: { flags: FileOpenFlags }): TPromise<number>;
-	close(fd: number): TPromise<void>;
-	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
-	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
-}
+	readFile?(resource: URI, opts: { flags: FileOpenFlags }): TPromise<Uint8Array>;
+	writeFile?(resource: URI, content: Uint8Array, opts: { flags: FileOpenFlags }): TPromise<void>;
 
-export type IFileSystemProvider = (IFileSystemProviderBase & ISimpleReadWriteProvider) | (IFileSystemProviderBase & IReadWriteProvider);
+	open?(resource: URI, opts: { flags: FileOpenFlags }): TPromise<number>;
+	close?(fd: number): TPromise<void>;
+	read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
+	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
+}
 
 export enum FileOperation {
 	CREATE,

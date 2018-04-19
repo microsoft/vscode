@@ -27,6 +27,7 @@ import { setup as setupDataExtensionTests } from './areas/extensions/extensions.
 import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
 import { setup as setupDataMultirootTests } from './areas/multiroot/multiroot.test';
 import { setup as setupDataLocalizationTests } from './areas/workbench/localization.test';
+import { MultiLogger, Logger, ConsoleLogger, FileLogger } from './logger';
 
 const tmpDir = tmp.dirSync({ prefix: 't' }) as { name: string; removeCallback: Function; };
 const testDataPath = tmpDir.name;
@@ -40,7 +41,8 @@ const opts = minimist(args, {
 		'wait-time',
 		'test-repo',
 		'keybindings',
-		'screenshots'
+		'screenshots',
+		'log'
 	],
 	boolean: [
 		'verbose'
@@ -237,6 +239,16 @@ async function setup(): Promise<void> {
 }
 
 function createApp(quality: Quality): Application {
+	const loggers: Logger[] = [];
+
+	if (opts.verbose) {
+		loggers.push(new ConsoleLogger());
+	}
+
+	if (opts.log) {
+		loggers.push(new FileLogger(opts.log));
+	}
+
 	return new Application({
 		quality,
 		codePath: opts.build,
@@ -245,7 +257,7 @@ function createApp(quality: Quality): Application {
 		extensionsPath,
 		workspaceFilePath,
 		waitTime: parseInt(opts['wait-time'] || '0') || 20,
-		verbose: opts.verbose
+		logger: new MultiLogger(loggers)
 	});
 }
 
@@ -287,7 +299,21 @@ describe('Test', () => {
 
 			const name = this.currentTest.fullTitle().replace(/[^a-z0-9\-]/ig, '_');
 			const screenshotPath = path.join(screenshotsPath, `${name}.png`);
+
+			if (opts.log) {
+				app.logger.log('*** Screenshot recorded:', screenshotPath);
+			}
+
 			fs.writeFileSync(screenshotPath, buffer);
+		});
+	}
+
+	if (opts.log) {
+		beforeEach(async function () {
+			const app = this.app as Application;
+			const title = this.currentTest.fullTitle();
+
+			app.logger.log('*** Test start:', title);
 		});
 	}
 

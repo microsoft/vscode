@@ -7,6 +7,7 @@ import { Workbench } from './areas/workbench/workbench';
 import * as fs from 'fs';
 import * as cp from 'child_process';
 import { Code, spawn, SpawnOptions } from './vscode/code';
+import { Logger } from './logger';
 
 export enum Quality {
 	Dev,
@@ -19,7 +20,6 @@ export interface ApplicationOptions extends SpawnOptions {
 	workspacePath: string;
 	workspaceFilePath: string;
 	waitTime: number;
-	verbose: boolean;
 }
 
 export class Application {
@@ -40,6 +40,10 @@ export class Application {
 
 	get workbench(): Workbench {
 		return this._workbench;
+	}
+
+	get logger(): Logger {
+		return this.options.logger;
 	}
 
 	get workspacePath(): string {
@@ -103,7 +107,7 @@ export class Application {
 			workspacePath: workspaceOrFolder,
 			userDataDir: this.options.userDataDir,
 			extensionsPath: this.options.extensionsPath,
-			verbose: this.options.verbose,
+			logger: this.options.logger,
 			extraArgs
 		});
 

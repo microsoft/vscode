@@ -15,10 +15,9 @@ import { CodeAction, CodeActionProviderRegistry } from 'vs/editor/common/modes';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { getCodeActions } from './codeAction';
-import { CodeActionKind, CodeActionTrigger } from './codeActionTrigger';
+import { CodeActionTrigger } from './codeActionTrigger';
 
-export const HAS_REFACTOR_PROVIDER = new RawContextKey<boolean>('hasRefactorProvider', false);
-export const HAS_SOURCE_ACTION_PROVIDER = new RawContextKey<boolean>('hasSourceActionProvider', false);
+export const SUPPORTED_CODE_ACTIONS = new RawContextKey<string>('supportedCodeAction', '');
 
 export class CodeActionOracle {
 
@@ -144,15 +143,13 @@ export class CodeActionModel {
 	private _codeActionOracle: CodeActionOracle;
 	private _onDidChangeFixes = new Emitter<CodeActionsComputeEvent>();
 	private _disposables: IDisposable[] = [];
-	private readonly _hasRefactorProvider: IContextKey<boolean>;
-	private readonly _hasSourceProvider: IContextKey<boolean>;
+	private readonly _supportedCodeActions: IContextKey<string>;
 
 	constructor(editor: ICodeEditor, markerService: IMarkerService, contextKeyService: IContextKeyService) {
 		this._editor = editor;
 		this._markerService = markerService;
 
-		this._hasRefactorProvider = HAS_REFACTOR_PROVIDER.bindTo(contextKeyService);
-		this._hasSourceProvider = HAS_SOURCE_ACTION_PROVIDER.bindTo(contextKeyService);
+		this._supportedCodeActions = SUPPORTED_CODE_ACTIONS.bindTo(contextKeyService);
 
 		this._disposables.push(this._editor.onDidChangeModel(() => this._update()));
 		this._disposables.push(this._editor.onDidChangeModelLanguage(() => this._update()));
@@ -182,28 +179,19 @@ export class CodeActionModel {
 			&& CodeActionProviderRegistry.has(this._editor.getModel())
 			&& !this._editor.getConfiguration().readOnly) {
 
-			let hasRefactorProvider = false;
-			let hasSourceProvider = false;
-			outer: for (const provider of CodeActionProviderRegistry.all(this._editor.getModel())) {
-				if (!provider.providedCodeActionKinds) {
-					continue;
-				}
-				for (const providedKind of provider.providedCodeActionKinds) {
-					hasRefactorProvider = hasRefactorProvider || CodeActionKind.Refactor.contains(providedKind);
-					hasSourceProvider = hasSourceProvider || CodeActionKind.Source.contains(providedKind);
-					if (hasRefactorProvider && hasSourceProvider) {
-						break outer;
-					}
+			const supportedActions: string[] = [];
+			for (const provider of CodeActionProviderRegistry.all(this._editor.getModel())) {
+				if (Array.isArray(provider.providedCodeActionKinds)) {
+					supportedActions.push(...provider.providedCodeActionKinds);
 				}
 			}
 
-			this._hasRefactorProvider.set(hasRefactorProvider);
-			this._hasSourceProvider.set(hasSourceProvider);
+			this._supportedCodeActions.set(supportedActions.join(' '));
 
 			this._codeActionOracle = new CodeActionOracle(this._editor, this._markerService, p => this._onDidChangeFixes.fire(p));
 			this._codeActionOracle.trigger({ type: 'auto' });
 		} else {
-			this._hasRefactorProvider.reset();
+			this._supportedCodeActions.reset();
 		}
 	}
 

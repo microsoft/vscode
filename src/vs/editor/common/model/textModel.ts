@@ -2111,6 +2111,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 	}
 
 	private _matchFoundBracket(foundBracket: Range, data: RichEditBracket, isOpen: boolean): [Range, Range] {
+		if (!data) {
+			return null;
+		}
+
 		if (isOpen) {
 			let matched = this._findMatchingBracketDown(data, foundBracket.getEndPosition());
 			if (matched) {
@@ -2390,6 +2394,168 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return TextModel.computeIndentLevel(this._buffer.getLineContent(lineIndex + 1), this._options.tabSize);
 	}
 
+	public getActiveIndentGuide(lineNumber: number): model.IActiveIndentGuideInfo {
+		this._assertNotDisposed();
+		const lineCount = this.getLineCount();
+
+		if (lineNumber < 1 || lineNumber > lineCount) {
+			throw new Error('Illegal value for lineNumber');
+		}
+
+		const foldingRules = LanguageConfigurationRegistry.getFoldingRules(this._languageIdentifier.id);
+		const offSide = foldingRules && foldingRules.offSide;
+
+		let up_aboveContentLineIndex = -2; /* -2 is a marker for not having computed it */
+		let up_aboveContentLineIndent = -1;
+		let up_belowContentLineIndex = -2; /* -2 is a marker for not having computed it */
+		let up_belowContentLineIndent = -1;
+		const up_resolveIndents = (lineNumber: number) => {
+			if (up_aboveContentLineIndex !== -1 && (up_aboveContentLineIndex === -2 || up_aboveContentLineIndex > lineNumber - 1)) {
+				up_aboveContentLineIndex = -1;
+				up_aboveContentLineIndent = -1;
+
+				// must find previous line with content
+				for (let lineIndex = lineNumber - 2; lineIndex >= 0; lineIndex--) {
+					let indent = this._computeIndentLevel(lineIndex);
+					if (indent >= 0) {
+						up_aboveContentLineIndex = lineIndex;
+						up_aboveContentLineIndent = indent;
+						break;
+					}
+				}
+			}
+
+			if (up_belowContentLineIndex === -2) {
+				up_belowContentLineIndex = -1;
+				up_belowContentLineIndent = -1;
+
+				// must find next line with content
+				for (let lineIndex = lineNumber; lineIndex < lineCount; lineIndex++) {
+					let indent = this._computeIndentLevel(lineIndex);
+					if (indent >= 0) {
+						up_belowContentLineIndex = lineIndex;
+						up_belowContentLineIndent = indent;
+						break;
+					}
+				}
+			}
+		};
+
+		let down_aboveContentLineIndex = -2; /* -2 is a marker for not having computed it */
+		let down_aboveContentLineIndent = -1;
+		let down_belowContentLineIndex = -2; /* -2 is a marker for not having computed it */
+		let down_belowContentLineIndent = -1;
+		const down_resolveIndents = (lineNumber: number) => {
+			if (down_aboveContentLineIndex === -2) {
+				down_aboveContentLineIndex = -1;
+				down_aboveContentLineIndent = -1;
+
+				// must find previous line with content
+				for (let lineIndex = lineNumber - 2; lineIndex >= 0; lineIndex--) {
+					let indent = this._computeIndentLevel(lineIndex);
+					if (indent >= 0) {
+						down_aboveContentLineIndex = lineIndex;
+						down_aboveContentLineIndent = indent;
+						break;
+					}
+				}
+			}
+
+			if (down_belowContentLineIndex !== -1 && (down_belowContentLineIndex === -2 || down_belowContentLineIndex < lineNumber - 1)) {
+				down_belowContentLineIndex = -1;
+				down_belowContentLineIndent = -1;
+
+				// must find next line with content
+				for (let lineIndex = lineNumber; lineIndex < lineCount; lineIndex++) {
+					let indent = this._computeIndentLevel(lineIndex);
+					if (indent >= 0) {
+						down_belowContentLineIndex = lineIndex;
+						down_belowContentLineIndent = indent;
+						break;
+					}
+				}
+			}
+		};
+
+		let startLineNumber = 0;
+		let goUp = true;
+		let endLineNumber = 0;
+		let goDown = true;
+		let indent = 0;
+
+		for (let distance = 0; goUp || goDown; distance++) {
+			const upLineNumber = lineNumber - distance;
+			const downLineNumber = lineNumber + distance;
+
+			if (upLineNumber < 1) {
+				goUp = false;
+			}
+			if (downLineNumber > lineCount) {
+				goDown = false;
+			}
+
+			if (goUp) {
+				// compute indent level going up
+				let upLineIndentLevel: number;
+
+				const currentIndent = this._computeIndentLevel(upLineNumber - 1);
+				if (currentIndent >= 0) {
+					// This line has content (besides whitespace)
+					// Use the line's indent
+					up_belowContentLineIndex = upLineNumber - 1;
+					up_belowContentLineIndent = currentIndent;
+					upLineIndentLevel = Math.ceil(currentIndent / this._options.tabSize);
+				} else {
+					up_resolveIndents(upLineNumber);
+					upLineIndentLevel = this._getIndentLevelForWhitespaceLine(offSide, up_aboveContentLineIndent, up_belowContentLineIndent);
+				}
+
+				if (distance === 0) {
+					// This is the initial line number
+					startLineNumber = upLineNumber;
+					endLineNumber = downLineNumber;
+					indent = upLineIndentLevel;
+					if (indent === 0) {
+						// No need to continue
+						return { startLineNumber, endLineNumber, indent };
+					}
+					continue;
+				}
+
+				if (upLineIndentLevel >= indent) {
+					startLineNumber = upLineNumber;
+				} else {
+					goUp = false;
+				}
+			}
+
+			if (goDown) {
+				// compute indent level going down
+				let downLineIndentLevel: number;
+
+				const currentIndent = this._computeIndentLevel(downLineNumber - 1);
+				if (currentIndent >= 0) {
+					// This line has content (besides whitespace)
+					// Use the line's indent
+					down_aboveContentLineIndex = downLineNumber - 1;
+					down_aboveContentLineIndent = currentIndent;
+					downLineIndentLevel = Math.ceil(currentIndent / this._options.tabSize);
+				} else {
+					down_resolveIndents(downLineNumber);
+					downLineIndentLevel = this._getIndentLevelForWhitespaceLine(offSide, down_aboveContentLineIndent, down_belowContentLineIndent);
+				}
+
+				if (downLineIndentLevel >= indent) {
+					endLineNumber = downLineNumber;
+				} else {
+					goDown = false;
+				}
+			}
+		}
+
+		return { startLineNumber, endLineNumber, indent };
+	}
+
 	public getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[] {
 		this._assertNotDisposed();
 		const lineCount = this.getLineCount();
@@ -2455,32 +2621,38 @@ export class TextModel extends Disposable implements model.ITextModel {
 				}
 			}
 
-			if (aboveContentLineIndent === -1 || belowContentLineIndent === -1) {
-				// At the top or bottom of the file
-				result[resultIndex] = 0;
+			result[resultIndex] = this._getIndentLevelForWhitespaceLine(offSide, aboveContentLineIndent, belowContentLineIndent);
 
-			} else if (aboveContentLineIndent < belowContentLineIndent) {
-				// we are inside the region above
-				result[resultIndex] = (1 + Math.floor(aboveContentLineIndent / this._options.tabSize));
-
-			} else if (aboveContentLineIndent === belowContentLineIndent) {
-				// we are in between two regions
-				result[resultIndex] = Math.ceil(belowContentLineIndent / this._options.tabSize);
-
-			} else {
-
-				if (offSide) {
-					// same level as region below
-					result[resultIndex] = Math.ceil(belowContentLineIndent / this._options.tabSize);
-				} else {
-					// we are inside the region that ends below
-					result[resultIndex] = (1 + Math.floor(belowContentLineIndent / this._options.tabSize));
-				}
-
-			}
 		}
 		return result;
 	}
+
+	private _getIndentLevelForWhitespaceLine(offSide: boolean, aboveContentLineIndent: number, belowContentLineIndent: number): number {
+		if (aboveContentLineIndent === -1 || belowContentLineIndent === -1) {
+			// At the top or bottom of the file
+			return 0;
+
+		} else if (aboveContentLineIndent < belowContentLineIndent) {
+			// we are inside the region above
+			return (1 + Math.floor(aboveContentLineIndent / this._options.tabSize));
+
+		} else if (aboveContentLineIndent === belowContentLineIndent) {
+			// we are in between two regions
+			return Math.ceil(belowContentLineIndent / this._options.tabSize);
+
+		} else {
+
+			if (offSide) {
+				// same level as region below
+				return Math.ceil(belowContentLineIndent / this._options.tabSize);
+			} else {
+				// we are inside the region that ends below
+				return (1 + Math.floor(belowContentLineIndent / this._options.tabSize));
+			}
+
+		}
+	}
+
 	//#endregion
 }
 

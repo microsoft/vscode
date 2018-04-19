@@ -817,16 +817,16 @@ class FoldingProviderAdapter {
 
 	constructor(
 		private _documents: ExtHostDocuments,
-		private _provider: vscode.FoldingProvider
+		private _provider: vscode.FoldingRangeProvider
 	) { }
 
-	provideFoldingRanges(resource: URI, context: modes.FoldingContext): TPromise<modes.IFoldingRangeList> {
+	provideFoldingRanges(resource: URI, context: modes.FoldingContext): TPromise<modes.FoldingRange[]> {
 		const doc = this._documents.getDocumentData(resource).document;
-		return asWinJsPromise(token => this._provider.provideFoldingRanges(doc, context, token)).then(list => {
-			if (!Array.isArray(list.ranges)) {
+		return asWinJsPromise(token => this._provider.provideFoldingRanges(doc, context, token)).then(ranges => {
+			if (!Array.isArray(ranges)) {
 				return void 0;
 			}
-			return TypeConverters.FoldingRangeList.from(list);
+			return ranges.map(TypeConverters.FoldingRange.from);
 		});
 	}
 }
@@ -1178,13 +1178,13 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, ColorProviderAdapter, adapter => adapter.provideColorPresentations(URI.revive(resource), colorInfo));
 	}
 
-	registerFoldingProvider(selector: vscode.DocumentSelector, provider: vscode.FoldingProvider): vscode.Disposable {
+	registerFoldingRangeProvider(selector: vscode.DocumentSelector, provider: vscode.FoldingRangeProvider): vscode.Disposable {
 		const handle = this._addNewAdapter(new FoldingProviderAdapter(this._documents, provider));
-		this._proxy.$registerFoldingProvider(handle, this._transformDocumentSelector(selector));
+		this._proxy.$registerFoldingRangeProvider(handle, this._transformDocumentSelector(selector));
 		return this._createDisposable(handle);
 	}
 
-	$provideFoldingRanges(handle: number, resource: UriComponents, context: vscode.FoldingContext): TPromise<modes.IFoldingRangeList> {
+	$provideFoldingRanges(handle: number, resource: UriComponents, context: vscode.FoldingContext): TPromise<modes.FoldingRange[]> {
 		return this._withAdapter(handle, FoldingProviderAdapter, adapter => adapter.provideFoldingRanges(URI.revive(resource), context));
 	}
 

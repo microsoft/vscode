@@ -623,11 +623,9 @@ export namespace ProgressLocation {
 	}
 }
 
-export namespace FoldingRangeList {
-	export function from(rangeList: vscode.FoldingRangeList): modes.IFoldingRangeList {
-		return {
-			ranges: rangeList.ranges.map(r => ({ startLineNumber: r.startLine + 1, endLineNumber: r.endLine + 1, type: r.type }))
-		};
+export namespace FoldingRange {
+	export function from(r: vscode.FoldingRange): modes.FoldingRange {
+		return { start: r.start + 1, end: r.end + 1, kind: r.kind };
 	}
 }
 

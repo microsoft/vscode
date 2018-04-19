@@ -16,7 +16,6 @@ export enum ActivityBarPosition {
 }
 
 const SEARCH_INPUT = '.settings-search-input input';
-const EDITOR = '.editable-preferences-editor-container .monaco-editor textarea';
 
 export class SettingsEditor {
 
@@ -27,8 +26,7 @@ export class SettingsEditor {
 		await this.code.waitAndClick(SEARCH_INPUT);
 		await this.code.waitForActiveElement(SEARCH_INPUT);
 
-		await this.code.dispatchKeybinding('down');
-		await this.code.waitForActiveElement(EDITOR);
+		await this.editor.waitForEditorFocus('settings.json', 1, '.editable-preferences-editor-container');
 
 		await this.code.dispatchKeybinding('right');
 		await this.editor.waitForTypeInEditor('settings.json', `"${setting}": ${value}`, '.editable-preferences-editor-container');

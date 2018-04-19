@@ -11,94 +11,6 @@ declare module 'vscode' {
 		export function sampleFunction(): Thenable<any>;
 	}
 
-	//#region Aeschli: folding
-
-	export class FoldingRangeList {
-
-		/**
-		 * The folding ranges.
-		 */
-		ranges: FoldingRange[];
-
-		/**
-		 * Creates new folding range list.
-		 *
-		 * @param ranges The folding ranges
-		 */
-		constructor(ranges: FoldingRange[]);
-	}
-
-
-	export class FoldingRange {
-
-		/**
-		 * The start line number (zero-based) of the range to fold. The hidden area starts after the last character of that line.
-		 */
-		startLine: number;
-
-		/**
-		 * The end line number (0-based) of the range to fold. The hidden area ends at the last character of that line.
-		 */
-		endLine: number;
-
-		/**
-		 * The actual color value for this color range.
-		 */
-		type?: FoldingRangeType | string;
-
-		/**
-		 * Creates a new folding range.
-		 *
-		 * @param startLineNumber The first line of the fold
-		 * @param type The last line of the fold
-		 */
-		constructor(startLineNumber: number, endLineNumber: number, type?: FoldingRangeType | string);
-	}
-
-	export enum FoldingRangeType {
-		/**
-		 * Folding range for a comment
-		 */
-		Comment = 'comment',
-		/**
-		 * Folding range for a imports or includes
-		 */
-		Imports = 'imports',
-		/**
-		 * Folding range for a region (e.g. `#region`)
-		 */
-		Region = 'region'
-	}
-
-	export namespace languages {
-
-		/**
-		 * Register a folding provider.
-		 *
-		 * Multiple folding can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the best-matching provider is used. Failure
-		 * of the selected provider will cause a failure of the whole operation.
-		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A folding provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerFoldingProvider(selector: DocumentSelector, provider: FoldingProvider): Disposable;
-	}
-
-	export interface FoldingContext {
-		maxRanges?: number;
-	}
-
-	export interface FoldingProvider {
-		/**
-		 * Returns a list of folding ranges or null if the provider does not want to participate or was cancelled.
-		 */
-		provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken): ProviderResult<FoldingRangeList>;
-	}
-
-	//#endregion
-
 	//#region Joh: file system provider
 
 	export enum FileChangeType {
@@ -172,32 +84,32 @@ declare module 'vscode' {
 		// create(resource: Uri): Thenable<FileStat>;
 	}
 
-	export class FileError extends Error {
+	// export class FileError extends Error {
 
-		/**
-		 * Entry already exists.
-		 */
-		static readonly EEXIST: FileError;
+	// 	/**
+	// 	 * Entry already exists, e.g. when creating a file or folder.
+	// 	 */
+	// 	static readonly EntryExists: FileError;
 
-		/**
-		 * Entry does not exist.
-		 */
-		static readonly ENOENT: FileError;
+	// 	/**
+	// 	 * Entry does not exist.
+	// 	 */
+	// 	static readonly EntryNotFound: FileError;
 
-		/**
-		 * Entry is not a directory.
-		 */
-		static readonly ENOTDIR: FileError;
+	// 	/**
+	// 	 * Entry is not a directory.
+	// 	 */
+	// 	static readonly EntryNotADirectory: FileError;
 
-		/**
-		 * Entry is a directory.
-		 */
-		static readonly EISDIR: FileError;
+	// 	/**
+	// 	 * Entry is a directory.
+	// 	 */
+	// 	static readonly EntryIsADirectory: FileError;
 
-		readonly code: string;
+	// 	readonly code: string;
 
-		constructor(code: string, message?: string);
-	}
+	// 	constructor(code: string, message?: string);
+	// }
 
 	export enum FileChangeType2 {
 		Changed = 1,
@@ -229,7 +141,9 @@ declare module 'vscode' {
 		Exclusive = 0b1000
 	}
 
-	// todo@joh add open/close calls?
+	/**
+	 *
+	 */
 	export interface FileSystemProvider2 {
 
 		_version: 7;
@@ -242,15 +156,14 @@ declare module 'vscode' {
 		readonly onDidChangeFile: Event<FileChange2[]>;
 
 		/**
-		 * Subscribe to events in the file or folder denoted by `uri`. 
-		 * @param uri 
-		 * @param options 
+		 * Subscribe to events in the file or folder denoted by `uri`.
+		 * @param uri
+		 * @param options
 		 */
 		watch(uri: Uri, options: { recursive?: boolean; excludes?: string[] }): Disposable;
 
 		/**
-		 * Retrieve metadata about a file. Must throw an [`ENOENT`](#FileError.ENOENT)-error
-		 * when the file doesn't exist.
+		 * Retrieve metadata about a file.
 		 *
 		 * @param uri The uri of the file to retrieve meta data about.
 		 * @param token A cancellation token.
@@ -269,7 +182,7 @@ declare module 'vscode' {
 
 		/**
 		 * Create a new directory. *Note* that new files are created via `write`-calls.
-		 * 
+		 *
 		 * @param uri The uri of the *new* folder.
 		 * @param token A cancellation token.
 		 */
@@ -296,15 +209,21 @@ declare module 'vscode' {
 		/**
 		 * Rename a file or folder.
 		 *
-		 * @param oldUri The exiting file or folder
-		 * @param newUri The target location
+		 * @param oldUri The existing file or folder.
+		 * @param newUri The target location.
 		 * @param token A cancellation token.
 		 */
 		rename(oldUri: Uri, newUri: Uri, options: { flags: FileOpenFlags }, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
 
-		// todo@remote
-		// helps with performance bigly
-		// copy?(from: Uri, to: Uri): FileStat2 | Thenable<FileStat2>;
+		/**
+		 * Copy files or folders. Implementing this function is optional but it will speedup
+		 * the copy operation.
+		 *
+		 * @param uri The existing file or folder.
+		 * @param target The target location.
+		 * @param token A cancellation token.
+		 */
+		copy?(uri: Uri, target: Uri, options: { flags: FileOpenFlags }, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
 
 		// todo@remote
 		// ? useTrash, expose trash

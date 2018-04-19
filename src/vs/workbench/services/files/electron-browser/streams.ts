@@ -7,16 +7,20 @@
 import { Readable, Writable } from 'stream';
 import { UTF8 } from 'vs/base/node/encoding';
 import URI from 'vs/base/common/uri';
-import { IFileSystemProvider, ITextSnapshot, ISimpleReadWriteProvider, IReadWriteProvider, FileOpenFlags } from 'vs/platform/files/common/files';
+import { IFileSystemProvider, ITextSnapshot, FileSystemProviderCapabilities, FileOpenFlags } from 'vs/platform/files/common/files';
+import { illegalArgument } from 'vs/base/common/errors';
 
 export function createWritableOfProvider(provider: IFileSystemProvider, resource: URI, flags: FileOpenFlags): Writable {
-	switch (provider._type) {
-		case 'simple': return createSimpleWritable(provider, resource, flags);
-		case 'chunked': return createWritable(provider, resource, flags);
+	if (provider.capabilities & FileSystemProviderCapabilities.FileOpenReadWriteClose) {
+		return createWritable(provider, resource, flags);
+	} else if (provider.capabilities & FileSystemProviderCapabilities.FileReadWrite) {
+		return createSimpleWritable(provider, resource, flags);
+	} else {
+		throw illegalArgument();
 	}
 }
 
-function createSimpleWritable(provider: ISimpleReadWriteProvider, resource: URI, flags: FileOpenFlags): Writable {
+function createSimpleWritable(provider: IFileSystemProvider, resource: URI, flags: FileOpenFlags): Writable {
 	return new class extends Writable {
 		_chunks: Buffer[] = [];
 		constructor(opts?) {
@@ -37,7 +41,7 @@ function createSimpleWritable(provider: ISimpleReadWriteProvider, resource: URI,
 	};
 }
 
-function createWritable(provider: IReadWriteProvider, resource: URI, flags: FileOpenFlags): Writable {
+function createWritable(provider: IFileSystemProvider, resource: URI, flags: FileOpenFlags): Writable {
 	return new class extends Writable {
 		_fd: number;
 		_pos: number;
@@ -67,13 +71,16 @@ function createWritable(provider: IReadWriteProvider, resource: URI, flags: File
 }
 
 export function createReadableOfProvider(provider: IFileSystemProvider, resource: URI, position: number, flags: FileOpenFlags): Readable {
-	switch (provider._type) {
-		case 'simple': return createSimpleReadable(provider, resource, position, flags);
-		case 'chunked': return createReadable(provider, resource, position, flags);
+	if (provider.capabilities & FileSystemProviderCapabilities.FileOpenReadWriteClose) {
+		return createReadable(provider, resource, position, flags);
+	} else if (provider.capabilities & FileSystemProviderCapabilities.FileReadWrite) {
+		return createSimpleReadable(provider, resource, position, flags);
+	} else {
+		throw illegalArgument();
 	}
 }
 
-function createReadable(provider: IReadWriteProvider, resource: URI, position: number, flags: FileOpenFlags): Readable {
+function createReadable(provider: IFileSystemProvider, resource: URI, position: number, flags: FileOpenFlags): Readable {
 	return new class extends Readable {
 		_fd: number;
 		_pos: number = position;
@@ -117,7 +124,7 @@ function createReadable(provider: IReadWriteProvider, resource: URI, position: n
 	};
 }
 
-function createSimpleReadable(provider: ISimpleReadWriteProvider, resource: URI, position: number, flags: FileOpenFlags): Readable {
+function createSimpleReadable(provider: IFileSystemProvider, resource: URI, position: number, flags: FileOpenFlags): Readable {
 	return new class extends Readable {
 		_readOperation: Thenable<any>;
 		_read(size?: number): void {

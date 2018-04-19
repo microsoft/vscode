@@ -388,6 +388,27 @@ export class PauseAction extends AbstractDebugAction {
 	}
 }
 
+export class TerminateThreadAction extends AbstractDebugAction {
+	static readonly ID = 'workbench.action.debug.terminateThread';
+	static LABEL = nls.localize('terminateThread', "Terminate Thread");
+
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, undefined, debugService, keybindingService);
+	}
+
+	public run(thread: IThread): TPromise<any> {
+		if (!(thread instanceof Thread)) {
+			thread = this.debugService.getViewModel().focusedThread;
+		}
+
+		return thread ? thread.terminate() : TPromise.as(null);
+	}
+
+	protected isEnabled(state: State): boolean {
+		return super.isEnabled(state) && (state === State.Running || state === State.Stopped);
+	}
+}
+
 export class RestartFrameAction extends AbstractDebugAction {
 	static readonly ID = 'workbench.action.debug.restartFrame';
 	static LABEL = nls.localize('restartFrame', "Restart Frame");

@@ -239,7 +239,7 @@ class PanelDraggable implements IDisposable {
 	private _onDidDrop = new Emitter<{ from: Panel, to: Panel }>();
 	readonly onDidDrop = this._onDidDrop.event;
 
-	constructor(private panel: Panel, private context: IDndContext) {
+	constructor(private panel: Panel, private dnd: IPanelDndController, private context: IDndContext) {
 		panel.draggableElement.draggable = true;
 		domEvent(panel.draggableElement, 'dragstart')(this.onDragStart, this, this.disposables);
 		domEvent(panel.dropTargetElement, 'dragenter')(this.onDragEnter, this, this.disposables);
@@ -249,6 +249,12 @@ class PanelDraggable implements IDisposable {
 	}
 
 	private onDragStart(e: DragEvent): void {
+		if (!this.dnd.canDrag(this.panel)) {
+			e.preventDefault();
+			e.stopPropagation();
+			return;
+		}
+
 		e.dataTransfer.effectAllowed = 'move';
 
 		const dragImage = append(document.body, $('.monaco-panel-drag-image', {}, this.panel.draggableElement.textContent));
@@ -263,12 +269,20 @@ class PanelDraggable implements IDisposable {
 			return;
 		}
 
+		if (!this.dnd.canDrop(this.context.draggable.panel, this.panel)) {
+			return;
+		}
+
 		this.dragOverCounter++;
 		this.render();
 	}
 
 	private onDragLeave(e: DragEvent): void {
 		if (!this.context.draggable || this.context.draggable === this) {
+			return;
+		}
+
+		if (!this.dnd.canDrop(this.context.draggable.panel, this.panel)) {
 			return;
 		}
 
@@ -297,7 +311,7 @@ class PanelDraggable implements IDisposable {
 		this.dragOverCounter = 0;
 		this.render();
 
-		if (this.context.draggable !== this) {
+		if (this.dnd.canDrop(this.context.draggable.panel, this.panel) && this.context.draggable !== this) {
 			this._onDidDrop.fire({ from: this.context.draggable.panel, to: this.panel });
 		}
 
@@ -319,8 +333,24 @@ class PanelDraggable implements IDisposable {
 	}
 }
 
-export class IPanelViewOptions {
-	dnd?: boolean;
+export interface IPanelDndController {
+	canDrag(panel: Panel): boolean;
+	canDrop(panel: Panel, overPanel: Panel): boolean;
+}
+
+export class DefaultPanelDndController implements IPanelDndController {
+
+	canDrag(panel: Panel): boolean {
+		return true;
+	}
+
+	canDrop(panel: Panel, overPanel: Panel): boolean {
+		return true;
+	}
+}
+
+export interface IPanelViewOptions {
+	dnd?: IPanelDndController;
 }
 
 interface IPanelItem {
@@ -330,7 +360,7 @@ interface IPanelItem {
 
 export class PanelView implements IDisposable {
 
-	private dnd: boolean;
+	private dnd: IPanelDndController | null;
 	private dndContext: IDndContext = { draggable: null };
 	private el: HTMLElement;
 	private panelItems: IPanelItem[] = [];
@@ -343,7 +373,7 @@ export class PanelView implements IDisposable {
 	readonly onDidSashChange: Event<void>;
 
 	constructor(container: HTMLElement, options: IPanelViewOptions = {}) {
-		this.dnd = !!options.dnd;
+		this.dnd = options.dnd;
 		this.el = append(container, $('.monaco-panel-view'));
 		this.splitview = new SplitView(this.el);
 		this.onDidSashChange = this.splitview.onDidSashChange;
@@ -358,7 +388,7 @@ export class PanelView implements IDisposable {
 		this.splitview.addView(panel, size, index);
 
 		if (this.dnd) {
-			const draggable = new PanelDraggable(panel, this.dndContext);
+			const draggable = new PanelDraggable(panel, this.dnd, this.dndContext);
 			disposables.push(draggable);
 			draggable.onDidDrop(this._onDidDrop.fire, this._onDidDrop, disposables);
 		}

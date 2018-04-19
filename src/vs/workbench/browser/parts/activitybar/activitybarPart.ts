@@ -87,6 +87,8 @@ export class ActivitybarPart extends Part {
 
 	private registerListeners(): void {
 
+		this.toUnbind.push(this.viewletService.onDidViewletRegister(viewletDescriptor => this.compositeBar.addComposite(viewletDescriptor, false)));
+
 		// Activate viewlet action on opening of a viewlet
 		this.toUnbind.push(this.viewletService.onDidViewletOpen(viewlet => this.compositeBar.activateComposite(viewlet.getId())));
 
@@ -95,7 +97,7 @@ export class ActivitybarPart extends Part {
 		this.toUnbind.push(this.compositeBar.onDidContextMenu(e => this.showContextMenu(e)));
 		this.toUnbind.push(this.viewletService.onDidViewletEnablementChange(({ id, enabled }) => {
 			if (enabled) {
-				this.compositeBar.addComposite(this.viewletService.getViewlet(id));
+				this.compositeBar.addComposite(this.viewletService.getViewlet(id), true);
 			} else {
 				this.compositeBar.removeComposite(id);
 			}
@@ -238,6 +240,11 @@ export class ActivitybarPart extends Part {
 		this.compositeBar.layout(new Dimension(dimension.width, availableHeight));
 
 		return sizes;
+	}
+
+	public shutdown(): void {
+		this.compositeBar.shutdown();
+		super.shutdown();
 	}
 
 	public dispose(): void {

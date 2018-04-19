@@ -567,7 +567,13 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public clear(): void {
-		this._xterm.clear();
+		if (this._shellLaunchConfig.executable && paths.basename(this._shellLaunchConfig.executable).match(/^(zsh|bash|bash\.exe)$/)) {
+			// If a supported shell is being used, clear xterm scrollback then clear shell (^L)
+			this._xterm.write('\x1b[3J');
+			this._processManager.write('\x0c');
+		} else {
+			this._xterm.clear();
+		}
 	}
 
 	private _refreshSelectionContextKey() {

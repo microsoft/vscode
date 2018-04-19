@@ -525,6 +525,10 @@ export class Thread implements IThread {
 		return this.process.session.pause({ threadId: this.threadId });
 	}
 
+	public terminate(): TPromise<any> {
+		return this.process.session.terminateThreads({ threadIds: [this.threadId] });
+	}
+
 	public reverseContinue(): TPromise<any> {
 		return this.process.session.reverseContinue({ threadId: this.threadId });
 	}

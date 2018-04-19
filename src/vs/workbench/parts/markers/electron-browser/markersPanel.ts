@@ -96,9 +96,8 @@ export class MarkersPanel extends Panel {
 	}
 
 	public layout(dimension: dom.Dimension): void {
-		const height = dimension.height - 38;
-		this.treeContainer.style.height = `${height}px`;
-		this.tree.layout(height, dimension.width);
+		this.treeContainer.style.height = `${dimension.height}px`;
+		this.tree.layout(dimension.height, dimension.width);
 		this.filterInputActionItem.toggleLayout(dimension.width < 1200);
 	}
 

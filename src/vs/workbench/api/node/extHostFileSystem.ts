@@ -208,7 +208,13 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		this._linkProvider.add(scheme);
 		this._usedSchemes.add(scheme);
 		this._fsProvider.set(handle, provider);
-		this._proxy.$registerFileSystemProvider(handle, scheme);
+
+		let capabilites = files.FileSystemProviderCapabilities.FileReadWrite;
+		if (typeof provider.copy === 'function') {
+			capabilites += files.FileSystemProviderCapabilities.FileFolderCopy;
+		}
+
+		this._proxy.$registerFileSystemProvider(handle, scheme, capabilites);
 
 		const subscription = provider.onDidChangeFile(event => {
 			let newEvent = event.map(e => {
@@ -244,9 +250,11 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	$stat(handle: number, resource: UriComponents): TPromise<files.IStat, any> {
 		return asWinJsPromise(token => this._fsProvider.get(handle).stat(URI.revive(resource), token));
 	}
+
 	$readdir(handle: number, resource: UriComponents): TPromise<[string, files.IStat][], any> {
 		return asWinJsPromise(token => this._fsProvider.get(handle).readDirectory(URI.revive(resource), token));
 	}
+
 	$readFile(handle: number, resource: UriComponents, flags: files.FileOpenFlags): TPromise<string> {
 		return asWinJsPromise(token => {
 			return this._fsProvider.get(handle).readFile(URI.revive(resource), { flags }, token);
@@ -254,24 +262,34 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 			return Buffer.isBuffer(data) ? data.toString('base64') : Buffer.from(data.buffer, data.byteOffset, data.byteLength).toString('base64');
 		});
 	}
+
 	$writeFile(handle: number, resource: UriComponents, base64Content: string, flags: files.FileOpenFlags): TPromise<void, any> {
 		return asWinJsPromise(token => this._fsProvider.get(handle).writeFile(URI.revive(resource), Buffer.from(base64Content, 'base64'), { flags }, token));
 	}
+
 	$delete(handle: number, resource: UriComponents): TPromise<void, any> {
 		return asWinJsPromise(token => this._fsProvider.get(handle).delete(URI.revive(resource), token));
 	}
+
 	$rename(handle: number, oldUri: UriComponents, newUri: UriComponents, flags: files.FileOpenFlags): TPromise<files.IStat, any> {
 		return asWinJsPromise(token => this._fsProvider.get(handle).rename(URI.revive(oldUri), URI.revive(newUri), { flags }, token));
 	}
+
+	$copy(handle: number, oldUri: UriComponents, newUri: UriComponents, flags: files.FileOpenFlags): TPromise<files.IStat, any> {
+		return asWinJsPromise(token => this._fsProvider.get(handle).copy(URI.revive(oldUri), URI.revive(newUri), { flags }, token));
+	}
+
 	$mkdir(handle: number, resource: UriComponents): TPromise<files.IStat, any> {
 		return asWinJsPromise(token => this._fsProvider.get(handle).createDirectory(URI.revive(resource), token));
 	}
+
 	$watch(handle: number, session: number, resource: UriComponents, opts: files.IWatchOptions): void {
 		asWinJsPromise(token => {
 			let subscription = this._fsProvider.get(handle).watch(URI.revive(resource), opts);
 			this._watches.set(session, subscription);
 		});
 	}
+
 	$unwatch(handle: number, session: number): void {
 		let subscription = this._watches.get(session);
 		if (subscription) {

@@ -30,6 +30,7 @@ export class ViewLocation {
 	static readonly Explorer: ViewLocation = ViewLocation.register('workbench.view.explorer');
 	static readonly Debug: ViewLocation = ViewLocation.register('workbench.view.debug');
 	static readonly Extensions: ViewLocation = ViewLocation.register('workbench.view.extensions');
+	static readonly SCM: ViewLocation = ViewLocation.register('workbench.view.scm');
 
 	private constructor(private _id: string) { }
 	get id(): string { return this._id; }

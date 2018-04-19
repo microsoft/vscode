@@ -43,7 +43,7 @@ export default class LanguageProvider {
 	constructor(
 		private readonly client: TypeScriptServiceClient,
 		private readonly description: LanguageDescription,
-		commandManager: CommandManager,
+		private readonly commandManager: CommandManager,
 		typingsStatus: TypingsStatus
 	) {
 		this.formattingOptionsManager = new FormattingConfigurationManager(client);
@@ -123,9 +123,6 @@ export default class LanguageProvider {
 		const refactorProvider = new (await import('./features/refactorProvider')).default(client, this.formattingOptionsManager, commandManager);
 		this.disposables.push(languages.registerCodeActionsProvider(selector, refactorProvider, refactorProvider.metadata));
 
-		const organizeImportsProvider = new (await import('./features/organizeImports')).OrganizeImportsCodeActionProvider(client);
-		this.disposables.push(languages.registerCodeActionsProvider(selector, organizeImportsProvider, organizeImportsProvider.metadata));
-
 		await this.initFoldingProvider();
 		this.disposables.push(workspace.onDidChangeConfiguration(c => {
 			if (c.affectsConfiguration(foldingSetting)) {
@@ -159,7 +156,7 @@ export default class LanguageProvider {
 		let enable = workspace.getConfiguration().get(foldingSetting, false);
 		if (enable && this.client.apiVersion.has280Features()) {
 			if (!this.foldingProviderRegistration) {
-				this.foldingProviderRegistration = languages.registerFoldingProvider(this.documentSelector, new (await import('./features/foldingProvider')).default(this.client));
+				this.foldingProviderRegistration = languages.registerFoldingRangeProvider(this.documentSelector, new (await import('./features/foldingProvider')).default(this.client));
 			}
 		} else {
 			if (this.foldingProviderRegistration) {
@@ -246,6 +243,11 @@ export default class LanguageProvider {
 
 		if (this.client.apiVersion.has213Features()) {
 			this.versionDependentDisposables.push(languages.registerTypeDefinitionProvider(selector, new (await import('./features/typeDefinitionProvider')).default(this.client)));
+		}
+
+		if (this.client.apiVersion.has280Features()) {
+			const organizeImportsProvider = new (await import('./features/organizeImports')).OrganizeImportsCodeActionProvider(this.client, this.commandManager);
+			this.versionDependentDisposables.push(languages.registerCodeActionsProvider(selector, organizeImportsProvider, organizeImportsProvider.metadata));
 		}
 	}
 

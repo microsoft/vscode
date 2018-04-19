@@ -42,7 +42,7 @@ import { ITreeItem } from 'vs/workbench/common/views';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { SerializedError } from 'vs/base/common/errors';
-import { IStat, FileChangeType, FileOpenFlags, IWatchOptions } from 'vs/platform/files/common/files';
+import { IStat, FileChangeType, FileOpenFlags, IWatchOptions, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { CommentRule, CharacterPair, EnterAction } from 'vs/editor/common/modes/languageConfiguration';
 import { ISingleEditOperation } from 'vs/editor/common/model';
@@ -283,7 +283,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerSignatureHelpProvider(handle: number, selector: ISerializedDocumentFilter[], triggerCharacter: string[]): void;
 	$registerDocumentLinkProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerDocumentColorProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
-	$registerFoldingProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerFoldingRangeProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: ISerializedLanguageConfiguration): void;
 }
 
@@ -364,7 +364,7 @@ export interface MainThreadWebviewsShape extends IDisposable {
 export interface ExtHostWebviewsShape {
 	$onMessage(handle: WebviewPanelHandle, message: any): void;
 	$onDidChangeWebviewPanelViewState(handle: WebviewPanelHandle, active: boolean, position: EditorPosition): void;
-	onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Thenable<void>;
+	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Thenable<void>;
 	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorPosition, options: vscode.WebviewOptions): Thenable<void>;
 	$serializeWebviewPanel(webviewHandle: WebviewPanelHandle): Thenable<any>;
 }
@@ -382,7 +382,7 @@ export interface IFileChangeDto {
 }
 
 export interface MainThreadFileSystemShape extends IDisposable {
-	$registerFileSystemProvider(handle: number, scheme: string): void;
+	$registerFileSystemProvider(handle: number, scheme: string, capabilities: FileSystemProviderCapabilities): void;
 	$unregisterProvider(handle: number): void;
 	$onFileSystemChange(handle: number, resource: IFileChangeDto[]): void;
 }
@@ -572,6 +572,7 @@ export interface ExtHostFileSystemShape {
 	$readFile(handle: number, resource: UriComponents, flags: FileOpenFlags): TPromise<string>;
 	$writeFile(handle: number, resource: UriComponents, base64Encoded: string, flags: FileOpenFlags): TPromise<void>;
 	$rename(handle: number, resource: UriComponents, target: UriComponents, flags: FileOpenFlags): TPromise<IStat>;
+	$copy(handle: number, resource: UriComponents, target: UriComponents, flags: FileOpenFlags): TPromise<IStat>;
 	$mkdir(handle: number, resource: UriComponents): TPromise<IStat>;
 	$readdir(handle: number, resource: UriComponents): TPromise<[string, IStat][]>;
 	$delete(handle: number, resource: UriComponents): TPromise<void>;
@@ -722,7 +723,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$resolveDocumentLink(handle: number, link: modes.ILink): TPromise<modes.ILink>;
 	$provideDocumentColors(handle: number, resource: UriComponents): TPromise<IRawColorInfo[]>;
 	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: IRawColorInfo): TPromise<modes.IColorPresentation[]>;
-	$provideFoldingRanges(handle: number, resource: UriComponents, context: modes.FoldingContext): TPromise<modes.IFoldingRangeList>;
+	$provideFoldingRanges(handle: number, resource: UriComponents, context: modes.FoldingContext): TPromise<modes.FoldingRange[]>;
 }
 
 export interface ExtHostQuickOpenShape {

@@ -391,12 +391,11 @@ export function registerColorProvider(languageId: string, provider: modes.Docume
 }
 
 /**
- * Register a folding provider
+ * Register a folding range provider
  */
-/*export function registerFoldingProvider(languageId: string, provider: modes.FoldingProvider): IDisposable {
-	return modes.FoldingProviderRegistry.register(languageId, provider);
-}*/
-
+export function registerFoldingRangeProvider(languageId: string, provider: modes.FoldingRangeProvider): IDisposable {
+	return modes.FoldingRangeProviderRegistry.register(languageId, provider);
+}
 
 /**
  * Contains additional diagnostic information about the context in which
@@ -787,12 +786,14 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		registerOnTypeFormattingEditProvider: registerOnTypeFormattingEditProvider,
 		registerLinkProvider: registerLinkProvider,
 		registerColorProvider: registerColorProvider,
+		registerFoldingRangeProvider: registerFoldingRangeProvider,
 
 		// enums
 		DocumentHighlightKind: modes.DocumentHighlightKind,
 		CompletionItemKind: CompletionItemKind,
 		SymbolKind: modes.SymbolKind,
 		IndentAction: IndentAction,
-		SuggestTriggerKind: modes.SuggestTriggerKind
+		SuggestTriggerKind: modes.SuggestTriggerKind,
+		FoldingRangeKind: modes.FoldingRangeKind
 	};
 }

@@ -328,9 +328,9 @@ export function createApiFactory(
 			registerColorProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentColorProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerColorProvider(checkSelector(selector), provider);
 			},
-			registerFoldingProvider: proposedApiFunction(extension, (selector: vscode.DocumentSelector, provider: vscode.FoldingProvider): vscode.Disposable => {
-				return extHostLanguageFeatures.registerFoldingProvider(checkSelector(selector), provider);
-			}),
+			registerFoldingRangeProvider(selector: vscode.DocumentSelector, provider: vscode.FoldingRangeProvider): vscode.Disposable {
+				return extHostLanguageFeatures.registerFoldingRangeProvider(checkSelector(selector), provider);
+			},
 			setLanguageConfiguration: (language: string, configuration: vscode.LanguageConfiguration): vscode.Disposable => {
 				return extHostLanguageFeatures.setLanguageConfiguration(language, configuration);
 			}
@@ -345,7 +345,7 @@ export function createApiFactory(
 				return extHostEditors.getVisibleTextEditors();
 			},
 			get terminals() {
-				return extHostTerminalService.terminals;
+				return proposedApiFunction(extension, extHostTerminalService.terminals);
 			},
 			showTextDocument(documentOrUri: vscode.TextDocument | vscode.Uri, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): TPromise<vscode.TextEditor> {
 				let documentPromise: TPromise<vscode.TextDocument>;
@@ -382,9 +382,9 @@ export function createApiFactory(
 			onDidCloseTerminal(listener, thisArg?, disposables?) {
 				return extHostTerminalService.onDidCloseTerminal(listener, thisArg, disposables);
 			},
-			onDidOpenTerminal(listener, thisArg?, disposables?) {
+			onDidOpenTerminal: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
 				return extHostTerminalService.onDidOpenTerminal(listener, thisArg, disposables);
-			},
+			}),
 			get state() {
 				return extHostWindow.state;
 			},
@@ -714,9 +714,8 @@ export function createApiFactory(
 			FileType2: extHostTypes.FileType2,
 			FileOpenFlags: files.FileOpenFlags,
 			FileError: files.FileError,
-			FoldingRangeList: extHostTypes.FoldingRangeList,
 			FoldingRange: extHostTypes.FoldingRange,
-			FoldingRangeType: extHostTypes.FoldingRangeType
+			FoldingRangeKind: extHostTypes.FoldingRangeKind
 		};
 	};
 }

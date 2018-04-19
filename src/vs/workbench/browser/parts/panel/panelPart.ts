@@ -100,6 +100,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	private registerListeners(): void {
 
+		this.toUnbind.push(this.registry.onDidRegister(panelDescriptor => this.compositeBar.addComposite(panelDescriptor, false)));
+
 		// Activate panel action on opening of a panel
 		this.toUnbind.push(this.onDidPanelOpen(panel => {
 			this.compositeBar.activateComposite(panel.getId());
@@ -180,7 +182,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		if (descriptor && descriptor.enabled !== enabled) {
 			descriptor.enabled = enabled;
 			if (enabled) {
-				this.compositeBar.addComposite(descriptor);
+				this.compositeBar.addComposite(descriptor, true);
 			} else {
 				this.compositeBar.removeComposite(id);
 			}
@@ -239,6 +241,11 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		this.layoutCompositeBar();
 
 		return sizes;
+	}
+
+	public shutdown(): void {
+		this.compositeBar.shutdown();
+		super.shutdown();
 	}
 
 	private layoutCompositeBar(): void {
