@@ -775,7 +775,7 @@ declare module 'vscode' {
 		resource: Uri;
 		range: Range;
 		comments: Comment[];
-		actions?: Command[];
+		reply?: Command;
 	}
 
 	interface NewCommentAction {

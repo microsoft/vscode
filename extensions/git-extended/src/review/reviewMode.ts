@@ -38,6 +38,7 @@ export class ReviewMode {
 	private _commentsCache: Map<String, Comment[]>;
 	private _localFileChanges: FileChangeTreeItem[] = [];
 	private _actions: vscode.Command[] = [];
+	private _reply: vscode.Command = null;
 	private _lastCommitSha: string;
 
 	private _onDidChangeCommentThreads = new vscode.EventEmitter<vscode.CommentThreadChangedEvent>();
@@ -132,12 +133,12 @@ export class ReviewMode {
 			}
 		});
 
-		this._actions = [
-			{
-				command: this._prNumber + '-post',
-				title: 'Add single comment'
-			}
-		];
+		this._reply = {
+			command: this._prNumber + '-post',
+			title: 'Add single comment'
+		};
+
+		this._actions = [this._reply];
 
 		this.registerCommentProvider();
 
@@ -282,7 +283,7 @@ export class ReviewMode {
 						gravatar: comment.user.avatar_url
 					};
 				}),
-				actions: this._actions
+				reply: this._reply
 			});
 		}
 

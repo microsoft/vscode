@@ -268,14 +268,14 @@ export class ReviewZoneWidget extends ZoneWidget {
 			this._commentsElement.appendChild(newCommentNode.domNode);
 		}
 
-		const commentForm = $('.comment-form').appendTo(this._bodyElement).getHTMLElement();
-		const textArea = <HTMLTextAreaElement>$('textarea').appendTo(commentForm).getHTMLElement();
-		const formActions = $('.form-actions').appendTo(commentForm).getHTMLElement();
+		if (this._commentThread.reply) {
+			const commentForm = $('.comment-form').appendTo(this._bodyElement).getHTMLElement();
+			const textArea = <HTMLTextAreaElement>$('textarea').appendTo(commentForm).getHTMLElement();
+			const formActions = $('.form-actions').appendTo(commentForm).getHTMLElement();
 
-		for (const action of this._commentThread.actions) {
 			const button = $('button').appendTo(formActions).getHTMLElement();
 			button.onclick = async () => {
-				let newComment = await this.commandService.executeCommand(action.id, this._commentThread.threadId, this.editor.getModel().uri, lineNumber, textArea.value);
+				let newComment = await this.commandService.executeCommand(this._commentThread.reply.id, this._commentThread.threadId, this.editor.getModel().uri, lineNumber, textArea.value);
 				if (newComment) {
 					textArea.value = '';
 					this._commentThread.comments.push(newComment);
@@ -286,7 +286,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 					$(this._secondaryHeading).safeInnerHtml(secondaryHeading);
 				}
 			};
-			button.textContent = action.title;
+			button.textContent = this._commentThread.reply.title;
 		}
 
 		this._resizeObserver = new ResizeObserver(entries => {
@@ -538,7 +538,8 @@ export class ReviewController implements IEditorContribution {
 					endLineNumber: lineNumber,
 					endColumn: 0
 				},
-				actions: newCommentAction.actions
+				reply: null
+				// actions: newCommentAction.actions
 			}, {}, this.themeService, this.commandService);
 			this._zoneWidget.onDidClose(e => {
 				this._zoneWidget = null;

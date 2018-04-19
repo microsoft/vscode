@@ -150,14 +150,12 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 					};
 				}
 			});
+			let reply = {
+				command: 'diff-' + element.prItem.number + '-post',
+				title: 'Add single comment'
+			};
 
-			let actions = [
-				{
-					command: 'diff-' + element.prItem.number + '-post',
-					title: 'Add single comment'
-				}
-			];
-
+			let actions = [reply];
 
 			const _onDidChangeCommentThreads = new vscode.EventEmitter<vscode.CommentThreadChangedEvent>();
 			setTimeout(() => _onDidChangeCommentThreads.fire({ changed: [], added: [], removed: [] }), 5000);
@@ -226,7 +224,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 										gravatar: comment.user.avatar_url
 									};
 								}),
-								actions: actions
+								reply: reply
 							});
 						}
 

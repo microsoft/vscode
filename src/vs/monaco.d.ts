@@ -5033,7 +5033,7 @@ declare namespace monaco.languages {
 		readonly resource: string;
 		readonly range: IRange;
 		readonly comments: Comment[];
-		readonly actions: Command[];
+		readonly reply: Command;
 	}
 
 	export interface NewCommentAction {

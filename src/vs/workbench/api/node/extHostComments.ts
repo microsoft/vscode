@@ -118,7 +118,7 @@ function convertCommentThread(vscodeCommentThread: vscode.CommentThread, command
 		resource: vscodeCommentThread.resource.toString(),
 		range: extHostTypeConverter.fromRange(vscodeCommentThread.range),
 		comments: vscodeCommentThread.comments.map(convertComment),
-		actions: vscodeCommentThread.actions.map(commandsConverter.toInternal)
+		reply: vscodeCommentThread.reply ? commandsConverter.toInternal(vscodeCommentThread.reply) : null
 	};
 }
 
