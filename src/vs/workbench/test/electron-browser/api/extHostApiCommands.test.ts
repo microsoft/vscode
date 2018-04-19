@@ -544,7 +544,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 					new types.CodeLens(new types.Range(0, 0, 1, 1)),
 					new types.CodeLens(new types.Range(0, 0, 1, 1)),
 					new types.CodeLens(new types.Range(0, 0, 1, 1)),
-					new types.CodeLens(new types.Range(0, 0, 1, 1))
+					new types.CodeLens(new types.Range(0, 0, 1, 1), { title: 'Already resolved', command: 'fff' })
 				];
 			},
 			resolveCodeLens(codeLens: types.CodeLens) {
@@ -558,7 +558,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		let value = await commands.executeCommand<vscode.CodeLens[]>('vscode.executeCodeLensProvider', model.uri, 2);
 
-		assert.equal(value.length, 2); // the resolve argument defines the number of results being returned
+		assert.equal(value.length, 3); // the resolve argument defines the number of results being returned
 		assert.equal(resolveCount, 2);
 
 		resolveCount = 0;

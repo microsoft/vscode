@@ -75,7 +75,7 @@ registerLanguageCommand('_executeCodeLensProvider', function (accessor, args) {
 		let resolve: Thenable<any>[] = [];
 
 		for (const item of value) {
-			if (typeof itemResolveCount === 'undefined') {
+			if (typeof itemResolveCount === 'undefined' || Boolean(item.symbol.command)) {
 				result.push(item.symbol);
 			} else if (itemResolveCount-- > 0) {
 				resolve.push(Promise.resolve(item.provider.resolveCodeLens(model, item.symbol, CancellationToken.None)).then(symbol => result.push(symbol)));
