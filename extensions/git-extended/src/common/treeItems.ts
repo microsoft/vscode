@@ -37,10 +37,28 @@ export class PRGroupTreeItem implements vscode.TreeItem {
 
 export class FileChangeTreeItem implements vscode.TreeItem {
 	public iconPath?: string | vscode.Uri | { light: string | vscode.Uri; dark: string | vscode.Uri };
+	public resourceUri: vscode.Uri;
 	public sha: string;
 	public parentSha: string;
 	public command?: vscode.Command;
 	public comments?: any[];
+
+	get letter(): string {
+		switch (this.status) {
+			case GitChangeType.MODIFY:
+				return 'M';
+			case GitChangeType.ADD:
+				return 'A';
+			case GitChangeType.DELETE:
+				return 'D';
+			case GitChangeType.RENAME:
+				return 'R';
+			case GitChangeType.UNKNOWN:
+				return 'U';
+			default:
+				return 'C';
+		}
+	}
 
 	constructor(
 		public readonly prItem: any,
@@ -62,4 +80,5 @@ export class FileChangeTreeItem implements vscode.TreeItem {
 			]
 		};
 	}
+
 }

@@ -25,7 +25,7 @@ export interface ReviewState {
 	base: any;
 }
 
-export class ReviewMode {
+export class ReviewMode implements vscode.DecorationProvider {
 	private _commentProvider: vscode.Disposable;
 	private _command: vscode.Disposable;
 	private _prNumber: number;
@@ -56,8 +56,8 @@ export class ReviewMode {
 		this._disposables.push(_repository.onDidRunGitStatus(e => {
 			this.validateState();
 		}));
+		this._disposables.push(vscode.window.registerDecorationProvider(this));
 		this.validateState();
-
 		this.pollForStatusChange();
 	}
 
@@ -115,8 +115,8 @@ export class ReviewMode {
 
 		await this.getPullRequestData(pr);
 
-		let prChangeResources = this._localFileChanges.map(fileChange => ({
-			resourceUri: vscode.Uri.file(path.resolve(this._repository.path, fileChange.fileName)),
+		let prChangeResources: vscode.SourceControlResourceState[] = this._localFileChanges.map(fileChange => ({
+			resourceUri: fileChange.filePath,
 			command: {
 				title: 'show diff',
 				command: 'vscode.diff',
@@ -125,6 +125,9 @@ export class ReviewMode {
 					fileChange.filePath,
 					fileChange.fileName
 				]
+			},
+			decorations: {
+				letter: fileChange.letter
 			}
 		}));
 
@@ -294,6 +297,23 @@ export class ReviewMode {
 		}
 
 		return ret;
+	}
+
+	_onDidChangeDecorations: vscode.EventEmitter<vscode.Uri | vscode.Uri[]> = new vscode.EventEmitter<vscode.Uri | vscode.Uri[]>();
+	onDidChangeDecorations: vscode.Event<vscode.Uri | vscode.Uri[]> = this._onDidChangeDecorations.event;
+	provideDecoration(uri: vscode.Uri, token: vscode.CancellationToken): vscode.ProviderResult<vscode.DecorationData> {
+		if (uri.scheme === 'review') {
+			let matchingComments = this._commentsCache.get(uri.toString());
+			if (matchingComments && matchingComments.length) {
+				return {
+					bubble: true,
+					abbreviation: '♪♪',
+					title: '♪♪'
+				};
+			}
+		}
+
+		return {};
 	}
 
 	registerCommentProvider() {

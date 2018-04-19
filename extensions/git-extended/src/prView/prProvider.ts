@@ -18,7 +18,7 @@ import { toPRUri } from '../common/uri';
 import * as fs from 'fs';
 import { PullRequest, PRType } from '../common/models/pullrequest';
 
-export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | PullRequest | FileChangeTreeItem>, vscode.TextDocumentContentProvider {
+export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | PullRequest | FileChangeTreeItem>, vscode.TextDocumentContentProvider, vscode.DecorationProvider {
 	private context: vscode.ExtensionContext;
 	private repository: Repository;
 	private configuration: Configuration;
@@ -33,6 +33,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 		this.configuration = configuration;
 		this.reviewMode = reviewMode;
 		vscode.workspace.registerTextDocumentContentProvider('pr', this);
+		vscode.window.registerDecorationProvider(this);
 	}
 
 	async activate(repository: Repository) {
@@ -60,6 +61,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 			};
 		} else {
 			element.iconPath = Resource.getFileStatusUri(element);
+			element.resourceUri = element.filePath;
 			return element;
 		}
 	}
@@ -255,6 +257,19 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 		return parseComments(rawComments);
 	}
 
+	_onDidChangeDecorations: vscode.EventEmitter<vscode.Uri | vscode.Uri[]> = new vscode.EventEmitter<vscode.Uri | vscode.Uri[]>();
+	onDidChangeDecorations: vscode.Event<vscode.Uri | vscode.Uri[]> = this._onDidChangeDecorations.event;
+	provideDecoration(uri: vscode.Uri, token: vscode.CancellationToken): vscode.ProviderResult<vscode.DecorationData> {
+		if (uri.scheme === 'pr') {
+			return {
+				bubble: true,
+				abbreviation: '♪♪',
+				title: '♪♪'
+			};
+		} else {
+			return {};
+		}
+	}
 
 	async provideTextDocumentContent(uri: vscode.Uri, token: vscode.CancellationToken): Promise<string> {
 		let { path } = JSON.parse(uri.query);
