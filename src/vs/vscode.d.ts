@@ -4964,8 +4964,10 @@ declare module 'vscode' {
 		 *
 		 * A webview panel may only show in a single column at a time. If it is already showing, this
 		 * method moves it to a new column.
+		 *
+		 * @param viewColumn View column to show the panel in. Shows in the current `viewColumn` if undefined.
 		 */
-		reveal(viewColumn: ViewColumn): void;
+		reveal(viewColumn?: ViewColumn): void;
 
 		/**
 		 * Dispose of the webview panel.

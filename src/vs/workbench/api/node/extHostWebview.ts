@@ -58,11 +58,6 @@ export class ExtHostWebview implements vscode.Webview {
 		return this._proxy.$postMessage(this._handle, message);
 	}
 
-	public reveal(viewColumn: vscode.ViewColumn): void {
-		this.assertNotDisposed();
-		this._proxy.$reveal(this._handle, typeConverters.fromViewColumn(viewColumn));
-	}
-
 	private assertNotDisposed() {
 		if (this._isDisposed) {
 			throw new Error('Webview is disposed');
@@ -176,9 +171,9 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 		return this._proxy.$postMessage(this._handle, message);
 	}
 
-	public reveal(viewColumn: vscode.ViewColumn): void {
+	public reveal(viewColumn?: vscode.ViewColumn): void {
 		this.assertNotDisposed();
-		this._proxy.$reveal(this._handle, typeConverters.fromViewColumn(viewColumn));
+		this._proxy.$reveal(this._handle, viewColumn ? typeConverters.fromViewColumn(viewColumn) : undefined);
 	}
 
 	private assertNotDisposed() {
