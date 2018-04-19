@@ -101,7 +101,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			// TODO: MainThreadTerminalService is not ready at this point, fix this
 			setTimeout(() => {
 				this._onInstanceRequestExtHostProcess.fire({ proxy, shellLaunchConfig, cols, rows });
-			}, 100);
+			}, 500);
 		});
 	}
 
