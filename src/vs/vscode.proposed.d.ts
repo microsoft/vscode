@@ -132,7 +132,7 @@ declare module 'vscode' {
 	 */
 	export interface FileSystemProvider2 {
 
-		_version: 7;
+		_version: 8;
 
 		/**
 		 * An event to signal that a resource has been created, changed, or deleted. This
@@ -149,13 +149,14 @@ declare module 'vscode' {
 		watch(uri: Uri, options: { recursive?: boolean; excludes?: string[] }): Disposable;
 
 		/**
-		 * Retrieve metadata about a file.
+		 * Retrieve metadata about a file. Throw an [`EntryNotFound`](#FileError.EntryNotFound)-error
+		 * in case the file does not exist.
 		 *
 		 * @param uri The uri of the file to retrieve meta data about.
 		 * @param token A cancellation token.
 		 * @return The file metadata about the file.
 		 */
-		stat(uri: Uri, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
+		stat(uri: Uri, options: { /*future: followSymlinks*/ }, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
 
 		/**
 		 * Retrieve the meta data of all entries of a [directory](#FileType2.Directory)
@@ -164,7 +165,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return A thenable that resolves to an array of tuples of file names and files stats.
 		 */
-		readDirectory(uri: Uri, token: CancellationToken): [string, FileStat2][] | Thenable<[string, FileStat2][]>;
+		readDirectory(uri: Uri, options: { /*future: onlyType?*/ }, token: CancellationToken): [string, FileStat2][] | Thenable<[string, FileStat2][]>;
 
 		/**
 		 * Create a new directory. *Note* that new files are created via `write`-calls.
@@ -172,7 +173,7 @@ declare module 'vscode' {
 		 * @param uri The uri of the *new* folder.
 		 * @param token A cancellation token.
 		 */
-		createDirectory(uri: Uri, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
+		createDirectory(uri: Uri, options: { /*future: permissions?*/ }, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
 
 		/**
 		 * Read the entire contents of a file.
@@ -193,6 +194,15 @@ declare module 'vscode' {
 		writeFile(uri: Uri, content: Uint8Array, options: { flags: FileOpenFlags }, token: CancellationToken): void | Thenable<void>;
 
 		/**
+		 * Delete a file or folder from the underlying storage. 
+		 * 
+		 * @param uri The resource that is to be deleted
+		 * @param options Options bag for future use
+		 * @param token A cancellation token.
+		 */
+		delete(uri: Uri, options: { /*future: useTrash?, followSymlinks?*/ }, token: CancellationToken): void | Thenable<void>;
+
+		/**
 		 * Rename a file or folder.
 		 *
 		 * @param oldUri The existing file or folder.
@@ -210,10 +220,6 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 */
 		copy?(uri: Uri, target: Uri, options: { flags: FileOpenFlags }, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
-
-		// todo@remote
-		// ? useTrash, expose trash
-		delete(uri: Uri, token: CancellationToken): void | Thenable<void>;
 	}
 
 	export namespace workspace {
