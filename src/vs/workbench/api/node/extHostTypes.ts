@@ -1838,19 +1838,19 @@ export enum FileType2 {
 	SymbolicLink = 4,
 }
 
-export class FileError extends Error {
+export class FileSystemError extends Error {
 
-	static EntryExists(message?: string): FileError {
-		return new FileError(message, 'EntryExists', FileError.EntryExists);
+	static EntryExists(message?: string): FileSystemError {
+		return new FileSystemError(message, 'EntryExists', FileSystemError.EntryExists);
 	}
-	static EntryNotFound(message?: string): FileError {
-		return new FileError(message, 'EntryNotFound', FileError.EntryNotFound);
+	static EntryNotFound(message?: string): FileSystemError {
+		return new FileSystemError(message, 'EntryNotFound', FileSystemError.EntryNotFound);
 	}
-	static EntryNotADirectory(message?: string): FileError {
-		return new FileError(message, 'EntryNotADirectory', FileError.EntryNotADirectory);
+	static EntryNotADirectory(message?: string): FileSystemError {
+		return new FileSystemError(message, 'EntryNotADirectory', FileSystemError.EntryNotADirectory);
 	}
-	static EntryIsADirectory(message?: string): FileError {
-		return new FileError(message, 'EntryIsADirectory', FileError.EntryIsADirectory);
+	static EntryIsADirectory(message?: string): FileSystemError {
+		return new FileSystemError(message, 'EntryIsADirectory', FileSystemError.EntryIsADirectory);
 	}
 
 	constructor(message?: string, code?: string, hide?: Function) {

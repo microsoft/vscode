@@ -101,12 +101,12 @@ declare module 'vscode' {
 	/**
 	 *
 	 */
-	export class FileError extends Error {
+	export class FileSystemError extends Error {
 
-		static EntryExists(message?: string): FileError;
-		static EntryNotFound(message?: string): FileError;
-		static EntryNotADirectory(message?: string): FileError;
-		static EntryIsADirectory(message?: string): FileError;
+		static EntryExists(message?: string): FileSystemError;
+		static EntryNotFound(message?: string): FileSystemError;
+		static EntryNotADirectory(message?: string): FileSystemError;
+		static EntryIsADirectory(message?: string): FileSystemError;
 
 		constructor(message?: string);
 	}
