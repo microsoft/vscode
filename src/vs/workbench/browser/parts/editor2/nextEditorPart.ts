@@ -6,7 +6,8 @@
 'use strict';
 
 import 'vs/css!./media/nextEditorpart';
-import 'vs/workbench/browser/parts/editor/editor.contribution';
+import 'vs/workbench/browser/parts/editor2/editor2.contribution';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
 import { Dimension, addClass, createCSSRule } from 'vs/base/browser/dom';
@@ -15,6 +16,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { join } from 'vs/base/common/paths';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { INextEditorPartService } from 'vs/workbench/services/editor/common/nextEditorPartService';
+import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 // import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class NextEditorPart extends Part implements INextEditorPartService {
@@ -39,6 +41,12 @@ export class NextEditorPart extends Part implements INextEditorPartService {
 		// this.memento = this.getMemento(this.storageService, Scope.WORKSPACE);
 
 		this.initStyles();
+	}
+
+	public openEditor(input: EditorInput, options?: EditorOptions): TPromise<void> {
+		console.log('open: ', input);
+
+		return TPromise.as(void 0);
 	}
 
 	private initStyles(): void {
