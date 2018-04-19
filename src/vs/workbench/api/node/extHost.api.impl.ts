@@ -687,6 +687,8 @@ export function createApiFactory(
 
 			FileChangeType: extHostTypes.FileChangeType,
 			FileType: extHostTypes.FileType,
+			DeprecatedFileChangeType: extHostTypes.FileChangeType,
+			DeprecatedFileType: extHostTypes.FileType,
 			FileChangeType2: extHostTypes.FileChangeType2,
 			FileType2: extHostTypes.FileType2,
 			FileOpenFlags: files.FileOpenFlags,

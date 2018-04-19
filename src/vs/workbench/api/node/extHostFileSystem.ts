@@ -63,7 +63,7 @@ class FileSystemProviderShim implements vscode.FileSystemProvider2 {
 
 	onDidChangeFile: vscode.Event<vscode.FileChange2[]>;
 
-	constructor(private readonly _delegate: vscode.FileSystemProvider) {
+	constructor(private readonly _delegate: vscode.DeprecatedFileSystemProvider) {
 		if (!this._delegate.onDidChange) {
 			this.onDidChangeFile = Event.None;
 		} else {
@@ -89,7 +89,7 @@ class FileSystemProviderShim implements vscode.FileSystemProvider2 {
 		});
 	}
 
-	private static _modernizeFileStat(stat: vscode.FileStat): vscode.FileStat2 {
+	private static _modernizeFileStat(stat: vscode.DeprecatedFileStat): vscode.FileStat2 {
 		let { mtime, size, type } = stat;
 		let newType: vscode.FileType2;
 
@@ -108,7 +108,7 @@ class FileSystemProviderShim implements vscode.FileSystemProvider2 {
 		return { mtime, size, type: newType };
 	}
 
-	private static _modernizeFileChange(e: vscode.FileChange): vscode.FileChange2 {
+	private static _modernizeFileChange(e: vscode.DeprecatedFileChange): vscode.FileChange2 {
 		let { resource, type } = e;
 		let newType: vscode.FileChangeType2;
 		switch (type) {
@@ -184,11 +184,11 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		extHostLanguageFeatures.registerDocumentLinkProvider('*', this._linkProvider);
 	}
 
-	registerDeprecatedFileSystemProvider(scheme: string, provider: vscode.FileSystemProvider) {
+	registerDeprecatedFileSystemProvider(scheme: string, provider: vscode.DeprecatedFileSystemProvider) {
 		return this._doRegisterFileSystemProvider(scheme, new FileSystemProviderShim(provider));
 	}
 
-	registerFileSystemProvider(scheme: string, provider: vscode.FileSystemProvider, newProvider: vscode.FileSystemProvider2) {
+	registerFileSystemProvider(scheme: string, provider: vscode.DeprecatedFileSystemProvider, newProvider: vscode.FileSystemProvider2) {
 		if (newProvider && newProvider._version === 8) {
 			return this._doRegisterFileSystemProvider(scheme, newProvider);
 		} else if (provider) {
