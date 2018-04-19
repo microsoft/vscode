@@ -4858,11 +4858,6 @@ declare module 'vscode' {
 		readonly options: WebviewOptions;
 
 		/**
-		 * Title of the webview shown in UI.
-		 */
-		title: string;
-
-		/**
 		 * Contents of the webview.
 		 *
 		 * Should be a complete html document.
@@ -4920,6 +4915,11 @@ declare module 'vscode' {
 		 * Type of the webview panel, such as `'markdown.preview'`.
 		 */
 		readonly viewType: string;
+
+		/**
+		 * Title of the panel shown in UI.
+		 */
+		title: string;
 
 		/**
 		 * Webview belonging to the panel.
