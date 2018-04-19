@@ -10,7 +10,7 @@
 	<script>
 		require.config({ baseUrl: '../out' });
 
-		require(['vs/base/browser/ui/splitview/grid'], ({ Grid }) => {
+		require(['vs/base/browser/ui/grid/gridview'], ({ Grid }) => {
 			const grid = new Grid(document.body);
 			const layout = () => grid.layout(document.body.clientWidth, document.body.clientHeight);
 			window.onresize = layout;
