@@ -95,6 +95,8 @@ export class CommentNode {
 			this._md = renderMarkdown(newComment.body);
 			this._body.appendChild(this._md);
 		}
+
+		this.comment = newComment;
 	}
 }
 
