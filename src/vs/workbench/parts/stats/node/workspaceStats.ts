@@ -285,8 +285,17 @@ export class WorkspaceStats implements IWorkbenchContribution {
 					const packageJsonContents = JSON.parse(content.value);
 					let modulesToLookFor = [
 						'react-native',
-						'azure-storage'
-						//add more packages here
+						// Azure service modules
+						'azure-gallery',
+						'azure-graph',
+						'azure-keyvault',
+						'azure-monitoring',
+						'azure-scheduler',
+						'azure-servicefabric',
+						'azure-sb',
+						'azure-storage',
+						'azure-monitor',
+						'azure-batch'
 					];
 
 					if (packageJsonContents['dependencies']) {
