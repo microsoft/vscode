@@ -4875,16 +4875,6 @@ declare module 'vscode' {
 		readonly onDidReceiveMessage: Event<any>;
 
 		/**
-		 * Fired when the webview is disposed.
-		 *
-		 * This may be because the user closed the panel that owns this webview
-		 * or because `.dispose()` was called on the webview.
-		 *
-		 * Trying to use the webview after it has been disposed throws an exception.
-		 */
-		readonly onDidDispose: Event<void>;
-
-		/**
 		 * Post a message to the webview content.
 		 *
 		 * Messages are only develivered if the webview is visible.
@@ -4892,15 +4882,6 @@ declare module 'vscode' {
 		 * @param message Body of the message.
 		 */
 		postMessage(message: any): Thenable<boolean>;
-
-		/**
-		 * Dispose of the webview panel.
-		 *
-		 * This closes the panel that owns the webview if it showing and disposes of the
-		 * resources owned by the webview. Webview are also disposed when the user closes
-		 * the webview panel that owns the webview. Both cases fire the `onDispose` event.
-		 */
-		dispose(): any;
 	}
 
 	/**
@@ -4969,12 +4950,31 @@ declare module 'vscode' {
 		readonly onDidChangeViewState: Event<WebviewPanelOnDidChangeViewStateEvent>;
 
 		/**
+		 * Fired when the panel is disposed.
+		 *
+		 * This may be because the user closed the panel or because `.dispose()` was
+		 * called on it.
+		 *
+		 * Trying to use the panel after it has been disposed throws an exception.
+		 */
+		readonly onDidDispose: Event<void>;
+
+		/**
 		 * Show the webview panel in a given column.
 		 *
 		 * A webview panel may only show in a single column at a time. If it is already showing, this
 		 * method moves it to a new column.
 		 */
 		reveal(viewColumn: ViewColumn): void;
+
+		/**
+		 * Dispose of the webview panel.
+		 *
+		 * This closes the panel if it showing and disposes of the resources owned by the webview.
+		 * Webview panels are also disposed when the user closes the webview panel. Both cases
+		 * fire the `onDispose` event.
+		 */
+		dispose(): any;
 	}
 
 	/**

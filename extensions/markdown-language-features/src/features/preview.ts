@@ -106,7 +106,7 @@ export class MarkdownPreview {
 		this._locked = locked;
 		this.editor = webview;
 
-		this.editor.webview.onDidDispose(() => {
+		this.editor.onDidDispose(() => {
 			this.dispose();
 		}, null, this.disposables);
 
@@ -192,7 +192,7 @@ export class MarkdownPreview {
 
 		this._onDisposeEmitter.dispose();
 		this._onDidChangeViewStateEmitter.dispose();
-		this.editor.webview.dispose();
+		this.editor.dispose();
 
 		disposeAll(this.disposables);
 	}
