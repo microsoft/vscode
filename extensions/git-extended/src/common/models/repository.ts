@@ -90,12 +90,12 @@ export class Repository {
 
 	async connectGitHub(credentialStore: CredentialStore) {
 		let ret: GitHubRepository[] = [];
-		this.remotes.forEach(async remote => {
+		await Promise.all(this.remotes.map(async remote => {
 			let octo = await credentialStore.getOctokit(remote);
 			if (octo) {
 				ret.push(new GitHubRepository(remote, octo));
 			}
-		});
+		}));
 
 		this.githubRepositories = ret;
 	}
