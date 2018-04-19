@@ -60,7 +60,7 @@ export const viewsContainerContribution: IJSONSchema = {
 	type: 'object',
 	properties: {
 		'activitybar': {
-			description: localize('views.container.activitybar', "Activity Bar"),
+			description: localize('views.container.activitybar', "Contribute views containers to Activity Bar"),
 			type: 'array',
 			items: viewsContainerSchema
 		}

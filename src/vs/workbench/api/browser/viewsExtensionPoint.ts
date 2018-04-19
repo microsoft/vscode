@@ -69,15 +69,23 @@ namespace schema {
 		type: 'object',
 		properties: {
 			'explorer': {
-				description: localize('views.explorer', "Explorer View"),
+				description: localize('views.explorer', "Contributes views to Explorer container in the Activity bar"),
 				type: 'array',
-				items: viewDescriptor
+				items: viewDescriptor,
+				default: []
 			},
 			'debug': {
-				description: localize('views.debug', "Debug View"),
+				description: localize('views.debug', "Contributes views to Debug container in the Activity bar"),
 				type: 'array',
-				items: viewDescriptor
+				items: viewDescriptor,
+				default: []
 			}
+		},
+		additionalProperties: {
+			description: localize('views.contributed', "Contributes views to contributed views container"),
+			type: 'array',
+			items: viewDescriptor,
+			default: []
 		}
 	};
 }
