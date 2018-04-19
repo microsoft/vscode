@@ -518,16 +518,17 @@ export enum ProcessState {
 }
 
 
-export interface ITerminalProcessExtHostProxy {
+export interface ITerminalProcessExtHostProxy extends IDisposable {
 	readonly terminalId: number;
 
 	emitData(data: string): void;
 	emitTitle(title: string): void;
 	emitPid(pid: number): void;
 	emitExit(exitCode: number): void;
-	onInput(listener: (data: string) => void): IDisposable;
-	onResize(listener: (cols: number, rows: number) => void): IDisposable;
-	onShutdown(listener: () => void): IDisposable;
+
+	onInput(listener: (data: string) => void): void;
+	onResize(listener: (cols: number, rows: number) => void): void;
+	onShutdown(listener: () => void): void;
 }
 
 export interface ITerminalProcessExtHostRequest {

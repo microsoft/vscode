@@ -12,6 +12,8 @@ export class TerminalProcessExtHostProxy extends EventEmitter implements ITermin
 	// For ext host processes connected checks happen on the ext host
 	public connected: boolean = true;
 
+	private _disposables: IDisposable[] = [];
+
 	constructor(
 		public terminalId: number,
 		shellLaunchConfig: IShellLaunchConfig,
@@ -23,6 +25,11 @@ export class TerminalProcessExtHostProxy extends EventEmitter implements ITermin
 
 		// TODO: Return TPromise<boolean> indicating success? Teardown if failure?
 		this._terminalService.requestExtHostProcess(this, shellLaunchConfig, cols, rows);
+	}
+
+	public dispose(): void {
+		this._disposables.forEach(d => d.dispose());
+		this._disposables.length = 0;
 	}
 
 	public emitData(data: string): void {
@@ -39,6 +46,7 @@ export class TerminalProcessExtHostProxy extends EventEmitter implements ITermin
 
 	public emitExit(exitCode: number): void {
 		this.emit('exit', exitCode);
+		this.dispose();
 	}
 
 	public send(message: IMessageToTerminalProcess): boolean {
@@ -50,21 +58,21 @@ export class TerminalProcessExtHostProxy extends EventEmitter implements ITermin
 		return true;
 	}
 
-	public onInput(listener: (data: string) => void): IDisposable {
+	public onInput(listener: (data: string) => void): void {
 		const outerListener = (data) => listener(data);
 		this.on('input', outerListener);
-		return toDisposable(() => this.removeListener('input', outerListener));
+		this._disposables.push(toDisposable(() => this.removeListener('input', outerListener)));
 	}
 
-	public onResize(listener: (cols: number, rows: number) => void): IDisposable {
+	public onResize(listener: (cols: number, rows: number) => void): void {
 		const outerListener = (cols, rows) => listener(cols, rows);
 		this.on('resize', outerListener);
-		return toDisposable(() => this.removeListener('resize', outerListener));
+		this._disposables.push(toDisposable(() => this.removeListener('resize', outerListener)));
 	}
 
-	public onShutdown(listener: () => void): IDisposable {
+	public onShutdown(listener: () => void): void {
 		const outerListener = () => listener();
 		this.on('shutdown', outerListener);
-		return toDisposable(() => this.removeListener('shutdown', outerListener));
+		this._disposables.push(toDisposable(() => this.removeListener('shutdown', outerListener)));
 	}
 }
