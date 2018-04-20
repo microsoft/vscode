@@ -404,8 +404,6 @@ export class ReviewMode implements vscode.DecorationProvider {
 			branch: `pull-request-${pr.prItem.number}`,
 			head: pr.prItem.head,
 			base: pr.prItem.base
-		}).then(async e => {
-			await this._repository.status();
 		});
 	}
 
