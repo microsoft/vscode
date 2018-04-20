@@ -669,7 +669,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.codeActionsOnSaveTimeout': {
 			'type': 'number',
 			'default': EDITOR_DEFAULTS.contribInfo.codeActionsOnSaveTimeout,
-			'description': nls.localize('codeActionsOnSaveTimeout', "Timeout for code actions kinds to be run on save.")
+			'description': nls.localize('codeActionsOnSaveTimeout', "Timeout for code actions run on save.")
 		},
 		'editor.selectionClipboard': {
 			'type': 'boolean',
