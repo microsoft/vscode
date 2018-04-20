@@ -114,11 +114,11 @@ export class CommentsPanel extends Panel {
 
 		const commentsNavigator = this._register(new TreeResourceNavigator(this.tree, { openOnFocus: true }));
 		this._register(debounceEvent(commentsNavigator.openResource, (last, event) => event, 100, true)(options => {
-			this.openFile(options.element, options.editorOptions.pinned, options.sideBySide);
+			this.openFile(options.element, options.editorOptions.pinned, options.editorOptions.preserveFocus, options.sideBySide);
 		}));
 	}
 
-	private openFile(element: any, pinned: boolean, sideBySide: boolean): boolean {
+	private openFile(element: any, pinned: boolean, preserveFocus: boolean, sideBySide: boolean): boolean {
 		if (!element) {
 			return false;
 		}
@@ -128,17 +128,23 @@ export class CommentsPanel extends Panel {
 		}
 
 		const range = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].range : element.range;
-		this.editorService.openEditor({ resource: element.resource, options: { pinned: pinned, selection: range } }, sideBySide)
-			.done(editor => {
-				// If clicking on the file name, open the first comment thread. If clicking on a comment, open its thread
-				const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
-				const control = editor.getControl();
-				if (threadToReveal && isCodeEditor(control)) {
-					const controller = ReviewController.get(control);
-					// FIX there is a race between revealing the thread and the widget being created?
-					controller.revealCommentThread(threadToReveal);
-				}
-			});
+		this.editorService.openEditor({
+			resource: element.resource,
+			options: {
+				pinned: pinned,
+				preserveFocus: preserveFocus,
+				selection: range
+			}
+		}, sideBySide).done(editor => {
+			// If clicking on the file name, open the first comment thread. If clicking on a comment, open its thread
+			const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
+			const control = editor.getControl();
+			if (threadToReveal && isCodeEditor(control)) {
+				const controller = ReviewController.get(control);
+				// FIX there is a race between revealing the thread and the widget being created?
+				controller.revealCommentThread(threadToReveal);
+			}
+		});
 
 		return true;
 	}
