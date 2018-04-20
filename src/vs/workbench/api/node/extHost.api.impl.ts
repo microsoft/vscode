@@ -57,7 +57,6 @@ import { ExtensionActivatedByAPI } from 'vs/workbench/api/node/extHostExtensionA
 import { OverviewRulerLane } from 'vs/editor/common/model';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { ExtHostWebviews } from 'vs/workbench/api/node/extHostWebview';
-import * as files from 'vs/platform/files/common/files';
 import { ExtHostSearch } from './extHostSearch';
 
 export interface IExtensionApiFactory {
@@ -697,7 +696,6 @@ export function createApiFactory(
 			DeprecatedFileType: extHostTypes.FileType,
 			FileChangeType2: extHostTypes.FileChangeType2,
 			FileType2: extHostTypes.FileType2,
-			FileOpenFlags: files.FileOpenFlags,
 			FileSystemError: extHostTypes.FileSystemError,
 			FoldingRange: extHostTypes.FoldingRange,
 			FoldingRangeKind: extHostTypes.FoldingRangeKind
