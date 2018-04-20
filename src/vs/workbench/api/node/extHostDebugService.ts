@@ -584,11 +584,11 @@ export class ExtHostVariableResolverService implements IConfigurationResolverSer
 		return this._variableResolver.resolveAny(root ? root.uri : undefined, value);
 	}
 
-	public resolveAny(root: IWorkspaceFolder, value: any): any {
-		return this._variableResolver.resolveAny(root ? root.uri : undefined, value);
+	public resolveAny<T>(root: IWorkspaceFolder, value: T, commandMapping?: IStringDictionary<string>): T {
+		return this._variableResolver.resolveAny(root ? root.uri : undefined, value, commandMapping);
 	}
 
-	resolveInteractiveVariables(configuration: any, interactiveVariablesMap: { [key: string]: string; }): TPromise<any, any> {
-		throw new Error('Method not implemented.');
+	public executeCommandVariables(configuration: any, variables: IStringDictionary<string>): TPromise<IStringDictionary<string>> {
+		throw new Error('findAndExecuteCommandVariables not implemented.');
 	}
 }

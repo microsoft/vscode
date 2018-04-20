@@ -20,6 +20,7 @@ import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { IDebugAdapter, IAdapterExecutable, IDebuggerContribution, IPlatformSpecificAdapterContribution, IConfig } from 'vs/workbench/parts/debug/common/debug';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 /**
  * Abstract implementation of the low level API for a debug adapter.
@@ -409,7 +410,7 @@ export class DebugAdapter extends StreamDebugAdapter {
 		}
 	}
 
-	static substituteVariables(workspaceFolder: IWorkspaceFolder, config: IConfig, resolverService: IConfigurationResolverService): IConfig {
+	static substituteVariables(workspaceFolder: IWorkspaceFolder, config: IConfig, resolverService: IConfigurationResolverService, commandValueMapping?: IStringDictionary<string>): IConfig {
 
 		const result = objects.deepClone(config) as IConfig;
 
@@ -428,7 +429,7 @@ export class DebugAdapter extends StreamDebugAdapter {
 		delete result.linux;
 
 		// substitute all variables in string values
-		return resolverService.resolveAny(workspaceFolder, result);
+		return resolverService.resolveAny(workspaceFolder, result, commandValueMapping);
 	}
 }
 
