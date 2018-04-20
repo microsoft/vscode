@@ -6,163 +6,25 @@
 import 'vs/css!./media/panel';
 import * as dom from 'vs/base/browser/dom';
 import { debounceEvent } from 'vs/base/common/event';
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import { IDataSource, IFilter, IRenderer, ITree } from 'vs/base/parts/tree/browser/tree';
+import URI from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { DefaultAccessibilityProvider, DefaultController, DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { CommentThread, CommentThreadChangedEvent } from 'vs/editor/common/modes';
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { FileLabel, ResourceLabel } from 'vs/workbench/browser/labels';
 import { Panel } from 'vs/workbench/browser/panel';
+import { CommentsModel, ResourceWithCommentThreads, instanceOfCommentThread } from 'vs/workbench/parts/comments/common/commentModel';
 import { ReviewController } from 'vs/workbench/parts/comments/electron-browser/commentsEditorContribution';
+import { CommentsDataSource, CommentsModelRenderer, CommentsDataFilter } from 'vs/workbench/parts/comments/electron-browser/commentsTreeViewer';
 import { ICommentService } from 'vs/workbench/services/comments/electron-browser/commentService';
-import { ResourceWithCommentThreads, CommentsModel, CommentNode } from 'vs/workbench/parts/comments/common/commentModel';
-import { CommentThread, CommentThreadChangedEvent } from 'vs/editor/common/modes';
 
 export const COMMENTS_PANEL_ID = 'workbench.panel.comments';
 export const COMMENTS_PANEL_TITLE = 'Comments';
 
-export class CommentsDataSource implements IDataSource {
-	public getId(tree: ITree, element: any): string {
-		if (element instanceof CommentsModel) {
-			return 'root';
-		}
-		if (element instanceof ResourceWithCommentThreads) {
-			return element.id;
-		}
-		if (element instanceof CommentNode) {
-			// Fix
-			return 'commentNode' + element.comment.body.value.substr(0, 10);
-		}
-		return '';
-	}
-
-	public hasChildren(tree: ITree, element: any): boolean {
-		return element instanceof CommentsModel || element instanceof ResourceWithCommentThreads || (element instanceof CommentNode && element.hasReply());
-	}
-
-	public getChildren(tree: ITree, element: any): Promise {
-		if (element instanceof CommentsModel) {
-			return Promise.as(element.resourceCommentThreads);
-		}
-		if (element instanceof ResourceWithCommentThreads) {
-			return Promise.as([element.comments[0]]);
-		}
-		if (element instanceof CommentNode && element.hasReply()) {
-			return Promise.as([element.reply]);
-		}
-		return null;
-	}
-
-	public getParent(tree: ITree, element: any): Promise {
-		return TPromise.as(null);
-	}
-
-	public shouldAutoexpand(tree: ITree, element: any): boolean {
-		return true;
-	}
-}
-
-export class CommentsModelRenderer implements IRenderer {
-	private static COMMENTS_THREAD_ID = 'comments-thread';
-	private static COMMENT_ID = 'comment';
-
-
-	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-	) {
-	}
-
-	public getHeight(tree: ITree, element: any): number {
-		return 22;
-	}
-
-	public getTemplateId(tree: ITree, element: any): string {
-		if (element instanceof ResourceWithCommentThreads) {
-			return CommentsModelRenderer.COMMENTS_THREAD_ID;
-		}
-		if (element instanceof CommentNode) {
-			return CommentsModelRenderer.COMMENT_ID;
-		}
-
-		return '';
-	}
-
-	public renderTemplate(ITree: ITree, templateId: string, container: HTMLElement): any {
-		switch (templateId) {
-			case CommentsModelRenderer.COMMENTS_THREAD_ID:
-				return this.renderCommentsThreadTemplate(container);
-			case CommentsModelRenderer.COMMENT_ID:
-				return this.renderCommentTemplate(container);
-		}
-	}
-
-	public disposeTemplate(tree: ITree, templateId: string): void {
-		// TODO
-	}
-
-	public renderElement(tree: ITree, element: any, templateId: string, templateData: any): void {
-		switch (templateId) {
-			case CommentsModelRenderer.COMMENTS_THREAD_ID:
-				return this.renderCommentsThreadElement(tree, element, templateData);
-			case CommentsModelRenderer.COMMENT_ID:
-				return this.renderCommentElement(tree, element, templateData);
-		}
-	}
-
-	private renderCommentsThreadTemplate(container: HTMLElement): ICommentThreadTemplateData {
-		const data = <ICommentThreadTemplateData>Object.create(null);
-		const labelContainer = dom.append(container, dom.$('.comment-thread-container'));
-		data.resourceLabel = this.instantiationService.createInstance(FileLabel, labelContainer, {});
-
-		return data;
-	}
-
-	private renderCommentTemplate(container: HTMLElement): ICommentTemplateData {
-		const data = <ICommentTemplateData>Object.create(null);
-		data.icon = dom.append(container, dom.$('img.icon'));
-		data.userName = dom.append(container, dom.$('span.user'));
-		const labelContainer = dom.append(container, dom.$('.comment-container'));
-		data.resourceLabel = this.instantiationService.createInstance(ResourceLabel, labelContainer, {});
-
-		return data;
-	}
-
-	private renderCommentsThreadElement(tree: ITree, element: ResourceWithCommentThreads, templateData: ICommentThreadTemplateData) {
-		templateData.resourceLabel.setFile(element.resource);
-	}
-
-	private renderCommentElement(tree: ITree, element: CommentNode, templateData: ICommentTemplateData) {
-		templateData.resourceLabel.setLabel({ name: element.comment.body.value });
-		templateData.icon.src = element.comment.gravatar;
-		templateData.userName.textContent = element.comment.userName;
-	}
-}
-
-export class DataFilter implements IFilter {
-	public isVisible(tree: ITree, element: any): boolean {
-		if (element instanceof CommentsModel) {
-			return element.resourceCommentThreads.length > 0;
-		}
-		if (element instanceof ResourceWithCommentThreads) {
-			return element.comments.length > 0;
-		}
-		return true;
-	}
-}
-
-interface ICommentThreadTemplateData {
-	resourceLabel: FileLabel;
-}
-
-interface ICommentTemplateData {
-	icon: HTMLImageElement;
-	resourceLabel: ResourceLabel;
-	userName: HTMLSpanElement;
-}
 export class CommentsPanel extends Panel {
 	private tree: WorkbenchTree;
 	private treeContainer: HTMLElement;
@@ -246,11 +108,11 @@ export class CommentsPanel extends Panel {
 	private createTree(): void {
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new CommentsDataSource(),
-			renderer: new CommentsModelRenderer(this.instantiationService),
+			renderer: new CommentsModelRenderer(this.instantiationService, this.themeService),
 			accessibilityProvider: new DefaultAccessibilityProvider,
 			controller: new DefaultController(),
 			dnd: new DefaultDragAndDrop(),
-			filter: new DataFilter()
+			filter: new CommentsDataFilter()
 		}, {
 				twistiePixels: 20,
 				ariaLabel: COMMENTS_PANEL_TITLE
@@ -263,15 +125,21 @@ export class CommentsPanel extends Panel {
 	}
 
 	private openFile(element: any, pinned: boolean, sideBySide: boolean): boolean {
-		if (!(element instanceof ResourceWithCommentThreads || element instanceof CommentNode)) {
+		if (!element) {
 			return false;
 		}
 
-		const range = element instanceof ResourceWithCommentThreads ? element.comments[0].range : element.range;
-		this.editorService.openEditor({ resource: element.resource, options: { pinned: pinned, selection: range } }, sideBySide)
+		if (!(element instanceof ResourceWithCommentThreads || instanceOfCommentThread(element))) {
+			return false;
+		}
+
+		const resource = element instanceof ResourceWithCommentThreads ? element.resource : URI.parse(element.resource);
+
+		const range = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].range : element.range;
+		this.editorService.openEditor({ resource: resource, options: { pinned: pinned, selection: range } }, sideBySide)
 			.done(editor => {
 				// If clicking on the file name, open the first comment thread. If clicking on a comment, open its thread
-				const threadToReveal = element instanceof ResourceWithCommentThreads ? element.comments[0].threadId : element.threadId;
+				const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
 				const control = editor.getControl();
 				if (threadToReveal && isCodeEditor(control)) {
 					const controller = ReviewController.get(control);

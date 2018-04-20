@@ -20,22 +20,25 @@
 	visibility: hidden;
 }
 
+.comments-panel .comments-panel-container .tree-container .comment-thread-container,
+.comments-panel .comments-panel-container .tree-container .comment {
+	display: flex;
+}
+
 .comments-panel .icon {
 	height: 12px;
 	margin-right: 6px;
 	flex: 0 0 12px;
 }
 
+.monaco-tree-row {
+	height: initial !important;
+}
+
 .comments-panel .user {
 	vertical-align: top;
 	padding-right: 5px;
-	opacity: 0.7;
-}
-
-.comments-panel .comment-container {
-	display: inline-flex;
-	text-overflow: ellipsis;
-	overflow: hidden;
+	opacity: 0.5;
 }
 
 .comments-panel .comments-panel-container .message-box-container {
@@ -45,4 +48,19 @@
 
 .comments-panel .comments-panel-container .message-box-container span:focus {
 	outline: none;
+}
+
+.comments-panel .comments-panel-container .tree-container .count-badge-wrapper {
+	margin-left: 10px;
+}
+
+.comments-panel .comments-panel-container .tree-container .comment .text {
+	line-height: 22px;
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+.comments-panel .comments-panel-container .monaco-list .monaco-list-row.selected,
+.comments-panel .comments-panel-container .monaco-list .monaco-list-row.focused {
+	background-color: inherit;
 }
