@@ -288,7 +288,8 @@ class CodeActionOnParticipant implements ISaveParticipant {
 			return undefined;
 		}
 
-		const setting = this._configurationService.getValue<ICodeActionsOnSaveOptions>('editor.codeActionsOnSave', { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() });
+		const settingsOverrides = { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() };
+		const setting = this._configurationService.getValue<ICodeActionsOnSaveOptions>('editor.codeActionsOnSave', settingsOverrides);
 		if (!setting) {
 			return undefined;
 		}
@@ -298,8 +299,12 @@ class CodeActionOnParticipant implements ISaveParticipant {
 			return undefined;
 		}
 
-		const actionsToRun = await this.getActionsToRun(model, codeActionsOnSave);
-		await this.applyCodeActions(actionsToRun, editor);
+		const timeout = this._configurationService.getValue<number>('editor.codeActionsOnSaveTimeout', settingsOverrides);
+
+		return new Promise<CodeAction[]>((resolve, reject) => {
+			setTimeout(() => reject(localize('codeActionsOnSave.didTimeout', "Aborted codeActionsOnSave after {0}ms", timeout)), timeout);
+			this.getActionsToRun(model, codeActionsOnSave).then(resolve);
+		}).then(actionsToRun => this.applyCodeActions(actionsToRun, editor));
 	}
 
 	private async applyCodeActions(actionsToRun: CodeAction[], editor: ICodeEditor) {

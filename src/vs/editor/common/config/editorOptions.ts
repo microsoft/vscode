@@ -509,6 +509,10 @@ export interface IEditorOptions {
 	 */
 	codeActionsOnSave?: ICodeActionsOnSaveOptions;
 	/**
+	 * Timeout for running code actions on save.
+	 */
+	codeActionsOnSaveTimeout?: number;
+	/**
 	 * Enable code folding
 	 * Defaults to true.
 	 */
@@ -863,6 +867,7 @@ export interface EditorContribOptions {
 	readonly colorDecorators: boolean;
 	readonly lightbulbEnabled: boolean;
 	readonly codeActionsOnSave: ICodeActionsOnSaveOptions;
+	readonly codeActionsOnSaveTimeout: number;
 }
 
 /**
@@ -1208,6 +1213,7 @@ export class InternalEditorOptions {
 			&& this._equalFindOptions(a.find, b.find)
 			&& a.colorDecorators === b.colorDecorators
 			&& objects.equals(a.codeActionsOnSave, b.codeActionsOnSave)
+			&& a.codeActionsOnSaveTimeout === b.codeActionsOnSaveTimeout
 			&& a.lightbulbEnabled === b.lightbulbEnabled
 		);
 	}
@@ -1766,7 +1772,8 @@ export class EditorOptionsValidator {
 			find: find,
 			colorDecorators: _boolean(opts.colorDecorators, defaults.colorDecorators),
 			lightbulbEnabled: _boolean(opts.lightbulb ? opts.lightbulb.enabled : false, defaults.lightbulbEnabled),
-			codeActionsOnSave: _booleanMap(opts.codeActionsOnSave, {})
+			codeActionsOnSave: _booleanMap(opts.codeActionsOnSave, {}),
+			codeActionsOnSaveTimeout: _clampedInt(opts.codeActionsOnSaveTimeout, defaults.codeActionsOnSaveTimeout, 1, 10000)
 		};
 	}
 }
@@ -1870,7 +1877,8 @@ export class InternalEditorOptionsFactory {
 				find: opts.contribInfo.find,
 				colorDecorators: opts.contribInfo.colorDecorators,
 				lightbulbEnabled: opts.contribInfo.lightbulbEnabled,
-				codeActionsOnSave: opts.contribInfo.codeActionsOnSave
+				codeActionsOnSave: opts.contribInfo.codeActionsOnSave,
+				codeActionsOnSaveTimeout: opts.contribInfo.codeActionsOnSaveTimeout
 			}
 		};
 	}
@@ -2337,6 +2345,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		},
 		colorDecorators: true,
 		lightbulbEnabled: true,
-		codeActionsOnSave: {}
+		codeActionsOnSave: {},
+		codeActionsOnSaveTimeout: 750
 	},
 };
