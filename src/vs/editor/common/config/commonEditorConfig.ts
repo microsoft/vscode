@@ -573,7 +573,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.codeLens': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.codeLens,
-			'description': nls.localize('codeLens', "Controls if the editor shows code lenses")
+			'description': nls.localize('codeLens', "Controls if the editor shows CodeLens")
 		},
 		'editor.folding': {
 			'type': 'boolean',
