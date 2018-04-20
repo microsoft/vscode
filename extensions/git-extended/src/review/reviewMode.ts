@@ -54,6 +54,7 @@ export class ReviewMode implements vscode.DecorationProvider {
 			vscode.commands.executeCommand('vscode.open', vscode.Uri.file(path.resolve(this._repository.path, params.path)), {});
 		}));
 		this._disposables.push(_repository.onDidRunGitStatus(e => {
+			// todo, validate state only when state changes.
 			this.validateState();
 		}));
 		this._disposables.push(vscode.window.registerDecorationProvider(this));
@@ -231,9 +232,9 @@ export class ReviewMode implements vscode.DecorationProvider {
 			});
 
 			this._comments = comments;
+			this._onDidChangeDecorations.fire();
 		}
 
-		this._onDidChangeDecorations.fire();
 
 		return Promise.resolve(null);
 	}

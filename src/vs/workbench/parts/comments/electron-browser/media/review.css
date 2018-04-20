@@ -108,21 +108,48 @@
 	padding: 8px 16px 8px 0px;
 }
 
-.monaco-editor .review-widget .body .comment-form textarea {
+.monaco-editor .review-widget .body .comment-form.expand .review-thread-reply-button {
+	display: none;
+}
+
+.monaco-editor .review-widget .body .comment-form.expand textarea,
+.monaco-editor .review-widget .body .comment-form.expand .form-actions {
 	display: block;
+}
+
+.monaco-editor .review-widget .body .comment-form .review-thread-reply-button {
+	text-align: left;
+	display: block;
+	width: 100%;
+	resize: vertical;
+	border-radius: 3px;
+	box-sizing: border-box;
+	padding: 6px 12px;
+	font-weight: 600;
+	line-height: 20px;
+	white-space: nowrap;
+	border: 0px;
+	cursor: text;
+}
+
+.monaco-editor .review-widget .body .comment-form textarea {
+	display: none;
 	width: 100%;
 	min-height: 100px;
 	max-height: 500px;
 	resize: vertical;
 	border-radius: 3px;
+	border: 0px;
+	padding: 6px 12px;
 }
 
 .monaco-editor .review-widget .body .comment-form .form-actions {
 	overflow: auto;
 	padding: 10px 0;
+	display: none;
 }
 
-.monaco-editor .review-widget .body .comment-form button {
+.monaco-editor .review-widget .body .comment-form .form-actions button {
 	float: right;
 	box-sizing: content-box;
 	margin-right: 5px;
@@ -145,7 +172,7 @@
 	border-radius: 0.25em;
 }
 
-.monaco-editor .review-widget .body .comment-form button:hover {
+.monaco-editor .review-widget .body .comment-form .form-actions button:hover {
 	background-color: #e6ebf1;
 	background-image: linear-gradient(-180deg, #f0f3f6 0%, #e6ebf1 90%);
 	background-position: -.5em;

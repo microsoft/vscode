@@ -12,6 +12,7 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { $ } from 'vs/base/browser/builder';
+import * as dom from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -280,7 +281,29 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		if (this._commentThread.reply) {
 			const commentForm = $('.comment-form').appendTo(this._bodyElement).getHTMLElement();
+			const reviewThreadReplyButton = <HTMLButtonElement>$('button.review-thread-reply-button').appendTo(commentForm).getHTMLElement();
+			reviewThreadReplyButton.title = 'Reply...';
+			reviewThreadReplyButton.textContent = 'Reply...';
 			const textArea = <HTMLTextAreaElement>$('textarea').appendTo(commentForm).getHTMLElement();
+			textArea.placeholder = 'Reply...';
+
+			// bind click/escape actions for reviewThreadReplyButton and textArea
+			reviewThreadReplyButton.onclick = () => {
+				if (!dom.hasClass(commentForm, 'expand')) {
+					dom.addClass(commentForm, 'expand');
+					textArea.focus();
+				}
+			};
+
+			dom.addDisposableListener(textArea, 'keydown', (ev: KeyboardEvent) => {
+				if (textArea.value === '' && ev.keyCode === 27) {
+					if (dom.hasClass(commentForm, 'expand')) {
+						dom.removeClass(commentForm, 'expand');
+					}
+				}
+			});
+
+
 			const formActions = $('.form-actions').appendTo(commentForm).getHTMLElement();
 
 			const button = $('button').appendTo(formActions).getHTMLElement();
@@ -728,6 +751,9 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(
 			`.monaco-editor .review-widget .body textarea {` +
 			`	background-color: ${monacoEditorBackground}` +
+			`}` +
+			`.monaco-editor .review-widget .body .comment-form .review-thread-reply-button {` +
+			`	background-color: ${monacoEditorBackground}` +
 			`}`
 		);
 	}
@@ -736,6 +762,9 @@ registerThemingParticipant((theme, collector) => {
 	if (monacoEditorForeground) {
 		collector.addRule(
 			`.monaco-editor .review-widget .body textarea {` +
+			`	color: ${monacoEditorForeground}` +
+			`}` +
+			`.monaco-editor .review-widget .body .comment-form .review-thread-reply-button {` +
 			`	color: ${monacoEditorForeground}` +
 			`}`
 		);
