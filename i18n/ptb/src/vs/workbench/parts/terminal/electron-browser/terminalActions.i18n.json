@@ -22,6 +22,7 @@
 	"workbench.action.terminal.newInActiveWorkspace": "Criar Novo Terminal Integrado (No Espaço de Trabalho Ativo)",
 	"workbench.action.terminal.split": "Dividir Terminal",
 	"workbench.action.terminal.focusPreviousPane": "Focar Painel Anterior",
+	"workbench.action.terminal.focusNextPane": "Foco próximo painel",
 	"workbench.action.terminal.resizePaneLeft": "Redimensionar Painel à Esquerda",
 	"workbench.action.terminal.resizePaneRight": "Redimensionar Painel à Direita",
 	"workbench.action.terminal.resizePaneUp": "Redimensionar Painel Superior",

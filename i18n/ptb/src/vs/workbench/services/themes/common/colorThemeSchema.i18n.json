@@ -9,6 +9,7 @@
 	"schema.token.settings": "Cores e estilos para o token.",
 	"schema.token.foreground": "Cor do primeiro plano para o token.",
 	"schema.token.background.warning": "Atualmente as cores de fundo do token não são suportadas.",
+	"schema.token.fontStyle": "Estilo da fonte da regra: 'itálico', 'negrito', 'sublinhado' ou uma combinação. Cadeia de caracteres vazia desfaz configurações herdadas.",
 	"schema.token.fontStyle.none": "Nenhum (limpar estilo herdado)",
 	"schema.properties.name": "Descrição da regra.",
 	"schema.properties.scope": "Seletor de escopo que bate com esta regra.",

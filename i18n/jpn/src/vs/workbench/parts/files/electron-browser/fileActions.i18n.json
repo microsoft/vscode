@@ -38,7 +38,7 @@
 	"trashFailed": "ごみ箱を使用した削除に失敗しました。代わりに完全に削除しますか?",
 	"deletePermanentlyButtonLabel": "完全に削除(&&D)",
 	"retryButtonLabel": "再試行(&&R)",
-	"importFiles": "ファイルのインポート",
+	"addFiles": "ファイルを追加",
 	"confirmOverwrite": "保存先のフォルダーに同じ名前のファイルまたはフォルダーが既に存在します。置き換えてもよろしいですか?",
 	"replaceButtonLabel": "置換(&&R)",
 	"fileIsAncestor": "ペーストするファイルは送り先フォルダの上位にいます",

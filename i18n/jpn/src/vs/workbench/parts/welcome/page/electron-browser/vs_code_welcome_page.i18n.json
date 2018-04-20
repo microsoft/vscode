@@ -27,8 +27,6 @@
 	"welcomePage.installExtensionPacks": "ツールと言語",
 	"welcomePage.installExtensionPacksDescription": "{0} と {1} のサポートをインストールする ",
 	"welcomePage.moreExtensions": "その他",
-	"welcomePage.installKeymapDescription": "キーボード ショートカットをインストールします",
-	"welcomePage.installKeymapExtension": "{0} と {1} のキーボード ショートカットをインストール",
 	"welcomePage.others": "その他",
 	"welcomePage.colorTheme": "配色テーマ",
 	"welcomePage.colorThemeDescription": "エディターとコードの外観を自由に設定します",

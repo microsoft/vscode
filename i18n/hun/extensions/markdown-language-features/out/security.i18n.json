@@ -8,6 +8,7 @@
 	],
 	"strict.title": "Szigorú",
 	"strict.description": "Csak biztonságos tartalmak betöltése",
+	"insecureLocalContent.title": "Nem biztonságos helyi tartalom engedélyezése",
 	"insecureContent.title": "Nem biztonságos tartalom engedélyezése",
 	"insecureContent.description": "Tartalom betöltésének engedélyezése HTTP-n keresztül.",
 	"disable.title": "Letiltás",

@@ -15,7 +15,6 @@
 	"vscode.extension.contributes.views": "Contribui visualizações ao editor",
 	"views.explorer": "Visualização do explorador",
 	"views.debug": "Visualizar Depurador",
-	"locationId.invalid": "'{0}' não é um local válido de visualização",
 	"duplicateView1": "Não é possível registrar vários modos de exibição com a mesma id '{0}' no local '{1}'",
 	"duplicateView2": "Uma exibição com id '{0}' já está registrada no local '{1}'"
 }

@@ -15,7 +15,6 @@
 	"vscode.extension.contributes.views": "提供意見給編輯者",
 	"views.explorer": "檔案總管檢視",
 	"views.debug": "偵錯檢視",
-	"locationId.invalid": "`{0}`不是有效的識別位置",
 	"duplicateView1": "無法在位置 '{1}' 使用相同的識別碼 '{0}' 註冊多個檢視",
 	"duplicateView2": "識別碼為 '{0}' 的檢視已在位置 '{1}' 註冊"
 }

@@ -8,6 +8,9 @@
 	],
 	"completeInEnglish": "Completare il modulo in lingua inglese.",
 	"issueTypeLabel": "Questo è un",
+	"vscode": "Visual Studio Code",
+	"disableExtensions": "disabilitando tutte le estensioni e ricaricando la finestra",
+	"chooseExtension": "Estensione",
 	"issueTitleLabel": "Titolo",
 	"issueTitleRequired": "Immettere un titolo.",
 	"titleLengthValidation": "Il titolo è troppo lungo.",
@@ -18,13 +21,6 @@
 	"extensions": "Estensioni personali",
 	"searchedExtensions": "Estensioni cercate",
 	"settingsSearchDetails": "Dettagli ricerca impostazioni",
-	"tryDisablingExtensions": "Il problema è riproducibile quando le estensioni sono disabilitate?",
-	"yes": "Sì",
-	"no": "No",
-	"disableExtensionsLabelText": "Provare a riprodurre il problema dopo {0}.",
-	"disableExtensions": "disabilitando tutte le estensioni e ricaricando la finestra",
-	"showRunningExtensionsLabelText": "Se si sospetta che il problema sia relativo all'estensione, {0} per segnalare il problema.",
-	"showRunningExtensions": "visualizzare tutte le estensioni in esecuzione",
 	"details": "Immettere i dettagli.",
 	"loadingData": "Caricamento dei dati..."
 }

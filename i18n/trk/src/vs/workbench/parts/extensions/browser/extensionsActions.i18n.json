@@ -60,6 +60,7 @@
 	"malicious": "Kötü amaçlı",
 	"disabled": "Devre Dışı",
 	"disabled globally": "Devre Dışı",
+	"disabled workspace": "Bu Çalışma Alanı için Devre Dışı Bırakılmış",
 	"disableAll": "Yüklü Tüm Eklentileri Devre Dışı Bırak",
 	"disableAllWorkspace": "Bu Çalışma Alanı için Yüklü Tüm Eklentileri Devre Dışı Bırak",
 	"enableAll": "Tüm Eklentileri Etkinleştir",

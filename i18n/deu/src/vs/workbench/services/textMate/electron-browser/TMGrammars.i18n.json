@@ -11,5 +11,6 @@
 	"vscode.extension.contributes.grammars.scopeName": "Der TextMate-Bereichsname, der von der tmLanguage-Datei verwendet wird.",
 	"vscode.extension.contributes.grammars.path": "Der Pfad der tmLanguage-Datei. Der Pfad ist relativ zum Extensionordner und beginnt normalerweise mit \". /syntaxes/\".",
 	"vscode.extension.contributes.grammars.embeddedLanguages": "Eine Zuordnung zwischen Bereichsname und Sprach-ID, wenn diese Grammatik eingebettete Sprachen enthält.",
+	"vscode.extension.contributes.grammars.tokenTypes": "Eine Zuordnung von Bereichsnamen zu Tokentypen.",
 	"vscode.extension.contributes.grammars.injectTo": "Die Liste der Sprachbereichsnamen, in die diese Grammatik injiziert wird."
 }
