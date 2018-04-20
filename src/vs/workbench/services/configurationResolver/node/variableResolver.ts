@@ -17,7 +17,7 @@ export interface IVariableAccessor {
 	getFolderUri(folderName: string): uri | undefined;
 	getWorkspaceFolderCount(): number;
 	getConfigurationValue(folderUri: uri, section: string): string | undefined;
-	getEnvironmentService(name: string): string | undefined;
+	getExecPath(): string | undefined;
 	getFilePath(): string | undefined;
 	getSelectedText(): string | undefined;
 	getLineNumber(): string;
@@ -193,7 +193,11 @@ export class VariableResolver {
 							return basename.slice(0, basename.length - paths.extname(basename).length);
 
 						case 'execPath':
-							return this.accessor.getEnvironmentService('execPath');
+							const ep = this.accessor.getExecPath();
+							if (ep) {
+								return ep;
+							}
+							throw new Error(localize('canNotResolveExecPath', "'{0}' can not be resolved.", match));
 
 						default:
 							return match;

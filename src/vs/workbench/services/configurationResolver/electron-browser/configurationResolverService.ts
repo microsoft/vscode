@@ -45,8 +45,8 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 			getConfigurationValue: (folderUri: uri, suffix: string) => {
 				return configurationService.getValue<string>(suffix, folderUri ? { resource: folderUri } : undefined);
 			},
-			getEnvironmentService: (name: string) => {
-				return environmentService[name];
+			getExecPath: () => {
+				return environmentService['execPath'];
 			},
 			getFilePath: (): string | undefined => {
 				let input = editorService.getActiveEditorInput();

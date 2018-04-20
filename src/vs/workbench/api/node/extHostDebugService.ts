@@ -547,8 +547,8 @@ export class ExtHostVariableResolverService implements IConfigurationResolverSer
 			getConfigurationValue: (folderUri: URI, section: string) => {
 				return configuration.getConfiguration(undefined, folderUri).get<string>(section);
 			},
-			getEnvironmentService: (name: string): string => {
-				return undefined;
+			getExecPath: (): string | undefined => {
+				return undefined;	// does not exist in EH
 			},
 			getFilePath: (): string | undefined => {
 				const activeEditor = editors.activeEditor();
@@ -561,7 +561,6 @@ export class ExtHostVariableResolverService implements IConfigurationResolverSer
 				return undefined;
 			},
 			getSelectedText: (): string | undefined => {
-				debugger;
 				const activeEditor = editors.activeEditor();
 				if (activeEditor && !activeEditor.selection.isEmpty) {
 					return activeEditor.document.getText(activeEditor.selection);
