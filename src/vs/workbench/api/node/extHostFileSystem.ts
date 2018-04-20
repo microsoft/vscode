@@ -59,7 +59,7 @@ class FsLinkProvider implements vscode.DocumentLinkProvider {
 
 class FileSystemProviderShim implements vscode.FileSystemProvider2 {
 
-	_version: 8 = 8;
+	_version: 9 = 9;
 
 	onDidChangeFile: vscode.Event<vscode.FileChange2[]>;
 
@@ -185,20 +185,20 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	}
 
 	registerDeprecatedFileSystemProvider(scheme: string, provider: vscode.DeprecatedFileSystemProvider) {
-		return this._doRegisterFileSystemProvider(scheme, new FileSystemProviderShim(provider));
+		return this.registerFileSystemProvider2(scheme, new FileSystemProviderShim(provider), { isCaseSensitive: false });
 	}
 
 	registerFileSystemProvider(scheme: string, provider: vscode.DeprecatedFileSystemProvider, newProvider: vscode.FileSystemProvider2) {
-		if (newProvider && newProvider._version === 8) {
-			return this._doRegisterFileSystemProvider(scheme, newProvider);
+		if (newProvider && newProvider._version === 9) {
+			return this.registerFileSystemProvider2(scheme, newProvider, { isCaseSensitive: false });
 		} else if (provider) {
-			return this._doRegisterFileSystemProvider(scheme, new FileSystemProviderShim(provider));
+			return this.registerFileSystemProvider2(scheme, new FileSystemProviderShim(provider), { isCaseSensitive: false });
 		} else {
 			throw new Error('FAILED to register file system provider, the new provider does not meet the version-constraint and there is no old provider');
 		}
 	}
 
-	private _doRegisterFileSystemProvider(scheme: string, provider: vscode.FileSystemProvider2) {
+	registerFileSystemProvider2(scheme: string, provider: vscode.FileSystemProvider2, options: { isCaseSensitive?: boolean }) {
 
 		if (this._usedSchemes.has(scheme)) {
 			throw new Error(`a provider for the scheme '${scheme}' is already registered`);
@@ -210,6 +210,9 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		this._fsProvider.set(handle, provider);
 
 		let capabilites = files.FileSystemProviderCapabilities.FileReadWrite;
+		if (options.isCaseSensitive) {
+			capabilites += files.FileSystemProviderCapabilities.PathCaseSensitive;
+		}
 		if (typeof provider.copy === 'function') {
 			capabilites += files.FileSystemProviderCapabilities.FileFolderCopy;
 		}

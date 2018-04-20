@@ -175,9 +175,11 @@ export interface IWatchOptions {
 }
 
 export enum FileSystemProviderCapabilities {
-	FileReadWrite = 0b1,
-	FileOpenReadWriteClose = 0b10,
-	FileFolderCopy = 0b100
+	FileReadWrite = 1 << 1,
+	FileOpenReadWriteClose = 1 << 2,
+	FileFolderCopy = 1 << 3,
+
+	PathCaseSensitive = 1 << 10
 }
 
 export interface IFileSystemProvider {

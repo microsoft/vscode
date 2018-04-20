@@ -92,6 +92,7 @@ declare module 'vscode' {
 
 	export namespace workspace {
 		export function registerDeprecatedFileSystemProvider(scheme: string, provider: DeprecatedFileSystemProvider): Disposable;
+		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, newProvider?: FileSystemProvider2): Disposable;
 	}
 
 	//#endregion
@@ -146,7 +147,7 @@ declare module 'vscode' {
 	 */
 	export interface FileSystemProvider2 {
 
-		_version: 8;
+		_version: 9;
 
 		/**
 		 * An event to signal that a resource has been created, changed, or deleted. This
@@ -237,7 +238,7 @@ declare module 'vscode' {
 	}
 
 	export namespace workspace {
-		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, newProvider?: FileSystemProvider2): Disposable;
+		export function registerFileSystemProvider2(scheme: string, provider: FileSystemProvider2, options: { isCaseSensitive?: boolean }): Disposable;
 	}
 
 	//#endregion

@@ -546,6 +546,9 @@ export function createApiFactory(
 			registerFileSystemProvider: proposedApiFunction(extension, (scheme, provider, newProvider?) => {
 				return extHostFileSystem.registerFileSystemProvider(scheme, provider, newProvider);
 			}),
+			registerFileSystemProvider2: proposedApiFunction(extension, (scheme, provider, options) => {
+				return extHostFileSystem.registerFileSystemProvider2(scheme, provider, options);
+			}),
 			registerDeprecatedFileSystemProvider: proposedApiFunction(extension, (scheme, provider) => {
 				return extHostFileSystem.registerDeprecatedFileSystemProvider(scheme, provider);
 			}),
