@@ -182,17 +182,17 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.sln" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.unity" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.express" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.sails" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.koa" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.hapi" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.socket.io" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.restify" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.react" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.react-native" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.azure-gallery" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.azure-graph" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.azure-keyvault" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.azure-monitoring" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.azure-scheduler" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.azure-servicefabric" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.azure-sb" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.azure-storage" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.azure-monitor" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.azure-batch" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@angular/core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.vue" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.aws-sdk" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.bower" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.yeoman.code.ext" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.cordova.high" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -291,22 +291,23 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			if (nameSet.has('package.json')) {
 				await TPromise.join(folders.map(async workspaceUri => {
 					const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/package.json` });
-					//let stats = await this.fileService.resolveFile(uri);
 					let content = await this.fileService.resolveContent(uri, { acceptTextOnly: true });
 					const packageJsonContents = JSON.parse(content.value);
 					let modulesToLookFor = [
+						// Packages that suggest a node server
+						'express',
+						'sails',
+						'koa',
+						'hapi',
+						'socket.io',
+						'restify',
+						// JS frameworks
+						'react',
 						'react-native',
-						// Azure service modules
-						'azure-gallery',
-						'azure-graph',
-						'azure-keyvault',
-						'azure-monitoring',
-						'azure-scheduler',
-						'azure-servicefabric',
-						'azure-sb',
-						'azure-storage',
-						'azure-monitor',
-						'azure-batch'
+						'@angular/core',
+						'vue',
+						// Other interesting packages
+						'aws-sdk'
 					];
 
 					if (packageJsonContents['dependencies']) {
