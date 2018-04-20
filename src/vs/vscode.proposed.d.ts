@@ -11,7 +11,7 @@ declare module 'vscode' {
 		export function sampleFunction(): Thenable<any>;
 	}
 
-	//#region Joh: file system provider
+	//#region Joh: file system provider (OLD)
 
 	export enum FileChangeType {
 		Updated = 0,
@@ -84,32 +84,32 @@ declare module 'vscode' {
 		// create(resource: Uri): Thenable<FileStat>;
 	}
 
-	// export class FileError extends Error {
+	export type DeprecatedFileChangeType = FileChangeType;
+	export type DeprecatedFileType = FileType;
+	export type DeprecatedFileChange = FileChange;
+	export type DeprecatedFileStat = FileStat;
+	export type DeprecatedFileSystemProvider = FileSystemProvider;
 
-	// 	/**
-	// 	 * Entry already exists, e.g. when creating a file or folder.
-	// 	 */
-	// 	static readonly EntryExists: FileError;
+	export namespace workspace {
+		export function registerDeprecatedFileSystemProvider(scheme: string, provider: DeprecatedFileSystemProvider): Disposable;
+	}
 
-	// 	/**
-	// 	 * Entry does not exist.
-	// 	 */
-	// 	static readonly EntryNotFound: FileError;
+	//#endregion
 
-	// 	/**
-	// 	 * Entry is not a directory.
-	// 	 */
-	// 	static readonly EntryNotADirectory: FileError;
+	//#region Joh: file system provider (new)
 
-	// 	/**
-	// 	 * Entry is a directory.
-	// 	 */
-	// 	static readonly EntryIsADirectory: FileError;
+	/**
+	 *
+	 */
+	export class FileError extends Error {
 
-	// 	readonly code: string;
+		static EntryExists(message?: string): FileError;
+		static EntryNotFound(message?: string): FileError;
+		static EntryNotADirectory(message?: string): FileError;
+		static EntryIsADirectory(message?: string): FileError;
 
-	// 	constructor(code: string, message?: string);
-	// }
+		constructor(message?: string);
+	}
 
 	export enum FileChangeType2 {
 		Changed = 1,
@@ -146,7 +146,7 @@ declare module 'vscode' {
 	 */
 	export interface FileSystemProvider2 {
 
-		_version: 7;
+		_version: 8;
 
 		/**
 		 * An event to signal that a resource has been created, changed, or deleted. This
@@ -163,13 +163,14 @@ declare module 'vscode' {
 		watch(uri: Uri, options: { recursive?: boolean; excludes?: string[] }): Disposable;
 
 		/**
-		 * Retrieve metadata about a file.
+		 * Retrieve metadata about a file. Throw an [`EntryNotFound`](#FileError.EntryNotFound)-error
+		 * in case the file does not exist.
 		 *
 		 * @param uri The uri of the file to retrieve meta data about.
 		 * @param token A cancellation token.
 		 * @return The file metadata about the file.
 		 */
-		stat(uri: Uri, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
+		stat(uri: Uri, options: { /*future: followSymlinks*/ }, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
 
 		/**
 		 * Retrieve the meta data of all entries of a [directory](#FileType2.Directory)
@@ -178,7 +179,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return A thenable that resolves to an array of tuples of file names and files stats.
 		 */
-		readDirectory(uri: Uri, token: CancellationToken): [string, FileStat2][] | Thenable<[string, FileStat2][]>;
+		readDirectory(uri: Uri, options: { /*future: onlyType?*/ }, token: CancellationToken): [string, FileStat2][] | Thenable<[string, FileStat2][]>;
 
 		/**
 		 * Create a new directory. *Note* that new files are created via `write`-calls.
@@ -186,7 +187,7 @@ declare module 'vscode' {
 		 * @param uri The uri of the *new* folder.
 		 * @param token A cancellation token.
 		 */
-		createDirectory(uri: Uri, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
+		createDirectory(uri: Uri, options: { /*future: permissions?*/ }, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
 
 		/**
 		 * Read the entire contents of a file.
@@ -207,6 +208,15 @@ declare module 'vscode' {
 		writeFile(uri: Uri, content: Uint8Array, options: { flags: FileOpenFlags }, token: CancellationToken): void | Thenable<void>;
 
 		/**
+		 * Delete a file or folder from the underlying storage.
+		 *
+		 * @param uri The resource that is to be deleted
+		 * @param options Options bag for future use
+		 * @param token A cancellation token.
+		 */
+		delete(uri: Uri, options: { /*future: useTrash?, followSymlinks?*/ }, token: CancellationToken): void | Thenable<void>;
+
+		/**
 		 * Rename a file or folder.
 		 *
 		 * @param oldUri The existing file or folder.
@@ -224,15 +234,10 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 */
 		copy?(uri: Uri, target: Uri, options: { flags: FileOpenFlags }, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
-
-		// todo@remote
-		// ? useTrash, expose trash
-		delete(uri: Uri, token: CancellationToken): void | Thenable<void>;
 	}
 
 	export namespace workspace {
 		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, newProvider?: FileSystemProvider2): Disposable;
-		export function registerDeprecatedFileSystemProvider(scheme: string, provider: FileSystemProvider): Disposable;
 	}
 
 	//#endregion
@@ -469,171 +474,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Matt: WebView
-
-	/**
-	 * Content settings for a webview.
-	 */
-	export interface WebviewOptions {
-		/**
-		 * Should scripts be enabled in the webview content?
-		 *
-		 * Defaults to false (scripts-disabled).
-		 */
-		readonly enableScripts?: boolean;
-
-		/**
-		 * Should command uris be enabled in webview content?
-		 *
-		 * Defaults to false.
-		 */
-		readonly enableCommandUris?: boolean;
-
-		/**
-		 * Root paths from which the webview can load local (filesystem) resources using the `vscode-resource:` scheme.
-		 *
-		 * Default to the root folders of the current workspace plus the extension's install directory.
-		 *
-		 * Pass in an empty array to disallow access to any local resources.
-		 */
-		readonly localResourceRoots?: ReadonlyArray<Uri>;
-	}
-
-	/**
-	 * A webview displays html content, like an iframe.
-	 */
-	export interface Webview {
-		/**
-		 * Content settings for the webview.
-		 */
-		readonly options: WebviewOptions;
-
-		/**
-		 * Title of the webview shown in UI.
-		 */
-		title: string;
-
-		/**
-		 * Contents of the webview.
-		 *
-		 * Should be a complete html document.
-		 */
-		html: string;
-
-		/**
-		 * Fired when the webview content posts a message.
-		 */
-		readonly onDidReceiveMessage: Event<any>;
-
-		/**
-		 * Post a message to the webview content.
-		 *
-		 * Messages are only develivered if the webview is visible.
-		 *
-		 * @param message Body of the message.
-		 */
-		postMessage(message: any): Thenable<boolean>;
-	}
-
-	/**
-	 * Content settings for a webview panel.
-	 */
-	export interface WebviewPanelOptions {
-		/**
-		 * Should the find widget be enabled in the panel?
-		 *
-		 * Defaults to false.
-		 */
-		readonly enableFindWidget?: boolean;
-
-		/**
-		 * Should the webview panel's content (iframe) be kept around even when the panel
-		 * is no longer visible?
-		 *
-		 * Normally the webview panel's html context is created when the panel becomes visible
-		 * and destroyed when it is is hidden. Extensions that have complex state
-		 * or UI can set the `retainContextWhenHidden` to make VS Code keep the webview
-		 * context around, even when the webview moves to a background tab. When
-		 * the panel becomes visible again, the context is automatically restored
-		 * in the exact same state it was in originally.
-		 *
-		 * `retainContextWhenHidden` has a high memory overhead and should only be used if
-		 * your panel's context cannot be quickly saved and restored.
-		 */
-		readonly retainContextWhenHidden?: boolean;
-	}
-
-	/**
-	 * A panel that contains a webview.
-	 */
-	interface WebviewPanel {
-		/**
-		 * Type of the webview panel, such as `'markdown.preview'`.
-		 */
-		readonly viewType: string;
-
-		/**
-		 * Webview belonging to the panel.
-		 */
-		readonly webview: Webview;
-
-		/**
-		 * Content settings for the webview panel.
-		 */
-		readonly options: WebviewPanelOptions;
-
-		/**
-		 * Editor position of the panel.
-		 */
-		readonly position?: ViewColumn;
-
-		/**
-		 * Is the panel current visible?
-		 */
-		readonly visible: boolean;
-
-		/**
-		 * Fired when the panel's view state changes.
-		 */
-		readonly onDidChangeViewState: Event<WebviewPanelOnDidChangeViewStateEvent>;
-
-		/**
-		 * Fired when the panel is disposed.
-		 *
-		 * This may be because the user closed the panel or because `.dispose()` was
-		 * called on it.
-		 *
-		 * Trying to use the panel after it has been disposed throws an exception.
-		 */
-		readonly onDidDispose: Event<void>;
-
-		/**
-		 * Show the webview panel in a given column.
-		 *
-		 * A webview panel may only show in a single column at a time. If it is already showing, this
-		 * method moves it to a new column.
-		 */
-		reveal(viewColumn: ViewColumn): void;
-
-		/**
-		 * Dispose of the webview panel.
-		 *
-		 * This closes the panel if it showing and disposes of the resources owned by the webview.
-		 * Webview panels are also disposed when the user closes the webview panel. Both cases
-		 * fire the `onDispose` event.
-		 */
-		dispose(): any;
-	}
-
-	/**
-	 * Event fired when a webview panel's view state changes.
-	 */
-	export interface WebviewPanelOnDidChangeViewStateEvent {
-		/**
-		 * Webview panel whose view state changed.
-		 */
-		readonly webviewPanel: WebviewPanel;
-	}
+	//#region Matt: WebView Serializer
 
 	/**
 	 * Save and restore webview panels that have been persisted when vscode shuts down.
@@ -665,18 +506,6 @@ declare module 'vscode' {
 	}
 
 	namespace window {
-		/**
-		 * Create and show a new webview panel.
-		 *
-		 * @param viewType Identifies the type of the webview panel.
-		 * @param title Title of the panel.
-		 * @param position Editor column to show the new panel in.
-		 * @param options Settings for the new webview panel.
-		 *
-		 * @return New webview panel.
-		 */
-		export function createWebviewPanel(viewType: string, title: string, position: ViewColumn, options: WebviewPanelOptions & WebviewOptions): WebviewPanel;
-
 		/**
 		 * Registers a webview panel serializer.
 		 *

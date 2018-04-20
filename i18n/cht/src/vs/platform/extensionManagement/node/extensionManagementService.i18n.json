@@ -21,6 +21,7 @@
 	"quitCode": "無法安裝擴充功能。重新安裝以前請重啟 VS Code。",
 	"exitCode": "無法安裝擴充功能。重新安裝以前請離開並再次啟動 VS Code。",
 	"uninstallDependeciesConfirmation": "只要將 '{0}' 解除安裝，或要包含其相依性?",
+	"uninstallOnly": "僅擴充功能",
 	"uninstallAll": "全部解除安裝",
 	"uninstallConfirmation": "確定要將 '{0}' 解除安裝嗎?",
 	"ok": "確定",

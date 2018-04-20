@@ -80,6 +80,7 @@
 	"titleBarStyle": "Módosítja az ablak címsorának megjelenését. A változtatás teljes újraindítást igényel.",
 	"window.nativeTabs": "Engedélyezi a macOS Sierra ablakfüleket. Megjegyzés: a változtatás teljes újraindítást igényel, és a natív fülek letiltják az egyedi címsorstílust, ha azok be vannak konfigurálva.",
 	"window.smoothScrollingWorkaround": "Akkor engedélyezze ezt a kerülőmegoldást, ha a görgetés nem egyenletes egy kis méretre rakott VS Code-ablak helyreállítása után. Ez egy kerülőmegoldás arra a problémára (https://github.com/Microsoft/vscode/issues/13612), amely a trackpadokkal rendelkező eszközöket érinti, például a Microsoft Surface készülékeit. A kerülőmegoldás engedélyezése a felület elrendezésének ugrálásával járhat az ablak kis méretből való helyreállítása után, de egyébként nem okoz más problémát.",
+	"window.clickThroughInactive": "Ha engedélyezve van, akkor egy inaktív ablakra való kattintás aktiválja az ablakot, valamint kattintási esemény keletkezik az egér alatt lévő elemen is, ha az kattintható. Ha le van tiltva, akkor az inaktív ablakra való kattintás csak az ablak aktiválását eredményezi, és egy újabb kattintás szükséges az elemen.",
 	"zenModeConfigurationTitle": "Zen-mód",
 	"zenMode.fullScreen": "Meghatározza, hogy zen-módban a munakterület teljes képernyős módba vált-e.",
 	"zenMode.centerLayout": "Meghatározza, hogy zen-módban középre igazított elrendezés van-e.",

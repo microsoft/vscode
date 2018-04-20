@@ -46,6 +46,7 @@
 	"multiCursorModifier.ctrlCmd": "Windows および Linux 上の `Control` キーと macOS 上の `Command` キーに割り当てます。",
 	"multiCursorModifier.alt": "Windows および Linux 上の `Alt` キーと macOS 上の `Option` キーに割り当てます。",
 	"multiCursorModifier": "マウスを使用して複数のカーソルを追加するときに使用する修飾キーです。`ctrlCmd` は Windows および Linux 上の `Control` キーと macOS 上の `Command` キーに割り当てます。「定義に移動」や「リンクを開く」のマウス操作は、マルチカーソルの修飾キーと競合しないように適用されます。",
+	"multiCursorMergeOverlapping": "複数のカーソルが重なっているときは、マージします。",
 	"quickSuggestions.strings": "文字列内でクイック候補を有効にします。",
 	"quickSuggestions.comments": "コメント内でクイック候補を有効にします。",
 	"quickSuggestions.other": "文字列およびコメント外でクイック候補を有効にします。",
@@ -88,6 +89,9 @@
 	"renderLineHighlight": "エディターが現在の行をどのように強調表示するかを制御します。考えられる値は 'none'、'gutter'、'line'、'all' です。",
 	"codeLens": "エディターで CodeLens を表示するかどうかを制御する",
 	"folding": "エディターでコードの折りたたみを有効にするかどうかを制御します",
+	"foldingStrategyAuto": "利用可能であれば、言語に特有の折りたたみ方式を使用して、そうでない場合はインデント方式に戻ります。",
+	"foldingStrategyIndentation": "常にインデントに基づく折りたたみ方式を使用します",
+	"foldingStrategy": "折りたたみ範囲の計算方法を制御します。'auto' は利用可能であれば言語固有の折りたたみ方式を使用します。'indentation' は常にインデントに基づく折りたたみ方式を使用します。",
 	"showFoldingControls": "余白上の折りたたみコントロールを自動的に非表示にするかどうかを制御します 。",
 	"matchBrackets": "かっこを選択すると、対応するかっこを強調表示します。",
 	"glyphMargin": "エディターで縦のグリフ余白が表示されるかどうかを制御します。ほとんどの場合、グリフ余白はデバッグに使用されます。",
@@ -105,5 +109,7 @@
 	"selectionClipboard": "Linux の PRIMARY クリップボードをサポートするかどうかを制御します。",
 	"sideBySide": "差分エディターが差分を横に並べて表示するか、行内に表示するかを制御します",
 	"ignoreTrimWhitespace": "差分エディターが、先頭または末尾の空白の変更を差分として表示するかどうかを制御します。",
+	"largeFileSize": "特別な最適化ルールが適用されるバイト単位でファイルサイズのしきい値を制御します",
+	"largeFileLineCount": "特別な最適化ルールが適用される行数の観点からファイルサイズのしきい値を制御します",
 	"renderIndicators": "差分エディターが追加/削除された変更に +/- インジケーターを示すかどうかを制御します"
 }

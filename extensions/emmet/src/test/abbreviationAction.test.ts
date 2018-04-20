@@ -339,45 +339,21 @@ suite('Tests for jsx, xml and xsl', () => {
 	});
 
 	test('No expanding text inside open tag in completion list (jsx)', () => {
-		return withRandomFileEditor(htmlContents, 'jsx', (editor, doc) => {
-			editor.selection = new Selection(2, 4, 2, 4);
-			const cancelSrc = new CancellationTokenSource();
-			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			assert.equal(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
-			return Promise.resolve();
-		});
+		return testNoCompletion('jsx', htmlContents, new Selection(2, 4, 2, 4));
 	});
 
 	test('No expanding tag that is opened, but not closed in completion list (jsx)', () => {
-		return withRandomFileEditor(htmlContents, 'jsx', (editor, doc) => {
-			editor.selection = new Selection(9, 6, 9, 6);
-			const cancelSrc = new CancellationTokenSource();
-			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			assert.equal(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
-			return Promise.resolve();
-		});
+		return testNoCompletion('jsx', htmlContents, new Selection(9, 6, 9, 6));
 	});
 
 	test('No expanding text inside open tag when there is no closing tag in completion list (jsx)', () => {
-		return withRandomFileEditor(htmlContents, 'jsx', (editor, doc) => {
-			editor.selection = new Selection(9, 8, 9, 8);
-			const cancelSrc = new CancellationTokenSource();
-			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			assert.equal(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
-			return Promise.resolve();
-		});
+		return testNoCompletion('jsx', htmlContents, new Selection(9, 8, 9, 8));
 	});
 
 	test('No expanding text in completion list inside open tag when there is no closing tag when there is no parent node (jsx)', () => {
-		const fileContents = '<img s';
-		return withRandomFileEditor(fileContents, 'jsx', (editor, doc) => {
-			editor.selection = new Selection(0, 6, 0, 6);
-			const cancelSrc = new CancellationTokenSource();
-			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			assert.equal(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
-			return Promise.resolve();
-		});
+		return testNoCompletion('jsx', '<img s', new Selection(0, 6, 0, 6));
 	});
+
 });
 
 function testExpandAbbreviation(syntax: string, selection: Selection, abbreviation: string, expandedText: string, shouldFail?: boolean): Thenable<any> {
@@ -424,3 +400,12 @@ function testHtmlCompletionProvider(selection: Selection, abbreviation: string, 
 	});
 }
 
+function testNoCompletion(syntax: string, fileContents: string, selection: Selection): Thenable<any> {
+	return withRandomFileEditor(fileContents, syntax, (editor, doc) => {
+		editor.selection = selection;
+		const cancelSrc = new CancellationTokenSource();
+		const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+		assert.equal(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
+		return Promise.resolve();
+	});
+}

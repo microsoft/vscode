@@ -21,6 +21,8 @@
 	"quitCode": "Fehler bei der Installation der Erweiterung. Beenden und starten Sie VS Code vor der erneuten Installation neu.",
 	"exitCode": "Fehler bei der Installation der Erweiterung. Beenden und starten Sie VS Code vor der erneuten Installation neu.",
 	"uninstallDependeciesConfirmation": "Möchten Sie nur \"{0}\" oder auch die zugehörigen Abhängigkeiten deinstallieren?",
+	"uninstallOnly": "Nur Erweiterung",
+	"uninstallAll": "Alle deinstallieren",
 	"uninstallConfirmation": "Möchten Sie \"{0}\" deinstallieren?",
 	"ok": "OK",
 	"singleDependentError": "Die Erweiterung \"{0}\" kann nicht deinstalliert werden. Die Erweiterung \"{1}\" hängt von dieser Erweiterung ab.",

@@ -156,24 +156,6 @@ export enum FileType2 {
 	SymbolicLink = 4,
 }
 
-export class FileError extends Error {
-
-	static readonly EntryExists = new FileError('EEXIST');
-	static readonly EntryNotFound = new FileError('ENOENT');
-	static readonly EntryNotADirectory = new FileError('ENOTDIR');
-	static readonly EntryIsADirectory = new FileError('EISDIR');
-
-	constructor(readonly code: string, message?: string) {
-		super(message || code);
-	}
-	is(err: any): err is FileError {
-		if (!err || typeof err !== 'object') {
-			return false;
-		}
-		return err.code === this.code;
-	}
-}
-
 export enum FileOpenFlags {
 	Read = 0b0001,
 	Write = 0b0010,

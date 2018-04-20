@@ -12,10 +12,9 @@ import { ViewLocation, ViewsRegistry, ICustomViewDescriptor } from 'vs/workbench
 import { CustomTreeViewPanel } from 'vs/workbench/browser/parts/views/customViewPanel';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { coalesce, } from 'vs/base/common/arrays';
+import { viewsContainersExtensionPoint } from 'vs/workbench/api/browser/viewsContainersExtensionPoint';
 
 namespace schema {
-
-	// --views contribution point
 
 	export interface IUserFriendlyViewDescriptor {
 		id: string;
@@ -70,15 +69,23 @@ namespace schema {
 		type: 'object',
 		properties: {
 			'explorer': {
-				description: localize('views.explorer', "Explorer View"),
+				description: localize('views.explorer', "Contributes views to Explorer container in the Activity bar"),
 				type: 'array',
-				items: viewDescriptor
+				items: viewDescriptor,
+				default: []
 			},
 			'debug': {
-				description: localize('views.debug', "Debug View"),
+				description: localize('views.debug', "Contributes views to Debug container in the Activity bar"),
 				type: 'array',
-				items: viewDescriptor
+				items: viewDescriptor,
+				default: []
 			}
+		},
+		additionalProperties: {
+			description: localize('views.contributed', "Contributes views to contributed views container"),
+			type: 'array',
+			items: viewDescriptor,
+			default: []
 		}
 	};
 }
@@ -91,7 +98,7 @@ function getViewLocation(value: string): ViewLocation {
 	}
 }
 
-ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyViewDescriptor[] }>('views', [], schema.viewsContribution)
+ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyViewDescriptor[] }>('views', [viewsContainersExtensionPoint], schema.viewsContribution)
 	.setHandler((extensions) => {
 		for (let extension of extensions) {
 			const { value, collector } = extension;

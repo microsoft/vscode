@@ -16,7 +16,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileChangesEvent, FileError, FileOpenFlags, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileType2, IContent, ICreateFileOptions, IFileStat, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IResolveFileOptions, IResolveFileResult, IStat, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { FileChangesEvent, FileOpenFlags, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileType2, IContent, ICreateFileOptions, IFileStat, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IResolveFileOptions, IResolveFileResult, IStat, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -200,6 +200,32 @@ export class RemoteFileService extends FileService {
 			|| this._supportedSchemes.indexOf(resource.scheme) >= 0;
 	}
 
+	private _tryParseFileOperationResult(err: any): FileOperationResult {
+		if (!(err instanceof Error)) {
+			return undefined;
+		}
+		let match = /FileError\/(.+)$/.exec(err.name);
+		if (!match) {
+			return undefined;
+		}
+		let res: FileOperationResult;
+		switch (match[1]) {
+			case 'EntryNotFound':
+				res = FileOperationResult.FILE_NOT_FOUND;
+				break;
+			case 'EntryIsADirectory':
+				res = FileOperationResult.FILE_IS_DIRECTORY;
+				break;
+			case 'EntryExists':
+			case 'EntryNotADirectory':
+			default:
+				// todo	
+				res = undefined;
+				break;
+		}
+		return res;
+	}
+
 	// --- stat
 
 	private _withProvider(resource: URI): TPromise<IFileSystemProvider> {
@@ -229,7 +255,10 @@ export class RemoteFileService extends FileService {
 		} else {
 			return this._doResolveFiles([{ resource, options }]).then(data => {
 				if (data.length !== 1 || !data[0].success) {
-					throw new Error(`ENOENT, ${resource}`);
+					throw new FileOperationError(
+						localize('fileNotFoundError', "File not found ({0})", resource.toString(true)),
+						FileOperationResult.FILE_NOT_FOUND
+					);
 				} else {
 					return data[0].stat;
 				}
@@ -369,10 +398,9 @@ export class RemoteFileService extends FileService {
 				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
 				return fileStat;
 			}, err => {
-				if (FileError.EntryExists.is(err)) {
-					return TPromise.wrapError(new FileOperationError(err.code, FileOperationResult.FILE_MODIFIED_SINCE, options));
-				}
-				throw err;
+				const message = localize('err.create', "Failed to create file {0}", resource.toString(false));
+				const result = this._tryParseFileOperationResult(err);
+				throw new FileOperationError(message, result, options);
 			});
 		}
 	}

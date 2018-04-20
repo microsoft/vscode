@@ -13,9 +13,5 @@
 	"newExtensionLabel": "拡張機能 \"{0}\" を表示",
 	"editTtile": "編集",
 	"replaceDefaultValue": "設定を置換",
-	"copyDefaultValue": "設定にコピー",
-	"unsupportedPHPExecutablePathSetting": "この設定はユーザー設定でなければなりません。ワークスペースのために PHP を構成するには、PHP ファイルを開き、ステータス バーの [PHP パス] をクリックします。",
-	"unsupportedWorkspaceSetting": "この設定はユーザー設定でなければなりません。",
-	"unsupportedWorkbenchSetting": "この設定は現在適用できません。このフォルダーを直接開いたときに適用されます。",
-	"unsupportedWorkbenchSettingDevMode": "この設定は現在適用できません。登録時にスコープを 'resource' と定義している場合かこのフォルダーを直接開いたときに適用されます。"
+	"copyDefaultValue": "設定にコピー"
 }

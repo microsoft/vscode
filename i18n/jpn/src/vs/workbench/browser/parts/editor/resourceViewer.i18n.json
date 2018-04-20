@@ -11,9 +11,11 @@
 	"sizeMB": "{0}MB",
 	"sizeGB": "{0}GB",
 	"sizeTB": "{0}TB",
-	"largeImageError": "画像のファイル サイズが非常に大きい (>1MB) ため、エディターに表示されません。 ",
+	"largeImageError": "画像が大きすぎるため、エディターに表示されません ({0})。",
 	"resourceOpenExternalButton": "外部のプログラムを使用して画像を開きますか?",
-	"nativeBinaryError": "このファイルはバイナリか、非常に大きいか、またはサポートされていないテキスト エンコードを使用しているため、エディターに表示されません。",
+	"nativeFileTooLargeError": "ファイルが大きすぎるため、エディターに表示されません ({0})。",
+	"nativeBinaryError": "このファイルはバイナリか、サポートされていないテキスト エンコードを使用しているため、エディターに表示されません。",
+	"openAsText": "このまま開きますか?",
 	"zoom.action.fit.label": "画像全体",
 	"imgMeta": "{0}x{1} {2}"
 }

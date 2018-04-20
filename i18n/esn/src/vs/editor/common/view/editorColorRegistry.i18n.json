@@ -16,6 +16,7 @@
 	"editorIndentGuides": "Color de las guías de sangría del editor.",
 	"editorLineNumbers": "Color de números de línea del editor.",
 	"editorActiveLineNumber": "Color del número de línea activa en el editor",
+	"deprecatedEditorActiveLineNumber": "ID es obsoleto. Usar en lugar 'editorLineNumber.activeForeground'. ",
 	"editorRuler": "Color de las reglas del editor",
 	"editorCodeLensForeground": "Color principal de lentes de código en el editor",
 	"editorBracketMatchBackground": "Color de fondo tras corchetes coincidentes",
@@ -28,6 +29,9 @@
 	"warningBorder": "Color de borde de squigglies de advertencia en el editor.",
 	"infoForeground": "Color de primer plano de los subrayados ondulados informativos en el editor.",
 	"infoBorder": "Color del borde de los subrayados ondulados informativos en el editor.",
+	"hintForeground": "Color de primer plano de pista squigglies en el editor.",
+	"hintBorder": "Color de borde de pista squigglies en el editor.",
+	"overviewRulerRangeHighlight": "Resumen de color de marcador para destacar rangos. El color no debe ser opaco para no ocultar las decoraciones subyacentes.",
 	"overviewRuleError": "Color de marcador de regla de información general para errores. ",
 	"overviewRuleWarning": "Color de marcador de regla de información general para advertencias.",
 	"overviewRuleInfo": "Color de marcador de regla de información general para mensajes informativos. "

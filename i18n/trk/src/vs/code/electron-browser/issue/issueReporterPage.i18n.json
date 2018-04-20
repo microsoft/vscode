@@ -8,6 +8,9 @@
 	],
 	"completeInEnglish": "Lütfen formu İngilizce olarak doldurunuz.",
 	"issueTypeLabel": "Bu bir",
+	"vscode": "Visual Studio Code",
+	"disableExtensions": "tüm eklentileri devre dışı bırakıp pencereyi yeniden yükleyin",
+	"chooseExtension": "Eklenti",
 	"issueTitleLabel": "Başlık",
 	"issueTitleRequired": "Lütfen bir başlık girin.",
 	"titleLengthValidation": "Başlık çok uzun.",
@@ -18,13 +21,6 @@
 	"extensions": "Eklentilerim",
 	"searchedExtensions": "Aranan Eklentiler",
 	"settingsSearchDetails": "Ayar Arama Detayları",
-	"tryDisablingExtensions": "Eklentiler devre dışı bırakıldığında sorun yeniden oluşturulabiliyor mu?",
-	"yes": "Evet",
-	"no": "Hayır",
-	"disableExtensionsLabelText": "Sorunu {0} sonrasında yeniden oluşturmaya çalışın.",
-	"disableExtensions": "tüm eklentileri devre dışı bırakıp pencereyi yeniden yükleyin",
-	"showRunningExtensionsLabelText": "Bunun bir eklenti sorunu olduğundan şüpheleniyorsanız, eklentideki sorunu bildirmek için {0}.",
-	"showRunningExtensions": "çalışan tüm eklentileri göster",
 	"details": "Lütfen detayları giriniz.",
 	"loadingData": "Veri yükleniyor..."
 }

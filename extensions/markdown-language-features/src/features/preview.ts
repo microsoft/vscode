@@ -236,7 +236,7 @@ export class MarkdownPreview {
 	}
 
 	public get position(): vscode.ViewColumn | undefined {
-		return this.editor.position;
+		return this.editor.viewColumn;
 	}
 
 	public isWebviewOf(webview: vscode.WebviewPanel): boolean {
@@ -269,7 +269,7 @@ export class MarkdownPreview {
 
 	public toggleLock() {
 		this._locked = !this._locked;
-		this.editor.webview.title = MarkdownPreview.getPreviewTitle(this._resource, this._locked);
+		this.editor.title = MarkdownPreview.getPreviewTitle(this._resource, this._locked);
 	}
 
 	private isPreviewOf(resource: vscode.Uri): boolean {
@@ -327,7 +327,7 @@ export class MarkdownPreview {
 		this.currentVersion = { resource, version: document.version };
 		const content = await this._contentProvider.provideTextDocumentContent(document, this._previewConfigurations, this.line);
 		if (this._resource === resource) {
-			this.editor.webview.title = MarkdownPreview.getPreviewTitle(this._resource, this._locked);
+			this.editor.title = MarkdownPreview.getPreviewTitle(this._resource, this._locked);
 			this.editor.webview.html = content;
 		}
 	}

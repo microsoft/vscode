@@ -52,6 +52,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 	) {
 		this._proxy = context.getProxy(ExtHostContext.ExtHostWebviews);
 		editorGroupService.onEditorsChanged(this.onEditorsChanged, this, this._toDispose);
+		editorGroupService.onEditorGroupMoved(this.onEditorGroupMoved, this, this._toDispose);
 
 		this._toDispose.push(_webviewService.registerReviver(MainThreadWebviews.viewType, this));
 
@@ -96,7 +97,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		webview.html = value;
 	}
 
-	$reveal(handle: WebviewPanelHandle, column: Position): void {
+	$reveal(handle: WebviewPanelHandle, column: Position | undefined): void {
 		const webview = this.getWebview(handle);
 		this._webviewService.revealWebview(webview, column);
 	}
@@ -227,6 +228,20 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		}
 	}
 
+	private onEditorGroupMoved(): void {
+		for (const workbenchEditor of this._editorService.getVisibleEditors()) {
+			if (!workbenchEditor.input) {
+				return;
+			}
+
+			this._webviews.forEach((input, handle) => {
+				if (workbenchEditor.input.matches(input) && input.position !== workbenchEditor.position) {
+					input.updatePosition(workbenchEditor.position);
+					this._proxy.$onDidChangeWebviewPanelViewState(handle, handle === this._activeWebview, workbenchEditor.position);
+				}
+			});
+		}
+	}
 	private onDidClickLink(handle: WebviewPanelHandle, link: URI): void {
 		if (!link) {
 			return;

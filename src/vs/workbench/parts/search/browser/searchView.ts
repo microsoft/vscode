@@ -62,7 +62,6 @@ import { IPanel } from 'vs/workbench/common/panel';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { splitGlobAware } from 'vs/base/common/glob';
 
 export class SearchView extends Viewlet implements IViewlet, IPanel {
 
@@ -80,6 +79,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private viewletVisible: IContextKey<boolean>;
 	private inputBoxFocused: IContextKey<boolean>;
 	private inputPatternIncludesFocused: IContextKey<boolean>;
+	private inputPatternExclusionsFocused: IContextKey<boolean>;
 	private firstMatchFocused: IContextKey<boolean>;
 	private fileMatchOrMatchFocused: IContextKey<boolean>;
 	private fileMatchOrFolderMatchFocus: IContextKey<boolean>;
@@ -99,7 +99,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private searchWidget: SearchWidget;
 	private size: dom.Dimension;
 	private queryDetails: HTMLElement;
-	private inputPatternIncludes: ExcludePatternInputWidget;
+	private inputPatternExcludes: ExcludePatternInputWidget;
+	private inputPatternIncludes: PatternInputWidget;
 	private results: Builder;
 
 	private currentSelectedFileMatch: FileMatch;
@@ -136,6 +137,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.viewletVisible = Constants.SearchViewVisibleKey.bindTo(contextKeyService);
 		this.inputBoxFocused = Constants.InputBoxFocusedKey.bindTo(this.contextKeyService);
 		this.inputPatternIncludesFocused = Constants.PatternIncludesFocusedKey.bindTo(this.contextKeyService);
+		this.inputPatternExclusionsFocused = Constants.PatternExcludesFocusedKey.bindTo(this.contextKeyService);
 		this.firstMatchFocused = Constants.FirstMatchFocusKey.bindTo(contextKeyService);
 		this.fileMatchOrMatchFocused = Constants.FileMatchOrMatchFocusKey.bindTo(contextKeyService);
 		this.fileMatchOrFolderMatchFocus = Constants.FileMatchOrFolderMatchFocusKey.bindTo(contextKeyService);
@@ -181,55 +183,68 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.createSearchWidget(this.searchWidgetsContainer);
 
 		const filePatterns = this.viewletSettings['query.filePatterns'] || '';
-		const patternExclusions = this.viewletSettings['query.folderExclusions'] || '';
-		delete this.viewletSettings['query.folderExclusions']; // Migrating from versions that have dedicated exclusions persisted
-		const patternIncludes = this.viewletSettings['query.folderIncludes'] || '';
-		const patternIncludesHistory = this.viewletSettings['query.folderIncludesHistory'] || [];
+		let patternExclusions = this.viewletSettings['query.folderExclusions'] || '';
+		const patternExclusionsHistory: string[] = this.viewletSettings['query.folderExclusionsHistory'] || [];
+		let patternIncludes = this.viewletSettings['query.folderIncludes'] || '';
+		let patternIncludesHistory: string[] = this.viewletSettings['query.folderIncludesHistory'] || [];
 		const queryDetailsExpanded = this.viewletSettings['query.queryDetailsExpanded'] || '';
 		const useExcludesAndIgnoreFiles = typeof this.viewletSettings['query.useExcludesAndIgnoreFiles'] === 'boolean' ?
 			this.viewletSettings['query.useExcludesAndIgnoreFiles'] : true;
+
+		// Transition history from 1.22 combined include+exclude, to split include/exclude histories
+		const patternIncludesHistoryWithoutExcludes: string[] = [];
+		const patternExcludesHistoryFromIncludes: string[] = [];
+		patternIncludesHistory.forEach(historyEntry => {
+			const includeExclude = this.queryBuilder.parseIncludeExcludePattern(historyEntry);
+			if (includeExclude.includePattern) {
+				patternIncludesHistoryWithoutExcludes.push(includeExclude.includePattern);
+			}
+
+			if (includeExclude.excludePattern) {
+				patternExcludesHistoryFromIncludes.push(includeExclude.excludePattern);
+			}
+		});
+
+		patternIncludesHistory = patternIncludesHistoryWithoutExcludes;
+		patternExclusionsHistory.push(...patternExcludesHistoryFromIncludes);
+
+		// Split combined include/exclude to split include/exclude boxes
+		const includeExclude = this.queryBuilder.parseIncludeExcludePattern(patternIncludes);
+		patternIncludes = includeExclude.includePattern || '';
+
+		if (includeExclude.excludePattern) {
+			if (patternExclusions) {
+				patternExclusions += ', ' + includeExclude.excludePattern;
+			} else {
+				patternExclusions = includeExclude.excludePattern;
+			}
+		}
 
 		this.queryDetails = this.searchWidgetsContainer.div({ 'class': ['query-details'] }, (builder) => {
 			builder.div({ 'class': 'more', 'tabindex': 0, 'role': 'button', 'title': nls.localize('moreSearch', "Toggle Search Details") })
 				.on(dom.EventType.CLICK, (e) => {
 					dom.EventHelper.stop(e);
-					this.toggleQueryDetails();
+					this.toggleQueryDetails(true);
 				}).on(dom.EventType.KEY_UP, (e: KeyboardEvent) => {
 					let event = new StandardKeyboardEvent(e);
 
 					if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 						dom.EventHelper.stop(e);
-						this.toggleQueryDetails(false);
+						this.toggleQueryDetails();
 					}
 				});
 
 			//folder includes list
-			builder.div({ 'class': 'file-types' }, (builder) => {
-				let title = nls.localize('searchIncludeExclude.label', "files to include/exclude");
+			builder.div({ 'class': 'file-types includes' }, (builder) => {
+				let title = nls.localize('searchScope.includes', "files to include");
 				builder.element('h4', { text: title });
 
-				this.inputPatternIncludes = new ExcludePatternInputWidget(builder.getContainer(), this.contextViewService, this.themeService, {
-					ariaLabel: nls.localize('searchIncludeExclude.ariaLabel', 'Search Include/Exclude Patterns'),
-					placeholder: nls.localize('searchIncludeExclude.placeholder', "Examples: src, !*.ts, test/**/*.log")
+				this.inputPatternIncludes = new PatternInputWidget(builder.getContainer(), this.contextViewService, this.themeService, {
+					ariaLabel: nls.localize('label.includes', 'Search Include Patterns')
 				});
 
-				// For migrating from versions that have dedicated exclusions persisted
-				let mergedIncludeExcludes = patternIncludes;
-				if (patternExclusions) {
-					if (mergedIncludeExcludes) {
-						mergedIncludeExcludes += ', ';
-					}
-
-					mergedIncludeExcludes += splitGlobAware(patternExclusions, ',')
-						.map(s => s.trim())
-						.filter(s => !!s.length)
-						.map(s => '!' + s)
-						.join(', ');
-				}
-
-				this.inputPatternIncludes.setValue(mergedIncludeExcludes);
+				this.inputPatternIncludes.setValue(patternIncludes);
 				this.inputPatternIncludes.setHistory(patternIncludesHistory);
-				this.inputPatternIncludes.setUseExcludesAndIgnoreFiles(useExcludesAndIgnoreFiles);
 
 				this.inputPatternIncludes
 					.on(FindInput.OPTION_CHANGE, (e) => {
@@ -239,6 +254,30 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				this.inputPatternIncludes.onSubmit(() => this.onQueryChanged(true, true));
 				this.inputPatternIncludes.onCancel(() => this.viewModel.cancelSearch()); // Cancel search without focusing the search widget
 				this.trackInputBox(this.inputPatternIncludes.inputFocusTracker, this.inputPatternIncludesFocused);
+			});
+
+			//pattern exclusion list
+			builder.div({ 'class': 'file-types excludes' }, (builder) => {
+				let title = nls.localize('searchScope.excludes', "files to exclude");
+				builder.element('h4', { text: title });
+
+				this.inputPatternExcludes = new ExcludePatternInputWidget(builder.getContainer(), this.contextViewService, this.themeService, {
+					ariaLabel: nls.localize('label.excludes', 'Search Exclude Patterns')
+				});
+
+				this.inputPatternExcludes.setValue(patternExclusions);
+				this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(useExcludesAndIgnoreFiles);
+				this.inputPatternExcludes.setHistory(patternExclusionsHistory);
+
+				this.inputPatternExcludes
+					.on(FindInput.OPTION_CHANGE, (e) => {
+						this.onQueryChanged(false);
+					});
+
+				this.inputPatternExcludes.onSubmit(() => this.onQueryChanged(true, true));
+				this.inputPatternExcludes.onSubmit(() => this.onQueryChanged(true, true));
+				this.inputPatternExcludes.onCancel(() => this.viewModel.cancelSearch()); // Cancel search without focusing the search widget
+				this.trackInputBox(this.inputPatternExcludes.inputFocusTracker, this.inputPatternExclusionsFocused);
 			});
 		}).getHTMLElement();
 
@@ -270,6 +309,10 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 	public get searchIncludePattern(): PatternInputWidget {
 		return this.inputPatternIncludes;
+	}
+
+	public get searchExcludePattern(): PatternInputWidget {
+		return this.inputPatternExcludes;
 	}
 
 	private updateActions(): void {
@@ -328,7 +371,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.toUnbind.push(inputFocusTracker.onDidBlur(() => {
 			this.inputBoxFocused.set(this.searchWidget.searchInputHasFocus()
 				|| this.searchWidget.replaceInputHasFocus()
-				|| this.inputPatternIncludes.inputHasFocus());
+				|| this.inputPatternIncludes.inputHasFocus()
+				|| this.inputPatternExcludes.inputHasFocus());
 			if (contextKey) {
 				contextKey.set(false);
 			}
@@ -706,6 +750,12 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 
 		if (this.inputPatternIncludes.inputHasFocus()) {
+			this.inputPatternExcludes.focus();
+			this.inputPatternExcludes.select();
+			return;
+		}
+
+		if (this.inputPatternExcludes.inputHasFocus()) {
 			this.selectTreeIfNotSelected();
 			return;
 		}
@@ -734,6 +784,12 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			return;
 		}
 
+		if (this.inputPatternExcludes.inputHasFocus()) {
+			this.inputPatternIncludes.focus();
+			this.inputPatternIncludes.select();
+			return;
+		}
+
 		if (this.tree.isDOMFocused()) {
 			this.moveFocusFromResults();
 			return;
@@ -742,7 +798,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 	private moveFocusFromResults(): void {
 		if (this.showsFileTypes()) {
-			this.toggleQueryDetails(true, true, false);
+			this.toggleQueryDetails(true, true, false, true);
 		} else {
 			this.searchWidget.focus(true, true);
 		}
@@ -761,6 +817,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		this.searchWidget.setWidth(this.size.width - 28 /* container margin */);
 
+		this.inputPatternExcludes.setWidth(this.size.width - 28 /* container margin */);
 		this.inputPatternIncludes.setWidth(this.size.width - 28 /* container margin */);
 
 		const messagesSize = this.messages.isHidden() ? 0 : dom.getTotalHeight(this.messages.getHTMLElement());
@@ -881,7 +938,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.onQueryChanged(true, true);
 	}
 
-	public toggleQueryDetails(moveFocus = true, show?: boolean, skipLayout?: boolean): void {
+	public toggleQueryDetails(moveFocus?: boolean, show?: boolean, skipLayout?: boolean, reverse?: boolean): void {
 		let cls = 'more';
 		show = typeof show === 'undefined' ? !dom.hasClass(this.queryDetails, cls) : Boolean(show);
 		this.viewletSettings['query.queryDetailsExpanded'] = show;
@@ -890,8 +947,13 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		if (show) {
 			dom.addClass(this.queryDetails, cls);
 			if (moveFocus) {
-				this.inputPatternIncludes.focus();
-				this.inputPatternIncludes.select();
+				if (reverse) {
+					this.inputPatternExcludes.focus();
+					this.inputPatternExcludes.select();
+				} else {
+					this.inputPatternIncludes.focus();
+					this.inputPatternIncludes.select();
+				}
 			}
 		} else {
 			dom.removeClass(this.queryDetails, cls);
@@ -959,7 +1021,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		const isWholeWords = this.searchWidget.searchInput.getWholeWords();
 		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
 		const contentPattern = this.searchWidget.searchInput.getValue();
-		const useExcludesAndIgnoreFiles = this.inputPatternIncludes.useExcludesAndIgnoreFiles();
+		const excludePatternText = this.inputPatternExcludes.getValue().trim();
+		const includePatternText = this.inputPatternIncludes.getValue().trim();
+		const useExcludesAndIgnoreFiles = this.inputPatternExcludes.useExcludesAndIgnoreFiles();
 
 		if (!rerunQuery) {
 			return;
@@ -992,8 +1056,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			isSmartCase: this.configurationService.getValue<ISearchConfiguration>().search.smartCase
 		};
 
-		const includeExcludePattern = this.inputPatternIncludes.getValue().trim();
-		const { includePattern, excludePattern } = this.queryBuilder.parseIncludeExcludePattern(includeExcludePattern);
+		const excludePattern = this.inputPatternExcludes.getValue();
+		const includePattern = this.inputPatternIncludes.getValue();
 
 		const options: IQueryOptions = {
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
@@ -1019,7 +1083,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 
 		this.validateQuery(query).then(() => {
-			this.onQueryTriggered(query, excludePattern, includePattern);
+			this.onQueryTriggered(query, excludePatternText, includePatternText);
 
 			if (!preserveFocus) {
 				this.searchWidget.focus(false); // focus back to input field
@@ -1050,6 +1114,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	}
 
 	private onQueryTriggered(query: ISearchQuery, excludePatternText: string, includePatternText: string): void {
+		this.inputPatternExcludes.onSearchSubmit();
 		this.inputPatternIncludes.onSearchSubmit();
 
 		this.viewModel.cancelSearch();
@@ -1110,8 +1175,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			}
 
 			if (!hasResults) {
-				const hasExcludes = !!excludePatternText;
-				const hasIncludes = !!includePatternText;
+				let hasExcludes = !!excludePatternText;
+				let hasIncludes = !!includePatternText;
 				let message: string;
 
 				if (!completed) {
@@ -1151,6 +1216,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 					}).on(dom.EventType.CLICK, (e: MouseEvent) => {
 						dom.EventHelper.stop(e, false);
 
+						this.inputPatternExcludes.setValue('');
 						this.inputPatternIncludes.setValue('');
 
 						this.onQueryChanged(true);
@@ -1439,9 +1505,11 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		const isWholeWords = this.searchWidget.searchInput.getWholeWords();
 		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
 		const contentPattern = this.searchWidget.searchInput.getValue();
+		const patternExcludes = this.inputPatternExcludes.getValue().trim();
 		const patternIncludes = this.inputPatternIncludes.getValue().trim();
-		const useExcludesAndIgnoreFiles = this.inputPatternIncludes.useExcludesAndIgnoreFiles();
+		const useExcludesAndIgnoreFiles = this.inputPatternExcludes.useExcludesAndIgnoreFiles();
 		const searchHistory = this.searchWidget.getHistory();
+		const patternExcludesHistory = this.inputPatternExcludes.getHistory();
 		const patternIncludesHistory = this.inputPatternIncludes.getHistory();
 
 		// store memento
@@ -1450,7 +1518,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.viewletSettings['query.regex'] = isRegex;
 		this.viewletSettings['query.wholeWords'] = isWholeWords;
 		this.viewletSettings['query.caseSensitive'] = isCaseSensitive;
+		this.viewletSettings['query.folderExclusions'] = patternExcludes;
 		this.viewletSettings['query.folderIncludes'] = patternIncludes;
+		this.viewletSettings['query.folderExclusionsHistory'] = patternExcludesHistory;
 		this.viewletSettings['query.folderIncludesHistory'] = patternIncludesHistory;
 		this.viewletSettings['query.useExcludesAndIgnoreFiles'] = useExcludesAndIgnoreFiles;
 
@@ -1466,6 +1536,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		this.searchWidget.dispose();
 		this.inputPatternIncludes.dispose();
+		this.inputPatternExcludes.dispose();
 
 		this.viewModel.dispose();
 

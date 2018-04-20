@@ -100,11 +100,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 		webview: WebviewEditorInput,
 		column: Position | undefined
 	): void {
-		if (typeof column === 'undefined') {
-			column = webview.position;
-		}
-
-		if (webview.position === column) {
+		if (typeof column === 'undefined' || webview.position === column) {
 			this._editorService.openEditor(webview, { preserveFocus: false }, column);
 		} else {
 			this._editorGroupService.moveEditor(webview, webview.position, column, { preserveFocus: false });

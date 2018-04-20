@@ -8,6 +8,7 @@
 	],
 	"toggleBreakpointAction": "Debuggen: Haltepunkt umschalten",
 	"conditionalBreakpointEditorAction": "Debuggen: Bedingten Haltepunkt hinzufügen...",
+	"logPointEditorAction": "Debuggen: Protokollpunkt hinzufügen …",
 	"runToCursor": "Ausführen bis Cursor",
 	"debugEvaluate": "Debuggen: Auswerten",
 	"debugAddToWatch": "Debuggen: Zur Überwachung hinzufügen",

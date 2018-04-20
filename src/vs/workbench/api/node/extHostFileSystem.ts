@@ -59,11 +59,11 @@ class FsLinkProvider implements vscode.DocumentLinkProvider {
 
 class FileSystemProviderShim implements vscode.FileSystemProvider2 {
 
-	_version: 7 = 7;
+	_version: 8 = 8;
 
 	onDidChangeFile: vscode.Event<vscode.FileChange2[]>;
 
-	constructor(private readonly _delegate: vscode.FileSystemProvider) {
+	constructor(private readonly _delegate: vscode.DeprecatedFileSystemProvider) {
 		if (!this._delegate.onDidChange) {
 			this.onDidChangeFile = Event.None;
 		} else {
@@ -89,7 +89,7 @@ class FileSystemProviderShim implements vscode.FileSystemProvider2 {
 		});
 	}
 
-	private static _modernizeFileStat(stat: vscode.FileStat): vscode.FileStat2 {
+	private static _modernizeFileStat(stat: vscode.DeprecatedFileStat): vscode.FileStat2 {
 		let { mtime, size, type } = stat;
 		let newType: vscode.FileType2;
 
@@ -108,7 +108,7 @@ class FileSystemProviderShim implements vscode.FileSystemProvider2 {
 		return { mtime, size, type: newType };
 	}
 
-	private static _modernizeFileChange(e: vscode.FileChange): vscode.FileChange2 {
+	private static _modernizeFileChange(e: vscode.DeprecatedFileChange): vscode.FileChange2 {
 		let { resource, type } = e;
 		let newType: vscode.FileChangeType2;
 		switch (type) {
@@ -184,12 +184,12 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		extHostLanguageFeatures.registerDocumentLinkProvider('*', this._linkProvider);
 	}
 
-	registerDeprecatedFileSystemProvider(scheme: string, provider: vscode.FileSystemProvider) {
+	registerDeprecatedFileSystemProvider(scheme: string, provider: vscode.DeprecatedFileSystemProvider) {
 		return this._doRegisterFileSystemProvider(scheme, new FileSystemProviderShim(provider));
 	}
 
-	registerFileSystemProvider(scheme: string, provider: vscode.FileSystemProvider, newProvider: vscode.FileSystemProvider2) {
-		if (newProvider && newProvider._version === 7) {
+	registerFileSystemProvider(scheme: string, provider: vscode.DeprecatedFileSystemProvider, newProvider: vscode.FileSystemProvider2) {
+		if (newProvider && newProvider._version === 8) {
 			return this._doRegisterFileSystemProvider(scheme, newProvider);
 		} else if (provider) {
 			return this._doRegisterFileSystemProvider(scheme, new FileSystemProviderShim(provider));
@@ -248,11 +248,11 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	}
 
 	$stat(handle: number, resource: UriComponents): TPromise<files.IStat, any> {
-		return asWinJsPromise(token => this._fsProvider.get(handle).stat(URI.revive(resource), token));
+		return asWinJsPromise(token => this._fsProvider.get(handle).stat(URI.revive(resource), {}, token));
 	}
 
 	$readdir(handle: number, resource: UriComponents): TPromise<[string, files.IStat][], any> {
-		return asWinJsPromise(token => this._fsProvider.get(handle).readDirectory(URI.revive(resource), token));
+		return asWinJsPromise(token => this._fsProvider.get(handle).readDirectory(URI.revive(resource), {}, token));
 	}
 
 	$readFile(handle: number, resource: UriComponents, flags: files.FileOpenFlags): TPromise<string> {
@@ -268,7 +268,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	}
 
 	$delete(handle: number, resource: UriComponents): TPromise<void, any> {
-		return asWinJsPromise(token => this._fsProvider.get(handle).delete(URI.revive(resource), token));
+		return asWinJsPromise(token => this._fsProvider.get(handle).delete(URI.revive(resource), {}, token));
 	}
 
 	$rename(handle: number, oldUri: UriComponents, newUri: UriComponents, flags: files.FileOpenFlags): TPromise<files.IStat, any> {
@@ -280,7 +280,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	}
 
 	$mkdir(handle: number, resource: UriComponents): TPromise<files.IStat, any> {
-		return asWinJsPromise(token => this._fsProvider.get(handle).createDirectory(URI.revive(resource), token));
+		return asWinJsPromise(token => this._fsProvider.get(handle).createDirectory(URI.revive(resource), {}, token));
 	}
 
 	$watch(handle: number, session: number, resource: UriComponents, opts: files.IWatchOptions): void {

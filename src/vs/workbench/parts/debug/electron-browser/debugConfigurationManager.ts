@@ -8,7 +8,6 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import * as objects from 'vs/base/common/objects';
 import uri from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
@@ -26,7 +25,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugConfigurationProvider, IDebuggerContribution, ICompound, IDebugConfiguration, IConfig, IEnvConfig, IGlobalConfig, IConfigurationManager, ILaunch, IAdapterExecutable, IDebugAdapterProvider, IDebugAdapter, ITerminalSettings, ITerminalLauncher } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugConfigurationProvider, IDebuggerContribution, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IAdapterExecutable, IDebugAdapterProvider, IDebugAdapter, ITerminalSettings, ITerminalLauncher } from 'vs/workbench/parts/debug/common/debug';
 import { Debugger } from 'vs/workbench/parts/debug/node/debugger';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
@@ -242,7 +241,8 @@ export class ConfigurationManager implements IConfigurationManager {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ICommandService private commandService: ICommandService,
 		@IStorageService private storageService: IStorageService,
-		@ILifecycleService lifecycleService: ILifecycleService
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService
 	) {
 		this.providers = [];
 		this.debuggers = [];
@@ -326,6 +326,14 @@ export class ConfigurationManager implements IConfigurationManager {
 		return undefined;
 	}
 
+	public substituteVariables(debugType: string, folder: IWorkspaceFolder, config: IConfig): TPromise<IConfig> {
+		let dap = this.getDebugAdapterProvider(debugType);
+		if (dap) {
+			return dap.substituteVariables(folder, config);
+		}
+		return TPromise.as(config);
+	}
+
 	public runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
 
 		let tl: ITerminalLauncher = this.getDebugAdapterProvider(debugType);
@@ -355,7 +363,7 @@ export class ConfigurationManager implements IConfigurationManager {
 					if (duplicate) {
 						duplicate.merge(rawAdapter, extension.description);
 					} else {
-						this.debuggers.push(new Debugger(this, rawAdapter, extension.description, this.configurationService, this.commandService));
+						this.debuggers.push(new Debugger(this, rawAdapter, extension.description, this.configurationService, this.commandService, this.configurationResolverService));
 					}
 				});
 			});
@@ -548,7 +556,6 @@ class Launch implements ILaunch {
 		@IFileService private fileService: IFileService,
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
-		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IExtensionService private extensionService: IExtensionService
 	) {
@@ -605,41 +612,6 @@ class Launch implements ILaunch {
 		}
 
 		return config.configurations.filter(config => config && config.name === name).shift();
-	}
-
-	protected getWorkspaceForResolving(): IWorkspaceFolder {
-		if (this.workspace) {
-			return this.workspace;
-		}
-
-		if (this.contextService.getWorkspace().folders.length === 1) {
-			return this.contextService.getWorkspace().folders[0];
-		}
-
-		return undefined;
-	}
-
-	public substituteVariables(config: IConfig): TPromise<IConfig> {
-		const result = objects.deepClone(config) as IConfig;
-		// Set operating system specific properties #1873
-		const setOSProperties = (flag: boolean, osConfig: IEnvConfig) => {
-			if (flag && osConfig) {
-				Object.keys(osConfig).forEach(key => {
-					result[key] = osConfig[key];
-				});
-			}
-		};
-		setOSProperties(isWindows, result.windows);
-		setOSProperties(isMacintosh, result.osx);
-		setOSProperties(isLinux, result.linux);
-
-		// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
-		Object.keys(result).forEach(key => {
-			result[key] = this.configurationResolverService.resolveAny(this.getWorkspaceForResolving(), result[key]);
-		});
-
-		const adapter = this.configurationManager.getDebugger(result.type);
-		return this.configurationResolverService.resolveInteractiveVariables(result, adapter ? adapter.variables : null);
 	}
 
 	public openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
@@ -711,7 +683,7 @@ class WorkspaceLaunch extends Launch implements ILaunch {
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(configurationManager, undefined, fileService, editorService, configurationService, configurationResolverService, contextService, extensionService);
+		super(configurationManager, undefined, fileService, editorService, configurationService, contextService, extensionService);
 	}
 
 	get uri(): uri {
@@ -743,7 +715,7 @@ class UserLaunch extends Launch implements ILaunch {
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(configurationManager, undefined, fileService, editorService, configurationService, configurationResolverService, contextService, extensionService);
+		super(configurationManager, undefined, fileService, editorService, configurationService, contextService, extensionService);
 	}
 
 	get uri(): uri {

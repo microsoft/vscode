@@ -90,8 +90,9 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 			this.icon = dom.append(a, $('.icon'));
 			this.label = dom.append(a, $('span.label'));
 			this.setLabel();
-			this.updateStyles();
 		}
+
+		this.updateStyles();
 	}
 
 	private setLabel(): void {

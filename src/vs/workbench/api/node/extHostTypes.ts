@@ -1838,6 +1838,32 @@ export enum FileType2 {
 	SymbolicLink = 4,
 }
 
+export class FileError extends Error {
+
+	static EntryExists(message?: string): FileError {
+		return new FileError(message, 'EntryExists', FileError.EntryExists);
+	}
+	static EntryNotFound(message?: string): FileError {
+		return new FileError(message, 'EntryNotFound', FileError.EntryNotFound);
+	}
+	static EntryNotADirectory(message?: string): FileError {
+		return new FileError(message, 'EntryNotADirectory', FileError.EntryNotADirectory);
+	}
+	static EntryIsADirectory(message?: string): FileError {
+		return new FileError(message, 'EntryIsADirectory', FileError.EntryIsADirectory);
+	}
+
+	constructor(message?: string, code?: string, hide?: Function) {
+		super(message);
+		this.name = code ? `FileError/${code}` : `FileError`;
+
+		if (typeof Error.captureStackTrace === 'function' && typeof hide === 'function') {
+			// nice stack traces
+			Error.captureStackTrace(this, hide);
+		}
+	}
+}
+
 //#endregion
 
 //#region folding api

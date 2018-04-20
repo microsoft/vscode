@@ -16,6 +16,7 @@
 	"editorIndentGuides": "編輯器縮排輔助線的色彩。",
 	"editorLineNumbers": "編輯器行號的色彩。",
 	"editorActiveLineNumber": "編輯器使用中行號的色彩 ",
+	"deprecatedEditorActiveLineNumber": "Id 已取代。請改用 'editorLineNumber.activeForeground' 。",
 	"editorRuler": "編輯器尺規的色彩",
 	"editorCodeLensForeground": "編輯器程式碼濾鏡的前景色彩",
 	"editorBracketMatchBackground": "成對括號背景色彩",
@@ -28,6 +29,9 @@
 	"warningBorder": "編輯器內警告提示線的邊框色彩.",
 	"infoForeground": "編輯器內資訊提示線的前景色彩",
 	"infoBorder": "編輯器內資訊提示線的邊框色彩",
+	"hintForeground": "編輯器內提示訊息的提示線前景色彩",
+	"hintBorder": "編輯器內提示訊息的提示線邊框色彩",
+	"overviewRulerRangeHighlight": "概述反白範圍的尺規標記顏色。不能使用非透明的顏色來隱藏底層的樣式。",
 	"overviewRuleError": "錯誤的概觀尺規標記色彩。",
 	"overviewRuleWarning": "警示的概觀尺規標記色彩。",
 	"overviewRuleInfo": "資訊的概觀尺規標記色彩。"

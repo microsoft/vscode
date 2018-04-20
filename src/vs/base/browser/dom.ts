@@ -289,7 +289,7 @@ function doRequestAnimationFrame(callback: (time: number) => void): number {
 			|| emulatedRequestAnimationFrame
 		);
 	}
-	return _animationFrame(callback);
+	return _animationFrame.call(self, callback);
 }
 
 /**

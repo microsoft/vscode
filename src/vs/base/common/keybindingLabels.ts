@@ -54,10 +54,10 @@ export const UILabelProvider = new ModifierLabelProvider(
 		separator: '',
 	},
 	{
-		ctrlKey: nls.localize('ctrlKey', "Ctrl"),
-		shiftKey: nls.localize('shiftKey', "Shift"),
-		altKey: nls.localize('altKey', "Alt"),
-		metaKey: nls.localize('windowsKey', "Windows"),
+		ctrlKey: nls.localize({ key: 'ctrlKey', comment: ['This is the short form for the Control key on the keyboard'] }, "Ctrl"),
+		shiftKey: nls.localize({ key: 'shiftKey', comment: ['This is the short form for the Shift key on the keyboard'] }, "Shift"),
+		altKey: nls.localize({ key: 'altKey', comment: ['This is the short form for the Alt key on the keyboard'] }, "Alt"),
+		metaKey: nls.localize({ key: 'windowsKey', comment: ['This is the short form for the Windows key on the keyboard'] }, "Windows"),
 		separator: '+',
 	}
 );
@@ -67,17 +67,17 @@ export const UILabelProvider = new ModifierLabelProvider(
  */
 export const AriaLabelProvider = new ModifierLabelProvider(
 	{
-		ctrlKey: nls.localize('ctrlKey.long', "Control"),
-		shiftKey: nls.localize('shiftKey.long', "Shift"),
-		altKey: nls.localize('altKey.long', "Alt"),
-		metaKey: nls.localize('cmdKey.long', "Command"),
+		ctrlKey: nls.localize({ key: 'ctrlKey.long', comment: ['This is the long form for the Control key on the keyboard'] }, "Control"),
+		shiftKey: nls.localize({ key: 'shiftKey.long', comment: ['This is the long form for the Shift key on the keyboard'] }, "Shift"),
+		altKey: nls.localize({ key: 'altKey.long', comment: ['This is the long form for the Alt key on the keyboard'] }, "Alt"),
+		metaKey: nls.localize({ key: 'cmdKey.long', comment: ['This is the long form for the Command key on the keyboard'] }, "Command"),
 		separator: '+',
 	},
 	{
-		ctrlKey: nls.localize('ctrlKey.long', "Control"),
-		shiftKey: nls.localize('shiftKey.long', "Shift"),
-		altKey: nls.localize('altKey.long', "Alt"),
-		metaKey: nls.localize('windowsKey.long', "Windows"),
+		ctrlKey: nls.localize({ key: 'ctrlKey.long', comment: ['This is the long form for the Control key on the keyboard'] }, "Control"),
+		shiftKey: nls.localize({ key: 'shiftKey.long', comment: ['This is the long form for the Shift key on the keyboard'] }, "Shift"),
+		altKey: nls.localize({ key: 'altKey.long', comment: ['This is the long form for the Alt key on the keyboard'] }, "Alt"),
+		metaKey: nls.localize({ key: 'windowsKey.long', comment: ['This is the long form for the Windows key on the keyboard'] }, "Windows"),
 		separator: '+',
 	}
 );

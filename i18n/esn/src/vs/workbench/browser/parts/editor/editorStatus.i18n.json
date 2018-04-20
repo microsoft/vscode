@@ -17,7 +17,7 @@
 	"screenReaderDetectedExtra": "Si no va a usar un lector de pantalla, cambie el valor de configuración \"editor.accessibilitySupport\" a \"desactivado\".",
 	"disableTabMode": "Deshabilitar modo de accesibilidad",
 	"gotoLine": "Ir a la línea",
-	"indentation": "Sangría",
+	"selectIndentation": "Seleccione la sangría",
 	"selectEncoding": "Seleccionar Encoding",
 	"selectEOL": "Seleccionar secuencia de fin de línea",
 	"selectLanguageMode": "Seleccionar modo de lenguaje",

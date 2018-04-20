@@ -26,6 +26,7 @@
 	"showOpenedEditors": "Mostrar editores abertos",
 	"keepEditor": "Manter editor",
 	"closeEditorsInGroup": "Fechar todos editores no grupo",
+	"closeSavedEditors": "Fechar Editores Salvos em Grupo",
 	"closeOtherEditors": "Fechar outros editores",
 	"closeRightEditors": "Fechar editores à direita"
 }

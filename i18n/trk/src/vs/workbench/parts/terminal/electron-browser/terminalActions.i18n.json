@@ -51,5 +51,7 @@
 	"workbench.action.terminal.hideFindWidget": "Bulma Aracını Gizle",
 	"nextTerminalFindTerm": "Sonraki Arama Terimini Göster",
 	"previousTerminalFindTerm": "Önceki Arama Terimini Göster",
-	"quickOpenTerm": "Aktif Terminali Değiştir"
+	"quickOpenTerm": "Aktif Terminali Değiştir",
+	"workbench.action.terminal.selectToPreviousCommand": "Önceki Komuta Kadar Seç",
+	"workbench.action.terminal.selectToNextCommand": "Sonraki Komuta Kadar Seç"
 }

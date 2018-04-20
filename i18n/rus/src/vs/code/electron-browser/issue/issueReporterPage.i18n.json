@@ -8,6 +8,9 @@
 	],
 	"completeInEnglish": "Заполните форму на английском языке.",
 	"issueTypeLabel": "Это",
+	"vscode": "Visual Studio Code",
+	"disableExtensions": "отключение всех расширений и перезагрузка окна",
+	"chooseExtension": "Расширение",
 	"issueTitleLabel": "Название",
 	"issueTitleRequired": "Введите название.",
 	"titleLengthValidation": "Название слишком длинное.",
@@ -18,13 +21,6 @@
 	"extensions": "Мои расширения",
 	"searchedExtensions": "Расширения, для которых выполнялся поиск",
 	"settingsSearchDetails": "Сведения о параметрах поиска",
-	"tryDisablingExtensions": "Сохраняется ли проблема после отключения расширений?",
-	"yes": "Да",
-	"no": "Нет",
-	"disableExtensionsLabelText": "Попробуйте воспроизвести проблему после {0}.",
-	"disableExtensions": "отключение всех расширений и перезагрузка окна",
-	"showRunningExtensionsLabelText": "Если вы подозреваете, что проблема связана с расширениями, сообщите о проблеме с расширением с помощью {0}.",
-	"showRunningExtensions": "просмотр всех запущенных расширений",
 	"details": "Укажите сведения.",
 	"loadingData": "Загрузка данных..."
 }
