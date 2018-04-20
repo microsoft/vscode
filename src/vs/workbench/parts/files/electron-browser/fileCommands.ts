@@ -386,9 +386,11 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-function revealResourcesInOS(resources: URI[], windowsService: IWindowsService, notificationService: INotificationService): void {
+function revealResourcesInOS(resources: URI[], windowsService: IWindowsService, notificationService: INotificationService, workSpaceContextService: IWorkspaceContextService): void {
 	if (resources.length) {
 		sequence(resources.map(r => () => windowsService.showItemInFolder(paths.normalize(r.fsPath, true))));
+	} else if (workSpaceContextService.getWorkspace().folders.length) {
+		windowsService.showItemInFolder(paths.normalize(workSpaceContextService.getWorkspace().folders[0].uri.fsPath, true));
 	} else {
 		notificationService.info(nls.localize('openFileToReveal', "Open a file first to reveal"));
 	}
@@ -403,7 +405,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	},
 	handler: (accessor: ServicesAccessor, resource: URI | object) => {
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
-		revealResourcesInOS(resources, accessor.get(IWindowsService), accessor.get(INotificationService));
+		revealResourcesInOS(resources, accessor.get(IWindowsService), accessor.get(INotificationService), accessor.get(IWorkspaceContextService));
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -415,7 +417,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const activeInput = editorService.getActiveEditorInput();
 		const resources = activeInput && activeInput.getResource() ? [activeInput.getResource()] : [];
-		revealResourcesInOS(resources, accessor.get(IWindowsService), accessor.get(INotificationService));
+		revealResourcesInOS(resources, accessor.get(IWindowsService), accessor.get(INotificationService), accessor.get(IWorkspaceContextService));
 	}
 });
 
