@@ -656,16 +656,16 @@ declare module 'vscode' {
 
 	//#region URLs
 
-	export interface UrlHandler {
-		handleUrl(uri: Uri): void;
+	export interface ExternalUriHandler {
+		handleExternalUri(uri: Uri): void;
 	}
 
 	export namespace window {
 
 		/**
-		 * Registers a URL handler.
+		 * Registers a protocol handler capable of handling system-wide URIs.
 		 */
-		export function registerUrlHandler(handler: UrlHandler): Disposable;
+		export function registerExternalUriHandler(handler: ExternalUriHandler): Disposable;
 	}
 
 	//#endregion

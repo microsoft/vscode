@@ -373,12 +373,12 @@ export interface ExtHostWebviewsShape {
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
-	$registerUrlHandler(handle: number, extensionId: string): TPromise<void>;
-	$unregisterUrlHandler(handle: number): TPromise<void>;
+	$registerExternalUriHandler(handle: number, extensionId: string): TPromise<void>;
+	$unregisterExternalUriHandler(handle: number): TPromise<void>;
 }
 
 export interface ExtHostUrlsShape {
-	$handleUrl(handle: number, uri: UriComponents): TPromise<void>;
+	$handleExternalUri(handle: number, uri: UriComponents): TPromise<void>;
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {

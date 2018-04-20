@@ -23,7 +23,7 @@ class ExtensionUrlHandler implements IURLHandler {
 			return TPromise.as(false);
 		}
 
-		return this.proxy.$handleUrl(this.handle, uri).then(() => true);
+		return this.proxy.$handleExternalUri(this.handle, uri).then(() => true);
 	}
 }
 
@@ -41,7 +41,7 @@ export class MainThreadUrls implements MainThreadUrlsShape {
 		this.proxy = context.getProxy(ExtHostContext.ExtHostUrls);
 	}
 
-	$registerUrlHandler(handle: number, extensionId: string): TPromise<void> {
+	$registerExternalUriHandler(handle: number, extensionId: string): TPromise<void> {
 		const handler = new ExtensionUrlHandler(this.proxy, handle, extensionId);
 		const disposable = this.urlService.registerHandler(handler);
 		this.handlers.set(handle, disposable);
@@ -49,7 +49,7 @@ export class MainThreadUrls implements MainThreadUrlsShape {
 		return TPromise.as(null);
 	}
 
-	$unregisterUrlHandler(handle: number): TPromise<void> {
+	$unregisterExternalUriHandler(handle: number): TPromise<void> {
 		const disposable = this.handlers.get(handle);
 
 		if (!disposable) {
