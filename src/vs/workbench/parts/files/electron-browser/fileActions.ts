@@ -739,21 +739,19 @@ class BaseDeleteFileAction extends BaseFileAction {
 			return getConfirmMessage(nls.localize('confirmMoveTrashMessageFilesAndDirectories', "Are you sure you want to delete the following {0} files/directories and its contents?", distinctElements.length), distinctElements.map(e => e.resource));
 		}
 
-		let message: string = '';
 		if (distinctElements.length > 1) {
 			if (distinctElements[0].isDirectory) {
-				message = getConfirmMessage(nls.localize('confirmMoveTrashMessageMultipleDirectories', "Are you sure you want to delete the following {0} directories and its contents?", distinctElements.length), distinctElements.map(e => e.resource));
-			} else {
-				message = getConfirmMessage(nls.localize('confirmMoveTrashMessageMultiple', "Are you sure you want to delete the following {0} files?", distinctElements.length), distinctElements.map(e => e.resource));
+				return getConfirmMessage(nls.localize('confirmMoveTrashMessageMultipleDirectories', "Are you sure you want to delete the following {0} directories and its contents?", distinctElements.length), distinctElements.map(e => e.resource));
 			}
-		} else {
-			if (distinctElements[0].isDirectory) {
-				message = nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", distinctElements[0].name);
-			} else {
-				message = nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", distinctElements[0].name);
-			}
+
+			return getConfirmMessage(nls.localize('confirmMoveTrashMessageMultiple', "Are you sure you want to delete the following {0} files?", distinctElements.length), distinctElements.map(e => e.resource));
 		}
-		return message;
+
+		if (distinctElements[0].isDirectory) {
+			return nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", distinctElements[0].name);
+		}
+
+		return nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", distinctElements[0].name);
 	}
 
 	private getDeleteMessage(distinctElements: ExplorerItem[]): string {
@@ -761,26 +759,25 @@ class BaseDeleteFileAction extends BaseFileAction {
 			return getConfirmMessage(nls.localize('confirmDeleteMessageFilesAndDirectories', "Are you sure you want to permanently delete the following {0} files/directories and its contents?", distinctElements.length), distinctElements.map(e => e.resource));
 		}
 
-		let message: string = '';
 		if (distinctElements.length > 1) {
 			if (distinctElements[0].isDirectory) {
-				message = getConfirmMessage(nls.localize('confirmDeleteMessageMultipleDirectories', "Are you sure you want to permanently delete the following {0} directories and its contents?", distinctElements.length), distinctElements.map(e => e.resource));
-			} else {
-				message = getConfirmMessage(nls.localize('confirmDeleteMessageMultiple', "Are you sure you want to permanently delete the following {0} files?", distinctElements.length), distinctElements.map(e => e.resource));
+				return getConfirmMessage(nls.localize('confirmDeleteMessageMultipleDirectories', "Are you sure you want to permanently delete the following {0} directories and its contents?", distinctElements.length), distinctElements.map(e => e.resource));
 			}
-		} else {
-			if (distinctElements[0].isDirectory) {
-				message = nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", distinctElements[0].name);
-			} else {
-				message = nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", distinctElements[0].name);
-			}
+
+			return getConfirmMessage(nls.localize('confirmDeleteMessageMultiple', "Are you sure you want to permanently delete the following {0} files?", distinctElements.length), distinctElements.map(e => e.resource));
 		}
-		return message;
+
+		if (distinctElements[0].isDirectory) {
+			return nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", distinctElements[0].name);
+		}
+
+		return nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", distinctElements[0].name);
 	}
 
-	private containsBothDirectoryAndFile(distinctElements: ExplorerItem[]) {
+	private containsBothDirectoryAndFile(distinctElements: ExplorerItem[]): boolean {
 		const directories = distinctElements.filter(element => element.isDirectory);
 		const files = distinctElements.filter(element => !element.isDirectory);
+
 		return directories.length > 0 && files.length > 0;
 	}
 }
