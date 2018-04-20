@@ -199,11 +199,12 @@ export class ReviewMode implements vscode.DecorationProvider {
 					return true;
 				}
 
-				if (matchingComment[0].body !== oldComment.body) {
+				if (matchingComment[0].body.value !== oldComment.body.value) {
 					return true;
 				}
 			});
-			return true;
+
+			return false;
 		}
 
 		newCommentThreads.forEach(thread => {
