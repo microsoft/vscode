@@ -110,6 +110,7 @@ import { IPCClient } from 'vs/base/parts/ipc/common/ipc';
 import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
+import { IInactiveExtensionUrlHandler, InactiveExtensionUrlHandler } from 'vs/platform/url/electron-browser/inactiveExtensionUrlHandler';
 
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
 export const InZenModeContext = new RawContextKey<boolean>('inZenMode', false);
@@ -615,6 +616,9 @@ export class Workbench implements IPartService {
 
 		// SCM Service
 		serviceCollection.set(ISCMService, new SyncDescriptor(SCMService));
+
+		// Inactive extension URL handler
+		serviceCollection.set(IInactiveExtensionUrlHandler, new SyncDescriptor(InactiveExtensionUrlHandler));
 
 		// Text Model Resolver Service
 		serviceCollection.set(ITextModelService, new SyncDescriptor(TextModelResolverService));

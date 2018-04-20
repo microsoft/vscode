@@ -9,13 +9,14 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import URI from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IInactiveExtensionUrlHandler } from 'vs/platform/url/electron-browser/inactiveExtensionUrlHandler';
 
 class ExtensionUrlHandler implements IURLHandler {
 
 	constructor(
 		private readonly proxy: ExtHostUrlsShape,
 		private readonly handle: number,
-		private readonly extensionId: string
+		readonly extensionId: string
 	) { }
 
 	handleURL(uri: URI): TPromise<boolean> {
@@ -31,12 +32,12 @@ class ExtensionUrlHandler implements IURLHandler {
 export class MainThreadUrls implements MainThreadUrlsShape {
 
 	private readonly proxy: ExtHostUrlsShape;
-
-	private handlers = new Map<number, IDisposable>();
+	private handlers = new Map<number, { extensionId: string, disposable: IDisposable }>();
 
 	constructor(
 		context: IExtHostContext,
-		@IURLService private urlService: IURLService
+		@IURLService private urlService: IURLService,
+		@IInactiveExtensionUrlHandler private inactiveExtensionUrlHandler: IInactiveExtensionUrlHandler
 	) {
 		this.proxy = context.getProxy(ExtHostContext.ExtHostUrls);
 	}
@@ -44,25 +45,31 @@ export class MainThreadUrls implements MainThreadUrlsShape {
 	$registerExternalUriHandler(handle: number, extensionId: string): TPromise<void> {
 		const handler = new ExtensionUrlHandler(this.proxy, handle, extensionId);
 		const disposable = this.urlService.registerHandler(handler);
-		this.handlers.set(handle, disposable);
+
+		this.handlers.set(handle, { extensionId, disposable });
+		this.inactiveExtensionUrlHandler.registerExtensionHandler(extensionId, handler);
 
 		return TPromise.as(null);
 	}
 
 	$unregisterExternalUriHandler(handle: number): TPromise<void> {
-		const disposable = this.handlers.get(handle);
+		const tuple = this.handlers.get(handle);
 
-		if (!disposable) {
+		if (!tuple) {
 			return TPromise.as(null);
 		}
 
-		disposable.dispose();
+		const { extensionId, disposable } = tuple;
+
+		this.inactiveExtensionUrlHandler.unregisterExtensionHandler(extensionId);
 		this.handlers.delete(handle);
+		disposable.dispose();
 
 		return TPromise.as(null);
 	}
 
 	dispose(): void {
-
+		this.handlers.forEach(({ disposable }) => disposable.dispose());
+		this.handlers.clear();
 	}
 }
