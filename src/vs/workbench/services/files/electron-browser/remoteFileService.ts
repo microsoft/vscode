@@ -204,7 +204,7 @@ export class RemoteFileService extends FileService {
 		if (!(err instanceof Error)) {
 			return undefined;
 		}
-		let match = /FileError\/(.+)$/.exec(err.name);
+		let match = /^(.+) \(FileSystemError\)$/.exec(err.name);
 		if (!match) {
 			return undefined;
 		}
@@ -219,7 +219,7 @@ export class RemoteFileService extends FileService {
 			case 'EntryExists':
 			case 'EntryNotADirectory':
 			default:
-				// todo	
+				// todo
 				res = undefined;
 				break;
 		}

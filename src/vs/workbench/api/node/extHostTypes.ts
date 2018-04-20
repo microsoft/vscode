@@ -1855,7 +1855,7 @@ export class FileSystemError extends Error {
 
 	constructor(message?: string, code?: string, hide?: Function) {
 		super(message);
-		this.name = code ? `FileError/${code}` : `FileError`;
+		this.name = code ? `${code} (FileSystemError)` : `FileSystemError`;
 
 		if (typeof Error.captureStackTrace === 'function' && typeof hide === 'function') {
 			// nice stack traces
