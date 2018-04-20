@@ -734,7 +734,11 @@ class BaseDeleteFileAction extends BaseFileAction {
 		});
 	}
 
-	private getMoveToTrashMessage(distinctElements): string {
+	private getMoveToTrashMessage(distinctElements: ExplorerItem[]): string {
+		if (this.containsBothDirectoryAndFile(distinctElements)) {
+			return getConfirmMessage(nls.localize('confirmMoveTrashMessageFilesAndDirectories', "Are you sure you want to delete the following {0} files/directories and its contents?", distinctElements.length), distinctElements.map(e => e.resource));
+		}
+
 		let message: string = '';
 		if (distinctElements.length > 1) {
 			if (distinctElements[0].isDirectory) {
@@ -752,7 +756,11 @@ class BaseDeleteFileAction extends BaseFileAction {
 		return message;
 	}
 
-	private getDeleteMessage(distinctElements): string {
+	private getDeleteMessage(distinctElements: ExplorerItem[]): string {
+		if (this.containsBothDirectoryAndFile(distinctElements)) {
+			return getConfirmMessage(nls.localize('confirmDeleteMessageFilesAndDirectories', "Are you sure you want to permanently delete the following {0} files/directories and its contents?", distinctElements.length), distinctElements.map(e => e.resource));
+		}
+
 		let message: string = '';
 		if (distinctElements.length > 1) {
 			if (distinctElements[0].isDirectory) {
@@ -768,6 +776,12 @@ class BaseDeleteFileAction extends BaseFileAction {
 			}
 		}
 		return message;
+	}
+
+	private containsBothDirectoryAndFile(distinctElements: ExplorerItem[]) {
+		const directories = distinctElements.filter(element => element.isDirectory);
+		const files = distinctElements.filter(element => !element.isDirectory);
+		return directories.length > 0 && files.length > 0;
 	}
 }
 
