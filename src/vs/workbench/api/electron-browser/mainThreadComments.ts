@@ -24,7 +24,8 @@ import { ReviewController } from 'vs/workbench/parts/comments/electron-browser/c
 export class MainThreadComments extends Disposable implements MainThreadCommentsShape {
 
 	private _proxy: ExtHostCommentsShape;
-	private _providers = new Map<number, IDisposable>();
+	private _documentProviders = new Map<number, IDisposable>();
+	private _workspaceProviders = new Map<number, IDisposable>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -52,17 +53,14 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			}
 
 			const outerEditorURI = outerEditor.getModel().uri;
-			this.provideComments(outerEditorURI).then(commentInfos => {
+			this.provideDocumentComments(outerEditorURI).then(commentInfos => {
 				this._commentService.setComments(outerEditorURI, commentInfos);
 			});
 
-			for (const handle of keys(this._providers)) {
+			for (const handle of keys(this._documentProviders)) {
 				_commentService.registerDataProvider({
-					provideAllComments: async (token) => {
-						return await this._proxy.$provideAllComments(handle);
-					},
-					provideComments: async (model, token) => {
-						return this._proxy.$provideComments(handle, model.uri);
+					provideDocumentComments: async (model, token) => {
+						return this._proxy.$provideDocumentComments(handle, model.uri);
 					},
 					onDidChangeCommentThreads: null
 				});
@@ -70,26 +68,33 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		});
 	}
 
-	$registerCommentProvider(handle: number): void {
-		this._providers.set(handle, undefined);
-		// Fetch all comments
-		this._proxy.$provideAllComments(handle).then(commentThreads => {
+	$registerDocumentCommentProvider(handle: number): void {
+		this._documentProviders.set(handle, undefined);
+	}
+
+	$registerWorkspaceCommentProvider(handle: number): void {
+		this._workspaceProviders.set(handle, undefined);
+		this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, true);
+		this._proxy.$provideWorkspaceComments(handle).then(commentThreads => {
 			if (commentThreads) {
 				this._commentService.setAllComments(commentThreads);
-				this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, true);
 			}
 		});
+	}
+
+	$unregisterDocumentCommentProvider(handle: number): void {
+		this._documentProviders.delete(handle);
+	}
+
+	$unregisterWorkspaceCommentProvider(handle: number): void {
+		this._workspaceProviders.delete(handle);
+		this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, false);
+		this._commentService.removeAllComments();
 	}
 
 	$onDidCommentThreadsChange(handle: number, event: modes.CommentThreadChangedEvent) {
 		// notify comment service
 		this._commentService.updateComments(event);
-	}
-
-	$unregisterCommentProvider(handle: number): void {
-		this._providers.delete(handle);
-		this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, false);
-		this._commentService.removeAllComments();
 	}
 
 	dispose(): void {
@@ -105,18 +110,18 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		return editor;
 	}
 
-	async provideAllComments(): Promise<modes.CommentThread[]> {
+	async provideWorkspaceComments(): Promise<modes.CommentThread[]> {
 		const result: modes.CommentThread[] = [];
-		for (const handle of keys(this._providers)) {
-			result.push(...await this._proxy.$provideAllComments(handle));
+		for (const handle of keys(this._workspaceProviders)) {
+			result.push(...await this._proxy.$provideWorkspaceComments(handle));
 		}
 		return result;
 	}
 
-	async provideComments(resource: URI): Promise<modes.CommentInfo[]> {
+	async provideDocumentComments(resource: URI): Promise<modes.CommentInfo[]> {
 		const result: modes.CommentInfo[] = [];
-		for (const handle of keys(this._providers)) {
-			result.push(await this._proxy.$provideComments(handle, resource));
+		for (const handle of keys(this._documentProviders)) {
+			result.push(await this._proxy.$provideDocumentComments(handle, resource));
 		}
 		return result;
 	}

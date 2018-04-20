@@ -546,8 +546,11 @@ export function createApiFactory(
 			registerSearchProvider: proposedApiFunction(extension, (scheme, provider) => {
 				return extHostFileSystem.registerSearchProvider(scheme, provider);
 			}),
-			registerCommentProvider: proposedApiFunction(extension, (provider: vscode.CommentProvider) => {
-				return exthostCommentProviders.registerCommentProvider(provider);
+			registerDocumentCommentProvider: proposedApiFunction(extension, (provider: vscode.DocumentCommentProvider) => {
+				return exthostCommentProviders.registerDocumentCommentProvider(provider);
+			}),
+			registerWorkspaceCommentProvider: proposedApiFunction(extension, (provider: vscode.WorkspaceCommentProvider) => {
+				return exthostCommentProviders.registerWorkspaceCommentProvider(provider);
 			})
 		};
 

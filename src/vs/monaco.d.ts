@@ -5083,9 +5083,13 @@ declare namespace monaco.languages {
 		readonly changed: CommentThread[];
 	}
 
-	export interface CommentProvider {
-		provideComments(model: editor.ITextModel, token: CancellationToken): Promise<CommentInfo>;
-		provideAllComments(token: CancellationToken): Promise<CommentThread[]>;
+	export interface DocumentCommentProvider {
+		provideDocumentComments(model: editor.ITextModel, token: CancellationToken): Promise<CommentInfo>;
+		onDidChangeCommentThreads(): IEvent<CommentThreadChangedEvent>;
+	}
+
+	export interface WorkspaceCommentProvider {
+		provideWorkspaceComments(token: CancellationToken): Promise<CommentThread[]>;
 		onDidChangeCommentThreads(): IEvent<CommentThreadChangedEvent>;
 	}
 

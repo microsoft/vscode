@@ -20,7 +20,8 @@ export class ExtHostComments implements ExtHostCommentsShape {
 
 	private _proxy: MainThreadCommentsShape;
 
-	private _providers = new Map<number, vscode.CommentProvider>();
+	private _documentProviders = new Map<number, vscode.DocumentCommentProvider>();
+	private _workspaceProviders = new Map<number, vscode.WorkspaceCommentProvider>();
 
 	constructor(
 		mainContext: IMainContext,
@@ -30,14 +31,65 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadComments);
 	}
 
-	registerCommentProvider(
-		provider: vscode.CommentProvider
+	registerWorkspaceCommentProvider(
+		provider: vscode.WorkspaceCommentProvider
 	): vscode.Disposable {
 		const handle = ExtHostComments.handlePool++;
-		this._providers.set(handle, provider);
+		this._workspaceProviders.set(handle, provider);
+		this._proxy.$registerWorkspaceCommentProvider(handle);
+		this.registerListeners(handle, provider);
 
-		this._proxy.$registerCommentProvider(handle);
+		return {
+			dispose: () => {
+				this._proxy.$unregisterWorkspaceCommentProvider(handle);
+				this._workspaceProviders.delete(handle);
+			}
+		};
+	}
 
+	registerDocumentCommentProvider(
+		provider: vscode.DocumentCommentProvider
+	): vscode.Disposable {
+		const handle = ExtHostComments.handlePool++;
+		this._documentProviders.set(handle, provider);
+		this._proxy.$registerDocumentCommentProvider(handle);
+		this.registerListeners(handle, provider);
+
+		return {
+			dispose: () => {
+				this._proxy.$unregisterDocumentCommentProvider(handle);
+				this._documentProviders.delete(handle);
+			}
+		};
+	}
+
+	$provideDocumentComments(handle: number, uri: UriComponents): TPromise<modes.CommentInfo> {
+		const data = this._documents.getDocumentData(URI.revive(uri));
+		if (!data || !data.document) {
+			return TPromise.as(null);
+		}
+
+		return asWinJsPromise(token => {
+			let provider = this._documentProviders.get(handle);
+			return provider.provideDocumentComments(data.document, token);
+		})
+			.then(commentInfo => convertCommentInfo(handle, commentInfo, this._commandsConverter));
+	}
+
+	$provideWorkspaceComments(handle: number): TPromise<modes.CommentThread[]> {
+		const provider = this._workspaceProviders.get(handle);
+		if (!provider) {
+			return TPromise.as(null);
+		}
+
+		return asWinJsPromise(token => {
+			return provider.provideWorkspaceComments(token);
+		}).then(comments =>
+			comments.map(x => convertCommentThread(x, this._commandsConverter)
+			));
+	}
+
+	private registerListeners(handle: number, provider: vscode.DocumentCommentProvider | vscode.WorkspaceCommentProvider) {
 		provider.onDidChangeCommentThreads(event => {
 
 			this._proxy.$onDidCommentThreadsChange(handle, {
@@ -47,44 +99,6 @@ export class ExtHostComments implements ExtHostCommentsShape {
 				removed: event.removed.map(x => convertCommentThread(x, this._commandsConverter))
 			});
 		});
-		return {
-			dispose: () => {
-				this._proxy.$unregisterCommentProvider(handle);
-				this._providers.delete(handle);
-			}
-		};
-	}
-
-	$onDidCommentThreadsChange(handle: number, commentThreadEvent: vscode.CommentThreadChangedEvent) {
-		return TPromise.as(null);
-	}
-
-	$provideComments(handle: number, uri: UriComponents): TPromise<modes.CommentInfo> {
-		const data = this._documents.getDocumentData(URI.revive(uri));
-		if (!data || !data.document) {
-			return TPromise.as(null);
-		}
-
-		return asWinJsPromise(token => {
-			let provider = this._providers.get(handle);
-			return provider.provideComments(data.document, token);
-		})
-			.then(commentInfo => convertCommentInfo(handle, commentInfo, this._commandsConverter));
-	}
-
-	$provideAllComments(handle: number): TPromise<modes.CommentThread[]> {
-		let provider = this._providers.get(handle);
-		// provideAllComments is an optional method
-		if (!provider.provideAllComments) {
-			return TPromise.as(null);
-		}
-
-		return asWinJsPromise(token => {
-
-			return provider.provideAllComments(token);
-		}).then(comments =>
-			comments.map(x => convertCommentThread(x, this._commandsConverter)
-			));
 	}
 }
 

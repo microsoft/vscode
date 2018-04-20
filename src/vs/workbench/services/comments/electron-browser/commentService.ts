@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { CommentThread, CommentProvider, CommentThreadChangedEvent, CommentInfo } from 'vs/editor/common/modes';
+import { CommentThread, DocumentCommentProvider, CommentThreadChangedEvent, CommentInfo, WorkspaceCommentProvider } from 'vs/editor/common/modes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -26,7 +26,7 @@ export interface ICommentService {
 	setComments(resource: URI, commentInfos: CommentInfo[]): void;
 	setAllComments(commentsByResource: CommentThread[]): void;
 	removeAllComments(): void;
-	registerDataProvider(commentProvider: CommentProvider): void;
+	registerDataProvider(commentProvider: DocumentCommentProvider | WorkspaceCommentProvider): void;
 	updateComments(event: CommentThreadChangedEvent): void;
 }
 
@@ -42,7 +42,7 @@ export class CommentService extends Disposable implements ICommentService {
 	private readonly _onDidUpdateCommentThreads: Emitter<CommentThreadChangedEvent> = this._register(new Emitter<CommentThreadChangedEvent>());
 	readonly onDidUpdateCommentThreads: Event<CommentThreadChangedEvent> = this._onDidUpdateCommentThreads.event;
 
-	private _commentProviders: CommentProvider[] = [];
+	private _commentProviders: (DocumentCommentProvider | WorkspaceCommentProvider)[] = [];
 
 	constructor() {
 		super();
@@ -60,7 +60,7 @@ export class CommentService extends Disposable implements ICommentService {
 		this._onDidSetAllCommentThreads.fire([]);
 	}
 
-	registerDataProvider(commentProvider: CommentProvider) {
+	registerDataProvider(commentProvider: DocumentCommentProvider | WorkspaceCommentProvider) {
 		// @todo use map
 		this._commentProviders.push(commentProvider);
 	}

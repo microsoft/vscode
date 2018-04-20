@@ -105,8 +105,10 @@ export interface MainThreadCommandsShape extends IDisposable {
 }
 
 export interface MainThreadCommentsShape extends IDisposable {
-	$registerCommentProvider(handle: number): void;
-	$unregisterCommentProvider(handle: number): void;
+	$registerDocumentCommentProvider(handle: number): void;
+	$unregisterDocumentCommentProvider(handle: number): void;
+	$registerWorkspaceCommentProvider(handle: number): void;
+	$unregisterWorkspaceCommentProvider(handle: number): void;
 	$onDidCommentThreadsChange(handle: number, event: modes.CommentThreadChangedEvent): void;
 }
 
@@ -832,8 +834,8 @@ export interface ExtHostProgressShape {
 }
 
 export interface ExtHostCommentsShape {
-	$provideComments(handle: number, document: UriComponents): TPromise<modes.CommentInfo>;
-	$provideAllComments(handle: number): TPromise<modes.CommentThread[]>;
+	$provideDocumentComments(handle: number, document: UriComponents): TPromise<modes.CommentInfo>;
+	$provideWorkspaceComments(handle: number): TPromise<modes.CommentThread[]>;
 }
 
 // --- proxy identifiers

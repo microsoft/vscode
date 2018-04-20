@@ -26,7 +26,8 @@ export interface ReviewState {
 }
 
 export class ReviewMode implements vscode.DecorationProvider {
-	private _commentProvider: vscode.Disposable;
+	private _documentCommentProvider: vscode.Disposable;
+	private _workspaceCommentProvider: vscode.Disposable;
 	private _command: vscode.Disposable;
 	private _prNumber: number;
 	private _resourceGroups: vscode.SourceControlResourceGroup[] = [];
@@ -44,7 +45,8 @@ export class ReviewMode implements vscode.DecorationProvider {
 		private _workspaceState: vscode.Memento,
 		private _gitRepo: any
 	) {
-		this._commentProvider = null;
+		this._documentCommentProvider = null;
+		this._workspaceCommentProvider = null;
 		this._command = null;
 		this._disposables = [];
 		this._commentsCache = new Map<String, Comment[]>();
@@ -338,9 +340,9 @@ export class ReviewMode implements vscode.DecorationProvider {
 	}
 
 	registerCommentProvider() {
-		this._commentProvider = vscode.workspace.registerCommentProvider({
+		this._documentCommentProvider = vscode.workspace.registerDocumentCommentProvider({
 			onDidChangeCommentThreads: this._onDidChangeCommentThreads.event,
-			provideComments: async (document: vscode.TextDocument, token: vscode.CancellationToken) => {
+			provideDocumentComments: async (document: vscode.TextDocument, token: vscode.CancellationToken) => {
 				let lastLine = document.lineCount;
 				let lastColumn = document.lineAt(lastLine - 1).text.length;
 				let ranges = [
@@ -369,8 +371,12 @@ export class ReviewMode implements vscode.DecorationProvider {
 					commentingRanges: ranges,
 					reply: this._reply
 				};
-			},
-			provideAllComments: async (token: vscode.CancellationToken) => {
+			}
+		});
+
+		this._workspaceCommentProvider = vscode.workspace.registerWorkspaceCommentProvider({
+			onDidChangeCommentThreads: this._onDidChangeCommentThreads.event,
+			provideWorkspaceComments: async (token: vscode.CancellationToken) => {
 				const comments = await Promise.all(this._localFileChanges.map(async fileChange => {
 					return this.commentsToCommentThreads(fileChange.comments);
 				}));
@@ -408,8 +414,12 @@ export class ReviewMode implements vscode.DecorationProvider {
 			this._command.dispose();
 		}
 
-		if (this._commentProvider) {
-			this._commentProvider.dispose();
+		if (this._documentCommentProvider) {
+			this._documentCommentProvider.dispose();
+		}
+
+		if (this._workspaceCommentProvider) {
+			this._workspaceCommentProvider.dispose();
 		}
 
 		this._resourceGroups.forEach(group => {

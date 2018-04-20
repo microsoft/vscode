@@ -820,17 +820,18 @@ declare module 'vscode' {
 		readonly changed: CommentThread[];
 	}
 
-	/**
-	 * TODO: force update event?
-	 * TODO: resolve step?
-	 */
-	interface CommentProvider {
-		provideComments(document: TextDocument, token: CancellationToken): Promise<CommentInfo>;
-		provideAllComments?(token: CancellationToken): Promise<CommentThread[]>;
+	interface DocumentCommentProvider {
+		provideDocumentComments(document: TextDocument, token: CancellationToken): Promise<CommentInfo>;
+		onDidChangeCommentThreads?: Event<CommentThreadChangedEvent>;
+	}
+
+	interface WorkspaceCommentProvider {
+		provideWorkspaceComments(token: CancellationToken): Promise<CommentThread[]>;
 		onDidChangeCommentThreads?: Event<CommentThreadChangedEvent>;
 	}
 
 	namespace workspace {
-		export function registerCommentProvider(provider: CommentProvider): Disposable;
+		export function registerDocumentCommentProvider(provider: DocumentCommentProvider): Disposable;
+		export function registerWorkspaceCommentProvider(provider: WorkspaceCommentProvider): Disposable;
 	}
 }

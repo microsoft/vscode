@@ -995,9 +995,14 @@ export interface CommentThreadChangedEvent {
 }
 
 
-export interface CommentProvider {
-	provideComments(model: model.ITextModel, token: CancellationToken): Promise<CommentInfo>;
-	provideAllComments(token: CancellationToken): Promise<CommentThread[]>;
+export interface DocumentCommentProvider {
+	provideDocumentComments(model: model.ITextModel, token: CancellationToken): Promise<CommentInfo>;
+	onDidChangeCommentThreads(): Event<CommentThreadChangedEvent>;
+}
+
+
+export interface WorkspaceCommentProvider {
+	provideWorkspaceComments(token: CancellationToken): Promise<CommentThread[]>;
 	onDidChangeCommentThreads(): Event<CommentThreadChangedEvent>;
 }
 
