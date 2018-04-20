@@ -372,6 +372,15 @@ export interface ExtHostWebviewsShape {
 	$serializeWebviewPanel(webviewHandle: WebviewPanelHandle): Thenable<any>;
 }
 
+export interface MainThreadUrlsShape extends IDisposable {
+	$registerUrlHandler(handle: number, extensionId: string): TPromise<void>;
+	$unregisterUrlHandler(handle: number): TPromise<void>;
+}
+
+export interface ExtHostUrlsShape {
+	$handleUrl(handle: number, uri: UriComponents): TPromise<void>;
+}
+
 export interface MainThreadWorkspaceShape extends IDisposable {
 	$startSearch(includePattern: string, includeFolder: string, excludePatternOrDisregardExcludes: string | false, maxResults: number, requestId: number): Thenable<UriComponents[]>;
 	$cancelSearch(requestId: number): Thenable<boolean>;
@@ -873,6 +882,7 @@ export const MainContext = {
 	MainThreadTelemetry: createMainId<MainThreadTelemetryShape>('MainThreadTelemetry'),
 	MainThreadTerminalService: createMainId<MainThreadTerminalServiceShape>('MainThreadTerminalService'),
 	MainThreadWebviews: createMainId<MainThreadWebviewsShape>('MainThreadWebviews'),
+	MainThreadUrls: createMainId<MainThreadUrlsShape>('MainThreadUrls'),
 	MainThreadWorkspace: createMainId<MainThreadWorkspaceShape>('MainThreadWorkspace'),
 	MainThreadFileSystem: createMainId<MainThreadFileSystemShape>('MainThreadFileSystem'),
 	MainThreadExtensionService: createMainId<MainThreadExtensionServiceShape>('MainThreadExtensionService'),
@@ -908,5 +918,6 @@ export const ExtHostContext = {
 	ExtHostWorkspace: createExtId<ExtHostWorkspaceShape>('ExtHostWorkspace'),
 	ExtHostWindow: createExtId<ExtHostWindowShape>('ExtHostWindow'),
 	ExtHostWebviews: createExtId<ExtHostWebviewsShape>('ExtHostWebviews'),
+	ExtHostUrls: createExtId<ExtHostUrlsShape>('ExtHostUrls'),
 	ExtHostProgress: createMainId<ExtHostProgressShape>('ExtHostProgress')
 };

@@ -657,4 +657,20 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region URLs
+
+	export interface UrlHandler {
+		handleUrl(uri: Uri): void;
+	}
+
+	export namespace window {
+
+		/**
+		 * Registers a URL handler.
+		 */
+		export function registerUrlHandler(handler: UrlHandler): Disposable;
+	}
+
+	//#endregion
 }
