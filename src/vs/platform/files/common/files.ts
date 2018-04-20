@@ -156,11 +156,27 @@ export enum FileType2 {
 	SymbolicLink = 4,
 }
 
-export enum FileOpenFlags {
-	Read = 0b0001,
-	Write = 0b0010,
-	Create = 0b0100,
-	Exclusive = 0b1000
+export interface FileOptions {
+	/**
+	 * Create a file when it doesn't exists.
+	 */
+	create?: boolean;
+
+	/**
+	 * In combination with [`create`](FileOptions.create) but
+	 * the operation should fail when a file already exists.
+	 */
+	exclusive?: boolean;
+
+	/**
+	 * Open a file for reading.
+	 */
+	read?: boolean;
+
+	/**
+	 * Open a file for writing.
+	 */
+	write?: boolean;
 }
 
 export interface IStat {
@@ -194,13 +210,13 @@ export interface IFileSystemProvider {
 	readdir(resource: URI): TPromise<[string, IStat][]>;
 	delete(resource: URI): TPromise<void>;
 
-	rename(from: URI, to: URI, opts: { flags: FileOpenFlags }): TPromise<IStat>;
-	copy?(from: URI, to: URI, opts: { flags: FileOpenFlags }): TPromise<IStat>;
+	rename(from: URI, to: URI, opts: FileOptions): TPromise<IStat>;
+	copy?(from: URI, to: URI, opts: FileOptions): TPromise<IStat>;
 
-	readFile?(resource: URI, opts: { flags: FileOpenFlags }): TPromise<Uint8Array>;
-	writeFile?(resource: URI, content: Uint8Array, opts: { flags: FileOpenFlags }): TPromise<void>;
+	readFile?(resource: URI, opts: FileOptions): TPromise<Uint8Array>;
+	writeFile?(resource: URI, content: Uint8Array, opts: FileOptions): TPromise<void>;
 
-	open?(resource: URI, opts: { flags: FileOpenFlags }): TPromise<number>;
+	open?(resource: URI, opts: FileOptions): TPromise<number>;
 	close?(fd: number): TPromise<void>;
 	read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
 	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;

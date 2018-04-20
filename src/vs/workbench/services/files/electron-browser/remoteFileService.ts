@@ -16,7 +16,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileChangesEvent, FileOpenFlags, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileType2, IContent, ICreateFileOptions, IFileStat, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IResolveFileOptions, IResolveFileResult, IStat, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { FileChangesEvent, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileType2, IContent, ICreateFileOptions, IFileStat, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IResolveFileOptions, IResolveFileResult, IStat, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot, FileSystemProviderCapabilities, FileOptions } from 'vs/platform/files/common/files';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -353,7 +353,7 @@ export class RemoteFileService extends FileService {
 					}
 				};
 
-				const readable = createReadableOfProvider(provider, resource, options.position || 0, FileOpenFlags.Read);
+				const readable = createReadableOfProvider(provider, resource, options.position || 0, { read: true });
 
 				return toDecodeStream(readable, decodeStreamOpts).then(data => {
 
@@ -386,13 +386,8 @@ export class RemoteFileService extends FileService {
 		} else {
 			return this._withProvider(resource).then(provider => {
 
-				let flags = FileOpenFlags.Write | FileOpenFlags.Create;
-				if (options && options.overwrite === false) {
-					flags += FileOpenFlags.Exclusive;
-				}
-
 				const encoding = this.encoding.getWriteEncoding(resource);
-				return this._writeFile(provider, resource, new StringSnapshot(content), { encoding }, flags);
+				return this._writeFile(provider, resource, new StringSnapshot(content), encoding, { write: true, create: true, exclusive: !(options && options.overwrite) });
 
 			}).then(fileStat => {
 				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
@@ -414,16 +409,16 @@ export class RemoteFileService extends FileService {
 			}
 			return this._withProvider(resource).then(provider => {
 				const snapshot = typeof value === 'string' ? new StringSnapshot(value) : value;
-				return this._writeFile(provider, resource, snapshot, options || {}, FileOpenFlags.Write);
+				return this._writeFile(provider, resource, snapshot, options && options.encoding, { write: true });
 			});
 		}
 	}
 
-	private _writeFile(provider: IFileSystemProvider, resource: URI, snapshot: ITextSnapshot, options: IUpdateContentOptions, fags: FileOpenFlags): TPromise<IFileStat> {
+	private _writeFile(provider: IFileSystemProvider, resource: URI, snapshot: ITextSnapshot, preferredEncoding: string, options: FileOptions): TPromise<IFileStat> {
 		const readable = createReadableOfSnapshot(snapshot);
-		const encoding = this.encoding.getWriteEncoding(resource, options.encoding);
+		const encoding = this.encoding.getWriteEncoding(resource, preferredEncoding);
 		const decoder = decodeStream(encoding);
-		const target = createWritableOfProvider(provider, resource, FileOpenFlags.Write);
+		const target = createWritableOfProvider(provider, resource, options);
 		return new TPromise<IFileStat>((resolve, reject) => {
 			readable.pipe(decoder).pipe(target);
 			target.once('error', err => reject(err));
@@ -525,7 +520,7 @@ export class RemoteFileService extends FileService {
 			: TPromise.as(null);
 
 		return prepare.then(() => this._withProvider(source)).then(provider => {
-			return provider.rename(source, target, { flags: 0 /*todo@remote ->  RENAME_NOREPLACE */ }).then(stat => {
+			return provider.rename(source, target, { create: true, exclusive: !overwrite }).then(stat => {
 				return toIFileStat(provider, [target, stat]);
 			}).then(fileStat => {
 				this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.MOVE, fileStat));
@@ -554,7 +549,7 @@ export class RemoteFileService extends FileService {
 
 			if (source.scheme === target.scheme && (provider.capabilities & FileSystemProviderCapabilities.FileFolderCopy)) {
 				// good: provider supports copy withing scheme
-				return provider.copy(source, target, { flags: 0 }).then(stat => toIFileStat(provider, [target, stat]));
+				return provider.copy(source, target, { create: true, exclusive: !overwrite }).then(stat => toIFileStat(provider, [target, stat]));
 			}
 
 			const prepare = overwrite
@@ -569,8 +564,8 @@ export class RemoteFileService extends FileService {
 						return this._writeFile(
 							provider, target,
 							new StringSnapshot(content.value),
-							{ encoding: content.encoding },
-							FileOpenFlags.Create | FileOpenFlags.Write
+							content.encoding,
+							{ write: true, create: true, exclusive: !overwrite }
 						).then(fileStat => {
 							this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, fileStat));
 							return fileStat;
