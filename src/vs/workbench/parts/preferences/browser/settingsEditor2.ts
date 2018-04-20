@@ -11,7 +11,7 @@ import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IAction } from 'vs/base/common/actions';
-import { Delayer } from 'vs/base/common/async';
+import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -30,11 +30,14 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { SearchWidget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
-import { IPreferencesService, ISetting } from 'vs/workbench/services/preferences/common/preferences';
+import { IPreferencesService, ISetting, ISettingsEditorModel, ISearchResult } from 'vs/workbench/services/preferences/common/preferences';
 import { PreferencesEditorInput2 } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { SettingMatches } from 'vs/workbench/parts/preferences/electron-browser/preferencesSearch';
+import { IPreferencesSearchService, ISearchProvider } from '../common/preferences';
+import { IProgressService } from 'vs/platform/progress/common/progress';
+import { isPromiseCanceledError, getErrorMessage } from 'vs/base/common/errors';
+import { ILogService } from 'vs/platform/log/common/log';
 
 const SETTINGS_ENTRY_TEMPLATE_ID = 'settings.entry.template';
 const SETTINGS_NAV_TEMPLATE_ID = 'settings.nav.template';
@@ -64,6 +67,11 @@ interface IGroupTitleEntry extends IListEntry {
 	title: string;
 }
 
+enum SearchResultIdx {
+	Local = 0,
+	Remote = 1
+}
+
 let $ = DOM.$;
 
 export class SettingsEditor2 extends BaseEditor {
@@ -83,8 +91,16 @@ export class SettingsEditor2 extends BaseEditor {
 	private settingsList: List<IListEntry>;
 
 	private dimension: DOM.Dimension;
-	private delayedFiltering: Delayer<void>;
 	private searchFocusContextKey: IContextKey<boolean>;
+
+	private delayedFilterLogging: Delayer<void>;
+	private localSearchDelayer: Delayer<void>;
+	private remoteSearchThrottle: ThrottledDelayer<void>;
+
+	private currentLocalSearchProvider: ISearchProvider;
+	private currentRemoteSearchProvider: ISearchProvider;
+
+	private searchResults: ISearchResult[] = [];
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -92,10 +108,16 @@ export class SettingsEditor2 extends BaseEditor {
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IPreferencesService private preferencesService: IPreferencesService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IPreferencesSearchService private preferencesSearchService: IPreferencesSearchService,
+		@IProgressService private progressService: IProgressService,
+		@ILogService private logService: ILogService
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService);
-		this.delayedFiltering = new Delayer<void>(300);
+		this.delayedFilterLogging = new Delayer<void>(1000);
+		this.localSearchDelayer = new Delayer(100);
+		this.remoteSearchThrottle = new ThrottledDelayer(200);
+
 		this._register(configurationService.onDidChangeConfiguration(() => this.render()));
 	}
 
@@ -154,7 +176,7 @@ export class SettingsEditor2 extends BaseEditor {
 			placeholder: localize('SearchSettings.Placeholder', "Search settings"),
 			focusKey: this.searchFocusContextKey
 		}));
-		this._register(this.searchWidget.onDidChange(searchValue => this.delayedFiltering.trigger(() => this.filterSettings())));
+		this._register(this.searchWidget.onDidChange(() => this.onInputChanged()));
 
 		const headerControlsContainer = DOM.append(this.headerContainer, $('div.settings-header-controls-container'));
 		const targetWidgetContainer = DOM.append(headerControlsContainer, $('.settings-target-container'));
@@ -268,19 +290,176 @@ export class SettingsEditor2 extends BaseEditor {
 		return TPromise.as(null);
 	}
 
-	private filterSettings(): void {
-		this.renderEntries();
+	private onInputChanged(): void {
+		const query = this.searchWidget.getValue().trim();
+		this.delayedFilterLogging.cancel();
+		this.triggerSearch(query)
+			.then(() => {
+				// const result = this.preferencesRenderers.lastFilterResult;
+				// if (result) {
+				// 	this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(
+				// 		query,
+				// 		this.preferencesRenderers.lastFilterResult));
+				// }
+			});
+	}
+
+	private triggerSearch(query: string): TPromise<void> {
+		if (query) {
+			return TPromise.join([
+				this.localSearchDelayer.trigger(() => this.localFilterPreferences(query)),
+				this.remoteSearchThrottle.trigger(() => this.progressService.showWhile(this.remoteSearchPreferences(query), 500))
+			]) as TPromise;
+		} else {
+			// When clearing the input, update immediately to clear it
+			this.localSearchDelayer.cancel();
+			// this.preferencesRenderers.localFilterPreferences(query);
+
+			this.remoteSearchThrottle.cancel();
+			// return this.preferencesRenderers.remoteSearchPreferences(query);
+
+			this.searchResults = [];
+			this.renderEntries();
+			return TPromise.wrap(null);
+		}
+	}
+
+	private localFilterPreferences(query: string): TPromise<void> {
+		this.currentLocalSearchProvider = this.preferencesSearchService.getLocalSearchProvider(query);
+		return this.filterOrSearchPreferences(query, SearchResultIdx.Local, this.currentLocalSearchProvider);
+	}
+
+	private remoteSearchPreferences(query: string): TPromise<void> {
+		this.currentRemoteSearchProvider = this.preferencesSearchService.getRemoteSearchProvider(query);
+		return this.filterOrSearchPreferences(query, SearchResultIdx.Remote, this.currentRemoteSearchProvider);
+	}
+
+	private filterOrSearchPreferences(query: string, type: SearchResultIdx, searchProvider: ISearchProvider): TPromise<void> {
+		// this.lastQuery = query;
+
+		const filterPs: TPromise<ISearchResult>[] = [this._filterOrSearchPreferencesModel(query, this.defaultSettingsEditorModel, searchProvider)];
+		// filterPs.push(this.searchAllSettingsTargets(query, searchProvider));
+
+		return TPromise.join(filterPs).then(results => {
+			const [result] = results;
+			this.searchResults[type] = result;
+			this.renderSearchResults(this.searchResults);
+		});
+	}
+
+	// private searchAllSettingsTargets(query: string, searchProvider: ISearchProvider): TPromise<void> {
+	// 	const searchPs = [
+	// 		this.searchSettingsTarget(query, searchProvider, ConfigurationTarget.WORKSPACE),
+	// 		this.searchSettingsTarget(query, searchProvider, ConfigurationTarget.USER)
+	// 	];
+
+	// 	for (const folder of this.workspaceContextService.getWorkspace().folders) {
+	// 		const folderSettingsResource = this.preferencesService.getFolderSettingsResource(folder.uri);
+	// 		searchPs.push(this.searchSettingsTarget(query, searchProvider, folderSettingsResource));
+	// 	}
+
+
+	// 	return TPromise.join(searchPs).then(() => { });
+	// }
+
+	// private searchSettingsTarget(query: string, provider: ISearchProvider, target: SettingsTarget): TPromise<void> {
+	// 	if (!query) {
+	// 		// Don't open the other settings targets when query is empty
+	// 		this._onDidFilterResultsCountChange.fire({ target, count: 0 });
+	// 		return TPromise.wrap(null);
+	// 	}
+
+	// 	return this.getPreferencesEditorModel(target).then(model => {
+	// 		return model && this._filterOrSearchPreferencesModel('', <ISettingsEditorModel>model, provider);
+	// 	}).then(result => {
+	// 		const count = result ? this._flatten(result.filteredGroups).length : 0;
+	// 		this._onDidFilterResultsCountChange.fire({ target, count });
+	// 	}, err => {
+	// 		if (!isPromiseCanceledError(err)) {
+	// 			return TPromise.wrapError(err);
+	// 		}
+
+	// 		return null;
+	// 	});
+	// }
+
+	private _filterOrSearchPreferencesModel(filter: string, model: ISettingsEditorModel, provider: ISearchProvider): TPromise<ISearchResult> {
+		const searchP = provider ? provider.searchModel(model) : TPromise.wrap(null);
+		return searchP
+			.then<ISearchResult>(null, err => {
+				if (isPromiseCanceledError(err)) {
+					return TPromise.wrapError(err);
+				} else {
+					/* __GDPR__
+						"defaultSettings.searchError" : {
+							"message": { "classification": "CallstackOrException", "purpose": "FeatureInsight" },
+							"filter": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					*/
+					const message = getErrorMessage(err).trim();
+					if (message && message !== 'Error') {
+						// "Error" = any generic network error
+						this.telemetryService.publicLog('defaultSettings.searchError', { message, filter });
+						this.logService.info('Setting search error: ' + message);
+					}
+					return null;
+				}
+			});
+	}
+
+	// private async getPreferencesEditorModel(target: SettingsTarget): TPromise<ISettingsEditorModel | null> {
+	// 	const resource = target === ConfigurationTarget.USER ? this.preferencesService.userSettingsResource :
+	// 		target === ConfigurationTarget.WORKSPACE ? this.preferencesService.workspaceSettingsResource :
+	// 			target;
+
+	// 	if (!resource) {
+	// 		return null;
+	// 	}
+
+	// 	const targetKey = resource.toString();
+	// 	if (!this._prefsModelsForSearch.has(targetKey)) {
+	// 		try {
+	// 			const model = this._register(await this.preferencesService.createPreferencesEditorModel(resource));
+	// 			this._prefsModelsForSearch.set(targetKey, <ISettingsEditorModel>model);
+	// 		} catch (e) {
+	// 			// Will throw when the settings file doesn't exist.
+	// 			return null;
+	// 		}
+	// 	}
+
+	// 	return this._prefsModelsForSearch.get(targetKey);
+	// }
+
+	private renderSearchResults(searchResults: ISearchResult[]): void {
+		const entries: ISettingItemEntry[] = [];
+		const seenSettings = new Set<string>();
+
+		for (let result of searchResults) {
+			if (!result) {
+				continue;
+			}
+
+			for (let match of result.filterMatches) {
+				if (!seenSettings.has(match.setting.key)) {
+					const entry = this.settingToEntry(match.setting);
+					if (!this.showConfiguredSettingsOnly || entry.isConfigured) {
+						seenSettings.add(entry.key);
+						entries.push(entry);
+					}
+				}
+			}
+		}
+
+		this.settingsList.splice(0, this.settingsList.length, entries);
 	}
 
 	private renderEntries(): void {
 		if (this.defaultSettingsEditorModel) {
 
-			const filter = this.searchWidget.getValue();
-
-			const entries: (ISettingItemEntry|IGroupTitleEntry)[] = [];
+			const entries: (ISettingItemEntry | IGroupTitleEntry)[] = [];
 			const navEntries: INavListEntry[] = [];
 			for (let groupIdx = 0; groupIdx < this.defaultSettingsEditorModel.settingsGroups.length; groupIdx++) {
-				if (groupIdx > 0 && !(this.showAllSettings || filter)) {
+				if (groupIdx > 0 && !(this.showAllSettings)) {
 					break;
 				}
 
@@ -288,13 +467,9 @@ export class SettingsEditor2 extends BaseEditor {
 				const groupEntries = [];
 				for (const section of group.sections) {
 					for (const setting of section.settings) {
-						const matches = new SettingMatches(filter, setting, true, true, (filter, setting) => this.defaultSettingsEditorModel.findValueMatches(filter, setting)).matches;
-
-						if (matches && matches.length) {
-							const entry = this.settingToEntry(setting);
-							if (!this.showConfiguredSettingsOnly || (this.showConfiguredSettingsOnly && entry.isConfigured)) {
-								groupEntries.push(entry);
-							}
+						const entry = this.settingToEntry(setting);
+						if (!this.showConfiguredSettingsOnly || (this.showConfiguredSettingsOnly && entry.isConfigured)) {
+							groupEntries.push(entry);
 						}
 					}
 				}
