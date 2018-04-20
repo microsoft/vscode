@@ -6,7 +6,6 @@
 import 'vs/css!./media/panel';
 import * as dom from 'vs/base/browser/dom';
 import { debounceEvent } from 'vs/base/common/event';
-import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { DefaultAccessibilityProvider, DefaultController, DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -17,7 +16,7 @@ import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/l
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Panel } from 'vs/workbench/browser/panel';
-import { CommentsModel, ResourceWithCommentThreads, instanceOfCommentThread } from 'vs/workbench/parts/comments/common/commentModel';
+import { CommentsModel, ResourceWithCommentThreads, CommentNode } from 'vs/workbench/parts/comments/common/commentModel';
 import { ReviewController } from 'vs/workbench/parts/comments/electron-browser/commentsEditorContribution';
 import { CommentsDataSource, CommentsModelRenderer, CommentsDataFilter } from 'vs/workbench/parts/comments/electron-browser/commentsTreeViewer';
 import { ICommentService } from 'vs/workbench/services/comments/electron-browser/commentService';
@@ -129,14 +128,12 @@ export class CommentsPanel extends Panel {
 			return false;
 		}
 
-		if (!(element instanceof ResourceWithCommentThreads || instanceOfCommentThread(element))) {
+		if (!(element instanceof ResourceWithCommentThreads || element instanceof CommentNode)) {
 			return false;
 		}
 
-		const resource = element instanceof ResourceWithCommentThreads ? element.resource : URI.parse(element.resource);
-
 		const range = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].range : element.range;
-		this.editorService.openEditor({ resource: resource, options: { pinned: pinned, selection: range } }, sideBySide)
+		this.editorService.openEditor({ resource: element.resource, options: { pinned: pinned, selection: range } }, sideBySide)
 			.done(editor => {
 				// If clicking on the file name, open the first comment thread. If clicking on a comment, open its thread
 				const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;

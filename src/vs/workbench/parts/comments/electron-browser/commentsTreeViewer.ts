@@ -5,18 +5,14 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { IDelegate, IRenderer as ListRenderer } from 'vs/base/browser/ui/list/list';
-import { flatten } from 'vs/base/common/arrays';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IFilter, IRenderer as ITreeRenderer, ITree } from 'vs/base/parts/tree/browser/tree';
-import { Comment, CommentThread } from 'vs/editor/common/modes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { FileLabel, ResourceLabel } from 'vs/workbench/browser/labels';
-import { CommentsModel, ResourceWithCommentThreads, instanceOfCommentThread } from 'vs/workbench/parts/comments/common/commentModel';
+import { CommentsModel, ResourceWithCommentThreads, CommentNode } from 'vs/workbench/parts/comments/common/commentModel';
 
 export class CommentsDataSource implements IDataSource {
 	public getId(tree: ITree, element: any): string {
@@ -26,14 +22,14 @@ export class CommentsDataSource implements IDataSource {
 		if (element instanceof ResourceWithCommentThreads) {
 			return element.id;
 		}
-		if (instanceOfCommentThread(element)) {
-			return element.threadId;
+		if (element instanceof CommentNode) {
+			return element.comment.commentId;
 		}
 		return '';
 	}
 
 	public hasChildren(tree: ITree, element: any): boolean {
-		return element instanceof CommentsModel || element instanceof ResourceWithCommentThreads;
+		return element instanceof CommentsModel || element instanceof ResourceWithCommentThreads || (element instanceof CommentNode && !!element.replies.length);
 	}
 
 	public getChildren(tree: ITree, element: any): Promise {
@@ -42,6 +38,9 @@ export class CommentsDataSource implements IDataSource {
 		}
 		if (element instanceof ResourceWithCommentThreads) {
 			return Promise.as(element.commentThreads);
+		}
+		if (element instanceof CommentNode) {
+			return Promise.as(element.replies);
 		}
 		return null;
 	}
@@ -55,43 +54,6 @@ export class CommentsDataSource implements IDataSource {
 	}
 }
 
-export interface ICommentTemplateData {
-	comment: HTMLElement;
-	icon: HTMLImageElement;
-	userName: HTMLSpanElement;
-	text: HTMLElement;
-}
-
-export class CommentRenderer implements ListRenderer<Comment, ICommentTemplateData> {
-
-	get templateId() {
-		return 'comment';
-	}
-
-	renderTemplate(container: HTMLElement): ICommentTemplateData {
-		const data: ICommentTemplateData = Object.create(null);
-		data.comment = dom.append(container, dom.$('.comment'));
-		data.userName = dom.append(data.comment, dom.$('.user'));
-		data.text = dom.append(data.comment, dom.$('.text'));
-
-		return data;
-	}
-
-	renderElement(comment: Comment, index: number, data: ICommentTemplateData): void {
-		data.userName.textContent = comment.userName;
-		data.text.textContent = comment.body.value;
-	}
-
-	disposeTemplate(templateData) {
-		// no op
-	}
-}
-
-export class Delegate implements IDelegate<Comment> {
-	getHeight() { return 22; }
-	getTemplateId() { return 'comment'; }
-}
-
 interface IResourceTemplateData {
 	resourceLabel: FileLabel;
 	count: CountBadge;
@@ -102,12 +64,11 @@ interface ICommentThreadTemplateData {
 	icon: HTMLImageElement;
 	resourceLabel: ResourceLabel;
 	userName: HTMLSpanElement;
-	comments: WorkbenchList<Comment>;
 }
 
 export class CommentsModelRenderer implements ITreeRenderer {
-	private static RESOURCE_ID = 'resource-comments-thread';
-	private static COMMENT_THREAD_ID = 'comments-thread';
+	private static RESOURCE_ID = 'resource-with-comments';
+	private static COMMENT_ID = 'comment-node';
 
 
 	constructor(
@@ -124,8 +85,8 @@ export class CommentsModelRenderer implements ITreeRenderer {
 		if (element instanceof ResourceWithCommentThreads) {
 			return CommentsModelRenderer.RESOURCE_ID;
 		}
-		if (instanceOfCommentThread(element)) {
-			return CommentsModelRenderer.COMMENT_THREAD_ID;
+		if (element instanceof CommentNode) {
+			return CommentsModelRenderer.COMMENT_ID;
 		}
 
 		return '';
@@ -135,8 +96,8 @@ export class CommentsModelRenderer implements ITreeRenderer {
 		switch (templateId) {
 			case CommentsModelRenderer.RESOURCE_ID:
 				return this.renderResourceTemplate(container);
-			case CommentsModelRenderer.COMMENT_THREAD_ID:
-				return this.renderCommentThreadTemplate(container);
+			case CommentsModelRenderer.COMMENT_ID:
+				return this.renderCommentTemplate(container);
 		}
 	}
 
@@ -145,8 +106,8 @@ export class CommentsModelRenderer implements ITreeRenderer {
 			case CommentsModelRenderer.RESOURCE_ID:
 				(<IResourceTemplateData>templateData).resourceLabel.dispose();
 				(<IResourceTemplateData>templateData).styler.dispose();
-			case CommentsModelRenderer.COMMENT_THREAD_ID:
-				(<ICommentThreadTemplateData>templateData).comments.dispose();
+			case CommentsModelRenderer.COMMENT_ID:
+				(<ICommentThreadTemplateData>templateData).resourceLabel.dispose();
 		}
 	}
 
@@ -154,14 +115,14 @@ export class CommentsModelRenderer implements ITreeRenderer {
 		switch (templateId) {
 			case CommentsModelRenderer.RESOURCE_ID:
 				return this.renderResourceElement(tree, element, templateData);
-			case CommentsModelRenderer.COMMENT_THREAD_ID:
-				return this.renderCommentThreadElement(tree, element, templateData);
+			case CommentsModelRenderer.COMMENT_ID:
+				return this.renderCommentElement(tree, element, templateData);
 		}
 	}
 
 	private renderResourceTemplate(container: HTMLElement): IResourceTemplateData {
 		const data = <IResourceTemplateData>Object.create(null);
-		const labelContainer = dom.append(container, dom.$('.comment-thread-container'));
+		const labelContainer = dom.append(container, dom.$('.resource-container'));
 		data.resourceLabel = this.instantiationService.createInstance(FileLabel, labelContainer, {});
 
 		const badgeWrapper = dom.append(labelContainer, dom.$('.count-badge-wrapper'));
@@ -171,26 +132,25 @@ export class CommentsModelRenderer implements ITreeRenderer {
 		return data;
 	}
 
-	private renderCommentThreadTemplate(container: HTMLElement): ICommentThreadTemplateData {
+	private renderCommentTemplate(container: HTMLElement): ICommentThreadTemplateData {
 		const data = <ICommentThreadTemplateData>Object.create(null);
-
-		const commentList = dom.append(container, dom.$('.comment-list'));
-		const delegate = new Delegate();
-		const renderer = this.instantiationService.createInstance(CommentRenderer);
-		data.comments = this.instantiationService.createInstance(WorkbenchList, commentList, delegate, [renderer], {}) as WorkbenchList<Comment>;
+		const labelContainer = dom.append(container, dom.$('.comment-container'));
+		data.userName = dom.append(labelContainer, dom.$('.user'));
+		data.resourceLabel = this.instantiationService.createInstance(ResourceLabel, labelContainer, {});
 
 		return data;
 	}
 
 	private renderResourceElement(tree: ITree, element: ResourceWithCommentThreads, templateData: IResourceTemplateData) {
 		templateData.resourceLabel.setFile(element.resource);
-		const allComments = flatten(element.commentThreads.map(thread => thread.comments));
-		templateData.count.setCount(allComments.length);
+		let numComments = element.commentThreads.length;
+		element.commentThreads.forEach(thread => numComments += thread.replies.length);
+		templateData.count.setCount(numComments);
 	}
 
-	private renderCommentThreadElement(tree: ITree, element: CommentThread, templateData: ICommentThreadTemplateData) {
-		templateData.comments.splice(0, templateData.comments.length, element.comments);
-		templateData.comments.layout(500);
+	private renderCommentElement(tree: ITree, element: CommentNode, templateData: ICommentThreadTemplateData) {
+		templateData.resourceLabel.setLabel({ name: element.comment.body.value });
+		templateData.userName.textContent = element.comment.userName;
 	}
 }
 

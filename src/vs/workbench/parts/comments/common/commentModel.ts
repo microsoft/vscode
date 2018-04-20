@@ -15,7 +15,7 @@ export class CommentNode {
 	threadId: string;
 	range: IRange;
 	comment: Comment;
-	reply: CommentNode;
+	replies: CommentNode[] = [];
 	resource: URI;
 
 	constructor(threadId: string, resource: URI, comment: Comment, range: IRange) {
@@ -26,38 +26,27 @@ export class CommentNode {
 	}
 
 	hasReply(): boolean {
-		return !!this.reply;
+		return this.replies && this.replies.length !== 0;
 	}
-}
-
-export function instanceOfCommentThread(object: any): object is CommentThread {
-	return 'threadId' in object
-		&& 'resource' in object
-		&& 'range' in object
-		&& 'comments' in object
-		&& 'reply' in object;
 }
 
 export class ResourceWithCommentThreads {
 	id: string;
-	commentThreads: CommentThread[]; // The top level comments on the file. Replys are nested under each node.
+	commentThreads: CommentNode[]; // The top level comments on the file. Replys are nested under each node.
 	resource: URI;
 
 	constructor(resource: URI, commentThreads: CommentThread[]) {
 		this.id = resource.toString();
 		this.resource = resource;
-		this.commentThreads = commentThreads;
+		this.commentThreads = commentThreads.map(thread => ResourceWithCommentThreads.createCommentNode(resource, thread));
 	}
 
 	public static createCommentNode(resource: URI, commentThread: CommentThread): CommentNode {
 		const { threadId, comments, range } = commentThread;
 		const commentNodes: CommentNode[] = comments.map(comment => new CommentNode(threadId, resource, comment, range));
-		for (var i = 0; i < commentNodes.length - 1; i++) {
-			const commentNode = commentNodes[i];
-			commentNode.reply = commentNodes[i + 1];
+		if (commentNodes.length > 1) {
+			commentNodes[0].replies = commentNodes.slice(1, commentNodes.length);
 		}
-
-		commentNodes.push(new CommentNode(threadId, resource, comments[comments.length - 1], range));
 
 		return commentNodes[0];
 	}
@@ -98,7 +87,7 @@ export class CommentsModel {
 
 			// Find comment node on resource that is that thread and replace it
 			const index = firstIndex(matchingResourceData.commentThreads, (commentThread) => commentThread.threadId === thread.threadId);
-			matchingResourceData.commentThreads[index] = thread;
+			matchingResourceData.commentThreads[index] = ResourceWithCommentThreads.createCommentNode(URI.parse(matchingResourceData.id), thread);
 		});
 
 		this.addCommentThreads(event.added);
