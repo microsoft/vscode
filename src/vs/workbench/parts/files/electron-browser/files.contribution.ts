@@ -136,7 +136,7 @@ class FileEditorInputFactory implements IEditorInputFactory {
 			const resource = !!fileInput.resourceJSON ? URI.revive(fileInput.resourceJSON) : URI.parse(fileInput.resource);
 			const encoding = fileInput.encoding;
 
-			return accessor.get(IInstantiationService).createInstance(FileEditorInput, resource, encoding);
+			return accessor.get(IWorkbenchEditorService).createInput({ resource, encoding }) as FileEditorInput;
 		});
 	}
 }
