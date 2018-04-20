@@ -180,9 +180,11 @@ export interface FileOptions {
 }
 
 export interface IStat {
+	isFile: boolean;
+	isDirectory: boolean;
+	isSymbolicLink: boolean;
 	mtime: number;
 	size: number;
-	type: FileType2;
 }
 
 export interface IWatchOptions {

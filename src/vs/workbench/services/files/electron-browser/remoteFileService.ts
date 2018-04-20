@@ -16,7 +16,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileChangesEvent, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileType2, IContent, ICreateFileOptions, IFileStat, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IResolveFileOptions, IResolveFileResult, IStat, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot, FileSystemProviderCapabilities, FileOptions } from 'vs/platform/files/common/files';
+import { FileChangesEvent, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, IContent, ICreateFileOptions, IFileStat, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IResolveFileOptions, IResolveFileResult, IStat, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot, FileSystemProviderCapabilities, FileOptions } from 'vs/platform/files/common/files';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -28,10 +28,10 @@ import { createReadableOfProvider, createReadableOfSnapshot, createWritableOfPro
 function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse?: (tuple: [URI, IStat]) => boolean): TPromise<IFileStat> {
 	const [resource, stat] = tuple;
 	const fileStat: IFileStat = {
-		isDirectory: (stat.type & FileType2.Directory) !== 0,
-		isSymbolicLink: (stat.type & FileType2.SymbolicLink) !== 0,
-		resource: resource,
+		resource,
 		name: posix.basename(resource.path),
+		isDirectory: stat.isDirectory,
+		isSymbolicLink: stat.isSymbolicLink,
 		mtime: stat.mtime,
 		size: stat.size,
 		etag: stat.mtime.toString(29) + stat.size.toString(31),

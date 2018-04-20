@@ -700,7 +700,6 @@ export function createApiFactory(
 			DeprecatedFileChangeType: extHostTypes.FileChangeType,
 			DeprecatedFileType: extHostTypes.FileType,
 			FileChangeType2: extHostTypes.FileChangeType2,
-			FileType2: extHostTypes.FileType2,
 			FileSystemError: extHostTypes.FileSystemError,
 			FoldingRange: extHostTypes.FoldingRange,
 			FoldingRangeKind: extHostTypes.FoldingRangeKind

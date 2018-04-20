@@ -123,14 +123,10 @@ declare module 'vscode' {
 		uri: Uri;
 	}
 
-	export enum FileType2 {
-		File = 0b001,
-		Directory = 0b010,
-		SymbolicLink = 0b100,
-	}
-
 	export interface FileStat2 {
-		type: FileType2;
+		isFile: boolean;
+		isDirectory: boolean;
+		isSymbolicLink: boolean;
 		mtime: number;
 		size: number;
 	}

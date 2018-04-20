@@ -14,7 +14,7 @@ import * as path from 'path';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { values } from 'vs/base/common/map';
-import { Range, FileType, FileChangeType, FileChangeType2, FileType2 } from 'vs/workbench/api/node/extHostTypes';
+import { Range, FileType, FileChangeType, FileChangeType2 } from 'vs/workbench/api/node/extHostTypes';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { Schemas } from 'vs/base/common/network';
 
@@ -91,21 +91,23 @@ class FileSystemProviderShim implements vscode.FileSystemProvider2 {
 
 	private static _modernizeFileStat(stat: vscode.DeprecatedFileStat): vscode.FileStat2 {
 		let { mtime, size, type } = stat;
-		let newType: vscode.FileType2;
+		let isFile = false;
+		let isDirectory = false;
+		let isSymbolicLink = false;
 
 		// no support for bitmask, effectively no support for symlinks
 		switch (type) {
 			case FileType.Dir:
-				newType = FileType2.Directory;
+				isDirectory = true;
 				break;
 			case FileType.File:
-				newType = FileType2.File;
+				isFile = true;
 				break;
 			case FileType.Symlink:
-				newType = FileType2.SymbolicLink;
+				isSymbolicLink = true;
 				break;
 		}
-		return { mtime, size, type: newType };
+		return { mtime, size, isFile, isDirectory, isSymbolicLink };
 	}
 
 	private static _modernizeFileChange(e: vscode.DeprecatedFileChange): vscode.FileChange2 {
