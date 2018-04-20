@@ -42,6 +42,11 @@ export interface IFileService {
 	onAfterOperation: Event<FileOperationEvent>;
 
 	/**
+	 * An event that is fired when a file system provider is added or removed
+	 */
+	onDidChangeFileSystemProviderRegistrations?: Event<IFileSystemProviderRegistrationEvent>;
+
+	/**
 	 * Registeres a file system provider for a certain scheme.
 	 */
 	registerProvider?(scheme: string, provider: IFileSystemProvider): IDisposable;
@@ -222,6 +227,12 @@ export interface IFileSystemProvider {
 	close?(fd: number): TPromise<void>;
 	read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
 	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
+}
+
+export interface IFileSystemProviderRegistrationEvent {
+	added: boolean;
+	scheme: string;
+	provider?: IFileSystemProvider;
 }
 
 export enum FileOperation {
