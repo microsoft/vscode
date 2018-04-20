@@ -155,16 +155,16 @@ export class RemoteFileService extends FileService {
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@INotificationService notificationService: INotificationService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 	) {
 		super(
 			contextService,
-			environmentService,
+			_environmentService,
 			textResourceConfigurationService,
 			configurationService,
 			lifecycleService,
@@ -200,10 +200,19 @@ export class RemoteFileService extends FileService {
 	}
 
 	canHandleResource(resource: URI): boolean {
-		return resource.scheme === Schemas.file
-			|| this._provider.has(resource.scheme)
-			// TODO@remote
-			|| this._lastKnownSchemes.indexOf(resource.scheme) >= 0;
+		if (resource.scheme === Schemas.file || this._provider.has(resource.scheme)) {
+			return true;
+		}
+		// TODO@remote
+		// this needs to go, but this already went viral
+		// https://github.com/Microsoft/vscode/issues/48275
+		if (this._lastKnownSchemes.indexOf(resource.scheme) < 0) {
+			return false;
+		}
+		if (!this._environmentService.isBuilt) {
+			console.warn('[remote] cache information required for ' + resource.toString());
+		}
+		return true;
 	}
 
 	private _tryParseFileOperationResult(err: any): FileOperationResult {
