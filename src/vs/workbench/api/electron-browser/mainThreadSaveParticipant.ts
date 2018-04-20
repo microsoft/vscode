@@ -37,7 +37,7 @@ import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 import { CodeAction } from 'vs/editor/common/modes';
 import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
 import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
-import { ICodeActionsOnSaveOptions } from '../../../editor/common/config/editorOptions';
+import { ICodeActionsOnSaveOptions } from 'vs/editor/common/config/editorOptions';
 
 export interface ISaveParticipantParticipant extends ISaveParticipant {
 	// progressMessage: string;
