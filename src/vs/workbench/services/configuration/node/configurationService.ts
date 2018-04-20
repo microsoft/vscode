@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { dirname, basename } from 'path';
 import * as assert from 'vs/base/common/assert';
 import { Event, Emitter } from 'vs/base/common/event';
-import { StrictResourceMap } from 'vs/base/common/map';
+import { ResourceMap } from 'vs/base/common/map';
 import { equals, deepClone } from 'vs/base/common/objects';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Queue } from 'vs/base/common/async';
@@ -51,7 +51,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	private defaultConfiguration: DefaultConfigurationModel;
 	private userConfiguration: UserConfiguration;
 	private workspaceConfiguration: WorkspaceConfiguration;
-	private cachedFolderConfigs: StrictResourceMap<FolderConfiguration>;
+	private cachedFolderConfigs: ResourceMap<FolderConfiguration>;
 
 	private workspaceEditingQueue: Queue<void>;
 
@@ -453,18 +453,18 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 
 	private loadConfiguration(): TPromise<void> {
 		// reset caches
-		this.cachedFolderConfigs = new StrictResourceMap<FolderConfiguration>();
+		this.cachedFolderConfigs = new ResourceMap<FolderConfiguration>();
 
 		const folders = this.workspace.folders;
 		return this.loadFolderConfigurations(folders)
 			.then((folderConfigurations) => {
 
 				let workspaceConfiguration = this.getWorkspaceConfigurationModel(folderConfigurations);
-				const folderConfigurationModels = new StrictResourceMap<ConfigurationModel>();
+				const folderConfigurationModels = new ResourceMap<ConfigurationModel>();
 				folderConfigurations.forEach((folderConfiguration, index) => folderConfigurationModels.set(folders[index].uri, folderConfiguration));
 
 				const currentConfiguration = this._configuration;
-				this._configuration = new Configuration(this.defaultConfiguration, this.userConfiguration.configurationModel, workspaceConfiguration, folderConfigurationModels, new ConfigurationModel(), new StrictResourceMap<ConfigurationModel>(), this.getWorkbenchState() !== WorkbenchState.EMPTY ? this.workspace : null); //TODO: Sandy Avoid passing null
+				this._configuration = new Configuration(this.defaultConfiguration, this.userConfiguration.configurationModel, workspaceConfiguration, folderConfigurationModels, new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), this.getWorkbenchState() !== WorkbenchState.EMPTY ? this.workspace : null); //TODO: Sandy Avoid passing null
 
 				if (currentConfiguration) {
 					const changedKeys = this._configuration.compare(currentConfiguration);
