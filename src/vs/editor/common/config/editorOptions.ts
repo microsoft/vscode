@@ -11,6 +11,7 @@ import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Constants } from 'vs/editor/common/core/uint';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 import * as arrays from 'vs/base/common/arrays';
+import * as objects from 'vs/base/common/objects';
 
 /**
  * Configuration options for editor scrollbars
@@ -134,6 +135,13 @@ export interface IEditorLightbulbOptions {
 	 * Defaults to true.
 	 */
 	enabled?: boolean;
+}
+
+/**
+ * Configuration map for codeActionsOnSave
+ */
+export interface ICodeActionsOnSaveOptions {
+	[kind: string]: boolean;
 }
 
 /**
@@ -497,6 +505,14 @@ export interface IEditorOptions {
 	 */
 	lightbulb?: IEditorLightbulbOptions;
 	/**
+	 * Code action kinds to be run on save.
+	 */
+	codeActionsOnSave?: ICodeActionsOnSaveOptions;
+	/**
+	 * Timeout for running code actions on save.
+	 */
+	codeActionsOnSaveTimeout?: number;
+	/**
 	 * Enable code folding
 	 * Defaults to true.
 	 */
@@ -850,6 +866,8 @@ export interface EditorContribOptions {
 	readonly find: InternalEditorFindOptions;
 	readonly colorDecorators: boolean;
 	readonly lightbulbEnabled: boolean;
+	readonly codeActionsOnSave: ICodeActionsOnSaveOptions;
+	readonly codeActionsOnSaveTimeout: number;
 }
 
 /**
@@ -1194,6 +1212,8 @@ export class InternalEditorOptions {
 			&& a.matchBrackets === b.matchBrackets
 			&& this._equalFindOptions(a.find, b.find)
 			&& a.colorDecorators === b.colorDecorators
+			&& objects.equals(a.codeActionsOnSave, b.codeActionsOnSave)
+			&& a.codeActionsOnSaveTimeout === b.codeActionsOnSaveTimeout
 			&& a.lightbulbEnabled === b.lightbulbEnabled
 		);
 	}
@@ -1389,6 +1409,21 @@ function _boolean<T>(value: any, defaultValue: T): boolean | T {
 		return false;
 	}
 	return Boolean(value);
+}
+
+function _booleanMap(value: { [key: string]: boolean }, defaultValue: { [key: string]: boolean }): { [key: string]: boolean } {
+	if (!value) {
+		return defaultValue;
+	}
+
+	const out = Object.create(null);
+	for (const k of Object.keys(value)) {
+		const v = value[k];
+		if (typeof v === 'boolean') {
+			out[k] = v;
+		}
+	}
+	return out;
 }
 
 function _string(value: any, defaultValue: string): string {
@@ -1736,7 +1771,9 @@ export class EditorOptionsValidator {
 			matchBrackets: _boolean(opts.matchBrackets, defaults.matchBrackets),
 			find: find,
 			colorDecorators: _boolean(opts.colorDecorators, defaults.colorDecorators),
-			lightbulbEnabled: _boolean(opts.lightbulb ? opts.lightbulb.enabled : false, defaults.lightbulbEnabled)
+			lightbulbEnabled: _boolean(opts.lightbulb ? opts.lightbulb.enabled : false, defaults.lightbulbEnabled),
+			codeActionsOnSave: _booleanMap(opts.codeActionsOnSave, {}),
+			codeActionsOnSaveTimeout: _clampedInt(opts.codeActionsOnSaveTimeout, defaults.codeActionsOnSaveTimeout, 1, 10000)
 		};
 	}
 }
@@ -1839,7 +1876,9 @@ export class InternalEditorOptionsFactory {
 				matchBrackets: (accessibilityIsOn ? false : opts.contribInfo.matchBrackets), // DISABLED WHEN SCREEN READER IS ATTACHED
 				find: opts.contribInfo.find,
 				colorDecorators: opts.contribInfo.colorDecorators,
-				lightbulbEnabled: opts.contribInfo.lightbulbEnabled
+				lightbulbEnabled: opts.contribInfo.lightbulbEnabled,
+				codeActionsOnSave: opts.contribInfo.codeActionsOnSave,
+				codeActionsOnSaveTimeout: opts.contribInfo.codeActionsOnSaveTimeout
 			}
 		};
 	}
@@ -2305,6 +2344,8 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			globalFindClipboard: false
 		},
 		colorDecorators: true,
-		lightbulbEnabled: true
+		lightbulbEnabled: true,
+		codeActionsOnSave: {},
+		codeActionsOnSaveTimeout: 750
 	},
 };
