@@ -440,6 +440,13 @@ export interface ITerminalInstance {
 	setVisible(visible: boolean): void;
 
 	/**
+	 * Attach a listener to the raw data stream coming from the pty, including ANSI escape
+	 * sequecnes.
+	 * @param listener  The listener function.
+	 */
+	onData(listener: (data: string) => void): IDisposable;
+
+	/**
 	 * Attach a listener to listen for new lines added to this terminal instance.
 	 *
 	 * @param listener The listener function which takes new line strings added to the terminal,

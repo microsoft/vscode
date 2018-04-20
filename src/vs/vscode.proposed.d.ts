@@ -637,6 +637,10 @@ declare module 'vscode' {
 
 	//#region Terminal
 
+	export interface Terminal {
+		onData: Event<string>;
+	}
+
 	export namespace window {
 		/**
 		 * The currently active terminals or an empty array.
