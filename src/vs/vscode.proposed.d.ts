@@ -567,14 +567,29 @@ declare module 'vscode' {
 		execution: TaskExecution;
 	}
 
+	export interface TaskFilter {
+		/**
+		 * The task version as used in the tasks.json file.
+		 * The string support the package.json semver notation.
+		 */
+		version?: string;
+
+		/**
+		 * The task type to return;
+		 */
+		type?: string;
+	}
+
 	export namespace workspace {
 
 		/**
 		 * Fetches all task available in the systems. Thisweweb includes tasks
 		 * from `tasks.json` files as well as tasks from task providers
 		 * contributed through extensions.
+		 *
+		 * @param filter a filter to filter the return tasks.
 		 */
-		export function fetchTasks(): Thenable<Task[]>;
+		export function fetchTasks(filter?: TaskFilter): Thenable<Task[]>;
 
 		/**
 		 * Executes a task that is managed by VS Code. The returned
@@ -583,6 +598,13 @@ declare module 'vscode' {
 		 * @param task the task to execute
 		 */
 		export function executeTask(task: Task): Thenable<TaskExecution>;
+
+		/**
+		 * The currently active task executions or an empty array.
+		 *
+		 * @readonly
+		 */
+		export let taskExecutions: TaskExecution[];
 
 		/**
 		 * Fires when a task starts.

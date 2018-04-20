@@ -48,7 +48,7 @@ import { CommentRule, CharacterPair, EnterAction } from 'vs/editor/common/modes/
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import { ILineMatch, IPatternInfo } from 'vs/platform/search/common/search';
 import { LogLevel } from 'vs/platform/log/common/log';
-import { TaskExecutionDTO, TaskDTO, TaskHandleDTO } from 'vs/workbench/api/shared/tasks';
+import { TaskExecutionDTO, TaskDTO, TaskHandleDTO, TaskFilterDTO } from 'vs/workbench/api/shared/tasks';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -398,7 +398,7 @@ export interface MainThreadSearchShape extends IDisposable {
 
 export interface MainThreadTaskShape extends IDisposable {
 	$registerTaskProvider(handle: number): TPromise<void>;
-	$executeTaskProvider(): TPromise<TaskDTO[]>;
+	$fetchTasks(filter?: TaskFilterDTO): TPromise<TaskDTO[]>;
 	$executeTask(task: TaskHandleDTO | TaskDTO): TPromise<TaskExecutionDTO>;
 	$terminateTask(id: string): TPromise<void>;
 	$unregisterTaskProvider(handle: number): TPromise<void>;

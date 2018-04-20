@@ -87,3 +87,8 @@ export interface TaskExecutionDTO {
 	id: string;
 	task: TaskDTO;
 }
+
+export interface TaskFilterDTO {
+	version?: string;
+	type?: string;
+}
