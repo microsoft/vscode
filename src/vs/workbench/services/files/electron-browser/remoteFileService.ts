@@ -5,9 +5,9 @@
 'use strict';
 
 import { posix } from 'path';
-import { distinct, flatten, isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { flatten, isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/map';
+import { TernarySearchTree, keys } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -145,8 +145,8 @@ class WorkspaceWatchLogic {
 
 export class RemoteFileService extends FileService {
 
-	private readonly _provider = new Map<string, IFileSystemProvider>();
-	private _supportedSchemes: string[];
+	private readonly _provider: Map<string, IFileSystemProvider>;
+	private readonly _lastKnownSchemes: string[];
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -168,7 +168,8 @@ export class RemoteFileService extends FileService {
 			notificationService
 		);
 
-		this._supportedSchemes = JSON.parse(this._storageService.get('remote_schemes', undefined, '[]'));
+		this._provider = new Map<string, IFileSystemProvider>();
+		this._lastKnownSchemes = JSON.parse(this._storageService.get('remote_schemes', undefined, '[]'));
 		this.toDispose.push(new WorkspaceWatchLogic(this, configurationService, contextService));
 	}
 
@@ -177,10 +178,9 @@ export class RemoteFileService extends FileService {
 			throw new Error('a provider for that scheme is already registered');
 		}
 
-		this._supportedSchemes.push(scheme);
-		this._storageService.store('remote_schemes', JSON.stringify(distinct(this._supportedSchemes)));
-
 		this._provider.set(scheme, provider);
+		this._storageService.store('remote_schemes', JSON.stringify(keys(this._provider)));
+
 		const reg = provider.onDidChangeFile(changes => {
 			// forward change events
 			this._onFileChanges.fire(new FileChangesEvent(changes));
@@ -197,7 +197,7 @@ export class RemoteFileService extends FileService {
 		return resource.scheme === Schemas.file
 			|| this._provider.has(resource.scheme)
 			// TODO@remote
-			|| this._supportedSchemes.indexOf(resource.scheme) >= 0;
+			|| this._lastKnownSchemes.indexOf(resource.scheme) >= 0;
 	}
 
 	private _tryParseFileOperationResult(err: any): FileOperationResult {
