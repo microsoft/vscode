@@ -31,6 +31,7 @@ import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { chain } from 'vs/base/common/event';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 const $ = dom.$;
 
@@ -52,6 +53,7 @@ export interface SelectManyParameters<T extends IPickOpenEntry = IPickOpenEntry>
 export interface TextInputParameters extends BaseInputParameters {
 	readonly type: 'textInput';
 	readonly value?: string;
+	readonly prompt?: string;
 	readonly validateInput?: (input: string) => TPromise<string>;
 }
 
@@ -59,6 +61,7 @@ interface QuickInputUI {
 	checkAll: HTMLInputElement;
 	inputBox: QuickInputBox;
 	count: CountBadge;
+	message: HTMLElement;
 	checkboxList: QuickInputCheckboxList;
 }
 
@@ -84,6 +87,8 @@ class SelectManyController<T extends IPickOpenEntry> implements InputController<
 		});
 		this.result.then(() => this.closed = true, () => this.closed = true);
 
+		ui.inputBox.value = '';
+		ui.inputBox.setPlaceholder(parameters.placeHolder || '');
 		ui.checkboxList.matchOnDescription = parameters.matchOnDescription;
 		ui.checkboxList.matchOnDetail = parameters.matchOnDetail;
 		ui.checkboxList.setElements([]);
@@ -104,10 +109,11 @@ class SelectManyController<T extends IPickOpenEntry> implements InputController<
 }
 
 class TextInputController implements InputController<string> {
-	public showUI = { inputBox: true };
+	public showUI = { inputBox: true, message: true };
 	public result: TPromise<string>;
 	public ready = TPromise.as(null);
 	public resolve: (ok?: true | Thenable<never>) => void;
+	private validationValue: string;
 	private disposables: IDisposable[] = [];
 
 	constructor(ui: QuickInputUI, parameters: TextInputParameters) {
@@ -117,10 +123,22 @@ class TextInputController implements InputController<string> {
 		this.result.then(() => this.dispose());
 
 		ui.inputBox.value = parameters.value || '';
+		ui.inputBox.setPlaceholder(parameters.placeHolder || '');
+		const defaultMessage = parameters.prompt
+			? localize('inputModeEntryDescription', "{0} (Press 'Enter' to confirm or 'Escape' to cancel)", parameters.prompt)
+			: localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
+		ui.message.textContent = defaultMessage;
+
 		if (parameters.validateInput) {
 			this.disposables.push(ui.inputBox.onDidChange(value => {
-				parameters.validateInput(value);
-				// TODO
+				this.validationValue = value;
+				parameters.validateInput(value)
+					.then(validationError => {
+						if (this.validationValue === value) {
+							ui.message.textContent = validationError || defaultMessage;
+						}
+					})
+					.then(null, onUnexpectedError);
 			}));
 		}
 	}
@@ -218,6 +236,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 			}
 		}));
 
+		const message = dom.append(this.container, $('.quick-input-message'));
+
 		this.progressBar = new ProgressBar(this.container);
 		dom.addClass(this.progressBar.getContainer(), 'quick-input-progress');
 		this.toUnbind.push(attachProgressBarStyler(this.progressBar, this.themeService));
@@ -289,7 +309,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 		this.toUnbind.push(this.quickOpenService.onShow(() => this.close()));
 
-		this.ui = { checkAll, inputBox, count, checkboxList };
+		this.ui = { checkAll, inputBox, count, message, checkboxList };
 		this.updateStyles();
 	}
 
@@ -315,6 +335,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		return this.show({
 			type: 'textInput',
 			value: options.value,
+			prompt: options.prompt,
 			placeHolder: options.placeHolder,
 			ignoreFocusLost: options.ignoreFocusLost,
 			validateInput: options.validateInput,
@@ -330,10 +351,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 			this.controller.resolve();
 		}
 
-		this.ignoreFocusLost = parameters.ignoreFocusLost;
+		this.container.setAttribute('data-type', parameters.type);
 
-		this.ui.inputBox.value = '';
-		this.ui.inputBox.setPlaceholder(parameters.placeHolder || '');
+		this.ignoreFocusLost = parameters.ignoreFocusLost;
 
 		this.progressBar.stop();
 		this.ready = false;
@@ -343,6 +363,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.filterContainer.style.display = this.controller.showUI.inputBox ? null : 'none';
 		this.countContainer.style.display = this.controller.showUI.count ? null : 'none';
 		this.okContainer.style.display = this.controller.showUI.ok ? null : 'none';
+		this.ui.message.style.display = this.controller.showUI.message ? null : 'none';
 		this.ui.checkboxList.display(this.controller.showUI.checkboxList);
 
 		this.container.style.display = null;
