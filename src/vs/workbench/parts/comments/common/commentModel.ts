@@ -105,6 +105,18 @@ export class CommentsModel {
 		}
 	}
 
+	public getCommentsCount(): number {
+		let numComments = 0;
+		this.resourceCommentThreads.forEach(resource => {
+			numComments += resource.commentThreads.length;
+			resource.commentThreads.forEach(thread => {
+				numComments += thread.replies.length;
+			});
+		});
+
+		return numComments;
+	}
+
 	private addCommentThreads(commentThreads: CommentThread[]): void {
 		const commentThreadsByResource = new Map<string, ResourceWithCommentThreads>();
 		for (const group of groupBy(commentThreads, CommentsModel._compareURIs)) {
