@@ -92,6 +92,10 @@ export class ReviewMode implements vscode.DecorationProvider {
 			return;
 		}
 
+		if (this._prNumber === state.prNumber) {
+			return;
+		}
+
 		this._prNumber = state.prNumber;
 		if (!state.head || !state.base) {
 			// load pr
@@ -404,6 +408,8 @@ export class ReviewMode implements vscode.DecorationProvider {
 			branch: `pull-request-${pr.prItem.number}`,
 			head: pr.prItem.head,
 			base: pr.prItem.base
+		}).then(async e => {
+			await this._repository.status();
 		});
 	}
 
