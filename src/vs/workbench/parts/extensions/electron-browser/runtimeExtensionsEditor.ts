@@ -312,7 +312,12 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					let language = activationTimes.activationEvent.substr('onLanguage:'.length);
 					title = nls.localize('languageActivation', "Activated because you opened a {0} file", language);
 				} else {
-					title = nls.localize('workspaceGenericActivation', "Activated on {0}", activationTimes.activationEvent);
+					title = nls.localize({
+						key: 'workspaceGenericActivation',
+						comment: [
+							'The {0} placeholder will be an activation event, like e.g. \'language:typescript\', \'debug\', etc.'
+						]
+					}, "Activated on {0}", activationTimes.activationEvent);
 				}
 				data.activationTime.title = title;
 				if (!isFalsyOrEmpty(element.status.runtimeErrors)) {
