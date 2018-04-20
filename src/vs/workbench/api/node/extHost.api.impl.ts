@@ -686,7 +686,9 @@ export function createApiFactory(
 			FileType: extHostTypes.FileType,
 			FoldingRangeList: extHostTypes.FoldingRangeList,
 			FoldingRange: extHostTypes.FoldingRange,
-			FoldingRangeType: extHostTypes.FoldingRangeType
+			FoldingRangeType: extHostTypes.FoldingRangeType,
+
+			CommentThreadCollapsibleState: extHostTypes.CommentThreadCollapsibleState
 		};
 	};
 }

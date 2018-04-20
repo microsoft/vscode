@@ -776,11 +776,23 @@ declare module 'vscode' {
 		reply?: Command;
 	}
 
+	export enum CommentThreadCollapsibleState {
+		/**
+		 * Determines an item is collapsed
+		 */
+		Collapsed = 0,
+		/**
+		 * Determines an item is expanded
+		 */
+		Expanded = 1
+	}
+
 	interface CommentThread {
 		threadId: string;
 		resource: Uri;
 		range: Range;
 		comments: Comment[];
+		collapsibleState?: CommentThreadCollapsibleState;
 		reply?: Command;
 	}
 

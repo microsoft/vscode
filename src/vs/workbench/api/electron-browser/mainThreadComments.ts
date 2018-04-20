@@ -47,6 +47,10 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 				return;
 			}
 
+			if (!outerEditor.getModel()) {
+				return;
+			}
+
 			const outerEditorURI = outerEditor.getModel().uri;
 			this.provideComments(outerEditorURI).then(commentInfos => {
 				this._commentService.setComments(outerEditorURI, commentInfos);

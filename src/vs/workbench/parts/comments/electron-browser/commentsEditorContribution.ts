@@ -102,6 +102,9 @@ export class CommentNode {
 	}
 }
 
+const EXPAND_ACTION_CLASS = 'expand-review-action octicon octicon-chevron-down';
+const COLLAPSE_ACTION_CLASS = 'expand-review-action octicon octicon-chevron-up';
+
 export class ReviewZoneWidget extends ZoneWidget {
 	private _headElement: HTMLElement;
 	protected _primaryHeading: HTMLElement;
@@ -113,7 +116,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _commentElements: CommentNode[];
 	private _resizeObserver: any;
 	private _onDidClose = new Emitter<ReviewZoneWidget>();
-	private _isCollapsed = true;
+	private _isCollapsed;
 	private _toggleAction: Action;
 	private _commentThread: modes.CommentThread;
 	public get commentThread(): modes.CommentThread {
@@ -139,6 +142,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._owner = owner;
 		this._commentThread = commentThread;
 		this._replyCommand = replyCommand;
+		this._isCollapsed = commentThread.collapsibleState !== modes.CommentThreadCollapsibleState.Expanded;
 		this.create();
 		this.themeService.onThemeChange(this._applyTheme, this);
 	}
@@ -183,15 +187,15 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._actionbarWidget = new ActionBar(actionsContainer.getHTMLElement(), {});
 		this._disposables.push(this._actionbarWidget);
 
-		this._toggleAction = new Action('review.expand', nls.localize('label.expand', "Expand"), 'expand-review-action octicon octicon-chevron-down', true, () => {
+		this._toggleAction = new Action('review.expand', nls.localize('label.expand', "Expand"), this._isCollapsed ? EXPAND_ACTION_CLASS : COLLAPSE_ACTION_CLASS, true, () => {
 			if (this._isCollapsed) {
 				this._bodyElement.style.display = 'block';
-				this._toggleAction.class = 'expand-review-action octicon octicon-chevron-up';
+				this._toggleAction.class = COLLAPSE_ACTION_CLASS;
 				this._isCollapsed = false;
 			}
 			else {
 				this._bodyElement.style.display = 'none';
-				this._toggleAction.class = 'expand-review-action octicon octicon-chevron-down';
+				this._toggleAction.class = EXPAND_ACTION_CLASS;
 				this._isCollapsed = true;
 			}
 			return null;
@@ -270,7 +274,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._headElement.style.height = `${headHeight}px`;
 		this._headElement.style.lineHeight = this._headElement.style.height;
 
-		this._bodyElement.style.display = 'none';
+		this._bodyElement.style.display = this._isCollapsed ? 'none' : 'block';
 		this._commentsElement = $('div.comments-container').appendTo(this._bodyElement).getHTMLElement();
 		this._commentElements = [];
 		for (let i = 0; i < this._commentThread.comments.length; i++) {

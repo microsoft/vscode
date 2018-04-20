@@ -793,6 +793,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		CompletionItemKind: CompletionItemKind,
 		SymbolKind: modes.SymbolKind,
 		IndentAction: IndentAction,
-		SuggestTriggerKind: modes.SuggestTriggerKind
+		SuggestTriggerKind: modes.SuggestTriggerKind,
+		CommentThreadCollapsibleState: modes.CommentThreadCollapsibleState
 	};
 }

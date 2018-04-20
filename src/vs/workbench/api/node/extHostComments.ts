@@ -103,6 +103,7 @@ function convertCommentThread(vscodeCommentThread: vscode.CommentThread, command
 		resource: vscodeCommentThread.resource.toString(),
 		range: extHostTypeConverter.fromRange(vscodeCommentThread.range),
 		comments: vscodeCommentThread.comments.map(convertComment),
+		collapsibleState: vscodeCommentThread.collapsibleState,
 		reply: vscodeCommentThread.reply ? commandsConverter.toInternal(vscodeCommentThread.reply) : null
 	};
 }

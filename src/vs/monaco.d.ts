@@ -5035,12 +5035,24 @@ declare namespace monaco.languages {
 		reply?: Command;
 	}
 
+	export enum CommentThreadCollapsibleState {
+		/**
+		 * Determines an item is collapsed
+		 */
+		Collapsed = 0,
+		/**
+		 * Determines an item is expanded
+		 */
+		Expanded = 1,
+	}
+
 	export interface CommentThread {
-		readonly threadId: string;
-		readonly resource: string;
-		readonly range: IRange;
-		readonly comments: Comment[];
-		readonly reply: Command;
+		threadId: string;
+		resource: string;
+		range: IRange;
+		comments: Comment[];
+		collapsibleState?: CommentThreadCollapsibleState;
+		reply?: Command;
 	}
 
 	export interface NewCommentAction {

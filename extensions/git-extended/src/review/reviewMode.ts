@@ -214,6 +214,9 @@ export class ReviewMode implements vscode.DecorationProvider {
 			// No old threads match this thread, it is new
 			if (matchingCommentThread.length === 0) {
 				added.push(thread);
+				if (thread.resource.scheme === 'file') {
+					thread.collapsibleState = vscode.CommentThreadCollapsibleState.Collapsed;
+				}
 			}
 
 			// Check if comment has been updated
@@ -267,7 +270,7 @@ export class ReviewMode implements vscode.DecorationProvider {
 		return Promise.resolve(null);
 	}
 
-	private commentsToCommentThreads(comments: Comment[]): vscode.CommentThread[] {
+	private commentsToCommentThreads(comments: Comment[], collapsibleState: vscode.CommentThreadCollapsibleState = vscode.CommentThreadCollapsibleState.Expanded): vscode.CommentThread[] {
 		if (!comments || !comments.length) {
 			return [];
 		}
@@ -297,6 +300,7 @@ export class ReviewMode implements vscode.DecorationProvider {
 						gravatar: comment.user.avatar_url
 					};
 				}),
+				collapsibleState: collapsibleState,
 				reply: this._reply
 			});
 		}
@@ -361,7 +365,7 @@ export class ReviewMode implements vscode.DecorationProvider {
 				}
 
 				return {
-					threads: this.commentsToCommentThreads(matchingComments),
+					threads: this.commentsToCommentThreads(matchingComments, document.uri.scheme === 'file' ? vscode.CommentThreadCollapsibleState.Collapsed : vscode.CommentThreadCollapsibleState.Expanded),
 					commentingRanges: ranges,
 					reply: this._reply
 				};
