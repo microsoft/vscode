@@ -44,17 +44,17 @@ export interface IFileService {
 	/**
 	 * An event that is fired when a file system provider is added or removed
 	 */
-	onDidChangeFileSystemProviderRegistrations?: Event<IFileSystemProviderRegistrationEvent>;
+	onDidChangeFileSystemProviderRegistrations: Event<IFileSystemProviderRegistrationEvent>;
 
 	/**
 	 * Registeres a file system provider for a certain scheme.
 	 */
-	registerProvider?(scheme: string, provider: IFileSystemProvider): IDisposable;
+	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable;
 
 	/**
 	 * Checks if this file service can handle the given resource.
 	 */
-	canHandleResource?(resource: URI): boolean;
+	canHandleResource(resource: URI): boolean;
 
 	/**
 	 * Resolve the properties of a file identified by the resource.

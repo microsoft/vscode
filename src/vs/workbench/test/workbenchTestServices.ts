@@ -773,6 +773,12 @@ export class TestFileService implements IFileService {
 		return TPromise.as(null);
 	}
 
+	onDidChangeFileSystemProviderRegistrations = Event.None;
+
+	registerProvider(scheme: string, provider) {
+		return { dispose() { } };
+	}
+
 	canHandleResource(resource: URI): boolean {
 		return resource.scheme === 'file';
 	}

@@ -6,7 +6,6 @@
 
 import { posix } from 'path';
 import { flatten, isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TernarySearchTree, keys } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
@@ -17,7 +16,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileChangesEvent, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileOptions, FileSystemProviderCapabilities, IContent, ICreateFileOptions, IFileStat, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IResolveFileOptions, IResolveFileResult, IStat, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot, IFileSystemProviderRegistrationEvent } from 'vs/platform/files/common/files';
+import { FileChangesEvent, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileOptions, FileSystemProviderCapabilities, IContent, ICreateFileOptions, IFileStat, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IResolveFileOptions, IResolveFileResult, IStat, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot } from 'vs/platform/files/common/files';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -148,9 +147,6 @@ export class RemoteFileService extends FileService {
 
 	private readonly _provider: Map<string, IFileSystemProvider>;
 	private readonly _lastKnownSchemes: string[];
-	private readonly _onDidChangeFileSystemProviderRegistrations = new Emitter<IFileSystemProviderRegistrationEvent>();
-
-	readonly onDidChangeFileSystemProviderRegistrations: Event<IFileSystemProviderRegistrationEvent> = this._onDidChangeFileSystemProviderRegistrations.event;
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
