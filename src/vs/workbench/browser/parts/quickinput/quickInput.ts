@@ -14,7 +14,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from 'vs/workbench/common/theme';
-import { IQuickOpenService, IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickOpenService, IPickOpenEntry, IPickOptions, IInputOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { QuickInputCheckboxList } from './quickInputCheckboxList';
@@ -30,28 +30,124 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { chain } from 'vs/base/common/event';
 import { Button } from 'vs/base/browser/ui/button/button';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 
 const $ = dom.$;
+
+type InputParameters = SelectManyParameters | TextInputParameters;
+
+export interface BaseInputParameters {
+	readonly type: 'selectMany' | 'textInput';
+	readonly placeHolder?: string;
+	readonly ignoreFocusLost?: boolean;
+}
+
+export interface SelectManyParameters<T extends IPickOpenEntry = IPickOpenEntry> extends BaseInputParameters {
+	readonly type: 'selectMany';
+	readonly picks: TPromise<T[]>;
+	readonly matchOnDescription?: boolean;
+	readonly matchOnDetail?: boolean;
+}
+
+export interface TextInputParameters extends BaseInputParameters {
+	readonly type: 'textInput';
+	readonly value?: string;
+	readonly validateInput?: (input: string) => TPromise<string>;
+}
+
+interface QuickInputUI {
+	checkAll: HTMLInputElement;
+	inputBox: QuickInputBox;
+	count: CountBadge;
+	checkboxList: QuickInputCheckboxList;
+}
+
+interface InputController<R> {
+	readonly showUI: { [k in keyof QuickInputUI]?: boolean; } & { ok?: boolean; };
+	readonly result: TPromise<R>;
+	readonly ready: TPromise<void>;
+	readonly resolve: (ok?: true | Thenable<never>) => void;
+}
+
+class SelectManyController<T extends IPickOpenEntry> implements InputController<T[]> {
+	public showUI = { checkAll: true, inputBox: true, count: true, ok: true, checkboxList: true };
+	public result: TPromise<T[]>;
+	public ready: TPromise<void>;
+	public resolve: (ok?: true | Thenable<never>) => void;
+	public progress: (value: T) => void;
+	private closed = false;
+
+	constructor(ui: QuickInputUI, parameters: SelectManyParameters<T>) {
+		this.result = new TPromise<T[]>((resolve, reject, progress) => {
+			this.resolve = ok => resolve(ok === true ? <T[]>ui.checkboxList.getCheckedElements() : ok);
+			this.progress = progress;
+		});
+		this.result.then(() => this.closed = true, () => this.closed = true);
+
+		ui.checkboxList.matchOnDescription = parameters.matchOnDescription;
+		ui.checkboxList.matchOnDetail = parameters.matchOnDetail;
+		ui.checkboxList.setElements([]);
+		ui.checkAll.checked = ui.checkboxList.getAllVisibleChecked();
+		ui.count.setCount(ui.checkboxList.getCheckedCount());
+
+		this.ready = parameters.picks.then(elements => {
+			if (this.closed) {
+				return;
+			}
+
+			ui.checkboxList.setElements(elements);
+			ui.checkboxList.filter(ui.inputBox.value);
+			ui.checkAll.checked = ui.checkboxList.getAllVisibleChecked();
+			ui.count.setCount(ui.checkboxList.getCheckedCount());
+		});
+	}
+}
+
+class TextInputController implements InputController<string> {
+	public showUI = { inputBox: true };
+	public result: TPromise<string>;
+	public ready = TPromise.as(null);
+	public resolve: (ok?: true | Thenable<never>) => void;
+	private disposables: IDisposable[] = [];
+
+	constructor(ui: QuickInputUI, parameters: TextInputParameters) {
+		this.result = new TPromise<string>((resolve, reject, progress) => {
+			this.resolve = ok => resolve(ok === true ? ui.inputBox.value : ok);
+		});
+		this.result.then(() => this.dispose());
+
+		ui.inputBox.value = parameters.value || '';
+		if (parameters.validateInput) {
+			this.disposables.push(ui.inputBox.onDidChange(value => {
+				parameters.validateInput(value);
+				// TODO
+			}));
+		}
+	}
+
+	private dispose() {
+		this.disposables = dispose(this.disposables);
+	}
+}
 
 export class QuickInputService extends Component implements IQuickInputService {
 
 	public _serviceBrand: any;
 
 	private static readonly ID = 'workbench.component.quickinput';
-	private static readonly MAX_WIDTH = 600;				// Max total width of quick open widget
+	private static readonly MAX_WIDTH = 600; // Max total width of quick open widget
 
 	private layoutDimensions: dom.Dimension;
 	private container: HTMLElement;
-	private checkAll: HTMLInputElement;
-	private inputBox: QuickInputBox;
-	private count: CountBadge;
+	private filterContainer: HTMLElement;
+	private countContainer: HTMLElement;
+	private okContainer: HTMLElement;
+	private ui: QuickInputUI;
 	private ready = false;
 	private progressBar: ProgressBar;
-	private checkboxList: QuickInputCheckboxList;
 	private ignoreFocusLost = false;
 
-	private resolve: (value?: IPickOpenEntry[] | Thenable<IPickOpenEntry[]>) => void;
-	private progress: (value: IPickOpenEntry) => void;
+	private controller: InputController<any>;
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -76,49 +172,49 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 		const headerContainer = dom.append(this.container, $('.quick-input-header'));
 
-		this.checkAll = <HTMLInputElement>dom.append(headerContainer, $('input.quick-input-check-all'));
-		this.checkAll.type = 'checkbox';
-		this.toUnbind.push(dom.addStandardDisposableListener(this.checkAll, dom.EventType.CHANGE, e => {
-			const checked = this.checkAll.checked;
-			this.checkboxList.setAllVisibleChecked(checked);
+		const checkAll = <HTMLInputElement>dom.append(headerContainer, $('input.quick-input-check-all'));
+		checkAll.type = 'checkbox';
+		this.toUnbind.push(dom.addStandardDisposableListener(checkAll, dom.EventType.CHANGE, e => {
+			const checked = checkAll.checked;
+			checkboxList.setAllVisibleChecked(checked);
 		}));
-		this.toUnbind.push(dom.addDisposableListener(this.checkAll, dom.EventType.CLICK, e => {
+		this.toUnbind.push(dom.addDisposableListener(checkAll, dom.EventType.CLICK, e => {
 			if (e.x || e.y) { // Avoid 'click' triggered by 'space'...
-				this.inputBox.setFocus();
+				inputBox.setFocus();
 			}
 		}));
 
-		const filterContainer = dom.append(headerContainer, $('.quick-input-filter'));
+		this.filterContainer = dom.append(headerContainer, $('.quick-input-filter'));
 
-		this.inputBox = new QuickInputBox(filterContainer);
-		this.toUnbind.push(this.inputBox);
-		this.inputBox.onDidChange(value => {
-			this.checkboxList.filter(value);
+		const inputBox = new QuickInputBox(this.filterContainer);
+		this.toUnbind.push(inputBox);
+		inputBox.onDidChange(value => {
+			checkboxList.filter(value);
 		});
-		this.toUnbind.push(this.inputBox.onKeyDown(event => {
+		this.toUnbind.push(inputBox.onKeyDown(event => {
 			switch (event.keyCode) {
 				case KeyCode.DownArrow:
-					this.checkboxList.focus('First');
-					this.checkboxList.domFocus();
+					checkboxList.focus('First');
+					checkboxList.domFocus();
 					break;
 				case KeyCode.UpArrow:
-					this.checkboxList.focus('Last');
-					this.checkboxList.domFocus();
+					checkboxList.focus('Last');
+					checkboxList.domFocus();
 					break;
 			}
 		}));
 
-		const badgeContainer = dom.append(filterContainer, $('.quick-input-count'));
-		this.count = new CountBadge(badgeContainer, { countFormat: localize('quickInput.countSelected', "{0} Selected") });
-		this.toUnbind.push(attachBadgeStyler(this.count, this.themeService));
+		this.countContainer = dom.append(this.filterContainer, $('.quick-input-count'));
+		const count = new CountBadge(this.countContainer, { countFormat: localize('quickInput.countSelected', "{0} Selected") });
+		this.toUnbind.push(attachBadgeStyler(count, this.themeService));
 
-		const okContainer = dom.append(headerContainer, $('.quick-input-action'));
-		const ok = new Button(okContainer);
+		this.okContainer = dom.append(headerContainer, $('.quick-input-action'));
+		const ok = new Button(this.okContainer);
 		attachButtonStyler(ok, this.themeService);
 		ok.label = localize('ok', "OK");
 		this.toUnbind.push(ok.onDidClick(e => {
 			if (this.ready) {
-				this.close(this.checkboxList.getCheckedElements());
+				this.close(true);
 			}
 		}));
 
@@ -126,27 +222,27 @@ export class QuickInputService extends Component implements IQuickInputService {
 		dom.addClass(this.progressBar.getContainer(), 'quick-input-progress');
 		this.toUnbind.push(attachProgressBarStyler(this.progressBar, this.themeService));
 
-		this.checkboxList = this.instantiationService.createInstance(QuickInputCheckboxList, this.container);
-		this.toUnbind.push(this.checkboxList);
-		this.toUnbind.push(this.checkboxList.onAllVisibleCheckedChanged(checked => {
-			this.checkAll.checked = checked;
+		const checkboxList = this.instantiationService.createInstance(QuickInputCheckboxList, this.container);
+		this.toUnbind.push(checkboxList);
+		this.toUnbind.push(checkboxList.onAllVisibleCheckedChanged(checked => {
+			checkAll.checked = checked;
 		}));
-		this.toUnbind.push(this.checkboxList.onCheckedCountChanged(count => {
-			this.count.setCount(count);
+		this.toUnbind.push(checkboxList.onCheckedCountChanged(c => {
+			count.setCount(c);
 		}));
-		this.toUnbind.push(this.checkboxList.onLeave(() => {
+		this.toUnbind.push(checkboxList.onLeave(() => {
 			// Defer to avoid the input field reacting to the triggering key.
 			setTimeout(() => {
-				this.inputBox.setFocus();
-				this.checkboxList.clearFocus();
+				inputBox.setFocus();
+				checkboxList.clearFocus();
 			}, 0);
 		}));
 		this.toUnbind.push(
-			chain(this.checkboxList.onFocusChange)
+			chain(checkboxList.onFocusChange)
 				.map(e => e[0])
 				.filter(e => !!e)
 				.latch()
-				.on(e => this.progress && this.progress(e))
+				.on(e => this.controller instanceof SelectManyController && this.controller.progress(e)) // TODO
 		);
 
 		this.toUnbind.push(dom.addDisposableListener(this.container, 'focusout', (e: FocusEvent) => {
@@ -169,7 +265,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 				case KeyCode.Enter:
 					if (this.ready) {
 						dom.EventHelper.stop(e, true);
-						this.close(this.checkboxList.getCheckedElements());
+						this.close(true);
 					}
 					break;
 				case KeyCode.Escape:
@@ -193,69 +289,86 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 		this.toUnbind.push(this.quickOpenService.onShow(() => this.close()));
 
+		this.ui = { checkAll, inputBox, count, checkboxList };
 		this.updateStyles();
 	}
 
-	private close(value?: IPickOpenEntry[] | Thenable<IPickOpenEntry[]>) {
-		if (this.resolve) {
-			this.resolve(value);
+	private close(ok?: true | Thenable<never>) {
+		if (this.controller) {
+			this.controller.resolve(ok);
 		}
 		this.container.style.display = 'none';
 	}
 
-	pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options: IPickOptions = {}, token: CancellationToken = CancellationToken.None): TPromise<T[]> {
+	pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options: IPickOptions = {}, token?: CancellationToken): TPromise<T[]> {
+		return this.show({
+			type: 'selectMany',
+			picks,
+			placeHolder: options.placeHolder,
+			matchOnDescription: options.matchOnDescription,
+			matchOnDetail: options.matchOnDetail,
+			ignoreFocusLost: options.ignoreFocusLost
+		}, token);
+	}
+
+	input(options: IInputOptions = {}, token?: CancellationToken): TPromise<string> {
+		return this.show({
+			type: 'textInput',
+			value: options.value,
+			placeHolder: options.placeHolder,
+			ignoreFocusLost: options.ignoreFocusLost,
+			validateInput: options.validateInput,
+		}, token);
+	}
+
+	show<T extends IPickOpenEntry>(parameters: SelectManyParameters<T>, token?: CancellationToken): TPromise<T[]>;
+	show(parameters: TextInputParameters, token?: CancellationToken): TPromise<string>;
+	show<R>(parameters: InputParameters, token: CancellationToken = CancellationToken.None): TPromise<R> {
 		this.create();
 		this.quickOpenService.close();
-		if (this.resolve) {
-			this.resolve();
+		if (this.controller) {
+			this.controller.resolve();
 		}
 
-		this.inputBox.value = '';
-		this.inputBox.setPlaceholder(options.placeHolder || '');
-		this.checkboxList.matchOnDescription = options.matchOnDescription;
-		this.checkboxList.matchOnDetail = options.matchOnDetail;
-		this.ignoreFocusLost = options.ignoreFocusLost;
+		this.ignoreFocusLost = parameters.ignoreFocusLost;
+
+		this.ui.inputBox.value = '';
+		this.ui.inputBox.setPlaceholder(parameters.placeHolder || '');
 
 		this.progressBar.stop();
 		this.ready = false;
 
-		this.checkboxList.setElements([]);
-		this.checkAll.checked = this.checkboxList.getAllVisibleChecked();
-		this.count.setCount(this.checkboxList.getCheckedCount());
+		this.controller = parameters.type === 'selectMany' ? new SelectManyController(this.ui, parameters) : new TextInputController(this.ui, parameters);
+		this.ui.checkAll.style.display = this.controller.showUI.checkAll ? null : 'none';
+		this.filterContainer.style.display = this.controller.showUI.inputBox ? null : 'none';
+		this.countContainer.style.display = this.controller.showUI.count ? null : 'none';
+		this.okContainer.style.display = this.controller.showUI.ok ? null : 'none';
+		this.ui.checkboxList.display(this.controller.showUI.checkboxList);
 
 		this.container.style.display = null;
 		this.updateLayout();
-		this.inputBox.setFocus();
+		this.ui.inputBox.setFocus();
 
-		const result = new TPromise<T[]>((resolve, reject, progress) => {
-			this.resolve = resolve;
-			this.progress = progress;
-		});
 		const d = token.onCancellationRequested(() => this.close());
-		result.then(() => d.dispose(), () => d.dispose());
+		this.controller.result.then(() => d.dispose(), () => d.dispose());
 
 		const delay = TPromise.timeout(800);
 		delay.then(() => this.progressBar.infinite(), () => { /* ignore */ });
 
-		const wasResolve = this.resolve;
-		picks.then(elements => {
+		const wasController = this.controller;
+		this.controller.ready.then(() => {
 			delay.cancel();
-			if (this.resolve !== wasResolve) {
+			if (this.controller !== wasController) {
 				return;
 			}
 
 			this.progressBar.stop();
 			this.ready = true;
 
-			this.checkboxList.setElements(elements);
-			this.checkboxList.filter(this.inputBox.value);
-			this.checkAll.checked = this.checkboxList.getAllVisibleChecked();
-			this.count.setCount(this.checkboxList.getCheckedCount());
-
 			this.updateLayout();
 		}).then(null, reason => this.close(TPromise.wrapError(reason)));
 
-		return result;
+		return this.controller.result;
 	}
 
 	public layout(dimension: dom.Dimension): void {
@@ -273,15 +386,15 @@ export class QuickInputService extends Component implements IQuickInputService {
 			style.width = width + 'px';
 			style.marginLeft = '-' + (width / 2) + 'px';
 
-			this.inputBox.layout();
-			this.checkboxList.layout();
+			this.ui.inputBox.layout();
+			this.ui.checkboxList.layout();
 		}
 	}
 
 	protected updateStyles() {
 		const theme = this.themeService.getTheme();
-		if (this.inputBox) {
-			this.inputBox.style(theme);
+		if (this.ui.inputBox) {
+			this.ui.inputBox.style(theme);
 		}
 		if (this.container) {
 			const sideBarBackground = theme.getColor(SIDE_BAR_BACKGROUND);
