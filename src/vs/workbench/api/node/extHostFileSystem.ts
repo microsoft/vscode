@@ -7,7 +7,7 @@
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, mapEvent } from 'vs/base/common/event';
-import { MainContext, IMainContext, ExtHostFileSystemShape, MainThreadFileSystemShape } from './extHost.protocol';
+import { MainContext, IMainContext, ExtHostFileSystemShape, MainThreadFileSystemShape, IFileChangeDto } from './extHost.protocol';
 import * as vscode from 'vscode';
 import * as files from 'vs/platform/files/common/files';
 import * as path from 'path';
@@ -220,8 +220,13 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		this._proxy.$registerFileSystemProvider(handle, scheme, capabilites);
 
 		const subscription = provider.onDidChangeFile(event => {
-			let newEvent = event.map(e => {
+			let mapped: IFileChangeDto[] = [];
+			for (const e of event) {
 				let { uri: resource, type } = e;
+				if (resource.scheme !== scheme) {
+					// dropping events for wrong scheme
+					continue;
+				}
 				let newType: files.FileChangeType;
 				switch (type) {
 					case FileChangeType2.Changed:
@@ -234,9 +239,9 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 						newType = files.FileChangeType.DELETED;
 						break;
 				}
-				return { resource, type: newType };
-			});
-			this._proxy.$onFileSystemChange(handle, newEvent);
+				mapped.push({ resource, type: newType });
+			}
+			this._proxy.$onFileSystemChange(handle, mapped);
 		});
 
 		return {
