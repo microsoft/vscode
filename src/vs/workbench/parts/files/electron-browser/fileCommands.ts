@@ -386,11 +386,11 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-function revealResourcesInOS(resources: URI[], windowsService: IWindowsService, notificationService: INotificationService, workSpaceContextService: IWorkspaceContextService): void {
+function revealResourcesInOS(resources: URI[], windowsService: IWindowsService, notificationService: INotificationService, workspaceContextService: IWorkspaceContextService): void {
 	if (resources.length) {
 		sequence(resources.map(r => () => windowsService.showItemInFolder(paths.normalize(r.fsPath, true))));
-	} else if (workSpaceContextService.getWorkspace().folders.length) {
-		windowsService.showItemInFolder(paths.normalize(workSpaceContextService.getWorkspace().folders[0].uri.fsPath, true));
+	} else if (workspaceContextService.getWorkspace().folders.length) {
+		windowsService.showItemInFolder(paths.normalize(workspaceContextService.getWorkspace().folders[0].uri.fsPath, true));
 	} else {
 		notificationService.info(nls.localize('openFileToReveal', "Open a file first to reveal"));
 	}
