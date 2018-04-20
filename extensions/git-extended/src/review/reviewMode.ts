@@ -149,6 +149,7 @@ export class ReviewMode implements vscode.DecorationProvider {
 			title: 'Add single comment'
 		};
 
+		this._onDidChangeDecorations.fire();
 		this.registerCommentProvider();
 
 		let prGroup: vscode.SourceControlResourceGroup = this._gitRepo.sourceControl.createResourceGroup('pr', 'Changes from PR');
@@ -231,6 +232,8 @@ export class ReviewMode implements vscode.DecorationProvider {
 			this._comments = comments;
 		}
 
+		this._onDidChangeDecorations.fire();
+
 		return Promise.resolve(null);
 	}
 
@@ -311,7 +314,19 @@ export class ReviewMode implements vscode.DecorationProvider {
 					title: '♪♪'
 				};
 			}
+		} else if (uri.scheme === 'file') {
+			// local file
+			let fileName = uri.path;
+			let matchingComments = this._comments.filter(comment => path.resolve(this._repository.path, comment.path) === fileName);
+			if (matchingComments && matchingComments.length) {
+				return {
+					bubble: true,
+					abbreviation: '♪♪',
+					title: '♪♪'
+				};
+			}
 		}
+
 
 		return {};
 	}
