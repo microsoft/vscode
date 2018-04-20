@@ -1813,6 +1813,10 @@ class TaskService implements ITaskService {
 		return entries;
 	}
 
+	private canSkipPicker(): boolean {
+		return this.configurationService.getValue<any>().workbench.quickOpen.skipTaskQuickOpen;
+	}
+
 	private showQuickPick(tasks: TPromise<Task[]> | Task[], placeHolder: string, defaultEntry?: TaskQuickPickEntry, group: boolean = false, sort: boolean = false): TPromise<Task> {
 		let _createEntries = (): TPromise<TaskQuickPickEntry[]> => {
 			if (Array.isArray(tasks)) {
@@ -1876,7 +1880,7 @@ class TaskService implements ITaskService {
 
 	private doRunTaskCommand(tasks?: Task[]): void {
 		this.showIgnoredFoldersMessage().then(() => {
-			if (tasks && tasks.length === 1) {
+			if (this.canSkipPicker() && tasks && tasks.length === 1) {
 				this.run(tasks[0], { attachProblemMatcher: true });
 			} else {
 				this.showQuickPick(tasks ? tasks : this.tasks(),
@@ -1939,7 +1943,7 @@ class TaskService implements ITaskService {
 				}
 			}
 			this.showIgnoredFoldersMessage().then(() => {
-				if (tasks.length === 1) {
+				if (this.canSkipPicker() && tasks.length === 1) {
 					this.run(tasks[0], { attachProblemMatcher: true });
 				} else {
 					this.showQuickPick(tasks,
@@ -1988,7 +1992,7 @@ class TaskService implements ITaskService {
 				}
 			}
 			this.showIgnoredFoldersMessage().then(() => {
-				if (tasks.length === 1) {
+				if (this.canSkipPicker() && tasks.length === 1) {
 					this.run(tasks[0]);
 				} else {
 					this.showQuickPick(tasks,
@@ -2019,18 +2023,24 @@ class TaskService implements ITaskService {
 			return;
 		}
 		if (this.inTerminal()) {
-			this.showQuickPick(this.getActiveTasks(),
-				nls.localize('TaskService.tastToTerminate', 'Select task to terminate'),
-				{
-					label: nls.localize('TaskService.noTaskRunning', 'No task is currently running'),
-					task: null
-				},
-				false, true
-			).then(task => {
-				if (task === void 0 || task === null) {
-					return;
+			this.getActiveTasks().then((tasks) => {
+				if (this.canSkipPicker() && tasks.length === 1) {
+					this.terminate(tasks[0]);
+				} else {
+					this.showQuickPick(tasks,
+						nls.localize('TaskService.tastToTerminate', 'Select task to terminate'),
+						{
+							label: nls.localize('TaskService.noTaskRunning', 'No task is currently running'),
+							task: null
+						},
+						false, true)
+						.then(task => {
+							if (task === void 0 || task === null) {
+								return;
+							}
+							this.terminate(task);
+						});
 				}
-				this.terminate(task);
 			});
 		} else {
 			this.isActive().then((active) => {
@@ -2058,7 +2068,7 @@ class TaskService implements ITaskService {
 		}
 		if (this.inTerminal()) {
 			this.getActiveTasks().then((tasks) => {
-				if (tasks.length === 1) {
+				if (this.canSkipPicker() && tasks.length === 1) {
 					this.restart(tasks[0]);
 				} else {
 					this.showQuickPick(tasks,
@@ -2312,7 +2322,7 @@ class TaskService implements ITaskService {
 			return;
 		}
 		this.getActiveTasks().then((tasks) => {
-			if (tasks.length === 1) {
+			if (this.canSkipPicker() && tasks.length === 1) {
 				this._taskSystem.revealTask(tasks[0]);
 			} else {
 				this.showQuickPick(tasks,

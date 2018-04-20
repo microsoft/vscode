@@ -276,6 +276,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('enableNaturalLanguageSettingsSearch', "Controls whether to enable the natural language search mode for settings."),
 			'default': true
+		},
+		'workbench.quickOpen.skipTaskQuickOpen': {
+			'type': 'boolean',
+			'description': nls.localize('skipTaskQuickOpen', "Controls whether the quick panel is skipped in conditions when there is only one (build, test, etc...) task to pick from."),
+			'default': false
 		}
 	}
 });
