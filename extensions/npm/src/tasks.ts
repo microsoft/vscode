@@ -48,6 +48,20 @@ export function getPackageManager(folder: WorkspaceFolder): string {
 	return workspace.getConfiguration('npm', folder.uri).get<string>('packageManager', 'npm');
 }
 
+export function explorerIsEnabled(): boolean {
+	let folders = workspace.workspaceFolders;
+	if (!folders) {
+		return false;
+	}
+	for (let i = 0; i < folders.length; i++) {
+		let folder = folders[i];
+		if (workspace.getConfiguration('npm', folder.uri).get<boolean>('enableScriptExplorer') === true) {
+			return true;
+		}
+	}
+	return false;
+}
+
 export async function hasNpmScripts(): Promise<boolean> {
 	let folders = workspace.workspaceFolders;
 	if (!folders) {
@@ -56,7 +70,7 @@ export async function hasNpmScripts(): Promise<boolean> {
 	try {
 		for (let i = 0; i < folders.length; i++) {
 			let folder = folders[i];
-			if (isEnabled(folder)) {
+			if (isAutoDetectionEnabled(folder)) {
 				let relativePattern = new RelativePattern(folder, '**/package.json');
 				let paths = await workspace.findFiles(relativePattern, '**/node_modules/**');
 				if (paths.length > 0) {
@@ -81,7 +95,7 @@ export async function provideNpmScripts(localize: any): Promise<Task[]> {
 	try {
 		for (let i = 0; i < folders.length; i++) {
 			let folder = folders[i];
-			if (isEnabled(folder)) {
+			if (isAutoDetectionEnabled(folder)) {
 				let relativePattern = new RelativePattern(folder, '**/package.json');
 				let paths = await workspace.findFiles(relativePattern, '**/node_modules/**');
 				for (let j = 0; j < paths.length; j++) {
@@ -98,7 +112,7 @@ export async function provideNpmScripts(localize: any): Promise<Task[]> {
 	}
 }
 
-function isEnabled(folder: WorkspaceFolder): boolean {
+function isAutoDetectionEnabled(folder: WorkspaceFolder): boolean {
 	return workspace.getConfiguration('npm', folder.uri).get<AutoDetect>('autoDetect') === 'on';
 }
 

@@ -12,12 +12,18 @@ const localize = nls.loadMessageBundle();
 
 import { addJSONProviders } from './features/jsonContributions';
 import { NpmScriptsTreeDataProvider } from './npmView';
-import { provideNpmScripts, hasNpmScripts } from './tasks';
+import { provideNpmScripts, hasNpmScripts, explorerIsEnabled } from './tasks';
 
 let taskProvider: vscode.Disposable | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
+	taskProvider = registerTaskProvider(context);
+	configureHttpRequest();
+	vscode.workspace.onDidChangeConfiguration(() => configureHttpRequest());
+	context.subscriptions.push(addJSONProviders(httpRequest.xhr));
+}
 
+function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposable | undefined {
 	if (vscode.workspace.workspaceFolders) {
 		let provider: vscode.TaskProvider = {
 			provideTasks: () => {
@@ -27,19 +33,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 				return undefined;
 			}
 		};
-		taskProvider = vscode.workspace.registerTaskProvider('npm', provider);
+		let disposable = vscode.workspace.registerTaskProvider('npm', provider);
+		registerExplorer(context, provider);
+		return disposable;
+	}
+	return undefined;
+}
+
+async function registerExplorer(context: vscode.ExtensionContext, provider: vscode.TaskProvider) {
+	if (explorerIsEnabled()) {
 		let treeDataProvider = vscode.window.registerTreeDataProvider('npm', new NpmScriptsTreeDataProvider(context, provider, localize));
 		context.subscriptions.push(treeDataProvider);
-
 		if (await hasNpmScripts()) {
 			vscode.commands.executeCommand('setContext', 'hasNpmScripts', true);
 		}
 	}
-
-	configureHttpRequest();
-	vscode.workspace.onDidChangeConfiguration(() => configureHttpRequest());
-
-	context.subscriptions.push(addJSONProviders(httpRequest.xhr));
 }
 
 function configureHttpRequest() {

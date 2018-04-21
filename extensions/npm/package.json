@@ -96,7 +96,6 @@
         }
       ]
     },
-
     "configuration": {
       "id": "npm",
       "type": "object",
@@ -138,6 +137,12 @@
           },
           "description": "%config.npm.exclude%",
           "scope": "resource"
+        },
+        "npm.enableScriptExplorer": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource",
+          "description": "%config.npm.enableScriptExplorer%"
         }
       }
     },
