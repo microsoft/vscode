@@ -192,7 +192,7 @@ export class SettingsEditor2 extends BaseEditor {
 		}));
 		this._register(this.searchWidget.onDidChange(() => this.onInputChanged()));
 
-		const headerControlsContainer = DOM.append(this.headerContainer, $('div.settings-header-controls'));
+		const headerControlsContainer = DOM.append(this.headerContainer, $('.settings-header-controls'));
 		const targetWidgetContainer = DOM.append(headerControlsContainer, $('.settings-target-container'));
 		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer));
 		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER;
@@ -542,7 +542,7 @@ interface ISettingItemTemplate {
 
 	containerElement: HTMLElement;
 	labelElement: HTMLElement;
-	keyElement: HTMLElement;
+	// keyElement: HTMLElement;
 	descriptionElement: HTMLElement;
 	valueElement: HTMLElement;
 	overridesElement: HTMLElement;
@@ -581,24 +581,24 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 	renderTemplate(parent: HTMLElement): ISettingItemTemplate {
 		DOM.addClass(parent, 'setting-item');
 
-		const itemContainer = DOM.append(parent, $('div.setting-item-container'));
+		const itemContainer = DOM.append(parent, $('.setting-item-container'));
 		const leftElement = DOM.append(itemContainer, $('.setting-item-left'));
 		const rightElement = DOM.append(itemContainer, $('.setting-item-right'));
 
-		const titleElement = DOM.append(leftElement, $('div.setting-item-title'));
+		const titleElement = DOM.append(leftElement, $('.setting-item-title'));
 		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
-		const keyElement = DOM.append(titleElement, $('span.setting-item-key'));
-		const descriptionElement = DOM.append(leftElement, $('div.setting-item-description'));
+		// const keyElement = DOM.append(titleElement, $('span.setting-item-key'));
+		const overridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
+		const descriptionElement = DOM.append(leftElement, $('.setting-item-description'));
 
-		const valueElement = DOM.append(rightElement, $('div.setting-item-value'));
-		const overridesElement = DOM.append(rightElement, $('div.setting-item-overrides'));
+		const valueElement = DOM.append(rightElement, $('.setting-item-value'));
 
 		return {
 			parent: parent,
 			toDispose: [],
 
 			containerElement: itemContainer,
-			keyElement,
+			// keyElement,
 			labelElement,
 			descriptionElement,
 			valueElement,
@@ -609,8 +609,9 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 	renderElement(entry: ISettingItemEntry, index: number, template: ISettingItemTemplate): void {
 		DOM.toggleClass(template.parent, 'odd', index % 2 === 1);
 
-		template.keyElement.textContent = entry.key;
+		// template.keyElement.textContent = entry.key;
 		template.labelElement.textContent = settingKeyToLabel(entry.key);
+		template.labelElement.title = entry.key;
 		template.descriptionElement.textContent = entry.description;
 
 		DOM.toggleClass(template.parent, 'is-configured', entry.isConfigured);
@@ -627,7 +628,8 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 		}));
 		template.toDispose.push(resetButton);
 
-		template.overridesElement.textContent = entry.overriddenScopeList.length ? 'Also configured in: ' + entry.overriddenScopeList.join(', ') :
+		const alsoConfiguredInLabel = localize('alsoConfiguredIn', "Also configured in:");
+		template.overridesElement.textContent = entry.overriddenScopeList.length ? `(${alsoConfiguredInLabel} ${entry.overriddenScopeList.join(', ')})` :
 			'';
 	}
 

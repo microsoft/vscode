@@ -110,6 +110,11 @@
 	line-height: initial;
 }
 
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-title .setting-item-overrides {
+	opacity: 0.5;
+	margin-left: 10px;
+}
+
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-label {
 	font-size: 15px;
 	font-weight: bold;
@@ -124,7 +129,7 @@
 }
 
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-description {
-	opacity: 0.6;
+	opacity: 0.7;
 	margin-top: 5px;
 	height: 36px;
 	overflow: hidden;
@@ -166,12 +171,6 @@
 
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row.is-configured:hover .setting-item-value > .setting-reset-button.monaco-button {
 	visibility: visible;
-}
-
-.settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-overrides {
-	opacity: 0.6;
-	margin-top: 5px;
-	text-align: center;
 }
 
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row.all-settings {
