@@ -15,7 +15,7 @@ import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
@@ -38,6 +38,7 @@ import { IPreferencesSearchService, ISearchProvider } from '../common/preference
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { isPromiseCanceledError, getErrorMessage } from 'vs/base/common/errors';
 import { ILogService } from 'vs/platform/log/common/log';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 
 const SETTINGS_ENTRY_TEMPLATE_ID = 'settings.entry.template';
 const SETTINGS_GROUP_ENTRY_TEMPLATE_ID = 'settings.group.template';
@@ -73,7 +74,20 @@ enum SearchResultIdx {
 	Remote = 1
 }
 
-let $ = DOM.$;
+const $ = DOM.$;
+
+
+export const configuredItemBackground = registerColor('settings.configuredItemBackground', {
+	dark: '#0d466c',
+	light: '#0d466c',
+	hc: '#000000'
+}, localize('configuredItemBackground', "The background color for a configured setting."));
+
+export const configuredItemForeground = registerColor('settings.configuredItemForeground', {
+	dark: '#dddddd',
+	light: '#dddddd',
+	hc: '#dddddd'
+}, localize('configuredItemForeground', "The foreground color for a configured setting."));
 
 export class SettingsEditor2 extends BaseEditor {
 
@@ -671,7 +685,10 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 		const idx = entry.enum.indexOf(entry.value);
 		const selectBox = new SelectBox(entry.enum, idx, this.contextViewService);
 		template.toDispose.push(selectBox);
-		template.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService));
+		template.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService, {
+			selectBackground: entry.isConfigured ? configuredItemBackground : undefined,
+			selectForeground: entry.isConfigured ? configuredItemForeground : undefined
+		}));
 		selectBox.render(template.valueElement);
 
 		template.toDispose.push(
@@ -681,6 +698,8 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 	private renderText(entry: ISettingItemEntry, template: ISettingItemTemplate, onChange: (value: string) => void): void {
 		const inputBox = new InputBox(template.valueElement, this.contextViewService);
 		template.toDispose.push(attachInputBoxStyler(inputBox, this.themeService, {
+			inputBackground: entry.isConfigured ? configuredItemBackground : undefined,
+			inputForeground: entry.isConfigured ? configuredItemForeground : undefined
 		}));
 		template.toDispose.push(inputBox);
 		inputBox.value = entry.value;
@@ -764,10 +783,3 @@ function settingKeyToLabel(key: string): string {
 		.replace(/^[a-z]/g, match => match.toUpperCase()) // foo => Foo
 		.replace(/ [a-z]/g, match => match.toUpperCase()); // Foo bar => Foo Bar
 }
-
-// registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-// 	const listHighlightForegroundColor = theme.getColor(listHighlightForeground);
-// 	if (listHighlightForegroundColor) {
-// 		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column .highlight { color: ${listHighlightForegroundColor}; }`);
-// 	}
-// });

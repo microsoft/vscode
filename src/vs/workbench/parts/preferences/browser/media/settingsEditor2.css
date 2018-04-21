@@ -30,7 +30,7 @@
 
 .settings-editor > .settings-header .search-container > .settings-search-input > .monaco-inputbox .input {
 	font-size: 14px;
-	padding-left:10px;
+	padding-left: 10px;
 }
 
 .settings-editor > .settings-header > .settings-header-controls-container {
@@ -143,6 +143,7 @@
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row .monaco-select-box {
 	width: 100%;
 	font: inherit;
+	height: 26px;
 }
 
 .settings-editor .settings-nav-controls .monaco-custom-checkbox.unchecked,
@@ -186,4 +187,9 @@
 
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row.all-settings .all-settings-button {
 	margin: auto;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row.all-settings .all-settings-button .monaco-button {
+	padding-left: 10px;
+	padding-right: 10px;
 }
