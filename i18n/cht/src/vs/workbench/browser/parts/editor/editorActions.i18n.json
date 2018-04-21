@@ -17,6 +17,7 @@
 	"focusNextGroup": "聚焦下一個群組",
 	"openToSide": "開至側邊",
 	"closeEditor": "關閉編輯器",
+	"closeOneEditor": "關閉",
 	"revertAndCloseActiveEditor": "還原並關閉編輯器",
 	"closeEditorsToTheLeft": "將編輯器關到左側",
 	"closeAllEditors": "關閉所有編輯器",

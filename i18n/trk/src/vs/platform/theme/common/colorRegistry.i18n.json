@@ -93,6 +93,6 @@
 	"overviewRulerCurrentContentForeground": "Satır içi birleştirme çakışmalarında \"mevcut olan\" için genel bakış cetveli ön planı.",
 	"overviewRulerIncomingContentForeground": "Satır içi birleştirme çakışmalarında gelen genel bakış cetveli ön planı.",
 	"overviewRulerCommonContentForeground": "Satır içi birleştirme çakışmalarında ortak ata genel bakış cetveli ön planı.",
-	"overviewRulerFindMatchForeground": "Bulunan eşler için genel bakış cetvelinin işaretleyici rengi.",
-	"overviewRulerSelectionHighlightForeground": "Seçim vurguları için genel bakış cetvelinin işaretleyici rengi."
+	"overviewRulerFindMatchForeground": "Bulunan eşler için genel bakış cetvelinin işaretleyici rengi. Altta yer alan süslemeleri gizlememek için renk opak olmamalıdır.",
+	"overviewRulerSelectionHighlightForeground": "Seçim vurguları için genel bakış cetvelinin işaretleyici rengi. Altta yer alan süslemeleri gizlememek için renk opak olmamalıdır."
 }

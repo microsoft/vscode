@@ -8,6 +8,12 @@
 	],
 	"completeInEnglish": "Por favor, preencha o formulário em inglês.",
 	"issueTypeLabel": "Isso é um",
+	"issueSourceLabel": "Arquivo na",
+	"vscode": "Visual Studio Code",
+	"extension": "Uma extensão",
+	"disableExtensionsLabelText": "Tente reproduzir o problema depois de {0}. Se o problema só se reproduz quando as extensões são ativas, provavelmente é um problema com uma extensão.",
+	"disableExtensions": "desabilitando todas as extensões e recarregando a janela",
+	"chooseExtension": "Extensão",
 	"issueTitleLabel": "Título",
 	"issueTitleRequired": "Por favor, digite um título.",
 	"titleLengthValidation": "O título é muito longo.",
@@ -18,9 +24,6 @@
 	"extensions": "Minhas extensões",
 	"searchedExtensions": "Extensões Pesquisadas",
 	"settingsSearchDetails": "Detalhes da Pesquisa de Configurações",
-	"yes": "Sim",
-	"no": "Não",
-	"disableExtensions": "desabilitando todas as extensões e recarregando a janela",
 	"details": "Por favor informe detalhes.",
 	"loadingData": "Carregando dados..."
 }

@@ -11,5 +11,6 @@
 	"installAdditionalSCMProviders": "Ek SCM Sağlayıcıları Yükle...",
 	"no open repo": "Aktif bir kaynak kontrolü sağlayıcısı yok.",
 	"source control": "Kaynak Kontrolü",
-	"viewletTitle": "{0}: {1}"
+	"viewletTitle": "{0}: {1}",
+	"hideView": "Gizle"
 }

@@ -51,5 +51,7 @@
 	"workbench.action.terminal.hideFindWidget": "Widget zum Ausblenden der Suche",
 	"nextTerminalFindTerm": "Nächsten Suchbegriff anzeigen",
 	"previousTerminalFindTerm": "Vorherigen Suchbegriff anzeigen",
-	"quickOpenTerm": "Aktives Terminal wechseln"
+	"quickOpenTerm": "Aktives Terminal wechseln",
+	"workbench.action.terminal.selectToPreviousCommand": "Auswählen bis zu vorherigem Befehl",
+	"workbench.action.terminal.selectToNextCommand": "Auswählen bis zu nächstem Befehl"
 }

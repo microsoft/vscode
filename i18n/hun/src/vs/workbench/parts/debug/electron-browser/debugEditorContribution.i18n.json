@@ -18,5 +18,8 @@
 	"enableBreakpoints": "{0}. oszlopban található töréspont engedélyezése",
 	"enableBreakpointOnLine": "Sorszintű töréspont engedélyezése",
 	"addBreakpoint": "Töréspont hozzáadása",
+	"addConditionalBreakpoint": "Feltételes töréspont hozzáadása...",
+	"addLogPoint": "Naplózási pont hozzáadása...",
+	"cancel": "Mégse",
 	"addConfiguration": "Konfiguráció hozzáadása..."
 }

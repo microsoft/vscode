@@ -19,8 +19,9 @@
 	"workbench.action.terminal.new": "新しい統合ターミナルの作成",
 	"workbench.action.terminal.new.short": "新しいターミナル",
 	"workbench.action.terminal.newWorkspacePlaceholder": "新しいターミナルの作業ディレクトリを選択してください",
-	"workbench.action.terminal.newInActiveWorkspace": "新しい統合ターミナルを作成 (アクティブなワークスペースに)",
+	"workbench.action.terminal.newInActiveWorkspace": "(アクティブなワークスペースで) 新しいターミナルの作成",
 	"workbench.action.terminal.split": "ターミナルの分割",
+	"workbench.action.terminal.splitInActiveWorkspace": "(アクティブなワークスペースで) ターミナルの分割",
 	"workbench.action.terminal.focusPreviousPane": "前のペインにフォーカス",
 	"workbench.action.terminal.focusNextPane": "次のペインにフォーカス",
 	"workbench.action.terminal.resizePaneLeft": "ペインを左にリサイズ",
@@ -43,6 +44,7 @@
 	"workbench.action.terminal.scrollUpPage": "スクロール アップ (ページ)",
 	"workbench.action.terminal.scrollToTop": "一番上にスクロール",
 	"workbench.action.terminal.clear": "クリア",
+	"workbench.action.terminal.clearSelection": "選択のクリア",
 	"workbench.action.terminal.allowWorkspaceShell": "ワークスペースでシェルを構成することを許可する",
 	"workbench.action.terminal.disallowWorkspaceShell": "ワークスペースでシェルを構成することを許可しない",
 	"workbench.action.terminal.rename": "名前変更",
@@ -51,5 +53,9 @@
 	"workbench.action.terminal.hideFindWidget": "検索ウィジェットを非表示にする",
 	"nextTerminalFindTerm": "次の検索語句を表示",
 	"previousTerminalFindTerm": "前の検索語句を表示",
-	"quickOpenTerm": "アクティブなターミナルの切り替え"
+	"quickOpenTerm": "アクティブなターミナルの切り替え",
+	"workbench.action.terminal.scrollToPreviousCommand": "前のコマンドにスクロール",
+	"workbench.action.terminal.scrollToNextCommand": "次のコマンドにスクロール",
+	"workbench.action.terminal.selectToPreviousCommand": "前のコマンドを選択",
+	"workbench.action.terminal.selectToNextCommand": "次のコマンドを選択"
 }

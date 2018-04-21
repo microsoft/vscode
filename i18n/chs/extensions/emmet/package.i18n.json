@@ -35,7 +35,7 @@
 	"emmetExtensionsPath": "包含 Emmet 配置文件与代码片段的文件夹路径。",
 	"emmetShowExpandedAbbreviation": "在建议中显示展开的 Emmet 缩写。\n选择 \"inMarkupAndStylesheetFilesOnly\" 选项将仅应用于 html、haml、jade、slim、xml、xsl、css、scss、sass、less 和 stylus 文件。\n选择 \"always\" 选项将应用于所有适用文件不限于标记或 CSS 的所有部分。",
 	"emmetShowAbbreviationSuggestions": "显示可能的 Emmet 缩写作为建议。在样式表中或当 emmet.showExpandedAbbreviation 设置为 \"never\" 时不适用。",
-	"emmetIncludeLanguages": "在默认不支持 Emmet 的语言中启用 Emmet 缩写功能。在此添加该语言与支持 Emmet 的语言之间的映射。\n示例: {\"vue-html\": \"html\", \"javascript\": \"javascriptreact\"}",
+	"emmetIncludeLanguages": "在默认不支持 Emmet 的语言中启用 Emmet 缩写功能。在此添加该语言与受支持的语言间的映射。\n示例: {\"vue-html\": \"html\", \"javascript\": \"javascriptreact\"}",
 	"emmetVariables": "用于 Emmet 代码片段的变量",
 	"emmetTriggerExpansionOnTab": "启用后，按下 TAB 键，将展开 Emmet 缩写。",
 	"emmetPreferences": "用于修改 Emmet 某些操作和解析程序的行为的首选项。",
@@ -59,5 +59,7 @@
 	"emmetPreferencesCssWebkitProperties": "Emmet 缩写中使用的由 \"-\" 打头有 \"webkit\" 前缀的 CSS 属性，使用半角逗号 (\",\") 进行分隔。若要始终避免 \"webkit\" 前缀，请设为空字符串。",
 	"emmetPreferencesCssMozProperties": "Emmet 缩写中使用的由 \"-\" 打头有 \"moz\" 前缀的 CSS 属性，使用半角逗号 (\",\") 进行分隔。若要始终避免 \"moz\" 前缀，请设为空字符串。",
 	"emmetPreferencesCssOProperties": "Emmet 缩写中使用的由 \"-\" 打头有 \"o\" 前缀的 CSS 属性，使用半角逗号 (\",\") 进行分隔。若要始终避免 \"o\" 前缀，请设为空字符串。",
-	"emmetPreferencesCssMsProperties": "Emmet 缩写中使用的由 \"-\" 打头有 \"ms\" 前缀的 CSS 属性，使用半角逗号 (\",\") 进行分隔。若要始终避免 \"ms\" 前缀，请设为空字符串。"
+	"emmetPreferencesCssMsProperties": "Emmet 缩写中使用的由 \"-\" 打头有 \"ms\" 前缀的 CSS 属性，使用半角逗号 (\",\") 进行分隔。若要始终避免 \"ms\" 前缀，请设为空字符串。",
+	"emmetPreferencesCssFuzzySearchMinScore": "显示的缩写模糊匹配应达到的最低分数 (0 到 1 之间)。较低的值可能使匹配错误变多，较高的值可能将不会显示应有的匹配项。",
+	"emmetOptimizeStylesheetParsing": "当设置为 false 时，将分析整个文件并确定当前位置能否展开 Emmet 缩写。当设置为 true 时，则仅在 CSS/SCSS/LESS 文件中进行分析。"
 }

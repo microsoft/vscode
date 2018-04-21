@@ -368,10 +368,12 @@ export class TernarySearchTree<E> {
 
 export class ResourceMap<T> {
 
-	protected map: Map<string, T>;
+	protected readonly map: Map<string, T>;
+	protected readonly ignoreCase?: boolean;
 
-	constructor(private ignoreCase?: boolean) {
+	constructor() {
 		this.map = new Map<string, T>();
+		this.ignoreCase = false; // in the future this should be an uri-comparator
 	}
 
 	public set(resource: URI, value: T): void {
@@ -414,18 +416,10 @@ export class ResourceMap<T> {
 
 		return key;
 	}
-}
-
-export class StrictResourceMap<T> extends ResourceMap<T> {
-
-	constructor() {
-		super();
-	}
 
 	public keys(): URI[] {
-		return keys(this.map).map(key => URI.parse(key));
+		return keys(this.map).map(URI.parse);
 	}
-
 }
 
 // We should fold BoundedMap and LinkedMap. See https://github.com/Microsoft/vscode/issues/28496
@@ -741,6 +735,24 @@ export class LinkedMap<K, V> {
 			item.previous = this._tail;
 			this._tail.next = item;
 			this._tail = item;
+		}
+	}
+
+	public toJSON(): [K, V][] {
+		const data: [K, V][] = [];
+
+		this.forEach((value, key) => {
+			data.push([key, value]);
+		});
+
+		return data;
+	}
+
+	public fromJSON(data: [K, V][]): void {
+		this.clear();
+
+		for (const [key, value] of data) {
+			this.set(key, value);
 		}
 	}
 }

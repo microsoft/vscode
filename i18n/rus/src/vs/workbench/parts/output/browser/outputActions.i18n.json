@@ -9,5 +9,6 @@
 	"toggleOutput": "Переключить выходные данные",
 	"clearOutput": "Очистить выходные данные",
 	"toggleOutputScrollLock": "Включить/отключить SCROLL LOCK для вывода",
-	"switchToOutput.label": "Переключиться на выходные данные"
+	"switchToOutput.label": "Переключиться на выходные данные",
+	"openInLogViewer": "Открыть файл журнала"
 }

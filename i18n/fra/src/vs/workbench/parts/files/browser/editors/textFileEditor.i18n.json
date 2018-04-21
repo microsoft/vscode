@@ -8,6 +8,8 @@
 	],
 	"textFileEditor": "Éditeur de fichier texte",
 	"createFile": "Créer un fichier",
+	"relaunchWithIncreasedMemoryLimit": "Redémarrer avec {0} Mo",
+	"configureMemoryLimit": "Configurer la limite de mémoire",
 	"fileEditorWithInputAriaLabel": "{0}. Éditeur de fichier texte.",
 	"fileEditorAriaLabel": "Éditeur de fichier texte."
 }

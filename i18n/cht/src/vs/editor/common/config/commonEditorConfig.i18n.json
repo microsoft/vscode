@@ -46,6 +46,7 @@
 	"multiCursorModifier.ctrlCmd": "對應 Windows 和 Linux 的 `Control` 與對應 macOS 的 `Command`",
 	"multiCursorModifier.alt": "對應 Windows 和 Linux 的 `Alt` 與對應 macOS 的 `Option`",
 	"multiCursorModifier": "用於新增多個滑鼠游標的修改。 `ctrlCmd` 會對應到 Windows 和 Linux 上的 `Control` 以及 macOS 上的 `Command`。 [移至定義] 及 [開啟連結] 滑鼠手勢將會適應以避免和 multicursor 修改衝突。",
+	"multiCursorMergeOverlapping": "在重疊時合併多個游標。",
 	"quickSuggestions.strings": "允許在字串內顯示即時建議。",
 	"quickSuggestions.comments": "允許在註解中顯示即時建議。",
 	"quickSuggestions.other": "允許在字串與註解以外之處顯示即時建議。",

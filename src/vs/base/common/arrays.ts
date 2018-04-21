@@ -53,7 +53,7 @@ export function binarySearch<T>(array: T[], key: T, comparator: (op1: T, op2: T)
  * are located before all elements where p(x) is true.
  * @returns the least x for which p(x) is true or array.length if no element fullfills the given function.
  */
-export function findFirst<T>(array: T[], p: (x: T) => boolean): number {
+export function findFirstInSorted<T>(array: T[], p: (x: T) => boolean): number {
 	let low = 0, high = array.length;
 	if (high === 0) {
 		return 0; // no children
@@ -267,7 +267,7 @@ function topStep<T>(array: T[], compare: (a: T, b: T) => number, result: T[], i:
 		const element = array[i];
 		if (compare(element, result[n - 1]) < 0) {
 			result.pop();
-			const j = findFirst(result, e => compare(element, e) < 0);
+			const j = findFirstInSorted(result, e => compare(element, e) < 0);
 			result.splice(j, 0, element);
 		}
 	}

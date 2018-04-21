@@ -205,11 +205,12 @@ export class Renderer implements IRenderer {
 	private renderMarkerElement(tree: ITree, element: Marker, templateData: IMarkerTemplateData) {
 		let marker = element.raw;
 		templateData.icon.className = 'icon ' + Renderer.iconClassNameFor(marker);
+
+		templateData.source.set(marker.source, element.sourceMatches);
+		dom.toggleClass(templateData.source.element, 'marker-source', !!marker.source);
+
 		templateData.description.set(marker.message, element.messageMatches);
 		templateData.description.element.title = marker.message;
-
-		dom.toggleClass(templateData.source.element, 'marker-source', !!marker.source);
-		templateData.source.set(marker.source, element.sourceMatches);
 
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
 	}

@@ -211,7 +211,7 @@ const editorConfiguration: IConfigurationNode = {
 				nls.localize('lineNumbers.interval', "Line numbers are rendered every 10 lines.")
 			],
 			'default': 'on',
-			'description': nls.localize('lineNumbers', "Controls the display of line numbers. Possible values are 'on', 'off', 'relative' and 'interval'.")
+			'description': nls.localize('lineNumbers', "Controls the display of line numbers.")
 		},
 		'editor.rulers': {
 			'type': 'array',
@@ -268,13 +268,13 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'string',
 			'enum': ['left', 'right'],
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.side,
-			'description': nls.localize('minimap.side', "Controls the side where to render the minimap. Possible values are \'right\' and \'left\'")
+			'description': nls.localize('minimap.side', "Controls the side where to render the minimap.")
 		},
 		'editor.minimap.showSlider': {
 			'type': 'string',
 			'enum': ['always', 'mouseover'],
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.showSlider,
-			'description': nls.localize('minimap.showSlider', "Controls whether the minimap slider is automatically hidden. Possible values are \'always\' and \'mouseover\'")
+			'description': nls.localize('minimap.showSlider', "Controls whether the minimap slider is automatically hidden.")
 		},
 		'editor.minimap.renderCharacters': {
 			'type': 'boolean',
@@ -369,6 +369,11 @@ const editorConfiguration: IConfigurationNode = {
 					'- `Control` and `Command` refer to the modifier keys Ctrl or Cmd on the keyboard and can be localized.'
 				]
 			}, "The modifier to be used to add multiple cursors with the mouse. `ctrlCmd` maps to `Control` on Windows and Linux and to `Command` on macOS. The Go To Definition and Open Link mouse gestures will adapt such that they do not conflict with the multicursor modifier.")
+		},
+		'editor.multiCursorMergeOverlapping': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.multiCursorMergeOverlapping,
+			'description': nls.localize('multiCursorMergeOverlapping', "Merge multiple cursors when they are overlapping.")
 		},
 		'editor.quickSuggestions': {
 			'anyOf': [
@@ -515,7 +520,7 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'string',
 			'enum': ['blink', 'smooth', 'phase', 'expand', 'solid'],
 			'default': editorOptions.blinkingStyleToString(EDITOR_DEFAULTS.viewInfo.cursorBlinking),
-			'description': nls.localize('cursorBlinking', "Control the cursor animation style, possible values are 'blink', 'smooth', 'phase', 'expand' and 'solid'")
+			'description': nls.localize('cursorBlinking', "Control the cursor animation style.")
 		},
 		'editor.mouseWheelZoom': {
 			'type': 'boolean',
@@ -568,12 +573,22 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.codeLens': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.codeLens,
-			'description': nls.localize('codeLens', "Controls if the editor shows code lenses")
+			'description': nls.localize('codeLens', "Controls if the editor shows CodeLens")
 		},
 		'editor.folding': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.folding,
 			'description': nls.localize('folding', "Controls whether the editor has code folding enabled")
+		},
+		'editor.foldingStrategy': {
+			'type': 'string',
+			'enum': ['auto', 'indentation'],
+			'enumDescriptions': [
+				nls.localize('foldingStrategyAuto', 'If available, use a language specific folding strategy, otherwise falls back to the indentation based strategy.'),
+				nls.localize('foldingStrategyIndentation', 'Always use the indentation based folding strategy')
+			],
+			'default': EDITOR_DEFAULTS.contribInfo.foldingStrategy,
+			'description': nls.localize('foldingStrategy', "Controls the way folding ranges are computed. 'auto' picks uses a language specific folding strategy, if available. 'indentation' forces that the indentation based folding strategy is used.")
 		},
 		'editor.showFoldingControls': {
 			'type': 'string',
@@ -652,6 +667,16 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': true,
 			'description': nls.localize('ignoreTrimWhitespace', "Controls if the diff editor shows changes in leading or trailing whitespace as diffs")
+		},
+		'editor.largeFileSize': {
+			'type': 'number',
+			'default': EDITOR_MODEL_DEFAULTS.largeFileSize,
+			'description': nls.localize('largeFileSize', "Controls file size threshold in bytes beyond which special optimization rules are applied")
+		},
+		'editor.largeFileLineCount': {
+			'type': 'number',
+			'default': EDITOR_MODEL_DEFAULTS.largeFileLineCount,
+			'description': nls.localize('largeFileLineCount', "Controls file size threshold in terms of line count beyond which special optimization rules are applied")
 		},
 		'diffEditor.renderIndicators': {
 			'type': 'boolean',

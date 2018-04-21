@@ -11,6 +11,7 @@
 	"open": "打开设置",
 	"saveAndRetry": "保存并重试",
 	"errorUnknownKey": "没有注册配置 {1}，因此无法写入 {0}。",
+	"errorInvalidWorkspaceConfigurationApplication": "无法将 {0} 写入“工作区设置”。此设置只能写于“用户设置”。",
 	"errorInvalidFolderConfiguration": "{0} 不支持文件夹资源域，因此无法写入\"文件夹设置\"。",
 	"errorInvalidUserTarget": "{0} 不支持全局域，因此无法写入\"用户设置\"。",
 	"errorInvalidWorkspaceTarget": "{0} 不在多文件夹工作区环境下支持工作区作用域，因此无法写入“工作区设置”。",

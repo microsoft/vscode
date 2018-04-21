@@ -12,7 +12,6 @@
 	"previousSearchExcludePattern": "Előző kizáró keresési minta megjelenítése",
 	"nextSearchTerm": "Következő keresőkifejezés megjelenítése",
 	"previousSearchTerm": "Előző keresőkifejezés megjelenítése",
-	"showSearchViewlet": "Keresés megjelenítése",
 	"findInFiles": "Keresés a fájlokban",
 	"replaceInFiles": "Csere a fájlokban",
 	"RefreshAction.label": "Frissítés",

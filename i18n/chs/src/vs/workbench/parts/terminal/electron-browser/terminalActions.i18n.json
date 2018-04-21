@@ -21,6 +21,7 @@
 	"workbench.action.terminal.newWorkspacePlaceholder": "选择当前工作目录新建终端",
 	"workbench.action.terminal.newInActiveWorkspace": "新建集成终端 (活动工作区)",
 	"workbench.action.terminal.split": "拆分终端",
+	"workbench.action.terminal.splitInActiveWorkspace": "拆分终端 (活动工作区)",
 	"workbench.action.terminal.focusPreviousPane": "聚焦于上一个窗格",
 	"workbench.action.terminal.focusNextPane": "聚焦于下一个窗格",
 	"workbench.action.terminal.resizePaneLeft": "向左调整窗格大小",
@@ -43,6 +44,7 @@
 	"workbench.action.terminal.scrollUpPage": "向上滚动(页)",
 	"workbench.action.terminal.scrollToTop": "滚动到顶部",
 	"workbench.action.terminal.clear": "清除",
+	"workbench.action.terminal.clearSelection": "清除选定内容",
 	"workbench.action.terminal.allowWorkspaceShell": "允许配置工作区 Shell",
 	"workbench.action.terminal.disallowWorkspaceShell": "禁止配置工作区 Shell",
 	"workbench.action.terminal.rename": "重命名",
@@ -51,5 +53,9 @@
 	"workbench.action.terminal.hideFindWidget": "隐藏查找小组件",
 	"nextTerminalFindTerm": "显示下一个搜索结果",
 	"previousTerminalFindTerm": "显示上一个搜索结果",
-	"quickOpenTerm": "切换活动终端"
+	"quickOpenTerm": "切换活动终端",
+	"workbench.action.terminal.scrollToPreviousCommand": "滚动到上一条命令",
+	"workbench.action.terminal.scrollToNextCommand": "滚动到下一条命令",
+	"workbench.action.terminal.selectToPreviousCommand": "选择上一条命令所有内容",
+	"workbench.action.terminal.selectToNextCommand": "选择下一条命令所有内容"
 }

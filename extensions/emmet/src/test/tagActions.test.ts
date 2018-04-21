@@ -5,7 +5,7 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import { Selection } from 'vscode';
+import { Selection, workspace, ConfigurationTarget } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
 import { removeTag } from '../removeTag';
 import { updateTag } from '../updateTag';
@@ -14,7 +14,10 @@ import { splitJoinTag } from '../splitJoinTag';
 import { mergeLines } from '../mergeLines';
 
 suite('Tests for Emmet actions on html tags', () => {
-	teardown(closeAllEditors);
+	teardown(() => {
+		// close all editors
+		return closeAllEditors;
+	});
 
 	const contents = `
 	<div class="hello">
@@ -98,6 +101,33 @@ suite('Tests for Emmet actions on html tags', () => {
 			return splitJoinTag()!.then(() => {
 				assert.equal(doc.getText(), expectedContents);
 				return Promise.resolve();
+			});
+		});
+	});
+
+	test('split/join tag in jsx with xhtml self closing tag', () => {
+		const expectedContents = `
+	<div class="hello">
+		<ul>
+			<li><span /></li>
+			<li><span>There</span></li>
+			<div><li><span>Bye</span></li></div>
+		</ul>
+		<span></span>
+	</div>
+	`;
+		const oldValueForSyntaxProfiles = workspace.getConfiguration('emmet').inspect('syntaxProfiles');
+		return workspace.getConfiguration('emmet').update('syntaxProfiles', {jsx: {selfClosingStyle: 'xhtml'}}, ConfigurationTarget.Global).then(() =>{
+			return withRandomFileEditor(contents, 'jsx', (editor, doc) => {
+				editor.selections = [
+					new Selection(3, 17, 3, 17), // join tag
+					new Selection(7, 5, 7, 5), // split tag
+				];
+
+				return splitJoinTag()!.then(() => {
+					assert.equal(doc.getText(), expectedContents);
+					return workspace.getConfiguration('emmet').update('syntaxProfiles', oldValueForSyntaxProfiles ? oldValueForSyntaxProfiles.globalValue : undefined, ConfigurationTarget.Global);
+				});
 			});
 		});
 	});

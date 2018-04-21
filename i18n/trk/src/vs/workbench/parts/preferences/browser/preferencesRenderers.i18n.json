@@ -13,9 +13,5 @@
 	"newExtensionLabel": "\"{0}\" Eklentisini Göster",
 	"editTtile": "Düzenle",
 	"replaceDefaultValue": "Ayarlarda Değiştir",
-	"copyDefaultValue": "Ayarlara Kopyala",
-	"unsupportedPHPExecutablePathSetting": "Bu ayar, bir Kullanıcı Ayarı olmalıdır. PHP'yi çalışma alanı için yapılandırmak için bir PHP dosyasını açın ve durum çubuğundaki 'PHP Yolu'na tıklayın.",
-	"unsupportedWorkspaceSetting": "Bu ayar, bir Kullanıcı Ayarı olmalıdır.",
-	"unsupportedWorkbenchSetting": "Bu ayar şu an uygulanamıyor. Ayar, bu klasörü açtığınızda uygulanacaktır.",
-	"unsupportedWorkbenchSettingDevMode": "Bu ayar şu an uygulanamıyor. Ayar, kaydederken kapsamını 'resource' olarak tanımladığınızda veya bu klasörü direkt olarak açtığınızda uygulanacaktır."
+	"copyDefaultValue": "Ayarlara Kopyala"
 }

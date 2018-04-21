@@ -1194,6 +1194,11 @@ declare namespace monaco.editor {
 		 */
 		isWholeLine?: boolean;
 		/**
+		 * Specifies the stack order of a decoration.
+		 * A decoration with greater stack order is always in front of a decoration with a lower stack order.
+		 */
+		zIndex?: number;
+		/**
 		 * If set, render this decoration in the overview ruler.
 		 */
 		overviewRuler?: IModelDecorationOverviewRulerOptions;
@@ -1215,6 +1220,10 @@ declare namespace monaco.editor {
 		 * to have a background color decoration.
 		 */
 		inlineClassName?: string;
+		/**
+		 * If there is an `inlineClassName` which affects letter spacing.
+		 */
+		inlineClassNameAffectsLetterSpacing?: boolean;
 		/**
 		 * If set, the decoration will be rendered before the text with this CSS class name.
 		 */
@@ -1483,6 +1492,10 @@ declare namespace monaco.editor {
 		 * Get the text for a certain line.
 		 */
 		getLineContent(lineNumber: number): string;
+		/**
+		 * Get the text length for a certain line.
+		 */
+		getLineLength(lineNumber: number): number;
 		/**
 		 * Get the text for all lines.
 		 */
@@ -1927,9 +1940,13 @@ declare namespace monaco.editor {
 	 * A (serializable) state of the view.
 	 */
 	export interface IViewState {
-		scrollTop: number;
-		scrollTopWithoutViewZones: number;
+		/** written by previous versions */
+		scrollTop?: number;
+		/** written by previous versions */
+		scrollTopWithoutViewZones?: number;
 		scrollLeft: number;
+		firstPosition: IPosition;
+		firstPositionDeltaTop: number;
 	}
 
 	/**
@@ -2187,6 +2204,10 @@ declare namespace monaco.editor {
 		 * The range that got replaced.
 		 */
 		readonly range: IRange;
+		/**
+		 * The offset of the range that got replaced.
+		 */
+		readonly rangeOffset: number;
 		/**
 		 * The length of the range that got replaced.
 		 */
@@ -2685,6 +2706,11 @@ declare namespace monaco.editor {
 		 */
 		multiCursorModifier?: 'ctrlCmd' | 'alt';
 		/**
+		 * Merge overlapping selections.
+		 * Defaults to true
+		 */
+		multiCursorMergeOverlapping?: boolean;
+		/**
 		 * Configure the editor's accessibility support.
 		 * Defaults to 'auto'. It is best to leave this to 'auto'.
 		 */
@@ -2802,6 +2828,11 @@ declare namespace monaco.editor {
 		 * Defaults to true.
 		 */
 		folding?: boolean;
+		/**
+		 * Selects the folding strategy. 'auto' uses the strategies contributed for the current document, 'indentation' uses the indentation based folding strategy.
+		 * Defaults to 'auto'.
+		 */
+		foldingStrategy?: 'auto' | 'indentation';
 		/**
 		 * Controls whether the fold actions in the gutter stay always visible or hide unless the mouse is over the gutter.
 		 * Defaults to 'mouseover'.
@@ -3081,6 +3112,7 @@ declare namespace monaco.editor {
 		readonly occurrencesHighlight: boolean;
 		readonly codeLens: boolean;
 		readonly folding: boolean;
+		readonly foldingStrategy: 'auto' | 'indentation';
 		readonly showFoldingControls: 'always' | 'mouseover';
 		readonly matchBrackets: boolean;
 		readonly find: InternalEditorFindOptions;
@@ -3099,6 +3131,7 @@ declare namespace monaco.editor {
 		readonly lineHeight: number;
 		readonly readOnly: boolean;
 		readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
+		readonly multiCursorMergeOverlapping: boolean;
 		readonly wordSeparators: string;
 		readonly autoClosingBrackets: boolean;
 		readonly autoIndent: boolean;
@@ -3236,6 +3269,7 @@ declare namespace monaco.editor {
 		readonly readOnly: boolean;
 		readonly accessibilitySupport: boolean;
 		readonly multiCursorModifier: boolean;
+		readonly multiCursorMergeOverlapping: boolean;
 		readonly wordSeparators: boolean;
 		readonly autoClosingBrackets: boolean;
 		readonly autoIndent: boolean;
@@ -3753,10 +3787,6 @@ declare namespace monaco.editor {
 		 */
 		getLayoutInfo(): EditorLayoutInfo;
 		/**
-		 * Returns the range that is currently centered in the view port.
-		 */
-		getCenteredRangeInViewport(): Range;
-		/**
 		 * Returns the ranges that are currently visible.
 		 * Does not account for horizontal scrolling.
 		 */
@@ -4075,8 +4105,10 @@ declare namespace monaco.languages {
 	export function registerColorProvider(languageId: string, provider: DocumentColorProvider): IDisposable;
 
 	/**
-	 * Register a folding provider
+	 * Register a folding range provider
 	 */
+	export function registerFoldingRangeProvider(languageId: string, provider: FoldingRangeProvider): IDisposable;
+
 	/**
 	 * Contains additional diagnostic information about the context in which
 	 * a [code action](#CodeActionProvider.provideCodeActions) is run.
@@ -4526,7 +4558,7 @@ declare namespace monaco.languages {
 		 * editor will use the range at the current position or the
 		 * current position itself.
 		 */
-		range: IRange;
+		range?: IRange;
 	}
 
 	/**
@@ -4970,6 +5002,60 @@ declare namespace monaco.languages {
 		provideColorPresentations(model: editor.ITextModel, colorInfo: IColorInformation, token: CancellationToken): IColorPresentation[] | Thenable<IColorPresentation[]>;
 	}
 
+	export interface FoldingContext {
+	}
+
+	/**
+	 * A provider of colors for editor models.
+	 */
+	export interface FoldingRangeProvider {
+		/**
+		 * Provides the color ranges for a specific model.
+		 */
+		provideFoldingRanges(model: editor.ITextModel, context: FoldingContext, token: CancellationToken): FoldingRange[] | Thenable<FoldingRange[]>;
+	}
+
+	export interface FoldingRange {
+		/**
+		 * The zero-based start line of the range to fold. The folded area starts after the line's last character.
+		 */
+		start: number;
+		/**
+		 * The zero-based end line of the range to fold. The folded area ends with the line's last character.
+		 */
+		end: number;
+		/**
+		 * Describes the [Kind](#FoldingRangeKind) of the folding range such as [Comment](#FoldingRangeKind.Comment) or
+		 * [Region](#FoldingRangeKind.Region). The kind is used to categorize folding ranges and used by commands
+		 * like 'Fold all comments'. See
+		 * [FoldingRangeKind](#FoldingRangeKind) for an enumeration of standardized kinds.
+		 */
+		kind?: FoldingRangeKind;
+	}
+
+	export class FoldingRangeKind {
+		value: string;
+		/**
+		 * Kind for folding range representing a comment. The value of the kind is 'comment'.
+		 */
+		static readonly Comment: FoldingRangeKind;
+		/**
+		 * Kind for folding range representing a import. The value of the kind is 'imports'.
+		 */
+		static readonly Imports: FoldingRangeKind;
+		/**
+		 * Kind for folding range representing regions (for example marked by `#region`, `#endregion`).
+		 * The value of the kind is 'region'.
+		 */
+		static readonly Region: FoldingRangeKind;
+		/**
+		 * Creates a new [FoldingRangeKind](#FoldingRangeKind).
+		 *
+		 * @param value of the kind.
+		 */
+		constructor(value: string);
+	}
+
 	export interface ResourceFileEdit {
 		oldUri: Uri;
 		newUri: Uri;
@@ -4986,15 +5072,14 @@ declare namespace monaco.languages {
 		rejectReason?: string;
 	}
 
-	export interface RenameContext {
+	export interface RenameLocation {
 		range: IRange;
 		text: string;
-		message?: string;
 	}
 
 	export interface RenameProvider {
 		provideRenameEdits(model: editor.ITextModel, position: Position, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
-		resolveRenameLocation?(model: editor.ITextModel, position: Position, token: CancellationToken): RenameContext | Thenable<RenameContext>;
+		resolveRenameLocation?(model: editor.ITextModel, position: Position, token: CancellationToken): RenameLocation | Thenable<RenameLocation>;
 	}
 
 	export interface Command {

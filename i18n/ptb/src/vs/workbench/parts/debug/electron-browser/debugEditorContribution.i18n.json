@@ -18,5 +18,7 @@
 	"enableBreakpoints": "Habilitar o ponto de interrupção na coluna {0}",
 	"enableBreakpointOnLine": "Habilitar o ponto de interrupção de linha",
 	"addBreakpoint": "Adicionar ponto de interrupção",
+	"addConditionalBreakpoint": "Adicionar Ponto de Parada Condicional...",
+	"cancel": "Cancelar",
 	"addConfiguration": "Adicionar Configuração..."
 }

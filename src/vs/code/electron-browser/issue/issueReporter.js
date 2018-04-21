@@ -9,6 +9,11 @@ const path = require('path');
 const fs = require('fs');
 const remote = require('electron').remote;
 
+function assign(destination, source) {
+	return Object.keys(source)
+		.reduce(function (r, key) { r[key] = source[key]; return r; }, destination);
+}
+
 function parseURLQueryArgs() {
 	const search = window.location.search || '';
 
@@ -43,6 +48,8 @@ function readFile(file) {
 function main() {
 	const args = parseURLQueryArgs();
 	const configuration = JSON.parse(args['config'] || '{}') || {};
+
+	assign(process.env, configuration.userEnv);
 
 	//#region Add support for using node_modules.asar
 	(function () {

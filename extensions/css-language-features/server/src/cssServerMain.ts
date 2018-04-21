@@ -5,17 +5,17 @@
 'use strict';
 
 import {
-	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities,
-	ConfigurationRequest, WorkspaceFolder, DocumentColorRequest, ColorPresentationRequest
+	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities, ConfigurationRequest, WorkspaceFolder
 } from 'vscode-languageserver';
 
 import { TextDocument, CompletionList } from 'vscode-languageserver-types';
 
 import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
-import { formatError, runSafe } from './utils/errors';
+import { formatError, runSafe } from './utils/runner';
 import URI from 'vscode-uri';
 import { getPathCompletionParticipant } from './pathCompletion';
+import { FoldingRangeServerCapabilities, FoldingRangeRequest } from 'vscode-languageserver-protocol-foldingprovider';
 
 export interface Settings {
 	css: LanguageSettings;
@@ -49,9 +49,10 @@ connection.onShutdown(() => {
 });
 
 let scopedSettingsSupport = false;
-let workspaceFolders: WorkspaceFolder[] | undefined;
+let foldingRangeLimit = Number.MAX_VALUE;
+let workspaceFolders: WorkspaceFolder[];
 
-// After the server has started the client sends an initilize request. The server receives
+// After the server has started the client sends an initialize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
 connection.onInitialize((params: InitializeParams): InitializeResult => {
 	workspaceFolders = (<any>params).workspaceFolders;
@@ -62,20 +63,25 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		}
 	}
 
-	function hasClientCapability(name: string) {
+	function getClientCapability<T>(name: string, def: T) {
 		let keys = name.split('.');
 		let c: any = params.capabilities;
 		for (let i = 0; c && i < keys.length; i++) {
+			if (!c.hasOwnProperty(keys[i])) {
+				return def;
+			}
 			c = c[keys[i]];
 		}
-		return !!c;
+		return c;
 	}
-	let snippetSupport = hasClientCapability('textDocument.completion.completionItem.snippetSupport');
-	scopedSettingsSupport = hasClientCapability('workspace.configuration');
-	let capabilities: ServerCapabilities = {
+	let snippetSupport = !!getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
+	scopedSettingsSupport = !!getClientCapability('workspace.configuration', false);
+	foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
+
+	let capabilities: ServerCapabilities & FoldingRangeServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
-		completionProvider: snippetSupport ? { resolveProvider: false } : undefined,
+		completionProvider: snippetSupport ? { resolveProvider: false, triggerCharacters: ['/'] } : undefined,
 		hoverProvider: true,
 		documentSymbolProvider: true,
 		referencesProvider: true,
@@ -83,7 +89,8 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		documentHighlightProvider: true,
 		codeActionProvider: true,
 		renameProvider: true,
-		colorProvider: true
+		colorProvider: true,
+		foldingRangeProvider: true
 	};
 	return { capabilities };
 });
@@ -179,7 +186,7 @@ function validateTextDocument(textDocument: TextDocument): void {
 	});
 }
 
-connection.onCompletion(textDocumentPosition => {
+connection.onCompletion((textDocumentPosition, token) => {
 	return runSafe(() => {
 		let document = documents.get(textDocumentPosition.textDocument.uri);
 		const cssLS = getLanguageService(document);
@@ -190,61 +197,61 @@ connection.onCompletion(textDocumentPosition => {
 		cssLS.setCompletionParticipants([getPathCompletionParticipant(document, workspaceFolders, pathCompletionList)]);
 		const result = cssLS.doComplete(document, textDocumentPosition.position, stylesheets.get(document))!; /* TODO: remove ! once LS has null annotations */
 		return {
-			isIncomplete: result.isIncomplete,
+			isIncomplete: pathCompletionList.isIncomplete,
 			items: [...pathCompletionList.items, ...result.items]
 		};
-	}, null, `Error while computing completions for ${textDocumentPosition.textDocument.uri}`);
+	}, null, `Error while computing completions for ${textDocumentPosition.textDocument.uri}`, token);
 });
 
-connection.onHover(textDocumentPosition => {
+connection.onHover((textDocumentPosition, token) => {
 	return runSafe(() => {
 		let document = documents.get(textDocumentPosition.textDocument.uri);
 		let styleSheet = stylesheets.get(document);
-		return getLanguageService(document).doHover(document, textDocumentPosition.position, styleSheet)!; /* TODO: remove ! once LS has null annotations */
-	}, null, `Error while computing hover for ${textDocumentPosition.textDocument.uri}`);
+		return getLanguageService(document).doHover(document, textDocumentPosition.position, styleSheet);
+	}, null, `Error while computing hover for ${textDocumentPosition.textDocument.uri}`, token);
 });
 
-connection.onDocumentSymbol(documentSymbolParams => {
+connection.onDocumentSymbol((documentSymbolParams, token) => {
 	return runSafe(() => {
 		let document = documents.get(documentSymbolParams.textDocument.uri);
 		let stylesheet = stylesheets.get(document);
 		return getLanguageService(document).findDocumentSymbols(document, stylesheet);
-	}, [], `Error while computing document symbols for ${documentSymbolParams.textDocument.uri}`);
+	}, [], `Error while computing document symbols for ${documentSymbolParams.textDocument.uri}`, token);
 });
 
-connection.onDefinition(documentSymbolParams => {
+connection.onDefinition((documentSymbolParams, token) => {
 	return runSafe(() => {
 		let document = documents.get(documentSymbolParams.textDocument.uri);
 		let stylesheet = stylesheets.get(document);
 		return getLanguageService(document).findDefinition(document, documentSymbolParams.position, stylesheet);
-	}, null, `Error while computing definitions for ${documentSymbolParams.textDocument.uri}`);
+	}, null, `Error while computing definitions for ${documentSymbolParams.textDocument.uri}`, token);
 });
 
-connection.onDocumentHighlight(documentSymbolParams => {
+connection.onDocumentHighlight((documentSymbolParams, token) => {
 	return runSafe(() => {
 		let document = documents.get(documentSymbolParams.textDocument.uri);
 		let stylesheet = stylesheets.get(document);
 		return getLanguageService(document).findDocumentHighlights(document, documentSymbolParams.position, stylesheet);
-	}, [], `Error while computing document highlights for ${documentSymbolParams.textDocument.uri}`);
+	}, [], `Error while computing document highlights for ${documentSymbolParams.textDocument.uri}`, token);
 });
 
-connection.onReferences(referenceParams => {
+connection.onReferences((referenceParams, token) => {
 	return runSafe(() => {
 		let document = documents.get(referenceParams.textDocument.uri);
 		let stylesheet = stylesheets.get(document);
 		return getLanguageService(document).findReferences(document, referenceParams.position, stylesheet);
-	}, [], `Error while computing references for ${referenceParams.textDocument.uri}`);
+	}, [], `Error while computing references for ${referenceParams.textDocument.uri}`, token);
 });
 
-connection.onCodeAction(codeActionParams => {
+connection.onCodeAction((codeActionParams, token) => {
 	return runSafe(() => {
 		let document = documents.get(codeActionParams.textDocument.uri);
 		let stylesheet = stylesheets.get(document);
 		return getLanguageService(document).doCodeActions(document, codeActionParams.range, codeActionParams.context, stylesheet);
-	}, [], `Error while computing code actions for ${codeActionParams.textDocument.uri}`);
+	}, [], `Error while computing code actions for ${codeActionParams.textDocument.uri}`, token);
 });
 
-connection.onRequest(DocumentColorRequest.type, params => {
+connection.onDocumentColor((params, token) => {
 	return runSafe(() => {
 		let document = documents.get(params.textDocument.uri);
 		if (document) {
@@ -252,10 +259,10 @@ connection.onRequest(DocumentColorRequest.type, params => {
 			return getLanguageService(document).findDocumentColors(document, stylesheet);
 		}
 		return [];
-	}, [], `Error while computing document colors for ${params.textDocument.uri}`);
+	}, [], `Error while computing document colors for ${params.textDocument.uri}`, token);
 });
 
-connection.onRequest(ColorPresentationRequest.type, params => {
+connection.onColorPresentation((params, token) => {
 	return runSafe(() => {
 		let document = documents.get(params.textDocument.uri);
 		if (document) {
@@ -263,15 +270,22 @@ connection.onRequest(ColorPresentationRequest.type, params => {
 			return getLanguageService(document).getColorPresentations(document, stylesheet, params.color, params.range);
 		}
 		return [];
-	}, [], `Error while computing color presentations for ${params.textDocument.uri}`);
+	}, [], `Error while computing color presentations for ${params.textDocument.uri}`, token);
 });
 
-connection.onRenameRequest(renameParameters => {
+connection.onRenameRequest((renameParameters, token) => {
 	return runSafe(() => {
 		let document = documents.get(renameParameters.textDocument.uri);
 		let stylesheet = stylesheets.get(document);
 		return getLanguageService(document).doRename(document, renameParameters.position, renameParameters.newName, stylesheet);
-	}, null, `Error while computing renames for ${renameParameters.textDocument.uri}`);
+	}, null, `Error while computing renames for ${renameParameters.textDocument.uri}`, token);
+});
+
+connection.onRequest(FoldingRangeRequest.type, (params, token) => {
+	return runSafe(() => {
+		let document = documents.get(params.textDocument.uri);
+		return getLanguageService(document).getFoldingRanges(document, { rangeLimit: foldingRangeLimit });
+	}, null, `Error while computing folding ranges for ${params.textDocument.uri}`, token);
 });
 
 // Listen on the connection

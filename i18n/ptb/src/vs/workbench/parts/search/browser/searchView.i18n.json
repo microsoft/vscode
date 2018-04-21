@@ -30,6 +30,7 @@
 	"removeAll.occurrences.files.confirmation.message": "Substituir {0} ocorrências nos arquivos {1} com '{2}'?",
 	"replaceAll.occurrences.files.confirmation.message": "Substituir {0} ocorrências nos arquivos {1}?",
 	"treeAriaLabel": "Resultados da Pesquisa",
+	"searchPathNotFoundError": "Caminho de pesquisa não encontrado: {0}",
 	"searchMaxResultsWarning": "O conjunto de resultados contém apenas um subconjunto de todas as correspondências. Seja mais específico na sua pesquisa para diminuir o número de resultados.",
 	"searchCanceled": "Pesquisa foi cancelada antes de qualquer resultado ser encontrado - ",
 	"noResultsIncludesExcludes": "Nenhum resultado encontrado em '{0}' excluindo '{1}' - ",

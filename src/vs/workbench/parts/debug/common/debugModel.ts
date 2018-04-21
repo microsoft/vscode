@@ -20,7 +20,7 @@ import { ISuggestion } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import {
 	ITreeElement, IExpression, IExpressionContainer, IProcess, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IModel, IReplElementSource,
-	IConfig, ISession, IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IBreakpointData, IExceptionInfo, IReplElement, ProcessState, IBreakpointsChangeEvent, IBreakpointUpdateData
+	IConfig, ISession, IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IBreakpointData, IExceptionInfo, IReplElement, ProcessState, IBreakpointsChangeEvent, IBreakpointUpdateData, IBaseBreakpoint
 } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -525,6 +525,10 @@ export class Thread implements IThread {
 		return this.process.session.pause({ threadId: this.threadId });
 	}
 
+	public terminate(): TPromise<any> {
+		return this.process.session.terminateThreads({ threadIds: [this.threadId] });
+	}
+
 	public reverseContinue(): TPromise<any> {
 		return this.process.session.reverseContinue({ threadId: this.threadId });
 	}
@@ -532,8 +536,9 @@ export class Thread implements IThread {
 
 export class Process implements IProcess {
 
-	public sources: Map<string, Source>;
+	private sources: Map<string, Source>;
 	private threads: Map<number, Thread>;
+
 	public inactive = true;
 
 	constructor(public configuration: IConfig, private _session: ISession & ITreeElement) {
@@ -556,6 +561,10 @@ export class Process implements IProcess {
 		}
 
 		return this.configuration.type === 'attach' ? ProcessState.ATTACH : ProcessState.LAUNCH;
+	}
+
+	public getSourceForUri(modelUri: uri): Source {
+		return this.sources.get(modelUri.toString());
 	}
 
 	public getSource(raw: DebugProtocol.Source): Source {
@@ -672,12 +681,48 @@ export class Process implements IProcess {
 			return result;
 		}, err => []);
 	}
+
+	setNotAvailable(modelUri: uri) {
+		const source = this.sources.get(modelUri.toString());
+		if (source) {
+			source.available = false;
+		}
+	}
 }
 
-export class Breakpoint implements IBreakpoint {
+export class Enablement implements IEnablement {
+	constructor(
+		public enabled: boolean,
+		private id: string
+	) { }
+
+	public getId(): string {
+		return this.id;
+	}
+}
+
+export class BaseBreakpoint extends Enablement implements IBaseBreakpoint {
 
 	public verified: boolean;
 	public idFromAdapter: number;
+
+	constructor(
+		enabled: boolean,
+		public hitCondition: string,
+		public condition: string,
+		public logMessage: string,
+		id: string
+	) {
+		super(enabled, id);
+		if (enabled === undefined) {
+			this.enabled = true;
+		}
+		this.verified = false;
+	}
+}
+
+export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
+
 	public message: string;
 	public endLineNumber: number;
 	public endColumn: number;
@@ -686,48 +731,34 @@ export class Breakpoint implements IBreakpoint {
 		public uri: uri,
 		public lineNumber: number,
 		public column: number,
-		public enabled: boolean,
-		public condition: string,
-		public hitCondition: string,
-		public logMessage: string,
+		enabled: boolean,
+		condition: string,
+		hitCondition: string,
+		logMessage: string,
 		public adapterData: any,
-		private id = generateUuid()
+		id = generateUuid()
 	) {
-		if (enabled === undefined) {
-			this.enabled = true;
-		}
-		this.verified = false;
-	}
-
-	public getId(): string {
-		return this.id;
+		super(enabled, hitCondition, condition, logMessage, id);
 	}
 }
 
-export class FunctionBreakpoint implements IFunctionBreakpoint {
+export class FunctionBreakpoint extends BaseBreakpoint implements IFunctionBreakpoint {
 
-	public verified: boolean;
-	public idFromAdapter: number;
-
-	constructor(public name: string, public enabled: boolean, public hitCondition: string, public condition: string, public logMessage: string, private id = generateUuid()) {
-		this.verified = false;
-	}
-
-	public getId(): string {
-		return this.id;
+	constructor(
+		public name: string,
+		enabled: boolean,
+		hitCondition: string,
+		condition: string,
+		logMessage: string,
+		id = generateUuid()) {
+		super(enabled, hitCondition, condition, logMessage, id);
 	}
 }
 
-export class ExceptionBreakpoint implements IExceptionBreakpoint {
+export class ExceptionBreakpoint extends Enablement implements IExceptionBreakpoint {
 
-	private id: string;
-
-	constructor(public filter: string, public label: string, public enabled: boolean) {
-		this.id = generateUuid();
-	}
-
-	public getId(): string {
-		return this.id;
+	constructor(public filter: string, public label: string, enabled: boolean) {
+		super(enabled, generateUuid());
 	}
 }
 
@@ -839,8 +870,21 @@ export class Model implements IModel {
 		return thread.fetchCallStack();
 	}
 
-	public getBreakpoints(): Breakpoint[] {
+	public getBreakpoints(): IBreakpoint[] {
 		return this.breakpoints;
+	}
+
+	public getBreakpointsForResource(resource: uri): IBreakpoint[] {
+		const uriString = resource.toString();
+		return this.breakpoints.filter(bp => bp.uri.toString() === uriString);
+	}
+
+	public getEnabledBreakpointsForResource(resource: uri): IBreakpoint[] {
+		if (this.breakpointsActivated) {
+			const uriString = resource.toString();
+			return this.breakpoints.filter(bp => bp.uri.toString() === uriString && bp.enabled);
+		}
+		return [];
 	}
 
 	public getFunctionBreakpoints(): IFunctionBreakpoint[] {
@@ -857,7 +901,7 @@ export class Model implements IModel {
 				const ebp = this.exceptionBreakpoints.filter(ebp => ebp.filter === d.filter).pop();
 				return new ExceptionBreakpoint(d.filter, d.label, ebp ? ebp.enabled : d.default);
 			});
-			this._onDidChangeBreakpoints.fire();
+			this._onDidChangeBreakpoints.fire({});
 		}
 	}
 
@@ -867,10 +911,10 @@ export class Model implements IModel {
 
 	public setBreakpointsActivated(activated: boolean): void {
 		this.breakpointsActivated = activated;
-		this._onDidChangeBreakpoints.fire();
+		this._onDidChangeBreakpoints.fire({});
 	}
 
-	public addBreakpoints(uri: uri, rawData: IBreakpointData[], fireEvent = true): Breakpoint[] {
+	public addBreakpoints(uri: uri, rawData: IBreakpointData[], fireEvent = true): IBreakpoint[] {
 		const newBreakpoints = rawData.map(rawBp => new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled, rawBp.condition, rawBp.hitCondition, rawBp.logMessage, undefined, rawBp.id));
 		this.breakpoints = this.breakpoints.concat(newBreakpoints);
 		this.breakpointsActivated = true;
@@ -975,7 +1019,7 @@ export class Model implements IModel {
 		this._onDidChangeBreakpoints.fire({ changed: changed });
 	}
 
-	public addFunctionBreakpoint(functionName: string, id: string): FunctionBreakpoint {
+	public addFunctionBreakpoint(functionName: string, id: string): IFunctionBreakpoint {
 		const newFunctionBreakpoint = new FunctionBreakpoint(functionName, true, undefined, undefined, undefined, id);
 		this.functionBreakpoints.push(newFunctionBreakpoint);
 		this._onDidChangeBreakpoints.fire({ added: [newFunctionBreakpoint] });
@@ -1096,11 +1140,7 @@ export class Model implements IModel {
 	}
 
 	public sourceIsNotAvailable(uri: uri): void {
-		this.processes.forEach(p => {
-			if (p.sources.has(uri.toString())) {
-				p.sources.get(uri.toString()).available = false;
-			}
-		});
+		this.processes.forEach(p => p.setNotAvailable(uri));
 		this._onDidChangeCallStack.fire();
 	}
 

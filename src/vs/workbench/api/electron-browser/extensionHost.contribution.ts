@@ -39,6 +39,7 @@ import './mainThreadOutputService';
 import './mainThreadProgress';
 import './mainThreadQuickOpen';
 import './mainThreadSCM';
+import './mainThreadSearch';
 import './mainThreadSaveParticipant';
 import './mainThreadStatusBar';
 import './mainThreadStorage';
@@ -48,6 +49,7 @@ import './mainThreadTerminalService';
 import './mainThreadTreeViews';
 import './mainThreadLogService';
 import './mainThreadWebview';
+import './mainThreadUrls';
 import './mainThreadWindow';
 import './mainThreadWorkspace';
 

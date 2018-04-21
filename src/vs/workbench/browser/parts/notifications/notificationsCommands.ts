@@ -115,7 +115,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		handler: (accessor, args?: any) => {
 			const notification = getNotificationFromContext(accessor.get(IListService), args);
 			if (notification) {
-				notification.dispose();
+				notification.close();
 			}
 		}
 	});

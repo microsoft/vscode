@@ -8,7 +8,6 @@
 	],
 	"extensionHostProcess.crash": "L'host dell'estensione è stato terminato in modo imprevisto.",
 	"extensionHostProcess.unresponsiveCrash": "L'host dell'estensione è stato terminato perché non rispondeva.",
-	"devTools": "Strumenti di sviluppo",
 	"restart": "Riavvia host dell'estensione",
 	"overwritingExtension": "Sovrascrittura dell'estensione {0} con {1}.",
 	"extensionUnderDevelopment": "Caricamento dell'estensione di sviluppo in {0}",

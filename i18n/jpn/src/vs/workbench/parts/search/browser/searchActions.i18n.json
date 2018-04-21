@@ -12,7 +12,6 @@
 	"previousSearchExcludePattern": "前の検索除外パターンを表示",
 	"nextSearchTerm": "次の検索語句を表示",
 	"previousSearchTerm": "前の検索語句を表示",
-	"showSearchViewlet": "検索の表示",
 	"findInFiles": "フォルダーを指定して検索",
 	"replaceInFiles": "複数のファイルで置換",
 	"RefreshAction.label": "最新の情報に更新",

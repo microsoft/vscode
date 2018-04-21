@@ -9,7 +9,6 @@
 	"fileInvalidPath": "잘못된 파일 리소스({0})",
 	"fileIsDirectoryError": "파일이 디렉터리입니다.",
 	"fileNotModifiedError": "파일 수정 안 됨",
-	"fileTooLargeForHeapError": "파일 크기가 창 메모리 제한을 초과합니다. --max-memory=NEWSIZE 코드를 실행해 보세요.",
 	"fileTooLargeError": "파일이 너무 커서 열 수 없음",
 	"fileNotFoundError": "파일을 찾을 수 없습니다({0}).",
 	"fileBinaryError": "파일이 이진인 것 같으므로 테스트로 열 수 없습니다.",

@@ -25,8 +25,10 @@ import { Event } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, SIDE_BAR_BORDER } from 'vs/workbench/common/theme';
-import { Dimension } from 'vs/base/browser/builder';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { Dimension, EventType } from 'vs/base/browser/dom';
+import { $ } from 'vs/base/browser/builder';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export class SidebarPart extends CompositePart<Viewlet> {
 
@@ -75,11 +77,18 @@ export class SidebarPart extends CompositePart<Viewlet> {
 		return this._onDidCompositeClose.event as Event<IViewlet>;
 	}
 
+	public createTitleArea(parent: HTMLElement): HTMLElement {
+		const titleArea = super.createTitleArea(parent);
+		$(titleArea).on(EventType.CONTEXT_MENU, (e: MouseEvent) => this.onTitleAreaContextMenu(new StandardMouseEvent(e)));
+
+		return titleArea;
+	}
+
 	public updateStyles(): void {
 		super.updateStyles();
 
 		// Part container
-		const container = this.getContainer();
+		const container = $(this.getContainer());
 
 		container.style('background-color', this.getColor(SIDE_BAR_BACKGROUND));
 		container.style('color', this.getColor(SIDE_BAR_FOREGROUND));
@@ -131,6 +140,23 @@ export class SidebarPart extends CompositePart<Viewlet> {
 		}
 
 		return super.layout(dimension);
+	}
+
+	private onTitleAreaContextMenu(event: StandardMouseEvent): void {
+		const activeViewlet = this.getActiveViewlet() as Viewlet;
+		if (activeViewlet) {
+			const contextMenuActions = activeViewlet ? activeViewlet.getContextMenuActions() : [];
+			if (contextMenuActions.length) {
+				const anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => anchor,
+					getActions: () => TPromise.as(contextMenuActions),
+					getActionItem: action => this.actionItemProvider(action as Action),
+					actionRunner: activeViewlet.getActionRunner(),
+					getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id)
+				});
+			}
+		}
 	}
 }
 

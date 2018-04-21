@@ -82,7 +82,6 @@ export class DebugService implements debug.IDebugService {
 	private debugType: IContextKey<string>;
 	private debugState: IContextKey<string>;
 	private breakpointsToSendOnResourceSaved: Set<string>;
-	private launchJsonChanged: boolean;
 	private firstSessionStart: boolean;
 	private skipRunningTask: boolean;
 	private previousState: debug.State;
@@ -154,11 +153,17 @@ export class DebugService implements debug.IDebugService {
 		const session = <RawDebugSession>process.session;
 
 		if (broadcast.channel === EXTENSION_ATTACH_BROADCAST_CHANNEL) {
-			this.onSessionEnd(session);
-
+			const initialAttach = process.configuration.request === 'launch';
 			process.configuration.request = 'attach';
 			process.configuration.port = broadcast.payload.port;
-			this.doCreateProcess(process.session.root, process.configuration, process.getId());
+			// Do not end process on initial attach (since the request is still 'launch')
+			if (initialAttach) {
+				session.attach(process.configuration);
+			} else {
+				this.onSessionEnd(session);
+				this.doCreateProcess(process.session.root, process.configuration, process.getId());
+			}
+
 			return;
 		}
 
@@ -352,10 +357,10 @@ export class DebugService implements debug.IDebugService {
 
 			const outputSeverity = event.body.category === 'stderr' ? severity.Error : event.body.category === 'console' ? severity.Warning : severity.Info;
 			if (event.body.category === 'telemetry') {
-				// only log telemetry events from debug adapter if the adapter provided the telemetry key
+				// only log telemetry events from debug adapter if the debug extension provided the telemetry key
 				// and the user opted in telemetry
 				if (session.customTelemetryService && this.telemetryService.isOptedIn) {
-					// __GDPR__TODO__ We're sending events in the name of the debug adapter and we can not ensure that those are declared correctly.
+					// __GDPR__TODO__ We're sending events in the name of the debug extension and we can not ensure that those are declared correctly.
 					session.customTelemetryService.publicLog(event.body.output, event.body.data);
 				}
 
@@ -698,7 +703,6 @@ export class DebugService implements debug.IDebugService {
 					this.allProcesses.clear();
 					this.model.getBreakpoints().forEach(bp => bp.verified = false);
 				}
-				this.launchJsonChanged = false;
 
 				let config: debug.IConfig, compound: debug.ICompound;
 				if (!configOrName) {
@@ -766,7 +770,7 @@ export class DebugService implements debug.IDebugService {
 					config.noDebug = true;
 				}
 
-				return (type ? TPromise.as(null) : this.configurationManager.guessAdapter().then(a => type = a && a.type)).then(() =>
+				return (type ? TPromise.as(null) : this.configurationManager.guessDebugger().then(a => type = a && a.type)).then(() =>
 					(type ? this.extensionService.activateByEvent(`onDebugResolve:${type}`) : TPromise.as(null)).then(() =>
 						this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config).then(config => {
 							// a falsy config indicates an aborted launch
@@ -786,15 +790,38 @@ export class DebugService implements debug.IDebugService {
 		});
 	}
 
+	private substituteVariables(launch: debug.ILaunch, config: debug.IConfig): TPromise<debug.IConfig> {
+		const dbg = this.configurationManager.getDebugger(config.type);
+		if (dbg) {
+			let folder: IWorkspaceFolder = undefined;
+			if (launch.workspace) {
+				folder = launch.workspace;
+			} else {
+				const folders = this.contextService.getWorkspace().folders;
+				if (folders.length === 1) {
+					folder = folders[0];
+				}
+			}
+			return dbg.substituteVariables(folder, config).then(config => {
+				return config;
+			}, (err: Error) => {
+				this.showError(err.message);
+				return undefined;	// bail out
+			});
+		}
+		return TPromise.as(config);
+	}
+
 	private createProcess(launch: debug.ILaunch, config: debug.IConfig, sessionId: string): TPromise<void> {
 		return this.textFileService.saveAll().then(() =>
-			(launch ? launch.resolveConfiguration(config) : TPromise.as(config)).then(resolvedConfig => {
+			this.substituteVariables(launch, config).then(resolvedConfig => {
+
 				if (!resolvedConfig) {
 					// User canceled resolving of interactive variables, silently return
 					return undefined;
 				}
 
-				if (!this.configurationManager.getAdapter(resolvedConfig.type) || (config.request !== 'attach' && config.request !== 'launch')) {
+				if (!this.configurationManager.getDebugger(resolvedConfig.type) || (config.request !== 'attach' && config.request !== 'launch')) {
 					let message: string;
 					if (config.request !== 'attach' && config.request !== 'launch') {
 						message = config.request ? nls.localize('debugRequestNotSupported', "Attribute '{0}' has an unsupported value '{1}' in the chosen debug configuration.", 'request', config.request)
@@ -855,9 +882,9 @@ export class DebugService implements debug.IDebugService {
 			telemetryInfo['common.vscodesessionid'] = info.sessionId;
 			return telemetryInfo;
 		}).then(data => {
-			const adapter = this.configurationManager.getAdapter(configuration.type);
-			const { aiKey, type } = adapter;
-			const publisher = adapter.extensionDescription.publisher;
+			const dbg = this.configurationManager.getDebugger(configuration.type);
+			const { aiKey, type } = dbg;
+			const publisher = dbg.extensionDescription.publisher;
 			let client: TelemetryClient;
 
 			let customTelemetryService: TelemetryService;
@@ -882,7 +909,7 @@ export class DebugService implements debug.IDebugService {
 				customTelemetryService = new TelemetryService({ appender }, this.configurationService);
 			}
 
-			const session = this.instantiationService.createInstance(RawDebugSession, sessionId, configuration.debugServer, adapter, customTelemetryService, root);
+			const session = this.instantiationService.createInstance(RawDebugSession, sessionId, configuration.debugServer, dbg, customTelemetryService, root);
 			const process = this.model.addProcess(configuration, session);
 			this.allProcesses.set(process.getId(), process);
 
@@ -946,8 +973,8 @@ export class DebugService implements debug.IDebugService {
 					breakpointCount: this.model.getBreakpoints().length,
 					exceptionBreakpoints: this.model.getExceptionBreakpoints(),
 					watchExpressionsCount: this.model.getWatchExpressions().length,
-					extensionName: adapter.extensionDescription.id,
-					isBuiltin: adapter.extensionDescription.isBuiltin,
+					extensionName: dbg.extensionDescription.id,
+					isBuiltin: dbg.extensionDescription.isBuiltin,
 					launchJsonExists: root && !!this.configurationService.getValue<debug.IGlobalConfig>('launch', { resource: root.uri })
 				});
 			}).then(() => process, (error: Error | string) => {
@@ -1081,12 +1108,9 @@ export class DebugService implements debug.IDebugService {
 
 				return new TPromise<void>((c, e) => {
 					setTimeout(() => {
-						// Read the configuration again if a launch.json has been changed, if not just use the inmemory configuration
 						let config = process.configuration;
-
 						const launch = process.session.root ? this.configurationManager.getLaunch(process.session.root.uri) : undefined;
-						if (this.launchJsonChanged && launch) {
-							this.launchJsonChanged = false;
+						if (launch) {
 							config = launch.getConfiguration(process.configuration.name) || config;
 							// Take the type from the process since the debug extension might overwrite it #21316
 							config.type = process.configuration.type;
@@ -1149,7 +1173,9 @@ export class DebugService implements debug.IDebugService {
 			process.inactive = true;
 			this._onDidEndProcess.fire(process);
 			if (process.configuration.postDebugTask) {
-				this.runTask(process.getId(), process.session.root, process.configuration.postDebugTask);
+				this.runTask(process.getId(), process.session.root, process.configuration.postDebugTask).done(undefined, err =>
+					this.notificationService.error(err)
+				);
 			}
 		}
 
@@ -1205,9 +1231,9 @@ export class DebugService implements debug.IDebugService {
 				return TPromise.as(null);
 			}
 
-			const breakpointsToSend = this.model.getBreakpoints().filter(bp => this.model.areBreakpointsActivated() && bp.enabled && bp.uri.toString() === modelUri.toString());
+			const breakpointsToSend = this.model.getEnabledBreakpointsForResource(modelUri);
 
-			const source = process.sources.get(modelUri.toString());
+			const source = process.getSourceForUri(modelUri);
 			let rawSource: DebugProtocol.Source;
 			if (source) {
 				rawSource = source.raw;
@@ -1303,12 +1329,8 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		fileChangesEvent.getUpdated().forEach(event => {
-			if (this.breakpointsToSendOnResourceSaved.has(event.resource.toString())) {
-				this.breakpointsToSendOnResourceSaved.delete(event.resource.toString());
+			if (this.breakpointsToSendOnResourceSaved.delete(event.resource.toString())) {
 				this.sendBreakpoints(event.resource, true).done(null, errors.onUnexpectedError);
-			}
-			if (event.resource.toString().indexOf('.vscode/launch.json') >= 0) {
-				this.launchJsonChanged = true;
 			}
 		});
 	}

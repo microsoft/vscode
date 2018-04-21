@@ -69,9 +69,9 @@ export function getLocalExtensionTelemetryData(extension: ILocalExtension): any 
 		id: getGalleryExtensionIdFromLocal(extension),
 		name: extension.manifest.name,
 		galleryId: null,
-		publisherId: null,
-		publisherName: null,
-		publisherDisplayName: null,
+		publisherId: extension.metadata ? extension.metadata.publisherId : null,
+		publisherName: extension.manifest.publisher,
+		publisherDisplayName: extension.metadata ? extension.metadata.publisherDisplayName : null,
 		dependencies: extension.manifest.extensionDependencies && extension.manifest.extensionDependencies.length > 0
 	};
 }
@@ -82,9 +82,9 @@ export function getLocalExtensionTelemetryData(extension: ILocalExtension): any 
 		"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"name": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"galleryId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"publisherId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-		"publisherName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-		"publisherDisplayName": { "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
+		"publisherId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"publisherName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"publisherDisplayName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"dependencies": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 		"${include}": [
 			"${GalleryExtensionTelemetryData2}"

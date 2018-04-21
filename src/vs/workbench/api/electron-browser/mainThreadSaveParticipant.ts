@@ -29,6 +29,7 @@ import { localize } from 'vs/nls';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 
 export interface ISaveParticipantParticipant extends ISaveParticipant {
 	// progressMessage: string;
@@ -50,7 +51,7 @@ class TrimWhitespaceParticipant implements ISaveParticipantParticipant {
 	}
 
 	private doTrimTrailingWhitespace(model: ITextModel, isAutoSaved: boolean): void {
-		let prevSelection: Selection[] = [new Selection(1, 1, 1, 1)];
+		let prevSelection: Selection[] = [];
 		const cursors: Position[] = [];
 
 		let editor = findEditor(model, this.codeEditorService);
@@ -60,6 +61,12 @@ class TrimWhitespaceParticipant implements ISaveParticipantParticipant {
 			prevSelection = editor.getSelections();
 			if (isAutoSaved) {
 				cursors.push(...prevSelection.map(s => new Position(s.positionLineNumber, s.positionColumn)));
+				const snippetsRange = SnippetController2.get(editor).getSessionEnclosingRange();
+				if (snippetsRange) {
+					for (let lineNumber = snippetsRange.startLineNumber; lineNumber <= snippetsRange.endLineNumber; lineNumber++) {
+						cursors.push(new Position(lineNumber, model.getLineMaxColumn(lineNumber)));
+					}
+				}
 			}
 		}
 
@@ -114,7 +121,7 @@ export class FinalNewLineParticipant implements ISaveParticipantParticipant {
 			return;
 		}
 
-		let prevSelection: Selection[] = [new Selection(1, 1, 1, 1)];
+		let prevSelection: Selection[] = [];
 		const editor = findEditor(model, this.codeEditorService);
 		if (editor) {
 			prevSelection = editor.getSelections();
@@ -151,7 +158,7 @@ export class TrimFinalNewLinesParticipant implements ISaveParticipantParticipant
 			return;
 		}
 
-		let prevSelection: Selection[] = [new Selection(1, 1, 1, 1)];
+		let prevSelection: Selection[] = [];
 		const editor = findEditor(model, this.codeEditorService);
 		if (editor) {
 			prevSelection = editor.getSelections();
@@ -166,7 +173,7 @@ export class TrimFinalNewLinesParticipant implements ISaveParticipantParticipant
 			currentLineIsEmptyOrWhitespace = strings.lastNonWhitespaceIndex(currentLine) === -1;
 		}
 
-		const deletionRange = new Range(currentLineNumber + 1, 1, lineCount + 1, 1);
+		const deletionRange = model.validateRange(new Range(currentLineNumber + 1, 1, lineCount + 1, 1));
 		if (!deletionRange.isEmpty()) {
 			model.pushEditOperations(prevSelection, [EditOperation.delete(deletionRange)], edits => prevSelection);
 		}
@@ -225,7 +232,7 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 	}
 
 	private _editsWithEditor(editor: ICodeEditor, edits: ISingleEditOperation[]): void {
-		EditOperationsCommand.execute(editor, edits, false);
+		EditOperationsCommand.execute(editor, edits);
 	}
 
 	private _editWithModel(model: ITextModel, edits: ISingleEditOperation[]): void {

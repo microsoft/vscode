@@ -77,6 +77,7 @@
 	"config.showInlineOpenFileAction": "Git değişiklikleri görünümünde satır içi Dosyayı Aç eyleminin gösterilip gösterilmeyeceğini denetler.",
 	"config.inputValidation": "Commit mesajı doğrulamasının ne zaman gösterileceğini kontrol eder.",
 	"config.detectSubmodules": "Git alt modüllerin otomatik olarak tespit edilip edilmeyeceğini denetler.",
+	"config.detectSubmodulesLimit": "Algılanan git alt modüllerinin limitini denetler.",
 	"colors.modified": "Değiştirilen kaynakların rengi.",
 	"colors.deleted": "Silinen kaynakların rengi.",
 	"colors.untracked": "İzlenmeyen kaynakların rengi.",

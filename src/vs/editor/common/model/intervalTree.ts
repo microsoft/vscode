@@ -12,14 +12,11 @@ import { IModelDecoration } from 'vs/editor/common/model';
 // The red-black tree is based on the "Introduction to Algorithms" by Cormen, Leiserson and Rivest.
 //
 
-/**
- * The class name sort order must match the severity order. Highest severity last.
- */
 export const ClassName = {
-	EditorHintDecoration: 'squiggly-a-hint',
-	EditorInfoDecoration: 'squiggly-b-info',
-	EditorWarningDecoration: 'squiggly-c-warning',
-	EditorErrorDecoration: 'squiggly-d-error'
+	EditorHintDecoration: 'squiggly-hint',
+	EditorInfoDecoration: 'squiggly-info',
+	EditorWarningDecoration: 'squiggly-warning',
+	EditorErrorDecoration: 'squiggly-error'
 };
 
 /**

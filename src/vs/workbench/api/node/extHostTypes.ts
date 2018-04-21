@@ -208,7 +208,7 @@ export class Position {
 
 export class Range {
 
-	static isRange(thing: any): thing is Range {
+	static isRange(thing: any): thing is vscode.Range {
 		if (thing instanceof Range) {
 			return true;
 		}
@@ -903,6 +903,8 @@ export class CodeActionKind {
 	public static readonly RefactorExtract = CodeActionKind.Refactor.append('extract');
 	public static readonly RefactorInline = CodeActionKind.Refactor.append('inline');
 	public static readonly RefactorRewrite = CodeActionKind.Refactor.append('rewrite');
+	public static readonly Source = CodeActionKind.Empty.append('source');
+	public static readonly SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
 
 	constructor(
 		public readonly value: string
@@ -1343,6 +1345,20 @@ export class ProcessExecution implements vscode.ProcessExecution {
 	set options(value: vscode.ProcessExecutionOptions) {
 		this._options = value;
 	}
+
+	public computeId(): string {
+		const hash = crypto.createHash('md5');
+		hash.update('process');
+		if (this._process !== void 0) {
+			hash.update(this._process);
+		}
+		if (this._args && this._args.length > 0) {
+			for (let arg of this._args) {
+				hash.update(arg);
+			}
+		}
+		return hash.digest('hex');
+	}
 }
 
 export class ShellExecution implements vscode.ShellExecution {
@@ -1410,6 +1426,23 @@ export class ShellExecution implements vscode.ShellExecution {
 
 	set options(value: vscode.ShellExecutionOptions) {
 		this._options = value;
+	}
+
+	public computeId(): string {
+		const hash = crypto.createHash('md5');
+		hash.update('shell');
+		if (this._commandLine !== void 0) {
+			hash.update(this._commandLine);
+		}
+		if (this._command !== void 0) {
+			hash.update(typeof this._command === 'string' ? this._command : this._command.value);
+		}
+		if (this._args && this._args.length > 0) {
+			for (let arg of this._args) {
+				hash.update(typeof arg === 'string' ? arg : arg.value);
+			}
+		}
+		return hash.digest('hex');
 	}
 }
 
@@ -1485,7 +1518,24 @@ export class Task implements vscode.Task {
 	}
 
 	private clear(): void {
+		if (this.__id === void 0) {
+			return;
+		}
 		this.__id = undefined;
+		this._scope = undefined;
+		this._definitionKey = undefined;
+		this._definition = undefined;
+		if (this._execution instanceof ProcessExecution) {
+			this._definition = {
+				type: 'process',
+				id: this._execution.computeId()
+			};
+		} else if (this._execution instanceof ShellExecution) {
+			this._definition = {
+				type: 'shell',
+				id: this._execution.computeId()
+			};
+		}
 	}
 
 	get definition(): vscode.TaskDefinition {
@@ -1770,53 +1820,85 @@ export enum FileChangeType {
 	Deleted = 2
 }
 
+export enum FileChangeType2 {
+	Changed = 1,
+	Created = 2,
+	Deleted = 3,
+}
+
 export enum FileType {
 	File = 0,
 	Dir = 1,
 	Symlink = 2
 }
 
+export class FileSystemError extends Error {
+
+	static EntryExists(message?: string): FileSystemError {
+		return new FileSystemError(message, 'EntryExists', FileSystemError.EntryExists);
+	}
+	static EntryNotFound(message?: string): FileSystemError {
+		return new FileSystemError(message, 'EntryNotFound', FileSystemError.EntryNotFound);
+	}
+	static EntryNotADirectory(message?: string): FileSystemError {
+		return new FileSystemError(message, 'EntryNotADirectory', FileSystemError.EntryNotADirectory);
+	}
+	static EntryIsADirectory(message?: string): FileSystemError {
+		return new FileSystemError(message, 'EntryIsADirectory', FileSystemError.EntryIsADirectory);
+	}
+
+	constructor(message?: string, code?: string, hide?: Function) {
+		super(message);
+		this.name = code ? `${code} (FileSystemError)` : `FileSystemError`;
+
+		if (typeof Error.captureStackTrace === 'function' && typeof hide === 'function') {
+			// nice stack traces
+			Error.captureStackTrace(this, hide);
+		}
+	}
+}
+
 //#endregion
 
 //#region folding api
 
-export class FoldingRangeList {
-
-	ranges: FoldingRange[];
-
-	constructor(ranges: FoldingRange[]) {
-		this.ranges = ranges;
-	}
-}
-
 export class FoldingRange {
 
-	startLine: number;
+	start: number;
 
-	endLine: number;
+	end: number;
 
-	type?: FoldingRangeType | string;
+	kind?: FoldingRangeKind;
 
-	constructor(startLine: number, endLine: number, type?: FoldingRangeType | string) {
-		this.startLine = startLine;
-		this.endLine = endLine;
-		this.type = type;
+	constructor(start: number, end: number, kind?: FoldingRangeKind) {
+		this.start = start;
+		this.end = end;
+		this.kind = kind;
 	}
 }
 
-export enum FoldingRangeType {
+export class FoldingRangeKind {
 	/**
-	 * Folding range for a comment
+	 * Kind for folding range representing a comment. The value of the kind is 'comment'.
 	 */
-	Comment = 'comment',
+	static readonly Comment = new FoldingRangeKind('comment');
 	/**
-	 * Folding range for a imports or includes
+	 * Kind for folding range representing a import. The value of the kind is 'imports'.
 	 */
-	Imports = 'imports',
+	static readonly Imports = new FoldingRangeKind('imports');
 	/**
-	 * Folding range for a region (e.g. `#region`)
+	 * Kind for folding range representing regions (for example marked by `#region`, `#endregion`).
+	 * The value of the kind is 'region'.
 	 */
-	Region = 'region'
+	static readonly Region = new FoldingRangeKind('region');
+
+	/**
+	 * Creates a new [FoldingRangeKind](#FoldingRangeKind).
+	 *
+	 * @param value of the kind.
+	 */
+	public constructor(public value: string) {
+	}
 }
 
 //#endregion

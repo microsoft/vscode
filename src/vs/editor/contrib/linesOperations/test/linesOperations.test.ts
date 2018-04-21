@@ -8,12 +8,12 @@ import * as assert from 'assert';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
 import { Handler } from 'vs/editor/common/editorCommon';
-import { ITextModel, DefaultEndOfLine } from 'vs/editor/common/model';
+import { ITextModel } from 'vs/editor/common/model';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { DeleteAllLeftAction, JoinLinesAction, TransposeAction, UpperCaseAction, LowerCaseAction, DeleteAllRightAction, InsertLineBeforeAction, InsertLineAfterAction, IndentLinesAction, SortLinesAscendingAction, SortLinesDescendingAction } from 'vs/editor/contrib/linesOperations/linesOperations';
 import { Cursor } from 'vs/editor/common/controller/cursor';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 suite('Editor Contrib - Line Operations', () => {
 	suite('SortLinesAscendingAction', () => {
@@ -746,17 +746,12 @@ suite('Editor Contrib - Line Operations', () => {
 
 	test('Bug 18276:[editor] Indentation broken when selection is empty', () => {
 
-		let model = TextModel.createFromString(
+		let model = createTextModel(
 			[
 				'function baz() {'
 			].join('\n'),
 			{
-				isForSimpleWidget: false,
-				defaultEOL: DefaultEndOfLine.LF,
-				detectIndentation: false,
 				insertSpaces: false,
-				tabSize: 4,
-				trimAutoWhitespace: true
 			}
 		);
 

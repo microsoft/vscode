@@ -17,7 +17,6 @@ import { InputBox, IInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Dimension } from 'vs/base/browser/builder';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
@@ -189,7 +188,7 @@ export class DefineKeybindingWidget extends Widget {
 		});
 	}
 
-	layout(layout: Dimension): void {
+	layout(layout: dom.Dimension): void {
 		let top = Math.round((layout.height - DefineKeybindingWidget.HEIGHT) / 2);
 		this._domNode.setTop(top);
 
@@ -290,7 +289,7 @@ export class DefineKeybindingOverlayWidget extends Disposable implements IOverla
 	public start(): TPromise<string> {
 		this._editor.revealPositionInCenterIfOutsideViewport(this._editor.getPosition(), ScrollType.Smooth);
 		const layoutInfo = this._editor.getLayoutInfo();
-		this._widget.layout(new Dimension(layoutInfo.width, layoutInfo.height));
+		this._widget.layout(new dom.Dimension(layoutInfo.width, layoutInfo.height));
 		return this._widget.define();
 	}
 }

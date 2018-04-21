@@ -34,6 +34,9 @@ export enum ShellQuoting {
 
 export namespace ShellQuoting {
 	export function from(this: void, value: string): ShellQuoting {
+		if (!value) {
+			return ShellQuoting.Strong;
+		}
 		switch (value.toLowerCase()) {
 			case 'escape':
 				return ShellQuoting.Escape;
@@ -611,25 +614,6 @@ export namespace Task {
 		}
 	}
 
-	export function getTaskItem(task: Task): TaskItem {
-		let folder: IWorkspaceFolder = Task.getWorkspaceFolder(task);
-		let definition: TaskIdentifier;
-		if (ContributedTask.is(task)) {
-			definition = task.defines;
-		} else if (CustomTask.is(task) && task.command !== void 0) {
-			definition = CustomTask.getDefinition(task);
-		} else {
-			return undefined;
-		}
-		let result: TaskItem = {
-			id: task._id,
-			label: task._label,
-			definition: definition,
-			workspaceFolder: folder
-		};
-		return result;
-	}
-
 	export function getTaskDefinition(task: Task): TaskIdentifier {
 		if (ContributedTask.is(task)) {
 			return task.defines;
@@ -642,21 +626,16 @@ export namespace Task {
 
 	export function getTaskExecution(task: Task): TaskExecution {
 		let result: TaskExecution = {
-			id: task._id
+			id: task._id,
+			task: task
 		};
 		return result;
 	}
 }
 
-export interface TaskItem {
-	id: string;
-	label: string;
-	definition: TaskIdentifier;
-	workspaceFolder: IWorkspaceFolder;
-}
-
 export interface TaskExecution {
 	id: string;
+	task: Task;
 }
 
 export enum ExecutionEngine {

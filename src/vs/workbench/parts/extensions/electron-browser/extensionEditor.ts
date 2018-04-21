@@ -17,7 +17,6 @@ import Cache from 'vs/base/common/cache';
 import { Action } from 'vs/base/common/actions';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { Builder } from 'vs/base/browser/builder';
 import { domEvent } from 'vs/base/browser/event';
 import { append, $, addClass, removeClass, finalHandler, join, toggleClass } from 'vs/base/browser/dom';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -33,7 +32,7 @@ import { RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/extensions
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, ReloadAction, MaliciousStatusLabelAction, DisabledStatusLabelAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
-import { Webview } from 'vs/workbench/parts/html/electron-browser/webview';
+import { WebviewElement } from 'vs/workbench/parts/webview/electron-browser/webviewElement';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -178,7 +177,7 @@ export class ExtensionEditor extends BaseEditor {
 	private contentDisposables: IDisposable[] = [];
 	private transientDisposables: IDisposable[] = [];
 	private disposables: IDisposable[];
-	private activeWebview: Webview;
+	private activeWebview: WebviewElement;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -206,10 +205,8 @@ export class ExtensionEditor extends BaseEditor {
 		this.findInputFocusContextKey = KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED.bindTo(this.contextKeyService);
 	}
 
-	createEditor(parent: Builder): void {
-		const container = parent.getHTMLElement();
-
-		const root = append(container, $('.extension-editor'));
+	createEditor(parent: HTMLElement): void {
+		const root = append(parent, $('.extension-editor'));
 		this.header = append(root, $('.header'));
 
 		this.icon = append(this.header, $<HTMLImageElement>('img.icon', { draggable: false }));
@@ -428,7 +425,7 @@ export class ExtensionEditor extends BaseEditor {
 			.then<void>(body => {
 				const allowedBadgeProviders = this.extensionsWorkbenchService.allowedBadgeProviders;
 				const webViewOptions = allowedBadgeProviders.length > 0 ? { allowScripts: false, allowSvgs: false, svgWhiteList: allowedBadgeProviders } : {};
-				this.activeWebview = new Webview(this.partService.getContainer(Parts.EDITOR_PART), this.themeService, this.environmentService, this.contextViewService, this.contextKey, this.findInputFocusContextKey, webViewOptions);
+				this.activeWebview = new WebviewElement(this.partService.getContainer(Parts.EDITOR_PART), this.themeService, this.environmentService, this.contextViewService, this.contextKey, this.findInputFocusContextKey, webViewOptions);
 				this.activeWebview.mountTo(this.content);
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, this.activeWebview);
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
@@ -642,7 +639,7 @@ export class ExtensionEditor extends BaseEditor {
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', null, localize('localizations', "Localizations ({0})", localizations.length)),
 			$('table', null,
-				$('tr', null, $('th', null, localize('localizations language id', "Language Id")), $('th', null, localize('localizations language name', "Langauge Name")), $('th', null, localize('localizations localized language name', "Langauge Name (Localized)"))),
+				$('tr', null, $('th', null, localize('localizations language id', "Language Id")), $('th', null, localize('localizations language name', "Language Name")), $('th', null, localize('localizations localized language name', "Language Name (Localized)"))),
 				...localizations.map(localization => $('tr', null, $('td', null, localization.languageId), $('td', null, localization.languageName), $('td', null, localization.languageNameLocalized)))
 			)
 		);

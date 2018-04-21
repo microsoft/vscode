@@ -12,7 +12,7 @@
 	},
 	"main": "./out/extension",
 	"categories": [
-		"Languages"
+		"Programming Languages"
 	],
 	"activationEvents": [
 		"onLanguage:markdown",
@@ -22,7 +22,8 @@
 		"onCommand:markdown.showPreviewToSide",
 		"onCommand:markdown.showLockedPreviewToSide",
 		"onCommand:markdown.showSource",
-		"onCommand:markdown.showPreviewSecuritySelector"
+		"onCommand:markdown.showPreviewSecuritySelector",
+		"onView:markdown.preview"
 	],
 	"contributes": {
 		"commands": [
@@ -287,7 +288,7 @@
 		"highlight.js": "9.5.0",
 		"markdown-it": "^8.4.0",
 		"markdown-it-named-headers": "0.0.4",
-		"vscode-extension-telemetry": "0.0.15",
+		"vscode-extension-telemetry": "0.0.16",
 		"vscode-nls": "^3.2.1"
 	},
 	"devDependencies": {

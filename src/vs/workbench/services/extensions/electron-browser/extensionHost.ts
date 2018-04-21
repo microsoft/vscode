@@ -235,11 +235,12 @@ export class ExtensionHostProcessWorker {
 							? nls.localize('extensionHostProcess.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.")
 							: nls.localize('extensionHostProcess.startupFail', "Extension host did not start in 10 seconds, that might be a problem.");
 
-						this._notificationService.prompt(Severity.Warning, msg, [nls.localize('reloadWindow', "Reload Window")]).then(choice => {
-							if (choice === 0) {
-								this._windowService.reloadWindow();
-							}
-						});
+						this._notificationService.prompt(Severity.Warning, msg,
+							[{
+								label: nls.localize('reloadWindow', "Reload Window"),
+								run: () => this._windowService.reloadWindow()
+							}]
+						);
 					}, 10000);
 				}
 
@@ -370,10 +371,7 @@ export class ExtensionHostProcessWorker {
 					appSettingsHome: this._environmentService.appSettingsHome,
 					disableExtensions: this._environmentService.disableExtensions,
 					extensionDevelopmentPath: this._environmentService.extensionDevelopmentPath,
-					extensionTestsPath: this._environmentService.extensionTestsPath,
-					// globally disable proposed api when built and not insiders developing extensions
-					enableProposedApiForAll: !this._environmentService.isBuilt || (!!this._environmentService.extensionDevelopmentPath && product.nameLong.indexOf('Insiders') >= 0),
-					enableProposedApiFor: this._environmentService.args['enable-proposed-api'] || []
+					extensionTestsPath: this._environmentService.extensionTestsPath
 				},
 				workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : <IWorkspaceData>this._contextService.getWorkspace(),
 				extensions: extensionDescriptions,

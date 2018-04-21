@@ -22,6 +22,7 @@ import { memoize } from './utils/memoize';
 import { disposeAll } from './utils/dipose';
 
 const validateSetting = 'validate.enable';
+const suggestionSetting = 'suggestionActions.enabled';
 const foldingSetting = 'typescript.experimental.syntaxFolding';
 
 export default class LanguageProvider {
@@ -32,6 +33,7 @@ export default class LanguageProvider {
 	private readonly toUpdateOnConfigurationChanged: ({ updateConfiguration: () => void })[] = [];
 
 	private _validate: boolean = true;
+	private _enableSuggestionDiagnostics: boolean = true;
 
 	private readonly disposables: Disposable[] = [];
 	private readonly versionDependentDisposables: Disposable[] = [];
@@ -41,7 +43,7 @@ export default class LanguageProvider {
 	constructor(
 		private readonly client: TypeScriptServiceClient,
 		private readonly description: LanguageDescription,
-		commandManager: CommandManager,
+		private readonly commandManager: CommandManager,
 		typingsStatus: TypingsStatus
 	) {
 		this.formattingOptionsManager = new FormattingConfigurationManager(client);
@@ -117,7 +119,9 @@ export default class LanguageProvider {
 		this.disposables.push(languages.registerSignatureHelpProvider(selector, new (await import('./features/signatureHelpProvider')).default(client), '(', ','));
 		this.disposables.push(languages.registerRenameProvider(selector, new (await import('./features/renameProvider')).default(client)));
 		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/quickFixProvider')).default(client, this.formattingOptionsManager, commandManager, this.diagnosticsManager, this.bufferSyncSupport)));
-		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/refactorProvider')).default(client, this.formattingOptionsManager, commandManager)));
+
+		const refactorProvider = new (await import('./features/refactorProvider')).default(client, this.formattingOptionsManager, commandManager);
+		this.disposables.push(languages.registerCodeActionsProvider(selector, refactorProvider, refactorProvider.metadata));
 
 		await this.initFoldingProvider();
 		this.disposables.push(workspace.onDidChangeConfiguration(c => {
@@ -150,9 +154,9 @@ export default class LanguageProvider {
 
 	private async initFoldingProvider(): Promise<void> {
 		let enable = workspace.getConfiguration().get(foldingSetting, false);
-		if (enable) {
+		if (enable && this.client.apiVersion.has280Features()) {
 			if (!this.foldingProviderRegistration) {
-				this.foldingProviderRegistration = languages.registerFoldingProvider(this.documentSelector, new (await import('./features/folderingProvider')).default(this.client));
+				this.foldingProviderRegistration = languages.registerFoldingRangeProvider(this.documentSelector, new (await import('./features/foldingProvider')).default(this.client));
 			}
 		} else {
 			if (this.foldingProviderRegistration) {
@@ -165,6 +169,7 @@ export default class LanguageProvider {
 	private configurationChanged(): void {
 		const config = workspace.getConfiguration(this.id);
 		this.updateValidate(config.get(validateSetting, true));
+		this.updateSuggestionDiagnostics(config.get(suggestionSetting, true));
 
 		for (const toUpdate of this.toUpdateOnConfigurationChanged) {
 			toUpdate.updateConfiguration();
@@ -204,6 +209,18 @@ export default class LanguageProvider {
 		}
 	}
 
+	private updateSuggestionDiagnostics(value: boolean) {
+		if (this._enableSuggestionDiagnostics === value) {
+			return;
+		}
+
+		this._enableSuggestionDiagnostics = value;
+		this.diagnosticsManager.enableSuggestions = value;
+		if (value) {
+			this.triggerAllDiagnostics();
+		}
+	}
+
 	public reInitialize(): void {
 		this.diagnosticsManager.reInitialize();
 		this.bufferSyncSupport.reOpenDocuments();
@@ -226,6 +243,11 @@ export default class LanguageProvider {
 
 		if (this.client.apiVersion.has213Features()) {
 			this.versionDependentDisposables.push(languages.registerTypeDefinitionProvider(selector, new (await import('./features/typeDefinitionProvider')).default(this.client)));
+		}
+
+		if (this.client.apiVersion.has280Features()) {
+			const organizeImportsProvider = new (await import('./features/organizeImports')).OrganizeImportsCodeActionProvider(this.client, this.commandManager);
+			this.versionDependentDisposables.push(languages.registerCodeActionsProvider(selector, organizeImportsProvider, organizeImportsProvider.metadata));
 		}
 	}
 

@@ -89,7 +89,8 @@ export function create(domElement: HTMLElement, options?: IEditorConstructionOpt
 			services.get(IContextKeyService),
 			services.get(IKeybindingService),
 			services.get(IContextViewService),
-			services.get(IStandaloneThemeService)
+			services.get(IStandaloneThemeService),
+			services.get(INotificationService)
 		);
 	});
 }

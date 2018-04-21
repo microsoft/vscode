@@ -17,6 +17,7 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITextModel } from 'vs/editor/common/model';
 import { Schemas } from 'vs/base/common/network';
+import { LRUCache } from 'vs/base/common/map';
 
 export const TextCompareEditorVisible = new RawContextKey<boolean>('textCompareEditorVisible', false);
 
@@ -30,8 +31,6 @@ export enum ConfirmResult {
  * Text diff editor id.
  */
 export const TEXT_DIFF_EDITOR_ID = 'workbench.editors.textDiffEditor';
-
-export const PREFERENCES_EDITOR_ID = 'workbench.editor.preferencesEditor';
 
 /**
  * Binary diff editor id.
@@ -906,6 +905,114 @@ export function toResource(editor: IEditorInput, options?: IResourceOptions): UR
 	}
 
 	return null;
+}
+
+export interface IEditorViewStates<T> {
+	[Position.ONE]?: T;
+	[Position.TWO]?: T;
+	[Position.THREE]?: T;
+}
+
+export class EditorViewStateMemento<T> {
+	private cache: LRUCache<string, IEditorViewStates<T>>;
+
+	constructor(private memento: object, private key: string, private limit: number = 10) { }
+
+	public saveState(resource: URI, position: Position, state: T): void;
+	public saveState(editor: EditorInput, position: Position, state: T): void;
+	public saveState(resourceOrEditor: URI | EditorInput, position: Position, state: T): void {
+		if (typeof position !== 'number') {
+			return; // we need a position at least
+		}
+
+		const resource = this.doGetResource(resourceOrEditor);
+		if (resource) {
+			const cache = this.doLoad();
+
+			let viewStates = cache.get(resource.toString());
+			if (!viewStates) {
+				viewStates = Object.create(null) as IEditorViewStates<T>;
+				cache.set(resource.toString(), viewStates);
+			}
+
+			viewStates[position] = state;
+
+			// Automatically clear when editor input gets disposed if any
+			if (resourceOrEditor instanceof EditorInput) {
+				once(resourceOrEditor.onDispose)(() => {
+					this.clearState(resource);
+				});
+			}
+		}
+	}
+
+	public loadState(resource: URI, position: Position): T;
+	public loadState(editor: EditorInput, position: Position): T;
+	public loadState(resourceOrEditor: URI | EditorInput, position: Position): T {
+		if (typeof position !== 'number') {
+			return void 0; // we need a position at least
+		}
+
+		const resource = this.doGetResource(resourceOrEditor);
+		if (resource) {
+			const cache = this.doLoad();
+
+			const viewStates = cache.get(resource.toString());
+			if (viewStates) {
+				return viewStates[position];
+			}
+		}
+
+		return void 0;
+	}
+
+	public clearState(resource: URI): void;
+	public clearState(editor: EditorInput): void;
+	public clearState(resourceOrEditor: URI | EditorInput): void {
+		const resource = this.doGetResource(resourceOrEditor);
+		if (resource) {
+			const cache = this.doLoad();
+			cache.delete(resource.toString());
+		}
+	}
+
+	private doGetResource(resourceOrEditor: URI | EditorInput): URI {
+		if (resourceOrEditor instanceof EditorInput) {
+			return resourceOrEditor.getResource();
+		}
+
+		return resourceOrEditor;
+	}
+
+	private doLoad(): LRUCache<string, IEditorViewStates<T>> {
+		if (!this.cache) {
+			this.cache = new LRUCache<string, T>(this.limit);
+
+			// Restore from serialized map state
+			const rawViewState = this.memento[this.key];
+			if (Array.isArray(rawViewState)) {
+				this.cache.fromJSON(rawViewState);
+			}
+
+			// Migration from old object state
+			else if (rawViewState) {
+				const keys = Object.keys(rawViewState);
+				keys.forEach((key, index) => {
+					if (index < this.limit) {
+						this.cache.set(key, rawViewState[key]);
+					}
+				});
+			}
+		}
+
+		return this.cache;
+	}
+
+	public save(): void {
+		const cache = this.doLoad();
+
+		this.memento[this.key] = cache.toJSON();
+	}
 }
 
 class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {

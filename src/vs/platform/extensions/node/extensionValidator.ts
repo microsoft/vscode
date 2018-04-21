@@ -5,6 +5,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
+import pkg from 'vs/platform/node/package';
 
 export interface IParsedVersion {
 	hasCaret: boolean;
@@ -219,11 +220,16 @@ export function isValidExtensionVersion(version: string, extensionDesc: IReduced
 	return isVersionValid(version, extensionDesc.engines.vscode, notices);
 }
 
+export function isEngineValid(engine: string): boolean {
+	// TODO@joao: discuss with alex '*' doesn't seem to be a valid engine version
+	return engine === '*' || isVersionValid(pkg.version, engine);
+}
+
 export function isVersionValid(currentVersion: string, requestedVersion: string, notices: string[] = []): boolean {
 
 	let desiredVersion = normalizeVersion(parseVersion(requestedVersion));
 	if (!desiredVersion) {
-		notices.push(nls.localize('versionSyntax', "Could not parse `engines.vscode` value {0}. Please use, for example: ^0.10.0, ^1.2.3, ^0.11.0, ^0.10.x, etc.", requestedVersion));
+		notices.push(nls.localize('versionSyntax', "Could not parse `engines.vscode` value {0}. Please use, for example: ^1.22.0, ^1.22.x, etc.", requestedVersion));
 		return false;
 	}
 

@@ -93,6 +93,6 @@
 	"overviewRulerCurrentContentForeground": "行内マージ競合の現在の概要ルーラー前景色。",
 	"overviewRulerIncomingContentForeground": "行内マージ競合の入力側の概要ルーラー前景色。",
 	"overviewRulerCommonContentForeground": "行内マージ競合の共通の祖先概要ルーラー前景色。",
-	"overviewRulerFindMatchForeground": "一致項目を示す概要ルーラーのマーカー色。",
-	"overviewRulerSelectionHighlightForeground": "選択対象を強調表示するときの概要ルーラーのマーカー色。"
+	"overviewRulerFindMatchForeground": "検索一致項目を示す概要ルーラーのマーカー色。この色は下地の色に紛れないよう不明瞭であってはいけません。",
+	"overviewRulerSelectionHighlightForeground": "選択範囲を強調表示するときの概要ルーラーのマーカー色。この色は下地の色に紛れないよう不明瞭であってはいけません。"
 }

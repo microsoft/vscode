@@ -75,7 +75,7 @@
 	"ok": "OK",
 	"push with tags success": "A címkékkel együtt történő pusholás sikeresen befejeződött.",
 	"pick remote": "Válassza ki a távoli szervert, ahová publikálni szeretné a(z) '{0}' ágat:",
-	"sync is unpredictable": "Ez a művelet pusholja és pullozza a commitokat a következő helyről: '{0}'.",
+	"sync is unpredictable": "Ez a művelet pusholja és pullozza a commitokat a következő helyről: '{0}/{1}'.",
 	"never again": "Rendben, ne jelenjen meg újra",
 	"no remotes to publish": "A forráskódtárhoz nincsenek távoli szerverek konfigurálva, ahová publikálni lehetne.",
 	"no changes stash": "Nincs elrakandó módosítás.",

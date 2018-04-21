@@ -8,7 +8,6 @@
 	],
 	"extensionHostProcess.crash": "Der Erweiterungshost wurde unerwartet beendet.",
 	"extensionHostProcess.unresponsiveCrash": "Der Erweiterungshost wurde beendet, weil er nicht reagiert hat.",
-	"devTools": "Entwicklertools",
 	"restart": "Erweiterungshost neu starten",
 	"overwritingExtension": "Die Erweiterung \"{0}\" wird mit \"{1}\" überschrieben.",
 	"extensionUnderDevelopment": "Die Entwicklungserweiterung unter \"{0}\" wird geladen.",

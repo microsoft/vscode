@@ -18,5 +18,8 @@
 	"enableBreakpoints": "{0}. Sütundaki Kesme Noktasını Etkinleştir",
 	"enableBreakpointOnLine": "Satır Kesme Noktasını Etkinleştir",
 	"addBreakpoint": "Kesme Noktası Ekle",
+	"addConditionalBreakpoint": "Koşullu Kesme Noktası Ekle...",
+	"addLogPoint": "Günlük Noktası Ekle...",
+	"cancel": "İptal",
 	"addConfiguration": "Yapılandırma Ekle..."
 }

@@ -12,14 +12,14 @@ import { HTMLDocumentRegions } from './embeddedSupport';
 
 import * as ts from 'typescript';
 import { join } from 'path';
-import { FoldingRange, FoldingRangeType } from 'vscode-languageserver-protocol-foldingprovider';
+import { FoldingRange, FoldingRangeKind } from 'vscode-languageserver-protocol-foldingprovider';
 
 const FILE_NAME = 'vscode://javascript/1';  // the same 'file' is used for all contents
 const JQUERY_D_TS = join(__dirname, '../../lib/jquery.d.ts');
 
 const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
 
-export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>, workspace: Workspace): LanguageMode {
+export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>, workspace: Workspace): LanguageMode {
 	let jsDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.get(document).getEmbeddedDocument('javascript'));
 
 	let compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, allowJs: true, lib: ['lib.es6.d.ts'], target: ts.ScriptTarget.Latest, moduleResolution: ts.ModuleResolutionKind.Classic };
@@ -291,7 +291,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 					let foldingRange: FoldingRange = { startLine, endLine };
 					let match = document.getText(curr).match(/^\s*\/(?:(\/\s*#(?:end)?region\b)|(\*|\/))/);
 					if (match) {
-						foldingRange.type = match[1] ? FoldingRangeType.Region : FoldingRangeType.Comment;
+						foldingRange.kind = match[1] ? FoldingRangeKind.Region : FoldingRangeKind.Comment;
 					}
 					ranges.push(foldingRange);
 				}

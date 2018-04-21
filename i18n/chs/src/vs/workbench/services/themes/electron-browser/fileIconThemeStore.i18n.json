@@ -8,7 +8,7 @@
 	],
 	"vscode.extension.contributes.iconThemes": "提供文件图标主题。",
 	"vscode.extension.contributes.iconThemes.id": "用户设置中使用的图标主题的 ID。",
-	"vscode.extension.contributes.iconThemes.label": "UI 中显示的图标主题的标签。",
+	"vscode.extension.contributes.iconThemes.label": "在界面中显示的图标主题名称 ",
 	"vscode.extension.contributes.iconThemes.path": "图标主题定义文件的路径。该路径相对于扩展文件夹，通常是 \"./icons/awesome-icon-theme.json\"。",
 	"reqarray": "扩展点“{0}”必须是一个数组。",
 	"reqpath": "“contributes.{0}.path”中应为字符串。提供的值: {1}",

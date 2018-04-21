@@ -15,7 +15,6 @@
 	"vscode.extension.contributes.views": "Contribuisce visualizzazioni all'editor",
 	"views.explorer": "Visualizzazione di esplorazione",
 	"views.debug": "Visualizzazione Debug",
-	"locationId.invalid": "'{0}' non è una posizione valida per la visualizzazione",
 	"duplicateView1": "Non è possibile registrare più visualizzazioni con stesso ID `{0}` nel percorso `{1}`",
 	"duplicateView2": "Nel percorso `{1}` è già registrata una visualizzazione con ID `{0}` "
 }

@@ -176,7 +176,6 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 	}
 
 	disposeTemplate(templateData: ISuggestionTemplateData): void {
-		templateData.highlightedLabel.dispose();
 		templateData.disposables = dispose(templateData.disposables);
 	}
 }
@@ -439,7 +438,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		this.list = new List(this.listElement, this, [renderer], {
 			useShadows: false,
 			selectOnMouseDown: true,
-			focusOnMouseDown: false
+			focusOnMouseDown: false,
+			openController: { shouldOpen: () => false }
 		});
 
 		this.toDispose = [

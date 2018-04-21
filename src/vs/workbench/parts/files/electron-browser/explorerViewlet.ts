@@ -10,7 +10,6 @@ import { localize } from 'vs/nls';
 import { IActionRunner } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
-import { Builder } from 'vs/base/browser/builder';
 import { VIEWLET_ID, ExplorerViewletVisibleContext, IFilesConfiguration, OpenEditorsVisibleContext, OpenEditorsVisibleCondition, IExplorerViewlet } from 'vs/workbench/parts/files/common/files';
 import { PersistentViewsViewlet, IViewletViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -171,11 +170,10 @@ export class ExplorerViewlet extends PersistentViewsViewlet implements IExplorer
 		this._register(this.contextService.onDidChangeWorkspaceName(e => this.updateTitleArea()));
 	}
 
-	async create(parent: Builder): TPromise<void> {
+	async create(parent: HTMLElement): TPromise<void> {
 		await super.create(parent);
 
-		const el = parent.getHTMLElement();
-		DOM.addClass(el, 'explorer-viewlet');
+		DOM.addClass(parent, 'explorer-viewlet');
 	}
 
 	private isOpenEditorsVisible(): boolean {

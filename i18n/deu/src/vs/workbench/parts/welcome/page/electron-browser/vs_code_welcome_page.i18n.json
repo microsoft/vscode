@@ -27,8 +27,6 @@
 	"welcomePage.installExtensionPacks": "Tools und Sprachen",
 	"welcomePage.installExtensionPacksDescription": "Unterstützung für {0} und {1} installieren",
 	"welcomePage.moreExtensions": "mehr",
-	"welcomePage.installKeymapDescription": "Tastenkombinationen installieren",
-	"welcomePage.installKeymapExtension": "Installieren Sie die Tastenkombinationen von {0} und {1}.",
 	"welcomePage.others": "Andere",
 	"welcomePage.colorTheme": "Farbdesign",
 	"welcomePage.colorThemeDescription": "Passen Sie das Aussehen des Editors und Ihres Codes an Ihre Wünsche an.",

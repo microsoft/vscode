@@ -48,9 +48,7 @@ export class Button {
 
 	private focusTracker: DOM.IFocusTracker;
 
-	constructor(container: Builder, options?: IButtonOptions);
-	constructor(container: HTMLElement, options?: IButtonOptions);
-	constructor(container: any, options?: IButtonOptions) {
+	constructor(container: HTMLElement, options?: IButtonOptions) {
 		this.options = options || Object.create(null);
 		mixin(this.options, defaultOptions, false);
 
@@ -197,9 +195,7 @@ export class ButtonGroup {
 	private _buttons: Button[];
 	private toDispose: IDisposable[];
 
-	constructor(container: Builder, count: number, options?: IButtonOptions);
-	constructor(container: HTMLElement, count: number, options?: IButtonOptions);
-	constructor(container: any, count: number, options?: IButtonOptions) {
+	constructor(container: HTMLElement, count: number, options?: IButtonOptions) {
 		this._buttons = [];
 		this.toDispose = [];
 
@@ -210,9 +206,7 @@ export class ButtonGroup {
 		return this._buttons;
 	}
 
-	private create(container: Builder, count: number, options?: IButtonOptions): void;
-	private create(container: HTMLElement, count: number, options?: IButtonOptions): void;
-	private create(container: any, count: number, options?: IButtonOptions): void {
+	private create(container: HTMLElement, count: number, options?: IButtonOptions): void {
 		for (let index = 0; index < count; index++) {
 			const button = new Button(container, options);
 			this._buttons.push(button);

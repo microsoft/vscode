@@ -4,32 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-
+import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
-import { Command } from '../utils/commandManager';
+import { ITypeScriptServiceClient } from '../typescriptService';
+import { Command, CommandManager } from '../utils/commandManager';
+import { isSupportedLanguageMode } from '../utils/languageModeIds';
 import * as typeconverts from '../utils/typeConverters';
 
-import { isSupportedLanguageMode } from '../utils/languageModeIds';
-import API from '../utils/api';
-import { Lazy } from '../utils/lazy';
-import TypeScriptServiceClientHost from '../typeScriptServiceClientHost';
+const localize = nls.loadMessageBundle();
 
-export class OrganizeImportsCommand implements Command {
-	public static readonly ID = 'typescript.organizeImports';
-	public readonly id = OrganizeImportsCommand.ID;
+
+class OrganizeImportsCommand implements Command {
+	public static readonly Id = '_typescript.organizeImports';
+
+	public readonly id = OrganizeImportsCommand.Id;
 
 	constructor(
-		private readonly lazyClientHost: Lazy<TypeScriptServiceClientHost>
+		private readonly client: ITypeScriptServiceClient
 	) { }
 
 	public async execute(): Promise<boolean> {
-		// Don't force activation
-		if (!this.lazyClientHost.hasValue) {
-			return false;
-		}
-
-		const client = this.lazyClientHost.value.serviceClient;
-		if (!client.apiVersion.has280Features()) {
+		if (!this.client.apiVersion.has280Features()) {
 			return false;
 		}
 
@@ -38,7 +33,7 @@ export class OrganizeImportsCommand implements Command {
 			return false;
 		}
 
-		const file = client.normalizePath(editor.document.uri);
+		const file = this.client.normalizePath(editor.document.uri);
 		if (!file) {
 			return false;
 		}
@@ -51,35 +46,42 @@ export class OrganizeImportsCommand implements Command {
 				}
 			}
 		};
-		const response = await client.execute('organizeImports', args);
+		const response = await this.client.execute('organizeImports', args);
 		if (!response || !response.success) {
 			return false;
 		}
 
-		const edits = typeconverts.WorkspaceEdit.fromFromFileCodeEdits(client, response.body);
+		const edits = typeconverts.WorkspaceEdit.fromFromFileCodeEdits(this.client, response.body);
 		return await vscode.workspace.applyEdit(edits);
 	}
 }
 
-/**
- * When clause context set when the ts version supports organize imports.
- */
-const contextName = 'typescript.canOrganizeImports';
-
-export class OrganizeImportsContextManager {
-
-	private currentValue: boolean = false;
-
-	public onDidChangeApiVersion(apiVersion: API): any {
-		this.updateContext(apiVersion.has280Features());
+export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvider {
+	public constructor(
+		private readonly client: ITypeScriptServiceClient,
+		commandManager: CommandManager
+	) {
+		commandManager.register(new OrganizeImportsCommand(client));
 	}
 
-	private updateContext(newValue: boolean) {
-		if (newValue === this.currentValue) {
-			return;
+	public readonly metadata: vscode.CodeActionProviderMetadata = {
+		providedCodeActionKinds: [vscode.CodeActionKind.SourceOrganizeImports]
+	};
+
+	public provideCodeActions(
+		_document: vscode.TextDocument,
+		_range: vscode.Range,
+		_context: vscode.CodeActionContext,
+		_token: vscode.CancellationToken
+	): vscode.CodeAction[] {
+		if (!this.client.apiVersion.has280Features()) {
+			return [];
 		}
 
-		vscode.commands.executeCommand('setContext', contextName, newValue);
-		this.currentValue = newValue;
+		const action = new vscode.CodeAction(
+			localize('oraganizeImportsAction.title', "Organize Imports"),
+			vscode.CodeActionKind.SourceOrganizeImports);
+		action.command = { title: '', command: OrganizeImportsCommand.Id };
+		return [action];
 	}
 }

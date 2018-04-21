@@ -34,6 +34,7 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
 import { ITextModel, IModelDecorationOptions } from 'vs/editor/common/model';
 import { ICommandDelegate } from 'vs/editor/browser/view/viewController';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export abstract class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
@@ -92,22 +93,17 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@INotificationService notificationService: INotificationService
 	) {
-		super(domElement, options, isSimpleWidget, instantiationService, contextKeyService);
+		super(domElement, options, isSimpleWidget, instantiationService, contextKeyService, notificationService);
 		this._codeEditorService = codeEditorService;
 		this._commandService = commandService;
 		this._themeService = themeService;
 
 		this._focusTracker = new CodeEditorWidgetFocusTracker(domElement);
 		this._focusTracker.onChange(() => {
-			let hasFocus = this._focusTracker.hasFocus();
-
-			if (hasFocus) {
-				this._onDidFocusEditor.fire();
-			} else {
-				this._onDidBlurEditor.fire();
-			}
+			this._editorFocus.setValue(this._focusTracker.hasFocus());
 		});
 
 		this.contentWidgets = {};
@@ -431,13 +427,13 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		const viewEventBus = this._view.getInternalEventBus();
 
 		viewEventBus.onDidGainFocus = () => {
-			this._onDidFocusEditorText.fire();
+			this._editorTextFocus.setValue(true);
 			// In IE, the focus is not synchronous, so we give it a little help
-			this._onDidFocusEditor.fire();
+			this._editorFocus.setValue(true);
 		};
 
 		viewEventBus.onDidScroll = (e) => this._onDidScrollChange.fire(e);
-		viewEventBus.onDidLoseFocus = () => this._onDidBlurEditorText.fire();
+		viewEventBus.onDidLoseFocus = () => this._editorTextFocus.setValue(false);
 		viewEventBus.onContextMenu = (e) => this._onContextMenu.fire(e);
 		viewEventBus.onMouseDown = (e) => this._onMouseDown.fire(e);
 		viewEventBus.onMouseUp = (e) => this._onMouseUp.fire(e);
@@ -455,11 +451,11 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 			return;
 		}
 		if (s && s.cursorState && s.viewState) {
-			const reducedState = this.viewModel.viewLayout.reduceRestoreState(s.viewState);
+			const reducedState = this.viewModel.reduceRestoreState(s.viewState);
 			const linesViewportData = this.viewModel.viewLayout.getLinesViewportDataAtScrollTop(reducedState.scrollTop);
-			const startViewPosition = this.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(linesViewportData.startLineNumber, 1));
-			const endViewPosition = this.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(linesViewportData.endLineNumber, 1));
-			this.model.tokenizeViewport(startViewPosition.lineNumber, endViewPosition.lineNumber);
+			const startPosition = this.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(linesViewportData.startLineNumber, 1));
+			const endPosition = this.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(linesViewportData.endLineNumber, 1));
+			this.model.tokenizeViewport(startPosition.lineNumber, endPosition.lineNumber);
 			this._view.restoreState(reducedState);
 		}
 	}

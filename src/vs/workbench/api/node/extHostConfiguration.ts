@@ -14,7 +14,7 @@ import { ConfigurationTarget as ExtHostConfigurationTarget } from './extHostType
 import { IConfigurationData, ConfigurationTarget, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { Configuration, ConfigurationChangeEvent, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationChangeEvent } from 'vs/workbench/services/configuration/common/configurationModels';
-import { StrictResourceMap } from 'vs/base/common/map';
+import { ResourceMap } from 'vs/base/common/map';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { isObject } from 'vs/base/common/types';
 
@@ -107,12 +107,16 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 						return isObject(target) ?
 							new Proxy(target, {
 								get: (target: any, property: string) => {
+									if (typeof property === 'string' && property.toLowerCase() === 'tojson') {
+										cloneTarget();
+										return () => clonedTarget;
+									}
 									if (clonedConfig) {
 										clonedTarget = clonedTarget ? clonedTarget : lookUp(clonedConfig, accessor);
 										return clonedTarget[property];
 									}
 									const result = target[property];
-									if (typeof property === 'string' && property.toLowerCase() !== 'tojson') {
+									if (typeof property === 'string') {
 										return cloneOnWriteProxy(result, `${accessor}.${property}`);
 									}
 									return result;
@@ -205,7 +209,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 
 	private _toConfigurationChangeEvent(data: IWorkspaceConfigurationChangeEventData): vscode.ConfigurationChangeEvent {
 		const changedConfiguration = new ConfigurationModel(data.changedConfiguration.contents, data.changedConfiguration.keys, data.changedConfiguration.overrides);
-		const changedConfigurationByResource: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>();
+		const changedConfigurationByResource: ResourceMap<ConfigurationModel> = new ResourceMap<ConfigurationModel>();
 		for (const key of Object.keys(data.changedConfigurationByResource)) {
 			const resource = URI.parse(key);
 			const model = data.changedConfigurationByResource[key];
@@ -221,11 +225,11 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 		const defaultConfiguration = ExtHostConfiguration.parseConfigurationModel(data.defaults);
 		const userConfiguration = ExtHostConfiguration.parseConfigurationModel(data.user);
 		const workspaceConfiguration = ExtHostConfiguration.parseConfigurationModel(data.workspace);
-		const folders: StrictResourceMap<ConfigurationModel> = Object.keys(data.folders).reduce((result, key) => {
+		const folders: ResourceMap<ConfigurationModel> = Object.keys(data.folders).reduce((result, key) => {
 			result.set(URI.parse(key), ExtHostConfiguration.parseConfigurationModel(data.folders[key]));
 			return result;
-		}, new StrictResourceMap<ConfigurationModel>());
-		return new Configuration(defaultConfiguration, userConfiguration, workspaceConfiguration, folders, new ConfigurationModel(), new StrictResourceMap<ConfigurationModel>(), false);
+		}, new ResourceMap<ConfigurationModel>());
+		return new Configuration(defaultConfiguration, userConfiguration, workspaceConfiguration, folders, new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), false);
 	}
 
 	private static parseConfigurationModel(model: IConfigurationModel): ConfigurationModel {

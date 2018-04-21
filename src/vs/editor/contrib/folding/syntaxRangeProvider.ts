@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { FoldingProvider, IFoldingRange, FoldingContext } from 'vs/editor/common/modes';
+import { FoldingRangeProvider, FoldingRange, FoldingContext } from 'vs/editor/common/modes';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { toThenable } from 'vs/base/common/async';
 import { ITextModel } from 'vs/editor/common/model';
@@ -16,7 +16,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 
 const MAX_FOLDING_REGIONS_FOR_INDENT_LIMIT = 5000;
 
-export interface IFoldingRangeData extends IFoldingRange {
+export interface IFoldingRangeData extends FoldingRange {
 	rank: number;
 }
 
@@ -26,7 +26,7 @@ const foldingContext: FoldingContext = {
 
 export class SyntaxRangeProvider implements RangeProvider {
 
-	constructor(private providers: FoldingProvider[]) {
+	constructor(private providers: FoldingRangeProvider[]) {
 	}
 
 	compute(model: ITextModel, cancellationToken: CancellationToken): Thenable<FoldingRegions> {
@@ -41,23 +41,23 @@ export class SyntaxRangeProvider implements RangeProvider {
 
 }
 
-function collectSyntaxRanges(providers: FoldingProvider[], model: ITextModel, cancellationToken: CancellationToken): Thenable<IFoldingRangeData[] | null> {
+function collectSyntaxRanges(providers: FoldingRangeProvider[], model: ITextModel, cancellationToken: CancellationToken): Thenable<IFoldingRangeData[] | null> {
 	let promises = providers.map(provider => toThenable(provider.provideFoldingRanges(model, foldingContext, cancellationToken)));
-	return TPromise.join(promises).then(lists => {
+	return TPromise.join(promises).then(results => {
 		let rangeData: IFoldingRangeData[] = null;
 		if (cancellationToken.isCancellationRequested) {
 			return null;
 		}
-		for (let i = 0; i < lists.length; i++) {
-			let list = lists[i];
-			if (list && Array.isArray(list.ranges)) {
+		for (let i = 0; i < results.length; i++) {
+			let ranges = results[i];
+			if (Array.isArray(ranges)) {
 				if (!Array.isArray(rangeData)) {
 					rangeData = [];
 				}
 				let nLines = model.getLineCount();
-				for (let r of list.ranges) {
-					if (r.startLineNumber > 0 && r.endLineNumber > r.startLineNumber && r.endLineNumber <= nLines) {
-						rangeData.push({ startLineNumber: r.startLineNumber, endLineNumber: r.endLineNumber, rank: i, type: r.type });
+				for (let r of ranges) {
+					if (r.start > 0 && r.end > r.start && r.end <= nLines) {
+						rangeData.push({ start: r.start, end: r.end, rank: i, kind: r.kind });
 					}
 				}
 			}
@@ -145,7 +145,7 @@ export class RangesCollector {
 export function sanitizeRanges(rangeData: IFoldingRangeData[]): FoldingRegions {
 
 	let sorted = rangeData.sort((d1, d2) => {
-		let diff = d1.startLineNumber - d2.startLineNumber;
+		let diff = d1.start - d2.start;
 		if (diff === 0) {
 			diff = d1.rank - d2.rank;
 		}
@@ -158,20 +158,20 @@ export function sanitizeRanges(rangeData: IFoldingRangeData[]): FoldingRegions {
 	for (let entry of sorted) {
 		if (!top) {
 			top = entry;
-			collector.add(entry.startLineNumber, entry.endLineNumber, entry.type, previous.length);
+			collector.add(entry.start, entry.end, entry.kind && entry.kind.value, previous.length);
 		} else {
-			if (entry.startLineNumber > top.startLineNumber) {
-				if (entry.endLineNumber <= top.endLineNumber) {
+			if (entry.start > top.start) {
+				if (entry.end <= top.end) {
 					previous.push(top);
 					top = entry;
-					collector.add(entry.startLineNumber, entry.endLineNumber, entry.type, previous.length);
-				} else if (entry.startLineNumber > top.endLineNumber) {
+					collector.add(entry.start, entry.end, entry.kind && entry.kind.value, previous.length);
+				} else if (entry.start > top.end) {
 					do {
 						top = previous.pop();
-					} while (top && entry.startLineNumber > top.endLineNumber);
+					} while (top && entry.start > top.end);
 					previous.push(top);
 					top = entry;
-					collector.add(entry.startLineNumber, entry.endLineNumber, entry.type, previous.length);
+					collector.add(entry.start, entry.end, entry.kind && entry.kind.value, previous.length);
 				}
 			}
 		}

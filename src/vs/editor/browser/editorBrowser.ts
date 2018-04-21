@@ -392,6 +392,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	onDidType(listener: (text: string) => void): IDisposable;
 	/**
+	 * An event emitted when editing failed because the editor is read-only.
+	 * @event
+	 * @internal
+	 */
+	onDidAttemptReadOnlyEdit(listener: () => void): IDisposable;
+	/**
 	 * An event emitted when users paste text in the editor.
 	 * @event
 	 * @internal
@@ -618,11 +624,6 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Get the layout info for the editor.
 	 */
 	getLayoutInfo(): editorOptions.EditorLayoutInfo;
-
-	/**
-	 * Returns the range that is currently centered in the view port.
-	 */
-	getCenteredRangeInViewport(): Range;
 
 	/**
 	 * Returns the ranges that are currently visible.

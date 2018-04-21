@@ -42,6 +42,7 @@ import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standal
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IListService, ListService } from 'vs/platform/list/browser/listService';
 
 export interface IEditorContextViewService extends IContextViewService {
 	dispose(): void;
@@ -179,6 +180,8 @@ export class DynamicStandaloneServices extends Disposable {
 		};
 
 		let contextKeyService = ensure(IContextKeyService, () => this._register(new ContextKeyService(configurationService)));
+
+		ensure(IListService, () => new ListService(contextKeyService));
 
 		let commandService = ensure(ICommandService, () => new StandaloneCommandService(this._instantiationService));
 

@@ -81,7 +81,12 @@ export interface IModelDecorationOptions {
 	 * Always render the decoration (even when the range it encompasses is collapsed).
 	 * @internal
 	 */
-	readonly showIfCollapsed?: boolean;
+	showIfCollapsed?: boolean;
+	/**
+	 * Specifies the stack order of a decoration.
+	 * A decoration with greater stack order is always in front of a decoration with a lower stack order.
+	 */
+	zIndex?: number;
 	/**
 	 * If set, render this decoration in the overview ruler.
 	 */
@@ -104,6 +109,10 @@ export interface IModelDecorationOptions {
 	 * to have a background color decoration.
 	 */
 	inlineClassName?: string;
+	/**
+	 * If there is an `inlineClassName` which affects letter spacing.
+	 */
+	inlineClassNameAffectsLetterSpacing?: boolean;
 	/**
 	 * If set, the decoration will be rendered before the text with this CSS class name.
 	 */
@@ -391,6 +400,8 @@ export interface ITextModelCreationOptions {
 	trimAutoWhitespace: boolean;
 	defaultEOL: DefaultEndOfLine;
 	isForSimpleWidget: boolean;
+	largeFileSize: number;
+	largeFileLineCount: number;
 }
 
 export interface ITextModelUpdateOptions {
@@ -433,6 +444,15 @@ export enum TrackedRangeStickiness {
 	NeverGrowsWhenTypingAtEdges = 1,
 	GrowsOnlyWhenTypingBefore = 2,
 	GrowsOnlyWhenTypingAfter = 3,
+}
+
+/**
+ * @internal
+ */
+export interface IActiveIndentGuideInfo {
+	startLineNumber: number;
+	endLineNumber: number;
+	indent: number;
 }
 
 /**
@@ -561,6 +581,10 @@ export interface ITextModel {
 	 */
 	getLineContent(lineNumber: number): string;
 
+	/**
+	 * Get the text length for a certain line.
+	 */
+	getLineLength(lineNumber: number): number;
 
 	/**
 	 * Get the text for all lines.
@@ -845,6 +869,11 @@ export interface ITextModel {
 	/**
 	 * @internal
 	 */
+	getActiveIndentGuide(lineNumber: number): IActiveIndentGuideInfo;
+
+	/**
+	 * @internal
+	 */
 	getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[];
 
 	/**
@@ -1008,6 +1037,13 @@ export interface ITextModel {
 	 * @internal
 	 * @event
 	 */
+	onDidChangeRawContentFast(listener: (e: ModelRawContentChangedEvent) => void): IDisposable;
+	/**
+	 * @deprecated Please use `onDidChangeContent` instead.
+	 * An event emitted when the contents of the model have changed.
+	 * @internal
+	 * @event
+	 */
 	onDidChangeRawContent(listener: (e: ModelRawContentChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted when the contents of the model have changed.
@@ -1067,6 +1103,12 @@ export interface ITextModel {
 	 * @internal
 	 */
 	isAttachedToEditor(): boolean;
+
+	/**
+	 * Returns the count of editors this model is attached to.
+	 * @internal
+	 */
+	getAttachedEditorCount(): number;
 }
 
 /**
@@ -1134,6 +1176,5 @@ export class ApplyEditsResult {
  */
 export interface IInternalModelContentChange extends IModelContentChange {
 	range: Range;
-	rangeOffset: number;
 	forceMoveMarkers: boolean;
 }

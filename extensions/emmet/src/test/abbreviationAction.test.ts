@@ -5,7 +5,7 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import { Selection, workspace, CompletionList, CancellationTokenSource } from 'vscode';
+import { Selection, workspace, CompletionList, CancellationTokenSource, CompletionTriggerKind, ConfigurationTarget } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
 import { expandEmmetAbbreviation } from '../abbreviationActions';
 import { DefaultCompletionItemProvider } from '../defaultCompletionProvider';
@@ -36,9 +36,10 @@ const htmlContents = `
 `;
 
 suite('Tests for Expand Abbreviations (HTML)', () => {
+	const oldValueForExcludeLanguages = workspace.getConfiguration('emmet').inspect('excludeLanguages');
 	teardown(() => {
-		// Reset config and close all editors
-		return workspace.getConfiguration('emmet').update('excludeLanguages', []).then(closeAllEditors);
+		// close all editors
+		return closeAllEditors;
 	});
 
 	test('Expand snippets (HTML)', () => {
@@ -63,7 +64,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		return withRandomFileEditor('img', 'html', (editor, doc) => {
 			editor.selection = new Selection(0, 3, 0, 3);
 			const cancelSrc = new CancellationTokenSource();
-			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token);
+			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
 			if (!completionPromise) {
 				assert.equal(!completionPromise, false, `Got unexpected undefined instead of a completion promise`);
 				return Promise.resolve();
@@ -165,7 +166,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
 			editor.selection = new Selection(2, 4, 2, 4);
 			const cancelSrc = new CancellationTokenSource();
-			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token);
+			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
 			assert.equal(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
 			return Promise.resolve();
 		});
@@ -185,7 +186,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
 			editor.selection = new Selection(9, 8, 9, 8);
 			const cancelSrc = new CancellationTokenSource();
-			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token);
+			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
 			assert.equal(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
 			return Promise.resolve();
 		});
@@ -207,7 +208,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		return withRandomFileEditor(fileContents, 'html', (editor, doc) => {
 			editor.selection = new Selection(0, 6, 0, 6);
 			const cancelSrc = new CancellationTokenSource();
-			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token);
+			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
 			assert.equal(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
 			return Promise.resolve();
 		});
@@ -234,7 +235,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 	// 	return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
 	// 		editor.selection = new Selection(13, 3, 13, 6);
 	// 		const cancelSrc = new CancellationTokenSource();
-	// 		const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token);
+	// 		const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
 	// 		if (!completionPromise) {
 	// 			assert.equal(1, 2, `Problem with expanding m10`);
 	// 			return Promise.resolve();
@@ -254,34 +255,35 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 	// 	});
 	// });
 
-	test('No expanding when html is excluded in the settings', () => {
-		return workspace.getConfiguration('emmet').update('excludeLanguages', ['html']).then(() => {
-			return testExpandAbbreviation('html', new Selection(9, 6, 9, 6), '', '', true).then(() => {
-				return workspace.getConfiguration('emmet').update('excludeLanguages', []);
-			});
-		});
-	});
+	// test('No expanding when html is excluded in the settings', () => {
+	// 	return workspace.getConfiguration('emmet').update('excludeLanguages', ['html'], ConfigurationTarget.Global).then(() => {
+	// 		return testExpandAbbreviation('html', new Selection(9, 6, 9, 6), '', '', true).then(() => {
+	// 			return workspace.getConfiguration('emmet').update('excludeLanguages', oldValueForExcludeLanguages ? oldValueForExcludeLanguages.globalValue : undefined, ConfigurationTarget.Global);
+	// 		});
+	// 	});
+	// });
 
 	test('No expanding when html is excluded in the settings in completion list', () => {
-		return workspace.getConfiguration('emmet').update('excludeLanguages', ['html']).then(() => {
+		return workspace.getConfiguration('emmet').update('excludeLanguages', ['html'], ConfigurationTarget.Global).then(() => {
 			return testHtmlCompletionProvider(new Selection(9, 6, 9, 6), '', '', true).then(() => {
-				return workspace.getConfiguration('emmet').update('excludeLanguages', []);
+				return workspace.getConfiguration('emmet').update('excludeLanguages', oldValueForExcludeLanguages ? oldValueForExcludeLanguages.globalValue : undefined, ConfigurationTarget.Global);
 			});
 		});
 	});
 
-	test('No expanding when php (mapped syntax) is excluded in the settings', () => {
-		return workspace.getConfiguration('emmet').update('excludeLanguages', ['php']).then(() => {
-			return testExpandAbbreviation('php', new Selection(9, 6, 9, 6), '', '', true).then(() => {
-				return workspace.getConfiguration('emmet').update('excludeLanguages', []);
-			});
-		});
-	});
+	// test('No expanding when php (mapped syntax) is excluded in the settings', () => {
+	// 	return workspace.getConfiguration('emmet').update('excludeLanguages', ['php'], ConfigurationTarget.Global).then(() => {
+	// 		return testExpandAbbreviation('php', new Selection(9, 6, 9, 6), '', '', true).then(() => {
+	// 			return workspace.getConfiguration('emmet').update('excludeLanguages', oldValueForExcludeLanguages ? oldValueForExcludeLanguages.globalValue : undefined, ConfigurationTarget.Global);
+	// 		});
+	// 	});
+	// });
 
 
 });
 
 suite('Tests for jsx, xml and xsl', () => {
+	const oldValueForSyntaxProfiles = workspace.getConfiguration('emmet').inspect('syntaxProfiles');
 	teardown(closeAllEditors);
 
 	test('Expand abbreviation with className instead of class in jsx', () => {
@@ -304,6 +306,18 @@ suite('Tests for jsx, xml and xsl', () => {
 		});
 	});
 
+	test('Expand abbreviation with single quotes for jsx', () => {
+		return workspace.getConfiguration('emmet').update('syntaxProfiles', {jsx: {"attr_quotes": "single"}}, ConfigurationTarget.Global).then(() => {
+			return withRandomFileEditor('img', 'javascriptreact', (editor, doc) => {
+				editor.selection = new Selection(0, 6, 0, 6);
+				return expandEmmetAbbreviation({ language: 'javascriptreact' }).then(() => {
+					assert.equal(editor.document.getText(), '<img src=\'\' alt=\'\'/>');
+					return workspace.getConfiguration('emmet').update('syntaxProfiles', oldValueForSyntaxProfiles ? oldValueForSyntaxProfiles.globalValue : undefined, ConfigurationTarget.Global);
+				});
+			});
+		});
+	});
+
 	test('Expand abbreviation with self closing tags for xml', () => {
 		return withRandomFileEditor('img', 'xml', (editor, doc) => {
 			editor.selection = new Selection(0, 6, 0, 6);
@@ -322,6 +336,22 @@ suite('Tests for jsx, xml and xsl', () => {
 				return Promise.resolve();
 			});
 		});
+	});
+
+	test('No expanding text inside open tag in completion list (jsx)', () => {
+		return testNoCompletion('jsx', htmlContents, new Selection(2, 4, 2, 4));
+	});
+
+	test('No expanding tag that is opened, but not closed in completion list (jsx)', () => {
+		return testNoCompletion('jsx', htmlContents, new Selection(9, 6, 9, 6));
+	});
+
+	test('No expanding text inside open tag when there is no closing tag in completion list (jsx)', () => {
+		return testNoCompletion('jsx', htmlContents, new Selection(9, 8, 9, 8));
+	});
+
+	test('No expanding text in completion list inside open tag when there is no closing tag when there is no parent node (jsx)', () => {
+		return testNoCompletion('jsx', '<img s', new Selection(0, 6, 0, 6));
 	});
 
 });
@@ -347,7 +377,7 @@ function testHtmlCompletionProvider(selection: Selection, abbreviation: string, 
 	return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
 		editor.selection = selection;
 		const cancelSrc = new CancellationTokenSource();
-		const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token);
+		const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
 		if (!completionPromise) {
 			if (!shouldFail) {
 				assert.equal(1, 2, `Problem with expanding ${abbreviation} to ${expandedText}`);
@@ -370,3 +400,12 @@ function testHtmlCompletionProvider(selection: Selection, abbreviation: string, 
 	});
 }
 
+function testNoCompletion(syntax: string, fileContents: string, selection: Selection): Thenable<any> {
+	return withRandomFileEditor(fileContents, syntax, (editor, doc) => {
+		editor.selection = selection;
+		const cancelSrc = new CancellationTokenSource();
+		const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+		assert.equal(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
+		return Promise.resolve();
+	});
+}
