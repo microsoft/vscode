@@ -33,7 +33,7 @@
 	padding-left: 10px;
 }
 
-.settings-editor > .settings-header > .settings-header-controls-container {
+.settings-editor > .settings-header > .settings-header-controls {
 	margin-top: 7px;
 	display: flex;
 }
@@ -46,30 +46,22 @@
 	margin-left: 33px;
 }
 
-.settings-editor > .settings-header .open-settings-container {
-	/* compensate for 3px padding inside target widget, should be cleaned up */
-	padding-top: 3px;
+.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right {
 	display: flex;
+}
+
+.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .open-settings-button,
+.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .open-settings-button:hover,
+.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .open-settings-button:active {
+	background: none;
 	opacity: 0.7;
-}
-
-.settings-editor > .settings-header .open-settings-container > .file-name {
 	text-decoration: underline;
-	cursor: pointer;
-	margin-left: 4px;
 }
 
-.settings-editor > .settings-header .settings-nav-controls {
-	display: flex;
-}
-
-.settings-editor > .settings-header .settings-nav-controls .monaco-custom-checkbox {
-	margin-right: 5px;
-}
-
-.settings-editor > .settings-header .settings-nav-container {
-	margin-top: 18px;
-	margin-left: 560px;
+.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .configured-only-button {
+	white-space: nowrap;
+	padding: 4px 10px;
+	margin-right: 10px;
 }
 
 .settings-editor > .settings-body .settings-list-container .settings-list-offset-helper {
@@ -111,7 +103,7 @@
 
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row > .setting-item-container > .setting-item-right {
 	flex: 1;
-	margin: 35px 10px;
+	margin: 21px 10px;
 }
 
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-title {
@@ -134,6 +126,8 @@
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-description {
 	opacity: 0.6;
 	margin-top: 5px;
+	height: 36px;
+	overflow: hidden;
 }
 
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-value {
@@ -146,14 +140,12 @@
 	height: 26px;
 }
 
-.settings-editor .settings-nav-controls .monaco-custom-checkbox.unchecked,
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row .monaco-custom-checkbox.unchecked {
 	background: url("action-remove.svg") center center no-repeat;
 	/* Unchecked border style needs to be stylable on checkbox. Themeable? */
 	border-color: #75715e !important;
 }
 
-.settings-editor .settings-nav-controls .monaco-custom-checkbox.checked,
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row .monaco-custom-checkbox.checked {
 	background: url("action-remove-focus.svg") center center no-repeat;
 }
@@ -167,6 +159,7 @@
 	background: url("action-remove-dark.svg") center center no-repeat;
 	width: 16px;
 	height: 16px;
+	margin: auto;
 	margin-left: 3px;
 	visibility: hidden;
 }

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
@@ -14,7 +13,6 @@ import { IAction } from 'vs/base/common/actions';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import 'vs/css!./media/settingsEditor2';
@@ -101,6 +99,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private showConfiguredSettingsOnly = false;
 	private showAllSettings = false;
+	private showConfiguredSettingsOnlyButton: Button;
 
 	private settingsListContainer: HTMLElement;
 	private settingsList: List<IListEntry>;
@@ -193,61 +192,35 @@ export class SettingsEditor2 extends BaseEditor {
 		}));
 		this._register(this.searchWidget.onDidChange(() => this.onInputChanged()));
 
-		const headerControlsContainer = DOM.append(this.headerContainer, $('div.settings-header-controls-container'));
+		const headerControlsContainer = DOM.append(this.headerContainer, $('div.settings-header-controls'));
 		const targetWidgetContainer = DOM.append(headerControlsContainer, $('.settings-target-container'));
 		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer));
 		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER;
 		this.settingsTargetsWidget.onDidTargetChange(e => this.renderEntries());
 
-		this.createOpenSettingsElement(headerControlsContainer);
-
-		const navContainer = DOM.append(this.headerContainer, $('.settings-nav-container'));
-		this.createNavControls(navContainer);
+		this.createHeaderControls(headerControlsContainer);
 	}
 
-	private createOpenSettingsElement(parent: HTMLElement): void {
-		const openSettingsContainer = DOM.append(parent, $('.open-settings-container'));
-		DOM.append(openSettingsContainer, $('', null, localize('header-message', "For advanced customizations open and edit")));
-		const fileElement = DOM.append(openSettingsContainer, $('.file-name', null, localize('settings-file-name', "settings.json")));
-		fileElement.tabIndex = 0;
+	private createHeaderControls(parent: HTMLElement): void {
+		const headerControlsContainerRight = DOM.append(parent, $('.settings-header-controls-right'));
 
-		this._register(DOM.addDisposableListener(fileElement, DOM.EventType.CLICK, () => this.preferencesService.openGlobalSettings()));
-		this._register(DOM.addDisposableListener(fileElement, DOM.EventType.KEY_UP, e => {
-			let keyboardEvent = new StandardKeyboardEvent(e);
-			switch (keyboardEvent.keyCode) {
-				case KeyCode.Enter:
-					this.preferencesService.openGlobalSettings();
-					keyboardEvent.preventDefault();
-					keyboardEvent.stopPropagation();
-					return;
-			}
-		}));
+		this.showConfiguredSettingsOnlyButton = this._register(new Button(headerControlsContainerRight, { title: true }));
+		this.showConfiguredSettingsOnlyButton.label = localize('showOverrides', "Show overrides");
+		this.showConfiguredSettingsOnlyButton.element.classList.add('configured-only-button');
+
+		this._register(this.showConfiguredSettingsOnlyButton.onDidClick(() => this.onShowConfiguredOnlyClicked()));
+
+		const openSettingsButton = this._register(new Button(headerControlsContainerRight, { title: true, buttonBackground: null }));
+		openSettingsButton.label = localize('openSettingsLabel', "Open config file");
+		openSettingsButton.element.classList.add('open-settings-button');
+
+		this._register(openSettingsButton.onDidClick(() => this.preferencesService.openGlobalSettings()));
 	}
 
 	private createBody(parent: HTMLElement): void {
 		const bodyContainer = DOM.append(parent, $('.settings-body'));
 
-		// this.createNavList(navContainer);
 		this.createList(bodyContainer);
-	}
-
-	private createNavControls(parent: HTMLElement): void {
-		const navControls = DOM.append(parent, $('.settings-nav-controls'));
-		const configuredOnlyContainer = DOM.append(navControls, $('.settings-nav-controls-configured-only'));
-		const label = DOM.append(configuredOnlyContainer, $('span.settings-nav-controls-label.settings-nav-controls-configured-only'));
-		label.textContent = 'Show configured settings only';
-
-		const configuredOnlyCheckbox = new Checkbox({
-			isChecked: this.showConfiguredSettingsOnly,
-			onChange: e => {
-				this.showConfiguredSettingsOnly = configuredOnlyCheckbox.checked;
-				this.render();
-			},
-			actionClassName: 'settings-nav-checkbox',
-			title: 'Show configured settings only'
-		});
-
-		configuredOnlyContainer.appendChild(configuredOnlyCheckbox.domNode);
 	}
 
 	private createList(parent: HTMLElement): void {
@@ -279,6 +252,11 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private onShowAllSettingsClicked(): void {
 		this.showAllSettings = !this.showAllSettings;
+		this.render();
+	}
+
+	private onShowConfiguredOnlyClicked(): void {
+		this.showConfiguredSettingsOnly = !this.showConfiguredSettingsOnly;
 		this.render();
 	}
 
@@ -543,7 +521,7 @@ class SettingItemDelegate implements IDelegate<IListEntry> {
 
 		if (entry.templateId === SETTINGS_ENTRY_TEMPLATE_ID) {
 			// TODO dynamic height
-			return 105;
+			return 75;
 		}
 
 		if (entry.templateId === BUTTON_ROW_ENTRY_TEMPLATE) {
