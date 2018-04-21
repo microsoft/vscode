@@ -76,7 +76,7 @@ export class InactiveExtensionUrlHandler implements IInactiveExtensionUrlHandler
 		uris.push({ timestamp, uri });
 
 		// activate the extension
-		return this.extensionService.activateByEvent(`onExternalUri:${extensionId}`)
+		return this.extensionService.activateByEvent(`onUri:${extensionId}`)
 			.then(() => true);
 	}
 
