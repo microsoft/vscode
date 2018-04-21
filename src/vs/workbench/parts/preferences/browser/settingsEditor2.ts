@@ -15,7 +15,7 @@ import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
@@ -40,8 +40,10 @@ import { isPromiseCanceledError, getErrorMessage } from 'vs/base/common/errors';
 import { ILogService } from 'vs/platform/log/common/log';
 
 const SETTINGS_ENTRY_TEMPLATE_ID = 'settings.entry.template';
-const SETTINGS_NAV_TEMPLATE_ID = 'settings.nav.template';
 const SETTINGS_GROUP_ENTRY_TEMPLATE_ID = 'settings.group.template';
+const BUTTON_ROW_ENTRY_TEMPLATE = 'settings.buttonRow.template';
+
+const ALL_SETTINGS_BUTTON_ID = 'allSettings';
 
 interface IListEntry {
 	id: string;
@@ -58,13 +60,12 @@ interface ISettingItemEntry extends IListEntry {
 	enum?: string[];
 }
 
-interface INavListEntry extends IListEntry {
-	title: string;
-	index: number;
-}
-
 interface IGroupTitleEntry extends IListEntry {
 	title: string;
+}
+
+interface IButtonRowEntry extends IListEntry {
+	label: string;
 }
 
 enum SearchResultIdx {
@@ -185,6 +186,9 @@ export class SettingsEditor2 extends BaseEditor {
 		this.settingsTargetsWidget.onDidTargetChange(e => this.renderEntries());
 
 		this.createOpenSettingsElement(headerControlsContainer);
+
+		const navContainer = DOM.append(this.headerContainer, $('.settings-nav-container'));
+		this.createNavControls(navContainer);
 	}
 
 	private createOpenSettingsElement(parent: HTMLElement): void {
@@ -209,8 +213,6 @@ export class SettingsEditor2 extends BaseEditor {
 	private createBody(parent: HTMLElement): void {
 		const bodyContainer = DOM.append(parent, $('.settings-body'));
 
-		const navContainer = DOM.append(bodyContainer, $('.settings-nav-container'));
-		this.createNavControls(navContainer);
 		// this.createNavList(navContainer);
 		this.createList(bodyContainer);
 	}
@@ -232,34 +234,22 @@ export class SettingsEditor2 extends BaseEditor {
 		});
 
 		configuredOnlyContainer.appendChild(configuredOnlyCheckbox.domNode);
-
-		const allSettingsContainer = DOM.append(navControls, $('.settings-nav-controls-all-settings'));
-		const allSettingsLabel = DOM.append(allSettingsContainer, $('span.settings-nav-controls-label'));
-		allSettingsLabel.textContent = 'Show all settings';
-
-		const allSettingsCheckbox = new Checkbox({
-			isChecked: this.showAllSettings,
-			onChange: e => {
-				this.showAllSettings = allSettingsCheckbox.checked;
-				this.render();
-			},
-			actionClassName: 'settings-nav-checkbox',
-			title: 'Show all settings'
-		});
-
-		allSettingsContainer.appendChild(allSettingsCheckbox.domNode);
 	}
 
 	private createList(parent: HTMLElement): void {
 		this.settingsListContainer = DOM.append(parent, $('.settings-list-container'));
 
 		const settingItemRenderer = this.instantiationService.createInstance(SettingItemRenderer);
-		settingItemRenderer.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value));
+		this._register(settingItemRenderer.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value)));
+
+		const buttonItemRenderer = new ButtonRowRenderer();
+		this._register(buttonItemRenderer.onDidClick(e => this.onShowAllSettingsClicked()));
+
 		this.settingsList = this._register(this.instantiationService.createInstance(
 			WorkbenchList,
 			this.settingsListContainer,
 			new SettingItemDelegate(),
-			[settingItemRenderer, new GroupTitleRenderer()],
+			[settingItemRenderer, new GroupTitleRenderer(), buttonItemRenderer],
 			{
 				identityProvider: e => e.id,
 				ariaLabel: localize('settingsListLabel', "Settings"),
@@ -271,6 +261,11 @@ export class SettingsEditor2 extends BaseEditor {
 		) as WorkbenchList<IListEntry>;
 
 		this.settingsList.style({ listHoverBackground: Color.transparent, listFocusOutline: Color.transparent });
+	}
+
+	private onShowAllSettingsClicked(): void {
+		this.showAllSettings = !this.showAllSettings;
+		this.render();
 	}
 
 	private onDidChangeSetting(key: string, value: any): void {
@@ -293,15 +288,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private onInputChanged(): void {
 		const query = this.searchWidget.getValue().trim();
 		this.delayedFilterLogging.cancel();
-		this.triggerSearch(query)
-			.then(() => {
-				// const result = this.preferencesRenderers.lastFilterResult;
-				// if (result) {
-				// 	this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(
-				// 		query,
-				// 		this.preferencesRenderers.lastFilterResult));
-				// }
-			});
+		this.triggerSearch(query);
 	}
 
 	private triggerSearch(query: string): TPromise<void> {
@@ -456,8 +443,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private renderEntries(): void {
 		if (this.defaultSettingsEditorModel) {
 
-			const entries: (ISettingItemEntry | IGroupTitleEntry)[] = [];
-			const navEntries: INavListEntry[] = [];
+			const entries: IListEntry[] = [];
 			for (let groupIdx = 0; groupIdx < this.defaultSettingsEditorModel.settingsGroups.length; groupIdx++) {
 				if (groupIdx > 0 && !(this.showAllSettings)) {
 					break;
@@ -475,13 +461,6 @@ export class SettingsEditor2 extends BaseEditor {
 				}
 
 				if (groupEntries.length) {
-					navEntries.push({
-						id: group.id,
-						index: groupIdx,
-						title: group.title,
-						templateId: SETTINGS_NAV_TEMPLATE_ID
-					});
-
 					entries.push(<IGroupTitleEntry>{
 						id: group.id,
 						templateId: SETTINGS_GROUP_ENTRY_TEMPLATE_ID,
@@ -490,10 +469,20 @@ export class SettingsEditor2 extends BaseEditor {
 
 					entries.push(...groupEntries);
 				}
+
+				if (groupIdx === 0) {
+					const showAllSettingsLabel = this.showAllSettings ?
+						localize('showFewerSettingsLabel', "Show Fewer Settings") :
+						localize('showAllSettingsLabel', "Show All Settings");
+					entries.push(<IButtonRowEntry>{
+						id: ALL_SETTINGS_BUTTON_ID,
+						label: showAllSettingsLabel,
+						templateId: BUTTON_ROW_ENTRY_TEMPLATE
+					});
+				}
 			}
 
 			this.settingsList.splice(0, this.settingsList.length, entries);
-			// this.navList.splice(0, this.navList.length, navEntries);
 		}
 	}
 
@@ -533,7 +522,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 class SettingItemDelegate implements IDelegate<IListEntry> {
 
-	getHeight(entry: ISettingItemEntry) {
+	getHeight(entry: IListEntry) {
 		if (entry.templateId === SETTINGS_GROUP_ENTRY_TEMPLATE_ID) {
 			return 60;
 		}
@@ -541,6 +530,10 @@ class SettingItemDelegate implements IDelegate<IListEntry> {
 		if (entry.templateId === SETTINGS_ENTRY_TEMPLATE_ID) {
 			// TODO dynamic height
 			return 105;
+		}
+
+		if (entry.templateId === BUTTON_ROW_ENTRY_TEMPLATE) {
+			return 60;
 		}
 
 		return 0;
@@ -563,16 +556,17 @@ interface ISettingItemTemplate {
 	overridesElement: HTMLElement;
 }
 
-interface INavItemTemplate {
+interface IGroupTitleTemplate {
 	parent: HTMLElement;
-
 	labelElement: HTMLElement;
 }
 
-interface IGroupTitleItemTemplate {
+interface IButtonRowTemplate {
 	parent: HTMLElement;
+	toDispose: IDisposable[];
 
-	labelElement: HTMLElement;
+	button: Button;
+	entry?: IButtonRowEntry;
 }
 
 interface ISettingChangeEvent {
@@ -582,9 +576,6 @@ interface ISettingChangeEvent {
 
 class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTemplate> {
 
-	/**
-	 * TODO@roblou This shouldn't exist. List items should have actions or something
-	 */
 	private readonly _onDidChangeSetting: Emitter<ISettingChangeEvent> = new Emitter<ISettingChangeEvent>();
 	public readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
 
@@ -703,14 +694,11 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 	}
 }
 
-class GroupTitleRenderer implements IRenderer<IGroupTitleEntry, IGroupTitleItemTemplate> {
+class GroupTitleRenderer implements IRenderer<IGroupTitleEntry, IGroupTitleTemplate> {
 
 	get templateId(): string { return SETTINGS_GROUP_ENTRY_TEMPLATE_ID; }
 
-	constructor(
-	) { }
-
-	renderTemplate(parent: HTMLElement): INavItemTemplate {
+	renderTemplate(parent: HTMLElement): IGroupTitleTemplate {
 		DOM.addClass(parent, 'group-title');
 
 		const labelElement = DOM.append(parent, $('h2.group-title-label'));
@@ -720,11 +708,46 @@ class GroupTitleRenderer implements IRenderer<IGroupTitleEntry, IGroupTitleItemT
 		};
 	}
 
-	renderElement(entry: IGroupTitleEntry, index: number, template: IGroupTitleItemTemplate): void {
+	renderElement(entry: IGroupTitleEntry, index: number, template: IGroupTitleTemplate): void {
 		template.labelElement.textContent = entry.title;
 	}
 
-	disposeTemplate(template: ISettingItemTemplate): void {
+	disposeTemplate(template: IGroupTitleTemplate): void {
+	}
+}
+
+class ButtonRowRenderer implements IRenderer<IButtonRowEntry, IButtonRowTemplate> {
+
+	private readonly _onDidClick: Emitter<string> = new Emitter<string>();
+	public readonly onDidClick: Event<string> = this._onDidClick.event;
+
+	get templateId(): string { return BUTTON_ROW_ENTRY_TEMPLATE; }
+
+	renderTemplate(parent: HTMLElement): IButtonRowTemplate {
+		DOM.addClass(parent, 'all-settings');
+
+		const buttonElement = DOM.append(parent, $('.all-settings-button'));
+
+		const button = new Button(buttonElement);
+		const toDispose: IDisposable[] = [button];
+
+		const template: IButtonRowTemplate = {
+			parent: parent,
+			toDispose,
+
+			button
+		};
+		toDispose.push(button.onDidClick(e => this._onDidClick.fire(template.entry && template.entry.label)));
+
+		return template;
+	}
+
+	renderElement(entry: IButtonRowEntry, index: number, template: IButtonRowTemplate): void {
+		template.button.label = entry.label;
+		template.entry = entry;
+	}
+
+	disposeTemplate(template: IButtonRowTemplate): void {
 		dispose(template.toDispose);
 	}
 }

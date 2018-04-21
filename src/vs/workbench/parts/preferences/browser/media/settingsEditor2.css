@@ -59,27 +59,22 @@
 	margin-left: 4px;
 }
 
-.settings-editor > .settings-body .settings-nav-controls {
-	margin-bottom: 15px;
+.settings-editor > .settings-header .settings-nav-controls {
 	display: flex;
 }
 
-.settings-editor > .settings-body .settings-nav-controls .monaco-custom-checkbox {
+.settings-editor > .settings-header .settings-nav-controls .monaco-custom-checkbox {
 	margin-right: 5px;
+}
+
+.settings-editor > .settings-header .settings-nav-container {
+	margin-top: 18px;
+	margin-left: 560px;
 }
 
 .settings-editor > .settings-body .settings-list-container .settings-list-offset-helper {
 	opacity: 0;
 	position: absolute;
-}
-
-.settings-editor > .settings-body .settings-nav-container {
-	margin-top: 18px;
-	margin-left: 410px;
-}
-
-.settings-editor > .settings-body .settings-nav-container .settings-nav-controls-configured-only {
-	margin-right: 10px;
 }
 
 .settings-editor > .settings-body .settings-list-container .monaco-list::before {
@@ -183,4 +178,12 @@
 	opacity: 0.6;
 	margin-top: 5px;
 	text-align: center;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row.all-settings {
+	display: flex;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row.all-settings .all-settings-button {
+	margin: auto;
 }
