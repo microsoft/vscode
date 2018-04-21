@@ -814,9 +814,11 @@ suite('Quick Open Scorer', () => {
 
 	test('prepareSearchForScoring', function () {
 		assert.equal(scorer.prepareQuery(' f*a ').value, 'fa');
-		assert.equal(scorer.prepareQuery('model Tester.ts').value, 'modelTester.ts');
-		assert.equal(scorer.prepareQuery('Model Tester.ts').lowercase, 'modeltester.ts');
+		assert.equal(scorer.prepareQuery('model Tester.ts').value, 'model Tester.ts');
+		assert.equal(scorer.prepareQuery('Model Tester.ts').lowercase, 'model tester.ts');
 		assert.equal(scorer.prepareQuery('ModelTester.ts').containsPathSeparator, false);
 		assert.equal(scorer.prepareQuery('Model' + nativeSep + 'Tester.ts').containsPathSeparator, true);
+		assert.equal(scorer.prepareQuery('dir' + nativeSep + 'tester.ts').value, 'dir' + nativeSep + 'tester.ts');
+		assert.equal(scorer.prepareQuery('dir' + nativeSep + 'model tester.ts').value, 'dir' + nativeSep + 'model tester.ts');
 	});
 });

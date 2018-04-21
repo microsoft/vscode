@@ -311,7 +311,8 @@ export function prepareQuery(original: string): IPreparedQuery {
 	let value: string;
 
 	if (original) {
-		value = stripWildcards(original).replace(/\s/g, ''); // get rid of all wildcards and whitespace
+		value = stripWildcards(original).trim().replace(/\s/g, '\ '); // get rid of all wildcards and whitespace
+
 		if (isWindows) {
 			value = value.replace(/\//g, nativeSep); // Help Windows users to search for paths when using slash
 		}
