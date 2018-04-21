@@ -660,8 +660,8 @@ declare module 'vscode' {
 
 	//#region URLs
 
-	export interface ExternalUriHandler {
-		handleExternalUri(uri: Uri): void;
+	export interface ProtocolHandler {
+		handleUri(uri: Uri): void;
 	}
 
 	export namespace window {
@@ -669,7 +669,7 @@ declare module 'vscode' {
 		/**
 		 * Registers a protocol handler capable of handling system-wide URIs.
 		 */
-		export function registerExternalUriHandler(handler: ExternalUriHandler): Disposable;
+		export function registerProtocolHandler(handler: ProtocolHandler): Disposable;
 	}
 
 	//#endregion

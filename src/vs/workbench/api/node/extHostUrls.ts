@@ -14,7 +14,7 @@ export class ExtHostUrls implements ExtHostUrlsShape {
 	private static HandlePool = 0;
 	private readonly _proxy: MainThreadUrlsShape;
 
-	private handlers = new Map<number, vscode.ExternalUriHandler>();
+	private handlers = new Map<number, vscode.ProtocolHandler>();
 
 	constructor(
 		mainContext: IMainContext
@@ -22,14 +22,14 @@ export class ExtHostUrls implements ExtHostUrlsShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadUrls);
 	}
 
-	registerExternalUriHandler(extensionId: string, handler: vscode.ExternalUriHandler): vscode.Disposable {
+	registerProtocolHandler(extensionId: string, handler: vscode.ProtocolHandler): vscode.Disposable {
 		const handle = ExtHostUrls.HandlePool++;
 		this.handlers.set(handle, handler);
-		this._proxy.$registerExternalUriHandler(handle, extensionId);
+		this._proxy.$registerProtocolHandler(handle, extensionId);
 
 		return toDisposable(() => {
 			this.handlers.delete(handle);
-			this._proxy.$unregisterExternalUriHandler(handle);
+			this._proxy.$unregisterProtocolHandler(handle);
 		});
 	}
 
@@ -40,7 +40,7 @@ export class ExtHostUrls implements ExtHostUrlsShape {
 			return TPromise.as(null);
 		}
 
-		handler.handleExternalUri(URI.revive(uri));
+		handler.handleUri(URI.revive(uri));
 		return TPromise.as(null);
 	}
 }

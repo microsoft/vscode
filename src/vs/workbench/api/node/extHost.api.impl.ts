@@ -434,8 +434,8 @@ export function createApiFactory(
 			registerWebviewPanelSerializer: proposedApiFunction(extension, (viewType: string, serializer: vscode.WebviewPanelSerializer) => {
 				return extHostWebviews.registerWebviewPanelSerializer(viewType, serializer);
 			}),
-			registerExternalUriHandler: proposedApiFunction(extension, (handler: vscode.ExternalUriHandler) => {
-				return extHostUrls.registerExternalUriHandler(extension.id, handler);
+			registerProtocolHandler: proposedApiFunction(extension, (handler: vscode.ProtocolHandler) => {
+				return extHostUrls.registerProtocolHandler(extension.id, handler);
 			})
 		};
 

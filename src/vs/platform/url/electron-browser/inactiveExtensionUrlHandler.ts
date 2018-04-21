@@ -98,8 +98,6 @@ export class InactiveExtensionUrlHandler implements IInactiveExtensionUrlHandler
 
 	// forget about all uris buffered more than 5 minutes ago
 	private garbageCollect(): void {
-		console.log('garbage collect');
-
 		const now = new Date().getTime();
 		const uriBuffer = new Map<string, { timestamp: number, uri: URI }[]>();
 
