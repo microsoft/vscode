@@ -121,6 +121,297 @@
 			"comments": "Covers same line Razor statments with embedded C#"
 		},
 		{
+			"begin": "(^[ \\t]+)?(?=<(?i:script))",
+			"beginCaptures": {
+				"1": {
+					"name": "punctuation.whitespace.embedded.leading.html"
+				}
+			},
+			"end": "(?!\\G)([ \\t]*$\\n?)?",
+			"endCaptures": {
+				"1": {
+					"name": "punctuation.whitespace.embedded.trailing.html"
+				}
+			},
+			"patterns": [
+				{
+					"begin": "(<)((?i:script))\\b",
+					"beginCaptures": {
+						"0": {
+							"name": "meta.tag.metadata.script.html"
+						},
+						"1": {
+							"name": "punctuation.definition.tag.begin.html"
+						},
+						"2": {
+							"name": "entity.name.tag.html"
+						}
+					},
+					"end": "(/>)|(/)((?i:script))(>)",
+					"endCaptures": {
+						"0": {
+							"name": "meta.tag.metadata.script.html"
+						},
+						"1": {
+							"name": "punctuation.definition.tag.end.html"
+						},
+						"2": {
+							"name": "punctuation.definition.tag.begin.html"
+						},
+						"3": {
+							"name": "entity.name.tag.html"
+						},
+						"4": {
+							"name": "punctuation.definition.tag.end.html"
+						}
+					},
+					"name": "meta.embedded.block.html",
+					"patterns": [
+						{
+							"begin": "\\G",
+							"end": "(?=/>|/)",
+							"patterns": [
+								{
+									"begin": "(>)",
+									"beginCaptures": {
+										"0": {
+											"name": "meta.tag.metadata.script.html"
+										},
+										"1": {
+											"name": "punctuation.definition.tag.end.html"
+										}
+									},
+									"end": "((<))(?=/(?i:script))",
+									"endCaptures": {
+										"0": {
+											"name": "meta.tag.metadata.script.html"
+										},
+										"1": {
+											"name": "punctuation.definition.tag.begin.html"
+										},
+										"2": {
+											"name": "source.js"
+										}
+									},
+									"patterns": [
+										{
+											"begin": "\\G",
+											"end": "(?=</(?i:script))",
+											"name": "source.js",
+											"patterns": [
+												{
+													"begin": "(^[ \\t]+)?(?=//)",
+													"beginCaptures": {
+														"1": {
+															"name": "punctuation.whitespace.comment.leading.js"
+														}
+													},
+													"end": "(?!\\G)",
+													"patterns": [
+														{
+															"begin": "//",
+															"beginCaptures": {
+																"0": {
+																	"name": "punctuation.definition.comment.js"
+																}
+															},
+															"end": "(?=</script)|\\n",
+															"name": "comment.line.double-slash.js"
+														}
+													]
+												},
+												{
+													"begin": "/\\*",
+													"captures": {
+														"0": {
+															"name": "punctuation.definition.comment.js"
+														}
+													},
+													"end": "\\*/|(?=</script)",
+													"name": "comment.block.js"
+												},
+												{
+													"include": "source.js"
+												}
+											]
+										}
+									]
+								},
+								{
+									"begin": "\\G",
+									"end": "(?i:(?=/?>|type(?=[\\s=])(?!\\s*=\\s*('|\"|)(text/(javascript|ecmascript|babel)|application/((x-)?javascript|ecmascript|babel)|module)[\\s\"'>])))",
+									"name": "meta.tag.metadata.script.html",
+									"patterns": [
+										{
+											"include": "#tag-stuff"
+										}
+									]
+								},
+								{
+									"begin": "(?=(?i:type\\s*=\\s*('|\"|)(text/(x-handlebars|(x-(handlebars-)?|ng-)?template|html)[\\s\"'>])))",
+									"end": "((<))(?=/(?i:script))",
+									"endCaptures": {
+										"0": {
+											"name": "meta.tag.metadata.script.html"
+										},
+										"1": {
+											"name": "punctuation.definition.tag.begin.html"
+										},
+										"2": {
+											"name": "text.html.cshtml"
+										}
+									},
+									"patterns": [
+										{
+											"begin": "\\G",
+											"end": "(>)|(?=/>)",
+											"endCaptures": {
+												"1": {
+													"name": "punctuation.definition.tag.end.html"
+												}
+											},
+											"name": "meta.tag.metadata.script.html",
+											"patterns": [
+												{
+													"include": "#tag-stuff"
+												}
+											]
+										},
+										{
+											"begin": "(?!\\G)",
+											"end": "(?=</(?i:script))",
+											"name": "text.html.cshtml",
+											"patterns": [
+												{
+													"include": "text.html.cshtml"
+												}
+											]
+										}
+									]
+								},
+								{
+									"begin": "(?=(?i:type))",
+									"end": "(<)(?=/(?i:script))",
+									"endCaptures": {
+										"0": {
+											"name": "meta.tag.metadata.script.html"
+										},
+										"1": {
+											"name": "punctuation.definition.tag.begin.html"
+										}
+									},
+									"patterns": [
+										{
+											"begin": "\\G",
+											"end": "(>)|(?=/>)",
+											"endCaptures": {
+												"1": {
+													"name": "punctuation.definition.tag.end.html"
+												}
+											},
+											"name": "meta.tag.metadata.script.html",
+											"patterns": [
+												{
+													"include": "#tag-stuff"
+												}
+											]
+										},
+										{
+											"begin": "(?!\\G)",
+											"end": "(?=</(?i:script))",
+											"name": "source.unknown"
+										}
+									]
+								}
+							]
+						}
+					]
+				}
+			]
+		},
+		{
+			"begin": "(^[ \\t]+)?(?=<(?i:style))",
+			"beginCaptures": {
+				"1": {
+					"name": "punctuation.whitespace.embedded.leading.html"
+				}
+			},
+			"end": "(?!\\G)([ \\t]*$\\n?)?",
+			"endCaptures": {
+				"1": {
+					"name": "punctuation.whitespace.embedded.trailing.html"
+				}
+			},
+			"patterns": [
+				{
+					"begin": "(<)((?i:style))\\b",
+					"beginCaptures": {
+						"0": {
+							"name": "meta.tag.metadata.style.html"
+						},
+						"1": {
+							"name": "punctuation.definition.tag.begin.html"
+						},
+						"2": {
+							"name": "entity.name.tag.html"
+						}
+					},
+					"end": "(/>)|((<)/)((?i:style))(>)",
+					"endCaptures": {
+						"0": {
+							"name": "meta.tag.metadata.style.html"
+						},
+						"1": {
+							"name": "punctuation.definition.tag.end.html"
+						},
+						"2": {
+							"name": "punctuation.definition.tag.begin.html"
+						},
+						"3": {
+							"name": "source.css"
+						},
+						"4": {
+							"name": "entity.name.tag.html"
+						},
+						"5": {
+							"name": "punctuation.definition.tag.end.html"
+						}
+					},
+					"name": "meta.embedded.block.html",
+					"patterns": [
+						{
+							"begin": "\\G",
+							"captures": {
+								"1": {
+									"name": "punctuation.definition.tag.end.html"
+								}
+							},
+							"end": "(?=/>)|(>)",
+							"name": "meta.tag.metadata.style.html",
+							"patterns": [
+								{
+									"include": "#tag-stuff"
+								}
+							]
+						},
+						{
+							"begin": "(?!\\G)",
+							"end": "(?=</(?i:style))",
+							"name": "source.css",
+							"patterns": [
+								{
+									"include": "#embedded-code"
+								},
+								{
+									"include": "source.css"
+								}
+							]
+						}
+					]
+				}
+			]
+		},
+		{
 			"include": "#comments"
 		},
 		{
