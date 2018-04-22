@@ -56,6 +56,7 @@ const _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
 const _driveLetterPath = /^\/[a-zA-Z]:/;
 const _upperCaseDrive = /^(\/)?([A-Z]:)/;
 const _driveLetter = /^[a-zA-Z]:/;
+const _isRelative = /^([~\.]\/|^[a-zA-Z]+\/)/;
 
 /**
  * Uniform Resource Identifier (URI) http://tools.ietf.org/html/rfc3986.
@@ -253,14 +254,11 @@ export default class URI implements UriComponents {
 		// or that it is at least a slash
 		if (_driveLetter.test(path)) {
 			path = _slash + path;
-
 		} else if (path[0] !== _slash) {
 			// tricky -> makes invalid paths
 			// but otherwise we have to stop
 			// allowing relative paths...
-			const _isRelative = /^([~\.]\/|^[a-zA-Z]+\/)/;
 			if (platform.isWindows) {
-				console.log('2');
 				path = _slash + path;
 			} else {
 				if (!_isRelative.test(path)) {
@@ -393,7 +391,12 @@ function _makeFsPath(uri: URI): string {
 		value = uri.path[1].toLowerCase() + uri.path.substr(2);
 	} else {
 		// other path
-		value = uri.path;
+		// required check because '.' means relative paths in non-Windows platform
+		if (uri.path[0] === '.') {
+			value = _slash + uri.path;
+		} else {
+			value = uri.path;
+		}
 	}
 	if (platform.isWindows) {
 		value = value.replace(/\//g, '\\');

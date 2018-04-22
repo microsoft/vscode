@@ -466,6 +466,13 @@ suite('URI', () => {
 		test('relative path', function () {
 			const path = 'foo/bar';
 			assert.equal(URI.file(path).path, path);
+			const fileUri1 = URI.parse(`file:foo/bar`);
+			assert.equal(fileUri1.path, 'foo/bar');
+			const uri = fileUri1.toString();
+			assert.equal(uri, 'file://foo/bar');
+			const fileUri2 = URI.parse(uri);
+			assert.equal(fileUri2.path, '/bar');
+			assert.equal(fileUri2.authority, 'foo');
 		});
 
 		test('relative path with dot', function () {
