@@ -23,7 +23,9 @@
 			"scopeName": "text.html.cshtml",
 			"path": "./syntaxes/cshtml.tmLanguage.json",
 			"embeddedLanguages": {
-				"section.embedded.source.cshtml": "csharp"
+				"section.embedded.source.cshtml": "csharp",
+          "source.css": "css",
+          "source.js": "javascript"				
 			}
 		}]
   }
