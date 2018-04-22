@@ -393,7 +393,7 @@ export class ClearSearchResultsAction extends Action {
 
 	update(): void {
 		const searchView = getSearchView(this.viewletService, this.panelService);
-		this.enabled = searchView && searchView.hasSearchResults();
+		this.enabled = searchView && searchView.isSearchSubmitted();
 	}
 
 	public run(): TPromise<void> {
