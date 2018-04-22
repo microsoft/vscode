@@ -76,6 +76,7 @@ interface IOpenBrowserWindowOptions {
 	filesToDiff?: IPath[];
 	filesToWait?: IPathsToWaitFor;
 
+	preview?: boolean;
 	forceNewWindow?: boolean;
 	windowToUse?: ICodeWindow;
 
@@ -562,6 +563,7 @@ export class WindowsManager implements IWindowsMainService {
 					filesToCreate,
 					filesToDiff,
 					filesToWait,
+					preview: openConfig.preview,
 					forceNewWindow: true
 				}));
 
@@ -700,7 +702,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		window.ready().then(readyWindow => {
 			const termProgram = configuration.userEnv ? configuration.userEnv['TERM_PROGRAM'] : void 0;
-			readyWindow.send('vscode:openFiles', { filesToOpen, filesToCreate, filesToDiff, filesToWait, termProgram });
+			readyWindow.send('vscode:openFiles', { filesToOpen, filesToCreate, filesToDiff, filesToWait, termProgram, preview: configuration.preview });
 		});
 
 		return window;
@@ -1039,7 +1041,6 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	private openInBrowserWindow(options: IOpenBrowserWindowOptions): ICodeWindow {
-
 		// Build IWindowConfiguration from config and options
 		const configuration: IWindowConfiguration = mixin({}, options.cli); // inherit all properties from CLI
 		configuration.appRoot = this.environmentService.appRoot;
@@ -1053,6 +1054,7 @@ export class WindowsManager implements IWindowsMainService {
 		configuration.filesToCreate = options.filesToCreate;
 		configuration.filesToDiff = options.filesToDiff;
 		configuration.filesToWait = options.filesToWait;
+		configuration.preview = options.preview;
 		configuration.nodeCachedDataDir = this.environmentService.nodeCachedDataDir;
 
 		// if we know the backup folder upfront (for empty windows to restore), we can set it

@@ -446,7 +446,15 @@ export class CodeApplication {
 		} else if (macOpenFiles && macOpenFiles.length && (!args._ || !args._.length)) {
 			this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, pathsToOpen: macOpenFiles, initialStartup: true }); // mac: open-file event received on startup
 		} else {
-			this.windowsMainService.open({ context, cli: args, forceNewWindow: args['new-window'] || (!args._.length && args['unity-launch']), diffMode: args.diff, initialStartup: true }); // default: read paths from cli
+			// default: read paths from cli
+			this.windowsMainService.open({
+				context,
+				cli: args,
+				forceNewWindow: args['new-window'] || (!args._.length && args['unity-launch']),
+				diffMode: args.diff,
+				initialStartup: true,
+				preview: args.preview
+			});
 		}
 	}
 

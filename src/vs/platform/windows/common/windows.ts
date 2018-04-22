@@ -295,6 +295,7 @@ export interface IOpenFileRequest {
 	filesToCreate?: IPath[];
 	filesToDiff?: IPath[];
 	filesToWait?: IPathsToWaitFor;
+	preview?: boolean;
 	termProgram?: string;
 }
 

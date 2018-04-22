@@ -462,7 +462,7 @@ export class ElectronWindow extends Themable {
 		const diffMode = (request.filesToDiff.length === 2);
 
 		if (!diffMode && request.filesToOpen) {
-			inputs.push(...this.toInputs(request.filesToOpen, false));
+			inputs.push(...this.toInputs(request.filesToOpen, false, !request.preview));
 		}
 
 		if (!diffMode && request.filesToCreate) {
@@ -517,14 +517,14 @@ export class ElectronWindow extends Themable {
 		});
 	}
 
-	private toInputs(paths: IPath[], isNew: boolean): IResourceInputType[] {
+	private toInputs(paths: IPath[], isNew: boolean, pinned = true): IResourceInputType[] {
 		return paths.map(p => {
 			const resource = URI.file(p.filePath);
 			let input: IResourceInput | IUntitledResourceInput;
 			if (isNew) {
-				input = { filePath: resource.fsPath, options: { pinned: true } } as IUntitledResourceInput;
+				input = { filePath: resource.fsPath, options: { pinned } } as IUntitledResourceInput;
 			} else {
-				input = { resource, options: { pinned: true } } as IResourceInput;
+				input = { resource, options: { pinned } } as IResourceInput;
 			}
 
 			if (!isNew && p.lineNumber) {
