@@ -5,7 +5,7 @@
 'use strict';
 
 import { getLanguageModelCache } from '../languageModelCache';
-import { LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions, HTMLFormatConfiguration, ICompletionParticipant } from 'vscode-html-languageservice';
+import { LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions, HTMLFormatConfiguration } from 'vscode-html-languageservice';
 import { TextDocument, Position, Range, CompletionItem } from 'vscode-languageserver-types';
 import { LanguageMode, Workspace } from './languageModes';
 
@@ -18,7 +18,7 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 		getId() {
 			return 'html';
 		},
-		doComplete(document: TextDocument, position: Position, settings = workspace.settings, completionParticipants?: ICompletionParticipant[]) {
+		doComplete(document: TextDocument, position: Position, settings = workspace.settings) {
 			let options = settings && settings.html && settings.html.suggest;
 			let doAutoComplete = settings && settings.html && settings.html.autoClosingTags;
 			if (doAutoComplete) {
@@ -26,9 +26,6 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 			}
 			let pathCompletionProposals: CompletionItem[] = [];
 			let participants = [getPathCompletionParticipant(document, workspace.folders, pathCompletionProposals)];
-			if (completionParticipants) {
-				participants.push(...completionParticipants);
-			}
 			htmlLanguageService.setCompletionParticipants(participants);
 
 			const htmlDocument = htmlDocuments.get(document);

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Stylesheet } from 'EmmetNode';
+import { Node, Stylesheet } from 'EmmetNode';
 import { isValidLocationForEmmetAbbreviation } from './abbreviationActions';
 import { getEmmetHelper, getMappingForIncludedLanguages, parsePartialStylesheet, getEmmetConfiguration, getEmmetMode, isStyleSheet, parseDocument, } from './util';
 
@@ -34,7 +34,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 		}
 
 		let validateLocation = false;
-		let rootNode: Stylesheet | undefined = undefined;
+		let rootNode: Node | undefined = undefined;
 
 		if (context.triggerKind !== vscode.CompletionTriggerKind.TriggerForIncompleteCompletions) {
 			validateLocation = syntax === 'html' || syntax === 'jsx' || syntax === 'xml' || isStyleSheet(document.languageId);
@@ -45,6 +45,8 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 				if (!rootNode) {
 					return;
 				}
+			} else if (document.languageId === 'html') {
+				rootNode = parseDocument(document, false);
 			}
 		}
 
