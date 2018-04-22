@@ -42,10 +42,10 @@ export const ID = 'editor.contrib.review';
 
 declare var ResizeObserver: any;
 
-// const REVIEW_DECORATION = ModelDecorationOptions.register({
-// 	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-// 	glyphMarginClassName: 'review'
-// });
+const REVIEW_DECORATION = ModelDecorationOptions.register({
+	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+	glyphMarginClassName: 'review'
+});
 
 const NEW_COMMENT_DECORATION = ModelDecorationOptions.register({
 	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
@@ -128,6 +128,9 @@ export class ReviewZoneWidget extends ZoneWidget {
 		return this._owner;
 	}
 
+	private _decorationIDs: string[];
+	private _localToDispose: IDisposable[];
+
 	constructor(
 		editor: ICodeEditor,
 		owner: number,
@@ -143,6 +146,8 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._commentThread = commentThread;
 		this._replyCommand = replyCommand;
 		this._isCollapsed = commentThread.collapsibleState !== modes.CommentThreadCollapsibleState.Expanded;
+		this._decorationIDs = [];
+		this._localToDispose = [];
 		this.create();
 		this.themeService.onThemeChange(this._applyTheme, this);
 	}
@@ -189,14 +194,9 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		this._toggleAction = new Action('review.expand', nls.localize('label.expand', "Expand"), this._isCollapsed ? EXPAND_ACTION_CLASS : COLLAPSE_ACTION_CLASS, true, () => {
 			if (this._isCollapsed) {
-				this._bodyElement.style.display = 'block';
-				this._toggleAction.class = COLLAPSE_ACTION_CLASS;
-				this._isCollapsed = false;
 			}
 			else {
-				this._bodyElement.style.display = 'none';
-				this._toggleAction.class = EXPAND_ACTION_CLASS;
-				this._isCollapsed = true;
+				this.hide();
 			}
 			return null;
 		});
@@ -268,13 +268,20 @@ export class ReviewZoneWidget extends ZoneWidget {
 	}
 
 	display(lineNumber: number) {
-		this.show({ lineNumber: lineNumber, column: 1 }, 2);
+		this.editor.changeDecorations(accessor => {
+			this._decorationIDs = accessor.deltaDecorations(this._decorationIDs, [{
+				range: this._commentThread.range,
+				options: REVIEW_DECORATION
+			}]);
+		});
+
+		this._localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
+		this._localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
 
 		var headHeight = Math.ceil(this.editor.getConfiguration().lineHeight * 1.2);
 		this._headElement.style.height = `${headHeight}px`;
 		this._headElement.style.lineHeight = this._headElement.style.height;
 
-		this._bodyElement.style.display = this._isCollapsed ? 'none' : 'block';
 		this._commentsElement = $('div.comments-container').appendTo(this._bodyElement).getHTMLElement();
 		this._commentElements = [];
 		for (let i = 0; i < this._commentThread.comments.length; i++) {
@@ -327,7 +334,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		}
 
 		this._resizeObserver = new ResizeObserver(entries => {
-			if (entries[0].target === this._bodyElement) {
+			if (entries[0].target === this._bodyElement && !this._isCollapsed) {
 				const lineHeight = this.editor.getConfiguration().lineHeight;
 				const arrowHeight = Math.round(lineHeight / 3);
 				const computedLinesNumber = Math.ceil((headHeight + entries[0].contentRect.height + arrowHeight) / lineHeight);
@@ -336,6 +343,65 @@ export class ReviewZoneWidget extends ZoneWidget {
 		});
 
 		this._resizeObserver.observe(this._bodyElement);
+
+		if (this._commentThread.collapsibleState === modes.CommentThreadCollapsibleState.Expanded) {
+			this.show({ lineNumber: lineNumber, column: 1 }, 2);
+		}
+	}
+
+	private mouseDownInfo: { lineNumber: number, iconClicked: boolean };
+
+	private onEditorMouseDown(e: IEditorMouseEvent): void {
+		if (!e.event.leftButton) {
+			return;
+		}
+
+		let range = e.target.range;
+		if (!range) {
+			return;
+		}
+
+		let iconClicked = false;
+		switch (e.target.type) {
+			case MouseTargetType.GUTTER_GLYPH_MARGIN:
+				iconClicked = true;
+				break;
+			default:
+				return;
+		}
+
+		this.mouseDownInfo = { lineNumber: range.startLineNumber, iconClicked };
+	}
+
+	private onEditorMouseUp(e: IEditorMouseEvent): void {
+		if (!this.mouseDownInfo) {
+			return;
+		}
+		let lineNumber = this.mouseDownInfo.lineNumber;
+		let iconClicked = this.mouseDownInfo.iconClicked;
+
+		let range = e.target.range;
+		if (!range || range.startLineNumber !== lineNumber) {
+			return;
+		}
+
+		if (lineNumber !== this._commentThread.range.startLineNumber) {
+			return;
+		}
+
+		if (iconClicked) {
+			if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN) {
+				return;
+			}
+		}
+
+		if (this._isCollapsed) {
+			this._isCollapsed = !this._isCollapsed;
+			this.show({ lineNumber: lineNumber, column: 1 }, 2);
+		} else {
+			this._isCollapsed = !this._isCollapsed;
+			this.hide();
+		}
 	}
 
 	private _applyTheme(theme: ITheme) {
@@ -352,9 +418,9 @@ export class ReviewZoneWidget extends ZoneWidget {
 			this._resizeObserver.disconnect();
 			this._resizeObserver = null;
 		}
+		this._localToDispose.forEach(local => local.dispose());
 		this._onDidClose.fire();
 	}
-
 }
 
 export class ReviewController implements IEditorContribution {
