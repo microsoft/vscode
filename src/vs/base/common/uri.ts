@@ -258,7 +258,15 @@ export default class URI implements UriComponents {
 			// tricky -> makes invalid paths
 			// but otherwise we have to stop
 			// allowing relative paths...
-			path = _slash + path;
+			const _isRelative = /^([~\.]\/|^[a-zA-Z]+\/)/;
+			if (platform.isWindows) {
+				console.log('2');
+				path = _slash + path;
+			} else {
+				if (!_isRelative.test(path)) {
+					path = _slash + path;
+				}
+			}
 		}
 
 		return new _URI('file', authority, path, _empty, _empty);

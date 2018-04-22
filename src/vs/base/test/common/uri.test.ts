@@ -457,4 +457,20 @@ suite('URI', () => {
 		// }
 		// console.profileEnd();
 	});
+	if (!isWindows) {
+		test('absolute path', function () {
+			const path = '/foo/bar';
+			assert.equal(URI.file(path).path, path);
+		});
+
+		test('relative path', function () {
+			const path = 'foo/bar';
+			assert.equal(URI.file(path).path, path);
+		});
+
+		test('relative path with dot', function () {
+			const path = './foo/bar';
+			assert.equal(URI.file(path).path, path);
+		});
+	}
 });
