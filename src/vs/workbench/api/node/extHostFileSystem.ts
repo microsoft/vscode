@@ -14,7 +14,7 @@ import * as path from 'path';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { values } from 'vs/base/common/map';
-import { Range, FileType, FileChangeType, FileChangeType2 } from 'vs/workbench/api/node/extHostTypes';
+import { Range, DeprecatedFileType, DeprecatedFileChangeType, FileChangeType } from 'vs/workbench/api/node/extHostTypes';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { Schemas } from 'vs/base/common/network';
 
@@ -57,9 +57,7 @@ class FsLinkProvider implements vscode.DocumentLinkProvider {
 	}
 }
 
-class FileSystemProviderShim implements vscode.FileSystemProvider2 {
-
-	_version: 9 = 9;
+class FileSystemProviderShim implements vscode.FileSystemProvider {
 
 	onDidChangeFile: vscode.Event<vscode.FileChangeEvent[]>;
 
@@ -77,19 +75,19 @@ class FileSystemProviderShim implements vscode.FileSystemProvider2 {
 		return { dispose() { } };
 	}
 
-	stat(resource: vscode.Uri): Thenable<vscode.FileStat2> {
+	stat(resource: vscode.Uri): Thenable<vscode.FileStat> {
 		return this._delegate.stat(resource).then(stat => FileSystemProviderShim._modernizeFileStat(stat));
 	}
-	rename(oldUri: vscode.Uri, newUri: vscode.Uri): Thenable<vscode.FileStat2> {
+	rename(oldUri: vscode.Uri, newUri: vscode.Uri): Thenable<vscode.FileStat> {
 		return this._delegate.move(oldUri, newUri).then(stat => FileSystemProviderShim._modernizeFileStat(stat));
 	}
-	readDirectory(resource: vscode.Uri): Thenable<[string, vscode.FileStat2][]> {
+	readDirectory(resource: vscode.Uri): Thenable<[string, vscode.FileStat][]> {
 		return this._delegate.readdir(resource).then(tuples => {
-			return tuples.map(tuple => <[string, vscode.FileStat2]>[path.posix.basename(tuple[0].path), FileSystemProviderShim._modernizeFileStat(tuple[1])]);
+			return tuples.map(tuple => <[string, vscode.FileStat]>[path.posix.basename(tuple[0].path), FileSystemProviderShim._modernizeFileStat(tuple[1])]);
 		});
 	}
 
-	private static _modernizeFileStat(stat: vscode.DeprecatedFileStat): vscode.FileStat2 {
+	private static _modernizeFileStat(stat: vscode.DeprecatedFileStat): vscode.FileStat {
 		let { mtime, size, type } = stat;
 		let isFile = false;
 		let isDirectory = false;
@@ -97,13 +95,13 @@ class FileSystemProviderShim implements vscode.FileSystemProvider2 {
 
 		// no support for bitmask, effectively no support for symlinks
 		switch (type) {
-			case FileType.Dir:
+			case DeprecatedFileType.Dir:
 				isDirectory = true;
 				break;
-			case FileType.File:
+			case DeprecatedFileType.File:
 				isFile = true;
 				break;
-			case FileType.Symlink:
+			case DeprecatedFileType.Symlink:
 				isSymbolicLink = true;
 				break;
 		}
@@ -112,16 +110,16 @@ class FileSystemProviderShim implements vscode.FileSystemProvider2 {
 
 	private static _modernizeFileChange(e: vscode.DeprecatedFileChange): vscode.FileChangeEvent {
 		let { resource, type } = e;
-		let newType: vscode.FileChangeType2;
+		let newType: vscode.FileChangeType;
 		switch (type) {
-			case FileChangeType.Updated:
-				newType = FileChangeType2.Changed;
+			case DeprecatedFileChangeType.Updated:
+				newType = FileChangeType.Changed;
 				break;
-			case FileChangeType.Added:
-				newType = FileChangeType2.Created;
+			case DeprecatedFileChangeType.Added:
+				newType = FileChangeType.Created;
 				break;
-			case FileChangeType.Deleted:
-				newType = FileChangeType2.Deleted;
+			case DeprecatedFileChangeType.Deleted:
+				newType = FileChangeType.Deleted;
 				break;
 
 		}
@@ -132,14 +130,14 @@ class FileSystemProviderShim implements vscode.FileSystemProvider2 {
 
 	delete(resource: vscode.Uri): Thenable<void> {
 		return this._delegate.stat(resource).then(stat => {
-			if (stat.type === FileType.Dir) {
+			if (stat.type === DeprecatedFileType.Dir) {
 				return this._delegate.rmdir(resource);
 			} else {
 				return this._delegate.unlink(resource);
 			}
 		});
 	}
-	createDirectory(resource: vscode.Uri): Thenable<vscode.FileStat2> {
+	createDirectory(resource: vscode.Uri): Thenable<vscode.FileStat> {
 		return this._delegate.mkdir(resource).then(stat => FileSystemProviderShim._modernizeFileStat(stat));
 	}
 
@@ -165,7 +163,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 
 	private readonly _proxy: MainThreadFileSystemShape;
 	private readonly _linkProvider = new FsLinkProvider();
-	private readonly _fsProvider = new Map<number, vscode.FileSystemProvider2>();
+	private readonly _fsProvider = new Map<number, vscode.FileSystemProvider>();
 	private readonly _usedSchemes = new Set<string>();
 	private readonly _watches = new Map<number, IDisposable>();
 
@@ -187,20 +185,10 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	}
 
 	registerDeprecatedFileSystemProvider(scheme: string, provider: vscode.DeprecatedFileSystemProvider) {
-		return this.registerFileSystemProvider2(scheme, new FileSystemProviderShim(provider), { isCaseSensitive: false });
+		return this.registerFileSystemProvider(scheme, new FileSystemProviderShim(provider), { isCaseSensitive: false });
 	}
 
-	registerFileSystemProvider(scheme: string, provider: vscode.DeprecatedFileSystemProvider, newProvider: vscode.FileSystemProvider2) {
-		if (newProvider && newProvider._version === 9) {
-			return this.registerFileSystemProvider2(scheme, newProvider, { isCaseSensitive: false });
-		} else if (provider) {
-			return this.registerFileSystemProvider2(scheme, new FileSystemProviderShim(provider), { isCaseSensitive: false });
-		} else {
-			throw new Error('FAILED to register file system provider, the new provider does not meet the version-constraint and there is no old provider');
-		}
-	}
-
-	registerFileSystemProvider2(scheme: string, provider: vscode.FileSystemProvider2, options: { isCaseSensitive?: boolean }) {
+	registerFileSystemProvider(scheme: string, provider: vscode.FileSystemProvider, options: { isCaseSensitive?: boolean }) {
 
 		if (this._usedSchemes.has(scheme)) {
 			throw new Error(`a provider for the scheme '${scheme}' is already registered`);
@@ -231,13 +219,13 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 				}
 				let newType: files.FileChangeType;
 				switch (type) {
-					case FileChangeType2.Changed:
+					case FileChangeType.Changed:
 						newType = files.FileChangeType.UPDATED;
 						break;
-					case FileChangeType2.Created:
+					case FileChangeType.Created:
 						newType = files.FileChangeType.ADDED;
 						break;
-					case FileChangeType2.Deleted:
+					case FileChangeType.Deleted:
 						newType = files.FileChangeType.DELETED;
 						break;
 				}

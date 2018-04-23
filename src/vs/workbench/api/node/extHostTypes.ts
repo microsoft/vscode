@@ -1846,19 +1846,19 @@ export enum LogLevel {
 
 //#region file api
 // todo@remote
-export enum FileChangeType {
+export enum DeprecatedFileChangeType {
 	Updated = 0,
 	Added = 1,
 	Deleted = 2
 }
 
-export enum FileChangeType2 {
+export enum FileChangeType {
 	Changed = 1,
 	Created = 2,
 	Deleted = 3,
 }
 
-export enum FileType {
+export enum DeprecatedFileType {
 	File = 0,
 	Dir = 1,
 	Symlink = 2
