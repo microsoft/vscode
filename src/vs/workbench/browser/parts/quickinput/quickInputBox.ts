@@ -40,13 +40,13 @@ export class QuickInputBox {
 		inputElement.setAttribute('aria-autocomplete', 'list');
 	}
 
-	onKeyDown(handler: (event: StandardKeyboardEvent) => void): IDisposable {
+	onKeyDown = (handler: (event: StandardKeyboardEvent) => void): IDisposable => {
 		return dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			handler(new StandardKeyboardEvent(e));
 		});
 	}
 
-	onDidChange(handler: (event: string) => void): IDisposable {
+	onDidChange = (handler: (event: string) => void): IDisposable => {
 		return this.inputBox.onDidChange(handler);
 	}
 

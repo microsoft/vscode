@@ -28,10 +28,10 @@ import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { attachBadgeStyler, attachProgressBarStyler, attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { chain } from 'vs/base/common/event';
+import { chain, debounceEvent } from 'vs/base/common/event';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { onUnexpectedError, canceled } from 'vs/base/common/errors';
 
 const $ = dom.$;
 
@@ -69,7 +69,7 @@ interface InputController<R> {
 	readonly showUI: { [k in keyof QuickInputUI]?: boolean; } & { ok?: boolean; };
 	readonly result: TPromise<R>;
 	readonly ready: TPromise<void>;
-	readonly resolve: (ok?: true | Thenable<never>) => void;
+	readonly resolve: (ok?: true | Thenable<never>) => void | TPromise<void>;
 }
 
 class SelectManyController<T extends IPickOpenEntry> implements InputController<T[]> {
@@ -112,13 +112,14 @@ class TextInputController implements InputController<string> {
 	public showUI = { inputBox: true, message: true };
 	public result: TPromise<string>;
 	public ready = TPromise.as(null);
-	public resolve: (ok?: true | Thenable<never>) => void;
+	public resolveResult: (string) => void;
 	private validationValue: string;
+	private validation: TPromise<string>;
 	private disposables: IDisposable[] = [];
 
-	constructor(ui: QuickInputUI, parameters: TextInputParameters) {
+	constructor(private ui: QuickInputUI, private parameters: TextInputParameters) {
 		this.result = new TPromise<string>((resolve, reject, progress) => {
-			this.resolve = ok => resolve(ok === true ? ui.inputBox.value : ok);
+			this.resolveResult = resolve;
 		});
 		this.result.then(() => this.dispose());
 
@@ -130,17 +131,49 @@ class TextInputController implements InputController<string> {
 		ui.message.textContent = defaultMessage;
 
 		if (parameters.validateInput) {
-			this.disposables.push(ui.inputBox.onDidChange(value => {
-				this.validationValue = value;
-				parameters.validateInput(value)
+			const onDidChange = debounceEvent(ui.inputBox.onDidChange, (last, cur) => cur, 100);
+			this.disposables.push(onDidChange(() => {
+				this.updatedValidation()
 					.then(validationError => {
-						if (this.validationValue === value) {
-							ui.message.textContent = validationError || defaultMessage;
-						}
+						ui.message.textContent = validationError || defaultMessage;
 					})
 					.then(null, onUnexpectedError);
 			}));
 		}
+	}
+
+	resolve(ok?: true | Thenable<never>) {
+		if (ok === true) {
+			return this.updatedValidation()
+				.then(validationError => {
+					if (validationError) {
+						throw canceled();
+					}
+					this.resolveResult(this.ui.inputBox.value);
+				});
+		} else {
+			this.resolveResult(ok);
+		}
+		return null;
+	}
+
+	private updatedValidation() {
+		if (this.parameters.validateInput) {
+			const value = this.ui.inputBox.value;
+			if (value !== this.validationValue) {
+				this.validationValue = value;
+				this.validation = this.parameters.validateInput(value)
+					.then(validationError => {
+						if (this.validationValue !== value) {
+							throw canceled();
+						}
+						return validationError;
+					});
+			}
+		} else if (!this.validation) {
+			this.validation = TPromise.as(null);
+		}
+		return this.validation;
 	}
 
 	private dispose() {
@@ -315,7 +348,13 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 	private close(ok?: true | Thenable<never>) {
 		if (this.controller) {
-			this.controller.resolve(ok);
+			const resolved = this.controller.resolve(ok);
+			if (resolved) {
+				resolved
+					.then(() => this.container.style.display = 'none')
+					.then(null, onUnexpectedError);
+				return;
+			}
 		}
 		this.container.style.display = 'none';
 	}
