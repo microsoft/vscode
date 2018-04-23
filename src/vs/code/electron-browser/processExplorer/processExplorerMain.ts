@@ -146,7 +146,7 @@ function showContextMenu(e) {
 		})
 		);
 
-		menu.popup({ window: remote.getCurrentWindow() });
+		menu.popup(remote.getCurrentWindow());
 	}
 }
 

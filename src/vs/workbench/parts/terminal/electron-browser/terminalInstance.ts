@@ -71,24 +71,27 @@ export class TerminalInstance implements ITerminalInstance {
 	public disableLayout: boolean;
 	public get id(): number { return this._id; }
 	// TODO: Ideally processId would be merged into processReady
-	public get processId(): number { return this._processManager.shellProcessId; }
+	public get processId(): number | undefined { return this._processManager ? this._processManager.shellProcessId : undefined; }
+	// TODO: How does this work with detached processes?
 	// TODO: Should this be an event as it can fire twice?
-	public get processReady(): TPromise<void> { return this._processManager.ptyProcessReady; }
+	public get processReady(): TPromise<void> { return this._processManager ? this._processManager.ptyProcessReady : TPromise.as(void 0); }
 	public get title(): string { return this._title; }
 	public get hadFocusOnExit(): boolean { return this._hadFocusOnExit; }
 	public get isTitleSetByProcess(): boolean { return !!this._messageTitleDisposable; }
 	public get shellLaunchConfig(): IShellLaunchConfig { return Object.freeze(this._shellLaunchConfig); }
 	public get commandTracker(): TerminalCommandTracker { return this._commandTracker; }
 
-	private readonly _onDisposed: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
-	private readonly _onFocused: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
-	private readonly _onProcessIdReady: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
-	private readonly _onTitleChanged: Emitter<string> = new Emitter<string>();
 
+	private readonly _onDisposed: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
 	public get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
+	private readonly _onFocused: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
 	public get onFocused(): Event<ITerminalInstance> { return this._onFocused.event; }
+	private readonly _onProcessIdReady: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
 	public get onProcessIdReady(): Event<ITerminalInstance> { return this._onProcessIdReady.event; }
+	private readonly _onTitleChanged: Emitter<string> = new Emitter<string>();
 	public get onTitleChanged(): Event<string> { return this._onTitleChanged.event; }
+	private readonly _onRequestExtHostProcess: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
+	public get onRequestExtHostProcess(): Event<ITerminalInstance> { return this._onRequestExtHostProcess.event; }
 
 	public constructor(
 		private _terminalFocusContextKey: IContextKey<boolean>,
@@ -267,8 +270,9 @@ export class TerminalInstance implements ITerminalInstance {
 		if (this._processManager) {
 			this._processManager.onProcessData(data => this._sendPtyDataToXterm(data));
 			this._xterm.on('data', data => this._processManager.write(data));
+			// TODO: How does the cwd work on detached processes?
+			this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform, this._processManager.initialCwd);
 		}
-		this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform, this._processManager.initialCwd);
 		this._commandTracker = new TerminalCommandTracker(this._xterm);
 		this._disposables.push(this._themeService.onThemeChange(theme => this._updateTheme(theme)));
 	}
@@ -394,9 +398,12 @@ export class TerminalInstance implements ITerminalInstance {
 			}));
 
 			this._wrapperElement.appendChild(this._xtermElement);
-			this._widgetManager = new TerminalWidgetManager(this._wrapperElement);
-			this._linkHandler.setWidgetManager(this._widgetManager);
 			this._container.appendChild(this._wrapperElement);
+
+			if (this._processManager) {
+				this._widgetManager = new TerminalWidgetManager(this._wrapperElement);
+				this._linkHandler.setWidgetManager(this._widgetManager);
+			}
 
 			const computedStyle = window.getComputedStyle(this._container);
 			const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
@@ -584,8 +591,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	protected _createProcess(): void {
-		// TODO: This should be injected in to the terminal instance (from service?)
-		this._processManager = this._instantiationService.createInstance(TerminalProcessManager, this._configHelper);
+		this._processManager = this._instantiationService.createInstance(TerminalProcessManager, this._id, this._configHelper);
 		this._processManager.onProcessReady(() => this._onProcessIdReady.fire(this));
 		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
 		this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows);
@@ -667,7 +673,11 @@ export class TerminalInstance implements ITerminalInstance {
 							return a;
 						}).join(' ');
 					}
-					this._notificationService.error(nls.localize('terminal.integrated.launchFailed', 'The terminal process command \'{0}{1}\' failed to launch (exit code: {2})', this._shellLaunchConfig.executable, args, exitCode));
+					if (this._shellLaunchConfig.executable) {
+						this._notificationService.error(nls.localize('terminal.integrated.launchFailed', 'The terminal process command \'{0}{1}\' failed to launch (exit code: {2})', this._shellLaunchConfig.executable, args, exitCode));
+					} else {
+						this._notificationService.error(nls.localize('terminal.integrated.launchFailedExtHost', 'The terminal process failed to launch (exit code: {0})', exitCode));
+					}
 				} else {
 					if (this._configHelper.config.showExitAlert) {
 						this._notificationService.error(exitCodeMessage);
@@ -715,6 +725,10 @@ export class TerminalInstance implements ITerminalInstance {
 
 		// Set the new shell launch config
 		this._shellLaunchConfig = shell;
+	}
+
+	public onData(listener: (data: string) => void): lifecycle.IDisposable {
+		return this._processManager.onProcessData(data => listener(data));
 	}
 
 	public onLineData(listener: (lineData: string) => void): lifecycle.IDisposable {
@@ -868,7 +882,9 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 		}
 
-		this._processManager.ptyProcessReady.then(() => this._processManager.setDimensions(this._cols, this._rows));
+		if (this._processManager) {
+			this._processManager.ptyProcessReady.then(() => this._processManager.setDimensions(this._cols, this._rows));
+		}
 	}
 
 	public setTitle(title: string, eventFromProcess: boolean): void {

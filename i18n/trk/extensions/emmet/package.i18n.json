@@ -35,7 +35,6 @@
 	"emmetExtensionsPath": "Emmet profileri ve parçacıklarını içeren bir klasör yolu.'",
 	"emmetShowExpandedAbbreviation": "Genişletilmiş Emmet kısaltmalarını öneriler olarak gösterir.\n\"inMarkupAndStylesheetFilesOnly\" seçeneği\" html, haml, jade, xml, xsl, css, scss, sass, less ve stylus'a uygulanır.\n\"always\" seçeneği işaretleme/css'den bağımsız olarak dosyanın tüm bölümlerine uygulanır.",
 	"emmetShowAbbreviationSuggestions": "Olası Emmet kısaltmalarını öneriler olarak gösterir. Stil dosyalarında veya emmet.showExpandedAbbreviation, \"never\" olarak ayarlandığında uygulanamaz.",
-	"emmetIncludeLanguages": "Varsayılan olarak desteklenmeyen dillerde Emmet kısaltmalarını etkinleştirin. Burada dil ile desteklenen emmet destekli dil arasında eşleme ekleyin.",
 	"emmetVariables": "Emmet parçacıklarında kullanılacak değişkenler",
 	"emmetTriggerExpansionOnTab": "Etkinleştirildiğinde, Emmet kısaltmaları TAB tuşuna basıldığında genişletilir.",
 	"emmetPreferences": "Emmet'in bazı eylemleri ve çözümleyicilerinin davranışını değiştirmek için kullanılacak tercihler.",
@@ -59,5 +58,6 @@
 	"emmetPreferencesCssWebkitProperties": "`-` ile başlayan Emmet kısaltmasında kullanıldığında 'webkit' önekini alacak virgülle ayrılmış CSS özellikleri. 'webkit' önekinden her zaman kaçınmak için boş bir dize olarak ayarlayın.",
 	"emmetPreferencesCssMozProperties": "`-` ile başlayan Emmet kısaltmasında kullanıldığında 'moz' önekini alacak virgülle ayrılmış CSS özellikleri. 'moz' önekinden her zaman kaçınmak için boş bir dize olarak ayarlayın.",
 	"emmetPreferencesCssOProperties": "`-` ile başlayan Emmet kısaltmasında kullanıldığında 'o' önekini alacak virgülle ayrılmış CSS özellikleri. 'o' önekinden her zaman kaçınmak için boş bir dize olarak ayarlayın.",
-	"emmetPreferencesCssMsProperties": "`-` ile başlayan Emmet kısaltmasında kullanıldığında 'ms' önekini alacak virgülle ayrılmış CSS özellikleri. 'ms' önekinden her zaman kaçınmak için boş bir dize olarak ayarlayın."
+	"emmetPreferencesCssMsProperties": "`-` ile başlayan Emmet kısaltmasında kullanıldığında 'ms' önekini alacak virgülle ayrılmış CSS özellikleri. 'ms' önekinden her zaman kaçınmak için boş bir dize olarak ayarlayın.",
+	"emmetPreferencesCssFuzzySearchMinScore": "Bulanık eşleştirilmiş kısaltmaların elde etmesi gereken minimum puan (0'dan 1'e kadar). Düşük değerler birçok yanlış pozitif eşleşme oluşturabilir, daha yüksek değerler olası eşleşmeleri azaltabilir."
 }

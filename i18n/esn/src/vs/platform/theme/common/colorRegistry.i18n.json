@@ -92,5 +92,7 @@
 	"mergeBorder": "Color del borde en los encabezados y el divisor en conflictos de combinación alineados.",
 	"overviewRulerCurrentContentForeground": "Primer plano de la regla de visión general actual para conflictos de combinación alineados.",
 	"overviewRulerIncomingContentForeground": "Primer plano de regla de visión general de entrada para conflictos de combinación alineados.",
-	"overviewRulerCommonContentForeground": "Primer plano de la regla de visión general de ancestros comunes para conflictos de combinación alineados."
+	"overviewRulerCommonContentForeground": "Primer plano de la regla de visión general de ancestros comunes para conflictos de combinación alineados.",
+	"overviewRulerFindMatchForeground": "Destaca el color del marcador de regla para las coincidencias de búsqueda. El color no debe ser opaco para no ocultar las decoraciones subyacentes.",
+	"overviewRulerSelectionHighlightForeground": "Destaca el color del marcador de regla para los puntos de selección . El color no debe ser opaco para no ocultar las decoraciones subyacentes."
 }

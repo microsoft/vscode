@@ -50,6 +50,7 @@ export class ParameterHintsModel extends Disposable {
 	private triggerCharactersListeners: IDisposable[];
 	private active: boolean;
 	private throttledDelayer: RunOnceScheduler;
+	private provideSignatureHelpRequest?: TPromise<boolean, any>;
 
 	constructor(editor: ICodeEditor) {
 		super();
@@ -80,6 +81,11 @@ export class ParameterHintsModel extends Disposable {
 		if (!silent) {
 			this._onCancel.fire(void 0);
 		}
+
+		if (this.provideSignatureHelpRequest) {
+			this.provideSignatureHelpRequest.cancel();
+			this.provideSignatureHelpRequest = undefined;
+		}
 	}
 
 	trigger(delay = ParameterHintsModel.DELAY): void {
@@ -92,7 +98,11 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	private doTrigger(): void {
-		provideSignatureHelp(this.editor.getModel(), this.editor.getPosition())
+		if (this.provideSignatureHelpRequest) {
+			this.provideSignatureHelpRequest.cancel();
+		}
+
+		this.provideSignatureHelpRequest = provideSignatureHelp(this.editor.getModel(), this.editor.getPosition())
 			.then(null, onUnexpectedError)
 			.then(result => {
 				if (!result || !result.signatures || result.signatures.length === 0) {

@@ -77,6 +77,7 @@
 	"config.showInlineOpenFileAction": "Steuert, ob eine Inlineaktion zum Öffnen der Datei in der Ansicht \"Git-Änderungen\" angezeigt wird.",
 	"config.inputValidation": "Steuert, wann die Commit-Meldung der Eingabevalidierung angezeigt wird.",
 	"config.detectSubmodules": "Steuert, ob Git-Submodule automatisch erkannt werden.",
+	"config.detectSubmodulesLimit": "Steuert die Begrenzung der Git-Submodule.",
 	"colors.modified": "Farbe für geänderte Ressourcen.",
 	"colors.deleted": "Farbe für gelöschten Ressourcen.",
 	"colors.untracked": "Farbe für nicht verfolgte Ressourcen.",

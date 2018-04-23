@@ -49,6 +49,7 @@ import './mainThreadTerminalService';
 import './mainThreadTreeViews';
 import './mainThreadLogService';
 import './mainThreadWebview';
+import './mainThreadUrls';
 import './mainThreadWindow';
 import './mainThreadWorkspace';
 

@@ -29,8 +29,6 @@
 	"performance": "Démarrez avec la commande 'Développeur : performance de démarrage' activée.",
 	"prof-startup": "Exécuter le profileur d'UC au démarrage",
 	"disableExtensions": "Désactivez toutes les extensions installées.",
-	"inspect-extensions": "Autorise le débogage et le profilage des extensions. Vérifier les outils de développements pour l'uri de connexion.",
-	"inspect-brk-extensions": "Autorise le débogage et le profilage des extensions avec l'hôte d'extensions en pause après le démarrage. Vérifier les outils de développement pour l'uri de connexion.",
 	"disableGPU": "Désactivez l'accélération matérielle du GPU.",
 	"uploadLogs": "Upload les logs depuis la session actuelle vers le endpoint sécurisé.",
 	"maxMemory": "Taille mémoire maximale pour une fenêtre (En Megaoctêts)",

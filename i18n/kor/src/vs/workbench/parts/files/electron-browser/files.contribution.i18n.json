@@ -37,6 +37,7 @@
 	"defaultLanguage": "새 파일에 할당되는 기본 언어 모드입니다.",
 	"editorConfigurationTitle": "편집기",
 	"formatOnSave": "파일 저장 시 서식을 지정합니다. 포맷터를 사용할 수 있어야 하며, 파일이 자동으로 저장되지 않아야 하고, 편집기가 종료되지 않아야 합니다.",
+	"formatOnSaveTimeout": "저장 시 서식 지정의 시간 제한. FormatOnSave 명령에 대한 시간 제한을 밀리초로 지정합니다. 지정된 시간 제한보다 오래 걸리는 명령은 취소됩니다.",
 	"explorerConfigurationTitle": "파일 탐색기",
 	"openEditorsVisible": "열려 있는 편집기 창에 표시되는 편집기 수입니다.",
 	"autoReveal": "탐색기에서 파일을 열 때 자동으로 표시하고 선택할지를 제어합니다.",

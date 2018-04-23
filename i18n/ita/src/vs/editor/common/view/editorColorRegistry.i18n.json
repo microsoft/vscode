@@ -16,6 +16,7 @@
 	"editorIndentGuides": "Colore delle guide per i rientri dell'editor.",
 	"editorLineNumbers": "Colore dei numeri di riga dell'editor.",
 	"editorActiveLineNumber": "Colore dei numeri per la riga attiva dell'editor",
+	"deprecatedEditorActiveLineNumber": "Id è deprecato. In alternativa utilizzare 'editorLineNumber.activeForeground'.",
 	"editorRuler": "Colore dei righelli dell'editor.",
 	"editorCodeLensForeground": "Colore primo piano delle finestre di CodeLens dell'editor",
 	"editorBracketMatchBackground": "Colore di sfondo delle parentesi corrispondenti",
@@ -28,6 +29,9 @@
 	"warningBorder": "Colore del bordo degli squggle di avviso nell'editor.",
 	"infoForeground": "Colore primo piano degli squiggle di informazione nell'editor",
 	"infoBorder": "Colore del bordo degli squiggle di informazione nell'editor",
+	"hintForeground": "Colore primo piano degli squiggle di suggerimento nell'editor.",
+	"hintBorder": "Colore del bordo degli squiggle di suggerimento nell'editor.",
+	"overviewRulerRangeHighlight": "Colore del marcatore righello panoramica per evidenziazione intervalli. Il colore non deve essere opaco per non nascondere decorazioni sottostanti.",
 	"overviewRuleError": "Colore del marcatore del righello delle annotazioni per gli errori.",
 	"overviewRuleWarning": "Colore del marcatore del righello delle annotazioni per gli avvisi.",
 	"overviewRuleInfo": "Colore del marcatore del righello delle annotazioni per i messaggi di tipo informativo."

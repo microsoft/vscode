@@ -29,8 +29,6 @@
 	"performance": "Indítás a 'Developer: Startup Performance' parancs engedélyezésével.",
 	"prof-startup": "Processzorhasználat profilozása induláskor",
 	"disableExtensions": "Összes telepített kiegészítő letiltása.",
-	"inspect-extensions": "Hibakeresés és profilozás engedélyezése a kiegészítőkben. Ellenőrizze a fejlesztői eszközöket a csatlakozási URI-hoz.",
-	"inspect-brk-extensions": "Hibakeresés és profilozás engedélyezése a kiegészítőkben, úgy, hogy a kiegészítő gazdafolyamata szüneteltetve lesz az indítás után. Ellenőrizze a fejlesztői eszközöket a csatlakozási URI-hoz. ",
 	"disableGPU": "Hardveres gyorsítás letiltása.",
 	"uploadLogs": "Az aktuális munkamenet naplóinak feltöltése egy biztonságos végpontra.",
 	"maxMemory": "Egy ablak maximális memóriamérete (megabájtban).",

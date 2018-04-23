@@ -42,14 +42,19 @@ export interface IFileService {
 	onAfterOperation: Event<FileOperationEvent>;
 
 	/**
+	 * An event that is fired when a file system provider is added or removed
+	 */
+	onDidChangeFileSystemProviderRegistrations: Event<IFileSystemProviderRegistrationEvent>;
+
+	/**
 	 * Registeres a file system provider for a certain scheme.
 	 */
-	registerProvider?(scheme: string, provider: IFileSystemProvider): IDisposable;
+	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable;
 
 	/**
 	 * Checks if this file service can handle the given resource.
 	 */
-	canHandleResource?(resource: URI): boolean;
+	canHandleResource(resource: URI): boolean;
 
 	/**
 	 * Resolve the properties of a file identified by the resource.
@@ -156,17 +161,35 @@ export enum FileType2 {
 	SymbolicLink = 4,
 }
 
-export enum FileOpenFlags {
-	Read = 0b0001,
-	Write = 0b0010,
-	Create = 0b0100,
-	Exclusive = 0b1000
+export interface FileOptions {
+	/**
+	 * Create a file when it doesn't exists.
+	 */
+	create?: boolean;
+
+	/**
+	 * In combination with [`create`](FileOptions.create) but
+	 * the operation should fail when a file already exists.
+	 */
+	exclusive?: boolean;
+
+	/**
+	 * Open a file for reading.
+	 */
+	read?: boolean;
+
+	/**
+	 * Open a file for writing.
+	 */
+	write?: boolean;
 }
 
 export interface IStat {
+	isFile: boolean;
+	isDirectory: boolean;
+	isSymbolicLink: boolean;
 	mtime: number;
 	size: number;
-	type: FileType2;
 }
 
 export interface IWatchOptions {
@@ -175,9 +198,11 @@ export interface IWatchOptions {
 }
 
 export enum FileSystemProviderCapabilities {
-	FileReadWrite = 0b1,
-	FileOpenReadWriteClose = 0b10,
-	FileFolderCopy = 0b100
+	FileReadWrite = 1 << 1,
+	FileOpenReadWriteClose = 1 << 2,
+	FileFolderCopy = 1 << 3,
+
+	PathCaseSensitive = 1 << 10
 }
 
 export interface IFileSystemProvider {
@@ -192,16 +217,22 @@ export interface IFileSystemProvider {
 	readdir(resource: URI): TPromise<[string, IStat][]>;
 	delete(resource: URI): TPromise<void>;
 
-	rename(from: URI, to: URI, opts: { flags: FileOpenFlags }): TPromise<IStat>;
-	copy?(from: URI, to: URI, opts: { flags: FileOpenFlags }): TPromise<IStat>;
+	rename(from: URI, to: URI, opts: FileOptions): TPromise<IStat>;
+	copy?(from: URI, to: URI, opts: FileOptions): TPromise<IStat>;
 
-	readFile?(resource: URI, opts: { flags: FileOpenFlags }): TPromise<Uint8Array>;
-	writeFile?(resource: URI, content: Uint8Array, opts: { flags: FileOpenFlags }): TPromise<void>;
+	readFile?(resource: URI, opts: FileOptions): TPromise<Uint8Array>;
+	writeFile?(resource: URI, content: Uint8Array, opts: FileOptions): TPromise<void>;
 
-	open?(resource: URI, opts: { flags: FileOpenFlags }): TPromise<number>;
+	open?(resource: URI, opts: FileOptions): TPromise<number>;
 	close?(fd: number): TPromise<void>;
 	read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
 	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
+}
+
+export interface IFileSystemProviderRegistrationEvent {
+	added: boolean;
+	scheme: string;
+	provider?: IFileSystemProvider;
 }
 
 export enum FileOperation {

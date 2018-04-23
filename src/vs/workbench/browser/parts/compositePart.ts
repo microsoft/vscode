@@ -15,7 +15,6 @@ import * as strings from 'vs/base/common/strings';
 import { Emitter } from 'vs/base/common/event';
 import * as types from 'vs/base/common/types';
 import * as errors from 'vs/base/common/errors';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
@@ -36,7 +35,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Dimension, EventType } from 'vs/base/browser/dom';
+import { Dimension } from 'vs/base/browser/dom';
 
 export interface ICompositeTitleLabel {
 
@@ -74,7 +73,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		private telemetryService: ITelemetryService,
 		protected contextMenuService: IContextMenuService,
 		protected partService: IPartService,
-		private keybindingService: IKeybindingService,
+		protected keybindingService: IKeybindingService,
 		protected instantiationService: IInstantiationService,
 		themeService: IThemeService,
 		protected readonly registry: CompositeRegistry<T>,
@@ -408,8 +407,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			'class': ['composite', 'title']
 		});
 
-		$(titleArea).on(EventType.CONTEXT_MENU, (e: MouseEvent) => this.onTitleAreaContextMenu(new StandardMouseEvent(e)));
-
 		// Left Title Label
 		this.titleLabel = this.createTitleLabel(titleArea.getHTMLElement());
 
@@ -456,27 +453,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.titleLabel.updateStyles();
 	}
 
-	private onTitleAreaContextMenu(event: StandardMouseEvent): void {
-		if (this.activeComposite) {
-			const contextMenuActions = this.getTitleAreaContextMenuActions();
-			if (contextMenuActions.length) {
-				const anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
-				this.contextMenuService.showContextMenu({
-					getAnchor: () => anchor,
-					getActions: () => TPromise.as(contextMenuActions),
-					getActionItem: action => this.actionItemProvider(action as Action),
-					actionRunner: this.activeComposite.getActionRunner(),
-					getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id)
-				});
-			}
-		}
-	}
-
-	protected getTitleAreaContextMenuActions(): IAction[] {
-		return this.activeComposite ? this.activeComposite.getContextMenuActions() : [];
-	}
-
-	private actionItemProvider(action: Action): IActionItem {
+	protected actionItemProvider(action: Action): IActionItem {
 
 		// Check Active Composite
 		if (this.activeComposite) {

@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as crypto from 'crypto';
 import * as assert from 'assert';
-import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, FileChangesEvent, ICreateFileOptions, IContentData, ITextSnapshot, IFilesConfiguration } from 'vs/platform/files/common/files';
+import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, FileChangesEvent, ICreateFileOptions, IContentData, ITextSnapshot, IFilesConfiguration, IFileSystemProviderRegistrationEvent, IFileSystemProvider } from 'vs/platform/files/common/files';
 import { MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/platform/files/node/files';
 import { isEqualOrParent } from 'vs/base/common/paths';
 import { ResourceMap } from 'vs/base/common/map';
@@ -18,7 +18,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as objects from 'vs/base/common/objects';
 import * as extfs from 'vs/base/node/extfs';
-import { nfcall, ThrottledDelayer } from 'vs/base/common/async';
+import { nfcall, ThrottledDelayer, asWinJsPromise } from 'vs/base/common/async';
 import uri from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
@@ -43,7 +43,6 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import product from 'vs/platform/node/product';
-import { shell } from 'electron';
 import { IEncodingOverride, ResourceEncodings } from 'vs/workbench/services/files/electron-browser/encoding';
 import { createReadableOfSnapshot } from 'vs/workbench/services/files/electron-browser/streams';
 
@@ -92,6 +91,7 @@ export class FileService implements IFileService {
 
 	protected readonly _onFileChanges: Emitter<FileChangesEvent>;
 	protected readonly _onAfterOperation: Emitter<FileOperationEvent>;
+	protected readonly _onDidChangeFileSystemProviderRegistrations = new Emitter<IFileSystemProviderRegistrationEvent>();
 
 	protected toDispose: IDisposable[];
 
@@ -238,6 +238,16 @@ export class FileService implements IFileService {
 				this.activeWorkspaceFileChangeWatcher = toDisposable(legacyUnixWatcher.startWatching());
 			}
 		}
+	}
+
+	public readonly onDidChangeFileSystemProviderRegistrations: Event<IFileSystemProviderRegistrationEvent> = this._onDidChangeFileSystemProviderRegistrations.event;
+
+	public registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable {
+		throw new Error('not implemented');
+	}
+
+	public canHandleResource(resource: uri): boolean {
+		return resource.scheme === Schemas.file;
 	}
 
 	public resolveFile(resource: uri, options?: IResolveFileOptions): TPromise<IFileStat> {
@@ -895,22 +905,25 @@ export class FileService implements IFileService {
 
 	public del(resource: uri, useTrash?: boolean): TPromise<void> {
 		if (useTrash) {
-			return this.doMoveItemToTrash(resource);
+			return asWinJsPromise(() => this.doMoveItemToTrash(resource));
 		}
 
 		return this.doDelete(resource);
 	}
 
-	private doMoveItemToTrash(resource: uri): TPromise<void> {
+	private doMoveItemToTrash(resource: uri): Promise<void> {
 		const absolutePath = resource.fsPath;
-		const result = shell.moveItemToTrash(absolutePath);
-		if (!result) {
-			return TPromise.wrapError<void>(new Error(isWindows ? nls.localize('binFailed', "Failed to move '{0}' to the recycle bin", paths.basename(absolutePath)) : nls.localize('trashFailed', "Failed to move '{0}' to the trash", paths.basename(absolutePath))));
-		}
 
-		this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
+		return (import('electron')).then(electron => { // workaround for https://github.com/Microsoft/vscode/issues/48205
+			const result = electron.shell.moveItemToTrash(absolutePath);
+			if (!result) {
+				return TPromise.wrapError<void>(new Error(isWindows ? nls.localize('binFailed', "Failed to move '{0}' to the recycle bin", paths.basename(absolutePath)) : nls.localize('trashFailed', "Failed to move '{0}' to the trash", paths.basename(absolutePath))));
+			}
 
-		return TPromise.as(null);
+			this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
+
+			return TPromise.wrap(null);
+		});
 	}
 
 	private doDelete(resource: uri): TPromise<void> {

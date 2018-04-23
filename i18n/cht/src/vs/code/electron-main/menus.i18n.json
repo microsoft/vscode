@@ -113,7 +113,7 @@
 	"miZoomOut": "縮小(&&U)",
 	"miZoomReset": "重設縮放(&&R)",
 	"miBack": "上一步(&B)",
-	"miForward": "轉寄(&&F)",
+	"miForward": "下一頁(&&F)",
 	"miNextEditor": "下一個編輯器(&&N)",
 	"miPreviousEditor": "上一個編輯器(&&P)",
 	"miNextEditorInGroup": "群組中下一個已使用的編輯器(&&N)",

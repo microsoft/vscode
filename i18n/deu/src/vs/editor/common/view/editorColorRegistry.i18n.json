@@ -28,6 +28,9 @@
 	"warningBorder": "Rahmenfarbe von Warnungsunterstreichungen im Editor.",
 	"infoForeground": "Vordergrundfarbe von Informationsunterstreichungen im Editor.",
 	"infoBorder": "Rahmenfarbe von Informationsunterstreichungen im Editor.",
+	"hintForeground": "Vordergrundfarbe der Hinweisunterstreichungen im Editor.",
+	"hintBorder": "Rahmenfarbe der Hinweisunterstreichungen im Editor.",
+	"overviewRulerRangeHighlight": "Übersichtslineal-Markierungsfarbe für Bereichshervorhebungen. Die Farbe muss durchsichtig sein, um dahinterliegende Dekorationen nicht zu verbergen.",
 	"overviewRuleError": "Übersichtslineal-Markierungsfarbe für Fehler.",
 	"overviewRuleWarning": "Übersichtslineal-Markierungsfarbe für Warnungen.",
 	"overviewRuleInfo": "Übersichtslineal-Markierungsfarbe für Informationen."

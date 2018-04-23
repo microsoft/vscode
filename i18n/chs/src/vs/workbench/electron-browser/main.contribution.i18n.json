@@ -80,6 +80,7 @@
 	"titleBarStyle": "调整窗口标题栏的外观。更改需要在完全重启后才能应用。",
 	"window.nativeTabs": "\n启用macOS Sierra窗口选项卡。请注意，更改需要完全重新启动程序才能生效。如果配置此选项，本机选项卡将禁用自定义标题栏样式。",
 	"window.smoothScrollingWorkaround": "启用解决方案来修复还原最小化的 VS Code 窗口后平滑滚动消失的问题。这个滚动的卡顿问题出现在拥有精确式触控板的设备上，比如来自 Microsoft 的 Surface 设备(https://github.com/Microsoft/vscode/issues/13612)。如果启用这个解决方案，窗口布局可能会在从最小化状态中还原后有些许闪烁，其他方面则无大碍。",
+	"window.clickThroughInactive": "启用后，点击非活动窗口后将在激活窗口的同时触发光标之下的元素 (若可点击)。禁用后，点击非活动窗口仅能激活窗口，再次点击才能触发元素。",
 	"zenModeConfigurationTitle": "Zen 模式",
 	"zenMode.fullScreen": "控制打开 Zen Mode 是否也会将工作台置于全屏模式。",
 	"zenMode.centerLayout": "控制是否在 Zen 模式中启用居中布局",

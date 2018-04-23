@@ -226,6 +226,20 @@ export class OneSnippet {
 			this._placeholderGroups = groupBy(this._snippet.placeholders, Placeholder.compareByIndex);
 		});
 	}
+
+	public getEnclosingRange(): Range {
+		let result: Range;
+		const model = this._editor.getModel();
+		this._placeholderDecorations.forEach((decorationId) => {
+			const placeholderRange = model.getDecorationRange(decorationId);
+			if (!result) {
+				result = placeholderRange;
+			} else {
+				result = result.plusRange(placeholderRange);
+			}
+		});
+		return result;
+	}
 }
 
 export class SnippetSession {
@@ -509,5 +523,18 @@ export class SnippetSession {
 		// that don't match with the current selection. if we don't
 		// have any left, we don't have a selection anymore
 		return allPossibleSelections.size > 0;
+	}
+
+	public getEnclosingRange(): Range {
+		let result: Range;
+		for (const snippet of this._snippets) {
+			const snippetRange = snippet.getEnclosingRange();
+			if (!result) {
+				result = snippetRange;
+			} else {
+				result = result.plusRange(snippetRange);
+			}
+		}
+		return result;
 	}
 }

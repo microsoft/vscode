@@ -304,15 +304,30 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				} else if (/^workspaceContains:/.test(activationTimes.activationEvent)) {
 					let fileNameOrGlob = activationTimes.activationEvent.substr('workspaceContains:'.length);
 					if (fileNameOrGlob.indexOf('*') >= 0 || fileNameOrGlob.indexOf('?') >= 0) {
-						title = nls.localize('workspaceContainsGlobActivation', "Activated because a file matching {0} exists in your workspace", fileNameOrGlob);
+						title = nls.localize({
+							key: 'workspaceContainsGlobActivation',
+							comment: [
+								'{0} will be a glob pattern'
+							]
+						}, "Activated because a file matching {0} exists in your workspace", fileNameOrGlob);
 					} else {
-						title = nls.localize('workspaceContainsFileActivation', "Activated because file {0} exists in your workspace", fileNameOrGlob);
+						title = nls.localize({
+							key: 'workspaceContainsFileActivation',
+							comment: [
+								'{0} will be a file name'
+							]
+						}, "Activated because file {0} exists in your workspace", fileNameOrGlob);
 					}
 				} else if (/^onLanguage:/.test(activationTimes.activationEvent)) {
 					let language = activationTimes.activationEvent.substr('onLanguage:'.length);
 					title = nls.localize('languageActivation', "Activated because you opened a {0} file", language);
 				} else {
-					title = nls.localize('workspaceGenericActivation', "Activated on {0}", activationTimes.activationEvent);
+					title = nls.localize({
+						key: 'workspaceGenericActivation',
+						comment: [
+							'The {0} placeholder will be an activation event, like e.g. \'language:typescript\', \'debug\', etc.'
+						]
+					}, "Activated on {0}", activationTimes.activationEvent);
 				}
 				data.activationTime.title = title;
 				if (!isFalsyOrEmpty(element.status.runtimeErrors)) {

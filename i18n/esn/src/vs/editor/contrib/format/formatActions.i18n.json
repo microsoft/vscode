@@ -12,5 +12,7 @@
 	"hintnn": "{0} ediciones de formato entre las líneas {1} y {2}",
 	"no.provider": "No hay formateador para los archivos ' {0} ' instalados.",
 	"formatDocument.label": "Dar formato al documento",
-	"formatSelection.label": "Dar formato a la selección"
+	"no.documentprovider": "No hay formateador de documentos para los archivos ' {0} ' instalados.",
+	"formatSelection.label": "Dar formato a la selección",
+	"no.selectionprovider": "No hay formateador de selección para los archivos ' {0} ' instalados."
 }

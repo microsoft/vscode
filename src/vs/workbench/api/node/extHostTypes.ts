@@ -1832,30 +1832,24 @@ export enum FileType {
 	Symlink = 2
 }
 
-export enum FileType2 {
-	File = 1,
-	Directory = 2,
-	SymbolicLink = 4,
-}
+export class FileSystemError extends Error {
 
-export class FileError extends Error {
-
-	static EntryExists(message?: string): FileError {
-		return new FileError(message, 'EntryExists', FileError.EntryExists);
+	static EntryExists(message?: string): FileSystemError {
+		return new FileSystemError(message, 'EntryExists', FileSystemError.EntryExists);
 	}
-	static EntryNotFound(message?: string): FileError {
-		return new FileError(message, 'EntryNotFound', FileError.EntryNotFound);
+	static EntryNotFound(message?: string): FileSystemError {
+		return new FileSystemError(message, 'EntryNotFound', FileSystemError.EntryNotFound);
 	}
-	static EntryNotADirectory(message?: string): FileError {
-		return new FileError(message, 'EntryNotADirectory', FileError.EntryNotADirectory);
+	static EntryNotADirectory(message?: string): FileSystemError {
+		return new FileSystemError(message, 'EntryNotADirectory', FileSystemError.EntryNotADirectory);
 	}
-	static EntryIsADirectory(message?: string): FileError {
-		return new FileError(message, 'EntryIsADirectory', FileError.EntryIsADirectory);
+	static EntryIsADirectory(message?: string): FileSystemError {
+		return new FileSystemError(message, 'EntryIsADirectory', FileSystemError.EntryIsADirectory);
 	}
 
 	constructor(message?: string, code?: string, hide?: Function) {
 		super(message);
-		this.name = code ? `FileError/${code}` : `FileError`;
+		this.name = code ? `${code} (FileSystemError)` : `FileSystemError`;
 
 		if (typeof Error.captureStackTrace === 'function' && typeof hide === 'function') {
 			// nice stack traces

@@ -7,6 +7,7 @@
 import 'vs/css!./media/task.contribution';
 
 import * as nls from 'vs/nls';
+import * as semver from 'semver';
 
 import { QuickOpenHandler } from 'vs/workbench/parts/tasks/browser/taskQuickOpen';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -73,9 +74,9 @@ import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, T
 import {
 	Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskEvent,
 	TaskEventKind, TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
-	TaskIdentifier, TaskSorter, TaskItem
+	TaskIdentifier, TaskSorter
 } from 'vs/workbench/parts/tasks/common/tasks';
-import { ITaskService, ITaskProvider, RunOptions, CustomizationProperties } from 'vs/workbench/parts/tasks/common/taskService';
+import { ITaskService, ITaskProvider, RunOptions, CustomizationProperties, TaskFilter } from 'vs/workbench/parts/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
 import * as TaskConfig from '../node/taskConfiguration';
@@ -580,19 +581,6 @@ class TaskService implements ITaskService {
 		CommandsRegistry.registerCommand('workbench.action.tasks.showTasks', () => {
 			this.runShowTasks();
 		});
-
-		CommandsRegistry.registerCommand('_executeTaskProvider', (accessor, args) => {
-			return this.tasks().then((tasks) => {
-				let result: TaskItem[] = [];
-				for (let task of tasks) {
-					let item = Task.getTaskItem(task);
-					if (item) {
-						result.push(item);
-					}
-				}
-				return result;
-			});
-		});
 	}
 
 	private get workspaceFolders(): IWorkspaceFolder[] {
@@ -694,8 +682,28 @@ class TaskService implements ITaskService {
 		});
 	}
 
-	public tasks(): TPromise<Task[]> {
-		return this.getGroupedTasks().then(result => result.all());
+	public tasks(filter?: TaskFilter): TPromise<Task[]> {
+		let range = filter && filter.version ? filter.version : undefined;
+		let engine = this.executionEngine;
+
+		if (range && ((semver.satisfies('0.1.0', range) && engine === ExecutionEngine.Terminal) || (semver.satisfies('2.0.0', range) && engine === ExecutionEngine.Process))) {
+			return TPromise.as<Task[]>([]);
+		}
+		return this.getGroupedTasks().then((map) => {
+			if (!filter || !filter.type) {
+				return map.all();
+			}
+			let result: Task[] = [];
+			map.forEach((tasks) => {
+				for (let task of tasks) {
+					let definition = Task.getTaskDefinition(task);
+					if (definition && definition.type === filter.type) {
+						result.push(task);
+					}
+				}
+			});
+			return result;
+		});
 	}
 
 	public createSorter(): TaskSorter {

@@ -247,7 +247,20 @@ export class PanelViewlet extends Viewlet {
 		return Math.max(...sizes);
 	}
 
-	addPanel(panel: ViewletPanel, size: number, index = this.panelItems.length - 1): void {
+	addPanels(panels: { panel: ViewletPanel, size: number, index?: number }[]): void {
+		const wasSingleView = this.isSingleView();
+
+		for (const { panel, size, index } of panels) {
+			this.addPanel(panel, size, index);
+		}
+
+		this.updateViewHeaders();
+		if (this.isSingleView() !== wasSingleView) {
+			this.updateTitleArea();
+		}
+	}
+
+	private addPanel(panel: ViewletPanel, size: number, index = this.panelItems.length - 1): void {
 		const disposables: IDisposable[] = [];
 		const onDidFocus = panel.onDidFocus(() => this.lastFocusedPanel = panel, null, disposables);
 		const onDidChange = panel.onDidChange(() => {
@@ -265,17 +278,22 @@ export class PanelViewlet extends Viewlet {
 		const disposable = combinedDisposable([onDidFocus, panelStyler, onDidChange]);
 		const panelItem: IViewletPanelItem = { panel, disposable };
 
-		const wasSingleView = this.isSingleView();
 		this.panelItems.splice(index, 0, panelItem);
 		this.panelview.addPanel(panel, size, index);
+	}
+
+	removePanels(panels: ViewletPanel[]): void {
+		const wasSingleView = this.isSingleView();
+
+		panels.forEach(panel => this.removePanel(panel));
 
 		this.updateViewHeaders();
-		if (this.isSingleView() !== wasSingleView) {
+		if (wasSingleView !== this.isSingleView()) {
 			this.updateTitleArea();
 		}
 	}
 
-	removePanel(panel: ViewletPanel): void {
+	private removePanel(panel: ViewletPanel): void {
 		const index = firstIndex(this.panelItems, i => i.panel === panel);
 
 		if (index === -1) {
@@ -286,15 +304,10 @@ export class PanelViewlet extends Viewlet {
 			this.lastFocusedPanel = undefined;
 		}
 
-		const wasSingleView = this.isSingleView();
 		this.panelview.removePanel(panel);
 		const [panelItem] = this.panelItems.splice(index, 1);
 		panelItem.disposable.dispose();
 
-		this.updateViewHeaders();
-		if (wasSingleView !== this.isSingleView()) {
-			this.updateTitleArea();
-		}
 	}
 
 	movePanel(from: ViewletPanel, to: ViewletPanel): void {

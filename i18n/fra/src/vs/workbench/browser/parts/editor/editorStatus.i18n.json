@@ -17,7 +17,7 @@
 	"screenReaderDetectedExtra": "Si vous n'utilisez pas de lecteur d'écran, définissez le paramètre 'editor.accessibilitySupport' sur \"désactivé\".",
 	"disableTabMode": "Désactiver le mode d'accessibilité",
 	"gotoLine": "Atteindre la ligne",
-	"indentation": "Retrait",
+	"selectIndentation": "Sélectionner le retrait",
 	"selectEncoding": "Sélectionner l'encodage",
 	"selectEOL": "Sélectionner la séquence de fin de ligne",
 	"selectLanguageMode": "Sélectionner le mode de langage",

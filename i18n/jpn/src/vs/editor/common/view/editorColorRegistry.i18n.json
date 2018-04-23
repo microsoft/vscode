@@ -16,6 +16,7 @@
 	"editorIndentGuides": "エディター インデント ガイドの色。",
 	"editorLineNumbers": "エディターの行番号の色。",
 	"editorActiveLineNumber": "エディターのアクティブ行番号の色",
+	"deprecatedEditorActiveLineNumber": "id は使用しないでください。代わりに 'EditorLineNumber.activeForeground' を使用してください。",
 	"editorRuler": "エディター ルーラーの色。",
 	"editorCodeLensForeground": "CodeLens エディターの前景色。",
 	"editorBracketMatchBackground": "一致するかっこの背景色",

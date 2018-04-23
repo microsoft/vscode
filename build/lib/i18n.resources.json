@@ -131,6 +131,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/parts/url",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/parts/watermark",
 			"project": "vscode-workbench"
 		},

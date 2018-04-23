@@ -37,7 +37,7 @@
 	"localizations": "本地化 ({0})",
 	"localizations language id": "语言 ID",
 	"localizations language name": "语言名称",
-	"localizations localized language name": "语言的本地名称",
+	"localizations localized language name": "语言本地名称",
 	"colorThemes": "颜色主题 ({0})",
 	"iconThemes": "图标主题 ({0})",
 	"colors": "颜色 ({0})",

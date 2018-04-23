@@ -137,7 +137,8 @@ export class ExtHostApiCommands {
 		this._register('vscode.executeCodeLensProvider', this._executeCodeLensProvider, {
 			description: 'Execute CodeLens provider.',
 			args: [
-				{ name: 'uri', description: 'Uri of a text document', constraint: URI }
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+				{ name: 'itemResolveCount', description: '(optional) Number of lenses that should be resolved and returned. Will only retrun resolved lenses, will impact performance)', constraint: value => value === void 0 || typeof value === 'number' }
 			],
 			returns: 'A promise that resolves to an array of CodeLens-instances.'
 		});
@@ -472,8 +473,8 @@ export class ExtHostApiCommands {
 			}));
 	}
 
-	private _executeCodeLensProvider(resource: URI): Thenable<vscode.CodeLens[]> {
-		const args = { resource };
+	private _executeCodeLensProvider(resource: URI, itemResolveCount: number): Thenable<vscode.CodeLens[]> {
+		const args = { resource, itemResolveCount };
 		return this._commands.executeCommand<modes.ICodeLensSymbol[]>('_executeCodeLensProvider', args)
 			.then(tryMapWith(item => {
 				return new types.CodeLens(
@@ -519,7 +520,7 @@ export class ExtHostApiCommands {
 	}
 
 	private _executeTaskProvider(): Thenable<vscode.Task[]> {
-		return this._tasks.executeTaskProvider();
+		return this._tasks.fetchTasks();
 	}
 }
 

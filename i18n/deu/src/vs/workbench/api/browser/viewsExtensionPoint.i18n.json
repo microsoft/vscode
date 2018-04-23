@@ -15,7 +15,6 @@
 	"vscode.extension.contributes.views": "Trägt Ansichten zum Editor bei.",
 	"views.explorer": "Explorer-Ansicht",
 	"views.debug": "Debugansicht",
-	"locationId.invalid": "{0}\" ist kein gültiger Ansichtenspeicherort",
 	"duplicateView1": "Mehrere Ansichten können nicht mit derselben ID \"{0}\" am Speicherort \"{1}\" registriert werden.",
 	"duplicateView2": "Eine Ansicht mit der ID \"{0}\" ist am Speicherort \"{1}\" bereits registriert."
 }

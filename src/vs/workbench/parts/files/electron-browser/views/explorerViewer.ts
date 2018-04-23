@@ -24,7 +24,6 @@ import { IDisposable, dispose, empty as EmptyDisposable } from 'vs/base/common/l
 import { IFilesConfiguration, SortOrder } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationError, FileOperationResult, IFileService, FileKind } from 'vs/platform/files/common/files';
-import { ResourceMap } from 'vs/base/common/map';
 import { DuplicateFileAction, AddFilesAction, IEditableData, IFileViewletState, FileCopiedContext } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { IDataSource, ITree, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
 import { DesktopDragAndDropData, ExternalElementsDragAndDropData } from 'vs/base/parts/tree/browser/treeDnd';
@@ -76,7 +75,7 @@ export class FileDataSource implements IDataSource {
 	}
 
 	public hasChildren(tree: ITree, stat: ExplorerItem | Model): boolean {
-		return stat instanceof Model || (stat instanceof ExplorerItem && stat.isDirectory);
+		return stat instanceof Model || (stat instanceof ExplorerItem && (stat.isDirectory || stat.isRoot));
 	}
 
 	public getChildren(tree: ITree, stat: ExplorerItem | Model): TPromise<ExplorerItem[]> {
@@ -147,24 +146,24 @@ export class FileDataSource implements IDataSource {
 }
 
 export class FileViewletState implements IFileViewletState {
-	private editableStats: ResourceMap<IEditableData>;
+	private editableStats: Map<ExplorerItem, IEditableData>;
 
 	constructor() {
-		this.editableStats = new ResourceMap<IEditableData>();
+		this.editableStats = new Map<ExplorerItem, IEditableData>();
 	}
 
 	public getEditableData(stat: ExplorerItem): IEditableData {
-		return this.editableStats.get(stat.resource);
+		return this.editableStats.get(stat);
 	}
 
 	public setEditable(stat: ExplorerItem, editableData: IEditableData): void {
 		if (editableData) {
-			this.editableStats.set(stat.resource, editableData);
+			this.editableStats.set(stat, editableData);
 		}
 	}
 
 	public clearEditable(stat: ExplorerItem): void {
-		this.editableStats.delete(stat.resource);
+		this.editableStats.delete(stat);
 	}
 }
 
