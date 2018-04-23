@@ -53,6 +53,7 @@ export interface SelectManyParameters<T extends IPickOpenEntry = IPickOpenEntry>
 export interface TextInputParameters extends BaseInputParameters {
 	readonly type: 'textInput';
 	readonly value?: string;
+	readonly valueSelection?: [number, number];
 	readonly prompt?: string;
 	readonly validateInput?: (input: string) => TPromise<string>;
 }
@@ -124,6 +125,8 @@ class TextInputController implements InputController<string> {
 		this.result.then(() => this.dispose());
 
 		ui.inputBox.value = parameters.value || '';
+		const selection = parameters.valueSelection;
+		ui.inputBox.select(selection && { start: selection[0], end: selection[1] });
 		ui.inputBox.setPlaceholder(parameters.placeHolder || '');
 		const defaultMessage = parameters.prompt
 			? localize('inputModeEntryDescription', "{0} (Press 'Enter' to confirm or 'Escape' to cancel)", parameters.prompt)
@@ -374,6 +377,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		return this.show({
 			type: 'textInput',
 			value: options.value,
+			valueSelection: options.valueSelection,
 			prompt: options.prompt,
 			placeHolder: options.placeHolder,
 			ignoreFocusLost: options.ignoreFocusLost,

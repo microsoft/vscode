@@ -7,7 +7,7 @@
 
 import 'vs/css!./quickInput';
 import * as dom from 'vs/base/browser/dom';
-import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { InputBox, IRange } from 'vs/base/browser/ui/inputbox/inputBox';
 import { localize } from 'vs/nls';
 import { inputBackground, inputForeground, inputBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme } from 'vs/platform/theme/common/themeService';
@@ -56,6 +56,10 @@ export class QuickInputBox {
 
 	set value(value: string) {
 		this.inputBox.value = value;
+	}
+
+	select(range: IRange = null): void {
+		this.inputBox.select(range);
 	}
 
 	setPlaceholder(placeholder: string) {
