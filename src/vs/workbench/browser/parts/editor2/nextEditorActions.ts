@@ -15,8 +15,8 @@ import { EditorInput } from 'vs/workbench/common/editor';
 
 export class OpenNextEditorAction extends Action {
 
-	public static readonly ID = 'workbench.action.openNextEditor';
-	public static readonly LABEL = localize('openNextEditor', "Next Editor");
+	static readonly ID = 'workbench.action.openNextEditor';
+	static readonly LABEL = localize('openNextEditor', "Next Editor");
 
 	constructor(
 		id: string,
@@ -27,7 +27,7 @@ export class OpenNextEditorAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		const input = this.legacyEditorService.createInput({ resource: URI.file('') });
 
 		return this.nextEditorPartService.openEditor(input as EditorInput);

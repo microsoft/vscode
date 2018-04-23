@@ -17,24 +17,25 @@ import { join } from 'vs/base/common/paths';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { INextEditorPartService } from 'vs/workbench/services/editor/common/nextEditorPartService';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
-import { NextEditorsViewer, GridOrientation } from 'vs/workbench/browser/parts/editor2/nextEditorsViewer';
-// import { IStorageService } from 'vs/platform/storage/common/storage';
+import { NextEditorGroupsViewer, EditorGroupsOrientation } from 'vs/workbench/browser/parts/editor2/nextEditorGroupsViewer';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class NextEditorPart extends Part implements INextEditorPartService {
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	private readonly _onLayout: Emitter<Dimension>;
 
 	// private dimension: Dimension;
 	// private memento: object;
 
-	private viewer: NextEditorsViewer;
+	private viewer: NextEditorGroupsViewer;
 
 	constructor(
 		id: string,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		// @IStorageService private storageService: IStorageService,
+		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService
 	) {
 		super(id, { hasTitle: false }, themeService);
@@ -43,29 +44,23 @@ export class NextEditorPart extends Part implements INextEditorPartService {
 
 		// this.memento = this.getMemento(this.storageService, Scope.WORKSPACE);
 
-		this.viewer = new NextEditorsViewer();
+		this.viewer = this.instantiationService.createInstance(NextEditorGroupsViewer);
 
 		this.initStyles();
 	}
 
-	public openEditor(input: EditorInput, options?: EditorOptions): TPromise<void> {
+	openEditor(input: EditorInput, options?: EditorOptions): TPromise<void> {
 
 		// TODO@grid arguments validation
 		// TODO@grid editor opening event and prevention
 		// TODO@grid support options
 
-		// TODO@grid delegate the management of instantiated ("live"?) editors into a helper class
-		// that associates editors to a group id. editors should get disposed once a group closes
+		let editorGroup = this.viewer.groupAt([0]);
+		if (!editorGroup) {
+			editorGroup = this.viewer.split([], EditorGroupsOrientation.HORIZONTAL);
+		}
 
-		// Flow
-		// - editors viewer is the main grid control that owns EditorGroups and GridViews to add HTML into (this enables empty groups too!)
-		// - a helper class manages instantiation/lifecycle of ("live") editors (maybe also the title control? maybe all UI associated to show a group?)
-		// - how does the input gets opened in the editor group? is it 2 calls, one for editorgroup and one for showing it as HTML?
-		// - ^ is a bit fishy, would be nice to have this all combined somehow?
-		// - idea: have a EditorGroupView helper that is the thing added into a GridView and it also has a openEditor method which sets
-		//   the editor to the editor group as well as renders the UI pieces
-
-		const group = this.viewer.split([], GridOrientation.HORIZONTAL);
+		editorGroup.openEditor(input, options);
 
 		return TPromise.as(void 0);
 	}
@@ -100,11 +95,11 @@ export class NextEditorPart extends Part implements INextEditorPartService {
 		// content.style.backgroundColor = groupCount > 0 ? this.getColor(EDITOR_GROUP_BACKGROUND) : null;
 	}
 
-	public get onLayout(): Event<Dimension> {
+	get onLayout(): Event<Dimension> {
 		return this._onLayout.event;
 	}
 
-	public createContentArea(parent: HTMLElement): HTMLElement {
+	createContentArea(parent: HTMLElement): HTMLElement {
 
 		// Container
 		const contentArea = document.createElement('div');
@@ -117,7 +112,7 @@ export class NextEditorPart extends Part implements INextEditorPartService {
 		return contentArea;
 	}
 
-	public layout(dimension: Dimension): Dimension[] {
+	layout(dimension: Dimension): Dimension[] {
 		const sizes = super.layout(dimension);
 
 		// this.dimension = sizes[1];
@@ -129,7 +124,7 @@ export class NextEditorPart extends Part implements INextEditorPartService {
 		return sizes;
 	}
 
-	public shutdown(): void {
+	shutdown(): void {
 
 		// TODO@grid shutdown
 		// - persist part view state
@@ -138,7 +133,7 @@ export class NextEditorPart extends Part implements INextEditorPartService {
 		super.shutdown();
 	}
 
-	public dispose(): void {
+	dispose(): void {
 
 		// Emitters
 		this._onLayout.dispose();
