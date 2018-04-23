@@ -943,7 +943,7 @@ export class CodeMenu {
 			}
 		}, false));
 
-		const openProcessExplorer = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miOpenProcessExplorerer', comment: ['&& denotes a mnemonic'] }, "Open &&Process Explorer")), click: () => this.runActionInRenderer('workbench.action.openProcessExplorer') });
+		const openProcessExplorer = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miOpenProcessExplorer', comment: ['&& denotes a mnemonic'] }, "Open &&Process Explorer")), click: () => this.runActionInRenderer('workbench.action.openProcessExplorer') });
 
 		let reportIssuesItem: Electron.MenuItem = null;
 		if (product.reportIssueUrl) {

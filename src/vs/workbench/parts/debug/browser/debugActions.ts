@@ -92,7 +92,7 @@ export class ConfigureAction extends AbstractDebugAction {
 			return ConfigureAction.LABEL;
 		}
 
-		return nls.localize('launchJsonNeedsConfigurtion', "Configure or Fix 'launch.json'");
+		return nls.localize('launchJsonNeedsConfiguration', "Configure or Fix 'launch.json'");
 	}
 
 	private updateClass(): void {

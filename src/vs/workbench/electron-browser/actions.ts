@@ -558,7 +558,7 @@ export class ReloadWindowAction extends Action {
 export class ReloadWindowWithExtensionsDisabledAction extends Action {
 
 	static readonly ID = 'workbench.action.reloadWindowWithExtensionsDisabled';
-	static LABEL = nls.localize('reloadWindowWithExntesionsDisabled', "Reload Window With Extensions Disabled");
+	static LABEL = nls.localize('reloadWindowWithExtensionsDisabled', "Reload Window With Extensions Disabled");
 
 	constructor(
 		id: string,
