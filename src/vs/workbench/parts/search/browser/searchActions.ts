@@ -491,7 +491,9 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 			// If file match is removed then next element is the next file match
 			while (!!navigator.next() && !(navigator.current() instanceof FileMatch)) { }
 		} else {
-			navigator.next();
+			while (navigator.next() && !(navigator.current() instanceof Match)) {
+				viewer.expand(navigator.current());
+			}
 		}
 		return navigator.current();
 	}
