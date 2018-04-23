@@ -666,6 +666,12 @@ export function createApiFactory(
 			SourceBreakpoint: extHostTypes.SourceBreakpoint,
 			StatusBarAlignment: extHostTypes.StatusBarAlignment,
 			SymbolInformation: extHostTypes.SymbolInformation,
+			HierarchicalSymbolInformation: class extends extHostTypes.HierarchicalSymbolInformation {
+				constructor(name, kind, keyof, range) {
+					checkProposedApiEnabled(extension);
+					super(name, kind, keyof, range);
+				}
+			},
 			SymbolKind: extHostTypes.SymbolKind,
 			SourceControlInputBoxValidationType: extHostTypes.SourceControlInputBoxValidationType,
 			TextDocumentSaveReason: extHostTypes.TextDocumentSaveReason,

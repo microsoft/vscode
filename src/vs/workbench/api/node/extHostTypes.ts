@@ -876,6 +876,38 @@ export class SymbolInformation {
 	}
 }
 
+export class HierarchicalSymbolInformation {
+	name: string;
+	location: Location;
+	kind: SymbolKind;
+	range: Range;
+	children: HierarchicalSymbolInformation[];
+
+	constructor(name: string, kind: SymbolKind, location: Location, range: Range) {
+		this.name = name;
+		this.kind = kind;
+		this.location = location;
+		this.range = range;
+		this.children = [];
+	}
+
+	static toFlatSymbolInformation(info: HierarchicalSymbolInformation): SymbolInformation[] {
+		let result: SymbolInformation[] = [];
+		HierarchicalSymbolInformation._toFlatSymbolInformation(info, undefined, result);
+		return result;
+	}
+
+	private static _toFlatSymbolInformation(info: HierarchicalSymbolInformation, containerName: string, bucket: SymbolInformation[]): void {
+		bucket.push(new SymbolInformation(info.name, info.kind, containerName, new Location(info.location.uri, info.range)));
+		if (Array.isArray(info.children)) {
+			for (const child of info.children) {
+				HierarchicalSymbolInformation._toFlatSymbolInformation(child, info.name, bucket);
+			}
+		}
+	}
+
+}
+
 export class CodeAction {
 	title: string;
 
