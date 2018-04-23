@@ -9,6 +9,8 @@ import { Event, anyEvent, Emitter } from 'vs/base/common/event';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { SplitView, IView } from 'vs/base/browser/ui/splitview/splitview';
 import { empty as EmptyDisposable, IDisposable } from 'vs/base/common/lifecycle';
+
+export { IView } from 'vs/base/browser/ui/splitview/splitview';
 export { Orientation } from 'vs/base/browser/ui/sash/sash';
 
 function orthogonal(orientation: Orientation): Orientation {
@@ -57,6 +59,10 @@ abstract class AbstractNode implements IView {
 	orthogonalLayout(size: number): void {
 		this.orthogonalSize = size;
 	}
+
+	dispose(): void {
+
+	}
 }
 
 class BranchNode<T extends IView> extends AbstractNode {
@@ -98,7 +104,7 @@ class BranchNode<T extends IView> extends AbstractNode {
 
 	private _onDidChange = new Emitter<number | undefined>();
 	get onDidChange(): Event<number | undefined> { return this._onDidChange.event; }
-	private _onDidChangeDisposable: IDisposable = EmptyDisposable;
+	private onDidChangeDisposable: IDisposable = EmptyDisposable;
 
 	constructor(readonly orientation: Orientation) {
 		super();
@@ -143,8 +149,18 @@ class BranchNode<T extends IView> extends AbstractNode {
 
 	private onDidChildrenChange(): void {
 		const onDidChildrenChange = anyEvent(...this.children.map(c => c.onDidChange));
-		this._onDidChangeDisposable.dispose();
-		this._onDidChangeDisposable = onDidChildrenChange(this._onDidChange.fire, this._onDidChange);
+		this.onDidChangeDisposable.dispose();
+		this.onDidChangeDisposable = onDidChildrenChange(this._onDidChange.fire, this._onDidChange);
+	}
+
+	dispose(): void {
+		for (const child of this.children) {
+			child.dispose();
+		}
+
+		this.onDidChangeDisposable.dispose();
+		this.splitview.dispose();
+		super.dispose();
 	}
 }
 
@@ -182,7 +198,7 @@ type Node<T extends IView> = BranchNode<T> | LeafNode<T>;
  * 		| C								 \---C
  */
 
-export class GridView<T extends IView> implements IGrid<T> {
+export class GridView<T extends IView> implements IGrid<T>, IDisposable {
 
 	private root: BranchNode<T>;
 
@@ -293,5 +309,9 @@ export class GridView<T extends IView> implements IGrid<T> {
 		path.push(node);
 
 		return this.getNode(rest, child, path);
+	}
+
+	dispose(): void {
+		this.root.dispose();
 	}
 }
