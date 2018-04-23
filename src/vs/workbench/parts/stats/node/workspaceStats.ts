@@ -37,6 +37,26 @@ const SecondLevelDomainWhitelist = [
 	'rhcloud.com',
 	'google.com'
 ];
+const ModulesToLookFor = [
+	// Packages that suggest a node server
+	'express',
+	'sails',
+	'koa',
+	'hapi',
+	'socket.io',
+	'restify',
+	// JS frameworks
+	'react',
+	'react-native',
+	'@angular/core',
+	'vue',
+	// Other interesting packages
+	'aws-sdk',
+	'azure',
+	'azure-storage',
+	'@google-cloud/common',
+	'heroku-cli'
+];
 
 type Tags = { [index: string]: boolean | number | string };
 
@@ -189,7 +209,6 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.npm.socket.io" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.restify" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.react" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.react-native" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@angular/core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.vue" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.aws-sdk" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -239,7 +258,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		const folders = !isEmpty ? workspace.folders.map(folder => folder.uri) : this.environmentService.appQuality !== 'stable' && this.findFolders(configuration);
 		if (folders && folders.length && this.fileService) {
 			//return
-			let files: IResolveFileResult[] = await this.fileService.resolveFiles(folders.map(resource => ({ resource })));
+			const files: IResolveFileResult[] = await this.fileService.resolveFiles(folders.map(resource => ({ resource })));
 			const names = (<IFileStat[]>[]).concat(...files.map(result => result.success ? (result.stat.children || []) : [])).map(c => c.name);
 			const nameSet = names.reduce((s, n) => s.add(n.toLowerCase()), new Set());
 
@@ -295,32 +314,19 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			if (nameSet.has('package.json')) {
 				await TPromise.join(folders.map(async workspaceUri => {
 					const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/package.json` });
-					let content = await this.fileService.resolveContent(uri, { acceptTextOnly: true });
+					const content = await this.fileService.resolveContent(uri, { acceptTextOnly: true });
 					const packageJsonContents = JSON.parse(content.value);
-					let modulesToLookFor = [
-						// Packages that suggest a node server
-						'express',
-						'sails',
-						'koa',
-						'hapi',
-						'socket.io',
-						'restify',
-						// JS frameworks
-						'react',
-						'react-native',
-						'@angular/core',
-						'vue',
-						// Other interesting packages
-						'aws-sdk',
-						'azure',
-						'azure-storage',
-						'@google-cloud/common',
-						'heroku-cli'
-					];
-
 					if (packageJsonContents['dependencies']) {
-						for (let module of modulesToLookFor) {
-							tags['workspace.npm.' + module] = packageJsonContents['dependencies'][module] ? true : false;
+						for (let module of ModulesToLookFor) {
+							if ('react-native' === module) {
+								if (packageJsonContents['dependencies'][module]) {
+									tags['workspace.reactNative'] = true;
+								}
+							} else {
+								if (packageJsonContents['dependencies'][module]) {
+									tags['workspace.npm.' + module] = true;
+								}
+							}
 						}
 					}
 				}));
