@@ -5,7 +5,7 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { parseDiff, DIFF_HUNK_INFO } from '../common/diff';
+import { parseDiff, parseDiffHunk, getDiffLine, mapPositionHeadToDiffHunk } from '../common/diff';
 import { Repository } from '../common//models/repository';
 import { Comment } from '../common/models/comment';
 import * as _ from 'lodash';
@@ -112,7 +112,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 			});
 
 			vscode.commands.registerCommand('diff-' + element.prItem.number + '-post', async (uri: vscode.Uri, range: vscode.Range, thread: vscode.CommentThread, text: string) => {
-				if (thread) {
+				if (thread && thread.threadId) {
 					try {
 						let ret = await element.createCommentReply(text, thread.threadId);
 						return {
@@ -127,29 +127,21 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 					let params = JSON.parse(uri.query);
 
 					let fileChange = richContentChanges.find(change => change.fileName === params.fileName);
-					let regex = new RegExp(DIFF_HUNK_INFO, 'g');
-					let matches = regex.exec(fileChange.patch);
 
-					let position;
-					while (matches) {
-						let newStartLine = Number(matches[5]);
-						let newLen = Number(matches[7]) | 0;
-
-						if (range.start.line >= newStartLine && range.start.line <= newStartLine + newLen - 1) {
-							position = range.start.line - newStartLine + 1;
-							break;
-						}
-
-						matches = regex.exec(fileChange.patch);
+					if (!fileChange) {
+						return null;
 					}
 
-					if (!position) {
+					let position = mapPositionHeadToDiffHunk(fileChange.patch, '', range.start.line);
+
+					if (position < 0) {
 						return;
 					}
 
 					// there is no thread Id, which means it's a new thread
 					let ret = await element.createComment(text, params.fileName, position);
 					return {
+						commentId: ret.data.id,
 						body: new vscode.MarkdownString(ret.data.body),
 						userName: ret.data.user.login,
 						gravatar: ret.data.user.avatar_url
@@ -171,22 +163,16 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 						if (!fileChange) {
 							return null;
 						}
-						let regex = new RegExp(DIFF_HUNK_INFO, 'g');
-						let matches = regex.exec(fileChange.patch);
 
 						let commentingRanges: vscode.Range[] = [];
-						while (matches) {
-							let newStartLine = Number(matches[5]);
-							let newLen = Number(matches[7]) | 0;
 
-							commentingRanges.push(new vscode.Range(
-								newStartLine - 1,
-								0,
-								newStartLine + newLen - 1 - 1,
-								document.lineAt(newStartLine + newLen - 1 - 1).text.length
-							));
+						let diffHunkReader = parseDiffHunk(fileChange.patch);
+						let diffHunkIter = diffHunkReader.next();
 
-							matches = regex.exec(fileChange.patch);
+						while (!diffHunkIter.done) {
+							let diffHunk = diffHunkIter.value;
+							commentingRanges.push(new vscode.Range(diffHunk.newLineNumber, 1, diffHunk.newLineNumber + diffHunk.newLength - 1, 1));
+							diffHunkIter = diffHunkReader.next();
 						}
 
 						let matchingComments = commentsCache.get(document.uri.toString());
@@ -206,10 +192,13 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 							let comments = sections[i];
 
 							const comment = comments[0];
+							let diffLine = getDiffLine(fileChange.patch, comment.position === null ? comment.original_position : comment.position);
+							let commentAbsolutePosition = 1;
+							if (diffLine) {
+								commentAbsolutePosition = diffLine.newLineNumber;
+							}
 							// If the position is null, the comment is on a line that has been changed. Fall back to using original position.
-							const commentPosition = comment.position === null ? comment.original_position : comment.position - 1;
-							const commentAbsolutePosition = comment.diff_hunk_range.start + commentPosition;
-							const pos = new vscode.Position(comment.currentPosition ? comment.currentPosition - 1 - 1 : commentAbsolutePosition - /* after line */ 1 - /* it's zero based*/ 1, 0);
+							const pos = new vscode.Position(commentAbsolutePosition - 1, 0);
 							const range = new vscode.Range(pos, pos);
 
 							threads.push({

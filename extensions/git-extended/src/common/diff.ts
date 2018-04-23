@@ -8,39 +8,226 @@ import { getFileContent, writeTmpFile } from './file';
 import { GitChangeType, RichFileChange } from './models/file';
 import { Repository } from './models/repository';
 import { Comment } from './models/comment';
+import { DiffHunk } from './models/diffHunk';
+import { getDiffChangeType, DiffLine, DiffChangeType } from './models/diffLine';
 
 export const MODIFY_DIFF_INFO = /diff --git a\/(\S+) b\/(\S+).*\n*index.*\n*-{3}.*\n*\+{3}.*\n*((.*\n*)+)/;
 export const NEW_FILE_INFO = /diff --git a\/(\S+) b\/(\S+).*\n*new file mode .*\nindex.*\n*-{3}.*\n*\+{3}.*\n*((.*\n*)+)/;
 export const DELETE_FILE_INFO = /diff --git a\/(\S+) b\/(\S+).*\n*deleted file mode .*\nindex.*\n*-{3}.*\n*\+{3}.*\n*((.*\n*)+)/;
-export const DIFF_HUNK_INFO = /@@ \-(\d+)(,(\d+))?( \+(\d+)(,(\d+)?))? @@/;
+export const DIFF_HUNK_HEADER = /@@ \-(\d+)(,(\d+))?( \+(\d+)(,(\d+)?))? @@/;
 
+export function countCarriageReturns(text: string): number {
+	let count = 0;
+	let index = 0;
+	while ((index = text.indexOf('\r', index)) !== -1) {
+		index++;
+		count++;
+	}
+
+	return count;
+}
+
+function* LineReader(text: string): IterableIterator<string> {
+	let index = 0;
+
+	while (index !== -1 && index < text.length) {
+		let startIndex = index;
+		index = text.indexOf('\n', index);
+		let endIndex = index !== -1 ? index : text.length;
+		let length = endIndex - startIndex;
+
+		if (index !== -1) {
+			if (index > 0 && text[index - 1] === '\r') {
+				length--;
+			}
+
+			index++;
+		}
+
+		yield text.substr(startIndex, length);
+	}
+}
+
+export function* parseDiffHunk(diffHunkPatch: string): IterableIterator<DiffHunk> {
+	let lineReader = LineReader(diffHunkPatch);
+
+	let itr = lineReader.next();
+	let diffHunk: DiffHunk = null;
+	let diffLine = -1;
+	let oldLine = -1;
+	let newLine = -1;
+
+	while (!itr.done) {
+		let line = itr.value;
+		if (DIFF_HUNK_HEADER.test(line)) {
+			if (diffHunk) {
+				yield diffHunk;
+				diffHunk = null;
+			}
+
+			if (diffLine === -1) {
+				diffLine = 0;
+			}
+
+			let matches = DIFF_HUNK_HEADER.exec(line);
+			let oriStartLine = oldLine = Number(matches[1]);
+			let oriLen = Number(matches[3]) | 0;
+			let newStartLine = newLine = Number(matches[5]);
+			let newLen = Number(matches[7]) | 0;
+
+			diffHunk = new DiffHunk(oriStartLine, oriLen, newStartLine, newLen, diffLine);
+		} else if (diffHunk !== null) {
+			let type = getDiffChangeType(line[0]);
+
+			if (type !== DiffChangeType.Control) {
+				diffHunk.Lines.push(new DiffLine(type, type !== DiffChangeType.Add ? oldLine : -1,
+					type !== DiffChangeType.Delete ? newLine : -1,
+					diffLine,
+					line
+				));
+
+				var lineCount = 1;
+				lineCount += countCarriageReturns(line);
+
+				switch (type) {
+					case DiffChangeType.None:
+						oldLine += lineCount;
+						newLine += lineCount;
+						break;
+					case DiffChangeType.Delete:
+						oldLine += lineCount;
+						break;
+					case DiffChangeType.Add:
+						newLine += lineCount;
+						break;
+				}
+			}
+		}
+		if (diffLine !== -1) {
+			++diffLine;
+		}
+		itr = lineReader.next();
+	}
+
+	if (diffHunk) {
+		yield diffHunk;
+	}
+}
+
+export function getDiffLine(prPatch: string, diffLineNumber: number): DiffLine {
+	let prDiffReader = parseDiffHunk(prPatch);
+	let prDiffIter = prDiffReader.next();
+
+	while (!prDiffIter.done) {
+		let diffHunk = prDiffIter.value;
+		for (let i = 0; i < diffHunk.Lines.length; i++) {
+			if (diffHunk.Lines[i].diffLineNumber === diffLineNumber) {
+				return diffHunk.Lines[i];
+			}
+		}
+
+		prDiffIter = prDiffReader.next();
+	}
+
+	return null;
+}
+
+export function mapPositionHeadToDiffHunk(prPatch: string, localDiff: string, line: number): number {
+	let delta = 0;
+
+	let localDiffReader = parseDiffHunk(localDiff);
+	let localDiffIter = localDiffReader.next();
+	let lineInPRDiff = line;
+
+	while (!localDiffIter.done) {
+		let diffHunk = localDiffIter.value;
+		if (diffHunk.newLineNumber + diffHunk.newLength - 1 < line) {
+			delta += diffHunk.oldLength - diffHunk.newLength;
+		} else {
+			lineInPRDiff = line + delta;
+			break;
+		}
+
+		localDiffIter = localDiffReader.next();
+	}
+
+	let prDiffReader = parseDiffHunk(prPatch);
+	let prDiffIter = prDiffReader.next();
+
+	let positionInDiffHunk = -1;
+
+	while (!prDiffIter.done) {
+		let diffHunk = prDiffIter.value;
+		if (diffHunk.newLineNumber <= lineInPRDiff && diffHunk.newLineNumber + diffHunk.newLength - 1 >= lineInPRDiff) {
+			positionInDiffHunk = lineInPRDiff - diffHunk.newLineNumber + diffHunk.diffLine + 1;
+			break;
+		}
+
+		prDiffIter = prDiffReader.next();
+	}
+
+	return positionInDiffHunk;
+}
+
+export function mapOldPositionToNew(patch: string, line: number): number {
+	let diffReader = parseDiffHunk(patch);
+	let diffIter = diffReader.next();
+
+	let delta = 0;
+	while (!diffIter.done) {
+		let diffHunk = diffIter.value;
+
+		if (diffHunk.oldLineNumber > line) {
+			continue;
+		} else if (diffHunk.oldLineNumber + diffHunk.oldLength - 1 < line) {
+			delta = diffHunk.newLength - diffHunk.oldLength;
+		} else {
+			return line + delta;
+		}
+
+		diffIter = diffReader.next();
+	}
+
+	return line + delta;
+}
+export function mapDiffHunkToHeadRange(diffHunk: DiffHunk, localDiff: string): [number, number] {
+	let startLineNumber = diffHunk.newLineNumber;
+	let endLineNumber = diffHunk.newLineNumber + diffHunk.newLength - 1;
+
+	return [mapOldPositionToNew(localDiff, startLineNumber), mapOldPositionToNew(localDiff, endLineNumber)];
+}
 
 async function parseModifiedHunkComplete(originalContent, patch, a, b) {
 	let left = originalContent.split(/\r|\n|\r\n/);
-	let diffHunks = patch.split('\n');
-	diffHunks.pop(); // there is one additional line break at the end of the diff ??
+	let diffHunkReader = parseDiffHunk(patch);
+	let diffHunkIter = diffHunkReader.next();
 
 	let right = [];
 	let lastCommonLine = 0;
-	for (let i = 0; i < diffHunks.length; i++) {
-		let line = diffHunks[i];
-		if (DIFF_HUNK_INFO.test(line)) {
-			let changeInfo = DIFF_HUNK_INFO.exec(line);
-			let oriStartLine = Number(changeInfo[1]);
-			let oriEndLine = Number(changeInfo[3]) | 0;
+	while (!diffHunkIter.done) {
+		let diffHunk = diffHunkIter.value;
 
-			for (let j = lastCommonLine + 1; j < oriStartLine; j++) {
-				right.push(left[j - 1]);
-			}
-			lastCommonLine = oriStartLine + oriEndLine - 1;
-		} else if (/^\-/.test(line)) {
-			// do nothing
-		} else if (/^\+/.test(line)) {
-			right.push(line.substr(1));
-		} else {
-			let codeInFirstLine = line.substr(1);
-			right.push(codeInFirstLine);
+		let oriStartLine = diffHunk.oldLineNumber;
+
+		for (let j = lastCommonLine + 1; j < oriStartLine; j++) {
+			right.push(left[j - 1]);
 		}
+
+		for (let j = 0; j < diffHunk.Lines.length; j++) {
+			let diffLine = diffHunk.Lines[j];
+			if (diffLine.type === DiffChangeType.Delete) {
+				lastCommonLine++;
+			} else if (diffLine.type === DiffChangeType.Add) {
+				lastCommonLine++;
+				right.push(diffLine.content.substr(1));
+			} else {
+				lastCommonLine++;
+				let codeInFirstLine = diffLine.content.substr(1);
+				right.push(codeInFirstLine);
+			}
+		}
+
+		diffHunkIter = diffHunkReader.next();
 	}
 
 	if (lastCommonLine < left.length) {
@@ -140,44 +327,14 @@ export async function parseDiff(reviews: any[], repository: Repository, parentCo
 	return richFileChanges;
 }
 
-export function mapCommentsToHead(patches: string, comments: Comment[]) {
-	let regex = new RegExp(DIFF_HUNK_INFO, 'g');
-	let matches = regex.exec(patches);
-
-	let rangeMapping = [];
-	const diffHunkContext = 3;
-	while (matches) {
-		let oriStartLine = Number(matches[1]);
-		let oriLen = Number(matches[3]) | 0;
-		let newStartLine = Number(matches[5]);
-		let newLen = Number(matches[7]) | 0;
-
-		rangeMapping.push({
-			oriStart: oriStartLine + diffHunkContext,
-			oriLen: oriLen - diffHunkContext * 2,
-			newStart: newStartLine + diffHunkContext,
-			newLen: newLen - diffHunkContext * 2
-		});
-		matches = regex.exec(patches);
-	}
-
+export function mapCommentsToHead(prPatch: string, localDiff: string, comments: Comment[]) {
 	for (let i = 0; i < comments.length; i++) {
 		let comment = comments[i];
-		const startPosition = comment.position === null ? comment.original_position : comment.position - 1;
-		let commentPosition = comment.diff_hunk_range.start + startPosition;
-		let delta = 0;
-		for (let j = 0; j < rangeMapping.length; j++) {
-			let map = rangeMapping[j];
-			if (map.oriStart + map.oriLen - 1 < commentPosition) {
-				delta += map.newLen - map.oriLen;
-			} else if (map.oriStart > commentPosition) {
-				continue;
-			} else {
-				break;
-			}
-		}
 
-		comment.currentPosition = commentPosition + delta;
+		let diffLine = getDiffLine(prPatch, comment.position);
+		let positionInPr = diffLine.newLineNumber;
+		let newPosition = mapOldPositionToNew(localDiff, positionInPr);
+		comment.absolutePosition = newPosition;
 	}
 
 	return comments;

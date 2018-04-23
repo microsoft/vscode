@@ -36,6 +36,7 @@ import { editorBackground, editorForeground } from 'vs/platform/theme/common/col
 import { ZoneWidget, IOptions } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { ReviewModel, ReviewStyle } from 'vs/workbench/parts/comments/common/reviewModel';
 import { ICommentService } from '../../../services/comments/electron-browser/commentService';
+import { CommentThreadCollapsibleState } from '../../../api/node/extHostTypes';
 
 export const ctxReviewPanelVisible = new RawContextKey<boolean>('reviewPanelVisible', false);
 export const ID = 'editor.contrib.review';
@@ -316,12 +317,14 @@ export class ReviewZoneWidget extends ZoneWidget {
 				}
 			});
 
-
 			const formActions = $('.form-actions').appendTo(commentForm).getHTMLElement();
 
 			const button = $('button').appendTo(formActions).getHTMLElement();
 			button.onclick = async () => {
-				let newComment = await this.commandService.executeCommand(this._replyCommand.id, this.editor.getModel().uri, new Range(lineNumber, 1, lineNumber, 1), this._commentThread, textArea.value);
+				let newComment = await this.commandService.executeCommand(this._replyCommand.id, this.editor.getModel().uri, {
+					start: { line: lineNumber, column: 1 },
+					end: { line: lineNumber, column: 1 }
+				}, this._commentThread, textArea.value);
 				if (newComment) {
 					textArea.value = '';
 					this._commentThread.comments.push(newComment);
@@ -621,7 +624,7 @@ export class ReviewController implements IEditorContribution {
 			}
 		}
 
-		if (this._zoneWidget && this._zoneWidget.position.lineNumber === lineNumber) {
+		if (this._zoneWidget && this._zoneWidget.position && this._zoneWidget.position.lineNumber === lineNumber) {
 			return;
 		}
 
@@ -643,7 +646,8 @@ export class ReviewController implements IEditorContribution {
 					endLineNumber: lineNumber,
 					endColumn: 0
 				},
-				reply: null
+				reply: newCommentInfo[0],
+				collapsibleState: CommentThreadCollapsibleState.Expanded,
 				// actions: newCommentAction.actions
 			}, newCommentInfo[0], {}, this.themeService, this.commandService);
 
@@ -651,7 +655,6 @@ export class ReviewController implements IEditorContribution {
 				this._zoneWidget = null;
 			});
 			this._zoneWidget.display(lineNumber);
-			this._zoneWidget.toggleExpand();
 		}
 	}
 

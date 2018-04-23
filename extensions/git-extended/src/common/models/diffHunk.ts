@@ -10,7 +10,9 @@ export class DiffHunk {
 
 	constructor(
 		public oldLineNumber: number,
+		public oldLength: number,
 		public newLineNumber: number,
+		public newLength: number,
 		public diffLine: number
 	) { }
 }

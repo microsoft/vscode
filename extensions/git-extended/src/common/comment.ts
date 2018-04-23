@@ -5,13 +5,13 @@
 
 import * as path from 'path';
 import { Comment } from './models/comment';
-import { DIFF_HUNK_INFO } from './diff';
+import { DIFF_HUNK_HEADER } from './diff';
 import { FileChangeTreeItem } from './treeItems';
 
 export function parseComments(comments: any[]): Comment[] {
 	for (let i = 0; i < comments.length; i++) {
 		let diff_hunk = comments[i].diff_hunk;
-		let hunk_info = DIFF_HUNK_INFO.exec(diff_hunk);
+		let hunk_info = DIFF_HUNK_HEADER.exec(diff_hunk);
 		let oriStartLine = Number(hunk_info[1]);
 		let oriLen = Number(hunk_info[3]) | 0;
 		let startLine = Number(hunk_info[5]);

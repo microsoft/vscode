@@ -7,7 +7,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { Repository } from '../common/models/repository';
 import { FileChangeTreeItem } from '../common/treeItems';
-import { mapCommentsToHead, parseDiff } from '../common/diff';
+import { mapCommentsToHead, parseDiff, mapPositionHeadToDiffHunk, getDiffLine, parseDiffHunk, mapDiffHunkToHeadRange } from '../common/diff';
 import * as _ from 'lodash';
 import { GitContentProvider } from './gitContentProvider';
 import { Comment } from '../common/models/comment';
@@ -140,12 +140,38 @@ export class ReviewMode implements vscode.DecorationProvider {
 
 		this._command = vscode.commands.registerCommand(this._prNumber + '-post', async (uri: vscode.Uri, range: vscode.Range, thread: vscode.CommentThread, text: string) => {
 			try {
-				let ret = await pr.createCommentReply(text, thread.threadId);
-				return {
-					body: new vscode.MarkdownString(ret.data.body),
-					userName: ret.data.user.login,
-					gravatar: ret.data.user.avatar_url
-				};
+				if (thread && thread.threadId) {
+					let ret = await pr.createCommentReply(text, thread.threadId);
+					return {
+						commentId: ret.data.id,
+						body: new vscode.MarkdownString(ret.data.body),
+						userName: ret.data.user.login,
+						gravatar: ret.data.user.avatar_url
+					};
+				} else {
+					let fileName = uri.path;
+					let matchedFiles = this._localFileChanges.filter(fileChange => path.resolve(this._repository.path, fileChange.fileName) === fileName);
+					if (matchedFiles && matchedFiles.length) {
+						let matchedFile = matchedFiles[0];
+						// git diff sha -- fileName
+						let contentDiff = await this._repository.diff(matchedFile.fileName, this._lastCommitSha);
+						let position = mapPositionHeadToDiffHunk(matchedFile.patch, contentDiff, range.start.line);
+
+						if (position < 0) {
+							return;
+						}
+
+						// there is no thread Id, which means it's a new thread
+						let ret = await pr.createComment(text, matchedFile.fileName, position);
+
+						return {
+							commentId: ret.data.id,
+							body: new vscode.MarkdownString(ret.data.body),
+							userName: ret.data.user.login,
+							gravatar: ret.data.user.avatar_url
+						};
+					}
+				}
 			} catch (e) {
 				return null;
 			}
@@ -292,10 +318,7 @@ export class ReviewMode implements vscode.DecorationProvider {
 				let comments = sections[i];
 
 				const comment = comments[0];
-				// If the position is null, the comment is on a line that has been changed. Fall back to using original position.
-				const commentPosition = comment.position === null ? comment.original_position : comment.position - 1;
-				const commentAbsolutePosition = comment.diff_hunk_range.start + commentPosition;
-				const pos = new vscode.Position(comment.currentPosition ? comment.currentPosition - 1 - 1 : commentAbsolutePosition - /* after line */ 1 - /* it's zero based*/ 1, 0);
+				const pos = new vscode.Position(comment.absolutePosition ? comment.absolutePosition - 1 : 0, 0);
 				const range = new vscode.Range(pos, pos);
 
 				ret.push({
@@ -352,16 +375,33 @@ export class ReviewMode implements vscode.DecorationProvider {
 		this._documentCommentProvider = vscode.workspace.registerDocumentCommentProvider({
 			onDidChangeCommentThreads: this._onDidChangeCommentThreads.event,
 			provideDocumentComments: async (document: vscode.TextDocument, token: vscode.CancellationToken) => {
-				let lastLine = document.lineCount;
-				let lastColumn = document.lineAt(lastLine - 1).text.length;
-				let ranges = [
-					new vscode.Range(1, 1, lastLine, lastColumn)
-				];
+				let ranges: vscode.Range[] = [];
 
 				let matchingComments: Comment[];
 				if (document.uri.scheme === 'review') {
 					// from scm viewlet
 					matchingComments = this._commentsCache.get(document.uri.toString());
+					let matchedFiles = this._localFileChanges.filter(fileChange => path.resolve(this._repository.path, fileChange.fileName) === document.uri.toString());
+					if (matchedFiles && matchedFiles.length) {
+						let matchedFile = matchedFiles[0];
+
+						matchingComments.forEach(comment => {
+							let diffLine = getDiffLine(matchedFiles[0].patch, comment.position === null ? comment.original_position : comment.position);
+
+							if (diffLine) {
+								comment.absolutePosition = diffLine.newLineNumber;
+							}
+						});
+
+						let diffHunkReader = parseDiffHunk(matchedFile.patch);
+						let diffHunkIter = diffHunkReader.next();
+
+						while (!diffHunkIter.done) {
+							let diffHunk = diffHunkIter.value;
+							ranges.push(new vscode.Range(diffHunk.newLineNumber, 1, diffHunk.newLineNumber + diffHunk.newLength - 1, 1));
+							diffHunkIter = diffHunkReader.next();
+						}
+					}
 				} else if (document.uri.scheme === 'file') {
 					// local file
 					let fileName = document.uri.path;
@@ -371,7 +411,19 @@ export class ReviewMode implements vscode.DecorationProvider {
 						// git diff sha -- fileName
 						let contentDiff = await this._repository.diff(matchedFile.fileName, this._lastCommitSha);
 						matchingComments = this._comments.filter(comment => path.resolve(this._repository.path, comment.path) === fileName);
-						matchingComments = mapCommentsToHead(contentDiff, matchingComments);
+						matchingComments = mapCommentsToHead(matchedFile.patch, contentDiff, matchingComments);
+
+						let diffHunkReader = parseDiffHunk(matchedFile.patch);
+						let diffHunkIter = diffHunkReader.next();
+
+						while (!diffHunkIter.done) {
+							let diffHunk = diffHunkIter.value;
+							let mappedDiffHunk = mapDiffHunkToHeadRange(diffHunk, contentDiff);
+							if (mappedDiffHunk[0] >= 0 && mappedDiffHunk[1] >= 0) {
+								ranges.push(new vscode.Range(mappedDiffHunk[0], 1, mappedDiffHunk[1], 1));
+							}
+							diffHunkIter = diffHunkReader.next();
+						}
 					}
 				}
 
