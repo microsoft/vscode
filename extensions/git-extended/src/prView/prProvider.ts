@@ -224,6 +224,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 										gravatar: comment.user.avatar_url
 									};
 								}),
+								collapsibleState: vscode.CommentThreadCollapsibleState.Expanded,
 								reply: reply
 							});
 						}
@@ -231,7 +232,6 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 						return {
 							threads,
 							commentingRanges,
-							collapsibleState: vscode.CommentThreadCollapsibleState.Expanded,
 							reply: reply
 						};
 
