@@ -750,7 +750,7 @@ function allFolderMatchesToString(folderMatches: FolderMatch[], maxMatches: numb
 	return folderResults.join(lineDelimiter + lineDelimiter);
 }
 
-export const copyAllCommand: ICommandHandler = (accessor) => {
+export const copyAllCommand: ICommandHandler = accessor => {
 	const viewletService = accessor.get(IViewletService);
 	const panelService = accessor.get(IPanelService);
 	const clipboardService = accessor.get(IClipboardService);
@@ -760,4 +760,12 @@ export const copyAllCommand: ICommandHandler = (accessor) => {
 
 	const text = allFolderMatchesToString(root.folderMatches(), maxClipboardMatches);
 	clipboardService.writeText(text);
+};
+
+export const clearHistoryCommand: ICommandHandler = accessor => {
+	const viewletService = accessor.get(IViewletService);
+	const panelService = accessor.get(IPanelService);
+	const searchView = getSearchView(viewletService, panelService);
+
+	searchView.clearHistory();
 };
