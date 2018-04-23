@@ -233,6 +233,7 @@ export class GridView<T extends IView> implements IGrid<T>, IDisposable {
 
 			const newParent = new BranchNode<T>(parent.orientation);
 			grandParent.addChild(newParent, 20, parentIndex);
+			newParent.addChild(parent, 20, 0);
 			newParent.addChild(node, size, index);
 		}
 	}

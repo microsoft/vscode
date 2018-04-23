@@ -107,4 +107,24 @@ suite('GridView', function () {
 
 		gridview.dispose();
 	});
+
+	test('gridview addView nested', function () {
+		const gridview = new GridView(container);
+
+		const views = [
+			new TestView(20, 20),
+			[
+				new TestView(20, 20),
+				new TestView(20, 20)
+			]
+		];
+
+		gridview.addView(views[0] as IView, 200, [0]);
+		gridview.addView(views[1][0] as IView, 200, [1]);
+		gridview.addView(views[1][1] as IView, 200, [1, 1]);
+
+		assert.deepEqual(nodesToArrays(gridview.getViews()), views);
+
+		gridview.dispose();
+	});
 });
