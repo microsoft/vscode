@@ -19,7 +19,6 @@ import { Position } from 'vs/editor/common/core/position';
 import { registerEditorAction, ServicesAccessor, IActionOptions, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { CopyLinesCommand } from './copyLinesCommand';
 import { DeleteLinesCommand } from './deleteLinesCommand';
-//import { MoveLinesCommand } from './moveLinesCommand';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
