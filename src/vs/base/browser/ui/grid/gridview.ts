@@ -38,7 +38,11 @@ export interface IGrid<T extends IView> {
 }
 
 function tail<T>(arr: T[]): [T[], T] {
-	return [arr.slice(0, arr.length - 1), arr[length - 1]];
+	if (arr.length === 0) {
+		throw new Error('Invalid tail call');
+	}
+
+	return [arr.slice(0, arr.length - 1), arr[arr.length - 1]];
 }
 
 abstract class AbstractNode implements IView {
@@ -130,12 +134,20 @@ class BranchNode<T extends IView> extends AbstractNode {
 	}
 
 	addChild(node: Node<T>, size: number, index: number): void {
+		if (index < 0 || index >= this.children.length) {
+			throw new Error('Invalid index');
+		}
+
 		this.splitview.addView(node, size, index);
 		this.children.splice(index, 0, node);
 		this.onDidChildrenChange();
 	}
 
 	removeChild(index: number): Node<T> {
+		if (index < 0 || index >= this.children.length) {
+			throw new Error('Invalid index');
+		}
+
 		const child = this.children[index];
 		this.splitview.removeView(index);
 		this.children.splice(index, 1);
@@ -144,10 +156,18 @@ class BranchNode<T extends IView> extends AbstractNode {
 	}
 
 	resizeChild(index: number, size: number): void {
+		if (index < 0 || index >= this.children.length) {
+			throw new Error('Invalid index');
+		}
+
 		this.splitview.resizeView(index, size);
 	}
 
 	getChildSize(index: number): number {
+		if (index < 0 || index >= this.children.length) {
+			throw new Error('Invalid index');
+		}
+
 		return this.splitview.getViewSize(index);
 	}
 
@@ -296,6 +316,11 @@ export class GridView<T extends IView> implements IGrid<T>, IDisposable {
 		}
 
 		const [index, ...rest] = location;
+
+		if (index < 0 || index >= node.children.length) {
+			throw new Error('Invalid location');
+		}
+
 		const child = node.children[index];
 		path.push(node);
 
