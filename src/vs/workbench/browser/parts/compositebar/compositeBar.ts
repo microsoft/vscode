@@ -377,7 +377,7 @@ export class CompositeBar implements ICompositeBar {
 		return Object.keys(this.compositeIdToActions);
 	}
 
-	public getOrderedComposites() {
+	public getPinnedComposites() {
 		return this.pinnedComposites;
 	}
 

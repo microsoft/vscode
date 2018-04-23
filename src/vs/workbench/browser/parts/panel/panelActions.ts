@@ -179,7 +179,7 @@ export class SwitchPanelItemAction extends Action {
 	}
 
 	public run(offset: number): TPromise<any> {
-		const panels = this.panelService.getOrderedPanels();
+		const pinnedPanels = this.panelService.getPinnedPanels();
 		const activePanel = this.panelService.getActivePanel();
 
 		if (!activePanel) {
@@ -187,9 +187,9 @@ export class SwitchPanelItemAction extends Action {
 		}
 
 		let targetPanelId: string;
-		for (let i = 0; i < panels.length; i++) {
-			if (panels[i] === activePanel.getId()) {
-				targetPanelId = panels[(i + panels.length + offset) % panels.length];
+		for (let i = 0; i < pinnedPanels.length; i++) {
+			if (pinnedPanels[i].id === activePanel.getId()) {
+				targetPanelId = pinnedPanels[(i + pinnedPanels.length + offset) % pinnedPanels.length].id;
 				break;
 			}
 		}
