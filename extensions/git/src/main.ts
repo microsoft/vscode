@@ -53,7 +53,7 @@ async function init(context: ExtensionContext, outputChannel: OutputChannel, dis
 		new CommandCenter(git, model, outputChannel, telemetryReporter),
 		new GitContentProvider(model),
 		new GitDecorations(model),
-		new GitProtocolHandler(model)
+		new GitProtocolHandler()
 	);
 
 	await checkGitVersion(info);
