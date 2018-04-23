@@ -29,7 +29,7 @@ function tail<T>(arr: T[]): [T[], T] {
 	return [arr.slice(0, arr.length - 1), arr[length - 1]];
 }
 
-abstract class Node implements IView {
+abstract class AbstractNode implements IView {
 
 	abstract minimumSize: number;
 	abstract maximumSize: number;
@@ -49,9 +49,9 @@ abstract class Node implements IView {
 	}
 }
 
-class BranchNode extends Node {
+class BranchNode extends AbstractNode {
 
-	readonly children: Node[] = [];
+	private children: Node[] = [];
 	private splitview: SplitView;
 
 	constructor(readonly orientation: Orientation) {
@@ -113,21 +113,30 @@ class BranchNode extends Node {
 		this.orthogonalLayout(this.orthogonalSize);
 	}
 
+	getChild(index: number): Node {
+		return this.children[index];
+	}
+
 	addChild(node: Node, size: number, index: number): void {
 		this.splitview.addView(node, size, index);
 		this.children.splice(index, 0, node);
+		this.onDidChildrenChange();
+	}
 
+	removeChild(index: number): void {
+		this.splitview.removeView(index);
+		this.children.splice(index, 1);
+		this.onDidChildrenChange();
+	}
+
+	private onDidChildrenChange(): void {
 		const onDidChildrenChange = anyEvent(...this.children.map(c => c.onDidChange));
 		this._onDidChangeDisposable.dispose();
 		this._onDidChangeDisposable = onDidChildrenChange(this._onDidChange.fire, this._onDidChange);
 	}
-
-	removeChild(index: number): void {
-		// TODO
-	}
 }
 
-class LeafNode extends Node {
+class LeafNode extends AbstractNode {
 
 	constructor(private view: IView, readonly orientation: Orientation) {
 		super();
@@ -147,14 +156,21 @@ class LeafNode extends Node {
 	}
 }
 
+type Node = BranchNode | LeafNode;
+
 /**
  * Explanation:
  *
- * it appears at first that grid nodes should be treated as tree nodes, but that's not the case
+ * it appears at first that grid nodes should be treated as tree nodes,
+ * but that's not the case.
  * the tree is composed of two types of nodes: branch nodes and leaf nodes!
+ *
+ *	  |	B						*---A
+ *  A |---    =>		 \---*---B
+ * 		| C								 \---C
  */
 
-export class Grid2 {
+export class GridView {
 
 	private root: BranchNode;
 
@@ -164,20 +180,24 @@ export class Grid2 {
 	}
 
 	addView(view: IView, size: number, location: number[]): void {
-		const [rest, index] = tail(location);
-		const [pathToParent, parent] = this.getNode(rest);
+		const [rest, index] = tail(location); // [[], 0]
+		const [pathToParent, parent] = this.getNode(rest); // [[], this.root]
 		const node = new LeafNode(view, orthogonal(parent.orientation));
 
 		if (parent instanceof BranchNode) {
 			parent.addChild(node, size, index);
 		} else {
-			const [, grandParent] = tail(pathToParent);
-
 			// we must split!
+			const [, grandParent] = tail(pathToParent);
+			const [, parentIndex] = tail(rest);
 			// 1. remove parent from grandparent
+			grandParent.removeChild(parentIndex);
 			// 2. convert parent to Branch Node
+			const newParent = new BranchNode(parent.orientation);
 			// 3. add parent to grandparent
+			grandParent.addChild(newParent, 20, parentIndex);
 			// 4. add node to parent
+			newParent.addChild(node, size, index);
 		}
 	}
 
@@ -190,16 +210,8 @@ export class Grid2 {
 		this.root.orthogonalLayout(height);
 	}
 
-	private getNode(location: number[], path: BranchNode[] = [this.root]): [BranchNode[], Node] {
+	private getNode(location: number[], node: Node = this.root, path: BranchNode[] = []): [BranchNode[], Node] {
 		if (location.length === 0) {
-			throw new Error('Invalid location');
-		}
-
-		const parentNode = path[path.length - 1];
-		const [index, ...rest] = location;
-		const node = parentNode.children[index];
-
-		if (rest.length === 0) {
 			return [path, node];
 		}
 
@@ -207,7 +219,10 @@ export class Grid2 {
 			throw new Error('Invalid location');
 		}
 
+		const [index, ...rest] = location;
+		const child = node.getChild(index);
 		path.push(node);
-		return this.getNode(rest, path);
+
+		return this.getNode(rest, child, path);
 	}
 }
