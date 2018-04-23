@@ -21,7 +21,7 @@ import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import * as vscode from 'vscode';
 import {
 	TaskDefinitionDTO, TaskExecutionDTO, TaskPresentationOptionsDTO, ProcessExecutionOptionsDTO, ProcessExecutionDTO,
-	ShellExecutionOptionsDTO, ShellExecutionDTO, TaskDTO, TaskHandleDTO
+	ShellExecutionOptionsDTO, ShellExecutionDTO, TaskDTO, TaskHandleDTO, TaskFilterDTO
 } from '../shared/tasks';
 
 export { TaskExecutionDTO };
@@ -675,6 +675,19 @@ namespace TaskDTO {
 	}
 }
 
+namespace TaskFilterDTO {
+	export function from(value: vscode.TaskFilter): TaskFilterDTO {
+		return value;
+	}
+
+	export function to(value: TaskFilterDTO): vscode.TaskFilter {
+		if (!value) {
+			return undefined;
+		}
+		return Objects.assign(Object.create(null), value);
+	}
+}
+
 class TaskExecutionImpl implements vscode.TaskExecution {
 	constructor(readonly _id: string, private readonly _task: vscode.Task, private readonly _tasks: ExtHostTask) {
 	}
@@ -741,8 +754,8 @@ export class ExtHostTask implements ExtHostTaskShape {
 		});
 	}
 
-	public executeTaskProvider(): Thenable<vscode.Task[]> {
-		return this._proxy.$executeTaskProvider().then((values) => {
+	public fetchTasks(filter?: vscode.TaskFilter): Thenable<vscode.Task[]> {
+		return this._proxy.$fetchTasks(TaskFilterDTO.from(filter)).then((values) => {
 			let result: vscode.Task[] = [];
 			for (let value of values) {
 				let task = TaskDTO.to(value, this._extHostWorkspace);
@@ -772,6 +785,12 @@ export class ExtHostTask implements ExtHostTaskShape {
 		this._onDidExecuteTask.fire({
 			execution: this.getTaskExecution(execution)
 		});
+	}
+
+	get taskExecutions(): vscode.TaskExecution[] {
+		let result: vscode.TaskExecution[] = [];
+		this._taskExecutions.forEach(value => result.push(value));
+		return result;
 	}
 
 	get onDidStartTask(): Event<vscode.TaskStartEvent> {

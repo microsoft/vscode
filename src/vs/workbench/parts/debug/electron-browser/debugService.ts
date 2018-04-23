@@ -82,6 +82,7 @@ export class DebugService implements debug.IDebugService {
 	private debugType: IContextKey<string>;
 	private debugState: IContextKey<string>;
 	private breakpointsToSendOnResourceSaved: Set<string>;
+	private launchJsonChanged: boolean;
 	private firstSessionStart: boolean;
 	private skipRunningTask: boolean;
 	private previousState: debug.State;
@@ -153,11 +154,17 @@ export class DebugService implements debug.IDebugService {
 		const session = <RawDebugSession>process.session;
 
 		if (broadcast.channel === EXTENSION_ATTACH_BROADCAST_CHANNEL) {
-			this.onSessionEnd(session);
-
+			const initialAttach = process.configuration.request === 'launch';
 			process.configuration.request = 'attach';
 			process.configuration.port = broadcast.payload.port;
-			this.doCreateProcess(process.session.root, process.configuration, process.getId());
+			// Do not end process on initial attach (since the request is still 'launch')
+			if (initialAttach) {
+				session.attach(process.configuration);
+			} else {
+				this.onSessionEnd(session);
+				this.doCreateProcess(process.session.root, process.configuration, process.getId());
+			}
+
 			return;
 		}
 
@@ -697,6 +704,7 @@ export class DebugService implements debug.IDebugService {
 					this.allProcesses.clear();
 					this.model.getBreakpoints().forEach(bp => bp.verified = false);
 				}
+				this.launchJsonChanged = false;
 
 				let config: debug.IConfig, compound: debug.ICompound;
 				if (!configOrName) {
@@ -1102,9 +1110,12 @@ export class DebugService implements debug.IDebugService {
 
 				return new TPromise<void>((c, e) => {
 					setTimeout(() => {
+						// Read the configuration again if a launch.json has been changed, if not just use the inmemory configuration
 						let config = process.configuration;
+
 						const launch = process.session.root ? this.configurationManager.getLaunch(process.session.root.uri) : undefined;
-						if (launch) {
+						if (this.launchJsonChanged && launch) {
+							this.launchJsonChanged = false;
 							config = launch.getConfiguration(process.configuration.name) || config;
 							// Take the type from the process since the debug extension might overwrite it #21316
 							config.type = process.configuration.type;
@@ -1323,8 +1334,12 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		fileChangesEvent.getUpdated().forEach(event => {
+
 			if (this.breakpointsToSendOnResourceSaved.delete(event.resource.toString())) {
 				this.sendBreakpoints(event.resource, true).done(null, errors.onUnexpectedError);
+			}
+			if (strings.endsWith(event.resource.toString(), '.vscode/launch.json')) {
+				this.launchJsonChanged = true;
 			}
 		});
 	}

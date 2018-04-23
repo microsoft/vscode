@@ -6,8 +6,9 @@
 'use strict';
 
 import { HoverProvider, Hover, MarkedString, TextDocument, CancellationToken, Position, workspace } from 'vscode';
-import phpGlobals = require('./phpGlobals');
 import { textToMarkedString } from './utils/markedTextUtil';
+import phpGlobals = require('./phpGlobals');
+import phpGlobalFunctions = require('./phpGlobalFunctions');
 
 export default class PHPHoverProvider implements HoverProvider {
 
@@ -24,7 +25,7 @@ export default class PHPHoverProvider implements HoverProvider {
 
 		let name = document.getText(wordRange);
 
-		var entry = phpGlobals.globalfunctions[name] || phpGlobals.compiletimeconstants[name] || phpGlobals.globalvariables[name] || phpGlobals.keywords[name];
+		var entry = phpGlobalFunctions.globalfunctions[name] || phpGlobals.compiletimeconstants[name] || phpGlobals.globalvariables[name] || phpGlobals.keywords[name];
 		if (entry && entry.description) {
 			let signature = name + (entry.signature || '');
 			let contents: MarkedString[] = [textToMarkedString(entry.description), { language: 'php', value: signature }];

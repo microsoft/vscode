@@ -57,8 +57,8 @@ import { ExtensionActivatedByAPI } from 'vs/workbench/api/node/extHostExtensionA
 import { OverviewRulerLane } from 'vs/editor/common/model';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { ExtHostWebviews } from 'vs/workbench/api/node/extHostWebview';
-import * as files from 'vs/platform/files/common/files';
 import { ExtHostSearch } from './extHostSearch';
+import { ExtHostUrls } from './extHostUrls';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;
@@ -99,6 +99,7 @@ export function createApiFactory(
 	const extHostHeapService = rpcProtocol.set(ExtHostContext.ExtHostHeapService, new ExtHostHeapService());
 	const extHostDecorations = rpcProtocol.set(ExtHostContext.ExtHostDecorations, new ExtHostDecorations(rpcProtocol));
 	const extHostWebviews = rpcProtocol.set(ExtHostContext.ExtHostWebviews, new ExtHostWebviews(rpcProtocol));
+	const extHostUrls = rpcProtocol.set(ExtHostContext.ExtHostUrls, new ExtHostUrls(rpcProtocol));
 	const extHostDocumentsAndEditors = rpcProtocol.set(ExtHostContext.ExtHostDocumentsAndEditors, new ExtHostDocumentsAndEditors(rpcProtocol));
 	const extHostDocuments = rpcProtocol.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostDocumentContentProviders = rpcProtocol.set(ExtHostContext.ExtHostDocumentContentProviders, new ExtHostDocumentContentProvider(rpcProtocol, extHostDocumentsAndEditors, extHostLogService));
@@ -432,6 +433,9 @@ export function createApiFactory(
 			}),
 			registerWebviewPanelSerializer: proposedApiFunction(extension, (viewType: string, serializer: vscode.WebviewPanelSerializer) => {
 				return extHostWebviews.registerWebviewPanelSerializer(viewType, serializer);
+			}),
+			registerProtocolHandler: proposedApiFunction(extension, (handler: vscode.ProtocolHandler) => {
+				return extHostUrls.registerProtocolHandler(extension.id, handler);
 			})
 		};
 
@@ -531,12 +535,15 @@ export function createApiFactory(
 			registerTaskProvider: (type: string, provider: vscode.TaskProvider) => {
 				return extHostTask.registerTaskProvider(extension, provider);
 			},
-			fetchTasks: proposedApiFunction(extension, (): Thenable<vscode.Task[]> => {
-				return extHostTask.executeTaskProvider();
+			fetchTasks: proposedApiFunction(extension, (filter?: vscode.TaskFilter): Thenable<vscode.Task[]> => {
+				return extHostTask.fetchTasks(filter);
 			}),
 			executeTask: proposedApiFunction(extension, (task: vscode.Task): Thenable<vscode.TaskExecution> => {
 				return extHostTask.executeTask(extension, task);
 			}),
+			get taskExecutions(): vscode.TaskExecution[] {
+				return extHostTask.taskExecutions;
+			},
 			onDidStartTask: (listeners, thisArgs?, disposables?) => {
 				return extHostTask.onDidStartTask(listeners, thisArgs, disposables);
 			},
@@ -545,6 +552,9 @@ export function createApiFactory(
 			},
 			registerFileSystemProvider: proposedApiFunction(extension, (scheme, provider, newProvider?) => {
 				return extHostFileSystem.registerFileSystemProvider(scheme, provider, newProvider);
+			}),
+			registerFileSystemProvider2: proposedApiFunction(extension, (scheme, provider, options) => {
+				return extHostFileSystem.registerFileSystemProvider2(scheme, provider, options);
 			}),
 			registerDeprecatedFileSystemProvider: proposedApiFunction(extension, (scheme, provider) => {
 				return extHostFileSystem.registerDeprecatedFileSystemProvider(scheme, provider);
@@ -690,9 +700,7 @@ export function createApiFactory(
 			DeprecatedFileChangeType: extHostTypes.FileChangeType,
 			DeprecatedFileType: extHostTypes.FileType,
 			FileChangeType2: extHostTypes.FileChangeType2,
-			FileType2: extHostTypes.FileType2,
-			FileOpenFlags: files.FileOpenFlags,
-			FileError: extHostTypes.FileError,
+			FileSystemError: extHostTypes.FileSystemError,
 			FoldingRange: extHostTypes.FoldingRange,
 			FoldingRangeKind: extHostTypes.FoldingRangeKind
 		};

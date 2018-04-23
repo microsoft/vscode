@@ -79,6 +79,12 @@ namespace schema {
 				type: 'array',
 				items: viewDescriptor,
 				default: []
+			},
+			'scm': {
+				description: localize('views.scm', "Contributes views to SCM container in the Activity bar"),
+				type: 'array',
+				items: viewDescriptor,
+				default: []
 			}
 		},
 		additionalProperties: {
@@ -94,6 +100,7 @@ function getViewLocation(value: string): ViewLocation {
 	switch (value) {
 		case 'explorer': return ViewLocation.Explorer;
 		case 'debug': return ViewLocation.Debug;
+		case 'scm': return ViewLocation.SCM;
 		default: return ViewLocation.get(`workbench.view.extension.${value}`) || ViewLocation.Explorer;
 	}
 }

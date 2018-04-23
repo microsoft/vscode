@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as crypto from 'crypto';
 import * as assert from 'assert';
-import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, FileChangesEvent, ICreateFileOptions, IContentData, ITextSnapshot, IFilesConfiguration } from 'vs/platform/files/common/files';
+import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, FileChangesEvent, ICreateFileOptions, IContentData, ITextSnapshot, IFilesConfiguration, IFileSystemProviderRegistrationEvent, IFileSystemProvider } from 'vs/platform/files/common/files';
 import { MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/platform/files/node/files';
 import { isEqualOrParent } from 'vs/base/common/paths';
 import { ResourceMap } from 'vs/base/common/map';
@@ -92,6 +92,7 @@ export class FileService implements IFileService {
 
 	protected readonly _onFileChanges: Emitter<FileChangesEvent>;
 	protected readonly _onAfterOperation: Emitter<FileOperationEvent>;
+	protected readonly _onDidChangeFileSystemProviderRegistrations = new Emitter<IFileSystemProviderRegistrationEvent>();
 
 	protected toDispose: IDisposable[];
 
@@ -238,6 +239,16 @@ export class FileService implements IFileService {
 				this.activeWorkspaceFileChangeWatcher = toDisposable(legacyUnixWatcher.startWatching());
 			}
 		}
+	}
+
+	public readonly onDidChangeFileSystemProviderRegistrations: Event<IFileSystemProviderRegistrationEvent> = this._onDidChangeFileSystemProviderRegistrations.event;
+
+	public registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable {
+		throw new Error('not implemented');
+	}
+
+	public canHandleResource(resource: uri): boolean {
+		return resource.scheme === Schemas.file;
 	}
 
 	public resolveFile(resource: uri, options?: IResolveFileOptions): TPromise<IFileStat> {

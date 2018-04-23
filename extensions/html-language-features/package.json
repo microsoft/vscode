@@ -172,7 +172,7 @@
     }
   },
   "dependencies": {
-    "vscode-extension-telemetry": "0.0.15",
+    "vscode-extension-telemetry": "0.0.16",
     "vscode-languageclient": "^4.0.0",
     "vscode-languageserver-protocol-foldingprovider": "^2.0.0-next.2",
     "vscode-nls": "^3.2.2"

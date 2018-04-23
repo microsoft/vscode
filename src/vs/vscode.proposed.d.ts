@@ -92,6 +92,7 @@ declare module 'vscode' {
 
 	export namespace workspace {
 		export function registerDeprecatedFileSystemProvider(scheme: string, provider: DeprecatedFileSystemProvider): Disposable;
+		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, newProvider?: FileSystemProvider2): Disposable;
 	}
 
 	//#endregion
@@ -101,12 +102,12 @@ declare module 'vscode' {
 	/**
 	 *
 	 */
-	export class FileError extends Error {
+	export class FileSystemError extends Error {
 
-		static EntryExists(message?: string): FileError;
-		static EntryNotFound(message?: string): FileError;
-		static EntryNotADirectory(message?: string): FileError;
-		static EntryIsADirectory(message?: string): FileError;
+		static EntryExists(message?: string): FileSystemError;
+		static EntryNotFound(message?: string): FileSystemError;
+		static EntryNotADirectory(message?: string): FileSystemError;
+		static EntryIsADirectory(message?: string): FileSystemError;
 
 		constructor(message?: string);
 	}
@@ -122,23 +123,39 @@ declare module 'vscode' {
 		uri: Uri;
 	}
 
-	export enum FileType2 {
-		File = 0b001,
-		Directory = 0b010,
-		SymbolicLink = 0b100,
-	}
-
 	export interface FileStat2 {
-		type: FileType2;
+		isFile: boolean;
+		isDirectory: boolean;
+		isSymbolicLink: boolean;
 		mtime: number;
 		size: number;
 	}
 
-	export enum FileOpenFlags {
-		Read = 0b0001,
-		Write = 0b0010,
-		Create = 0b0100,
-		Exclusive = 0b1000
+	/**
+	 *
+	 */
+	export interface FileOptions {
+
+		/**
+		 * Create a file when it doesn't exists
+		 */
+		create?: boolean;
+
+		/**
+		 * In combination with [`create`](FileOptions.create) but
+		 * the operation should fail when a file already exists.
+		 */
+		exclusive?: boolean;
+
+		/**
+		 * Open a file for reading.
+		 */
+		read?: boolean;
+
+		/**
+		 * Open a file for writing.
+		 */
+		write?: boolean;
 	}
 
 	/**
@@ -146,7 +163,7 @@ declare module 'vscode' {
 	 */
 	export interface FileSystemProvider2 {
 
-		_version: 8;
+		_version: 9;
 
 		/**
 		 * An event to signal that a resource has been created, changed, or deleted. This
@@ -196,7 +213,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return A thenable that resolves to an array of bytes.
 		 */
-		readFile(uri: Uri, options: { flags: FileOpenFlags }, token: CancellationToken): Uint8Array | Thenable<Uint8Array>;
+		readFile(uri: Uri, options: FileOptions, token: CancellationToken): Uint8Array | Thenable<Uint8Array>;
 
 		/**
 		 * Write data to a file, replacing its entire contents.
@@ -205,7 +222,7 @@ declare module 'vscode' {
 		 * @param content The new content of the file.
 		 * @param token A cancellation token.
 		 */
-		writeFile(uri: Uri, content: Uint8Array, options: { flags: FileOpenFlags }, token: CancellationToken): void | Thenable<void>;
+		writeFile(uri: Uri, content: Uint8Array, options: FileOptions, token: CancellationToken): void | Thenable<void>;
 
 		/**
 		 * Delete a file or folder from the underlying storage.
@@ -223,7 +240,7 @@ declare module 'vscode' {
 		 * @param newUri The target location.
 		 * @param token A cancellation token.
 		 */
-		rename(oldUri: Uri, newUri: Uri, options: { flags: FileOpenFlags }, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
+		rename(oldUri: Uri, newUri: Uri, options: FileOptions, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
 
 		/**
 		 * Copy files or folders. Implementing this function is optional but it will speedup
@@ -233,11 +250,11 @@ declare module 'vscode' {
 		 * @param target The target location.
 		 * @param token A cancellation token.
 		 */
-		copy?(uri: Uri, target: Uri, options: { flags: FileOpenFlags }, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
+		copy?(uri: Uri, target: Uri, options: FileOptions, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
 	}
 
 	export namespace workspace {
-		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, newProvider?: FileSystemProvider2): Disposable;
+		export function registerFileSystemProvider2(scheme: string, provider: FileSystemProvider2, options: { isCaseSensitive?: boolean }): Disposable;
 	}
 
 	//#endregion
@@ -566,14 +583,29 @@ declare module 'vscode' {
 		execution: TaskExecution;
 	}
 
+	export interface TaskFilter {
+		/**
+		 * The task version as used in the tasks.json file.
+		 * The string support the package.json semver notation.
+		 */
+		version?: string;
+
+		/**
+		 * The task type to return;
+		 */
+		type?: string;
+	}
+
 	export namespace workspace {
 
 		/**
 		 * Fetches all task available in the systems. Thisweweb includes tasks
 		 * from `tasks.json` files as well as tasks from task providers
 		 * contributed through extensions.
+		 *
+		 * @param filter a filter to filter the return tasks.
 		 */
-		export function fetchTasks(): Thenable<Task[]>;
+		export function fetchTasks(filter?: TaskFilter): Thenable<Task[]>;
 
 		/**
 		 * Executes a task that is managed by VS Code. The returned
@@ -582,6 +614,13 @@ declare module 'vscode' {
 		 * @param task the task to execute
 		 */
 		export function executeTask(task: Task): Thenable<TaskExecution>;
+
+		/**
+		 * The currently active task executions or an empty array.
+		 *
+		 * @readonly
+		 */
+		export let taskExecutions: TaskExecution[];
 
 		/**
 		 * Fires when a task starts.
@@ -598,6 +637,10 @@ declare module 'vscode' {
 
 	//#region Terminal
 
+	export interface Terminal {
+		onData: Event<string>;
+	}
+
 	export namespace window {
 		/**
 		 * The currently active terminals or an empty array.
@@ -611,6 +654,22 @@ declare module 'vscode' {
 		 * [createTerminal](#window.createTerminal) API or commands.
 		 */
 		export const onDidOpenTerminal: Event<Terminal>;
+	}
+
+	//#endregion
+
+	//#region URLs
+
+	export interface ProtocolHandler {
+		handleUri(uri: Uri): void;
+	}
+
+	export namespace window {
+
+		/**
+		 * Registers a protocol handler capable of handling system-wide URIs.
+		 */
+		export function registerProtocolHandler(handler: ProtocolHandler): Disposable;
 	}
 
 	//#endregion

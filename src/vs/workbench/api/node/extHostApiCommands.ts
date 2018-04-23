@@ -520,7 +520,7 @@ export class ExtHostApiCommands {
 	}
 
 	private _executeTaskProvider(): Thenable<vscode.Task[]> {
-		return this._tasks.executeTaskProvider();
+		return this._tasks.fetchTasks();
 	}
 }
 

@@ -45,8 +45,8 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 			getConfigurationValue: (folderUri: uri, suffix: string) => {
 				return configurationService.getValue<string>(suffix, folderUri ? { resource: folderUri } : undefined);
 			},
-			getEnvironmentService: (name: string) => {
-				return environmentService[name];
+			getExecPath: () => {
+				return environmentService['execPath'];
 			},
 			getFilePath: (): string | undefined => {
 				let input = editorService.getActiveEditorInput();
@@ -94,44 +94,52 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		return this.resolver.resolveAny(root ? root.uri : undefined, value);
 	}
 
-	public resolveAny(root: IWorkspaceFolder, value: any): any {
-		return this.resolver.resolveAny(root ? root.uri : undefined, value);
+	public resolveAny(root: IWorkspaceFolder, value: any, commandValueMapping?: IStringDictionary<string>): any {
+		return this.resolver.resolveAny(root ? root.uri : undefined, value, commandValueMapping);
 	}
 
 	/**
-	 * Resolve all interactive variables in configuration #6569
+	 * Finds and executes all command variables (see #6569)
 	 */
-	public resolveInteractiveVariables(configuration: any, interactiveVariablesMap: { [key: string]: string }): TPromise<any> {
+	public executeCommandVariables(configuration: any, variableToCommandMap: IStringDictionary<string>): TPromise<IStringDictionary<string>> {
+
 		if (!configuration) {
 			return TPromise.as(null);
 		}
 
-		// We need a map from interactive variables to keys because we only want to trigger an command once per key -
-		// even though it might occur multiple times in configuration #7026.
-		const interactiveVariablesToSubstitutes: { [interactiveVariable: string]: { object: any, key: string }[] } = Object.create(null);
-		const findInteractiveVariables = (object: any) => {
+		// use an array to preserve order of first appearance
+		const commands: string[] = [];
+
+		const cmd_var = /\${command:(.*?)}/g;
+
+		const findCommandVariables = (object: any) => {
 			Object.keys(object).forEach(key => {
-				if (object[key] && typeof object[key] === 'object') {
-					findInteractiveVariables(object[key]);
-				} else if (typeof object[key] === 'string') {
-					const matches = /\${command:(.*?)}/.exec(object[key]);
-					if (matches && matches.length === 2) {
-						const interactiveVariable = matches[1];
-						if (!interactiveVariablesToSubstitutes[interactiveVariable]) {
-							interactiveVariablesToSubstitutes[interactiveVariable] = [];
+				const value = object[key];
+				if (value && typeof value === 'object') {
+					findCommandVariables(value);
+				} else if (typeof value === 'string') {
+					let matches;
+					while ((matches = cmd_var.exec(value)) !== null) {
+						if (matches.length === 2) {
+							const command = matches[1];
+							if (commands.indexOf(command) < 0) {
+								commands.push(command);
+							}
 						}
-						interactiveVariablesToSubstitutes[interactiveVariable].push({ object, key });
 					}
 				}
 			});
 		};
-		findInteractiveVariables(configuration);
-		let substitionCanceled = false;
 
-		const factory: { (): TPromise<any> }[] = Object.keys(interactiveVariablesToSubstitutes).map(interactiveVariable => {
+		findCommandVariables(configuration);
+
+		let cancelled = false;
+		const commandValueMapping: IStringDictionary<string> = Object.create(null);
+
+		const factory: { (): TPromise<any> }[] = commands.map(interactiveVariable => {
 			return () => {
-				let commandId: string = null;
-				commandId = interactiveVariablesMap ? interactiveVariablesMap[interactiveVariable] : null;
+
+				let commandId = variableToCommandMap ? variableToCommandMap[interactiveVariable] : null;
 				if (!commandId) {
 					// Just launch any command if the interactive variable is not contributed by the adapter #12735
 					commandId = interactiveVariable;
@@ -139,18 +147,14 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 
 				return this.commandService.executeCommand<string>(commandId, configuration).then(result => {
 					if (result) {
-						interactiveVariablesToSubstitutes[interactiveVariable].forEach(substitute => {
-							if (substitute.object[substitute.key].indexOf(`\${command:${interactiveVariable}}`) >= 0) {
-								substitute.object[substitute.key] = substitute.object[substitute.key].replace(`\${command:${interactiveVariable}}`, result);
-							}
-						});
+						commandValueMapping[interactiveVariable] = result;
 					} else {
-						substitionCanceled = true;
+						cancelled = true;
 					}
 				});
 			};
 		});
 
-		return sequence(factory).then(() => substitionCanceled ? null : configuration);
+		return sequence(factory).then(() => cancelled ? null : commandValueMapping);
 	}
 }

@@ -68,6 +68,7 @@ import 'vs/workbench/parts/markers/electron-browser/markers.contribution';
 
 import 'vs/workbench/parts/html/electron-browser/html.contribution';
 
+import 'vs/workbench/parts/url/electron-browser/url.contribution';
 import 'vs/workbench/parts/webview/electron-browser/webview.contribution';
 
 import 'vs/workbench/parts/welcome/walkThrough/electron-browser/walkThrough.contribution';

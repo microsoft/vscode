@@ -12,12 +12,11 @@ import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { localize } from 'vs/nls';
 import uri from 'vs/base/common/uri';
 
-
 export interface IVariableAccessor {
 	getFolderUri(folderName: string): uri | undefined;
 	getWorkspaceFolderCount(): number;
 	getConfigurationValue(folderUri: uri, section: string): string | undefined;
-	getEnvironmentService(name: string): string | undefined;
+	getExecPath(): string | undefined;
 	getFilePath(): string | undefined;
 	getSelectedText(): string | undefined;
 	getLineNumber(): string;
@@ -43,22 +42,22 @@ export class VariableResolver {
 		}
 	}
 
-	resolveAny(folderUri: uri, value: any): any {
+	resolveAny(folderUri: uri, value: any, commandValueMapping?: IStringDictionary<string>): any {
 		if (types.isString(value)) {
-			return this.resolve(folderUri, value);
+			return this.resolve(folderUri, value, commandValueMapping);
 		} else if (types.isArray(value)) {
-			return value.map(s => this.resolveAny(folderUri, s));
+			return value.map(s => this.resolveAny(folderUri, s, commandValueMapping));
 		} else if (types.isObject(value)) {
 			let result: IStringDictionary<string | IStringDictionary<string> | string[]> = Object.create(null);
 			Object.keys(value).forEach(key => {
-				result[key] = this.resolveAny(folderUri, value[key]);
+				result[key] = this.resolveAny(folderUri, value[key], commandValueMapping);
 			});
 			return result;
 		}
 		return value;
 	}
 
-	resolve(folderUri: uri, value: string): string {
+	resolve(folderUri: uri, value: string, commandValueMapping: IStringDictionary<string>): string {
 
 		const filePath = this.accessor.getFilePath();
 
@@ -72,6 +71,7 @@ export class VariableResolver {
 			}
 
 			switch (variable) {
+
 				case 'env':
 					if (argument) {
 						if (isWindows) {
@@ -84,107 +84,129 @@ export class VariableResolver {
 						// For `env` we should do the same as a normal shell does - evaluates missing envs to an empty string #46436
 						return '';
 					}
-					throw new Error(localize('missingEnvVarName', "'{0}' can not be resolved because no environment variable is given.", match));
+					throw new Error(localize('missingEnvVarName', "'{0}' can not be resolved because no environment variable name is given.", match));
 
 				case 'config':
 					if (argument) {
 						const config = this.accessor.getConfigurationValue(folderUri, argument);
-						if (!types.isUndefinedOrNull(config) && !types.isObject(config)) {
-							return config;
+						if (types.isUndefinedOrNull(config)) {
+							throw new Error(localize('configNotFound', "'{0}' can not be resolved because setting '{1}' not found.", match, argument));
 						}
-						throw new Error(localize('configNoString', "'{0}' can not be resolved because '{1}' is a structured value.", match, argument));
+						if (types.isObject(config)) {
+							throw new Error(localize('configNoString', "'{0}' can not be resolved because '{1}' is a structured value.", match, argument));
+						}
+						return config;
 					}
 					throw new Error(localize('missingConfigName', "'{0}' can not be resolved because no settings name is given.", match));
 
+				case 'command':
+					if (argument && commandValueMapping) {
+						const v = commandValueMapping[argument];
+						if (typeof v === 'string') {
+							return v;
+						}
+						throw new Error(localize('noValueForCommand', "'{0}' can not be resolved because the command has no value.", match));
+					}
+					return match;
+
 				default: {
 
-					if (argument) {
-						const folder = this.accessor.getFolderUri(argument);
-						if (folder) {
-							folderUri = folder;
-						}
+					// common error handling for all variables that require an open folder and accept a folder name argument
+					switch (variable) {
+						case 'workspaceRoot':
+						case 'workspaceFolder':
+						case 'workspaceRootFolderName':
+						case 'workspaceFolderBasename':
+						case 'relativeFile':
+							if (argument) {
+								const folder = this.accessor.getFolderUri(argument);
+								if (folder) {
+									folderUri = folder;
+								} else {
+									throw new Error(localize('canNotFindFolder', "'{0}' can not be resolved. No such folder '{1}'.", match, argument));
+								}
+							}
+							if (!folderUri) {
+								if (this.accessor.getWorkspaceFolderCount() > 1) {
+									throw new Error(localize('canNotResolveWorkspaceFolderMultiRoot', "'{0}' can not be resolved in a multi folder workspace. Scope this variable using ':' and a workspace folder name.", match));
+								}
+								throw new Error(localize('canNotResolveWorkspaceFolder', "'{0}' can not be resolved. Please open a folder.", match));
+							}
+							break;
+						default:
+							break;
+					}
+
+					// common error handling for all variables that require an open file
+					switch (variable) {
+						case 'file':
+						case 'relativeFile':
+						case 'fileDirname':
+						case 'fileExtname':
+						case 'fileBasename':
+						case 'fileBasenameNoExtension':
+							if (!filePath) {
+								throw new Error(localize('canNotResolveFile', "'{0}' can not be resolved. Please open an editor.", match));
+							}
+							break;
+						default:
+							break;
 					}
 
 					switch (variable) {
 						case 'workspaceRoot':
 						case 'workspaceFolder':
-							if (folderUri) {
-								return normalizeDriveLetter(folderUri.fsPath);
-							}
-							if (this.accessor.getWorkspaceFolderCount() > 1) {
-								throw new Error(localize('canNotResolveWorkspaceFolderMultiRoot', "'{0}' can not be resolved in a multi folder workspace. Scope this variable using ':' and a workspace folder name.", match));
-							}
-							throw new Error(localize('canNotResolveWorkspaceFolder', "'{0}' can not be resolved. Please open a folder.", match));
+							return normalizeDriveLetter(folderUri.fsPath);
 
 						case 'cwd':
 							return folderUri ? normalizeDriveLetter(folderUri.fsPath) : process.cwd();
 
 						case 'workspaceRootFolderName':
 						case 'workspaceFolderBasename':
-							if (folderUri) {
-								return paths.basename(folderUri.fsPath);
-							}
-							if (this.accessor.getWorkspaceFolderCount() > 1) {
-								throw new Error(localize('canNotResolveFolderBasenameMultiRoot', "'{0}' can not be resolved in a multi folder workspace. Scope this variable using ':' and a workspace folder name.", match));
-							}
-							throw new Error(localize('canNotResolveFolderBasename', "'{0}' can not be resolved. Please open a folder.", match));
+							return paths.basename(folderUri.fsPath);
 
 						case 'lineNumber':
 							const lineNumber = this.accessor.getLineNumber();
 							if (lineNumber) {
 								return lineNumber;
 							}
-							throw new Error(localize('canNotResolveLineNumber', "'{0}' can not be resolved. Please open an editor.", match));
+							throw new Error(localize('canNotResolveLineNumber', "'{0}' can not be resolved. Make sure to have a line selected in the active editor.", match));
 
 						case 'selectedText':
 							const selectedText = this.accessor.getSelectedText();
 							if (selectedText) {
 								return selectedText;
 							}
-							throw new Error(localize('canNotResolveSelectedText', "'{0}' can not be resolved. Please open an editor and select some text.", match));
+							throw new Error(localize('canNotResolveSelectedText', "'{0}' can not be resolved. Make sure to have some text selected in the active editor.", match));
 
 						case 'file':
-							if (filePath) {
-								return filePath;
-							}
-							throw new Error(localize('canNotResolveFile', "'{0}' can not be resolved. Please open an editor.", match));
+							return filePath;
 
 						case 'relativeFile':
-							if (folderUri && filePath) {
+							if (folderUri) {
 								return paths.normalize(relative(folderUri.fsPath, filePath));
 							}
-							if (filePath) {
-								return filePath;
-							}
-							throw new Error(localize('canNotResolveRelativeFile', "'{0}' can not be resolved. Please open an editor.", match));
+							return filePath;
 
 						case 'fileDirname':
-							if (filePath) {
-								return paths.dirname(filePath);
-							}
-							throw new Error(localize('canNotResolveFileDirname', "'{0}' can not be resolved. Please open an editor.", match));
+							return paths.dirname(filePath);
 
 						case 'fileExtname':
-							if (filePath) {
-								return paths.extname(filePath);
-							}
-							throw new Error(localize('canNotResolveFileExtname', "'{0}' can not be resolved. Please open an editor.", match));
+							return paths.extname(filePath);
 
 						case 'fileBasename':
-							if (filePath) {
-								return paths.basename(filePath);
-							}
-							throw new Error(localize('canNotResolveFileBasename', "'{0}' can not be resolved. Please open an editor.", match));
+							return paths.basename(filePath);
 
 						case 'fileBasenameNoExtension':
-							if (filePath) {
-								const basename = paths.basename(filePath);
-								return basename.slice(0, basename.length - paths.extname(basename).length);
-							}
-							throw new Error(localize('canNotResolveFileBasenameNoExtension', "'{0}' can not be resolved. Please open an editor.", match));
+							const basename = paths.basename(filePath);
+							return basename.slice(0, basename.length - paths.extname(basename).length);
 
 						case 'execPath':
-							return this.accessor.getEnvironmentService('execPath');
+							const ep = this.accessor.getExecPath();
+							if (ep) {
+								return ep;
+							}
+							return match;
 
 						default:
 							return match;

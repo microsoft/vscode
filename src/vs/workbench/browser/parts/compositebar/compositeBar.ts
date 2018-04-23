@@ -527,12 +527,15 @@ export class CompositeBar implements ICompositeBar {
 
 	private loadCompositesStates(): CompositeState[] {
 		const storedStates = <Array<string | CompositeState>>JSON.parse(this.storageService.get(this.options.storageId, StorageScope.GLOBAL, '[]'));
+		const isOldData = storedStates && storedStates.length && typeof storedStates[0] === 'string';
 		const compositeStates = <CompositeState[]>storedStates.map(c =>
 			typeof c === 'string' /* migration from pinned states to composites states */ ? { id: c, pinned: true } : c);
 
-		const newComposites = this.options.composites.filter(c => compositeStates.every(s => s.id !== c.id));
-		newComposites.sort((c1, c2) => c1.order < c2.order ? -1 : 1);
-		newComposites.forEach(c => compositeStates.push({ id: c.id, pinned: true /* new composites are pinned by default */ }));
+		if (!isOldData) { /* Add new composites only if it is new data */
+			const newComposites = this.options.composites.filter(c => compositeStates.every(s => s.id !== c.id));
+			newComposites.sort((c1, c2) => c1.order < c2.order ? -1 : 1);
+			newComposites.forEach(c => compositeStates.push({ id: c.id, pinned: true /* new composites are pinned by default */ }));
+		}
 
 		return compositeStates;
 	}
