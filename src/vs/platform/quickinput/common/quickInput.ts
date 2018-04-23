@@ -17,4 +17,7 @@ export interface IQuickInputService {
 
 	pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options?: IPickOptions, token?: CancellationToken): TPromise<T[]>;
 	input(options?: IInputOptions, token?: CancellationToken): TPromise<string>;
+	focus(): void;
+	accept(): TPromise<void>;
+	cancel(): TPromise<void>;
 }

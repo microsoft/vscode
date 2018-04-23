@@ -365,13 +365,16 @@ export class QuickInputService extends Component implements IQuickInputService {
 		if (this.controller) {
 			const resolved = this.controller.resolve(ok);
 			if (resolved) {
-				resolved
-					.then(() => this.container.style.display = 'none')
-					.then(null, onUnexpectedError);
-				return;
+				const result = resolved
+					.then(() => {
+						this.container.style.display = 'none';
+					});
+				result.then(null, onUnexpectedError);
+				return result;
 			}
 		}
 		this.container.style.display = 'none';
+		return TPromise.as(undefined);
 	}
 
 	pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options: IPickOptions = {}, token?: CancellationToken): TPromise<T[]> {
@@ -449,7 +452,21 @@ export class QuickInputService extends Component implements IQuickInputService {
 		return this.controller.result;
 	}
 
-	public layout(dimension: dom.Dimension): void {
+	focus() {
+		if (this.ui) {
+			this.ui.inputBox.setFocus();
+		}
+	}
+
+	accept() {
+		return this.close(true);
+	}
+
+	cancel() {
+		return this.close();
+	}
+
+	layout(dimension: dom.Dimension): void {
 		this.layoutDimensions = dimension;
 		this.updateLayout();
 	}
