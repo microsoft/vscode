@@ -79,7 +79,7 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 			for (let extension of extensions) {
 				const { value, collector } = extension;
 				if (!extension.description.enableProposedApi) {
-					collector.error(localize({ key: 'proposed', comment: ['Contribution refers to those that an extension contributes to VS Code through an extension/contribution point. '] }, "'{0}' contribution is only available when running out of dev or with the following command line switch: --enable-proposed-api {1}", 'viewsContainer', extension.description.id));
+					collector.error(localize({ key: 'proposed', comment: ['Contribution refers to those that an extension contributes to VS Code through an extension/contribution point. '] }, "'viewsContainer' contribution is only available when running out of dev or with the following command line switch: --enable-proposed-api {0}", extension.description.id));
 					continue;
 				}
 				forEach(value, entry => {
