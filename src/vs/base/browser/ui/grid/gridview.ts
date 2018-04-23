@@ -54,10 +54,6 @@ class BranchNode extends AbstractNode {
 	private children: Node[] = [];
 	private splitview: SplitView;
 
-	constructor(readonly orientation: Orientation) {
-		super();
-	}
-
 	get minimumSize(): number {
 		let result = 0;
 
@@ -90,9 +86,17 @@ class BranchNode extends AbstractNode {
 		return result;
 	}
 
+	get length(): number {
+		return this.children.length;
+	}
+
 	private _onDidChange = new Emitter<number | undefined>();
 	get onDidChange(): Event<number | undefined> { return this._onDidChange.event; }
 	private _onDidChangeDisposable: IDisposable = EmptyDisposable;
+
+	constructor(readonly orientation: Orientation) {
+		super();
+	}
 
 	layout(size: number): void {
 		super.layout(size);
@@ -123,10 +127,12 @@ class BranchNode extends AbstractNode {
 		this.onDidChildrenChange();
 	}
 
-	removeChild(index: number): void {
+	removeChild(index: number): Node {
+		const child = this.children[index];
 		this.splitview.removeView(index);
 		this.children.splice(index, 1);
 		this.onDidChildrenChange();
+		return child;
 	}
 
 	private onDidChildrenChange(): void {
@@ -180,8 +186,8 @@ export class GridView {
 	}
 
 	addView(view: IView, size: number, location: number[]): void {
-		const [rest, index] = tail(location); // [[], 0]
-		const [pathToParent, parent] = this.getNode(rest); // [[], this.root]
+		const [rest, index] = tail(location);
+		const [pathToParent, parent] = this.getNode(rest);
 		const node = new LeafNode(view, orthogonal(parent.orientation));
 
 		if (parent instanceof BranchNode) {
@@ -202,7 +208,33 @@ export class GridView {
 	}
 
 	removeView(location: number[]): void {
-		throw new Error('not implemneted');
+		const [rest, index] = tail(location);
+		const [pathToParent, parent] = this.getNode(rest);
+
+		if (!(parent instanceof BranchNode)) {
+			throw new Error('Invalid location');
+		}
+
+		parent.removeChild(index);
+
+		if (parent.length === 0) {
+			throw new Error('Invalid grid state');
+		}
+
+		if (parent.length > 1) {
+			return;
+		}
+
+		const [, grandParent] = tail(pathToParent);
+		const [, parentIndex] = tail(rest);
+
+		// parent only has one child
+		// 0. remove sibling from parent
+		const sibling = parent.removeChild(0);
+		// 1. remove parent from grandParent
+		grandParent.removeChild(parentIndex);
+		// 2. add sibling to grandparent
+		grandParent.addChild(sibling, 20, parentIndex);
 	}
 
 	layout(width: number, height: number): void {
