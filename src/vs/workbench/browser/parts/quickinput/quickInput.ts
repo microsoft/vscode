@@ -119,6 +119,7 @@ class TextInputController implements InputController<string> {
 	public resolveResult: (string) => void;
 	private validationValue: string;
 	private validation: TPromise<string>;
+	private defaultMessage: string;
 	private disposables: IDisposable[] = [];
 
 	constructor(private ui: QuickInputUI, private parameters: TextInputParameters) {
@@ -131,23 +132,29 @@ class TextInputController implements InputController<string> {
 		const selection = parameters.valueSelection;
 		ui.inputBox.select(selection && { start: selection[0], end: selection[1] });
 		ui.inputBox.setPlaceholder(parameters.placeHolder || '');
-		const defaultMessage = parameters.prompt
+		this.defaultMessage = parameters.prompt
 			? localize('inputModeEntryDescription', "{0} (Press 'Enter' to confirm or 'Escape' to cancel)", parameters.prompt)
 			: localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
-		ui.message.textContent = defaultMessage;
+		ui.message.textContent = this.defaultMessage;
 		ui.inputBox.setPassword(parameters.password);
 
 		if (parameters.validateInput) {
 			const onDidChange = debounceEvent(ui.inputBox.onDidChange, (last, cur) => cur, 100);
-			this.disposables.push(onDidChange(() => {
-				this.updatedValidation()
-					.then(validationError => {
-						ui.message.textContent = validationError || defaultMessage;
-						ui.inputBox.showDecoration(validationError ? Severity.Error : Severity.Ignore);
-					})
-					.then(null, onUnexpectedError);
-			}));
+			this.disposables.push(onDidChange(() => this.didChange()));
+			if (ui.inputBox.value) {
+				// Replicating old behavior: only fire if value is not empty.
+				this.didChange();
+			}
 		}
+	}
+
+	didChange() {
+		this.updatedValidation()
+			.then(validationError => {
+				this.ui.message.textContent = validationError || this.defaultMessage;
+				this.ui.inputBox.showDecoration(validationError ? Severity.Error : Severity.Ignore);
+			})
+			.then(null, onUnexpectedError);
 	}
 
 	resolve(ok?: true | Thenable<never>) {
