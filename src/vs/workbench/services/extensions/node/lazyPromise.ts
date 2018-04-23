@@ -5,8 +5,9 @@
 'use strict';
 
 import { TPromise, ValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
-export class LazyPromise {
+export class LazyPromise implements TPromise<any> {
 
 	private _onCancel: () => void;
 
@@ -75,6 +76,10 @@ export class LazyPromise {
 
 		if (this._actual) {
 			this._actualErr(err);
+		} else {
+			// If nobody's listening at this point, it is safe to assume they never will,
+			// since resolving this promise is always "async"
+			onUnexpectedError(err);
 		}
 	}
 

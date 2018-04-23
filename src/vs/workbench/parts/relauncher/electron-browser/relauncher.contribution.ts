@@ -8,18 +8,26 @@
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IMessageService } from 'vs/platform/message/common/message';
-import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { IWindowsService, IWindowService, IWindowsConfiguration } from 'vs/platform/windows/common/windows';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import URI from 'vs/base/common/uri';
+import { isEqual } from 'vs/base/common/resources';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { equals } from 'vs/base/common/objects';
 
 interface IConfiguration extends IWindowsConfiguration {
 	update: { channel: string; };
 	telemetry: { enableCrashReporter: boolean };
+	keyboard: { touchbar: { enabled: boolean } };
+	workbench: { tree: { horizontalScrolling: boolean } };
+	files: { useExperimentalFileWatcher: boolean, watcherExclude: object };
 }
 
 export class SettingsChangeRelauncher implements IWorkbenchContribution {
@@ -28,51 +36,62 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 
 	private titleBarStyle: 'native' | 'custom';
 	private nativeTabs: boolean;
+	private clickThroughInactive: boolean;
 	private updateChannel: string;
 	private enableCrashReporter: boolean;
-	private rootCount: number;
-	private firstRootPath: string;
+	private touchbarEnabled: boolean;
+	private treeHorizontalScrolling: boolean;
+	private windowsSmoothScrollingWorkaround: boolean;
+	private experimentalFileWatcher: boolean;
+	private fileWatcherExclude: object;
+
+	private firstFolderResource: URI;
+	private extensionHostRestarter: RunOnceScheduler;
+
+	private onDidChangeWorkspaceFoldersUnbind: IDisposable;
 
 	constructor(
 		@IWindowsService private windowsService: IWindowsService,
 		@IWindowService private windowService: IWindowService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IPreferencesService private preferencesService: IPreferencesService,
 		@IEnvironmentService private envService: IEnvironmentService,
-		@IMessageService private messageService: IMessageService,
+		@IDialogService private dialogService: IDialogService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IExtensionService private extensionService: IExtensionService
 	) {
 		const workspace = this.contextService.getWorkspace();
-		if (workspace) {
-			this.rootCount = workspace.roots.length;
-			this.firstRootPath = workspace.roots.length > 0 ? workspace.roots[0].fsPath : void 0;
-		} else {
-			this.rootCount = 0;
-		}
+		this.firstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : void 0;
+		this.extensionHostRestarter = new RunOnceScheduler(() => this.extensionService.restartExtensionHost(), 10);
 
-		this.onConfigurationChange(configurationService.getConfiguration<IConfiguration>(), false);
+		this.onConfigurationChange(configurationService.getValue<IConfiguration>(), false);
+		this.handleWorkbenchState();
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(this.configurationService.getConfiguration<IConfiguration>(), true)));
-		this.toDispose.push(this.contextService.onDidChangeWorkspaceRoots(() => this.onDidChangeWorkspaceRoots()));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(this.configurationService.getValue<IConfiguration>(), true)));
+		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(() => setTimeout(() => this.handleWorkbenchState())));
 	}
 
 	private onConfigurationChange(config: IConfiguration, notify: boolean): void {
 		let changed = false;
 
-		// Titlebar style
-		if (config.window && config.window.titleBarStyle !== this.titleBarStyle && (config.window.titleBarStyle === 'native' || config.window.titleBarStyle === 'custom')) {
+		// macOS: Titlebar style
+		if (isMacintosh && config.window && config.window.titleBarStyle !== this.titleBarStyle && (config.window.titleBarStyle === 'native' || config.window.titleBarStyle === 'custom')) {
 			this.titleBarStyle = config.window.titleBarStyle;
 			changed = true;
 		}
 
-		// Native tabs
-		if (config.window && typeof config.window.nativeTabs === 'boolean' && config.window.nativeTabs !== this.nativeTabs) {
+		// macOS: Native tabs
+		if (isMacintosh && config.window && typeof config.window.nativeTabs === 'boolean' && config.window.nativeTabs !== this.nativeTabs) {
 			this.nativeTabs = config.window.nativeTabs;
+			changed = true;
+		}
+
+		// macOS: Click through (accept first mouse)
+		if (isMacintosh && config.window && typeof config.window.clickThroughInactive === 'boolean' && config.window.clickThroughInactive !== this.clickThroughInactive) {
+			this.clickThroughInactive = config.window.clickThroughInactive;
 			changed = true;
 		}
 
@@ -88,74 +107,99 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 			changed = true;
 		}
 
+		// Experimental File Watcher
+		if (config.files && typeof config.files.useExperimentalFileWatcher === 'boolean' && config.files.useExperimentalFileWatcher !== this.experimentalFileWatcher) {
+			this.experimentalFileWatcher = config.files.useExperimentalFileWatcher;
+			changed = true;
+		}
+
+		// File Watcher Excludes (only if in folder workspace mode)
+		if (!this.experimentalFileWatcher && this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
+			if (config.files && typeof config.files.watcherExclude === 'object' && !equals(config.files.watcherExclude, this.fileWatcherExclude)) {
+				this.fileWatcherExclude = config.files.watcherExclude;
+				changed = true;
+			}
+		}
+
+		// macOS: Touchbar config
+		if (isMacintosh && config.keyboard && config.keyboard.touchbar && typeof config.keyboard.touchbar.enabled === 'boolean' && config.keyboard.touchbar.enabled !== this.touchbarEnabled) {
+			this.touchbarEnabled = config.keyboard.touchbar.enabled;
+			changed = true;
+		}
+
+		// Tree horizontal scrolling support
+		if (config.workbench && config.workbench.tree && typeof config.workbench.tree.horizontalScrolling === 'boolean' && config.workbench.tree.horizontalScrolling !== this.treeHorizontalScrolling) {
+			this.treeHorizontalScrolling = config.workbench.tree.horizontalScrolling;
+			changed = true;
+		}
+
+		// Windows: smooth scrolling workaround
+		if (isWindows && config.window && typeof config.window.smoothScrollingWorkaround === 'boolean' && config.window.smoothScrollingWorkaround !== this.windowsSmoothScrollingWorkaround) {
+			this.windowsSmoothScrollingWorkaround = config.window.smoothScrollingWorkaround;
+			changed = true;
+		}
+
 		// Notify only when changed and we are the focused window (avoids notification spam across windows)
 		if (notify && changed) {
 			this.doConfirm(
 				localize('relaunchSettingMessage', "A setting has changed that requires a restart to take effect."),
 				localize('relaunchSettingDetail', "Press the restart button to restart {0} and enable the setting.", this.envService.appNameLong),
-				localize('restart', "Restart"),
+				localize('restart', "&&Restart"),
 				() => this.windowsService.relaunch(Object.create(null))
 			);
 		}
 	}
 
-	private onDidChangeWorkspaceRoots(): void {
+	private handleWorkbenchState(): void {
+
+		// React to folder changes when we are in workspace state
+		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+
+			// Update our known first folder path if we entered workspace
+			const workspace = this.contextService.getWorkspace();
+			this.firstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : void 0;
+
+			// Install workspace folder listener
+			if (!this.onDidChangeWorkspaceFoldersUnbind) {
+				this.onDidChangeWorkspaceFoldersUnbind = this.contextService.onDidChangeWorkspaceFolders(() => this.onDidChangeWorkspaceFolders());
+			}
+		}
+
+		// Ignore the workspace folder changes in EMPTY or FOLDER state
+		else {
+			this.onDidChangeWorkspaceFoldersUnbind = dispose(this.onDidChangeWorkspaceFoldersUnbind);
+		}
+	}
+
+	private onDidChangeWorkspaceFolders(): void {
 		const workspace = this.contextService.getWorkspace();
 
-		const newRootCount = workspace ? workspace.roots.length : 0;
-		const newFirstRootPath = workspace && workspace.roots.length > 0 ? workspace.roots[0].fsPath : void 0;
+		// Restart extension host if first root folder changed (impact on deprecated workspace.rootPath API)
+		const newFirstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : void 0;
+		if (!isEqual(this.firstFolderResource, newFirstFolderResource, !isLinux)) {
+			this.firstFolderResource = newFirstFolderResource;
 
-		let reloadWindow = false;
-		let reloadExtensionHost = false;
-
-		if (this.rootCount === 0 && newRootCount > 0) {
-			reloadWindow = true; // transition: from 0 folders to 1+
-		} else if (this.rootCount > 0 && newRootCount === 0) {
-			reloadWindow = true; // transition: from 1+ folders to 0
-		}
-
-		if (this.firstRootPath !== newFirstRootPath) {
-			reloadExtensionHost = true; // first root folder changed (impact on deprecated workspace.rootPath API)
-		}
-
-		this.rootCount = newRootCount;
-		this.firstRootPath = newFirstRootPath;
-
-		// Reload window if this is needed
-		if (reloadWindow) {
-			this.doConfirm(
-				localize('relaunchWorkspaceMessage', "This workspace change requires a reload of our extension system."),
-				void 0,
-				localize('reload', "Reload"),
-				() => this.windowService.reloadWindow()
-			);
-		}
-
-		// Reload extension host if this is needed
-		else if (reloadExtensionHost) {
-			this.extensionService.restartExtensionHost();
+			this.extensionHostRestarter.schedule(); // buffer calls to extension host restart
 		}
 	}
 
 	private doConfirm(message: string, detail: string, primaryButton: string, confirmed: () => void): void {
 		this.windowService.isFocused().then(focused => {
 			if (focused) {
-				const confirm = this.messageService.confirm({
+				return this.dialogService.confirm({
 					type: 'info',
 					message,
 					detail,
 					primaryButton
+				}).then(res => {
+					if (res.confirmed) {
+						confirmed();
+					}
 				});
-
-				if (confirm) {
-					confirmed();
-				}
 			}
-		});
-	}
 
-	public getId(): string {
-		return 'workbench.relauncher';
+			return void 0;
+		});
 	}
 
 	public dispose(): void {
@@ -163,5 +207,5 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	}
 }
 
-const workbenchRegistry = <IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(SettingsChangeRelauncher);
+const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+workbenchRegistry.registerWorkbenchContribution(SettingsChangeRelauncher, LifecyclePhase.Running);

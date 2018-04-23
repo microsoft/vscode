@@ -3,38 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SpectronApplication } from '../../spectron/application';
 import { Viewlet } from '../workbench/viewlet';
+import { Commands } from '../workbench/workbench';
+import { Code } from '../../vscode/code';
+
+const SEARCH_BOX = 'div.extensions-viewlet[id="workbench.view.extensions"] input.search-box';
 
 export class Extensions extends Viewlet {
 
-	constructor(spectron: SpectronApplication) {
-		super(spectron);
+	constructor(code: Code, private commands: Commands) {
+		super(code);
 	}
 
-	public async openExtensionsViewlet(): Promise<any> {
-		await this.spectron.command('workbench.view.extensions');
-		await this.waitForExtensionsViewlet();
+	async openExtensionsViewlet(): Promise<any> {
+		await this.commands.runCommand('workbench.view.extensions');
+		await this.code.waitForActiveElement(SEARCH_BOX);
 	}
 
-	public async waitForExtensionsViewlet(): Promise<any> {
-		await this.spectron.client.waitForElement('div.extensions-viewlet[id="workbench.view.extensions"] .search-box.synthetic-focus');
+	async searchForExtension(name: string): Promise<any> {
+		await this.code.waitAndClick(SEARCH_BOX);
+		await this.code.waitForActiveElement(SEARCH_BOX);
+		await this.code.waitForSetValue(SEARCH_BOX, `name:"${name}"`);
 	}
 
-	public async searchForExtension(name: string): Promise<any> {
-		const searchBoxSelector = 'div.extensions-viewlet[id="workbench.view.extensions"] .search-box';
-
-		await this.spectron.client.clearElement(searchBoxSelector);
-		await this.spectron.client.click(searchBoxSelector);
-		await this.spectron.client.waitForElement('div.extensions-viewlet[id="workbench.view.extensions"] .search-box.synthetic-focus');
-		await this.spectron.client.keys(name);
-
-	}
-
-	public async installExtension(name: string): Promise<boolean> {
+	async installExtension(name: string): Promise<void> {
 		await this.searchForExtension(name);
-		await this.spectron.client.waitAndClick(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[aria-label="${name}"] .extension li[class='action-item'] .extension-action.install`);
-		await this.spectron.client.waitForElement(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[aria-label="${name}"] .extension li[class='action-item'] .extension-action.reload`);
-		return true;
+		await this.code.waitAndClick(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[aria-label="${name}"] .extension li[class='action-item'] .extension-action.install`);
+		await this.code.waitForElement(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[aria-label="${name}"] .extension li[class='action-item'] .extension-action.reload`);
 	}
 }

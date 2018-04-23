@@ -1,7 +1,7 @@
 [
 	{
 		"c": "#!",
-		"t": "source.shell comment.line.shebang.shell punctuation.definition.comment.line.shebang.shell",
+		"t": "source.shell comment.line.number-sign.shebang.shell punctuation.definition.comment.shebang.shell",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -12,7 +12,7 @@
 	},
 	{
 		"c": "/usr/bin/env bash",
-		"t": "source.shell comment.line.shebang.shell",
+		"t": "source.shell comment.line.number-sign.shebang.shell",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -243,7 +243,7 @@
 	},
 	{
 		"c": "\t",
-		"t": "source.shell meta.scope.if-block.shell meta.function.shell",
+		"t": "source.shell meta.scope.if-block.shell",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1144,7 +1144,7 @@
 		}
 	},
 	{
-		"c": "code",
+		"c": "code()",
 		"t": "source.shell meta.function.shell entity.name.function.shell",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
@@ -1152,17 +1152,6 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "entity.name.function: #DCDCAA"
-		}
-	},
-	{
-		"c": "()",
-		"t": "source.shell meta.function.shell punctuation.definition.arguments.shell",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
@@ -1431,7 +1420,7 @@
 	},
 	{
 		"c": "\t",
-		"t": "source.shell meta.function.shell meta.scope.group.shell meta.scope.if-block.shell",
+		"t": "source.shell meta.function.shell meta.scope.group.shell",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

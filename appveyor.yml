@@ -2,18 +2,18 @@ environment:
   ELECTRON_RUN_AS_NODE: 1
   VSCODE_BUILD_VERBOSE: true
 
+cache:
+  - '%LOCALAPPDATA%\Yarn\cache'
+
 install:
-  - ps: Install-Product node 7.4.0 x64
-  - npm install -g npm@4 --silent
-  - npm install -g gulp mocha --silent
+  - ps: Install-Product node 8.9.1 x64
 
 build_script:
-  - .\scripts\npm.bat install
-  - gulp electron
+  - yarn
+  - .\node_modules\.bin\gulp electron
   - npm run compile
 
 test_script:
   - node --version
-  - npm --version
   - .\scripts\test.bat
   - .\scripts\test-integration.bat

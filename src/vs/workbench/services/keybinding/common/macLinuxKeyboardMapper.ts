@@ -74,6 +74,9 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 
 	constructor(mapper: MacLinuxKeyboardMapper, OS: OperatingSystem, firstPart: ScanCodeBinding, chordPart: ScanCodeBinding) {
 		super();
+		if (!firstPart) {
+			throw new Error(`Invalid USLayoutResolvedKeybinding`);
+		}
 		this._mapper = mapper;
 		this._OS = OS;
 		this._firstPart = firstPart;
@@ -430,10 +433,6 @@ class ScanCodeKeyCodeMapper {
 export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 
 	/**
-	 * Is the keyboard type ISO (on Mac)
-	 */
-	private readonly _isISOKeyboard: boolean;
-	/**
 	 * Is this the standard US keyboard layout?
 	 */
 	private readonly _isUSStandard: boolean;
@@ -458,8 +457,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 	 */
 	private readonly _scanCodeToDispatch: string[] = [];
 
-	constructor(isISOKeyboard: boolean, isUSStandard: boolean, rawMappings: IMacLinuxKeyboardMapping, OS: OperatingSystem) {
-		this._isISOKeyboard = isISOKeyboard;
+	constructor(isUSStandard: boolean, rawMappings: IMacLinuxKeyboardMapping, OS: OperatingSystem) {
 		this._isUSStandard = isUSStandard;
 		this._OS = OS;
 		this._codeInfo = [];
@@ -1053,21 +1051,6 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		// Treat NumpadEnter as Enter
 		if (code === ScanCode.NumpadEnter) {
 			code = ScanCode.Enter;
-		}
-
-		if (this._OS === OperatingSystem.Macintosh && this._isISOKeyboard) {
-			// See https://github.com/Microsoft/vscode/issues/24153
-			// On OSX, on ISO keyboards, Chromium swaps the scan codes
-			// of IntlBackslash and Backquote.
-
-			switch (code) {
-				case ScanCode.IntlBackslash:
-					code = ScanCode.Backquote;
-					break;
-				case ScanCode.Backquote:
-					code = ScanCode.IntlBackslash;
-					break;
-			}
 		}
 
 		const keyCode = keyboardEvent.keyCode;

@@ -7,15 +7,15 @@
 import * as nls from 'vs/nls';
 import { ResolvedKeybinding, Keybinding } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { KeybindingResolver, IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingEvent, IKeybindingService, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
-import { IMessageService } from 'vs/platform/message/common/message';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 interface CurrentChord {
 	keypress: string;
@@ -32,20 +32,23 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 	protected _onDidUpdateKeybindings: Emitter<IKeybindingEvent>;
 
 	private _contextKeyService: IContextKeyService;
-	protected _commandService: ICommandService;
 	private _statusService: IStatusbarService;
-	private _messageService: IMessageService;
+	private _notificationService: INotificationService;
+	protected _commandService: ICommandService;
+	protected _telemetryService: ITelemetryService;
 
 	constructor(
 		contextKeyService: IContextKeyService,
 		commandService: ICommandService,
-		messageService: IMessageService,
+		telemetryService: ITelemetryService,
+		notificationService: INotificationService,
 		statusService?: IStatusbarService
 	) {
 		this._contextKeyService = contextKeyService;
 		this._commandService = commandService;
+		this._telemetryService = telemetryService;
 		this._statusService = statusService;
-		this._messageService = messageService;
+		this._notificationService = notificationService;
 
 		this._currentChord = null;
 		this._currentChordStatusMessage = null;
@@ -159,8 +162,15 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 				shouldPreventDefault = true;
 			}
 			this._commandService.executeCommand(resolveResult.commandId, resolveResult.commandArgs || {}).done(undefined, err => {
-				this._messageService.show(Severity.Warning, err);
+				this._notificationService.warn(err);
 			});
+			/* __GDPR__
+				"workbenchActionExecuted" : {
+					"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
+			this._telemetryService.publicLog('workbenchActionExecuted', { id: resolveResult.commandId, from: 'keybinding' });
 		}
 
 		return shouldPreventDefault;

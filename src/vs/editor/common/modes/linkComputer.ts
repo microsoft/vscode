@@ -156,6 +156,23 @@ class LinkComputer {
 			lastIncludedCharIndex--;
 		} while (lastIncludedCharIndex > linkBeginIndex);
 
+		// Handle links enclosed in parens, square brackets and curlys.
+		if (linkBeginIndex > 0) {
+			const charCodeBeforeLink = line.charCodeAt(linkBeginIndex - 1);
+			const lastCharCodeInLink = line.charCodeAt(lastIncludedCharIndex);
+
+			if (
+				(charCodeBeforeLink === CharCode.OpenParen && lastCharCodeInLink === CharCode.CloseParen)
+				|| (charCodeBeforeLink === CharCode.OpenSquareBracket && lastCharCodeInLink === CharCode.CloseSquareBracket)
+				|| (charCodeBeforeLink === CharCode.OpenCurlyBrace && lastCharCodeInLink === CharCode.CloseCurlyBrace)
+			) {
+				// Do not end in ) if ( is before the link start
+				// Do not end in ] if [ is before the link start
+				// Do not end in } if { is before the link start
+				lastIncludedCharIndex--;
+			}
+		}
+
 		return {
 			range: {
 				startLineNumber: lineNumber,

@@ -4,23 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 const cp = require('child_process');
-const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
-function npmInstall(package: string, args: string[]): void {
-	const result = cp.spawnSync(npm, ['install', package, ...args], {
-		stdio: 'inherit'
-	});
-
-	if (result.error || result.status !== 0) {
-		process.exit(1);
-	}
+function yarnInstall(package: string): void {
+	cp.execSync(`yarn add --no-lockfile ${package}`);
 }
 
 const product = require('../../../product.json');
 const dependencies = product.dependencies || {} as { [name: string]: string; };
-const [, , ...args] = process.argv;
 
 Object.keys(dependencies).forEach(name => {
 	const url = dependencies[name];
-	npmInstall(url, args);
+	yarnInstall(url);
 });

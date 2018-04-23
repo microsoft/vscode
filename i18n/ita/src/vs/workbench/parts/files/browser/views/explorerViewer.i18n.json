@@ -10,6 +10,9 @@
 	"dropFolder": "Aggiungere la cartella all'area di lavoro?",
 	"addFolders": "&& Aggiungi cartelle",
 	"addFolder": "&&Aggiungi cartella",
+	"confirmMove": "Sei sicuro di voler spostare '{0}'?",
+	"doNotAskAgain": "Non chiedermelo di nuovo",
+	"moveButtonLabel": "&&Sposta",
 	"confirmOverwriteMessage": "'{0}' esiste già nella cartella di destinazione. Sostituirlo?",
 	"irreversible": "Questa azione è irreversibile.",
 	"replaceButtonLabel": "&&Sostituisci"

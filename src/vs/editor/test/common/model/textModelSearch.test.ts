@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import { Position } from 'vs/editor/common/core/position';
-import { FindMatch, EndOfLineSequence } from 'vs/editor/common/editorCommon';
+import { FindMatch, EndOfLineSequence } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { TextModelSearch, SearchParams, SearchData } from 'vs/editor/common/model/textModelSearch';

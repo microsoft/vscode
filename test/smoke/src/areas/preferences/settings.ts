@@ -3,37 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SpectronApplication } from '../../spectron/application';
-import { Element } from 'webdriverio';
+import * as fs from 'fs';
+import * as path from 'path';
+import { Commands } from '../workbench/workbench';
+import { Editor } from '../editor/editor';
+import { Editors } from '../editor/editors';
+import { Code } from '../../vscode/code';
 
 export enum ActivityBarPosition {
 	LEFT = 0,
 	RIGHT = 1
-};
+}
+
+const SEARCH_INPUT = '.settings-search-input input';
 
 export class SettingsEditor {
 
-	constructor(private spectron: SpectronApplication) {
-		// noop
+	constructor(private code: Code, private userDataPath: string, private commands: Commands, private editors: Editors, private editor: Editor) { }
+
+	async addUserSetting(setting: string, value: string): Promise<void> {
+		await this.commands.runCommand('workbench.action.openGlobalSettings');
+		await this.code.waitAndClick(SEARCH_INPUT);
+		await this.code.waitForActiveElement(SEARCH_INPUT);
+
+		await this.editor.waitForEditorFocus('settings.json', 1, '.editable-preferences-editor-container');
+
+		await this.code.dispatchKeybinding('right');
+		await this.editor.waitForTypeInEditor('settings.json', `"${setting}": ${value}`, '.editable-preferences-editor-container');
+		await this.editors.saveOpenedFile();
 	}
 
-	public async openUserSettings(): Promise<Element> {
-		await this.spectron.command('workbench.action.openGlobalSettings');
-		return this.spectron.client.waitForElement('.settings-search-input input:focus');
-	}
+	async clearUserSettings(): Promise<void> {
+		const settingsPath = path.join(this.userDataPath, 'User', 'settings.json');
+		await new Promise((c, e) => fs.writeFile(settingsPath, '{}', 'utf8', err => err ? e(err) : c()));
 
-	public async focusEditableSettings(): Promise<void> {
-		await this.spectron.client.keys(['ArrowDown', 'NULL'], false);
-		await this.spectron.client.waitForElement(`.editable-preferences-editor-container .monaco-editor.focused`);
-		await this.spectron.client.keys(['ArrowRight', 'NULL'], false);
-	}
-
-	public async addUserSetting(setting: string, value: string): Promise<void> {
-		await this.openUserSettings();
-
-		// await this.spectron.wait(1);
-		await this.focusEditableSettings();
-		await this.spectron.client.keys(`"${setting}": ${value}`);
-		await this.spectron.workbench.saveOpenedFile();
+		await this.commands.runCommand('workbench.action.openGlobalSettings');
+		await this.editor.waitForEditorContents('settings.json', c => c === '{}', '.editable-preferences-editor-container');
 	}
 }

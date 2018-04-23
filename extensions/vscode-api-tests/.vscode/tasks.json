@@ -1,5 +1,5 @@
 // Available variables which can be used inside of strings.
-// ${workspaceRoot}: the root folder of the team
+// ${workspaceFolder}: the root folder of the team
 // ${file}: the current opened file
 // ${fileBasename}: the current opened file's basename
 // ${fileDirname}: the current opened file's dirname

@@ -9,5 +9,6 @@
 	"markerAction.previous.label": "Ir al error o la advertencia anterior",
 	"editorMarkerNavigationError": "Color de los errores del widget de navegación de marcadores del editor.",
 	"editorMarkerNavigationWarning": "Color de las advertencias del widget de navegación de marcadores del editor.",
+	"editorMarkerNavigationInfo": "Color del widget informativo marcador de navegación en el editor.",
 	"editorMarkerNavigationBackground": "Fondo del widget de navegación de marcadores del editor."
 }

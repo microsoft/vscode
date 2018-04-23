@@ -24,7 +24,7 @@ export default class CommandHandler implements vscode.Disposable {
 	private disposables: vscode.Disposable[] = [];
 	private tracker: interfaces.IDocumentMergeConflictTracker;
 
-	constructor(private context: vscode.ExtensionContext, trackerService: interfaces.IDocumentMergeConflictTrackerService) {
+	constructor(trackerService: interfaces.IDocumentMergeConflictTrackerService) {
 		this.tracker = trackerService.createTracker('commands');
 	}
 
@@ -43,38 +43,38 @@ export default class CommandHandler implements vscode.Disposable {
 		);
 	}
 
-	private registerTextEditorCommand(command: string, cb: (editor: vscode.TextEditor, ...args) => Promise<void>) {
+	private registerTextEditorCommand(command: string, cb: (editor: vscode.TextEditor, ...args: any[]) => Promise<void>) {
 		return vscode.commands.registerCommand(command, (...args) => {
 			const editor = vscode.window.activeTextEditor;
 			return editor && cb.call(this, editor, ...args);
 		});
 	}
 
-	acceptCurrent(editor: vscode.TextEditor, ...args): Promise<void> {
+	acceptCurrent(editor: vscode.TextEditor, ...args: any[]): Promise<void> {
 		return this.accept(interfaces.CommitType.Current, editor, ...args);
 	}
 
-	acceptIncoming(editor: vscode.TextEditor, ...args): Promise<void> {
+	acceptIncoming(editor: vscode.TextEditor, ...args: any[]): Promise<void> {
 		return this.accept(interfaces.CommitType.Incoming, editor, ...args);
 	}
 
-	acceptBoth(editor: vscode.TextEditor, ...args): Promise<void> {
+	acceptBoth(editor: vscode.TextEditor, ...args: any[]): Promise<void> {
 		return this.accept(interfaces.CommitType.Both, editor, ...args);
 	}
 
-	acceptAllCurrent(editor: vscode.TextEditor, ...args): Promise<void> {
+	acceptAllCurrent(editor: vscode.TextEditor): Promise<void> {
 		return this.acceptAll(interfaces.CommitType.Current, editor);
 	}
 
-	acceptAllIncoming(editor: vscode.TextEditor, ...args): Promise<void> {
+	acceptAllIncoming(editor: vscode.TextEditor): Promise<void> {
 		return this.acceptAll(interfaces.CommitType.Incoming, editor);
 	}
 
-	acceptAllBoth(editor: vscode.TextEditor, ...args): Promise<void> {
+	acceptAllBoth(editor: vscode.TextEditor): Promise<void> {
 		return this.acceptAll(interfaces.CommitType.Both, editor);
 	}
 
-	async compare(editor: vscode.TextEditor, conflict: interfaces.IDocumentMergeConflict | null, ...args) {
+	async compare(editor: vscode.TextEditor, conflict: interfaces.IDocumentMergeConflict | null) {
 		const fileName = path.basename(editor.document.uri.fsPath);
 
 		// No conflict, command executed from command palette
@@ -102,15 +102,15 @@ export default class CommandHandler implements vscode.Disposable {
 		vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
 	}
 
-	navigateNext(editor: vscode.TextEditor, ...args): Promise<void> {
+	navigateNext(editor: vscode.TextEditor): Promise<void> {
 		return this.navigate(editor, NavigationDirection.Forwards);
 	}
 
-	navigatePrevious(editor: vscode.TextEditor, ...args): Promise<void> {
+	navigatePrevious(editor: vscode.TextEditor): Promise<void> {
 		return this.navigate(editor, NavigationDirection.Backwards);
 	}
 
-	async acceptSelection(editor: vscode.TextEditor, ...args): Promise<void> {
+	async acceptSelection(editor: vscode.TextEditor): Promise<void> {
 		let conflict = await this.findConflictContainingSelection(editor);
 
 		if (!conflict) {
@@ -175,7 +175,7 @@ export default class CommandHandler implements vscode.Disposable {
 		editor.revealRange(navigationResult.conflict.range, vscode.TextEditorRevealType.Default);
 	}
 
-	private async accept(type: interfaces.CommitType, editor: vscode.TextEditor, ...args): Promise<void> {
+	private async accept(type: interfaces.CommitType, editor: vscode.TextEditor, ...args: any[]): Promise<void> {
 
 		let conflict: interfaces.IDocumentMergeConflict | null;
 
@@ -257,7 +257,7 @@ export default class CommandHandler implements vscode.Disposable {
 			};
 		}
 
-		let predicate: (conflict) => boolean;
+		let predicate: (_conflict: any) => boolean;
 		let fallback: () => interfaces.IDocumentMergeConflict;
 
 		if (direction === NavigationDirection.Forwards) {

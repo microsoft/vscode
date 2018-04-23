@@ -8,15 +8,14 @@ import { KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 
 /**
  * Prevents the top-level menu from showing up when doing Alt + Click in the editor
  */
-@editorContribution
 export class MenuPreventer extends Disposable implements IEditorContribution {
 
-	private static ID = 'editor.contrib.menuPreventer';
+	private static readonly ID = 'editor.contrib.menuPreventer';
 
 	private _editor: ICodeEditor;
 	private _altListeningMouse: boolean;
@@ -62,3 +61,5 @@ export class MenuPreventer extends Disposable implements IEditorContribution {
 		return MenuPreventer.ID;
 	}
 }
+
+registerEditorContribution(MenuPreventer);

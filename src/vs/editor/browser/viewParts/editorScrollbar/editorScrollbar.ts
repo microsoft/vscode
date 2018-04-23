@@ -15,7 +15,6 @@ import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/v
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { ISimplifiedMouseEvent } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 
 export class EditorScrollbar extends ViewPart {
 
@@ -89,6 +88,7 @@ export class EditorScrollbar extends ViewPart {
 		this._register(dom.addDisposableListener(viewDomNode.domNode, 'scroll', (e: Event) => onBrowserDesperateReveal(viewDomNode.domNode, true, true)));
 		this._register(dom.addDisposableListener(linesContent.domNode, 'scroll', (e: Event) => onBrowserDesperateReveal(linesContent.domNode, true, false)));
 		this._register(dom.addDisposableListener(overflowGuardDomNode.domNode, 'scroll', (e: Event) => onBrowserDesperateReveal(overflowGuardDomNode.domNode, true, false)));
+		this._register(dom.addDisposableListener(this.scrollbarDomNode.domNode, 'scroll', (e: Event) => onBrowserDesperateReveal(this.scrollbarDomNode.domNode, true, false)));
 	}
 
 	public dispose(): void {
@@ -99,7 +99,13 @@ export class EditorScrollbar extends ViewPart {
 		const layoutInfo = this._context.configuration.editor.layoutInfo;
 
 		this.scrollbarDomNode.setLeft(layoutInfo.contentLeft);
-		this.scrollbarDomNode.setWidth(layoutInfo.contentWidth + layoutInfo.minimapWidth);
+
+		const side = this._context.configuration.editor.viewInfo.minimap.side;
+		if (side === 'right') {
+			this.scrollbarDomNode.setWidth(layoutInfo.contentWidth + layoutInfo.minimapWidth);
+		} else {
+			this.scrollbarDomNode.setWidth(layoutInfo.contentWidth);
+		}
 		this.scrollbarDomNode.setHeight(layoutInfo.contentHeight);
 	}
 
@@ -113,10 +119,6 @@ export class EditorScrollbar extends ViewPart {
 
 	public delegateVerticalScrollbarMouseDown(browserEvent: IMouseEvent): void {
 		this.scrollbar.delegateVerticalScrollbarMouseDown(browserEvent);
-	}
-
-	public delegateSliderMouseDown(e: ISimplifiedMouseEvent, onDragFinished: () => void): void {
-		this.scrollbar.delegateSliderMouseDown(e, onDragFinished);
 	}
 
 	// --- begin event handlers

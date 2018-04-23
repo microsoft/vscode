@@ -9,23 +9,17 @@ import * as platform from 'vs/base/common/platform';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IChoiceService } from 'vs/platform/message/common/message';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLaunchConfig, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY } from 'vs/workbench/parts/terminal/common/terminal';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLaunchConfig, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, TERMINAL_CONFIG_SECTION } from 'vs/workbench/parts/terminal/common/terminal';
 import Severity from 'vs/base/common/severity';
-
-interface IEditorConfiguration {
-	editor: IEditorOptions;
-}
-
-interface IFullTerminalConfiguration {
-	terminal: {
-		integrated: ITerminalConfiguration;
-	};
-}
+import { isFedora } from 'vs/workbench/parts/terminal/node/terminal';
+import { Terminal as XTermTerminal } from 'vscode-xterm';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const DEFAULT_LINE_HEIGHT = 1.0;
+
+const MINIMUM_FONT_SIZE = 6;
+const MAXIMUM_FONT_SIZE = 25;
 
 /**
  * Encapsulates terminal configuration logic, the primary purpose of this file is so that platform
@@ -36,17 +30,24 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 
 	private _charMeasureElement: HTMLElement;
 	private _lastFontMeasurement: ITerminalFont;
+	public config: ITerminalConfiguration;
 
 	public constructor(
-		private _platform: platform.Platform,
-		@IConfigurationService private _configurationService: IConfigurationService,
-		@IWorkspaceConfigurationService private _workspaceConfigurationService: IWorkspaceConfigurationService,
-		@IChoiceService private _choiceService: IChoiceService,
-		@IStorageService private _storageService: IStorageService) {
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IWorkspaceConfigurationService private readonly _workspaceConfigurationService: IWorkspaceConfigurationService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IStorageService private readonly _storageService: IStorageService
+	) {
+		this._updateConfig();
+		this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TERMINAL_CONFIG_SECTION)) {
+				this._updateConfig();
+			}
+		});
 	}
 
-	public get config(): ITerminalConfiguration {
-		return this._configurationService.getConfiguration<IFullTerminalConfiguration>().terminal.integrated;
+	private _updateConfig(): void {
+		this.config = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
 	}
 
 	private _measureFont(fontFamily: string, fontSize: number, lineHeight: number): ITerminalFont {
@@ -55,7 +56,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			this._charMeasureElement = document.createElement('div');
 			this.panelContainer.appendChild(this._charMeasureElement);
 		}
-		// TODO: This should leverage CharMeasure
+
 		const style = this._charMeasureElement.style;
 		style.display = 'block';
 		style.fontFamily = fontFamily;
@@ -84,18 +85,43 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	 * Gets the font information based on the terminal.integrated.fontFamily
 	 * terminal.integrated.fontSize, terminal.integrated.lineHeight configuration properties
 	 */
-	public getFont(): ITerminalFont {
-		const config = this._configurationService.getConfiguration();
-		const editorConfig = (<IEditorConfiguration>config).editor;
-		const terminalConfig = this.config;
+	public getFont(xterm?: XTermTerminal, excludeDimensions?: boolean): ITerminalFont {
+		const editorConfig = this._configurationService.getValue<IEditorOptions>('editor');
 
-		const fontFamily = terminalConfig.fontFamily || editorConfig.fontFamily;
-		let fontSize = this._toInteger(terminalConfig.fontSize, 0);
-		if (fontSize <= 0) {
-			fontSize = EDITOR_FONT_DEFAULTS.fontSize;
+		let fontFamily = this.config.fontFamily || editorConfig.fontFamily;
+
+		// Work around bad font on Fedora
+		if (!this.config.fontFamily) {
+			if (isFedora) {
+				fontFamily = '\'DejaVu Sans Mono\'';
+			}
 		}
-		const lineHeight = terminalConfig.lineHeight ? Math.max(terminalConfig.lineHeight, 1) : DEFAULT_LINE_HEIGHT;
 
+		let fontSize = this._toInteger(this.config.fontSize, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
+		const lineHeight = this.config.lineHeight ? Math.max(this.config.lineHeight, 1) : DEFAULT_LINE_HEIGHT;
+
+		if (excludeDimensions) {
+			return {
+				fontFamily,
+				fontSize,
+				lineHeight
+			};
+		}
+
+		// Get the character dimensions from xterm if it's available
+		if (xterm) {
+			if (xterm.charMeasure && xterm.charMeasure.width && xterm.charMeasure.height) {
+				return {
+					fontFamily,
+					fontSize,
+					lineHeight,
+					charHeight: xterm.charMeasure.height,
+					charWidth: xterm.charMeasure.width
+				};
+			}
+		}
+
+		// Fall back to measuring the font ourselves
 		return this._measureFont(fontFamily, fontSize, lineHeight);
 	}
 
@@ -106,8 +132,8 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig): void {
 		// Check whether there is a workspace setting
 		const platformKey = platform.isWindows ? 'windows' : platform.isMacintosh ? 'osx' : 'linux';
-		const shellConfigValue = this._workspaceConfigurationService.lookup<string>(`terminal.integrated.shell.${platformKey}`);
-		const shellArgsConfigValue = this._workspaceConfigurationService.lookup<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
+		const shellConfigValue = this._workspaceConfigurationService.inspect<string>(`terminal.integrated.shell.${platformKey}`);
+		const shellArgsConfigValue = this._workspaceConfigurationService.inspect<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
 
 		// Check if workspace setting exists and whether it's whitelisted
 		let isWorkspaceShellAllowed = false;
@@ -137,16 +163,16 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			} else { // if (shellArgsConfigValue.workspace !== undefined)
 				changeString = `shellArgs: ${argsString}`;
 			}
-			const message = nls.localize('terminal.integrated.allowWorkspaceShell', "Do you allow {0} (defined as a workspace setting) to be launched in the terminal?", changeString);
-			const options = [nls.localize('allow', "Allow"), nls.localize('disallow', "Disallow")];
-			this._choiceService.choose(Severity.Info, message, options, 1).then(choice => {
-				if (choice === 0) {
-					this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, true, StorageScope.WORKSPACE);
-				} else {
-					this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, false, StorageScope.WORKSPACE);
-				}
-				return TPromise.as(null);
-			});
+			this._notificationService.prompt(Severity.Info, nls.localize('terminal.integrated.allowWorkspaceShell', "Do you allow {0} (defined as a workspace setting) to be launched in the terminal?", changeString),
+				[{
+					label: nls.localize('allow', "Allow"),
+					run: () => this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, true, StorageScope.WORKSPACE)
+				},
+				{
+					label: nls.localize('disallow', "Disallow"),
+					run: () => this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, false, StorageScope.WORKSPACE)
+				}]
+			);
 		}
 
 		shell.executable = (isWorkspaceShellAllowed ? shellConfigValue.value : shellConfigValue.user) || shellConfigValue.default;
@@ -163,13 +189,16 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		}
 	}
 
-	private _toInteger(source: any, minimum?: number): number {
+	private _toInteger(source: any, minimum: number, maximum: number, fallback: number): number {
 		let r = parseInt(source, 10);
 		if (isNaN(r)) {
-			r = 0;
+			return fallback;
 		}
 		if (typeof minimum === 'number') {
 			r = Math.max(minimum, r);
+		}
+		if (typeof maximum === 'number') {
+			r = Math.min(maximum, r);
 		}
 		return r;
 	}

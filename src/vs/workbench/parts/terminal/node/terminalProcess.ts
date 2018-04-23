@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as cp from 'child_process';
 import * as os from 'os';
 import * as path from 'path';
 import * as pty from 'node-pty';
@@ -25,7 +24,7 @@ var cols = process.env.PTYCOLS;
 var rows = process.env.PTYROWS;
 var currentTitle = '';
 
-setupPlanB(process.env.PTYPID);
+setupPlanB(Number(process.env.PTYPID));
 cleanEnv();
 
 interface IOptions {
@@ -44,10 +43,10 @@ if (cols && rows) {
 	options.rows = parseInt(rows, 10);
 }
 
-var ptyProcess = pty.fork(shell, args, options);
+var ptyProcess = pty.spawn(shell, args, options);
 
-var closeTimeout;
-var exitCode;
+var closeTimeout: number;
+var exitCode: number;
 
 // Allow any trailing data events to be sent before the exit event is sent.
 // See https://github.com/Tyriar/node-pty/issues/72
@@ -56,17 +55,8 @@ function queueProcessExit() {
 		clearTimeout(closeTimeout);
 	}
 	closeTimeout = setTimeout(function () {
-		if (process.platform === 'win32') {
-			// Forcefully kill the entire process tree under the shell process
-			// on Windows as ptyProcess.kill can leave some lingering processes.
-			// See https://github.com/Microsoft/vscode/issues/26807
-			cp.execFile('taskkill.exe', ['/T', '/F', '/PID', ptyProcess.pid.toString()]).on('close', () => {
-				process.exit(exitCode);
-			});
-		} else {
-			ptyProcess.kill();
-			process.exit(exitCode);
-		}
+		ptyProcess.kill();
+		process.exit(exitCode);
 	}, 250);
 }
 
@@ -90,7 +80,9 @@ process.on('message', function (message) {
 	if (message.event === 'input') {
 		ptyProcess.write(message.data);
 	} else if (message.event === 'resize') {
-		ptyProcess.resize(message.cols, message.rows);
+		// Ensure that cols and rows are always >= 1, this prevents a native
+		// exception in winpty.
+		ptyProcess.resize(Math.max(message.cols, 1), Math.max(message.rows, 1));
 	} else if (message.event === 'shutdown') {
 		queueProcessExit();
 	}
@@ -99,7 +91,7 @@ process.on('message', function (message) {
 sendProcessId();
 setupTitlePolling();
 
-function getArgs() {
+function getArgs(): string | string[] {
 	if (process.env['PTYSHELLCMDLINE']) {
 		return process.env['PTYSHELLCMDLINE'];
 	}
@@ -115,13 +107,16 @@ function getArgs() {
 function cleanEnv() {
 	var keys = [
 		'AMD_ENTRYPOINT',
+		'ELECTRON_NO_ASAR',
 		'ELECTRON_RUN_AS_NODE',
+		'GOOGLE_API_KEY',
 		'PTYCWD',
 		'PTYPID',
 		'PTYSHELL',
 		'PTYCOLS',
 		'PTYROWS',
-		'PTYSHELLCMDLINE'
+		'PTYSHELLCMDLINE',
+		'VSCODE_LOGS'
 	];
 	keys.forEach(function (key) {
 		if (process.env[key]) {
@@ -131,10 +126,11 @@ function cleanEnv() {
 	var i = 0;
 	while (process.env['PTYSHELLARG' + i]) {
 		delete process.env['PTYSHELLARG' + i];
+		i++;
 	}
 }
 
-function setupPlanB(parentPid) {
+function setupPlanB(parentPid: number) {
 	setInterval(function () {
 		try {
 			process.kill(parentPid, 0); // throws an exception if the main process doesn't exist anymore.

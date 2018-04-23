@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ISplice } from 'vs/base/common/sequence';
+
 /**
  * Returns the last element of an array.
  * @param array The array.
@@ -50,7 +53,7 @@ export function binarySearch<T>(array: T[], key: T, comparator: (op1: T, op2: T)
  * are located before all elements where p(x) is true.
  * @returns the least x for which p(x) is true or array.length if no element fullfills the given function.
  */
-export function findFirst<T>(array: T[], p: (x: T) => boolean): number {
+export function findFirstInSorted<T>(array: T[], p: (x: T) => boolean): number {
 	let low = 0, high = array.length;
 	if (high === 0) {
 		return 0; // no children
@@ -111,7 +114,7 @@ function _divideAndMerge<T>(data: T[], compare: (a: T, b: T) => number): void {
 export function groupBy<T>(data: T[], compare: (a: T, b: T) => number): T[][] {
 	const result: T[][] = [];
 	let currentGroup: T[];
-	for (const element of data.slice(0).sort(compare)) {
+	for (const element of mergeSort(data.slice(0), compare)) {
 		if (!currentGroup || compare(currentGroup[0], element) !== 0) {
 			currentGroup = [element];
 			result.push(currentGroup);
@@ -122,20 +125,18 @@ export function groupBy<T>(data: T[], compare: (a: T, b: T) => number): T[][] {
 	return result;
 }
 
-export interface Splice<T> {
-	start: number;
+interface IMutableSplice<T> extends ISplice<T> {
 	deleteCount: number;
-	inserted: T[];
 }
 
 /**
  * Diffs two *sorted* arrays and computes the splices which apply the diff.
  */
-export function sortedDiff<T>(before: T[], after: T[], compare: (a: T, b: T) => number): Splice<T>[] {
-	const result: Splice<T>[] = [];
+export function sortedDiff<T>(before: T[], after: T[], compare: (a: T, b: T) => number): ISplice<T>[] {
+	const result: IMutableSplice<T>[] = [];
 
-	function pushSplice(start: number, deleteCount: number, inserted: T[]): void {
-		if (deleteCount === 0 && inserted.length === 0) {
+	function pushSplice(start: number, deleteCount: number, toInsert: T[]): void {
+		if (deleteCount === 0 && toInsert.length === 0) {
 			return;
 		}
 
@@ -143,9 +144,9 @@ export function sortedDiff<T>(before: T[], after: T[], compare: (a: T, b: T) => 
 
 		if (latest && latest.start + latest.deleteCount === start) {
 			latest.deleteCount += deleteCount;
-			latest.inserted.push(...inserted);
+			latest.toInsert.push(...toInsert);
 		} else {
-			result.push({ start, deleteCount, inserted });
+			result.push({ start, deleteCount, toInsert });
 		}
 	}
 
@@ -197,7 +198,7 @@ export function delta<T>(before: T[], after: T[], compare: (a: T, b: T) => numbe
 
 	for (const splice of splices) {
 		removed.push(...before.slice(splice.start, splice.start + splice.deleteCount));
-		added.push(...splice.inserted);
+		added.push(...splice.toInsert);
 	}
 
 	return { removed, added };
@@ -218,15 +219,58 @@ export function top<T>(array: T[], compare: (a: T, b: T) => number, n: number): 
 		return [];
 	}
 	const result = array.slice(0, n).sort(compare);
-	for (let i = n, m = array.length; i < m; i++) {
+	topStep(array, compare, result, n, array.length);
+	return result;
+}
+
+/**
+ * Asynchronous variant of `top()` allowing for splitting up work in batches between which the event loop can run.
+ *
+ * Returns the top N elements from the array.
+ *
+ * Faster than sorting the entire array when the array is a lot larger than N.
+ *
+ * @param array The unsorted array.
+ * @param compare A sort function for the elements.
+ * @param n The number of elements to return.
+ * @param batch The number of elements to examine before yielding to the event loop.
+ * @return The first n elemnts from array when sorted with compare.
+ */
+export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: number, batch: number): TPromise<T[]> {
+	if (n === 0) {
+		return TPromise.as([]);
+	}
+	let canceled = false;
+	return new TPromise((resolve, reject) => {
+		(async () => {
+			const o = array.length;
+			const result = array.slice(0, n).sort(compare);
+			for (let i = n, m = Math.min(n + batch, o); i < o; i = m, m = Math.min(m + batch, o)) {
+				if (i > n) {
+					await new Promise(resolve => setTimeout(resolve)); // nextTick() would starve I/O.
+				}
+				if (canceled) {
+					throw new Error('canceled');
+				}
+				topStep(array, compare, result, i, m);
+			}
+			return result;
+		})()
+			.then(resolve, reject);
+	}, () => {
+		canceled = true;
+	});
+}
+
+function topStep<T>(array: T[], compare: (a: T, b: T) => number, result: T[], i: number, m: number): void {
+	for (const n = result.length; i < m; i++) {
 		const element = array[i];
 		if (compare(element, result[n - 1]) < 0) {
 			result.pop();
-			const j = findFirst(result, e => compare(element, e) < 0);
+			const j = findFirstInSorted(result, e => compare(element, e) < 0);
 			result.splice(j, 0, element);
 		}
 	}
-	return result;
 }
 
 /**
@@ -322,14 +366,31 @@ export function commonPrefixLength<T>(one: T[], other: T[], equals: (a: T, b: T)
 }
 
 export function flatten<T>(arr: T[][]): T[] {
-	return arr.reduce((r, v) => r.concat(v), []);
+	return [].concat(...arr);
 }
 
-export function range(to: number, from = 0): number[] {
+export function range(to: number): number[];
+export function range(from: number, to: number): number[];
+export function range(arg: number, to?: number): number[] {
+	let from = typeof to === 'number' ? arg : 0;
+
+	if (typeof to === 'number') {
+		from = arg;
+	} else {
+		from = 0;
+		to = arg;
+	}
+
 	const result: number[] = [];
 
-	for (let i = from; i < to; i++) {
-		result.push(i);
+	if (from <= to) {
+		for (let i = from; i < to; i++) {
+			result.push(i);
+		}
+	} else {
+		for (let i = from; i > to; i--) {
+			result.push(i);
+		}
 	}
 
 	return result;
@@ -376,4 +437,21 @@ export function arrayInsert<T>(target: T[], insertIndex: number, insertArr: T[])
 	const before = target.slice(0, insertIndex);
 	const after = target.slice(insertIndex);
 	return before.concat(insertArr, after);
+}
+
+/**
+ * Uses Fisher-Yates shuffle to shuffle the given array
+ * @param array
+ */
+export function shuffle<T>(array: T[]): void {
+	var i = 0
+		, j = 0
+		, temp = null;
+
+	for (i = array.length - 1; i > 0; i -= 1) {
+		j = Math.floor(Math.random() * (i + 1));
+		temp = array[i];
+		array[i] = array[j];
+		array[j] = temp;
+	}
 }

@@ -1,133 +1,175 @@
 {
-	"print(\"...\")": {
-		"prefix": "pr",
-		"body": "print(\"$1\")$0"
+	"print": {
+		"prefix": "print",
+		"body": "print(\"$1\")\n$0",
+		"description": "print(\"...\")"
 	},
-	"print(\"\\(...)\")": {
-		"prefix": "po",
-		"body": "print(\"\\($1)\")$0"
+	"print value": {
+		"prefix": "printv",
+		"body": "print(\"\\($1)\")\n$0",
+		"description": "print(\"\\(...)\")"
 	},
-	"repeat...while loop": {
+	"while": {
+		"prefix": "while",
+		"body": [
+			"while ${1:condition} {",
+			"\t$0",
+			"}"
+		],
+		"description": "while statement"
+	},
+	"repeat-while": {
 		"prefix": "repeat",
 		"body": [
 			"repeat {",
-			"	$0",
-			"} while ${1:true}"
+			"\t$0",
+			"} while ${1:condition}"
 		],
-		"description": "repeat...while loop"
+		"description": "repeat-while statement"
 	},
-	"While loop": {
-		"prefix": "while",
-		"body": [
-			"while ${1:true} {",
-			"	$0",
-			"}"
-		],
-		"description": "While loop"
-	},
-	"For-In statement": {
-		"prefix": "forin",
-		"body": [
-			"for ${1:item} in ${2:collection} {",
-			"	$0",
-			"}"
-		],
-		"description": "For-In statement"
-	},
-	"Reverse for loop": {
-		"prefix": "forr",
-		"body": [
-			"for var ${1:i} = ${2:length} - 1; ${1:i} >= 0; ${1:i}-- {",
-			"	$0",
-			"}"
-		],
-		"description": "Reverse for loop"
-	},
-	"for loop": {
+	"for": {
 		"prefix": "for",
 		"body": [
-			"for var ${1:i} = 0; ${1:i} < ${2:length}; ${1:i}++ {",
-			"	$0",
+			"for ${1:item} in ${2:collection} {",
+			"\t$0",
 			"}"
 		],
-		"description": "for loop"
+		"description": "for-in statement"
 	},
-	"if statement": {
+	"if": {
 		"prefix": "if",
 		"body": [
-			"if ${1:true} {",
-			"	$0",
+			"if ${1:condition} {",
+			"\t$0",
 			"}"
 		],
 		"description": "if statement"
 	},
-	"else-if statement": {
+	"else if": {
 		"prefix": "elif",
 		"body": [
-			"else if ${1:true} {",
-			"	$0",
+			"else if ${1:condition} {",
+			"\t$0",
 			"}"
 		],
-		"description": "if statement"
+		"description": "else clause with a nested if statement"
 	},
-	"Else statement": {
+	"else": {
 		"prefix": "else",
 		"body": [
 			"else {",
-			"	$0",
+			"\t$0",
 			"}"
 		],
-		"description": "Else statement"
+		"description": "else clause"
 	},
-	"Guard statement": {
+	"if let": {
+		"prefix": "iflet",
+		"body": [
+			"if let ${1:value} = ${2:optional} {",
+			"\t$0",
+			"}"
+		],
+		"description": "if statement with optional binding"
+	},
+	"guard": {
 		"prefix": "guard",
 		"body": [
-			"guard let ${1:a} = ${2:optional} else {",
-			"	$0",
+			"guard ${1:condition} else {",
+			"\t$0",
 			"}"
 		],
-		"description": "Guard statement"
+		"description": "guard statement"
 	},
-	"Optional Binding statement": {
-		"prefix": "ifnil",
+	"guard let": {
+		"prefix": "guardlet",
 		"body": [
-			"if let ${1:a} = ${2:optional} {",
-			"	$0",
+			"guard let ${1:value} = ${2:optional} else {",
+			"\t$0",
 			"}"
 		],
-		"description": "Optional Binding statement"
+		"description": "guard statement with optional binding"
 	},
-	"Switch statement": {
+	"switch": {
 		"prefix": "switch",
 		"body": [
-			"switch ${1:switch_on} {",
-			"case ${2:a}:",
-			"	$0",
+			"switch ${1:value} {",
+			"case ${2:pattern}:",
+			"\t$0",
 			"default:",
-			"	$1",
+			"\t",
 			"}"
 		],
-		"description": "Switch statement"
+		"description": "switch statement"
 	},
-	"Do catch": {
-		"prefix": "docatch",
+	"do": {
+		"prefix": "do",
 		"body": [
 			"do {",
-			"	try ${1:function that throws}",
-			"} catch ${2:pattern} {",
-			"	$0",
+			"\t$0",
+			"} catch ${1:error} {",
+			"\t$2",
 			"}"
 		],
-		"description": "Try catch"
+		"description": "do statement"
 	},
-	"Enum": {
+	"func": {
+		"prefix": "func",
+		"body": [
+			"func ${1:name}(${2:parameters}) -> ${3:Type} {",
+			"\t$0",
+			"}"
+		],
+		"description": "function declaration"
+	},
+	"struct": {
+		"prefix": "struct",
+		"body": [
+			"struct ${1:Name} {",
+			"",
+			"\t$0",
+			"}"
+		],
+		"description": "struct declaration"
+	},
+	"enum": {
 		"prefix": "enum",
 		"body": [
 			"enum ${1:Name} {",
-			"	case $0",
+			"",
+			"\tcase $0",
 			"}"
 		],
-		"description": "Enum"
+		"description": "enum declaration"
+	},
+	"class": {
+		"prefix": "class",
+		"body": [
+			"class ${1:Name} {",
+			"",
+			"\t$0",
+			"}"
+		],
+		"description": "class declaration"
+	},
+	"protocol": {
+		"prefix": "protocol",
+		"body": [
+			"protocol ${1:Name} {",
+			"",
+			"\t$0",
+			"}"
+		],
+		"description": "protocol declaration"
+	},
+	"extension": {
+		"prefix": "extension",
+		"body": [
+			"extension ${1:Type} {",
+			"",
+			"\t$0",
+			"}"
+		],
+		"description": "extension declaration"
 	}
 }
-

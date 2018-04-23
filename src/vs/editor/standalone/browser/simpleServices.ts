@@ -8,7 +8,8 @@ import { Schemas } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, IConfigurationKeys, IConfigurationValues, Configuration, IConfigurationData, ConfigurationModel, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { ICommandService, ICommand, ICommandEvent, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
@@ -16,13 +17,11 @@ import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayo
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingEvent, KeybindingSource, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfirmation, IMessageService } from 'vs/platform/message/common/message';
-import { IWorkspaceContextService, ILegacyWorkspace, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { Selection } from 'vs/editor/common/core/selection';
-import Event, { Emitter } from 'vs/base/common/event';
-import { DefaultConfigurationModel } from 'vs/platform/configuration/common/model';
+import { ICodeEditor, IDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Event, Emitter } from 'vs/base/common/event';
+import { Configuration, DefaultConfigurationModel, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
@@ -38,6 +37,10 @@ import { ResolvedKeybinding, Keybinding, createKeybinding, SimpleKeybinding } fr
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { OS } from 'vs/base/common/platform';
 import { IRange } from 'vs/editor/common/core/range';
+import { ITextModel } from 'vs/editor/common/model';
+import { INotificationService, INotification, INotificationHandle, NoOpNotification, IPromptChoice } from 'vs/platform/notification/common/notification';
+import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { IPosition, Position as Pos } from 'vs/editor/common/core/position';
 
 export class SimpleEditor implements IEditor {
 
@@ -53,12 +56,11 @@ export class SimpleEditor implements IEditor {
 
 	public getId(): string { return 'editor'; }
 	public getControl(): editorCommon.IEditor { return this._widget; }
-	public getSelection(): Selection { return this._widget.getSelection(); }
 	public focus(): void { this._widget.focus(); }
 	public isVisible(): boolean { return true; }
 
 	public withTypedEditor<T>(codeEditorCallback: (editor: ICodeEditor) => T, diffEditorCallback: (editor: IDiffEditor) => T): T {
-		if (editorCommon.isCommonCodeEditor(this._widget)) {
+		if (isCodeEditor(this._widget)) {
 			// Single Editor
 			return codeEditorCallback(<ICodeEditor>this._widget);
 		} else {
@@ -70,10 +72,10 @@ export class SimpleEditor implements IEditor {
 
 export class SimpleModel implements ITextEditorModel {
 
-	private model: editorCommon.IModel;
-	private _onDispose: Emitter<void>;
+	private model: ITextModel;
+	private readonly _onDispose: Emitter<void>;
 
-	constructor(model: editorCommon.IModel) {
+	constructor(model: ITextModel) {
 		this.model = model;
 		this._onDispose = new Emitter<void>();
 	}
@@ -86,7 +88,7 @@ export class SimpleModel implements ITextEditorModel {
 		return TPromise.as(this);
 	}
 
-	public get textEditorModel(): editorCommon.IModel {
+	public get textEditorModel(): ITextModel {
 		return this.model;
 	}
 
@@ -127,7 +129,7 @@ export class SimpleEditorService implements IEditorService {
 		));
 	}
 
-	private doOpenEditor(editor: editorCommon.ICommonCodeEditor, data: IResourceInput): IEditor {
+	private doOpenEditor(editor: ICodeEditor, data: IResourceInput): IEditor {
 		let model = this.findModel(editor, data);
 		if (!model) {
 			if (data.resource) {
@@ -138,7 +140,7 @@ export class SimpleEditorService implements IEditorService {
 					let schema = data.resource.scheme;
 					if (schema === Schemas.http || schema === Schemas.https) {
 						// This is a fully qualified http or https URL
-						window.open(data.resource.toString());
+						dom.windowOpenNoOpener(data.resource.toString());
 						return this.editor;
 					}
 				}
@@ -164,7 +166,7 @@ export class SimpleEditorService implements IEditorService {
 		return this.editor;
 	}
 
-	private findModel(editor: editorCommon.ICommonCodeEditor, data: IResourceInput): editorCommon.IModel {
+	private findModel(editor: ICodeEditor, data: IResourceInput): ITextModel {
 		let model = editor.getModel();
 		if (model.uri.toString() !== data.resource.toString()) {
 			return null;
@@ -184,7 +186,7 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 	}
 
 	public createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
-		let model: editorCommon.IModel;
+		let model: ITextModel;
 
 		model = this.editor.withTypedEditor(
 			(editor) => this.findModel(editor, resource),
@@ -204,7 +206,7 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 		};
 	}
 
-	private findModel(editor: editorCommon.ICommonCodeEditor, resource: URI): editorCommon.IModel {
+	private findModel(editor: ICodeEditor, resource: URI): ITextModel {
 		let model = editor.getModel();
 		if (model.uri.toString() !== resource.toString()) {
 			return null;
@@ -234,39 +236,69 @@ export class SimpleProgressService implements IProgressService {
 	}
 }
 
-export class SimpleMessageService implements IMessageService {
+export class SimpleDialogService implements IDialogService {
+
 	public _serviceBrand: any;
 
-	private static Empty = function () { /* nothing */ };
-
-	public show(sev: Severity, message: any): () => void {
-
-		switch (sev) {
-			case Severity.Error:
-				console.error(message);
-				break;
-			case Severity.Warning:
-				console.warn(message);
-				break;
-			default:
-				console.log(message);
-				break;
-		}
-
-		return SimpleMessageService.Empty;
+	public confirm(confirmation: IConfirmation): TPromise<IConfirmationResult> {
+		return this.doConfirm(confirmation).then(confirmed => {
+			return {
+				confirmed,
+				checkboxChecked: false // unsupported
+			} as IConfirmationResult;
+		});
 	}
 
-	public hideAll(): void {
-		// No-op
-	}
-
-	public confirm(confirmation: IConfirmation): boolean {
+	private doConfirm(confirmation: IConfirmation): TPromise<boolean> {
 		let messageText = confirmation.message;
 		if (confirmation.detail) {
 			messageText = messageText + '\n\n' + confirmation.detail;
 		}
 
-		return window.confirm(messageText);
+		return TPromise.wrap(window.confirm(messageText));
+	}
+
+	public show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): TPromise<number> {
+		return TPromise.as(0);
+	}
+}
+
+export class SimpleNotificationService implements INotificationService {
+
+	public _serviceBrand: any;
+
+	private static readonly NO_OP: INotificationHandle = new NoOpNotification();
+
+	public info(message: string): INotificationHandle {
+		return this.notify({ severity: Severity.Info, message });
+	}
+
+	public warn(message: string): INotificationHandle {
+		return this.notify({ severity: Severity.Warning, message });
+	}
+
+	public error(error: string | Error): INotificationHandle {
+		return this.notify({ severity: Severity.Error, message: error });
+	}
+
+	public notify(notification: INotification): INotificationHandle {
+		switch (notification.severity) {
+			case Severity.Error:
+				console.error(notification.message);
+				break;
+			case Severity.Warning:
+				console.warn(notification.message);
+				break;
+			default:
+				console.log(notification.message);
+				break;
+		}
+
+		return SimpleNotificationService.NO_OP;
+	}
+
+	public prompt(severity: Severity, message: string, choices: IPromptChoice[], onCancel?: () => void): INotificationHandle {
+		return SimpleNotificationService.NO_OP;
 	}
 }
 
@@ -276,7 +308,7 @@ export class StandaloneCommandService implements ICommandService {
 	private readonly _instantiationService: IInstantiationService;
 	private _dynamicCommands: { [id: string]: ICommand; };
 
-	private _onWillExecuteCommand: Emitter<ICommandEvent> = new Emitter<ICommandEvent>();
+	private readonly _onWillExecuteCommand: Emitter<ICommandEvent> = new Emitter<ICommandEvent>();
 	public readonly onWillExecuteCommand: Event<ICommandEvent> = this._onWillExecuteCommand.event;
 
 	constructor(instantiationService: IInstantiationService) {
@@ -284,7 +316,8 @@ export class StandaloneCommandService implements ICommandService {
 		this._dynamicCommands = Object.create(null);
 	}
 
-	public addCommand(id: string, command: ICommand): IDisposable {
+	public addCommand(command: ICommand): IDisposable {
+		const { id } = command;
 		this._dynamicCommands[id] = command;
 		return {
 			dispose: () => {
@@ -316,10 +349,11 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	constructor(
 		contextKeyService: IContextKeyService,
 		commandService: ICommandService,
-		messageService: IMessageService,
+		telemetryService: ITelemetryService,
+		notificationService: INotificationService,
 		domNode: HTMLElement
 	) {
-		super(contextKeyService, commandService, messageService);
+		super(contextKeyService, commandService, telemetryService, notificationService);
 
 		this._cachedResolver = null;
 		this._dynamicKeybindings = [];
@@ -359,7 +393,8 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 		let commandService = this._commandService;
 		if (commandService instanceof StandaloneCommandService) {
-			toDispose.push(commandService.addCommand(commandId, {
+			toDispose.push(commandService.addCommand({
+				id: commandId,
 				handler: handler
 			}));
 		} else {
@@ -425,45 +460,64 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	}
 }
 
+function isConfigurationOverrides(thing: any): thing is IConfigurationOverrides {
+	return thing
+		&& typeof thing === 'object'
+		&& (!thing.overrideIdentifier || typeof thing.overrideIdentifier === 'string')
+		&& (!thing.resource || thing.resource instanceof URI);
+}
+
 export class SimpleConfigurationService implements IConfigurationService {
 
 	_serviceBrand: any;
 
-	private _onDidUpdateConfiguration = new Emitter<IConfigurationServiceEvent>();
-	public onDidUpdateConfiguration: Event<IConfigurationServiceEvent> = this._onDidUpdateConfiguration.event;
+	private _onDidChangeConfiguration = new Emitter<IConfigurationChangeEvent>();
+	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
 
-	private _configuration: Configuration<any>;
+	private _configuration: Configuration;
 
 	constructor() {
 		this._configuration = new Configuration(new DefaultConfigurationModel(), new ConfigurationModel());
 	}
 
-	private configuration(): Configuration<any> {
+	private configuration(): Configuration {
 		return this._configuration;
 	}
 
-	public reloadConfiguration<T>(section?: string): TPromise<T> {
-		return TPromise.as<T>(this.getConfiguration<T>(section));
+	getValue<T>(): T;
+	getValue<T>(section: string): T;
+	getValue<T>(overrides: IConfigurationOverrides): T;
+	getValue<T>(section: string, overrides: IConfigurationOverrides): T;
+	getValue(arg1?: any, arg2?: any): any {
+		const section = typeof arg1 === 'string' ? arg1 : void 0;
+		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : {};
+		return this.configuration().getValue(section, overrides, null);
 	}
 
-	public getConfiguration<C>(section?: string, options?: IConfigurationOverrides): C {
-		return this.configuration().getValue<C>(section, options);
+	public updateValue(key: string, value: any, arg3?: any, arg4?: any): TPromise<void> {
+		return TPromise.as(null);
 	}
 
-	public lookup<C>(key: string, options?: IConfigurationOverrides): IConfigurationValue<C> {
-		return this.configuration().lookup<C>(key, options);
+	public inspect<C>(key: string, options: IConfigurationOverrides = {}): {
+		default: C,
+		user: C,
+		workspace: C,
+		workspaceFolder: C
+		value: C,
+	} {
+		return this.configuration().inspect<C>(key, options, null);
 	}
 
-	public keys(): IConfigurationKeys {
-		return this.configuration().keys();
+	public keys() {
+		return this.configuration().keys(null);
 	}
 
-	public values<V>(): IConfigurationValues {
-		return this._configuration.values();
+	public reloadConfiguration(): TPromise<void> {
+		return TPromise.as(null);
 	}
 
-	public getConfigurationData(): IConfigurationData<any> {
-		return this.configuration().toData();
+	public getConfigurationData() {
+		return null;
 	}
 }
 
@@ -471,19 +525,22 @@ export class SimpleResourceConfigurationService implements ITextResourceConfigur
 
 	_serviceBrand: any;
 
-	public readonly onDidUpdateConfiguration: Event<void>;
-	private readonly _onDidUpdateConfigurationEmitter = new Emitter();
+	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent>;
+	private readonly _onDidChangeConfigurationEmitter = new Emitter();
 
 	constructor(private configurationService: SimpleConfigurationService) {
-		this.configurationService.onDidUpdateConfiguration(() => {
-			this._onDidUpdateConfigurationEmitter.fire();
+		this.configurationService.onDidChangeConfiguration((e) => {
+			this._onDidChangeConfigurationEmitter.fire(e);
 		});
 	}
 
-	public getConfiguration<T>(): T {
-		return this.configurationService.getConfiguration<T>();
+	getValue<T>(resource: URI, section?: string): T;
+	getValue<T>(resource: URI, position?: IPosition, section?: string): T;
+	getValue<T>(resource: any, arg2?: any, arg3?: any) {
+		const position: IPosition = Pos.isIPosition(arg2) ? arg2 : null;
+		const section: string = position ? (typeof arg3 === 'string' ? arg3 : void 0) : (typeof arg2 === 'string' ? arg2 : void 0);
+		return this.configurationService.getValue<T>(section);
 	}
-
 }
 
 export class SimpleMenuService implements IMenuService {
@@ -507,7 +564,7 @@ export class StandaloneTelemetryService implements ITelemetryService {
 	public isOptedIn = false;
 
 	public publicLog(eventName: string, data?: any): TPromise<void> {
-		return TPromise.as<void>(null);
+		return TPromise.wrap<void>(null);
 	}
 
 	public getTelemetryInfo(): TPromise<ITelemetryInfo> {
@@ -524,46 +581,42 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 	private readonly _onDidChangeWorkspaceName: Emitter<void> = new Emitter<void>();
 	public readonly onDidChangeWorkspaceName: Event<void> = this._onDidChangeWorkspaceName.event;
 
-	private readonly _onDidChangeWorkspaceRoots: Emitter<void> = new Emitter<void>();
-	public readonly onDidChangeWorkspaceRoots: Event<void> = this._onDidChangeWorkspaceRoots.event;
+	private readonly _onDidChangeWorkspaceFolders: Emitter<IWorkspaceFoldersChangeEvent> = new Emitter<IWorkspaceFoldersChangeEvent>();
+	public readonly onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent> = this._onDidChangeWorkspaceFolders.event;
 
-	private readonly legacyWorkspace: ILegacyWorkspace;
+	private readonly _onDidChangeWorkbenchState: Emitter<WorkbenchState> = new Emitter<WorkbenchState>();
+	public readonly onDidChangeWorkbenchState: Event<WorkbenchState> = this._onDidChangeWorkbenchState.event;
+
 	private readonly workspace: IWorkspace;
 
 	constructor() {
-		this.legacyWorkspace = { resource: URI.from({ scheme: SimpleWorkspaceContextService.SCHEME, authority: 'model', path: '/' }) };
-		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', roots: [this.legacyWorkspace.resource], name: this.legacyWorkspace.resource.fsPath };
-	}
-
-	public getLegacyWorkspace(): ILegacyWorkspace {
-		return this.legacyWorkspace;
+		const resource = URI.from({ scheme: SimpleWorkspaceContextService.SCHEME, authority: 'model', path: '/' });
+		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', folders: [new WorkspaceFolder({ uri: resource, name: '', index: 0 })], name: resource.fsPath };
 	}
 
 	public getWorkspace(): IWorkspace {
 		return this.workspace;
 	}
 
-	public getRoot(resource: URI): URI {
-		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME ? this.workspace.roots[0] : void 0;
+	public getWorkbenchState(): WorkbenchState {
+		if (this.workspace) {
+			if (this.workspace.configuration) {
+				return WorkbenchState.WORKSPACE;
+			}
+			return WorkbenchState.FOLDER;
+		}
+		return WorkbenchState.EMPTY;
 	}
 
-	public hasWorkspace(): boolean {
-		return true;
-	}
-
-	public hasFolderWorkspace(): boolean {
-		return true;
-	}
-
-	public hasMultiFolderWorkspace(): boolean {
-		return false;
+	public getWorkspaceFolder(resource: URI): IWorkspaceFolder {
+		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME ? this.workspace.folders[0] : void 0;
 	}
 
 	public isInsideWorkspace(resource: URI): boolean {
 		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME;
 	}
 
-	public toResource(workspaceRelativePath: string): URI {
-		return URI.file(workspaceRelativePath);
+	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
+		return true;
 	}
 }

@@ -114,14 +114,6 @@ export class DragMouseEvent extends StandardMouseEvent {
 
 }
 
-export class DropMouseEvent extends DragMouseEvent {
-
-	constructor(e: MouseEvent) {
-		super(e);
-	}
-
-}
-
 interface IWebKitMouseWheelEvent {
 	wheelDeltaY: number;
 	wheelDeltaX: number;

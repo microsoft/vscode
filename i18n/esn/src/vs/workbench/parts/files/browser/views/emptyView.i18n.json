@@ -6,6 +6,8 @@
 {
 	"noWorkspace": "No hay ninguna carpeta abierta",
 	"explorerSection": "Sección del Explorador de archivos",
-	"noWorkspaceHelp": "Todavía no ha abierto ninguna carpeta.",
+	"noWorkspaceHelp": "Todavía no ha agregado una carpeta al espacio de trabajo.",
+	"addFolder": "Agregar Carpeta",
+	"noFolderHelp": "Todavía no ha abierto ninguna carpeta.",
 	"openFolder": "Abrir carpeta"
 }

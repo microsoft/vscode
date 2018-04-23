@@ -4,17 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IMode, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 
-export var IModeService = createDecorator<IModeService>('modeService');
-
-export interface IModeLookupResult {
-	modeId: string;
-	isInstantiated: boolean;
-}
+export const IModeService = createDecorator<IModeService>('modeService');
 
 export interface ILanguageExtensionPoint {
 	id: string;
@@ -58,7 +53,6 @@ export interface IModeService {
 	getConfigurationFiles(modeId: string): string[];
 
 	// --- instantiation
-	lookup(commaSeparatedMimetypesOrCommaSeparatedIds: string): IModeLookupResult[];
 	getMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): IMode;
 	getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): TPromise<IMode>;
 	getOrCreateModeByLanguageName(languageName: string): TPromise<IMode>;

@@ -3,10 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// disable electron's asar support early on because bootstrap.js is used in forked processes
-// where the environment is purely node based. this will instruct electron to not treat files
-// with *.asar ending any special from normal files.
-process.noAsar = true;
+//#region Add support for using node_modules.asar
+(function () {
+	const path = require('path');
+	const Module = require('module');
+	const NODE_MODULES_PATH = path.join(__dirname, '../node_modules');
+	const NODE_MODULES_ASAR_PATH = NODE_MODULES_PATH + '.asar';
+
+	const originalResolveLookupPaths = Module._resolveLookupPaths;
+	Module._resolveLookupPaths = function (request, parent, newReturn) {
+		const result = originalResolveLookupPaths(request, parent, newReturn);
+
+		const paths = newReturn ? result : result[1];
+		for (let i = 0, len = paths.length; i < len; i++) {
+			if (paths[i] === NODE_MODULES_PATH) {
+				paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
+				break;
+			}
+		}
+
+		return result;
+	};
+})();
+//#endregion
 
 // Will be defined if we got forked from another node process
 // In that case we override console.log/warn/error to be able
@@ -14,10 +33,11 @@ process.noAsar = true;
 if (!!process.send && process.env.PIPE_LOGGING === 'true') {
 	var MAX_LENGTH = 100000;
 
-	// Prevent circular stringify
-	function safeStringify(args) {
+	// Prevent circular stringify and convert arguments to real array
+	function safeToArray(args) {
 		var seen = [];
 		var res;
+		var argsArray = [];
 
 		// Massage some arguments with special treatment
 		if (args.length) {
@@ -40,11 +60,20 @@ if (!!process.send && process.env.PIPE_LOGGING === 'true') {
 						args[i] = errorObj.toString();
 					}
 				}
+
+				argsArray.push(args[i]);
 			}
 		}
 
+		// Add the stack trace as payload if we are told so. We remove the message and the 2 top frames
+		// to start the stacktrace where the console message was being written
+		if (process.env.VSCODE_LOG_STACK === 'true') {
+			const stack = new Error().stack;
+			argsArray.push({ __$stack: stack.split('\n').slice(3).join('\n') });
+		}
+
 		try {
-			res = JSON.stringify(args, function (key, value) {
+			res = JSON.stringify(argsArray, function (key, value) {
 
 				// Objects get special treatment to prevent circles
 				if (value && Object.prototype.toString.call(value) === '[object Object]') {
@@ -78,16 +107,16 @@ if (!!process.send && process.env.PIPE_LOGGING === 'true') {
 
 	// Pass console logging to the outside so that we have it in the main side if told so
 	if (process.env.VERBOSE_LOGGING === 'true') {
-		console.log = function () { safeSend({ type: '__$console', severity: 'log', arguments: safeStringify(arguments) }); };
-		console.info = function () { safeSend({ type: '__$console', severity: 'log', arguments: safeStringify(arguments) }); };
-		console.warn = function () { safeSend({ type: '__$console', severity: 'warn', arguments: safeStringify(arguments) }); };
+		console.log = function () { safeSend({ type: '__$console', severity: 'log', arguments: safeToArray(arguments) }); };
+		console.info = function () { safeSend({ type: '__$console', severity: 'log', arguments: safeToArray(arguments) }); };
+		console.warn = function () { safeSend({ type: '__$console', severity: 'warn', arguments: safeToArray(arguments) }); };
 	} else {
 		console.log = function () { /* ignore */ };
 		console.warn = function () { /* ignore */ };
 		console.info = function () { /* ignore */ };
 	}
 
-	console.error = function () { safeSend({ type: '__$console', severity: 'error', arguments: safeStringify(arguments) }); };
+	console.error = function () { safeSend({ type: '__$console', severity: 'error', arguments: safeToArray(arguments) }); };
 }
 
 if (!process.env['VSCODE_ALLOW_IO']) {

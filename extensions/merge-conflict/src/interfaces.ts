@@ -24,8 +24,8 @@ export interface IExtensionConfiguration {
 }
 
 export interface IDocumentMergeConflict extends IDocumentMergeConflictDescriptor {
-	commitEdit(type: CommitType, editor: vscode.TextEditor, edit?: vscode.TextEditorEdit);
-	applyEdit(type: CommitType, editor: vscode.TextEditor, edit: vscode.TextEditorEdit);
+	commitEdit(type: CommitType, editor: vscode.TextEditor, edit?: vscode.TextEditorEdit): Thenable<boolean>;
+	applyEdit(type: CommitType, editor: vscode.TextEditor, edit: vscode.TextEditorEdit): void;
 }
 
 export interface IDocumentMergeConflictDescriptor {
@@ -39,10 +39,10 @@ export interface IDocumentMergeConflictDescriptor {
 export interface IDocumentMergeConflictTracker {
 	getConflicts(document: vscode.TextDocument): PromiseLike<IDocumentMergeConflict[]>;
 	isPending(document: vscode.TextDocument): boolean;
-	forget(document: vscode.TextDocument);
+	forget(document: vscode.TextDocument): void;
 }
 
 export interface IDocumentMergeConflictTrackerService {
 	createTracker(origin: string): IDocumentMergeConflictTracker;
-	forget(document: vscode.TextDocument);
+	forget(document: vscode.TextDocument): void;
 }

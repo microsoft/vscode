@@ -61,6 +61,12 @@ export interface LanguageConfiguration {
 	 * settings will be used.
 	 */
 	surroundingPairs?: IAutoClosingPair[];
+
+	/**
+	 * The language's folding rules.
+	 */
+	folding?: FoldingRules;
+
 	/**
 	 * **Deprecated** Do not use.
 	 *
@@ -89,6 +95,36 @@ export interface IndentationRule {
 	 * If a line matches this pattern, then its indentation should not be changed and it should not be evaluated against the other rules.
 	 */
 	unIndentedLinePattern?: RegExp;
+
+}
+
+/**
+ * Describes language specific folding markers such as '#region' and '#endregion'.
+ * The start and end regexes will be tested against the contents of all lines and must be designed efficiently:
+ * - the regex should start with '^'
+ * - regexp flags (i, g) are ignored
+ */
+export interface FoldingMarkers {
+	start: RegExp;
+	end: RegExp;
+}
+
+/**
+ * Describes folding rules for a language.
+ */
+export interface FoldingRules {
+	/**
+	 * Used by the indentation based strategy to decide wheter empty lines belong to the previous or the next block.
+	 * A language adheres to the off-side rule if blocks in that language are expressed by their indentation.
+	 * See [wikipedia](https://en.wikipedia.org/wiki/Off-side_rule) for more information.
+	 * If not set, `false` is used and empty lines belong to the previous block.
+	 */
+	offSide?: boolean;
+
+	/**
+	 * Region markers used by the language.
+	 */
+	markers?: FoldingMarkers;
 }
 
 /**

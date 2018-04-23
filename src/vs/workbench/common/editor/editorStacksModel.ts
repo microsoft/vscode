@@ -5,12 +5,12 @@
 
 'use strict';
 
-import Event, { Emitter, once } from 'vs/base/common/event';
-import { IEditorRegistry, Extensions, EditorInput, toResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOpenPositioning, SideBySideEditorInput } from 'vs/workbench/common/editor';
+import { Event, Emitter, once } from 'vs/base/common/event';
+import { Extensions, IEditorInputFactoryRegistry, EditorInput, toResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, IStacksModelChangeEvent, EditorOpenPositioning, SideBySideEditorInput, OPEN_POSITIONING_CONFIG } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -61,17 +61,17 @@ export class EditorGroup implements IEditorGroup {
 	private toDispose: IDisposable[];
 	private editorOpenPositioning: 'left' | 'right' | 'first' | 'last';
 
-	private _onEditorActivated: Emitter<EditorInput>;
-	private _onEditorOpened: Emitter<EditorInput>;
-	private _onEditorClosed: Emitter<EditorCloseEvent>;
-	private _onEditorDisposed: Emitter<EditorInput>;
-	private _onEditorDirty: Emitter<EditorInput>;
-	private _onEditorLabelChange: Emitter<EditorInput>;
-	private _onEditorMoved: Emitter<EditorInput>;
-	private _onEditorPinned: Emitter<EditorInput>;
-	private _onEditorUnpinned: Emitter<EditorInput>;
-	private _onEditorStateChanged: Emitter<EditorInput>;
-	private _onEditorsStructureChanged: Emitter<EditorInput>;
+	private readonly _onEditorActivated: Emitter<EditorInput>;
+	private readonly _onEditorOpened: Emitter<EditorInput>;
+	private readonly _onEditorClosed: Emitter<EditorCloseEvent>;
+	private readonly _onEditorDisposed: Emitter<EditorInput>;
+	private readonly _onEditorDirty: Emitter<EditorInput>;
+	private readonly _onEditorLabelChange: Emitter<EditorInput>;
+	private readonly _onEditorMoved: Emitter<EditorInput>;
+	private readonly _onEditorPinned: Emitter<EditorInput>;
+	private readonly _onEditorUnpinned: Emitter<EditorInput>;
+	private readonly _onEditorStateChanged: Emitter<EditorInput>;
+	private readonly _onEditorsStructureChanged: Emitter<EditorInput>;
 
 	constructor(
 		arg1: string | ISerializedEditorGroup,
@@ -84,7 +84,7 @@ export class EditorGroup implements IEditorGroup {
 		this.mru = [];
 		this.toDispose = [];
 		this.mapResourceToEditorCount = new ResourceMap<number>();
-		this.onConfigurationUpdated(configurationService.getConfiguration<IWorkbenchEditorConfiguration>());
+		this.onConfigurationUpdated();
 
 		this._onEditorActivated = new Emitter<EditorInput>();
 		this._onEditorOpened = new Emitter<EditorInput>();
@@ -110,13 +110,11 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>())));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 	}
 
-	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration): void {
-		if (config && config.workbench && config.workbench.editor) {
-			this.editorOpenPositioning = config.workbench.editor.openPositioning;
-		}
+	private onConfigurationUpdated(event?: IConfigurationChangeEvent): void {
+		this.editorOpenPositioning = this.configurationService.getValue(OPEN_POSITIONING_CONFIG);
 	}
 
 	public get id(): GroupIdentifier {
@@ -344,8 +342,8 @@ export class EditorGroup implements IEditorGroup {
 		}));
 	}
 
-	public replaceEditor(toReplace: EditorInput, replaceWidth: EditorInput, replaceIndex: number, openNext = true): void {
-		const event = this.doCloseEditor(toReplace, openNext); // optimization to prevent multiple setActive() in one call
+	private replaceEditor(toReplace: EditorInput, replaceWidth: EditorInput, replaceIndex: number, openNext = true): void {
+		const event = this.doCloseEditor(toReplace, openNext, true); // optimization to prevent multiple setActive() in one call
 
 		// We want to first add the new editor into our model before emitting the close event because
 		// firing the close event can trigger a dispose on the same editor that is now being added.
@@ -358,14 +356,14 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	public closeEditor(editor: EditorInput, openNext = true): void {
-		const event = this.doCloseEditor(editor, openNext);
+		const event = this.doCloseEditor(editor, openNext, false);
 
 		if (event) {
 			this.fireEvent(this._onEditorClosed, event, true);
 		}
 	}
 
-	private doCloseEditor(editor: EditorInput, openNext = true): EditorCloseEvent {
+	private doCloseEditor(editor: EditorInput, openNext: boolean, replaced: boolean): EditorCloseEvent {
 		const index = this.indexOf(editor);
 		if (index === -1) {
 			return null; // not found
@@ -386,17 +384,15 @@ export class EditorGroup implements IEditorGroup {
 		}
 
 		// Preview Editor closed
-		let pinned = true;
 		if (this.matches(this.preview, editor)) {
 			this.preview = null;
-			pinned = false;
 		}
 
 		// Remove from arrays
 		this.splice(index, true);
 
 		// Event
-		return { editor, pinned, index, group: this };
+		return { editor, replaced, index, group: this };
 	}
 
 	public closeEditors(except: EditorInput, direction?: Direction): void {
@@ -637,7 +633,7 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	public serialize(): ISerializedEditorGroup {
-		const registry = Registry.as<IEditorRegistry>(Extensions.Editors);
+		const registry = Registry.as<IEditorInputFactoryRegistry>(Extensions.EditorInputFactories);
 
 		// Serialize all editor inputs so that we can store them.
 		// Editors that cannot be serialized need to be ignored
@@ -671,7 +667,7 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	private deserialize(data: ISerializedEditorGroup): void {
-		const registry = Registry.as<IEditorRegistry>(Extensions.Editors);
+		const registry = Registry.as<IEditorInputFactoryRegistry>(Extensions.EditorInputFactories);
 
 		this._label = data.label;
 		this.editors = data.editors.map(e => {
@@ -704,7 +700,7 @@ interface ISerializedEditorStacksModel {
 
 export class EditorStacksModel implements IEditorStacksModel {
 
-	private static STORAGE_KEY = 'editorStacks.model';
+	private static readonly STORAGE_KEY = 'editorStacks.model';
 
 	private toDispose: IDisposable[];
 	private loaded: boolean;
@@ -713,22 +709,22 @@ export class EditorStacksModel implements IEditorStacksModel {
 	private _activeGroup: EditorGroup;
 	private groupToIdentifier: { [id: number]: EditorGroup };
 
-	private _onGroupOpened: Emitter<EditorGroup>;
-	private _onGroupClosed: Emitter<EditorGroup>;
-	private _onGroupMoved: Emitter<EditorGroup>;
-	private _onGroupActivated: Emitter<EditorGroup>;
-	private _onGroupDeactivated: Emitter<EditorGroup>;
-	private _onGroupRenamed: Emitter<EditorGroup>;
+	private readonly _onGroupOpened: Emitter<EditorGroup>;
+	private readonly _onGroupClosed: Emitter<EditorGroup>;
+	private readonly _onGroupMoved: Emitter<EditorGroup>;
+	private readonly _onGroupActivated: Emitter<EditorGroup>;
+	private readonly _onGroupDeactivated: Emitter<EditorGroup>;
+	private readonly _onGroupRenamed: Emitter<EditorGroup>;
 
-	private _onEditorDisposed: Emitter<EditorIdentifier>;
-	private _onEditorDirty: Emitter<EditorIdentifier>;
-	private _onEditorLabelChange: Emitter<EditorIdentifier>;
-	private _onEditorOpened: Emitter<EditorIdentifier>;
+	private readonly _onEditorDisposed: Emitter<EditorIdentifier>;
+	private readonly _onEditorDirty: Emitter<EditorIdentifier>;
+	private readonly _onEditorLabelChange: Emitter<EditorIdentifier>;
+	private readonly _onEditorOpened: Emitter<EditorIdentifier>;
 
-	private _onWillCloseEditor: Emitter<EditorCloseEvent>;
-	private _onEditorClosed: Emitter<EditorCloseEvent>;
+	private readonly _onWillCloseEditor: Emitter<EditorCloseEvent>;
+	private readonly _onEditorClosed: Emitter<EditorCloseEvent>;
 
-	private _onModelChanged: Emitter<IStacksModelChangeEvent>;
+	private readonly _onModelChanged: Emitter<IStacksModelChangeEvent>;
 
 	constructor(
 		private restoreFromStorage: boolean,
@@ -1081,6 +1077,16 @@ export class EditorStacksModel implements IEditorStacksModel {
 		return { group: lastGroup, editor: lastGroup.getEditor(lastGroup.count - 1) };
 	}
 
+	public last(): IEditorIdentifier {
+		this.ensureLoaded();
+
+		if (!this.activeGroup) {
+			return null;
+		}
+
+		return { group: this.activeGroup, editor: this.activeGroup.getEditor(this.activeGroup.count - 1) };
+	}
+
 	private save(): void {
 		const serialized = this.serialize();
 
@@ -1215,7 +1221,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 		// Close the editor when it is no longer open in any group including diff editors
 		editorsToClose.forEach(editorToClose => {
-			const resource = toResource(editorToClose); // prefer resource to not close right-hand side editors of a diff editor
+			const resource = editorToClose ? editorToClose.getResource() : void 0; // prefer resource to not close right-hand side editors of a diff editor
 			if (!this.isOpen(resource || editorToClose)) {
 				editorToClose.close();
 			}

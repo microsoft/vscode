@@ -17,8 +17,8 @@ import { Scrollable, ScrollEvent, ScrollbarVisibility, INewScrollDimensions, ISc
 import { Widget } from 'vs/base/browser/ui/widget';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ScrollbarHost, ISimplifiedMouseEvent } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
-import Event, { Emitter } from 'vs/base/common/event';
+import { ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
+import { Event, Emitter } from 'vs/base/common/event';
 
 const HIDE_TIMEOUT = 500;
 const SCROLL_WHEEL_SENSITIVITY = 50;
@@ -45,7 +45,7 @@ class MouseWheelClassifierItem {
 
 export class MouseWheelClassifier {
 
-	public static INSTANCE = new MouseWheelClassifier();
+	public static readonly INSTANCE = new MouseWheelClassifier();
 
 	private readonly _capacity: number;
 	private _memory: MouseWheelClassifierItem[];
@@ -164,7 +164,7 @@ export abstract class AbstractScrollableElement extends Widget {
 	private _shouldRender: boolean;
 
 	private readonly _onScroll = this._register(new Emitter<ScrollEvent>());
-	public onScroll: Event<ScrollEvent> = this._onScroll.event;
+	public readonly onScroll: Event<ScrollEvent> = this._onScroll.event;
 
 	protected constructor(element: HTMLElement, options: ScrollableElementCreationOptions, scrollable?: Scrollable) {
 		super();
@@ -250,14 +250,6 @@ export abstract class AbstractScrollableElement extends Widget {
 		this._verticalScrollbar.delegateMouseDown(browserEvent);
 	}
 
-	/**
-	 * Delegate a mouse down event to the vertical scrollbar (directly to the slider!).
-	 * This is to help with clicking somewhere else and having the scrollbar react.
-	 */
-	public delegateSliderMouseDown(e: ISimplifiedMouseEvent, onDragFinished: () => void): void {
-		this._verticalScrollbar.delegateSliderMouseDown(e, onDragFinished);
-	}
-
 	public getScrollDimensions(): IScrollDimensions {
 		return this._scrollable.getScrollDimensions();
 	}
@@ -338,20 +330,10 @@ export abstract class AbstractScrollableElement extends Widget {
 
 			// Convert vertical scrolling to horizontal if shift is held, this
 			// is handled at a higher level on Mac
-			const shiftConvert = !Platform.isMacintosh && e.browserEvent.shiftKey;
+			const shiftConvert = !Platform.isMacintosh && e.browserEvent && e.browserEvent.shiftKey;
 			if ((this._options.scrollYToX || shiftConvert) && !deltaX) {
 				deltaX = deltaY;
 				deltaY = 0;
-			}
-
-			if (Platform.isMacintosh) {
-				// Give preference to vertical scrolling
-				if (deltaY && Math.abs(deltaX) < 0.2) {
-					deltaX = 0;
-				}
-				if (Math.abs(deltaY) > Math.abs(deltaX) * 0.5) {
-					deltaX = 0;
-				}
 			}
 
 			const futureScrollPosition = this._scrollable.getFutureScrollPosition();

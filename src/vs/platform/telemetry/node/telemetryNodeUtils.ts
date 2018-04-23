@@ -11,7 +11,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export function addGAParameters(telemetryService: ITelemetryService, environmentService: IEnvironmentService, uri: URI, origin: string, experiment = '1'): TPromise<URI> {
-	if (environmentService.isBuilt && !environmentService.isExtensionDevelopment && !!product.enableTelemetry) {
+	if (environmentService.isBuilt && !environmentService.isExtensionDevelopment && !environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
 		if (uri.scheme === 'https' && uri.authority === 'code.visualstudio.com') {
 			return telemetryService.getTelemetryInfo()
 				.then(info => {

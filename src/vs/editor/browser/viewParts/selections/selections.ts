@@ -66,18 +66,19 @@ const isIEWithZoomingIssuesNearRoundedBorders = browser.isEdgeOrIE;
 
 export class SelectionsOverlay extends DynamicViewOverlay {
 
-	private static SELECTION_CLASS_NAME = 'selected-text';
-	private static SELECTION_TOP_LEFT = 'top-left-radius';
-	private static SELECTION_BOTTOM_LEFT = 'bottom-left-radius';
-	private static SELECTION_TOP_RIGHT = 'top-right-radius';
-	private static SELECTION_BOTTOM_RIGHT = 'bottom-right-radius';
-	private static EDITOR_BACKGROUND_CLASS_NAME = 'monaco-editor-background';
+	private static readonly SELECTION_CLASS_NAME = 'selected-text';
+	private static readonly SELECTION_TOP_LEFT = 'top-left-radius';
+	private static readonly SELECTION_BOTTOM_LEFT = 'bottom-left-radius';
+	private static readonly SELECTION_TOP_RIGHT = 'top-right-radius';
+	private static readonly SELECTION_BOTTOM_RIGHT = 'bottom-right-radius';
+	private static readonly EDITOR_BACKGROUND_CLASS_NAME = 'monaco-editor-background';
 
-	private static ROUNDED_PIECE_WIDTH = 10;
+	private static readonly ROUNDED_PIECE_WIDTH = 10;
 
 	private _context: ViewContext;
 	private _lineHeight: number;
 	private _roundedSelection: boolean;
+	private _typicalHalfwidthCharacterWidth: number;
 	private _selections: Range[];
 	private _renderResult: string[];
 
@@ -86,6 +87,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		this._context = context;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._roundedSelection = this._context.configuration.editor.viewInfo.roundedSelection;
+		this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
 		this._selections = [];
 		this._renderResult = null;
 		this._context.addEventHandler(this);
@@ -107,6 +109,9 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		}
 		if (e.viewInfo) {
 			this._roundedSelection = this._context.configuration.editor.viewInfo.roundedSelection;
+		}
+		if (e.fontInfo) {
+			this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
 		}
 		return true;
 	}
@@ -153,23 +158,28 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		return false;
 	}
 
-	private _enrichVisibleRangesWithStyle(linesVisibleRanges: LineVisibleRangesWithStyle[], previousFrame: LineVisibleRangesWithStyle[]): void {
+	private _enrichVisibleRangesWithStyle(viewport: Range, linesVisibleRanges: LineVisibleRangesWithStyle[], previousFrame: LineVisibleRangesWithStyle[]): void {
+		const epsilon = this._typicalHalfwidthCharacterWidth / 4;
 		let previousFrameTop: HorizontalRangeWithStyle = null;
 		let previousFrameBottom: HorizontalRangeWithStyle = null;
 
 		if (previousFrame && previousFrame.length > 0 && linesVisibleRanges.length > 0) {
 
 			let topLineNumber = linesVisibleRanges[0].lineNumber;
-			for (let i = 0; !previousFrameTop && i < previousFrame.length; i++) {
-				if (previousFrame[i].lineNumber === topLineNumber) {
-					previousFrameTop = previousFrame[i].ranges[0];
+			if (topLineNumber === viewport.startLineNumber) {
+				for (let i = 0; !previousFrameTop && i < previousFrame.length; i++) {
+					if (previousFrame[i].lineNumber === topLineNumber) {
+						previousFrameTop = previousFrame[i].ranges[0];
+					}
 				}
 			}
 
 			let bottomLineNumber = linesVisibleRanges[linesVisibleRanges.length - 1].lineNumber;
-			for (let i = previousFrame.length - 1; !previousFrameBottom && i >= 0; i--) {
-				if (previousFrame[i].lineNumber === bottomLineNumber) {
-					previousFrameBottom = previousFrame[i].ranges[0];
+			if (bottomLineNumber === viewport.endLineNumber) {
+				for (let i = previousFrame.length - 1; !previousFrameBottom && i >= 0; i--) {
+					if (previousFrame[i].lineNumber === bottomLineNumber) {
+						previousFrameBottom = previousFrame[i].ranges[0];
+					}
 				}
 			}
 
@@ -202,13 +212,13 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 				let prevLeft = linesVisibleRanges[i - 1].ranges[0].left;
 				let prevRight = linesVisibleRanges[i - 1].ranges[0].left + linesVisibleRanges[i - 1].ranges[0].width;
 
-				if (curLeft === prevLeft) {
+				if (abs(curLeft - prevLeft) < epsilon) {
 					startStyle.top = CornerStyle.FLAT;
 				} else if (curLeft > prevLeft) {
 					startStyle.top = CornerStyle.INTERN;
 				}
 
-				if (curRight === prevRight) {
+				if (abs(curRight - prevRight) < epsilon) {
 					endStyle.top = CornerStyle.FLAT;
 				} else if (prevLeft < curRight && curRight < prevRight) {
 					endStyle.top = CornerStyle.INTERN;
@@ -224,13 +234,13 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 				let nextLeft = linesVisibleRanges[i + 1].ranges[0].left;
 				let nextRight = linesVisibleRanges[i + 1].ranges[0].left + linesVisibleRanges[i + 1].ranges[0].width;
 
-				if (curLeft === nextLeft) {
+				if (abs(curLeft - nextLeft) < epsilon) {
 					startStyle.bottom = CornerStyle.FLAT;
 				} else if (nextLeft < curLeft && curLeft < nextRight) {
 					startStyle.bottom = CornerStyle.INTERN;
 				}
 
-				if (curRight === nextRight) {
+				if (abs(curRight - nextRight) < epsilon) {
 					endStyle.bottom = CornerStyle.FLAT;
 				} else if (curRight < nextRight) {
 					endStyle.bottom = CornerStyle.INTERN;
@@ -252,7 +262,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		let visibleRangesHaveGaps = this._visibleRangesHaveGaps(linesVisibleRanges);
 
 		if (!isIEWithZoomingIssuesNearRoundedBorders && !visibleRangesHaveGaps && this._roundedSelection) {
-			this._enrichVisibleRangesWithStyle(linesVisibleRanges, previousFrame);
+			this._enrichVisibleRangesWithStyle(ctx.visibleRange, linesVisibleRanges, previousFrame);
 		}
 
 		// The visible ranges are sorted TOP-BOTTOM and LEFT-RIGHT
@@ -387,7 +397,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		}
 		let lineIndex = lineNumber - startLineNumber;
 		if (lineIndex < 0 || lineIndex >= this._renderResult.length) {
-			throw new Error('Unexpected render request');
+			return '';
 		}
 		return this._renderResult[lineIndex];
 	}
@@ -407,3 +417,7 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor .view-line span.inline-selected-text { color: ${editorSelectionForegroundColor}; }`);
 	}
 });
+
+function abs(n: number): number {
+	return n < 0 ? -n : n;
+}

@@ -55,7 +55,6 @@ function assertDiff(originalLines: string[], modifiedLines: string[], expectedCh
 	var diffComputer = new DiffComputer(originalLines, modifiedLines, {
 		shouldPostProcessCharChanges: shouldPostProcessCharChanges || false,
 		shouldIgnoreTrimWhitespace: shouldIgnoreTrimWhitespace || false,
-		shouldConsiderTrimWhitespaceInEmptyCase: true,
 		shouldMakePrettyDiff: true
 	});
 	var changes = diffComputer.computeDiff();
@@ -671,6 +670,25 @@ suite('Editor Diff - DiffComputer', () => {
 				]
 			)
 			// createLineInsertion(7, 11, 6)
+		];
+		assertDiff(original, modified, expected, true, false);
+	});
+
+	test('issue #43922', () => {
+		let original = [
+			' * `yarn [install]` -- Install project NPM dependencies. This is automatically done when you first create the project. You should only need to run this if you add dependencies in `package.json`.',
+		];
+		let modified = [
+			'  * `yarn` -- Install project NPM dependencies. You should only need to run this if you add dependencies in `package.json`.',
+		];
+		var expected = [
+			createLineChange(
+				1, 1, 1, 1,
+				[
+					createCharChange(1, 9, 1, 19, 0, 0, 0, 0),
+					createCharChange(1, 58, 1, 120, 0, 0, 0, 0),
+				]
+			)
 		];
 		assertDiff(original, modified, expected, true, false);
 	});

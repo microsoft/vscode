@@ -10,6 +10,9 @@
 	"dropFolder": "要在工作區新增資料夾嗎?",
 	"addFolders": "新增資料夾(&A)",
 	"addFolder": "新增資料夾(&A)",
+	"confirmMove": "確定要移動 '{0}' 嗎?",
+	"doNotAskAgain": "不要再詢問我",
+	"moveButtonLabel": "移動(&&M)",
 	"confirmOverwriteMessage": "目的資料夾中已存在 '{0}'。要取代它嗎?",
 	"irreversible": "此動作無法回復!",
 	"replaceButtonLabel": "取代(&&R)"

@@ -5,6 +5,7 @@
 'use strict';
 
 import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
+import { Constants } from 'vs/editor/common/core/uint';
 
 class FloatHorizontalRange {
 	_floatHorizontalRangeBrand: void;
@@ -132,6 +133,18 @@ export class RangeUtil {
 
 		let startElement = domNode.children[startChildIndex].firstChild;
 		let endElement = domNode.children[endChildIndex].firstChild;
+
+		if (!startElement || !endElement) {
+			// When having an empty <span> (without any text content), try to move to the previous <span>
+			if (!startElement && startOffset === 0 && startChildIndex > 0) {
+				startElement = domNode.children[startChildIndex - 1].firstChild;
+				startOffset = Constants.MAX_SAFE_SMALL_INTEGER;
+			}
+			if (!endElement && endOffset === 0 && endChildIndex > 0) {
+				endElement = domNode.children[endChildIndex - 1].firstChild;
+				endOffset = Constants.MAX_SAFE_SMALL_INTEGER;
+			}
+		}
 
 		if (!startElement || !endElement) {
 			return null;

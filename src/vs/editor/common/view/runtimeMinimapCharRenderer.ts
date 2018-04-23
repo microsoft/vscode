@@ -27,7 +27,7 @@ export function getOrCreateMinimapCharRenderer(): MinimapCharRenderer {
 	return minimapCharRenderer;
 }
 
-var x2Data = [
+let x2Data = [
 
 	//
 	0, 0,
@@ -601,7 +601,7 @@ var x2Data = [
 
 ];
 
-var x1Data = [
+let x1Data = [
 
 	//
 	0,

@@ -5,26 +5,34 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { wireCancellationToken } from 'vs/base/common/async';
+import { wireCancellationToken, asWinJsPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { QuickPickOptions, QuickPickItem, InputBoxOptions } from 'vscode';
+import { QuickPickOptions, QuickPickItem, InputBoxOptions, WorkspaceFolderPickOptions, WorkspaceFolder } from 'vscode';
 import { MainContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPickItems, IMainContext } from './extHost.protocol';
+import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
+import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 
 export type Item = string | QuickPickItem;
 
 export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 	private _proxy: MainThreadQuickOpenShape;
-	private _onDidSelectItem: (handle: number) => void;
-	private _validateInput: (input: string) => string;
+	private _workspace: ExtHostWorkspace;
+	private _commands: ExtHostCommands;
 
-	constructor(mainContext: IMainContext) {
-		this._proxy = mainContext.get(MainContext.MainThreadQuickOpen);
+	private _onDidSelectItem: (handle: number) => void;
+	private _validateInput: (input: string) => string | Thenable<string>;
+
+	constructor(mainContext: IMainContext, workspace: ExtHostWorkspace, commands: ExtHostCommands) {
+		this._proxy = mainContext.getProxy(MainContext.MainThreadQuickOpen);
+		this._workspace = workspace;
+		this._commands = commands;
 	}
 
+	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Thenable<QuickPickItem[]>, options: QuickPickOptions & { canSelectMany: true; }, token?: CancellationToken): Thenable<QuickPickItem[] | undefined>;
 	showQuickPick(itemsOrItemsPromise: string[] | Thenable<string[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<string | undefined>;
 	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Thenable<QuickPickItem[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<QuickPickItem | undefined>;
-	showQuickPick(itemsOrItemsPromise: Item[] | Thenable<Item[]>, options?: QuickPickOptions, token: CancellationToken = CancellationToken.None): Thenable<Item | undefined> {
+	showQuickPick(itemsOrItemsPromise: Item[] | Thenable<Item[]>, options?: QuickPickOptions, token: CancellationToken = CancellationToken.None): Thenable<Item | Item[] | undefined> {
 
 		// clear state from last invocation
 		this._onDidSelectItem = undefined;
@@ -36,7 +44,8 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 			placeHolder: options && options.placeHolder,
 			matchOnDescription: options && options.matchOnDescription,
 			matchOnDetail: options && options.matchOnDetail,
-			ignoreFocusLost: options && options.ignoreFocusOut
+			ignoreFocusLost: options && options.ignoreFocusOut,
+			canSelectMany: options && options.canPickMany
 		});
 
 		const promise = TPromise.any(<TPromise<number | Item[]>[]>[quickPickWidget, itemsPromise]).then(values => {
@@ -53,6 +62,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 					let label: string;
 					let description: string;
 					let detail: string;
+					let picked: boolean;
 
 					if (typeof item === 'string') {
 						label = item;
@@ -60,12 +70,14 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 						label = item.label;
 						description = item.description;
 						detail = item.detail;
+						picked = item.picked;
 					}
 					pickItems.push({
 						label,
 						description,
 						handle,
-						detail
+						detail,
+						picked
 					});
 				}
 
@@ -82,6 +94,8 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 				return quickPickWidget.then(handle => {
 					if (typeof handle === 'number') {
 						return items[handle];
+					} else if (Array.isArray(handle)) {
+						return handle.map(h => items[h]);
 					}
 					return undefined;
 				});
@@ -91,7 +105,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 				return TPromise.wrapError(err);
 			});
 		});
-		return wireCancellationToken<Item>(token, promise, true);
+		return wireCancellationToken<Item | Item[]>(token, promise, true);
 	}
 
 	$onItemSelected(handle: number): void {
@@ -113,8 +127,20 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 	$validateInput(input: string): TPromise<string> {
 		if (this._validateInput) {
-			return TPromise.as(this._validateInput(input));
+			return asWinJsPromise(_ => this._validateInput(input));
 		}
 		return undefined;
+	}
+
+	// ---- workspace folder picker
+
+	showWorkspaceFolderPick(options?: WorkspaceFolderPickOptions, token = CancellationToken.None): Thenable<WorkspaceFolder> {
+		return this._commands.executeCommand('_workbench.pickWorkspaceFolder', [options]).then((selectedFolder: WorkspaceFolder) => {
+			if (!selectedFolder) {
+				return undefined;
+			}
+
+			return this._workspace.getWorkspaceFolders().filter(folder => folder.uri.toString() === selectedFolder.uri.toString())[0];
+		});
 	}
 }

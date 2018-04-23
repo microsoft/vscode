@@ -15,7 +15,7 @@
 	"label.replaceButton": "Substituir",
 	"label.replaceAllButton": "Substituir Tudo",
 	"label.toggleReplaceButton": "Ativar/desativar modo Substituir",
-	"title.matchesCountLimit": "Somente os primeiros 999 resultados são realçados, mas todas as operações de pesquisa funcionam em todo o texto.",
+	"title.matchesCountLimit": "Apenas os primeiros {0} resultados serão destacados, mas todas as operações de busca funcionam em todo o texto.",
 	"label.matchesLocation": "{0} de {1}",
 	"label.noResults": "Nenhum resultado"
 }

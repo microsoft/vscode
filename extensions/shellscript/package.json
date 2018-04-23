@@ -1,15 +1,17 @@
 {
 	"name": "shellscript",
-	"version": "0.1.0",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "1.0.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
 	"scripts": {
-		"update-grammar": "node ../../build/npm/update-grammar.js textmate/shellscript.tmbundle Syntaxes/Shell-Unix-Bash.tmLanguage ./syntaxes/Shell-Unix-Bash.tmLanguage.json"
+		"update-grammar": "node ../../build/npm/update-grammar.js atom/language-shellscript grammars/shell-unix-bash.cson ./syntaxes/shell-unix-bash.tmLanguage.json"
 	},
 	"contributes": {
 		"languages": [{
 			"id": "shellscript",
-			"aliases": ["Shell Script (Bash)", "shellscript", "bash", "sh", "zsh"],
+			"aliases": ["Shell Script", "shellscript", "bash", "sh", "zsh"],
 			"extensions": [".sh", ".bash", ".bashrc", ".bash_aliases", ".bash_profile", ".bash_login", ".ebuild", ".install", ".profile", ".bash_logout", ".zsh", ".zshrc", ".zprofile", ".zlogin", ".zlogout", ".zshenv", ".zsh-theme"],
 			"filenames": ["PKGBUILD"],
 			"firstLine": "^#!.*\\b(bash|zsh|sh|tcsh).*|^#\\s*-\\*-[^*]*mode:\\s*shell-script[^*]*-\\*-",
@@ -19,7 +21,7 @@
 		"grammars": [{
 			"language": "shellscript",
 			"scopeName": "source.shell",
-			"path": "./syntaxes/Shell-Unix-Bash.tmLanguage.json"
+			"path": "./syntaxes/shell-unix-bash.tmLanguage.json"
 		}]
 	}
 }

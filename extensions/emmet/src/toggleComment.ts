@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { getNodesInBetween, getNode, parseDocument, sameNodes } from './util';
+import { getNodesInBetween, getNode, parseDocument, sameNodes, isStyleSheet, validate } from './util';
 import { Node, Stylesheet, Rule, HtmlNode } from 'EmmetNode';
-import { isStyleSheet } from 'vscode-emmet-helper';
 import parseStylesheet from '@emmetio/css-parser';
 import { DocumentStreamReader } from './bufferStream';
 
@@ -15,14 +14,12 @@ const endCommentStylesheet = '*/';
 const startCommentHTML = '<!--';
 const endCommentHTML = '-->';
 
-export function toggleComment(): Thenable<boolean> {
-	let editor = vscode.window.activeTextEditor;
-	if (!editor) {
-		vscode.window.showInformationMessage('No editor is active');
+export function toggleComment(): Thenable<boolean> | undefined {
+	if (!validate() || !vscode.window.activeTextEditor) {
 		return;
 	}
-
-	let toggleCommentInternal;
+	const editor = vscode.window.activeTextEditor;
+	let toggleCommentInternal: (document: vscode.TextDocument, selection: vscode.Selection, rootNode: Node) => vscode.TextEdit[];
 
 	if (isStyleSheet(editor.document.languageId)) {
 		toggleCommentInternal = toggleCommentStylesheet;
@@ -36,12 +33,29 @@ export function toggleComment(): Thenable<boolean> {
 	}
 
 	return editor.edit(editBuilder => {
+		let allEdits: vscode.TextEdit[][] = [];
 		editor.selections.reverse().forEach(selection => {
-			let edits = toggleCommentInternal(editor.document, selection, rootNode);
-			edits.forEach(x => {
-				editBuilder.replace(x.range, x.newText);
-			});
+			let edits = toggleCommentInternal(editor.document, selection, rootNode!);
+			if (edits.length > 0) {
+				allEdits.push(edits);
+			}
 		});
+
+		// Apply edits in order so we can skip nested ones.
+		allEdits.sort((arr1, arr2) => {
+			let result = arr1[0].range.start.line - arr2[0].range.start.line;
+			return result === 0 ? arr1[0].range.start.character - arr2[0].range.start.character : result;
+		});
+		let lastEditPosition = new vscode.Position(0, 0);
+		for (let i = 0; i < allEdits.length; i++) {
+			const edits = allEdits[i];
+			if (edits[0].range.end.isAfterOrEqual(lastEditPosition)) {
+				edits.forEach(x => {
+					editBuilder.replace(x.range, x.newText);
+					lastEditPosition = x.range.end;
+				});
+			}
+		}
 	});
 }
 
@@ -110,9 +124,13 @@ function toggleCommentStylesheet(document: vscode.TextDocument, selection: vscod
 	let startNode = getNode(rootNode, selectionStart, true);
 	let endNode = getNode(rootNode, selectionEnd, true);
 
-	if (!selection.isEmpty || startNode) {
-		selectionStart = selection.isEmpty ? startNode.start : adjustStartNodeCss(startNode, selectionStart, rootNode);
-		selectionEnd = selection.isEmpty ? startNode.end : adjustEndNodeCss(endNode, selectionEnd, rootNode);
+	if (!selection.isEmpty) {
+		selectionStart = adjustStartNodeCss(startNode, selectionStart, rootNode);
+		selectionEnd = adjustEndNodeCss(endNode, selectionEnd, rootNode);
+		selection = new vscode.Selection(selectionStart, selectionEnd);
+	} else if (startNode) {
+		selectionStart = startNode.start;
+		selectionEnd = startNode.end;
 		selection = new vscode.Selection(selectionStart, selectionEnd);
 	}
 
@@ -140,7 +158,7 @@ function toggleCommentStylesheet(document: vscode.TextDocument, selection: vscod
 
 }
 
-function adjustStartNodeCss(node: Node, pos: vscode.Position, rootNode: Stylesheet): vscode.Position {
+function adjustStartNodeCss(node: Node | null, pos: vscode.Position, rootNode: Stylesheet): vscode.Position {
 	for (let i = 0; i < rootNode.comments.length; i++) {
 		let commentRange = new vscode.Range(rootNode.comments[i].start, rootNode.comments[i].end);
 		if (commentRange.contains(pos)) {
@@ -173,7 +191,7 @@ function adjustStartNodeCss(node: Node, pos: vscode.Position, rootNode: Styleshe
 	return newStartNode.start;
 }
 
-function adjustEndNodeCss(node: Node, pos: vscode.Position, rootNode: Stylesheet): vscode.Position {
+function adjustEndNodeCss(node: Node | null, pos: vscode.Position, rootNode: Stylesheet): vscode.Position {
 	for (let i = 0; i < rootNode.comments.length; i++) {
 		let commentRange = new vscode.Range(rootNode.comments[i].start, rootNode.comments[i].end);
 		if (commentRange.contains(pos)) {

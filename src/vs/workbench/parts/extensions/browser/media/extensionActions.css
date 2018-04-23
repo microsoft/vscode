@@ -30,19 +30,24 @@
 .monaco-action-bar .action-item.disabled .action-label.extension-action.enable,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.disable,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.reload,
-.monaco-action-bar .action-item.disabled .action-label.extension-action.built-in-status.user {
+.monaco-action-bar .action-item.disabled .action-label.disable-status.hide,
+.monaco-action-bar .action-item.disabled .action-label.malicious-status.not-malicious {
 	display: none;
 }
 
-.monaco-action-bar .action-item .action-label.extension-action.built-in-status {
+.monaco-action-bar .action-item .action-label.disable-status,
+.monaco-action-bar .action-item .action-label.malicious-status {
 	border-radius: 4px;
 	color: inherit;
 	background-color: transparent;
 	opacity: 0.9;
 	font-style: italic;
+	padding: 0 5px;
+	line-height: initial;
 }
 
-.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.extension-action.built-in-status {
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.disable-status,
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.malicious-status {
 	font-weight: normal;
 }
 

@@ -5,7 +5,7 @@
 'use strict';
 
 import { IDisposable } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { ColorId, ITokenizationRegistry, ITokenizationSupport, ITokenizationSupportChangedEvent } from 'vs/editor/common/modes';
 import { Color } from 'vs/base/common/color';
 
@@ -13,8 +13,8 @@ export class TokenizationRegistryImpl implements ITokenizationRegistry {
 
 	private _map: { [language: string]: ITokenizationSupport };
 
-	private _onDidChange: Emitter<ITokenizationSupportChangedEvent> = new Emitter<ITokenizationSupportChangedEvent>();
-	public onDidChange: Event<ITokenizationSupportChangedEvent> = this._onDidChange.event;
+	private readonly _onDidChange: Emitter<ITokenizationSupportChangedEvent> = new Emitter<ITokenizationSupportChangedEvent>();
+	public readonly onDidChange: Event<ITokenizationSupportChangedEvent> = this._onDidChange.event;
 
 	private _colorMap: Color[];
 
@@ -58,10 +58,6 @@ export class TokenizationRegistryImpl implements ITokenizationRegistry {
 
 	public getColorMap(): Color[] {
 		return this._colorMap;
-	}
-
-	public getDefaultForeground(): Color {
-		return this._colorMap[ColorId.DefaultForeground];
 	}
 
 	public getDefaultBackground(): Color {

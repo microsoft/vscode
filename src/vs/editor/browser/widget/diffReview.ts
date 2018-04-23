@@ -11,7 +11,7 @@ import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { renderViewLine2 as renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { Position } from 'vs/editor/common/core/position';
 import { ColorId, MetadataConsts, FontStyle } from 'vs/editor/common/modes';
@@ -24,9 +24,12 @@ import { editorLineNumbers } from 'vs/editor/common/view/editorColorRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
-import { editorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
+import { ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
 
 const DIFF_LINES_PADDING = 3;
 
@@ -581,9 +584,34 @@ export class DiffReview extends Disposable {
 
 		let cell = document.createElement('div');
 		cell.className = 'diff-review-cell diff-review-summary';
-		cell.appendChild(document.createTextNode(`${diffIndex + 1}/${this._diffs.length}: @@ -${minOriginalLine},${maxOriginalLine - minOriginalLine + 1} +${minModifiedLine},${maxModifiedLine - minModifiedLine + 1} @@`));
+		const originalChangedLinesCnt = maxOriginalLine - minOriginalLine + 1;
+		const modifiedChangedLinesCnt = maxModifiedLine - minModifiedLine + 1;
+		cell.appendChild(document.createTextNode(`${diffIndex + 1}/${this._diffs.length}: @@ -${minOriginalLine},${originalChangedLinesCnt} +${minModifiedLine},${modifiedChangedLinesCnt} @@`));
 		header.setAttribute('data-line', String(minModifiedLine));
-		header.setAttribute('aria-label', nls.localize('header', "Difference {0} of {1}: original {2}, {3} lines, modified {4}, {5} lines", (diffIndex + 1), this._diffs.length, minOriginalLine, maxOriginalLine - minOriginalLine + 1, minModifiedLine, maxModifiedLine - minModifiedLine + 1));
+
+		const getAriaLines = (lines: number) => {
+			if (lines === 0) {
+				return nls.localize('no_lines', "no lines");
+			} else if (lines === 1) {
+				return nls.localize('one_line', "1 line");
+			} else {
+				return nls.localize('more_lines', "{0} lines", lines);
+			}
+		};
+
+		const originalChangedLinesCntAria = getAriaLines(originalChangedLinesCnt);
+		const modifiedChangedLinesCntAria = getAriaLines(modifiedChangedLinesCnt);
+		header.setAttribute('aria-label', nls.localize({
+			key: 'header',
+			comment: [
+				'This is the ARIA label for a git diff header.',
+				'A git diff header looks like this: @@ -154,12 +159,39 @@.',
+				'That encodes that at original line 154 (which is now line 159), 12 lines were removed/changed with 39 lines.',
+				'Variables 0 and 1 refer to the diff index out of total number of diffs.',
+				'Variables 2 and 4 will be numbers (a line number).',
+				'Variables 3 and 4 will be "no lines", "1 line" or "X lines", localized separately.'
+			]
+		}, "Difference {0} of {1}: original {2}, {3}, modified {4}, {5}", (diffIndex + 1), this._diffs.length, minOriginalLine, originalChangedLinesCntAria, minModifiedLine, modifiedChangedLinesCntAria));
 		header.appendChild(cell);
 
 		// @@ -504,7 +517,7 @@
@@ -606,8 +634,8 @@ export class DiffReview extends Disposable {
 
 	private static _renderSection(
 		dest: HTMLElement, diffEntry: DiffEntry, modLine: number, width: number,
-		originalOpts: editorOptions.InternalEditorOptions, originalModel: editorCommon.IModel, originalModelOpts: editorCommon.TextModelResolvedOptions,
-		modifiedOpts: editorOptions.InternalEditorOptions, modifiedModel: editorCommon.IModel, modifiedModelOpts: editorCommon.TextModelResolvedOptions
+		originalOpts: editorOptions.InternalEditorOptions, originalModel: ITextModel, originalModelOpts: TextModelResolvedOptions,
+		modifiedOpts: editorOptions.InternalEditorOptions, modifiedModel: ITextModel, modifiedModelOpts: TextModelResolvedOptions
 	): void {
 
 		const type = diffEntry.getType();
@@ -721,7 +749,7 @@ export class DiffReview extends Disposable {
 		}
 	}
 
-	private static _renderLine(model: editorCommon.IModel, config: editorOptions.InternalEditorOptions, tabSize: number, lineNumber: number): string {
+	private static _renderLine(model: ITextModel, config: editorOptions.InternalEditorOptions, tabSize: number, lineNumber: number): string {
 		const lineContent = model.getLineContent(lineNumber);
 
 		const defaultMetadata = (
@@ -730,12 +758,21 @@ export class DiffReview extends Disposable {
 			| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
 		) >>> 0;
 
+		const tokens = new Uint32Array(2);
+		tokens[0] = lineContent.length;
+		tokens[1] = defaultMetadata;
+
+		const lineTokens = new LineTokens(tokens, lineContent);
+
+		const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, model.mightContainNonBasicASCII());
+		const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, model.mightContainRTL());
 		const r = renderViewLine(new RenderLineInput(
 			(config.fontInfo.isMonospace && !config.viewInfo.disableMonospaceOptimizations),
 			lineContent,
-			model.mightContainRTL(),
+			isBasicASCII,
+			containsRTL,
 			0,
-			[new ViewLineToken(lineContent.length, defaultMetadata)],
+			lineTokens,
 			[],
 			tabSize,
 			config.fontInfo.spaceWidth,
@@ -763,7 +800,6 @@ registerThemingParticipant((theme, collector) => {
 	}
 });
 
-@editorAction
 class DiffReviewNext extends EditorAction {
 	constructor() {
 		super({
@@ -778,7 +814,7 @@ class DiffReviewNext extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const diffEditor = findFocusedDiffEditor(accessor);
 		if (diffEditor) {
 			diffEditor.diffReviewNext();
@@ -786,7 +822,6 @@ class DiffReviewNext extends EditorAction {
 	}
 }
 
-@editorAction
 class DiffReviewPrev extends EditorAction {
 	constructor() {
 		super({
@@ -801,7 +836,7 @@ class DiffReviewPrev extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const diffEditor = findFocusedDiffEditor(accessor);
 		if (diffEditor) {
 			diffEditor.diffReviewPrev();
@@ -820,3 +855,6 @@ function findFocusedDiffEditor(accessor: ServicesAccessor): DiffEditorWidget {
 	}
 	return null;
 }
+
+registerEditorAction(DiffReviewNext);
+registerEditorAction(DiffReviewPrev);

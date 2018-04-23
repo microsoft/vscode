@@ -1,14 +1,12 @@
 {
 	"name": "extension-editing",
-	"version": "0.0.1",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "1.0.0",
 	"publisher": "vscode",
 	"engines": {
 		"vscode": "^1.4.0"
 	},
-	"categories": [
-		"Languages",
-		"Other"
-	],
 	"activationEvents": [
 		"onLanguage:json",
 		"onLanguage:markdown",
@@ -20,10 +18,10 @@
 		"watch": "gulp watch-extension:extension-editing"
 	},
 	"dependencies": {
-		"jsonc-parser": "^0.3.1",
+		"jsonc-parser": "^1.0.0",
 		"markdown-it": "^8.3.1",
 		"parse5": "^3.0.2",
-		"vscode-nls": "^2.0.1"
+		"vscode-nls": "^3.2.1"
 	},
 	"contributes": {
 		"jsonValidation": [
@@ -47,6 +45,6 @@
 	},
 	"devDependencies": {
 		"@types/markdown-it": "0.0.2",
-		"@types/node": "^7.0.4"
+		"@types/node": "6.0.78"
 	}
 }

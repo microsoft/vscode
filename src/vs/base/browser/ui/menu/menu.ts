@@ -7,11 +7,11 @@
 
 import 'vs/css!./menu';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { $ } from 'vs/base/browser/builder';
 import { IActionRunner, IAction } from 'vs/base/common/actions';
 import { ActionBar, IActionItemProvider, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { Event } from 'vs/base/common/event';
+import { addClass } from 'vs/base/browser/dom';
 
 export interface IMenuOptions {
 	context?: any;
@@ -20,19 +20,19 @@ export interface IMenuOptions {
 	getKeyBinding?: (action: IAction) => ResolvedKeybinding;
 }
 
-export class Menu extends EventEmitter {
+export class Menu {
 
 	private actionBar: ActionBar;
 	private listener: IDisposable;
 
 	constructor(container: HTMLElement, actions: IAction[], options: IMenuOptions = {}) {
-		super();
+		addClass(container, 'monaco-menu-container');
 
-		$(container).addClass('monaco-menu-container');
+		let menuContainer = document.createElement('div');
+		addClass(menuContainer, 'monaco-menu');
+		container.appendChild(menuContainer);
 
-		let $menu = $('.monaco-menu').appendTo(container);
-
-		this.actionBar = new ActionBar($menu, {
+		this.actionBar = new ActionBar(menuContainer, {
 			orientation: ActionsOrientation.VERTICAL,
 			actionItemProvider: options.actionItemProvider,
 			context: options.context,
@@ -40,9 +40,15 @@ export class Menu extends EventEmitter {
 			isMenu: true
 		});
 
-		this.listener = this.addEmitter(this.actionBar);
-
 		this.actionBar.push(actions, { icon: true, label: true });
+	}
+
+	public get onDidCancel(): Event<void> {
+		return this.actionBar.onDidCancel;
+	}
+
+	public get onDidBlur(): Event<void> {
+		return this.actionBar.onDidBlur;
 	}
 
 	public focus() {
@@ -50,8 +56,6 @@ export class Menu extends EventEmitter {
 	}
 
 	public dispose() {
-		super.dispose();
-
 		if (this.actionBar) {
 			this.actionBar.dispose();
 			this.actionBar = null;

@@ -9,11 +9,11 @@ import { loadMessageBundle } from 'vscode-nls';
 const localize = loadMessageBundle();
 
 export default class MergeConflictCodeLensProvider implements vscode.CodeLensProvider, vscode.Disposable {
-	private codeLensRegistrationHandle: vscode.Disposable | null;
-	private config: interfaces.IExtensionConfiguration;
+	private codeLensRegistrationHandle?: vscode.Disposable | null;
+	private config?: interfaces.IExtensionConfiguration;
 	private tracker: interfaces.IDocumentMergeConflictTracker;
 
-	constructor(private context: vscode.ExtensionContext, trackerService: interfaces.IDocumentMergeConflictTrackerService) {
+	constructor(trackerService: interfaces.IDocumentMergeConflictTrackerService) {
 		this.tracker = trackerService.createTracker('codelens');
 	}
 
@@ -46,7 +46,7 @@ export default class MergeConflictCodeLensProvider implements vscode.CodeLensPro
 		}
 	}
 
-	async provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.CodeLens[] | null> {
+	async provideCodeLenses(document: vscode.TextDocument, _token: vscode.CancellationToken): Promise<vscode.CodeLens[] | null> {
 
 		if (!this.config || !this.config.enableCodeLens) {
 			return null;

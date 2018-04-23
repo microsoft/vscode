@@ -3,29 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import paths = require('vs/base/common/paths');
-import objects = require('vs/base/common/objects');
-import strings = require('vs/base/common/strings');
-import errors = require('vs/base/common/errors');
+import * as objects from 'vs/base/common/objects';
+import * as strings from 'vs/base/common/strings';
+import * as errors from 'vs/base/common/errors';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { TPromise, PPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import { values, ResourceMap, TrieMap } from 'vs/base/common/map';
-import Event, { Emitter, fromPromise, stopwatch, any } from 'vs/base/common/event';
+import { values, ResourceMap, TernarySearchTree } from 'vs/base/common/map';
+import { Event, Emitter, fromPromise, stopwatch, anyEvent } from 'vs/base/common/event';
 import { ISearchService, ISearchProgressItem, ISearchComplete, ISearchQuery, IPatternInfo, IFileMatch } from 'vs/platform/search/common/search';
 import { ReplacePattern } from 'vs/platform/search/common/replace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Range } from 'vs/editor/common/core/range';
-import { IModel, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness, FindMatch } from 'vs/editor/common/editorCommon';
+import { ITextModel, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness, FindMatch } from 'vs/editor/common/model';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
-import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { getBaseLabel } from 'vs/base/common/labels';
 
 export class Match {
 
@@ -94,8 +93,9 @@ export class Match {
 
 export class FileMatch extends Disposable {
 
-	private static _CURRENT_FIND_MATCH = ModelDecorationOptions.register({
+	private static readonly _CURRENT_FIND_MATCH = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		zIndex: 13,
 		className: 'currentFindMatch',
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerFindMatchForeground),
@@ -104,7 +104,7 @@ export class FileMatch extends Disposable {
 		}
 	});
 
-	private static _FIND_MATCH = ModelDecorationOptions.register({
+	private static readonly _FIND_MATCH = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'findMatch',
 		overviewRuler: {
@@ -119,13 +119,13 @@ export class FileMatch extends Disposable {
 	}
 
 	private _onChange = this._register(new Emitter<boolean>());
-	public onChange: Event<boolean> = this._onChange.event;
+	public readonly onChange: Event<boolean> = this._onChange.event;
 
 	private _onDispose = this._register(new Emitter<void>());
-	public onDispose: Event<void> = this._onDispose.event;
+	public readonly onDispose: Event<void> = this._onDispose.event;
 
 	private _resource: URI;
-	private _model: IModel;
+	private _model: ITextModel;
 	private _modelListener: IDisposable;
 	private _matches: Map<string, Match>;
 	private _removedMatches: Set<string>;
@@ -162,14 +162,14 @@ export class FileMatch extends Disposable {
 	}
 
 	private registerListeners(): void {
-		this._register(this.modelService.onModelAdded((model: IModel) => {
+		this._register(this.modelService.onModelAdded((model: ITextModel) => {
 			if (model.uri.toString() === this._resource.toString()) {
 				this.bindModel(model);
 			}
 		}));
 	}
 
-	private bindModel(model: IModel): void {
+	private bindModel(model: ITextModel): void {
 		this._model = model;
 		this._modelListener = this._model.onDidChangeContent(() => {
 			this._updateScheduler.schedule();
@@ -303,7 +303,7 @@ export class FileMatch extends Disposable {
 	}
 
 	public name(): string {
-		return paths.basename(this.resource().fsPath);
+		return getBaseLabel(this.resource());
 	}
 
 	public add(match: Match, trigger?: boolean) {
@@ -339,16 +339,16 @@ export interface IChangeEvent {
 export class FolderMatch extends Disposable {
 
 	private _onChange = this._register(new Emitter<IChangeEvent>());
-	public onChange: Event<IChangeEvent> = this._onChange.event;
+	public readonly onChange: Event<IChangeEvent> = this._onChange.event;
 
 	private _onDispose = this._register(new Emitter<void>());
-	public onDispose: Event<void> = this._onDispose.event;
+	public readonly onDispose: Event<void> = this._onDispose.event;
 
 	private _fileMatches: ResourceMap<FileMatch>;
 	private _unDisposedFileMatches: ResourceMap<FileMatch>;
 	private _replacingAll: boolean = false;
 
-	constructor(private _resource: URI, private _id: string, private _index: number, private _query: ISearchQuery, private _parent: SearchResult, private _searchModel: SearchModel, @IReplaceService private replaceService: IReplaceService, @ITelemetryService private telemetryService: ITelemetryService,
+	constructor(private _resource: URI, private _id: string, private _index: number, private _query: ISearchQuery, private _parent: SearchResult, private _searchModel: SearchModel, @IReplaceService private replaceService: IReplaceService,
 		@IInstantiationService private instantiationService: IInstantiationService) {
 		super();
 		this._fileMatches = new ResourceMap<FileMatch>();
@@ -380,7 +380,7 @@ export class FolderMatch extends Disposable {
 	}
 
 	public name(): string {
-		return paths.basename(this.resource().fsPath);
+		return getBaseLabel(this.resource());
 	}
 
 	public parent(): SearchResult {
@@ -420,6 +420,13 @@ export class FolderMatch extends Disposable {
 	public replace(match: FileMatch): TPromise<any> {
 		return this.replaceService.replace([match]).then(() => {
 			this.doRemove(match, false, true);
+		});
+	}
+
+	public replaceAll(): TPromise<any> {
+		const matches = this.matches();
+		return this.replaceService.replace(matches).then(() => {
+			matches.forEach(match => this.doRemove(match, false, true));
 		});
 	}
 
@@ -493,11 +500,10 @@ export class FolderMatch extends Disposable {
 export class SearchResult extends Disposable {
 
 	private _onChange = this._register(new Emitter<IChangeEvent>());
-	public onChange: Event<IChangeEvent> = this._onChange.event;
+	public readonly onChange: Event<IChangeEvent> = this._onChange.event;
 
 	private _folderMatches: FolderMatch[] = [];
-	private _folderMatchesMap: TrieMap<FolderMatch> = new TrieMap<FolderMatch>();
-	private _query: ISearchQuery = null;
+	private _folderMatchesMap: TernarySearchTree<FolderMatch> = TernarySearchTree.forPaths<FolderMatch>();
 	private _showHighlights: boolean;
 
 	private _rangeHighlightDecorations: RangeHighlightDecorations;
@@ -511,7 +517,6 @@ export class SearchResult extends Disposable {
 	public set query(query: ISearchQuery) {
 		// When updating the query we could change the roots, so ensure we clean up the old roots first.
 		this.clear();
-		this._query = query;
 		const otherFiles = URI.parse('');
 		this._folderMatches = (query.folderQueries || []).map((fq) => fq.folder).concat([otherFiles]).map((resource, index) => {
 			const id = resource.toString() || 'otherFiles';
@@ -522,7 +527,7 @@ export class SearchResult extends Disposable {
 		});
 		// otherFiles is the fallback for missing values in the TrieMap. So we do not insert it.
 		this._folderMatches.slice(0, this.folderMatches.length - 1)
-			.forEach(fm => this._folderMatchesMap.insert(fm.resource().fsPath, fm));
+			.forEach(fm => this._folderMatchesMap.set(fm.resource().fsPath, fm));
 	}
 
 	public get searchModel(): SearchModel {
@@ -535,14 +540,18 @@ export class SearchResult extends Disposable {
 		this._folderMatches.forEach((folderMatch) => rawPerFolder.set(folderMatch.resource(), []));
 		allRaw.forEach(rawFileMatch => {
 			let folderMatch = this.getFolderMatch(rawFileMatch.resource);
-			rawPerFolder.get(folderMatch.resource()).push(rawFileMatch);
+			if (folderMatch) {
+				rawPerFolder.get(folderMatch.resource()).push(rawFileMatch);
+			}
 		});
 		rawPerFolder.forEach((raw) => {
 			if (!raw.length) {
 				return;
 			}
 			let folderMatch = this.getFolderMatch(raw[0].resource);
-			folderMatch.add(raw, silent);
+			if (folderMatch) {
+				folderMatch.add(raw, silent);
+			}
 		});
 	}
 
@@ -568,6 +577,11 @@ export class SearchResult extends Disposable {
 
 		const promise = this.replaceService.replace(this.matches(), progressRunner);
 		const onDone = stopwatch(fromPromise(promise));
+		/* __GDPR__
+			"replaceAll.started" : {
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+			}
+		*/
 		onDone(duration => this.telemetryService.publicLog('replaceAll.started', { duration }));
 
 		return promise.then(() => {
@@ -598,10 +612,6 @@ export class SearchResult extends Disposable {
 		return this.folderMatches().reduce<number>((prev, match) => prev + match.fileCount(), 0);
 	}
 
-	public folderCount(): number {
-		return this.folderMatches().reduce<number>((prev, match) => prev + (match.fileCount() > 0 ? 1 : 0), 0);
-	}
-
 	public count(): number {
 		return this.matches().reduce<number>((prev, match) => prev + match.count(), 0);
 	}
@@ -623,10 +633,10 @@ export class SearchResult extends Disposable {
 			}
 		});
 		if (this._showHighlights && selectedMatch) {
-			this._rangeHighlightDecorations.highlightRange({
-				resource: selectedMatch.parent().resource(),
-				range: selectedMatch.range()
-			});
+			this._rangeHighlightDecorations.highlightRange(
+				selectedMatch.parent().resource(),
+				selectedMatch.range()
+			);
 		} else {
 			this._rangeHighlightDecorations.removeHighlightRange();
 		}
@@ -654,7 +664,7 @@ export class SearchResult extends Disposable {
 	private disposeMatches(): void {
 		this._folderMatches.forEach(folderMatch => folderMatch.dispose());
 		this._folderMatches = [];
-		this._folderMatchesMap = new TrieMap<FolderMatch>();
+		this._folderMatchesMap = TernarySearchTree.forPaths<FolderMatch>();
 		this._rangeHighlightDecorations.removeHighlightRange();
 	}
 
@@ -673,12 +683,12 @@ export class SearchModel extends Disposable {
 	private _replaceString: string = null;
 	private _replacePattern: ReplacePattern = null;
 
-	private _onReplaceTermChanged: Emitter<void> = this._register(new Emitter<void>());
-	public onReplaceTermChanged: Event<void> = this._onReplaceTermChanged.event;
+	private readonly _onReplaceTermChanged: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onReplaceTermChanged: Event<void> = this._onReplaceTermChanged.event;
 
 	private currentRequest: PPromise<ISearchComplete, ISearchProgressItem>;
 
-	constructor( @ISearchService private searchService: ISearchService, @ITelemetryService private telemetryService: ITelemetryService, @IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(@ISearchService private searchService: ISearchService, @ITelemetryService private telemetryService: ITelemetryService, @IInstantiationService private instantiationService: IInstantiationService) {
 		super();
 		this._searchResult = this.instantiationService.createInstance(SearchResult, this);
 	}
@@ -723,13 +733,23 @@ export class SearchModel extends Disposable {
 
 		const onDone = fromPromise(this.currentRequest);
 		const progressEmitter = new Emitter<void>();
-		const onFirstRender = any(onDone, progressEmitter.event);
+		const onFirstRender = anyEvent<any>(onDone, progressEmitter.event);
 		const onFirstRenderStopwatch = stopwatch(onFirstRender);
+		/* __GDPR__
+			"searchResultsFirstRender" : {
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+			}
+		*/
 		onFirstRenderStopwatch(duration => this.telemetryService.publicLog('searchResultsFirstRender', { duration }));
 
 		const onDoneStopwatch = stopwatch(onDone);
 		const start = Date.now();
 
+		/* __GDPR__
+			"searchResultsFinished" : {
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+			}
+		*/
 		onDoneStopwatch(duration => this.telemetryService.publicLog('searchResultsFinished', { duration }));
 
 		const currentRequest = this.currentRequest;
@@ -754,6 +774,15 @@ export class SearchModel extends Disposable {
 		}
 		const options: IPatternInfo = objects.assign({}, this._searchQuery.contentPattern);
 		delete options.pattern;
+		/* __GDPR__
+			"searchResultsShown" : {
+				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"fileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"options": { "${inline}": [ "${IPatternInfo}" ] },
+				"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"useRipgrep": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			}
+		*/
 		this.telemetryService.publicLog('searchResultsShown', {
 			count: this._searchResult.count(),
 			fileCount: this._searchResult.fileCount(),
@@ -801,7 +830,7 @@ export class SearchWorkbenchService implements ISearchWorkbenchService {
 	_serviceBrand: any;
 	private _searchModel: SearchModel;
 
-	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
 	}
 
 	get searchModel(): SearchModel {
@@ -818,4 +847,82 @@ export interface ISearchWorkbenchService {
 	_serviceBrand: any;
 
 	readonly searchModel: SearchModel;
+}
+
+/**
+ * Can add a range highlight decoration to a model.
+ * It will automatically remove it when the model has its decorations changed.
+ */
+export class RangeHighlightDecorations implements IDisposable {
+
+	private _decorationId: string = null;
+	private _model: ITextModel = null;
+	private _modelDisposables: IDisposable[] = [];
+
+	constructor(
+		@IModelService private readonly _modelService: IModelService
+	) {
+	}
+
+	public removeHighlightRange() {
+		if (this._model && this._decorationId) {
+			this._model.deltaDecorations([this._decorationId], []);
+		}
+		this._decorationId = null;
+	}
+
+	public highlightRange(resource: URI | ITextModel, range: Range, ownerId: number = 0): void {
+		let model: ITextModel;
+		if (URI.isUri(resource)) {
+			model = this._modelService.getModel(resource);
+		} else {
+			model = resource;
+		}
+
+		if (model) {
+			this.doHighlightRange(model, range);
+		}
+	}
+
+	private doHighlightRange(model: ITextModel, range: Range) {
+		this.removeHighlightRange();
+		this._decorationId = model.deltaDecorations([], [{ range: range, options: RangeHighlightDecorations._RANGE_HIGHLIGHT_DECORATION }])[0];
+		this.setModel(model);
+	}
+
+	private setModel(model: ITextModel) {
+		if (this._model !== model) {
+			this.disposeModelListeners();
+			this._model = model;
+			this._modelDisposables.push(this._model.onDidChangeDecorations((e) => {
+				this.disposeModelListeners();
+				this.removeHighlightRange();
+				this._model = null;
+			}));
+			this._modelDisposables.push(this._model.onWillDispose(() => {
+				this.disposeModelListeners();
+				this.removeHighlightRange();
+				this._model = null;
+			}));
+		}
+	}
+
+	private disposeModelListeners() {
+		this._modelDisposables.forEach(disposable => disposable.dispose());
+		this._modelDisposables = [];
+	}
+
+	public dispose() {
+		if (this._model) {
+			this.removeHighlightRange();
+			this.disposeModelListeners();
+			this._model = null;
+		}
+	}
+
+	private static readonly _RANGE_HIGHLIGHT_DECORATION = ModelDecorationOptions.register({
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		className: 'rangeHighlight',
+		isWholeLine: true
+	});
 }

@@ -60,7 +60,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 	/**
 	 * Adds this ammount of pixels to the right of lines (no-one wants to type near the edge of the viewport)
 	 */
-	private static HORIZONTAL_EXTRA_PX = 30;
+	private static readonly HORIZONTAL_EXTRA_PX = 30;
 
 	private readonly _linesContent: FastDomNode<HTMLElement>;
 	private readonly _textRangeRestingSpot: HTMLElement;
@@ -455,6 +455,10 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 	// --- implementation
 
+	public updateLineWidths(): void {
+		this._updateLineWidths(false);
+	}
+
 	/**
 	 * Updates the max line width if it is fast to compute.
 	 * Returns true if all lines were taken into account.
@@ -551,17 +555,17 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 			}
 		}
 
-		// (3) handle scrolling
-		this._linesContent.setLayerHinting(this._canUseLayerHinting);
-		const adjustedScrollTop = this._context.viewLayout.getCurrentScrollTop() - viewportData.bigNumbersDelta;
-		this._linesContent.setTop(-adjustedScrollTop);
-		this._linesContent.setLeft(-this._context.viewLayout.getCurrentScrollLeft());
-
 		// Update max line width (not so important, it is just so the horizontal scrollbar doesn't get too small)
 		if (!this._updateLineWidthsFast()) {
 			// Computing the width of some lines would be slow => delay it
 			this._asyncUpdateLineWidths.schedule();
 		}
+
+		// (3) handle scrolling
+		this._linesContent.setLayerHinting(this._canUseLayerHinting);
+		const adjustedScrollTop = this._context.viewLayout.getCurrentScrollTop() - viewportData.bigNumbersDelta;
+		this._linesContent.setTop(-adjustedScrollTop);
+		this._linesContent.setLeft(-this._context.viewLayout.getCurrentScrollLeft());
 	}
 
 	// --- width

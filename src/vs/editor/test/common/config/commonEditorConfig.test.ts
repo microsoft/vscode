@@ -88,14 +88,14 @@ suite('Common Editor Config', () => {
 		let config = new TestWrappingConfiguration({
 			wordWrap: <any>true
 		});
-		assertWrapping(config, true, 81);
+		assertWrapping(config, true, 80);
 	});
 
 	test('wordWrap on', () => {
 		let config = new TestWrappingConfiguration({
 			wordWrap: 'on'
 		});
-		assertWrapping(config, true, 81);
+		assertWrapping(config, true, 80);
 	});
 
 	test('wordWrap on without minimap', () => {
@@ -105,7 +105,7 @@ suite('Common Editor Config', () => {
 				enabled: false
 			}
 		});
-		assertWrapping(config, true, 89);
+		assertWrapping(config, true, 88);
 	});
 
 	test('wordWrap on does not use wordWrapColumn', () => {
@@ -113,7 +113,7 @@ suite('Common Editor Config', () => {
 			wordWrap: 'on',
 			wordWrapColumn: 10
 		});
-		assertWrapping(config, true, 81);
+		assertWrapping(config, true, 80);
 	});
 
 	test('wordWrap off', () => {

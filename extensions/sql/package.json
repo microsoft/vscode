@@ -1,8 +1,13 @@
 {
 	"name": "sql",
-	"version": "0.1.0",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "1.0.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js Microsoft/vscode-mssql syntaxes/SQL.plist ./syntaxes/sql.tmLanguage.json"
+	},
 	"contributes": {
 		"languages": [{
 			"id": "sql",
@@ -13,7 +18,7 @@
 		"grammars": [{
 			"language": "sql",
 			"scopeName": "source.sql",
-			"path": "./syntaxes/SQL.plist"
+			"path": "./syntaxes/sql.tmLanguage.json"
 		}]
 	}
 }

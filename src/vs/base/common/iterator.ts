@@ -5,11 +5,15 @@
 
 'use strict';
 
-export interface IIterator<T> {
+export interface IIterator<E> {
+	next(): { readonly done: boolean, readonly value: E };
+}
+
+export interface INextIterator<T> {
 	next(): T;
 }
 
-export class ArrayIterator<T> implements IIterator<T> {
+export class ArrayIterator<T> implements INextIterator<T> {
 
 	private items: T[];
 	protected start: number;
@@ -73,16 +77,16 @@ export class ArrayNavigator<T> extends ArrayIterator<T> implements INavigator<T>
 
 }
 
-export class MappedIterator<T, R> implements IIterator<R> {
+export class MappedIterator<T, R> implements INextIterator<R> {
 
-	constructor(protected iterator: IIterator<T>, protected fn: (item: T) => R) {
+	constructor(protected iterator: INextIterator<T>, protected fn: (item: T) => R) {
 		// noop
 	}
 
 	next() { return this.fn(this.iterator.next()); }
 }
 
-export interface INavigator<T> extends IIterator<T> {
+export interface INavigator<T> extends INextIterator<T> {
 	current(): T;
 	previous(): T;
 	parent(): T;

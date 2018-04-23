@@ -5,33 +5,45 @@
 
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { sequence } from 'vs/base/common/async';
 import * as strings from 'vs/base/common/strings';
-import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ISaveParticipant, ITextFileEditorModel, SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IModel, ICommonCodeEditor, ISingleEditOperation, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { ITextModel, ISingleEditOperation, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
 import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import { getDocumentFormattingEdits } from 'vs/editor/contrib/format/common/format';
-import { EditOperationsCommand } from 'vs/editor/contrib/format/common/formatCommand';
+import { getDocumentFormattingEdits, NoProviderError } from 'vs/editor/contrib/format/format';
+import { EditOperationsCommand } from 'vs/editor/contrib/format/formatCommand';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ExtHostContext, ExtHostDocumentSaveParticipantShape, IExtHostContext } from '../node/extHost.protocol';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { localize } from 'vs/nls';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { ILogService } from 'vs/platform/log/common/log';
+import { shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IFileService } from 'vs/platform/files/common/files';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
+import { CodeAction } from 'vs/editor/common/modes';
+import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
+import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
+import { ICodeActionsOnSaveOptions } from 'vs/editor/common/config/editorOptions';
 
-export interface INamedSaveParticpant extends ISaveParticipant {
-	readonly name: string;
+export interface ISaveParticipantParticipant extends ISaveParticipant {
+	// progressMessage: string;
 }
 
-class TrimWhitespaceParticipant implements INamedSaveParticpant {
-
-	readonly name = 'TrimWhitespaceParticipant';
+class TrimWhitespaceParticipant implements ISaveParticipantParticipant {
 
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -41,13 +53,13 @@ class TrimWhitespaceParticipant implements INamedSaveParticpant {
 	}
 
 	public participate(model: ITextFileEditorModel, env: { reason: SaveReason }): void {
-		if (this.configurationService.lookup('files.trimTrailingWhitespace', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.getResource() }).value) {
+		if (this.configurationService.getValue('files.trimTrailingWhitespace', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.getResource() })) {
 			this.doTrimTrailingWhitespace(model.textEditorModel, env.reason === SaveReason.AUTO);
 		}
 	}
 
-	private doTrimTrailingWhitespace(model: IModel, isAutoSaved: boolean): void {
-		let prevSelection: Selection[] = [new Selection(1, 1, 1, 1)];
+	private doTrimTrailingWhitespace(model: ITextModel, isAutoSaved: boolean): void {
+		let prevSelection: Selection[] = [];
 		const cursors: Position[] = [];
 
 		let editor = findEditor(model, this.codeEditorService);
@@ -57,6 +69,12 @@ class TrimWhitespaceParticipant implements INamedSaveParticpant {
 			prevSelection = editor.getSelections();
 			if (isAutoSaved) {
 				cursors.push(...prevSelection.map(s => new Position(s.positionLineNumber, s.positionColumn)));
+				const snippetsRange = SnippetController2.get(editor).getSessionEnclosingRange();
+				if (snippetsRange) {
+					for (let lineNumber = snippetsRange.startLineNumber; lineNumber <= snippetsRange.endLineNumber; lineNumber++) {
+						cursors.push(new Position(lineNumber, model.getLineMaxColumn(lineNumber)));
+					}
+				}
 			}
 		}
 
@@ -69,8 +87,8 @@ class TrimWhitespaceParticipant implements INamedSaveParticpant {
 	}
 }
 
-function findEditor(model: IModel, codeEditorService: ICodeEditorService): ICommonCodeEditor {
-	let candidate: ICommonCodeEditor = null;
+function findEditor(model: ITextModel, codeEditorService: ICodeEditorService): ICodeEditor {
+	let candidate: ICodeEditor = null;
 
 	if (model.isAttachedToEditor()) {
 		for (const editor of codeEditorService.listCodeEditors()) {
@@ -87,9 +105,7 @@ function findEditor(model: IModel, codeEditorService: ICodeEditorService): IComm
 	return candidate;
 }
 
-export class FinalNewLineParticipant implements INamedSaveParticpant {
-
-	readonly name = 'FinalNewLineParticipant';
+export class FinalNewLineParticipant implements ISaveParticipantParticipant {
 
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -99,12 +115,12 @@ export class FinalNewLineParticipant implements INamedSaveParticpant {
 	}
 
 	public participate(model: ITextFileEditorModel, env: { reason: SaveReason }): void {
-		if (this.configurationService.lookup('files.insertFinalNewline', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.getResource() }).value) {
+		if (this.configurationService.getValue('files.insertFinalNewline', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.getResource() })) {
 			this.doInsertFinalNewLine(model.textEditorModel);
 		}
 	}
 
-	private doInsertFinalNewLine(model: IModel): void {
+	private doInsertFinalNewLine(model: ITextModel): void {
 		const lineCount = model.getLineCount();
 		const lastLine = model.getLineContent(lineCount);
 		const lastLineIsEmptyOrWhitespace = strings.lastNonWhitespaceIndex(lastLine) === -1;
@@ -113,7 +129,7 @@ export class FinalNewLineParticipant implements INamedSaveParticpant {
 			return;
 		}
 
-		let prevSelection: Selection[] = [new Selection(1, 1, 1, 1)];
+		let prevSelection: Selection[] = [];
 		const editor = findEditor(model, this.codeEditorService);
 		if (editor) {
 			prevSelection = editor.getSelections();
@@ -127,34 +143,92 @@ export class FinalNewLineParticipant implements INamedSaveParticpant {
 	}
 }
 
-class FormatOnSaveParticipant implements INamedSaveParticpant {
-
-	readonly name = 'FormatOnSaveParticipant';
+export class TrimFinalNewLinesParticipant implements ISaveParticipantParticipant {
 
 	constructor(
-		@ICodeEditorService private _editorService: ICodeEditorService,
-		@IConfigurationService private _configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@ICodeEditorService private codeEditorService: ICodeEditorService
 	) {
 		// Nothing
 	}
 
-	participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): TPromise<void> {
+	public participate(model: ITextFileEditorModel, env: { reason: SaveReason }): void {
+		if (this.configurationService.getValue('files.trimFinalNewlines', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.getResource() })) {
+			this.doTrimFinalNewLines(model.textEditorModel);
+		}
+	}
+
+	private doTrimFinalNewLines(model: ITextModel): void {
+		const lineCount = model.getLineCount();
+
+		// Do not insert new line if file does not end with new line
+		if (lineCount === 1) {
+			return;
+		}
+
+		let prevSelection: Selection[] = [];
+		const editor = findEditor(model, this.codeEditorService);
+		if (editor) {
+			prevSelection = editor.getSelections();
+		}
+
+		let currentLineNumber = model.getLineCount();
+		let currentLine = model.getLineContent(currentLineNumber);
+		let currentLineIsEmptyOrWhitespace = strings.lastNonWhitespaceIndex(currentLine) === -1;
+		while (currentLineIsEmptyOrWhitespace) {
+			currentLineNumber--;
+			currentLine = model.getLineContent(currentLineNumber);
+			currentLineIsEmptyOrWhitespace = strings.lastNonWhitespaceIndex(currentLine) === -1;
+		}
+
+		const deletionRange = model.validateRange(new Range(currentLineNumber + 1, 1, lineCount + 1, 1));
+		if (!deletionRange.isEmpty()) {
+			model.pushEditOperations(prevSelection, [EditOperation.delete(deletionRange)], edits => prevSelection);
+		}
+
+		if (editor) {
+			editor.setSelections(prevSelection);
+		}
+	}
+}
+
+class FormatOnSaveParticipant implements ISaveParticipantParticipant {
+
+	constructor(
+		@ICodeEditorService private readonly _editorService: ICodeEditorService,
+		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
+	) {
+		// Nothing
+	}
+
+	participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): Promise<void> {
 
 		const model = editorModel.textEditorModel;
 		if (env.reason === SaveReason.AUTO
-			|| !this._configurationService.lookup('editor.formatOnSave', { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() }).value) {
+			|| !this._configurationService.getValue('editor.formatOnSave', { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() })) {
 			return undefined;
 		}
 
 		const versionNow = model.getVersionId();
 		const { tabSize, insertSpaces } = model.getOptions();
 
-		return new TPromise<ISingleEditOperation[]>((resolve, reject) => {
-			setTimeout(reject, 750);
-			getDocumentFormattingEdits(model, { tabSize, insertSpaces }).then(resolve, reject);
+		const timeout = this._configurationService.getValue('editor.formatOnSaveTimeout', { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() });
+
+		return new Promise<ISingleEditOperation[]>((resolve, reject) => {
+			setTimeout(() => reject(localize('timeout.formatOnSave', "Aborted format on save after {0}ms", timeout)), timeout);
+			getDocumentFormattingEdits(model, { tabSize, insertSpaces })
+				.then(edits => this._editorWorkerService.computeMoreMinimalEdits(model.uri, edits))
+				.then(resolve, err => {
+					if (!(err instanceof Error) || err.name !== NoProviderError.Name) {
+						reject(err);
+					} else {
+						resolve();
+					}
+				});
 
 		}).then(edits => {
-			if (edits && versionNow === model.getVersionId()) {
+			if (!isFalsyOrEmpty(edits) && versionNow === model.getVersionId()) {
 				const editor = findEditor(model, this._editorService);
 				if (editor) {
 					this._editsWithEditor(editor, edits);
@@ -165,11 +239,11 @@ class FormatOnSaveParticipant implements INamedSaveParticpant {
 		});
 	}
 
-	private _editsWithEditor(editor: ICommonCodeEditor, edits: ISingleEditOperation[]): void {
+	private _editsWithEditor(editor: ICodeEditor, edits: ISingleEditOperation[]): void {
 		EditOperationsCommand.execute(editor, edits);
 	}
 
-	private _editWithModel(model: IModel, edits: ISingleEditOperation[]): void {
+	private _editWithModel(model: ITextModel, edits: ISingleEditOperation[]): void {
 
 		const [{ range }] = edits;
 		const initialSelection = new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
@@ -188,29 +262,86 @@ class FormatOnSaveParticipant implements INamedSaveParticpant {
 		return {
 			text,
 			range: Range.lift(range),
-			identifier: undefined,
 			forceMoveMarkers: true
 		};
 	}
 }
 
-class ExtHostSaveParticipant implements INamedSaveParticpant {
+class CodeActionOnParticipant implements ISaveParticipant {
+
+	constructor(
+		@ITextModelService private readonly _textModelService: ITextModelService,
+		@IFileService private readonly _fileService: IFileService,
+		@ICommandService private readonly _commandService: ICommandService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
+	) { }
+
+	async participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): Promise<void> {
+		if (env.reason === SaveReason.AUTO) {
+			return undefined;
+		}
+
+		const model = editorModel.textEditorModel;
+		const editor = findEditor(model, this._codeEditorService);
+		if (!editor) {
+			return undefined;
+		}
+
+		const settingsOverrides = { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() };
+		const setting = this._configurationService.getValue<ICodeActionsOnSaveOptions>('editor.codeActionsOnSave', settingsOverrides);
+		if (!setting) {
+			return undefined;
+		}
+
+		const codeActionsOnSave = Object.keys(setting).filter(x => setting[x]).map(x => new CodeActionKind(x));
+		if (!codeActionsOnSave.length) {
+			return undefined;
+		}
+
+		const timeout = this._configurationService.getValue<number>('editor.codeActionsOnSaveTimeout', settingsOverrides);
+
+		return new Promise<CodeAction[]>((resolve, reject) => {
+			setTimeout(() => reject(localize('codeActionsOnSave.didTimeout', "Aborted codeActionsOnSave after {0}ms", timeout)), timeout);
+			this.getActionsToRun(model, codeActionsOnSave).then(resolve);
+		}).then(actionsToRun => this.applyCodeActions(actionsToRun, editor));
+	}
+
+	private async applyCodeActions(actionsToRun: CodeAction[], editor: ICodeEditor) {
+		for (const action of actionsToRun) {
+			await applyCodeAction(action, this._textModelService, this._fileService, this._commandService, editor);
+		}
+	}
+
+	private async getActionsToRun(model: ITextModel, codeActionsOnSave: CodeActionKind[]) {
+		const actions = await getCodeActions(model, model.getFullModelRange(), { kind: CodeActionKind.Source, includeSourceActions: true });
+		const actionsToRun = actions.filter(returnedAction => returnedAction.kind && codeActionsOnSave.some(onSaveKind => onSaveKind.contains(returnedAction.kind)));
+		return actionsToRun;
+	}
+}
+
+class ExtHostSaveParticipant implements ISaveParticipantParticipant {
 
 	private _proxy: ExtHostDocumentSaveParticipantShape;
 
-	readonly name = 'ExtHostSaveParticipant';
-
 	constructor(extHostContext: IExtHostContext) {
-		this._proxy = extHostContext.get(ExtHostContext.ExtHostDocumentSaveParticipant);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentSaveParticipant);
 	}
 
-	participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): TPromise<void> {
-		return new TPromise<any>((resolve, reject) => {
-			setTimeout(reject, 1750);
+	participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): Promise<void> {
+
+		if (!shouldSynchronizeModel(editorModel.textEditorModel)) {
+			// the model never made it to the extension
+			// host meaning we cannot participate in its save
+			return undefined;
+		}
+
+		return new Promise<any>((resolve, reject) => {
+			setTimeout(() => reject(localize('timeout.onWillSave', "Aborted onWillSaveTextDocument-event after 1750ms")), 1750);
 			this._proxy.$participateInSave(editorModel.getResource(), env.reason).then(values => {
 				for (const success of values) {
 					if (!success) {
-						return TPromise.wrapError(new Error('listener failed'));
+						return Promise.reject(new Error('listener failed'));
 					}
 				}
 				return undefined;
@@ -223,23 +354,22 @@ class ExtHostSaveParticipant implements INamedSaveParticpant {
 @extHostCustomer
 export class SaveParticipant implements ISaveParticipant {
 
-	private _saveParticipants: INamedSaveParticpant[];
+	private _saveParticipants: ISaveParticipantParticipant[];
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@ITelemetryService private _telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@ICodeEditorService codeEditorService: ICodeEditorService
+		@IProgressService2 private readonly _progressService: IProgressService2,
+		@ILogService private readonly _logService: ILogService
 	) {
-
 		this._saveParticipants = [
-			new TrimWhitespaceParticipant(configurationService, codeEditorService),
-			new FormatOnSaveParticipant(codeEditorService, configurationService),
-			new FinalNewLineParticipant(configurationService, codeEditorService),
-			new ExtHostSaveParticipant(extHostContext)
+			instantiationService.createInstance(TrimWhitespaceParticipant),
+			instantiationService.createInstance(CodeActionOnParticipant),
+			instantiationService.createInstance(FormatOnSaveParticipant),
+			instantiationService.createInstance(FinalNewLineParticipant),
+			instantiationService.createInstance(TrimFinalNewLinesParticipant),
+			instantiationService.createInstance(ExtHostSaveParticipant, extHostContext),
 		];
-
 		// Hook into model
 		TextFileEditorModel.setSaveParticipant(this);
 	}
@@ -248,25 +378,13 @@ export class SaveParticipant implements ISaveParticipant {
 		TextFileEditorModel.setSaveParticipant(undefined);
 	}
 
-	participate(model: ITextFileEditorModel, env: { reason: SaveReason }): TPromise<void> {
-
-		const stats: { [name: string]: number } = Object.create(null);
-
-		const promiseFactory = this._saveParticipants.map(p => () => {
-
-			const { name } = p;
-			const t1 = Date.now();
-
-			return TPromise.as(p.participate(model, env)).then(() => {
-				stats[`Success-${name}`] = Date.now() - t1;
-			}, err => {
-				stats[`Failure-${name}`] = Date.now() - t1;
-				// console.error(err);
+	participate(model: ITextFileEditorModel, env: { reason: SaveReason }): Thenable<void> {
+		return this._progressService.withProgress({ location: ProgressLocation.Window }, progress => {
+			progress.report({ message: localize('saveParticipants', "Running Save Participants...") });
+			const promiseFactory = this._saveParticipants.map(p => () => {
+				return Promise.resolve(p.participate(model, env));
 			});
-		});
-
-		return sequence(promiseFactory).then(() => {
-			this._telemetryService.publicLog('saveParticipantStats', stats);
+			return sequence(promiseFactory).then(() => { }, err => this._logService.warn(err));
 		});
 	}
 }

@@ -6,7 +6,6 @@
 'use strict';
 
 import { equals } from 'vs/base/common/arrays';
-import { marked } from 'vs/base/common/marked/marked';
 
 export interface IMarkdownString {
 	value: string;
@@ -56,7 +55,7 @@ export function isEmptyMarkdownString(oneOrMany: IMarkdownString | IMarkdownStri
 export function isMarkdownString(thing: any): thing is IMarkdownString {
 	if (thing instanceof MarkdownString) {
 		return true;
-	} else if (typeof thing === 'object') {
+	} else if (thing && typeof thing === 'object') {
 		return typeof (<IMarkdownString>thing).value === 'string'
 			&& (typeof (<IMarkdownString>thing).isTrusted === 'boolean' || (<IMarkdownString>thing).isTrusted === void 0);
 	}
@@ -92,17 +91,4 @@ export function removeMarkdownEscapes(text: string): string {
 		return text;
 	}
 	return text.replace(/\\([\\`*_{}[\]()#+\-.!])/g, '$1');
-}
-
-export function containsCommandLink(value: string): boolean {
-	let uses = false;
-	const renderer = new marked.Renderer();
-	renderer.link = (href, title, text): string => {
-		if (href.match(/^command:/i)) {
-			uses = true;
-		}
-		return 'link';
-	};
-	marked(value, { renderer });
-	return uses;
 }

@@ -193,6 +193,10 @@ export class CursorCollection {
 			const currentViewSelection = current.viewSelection;
 			const nextViewSelection = next.viewSelection;
 
+			if (!this.context.config.multiCursorMergeOverlapping) {
+				continue;
+			}
+
 			let shouldMergeCursors: boolean;
 			if (nextViewSelection.isEmpty() || currentViewSelection.isEmpty()) {
 				// Merge touching cursors if one of them is collapsed

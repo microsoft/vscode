@@ -3,31 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { SpectronApplication, CODE_WORKSPACE_PATH, VSCODE_BUILD } from '../../spectron/application';
-import { Window } from '../window';
+import { Application } from '../../application';
 
-describe('Multi Root', () => {
-	let app: SpectronApplication = new SpectronApplication(void 0, CODE_WORKSPACE_PATH);
-	if (app.build === VSCODE_BUILD.STABLE) {
-		return;
-	}
+export function setup() {
+	describe('Multiroot', () => {
 
-	before(() => app.start('Multi Root'));
-	after(() => app.stop());
-	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
+		before(async function () {
+			const app = this.app as Application;
 
-	it('shows results from all folders', async function () {
-		await app.workbench.quickopen.openQuickOpen();
+			// restart with preventing additional windows from restoring
+			// to ensure the window after restart is the multi-root workspace
+			await app.restart({ workspaceOrFolder: app.workspaceFilePath, extraArgs: ['--disable-restore-windows'] });
+		});
 
-		await app.workbench.quickopen.type('*.*');
+		it('shows results from all folders', async function () {
+			const app = this.app as Application;
+			await app.workbench.quickopen.openQuickOpen('*.*');
 
-		await app.workbench.quickopen.waitForQuickOpenElements(6);
+			await app.workbench.quickopen.waitForQuickOpenElements(names => names.length === 6);
+			await app.workbench.quickopen.closeQuickOpen();
+		});
+
+		it('shows workspace name in title', async function () {
+			const app = this.app as Application;
+			await app.code.waitForTitle(title => /smoketest \(Workspace\)/i.test(title));
+		});
 	});
-
-	it('shows workspace name in title', async function () {
-		const title = await new Window(app).getTitle();
-		await app.screenCapturer.capture('window title');
-		assert.ok(title.indexOf('smoketest (Workspace)') >= 0);
-	});
-});
+}

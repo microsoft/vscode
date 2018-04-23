@@ -22,7 +22,7 @@ import * as File from 'vinyl';
 export function fromLocal(extensionPath: string): Stream {
 	const result = es.through();
 
-	vsce.listFiles({ cwd: extensionPath })
+	vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn })
 		.then(fileNames => {
 			const files = fileNames
 				.map(fileName => path.join(extensionPath, fileName))

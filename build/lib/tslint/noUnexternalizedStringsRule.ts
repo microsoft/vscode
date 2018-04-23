@@ -45,7 +45,7 @@ interface KeyMessagePair {
 
 class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 
-	private static ImportFailureMessage = 'Do not use double qoutes for imports.';
+	private static ImportFailureMessage = 'Do not use double quotes for imports.';
 
 	private static DOUBLE_QUOTE: string = '"';
 
@@ -104,13 +104,14 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 		let info = this.findDescribingParent(node);
 		// Ignore strings in import and export nodes.
 		if (info && info.isImport && doubleQuoted) {
+			const fix = [
+				Lint.Replacement.replaceFromTo(node.getStart(), 1, '\''),
+				Lint.Replacement.replaceFromTo(node.getStart() + text.length - 1, 1, '\''),
+			];
 			this.addFailureAtNode(
 				node,
 				NoUnexternalizedStringsRuleWalker.ImportFailureMessage,
-				new Lint.Fix(NoUnexternalizedStringsRuleWalker.ImportFailureMessage, [
-					this.createReplacement(node.getStart(), 1, '\''),
-					this.createReplacement(node.getStart() + text.length - 1, 1, '\''),
-				])
+				fix
 			);
 			return;
 		}
@@ -122,8 +123,9 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 
 		if (doubleQuoted && (!callInfo || callInfo.argIndex === -1 || !this.signatures[functionName])) {
 			const s = node.getText();
-			const replacement = new Lint.Replacement(node.getStart(), node.getWidth(), `nls.localize('KEY-${s.substring(1, s.length - 1)}', ${s})`);
-			const fix = new Lint.Fix('Unexternalitzed string', [replacement]);
+			const fix = [
+				Lint.Replacement.replaceFromTo(node.getStart(), node.getWidth(), `nls.localize('KEY-${s.substring(1, s.length - 1)}', ${s})`),
+			];
 			this.addFailure(this.createFailure(node.getStart(), node.getWidth(), `Unexternalized string found: ${node.getText()}`, fix));
 			return;
 		}
@@ -154,10 +156,10 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 				}
 			}
 		}
-		let messageArg: ts.Expression = callInfo.argIndex === this.messageIndex
-			? callInfo.callExpression.arguments[this.messageIndex]
-			: null;
-		if (messageArg && messageArg !== node) {
+
+		const messageArg = callInfo.callExpression.arguments[this.messageIndex];
+
+		if (messageArg && messageArg.kind !== ts.SyntaxKind.StringLiteral) {
 			this.addFailure(this.createFailure(
 				messageArg.getStart(), messageArg.getWidth(),
 				`Message argument to '${callInfo.callExpression.expression.getText()}' must be a string literal.`));
@@ -167,6 +169,15 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 
 	private recordKey(keyNode: ts.StringLiteral, messageNode: ts.Node) {
 		let text = keyNode.getText();
+		// We have an empty key
+		if (text.match(/(['"]) *\1/)) {
+			if (messageNode) {
+				this.addFailureAtNode(keyNode, `Key is empty for message: ${messageNode.getText()}`);
+			} else {
+				this.addFailureAtNode(keyNode, `Key is empty.`);
+			}
+			return;
+		}
 		let occurrences: KeyMessagePair[] = this.usedKeys[text];
 		if (!occurrences) {
 			occurrences = [];

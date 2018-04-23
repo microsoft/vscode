@@ -24,17 +24,11 @@ if [ "@@NAME@@" != "code-oss" ]; then
 	fi
 
 	# Register apt repository
-	get_apt_config_value() {
-		echo $(apt-config dump | grep "$1 " | sed -e "s/$1 \"//" -e "s/\";$//")
-	}
+	eval $(apt-config shell APT_SOURCE_PARTS Dir::Etc::sourceparts/d)
+	CODE_SOURCE_PART=${APT_SOURCE_PARTS}vscode.list
 
-	APT_DIR=$(get_apt_config_value Dir)
-	APT_ETC=$APT_DIR$(get_apt_config_value Dir::Etc)
-	APT_SOURCE_PARTS=$APT_ETC/$(get_apt_config_value Dir::Etc::sourceparts)
-	CODE_SOURCE_PART=$APT_SOURCE_PARTS/vscode.list
-
-	APT_TRUSTED_PARTS=$APT_ETC/$(get_apt_config_value Dir::Etc::trustedparts)
-	CODE_TRUSTED_PART=$APT_TRUSTED_PARTS/microsoft.gpg
+	eval $(apt-config shell APT_TRUSTED_PARTS Dir::Etc::trustedparts/d)
+	CODE_TRUSTED_PART=${APT_TRUSTED_PARTS}microsoft.gpg
 
 	# Sourced from https://packages.microsoft.com/keys/microsoft.asc
 	if [ ! -f $CODE_TRUSTED_PART ]; then

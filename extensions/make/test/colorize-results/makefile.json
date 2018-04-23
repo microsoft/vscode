@@ -135,8 +135,8 @@
 		"c": "\\",
 		"t": "source.makefile meta.scope.target.makefile meta.scope.prerequisites.makefile constant.character.escape.continuation.makefile",
 		"r": {
-			"dark_plus": "constant.character.escape: #C586C0",
-			"light_plus": "constant.character.escape: #FF0000",
+			"dark_plus": "constant.character.escape: #D7BA7D",
+			"light_plus": "constant.character.escape: #A31515",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "constant.character: #569CD6"
@@ -278,8 +278,8 @@
 		"c": "\\",
 		"t": "source.makefile meta.scope.target.makefile meta.scope.prerequisites.makefile constant.character.escape.continuation.makefile",
 		"r": {
-			"dark_plus": "constant.character.escape: #C586C0",
-			"light_plus": "constant.character.escape: #FF0000",
+			"dark_plus": "constant.character.escape: #D7BA7D",
+			"light_plus": "constant.character.escape: #A31515",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "constant.character: #569CD6"
@@ -322,8 +322,8 @@
 		"c": "\\",
 		"t": "source.makefile meta.scope.target.makefile meta.scope.prerequisites.makefile comment.line.number-sign.makefile constant.character.escape.continuation.makefile",
 		"r": {
-			"dark_plus": "constant.character.escape: #C586C0",
-			"light_plus": "constant.character.escape: #FF0000",
+			"dark_plus": "constant.character.escape: #D7BA7D",
+			"light_plus": "constant.character.escape: #A31515",
 			"dark_vs": "comment: #608B4E",
 			"light_vs": "comment: #008000",
 			"hc_black": "constant.character: #569CD6"
@@ -377,8 +377,8 @@
 		"c": "\\",
 		"t": "source.makefile comment.line.number-sign.makefile constant.character.escape.continuation.makefile",
 		"r": {
-			"dark_plus": "constant.character.escape: #C586C0",
-			"light_plus": "constant.character.escape: #FF0000",
+			"dark_plus": "constant.character.escape: #D7BA7D",
+			"light_plus": "constant.character.escape: #A31515",
 			"dark_vs": "comment: #608B4E",
 			"light_vs": "comment: #008000",
 			"hc_black": "constant.character: #569CD6"
@@ -553,8 +553,8 @@
 		"c": "\\",
 		"t": "source.makefile meta.scope.target.makefile meta.scope.prerequisites.makefile constant.character.escape.continuation.makefile",
 		"r": {
-			"dark_plus": "constant.character.escape: #C586C0",
-			"light_plus": "constant.character.escape: #FF0000",
+			"dark_plus": "constant.character.escape: #D7BA7D",
+			"light_plus": "constant.character.escape: #A31515",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "constant.character: #569CD6"

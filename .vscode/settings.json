@@ -1,6 +1,5 @@
 {
 	"editor.insertSpaces": false,
-	"files.eol": "\n",
 	"files.trimTrailingWhitespace": true,
 	"files.exclude": {
 		".git": true,
@@ -10,11 +9,16 @@
 			"when": "$(basename).ts"
 		}
 	},
+	"files.associations": {
+		"OSSREADME.json": "jsonc"
+	},
 	"search.exclude": {
 		"**/node_modules": true,
 		"**/bower_components": true,
 		".build/**": true,
-		"out*/**": true,
+		"out/**": true,
+		"out-build/**": true,
+		"out-vscode/**": true,
 		"i18n/**": true,
 		"extensions/**/out/**": true,
 		"test/smoke/out/**": true
@@ -27,10 +31,13 @@
 	"lcov.watch": [
 		{
 			"pattern": "**/*.test.js",
-			"command": "${workspaceRoot}/scripts/test.sh --coverage --run ${file}",
+			"command": "${workspaceFolder}/scripts/test.sh --coverage --run ${file}",
 			"windows": {
-				"command": "${workspaceRoot}\\scripts\\test.bat --coverage --run ${file}"
+				"command": "${workspaceFolder}\\scripts\\test.bat --coverage --run ${file}"
 			}
 		}
-	]
+	],
+	"typescript.tsdk": "node_modules/typescript/lib",
+	"npm.exclude": "**/extensions/**",
+	"emmet.excludeLanguages": []
 }

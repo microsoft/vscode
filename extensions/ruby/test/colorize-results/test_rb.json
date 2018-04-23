@@ -2500,8 +2500,8 @@
 		"c": "\\d",
 		"t": "source.ruby string.regexp.classic.ruby meta.group.regexp.ruby constant.character.escape.ruby",
 		"r": {
-			"dark_plus": "constant.character.escape: #C586C0",
-			"light_plus": "constant.character.escape: #FF0000",
+			"dark_plus": "constant.character.escape: #D7BA7D",
+			"light_plus": "constant.character.escape: #A31515",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "constant.character: #569CD6"
@@ -2522,8 +2522,8 @@
 		"c": "\\.\\d",
 		"t": "source.ruby string.regexp.classic.ruby meta.group.regexp.ruby constant.character.escape.ruby",
 		"r": {
-			"dark_plus": "constant.character.escape: #C586C0",
-			"light_plus": "constant.character.escape: #FF0000",
+			"dark_plus": "constant.character.escape: #D7BA7D",
+			"light_plus": "constant.character.escape: #A31515",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "constant.character: #569CD6"
@@ -2544,8 +2544,8 @@
 		"c": "\\.\\d",
 		"t": "source.ruby string.regexp.classic.ruby meta.group.regexp.ruby constant.character.escape.ruby",
 		"r": {
-			"dark_plus": "constant.character.escape: #C586C0",
-			"light_plus": "constant.character.escape: #FF0000",
+			"dark_plus": "constant.character.escape: #D7BA7D",
+			"light_plus": "constant.character.escape: #A31515",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "constant.character: #569CD6"
@@ -2577,8 +2577,8 @@
 		"c": "\\.\\d",
 		"t": "source.ruby string.regexp.classic.ruby meta.group.regexp.ruby meta.group.regexp.ruby constant.character.escape.ruby",
 		"r": {
-			"dark_plus": "constant.character.escape: #C586C0",
-			"light_plus": "constant.character.escape: #FF0000",
+			"dark_plus": "constant.character.escape: #D7BA7D",
+			"light_plus": "constant.character.escape: #A31515",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "constant.character: #569CD6"

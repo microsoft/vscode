@@ -17,46 +17,45 @@ export class DocumentStreamReader {
 	private document: TextDocument;
 	private start: Position;
 	private _eof: Position;
+	private _sof: Position;
 	public pos: Position;
 	private _eol: string;
 
-	/**
-	 * @param  {TextDocument} buffer
-	 * @param  {Position}      pos
-	 * @param  {Range}        limit
-	 */
 	constructor(document: TextDocument, pos?: Position, limit?: Range) {
 
 		this.document = document;
 		this.start = this.pos = pos ? pos : new Position(0, 0);
+		this._sof = limit ? limit.start : new Position(0, 0);
 		this._eof = limit ? limit.end : new Position(this.document.lineCount - 1, this._lineLength(this.document.lineCount - 1));
 		this._eol = this.document.eol === EndOfLine.LF ? '\n' : '\r\n';
 	}
 
 	/**
-	 * Returns true only if the stream is at the end of the file.
-	 * @returns {Boolean}
+	 * Returns true only if the stream is at the start of the file.
 	 */
-	eof() {
+	sof(): boolean {
+		return this.pos.isBeforeOrEqual(this._sof);
+	}
+
+	/**
+	 * Returns true only if the stream is at the end of the file.
+	 */
+	eof(): boolean {
 		return this.pos.isAfterOrEqual(this._eof);
 	}
 
 	/**
 	 * Creates a new stream instance which is limited to given range for given document
-	 * @param  {Position} start
-	 * @param  {Position} end
-	 * @return {DocumentStreamReader}
 	 */
-	limit(start, end) {
+	limit(start: Position, end: Position): DocumentStreamReader {
 		return new DocumentStreamReader(this.document, start, new Range(start, end));
 	}
 
 	/**
 	 * Returns the next character code in the stream without advancing it.
 	 * Will return NaN at the end of the file.
-	 * @returns {Number}
 	 */
-	peek() {
+	peek(): number {
 		if (this.eof()) {
 			return NaN;
 		}
@@ -67,9 +66,8 @@ export class DocumentStreamReader {
 	/**
 	 * Returns the next character in the stream and advances it.
 	 * Also returns NaN when no more characters are available.
-	 * @returns {Number}
 	 */
-	next() {
+	next(): number {
 		if (this.eof()) {
 			return NaN;
 		}
@@ -95,9 +93,8 @@ export class DocumentStreamReader {
 	/**
 	 * Backs up the stream n characters. Backing it up further than the
 	 * start of the current token will cause things to break, so be careful.
-	 * @param {Number} n
 	 */
-	backUp(n) {
+	backUp(n: number) {
 		let row = this.pos.line;
 		let column = this.pos.character;
 		column -= (n || 1);
@@ -117,28 +114,22 @@ export class DocumentStreamReader {
 	/**
 	 * Get the string between the start of the current token and the
 	 * current stream position.
-	 * @returns {String}
 	 */
-	current() {
+	current(): string {
 		return this.substring(this.start, this.pos);
 	}
 
 	/**
 	 * Returns contents for given range
-	 * @param  {Position} from
-	 * @param  {Position} to
-	 * @return {String}
 	 */
-	substring(from, to) {
+	substring(from: Position, to: Position): string {
 		return this.document.getText(new Range(from, to));
 	}
 
 	/**
 	 * Creates error object with current stream state
-	 * @param {String} message
-	 * @return {Error}
 	 */
-	error(message) {
+	error(message: string): Error {
 		const err = new Error(`${message} at row ${this.pos.line}, column ${this.pos.character}`);
 
 		return err;
@@ -146,10 +137,8 @@ export class DocumentStreamReader {
 
 	/**
 	 * Returns line length of given row, including line ending
-	 * @param  {Number} row
-	 * @return {Number}
 	 */
-	_lineLength(row) {
+	_lineLength(row: number): number {
 		if (row === this.document.lineCount - 1) {
 			return this.document.lineAt(row).text.length;
 		}
@@ -161,10 +150,8 @@ export class DocumentStreamReader {
 	 * and returns a boolean. If the next character in the stream 'matches'
 	 * the given argument, it is consumed and returned.
 	 * Otherwise, `false` is returned.
-	 * @param {Number|Function} match
-	 * @returns {Boolean}
 	 */
-	eat(match) {
+	eat(match: number | Function): boolean {
 		const ch = this.peek();
 		const ok = typeof match === 'function' ? match(ch) : ch === match;
 
@@ -178,10 +165,8 @@ export class DocumentStreamReader {
 	/**
 	 * Repeatedly calls <code>eat</code> with the given argument, until it
 	 * fails. Returns <code>true</code> if any characters were eaten.
-	 * @param {Object} match
-	 * @returns {Boolean}
 	 */
-	eatWhile(match) {
+	eatWhile(match: number | Function): boolean {
 		const start = this.pos;
 		while (!this.eof() && this.eat(match)) { }
 		return !this.pos.isEqual(start);

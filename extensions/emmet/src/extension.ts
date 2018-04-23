@@ -17,12 +17,9 @@ import { fetchEditPoint } from './editPoint';
 import { fetchSelectItem } from './selectItem';
 import { evaluateMathExpression } from './evaluateMathExpression';
 import { incrementDecrement } from './incrementDecrement';
-import { LANGUAGE_MODES, getMappingForIncludedLanguages } from './util';
-import { updateExtensionsPath } from 'vscode-emmet-helper';
+import { LANGUAGE_MODES, getMappingForIncludedLanguages, resolveUpdateExtensionsPath } from './util';
 import { updateImageSize } from './updateImageSize';
 import { reflectCssValue } from './reflectCssValue';
-
-import * as path from 'path';
 
 export function activate(context: vscode.ExtensionContext) {
 	registerCompletionProviders(context);
@@ -48,7 +45,11 @@ export function activate(context: vscode.ExtensionContext) {
 			return updateTag(inputTag);
 		}
 		return vscode.window.showInputBox({ prompt: 'Enter Tag' }).then(tagName => {
-			return updateTag(tagName);
+			if (tagName) {
+				const update = updateTag(tagName);
+				return update ? update : false;
+			}
+			return false;
 		});
 	}));
 
@@ -128,18 +129,6 @@ export function activate(context: vscode.ExtensionContext) {
 		return reflectCssValue();
 	}));
 
-	let currentExtensionsPath = undefined;
-	let resolveUpdateExtensionsPath = () => {
-		let extensionsPath = vscode.workspace.getConfiguration('emmet')['extensionsPath'];
-		if (extensionsPath && !path.isAbsolute(extensionsPath)) {
-			extensionsPath = path.join(vscode.workspace.rootPath, extensionsPath);
-		}
-		if (currentExtensionsPath !== extensionsPath) {
-			currentExtensionsPath = extensionsPath;
-			updateExtensionsPath(currentExtensionsPath).then(null, err => vscode.window.showErrorMessage(err));
-		}
-	};
-
 	resolveUpdateExtensionsPath();
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
@@ -164,7 +153,10 @@ function registerCompletionProviders(context: vscode.ExtensionContext) {
 		}
 
 		if (languageMappingForCompletionProviders.has(language)) {
-			completionProvidersMapping.get(language).dispose();
+			const mapping = completionProvidersMapping.get(language);
+			if (mapping) {
+				mapping.dispose();
+			}
 			languageMappingForCompletionProviders.delete(language);
 			completionProvidersMapping.delete(language);
 		}

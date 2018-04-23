@@ -58,6 +58,9 @@ function getUnixShellEnvironment(): TPromise<typeof process.env> {
 					delete env['ELECTRON_NO_ATTACH_CONSOLE'];
 				}
 
+				// https://github.com/Microsoft/vscode/issues/22593#issuecomment-336050758
+				delete env['XDG_RUNTIME_DIR'];
+
 				c(env);
 			} catch (err) {
 				e(err);

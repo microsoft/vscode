@@ -7,7 +7,6 @@
 import * as assert from 'assert';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
-
 suite('Command Tests', function () {
 
 	test('register command - no handler', function () {
@@ -60,7 +59,8 @@ suite('Command Tests', function () {
 			assert.ok(typeof args === 'string');
 		});
 
-		CommandsRegistry.registerCommand('test3', {
+		CommandsRegistry.registerCommand({
+			id: 'test3',
 			handler: function (accessor, args) {
 				return true;
 			},

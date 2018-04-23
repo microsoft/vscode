@@ -5,9 +5,9 @@
 
 'use strict';
 
-import 'vs/workbench/parts/search/browser/search.contribution'; // load contributions
+import 'vs/workbench/parts/search/electron-browser/search.contribution'; // load contributions
 import * as assert from 'assert';
-import { IWorkspaceContextService, LegacyWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ISearchService } from 'vs/platform/search/common/search';
@@ -17,7 +17,7 @@ import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/serv
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as minimist from 'minimist';
 import * as path from 'path';
-import { QuickOpenHandler, IQuickOpenRegistry, Extensions } from 'vs/workbench/browser/quickopen';
+import { IQuickOpenRegistry, Extensions } from 'vs/workbench/browser/quickopen';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SearchService } from 'vs/workbench/services/search/node/searchService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -30,6 +30,7 @@ import { SimpleConfigurationService } from 'vs/editor/standalone/browser/simpleS
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 namespace Timer {
 	export interface ITimerEvent {
@@ -53,11 +54,11 @@ declare var __dirname: string;
 // git clone --separate-git-dir=testGit --no-checkout --single-branch https://chromium.googlesource.com/chromium/src testWorkspace
 // cd testWorkspace; git checkout 39a7f93d67f7
 // Run from repository root folder with (test.bat on Windows): ./scripts/test.sh --grep QuickOpen.performance --timeout 180000 --testWorkspace <path>
-suite('QuickOpen performance (integration)', () => {
+suite.skip('QuickOpen performance (integration)', () => {
 
 	test('Measure', () => {
 		if (process.env['VSCODE_PID']) {
-			return; // TODO@Christoph find out why test fails when run from within VS Code
+			return void 0; // TODO@Christoph find out why test fails when run from within VS Code
 		}
 
 		const n = 3;
@@ -74,7 +75,7 @@ suite('QuickOpen performance (integration)', () => {
 			[IExperimentService, experimentService],
 			[IConfigurationService, configurationService],
 			[IModelService, new ModelServiceImpl(null, configurationService)],
-			[IWorkspaceContextService, new TestContextService(new LegacyWorkspace(URI.file(testWorkspacePath)))],
+			[IWorkspaceContextService, new TestContextService(testWorkspace(URI.file(testWorkspacePath)))],
 			[IWorkbenchEditorService, new TestEditorService()],
 			[IEditorGroupService, new TestEditorGroupService()],
 			[IEnvironmentService, TestEnvironmentService],
@@ -87,27 +88,25 @@ suite('QuickOpen performance (integration)', () => {
 		assert.ok(descriptor);
 
 		function measure() {
-			return instantiationService.createInstance(descriptor)
-				.then((handler: QuickOpenHandler) => {
-					handler.onOpen();
-					return handler.getResults('a').then(result => {
-						const uncachedEvent = popEvent();
-						assert.strictEqual(uncachedEvent.data.symbols.fromCache, false, 'symbols.fromCache');
-						assert.strictEqual(uncachedEvent.data.files.fromCache, true, 'files.fromCache');
-						if (testWorkspaceArg) {
-							assert.ok(!!uncachedEvent.data.files.joined, 'files.joined');
-						}
-						return uncachedEvent;
-					}).then(uncachedEvent => {
-						return handler.getResults('ab').then(result => {
-							const cachedEvent = popEvent();
-							assert.strictEqual(uncachedEvent.data.symbols.fromCache, false, 'symbols.fromCache');
-							assert.ok(cachedEvent.data.files.fromCache, 'filesFromCache');
-							handler.onClose(false);
-							return [uncachedEvent, cachedEvent];
-						});
-					});
+			const handler = descriptor.instantiate(instantiationService);
+			handler.onOpen();
+			return handler.getResults('a').then(result => {
+				const uncachedEvent = popEvent();
+				assert.strictEqual(uncachedEvent.data.symbols.fromCache, false, 'symbols.fromCache');
+				assert.strictEqual(uncachedEvent.data.files.fromCache, true, 'files.fromCache');
+				if (testWorkspaceArg) {
+					assert.ok(!!uncachedEvent.data.files.joined, 'files.joined');
+				}
+				return uncachedEvent;
+			}).then(uncachedEvent => {
+				return handler.getResults('ab').then(result => {
+					const cachedEvent = popEvent();
+					assert.strictEqual(uncachedEvent.data.symbols.fromCache, false, 'symbols.fromCache');
+					assert.ok(cachedEvent.data.files.fromCache, 'filesFromCache');
+					handler.onClose(false);
+					return [uncachedEvent, cachedEvent];
 				});
+			});
 		}
 
 		function popEvent() {
@@ -169,7 +168,7 @@ class TestTelemetryService implements ITelemetryService {
 
 	public publicLog(eventName: string, data?: any): TPromise<void> {
 		this.events.push({ name: eventName, data: data });
-		return TPromise.as<void>(null);
+		return TPromise.wrap<void>(null);
 	}
 
 	public getTelemetryInfo(): TPromise<ITelemetryInfo> {
@@ -179,15 +178,13 @@ class TestTelemetryService implements ITelemetryService {
 			machineId: 'someValue.machineId'
 		});
 	}
-};
+}
 
 class TestExperimentService implements IExperimentService {
 
 	_serviceBrand: any;
 
 	getExperiments(): IExperiments {
-		return {
-			ripgrepQuickSearch: true,
-		};
+		return {};
 	}
 }

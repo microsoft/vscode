@@ -7,14 +7,14 @@
 import { localize } from 'vs/nls';
 import { forEach } from 'vs/base/common/collections';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
-import { ViewLocation, ViewsRegistry, IViewDescriptor } from 'vs/workbench/browser/parts/views/viewsRegistry';
-import { TreeView } from 'vs/workbench/browser/parts/views/treeView';
+import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { ViewLocation, ViewsRegistry, ICustomViewDescriptor } from 'vs/workbench/common/views';
+import { CustomTreeViewPanel } from 'vs/workbench/browser/parts/views/customViewPanel';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { coalesce, } from 'vs/base/common/arrays';
+import { viewsContainersExtensionPoint } from 'vs/workbench/api/browser/viewsContainersExtensionPoint';
 
 namespace schema {
-
-	// --views contribution point
 
 	export interface IUserFriendlyViewDescriptor {
 		id: string;
@@ -69,43 +69,81 @@ namespace schema {
 		type: 'object',
 		properties: {
 			'explorer': {
-				description: localize('views.explorer', "Explorer View"),
+				description: localize('views.explorer', "Contributes views to Explorer container in the Activity bar"),
 				type: 'array',
-				items: viewDescriptor
+				items: viewDescriptor,
+				default: []
 			},
 			'debug': {
-				description: localize('views.debug', "Debug View"),
+				description: localize('views.debug', "Contributes views to Debug container in the Activity bar"),
 				type: 'array',
-				items: viewDescriptor
+				items: viewDescriptor,
+				default: []
+			},
+			'scm': {
+				description: localize('views.scm', "Contributes views to SCM container in the Activity bar"),
+				type: 'array',
+				items: viewDescriptor,
+				default: []
 			}
+		},
+		additionalProperties: {
+			description: localize('views.contributed', "Contributes views to contributed views container"),
+			type: 'array',
+			items: viewDescriptor,
+			default: []
 		}
 	};
 }
 
-ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyViewDescriptor[] }>('views', [], schema.viewsContribution).setHandler(extensions => {
-	for (let extension of extensions) {
-		const { value, collector } = extension;
-
-		forEach(value, entry => {
-			if (!schema.isValidViewDescriptors(entry.value, collector)) {
-				return;
-			}
-
-			const location = ViewLocation.getContributedViewLocation(entry.key);
-			if (!location) {
-				collector.warn(localize('locationId.invalid', "`{0}` is not a valid view location", entry.key));
-				return;
-			}
-
-			const viewDescriptors = entry.value.map(item => (<IViewDescriptor>{
-				id: item.id,
-				name: item.name,
-				ctor: TreeView,
-				location,
-				when: ContextKeyExpr.deserialize(item.when),
-				canToggleVisibility: true
-			}));
-			ViewsRegistry.registerViews(viewDescriptors);
-		});
+function getViewLocation(value: string): ViewLocation {
+	switch (value) {
+		case 'explorer': return ViewLocation.Explorer;
+		case 'debug': return ViewLocation.Debug;
+		case 'scm': return ViewLocation.SCM;
+		default: return ViewLocation.get(`workbench.view.extension.${value}`) || ViewLocation.Explorer;
 	}
-});
+}
+
+ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyViewDescriptor[] }>('views', [viewsContainersExtensionPoint], schema.viewsContribution)
+	.setHandler((extensions) => {
+		for (let extension of extensions) {
+			const { value, collector } = extension;
+
+			forEach(value, entry => {
+				if (!schema.isValidViewDescriptors(entry.value, collector)) {
+					return;
+				}
+
+				const location = getViewLocation(entry.key);
+				const registeredViews = ViewsRegistry.getViews(location);
+				const viewIds = [];
+				const viewDescriptors = coalesce(entry.value.map(item => {
+					const viewDescriptor = <ICustomViewDescriptor>{
+						id: item.id,
+						name: item.name,
+						ctor: CustomTreeViewPanel,
+						location,
+						when: ContextKeyExpr.deserialize(item.when),
+						canToggleVisibility: true,
+						collapsed: true,
+						treeView: true
+					};
+
+					// validate
+					if (viewIds.indexOf(viewDescriptor.id) !== -1) {
+						collector.error(localize('duplicateView1', "Cannot register multiple views with same id `{0}` in the location `{1}`", viewDescriptor.id, viewDescriptor.location.id));
+						return null;
+					}
+					if (registeredViews.some(v => v.id === viewDescriptor.id)) {
+						collector.error(localize('duplicateView2', "A view with id `{0}` is already registered in the location `{1}`", viewDescriptor.id, viewDescriptor.location.id));
+						return null;
+					}
+
+					viewIds.push(viewDescriptor.id);
+					return viewDescriptor;
+				}));
+				ViewsRegistry.registerViews(viewDescriptors);
+			});
+		}
+	});

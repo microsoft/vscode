@@ -10,6 +10,7 @@ import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/co
 export const ExtensionsConfigurationSchemaId = 'vscode://schemas/extensions';
 export const ExtensionsConfigurationSchema: IJSONSchema = {
 	id: ExtensionsConfigurationSchemaId,
+	allowComments: true,
 	type: 'object',
 	title: localize('app.extensions.json.title', "Extensions"),
 	properties: {

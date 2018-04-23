@@ -17,7 +17,7 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 	private _context: ViewContext;
 	private _lineHeight: number;
 	private _renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
-	private _primaryCursorIsInEditableRange: boolean;
+	private _selectionIsEmpty: boolean;
 	private _primaryCursorLineNumber: number;
 	private _contentLeft: number;
 
@@ -27,7 +27,7 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._renderLineHighlight = this._context.configuration.editor.viewInfo.renderLineHighlight;
 
-		this._primaryCursorIsInEditableRange = true;
+		this._selectionIsEmpty = true;
 		this._primaryCursorLineNumber = 1;
 		this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
 
@@ -57,15 +57,17 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		let hasChanged = false;
 
-		if (this._primaryCursorIsInEditableRange !== e.isInEditableRange) {
-			this._primaryCursorIsInEditableRange = e.isInEditableRange;
-			hasChanged = true;
-		}
-
 		const primaryCursorLineNumber = e.selections[0].positionLineNumber;
 		if (this._primaryCursorLineNumber !== primaryCursorLineNumber) {
 			this._primaryCursorLineNumber = primaryCursorLineNumber;
 			hasChanged = true;
+		}
+
+		const selectionIsEmpty = e.selections[0].isEmpty();
+		if (this._selectionIsEmpty !== selectionIsEmpty) {
+			this._selectionIsEmpty = selectionIsEmpty;
+			hasChanged = true;
+			return true;
 		}
 
 		return hasChanged;
@@ -89,23 +91,36 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 
 	public render(startLineNumber: number, lineNumber: number): string {
 		if (lineNumber === this._primaryCursorLineNumber) {
+			let className = 'current-line';
 			if (this._shouldShowCurrentLine()) {
-				return (
-					'<div class="current-line-margin" style="width:'
-					+ String(this._contentLeft)
-					+ 'px; height:'
-					+ String(this._lineHeight)
-					+ 'px;"></div>'
-				);
-			} else {
-				return '';
+				const paintedInContent = this._willRenderContentCurrentLine();
+				className = 'current-line current-line-margin' + (paintedInContent ? ' current-line-margin-both' : '');
 			}
+
+			return (
+				'<div class="'
+				+ className
+				+ '" style="width:'
+				+ String(this._contentLeft)
+				+ 'px; height:'
+				+ String(this._lineHeight)
+				+ 'px;"></div>'
+			);
 		}
 		return '';
 	}
 
 	private _shouldShowCurrentLine(): boolean {
-		return (this._renderLineHighlight === 'gutter' || this._renderLineHighlight === 'all') && this._primaryCursorIsInEditableRange;
+		return (
+			(this._renderLineHighlight === 'gutter' || this._renderLineHighlight === 'all')
+		);
+	}
+
+	private _willRenderContentCurrentLine(): boolean {
+		return (
+			(this._renderLineHighlight === 'line' || this._renderLineHighlight === 'all')
+			&& this._selectionIsEmpty
+		);
 	}
 }
 

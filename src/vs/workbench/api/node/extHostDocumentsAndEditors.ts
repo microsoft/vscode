@@ -4,18 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { dispose } from 'vs/base/common/lifecycle';
 import { MainContext, ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, IMainContext } from './extHost.protocol';
 import { ExtHostDocumentData } from './extHostDocumentData';
-import { ExtHostTextEditor, ExtHostTextEditor2 } from './extHostTextEditor';
+import { ExtHostTextEditor } from './extHostTextEditor';
 import * as assert from 'assert';
 import * as typeConverters from './extHostTypeConverters';
-import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
+import URI from 'vs/base/common/uri';
+import { Disposable } from './extHostTypes';
 
 export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsShape {
 
+	private _disposables: Disposable[] = [];
+
 	private _activeEditorId: string;
+
 	private readonly _editors = new Map<string, ExtHostTextEditor>();
 	private readonly _documents = new Map<string, ExtHostDocumentData>();
 
@@ -31,8 +35,10 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 
 	constructor(
 		private readonly _mainContext: IMainContext,
-		private readonly _extHostExtensions?: ExtHostExtensionService
-	) {
+	) { }
+
+	dispose() {
+		this._disposables = dispose(this._disposables);
 	}
 
 	$acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta): void {
@@ -42,7 +48,9 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 		const removedEditors: ExtHostTextEditor[] = [];
 
 		if (delta.removedDocuments) {
-			for (const id of delta.removedDocuments) {
+			for (const uriComponent of delta.removedDocuments) {
+				const uri = URI.revive(uriComponent);
+				const id = uri.toString();
 				const data = this._documents.get(id);
 				this._documents.delete(id);
 				removedDocuments.push(data);
@@ -51,18 +59,19 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 
 		if (delta.addedDocuments) {
 			for (const data of delta.addedDocuments) {
-				assert.ok(!this._documents.has(data.url.toString()), `document '${data.url} already exists!'`);
+				const resource = URI.revive(data.uri);
+				assert.ok(!this._documents.has(resource.toString()), `document '${resource} already exists!'`);
 
 				const documentData = new ExtHostDocumentData(
-					this._mainContext.get(MainContext.MainThreadDocuments),
-					data.url,
+					this._mainContext.getProxy(MainContext.MainThreadDocuments),
+					resource,
 					data.lines,
 					data.EOL,
 					data.modeId,
 					data.versionId,
 					data.isDirty
 				);
-				this._documents.set(data.url.toString(), documentData);
+				this._documents.set(resource.toString(), documentData);
 				addedDocuments.push(documentData);
 			}
 		}
@@ -77,18 +86,18 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 
 		if (delta.addedEditors) {
 			for (const data of delta.addedEditors) {
-				assert.ok(this._documents.has(data.document.toString()), `document '${data.document}' does not exist`);
+				const resource = URI.revive(data.documentUri);
+				assert.ok(this._documents.has(resource.toString()), `document '${resource}' does not exist`);
 				assert.ok(!this._editors.has(data.id), `editor '${data.id}' already exists!`);
 
-				const documentData = this._documents.get(data.document.toString());
-				const editor = new ExtHostTextEditor2(
-					this._extHostExtensions,
-					this._mainContext.get(MainContext.MainThreadTelemetry),
-					this._mainContext.get(MainContext.MainThreadEditors),
+				const documentData = this._documents.get(resource.toString());
+				const editor = new ExtHostTextEditor(
+					this._mainContext.getProxy(MainContext.MainThreadTextEditors),
 					data.id,
 					documentData,
 					data.selections.map(typeConverters.toSelection),
 					data.options,
+					data.visibleRanges.map(typeConverters.toRange),
 					typeConverters.toViewColumn(data.editorPosition)
 				);
 				this._editors.set(data.id, editor);

@@ -35,7 +35,7 @@ declare module 'EmmetNode' {
     }
 
     export interface Attribute extends Token {
-        name: string
+        name: Token
         value: Token
     }
 
@@ -68,9 +68,10 @@ declare module 'EmmetNode' {
 
     export interface Property extends CssNode {
         valueToken: Token
-        separator: Token
+        separator: string
         parent: Rule
         terminatorToken: Token
+        separatorToken: Token
         value: string
     }
 

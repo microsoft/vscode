@@ -9,5 +9,6 @@
 	"markerAction.previous.label": "Önceki Hata veya Uyarıya Git",
 	"editorMarkerNavigationError": "Düzenleyicinin işaretçi gezinti aracının hata rengi.",
 	"editorMarkerNavigationWarning": "Düzenleyicinin işaretçi gezinti aracının uyarı rengi.",
+	"editorMarkerNavigationInfo": "Düzenleyicinin işaretçi gezinti aracının bilgilendirme rengi.",
 	"editorMarkerNavigationBackground": "Düzenleyicinin işaretçi gezinti aracının arka planı."
 }

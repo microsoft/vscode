@@ -15,7 +15,7 @@
 	"label.replaceButton": "Sostituisci",
 	"label.replaceAllButton": "Sostituisci tutto",
 	"label.toggleReplaceButton": "Attiva/Disattiva modalità sostituzione",
-	"title.matchesCountLimit": "Vengono evidenziati solo i primi 999 risultati, ma tutte le operazioni di ricerca funzionano sull'intero testo.",
+	"title.matchesCountLimit": "Solo i primi {0} risultati vengono evidenziati, ma tutte le operazioni di ricerca funzionano su tutto il testo.",
 	"label.matchesLocation": "{0} di {1}",
-	"label.noResults": "Nessuna impostazione corrispondente"
+	"label.noResults": "Nessun risultato"
 }

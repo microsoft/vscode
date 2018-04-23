@@ -3,46 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SpectronApplication } from '../../spectron/application';
 import { Viewlet } from '../workbench/viewlet';
-
+import { Editors } from '../editor/editors';
+import { Commands } from '../workbench/workbench';
+import { Code } from '../../vscode/code';
 
 export class Explorer extends Viewlet {
 
-	private static EXPLORER_VIEWLET = 'div[id="workbench.view.explorer"]';
-	private static OPEN_EDITORS_VIEW = `${Explorer.EXPLORER_VIEWLET} .split-view-view:nth-child(1) .title span`;
+	private static readonly EXPLORER_VIEWLET = 'div[id="workbench.view.explorer"]';
+	private static readonly OPEN_EDITORS_VIEW = `${Explorer.EXPLORER_VIEWLET} .split-view-view:nth-child(1) .title`;
 
-	constructor(spectron: SpectronApplication) {
-		super(spectron);
+	constructor(code: Code, private commands: Commands, private editors: Editors) {
+		super(code);
 	}
 
-	public openExplorerView(): Promise<any> {
-		return this.spectron.command('workbench.view.explorer');
+	openExplorerView(): Promise<any> {
+		return this.commands.runCommand('workbench.view.explorer');
 	}
 
-	public getOpenEditorsViewTitle(): Promise<string> {
-		return this.spectron.client.waitForText(Explorer.OPEN_EDITORS_VIEW);
+	async waitForOpenEditorsViewTitle(fn: (title: string) => boolean): Promise<void> {
+		await this.code.waitForTextContent(Explorer.OPEN_EDITORS_VIEW, undefined, fn);
 	}
 
-	public async openFile(fileName: string): Promise<any> {
-		let selector = `div[class="monaco-icon-label file-icon ${fileName}-name-file-icon ${this.getExtensionSelector(fileName)} explorer-item"]`;
-		try {
-			await this.spectron.client.doubleClickAndWait(selector);
-			await this.spectron.client.waitForElement(`.tabs-container div[aria-label="${fileName}, tab"]`);
-			await this.spectron.client.waitForElement(`.monaco-editor.focused`);
-		} catch (e) {
-			return Promise.reject(`Cannot fine ${fileName} in a viewlet.`);
-		}
+	async openFile(fileName: string): Promise<any> {
+		await this.code.waitAndDoubleClick(`div[class="monaco-icon-label file-icon ${fileName}-name-file-icon ${this.getExtensionSelector(fileName)} explorer-item"]`);
+		await this.editors.waitForEditorFocus(fileName);
 	}
 
-	public getExtensionSelector(fileName: string): string {
+	getExtensionSelector(fileName: string): string {
 		const extension = fileName.split('.')[1];
 		if (extension === 'js') {
-			return 'js-ext-file-icon javascript-lang-file-icon';
+			return 'js-ext-file-icon ext-file-icon javascript-lang-file-icon';
 		} else if (extension === 'json') {
-			return 'json-ext-file-icon json-lang-file-icon';
+			return 'json-ext-file-icon ext-file-icon json-lang-file-icon';
 		} else if (extension === 'md') {
-			return 'md-ext-file-icon markdown-lang-file-icon';
+			return 'md-ext-file-icon ext-file-icon markdown-lang-file-icon';
 		}
 		throw new Error('No class defined for this file extension');
 	}

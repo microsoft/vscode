@@ -3,29 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SpectronApplication } from '../../spectron/application';
+import { Application } from '../../application';
 
-describe('Explorer', () => {
-	let app: SpectronApplication;
-	before(() => { app = new SpectronApplication(); return app.start('Explorer'); });
-	after(() => app.stop());
-	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
+export function setup() {
+	describe('Explorer', () => {
+		it('quick open search produces correct result', async function () {
+			const app = this.app as Application;
+			const expectedNames = [
+				'.eslintrc.json',
+				'tasks.json',
+				'app.js',
+				'index.js',
+				'users.js',
+				'package.json',
+				'jsconfig.json'
+			];
 
-	it('quick open search produces correct result', async function () {
-		await app.workbench.quickopen.openQuickOpen();
+			await app.workbench.quickopen.openQuickOpen('.js');
+			await app.workbench.quickopen.waitForQuickOpenElements(names => expectedNames.every(n => names.some(m => n === m)));
+			await app.code.dispatchKeybinding('escape');
+		});
 
-		await app.client.type('.js');
+		it('quick open respects fuzzy matching', async function () {
+			const app = this.app as Application;
+			const expectedNames = [
+				'tasks.json',
+				'app.js',
+				'package.json'
+			];
 
-		await app.workbench.quickopen.waitForQuickOpenElements(7);
-		await app.client.keys(['Escape', 'NULL']);
+			await app.workbench.quickopen.openQuickOpen('a.s');
+			await app.workbench.quickopen.waitForQuickOpenElements(names => expectedNames.every(n => names.some(m => n === m)));
+			await app.code.dispatchKeybinding('escape');
+		});
 	});
-
-	it('quick open respects fuzzy matching', async function () {
-		await app.workbench.quickopen.openQuickOpen();
-
-		await app.client.type('a.s');
-
-		await app.workbench.quickopen.waitForQuickOpenElements(3);
-		await app.client.keys(['Escape', 'NULL']);
-	});
-});
+}

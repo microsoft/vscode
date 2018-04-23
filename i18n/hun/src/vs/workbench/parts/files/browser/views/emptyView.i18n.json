@@ -6,6 +6,8 @@
 {
 	"noWorkspace": "Nincs mappa megnyitva",
 	"explorerSection": "Fájlkezelő szakasz",
-	"noWorkspaceHelp": "Még nem nyitott meg mappát",
+	"noWorkspaceHelp": "Még nem adott mappát a munkaterülethez.",
+	"addFolder": "Mappa hozzáadása",
+	"noFolderHelp": "Még nem nyitott meg mappát",
 	"openFolder": "Mappa megnyitása"
 }

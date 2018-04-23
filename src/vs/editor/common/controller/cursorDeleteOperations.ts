@@ -5,7 +5,7 @@
 'use strict';
 
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
-import { CursorColumns, CursorConfiguration, ICursorSimpleModel, EditOperationResult } from 'vs/editor/common/controller/cursorCommon';
+import { CursorColumns, CursorConfiguration, ICursorSimpleModel, EditOperationResult, EditOperationType } from 'vs/editor/common/controller/cursorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { MoveOperations } from 'vs/editor/common/controller/cursorMoveOperations';
@@ -14,9 +14,9 @@ import { ICommand } from 'vs/editor/common/editorCommon';
 
 export class DeleteOperations {
 
-	public static deleteRight(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[]): [boolean, ICommand[]] {
+	public static deleteRight(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[]): [boolean, ICommand[]] {
 		let commands: ICommand[] = [];
-		let shouldPushStackElementBefore = false;
+		let shouldPushStackElementBefore = (prevEditOperationType !== EditOperationType.DeletingRight);
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 
@@ -94,14 +94,14 @@ export class DeleteOperations {
 		return [true, commands];
 	}
 
-	public static deleteLeft(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[]): [boolean, ICommand[]] {
+	public static deleteLeft(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[]): [boolean, ICommand[]] {
 
 		if (this._isAutoClosingPairDelete(config, model, selections)) {
 			return this._runAutoClosingPairDelete(config, model, selections);
 		}
 
 		let commands: ICommand[] = [];
-		let shouldPushStackElementBefore = false;
+		let shouldPushStackElementBefore = (prevEditOperationType !== EditOperationType.DeletingLeft);
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 
@@ -210,7 +210,7 @@ export class DeleteOperations {
 				commands[i] = new ReplaceCommand(selection, '');
 			}
 		}
-		return new EditOperationResult(commands, {
+		return new EditOperationResult(EditOperationType.Other, commands, {
 			shouldPushStackElementBefore: true,
 			shouldPushStackElementAfter: true
 		});

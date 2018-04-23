@@ -6,7 +6,7 @@ declare module 'gc-signals' {
      * value is stored for later consumption.
      */
 	export const GCSignal: {
-		new (id: number): GCSignal;
+		new(id: number): GCSignal;
 	};
     /**
      * Consume ids of garbage collected signals.

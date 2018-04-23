@@ -8,7 +8,6 @@
 	padding: 10px 20px;
 	line-height: 22px;
 	user-select: initial;
-	-webkit-user-select: initial;
 }
 
 .monaco-workbench > .part.editor > .content .walkThroughContent img {
@@ -114,7 +113,7 @@
 	white-space: pre;
 }
 
-.file-icons-enabled .show-file-icons .vs_code_editor_walkthrough\.md-name-file-icon.md-ext-file-icon.markdown-lang-file-icon.file-icon::before {
+.file-icons-enabled .show-file-icons .vs_code_editor_walkthrough\.md-name-file-icon.md-ext-file-icon.ext-file-icon.markdown-lang-file-icon.file-icon::before {
 	content: ' ';
 	background-image: url('../../code-icon.svg');
 }

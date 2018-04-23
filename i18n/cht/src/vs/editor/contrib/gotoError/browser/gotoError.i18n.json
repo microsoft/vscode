@@ -9,5 +9,6 @@
 	"markerAction.previous.label": "移至上一個錯誤或警告",
 	"editorMarkerNavigationError": "編輯器標記導覽小工具錯誤的色彩。",
 	"editorMarkerNavigationWarning": "編輯器標記導覽小工具警告的色彩。",
+	"editorMarkerNavigationInfo": "編輯器標記導覽小工具資訊的色彩",
 	"editorMarkerNavigationBackground": "編輯器標記導覽小工具的背景。"
 }

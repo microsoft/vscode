@@ -187,10 +187,6 @@ export abstract class AbstractScrollbar extends Widget {
 		}
 	}
 
-	public delegateSliderMouseDown(e: ISimplifiedMouseEvent, onDragFinished: () => void): void {
-		this._sliderMouseDown(e, onDragFinished);
-	}
-
 	private _onMouseDown(e: IMouseEvent): void {
 		let offsetX: number;
 		let offsetY: number;

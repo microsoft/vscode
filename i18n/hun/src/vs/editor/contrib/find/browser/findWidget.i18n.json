@@ -15,7 +15,7 @@
 	"label.replaceButton": "Csere",
 	"label.replaceAllButton": "Az összes előfordulás cseréje",
 	"label.toggleReplaceButton": "Váltás csere módra",
-	"title.matchesCountLimit": "Csak az első 999 találat van kiemelve, de minden keresési művelet a teljes szöveggel dolgozik.",
+	"title.matchesCountLimit": "Csak az első {0} találat van kiemelve, de minden keresési művelet a teljes szöveggel dolgozik.",
 	"label.matchesLocation": "{0} (összesen {1})",
 	"label.noResults": "Nincs eredmény"
 }

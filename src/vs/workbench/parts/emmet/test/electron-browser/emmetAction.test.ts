@@ -6,8 +6,8 @@
 'use strict';
 
 import { IGrammarContributions, ILanguageIdentifierResolver, EmmetEditorAction } from 'vs/workbench/parts/emmet/electron-browser/emmetActions';
-import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
-import assert = require('assert');
+import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import * as assert from 'assert';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 
 //
@@ -16,7 +16,7 @@ import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 // 	"name": "Stacks Tests",
 // 	"type": "node",
 // 	"request": "launch",
-// 	"program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
+// 	"program": "${workspaceFolder}/node_modules/mocha/bin/_mocha",
 // 	"stopOnEntry": false,
 // 	"args": [
 // 		"--timeout",
@@ -43,7 +43,7 @@ class MockGrammarContributions implements IGrammarContributions {
 suite('Emmet', () => {
 
 	test('Get language mode and parent mode for emmet', () => {
-		withMockCodeEditor([], {}, (editor) => {
+		withTestCodeEditor([], {}, (editor) => {
 
 			function testIsEnabled(mode: string, scopeName: string, expectedLanguage?: string, expectedParentLanguage?: string) {
 				const languageIdentifier = new LanguageIdentifier(mode, 73);

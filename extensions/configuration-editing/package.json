@@ -1,16 +1,15 @@
 {
   "name": "configuration-editing",
-  "version": "0.0.1",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
   "publisher": "vscode",
   "engines": {
     "vscode": "^1.0.0"
   },
-  "categories": [
-    "Languages",
-    "Other"
-  ],
   "activationEvents": [
-    "onLanguage:json"
+    "onLanguage:json",
+    "onLanguage:jsonc"
   ],
   "main": "./out/extension",
   "scripts": {
@@ -18,8 +17,8 @@
     "watch": "gulp watch-extension:configuration-editing"
   },
   "dependencies": {
-    "jsonc-parser": "^0.3.1",
-    "vscode-nls": "^2.0.1"
+    "jsonc-parser": "^1.0.0",
+    "vscode-nls": "^3.2.1"
   },
   "contributes": {
     "jsonValidation": [
@@ -33,19 +32,11 @@
       },
       {
         "fileMatch": "vscode://defaultsettings/settings.json",
-        "url": "vscode://schemas/settings"
-      },
-      {
-        "fileMatch": "vscode://defaultsettings/resourceSettings.json",
-        "url": "vscode://schemas/settings/resource"
-      },
-      {
-        "fileMatch": "vscode://settings/workspaceSettings.json",
-        "url": "vscode://schemas/settings"
+        "url": "vscode://schemas/settings/default"
       },
       {
         "fileMatch": "%APP_SETTINGS_HOME%/settings.json",
-        "url": "vscode://schemas/settings"
+        "url": "vscode://schemas/settings/user"
       },
       {
         "fileMatch": "%APP_WORKSPACES_HOME%/*/workspace.json",
@@ -61,7 +52,7 @@
       },
       {
         "fileMatch": "/.vscode/settings.json",
-        "url": "vscode://schemas/settings"
+        "url": "vscode://schemas/settings/folder"
       },
       {
         "fileMatch": "/.vscode/launch.json",
@@ -76,12 +67,16 @@
         "url": "vscode://schemas/snippets"
       },
       {
+        "fileMatch": "**/*.code-snippets",
+        "url": "vscode://schemas/global-snippets"
+      },
+      {
         "fileMatch": "/.vscode/extensions.json",
         "url": "vscode://schemas/extensions"
       }
     ]
   },
   "devDependencies": {
-    "@types/node": "^7.0.4"
+    "@types/node": "7.0.4"
   }
 }

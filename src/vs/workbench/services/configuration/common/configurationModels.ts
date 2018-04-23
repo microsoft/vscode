@@ -4,139 +4,113 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { clone } from 'vs/base/common/objects';
-import { CustomConfigurationModel, toValuesTree } from 'vs/platform/configuration/common/model';
-import { ConfigurationModel } from 'vs/platform/configuration/common/configuration';
+import { equals } from 'vs/base/common/objects';
+import { compare, toValuesTree, IConfigurationChangeEvent, ConfigurationTarget, IConfigurationModel, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
+import { Configuration as BaseConfiguration, ConfigurationModelParser, ConfigurationChangeEvent, ConfigurationModel, AbstractConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
 import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
+import { Workspace } from 'vs/platform/workspace/common/workspace';
+import { ResourceMap } from 'vs/base/common/map';
+import URI from 'vs/base/common/uri';
 
-export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> {
+export class WorkspaceConfigurationModelParser extends ConfigurationModelParser {
 
-	private _raw: T;
-	private _folders: IStoredWorkspaceFolder[];
-	private _worksapaceSettings: ConfigurationModel<T>;
-	private _tasksConfiguration: ConfigurationModel<T>;
-	private _launchConfiguration: ConfigurationModel<T>;
-	private _workspaceConfiguration: ConfigurationModel<T>;
+	private _folders: IStoredWorkspaceFolder[] = [];
+	private _settingsModelParser: FolderSettingsModelParser;
+	private _launchModel: ConfigurationModel;
 
-	public update(content: string): void {
-		super.update(content);
-		this._worksapaceSettings = new ConfigurationModel(this._worksapaceSettings.contents, this._worksapaceSettings.keys, this.overrides);
-		this._workspaceConfiguration = this.consolidate();
+	constructor(name: string) {
+		super(name);
+		this._settingsModelParser = new FolderSettingsModelParser(name, [ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE]);
+		this._launchModel = new ConfigurationModel();
 	}
 
 	get folders(): IStoredWorkspaceFolder[] {
 		return this._folders;
 	}
 
-	get workspaceConfiguration(): ConfigurationModel<T> {
-		return this._workspaceConfiguration;
+	get settingsModel(): ConfigurationModel {
+		return this._settingsModelParser.configurationModel;
 	}
 
-	protected processRaw(raw: T): void {
-		this._raw = raw;
-
-		this._folders = (this._raw['folders'] || []) as IStoredWorkspaceFolder[];
-		this._worksapaceSettings = this.parseConfigurationModel('settings');
-		this._tasksConfiguration = this.parseConfigurationModel('tasks');
-		this._launchConfiguration = this.parseConfigurationModel('launch');
-
-		super.processRaw(raw);
+	get launchModel(): ConfigurationModel {
+		return this._launchModel;
 	}
 
-	private parseConfigurationModel(section: string): ConfigurationModel<T> {
-		const rawSection = this._raw[section] || {};
-		const contents = toValuesTree(rawSection, message => console.error(`Conflict in section '${section}' of workspace configuration file ${message}`));
-		return new ConfigurationModel<T>(contents, Object.keys(rawSection));
+	reprocessWorkspaceSettings(): void {
+		this._settingsModelParser.reprocess();
 	}
 
-	private consolidate(): ConfigurationModel<T> {
-		const keys: string[] = [...this._worksapaceSettings.keys,
-		...this._tasksConfiguration.keys.map(key => `tasks.${key}`),
-		...this._launchConfiguration.keys.map(key => `launch.${key}`)];
+	protected parseRaw(raw: any): IConfigurationModel {
+		this._folders = (raw['folders'] || []) as IStoredWorkspaceFolder[];
+		this._settingsModelParser.parse(raw['settings']);
+		this._launchModel = this.createConfigurationModelFrom(raw, 'launch');
+		return super.parseRaw(raw);
+	}
 
-		const mergedContents = new ConfigurationModel<T>(<T>{}, keys)
-			.merge(this._worksapaceSettings)
-			.merge(this._tasksConfiguration)
-			.merge(this._launchConfiguration);
-
-		return new ConfigurationModel<T>(mergedContents.contents, keys, mergedContents.overrides);
+	private createConfigurationModelFrom(raw: any, key: string): ConfigurationModel {
+		const data = raw[key];
+		if (data) {
+			const contents = toValuesTree(data, message => console.error(`Conflict in settings file ${this._name}: ${message}`));
+			const scopedContents = Object.create(null);
+			scopedContents[key] = contents;
+			const keys = Object.keys(data).map(k => `${key}.${k}`);
+			return new ConfigurationModel(scopedContents, keys, []);
+		}
+		return new ConfigurationModel();
 	}
 }
 
-export class ScopedConfigurationModel<T> extends CustomConfigurationModel<T> {
+export class StandaloneConfigurationModelParser extends ConfigurationModelParser {
 
-	constructor(content: string, name: string, public readonly scope: string) {
-		super(null, name);
-		this.update(content);
+	constructor(name: string, private readonly scope: string) {
+		super(name);
 	}
 
-	public update(content: string): void {
-		super.update(content);
-		const contents = Object.create(null);
-		contents[this.scope] = this.contents;
-		this._contents = contents;
+	protected parseRaw(raw: any): IConfigurationModel {
+		const contents = toValuesTree(raw, message => console.error(`Conflict in settings file ${this._name}: ${message}`));
+		const scopedContents = Object.create(null);
+		scopedContents[this.scope] = contents;
+		const keys = Object.keys(raw).map(key => `${this.scope}.${key}`);
+		return { contents: scopedContents, keys, overrides: [] };
 	}
 
 }
 
-export class FolderSettingsModel<T> extends CustomConfigurationModel<T> {
+export class FolderSettingsModelParser extends ConfigurationModelParser {
 
-	private _raw: T;
-	private _unsupportedKeys: string[];
+	private _raw: any;
+	private _settingsModel: ConfigurationModel;
 
-	protected processRaw(raw: T): void {
-		this._raw = raw;
-		const processedRaw = <T>{};
-		this._unsupportedKeys = [];
+	constructor(name: string, private scopes: ConfigurationScope[]) {
+		super(name);
+	}
+
+	parse(content: string | any): void {
+		this._raw = typeof content === 'string' ? this.parseContent(content) : content;
+		this.parseWorkspaceSettings(this._raw);
+	}
+
+	get configurationModel(): ConfigurationModel {
+		return this._settingsModel || new ConfigurationModel();
+	}
+
+	reprocess(): void {
+		this.parse(this._raw);
+	}
+
+	private parseWorkspaceSettings(rawSettings: any): void {
+		const rawWorkspaceSettings = {};
 		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-		for (let key in raw) {
-			if (this.isNotExecutable(key, configurationProperties)) {
-				processedRaw[key] = raw[key];
-			} else {
-				this._unsupportedKeys.push(key);
+		for (let key in rawSettings) {
+			const scope = this.getScope(key, configurationProperties);
+			if (this.scopes.indexOf(scope) !== -1) {
+				rawWorkspaceSettings[key] = rawSettings[key];
 			}
 		}
-		return super.processRaw(processedRaw);
-	}
-
-	public reprocess(): void {
-		this.processRaw(this._raw);
-	}
-
-	public get unsupportedKeys(): string[] {
-		return this._unsupportedKeys || [];
-	}
-
-	private isNotExecutable(key: string, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }): boolean {
-		const propertySchema = configurationProperties[key];
-		if (!propertySchema) {
-			return true; // Unknown propertis are ignored from checks
-		}
-		return !propertySchema.isExecutable;
-	}
-
-	public createWorkspaceConfigurationModel(): ConfigurationModel<any> {
-		return this.createScopedConfigurationModel(ConfigurationScope.WINDOW);
-	}
-
-	public createFolderScopedConfigurationModel(): ConfigurationModel<any> {
-		return this.createScopedConfigurationModel(ConfigurationScope.RESOURCE);
-	}
-
-	private createScopedConfigurationModel(scope: ConfigurationScope): ConfigurationModel<any> {
-		const workspaceRaw = <T>{};
-		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-		for (let key in this._raw) {
-			if (this.getScope(key, configurationProperties) === scope) {
-				workspaceRaw[key] = this._raw[key];
-			}
-		}
-		const workspaceContents = toValuesTree(workspaceRaw, message => console.error(`Conflict in workspace settings file: ${message}`));
-		const workspaceKeys = Object.keys(workspaceRaw);
-		return new ConfigurationModel(workspaceContents, workspaceKeys, clone(this._overrides));
+		const configurationModel = this.parseRaw(rawWorkspaceSettings);
+		this._settingsModel = new ConfigurationModel(configurationModel.contents, configurationModel.keys, configurationModel.overrides);
 	}
 
 	private getScope(key: string, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }): ConfigurationScope {
@@ -145,37 +119,171 @@ export class FolderSettingsModel<T> extends CustomConfigurationModel<T> {
 	}
 }
 
-export class FolderConfigurationModel<T> extends CustomConfigurationModel<T> {
+export class Configuration extends BaseConfiguration {
 
-	constructor(public readonly workspaceSettingsConfig: FolderSettingsModel<T>, private scopedConfigs: ScopedConfigurationModel<T>[], private scope: ConfigurationScope) {
-		super();
-		this.consolidate();
+	constructor(
+		defaults: ConfigurationModel,
+		user: ConfigurationModel,
+		workspaceConfiguration: ConfigurationModel,
+		folders: ResourceMap<ConfigurationModel>,
+		memoryConfiguration: ConfigurationModel,
+		memoryConfigurationByResource: ResourceMap<ConfigurationModel>,
+		private readonly _workspace: Workspace) {
+		super(defaults, user, workspaceConfiguration, folders, memoryConfiguration, memoryConfigurationByResource);
 	}
 
-	private consolidate(): void {
-		this._contents = <T>{};
-		this._overrides = [];
+	getValue(key: string, overrides: IConfigurationOverrides = {}): any {
+		return super.getValue(key, overrides, this._workspace);
+	}
 
-		this.doMerge(this, ConfigurationScope.WINDOW === this.scope ? this.workspaceSettingsConfig : this.workspaceSettingsConfig.createFolderScopedConfigurationModel());
-		for (const configModel of this.scopedConfigs) {
-			this.doMerge(this, configModel);
+	inspect<C>(key: string, overrides: IConfigurationOverrides = {}): {
+		default: C,
+		user: C,
+		workspace: C,
+		workspaceFolder: C
+		memory?: C
+		value: C,
+	} {
+		return super.inspect(key, overrides, this._workspace);
+	}
+
+	keys(): {
+		default: string[];
+		user: string[];
+		workspace: string[];
+		workspaceFolder: string[];
+	} {
+		return super.keys(this._workspace);
+	}
+
+	compareAndUpdateUserConfiguration(user: ConfigurationModel): ConfigurationChangeEvent {
+		const { added, updated, removed } = compare(this.user, user);
+		let changedKeys = [...added, ...updated, ...removed];
+		if (changedKeys.length) {
+			const oldValues = changedKeys.map(key => this.getValue(key));
+			super.updateUserConfiguration(user);
+			changedKeys = changedKeys.filter((key, index) => !equals(oldValues[index], this.getValue(key)));
+		}
+		return new ConfigurationChangeEvent().change(changedKeys);
+	}
+
+	compareAndUpdateWorkspaceConfiguration(workspaceConfiguration: ConfigurationModel): ConfigurationChangeEvent {
+		const { added, updated, removed } = compare(this.workspace, workspaceConfiguration);
+		let changedKeys = [...added, ...updated, ...removed];
+		if (changedKeys.length) {
+			const oldValues = changedKeys.map(key => this.getValue(key));
+			super.updateWorkspaceConfiguration(workspaceConfiguration);
+			changedKeys = changedKeys.filter((key, index) => !equals(oldValues[index], this.getValue(key)));
+		}
+		return new ConfigurationChangeEvent().change(changedKeys);
+	}
+
+	compareAndUpdateFolderConfiguration(resource: URI, folderConfiguration: ConfigurationModel): ConfigurationChangeEvent {
+		const currentFolderConfiguration = this.folders.get(resource);
+		if (currentFolderConfiguration) {
+			const { added, updated, removed } = compare(currentFolderConfiguration, folderConfiguration);
+			let changedKeys = [...added, ...updated, ...removed];
+			if (changedKeys.length) {
+				const oldValues = changedKeys.map(key => this.getValue(key, { resource }));
+				super.updateFolderConfiguration(resource, folderConfiguration);
+				changedKeys = changedKeys.filter((key, index) => !equals(oldValues[index], this.getValue(key, { resource })));
+			}
+			return new ConfigurationChangeEvent().change(changedKeys, resource);
+		} else {
+			super.updateFolderConfiguration(resource, folderConfiguration);
+			return new ConfigurationChangeEvent().change(folderConfiguration.keys, resource);
 		}
 	}
 
-	public get keys(): string[] {
-		const keys: string[] = [...this.workspaceSettingsConfig.keys];
-		this.scopedConfigs.forEach(scopedConfigModel => {
-			Object.keys(WORKSPACE_STANDALONE_CONFIGURATIONS).forEach(scope => {
-				if (scopedConfigModel.scope === scope) {
-					keys.push(...scopedConfigModel.keys.map(key => `${scope}.${key}`));
-				}
-			});
-		});
-		return keys;
+	compareAndDeleteFolderConfiguration(folder: URI): ConfigurationChangeEvent {
+		if (this._workspace && this._workspace.folders.length > 0 && this._workspace.folders[0].uri.toString() === folder.toString()) {
+			// Do not remove workspace configuration
+			return new ConfigurationChangeEvent();
+		}
+		const keys = this.folders.get(folder).keys;
+		super.deleteFolderConfiguration(folder);
+		return new ConfigurationChangeEvent().change(keys, folder);
 	}
 
-	public update(): void {
-		this.workspaceSettingsConfig.reprocess();
-		this.consolidate();
+	compare(other: Configuration): string[] {
+		const result = [];
+		for (const key of this.allKeys()) {
+			if (!equals(this.getValue(key), other.getValue(key))
+				|| (this._workspace && this._workspace.folders.some(folder => !equals(this.getValue(key, { resource: folder.uri }), other.getValue(key, { resource: folder.uri }))))) {
+				result.push(key);
+			}
+		}
+		return result;
+	}
+
+	allKeys(): string[] {
+		return super.allKeys(this._workspace);
+	}
+}
+
+export class AllKeysConfigurationChangeEvent extends AbstractConfigurationChangeEvent implements IConfigurationChangeEvent {
+
+	private _changedConfiguration: ConfigurationModel = null;
+
+	constructor(private _configuration: Configuration, readonly source: ConfigurationTarget, readonly sourceConfig: any) { super(); }
+
+	get changedConfiguration(): ConfigurationModel {
+		if (!this._changedConfiguration) {
+			this._changedConfiguration = new ConfigurationModel();
+			this.updateKeys(this._changedConfiguration, this.affectedKeys);
+		}
+		return this._changedConfiguration;
+	}
+
+	get changedConfigurationByResource(): ResourceMap<IConfigurationModel> {
+		return new ResourceMap();
+	}
+
+	get affectedKeys(): string[] {
+		return this._configuration.allKeys();
+	}
+
+	affectsConfiguration(config: string, resource?: URI): boolean {
+		return this.doesConfigurationContains(this.changedConfiguration, config);
+	}
+}
+
+export class WorkspaceConfigurationChangeEvent implements IConfigurationChangeEvent {
+
+	constructor(private configurationChangeEvent: IConfigurationChangeEvent, private workspace: Workspace) { }
+
+	get changedConfiguration(): IConfigurationModel {
+		return this.configurationChangeEvent.changedConfiguration;
+	}
+
+	get changedConfigurationByResource(): ResourceMap<IConfigurationModel> {
+		return this.configurationChangeEvent.changedConfigurationByResource;
+	}
+
+	get affectedKeys(): string[] {
+		return this.configurationChangeEvent.affectedKeys;
+	}
+
+	get source(): ConfigurationTarget {
+		return this.configurationChangeEvent.source;
+	}
+
+	get sourceConfig(): any {
+		return this.configurationChangeEvent.sourceConfig;
+	}
+
+	affectsConfiguration(config: string, resource?: URI): boolean {
+		if (this.configurationChangeEvent.affectsConfiguration(config, resource)) {
+			return true;
+		}
+
+		if (resource && this.workspace) {
+			let workspaceFolder = this.workspace.getFolder(resource);
+			if (workspaceFolder) {
+				return this.configurationChangeEvent.affectsConfiguration(config, workspaceFolder.uri);
+			}
+		}
+
+		return false;
 	}
 }

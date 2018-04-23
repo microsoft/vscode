@@ -7,43 +7,38 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { suggestFilename } from 'vs/base/common/mime';
-import labels = require('vs/base/common/labels');
+import { memoize } from 'vs/base/common/decorators';
+import * as labels from 'vs/base/common/labels';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import paths = require('vs/base/common/paths');
+import * as paths from 'vs/base/common/paths';
+import * as resources from 'vs/base/common/resources';
 import { EditorInput, IEncodingSupport, EncodingMode, ConfirmResult } from 'vs/workbench/common/editor';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Verbosity } from 'vs/platform/editor/common/editor';
+import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 
 /**
  * An editor input to be used for untitled text buffers.
  */
 export class UntitledEditorInput extends EditorInput implements IEncodingSupport {
 
-	public static ID: string = 'workbench.editors.untitledEditorInput';
+	public static readonly ID: string = 'workbench.editors.untitledEditorInput';
 
 	private _hasAssociatedFilePath: boolean;
 	private cachedModel: UntitledEditorModel;
 	private modelResolve: TPromise<UntitledEditorModel>;
 
-	private _onDidModelChangeContent: Emitter<void>;
-	private _onDidModelChangeEncoding: Emitter<void>;
+	private readonly _onDidModelChangeContent: Emitter<void>;
+	private readonly _onDidModelChangeEncoding: Emitter<void>;
 
 	private toUnbind: IDisposable[];
-
-	private shortDescription: string;
-	private mediumDescription: string;
-	private longDescription: string;
-
-	private shortTitle: string;
-	private mediumTitle: string;
-	private longTitle: string;
 
 	constructor(
 		private resource: URI,
@@ -54,7 +49,8 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IHashService private hashService: IHashService
 	) {
 		super();
 
@@ -94,7 +90,22 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	}
 
 	public getName(): string {
-		return this.hasAssociatedFilePath ? paths.basename(this.resource.fsPath) : this.resource.fsPath;
+		return this.hasAssociatedFilePath ? resources.basenameOrAuthority(this.resource) : this.resource.path;
+	}
+
+	@memoize
+	private get shortDescription(): string {
+		return paths.basename(labels.getPathLabel(resources.dirname(this.resource), void 0, this.environmentService));
+	}
+
+	@memoize
+	private get mediumDescription(): string {
+		return labels.getPathLabel(resources.dirname(this.resource), this.contextService, this.environmentService);
+	}
+
+	@memoize
+	private get longDescription(): string {
+		return labels.getPathLabel(resources.dirname(this.resource), void 0, this.environmentService);
 	}
 
 	public getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {
@@ -105,18 +116,33 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		let description: string;
 		switch (verbosity) {
 			case Verbosity.SHORT:
-				description = this.shortDescription ? this.shortDescription : (this.shortDescription = paths.basename(labels.getPathLabel(paths.dirname(this.resource.fsPath), void 0, this.environmentService)));
+				description = this.shortDescription;
 				break;
 			case Verbosity.LONG:
-				description = this.longDescription ? this.longDescription : (this.longDescription = labels.getPathLabel(paths.dirname(this.resource.fsPath), void 0, this.environmentService));
+				description = this.longDescription;
 				break;
 			case Verbosity.MEDIUM:
 			default:
-				description = this.mediumDescription ? this.mediumDescription : (this.mediumDescription = labels.getPathLabel(paths.dirname(this.resource.fsPath), this.contextService, this.environmentService));
+				description = this.mediumDescription;
 				break;
 		}
 
 		return description;
+	}
+
+	@memoize
+	private get shortTitle(): string {
+		return this.getName();
+	}
+
+	@memoize
+	private get mediumTitle(): string {
+		return labels.getPathLabel(this.resource, this.contextService, this.environmentService);
+	}
+
+	@memoize
+	private get longTitle(): string {
+		return labels.getPathLabel(this.resource, void 0, this.environmentService);
 	}
 
 	public getTitle(verbosity: Verbosity): string {
@@ -127,13 +153,13 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		let title: string;
 		switch (verbosity) {
 			case Verbosity.SHORT:
-				title = this.shortTitle ? this.shortTitle : (this.shortTitle = this.getName());
+				title = this.shortTitle;
 				break;
 			case Verbosity.MEDIUM:
-				title = this.mediumTitle ? this.mediumTitle : (this.mediumTitle = labels.getPathLabel(this.resource, this.contextService, this.environmentService));
+				title = this.mediumTitle;
 				break;
 			case Verbosity.LONG:
-				title = this.longTitle ? this.longTitle : (this.longTitle = labels.getPathLabel(this.resource, void 0, this.environmentService));
+				title = this.longTitle;
 				break;
 		}
 
@@ -154,7 +180,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.hasAssociatedFilePath;
 	}
 
-	public confirmSave(): ConfirmResult {
+	public confirmSave(): TPromise<ConfirmResult> {
 		return this.textFileService.confirmSave([this.resource]);
 	}
 
@@ -228,8 +254,13 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	public getTelemetryDescriptor(): object {
 		const descriptor = super.getTelemetryDescriptor();
-		descriptor['resource'] = telemetryURIDescriptor(this.getResource());
+		descriptor['resource'] = telemetryURIDescriptor(this.getResource(), path => this.hashService.createSHA1(path));
 
+		/* __GDPR__FRAGMENT__
+			"EditorTelemetryDescriptor" : {
+				"resource": { "${inline}": [ "${URIDescriptor}" ] }
+			}
+		*/
 		return descriptor;
 	}
 

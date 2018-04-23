@@ -5,8 +5,8 @@
 
 'use strict';
 
-import nls = require('vs/nls');
-import errors = require('vs/base/common/errors');
+import * as nls from 'vs/nls';
+import * as errors from 'vs/base/common/errors';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import { TextFileModelChangeEvent, ITextFileService, AutoSaveMode, ModelState } from 'vs/workbench/services/textfile/common/textfiles';
@@ -19,9 +19,9 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IActivityBarService, NumberBadge } from 'vs/workbench/services/activity/common/activityBarService';
+import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import arrays = require('vs/base/common/arrays');
+import * as arrays from 'vs/base/common/arrays';
 
 export class DirtyFilesTracker implements IWorkbenchContribution {
 	private isDocumentedEdited: boolean;
@@ -35,7 +35,7 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IActivityBarService private activityBarService: IActivityBarService,
+		@IActivityService private activityService: IActivityService,
 		@IWindowService private windowService: IWindowService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
 	) {
@@ -141,7 +141,7 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 		this.lastDirtyCount = dirtyCount;
 		dispose(this.badgeHandle);
 		if (dirtyCount > 0) {
-			this.badgeHandle = this.activityBarService.showActivity(VIEWLET_ID, new NumberBadge(dirtyCount, num => num === 1 ? nls.localize('dirtyFile', "1 unsaved file") : nls.localize('dirtyFiles', "{0} unsaved files", dirtyCount)), 'explorer-viewlet-label');
+			this.badgeHandle = this.activityService.showActivity(VIEWLET_ID, new NumberBadge(dirtyCount, num => num === 1 ? nls.localize('dirtyFile', "1 unsaved file") : nls.localize('dirtyFiles', "{0} unsaved files", dirtyCount)), 'explorer-viewlet-label');
 		}
 	}
 
@@ -152,10 +152,6 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 
 			this.windowService.setDocumentEdited(hasDirtyFiles);
 		}
-	}
-
-	public getId(): string {
-		return 'vs.files.dirtyFilesTracker';
 	}
 
 	public dispose(): void {

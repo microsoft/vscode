@@ -12,12 +12,9 @@ import { createStringBuilder, IStringBuilder } from 'vs/editor/common/core/strin
 /**
  * Represents a visible line
  */
-export interface IVisibleLine {
+export interface IVisibleLine extends ILine {
 	getDomNode(): HTMLElement;
 	setDomNode(domNode: HTMLElement): void;
-
-	onContentChanged(): void;
-	onTokensChanged(): void;
 
 	/**
 	 * Return null if the HTML should not be touched.
@@ -83,7 +80,7 @@ export class RenderedLinesCollection<T extends ILine> {
 	public getLine(lineNumber: number): T {
 		let lineIndex = lineNumber - this._rendLineNumberStart;
 		if (lineIndex < 0 || lineIndex >= this._lines.length) {
-			throw new Error('Illegal value for lineNumber: ' + lineNumber);
+			throw new Error('Illegal value for lineNumber');
 		}
 		return this._lines[lineIndex];
 	}
@@ -538,7 +535,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		}
 	}
 
-	private static _sb = createStringBuilder(100000);
+	private static readonly _sb = createStringBuilder(100000);
 
 	private _finishRendering(ctx: IRendererContext<T>, domNodeIsEmpty: boolean, deltaTop: number[]): void {
 

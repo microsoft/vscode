@@ -12,7 +12,7 @@ import { Position } from 'vs/workbench/api/node/extHostTypes';
 import { Range } from 'vs/editor/common/core/range';
 import { MainThreadDocumentsShape } from 'vs/workbench/api/node/extHost.protocol';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IModelChangedEvent } from 'vs/editor/common/model/mirrorModel';
+import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 
 
@@ -42,18 +42,18 @@ suite('ExtHostDocumentData', () => {
 	});
 
 	test('readonly-ness', function () {
-		assert.throws(() => (<any>data).document.uri = null);
-		assert.throws(() => (<any>data).document.fileName = 'foofile');
-		assert.throws(() => (<any>data).document.isDirty = false);
-		assert.throws(() => (<any>data).document.isUntitled = false);
-		assert.throws(() => (<any>data).document.languageId = 'dddd');
-		assert.throws(() => (<any>data).document.lineCount = 9);
+		assert.throws((): void => (data as any).document.uri = null);
+		assert.throws(() => (data as any).document.fileName = 'foofile');
+		assert.throws(() => (data as any).document.isDirty = false);
+		assert.throws(() => (data as any).document.isUntitled = false);
+		assert.throws(() => (data as any).document.languageId = 'dddd');
+		assert.throws(() => (data as any).document.lineCount = 9);
 	});
 
 	test('save, when disposed', function () {
 		let saved: URI;
 		let data = new ExtHostDocumentData(new class extends mock<MainThreadDocumentsShape>() {
-			$trySaveDocument(uri) {
+			$trySaveDocument(uri: URI) {
 				assert.ok(!saved);
 				saved = uri;
 				return TPromise.as(true);
@@ -101,6 +101,7 @@ suite('ExtHostDocumentData', () => {
 		data.onEvents({
 			changes: [{
 				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+				rangeOffset: undefined,
 				rangeLength: undefined,
 				text: '\t '
 			}],
@@ -157,6 +158,7 @@ suite('ExtHostDocumentData', () => {
 		data.onEvents({
 			changes: [{
 				range: { startLineNumber: 1, startColumn: 3, endLineNumber: 1, endColumn: 6 },
+				rangeOffset: undefined,
 				rangeLength: undefined,
 				text: ''
 			}],
@@ -174,6 +176,7 @@ suite('ExtHostDocumentData', () => {
 		data.onEvents({
 			changes: [{
 				range: { startLineNumber: 1, startColumn: 3, endLineNumber: 1, endColumn: 6 },
+				rangeOffset: undefined,
 				rangeLength: undefined,
 				text: 'is could be'
 			}],
@@ -191,6 +194,7 @@ suite('ExtHostDocumentData', () => {
 		data.onEvents({
 			changes: [{
 				range: { startLineNumber: 1, startColumn: 3, endLineNumber: 1, endColumn: 6 },
+				rangeOffset: undefined,
 				rangeLength: undefined,
 				text: 'is could be\na line with number'
 			}],
@@ -211,6 +215,7 @@ suite('ExtHostDocumentData', () => {
 		data.onEvents({
 			changes: [{
 				range: { startLineNumber: 1, startColumn: 3, endLineNumber: 2, endColumn: 6 },
+				rangeOffset: undefined,
 				rangeLength: undefined,
 				text: ''
 			}],
@@ -344,6 +349,7 @@ suite('ExtHostDocumentData updates line mapping', () => {
 		return {
 			changes: [{
 				range: range,
+				rangeOffset: undefined,
 				rangeLength: undefined,
 				text: text
 			}],

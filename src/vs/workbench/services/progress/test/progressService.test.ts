@@ -17,16 +17,20 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { Emitter } from 'vs/base/common/event';
 
-let activeViewlet: Viewlet = <any>{};
+let activeViewlet: Viewlet = {} as any;
 
 class TestViewletService implements IViewletService {
 	public _serviceBrand: any;
 
+	onDidViewletRegisterEmitter = new Emitter<ViewletDescriptor>();
 	onDidViewletOpenEmitter = new Emitter<IViewlet>();
 	onDidViewletCloseEmitter = new Emitter<IViewlet>();
+	onDidViewletEnableEmitter = new Emitter<{ id: string, enabled: boolean }>();
 
+	onDidViewletRegister = this.onDidViewletRegisterEmitter.event;
 	onDidViewletOpen = this.onDidViewletOpenEmitter.event;
 	onDidViewletClose = this.onDidViewletCloseEmitter.event;
+	onDidViewletEnablementChange = this.onDidViewletEnableEmitter.event;
 
 	public openViewlet(id: string, focus?: boolean): TPromise<IViewlet> {
 		return TPromise.as(null);
@@ -39,6 +43,7 @@ class TestViewletService implements IViewletService {
 	public getActiveViewlet(): IViewlet {
 		return activeViewlet;
 	}
+	public setViewletEnablement(id: string, enabled: boolean): void { }
 
 	public dispose() {
 	}
@@ -73,6 +78,8 @@ class TestPanelService implements IPanelService {
 	public getActivePanel(): IViewlet {
 		return activeViewlet;
 	}
+
+	public setPanelEnablement(id: string, enabled: boolean): void { }
 
 	public dispose() {
 	}
@@ -207,11 +214,12 @@ class TestProgressBar {
 		return this.done();
 	}
 
-	public getContainer() {
-		return {
-			show: function () { },
-			hide: function () { }
-		};
+	public show(): void {
+
+	}
+
+	public hide(): void {
+
 	}
 }
 
@@ -275,12 +283,12 @@ suite('Progress Service', () => {
 
 		// Acive: Show While
 		let p = TPromise.as(null);
-		service.showWhile(p).then(() => {
+		return service.showWhile(p).then(() => {
 			assert.strictEqual(true, testProgressBar.fDone);
 
 			viewletService.onDidViewletCloseEmitter.fire(testViewlet);
 			p = TPromise.as(null);
-			service.showWhile(p).then(() => {
+			return service.showWhile(p).then(() => {
 				assert.strictEqual(true, testProgressBar.fDone);
 
 				viewletService.onDidViewletOpenEmitter.fire(testViewlet);

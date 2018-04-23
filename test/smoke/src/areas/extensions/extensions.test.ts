@@ -3,30 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { SpectronApplication, VSCODE_BUILD } from '../../spectron/application';
+import { Application, Quality } from '../../application';
 
-describe('Extensions', () => {
-	let app: SpectronApplication = new SpectronApplication();
-	before(() => app.start('Extensions'));
-	after(() => app.stop());
-	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
-
-	if (app.build !== VSCODE_BUILD.DEV) {
+export function setup() {
+	describe('Extensions', () => {
 		it(`install and activate vscode-smoketest-check extension`, async function () {
+			const app = this.app as Application;
+
+			if (app.quality === Quality.Dev) {
+				this.skip();
+				return;
+			}
+
 			const extensionName = 'vscode-smoketest-check';
 			await app.workbench.extensions.openExtensionsViewlet();
 
-			const installed = await app.workbench.extensions.installExtension(extensionName);
-			assert.ok(installed);
+			await app.workbench.extensions.installExtension(extensionName);
 
 			await app.reload();
-			await app.workbench.extensions.waitForExtensionsViewlet();
-			await app.workbench.quickopen.runCommand('Smoke Test Check');
-
-			const statusbarText = await app.workbench.statusbar.getStatusbarTextByTitle('smoke test');
-			await app.screenCapturer.capture('Statusbar');
-			assert.equal(statusbarText, 'VS Code Smoke Test Check');
+			await app.workbench.extensions.openExtensionsViewlet();
+			await app.workbench.runCommand('Smoke Test Check');
+			await app.workbench.statusbar.waitForStatusbarText('smoke test', 'VS Code Smoke Test Check');
 		});
-	}
-});
+	});
+}

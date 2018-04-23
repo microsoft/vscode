@@ -8,6 +8,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorModel } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
+import { Schemas } from 'vs/base/common/network';
+import { DataUri } from 'vs/workbench/common/resources';
 
 /**
  * An editor model that just represents a resource that can be loaded.
@@ -17,6 +19,7 @@ export class BinaryEditorModel extends EditorModel {
 	private resource: URI;
 	private size: number;
 	private etag: string;
+	private mime: string;
 
 	constructor(
 		resource: URI,
@@ -25,8 +28,17 @@ export class BinaryEditorModel extends EditorModel {
 	) {
 		super();
 
-		this.name = name;
 		this.resource = resource;
+		this.name = name;
+
+		if (resource.scheme === Schemas.data) {
+			const metadata = DataUri.parseMetaData(resource);
+			if (metadata.has(DataUri.META_DATA_SIZE)) {
+				this.size = Number(metadata.get(DataUri.META_DATA_SIZE));
+			}
+
+			this.mime = metadata.get(DataUri.META_DATA_MIME);
+		}
 	}
 
 	/**
@@ -44,25 +56,38 @@ export class BinaryEditorModel extends EditorModel {
 	}
 
 	/**
-	 * The size of the binary file if known.
+	 * The size of the binary resource if known.
 	 */
 	public getSize(): number {
 		return this.size;
 	}
 
 	/**
-	 * The etag of the binary file if known.
+	 * The mime of the binary resource if known.
+	 */
+	public getMime(): string {
+		return this.mime;
+	}
+
+	/**
+	 * The etag of the binary resource if known.
 	 */
 	public getETag(): string {
 		return this.etag;
 	}
 
 	public load(): TPromise<EditorModel> {
-		return this.fileService.resolveFile(this.resource).then(stat => {
-			this.etag = stat.etag;
-			this.size = stat.size;
 
-			return this;
-		});
+		// Make sure to resolve up to date stat for file resources
+		if (this.fileService.canHandleResource(this.resource)) {
+			return this.fileService.resolveFile(this.resource).then(stat => {
+				this.etag = stat.etag;
+				this.size = stat.size;
+
+				return this;
+			});
+		}
+
+		return TPromise.wrap(this);
 	}
 }

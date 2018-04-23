@@ -10,6 +10,9 @@
 	"dropFolder": "작업 영역에 폴더를 추가하시겠습니까?",
 	"addFolders": "폴더 추가(&&A)",
 	"addFolder": "폴더 추가(&&A)",
+	"confirmMove": "'{0}'을(를) 이동하시겠습니까?",
+	"doNotAskAgain": "이 메시지를 다시 표시 안 함",
+	"moveButtonLabel": "이동(&&M)",
 	"confirmOverwriteMessage": "'{0}'이(가) 대상 폴더에 이미 있습니다. 바꿀까요?",
 	"irreversible": "이 작업은 취소할 수 없습니다.",
 	"replaceButtonLabel": "바꾸기(&&R)"

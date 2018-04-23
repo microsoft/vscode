@@ -5,6 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
+import * as dom from 'vs/base/browser/dom';
 import { parse } from 'vs/base/common/marshalling';
 import { Schemas } from 'vs/base/common/network';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -21,8 +22,8 @@ export class OpenerService implements IOpenerService {
 	_serviceBrand: any;
 
 	constructor(
-		@IEditorService private _editorService: IEditorService,
-		@ICommandService private _commandService: ICommandService,
+		@IEditorService private readonly _editorService: IEditorService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@optional(ITelemetryService) private _telemetryService: ITelemetryService = NullTelemetryService
 	) {
 		//
@@ -30,14 +31,19 @@ export class OpenerService implements IOpenerService {
 
 	open(resource: URI, options?: { openToSide?: boolean }): TPromise<any> {
 
+		/* __GDPR__
+			"openerService" : {
+				"scheme" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		this._telemetryService.publicLog('openerService', { scheme: resource.scheme });
 
 		const { scheme, path, query, fragment } = resource;
-		let promise: TPromise<any>;
-		if (scheme === Schemas.http || scheme === Schemas.https) {
-			// open http
-			window.open(resource.toString(true));
+		let promise: TPromise<any> = TPromise.wrap(void 0);
 
+		if (scheme === Schemas.http || scheme === Schemas.https || scheme === Schemas.mailto) {
+			// open http or default mail application
+			dom.windowOpenNoOpener(resource.toString(true));
 		} else if (scheme === 'command' && CommandsRegistry.getCommand(path)) {
 			// execute as command
 			let args: any = [];
@@ -73,11 +79,11 @@ export class OpenerService implements IOpenerService {
 				return TPromise.as(undefined);
 
 			} else if (resource.scheme === Schemas.file) {
-				resource = URI.file(normalize(resource.fsPath)); // workaround for non-normalized paths (https://github.com/Microsoft/vscode/issues/12954)
+				resource = resource.with({ path: normalize(resource.path) }); // workaround for non-normalized paths (https://github.com/Microsoft/vscode/issues/12954)
 			}
 			promise = this._editorService.openEditor({ resource, options: { selection, } }, options && options.openToSide);
 		}
 
-		return TPromise.as(promise);
+		return promise;
 	}
 }

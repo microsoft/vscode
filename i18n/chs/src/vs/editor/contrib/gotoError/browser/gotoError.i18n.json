@@ -9,5 +9,6 @@
 	"markerAction.previous.label": "转到上一个错误或警告",
 	"editorMarkerNavigationError": "编辑器标记导航小组件错误颜色。",
 	"editorMarkerNavigationWarning": "编辑器标记导航小组件警告颜色。",
+	"editorMarkerNavigationInfo": "编辑器标记导航小组件信息颜色。",
 	"editorMarkerNavigationBackground": "编辑器标记导航小组件背景色。"
 }

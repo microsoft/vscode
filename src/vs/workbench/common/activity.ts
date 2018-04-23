@@ -10,6 +10,7 @@ import { IConstructorSignature0 } from 'vs/platform/instantiation/common/instant
 export interface IActivity {
 	id: string;
 	name: string;
+	keybindingId?: string;
 	cssClass: string;
 }
 

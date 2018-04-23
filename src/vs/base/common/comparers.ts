@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import scorer = require('vs/base/common/scorer');
-import strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
 import * as paths from 'vs/base/common/paths';
 
 let intlFileNameCollator: Intl.Collator;
@@ -16,7 +15,7 @@ export function setFileNameComparer(collator: Intl.Collator): void {
 	intlFileNameCollatorIsNumeric = collator.resolvedOptions().numeric;
 }
 
-export function compareFileNames(one: string, other: string): number {
+export function compareFileNames(one: string, other: string, caseSensitive = false): number {
 	if (intlFileNameCollator) {
 		const a = one || '';
 		const b = other || '';
@@ -31,20 +30,19 @@ export function compareFileNames(one: string, other: string): number {
 		return result;
 	}
 
-	return noIntlCompareFileNames(one, other);
+	return noIntlCompareFileNames(one, other, caseSensitive);
 }
 
 const FileNameMatch = /^(.*?)(\.([^.]*))?$/;
 
-export function noIntlCompareFileNames(one: string, other: string): number {
-	let oneMatch = FileNameMatch.exec(one.toLowerCase());
-	let otherMatch = FileNameMatch.exec(other.toLowerCase());
+export function noIntlCompareFileNames(one: string, other: string, caseSensitive = false): number {
+	if (!caseSensitive) {
+		one = one && one.toLowerCase();
+		other = other && other.toLowerCase();
+	}
 
-	let oneName = oneMatch[1] || '';
-	let oneExtension = oneMatch[3] || '';
-
-	let otherName = otherMatch[1] || '';
-	let otherExtension = otherMatch[3] || '';
+	const [oneName, oneExtension] = extractNameAndExtension(one);
+	const [otherName, otherExtension] = extractNameAndExtension(other);
 
 	if (oneName !== otherName) {
 		return oneName < otherName ? -1 : 1;
@@ -59,14 +57,8 @@ export function noIntlCompareFileNames(one: string, other: string): number {
 
 export function compareFileExtensions(one: string, other: string): number {
 	if (intlFileNameCollator) {
-		const oneMatch = one ? FileNameMatch.exec(one) : [] as RegExpExecArray;
-		const otherMatch = other ? FileNameMatch.exec(other) : [] as RegExpExecArray;
-
-		const oneName = oneMatch[1] || '';
-		const oneExtension = oneMatch[3] || '';
-
-		const otherName = otherMatch[1] || '';
-		const otherExtension = otherMatch[3] || '';
+		const [oneName, oneExtension] = extractNameAndExtension(one);
+		const [otherName, otherExtension] = extractNameAndExtension(other);
 
 		let result = intlFileNameCollator.compare(oneExtension, otherExtension);
 
@@ -92,14 +84,8 @@ export function compareFileExtensions(one: string, other: string): number {
 }
 
 function noIntlCompareFileExtensions(one: string, other: string): number {
-	const oneMatch = one ? FileNameMatch.exec(one.toLowerCase()) : [] as RegExpExecArray;
-	const otherMatch = other ? FileNameMatch.exec(other.toLowerCase()) : [] as RegExpExecArray;
-
-	const oneName = oneMatch[1] || '';
-	const oneExtension = oneMatch[3] || '';
-
-	const otherName = otherMatch[1] || '';
-	const otherExtension = otherMatch[3] || '';
+	const [oneName, oneExtension] = extractNameAndExtension(one && one.toLowerCase());
+	const [otherName, otherExtension] = extractNameAndExtension(other && other.toLowerCase());
 
 	if (oneExtension !== otherExtension) {
 		return oneExtension < otherExtension ? -1 : 1;
@@ -112,26 +98,49 @@ function noIntlCompareFileExtensions(one: string, other: string): number {
 	return oneName < otherName ? -1 : 1;
 }
 
-export function comparePaths(one: string, other: string): number {
+function extractNameAndExtension(str?: string): [string, string] {
+	const match = str ? FileNameMatch.exec(str) : [] as RegExpExecArray;
+
+	return [(match && match[1]) || '', (match && match[3]) || ''];
+}
+
+function comparePathComponents(one: string, other: string, caseSensitive = false): number {
+	if (!caseSensitive) {
+		one = one && one.toLowerCase();
+		other = other && other.toLowerCase();
+	}
+
+	if (one === other) {
+		return 0;
+	}
+
+	return one < other ? -1 : 1;
+}
+
+export function comparePaths(one: string, other: string, caseSensitive = false): number {
 	const oneParts = one.split(paths.nativeSep);
 	const otherParts = other.split(paths.nativeSep);
 
 	const lastOne = oneParts.length - 1;
 	const lastOther = otherParts.length - 1;
-	let endOne: boolean, endOther: boolean, onePart: string, otherPart: string;
+	let endOne: boolean, endOther: boolean;
 
 	for (let i = 0; ; i++) {
 		endOne = lastOne === i;
 		endOther = lastOther === i;
 
 		if (endOne && endOther) {
-			return compareFileNames(oneParts[i], otherParts[i]);
+			return compareFileNames(oneParts[i], otherParts[i], caseSensitive);
 		} else if (endOne) {
 			return -1;
 		} else if (endOther) {
 			return 1;
-		} else if ((onePart = oneParts[i].toLowerCase()) !== (otherPart = otherParts[i].toLowerCase())) {
-			return onePart < otherPart ? -1 : 1;
+		}
+
+		const result = comparePathComponents(oneParts[i], otherParts[i], caseSensitive);
+
+		if (result !== 0) {
+			return result;
 		}
 	}
 }
@@ -186,56 +195,4 @@ export function compareByPrefix(one: string, other: string, lookFor: string): nu
 	}
 
 	return 0;
-}
-
-export interface IScorableResourceAccessor<T> {
-	getLabel(t: T): string;
-	getResourcePath(t: T): string;
-}
-
-export function compareByScore<T>(elementA: T, elementB: T, accessor: IScorableResourceAccessor<T>, lookFor: string, lookForNormalizedLower: string, scorerCache?: { [key: string]: number }): number {
-	const labelA = accessor.getLabel(elementA);
-	const labelB = accessor.getLabel(elementB);
-
-	// treat prefix matches highest in any case
-	const prefixCompare = compareByPrefix(labelA, labelB, lookFor);
-	if (prefixCompare) {
-		return prefixCompare;
-	}
-
-	// Give higher importance to label score
-	const labelAScore = scorer.score(labelA, lookFor, scorerCache);
-	const labelBScore = scorer.score(labelB, lookFor, scorerCache);
-
-	if (labelAScore !== labelBScore) {
-		return labelAScore > labelBScore ? -1 : 1;
-	}
-
-	// Score on full resource path comes next (if available)
-	let resourcePathA = accessor.getResourcePath(elementA);
-	let resourcePathB = accessor.getResourcePath(elementB);
-	if (resourcePathA && resourcePathB) {
-		const resourceAScore = scorer.score(resourcePathA, lookFor, scorerCache);
-		const resourceBScore = scorer.score(resourcePathB, lookFor, scorerCache);
-
-		if (resourceAScore !== resourceBScore) {
-			return resourceAScore > resourceBScore ? -1 : 1;
-		}
-	}
-
-	// At this place, the scores are identical so we check for string lengths and favor shorter ones
-	if (labelA.length !== labelB.length) {
-		return labelA.length < labelB.length ? -1 : 1;
-	}
-
-	if (resourcePathA && resourcePathB && resourcePathA.length !== resourcePathB.length) {
-		return resourcePathA.length < resourcePathB.length ? -1 : 1;
-	}
-
-	// Finally compare by label or resource path
-	if (labelA === labelB && resourcePathA && resourcePathB) {
-		return compareAnything(resourcePathA, resourcePathB, lookForNormalizedLower);
-	}
-
-	return compareAnything(labelA, labelB, lookForNormalizedLower);
 }

@@ -5,10 +5,10 @@
 
 'use strict';
 
-import 'vs/workbench/parts/search/browser/search.contribution'; // load contributions
+import 'vs/workbench/parts/search/electron-browser/search.contribution'; // load contributions
 import * as assert from 'assert';
 import * as fs from 'fs';
-import { IWorkspaceContextService, LegacyWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ISearchService, IQueryOptions } from 'vs/platform/search/common/search';
@@ -32,7 +32,9 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { SearchModel } from 'vs/workbench/parts/search/common/searchModel';
 import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
 
-import Event, * as event from 'vs/base/common/event';
+import * as event from 'vs/base/common/event';
+import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { NullLogService, ILogService } from 'vs/platform/log/common/log';
 
 declare var __dirname: string;
 
@@ -61,12 +63,13 @@ suite('TextSearch performance (integration)', () => {
 			[ITelemetryService, telemetryService],
 			[IConfigurationService, configurationService],
 			[IModelService, new ModelServiceImpl(null, configurationService)],
-			[IWorkspaceContextService, new TestContextService(new LegacyWorkspace(URI.file(testWorkspacePath)))],
+			[IWorkspaceContextService, new TestContextService(testWorkspace(URI.file(testWorkspacePath)))],
 			[IWorkbenchEditorService, new TestEditorService()],
 			[IEditorGroupService, new TestEditorGroupService()],
 			[IEnvironmentService, TestEnvironmentService],
 			[IUntitledEditorService, createSyncDescriptor(UntitledEditorService)],
-			[ISearchService, createSyncDescriptor(SearchService)]
+			[ISearchService, createSyncDescriptor(SearchService)],
+			[ILogService, new NullLogService()]
 		));
 
 		const queryOptions: IQueryOptions = {
@@ -147,7 +150,7 @@ class TestTelemetryService implements ITelemetryService {
 
 	private emitter = new event.Emitter<any>();
 
-	public get eventLogged(): Event<any> {
+	public get eventLogged(): event.Event<any> {
 		return this.emitter.event;
 	}
 
@@ -155,14 +158,14 @@ class TestTelemetryService implements ITelemetryService {
 		const event = { name: eventName, data: data };
 		this.events.push(event);
 		this.emitter.fire(event);
-		return TPromise.as<void>(null);
+		return TPromise.wrap<void>(null);
 	}
 
 	public getTelemetryInfo(): TPromise<ITelemetryInfo> {
-		return TPromise.as({
+		return TPromise.wrap({
 			instanceId: 'someValue.instanceId',
 			sessionId: 'someValue.sessionId',
 			machineId: 'someValue.machineId'
 		});
 	}
-};
+}

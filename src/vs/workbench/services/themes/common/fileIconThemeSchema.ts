@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
@@ -11,6 +11,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 const schemaId = 'vscode://schemas/icon-theme';
 const schema: IJSONSchema = {
 	type: 'object',
+	allowComments: true,
 	definitions: {
 		folderExpanded: {
 			type: 'string',
@@ -167,6 +168,7 @@ const schema: IJSONSchema = {
 					},
 					fontColor: {
 						type: 'string',
+						format: 'color-hex',
 						description: nls.localize('schema.fontColor', 'When using a glyph font: The color to use.')
 					},
 					fontSize: {
@@ -208,11 +210,15 @@ const schema: IJSONSchema = {
 		highContrast: {
 			$ref: '#/definitions/associations',
 			description: nls.localize('schema.highContrast', 'Optional associations for file icons in high contrast color themes.')
+		},
+		hidesExplorerArrows: {
+			type: 'boolean',
+			description: nls.localize('schema.hidesExplorerArrows', 'Configures whether the file explorer\'s arrows should be hidden when this theme is active.')
 		}
 	}
 };
 
 export function register() {
-	let schemaRegistry = <IJSONContributionRegistry>Registry.as(JSONExtensions.JSONContribution);
+	let schemaRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 	schemaRegistry.registerSchema(schemaId, schema);
 }

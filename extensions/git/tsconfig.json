@@ -6,8 +6,12 @@
 		],
 		"module": "commonjs",
 		"outDir": "./out",
-		"strictNullChecks": true,
-		"experimentalDecorators": true
+		"typeRoots": [
+			"./node_modules/@types"
+		],
+		"strict": true,
+		"experimentalDecorators": true,
+		"noUnusedLocals": true
 	},
 	"include": [
 		"src/**/*"

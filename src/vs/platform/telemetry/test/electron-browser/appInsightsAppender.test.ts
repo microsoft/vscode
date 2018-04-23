@@ -9,8 +9,8 @@ import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppen
 
 interface IAppInsightsEvent {
 	eventName: string;
-	properties?: { string?: string; };
-	measurements?: { string?: number; };
+	properties?: { [x: string]: string; };
+	measurements?: { [x: string]: number; };
 }
 
 class AppInsightsMock {
@@ -34,7 +34,7 @@ class AppInsightsMock {
 		this.exceptions.push(exception);
 	}
 
-	public sendPendingData(callback): void {
+	public sendPendingData(_callback: any): void {
 		// called on dispose
 	}
 }
@@ -74,18 +74,18 @@ suite('AIAdapter', () => {
 
 	test('property limits', () => {
 		var reallyLongPropertyName = 'abcdefghijklmnopqrstuvwxyz';
-		for (var i = 0; i < 6; i++) {
+		for (let i = 0; i < 6; i++) {
 			reallyLongPropertyName += 'abcdefghijklmnopqrstuvwxyz';
 		}
 		assert(reallyLongPropertyName.length > 150);
 
 		var reallyLongPropertyValue = 'abcdefghijklmnopqrstuvwxyz012345678901234567890123';
-		for (var i = 0; i < 21; i++) {
+		for (let i = 0; i < 21; i++) {
 			reallyLongPropertyValue += 'abcdefghijklmnopqrstuvwxyz012345678901234567890123';
 		}
 		assert(reallyLongPropertyValue.length > 1024);
 
-		var data = {};
+		var data = Object.create(null);
 		data[reallyLongPropertyName] = '1234';
 		data['reallyLongPropertyValue'] = reallyLongPropertyValue;
 		adapter.log('testEvent', data);

@@ -23,11 +23,9 @@ function removeFromParent(element: HTMLElement): void {
 
 export class RowCache<T> implements IDisposable {
 
-	private cache: { [templateId: string]: IRow[]; };
+	private cache = new Map<string, IRow[]>();
 
-	constructor(private renderers: { [templateId: string]: IRenderer<T, any>; }) {
-		this.cache = Object.create(null);
-	}
+	constructor(private renderers: Map<string, IRenderer<T, any>>) { }
 
 	/**
 	 * Returns a row either by creating a new one or reusing
@@ -38,7 +36,7 @@ export class RowCache<T> implements IDisposable {
 
 		if (!result) {
 			const domNode = $('.monaco-list-row');
-			const renderer = this.renderers[templateId];
+			const renderer = this.renderers.get(templateId);
 			const templateData = renderer.renderTemplate(domNode);
 			result = { domNode, templateId, templateData };
 		}
@@ -67,27 +65,36 @@ export class RowCache<T> implements IDisposable {
 	}
 
 	private getTemplateCache(templateId: string): IRow[] {
-		return this.cache[templateId] || (this.cache[templateId] = []);
+		let result = this.cache.get(templateId);
+
+		if (!result) {
+			result = [];
+			this.cache.set(templateId, result);
+		}
+
+		return result;
 	}
 
 	private garbageCollect(): void {
-		if (this.cache) {
-			Object.keys(this.cache).forEach(templateId => {
-				this.cache[templateId].forEach(cachedRow => {
-					const renderer = this.renderers[templateId];
-					renderer.disposeTemplate(cachedRow.templateData);
-					cachedRow.domNode = null;
-					cachedRow.templateData = null;
-				});
-
-				delete this.cache[templateId];
-			});
+		if (!this.renderers) {
+			return;
 		}
+
+		this.cache.forEach((cachedRows, templateId) => {
+			for (const cachedRow of cachedRows) {
+				const renderer = this.renderers.get(templateId);
+				renderer.disposeTemplate(cachedRow.templateData);
+				cachedRow.domNode = null;
+				cachedRow.templateData = null;
+			}
+		});
+
+		this.cache.clear();
 	}
 
 	dispose(): void {
 		this.garbageCollect();
-		this.cache = null;
+		this.cache.clear();
 		this.renderers = null;
 	}
 }

@@ -10,11 +10,16 @@ export namespace EditorContextKeys {
 	/**
 	 * A context key that is set when the editor's text has focus (cursor is blinking).
 	 */
-	export const textFocus = new RawContextKey<boolean>('editorTextFocus', false);
+	export const editorTextFocus = new RawContextKey<boolean>('editorTextFocus', false);
 	/**
 	 * A context key that is set when the editor's text or an editor's widget has focus.
 	 */
 	export const focus = new RawContextKey<boolean>('editorFocus', false);
+
+	/**
+	 * A context key that is set when any editor input has focus (regular editor, repl input...).
+	 */
+	export const textInputFocus = new RawContextKey<boolean>('textInputFocus', false);
 
 	export const readOnly = new RawContextKey<boolean>('editorReadonly', false);
 	export const writable: ContextKeyExpr = readOnly.toNegated();
@@ -42,4 +47,4 @@ export namespace EditorContextKeys {
 	export const hasDocumentFormattingProvider = new RawContextKey<boolean>('editorHasDocumentFormattingProvider', undefined);
 	export const hasDocumentSelectionFormattingProvider = new RawContextKey<boolean>('editorHasDocumentSelectionFormattingProvider', undefined);
 	export const hasSignatureHelpProvider = new RawContextKey<boolean>('editorHasSignatureHelpProvider', undefined);
-};
+}

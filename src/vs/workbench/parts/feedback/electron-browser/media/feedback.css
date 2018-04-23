@@ -88,7 +88,6 @@
 	position: absolute;
 	top: 0;
 	right: 0;
-	margin: .5em 0 0 0;
 	padding: .5em;
 	width: 22px;
 	height: 22px;
@@ -99,23 +98,6 @@
 .monaco-shell .feedback-form .form-buttons {
 	margin-top: 18px;
 	text-align: right;
-}
-
-.monaco-shell .feedback-form .send {
-	padding: .5em 1.5em;
-	font-size: 1.1em;
-	margin: 0;
-	box-sizing:			border-box;
-	transition: width 200ms ease-out;
-}
-
-.monaco-shell .feedback-form .send.in-progress {
-	width: 22%;
-}
-
-.monaco-shell .feedback-form .send.success,
-.monaco-shell .feedback-form .send.error {
-	width: 20%;
 }
 
 .monaco-shell .feedback-form .sentiment {
@@ -132,11 +114,11 @@
 }
 
 /* Statusbar */
-.monaco-shell .statusbar-item > .dropdown.send-feedback {
+.monaco-shell .statusbar-item > .monaco-dropdown.send-feedback {
 	display: inline-block;
 }
 
-.monaco-shell .statusbar-item > .dropdown.send-feedback > .dropdown-label.send-feedback {
+.monaco-shell .statusbar-item > .monaco-dropdown.send-feedback > .dropdown-label.send-feedback {
 	-webkit-mask: url('smiley.svg') no-repeat 50% 50%; /* use mask to be able to change color dynamically */
 	width: 26px;
 }
@@ -152,22 +134,28 @@
 	background: url('close.svg') center center no-repeat;
 }
 
-.monaco-shell.vs .feedback-form .cancel:hover {
-	background-color: #eaeaea;
+.monaco-shell .feedback-form .form-buttons {
+	display: flex;
+}
+
+.monaco-shell .feedback-form .form-buttons .hide-button-container {
+	display: flex;
+}
+
+.monaco-shell .feedback-form .form-buttons .hide-button-container input,
+.monaco-shell .feedback-form .form-buttons .hide-button-container label {
+	align-self: center;
 }
 
 .monaco-shell .feedback-form .form-buttons .send {
-	color: white;
-	border: none;
-	cursor: pointer;
+	width: auto;
 	background-image: url('twitter.svg');
-	background-color: #007ACC;
-	background-position: left;
+	background-position: 12px center;
+	background-size: 20px;
 	background-repeat: no-repeat;
-	padding-left: 30px;
-	padding-right: 12px;
-	border: 4px solid #007ACC;
-	border-radius: 4px;
+	padding: 8px 12px 8px 38px;
+	margin-left: auto;
+	transition: width 200ms ease-out;
 }
 
 .monaco-shell .feedback-form .form-buttons .send.in-progress,
@@ -205,10 +193,6 @@
 .monaco-shell.vs-dark .feedback-form .cancel,
 .monaco-shell.hc-black .feedback-form .cancel {
 	background: url('close-dark.svg') center center no-repeat;
-}
-
-.monaco-shell.vs-dark .feedback-form .cancel:hover {
-	background-color: rgba(30,30,30,0.8);
 }
 
 .monaco-shell .feedback-form .sentiment.smile {
@@ -249,13 +233,6 @@
 .monaco-shell.hc-black .feedback-form .content .contactus {
 	padding: 10px;
 	float: right;
-}
-.monaco-shell.hc-black .feedback-form .cancel {
-	opacity: 0.6;
-}
-
-.monaco-shell.hc-black .feedback-form .cancel:hover {
-	opacity: 1;
 }
 
 .monaco-shell.hc-black .feedback-form .form-buttons .send,

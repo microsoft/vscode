@@ -8,44 +8,79 @@ import { rgPath } from 'vscode-ripgrep';
 
 import { isMacintosh as isMac } from 'vs/base/common/platform';
 import * as glob from 'vs/base/common/glob';
-import { normalizeNFD } from 'vs/base/common/strings';
+import { normalizeNFD, startsWith } from 'vs/base/common/strings';
 
-import { IFolderSearch } from './search';
+import { IFolderSearch, IRawSearch } from './search';
 import { foldersToIncludeGlobs, foldersToRgExcludeGlobs } from './ripgrepTextSearch';
 
-export function spawnRipgrepCmd(folderQuery: IFolderSearch, includePattern: glob.IExpression, excludePattern: glob.IExpression) {
-	const rgArgs = getRgArgs(folderQuery, includePattern, excludePattern);
+// If vscode-ripgrep is in an .asar file, then the binary is unpacked.
+const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
+
+export function spawnRipgrepCmd(config: IRawSearch, folderQuery: IFolderSearch, includePattern: glob.IExpression, excludePattern: glob.IExpression) {
+	const rgArgs = getRgArgs(config, folderQuery, includePattern, excludePattern);
+	const cwd = folderQuery.folder;
 	return {
-		cmd: cp.spawn(rgPath, rgArgs.globArgs, { cwd: folderQuery.folder }),
-		siblingClauses: rgArgs.siblingClauses
+		cmd: cp.spawn(rgDiskPath, rgArgs.args, { cwd }),
+		siblingClauses: rgArgs.siblingClauses,
+		rgArgs,
+		cwd
 	};
 }
 
-function getRgArgs(folderQuery: IFolderSearch, includePattern: glob.IExpression, excludePattern: glob.IExpression) {
+function getRgArgs(config: IRawSearch, folderQuery: IFolderSearch, includePattern: glob.IExpression, excludePattern: glob.IExpression) {
 	const args = ['--files', '--hidden', '--case-sensitive'];
 
 	// includePattern can't have siblingClauses
 	foldersToIncludeGlobs([folderQuery], includePattern, false).forEach(globArg => {
-		args.push('-g', isMac ? normalizeNFD(globArg) : globArg);
+		const inclusion = anchor(globArg);
+		args.push('-g', inclusion);
+		if (isMac) {
+			const normalized = normalizeNFD(inclusion);
+			if (normalized !== inclusion) {
+				args.push('-g', normalized);
+			}
+		}
 	});
 
 	let siblingClauses: glob.IExpression;
 
 	const rgGlobs = foldersToRgExcludeGlobs([folderQuery], excludePattern, undefined, false);
-	rgGlobs.globArgs
-		.forEach(rgGlob => args.push('-g', `!${isMac ? normalizeNFD(rgGlob) : rgGlob}`));
+	rgGlobs.globArgs.forEach(globArg => {
+		const exclusion = `!${anchor(globArg)}`;
+		args.push('-g', exclusion);
+		if (isMac) {
+			const normalized = normalizeNFD(exclusion);
+			if (normalized !== exclusion) {
+				args.push('-g', normalized);
+			}
+		}
+	});
 	siblingClauses = rgGlobs.siblingClauses;
 
-	// Don't use .gitignore or .ignore
-	args.push('--no-ignore');
+	if (folderQuery.disregardIgnoreFiles !== false) {
+		// Don't use .gitignore or .ignore
+		args.push('--no-ignore');
+	} else {
+		args.push('--no-ignore-parent');
+	}
 
 	// Follow symlinks
-	args.push('--follow');
+	if (!config.ignoreSymlinks) {
+		args.push('--follow');
+	}
+
+	if (config.exists) {
+		args.push('--quiet');
+	}
 
 	// Folder to search
 	args.push('--');
 
 	args.push('.');
 
-	return { globArgs: args, siblingClauses };
+	return { args, siblingClauses };
+}
+
+function anchor(glob: string) {
+	return startsWith(glob, '**') || startsWith(glob, '/') ? glob : `/${glob}`;
 }

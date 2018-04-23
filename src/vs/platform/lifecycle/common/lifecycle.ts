@@ -5,7 +5,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
@@ -19,9 +19,16 @@ export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleSe
  * a boolean directly. Returning a promise has quite an impact on the shutdown sequence!
  */
 export interface ShutdownEvent {
+
+	/**
+	 * Allows to veto the shutdown. The veto can be a long running operation.
+	 */
 	veto(value: boolean | TPromise<boolean>): void;
+
+	/**
+	 * The reason why Code is shutting down.
+	 */
 	reason: ShutdownReason;
-	payload?: object;
 }
 
 export enum ShutdownReason {
@@ -47,8 +54,9 @@ export enum StartupKind {
 
 export enum LifecyclePhase {
 	Starting = 1,
-	Running = 2,
-	ShuttingDown = 3
+	Restoring = 2,
+	Running = 3,
+	Eventually = 4
 }
 
 /**
@@ -70,9 +78,10 @@ export interface ILifecycleService {
 	readonly phase: LifecyclePhase;
 
 	/**
-	 * An event that fire when the lifecycle phase has changed
+	 * Returns a promise that resolves when a certain lifecycle phase
+	 * has started.
 	 */
-	readonly onDidChangePhase: Event<LifecyclePhase>;
+	when(phase: LifecyclePhase): Thenable<void>;
 
 	/**
 	 * Fired before shutdown happens. Allows listeners to veto against the
@@ -92,8 +101,8 @@ export interface ILifecycleService {
 export const NullLifecycleService: ILifecycleService = {
 	_serviceBrand: null,
 	phase: LifecyclePhase.Running,
+	when() { return Promise.resolve(); },
 	startupKind: StartupKind.NewWindow,
-	onDidChangePhase: Event.None,
 	onWillShutdown: Event.None,
 	onShutdown: Event.None
 };

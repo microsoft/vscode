@@ -5,51 +5,13 @@
 
 'use strict';
 
-import fs = require('fs');
-import stream = require('stream');
+import * as fs from 'fs';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 
 export interface ReadResult {
 	buffer: NodeBuffer;
 	bytesRead: number;
-}
-
-/**
- * Reads up to total bytes from the provided stream.
- */
-export function readExactlyByStream(stream: stream.Readable, totalBytes: number): TPromise<ReadResult> {
-	return new TPromise<ReadResult>((complete, error) => {
-		let done = false;
-		let buffer = new Buffer(totalBytes);
-		let bytesRead = 0;
-
-		stream.on('data', (data: NodeBuffer) => {
-			let bytesToRead = Math.min(totalBytes - bytesRead, data.length);
-			data.copy(buffer, bytesRead, 0, bytesToRead);
-			bytesRead += bytesToRead;
-
-			if (bytesRead === totalBytes) {
-				(stream as any).destroy(); // Will trigger the close event eventually
-			}
-		});
-
-		stream.on('error', (e: Error) => {
-			if (!done) {
-				done = true;
-				error(e);
-			}
-		});
-
-		let onSuccess = () => {
-			if (!done) {
-				done = true;
-				complete({ buffer, bytesRead });
-			}
-		};
-
-		stream.on('close', onSuccess);
-	});
 }
 
 /**
@@ -63,7 +25,7 @@ export function readExactlyByFile(file: string, totalBytes: number): TPromise<Re
 			}
 
 			function end(err: Error, resultBuffer: NodeBuffer, bytesRead: number): void {
-				fs.close(fd, (closeError: Error) => {
+				fs.close(fd, closeError => {
 					if (closeError) {
 						return error(closeError);
 					}
@@ -76,35 +38,30 @@ export function readExactlyByFile(file: string, totalBytes: number): TPromise<Re
 				});
 			}
 
-			let buffer = new Buffer(totalBytes);
-			let bytesRead = 0;
-			let zeroAttempts = 0;
-			function loop(): void {
-				fs.read(fd, buffer, bytesRead, totalBytes - bytesRead, null, (err, moreBytesRead) => {
+			const buffer = Buffer.allocUnsafe(totalBytes);
+			let offset = 0;
+
+			function readChunk(): void {
+				fs.read(fd, buffer, offset, totalBytes - offset, null, (err, bytesRead) => {
 					if (err) {
 						return end(err, null, 0);
 					}
 
-					// Retry up to N times in case 0 bytes where read
-					if (moreBytesRead === 0) {
-						if (++zeroAttempts === 10) {
-							return end(null, buffer, bytesRead);
-						}
-
-						return loop();
+					if (bytesRead === 0) {
+						return end(null, buffer, offset);
 					}
 
-					bytesRead += moreBytesRead;
+					offset += bytesRead;
 
-					if (bytesRead === totalBytes) {
-						return end(null, buffer, bytesRead);
+					if (offset === totalBytes) {
+						return end(null, buffer, offset);
 					}
 
-					return loop();
+					return readChunk();
 				});
 			}
 
-			loop();
+			readChunk();
 		});
 	});
 }
@@ -126,7 +83,7 @@ export function readToMatchingString(file: string, matchingString: string, chunk
 			}
 
 			function end(err: Error, result: string): void {
-				fs.close(fd, (closeError: Error) => {
+				fs.close(fd, closeError => {
 					if (closeError) {
 						return error(closeError);
 					}
@@ -139,40 +96,35 @@ export function readToMatchingString(file: string, matchingString: string, chunk
 				});
 			}
 
-			let buffer = new Buffer(maximumBytesToRead);
-			let bytesRead = 0;
-			let zeroAttempts = 0;
-			function loop(): void {
-				fs.read(fd, buffer, bytesRead, chunkBytes, null, (err, moreBytesRead) => {
+			let buffer = Buffer.allocUnsafe(maximumBytesToRead);
+			let offset = 0;
+
+			function readChunk(): void {
+				fs.read(fd, buffer, offset, chunkBytes, null, (err, bytesRead) => {
 					if (err) {
 						return end(err, null);
 					}
 
-					// Retry up to N times in case 0 bytes where read
-					if (moreBytesRead === 0) {
-						if (++zeroAttempts === 10) {
-							return end(null, null);
-						}
-
-						return loop();
+					if (bytesRead === 0) {
+						return end(null, null);
 					}
 
-					bytesRead += moreBytesRead;
+					offset += bytesRead;
 
 					const newLineIndex = buffer.indexOf(matchingString);
 					if (newLineIndex >= 0) {
 						return end(null, buffer.toString('utf8').substr(0, newLineIndex));
 					}
 
-					if (bytesRead >= maximumBytesToRead) {
+					if (offset >= maximumBytesToRead) {
 						return end(new Error(`Could not find ${matchingString} in first ${maximumBytesToRead} bytes of ${file}`), null);
 					}
 
-					return loop();
+					return readChunk();
 				});
 			}
 
-			loop();
+			readChunk();
 		})
 	);
 }

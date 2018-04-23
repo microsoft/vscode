@@ -7,17 +7,17 @@ import * as vscode from 'vscode';
 import { HtmlNode } from 'EmmetNode';
 import { getNode, parseDocument, validate } from './util';
 
-export function updateTag(tagName: string): Thenable<boolean> {
-	let editor = vscode.window.activeTextEditor;
-	if (!validate(false)) {
+export function updateTag(tagName: string): Thenable<boolean> | undefined {
+	if (!validate(false) || !vscode.window.activeTextEditor) {
 		return;
 	}
+	let editor = vscode.window.activeTextEditor;
 	let rootNode = <HtmlNode>parseDocument(editor.document);
 	if (!rootNode) {
 		return;
 	}
 
-	let rangesToUpdate = [];
+	let rangesToUpdate: vscode.Range[] = [];
 	editor.selections.reverse().forEach(selection => {
 		rangesToUpdate = rangesToUpdate.concat(getRangesToUpdate(editor, selection, rootNode));
 	});

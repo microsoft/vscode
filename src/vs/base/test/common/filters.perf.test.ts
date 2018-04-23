@@ -19,7 +19,7 @@ function perfSuite(name: string, callback: (this: Mocha.ISuiteCallbackContext) =
 
 perfSuite('Performance - fuzzyMatch', function () {
 
-	console.log(`Matching ${data.length} items against ${patterns.length} patterns...`);
+	console.log(`Matching ${data.length} items against ${patterns.length} patterns (${data.length * patterns.length} operations) `);
 
 	function perfTest(name: string, match: (pattern: string, word: string) => any) {
 		test(name, function () {
@@ -32,7 +32,8 @@ perfSuite('Performance - fuzzyMatch', function () {
 					match(pattern, item);
 				}
 			}
-			console.log(name, Date.now() - t1, `${(count / (Date.now() - t1)).toPrecision(6)}/ms`);
+			const d = Date.now() - t1;
+			console.log(name, `${d}ms, ${Math.round(count / d) * 15}ops/15ms`);
 		});
 	}
 
@@ -40,6 +41,6 @@ perfSuite('Performance - fuzzyMatch', function () {
 	perfTest('fuzzyContiguousFilter', filters.fuzzyContiguousFilter);
 	perfTest('fuzzyScore', filters.fuzzyScore);
 	perfTest('fuzzyScoreGraceful', filters.fuzzyScoreGraceful);
-
+	perfTest('fuzzyScoreGracefulAggressive', filters.fuzzyScoreGracefulAggressive);
 });
 

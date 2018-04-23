@@ -40,6 +40,9 @@ ADD xvfb.init /etc/init.d/xvfb
 RUN chmod +x /etc/init.d/xvfb
 RUN update-rc.d xvfb defaults
 
+# dbus
+RUN ln -sf /bin/dbus-daemon /usr/bin/dbus-daemon
+
 # nvm
 ENV NVM_DIR /usr/local/nvm
 RUN curl https://raw.githubusercontent.com/creationix/nvm/v0.33.2/install.sh | bash
@@ -47,4 +50,4 @@ RUN curl https://raw.githubusercontent.com/creationix/nvm/v0.33.2/install.sh | b
 # for libsecret
 ENV PKG_CONFIG_PATH /usr/lib/i386-linux-gnu/pkgconfig
 
-CMD (service xvfb start; export DISPLAY=:10; ./start.sh)
+CMD (service xvfb start; service dbus start; export DISPLAY=:10; ./start.sh)

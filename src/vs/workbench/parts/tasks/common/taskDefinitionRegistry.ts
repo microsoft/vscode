@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as Types from 'vs/base/common/types';
 import * as Objects from 'vs/base/common/objects';
 
-import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
 import * as Tasks from 'vs/workbench/parts/tasks/common/tasks';
 
@@ -47,7 +47,7 @@ namespace Configuration {
 		properties?: IJSONSchemaMap;
 	}
 
-	export function from(value: TaskDefinition, messageCollector: ExtensionMessageCollector): Tasks.TaskDefinition {
+	export function from(value: TaskDefinition, extensionId: string, messageCollector: ExtensionMessageCollector): Tasks.TaskDefinition {
 		if (!value) {
 			return undefined;
 		}
@@ -64,7 +64,7 @@ namespace Configuration {
 				}
 			}
 		}
-		return { taskType, required: required.length >= 0 ? required : undefined, properties: value.properties ? Objects.deepClone(value.properties) : undefined };
+		return { extensionId, taskType, required: required.length >= 0 ? required : undefined, properties: value.properties ? Objects.deepClone(value.properties) : undefined };
 	}
 }
 
@@ -78,7 +78,6 @@ const taskDefinitionsExtPoint = ExtensionsRegistry.registerExtensionPoint<Config
 export interface ITaskDefinitionRegistry {
 	onReady(): TPromise<void>;
 
-	exists(key: string): boolean;
 	get(key: string): Tasks.TaskDefinition;
 	all(): Tasks.TaskDefinition[];
 }
@@ -93,20 +92,20 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 		this.readyPromise = new TPromise<void>((resolve, reject) => {
 			taskDefinitionsExtPoint.setHandler((extensions) => {
 				try {
-					extensions.forEach(extension => {
+					for (let extension of extensions) {
 						let taskTypes = extension.value;
 						for (let taskType of taskTypes) {
-							let type = Configuration.from(taskType, extension.collector);
+							let type = Configuration.from(taskType, extension.description.id, extension.collector);
 							if (type) {
 								this.taskTypes[type.taskType] = type;
 							}
 						}
-					});
+					}
 				} catch (error) {
 				}
 				resolve(undefined);
 			});
-		});
+		}, () => { });
 	}
 
 	public onReady(): TPromise<void> {
@@ -115,10 +114,6 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 
 	public get(key: string): Tasks.TaskDefinition {
 		return this.taskTypes[key];
-	}
-
-	public exists(key: string): boolean {
-		return !!this.taskTypes[key];
 	}
 
 	public all(): Tasks.TaskDefinition[] {

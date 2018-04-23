@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
-import { Schemas } from 'vs/platform/markers/common/problemMatcher';
+import { Schemas } from 'vs/workbench/parts/tasks/common/problemMatcher';
 
 const schema: IJSONSchema = {
 	definitions: {
@@ -175,6 +175,7 @@ const schema: IJSONSchema = {
 		},
 		taskRunnerConfiguration: {
 			type: 'object',
+			required: [],
 			properties: {
 				command: {
 					type: 'string',

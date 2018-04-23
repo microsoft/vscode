@@ -14,13 +14,18 @@ Param(
 
 # Set the right architecture
 $env:npm_config_arch="$arch"
+$env:CHILD_CONCURRENCY="1"
 
 step "Install dependencies" {
-  exec { & npm install }
+  exec { & yarn }
 }
 
 step "Hygiene" {
   exec { & npm run gulp -- hygiene }
+}
+
+step "Monaco Editor Check" {
+	exec { & .\node_modules\.bin\tsc -p .\src\tsconfig.monaco.json --noEmit }
 }
 
 $env:VSCODE_MIXIN_PASSWORD = $mixinPassword
@@ -40,6 +45,10 @@ step "Build minified" {
   exec { & npm run gulp -- "vscode-win32-$global:arch-min" }
 }
 
+step "Copy Inno updater" {
+  exec { & npm run gulp -- "vscode-win32-$global:arch-copy-inno-updater" }
+}
+
 # step "Create loader snapshot" {
 #   exec { & 	node build\lib\snapshotLoader.js --arch=$global:arch }
 # }
@@ -50,6 +59,13 @@ step "Run unit tests" {
 
 # step "Run integration tests" {
 #   exec { & .\scripts\test-integration.bat }
+# }
+
+# step "Run smoke test" {
+# 	$Artifacts = "$env:AGENT_BUILDDIRECTORY\smoketest-artifacts"
+# 	Remove-Item -Recurse -Force -ErrorAction Ignore $Artifacts
+
+# 	exec { & npm run smoketest -- --build "$env:AGENT_BUILDDIRECTORY\VSCode-win32-$global:arch" --log "$Artifacts" }
 # }
 
 done

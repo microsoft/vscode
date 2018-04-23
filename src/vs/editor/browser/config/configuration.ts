@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
@@ -47,10 +47,6 @@ class CSSBasedConfigurationCache {
 		let itemId = item.getId();
 		delete this._keys[itemId];
 		delete this._values[itemId];
-	}
-
-	public getKeys(): BareFontInfo[] {
-		return Object.keys(this._keys).map(id => this._keys[id]);
 	}
 
 	public getValues(): FontInfo[] {
@@ -100,13 +96,13 @@ export interface ISerializedFontInfo {
 
 class CSSBasedConfiguration extends Disposable {
 
-	public static INSTANCE = new CSSBasedConfiguration();
+	public static readonly INSTANCE = new CSSBasedConfiguration();
 
 	private _cache: CSSBasedConfigurationCache;
 	private _evictUntrustedReadingsTimeout: number;
 
 	private _onDidChange = this._register(new Emitter<void>());
-	public onDidChange: Event<void> = this._onDidChange.event;
+	public readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	constructor() {
 		super();
@@ -280,8 +276,21 @@ class CSSBasedConfiguration extends Disposable {
 
 export class Configuration extends CommonEditorConfiguration {
 
+	private static _massageFontFamily(fontFamily: string): string {
+		if (/[,"']/.test(fontFamily)) {
+			// Looks like the font family might be already escaped
+			return fontFamily;
+		}
+		if (/[+ ]/.test(fontFamily)) {
+			// Wrap a font family using + or <space> with quotes
+			return `"${fontFamily}"`;
+		}
+
+		return fontFamily;
+	}
+
 	public static applyFontInfoSlow(domNode: HTMLElement, fontInfo: BareFontInfo): void {
-		domNode.style.fontFamily = fontInfo.fontFamily;
+		domNode.style.fontFamily = Configuration._massageFontFamily(fontInfo.fontFamily);
 		domNode.style.fontWeight = fontInfo.fontWeight;
 		domNode.style.fontSize = fontInfo.fontSize + 'px';
 		domNode.style.lineHeight = fontInfo.lineHeight + 'px';
@@ -289,7 +298,7 @@ export class Configuration extends CommonEditorConfiguration {
 	}
 
 	public static applyFontInfo(domNode: FastDomNode<HTMLElement>, fontInfo: BareFontInfo): void {
-		domNode.setFontFamily(fontInfo.fontFamily);
+		domNode.setFontFamily(Configuration._massageFontFamily(fontInfo.fontFamily));
 		domNode.setFontWeight(fontInfo.fontWeight);
 		domNode.setFontSize(fontInfo.fontSize);
 		domNode.setLineHeight(fontInfo.lineHeight);
@@ -339,6 +348,8 @@ export class Configuration extends CommonEditorConfiguration {
 			extra += 'ff ';
 		} else if (browser.isEdge) {
 			extra += 'edge ';
+		} else if (browser.isSafari) {
+			extra += 'safari ';
 		}
 		if (platform.isMacintosh) {
 			extra += 'mac ';
@@ -351,7 +362,7 @@ export class Configuration extends CommonEditorConfiguration {
 			extraEditorClassName: this._getExtraEditorClassName(),
 			outerWidth: this._elementSizeObserver.getWidth(),
 			outerHeight: this._elementSizeObserver.getHeight(),
-			emptySelectionClipboard: browser.isWebKit,
+			emptySelectionClipboard: browser.isWebKit || browser.isFirefox,
 			pixelRatio: browser.getPixelRatio(),
 			zoomLevel: browser.getZoomLevel(),
 			accessibilitySupport: browser.getAccessibilitySupport()

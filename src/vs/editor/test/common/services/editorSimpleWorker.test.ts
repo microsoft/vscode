@@ -32,7 +32,7 @@ suite('EditorSimpleWorker', () => {
 	let model: ICommonModel;
 
 	setup(() => {
-		worker = new WorkerWithModels();
+		worker = new WorkerWithModels(null);
 		model = worker.addModel([
 			'This is line one', //16
 			'and this is line number two', //27
@@ -88,7 +88,7 @@ suite('EditorSimpleWorker', () => {
 
 	test('MoreMinimal', function () {
 
-		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: 'This is line One', range: new Range(1, 1, 1, 17) }], []).then(edits => {
+		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: 'This is line One', range: new Range(1, 1, 1, 17) }]).then(edits => {
 			assert.equal(edits.length, 1);
 			const [first] = edits;
 			assert.equal(first.text, 'O');
@@ -104,7 +104,7 @@ suite('EditorSimpleWorker', () => {
 			'}'
 		], '\n');
 
-		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: '{\r\n\t"a":1\r\n}', range: new Range(1, 1, 3, 2) }], []).then(edits => {
+		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: '{\r\n\t"a":1\r\n}', range: new Range(1, 1, 3, 2) }]).then(edits => {
 			assert.equal(edits.length, 0);
 		});
 	});
@@ -117,7 +117,7 @@ suite('EditorSimpleWorker', () => {
 			'}'
 		], '\n');
 
-		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: '{\r\n\t"b":1\r\n}', range: new Range(1, 1, 3, 2) }], []).then(edits => {
+		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: '{\r\n\t"b":1\r\n}', range: new Range(1, 1, 3, 2) }]).then(edits => {
 			assert.equal(edits.length, 1);
 			const [first] = edits;
 			assert.equal(first.text, 'b');
@@ -133,7 +133,7 @@ suite('EditorSimpleWorker', () => {
 			'}'				// 3
 		]);
 
-		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: '\n', range: new Range(3, 2, 4, 1000) }], []).then(edits => {
+		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: '\n', range: new Range(3, 2, 4, 1000) }]).then(edits => {
 			assert.equal(edits.length, 1);
 			const [first] = edits;
 			assert.equal(first.text, '\n');
@@ -167,5 +167,26 @@ suite('EditorSimpleWorker', () => {
 			assert.equal(suggestions.length, 1);
 			assert.equal(suggestions[0].label, 'foobar');
 		});
+	});
+
+	test('get words via iterator, issue #46930', function () {
+
+		let model = worker.addModel([
+			'one line',	// 1
+			'two line',	// 2
+			'',
+			'past empty',
+			'single',
+			'',
+			'and now we are done'
+		]);
+
+		let words: string[] = [];
+
+		for (let iter = model.createWordIterator(/[a-z]+/img), e = iter.next(); !e.done; e = iter.next()) {
+			words.push(e.value);
+		}
+
+		assert.deepEqual(words, ['one', 'line', 'two', 'line', 'past', 'empty', 'single', 'and', 'now', 'we', 'are', 'done']);
 	});
 });

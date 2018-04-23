@@ -10,11 +10,10 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/node/extHostTypes';
-import * as EditorCommon from 'vs/editor/common/editorCommon';
-import { Model as EditorModel } from 'vs/editor/common/model/model';
+import { TextModel as EditorModel } from 'vs/editor/common/model/textModel';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
-import { TestThreadService } from './testThreadService';
+import { TestRPCProtocol } from './testRPCProtocol';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
@@ -24,29 +23,32 @@ import { MainThreadCommands } from 'vs/workbench/api/electron-browser/mainThread
 import { IHeapService } from 'vs/workbench/api/electron-browser/mainThreadHeapService';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
-import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/common/quickOpen';
-import { DocumentSymbolProviderRegistry, DocumentHighlightKind, Hover } from 'vs/editor/common/modes';
-import { getCodeLensData } from 'vs/editor/contrib/codelens/browser/codelens';
-import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from 'vs/editor/contrib/goToDeclaration/browser/goToDeclaration';
-import { getHover } from 'vs/editor/contrib/hover/common/hover';
-import { getOccurrencesAtPosition } from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
-import { provideReferences } from 'vs/editor/contrib/referenceSearch/browser/referenceSearch';
-import { getCodeActions } from 'vs/editor/contrib/quickFix/browser/quickFix';
+import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/quickOpen';
+import { DocumentSymbolProviderRegistry, DocumentHighlightKind, Hover, ResourceTextEdit } from 'vs/editor/common/modes';
+import { getCodeLensData } from 'vs/editor/contrib/codelens/codelens';
+import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from 'vs/editor/contrib/goToDeclaration/goToDeclaration';
+import { getHover } from 'vs/editor/contrib/hover/getHover';
+import { getOccurrencesAtPosition } from 'vs/editor/contrib/wordHighlighter/wordHighlighter';
+import { provideReferences } from 'vs/editor/contrib/referenceSearch/referenceSearch';
+import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { getWorkspaceSymbols } from 'vs/workbench/parts/search/common/search';
-import { rename } from 'vs/editor/contrib/rename/browser/rename';
-import { provideSignatureHelp } from 'vs/editor/contrib/parameterHints/common/parameterHints';
-import { provideSuggestionItems } from 'vs/editor/contrib/suggest/browser/suggest';
-import { getDocumentFormattingEdits, getDocumentRangeFormattingEdits, getOnTypeFormattingEdits } from 'vs/editor/contrib/format/common/format';
-import { getLinks } from 'vs/editor/contrib/links/common/links';
+import { rename } from 'vs/editor/contrib/rename/rename';
+import { provideSignatureHelp } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
+import { provideSuggestionItems } from 'vs/editor/contrib/suggest/suggest';
+import { getDocumentFormattingEdits, getDocumentRangeFormattingEdits, getOnTypeFormattingEdits } from 'vs/editor/contrib/format/format';
+import { getLinks } from 'vs/editor/contrib/links/getLinks';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { MainContext, ExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import * as vscode from 'vscode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { ITextModel, EndOfLineSequence } from 'vs/editor/common/model';
+import { getColors } from 'vs/editor/contrib/colorPicker/color';
 
 const defaultSelector = { scheme: 'far' };
-const model: EditorCommon.IModel = EditorModel.createFromString(
+const model: ITextModel = EditorModel.createFromString(
 	[
 		'This is the first line',
 		'This is the second line',
@@ -59,14 +61,14 @@ const model: EditorCommon.IModel = EditorModel.createFromString(
 let extHost: ExtHostLanguageFeatures;
 let mainThread: MainThreadLanguageFeatures;
 let disposables: vscode.Disposable[] = [];
-let threadService: TestThreadService;
+let rpcProtocol: TestRPCProtocol;
 let originalErrorHandler: (e: any) => any;
 
 suite('ExtHostLanguageFeatures', function () {
 
 	suiteSetup(() => {
 
-		threadService = new TestThreadService();
+		rpcProtocol = new TestRPCProtocol();
 
 		// Use IInstantiationService to get typechecking when instantiating
 		let inst: IInstantiationService;
@@ -86,45 +88,46 @@ suite('ExtHostLanguageFeatures', function () {
 		originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(() => { });
 
-		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(threadService);
+		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol);
 		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({
 			addedDocuments: [{
 				isDirty: false,
 				versionId: model.getVersionId(),
 				modeId: model.getLanguageIdentifier().language,
-				url: model.uri,
+				uri: model.uri,
 				lines: model.getValue().split(model.getEOL()),
 				EOL: model.getEOL(),
 			}]
 		});
-		const extHostDocuments = new ExtHostDocuments(threadService, extHostDocumentsAndEditors);
-		threadService.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
+		const extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
+		rpcProtocol.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
 
 		const heapService = new ExtHostHeapService();
 
-		const commands = new ExtHostCommands(threadService, heapService);
-		threadService.set(ExtHostContext.ExtHostCommands, commands);
-		threadService.setTestInstance(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, threadService));
+		const commands = new ExtHostCommands(rpcProtocol, heapService, new NullLogService());
+		rpcProtocol.set(ExtHostContext.ExtHostCommands, commands);
+		rpcProtocol.set(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, rpcProtocol));
 
-		const diagnostics = new ExtHostDiagnostics(threadService);
-		threadService.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
+		const diagnostics = new ExtHostDiagnostics(rpcProtocol);
+		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(threadService, extHostDocuments, commands, heapService, diagnostics);
-		threadService.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
+		extHost = new ExtHostLanguageFeatures(rpcProtocol, null, extHostDocuments, commands, heapService, diagnostics);
+		rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
-		mainThread = <MainThreadLanguageFeatures>threadService.setTestInstance(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, threadService));
+		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, rpcProtocol));
 	});
 
 	suiteTeardown(() => {
 		setUnexpectedErrorHandler(originalErrorHandler);
 		model.dispose();
+		mainThread.dispose();
 	});
 
 	teardown(function () {
 		while (disposables.length) {
 			disposables.pop().dispose();
 		}
-		return threadService.sync();
+		return rpcProtocol.sync();
 	});
 
 	// --- outline
@@ -137,10 +140,10 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		});
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			assert.equal(DocumentSymbolProviderRegistry.all(model).length, 1);
 			d1.dispose();
-			return threadService.sync();
+			return rpcProtocol.sync();
 		});
 
 	});
@@ -157,7 +160,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return getDocumentSymbols(model).then(value => {
 				assert.equal(value.entries.length, 1);
@@ -172,7 +175,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return getDocumentSymbols(model).then(value => {
 				assert.equal(value.entries.length, 1);
@@ -199,7 +202,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getCodeLensData(model).then(value => {
 				assert.equal(value.length, 1);
 			});
@@ -219,7 +222,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return getCodeLensData(model).then(value => {
 				assert.equal(value.length, 1);
@@ -243,7 +246,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return getCodeLensData(model).then(value => {
 				assert.equal(value.length, 1);
@@ -270,7 +273,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return getDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 1);
@@ -294,7 +297,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return getDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 2);
@@ -316,7 +319,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return getDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 2);
@@ -341,7 +344,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return getDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 1);
@@ -359,7 +362,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getImplementationsAtPosition(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 1);
 				let [entry] = value;
@@ -379,7 +382,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getTypeDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 1);
 				let [entry] = value;
@@ -399,7 +402,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			getHover(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 1);
 				let [entry] = value;
@@ -417,7 +420,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			getHover(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 1);
@@ -442,7 +445,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getHover(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 2);
 				let [first, second] = value as Hover[];
@@ -466,7 +469,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			getHover(model, new EditorPosition(1, 1)).then(value => {
 
@@ -485,7 +488,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return getOccurrencesAtPosition(model, new EditorPosition(1, 2)).then(value => {
 				assert.equal(value.length, 1);
@@ -509,7 +512,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return getOccurrencesAtPosition(model, new EditorPosition(1, 2)).then(value => {
 				assert.equal(value.length, 1);
@@ -533,7 +536,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return getOccurrencesAtPosition(model, new EditorPosition(1, 2)).then(value => {
 				assert.equal(value.length, 1);
@@ -558,7 +561,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return getOccurrencesAtPosition(model, new EditorPosition(1, 2)).then(value => {
 				assert.equal(value.length, 1);
@@ -582,7 +585,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return provideReferences(model, new EditorPosition(1, 2)).then(value => {
 				assert.equal(value.length, 2);
@@ -602,7 +605,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return provideReferences(model, new EditorPosition(1, 2)).then(value => {
 				assert.equal(value.length, 1);
@@ -628,7 +631,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return provideReferences(model, new EditorPosition(1, 2)).then(value => {
 				assert.equal(value.length, 1);
@@ -639,29 +642,57 @@ suite('ExtHostLanguageFeatures', function () {
 
 	// --- quick fix
 
-	test('Quick Fix, data conversion', function () {
+	test('Quick Fix, command data conversion', function () {
 
-		disposables.push(extHost.registerCodeActionProvider(defaultSelector, <vscode.CodeActionProvider>{
-			provideCodeActions(): any {
+		disposables.push(extHost.registerCodeActionProvider(defaultSelector, {
+			provideCodeActions(): vscode.Command[] {
 				return [
-					<vscode.Command>{ command: 'test1', title: 'Testing1' },
-					<vscode.Command>{ command: 'test2', title: 'Testing2' }
+					{ command: 'test1', title: 'Testing1' },
+					{ command: 'test2', title: 'Testing2' }
 				];
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getCodeActions(model, model.getFullModelRange()).then(value => {
 				assert.equal(value.length, 2);
 
-				let [first, second] = value;
+				const [first, second] = value;
 				assert.equal(first.title, 'Testing1');
-				assert.equal(first.id, 'test1');
+				assert.equal(first.command.id, 'test1');
 				assert.equal(second.title, 'Testing2');
-				assert.equal(second.id, 'test2');
+				assert.equal(second.command.id, 'test2');
 			});
 		});
 	});
+
+	test('Quick Fix, code action data conversion', function () {
+
+		disposables.push(extHost.registerCodeActionProvider(defaultSelector, {
+			provideCodeActions(): vscode.CodeAction[] {
+				return [
+					{
+						title: 'Testing1',
+						command: { title: 'Testing1Command', command: 'test1' },
+						kind: types.CodeActionKind.Empty.append('test.scope')
+					}
+				];
+			}
+		}));
+
+		return rpcProtocol.sync().then(() => {
+			return getCodeActions(model, model.getFullModelRange()).then(value => {
+				assert.equal(value.length, 1);
+
+				const [first] = value;
+				assert.equal(first.title, 'Testing1');
+				assert.equal(first.command.title, 'Testing1Command');
+				assert.equal(first.command.id, 'test1');
+				assert.equal(first.kind, 'test.scope');
+			});
+		});
+	});
+
 
 	test('Cannot read property \'id\' of undefined, #29469', function () {
 
@@ -675,7 +706,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getCodeActions(model, model.getFullModelRange()).then(value => {
 				assert.equal(value.length, 1);
 			});
@@ -695,7 +726,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getCodeActions(model, model.getFullModelRange()).then(value => {
 				assert.equal(value.length, 1);
 			});
@@ -718,7 +749,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return getWorkspaceSymbols('').then(value => {
 				assert.equal(value.length, 1);
@@ -732,6 +763,24 @@ suite('ExtHostLanguageFeatures', function () {
 
 	// --- rename
 
+	test('Rename, evil provider 0/2', function () {
+
+		disposables.push(extHost.registerRenameProvider(defaultSelector, <vscode.RenameProvider>{
+			provideRenameEdits(): any {
+				throw new class Foo { };
+			}
+		}));
+
+		return rpcProtocol.sync().then(() => {
+
+			return rename(model, new EditorPosition(1, 1), 'newName').then(value => {
+				throw Error();
+			}, err => {
+				// expected
+			});
+		});
+	});
+
 	test('Rename, evil provider 1/2', function () {
 
 		disposables.push(extHost.registerRenameProvider(defaultSelector, <vscode.RenameProvider>{
@@ -740,12 +789,10 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return rename(model, new EditorPosition(1, 1), 'newName').then(value => {
-				throw new Error('');
-			}, err => {
-				// expected
+				assert.equal(value.rejectReason, 'evil');
 			});
 		});
 	});
@@ -766,7 +813,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return rename(model, new EditorPosition(1, 1), 'newName').then(value => {
 				assert.equal(value.edits.length, 1);
@@ -791,10 +838,11 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return rename(model, new EditorPosition(1, 1), 'newName').then(value => {
-				assert.equal(value.edits.length, 2); // least relevant renamer
+				assert.equal(value.edits.length, 1); // least relevant renamer
+				assert.equal((<ResourceTextEdit[]>value.edits)[0].edits.length, 2); // least relevant renamer
 			});
 		});
 	});
@@ -819,7 +867,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}, []));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return provideSignatureHelp(model, new EditorPosition(1, 1)).then(value => {
 				assert.ok(value);
@@ -834,7 +882,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}, []));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return provideSignatureHelp(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value, undefined);
@@ -858,7 +906,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}, []));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return provideSuggestionItems(model, new EditorPosition(1, 1), 'none').then(value => {
 				assert.equal(value.length, 1);
 				assert.equal(value[0].suggestion.insertText, 'testing2');
@@ -880,7 +928,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}, []));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return provideSuggestionItems(model, new EditorPosition(1, 1), 'none').then(value => {
 				assert.equal(value.length, 1);
 				assert.equal(value[0].suggestion.insertText, 'weak-selector');
@@ -902,7 +950,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}, []));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return provideSuggestionItems(model, new EditorPosition(1, 1), 'none').then(value => {
 				assert.equal(value.length, 2);
 				assert.equal(value[0].suggestion.insertText, 'strong-1'); // sort by label
@@ -926,7 +974,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}, []));
 
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return provideSuggestionItems(model, new EditorPosition(1, 1), 'none').then(value => {
 				assert.equal(value[0].container.incomplete, undefined);
@@ -942,7 +990,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}, []));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			provideSuggestionItems(model, new EditorPosition(1, 1), 'none').then(value => {
 				assert.equal(value[0].container.incomplete, true);
@@ -959,14 +1007,14 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getDocumentFormattingEdits(model, { insertSpaces: true, tabSize: 4 }).then(value => {
 				assert.equal(value.length, 2);
 				let [first, second] = value;
 				assert.equal(first.text, 'testing');
 				assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
 
-				assert.equal(second.eol, EditorCommon.EndOfLineSequence.LF);
+				assert.equal(second.eol, EndOfLineSequence.LF);
 				assert.equal(second.text, '');
 				assert.equal(second.range, undefined);
 			});
@@ -980,12 +1028,19 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getDocumentFormattingEdits(model, { insertSpaces: true, tabSize: 4 });
 		});
 	});
 
 	test('Format Doc, order', function () {
+
+		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultSelector, <vscode.DocumentFormattingEditProvider>{
+			provideDocumentFormattingEdits(): any {
+				return undefined;
+			}
+		}));
+
 		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultSelector, <vscode.DocumentFormattingEditProvider>{
 			provideDocumentFormattingEdits(): any {
 				return [new types.TextEdit(new types.Range(0, 0, 0, 0), 'testing')];
@@ -998,7 +1053,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getDocumentFormattingEdits(model, { insertSpaces: true, tabSize: 4 }).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;
@@ -1015,7 +1070,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getDocumentRangeFormattingEdits(model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;
@@ -1031,16 +1086,25 @@ suite('ExtHostLanguageFeatures', function () {
 				return [new types.TextEdit(new types.Range(0, 0, 0, 0), 'range')];
 			}
 		}));
+		disposables.push(extHost.registerDocumentRangeFormattingEditProvider(defaultSelector, <vscode.DocumentRangeFormattingEditProvider>{
+			provideDocumentRangeFormattingEdits(): any {
+				return [new types.TextEdit(new types.Range(2, 3, 4, 5), 'range2')];
+			}
+		}));
 		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultSelector, <vscode.DocumentFormattingEditProvider>{
 			provideDocumentFormattingEdits(): any {
 				return [new types.TextEdit(new types.Range(0, 0, 1, 1), 'doc')];
 			}
 		}));
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getDocumentRangeFormattingEdits(model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;
-				assert.equal(first.text, 'range');
+				assert.equal(first.text, 'range2');
+				assert.equal(first.range.startLineNumber, 3);
+				assert.equal(first.range.startColumn, 4);
+				assert.equal(first.range.endLineNumber, 5);
+				assert.equal(first.range.endColumn, 6);
 			});
 		});
 	});
@@ -1052,7 +1116,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getDocumentRangeFormattingEdits(model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 });
 		});
 	});
@@ -1065,7 +1129,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}, [';']));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getOnTypeFormattingEdits(model, new EditorPosition(1, 1), ';', { insertSpaces: true, tabSize: 2 }).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;
@@ -1084,7 +1148,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getLinks(model).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;
@@ -1109,13 +1173,35 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getLinks(model).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;
 
 				assert.equal(first.url, 'foo:bar#3');
 				assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 2, endColumn: 2 });
+			});
+		});
+	});
+
+	test('Document colors, data conversion', function () {
+
+		disposables.push(extHost.registerColorProvider(defaultSelector, <vscode.DocumentColorProvider>{
+			provideDocumentColors(): vscode.ColorInformation[] {
+				return [new types.ColorInformation(new types.Range(0, 0, 0, 20), new types.Color(0.1, 0.2, 0.3, 0.4))];
+			},
+			provideColorPresentations(color: vscode.Color, context: { range: vscode.Range, document: vscode.TextDocument }): vscode.ColorPresentation[] {
+				return [];
+			}
+		}));
+
+		return rpcProtocol.sync().then(() => {
+			return getColors(model).then(value => {
+				assert.equal(value.length, 1);
+				let [first] = value;
+
+				assert.deepEqual(first.colorInfo.color, { red: 0.1, green: 0.2, blue: 0.3, alpha: 0.4 });
+				assert.deepEqual(first.colorInfo.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 21 });
 			});
 		});
 	});

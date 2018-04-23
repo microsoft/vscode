@@ -8,28 +8,12 @@ import * as crypto from 'crypto';
 import * as paths from 'vs/base/node/paths';
 import * as os from 'os';
 import * as path from 'path';
-import * as fs from 'fs';
 import URI from 'vs/base/common/uri';
-import { generateUuid, isUUID } from 'vs/base/common/uuid';
 import { memoize } from 'vs/base/common/decorators';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
-
-function getUniqueUserId(): string {
-	let username: string;
-	if (process.platform === 'win32') {
-		username = process.env.USERNAME;
-	} else {
-		username = process.env.USER;
-	}
-
-	if (!username) {
-		return ''; // fail gracefully if there is no user name
-	}
-
-	// use sha256 to ensure the userid value can be used in filenames and are unique
-	return crypto.createHash('sha256').update(username).digest('hex').substr(0, 6);
-}
+import { toLocalISOString } from 'vs/base/common/date';
+import { isWindows, isLinux } from 'vs/base/common/platform';
 
 // Read this before there's any chance it is overwritten
 // Related to https://github.com/Microsoft/vscode/issues/30624
@@ -37,26 +21,53 @@ const xdgRuntimeDir = process.env['XDG_RUNTIME_DIR'];
 
 function getNixIPCHandle(userDataPath: string, type: string): string {
 	if (xdgRuntimeDir) {
-		return path.join(xdgRuntimeDir, `${pkg.name}-${pkg.version}-${type}.sock`);
+		const scope = crypto.createHash('md5').update(userDataPath).digest('hex').substr(0, 8);
+		return path.join(xdgRuntimeDir, `vscode-${scope}-${pkg.version}-${type}.sock`);
 	}
+
 	return path.join(userDataPath, `${pkg.version}-${type}.sock`);
 }
 
-function getWin32IPCHandle(type: string): string {
-	// Support to run VS Code multiple times as different user
-	// by making the socket unique over the logged in user
-	const userId = getUniqueUserId();
-	const name = product.applicationName + (userId ? `-${userId}` : '');
+function getWin32IPCHandle(userDataPath: string, type: string): string {
+	const scope = crypto.createHash('md5').update(userDataPath).digest('hex');
 
-	return `\\\\.\\pipe\\${name}-${pkg.version}-${type}-sock`;
+	return `\\\\.\\pipe\\${scope}-${pkg.version}-${type}-sock`;
 }
 
 function getIPCHandle(userDataPath: string, type: string): string {
-	if (process.platform === 'win32') {
-		return getWin32IPCHandle(type);
-	} else {
-		return getNixIPCHandle(userDataPath, type);
+	if (isWindows) {
+		return getWin32IPCHandle(userDataPath, type);
 	}
+
+	return getNixIPCHandle(userDataPath, type);
+}
+
+function getCLIPath(execPath: string, appRoot: string, isBuilt: boolean): string {
+
+	// Windows
+	if (isWindows) {
+		if (isBuilt) {
+			return path.join(path.dirname(execPath), 'bin', `${product.applicationName}.cmd`);
+		}
+
+		return path.join(appRoot, 'scripts', 'code-cli.bat');
+	}
+
+	// Linux
+	if (isLinux) {
+		if (isBuilt) {
+			return path.join(path.dirname(execPath), 'bin', `${product.applicationName}`);
+		}
+
+		return path.join(appRoot, 'scripts', 'code-cli.sh');
+	}
+
+	// macOS
+	if (isBuilt) {
+		return path.join(appRoot, 'bin', 'code');
+	}
+
+	return path.join(appRoot, 'scripts', 'code-cli.sh');
 }
 
 export class EnvironmentService implements IEnvironmentService {
@@ -69,6 +80,11 @@ export class EnvironmentService implements IEnvironmentService {
 	get appRoot(): string { return path.dirname(URI.parse(require.toUrl('')).fsPath); }
 
 	get execPath(): string { return this._execPath; }
+
+	@memoize
+	get cliPath(): string { return getCLIPath(this.execPath, this.appRoot, this.isBuilt); }
+
+	readonly logsPath: string;
 
 	@memoize
 	get userHome(): string { return os.homedir(); }
@@ -87,6 +103,12 @@ export class EnvironmentService implements IEnvironmentService {
 	get appSettingsPath(): string { return path.join(this.appSettingsHome, 'settings.json'); }
 
 	@memoize
+	get settingsSearchBuildId(): number { return product.settingsSearchBuildId; }
+
+	@memoize
+	get settingsSearchUrl(): string { return product.settingsSearchUrl; }
+
+	@memoize
 	get appKeybindingsPath(): string { return path.join(this.appSettingsHome, 'keybindings.json'); }
 
 	@memoize
@@ -102,6 +124,9 @@ export class EnvironmentService implements IEnvironmentService {
 	get workspacesHome(): string { return path.join(this.userDataPath, 'Workspaces'); }
 
 	@memoize
+	get installSourcePath(): string { return path.join(this.userDataPath, 'installSource'); }
+
+	@memoize
 	get extensionsPath(): string { return parsePathArg(this._args['extensions-dir'], process) || process.env['VSCODE_EXTENSIONS'] || path.join(this.userHome, product.dataFolderName, 'extensions'); }
 
 	@memoize
@@ -114,6 +139,10 @@ export class EnvironmentService implements IEnvironmentService {
 
 	get skipGettingStarted(): boolean { return this._args['skip-getting-started']; }
 
+	get skipReleaseNotes(): boolean { return this._args['skip-release-notes']; }
+
+	get skipAddToRecentlyOpened(): boolean { return this._args['skip-add-to-recently-opened']; }
+
 	@memoize
 	get debugExtensionHost(): IExtensionHostDebugParams { return parseExtensionHostPort(this._args, this.isBuilt); }
 
@@ -122,22 +151,12 @@ export class EnvironmentService implements IEnvironmentService {
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 	get verbose(): boolean { return this._args.verbose; }
+
 	get wait(): boolean { return this._args.wait; }
 	get logExtensionHostCommunication(): boolean { return this._args.logExtensionHostCommunication; }
 
 	get performance(): boolean { return this._args.performance; }
-
-	@memoize
-	get profileStartup(): { prefix: string, dir: string } | undefined {
-		if (this._args['prof-startup']) {
-			return {
-				prefix: process.env.VSCODE_PROFILES_PREFIX,
-				dir: os.homedir()
-			};
-		} else {
-			return undefined;
-		}
-	}
+	get status(): boolean { return this._args.status; }
 
 	@memoize
 	get mainIPCHandle(): string { return getIPCHandle(this.userDataPath, 'main'); }
@@ -146,28 +165,20 @@ export class EnvironmentService implements IEnvironmentService {
 	get sharedIPCHandle(): string { return getIPCHandle(this.userDataPath, 'shared'); }
 
 	@memoize
-	get nodeCachedDataDir(): string { return this.isBuilt ? path.join(this.userDataPath, 'CachedData', product.commit) : undefined; }
+	get nodeCachedDataDir(): string { return this.isBuilt ? path.join(this.userDataPath, 'CachedData', product.commit || new Array(41).join('0')) : undefined; }
 
-	readonly machineUUID: string;
+	get disableUpdates(): boolean { return !!this._args['disable-updates']; }
+	get disableCrashReporter(): boolean { return !!this._args['disable-crash-reporter']; }
+
+	get driverHandle(): string { return this._args['driver']; }
 
 	constructor(private _args: ParsedArgs, private _execPath: string) {
-		const machineIdPath = path.join(this.userDataPath, 'machineid');
-
-		try {
-			this.machineUUID = fs.readFileSync(machineIdPath, 'utf8');
-
-			if (!isUUID(this.machineUUID)) {
-				throw new Error('Not a UUID');
-			}
-		} catch (err) {
-			this.machineUUID = generateUuid();
-
-			try {
-				fs.writeFileSync(machineIdPath, this.machineUUID, 'utf8');
-			} catch (err) {
-				console.warn('Could not store machine ID');
-			}
+		if (!process.env['VSCODE_LOGS']) {
+			const key = toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '');
+			process.env['VSCODE_LOGS'] = path.join(this.userDataPath, 'logs', key);
 		}
+
+		this.logsPath = process.env['VSCODE_LOGS'];
 	}
 }
 

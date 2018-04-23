@@ -8,14 +8,13 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Range } from 'vs/editor/common/core/range';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { TextAreaHandler, ITextAreaHandlerHelper } from 'vs/editor/browser/controller/textAreaHandler';
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { ViewController, ExecCoreEditorCommandFunc } from 'vs/editor/browser/view/viewController';
+import { ViewController, ExecCoreEditorCommandFunc, ICommandDelegate } from 'vs/editor/browser/view/viewController';
 import { ViewEventDispatcher } from 'vs/editor/common/view/viewEventDispatcher';
 import { ContentViewOverlays, MarginViewOverlays } from 'vs/editor/browser/view/viewOverlays';
 import { ViewContentWidgets } from 'vs/editor/browser/viewParts/contentWidgets/contentWidgets';
@@ -90,12 +89,10 @@ export class View extends ViewEventHandler {
 	private overflowGuardContainer: FastDomNode<HTMLElement>;
 
 	// Actual mutable state
-	private _isDisposed: boolean;
-
 	private _renderAnimationFrame: IDisposable;
 
 	constructor(
-		commandService: ICommandService,
+		commandDelegate: ICommandDelegate,
 		configuration: Configuration,
 		themeService: IThemeService,
 		model: IViewModel,
@@ -103,12 +100,11 @@ export class View extends ViewEventHandler {
 		execCoreEditorCommandFunc: ExecCoreEditorCommandFunc
 	) {
 		super();
-		this._isDisposed = false;
 		this._cursor = cursor;
 		this._renderAnimationFrame = null;
 		this.outgoingEvents = new ViewOutgoingEvents(model);
 
-		let viewController = new ViewController(configuration, model, execCoreEditorCommandFunc, this.outgoingEvents, commandService);
+		let viewController = new ViewController(configuration, model, execCoreEditorCommandFunc, this.outgoingEvents, commandDelegate);
 
 		// The event dispatcher will always go through _renderOnce before dispatching any events
 		this.eventDispatcher = new ViewEventDispatcher((callback: () => void) => this._renderOnce(callback));
@@ -181,8 +177,8 @@ export class View extends ViewEventHandler {
 		this.viewParts.push(contentViewOverlays);
 		contentViewOverlays.addDynamicOverlay(new CurrentLineHighlightOverlay(this._context));
 		contentViewOverlays.addDynamicOverlay(new SelectionsOverlay(this._context));
-		contentViewOverlays.addDynamicOverlay(new DecorationsOverlay(this._context));
 		contentViewOverlays.addDynamicOverlay(new IndentGuidesOverlay(this._context));
+		contentViewOverlays.addDynamicOverlay(new DecorationsOverlay(this._context));
 
 		let marginViewOverlays = new MarginViewOverlays(this._context);
 		this.viewParts.push(marginViewOverlays);
@@ -308,7 +304,8 @@ export class View extends ViewEventHandler {
 	}
 
 	private getEditorClassName() {
-		return this._context.configuration.editor.editorClassName + ' ' + getThemeTypeSelector(this._context.theme.type);
+		let focused = this._textAreaHandler.isFocused() ? ' focused' : '';
+		return this._context.configuration.editor.editorClassName + ' ' + getThemeTypeSelector(this._context.theme.type) + focused;
 	}
 
 	// --- begin event handlers
@@ -323,7 +320,8 @@ export class View extends ViewEventHandler {
 		return false;
 	}
 	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
-		this.domNode.toggleClassName('focused', e.isFocused);
+		this.domNode.setClassName(this.getEditorClassName());
+		this._context.model.setHasFocus(e.isFocused);
 		if (e.isFocused) {
 			this.outgoingEvents.emitViewFocusGained();
 		} else {
@@ -343,7 +341,6 @@ export class View extends ViewEventHandler {
 	// --- end event handlers
 
 	public dispose(): void {
-		this._isDisposed = true;
 		if (this._renderAnimationFrame !== null) {
 			this._renderAnimationFrame.dispose();
 			this._renderAnimationFrame = null;
@@ -419,6 +416,11 @@ export class View extends ViewEventHandler {
 			this._context.model
 		);
 
+		if (this.contentWidgets.shouldRender()) {
+			// Give the content widgets a chance to set their max width before a possible synchronous layout
+			this.contentWidgets.onBeforeRender(viewportData);
+		}
+
 		if (this.viewLines.shouldRender()) {
 			this.viewLines.renderText(viewportData);
 			this.viewLines.onDidRender();
@@ -448,6 +450,13 @@ export class View extends ViewEventHandler {
 		this._scrollbar.delegateVerticalScrollbarMouseDown(browserEvent);
 	}
 
+	public restoreState(scrollPosition: { scrollLeft: number; scrollTop: number; }): void {
+		this._context.viewLayout.setScrollPositionNow({ scrollTop: scrollPosition.scrollTop });
+		this._renderNow();
+		this.viewLines.updateLineWidths();
+		this._context.viewLayout.setScrollPositionNow({ scrollLeft: scrollPosition.scrollLeft });
+	}
+
 	public getOffsetForColumn(modelLineNumber: number, modelColumn: number): number {
 		let modelPosition = this._context.model.validateModelPosition({
 			lineNumber: modelLineNumber,
@@ -470,8 +479,8 @@ export class View extends ViewEventHandler {
 		return this.outgoingEvents;
 	}
 
-	public createOverviewRuler(cssClassName: string, minimumHeight: number, maximumHeight: number): OverviewRuler {
-		return new OverviewRuler(this._context, cssClassName, minimumHeight, maximumHeight);
+	public createOverviewRuler(cssClassName: string): OverviewRuler {
+		return new OverviewRuler(this._context, cssClassName);
 	}
 
 	public change(callback: (changeAccessor: editorBrowser.IViewZoneChangeAccessor) => any): boolean {
@@ -525,10 +534,6 @@ export class View extends ViewEventHandler {
 		} else {
 			this._scheduleRender();
 		}
-	}
-
-	public setAriaActiveDescendant(id: string): void {
-		this._textAreaHandler.setAriaActiveDescendant(id);
 	}
 
 	public focus(): void {
