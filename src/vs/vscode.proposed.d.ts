@@ -65,26 +65,26 @@ declare module 'vscode' {
 		 * Create an error to signal that a file or folder wasn't found.
 		 * @param messageOrUri Message or uri.
 		 */
-		static EntryNotFound(messageOrUri?: string | Uri): FileSystemError;
+		static FileNotFound(messageOrUri?: string | Uri): FileSystemError;
 
 		/**
 		 * Create an error to signal that a file or folder already exists, e.g. when
 		 * creating but not overwriting a file.
 		 * @param messageOrUri Message or uri.
 		 */
-		static EntryExists(messageOrUri?: string | Uri): FileSystemError;
+		static FileExists(messageOrUri?: string | Uri): FileSystemError;
 
 		/**
 		 * Create an error to signal that a file is not a folder.
 		 * @param messageOrUri Message or uri.
 		 */
-		static EntryNotADirectory(messageOrUri?: string | Uri): FileSystemError;
+		static FileNotADirectory(messageOrUri?: string | Uri): FileSystemError;
 
 		/**
 		 * Create an error to signal that a file is a folder.
 		 * @param messageOrUri Message or uri.
 		 */
-		static EntryIsADirectory(messageOrUri?: string | Uri): FileSystemError;
+		static FileIsADirectory(messageOrUri?: string | Uri): FileSystemError;
 
 		/**
 		 * Creates a new filesystem error.

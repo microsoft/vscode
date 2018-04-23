@@ -1866,17 +1866,17 @@ export enum DeprecatedFileType {
 
 export class FileSystemError extends Error {
 
-	static EntryExists(messageOrUri?: string | URI): FileSystemError {
-		return new FileSystemError(messageOrUri, 'EntryExists', FileSystemError.EntryExists);
+	static FileExists(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'EntryExists', FileSystemError.FileExists);
 	}
-	static EntryNotFound(messageOrUri?: string | URI): FileSystemError {
-		return new FileSystemError(messageOrUri, 'EntryNotFound', FileSystemError.EntryNotFound);
+	static FileNotFound(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'EntryNotFound', FileSystemError.FileNotFound);
 	}
-	static EntryNotADirectory(messageOrUri?: string | URI): FileSystemError {
-		return new FileSystemError(messageOrUri, 'EntryNotADirectory', FileSystemError.EntryNotADirectory);
+	static FileNotADirectory(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'EntryNotADirectory', FileSystemError.FileNotADirectory);
 	}
-	static EntryIsADirectory(messageOrUri?: string | URI): FileSystemError {
-		return new FileSystemError(messageOrUri, 'EntryIsADirectory', FileSystemError.EntryIsADirectory);
+	static FileIsADirectory(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'EntryIsADirectory', FileSystemError.FileIsADirectory);
 	}
 
 	constructor(uriOrMessage?: string | URI, code?: string, terminator?: Function) {
