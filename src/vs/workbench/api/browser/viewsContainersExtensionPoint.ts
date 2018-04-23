@@ -130,7 +130,7 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 			// Generate CSS to show the icon in the activity bar
 			const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${cssClass}`;
 			const iconPath = join(extension.extensionFolderPath, descriptor.icon);
-			createCSSRule(iconClass, `-webkit-mask: url('${iconPath}') no-repeat 50% 50%; -webkit-mask-size: 22px;`);
+			createCSSRule(iconClass, `-webkit-mask: url('${iconPath}') no-repeat 50% 50%`);
 
 			// Register as viewlet
 			class CustomViewlet extends PersistentViewsViewlet {
