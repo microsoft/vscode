@@ -7,7 +7,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { Repository } from '../common/models/repository';
 import { FileChangeTreeItem } from '../common/treeItems';
-import { mapCommentsToHead, parseDiff, mapPositionHeadToDiffHunk, getDiffLine, parseDiffHunk, mapDiffHunkToHeadRange } from '../common/diff';
+import { mapCommentsToHead, parseDiff, mapHeadLineToDiffHunkPosition, getDiffLineByPosition, parseDiffHunk, mapOldPositionToNew } from '../common/diff';
 import * as _ from 'lodash';
 import { GitContentProvider } from './gitContentProvider';
 import { Comment } from '../common/models/comment';
@@ -155,7 +155,7 @@ export class ReviewMode implements vscode.DecorationProvider {
 						let matchedFile = matchedFiles[0];
 						// git diff sha -- fileName
 						let contentDiff = await this._repository.diff(matchedFile.fileName, this._lastCommitSha);
-						let position = mapPositionHeadToDiffHunk(matchedFile.patch, contentDiff, range.start.line);
+						let position = mapHeadLineToDiffHunkPosition(matchedFile.patch, contentDiff, range.start.line);
 
 						if (position < 0) {
 							return;
@@ -386,7 +386,7 @@ export class ReviewMode implements vscode.DecorationProvider {
 						let matchedFile = matchedFiles[0];
 
 						matchingComments.forEach(comment => {
-							let diffLine = getDiffLine(matchedFiles[0].patch, comment.position === null ? comment.original_position : comment.position);
+							let diffLine = getDiffLineByPosition(matchedFiles[0].patch, comment.position === null ? comment.original_position : comment.position);
 
 							if (diffLine) {
 								comment.absolutePosition = diffLine.newLineNumber;
@@ -418,9 +418,10 @@ export class ReviewMode implements vscode.DecorationProvider {
 
 						while (!diffHunkIter.done) {
 							let diffHunk = diffHunkIter.value;
-							let mappedDiffHunk = mapDiffHunkToHeadRange(diffHunk, contentDiff);
-							if (mappedDiffHunk[0] >= 0 && mappedDiffHunk[1] >= 0) {
-								ranges.push(new vscode.Range(mappedDiffHunk[0], 1, mappedDiffHunk[1], 1));
+							let start = mapOldPositionToNew(contentDiff, diffHunk.newLineNumber);
+							let end = mapOldPositionToNew(contentDiff, diffHunk.newLineNumber + diffHunk.newLength - 1);
+							if (start > 0 && end > 0) {
+								ranges.push(new vscode.Range(start - 1, 0, end - 1, 0));
 							}
 							diffHunkIter = diffHunkReader.next();
 						}

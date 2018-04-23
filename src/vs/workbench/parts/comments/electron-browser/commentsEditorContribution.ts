@@ -9,7 +9,6 @@ import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import * as modes from 'vs/editor/common/modes';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { $ } from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
@@ -390,7 +389,11 @@ export class ReviewZoneWidget extends ZoneWidget {
 			return;
 		}
 
-		if (lineNumber !== this._commentThread.range.startLineNumber) {
+		if (this.position && this.position.lineNumber !== lineNumber) {
+			return;
+		}
+
+		if (!this.position && lineNumber !== this._commentThread.range.startLineNumber) {
 			return;
 		}
 

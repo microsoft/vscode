@@ -5,7 +5,7 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { parseDiff, parseDiffHunk, getDiffLine, mapPositionHeadToDiffHunk } from '../common/diff';
+import { parseDiff, parseDiffHunk, getDiffLineByPosition, mapHeadLineToDiffHunkPosition } from '../common/diff';
 import { Repository } from '../common//models/repository';
 import { Comment } from '../common/models/comment';
 import * as _ from 'lodash';
@@ -132,7 +132,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 						return null;
 					}
 
-					let position = mapPositionHeadToDiffHunk(fileChange.patch, '', range.start.line);
+					let position = mapHeadLineToDiffHunkPosition(fileChange.patch, '', range.start.line);
 
 					if (position < 0) {
 						return;
@@ -192,7 +192,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 							let comments = sections[i];
 
 							const comment = comments[0];
-							let diffLine = getDiffLine(fileChange.patch, comment.position === null ? comment.original_position : comment.position);
+							let diffLine = getDiffLineByPosition(fileChange.patch, comment.position === null ? comment.original_position : comment.position);
 							let commentAbsolutePosition = 1;
 							if (diffLine) {
 								commentAbsolutePosition = diffLine.newLineNumber;

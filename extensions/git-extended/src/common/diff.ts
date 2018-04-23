@@ -27,7 +27,7 @@ export function countCarriageReturns(text: string): number {
 	return count;
 }
 
-function* LineReader(text: string): IterableIterator<string> {
+export function* LineReader(text: string): IterableIterator<string> {
 	let index = 0;
 
 	while (index !== -1 && index < text.length) {
@@ -114,7 +114,7 @@ export function* parseDiffHunk(diffHunkPatch: string): IterableIterator<DiffHunk
 	}
 }
 
-export function getDiffLine(prPatch: string, diffLineNumber: number): DiffLine {
+export function getDiffLineByPosition(prPatch: string, diffLineNumber: number): DiffLine {
 	let prDiffReader = parseDiffHunk(prPatch);
 	let prDiffIter = prDiffReader.next();
 
@@ -132,7 +132,7 @@ export function getDiffLine(prPatch: string, diffLineNumber: number): DiffLine {
 	return null;
 }
 
-export function mapPositionHeadToDiffHunk(prPatch: string, localDiff: string, line: number): number {
+export function mapHeadLineToDiffHunkPosition(prPatch: string, localDiff: string, line: number): number {
 	let delta = 0;
 
 	let localDiffReader = parseDiffHunk(localDiff);
@@ -189,12 +189,6 @@ export function mapOldPositionToNew(patch: string, line: number): number {
 	}
 
 	return line + delta;
-}
-export function mapDiffHunkToHeadRange(diffHunk: DiffHunk, localDiff: string): [number, number] {
-	let startLineNumber = diffHunk.newLineNumber;
-	let endLineNumber = diffHunk.newLineNumber + diffHunk.newLength - 1;
-
-	return [mapOldPositionToNew(localDiff, startLineNumber), mapOldPositionToNew(localDiff, endLineNumber)];
 }
 
 async function parseModifiedHunkComplete(originalContent, patch, a, b) {
@@ -330,7 +324,7 @@ export function mapCommentsToHead(prPatch: string, localDiff: string, comments: 
 	for (let i = 0; i < comments.length; i++) {
 		let comment = comments[i];
 
-		let diffLine = getDiffLine(prPatch, comment.position);
+		let diffLine = getDiffLineByPosition(prPatch, comment.position);
 		let positionInPr = diffLine.newLineNumber;
 		let newPosition = mapOldPositionToNew(localDiff, positionInPr);
 		comment.absolutePosition = newPosition;
