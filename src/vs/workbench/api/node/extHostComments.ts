@@ -73,7 +73,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 			let provider = this._documentProviders.get(handle);
 			return provider.provideDocumentComments(data.document, token);
 		})
-			.then(commentInfo => convertCommentInfo(handle, commentInfo, this._commandsConverter));
+			.then(commentInfo => commentInfo ? convertCommentInfo(handle, commentInfo, this._commandsConverter) : null);
 	}
 
 	$provideWorkspaceComments(handle: number): TPromise<modes.CommentThread[]> {

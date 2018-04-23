@@ -169,6 +169,9 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 					if (document.uri.scheme === 'pr') {
 						let params = JSON.parse(document.uri.query);
 						let fileChange = richContentChanges.find(change => change.fileName === params.fileName);
+						if (!fileChange) {
+							return null;
+						}
 						let regex = new RegExp(DIFF_HUNK_INFO, 'g');
 						let matches = regex.exec(fileChange.patch);
 
@@ -229,6 +232,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 						return {
 							threads,
 							commentingRanges,
+							collapsibleState: vscode.CommentThreadCollapsibleState.Expanded,
 							reply: reply
 						};
 
