@@ -5,16 +5,15 @@
 
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import { EditorInput, EditorOptions, GroupIdentifier } from 'vs/workbench/common/editor';
-// import { EditorGroup } from '../../../common/editor/editorStacksModel';
+// import { TPromise } from 'vs/base/common/winjs.base';
+import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
 
 export enum GridOrientation {
 	VERTICAL,
 	HORIZONTAL
 }
 
-export class NextEditorViewer {
+export class NextEditorsViewer {
 	private _element: HTMLElement;
 	// private model: NextEditorViewModel;
 
@@ -27,14 +26,19 @@ export class NextEditorViewer {
 		return this._element;
 	}
 
-	split(location: number[], orientation: GridOrientation, input: EditorInput, options?: EditorOptions): TPromise<void> {
+	split(location: number[], orientation: GridOrientation): EditorGroup /* IEditorGroupView */ {
 
+		// TODO this should return some GridView/IEditorGroupView type which combines a newly created EditorGroup and HTML container
 
-		return TPromise.as(void 0);
+		return void 0;
 	}
 
-	show(id: GroupIdentifier, input: EditorInput, options?: EditorOptions): TPromise<void> {
-		return TPromise.as(void 0);
+	groupAt(location: number[]): EditorGroup /* IEditorGroupView */ {
+		return void 0;
+	}
+
+	get groups(): EditorGroup[] /* IEditorGroupView */ {
+		return [];
 	}
 }
 

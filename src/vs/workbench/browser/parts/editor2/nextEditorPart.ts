@@ -17,7 +17,7 @@ import { join } from 'vs/base/common/paths';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { INextEditorPartService } from 'vs/workbench/services/editor/common/nextEditorPartService';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
-import { NextEditorViewer, GridOrientation } from './nextEditorViewer';
+import { NextEditorsViewer, GridOrientation } from 'vs/workbench/browser/parts/editor2/nextEditorsViewer';
 // import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class NextEditorPart extends Part implements INextEditorPartService {
@@ -29,7 +29,7 @@ export class NextEditorPart extends Part implements INextEditorPartService {
 	// private dimension: Dimension;
 	// private memento: object;
 
-	private viewer: NextEditorViewer;
+	private viewer: NextEditorsViewer;
 
 	constructor(
 		id: string,
@@ -43,7 +43,7 @@ export class NextEditorPart extends Part implements INextEditorPartService {
 
 		// this.memento = this.getMemento(this.storageService, Scope.WORKSPACE);
 
-		this.viewer = new NextEditorViewer();
+		this.viewer = new NextEditorsViewer();
 
 		this.initStyles();
 	}
@@ -54,7 +54,20 @@ export class NextEditorPart extends Part implements INextEditorPartService {
 		// TODO@grid editor opening event and prevention
 		// TODO@grid support options
 
-		return this.viewer.split([], GridOrientation.HORIZONTAL, input, options);
+		// TODO@grid delegate the management of instantiated ("live"?) editors into a helper class
+		// that associates editors to a group id. editors should get disposed once a group closes
+
+		// Flow
+		// - editors viewer is the main grid control that owns EditorGroups and GridViews to add HTML into (this enables empty groups too!)
+		// - a helper class manages instantiation/lifecycle of ("live") editors (maybe also the title control? maybe all UI associated to show a group?)
+		// - how does the input gets opened in the editor group? is it 2 calls, one for editorgroup and one for showing it as HTML?
+		// - ^ is a bit fishy, would be nice to have this all combined somehow?
+		// - idea: have a EditorGroupView helper that is the thing added into a GridView and it also has a openEditor method which sets
+		//   the editor to the editor group as well as renders the UI pieces
+
+		const group = this.viewer.split([], GridOrientation.HORIZONTAL);
+
+		return TPromise.as(void 0);
 	}
 
 	private initStyles(): void {
