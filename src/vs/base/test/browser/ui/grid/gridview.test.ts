@@ -127,4 +127,42 @@ suite('GridView', function () {
 
 		gridview.dispose();
 	});
+
+	test('gridview addView deep nested', function () {
+		const gridview = new GridView(container);
+
+		const view1 = new TestView(20, 20);
+		gridview.addView(view1 as IView, 200, [0]);
+		assert.deepEqual(nodesToArrays(gridview.getViews()), [view1]);
+
+		const view2 = new TestView(20, 20);
+		gridview.addView(view2 as IView, 200, [1]);
+		assert.deepEqual(nodesToArrays(gridview.getViews()), [view1, view2]);
+
+		const view3 = new TestView(20, 20);
+		gridview.addView(view3 as IView, 200, [1, 0]);
+		assert.deepEqual(nodesToArrays(gridview.getViews()), [view1, [view3, view2]]);
+
+		const view4 = new TestView(20, 20);
+		gridview.addView(view4 as IView, 200, [1, 0, 0]);
+		assert.deepEqual(nodesToArrays(gridview.getViews()), [view1, [[view4, view3], view2]]);
+
+		const view5 = new TestView(20, 20);
+		gridview.addView(view5 as IView, 200, [1, 0]);
+		assert.deepEqual(nodesToArrays(gridview.getViews()), [view1, [view5, [view4, view3], view2]]);
+
+		const view6 = new TestView(20, 20);
+		gridview.addView(view6 as IView, 200, [2]);
+		assert.deepEqual(nodesToArrays(gridview.getViews()), [view1, [view5, [view4, view3], view2], view6]);
+
+		const view7 = new TestView(20, 20);
+		gridview.addView(view7 as IView, 200, [1, 1]);
+		assert.deepEqual(nodesToArrays(gridview.getViews()), [view1, [view5, view7, [view4, view3], view2], view6]);
+
+		const view8 = new TestView(20, 20);
+		gridview.addView(view8 as IView, 200, [1, 1, 0]);
+		assert.deepEqual(nodesToArrays(gridview.getViews()), [view1, [view5, [view8, view7], [view4, view3], view2], view6]);
+
+		gridview.dispose();
+	});
 });
