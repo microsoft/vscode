@@ -12,6 +12,9 @@ import {
 } from 'vscode';
 import { visit, JSONVisitor } from 'jsonc-parser';
 import { NpmTaskDefinition, getPackageJsonUriFromTask, getScripts, isWorkspaceFolder, getPackageManager, getTaskName } from './tasks';
+import * as nls from 'vscode-nls';
+
+const localize = nls.loadMessageBundle();
 
 class Folder extends TreeItem {
 	packages: PackageJSON[] = [];
@@ -90,15 +93,13 @@ class NpmScript extends TreeItem {
 export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 	private taskTree: Folder[] | PackageJSON[] | null = null;
 	private taskProvider: TaskProvider;
-	private localize: any;
 	private extensionContext: ExtensionContext;
 	private _onDidChangeTreeData: EventEmitter<TreeItem | null> = new EventEmitter<TreeItem | null>();
 	readonly onDidChangeTreeData: Event<TreeItem | null> = this._onDidChangeTreeData.event;
 
-	constructor(context: ExtensionContext, taskProvider: TaskProvider, localize: any) {
+	constructor(context: ExtensionContext, taskProvider: TaskProvider) {
 		const subscriptions = context.subscriptions;
 		this.taskProvider = taskProvider;
-		this.localize = localize;
 		this.extensionContext = context;
 		subscriptions.push(commands.registerCommand('npm.runScript', this.runScript, this));
 		subscriptions.push(commands.registerCommand('npm.debugScript', this.debugScript, this));
@@ -119,7 +120,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 	private async runScript(script: NpmScript) {
 		let task = script.task;
 		let uri = getPackageJsonUriFromTask(task);
-		let scripts = await getScripts(uri!, this.localize);
+		let scripts = await getScripts(uri!);
 
 		if (!this.scriptIsValid(scripts, task)) {
 			this.scriptNotValid(task);
@@ -149,7 +150,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 	private async debugScript(script: NpmScript) {
 		let task = script.task;
 		let uri = getPackageJsonUriFromTask(task);
-		let scripts = await getScripts(uri!, this.localize);
+		let scripts = await getScripts(uri!);
 
 		if (!this.scriptIsValid(scripts, task)) {
 			this.scriptNotValid(task);
@@ -158,7 +159,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 
 		let debugArg = await this.extractDebugArg(scripts, task);
 		if (!debugArg) {
-			let message = this.localize('npm.noDebugOptions', 'Could not launch "{0}" for debugging, the script needs to include the node debug options: "--nolazy --inspect-brk=port", [learn more](https://code.visualstudio.com/docs/nodejs/nodejs-debugging#_launch-configuration-support-for-npm-and-other-tools).', task.name);
+			let message = localize('npm.noDebugOptions', 'Could not launch "{0}" for debugging, the script needs to include the node debug options: "--nolazy --inspect-brk=port", [learn more](https://code.visualstudio.com/docs/nodejs/nodejs-debugging#_launch-configuration-support-for-npm-and-other-tools).', task.name);
 			window.showErrorMessage(message);
 			return;
 		}
@@ -182,7 +183,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 	}
 
 	private scriptNotValid(task: Task) {
-		let message = this.localize('npm.scriptInvalid', 'Could not find the script "{0}". Try to refresh the view.', task.name);
+		let message = localize('npm.scriptInvalid', 'Could not find the script "{0}". Try to refresh the view.', task.name);
 		window.showErrorMessage(message);
 	}
 
