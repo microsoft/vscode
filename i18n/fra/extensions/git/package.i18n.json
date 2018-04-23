@@ -77,6 +77,7 @@
 	"config.showInlineOpenFileAction": "Contrôle s’il faut afficher une action Ouvrir le fichier dans l’affichage des modifications de Git.",
 	"config.inputValidation": "Contrôle quand afficher la validation de la saisie du message de commit.",
 	"config.detectSubmodules": "Contrôle s’il faut détecter automatiquement les sous-modules git.",
+	"config.detectSubmodulesLimit": "Contrôle la limite de sous-modules git détectés.",
 	"colors.modified": "Couleur pour les ressources modifiées.",
 	"colors.deleted": "Couleur pour les ressources supprimées.",
 	"colors.untracked": "Couleur pour les ressources non tracées.",

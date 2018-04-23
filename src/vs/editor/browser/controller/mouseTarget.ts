@@ -16,6 +16,7 @@ import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPa
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
 import { ViewLine } from 'vs/editor/browser/viewParts/lines/viewLine';
+import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 
 export interface IViewZoneData {
 	viewZoneId: number;
@@ -222,7 +223,7 @@ class ElementPath {
 	}
 }
 
-class HitTestContext {
+export class HitTestContext {
 
 	public readonly model: IViewModel;
 	public readonly layoutInfo: EditorLayoutInfo;
@@ -246,12 +247,16 @@ class HitTestContext {
 	}
 
 	public getZoneAtCoord(mouseVerticalOffset: number): IViewZoneData {
+		return HitTestContext.getZoneAtCoord(this._context, mouseVerticalOffset);
+	}
+
+	public static getZoneAtCoord(context: ViewContext, mouseVerticalOffset: number): IViewZoneData {
 		// The target is either a view zone or the empty space after the last view-line
-		let viewZoneWhitespace = this._context.viewLayout.getWhitespaceAtVerticalOffset(mouseVerticalOffset);
+		let viewZoneWhitespace = context.viewLayout.getWhitespaceAtVerticalOffset(mouseVerticalOffset);
 
 		if (viewZoneWhitespace) {
 			let viewZoneMiddle = viewZoneWhitespace.verticalOffset + viewZoneWhitespace.height / 2,
-				lineCount = this._context.model.getLineCount(),
+				lineCount = context.model.getLineCount(),
 				positionBefore: Position = null,
 				position: Position,
 				positionAfter: Position = null;
@@ -262,7 +267,7 @@ class HitTestContext {
 			}
 			if (viewZoneWhitespace.afterLineNumber > 0) {
 				// There are more lines above this view zone
-				positionBefore = new Position(viewZoneWhitespace.afterLineNumber, this._context.model.getLineMaxColumn(viewZoneWhitespace.afterLineNumber));
+				positionBefore = new Position(viewZoneWhitespace.afterLineNumber, context.model.getLineMaxColumn(viewZoneWhitespace.afterLineNumber));
 			}
 
 			if (positionAfter === null) {
@@ -338,7 +343,7 @@ class HitTestContext {
 		return this._viewHelper.getLineWidth(lineNumber);
 	}
 
-	public visibleRangeForPosition2(lineNumber: number, column: number) {
+	public visibleRangeForPosition2(lineNumber: number, column: number): HorizontalRange {
 		return this._viewHelper.visibleRangeForPosition2(lineNumber, column);
 	}
 

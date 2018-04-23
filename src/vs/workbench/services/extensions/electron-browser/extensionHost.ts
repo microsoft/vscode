@@ -193,13 +193,13 @@ export class ExtensionHostProcessWorker {
 				}, 100);
 
 				// Print out extension host output
-				onDebouncedOutput(output => {
-					const inspectorUrlMatch = !this._environmentService.isBuilt && output.data && output.data.match(/ws:\/\/([^\s]+)/);
-					if (inspectorUrlMatch) {
-						console.log(`%c[Extension Host] %cdebugger inspector at chrome-devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=${inspectorUrlMatch[1]}`, 'color: blue', 'color: black');
+				onDebouncedOutput(data => {
+					const inspectorUrlIndex = !this._environmentService.isBuilt && data.data && data.data.indexOf('chrome-devtools://');
+					if (inspectorUrlIndex >= 0) {
+						console.log(`%c[Extension Host] %cdebugger inspector at ${data.data.substr(inspectorUrlIndex)}`, 'color: blue', 'color: black');
 					} else {
 						console.group('Extension Host');
-						console.log(output.data, ...output.format);
+						console.log(data.data, ...data.format);
 						console.groupEnd();
 					}
 				});
@@ -371,10 +371,7 @@ export class ExtensionHostProcessWorker {
 					appSettingsHome: this._environmentService.appSettingsHome,
 					disableExtensions: this._environmentService.disableExtensions,
 					extensionDevelopmentPath: this._environmentService.extensionDevelopmentPath,
-					extensionTestsPath: this._environmentService.extensionTestsPath,
-					// globally disable proposed api when built and not insiders developing extensions
-					enableProposedApiForAll: !this._environmentService.isBuilt || (!!this._environmentService.extensionDevelopmentPath && product.nameLong.indexOf('Insiders') >= 0),
-					enableProposedApiFor: this._environmentService.args['enable-proposed-api'] || []
+					extensionTestsPath: this._environmentService.extensionTestsPath
 				},
 				workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : <IWorkspaceData>this._contextService.getWorkspace(),
 				extensions: extensionDescriptions,

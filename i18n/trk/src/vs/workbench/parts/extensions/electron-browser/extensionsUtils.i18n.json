@@ -8,7 +8,5 @@
 	],
 	"disableOtherKeymapsConfirmation": "Tuş bağlamlarında çakışmalardan kaçınmak için diğer tuş haritaları ({0}) devre dışı bırakılsın mı?",
 	"yes": "Evet",
-	"no": "Hayır",
-	"betterMergeDisabled": "\"Better Merge\" artık yerleşik bir eklenti, yüklenen eklendi devre dışı bırakıldı ve kaldırılabilir.",
-	"uninstall": "Kaldır"
+	"no": "Hayır"
 }

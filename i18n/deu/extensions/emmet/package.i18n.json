@@ -35,7 +35,6 @@
 	"emmetExtensionsPath": "Pfad zu einem Ordner mit Emmet-Profilen und Ausschnitten.",
 	"emmetShowExpandedAbbreviation": "Zeigt erweiterte Emmet-Abkürzungen als Vorschläge an.\nDie Option inMarkupAndStylesheetFilesOnly gilt für HTML, HAML, Jade, Slim, XML, XSL, CSS, SCSS, Sass, Less und Stylus.\nDie Option \"always\" gilt unabhängig vom Markup/CSS für alle Teile der Datei.",
 	"emmetShowAbbreviationSuggestions": "Zeigt mögliche Emmet-Abkürzungen als Vorschläge an. Diese Option gilt nicht in Stylesheets oder wenn emmet.showExpandedAbbreviation auf \"never\" festgelegt ist.",
-	"emmetIncludeLanguages": "Aktivieren Sie Emmet-Abkürzungen in Sprachen, die nicht standardmäßig unterstützt werden. Fügen Sie hier ein Mapping zwischen der Sprache und der von Emmet unterstützten Sprache hinzu.\nBeispiel: {\"vue-html\": \"html\", \"javascript\": \"javascriptreact\"}",
 	"emmetVariables": "In Emmet-Ausschnitten zu verwendende Codeausschnitte",
 	"emmetTriggerExpansionOnTab": "Wenn aktiviert, werden Emmet-Abkürzungen beim Drücken der TAB-Taste erweitert.",
 	"emmetPreferences": "Einstellungen, die zum Ändern des Verhaltens einiger Aktionen und Konfliktlöser von Emmet verwendet werden.",
@@ -59,5 +58,6 @@
 	"emmetPreferencesCssWebkitProperties": "Durch Trennzeichen getrennte CSS-Eigenschaften, die das \"webkit\"-Herstellerpräfix erhalten, wenn sie in einer Emmet-Abkürzung verwendet werden, die mit \"-\" beginnt. Legen Sie eine leere Zeichenfolge fest, um das \"webkit\"-Präfix immer zu vermeiden.",
 	"emmetPreferencesCssMozProperties": "Durch Trennzeichen getrennte CSS-Eigenschaften, die das \"moz\"-Herstellerpräfix erhalten, wenn sie in einer Emmet-Abkürzung verwendet werden, die mit \"-\" beginnt. Legen Sie eine leere Zeichenfolge fest, um das \"moz\"-Präfix immer zu vermeiden.",
 	"emmetPreferencesCssOProperties": "Durch Trennzeichen getrennte CSS-Eigenschaften, die das \"o\"-Herstellerpräfix erhalten, wenn sie in einer Emmet-Abkürzung verwendet werden, die mit \"-\" beginnt. Legen Sie eine leere Zeichenfolge fest, um das \"o\"-Präfix immer zu vermeiden.",
-	"emmetPreferencesCssMsProperties": "Durch Trennzeichen getrennte CSS-Eigenschaften, die das \"ms\"-Herstellerpräfix erhalten, wenn sie in einer Emmet-Abkürzung verwendet werden, die mit \"-\" beginnt. Legen Sie eine leere Zeichenfolge fest, um das \"ms\"-Präfix immer zu vermeiden."
+	"emmetPreferencesCssMsProperties": "Durch Trennzeichen getrennte CSS-Eigenschaften, die das \"ms\"-Herstellerpräfix erhalten, wenn sie in einer Emmet-Abkürzung verwendet werden, die mit \"-\" beginnt. Legen Sie eine leere Zeichenfolge fest, um das \"ms\"-Präfix immer zu vermeiden.",
+	"emmetPreferencesCssFuzzySearchMinScore": "Das Mindestergebnis (zwischen 0 und 1), das die Abkürzung mit Fuzzyübereinstimmung erreichen muss. Niedrigere Werte führen zu vielen falsch positiven Übereinstimmungen, höhere Werte verringern unter Umständen die möglichen Übereinstimmungen."
 }

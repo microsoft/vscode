@@ -11,6 +11,7 @@
 	"open": "設定を開く",
 	"saveAndRetry": "保存して再試行",
 	"errorUnknownKey": "{1} は登録済みの構成ではないため、{0} に書き込むことができません。",
+	"errorInvalidWorkspaceConfigurationApplication": "{0} をワークスペース設定に書き込めません。この設定はユーザー設定にのみ書き込めます。",
 	"errorInvalidFolderConfiguration": "{0} はフォルダーのリソース スコープをサポートしていないため、フォルダー設定に書き込むことができません。",
 	"errorInvalidUserTarget": "{0} はグローバル スコープをサポートしていないため、ユーザー設定に書き込むことができません。",
 	"errorInvalidWorkspaceTarget": "{0} はマルチ フォルダー ワークスペースでワークスペース スコープをサポートしていないため、ワークスペース設定を書き込むことができません。",

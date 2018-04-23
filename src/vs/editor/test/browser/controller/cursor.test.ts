@@ -2125,6 +2125,43 @@ suite('Editor Controller - Regression tests', () => {
 
 		model.dispose();
 	});
+
+	test('issue #42783: API Calls with Undo Leave Cursor in Wrong Position', () => {
+		let model = createTextModel(
+			[
+				'ab'
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			editor.setSelections([
+				new Selection(1, 1, 1, 1)
+			]);
+
+			editor.executeEdits('test', [{
+				range: new Range(1, 1, 1, 3),
+				text: ''
+			}]);
+			assertCursor(cursor, [
+				new Selection(1, 1, 1, 1),
+			]);
+
+			cursorCommand(cursor, H.Undo, null, 'keyboard');
+			assertCursor(cursor, [
+				new Selection(1, 1, 1, 1),
+			]);
+
+			editor.executeEdits('test', [{
+				range: new Range(1, 1, 1, 2),
+				text: ''
+			}]);
+			assertCursor(cursor, [
+				new Selection(1, 1, 1, 1),
+			]);
+		});
+
+		model.dispose();
+	});
 });
 
 suite('Editor Controller - Cursor Configuration', () => {

@@ -46,6 +46,7 @@
 	"multiCursorModifier.ctrlCmd": "Mappe vers 'Contrôle' dans Windows et Linux, et vers 'Commande' dans macOS.",
 	"multiCursorModifier.alt": "Mappe vers 'Alt' dans Windows et Linux, et vers 'Option' dans macOS.",
 	"multiCursorModifier": "Le modificateur à utiliser pour ajouter plusieurs curseurs avec la souris. 'ctrlCmd' mappe vers 'Contrôle' dans Windows et Linux, et vers 'Commande' dans macOS. Les mouvements de souris Accéder à la définition et Ouvrir le lien s'adaptent pour ne pas entrer en conflit avec le modificateur multicurseur.",
+	"multiCursorMergeOverlapping": "Fusionnez plusieurs curseurs quand ils se chevauchent.",
 	"quickSuggestions.strings": "Activez les suggestions rapides dans les chaînes.",
 	"quickSuggestions.comments": "Activez les suggestions rapides dans les commentaires.",
 	"quickSuggestions.other": "Activez les suggestions rapides en dehors des chaînes et des commentaires.",
@@ -88,6 +89,9 @@
 	"renderLineHighlight": "Contrôle la façon dont l'éditeur doit afficher la surbrillance de la ligne active. Les différentes possibilités sont 'none', 'gutter', 'line' et 'all'.",
 	"codeLens": "Contrôle si l'éditeur affiche les indicateurs CodeLens",
 	"folding": "Contrôle si le pliage de code est activé dans l'éditeur",
+	"foldingStrategyAuto": "Si disponible, utilisez une stratégie de présentation langage-spécifique, sinon la stratégie d'indentation s'applique.",
+	"foldingStrategyIndentation": "Utilisez toujours l'indentation basée sur la stratégie de présentation",
+	"foldingStrategy": "Contrôle la façon dont les repliages sont calculées. 'auto' utilise une stratégie repliage spécifique au langage, si disponible. 'indentation' force à ce que la stratégie de repliage basée sur l'indentation soit utilisée.",
 	"showFoldingControls": "Définit si les contrôles de réduction sur la bordure sont cachés automatiquement",
 	"matchBrackets": "Met en surbrillance les crochets correspondants quand l'un d'eux est sélectionné.",
 	"glyphMargin": "Contrôle si l'éditeur doit afficher la marge de glyphes verticale. La marge de glyphes sert principalement au débogage.",
@@ -105,5 +109,7 @@
 	"selectionClipboard": "Contrôle si le presse-papiers primaire Linux doit être pris en charge.",
 	"sideBySide": "Contrôle si l'éditeur de différences affiche les différences en mode côte à côte ou inline",
 	"ignoreTrimWhitespace": "Contrôle si l'éditeur de différences affiche les changements liés aux espaces blancs de début ou de fin comme des différences",
+	"largeFileSize": "Contrôles le seuil de la taille de fichier en octets au-delà de laquelle les règles d’optimisation spéciale sont appliquées",
+	"largeFileLineCount": "Contrôle le seuil de taille de fichier en terme de nombre de lignes au-delà de laquelle les règles d’optimisation spéciale sont appliquées",
 	"renderIndicators": "Contrôle si l'éditeur de différences affiche les indicateurs +/- pour les modifications ajoutées/supprimées"
 }

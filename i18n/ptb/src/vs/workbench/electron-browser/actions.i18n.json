@@ -18,6 +18,7 @@
 	"zoomReset": "Reinicializar Zoom",
 	"appPerf": "Desempenho de inicialização",
 	"reloadWindow": "Recarregar Janela",
+	"reloadWindowWithExntesionsDisabled": "Recarregar Janela Com Extensões Desabilitadas",
 	"switchWindowPlaceHolder": "Selecionar uma janela para onde alternar",
 	"current": "Janela Atual",
 	"close": "Fechar Janela",
@@ -48,5 +49,6 @@
 	"moveWindowTabToNewWindow": "Mover a guia da janela para a nova janela",
 	"mergeAllWindowTabs": "Mesclar todas as janelas",
 	"toggleWindowTabsBar": "Alternar a Barra de Guias da Janela",
-	"about": "Sobre {0}"
+	"about": "Sobre {0}",
+	"inspect context keys": "Inspecionar Chaves de Contexto"
 }

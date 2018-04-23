@@ -29,8 +29,6 @@
 	"performance": "Comience con el comando 'Developer: Startup Performance' habilitado.",
 	"prof-startup": "Ejecutar generador de perfiles de CPU durante el inicio",
 	"disableExtensions": "Deshabilite todas las extensiones instaladas.",
-	"inspect-extensions": "Permitir la depuración y el perfil de las extensiones. Revisar las herramientas de desarrollador para la conexión uri.",
-	"inspect-brk-extensions": "Permitir la depuración y el perfil de las extensiones con el host de la extensión pausado después del inicio. Revisar las herramientas de desarrollador para la conexión uri.",
 	"disableGPU": "Deshabilita la aceleración de hardware de GPU.",
 	"uploadLogs": "Carga los registros de la sesión actual a un extremo.",
 	"maxMemory": "Tamaño máximo de memoria para una ventana (en Mbytes).",

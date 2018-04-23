@@ -16,6 +16,7 @@
 	"editorIndentGuides": "编辑器缩进参考线的颜色。",
 	"editorLineNumbers": "编辑器行号的颜色。",
 	"editorActiveLineNumber": "编辑器活动行号的颜色",
+	"deprecatedEditorActiveLineNumber": "\"Id\" 已被弃用，请改用 \"editorLineNumber.activeForeground\"。",
 	"editorRuler": "编辑器标尺的颜色。",
 	"editorCodeLensForeground": "编辑器 CodeLens 的前景色",
 	"editorBracketMatchBackground": "匹配括号的背景色",

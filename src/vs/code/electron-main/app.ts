@@ -62,7 +62,7 @@ import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
 import { join } from 'path';
-import { copy, exists, rename } from 'vs/base/node/pfs';
+import { exists, rename } from 'vs/base/node/pfs';
 
 export class CodeApplication {
 
@@ -265,7 +265,6 @@ export class CodeApplication {
 		this.logService.debug('args:', this.environmentService.args);
 
 		// Handle local storage (TODO@Ben remove me after a while)
-		this.logService.trace('Handling localStorage if needed...');
 		return this.handleLocalStorage().then(() => {
 
 			// Make sure we associate the program with the app user model id
@@ -339,27 +338,14 @@ export class CodeApplication {
 		const localStorageJournalBackupFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage-journal.vscbak');
 
 		// Electron 1.7.12: Restore storage
-		if (process.versions.electron === '1.7.12') {
-			return exists(localStorageBackupFile).then(localStorageBackupFileExists => {
-				return exists(localStorageJournalBackupFile).then(localStorageJournalBackupFileExists => {
-					return TPromise.join([
-						localStorageBackupFileExists ? rename(localStorageBackupFile, localStorageFile) : TPromise.as(void 0),
-						localStorageJournalBackupFileExists ? rename(localStorageJournalBackupFile, localStorageJournalFile) : TPromise.as(void 0)
-					]);
-				});
-			}).then(() => void 0, () => void 0);
-		}
-
-		// Electron 2.0: Backup
-		else {
-			return exists(localStorageBackupFile).then(backupExists => {
-				if (backupExists) {
-					return void 0; // do not backup if backup already exists
-				}
-
-				return copy(localStorageFile, localStorageBackupFile).then(() => copy(localStorageJournalFile, localStorageJournalBackupFile));
-			}).then(() => void 0, () => void 0);
-		}
+		return exists(localStorageBackupFile).then(localStorageBackupFileExists => {
+			return exists(localStorageJournalBackupFile).then(localStorageJournalBackupFileExists => {
+				return TPromise.join([
+					localStorageBackupFileExists ? rename(localStorageBackupFile, localStorageFile) : TPromise.as(void 0),
+					localStorageJournalBackupFileExists ? rename(localStorageJournalBackupFile, localStorageJournalFile) : TPromise.as(void 0)
+				]);
+			});
+		}).then(() => void 0, () => void 0);
 	}
 
 	private initServices(machineId: string): IInstantiationService {

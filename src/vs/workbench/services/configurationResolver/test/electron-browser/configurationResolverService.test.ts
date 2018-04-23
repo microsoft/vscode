@@ -196,18 +196,6 @@ suite('Configuration Resolver Service', () => {
 		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.fontFamily} ${config:editor.lineNumbers} ${config:editor.insertSpaces} xyz'), 'abc foo 123 false xyz');
 	});
 
-	test('configuration should not evaluate Javascript', () => {
-		let configurationService: IConfigurationService;
-		configurationService = new MockConfigurationService({
-			editor: {
-				abc: 'foo'
-			}
-		});
-
-		let service = new ConfigurationResolverService(envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService, new TestContextService());
-		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor[\'abc\'.substr(0)]} xyz'), 'abc ${config:editor[\'abc\'.substr(0)]} xyz');
-	});
-
 	test('uses original variable as fallback', () => {
 		let configurationService: IConfigurationService;
 		configurationService = new MockConfigurationService({
@@ -215,10 +203,8 @@ suite('Configuration Resolver Service', () => {
 		});
 
 		let service = new ConfigurationResolverService(envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService, new TestContextService());
-		assert.strictEqual(service.resolve(workspace, 'abc ${invalidVariable} xyz'), 'abc ${invalidVariable} xyz');
-		assert.strictEqual(service.resolve(workspace, 'abc ${env:invalidVariable} xyz'), 'abc  xyz');
-		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.abc.def} xyz'), 'abc ${config:editor.abc.def} xyz');
-		assert.strictEqual(service.resolve(workspace, 'abc ${config:panel.abc} xyz'), 'abc ${config:panel.abc} xyz');
+		assert.strictEqual(service.resolve(workspace, 'abc ${unknownVariable} xyz'), 'abc ${unknownVariable} xyz');
+		assert.strictEqual(service.resolve(workspace, 'abc ${env:unknownVariable} xyz'), 'abc  xyz');
 	});
 
 	test('configuration variables with invalid accessor', () => {
@@ -230,9 +216,14 @@ suite('Configuration Resolver Service', () => {
 		});
 
 		let service = new ConfigurationResolverService(envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService, new TestContextService());
-		assert.strictEqual(service.resolve(workspace, 'abc ${config:} xyz'), 'abc ${config:} xyz');
-		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor..fontFamily} xyz'), 'abc ${config:editor..fontFamily} xyz');
-		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.none.none2} xyz'), 'abc ${config:editor.none.none2} xyz');
+
+		assert.throws(() => service.resolve(workspace, 'abc ${env} xyz'));
+		assert.throws(() => service.resolve(workspace, 'abc ${env:} xyz'));
+		assert.throws(() => service.resolve(workspace, 'abc ${config} xyz'));
+		assert.throws(() => service.resolve(workspace, 'abc ${config:} xyz'));
+		assert.throws(() => service.resolve(workspace, 'abc ${config:editor} xyz'));
+		assert.throws(() => service.resolve(workspace, 'abc ${config:editor..fontFamily} xyz'));
+		assert.throws(() => service.resolve(workspace, 'abc ${config:editor.none.none2} xyz'));
 	});
 
 	test('interactive variable simple', () => {
@@ -249,8 +240,11 @@ suite('Configuration Resolver Service', () => {
 		interactiveVariables['interactiveVariable1'] = 'command1';
 		interactiveVariables['interactiveVariable2'] = 'command2';
 
-		configurationResolverService.resolveInteractiveVariables(configuration, interactiveVariables).then(resolved => {
-			assert.deepEqual(resolved, {
+		configurationResolverService.executeCommandVariables(configuration, interactiveVariables).then(mapping => {
+
+			const result = configurationResolverService.resolveAny(undefined, configuration, mapping);
+
+			assert.deepEqual(result, {
 				'name': 'Attach to Process',
 				'type': 'node',
 				'request': 'attach',
@@ -281,8 +275,11 @@ suite('Configuration Resolver Service', () => {
 		interactiveVariables['interactiveVariable1'] = 'command1';
 		interactiveVariables['interactiveVariable2'] = 'command2';
 
-		configurationResolverService.resolveInteractiveVariables(configuration, interactiveVariables).then(resolved => {
-			assert.deepEqual(resolved, {
+		configurationResolverService.executeCommandVariables(configuration, interactiveVariables).then(mapping => {
+
+			const result = configurationResolverService.resolveAny(undefined, configuration, mapping);
+
+			assert.deepEqual(result, {
 				'name': 'Attach to Process',
 				'type': 'node',
 				'request': 'attach',

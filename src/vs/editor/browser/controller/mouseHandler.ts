@@ -11,7 +11,7 @@ import * as dom from 'vs/base/browser/dom';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
-import { MouseTarget, MouseTargetFactory, IViewZoneData } from 'vs/editor/browser/controller/mouseTarget';
+import { MouseTarget, MouseTargetFactory, IViewZoneData, HitTestContext } from 'vs/editor/browser/controller/mouseTarget';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { TimeoutTimer, RunOnceScheduler } from 'vs/base/common/async';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
@@ -424,12 +424,30 @@ class MouseDownOperation extends Disposable {
 		const mouseColumn = this._getMouseColumn(e);
 
 		if (e.posy < editorContent.y) {
-			let aboveLineNumber = viewLayout.getLineNumberAtVerticalOffset(Math.max(viewLayout.getCurrentScrollTop() - (editorContent.y - e.posy), 0));
+			const verticalOffset = Math.max(viewLayout.getCurrentScrollTop() - (editorContent.y - e.posy), 0);
+			const viewZoneData = HitTestContext.getZoneAtCoord(this._context, verticalOffset);
+			if (viewZoneData) {
+				const newPosition = this._helpPositionJumpOverViewZone(viewZoneData);
+				if (newPosition) {
+					return new MouseTarget(null, editorBrowser.MouseTargetType.OUTSIDE_EDITOR, mouseColumn, newPosition);
+				}
+			}
+
+			let aboveLineNumber = viewLayout.getLineNumberAtVerticalOffset(verticalOffset);
 			return new MouseTarget(null, editorBrowser.MouseTargetType.OUTSIDE_EDITOR, mouseColumn, new Position(aboveLineNumber, 1));
 		}
 
 		if (e.posy > editorContent.y + editorContent.height) {
-			let belowLineNumber = viewLayout.getLineNumberAtVerticalOffset(viewLayout.getCurrentScrollTop() + (e.posy - editorContent.y));
+			const verticalOffset = viewLayout.getCurrentScrollTop() + (e.posy - editorContent.y);
+			const viewZoneData = HitTestContext.getZoneAtCoord(this._context, verticalOffset);
+			if (viewZoneData) {
+				const newPosition = this._helpPositionJumpOverViewZone(viewZoneData);
+				if (newPosition) {
+					return new MouseTarget(null, editorBrowser.MouseTargetType.OUTSIDE_EDITOR, mouseColumn, newPosition);
+				}
+			}
+
+			let belowLineNumber = viewLayout.getLineNumberAtVerticalOffset(verticalOffset);
 			return new MouseTarget(null, editorBrowser.MouseTargetType.OUTSIDE_EDITOR, mouseColumn, new Position(belowLineNumber, model.getLineMaxColumn(belowLineNumber)));
 		}
 
@@ -459,22 +477,29 @@ class MouseDownOperation extends Disposable {
 		}
 
 		if (t.type === editorBrowser.MouseTargetType.CONTENT_VIEW_ZONE || t.type === editorBrowser.MouseTargetType.GUTTER_VIEW_ZONE) {
-			// Force position on view zones to go above or below depending on where selection started from
-			let selectionStart = new Position(this._currentSelection.selectionStartLineNumber, this._currentSelection.selectionStartColumn);
-			let viewZoneData = <IViewZoneData>t.detail;
-			let positionBefore = viewZoneData.positionBefore;
-			let positionAfter = viewZoneData.positionAfter;
-
-			if (positionBefore && positionAfter) {
-				if (positionBefore.isBefore(selectionStart)) {
-					return new MouseTarget(t.element, t.type, t.mouseColumn, positionBefore, null, t.detail);
-				} else {
-					return new MouseTarget(t.element, t.type, t.mouseColumn, positionAfter, null, t.detail);
-				}
+			const newPosition = this._helpPositionJumpOverViewZone(<IViewZoneData>t.detail);
+			if (newPosition) {
+				return new MouseTarget(t.element, t.type, t.mouseColumn, newPosition, null, t.detail);
 			}
 		}
 
 		return t;
+	}
+
+	private _helpPositionJumpOverViewZone(viewZoneData: IViewZoneData): Position {
+		// Force position on view zones to go above or below depending on where selection started from
+		let selectionStart = new Position(this._currentSelection.selectionStartLineNumber, this._currentSelection.selectionStartColumn);
+		let positionBefore = viewZoneData.positionBefore;
+		let positionAfter = viewZoneData.positionAfter;
+
+		if (positionBefore && positionAfter) {
+			if (positionBefore.isBefore(selectionStart)) {
+				return positionBefore;
+			} else {
+				return positionAfter;
+			}
+		}
+		return null;
 	}
 
 	private _dispatchMouse(position: MouseTarget, inSelectionMode: boolean): void {

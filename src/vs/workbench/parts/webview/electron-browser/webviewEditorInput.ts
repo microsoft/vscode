@@ -224,7 +224,7 @@ export class WebviewEditorInput extends EditorInput {
 		this._currentWebviewHtml = '';
 	}
 
-	public onBecameActive(position: Position): void {
+	public updatePosition(position: Position): void {
 		this._position = position;
 	}
 }

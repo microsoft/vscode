@@ -8,7 +8,7 @@
 	],
 	"ok": "OK",
 	"pathNotExistTitle": "O caminho não existe",
-	"pathNotExistDetail": "O caminho '{0}' não parece mais existir no disco.",
+	"pathNotExistDetail": "Aparentemente o caminho {0} não existe mais no disco.",
 	"reopen": "&&Reabrir",
 	"wait": "&&Continuar Aguardando",
 	"close": "&&Fechar",

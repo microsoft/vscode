@@ -45,6 +45,7 @@
 	"PatternTypeSchema.description": "Criterio di problema o nome di un criterio di problema predefinito o aggiunto come contributo. Può essere omesso se si specifica base.",
 	"ProblemMatcherSchema.base": "Nome di un matcher problemi di base da usare.",
 	"ProblemMatcherSchema.owner": "Proprietario del problema in Visual Studio Code. Può essere omesso se si specifica base. Se è omesso e non si specifica base, viene usato il valore predefinito 'external'.",
+	"ProblemMatcherSchema.source": "Stringa in formato leggibile che descrive l'origine di questa diagnostica, ad esempio 'typescript' o 'super lint'.",
 	"ProblemMatcherSchema.severity": "Gravità predefinita per i problemi di acquisizione. Viene usato se il criterio non definisce un gruppo di corrispondenze per la gravità.",
 	"ProblemMatcherSchema.applyTo": "Controlla se un problema segnalato in un documento di testo è valido solo per i documenti aperti o chiusi oppure per tutti i documenti.",
 	"ProblemMatcherSchema.fileLocation": "Consente di definire come interpretare i nomi file indicati in un criterio di problema.",

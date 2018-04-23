@@ -161,6 +161,7 @@
 	"mMergeAllWindows": "すべてのウィンドウを統合",
 	"miToggleDevTools": "開発者ツールの切り替え(&&T)",
 	"miAccessibilityOptions": "ユーザー補助オプション(&&O)",
+	"miOpenProcessExplorerer": "プロセス エクスプローラーを開く(&&P)",
 	"miReportIssue": "問題の報告(&&I)",
 	"miWelcome": "ようこそ(&&W)",
 	"miInteractivePlayground": "対話型プレイグラウンド(&&I)",

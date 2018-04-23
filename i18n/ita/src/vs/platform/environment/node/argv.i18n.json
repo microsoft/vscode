@@ -29,8 +29,6 @@
 	"performance": "Eseguire l'avvio con il comando 'Developer: Startup Performance' abilitato.",
 	"prof-startup": "Esegui il profiler della CPU durante l'avvio",
 	"disableExtensions": "Disabilita tutte le estensioni installate.",
-	"inspect-extensions": "Consentire il debug e profiling delle estensioni. Controllare gli strumenti di sviluppo per l'uri di connessione.",
-	"inspect-brk-extensions": "Consentire il debug e profiling delle estensioni con l'host di estensione in pausa dopo inizio. Controllare gli strumenti di sviluppo per l'uri di connessione.",
 	"disableGPU": "Disabilita l'accelerazione hardware della GPU.",
 	"uploadLogs": "Caricamento dei log della sessione corrente verso un punto di comunicazione sicuro.",
 	"maxMemory": "Dimensione massima della memoria per una finestra (in Mbytes).",

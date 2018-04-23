@@ -9,5 +9,6 @@
 	"toggleOutput": "Çıktıyı Aç/Kapat",
 	"clearOutput": "Çıktıyı Temizle",
 	"toggleOutputScrollLock": "Çıktı Kaydırma Kilidini Aç/Kapat",
-	"switchToOutput.label": "Çıktıya Geçiş Yap"
+	"switchToOutput.label": "Çıktıya Geçiş Yap",
+	"openInLogViewer": "Günlük Dosyasını Aç"
 }

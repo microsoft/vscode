@@ -148,7 +148,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 		await super.setInput(input, options);
 
 		await input.resolve();
-		await input.onBecameActive(this.position);
+		await input.updatePosition(this.position);
 		this.updateWebview(input);
 	}
 

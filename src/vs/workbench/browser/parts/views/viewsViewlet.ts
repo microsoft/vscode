@@ -370,14 +370,15 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 			this.snapshotViewsStates();
 
 			if (toRemove.length) {
-				for (const viewDescriptor of toRemove) {
-					let view = this.getView(viewDescriptor.id);
-					this.removePanel(view);
-					this.viewsViewletPanels.splice(this.viewsViewletPanels.indexOf(view), 1);
-					view.dispose();
+				const panelsToRemove: ViewsViewletPanel[] = toRemove.map(viewDescriptor => this.getView(viewDescriptor.id));
+				this.removePanels(panelsToRemove);
+				for (const panel of panelsToRemove) {
+					this.viewsViewletPanels.splice(this.viewsViewletPanels.indexOf(panel), 1);
+					panel.dispose();
 				}
 			}
 
+			const panelsToAdd: { panel: ViewsViewletPanel, size: number, index: number }[] = [];
 			for (const viewDescriptor of toAdd) {
 				let viewState = this.viewsStates.get(viewDescriptor.id);
 				let index = visible.indexOf(viewDescriptor);
@@ -392,8 +393,13 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 				toCreate.push(view);
 
 				const size = (viewState && viewState.size) || 200;
-				this.addPanel(view, size, index);
-				this.viewsViewletPanels.splice(index, 0, view);
+				panelsToAdd.push({ panel: view, size, index });
+			}
+
+			this.addPanels(panelsToAdd);
+
+			for (const { panel, index } of panelsToAdd) {
+				this.viewsViewletPanels.splice(index, 0, panel);
 			}
 
 			return TPromise.join(toCreate.map(view => view.create()))
@@ -545,18 +551,16 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 		}
 
 		if (ViewLocation.get(this.location.id)) {
-			let visibleViewsCount = 0;
-			if (this.areExtensionsReady) {
-				visibleViewsCount = this.getViewDescriptorsFromRegistry().reduce((visibleViewsCount, v) => visibleViewsCount + (this.canBeVisible(v) ? 1 : 0), 0);
-			} else {
+			if (!this.areExtensionsReady) {
+				let visibleViewsCount = 0;
 				// Check in cache so that view do not jump. See #29609
 				this.viewsStates.forEach((viewState, id) => {
 					if (!viewState.isHidden) {
 						visibleViewsCount++;
 					}
 				});
+				return visibleViewsCount === 1;
 			}
-			return visibleViewsCount === 1;
 		}
 
 		return super.isSingleView();

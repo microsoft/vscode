@@ -8,6 +8,7 @@
 	],
 	"displayName": "Recursos da Linguagem HTML",
 	"description": "Fornece suporte de linguagem rico para arquivos HTML, Razor e Handlebar.",
+	"html.format.enable.desc": "Ativar/desativar o formatador HTML padrão",
 	"html.format.wrapLineLength.desc": "Quantidade máxima de caracteres por linha (0 = desativar).",
 	"html.format.unformatted.desc": "Lista de tags, separados por vírgula, que não deveria ser reformatada. o padrão é 'nulo' para todas as tags listadas em https://www.w3.org/TR/html5/dom.html#phrasing-content.",
 	"html.format.contentUnformatted.desc": "Lista de tags, separada por vírgula, onde o conteúdo não deve ser reformatado. o padrão é 'nulo' para a tag 'pré'.",

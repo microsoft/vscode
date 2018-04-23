@@ -360,23 +360,29 @@ export interface IGlobalConfig {
 }
 
 export interface IEnvConfig {
-	name?: string;
-	type: string;
-	request: string;
 	internalConsoleOptions?: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
 	preLaunchTask?: string;
 	postDebugTask?: string;
-	__restart?: any;
-	__sessionId?: string;
 	debugServer?: number;
 	noDebug?: boolean;
-	port?: number;
 }
 
 export interface IConfig extends IEnvConfig {
+
+	// fundamental attributes
+	type: string;
+	request: string;
+	name?: string;
+
+	// platform specifics
 	windows?: IEnvConfig;
 	osx?: IEnvConfig;
 	linux?: IEnvConfig;
+
+	// internals
+	__sessionId?: string;
+	__restart?: any;
+	port?: number; // TODO
 }
 
 export interface ICompound {
@@ -398,6 +404,7 @@ export interface IDebugAdapter extends IDisposable {
 
 export interface IDebugAdapterProvider extends ITerminalLauncher {
 	createDebugAdapter(debugType: string, adapterInfo: IAdapterExecutable | null): IDebugAdapter;
+	substituteVariables(folder: IWorkspaceFolder, config: IConfig): TPromise<IConfig>;
 }
 
 export interface IAdapterExecutable {
@@ -497,6 +504,7 @@ export interface IConfigurationManager {
 
 	registerDebugAdapterProvider(debugTypes: string[], debugAdapterLauncher: IDebugAdapterProvider): IDisposable;
 	createDebugAdapter(debugType: string, adapterExecutable: IAdapterExecutable | null): IDebugAdapter | undefined;
+	substituteVariables(debugType: string, folder: IWorkspaceFolder, config: IConfig): TPromise<IConfig>;
 	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void>;
 }
 
@@ -539,12 +547,6 @@ export interface ILaunch {
 	 * Ignores configurations which are invalid.
 	 */
 	getConfigurationNames(includeCompounds?: boolean): string[];
-
-	/**
-	 * Returns the resolved configuration.
-	 * Replaces os specific values, system variables, interactive variables.
-	 */
-	substituteVariables(config: IConfig): TPromise<IConfig>;
 
 	/**
 	 * Opens the launch.json file. Creates if it does not exist.

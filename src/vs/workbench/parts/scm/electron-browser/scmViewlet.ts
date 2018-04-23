@@ -1163,13 +1163,13 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 
 		if (shouldMainPanelBeVisible) {
 			this.mainPanel = this.instantiationService.createInstance(MainPanel, this);
-			this.addPanel(this.mainPanel, this.mainPanel.minimumSize, 0);
+			this.addPanels([{ panel: this.mainPanel, size: this.mainPanel.minimumSize, index: 0 }]);
 
 			const selectionChangeDisposable = this.mainPanel.onSelectionChange(this.onSelectionChange, this);
 			this.onSelectionChange(this.mainPanel.getSelection());
 
 			this.mainPanelDisposable = toDisposable(() => {
-				this.removePanel(this.mainPanel);
+				this.removePanels([this.mainPanel]);
 				selectionChangeDisposable.dispose();
 				this.mainPanel.dispose();
 			});
@@ -1185,14 +1185,23 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 	}
 
 	setVisible(visible: boolean): TPromise<void> {
-		const result = super.setVisible(visible);
+		const promises: TPromise<any>[] = [];
+		promises.push(super.setVisible(visible));
 
 		if (!visible) {
 			this.cachedMainPanelHeight = this.getPanelSize(this.mainPanel);
 		}
 
 		this._onDidChangeVisibility.fire(visible);
-		return result;
+
+		const start = this.getContributedViewsStartIndex();
+
+		for (let i = 0; i < this.contributedViews.viewDescriptors.length; i++) {
+			const panel = this.panels[start + i] as ViewsViewletPanel;
+			promises.push(panel.setVisible(visible));
+		}
+
+		return TPromise.join(promises) as TPromise<any>;
 	}
 
 	getOptimalWidth(): number {
@@ -1294,12 +1303,12 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		let index = repositoryPanels.length + (this.mainPanel ? 1 : 0);
 		this.repositoryPanels = [...repositoryPanels, ...newRepositoryPanels];
 		newRepositoryPanels.forEach(panel => {
-			this.addPanel(panel, panel.minimumSize, index++);
+			this.addPanels([{ panel, size: panel.minimumSize, index: index++ }]);
 			panel.repository.focus();
 		});
 
 		// Remove unselected panels
-		panelsToRemove.forEach(panel => this.removePanel(panel));
+		this.removePanels(panelsToRemove);
 
 		// Restore main panel height
 		if (this.isVisible() && typeof this.cachedMainPanelHeight === 'number') {
@@ -1350,7 +1359,8 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 			viewletSettings: {} // what is this
 		}) as ViewsViewletPanel;
 
-		this.addPanel(panel, size || panel.minimumSize, start + index);
+		this.addPanels([{ panel, size: size || panel.minimumSize, index: start + index }]);
+		panel.setVisible(true);
 
 		const contextMenuDisposable = addDisposableListener(panel.draggableElement, 'contextmenu', e => {
 			e.stopPropagation();
@@ -1409,7 +1419,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		const start = this.getContributedViewsStartIndex();
 		const panel = this.panels[start + index];
 
-		this.removePanel(panel);
+		this.removePanels([panel]);
 
 		const [disposable] = this.contributedViewDisposables.splice(index, 1);
 		disposable.dispose();

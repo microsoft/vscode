@@ -45,6 +45,7 @@
 	"PatternTypeSchema.description": "Bir sorun modeli veya bir katkıda bulunulan veya ön tanımlı sorun modelinin adı. Temel model belirtildiyse atlanabilir.",
 	"ProblemMatcherSchema.base": "Kullanılacak temel sorun eşleştiricisinin adı.",
 	"ProblemMatcherSchema.owner": "Code'un içindeki sorunun sahibi. Temel model belirtildiyse atlanabilir. Atlanırsa ve temel belirtilmemişse 'external' varsayılır.",
+	"ProblemMatcherSchema.source": "Bu tanılama bilgilerinin kaynağını açıklayan insan tarafından okunabilir bir dize, ör. 'typescript' veya 'super lint'.",
 	"ProblemMatcherSchema.severity": "Sorun yakalamanın varsayılan önem derecesi. Model, önem derecesi için bir eşleme grubu tanımlamazsa kullanılır.",
 	"ProblemMatcherSchema.applyTo": "Bir metin belgesinde bildirilen bir sorunun sadece açık, kapalı veya tüm belgelere uygulanıp uygulanmadığını denetler.",
 	"ProblemMatcherSchema.fileLocation": "Bir sorun modelinde bildirilen dosya adlarının nasıl yorumlanacağını tanımlar.",

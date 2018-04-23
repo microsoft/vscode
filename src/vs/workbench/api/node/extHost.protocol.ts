@@ -42,18 +42,16 @@ import { ITreeItem } from 'vs/workbench/common/views';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { SerializedError } from 'vs/base/common/errors';
-import { IStat, FileChangeType, FileOpenFlags, IWatchOptions, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { IStat, FileChangeType, IWatchOptions, FileSystemProviderCapabilities, FileOptions } from 'vs/platform/files/common/files';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { CommentRule, CharacterPair, EnterAction } from 'vs/editor/common/modes/languageConfiguration';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import { ILineMatch, IPatternInfo } from 'vs/platform/search/common/search';
 import { LogLevel } from 'vs/platform/log/common/log';
-import { TaskExecutionDTO, TaskDTO, TaskHandleDTO } from 'vs/workbench/api/shared/tasks';
+import { TaskExecutionDTO, TaskDTO, TaskHandleDTO, TaskFilterDTO } from 'vs/workbench/api/shared/tasks';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
-	enableProposedApiForAll: boolean;
-	enableProposedApiFor: string | string[];
 	appRoot: string;
 	appSettingsHome: string;
 	disableExtensions: boolean;
@@ -321,6 +319,12 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$hide(terminalId: number): void;
 	$sendText(terminalId: number, text: string, addNewLine: boolean): void;
 	$show(terminalId: number, preserveFocus: boolean): void;
+	$registerOnDataListener(terminalId: number): void;
+
+	$sendProcessTitle(terminalId: number, title: string): void;
+	$sendProcessData(terminalId: number, data: string): void;
+	$sendProcessPid(terminalId: number, pid: number): void;
+	$sendProcessExit(terminalId: number, exitCode: number): void;
 }
 
 export interface MyQuickPickItems extends IPickOpenEntry {
@@ -352,7 +356,7 @@ export type WebviewPanelHandle = string;
 export interface MainThreadWebviewsShape extends IDisposable {
 	$createWebviewPanel(handle: WebviewPanelHandle, viewType: string, title: string, column: EditorPosition, options: vscode.WebviewPanelOptions & vscode.WebviewOptions, extensionFolderPath: string): void;
 	$disposeWebview(handle: WebviewPanelHandle): void;
-	$reveal(handle: WebviewPanelHandle, column: EditorPosition): void;
+	$reveal(handle: WebviewPanelHandle, column: EditorPosition | undefined): void;
 	$setTitle(handle: WebviewPanelHandle, value: string): void;
 	$setHtml(handle: WebviewPanelHandle, value: string): void;
 	$postMessage(handle: WebviewPanelHandle, value: any): Thenable<boolean>;
@@ -367,6 +371,15 @@ export interface ExtHostWebviewsShape {
 	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Thenable<void>;
 	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorPosition, options: vscode.WebviewOptions): Thenable<void>;
 	$serializeWebviewPanel(webviewHandle: WebviewPanelHandle): Thenable<any>;
+}
+
+export interface MainThreadUrlsShape extends IDisposable {
+	$registerProtocolHandler(handle: number, extensionId: string): TPromise<void>;
+	$unregisterProtocolHandler(handle: number): TPromise<void>;
+}
+
+export interface ExtHostUrlsShape {
+	$handleExternalUri(handle: number, uri: UriComponents): TPromise<void>;
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {
@@ -395,7 +408,7 @@ export interface MainThreadSearchShape extends IDisposable {
 
 export interface MainThreadTaskShape extends IDisposable {
 	$registerTaskProvider(handle: number): TPromise<void>;
-	$executeTaskProvider(): TPromise<TaskDTO[]>;
+	$fetchTasks(filter?: TaskFilterDTO): TPromise<TaskDTO[]>;
 	$executeTask(task: TaskHandleDTO | TaskDTO): TPromise<TaskExecutionDTO>;
 	$terminateTask(id: string): TPromise<void>;
 	$unregisterTaskProvider(handle: number): TPromise<void>;
@@ -569,10 +582,10 @@ export interface ExtHostWorkspaceShape {
 
 export interface ExtHostFileSystemShape {
 	$stat(handle: number, resource: UriComponents): TPromise<IStat>;
-	$readFile(handle: number, resource: UriComponents, flags: FileOpenFlags): TPromise<string>;
-	$writeFile(handle: number, resource: UriComponents, base64Encoded: string, flags: FileOpenFlags): TPromise<void>;
-	$rename(handle: number, resource: UriComponents, target: UriComponents, flags: FileOpenFlags): TPromise<IStat>;
-	$copy(handle: number, resource: UriComponents, target: UriComponents, flags: FileOpenFlags): TPromise<IStat>;
+	$readFile(handle: number, resource: UriComponents, opts: FileOptions): TPromise<string>;
+	$writeFile(handle: number, resource: UriComponents, base64Encoded: string, opts: FileOptions): TPromise<void>;
+	$rename(handle: number, resource: UriComponents, target: UriComponents, opts: FileOptions): TPromise<IStat>;
+	$copy(handle: number, resource: UriComponents, target: UriComponents, opts: FileOptions): TPromise<IStat>;
 	$mkdir(handle: number, resource: UriComponents): TPromise<IStat>;
 	$readdir(handle: number, resource: UriComponents): TPromise<[string, IStat][]>;
 	$delete(handle: number, resource: UriComponents): TPromise<void>;
@@ -731,10 +744,23 @@ export interface ExtHostQuickOpenShape {
 	$validateInput(input: string): TPromise<string>;
 }
 
+export interface ShellLaunchConfigDto {
+	name?: string;
+	executable?: string;
+	args?: string[] | string;
+	cwd?: string;
+	env?: { [key: string]: string };
+}
+
 export interface ExtHostTerminalServiceShape {
 	$acceptTerminalClosed(id: number): void;
 	$acceptTerminalOpened(id: number, name: string): void;
 	$acceptTerminalProcessId(id: number, processId: number): void;
+	$acceptTerminalProcessData(id: number, data: string);
+	$createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, cols: number, rows: number): void;
+	$acceptProcessInput(id: number, data: string): void;
+	$acceptProcessResize(id: number, cols: number, rows: number): void;
+	$acceptProcessShutdown(id: number): void;
 }
 
 export interface ExtHostSCMShape {
@@ -792,6 +818,7 @@ export interface ISourceMultiBreakpointDto {
 }
 
 export interface ExtHostDebugServiceShape {
+	$substituteVariables(folder: UriComponents | undefined, config: IConfig): TPromise<IConfig>;
 	$runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void>;
 	$startDASession(handle: number, debugType: string, adapterExecutableInfo: IAdapterExecutable | null): TPromise<void>;
 	$stopDASession(handle: number): TPromise<void>;
@@ -857,6 +884,7 @@ export const MainContext = {
 	MainThreadTelemetry: createMainId<MainThreadTelemetryShape>('MainThreadTelemetry'),
 	MainThreadTerminalService: createMainId<MainThreadTerminalServiceShape>('MainThreadTerminalService'),
 	MainThreadWebviews: createMainId<MainThreadWebviewsShape>('MainThreadWebviews'),
+	MainThreadUrls: createMainId<MainThreadUrlsShape>('MainThreadUrls'),
 	MainThreadWorkspace: createMainId<MainThreadWorkspaceShape>('MainThreadWorkspace'),
 	MainThreadFileSystem: createMainId<MainThreadFileSystemShape>('MainThreadFileSystem'),
 	MainThreadExtensionService: createMainId<MainThreadExtensionServiceShape>('MainThreadExtensionService'),
@@ -892,5 +920,6 @@ export const ExtHostContext = {
 	ExtHostWorkspace: createExtId<ExtHostWorkspaceShape>('ExtHostWorkspace'),
 	ExtHostWindow: createExtId<ExtHostWindowShape>('ExtHostWindow'),
 	ExtHostWebviews: createExtId<ExtHostWebviewsShape>('ExtHostWebviews'),
+	ExtHostUrls: createExtId<ExtHostUrlsShape>('ExtHostUrls'),
 	ExtHostProgress: createMainId<ExtHostProgressShape>('ExtHostProgress')
 };
