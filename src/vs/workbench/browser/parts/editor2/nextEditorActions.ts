@@ -12,6 +12,17 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { INextEditorPartService } from 'vs/workbench/services/editor/common/nextEditorPartService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+
+export class NextEditorContribution implements IWorkbenchContribution {
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
+		instantiationService.createInstance(OpenNextEditorAction, OpenNextEditorAction.ID, OpenNextEditorAction.LABEL).run();
+	}
+}
 
 export class OpenNextEditorAction extends Action {
 

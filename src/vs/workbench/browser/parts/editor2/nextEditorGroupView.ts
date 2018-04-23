@@ -19,8 +19,8 @@ import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleCon
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND } from '../../../common/theme';
 import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND } from 'vs/workbench/common/theme';
 
 export class NextEditorGroupView extends Themable implements IView {
 
@@ -53,6 +53,12 @@ export class NextEditorGroupView extends Themable implements IView {
 		this.create();
 	}
 
+	openEditor(input: EditorInput, options?: EditorOptions): void {
+		this._group.openEditor(input, options);
+
+		this.render(this.container, Orientation.HORIZONTAL);
+	}
+
 	get element(): HTMLElement {
 		return this._element;
 	}
@@ -65,11 +71,11 @@ export class NextEditorGroupView extends Themable implements IView {
 
 		// TODO@grid simplify containers by flattening the hierarchy more?
 
-		// Overall Container
+		// Overall container
 		this._element = document.createElement('div');
 		addClass(this._element, 'one-editor-silo');
 
-		// Title / Progress / Editor Container
+		// Title / Progress / Editor container
 		this.container = document.createElement('div');
 		addClass(this.container, 'container');
 		this._element.appendChild(this.container);
@@ -79,28 +85,29 @@ export class NextEditorGroupView extends Themable implements IView {
 			[IContextKeyService, this._register(this.contextKeyService.createScoped(this.container))]
 		));
 
-		// Title Container
+		// Title container
 		const titleContainer = document.createElement('div');
-		addClasses(titleContainer, 'title', 'tabs', 'show-file-icons'); // TODO@grid title options (tabs, icons)
+		addClasses(titleContainer, 'title', 'tabs', 'show-file-icons', 'active'); // TODO@grid title options (tabs, icons, etc...)
 		this.container.appendChild(titleContainer);
 
-		// Title Widget
+		// Title widget
 		this.titleAreaControl = this._register(instantiationService.createInstance<ITitleAreaControl>(TabsTitleControl)); // TODO@grid title control choice (tabs vs no tabs)
 		this.titleAreaControl.create(titleContainer);
 		this.titleAreaControl.setContext(this._group);
 		this.titleAreaControl.refresh(true /* instant */);
 
-		// Progress Bar
+		// Progress bar
 		this.progressBar = new ProgressBar(this.container);
 		this._register(attachProgressBarStyler(this.progressBar, this.themeService));
 		this.progressBar.hide();
 
-		// Editor Container
+		// Editor container
 		this.editorContainer = document.createElement('div');
 		addClass(this.editorContainer, 'editor-container');
+		this.editorContainer.setAttribute('role', 'tabpanel');
 		this.container.appendChild(this.editorContainer);
 
-		// Update Styles
+		// Update styles
 		this.updateStyles();
 	}
 
@@ -122,17 +129,13 @@ export class NextEditorGroupView extends Themable implements IView {
 		// TODO@grid Editor container border
 	}
 
-	openEditor(input: EditorInput, options?: EditorOptions): void {
-		this._group.openEditor(input, options);
-
-		this.render(this.container, Orientation.HORIZONTAL);
-	}
-
 	render(container: HTMLElement, orientation: Orientation): void {
 		this.titleAreaControl.refresh(true /* instant */);
 	}
 
 	layout(size: number, orientation: Orientation): void {
+
+		// Layout title
 		this.titleAreaControl.layout(new Dimension(size, NextEditorGroupView.EDITOR_TITLE_HEIGHT));
 	}
 }
