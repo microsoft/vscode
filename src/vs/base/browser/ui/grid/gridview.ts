@@ -17,15 +17,15 @@ function orthogonal(orientation: Orientation): Orientation {
 	return orientation === Orientation.VERTICAL ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 }
 
-export interface ILeafNode<T extends IView> {
-	view: T;
+export class GridLeafNode<T extends IView> {
+	constructor(readonly view: T) { }
 }
 
-export interface IBranchNode<T extends IView> {
-	children: IGridNode<T>[];
+export class GridBranchNode<T extends IView> {
+	constructor(readonly children: GridNode<T>[]) { }
 }
 
-export type IGridNode<T extends IView> = ILeafNode<T> | IBranchNode<T>;
+export type GridNode<T extends IView> = GridLeafNode<T> | GridBranchNode<T>;
 
 export interface IGrid<T extends IView> {
 	layout(width: number, height: number): void;
@@ -34,7 +34,7 @@ export interface IGrid<T extends IView> {
 	moveView(from: number[], to: number[]): void;
 	resizeView(location: number[], size: number): void;
 	getViewSize(location: number[]): number;
-	getViews(): IBranchNode<T>;
+	getViews(): GridBranchNode<T>;
 }
 
 function tail<T>(arr: T[]): [T[], T] {
@@ -134,7 +134,7 @@ class BranchNode<T extends IView> extends AbstractNode {
 	}
 
 	addChild(node: Node<T>, size: number, index: number): void {
-		if (index < 0 || index >= this.children.length) {
+		if (index < 0 || index > this.children.length) {
 			throw new Error('Invalid index');
 		}
 
@@ -294,15 +294,15 @@ export class GridView<T extends IView> implements IGrid<T>, IDisposable {
 		return parent.getChildSize(index);
 	}
 
-	getViews(): IBranchNode<T> {
-		return this._getViews(this.root) as IBranchNode<T>;
+	getViews(): GridBranchNode<T> {
+		return this._getViews(this.root) as GridBranchNode<T>;
 	}
 
-	private _getViews(node: Node<T>): IGridNode<T> {
+	private _getViews(node: Node<T>): GridNode<T> {
 		if (node instanceof BranchNode) {
-			return { children: node.children.map(c => this._getViews(c)) };
+			return new GridBranchNode(node.children.map(c => this._getViews(c)));
 		} else {
-			return { view: node.view };
+			return new GridLeafNode(node.view);
 		}
 	}
 

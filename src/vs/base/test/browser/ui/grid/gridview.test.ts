@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
-import { GridView, IView, Orientation } from 'vs/base/browser/ui/grid/gridview';
+import { GridView, IView, Orientation, GridNode, GridBranchNode } from 'vs/base/browser/ui/grid/gridview';
 
 class TestView implements IView {
 
@@ -33,7 +33,7 @@ class TestView implements IView {
 		private _minimumSize: number,
 		private _maximumSize: number
 	) {
-		assert(_minimumSize <= _maximumSize, 'splitview view minimum size must be <= maximum size');
+		assert(_minimumSize <= _maximumSize, 'gridview view minimum size must be <= maximum size');
 	}
 
 	render(container: HTMLElement, orientation: Orientation): void {
@@ -57,10 +57,13 @@ class TestView implements IView {
 	}
 }
 
-// function getSashes(splitview: SplitView): Sash[] {
-// 	return (splitview as any).sashItems.map(i => i.sash) as Sash[];
-// }
-
+function nodesToArrays(node: GridNode<any>): any {
+	if (node instanceof GridBranchNode) {
+		return node.children.map(nodesToArrays);
+	} else {
+		return node.view;
+	}
+}
 
 suite('GridView', function () {
 	let container: HTMLElement;
@@ -86,10 +89,21 @@ suite('GridView', function () {
 		const gridview = new GridView(container);
 
 		const view = new TestView(20, 20);
-
 		assert.throws(() => gridview.addView(view, 200, []), 'empty location');
 		assert.throws(() => gridview.addView(view, 200, [1]), 'index overflow');
 		assert.throws(() => gridview.addView(view, 200, [0, 0]), 'hierarchy overflow');
+
+		const views = [
+			new TestView(20, 20),
+			new TestView(20, 20),
+			new TestView(20, 20)
+		];
+
+		gridview.addView(views[0], 200, [0]);
+		gridview.addView(views[1], 200, [1]);
+		gridview.addView(views[2], 200, [2]);
+
+		assert.deepEqual(nodesToArrays(gridview.getViews()), views);
 
 		gridview.dispose();
 	});
