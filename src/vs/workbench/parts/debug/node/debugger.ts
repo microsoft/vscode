@@ -63,21 +63,24 @@ export class Debugger {
 
 	public substituteVariables(folder: IWorkspaceFolder, config: IConfig): TPromise<IConfig> {
 
-		let configP: TPromise<IConfig>;
-		const debugConfigs = this.configurationService.getValue<IDebugConfiguration>('debug');
-		if (debugConfigs.extensionHostDebugAdapter) {
-			configP = this.configurationManager.substituteVariables(this.type, folder, config);
-		} else {
-			try {
-				configP = TPromise.as(DebugAdapter.substituteVariables(folder, config, this.configurationResolverService));
-			} catch (e) {
-				return TPromise.wrapError(e);
-			}
-		}
+		// first resolve command variables (which might have a UI)
+		return this.configurationResolverService.executeCommandVariables(config, this.variables).then(commandValueMapping => {
 
-		return configP.then(result => {
-			// substitute 'command' variables (including interactive)
-			return this.configurationResolverService.resolveInteractiveVariables(result, this.variables);
+			if (!commandValueMapping) { // cancelled by user
+				return null;
+			}
+
+			// optionally substitute in EH
+			const inEh = this.configurationService.getValue<IDebugConfiguration>('debug').extensionHostDebugAdapter;
+
+			// now substitute all other variables
+			return (inEh ? this.configurationManager.substituteVariables(this.type, folder, config) : TPromise.as(config)).then(config => {
+				try {
+					return TPromise.as(DebugAdapter.substituteVariables(folder, config, this.configurationResolverService, commandValueMapping));
+				} catch (e) {
+					return TPromise.wrapError(e);
+				}
+			});
 		});
 	}
 

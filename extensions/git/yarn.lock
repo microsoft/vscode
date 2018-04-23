@@ -257,9 +257,9 @@ supports-color@3.1.2:
   dependencies:
     has-flag "^1.0.0"
 
-vscode-extension-telemetry@0.0.15:
-  version "0.0.15"
-  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.15.tgz#685c32f3b67e8fb85ba689c1d7f88ff90ff87856"
+vscode-extension-telemetry@0.0.16:
+  version "0.0.16"
+  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.16.tgz#506cb49d7a8c90982019434651e5e3871b81c178"
   dependencies:
     applicationinsights "1.0.1"
 

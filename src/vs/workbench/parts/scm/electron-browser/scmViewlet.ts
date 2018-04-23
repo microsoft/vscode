@@ -1185,14 +1185,23 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 	}
 
 	setVisible(visible: boolean): TPromise<void> {
-		const result = super.setVisible(visible);
+		const promises: TPromise<any>[] = [];
+		promises.push(super.setVisible(visible));
 
 		if (!visible) {
 			this.cachedMainPanelHeight = this.getPanelSize(this.mainPanel);
 		}
 
 		this._onDidChangeVisibility.fire(visible);
-		return result;
+
+		const start = this.getContributedViewsStartIndex();
+
+		for (let i = 0; i < this.contributedViews.viewDescriptors.length; i++) {
+			const panel = this.panels[start + i] as ViewsViewletPanel;
+			promises.push(panel.setVisible(visible));
+		}
+
+		return TPromise.join(promises) as TPromise<any>;
 	}
 
 	getOptimalWidth(): number {
@@ -1351,6 +1360,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		}) as ViewsViewletPanel;
 
 		this.addPanels([{ panel, size: size || panel.minimumSize, index: start + index }]);
+		panel.setVisible(true);
 
 		const contextMenuDisposable = addDisposableListener(panel.draggableElement, 'contextmenu', e => {
 			e.stopPropagation();

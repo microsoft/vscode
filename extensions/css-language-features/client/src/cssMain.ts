@@ -33,7 +33,7 @@ export function activate(context: ExtensionContext) {
 	let clientOptions: LanguageClientOptions = {
 		documentSelector,
 		synchronize: {
-			configurationSection: ['css', 'scss', 'less', 'emmet']
+			configurationSection: ['css', 'scss', 'less']
 		},
 		initializationOptions: {
 		}

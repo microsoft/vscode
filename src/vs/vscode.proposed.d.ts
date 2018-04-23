@@ -637,6 +637,10 @@ declare module 'vscode' {
 
 	//#region Terminal
 
+	export interface Terminal {
+		onData: Event<string>;
+	}
+
 	export namespace window {
 		/**
 		 * The currently active terminals or an empty array.
@@ -656,16 +660,16 @@ declare module 'vscode' {
 
 	//#region URLs
 
-	export interface UrlHandler {
-		handleUrl(uri: Uri): void;
+	export interface ProtocolHandler {
+		handleUri(uri: Uri): void;
 	}
 
 	export namespace window {
 
 		/**
-		 * Registers a URL handler.
+		 * Registers a protocol handler capable of handling system-wide URIs.
 		 */
-		export function registerUrlHandler(handler: UrlHandler): Disposable;
+		export function registerProtocolHandler(handler: ProtocolHandler): Disposable;
 	}
 
 	//#endregion

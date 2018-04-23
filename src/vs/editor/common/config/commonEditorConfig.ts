@@ -652,6 +652,25 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.contribInfo.lightbulbEnabled,
 			'description': nls.localize('codeActions', "Enables the code action lightbulb")
 		},
+		'editor.codeActionsOnSave': {
+			'type': 'object',
+			'properties': {
+				'source.organizeImports': {
+					'type': 'boolean',
+					'description': nls.localize('codeActionsOnSave.organizeImports', "Run organize imports on save?")
+				}
+			},
+			'additionalProperties': {
+				'type': 'boolean'
+			},
+			'default': EDITOR_DEFAULTS.contribInfo.codeActionsOnSave,
+			'description': nls.localize('codeActionsOnSave', "Code actions kinds to be run on save.")
+		},
+		'editor.codeActionsOnSaveTimeout': {
+			'type': 'number',
+			'default': EDITOR_DEFAULTS.contribInfo.codeActionsOnSaveTimeout,
+			'description': nls.localize('codeActionsOnSaveTimeout', "Timeout for code actions run on save.")
+		},
 		'editor.selectionClipboard': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.selectionClipboard,

@@ -240,8 +240,11 @@ suite('Configuration Resolver Service', () => {
 		interactiveVariables['interactiveVariable1'] = 'command1';
 		interactiveVariables['interactiveVariable2'] = 'command2';
 
-		configurationResolverService.resolveInteractiveVariables(configuration, interactiveVariables).then(resolved => {
-			assert.deepEqual(resolved, {
+		configurationResolverService.executeCommandVariables(configuration, interactiveVariables).then(mapping => {
+
+			const result = configurationResolverService.resolveAny(undefined, configuration, mapping);
+
+			assert.deepEqual(result, {
 				'name': 'Attach to Process',
 				'type': 'node',
 				'request': 'attach',
@@ -272,8 +275,11 @@ suite('Configuration Resolver Service', () => {
 		interactiveVariables['interactiveVariable1'] = 'command1';
 		interactiveVariables['interactiveVariable2'] = 'command2';
 
-		configurationResolverService.resolveInteractiveVariables(configuration, interactiveVariables).then(resolved => {
-			assert.deepEqual(resolved, {
+		configurationResolverService.executeCommandVariables(configuration, interactiveVariables).then(mapping => {
+
+			const result = configurationResolverService.resolveAny(undefined, configuration, mapping);
+
+			assert.deepEqual(result, {
 				'name': 'Attach to Process',
 				'type': 'node',
 				'request': 'attach',

@@ -48,7 +48,6 @@ suite('Telemetry - common properties', function () {
 
 				// assert.ok('common.version.shell' in first.data); // only when running on electron
 				// assert.ok('common.version.renderer' in first.data);
-				assert.ok('common.osVersion' in props, 'osVersion');
 				assert.ok('common.platformVersion' in props, 'platformVersion');
 				assert.ok('version' in props);
 				assert.equal(props['common.source'], 'my.install.source');

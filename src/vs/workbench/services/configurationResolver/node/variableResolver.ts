@@ -12,7 +12,6 @@ import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { localize } from 'vs/nls';
 import uri from 'vs/base/common/uri';
 
-
 export interface IVariableAccessor {
 	getFolderUri(folderName: string): uri | undefined;
 	getWorkspaceFolderCount(): number;
@@ -43,22 +42,22 @@ export class VariableResolver {
 		}
 	}
 
-	resolveAny(folderUri: uri, value: any): any {
+	resolveAny(folderUri: uri, value: any, commandValueMapping?: IStringDictionary<string>): any {
 		if (types.isString(value)) {
-			return this.resolve(folderUri, value);
+			return this.resolve(folderUri, value, commandValueMapping);
 		} else if (types.isArray(value)) {
-			return value.map(s => this.resolveAny(folderUri, s));
+			return value.map(s => this.resolveAny(folderUri, s, commandValueMapping));
 		} else if (types.isObject(value)) {
 			let result: IStringDictionary<string | IStringDictionary<string> | string[]> = Object.create(null);
 			Object.keys(value).forEach(key => {
-				result[key] = this.resolveAny(folderUri, value[key]);
+				result[key] = this.resolveAny(folderUri, value[key], commandValueMapping);
 			});
 			return result;
 		}
 		return value;
 	}
 
-	resolve(folderUri: uri, value: string): string {
+	resolve(folderUri: uri, value: string, commandValueMapping: IStringDictionary<string>): string {
 
 		const filePath = this.accessor.getFilePath();
 
@@ -99,6 +98,16 @@ export class VariableResolver {
 						return config;
 					}
 					throw new Error(localize('missingConfigName', "'{0}' can not be resolved because no settings name is given.", match));
+
+				case 'command':
+					if (argument && commandValueMapping) {
+						const v = commandValueMapping[argument];
+						if (typeof v === 'string') {
+							return v;
+						}
+						throw new Error(localize('noValueForCommand', "'{0}' can not be resolved because the command has no value.", match));
+					}
+					return match;
 
 				default: {
 
@@ -197,7 +206,7 @@ export class VariableResolver {
 							if (ep) {
 								return ep;
 							}
-							throw new Error(localize('canNotResolveExecPath', "'{0}' can not be resolved.", match));
+							return match;
 
 						default:
 							return match;

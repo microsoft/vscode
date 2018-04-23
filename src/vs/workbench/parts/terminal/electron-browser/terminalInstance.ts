@@ -727,6 +727,10 @@ export class TerminalInstance implements ITerminalInstance {
 		this._shellLaunchConfig = shell;
 	}
 
+	public onData(listener: (data: string) => void): lifecycle.IDisposable {
+		return this._processManager.onProcessData(data => listener(data));
+	}
+
 	public onLineData(listener: (lineData: string) => void): lifecycle.IDisposable {
 		this._onLineDataListeners.push(listener);
 		return {

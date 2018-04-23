@@ -25,6 +25,13 @@ export class ExtHostTerminal implements vscode.Terminal {
 	private _pidPromise: Promise<number>;
 	private _pidPromiseComplete: (value: number) => any;
 
+	private readonly _onData: Emitter<string> = new Emitter<string>();
+	public get onData(): Event<string> {
+		// Tell the main side to start sending data if it's not already
+		this._proxy.$registerOnDataListener(this._id);
+		return this._onData && this._onData.event;
+	}
+
 	constructor(
 		proxy: MainThreadTerminalServiceShape,
 		name: string = '',
@@ -95,6 +102,10 @@ export class ExtHostTerminal implements vscode.Terminal {
 		}
 	}
 
+	public _fireOnData(data: string): void {
+		this._onData.fire(data);
+	}
+
 	private _queueApiRequest(callback: (...args: any[]) => void, args: any[]) {
 		let request: ApiRequest = new ApiRequest(callback, args);
 		if (!this._id) {
@@ -112,21 +123,22 @@ export class ExtHostTerminal implements vscode.Terminal {
 }
 
 export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
-	private readonly _onDidCloseTerminal: Emitter<vscode.Terminal>;
-	private readonly _onDidOpenTerminal: Emitter<vscode.Terminal>;
 	private _proxy: MainThreadTerminalServiceShape;
 	private _terminals: ExtHostTerminal[] = [];
 	private _terminalProcesses: { [id: number]: cp.ChildProcess } = {};
 
 	public get terminals(): ExtHostTerminal[] { return this._terminals; }
 
+	private readonly _onDidCloseTerminal: Emitter<vscode.Terminal> = new Emitter<vscode.Terminal>();
+	public get onDidCloseTerminal(): Event<vscode.Terminal> { return this._onDidCloseTerminal && this._onDidCloseTerminal.event; }
+	private readonly _onDidOpenTerminal: Emitter<vscode.Terminal> = new Emitter<vscode.Terminal>();
+	public get onDidOpenTerminal(): Event<vscode.Terminal> { return this._onDidOpenTerminal && this._onDidOpenTerminal.event; }
+
 	constructor(
 		mainContext: IMainContext,
 		private _extHostConfiguration: ExtHostConfiguration,
 		private _logService: ILogService
 	) {
-		this._onDidCloseTerminal = new Emitter<vscode.Terminal>();
-		this._onDidOpenTerminal = new Emitter<vscode.Terminal>();
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTerminalService);
 	}
 
@@ -144,18 +156,18 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		return terminal;
 	}
 
-	public get onDidCloseTerminal(): Event<vscode.Terminal> {
-		return this._onDidCloseTerminal && this._onDidCloseTerminal.event;
-	}
-
-	public get onDidOpenTerminal(): Event<vscode.Terminal> {
-		return this._onDidOpenTerminal && this._onDidOpenTerminal.event;
+	public $acceptTerminalProcessData(id: number, data: string): void {
+		let index = this._getTerminalIndexById(id);
+		if (index === null) {
+			return;
+		}
+		const terminal = this._terminals[index];
+		terminal._fireOnData(data);
 	}
 
 	public $acceptTerminalClosed(id: number): void {
 		let index = this._getTerminalIndexById(id);
 		if (index === null) {
-			// The terminal was not created by the terminal API, ignore it
 			return;
 		}
 		let terminal = this._terminals.splice(index, 1)[0];
