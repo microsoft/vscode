@@ -39,7 +39,6 @@ type InputParameters = SelectManyParameters | TextInputParameters;
 
 export interface BaseInputParameters {
 	readonly type: 'selectMany' | 'textInput';
-	readonly placeHolder?: string;
 	readonly ignoreFocusLost?: boolean;
 }
 
@@ -48,6 +47,7 @@ export interface SelectManyParameters<T extends IPickOpenEntry = IPickOpenEntry>
 	readonly picks: TPromise<T[]>;
 	readonly matchOnDescription?: boolean;
 	readonly matchOnDetail?: boolean;
+	readonly placeHolder?: string;
 }
 
 export interface TextInputParameters extends BaseInputParameters {
@@ -55,6 +55,8 @@ export interface TextInputParameters extends BaseInputParameters {
 	readonly value?: string;
 	readonly valueSelection?: [number, number];
 	readonly prompt?: string;
+	readonly placeHolder?: string;
+	readonly password?: boolean;
 	readonly validateInput?: (input: string) => TPromise<string>;
 }
 
@@ -132,6 +134,7 @@ class TextInputController implements InputController<string> {
 			? localize('inputModeEntryDescription', "{0} (Press 'Enter' to confirm or 'Escape' to cancel)", parameters.prompt)
 			: localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
 		ui.message.textContent = defaultMessage;
+		ui.inputBox.setPassword(parameters.password);
 
 		if (parameters.validateInput) {
 			const onDidChange = debounceEvent(ui.inputBox.onDidChange, (last, cur) => cur, 100);
@@ -380,6 +383,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			valueSelection: options.valueSelection,
 			prompt: options.prompt,
 			placeHolder: options.placeHolder,
+			password: options.password,
 			ignoreFocusLost: options.ignoreFocusLost,
 			validateInput: options.validateInput,
 		}, token);

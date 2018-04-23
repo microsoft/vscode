@@ -66,6 +66,10 @@ export class QuickInputBox {
 		this.inputBox.setPlaceHolder(placeholder);
 	}
 
+	setPassword(isPassword: boolean): void {
+		this.inputBox.inputElement.type = isPassword ? 'password' : 'text';
+	}
+
 	setFocus(): void {
 		this.inputBox.focus();
 	}
