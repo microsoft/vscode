@@ -213,15 +213,14 @@ async function parseModifiedHunkComplete(originalContent, patch, a, b) {
 			right.push(left[j - 1]);
 		}
 
+		lastCommonLine = oriStartLine + diffHunk.oldLength - 1;
+
 		for (let j = 0; j < diffHunk.Lines.length; j++) {
 			let diffLine = diffHunk.Lines[j];
 			if (diffLine.type === DiffChangeType.Delete) {
-				lastCommonLine++;
 			} else if (diffLine.type === DiffChangeType.Add) {
-				lastCommonLine++;
 				right.push(diffLine.content.substr(1));
 			} else {
-				lastCommonLine++;
 				let codeInFirstLine = diffLine.content.substr(1);
 				right.push(codeInFirstLine);
 			}

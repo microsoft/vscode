@@ -46,7 +46,8 @@ export class PullRequest {
 		const reviewData = await this.otcokit.pullRequests.getComments({
 			owner: this.remote.owner,
 			repo: this.remote.name,
-			number: this.prItem.number
+			number: this.prItem.number,
+			per_page: 100
 		});
 		const rawComments = reviewData.data;
 		return parseComments(rawComments);

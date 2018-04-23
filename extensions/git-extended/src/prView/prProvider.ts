@@ -171,7 +171,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 
 						while (!diffHunkIter.done) {
 							let diffHunk = diffHunkIter.value;
-							commentingRanges.push(new vscode.Range(diffHunk.newLineNumber, 1, diffHunk.newLineNumber + diffHunk.newLength - 1, 1));
+							commentingRanges.push(new vscode.Range(diffHunk.newLineNumber - 1, 0, diffHunk.newLineNumber + diffHunk.newLength - 1 - 1, 0));
 							diffHunkIter = diffHunkReader.next();
 						}
 
@@ -247,7 +247,8 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 		const reviewData = await element.otcokit.pullRequests.getComments({
 			owner: element.remote.owner,
 			repo: element.remote.name,
-			number: element.prItem.number
+			number: element.prItem.number,
+			per_page: 100,
 		});
 		const rawComments = reviewData.data;
 		return parseComments(rawComments);
