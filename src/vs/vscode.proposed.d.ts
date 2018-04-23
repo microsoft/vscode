@@ -118,16 +118,45 @@ declare module 'vscode' {
 		Deleted = 3,
 	}
 
-	export interface FileChange2 {
+	/**
+	 * The event filesystem providers must use to signal a file change.
+	 */
+	export interface FileChangeEvent {
 		type: FileChangeType2;
+
+		/**
+		 * The uri of the file that has changed.
+		 */
 		uri: Uri;
 	}
 
+	/**
+	 * Metadata about a file.
+	 */
 	export interface FileStat2 {
+		/**
+		 * The file is a regular file.
+		 */
 		isFile: boolean;
+
+		/**
+		 * The file is a directory.
+		 */
 		isDirectory: boolean;
+
+		/**
+		 * The file is symbolic link to another file.
+		 */
 		isSymbolicLink: boolean;
+
+		/**
+		 * The modification timestamp in milliseconds.
+		 */
 		mtime: number;
+
+		/**
+		 * The size in bytes.
+		 */
 		size: number;
 	}
 
@@ -159,7 +188,11 @@ declare module 'vscode' {
 	}
 
 	/**
-	 *
+	 * loose notes:
+	 * -activation event `onFileSystem:foo`,
+	 * -paths are hierarchical and the identifier of a file
+	 * -use posix-path-math
+	 * -etc...
 	 */
 	export interface FileSystemProvider2 {
 
@@ -170,7 +203,7 @@ declare module 'vscode' {
 		 * event should fire for resources that are being [watched](#FileSystemProvider2.watch)
 		 * by clients of this provider.
 		 */
-		readonly onDidChangeFile: Event<FileChange2[]>;
+		readonly onDidChangeFile: Event<FileChangeEvent[]>;
 
 		/**
 		 * Subscribe to events in the file or folder denoted by `uri`.

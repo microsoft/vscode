@@ -61,7 +61,7 @@ class FileSystemProviderShim implements vscode.FileSystemProvider2 {
 
 	_version: 9 = 9;
 
-	onDidChangeFile: vscode.Event<vscode.FileChange2[]>;
+	onDidChangeFile: vscode.Event<vscode.FileChangeEvent[]>;
 
 	constructor(private readonly _delegate: vscode.DeprecatedFileSystemProvider) {
 		if (!this._delegate.onDidChange) {
@@ -110,7 +110,7 @@ class FileSystemProviderShim implements vscode.FileSystemProvider2 {
 		return { mtime, size, isFile, isDirectory, isSymbolicLink };
 	}
 
-	private static _modernizeFileChange(e: vscode.DeprecatedFileChange): vscode.FileChange2 {
+	private static _modernizeFileChange(e: vscode.DeprecatedFileChange): vscode.FileChangeEvent {
 		let { resource, type } = e;
 		let newType: vscode.FileChangeType2;
 		switch (type) {
