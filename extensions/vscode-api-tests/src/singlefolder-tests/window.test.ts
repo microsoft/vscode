@@ -369,12 +369,21 @@ suite('window namespace tests', () => {
 				}
 				return null;
 			}
-		}).then(value => {
-			assert.equal(value, undefined);
 		});
 
-		const exec = commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-		return Promise.all([result, exec]);
+		const accept = commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		return Promise.race([
+			result.then(() => assert.ok(false)),
+			accept.then(() => assert.ok(false), err => assert.ok(err))
+				.then(() => new Promise(resolve => setTimeout(resolve, 10)))
+		])
+		.then(() => {
+			const close = commands.executeCommand('workbench.action.closeQuickOpen');
+			return Promise.all([result, close])
+				.then(([value]) => {
+					assert.equal(value, undefined);
+				});
+		});
 	});
 
 

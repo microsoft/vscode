@@ -372,7 +372,7 @@ export class DebugService implements debug.IDebugService {
 			const waitFor = outputPromises.slice();
 			const source = event.body.source ? {
 				lineNumber: event.body.line,
-				column: event.body.column,
+				column: event.body.column ? event.body.column : 1,
 				source: process.getSource(event.body.source)
 			} : undefined;
 			if (event.body.variablesReference) {

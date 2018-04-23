@@ -13,7 +13,7 @@
     "Other"
   ],
   "activationEvents": [
-    "*"
+    "onUri"
   ],
   "main": "./out/main",
   "icon": "resources/icons/git.png",

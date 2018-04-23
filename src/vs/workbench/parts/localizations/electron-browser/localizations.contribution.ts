@@ -10,12 +10,12 @@ import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/plat
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ConfigureLocaleAction } from 'vs/workbench/parts/localizations/browser/localizationsActions';
+import { ConfigureLocaleAction } from 'vs/workbench/parts/localizations/electron-browser/localizationsActions';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
+import { ILocalizationsService, LanguageType } from 'vs/platform/localizations/common/localizations';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { language } from 'vs/base/common/platform';
-import { IExtensionManagementService, DidInstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
+import * as platform from 'vs/base/common/platform';
+import { IExtensionManagementService, DidInstallExtensionEvent, LocalExtensionType, IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import Severity from 'vs/base/common/severity';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
@@ -24,6 +24,8 @@ import URI from 'vs/base/common/uri';
 import { join } from 'vs/base/common/paths';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IStorageService, } from 'vs/platform/storage/common/storage';
+import { TPromise } from 'vs/base/common/winjs.base';
+import product from 'vs/platform/node/product';
 
 // Register action to configure locale and related settings
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
@@ -37,10 +39,12 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWindowsService private windowsService: IWindowsService,
 		@IStorageService private storageService: IStorageService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
+		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
 	) {
 		super();
 		this.updateLocaleDefintionSchema();
+		this.checkAndInstall();
 		this._register(this.localizationService.onDidLanguagesChange(() => this.updateLocaleDefintionSchema()));
 		this._register(this.extensionManagementService.onDidInstallExtension(e => this.onDidInstallExtension(e)));
 	}
@@ -63,7 +67,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		const donotAskUpdateKey = 'langugage.update.donotask';
 		if (!this.storageService.getBoolean(donotAskUpdateKey) && e.local && e.local.manifest.contributes && e.local.manifest.contributes.localizations && e.local.manifest.contributes.localizations.length) {
 			const locale = e.local.manifest.contributes.localizations[0].languageId;
-			if (language !== locale) {
+			if (platform.language !== locale) {
 				this.notificationService.prompt(
 					Severity.Info,
 					localize('updateLocale', "Would you like to change VS Code's UI language to {0} and restart?", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId),
@@ -85,6 +89,44 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 				);
 			}
 		}
+	}
+
+	private checkAndInstall(): void {
+		const language = platform.language;
+		if (language !== 'en' && language !== 'en_us') {
+			this.isLanguageInstalled(language)
+				.then(installed => {
+					if (!installed) {
+						this.getLanguagePackExtension(language)
+							.then(extension => {
+								if (extension) {
+									this.notificationService.prompt(Severity.Warning, localize('install language pack', "Please install '{0}' extension to continue to show VS Code's UI in '{1}' language. In the future, VS Code will only support language packs from the Marketplace.", extension.displayName || extension.displayName, language),
+										[
+											{ label: localize('install', "Install"), run: () => this.extensionManagementService.installFromGallery(extension) },
+											{ label: localize('more information', "More Information..."), run: () => window.open('https://go.microsoft.com/fwlink/?linkid=830387') }
+										]);
+								}
+							});
+					}
+				});
+		}
+	}
+
+	private getLanguagePackExtension(language: string): TPromise<IGalleryExtension> {
+		return this.localizationService.getLanguageIds(LanguageType.Core)
+			.then(coreLanguages => {
+				const extensionId = coreLanguages.some(c => c.toLowerCase() === language) ? product.quality !== 'insider' ? `MS-CEINTL.vscode-insiders-language-pack-${language}` : `MS-CEINTL.vscode-language-pack-${language}` : null;
+				if (extensionId) {
+					return this.galleryService.query({ names: [extensionId], pageSize: 1 })
+						.then(result => result.total === 1 ? result.firstPage[0] : null);
+				}
+				return null;
+			});
+	}
+
+	private isLanguageInstalled(language: string): TPromise<boolean> {
+		return this.extensionManagementService.getInstalled(LocalExtensionType.User)
+			.then(installed => installed.some(i => i.manifest && i.manifest.contributes && i.manifest.contributes.localizations && i.manifest.contributes.localizations.length && i.manifest.contributes.localizations.some(l => l.languageId.toLowerCase() === language)));
 	}
 }
 
@@ -111,7 +153,7 @@ function registerLocaleDefinitionSchema(languages: string[]): void {
 	});
 }
 
-registerLocaleDefinitionSchema([language]);
+registerLocaleDefinitionSchema([platform.language]);
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(LocalizationWorkbenchContribution, LifecyclePhase.Eventually);
 

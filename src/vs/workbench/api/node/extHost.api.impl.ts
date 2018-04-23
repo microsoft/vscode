@@ -550,11 +550,8 @@ export function createApiFactory(
 			onDidEndTask: (listeners, thisArgs?, disposables?) => {
 				return extHostTask.onDidEndTask(listeners, thisArgs, disposables);
 			},
-			registerFileSystemProvider: proposedApiFunction(extension, (scheme, provider, newProvider?) => {
-				return extHostFileSystem.registerFileSystemProvider(scheme, provider, newProvider);
-			}),
-			registerFileSystemProvider2: proposedApiFunction(extension, (scheme, provider, options) => {
-				return extHostFileSystem.registerFileSystemProvider2(scheme, provider, options);
+			registerFileSystemProvider: proposedApiFunction(extension, (scheme, provider, options) => {
+				return extHostFileSystem.registerFileSystemProvider(scheme, provider, options);
 			}),
 			registerDeprecatedFileSystemProvider: proposedApiFunction(extension, (scheme, provider) => {
 				return extHostFileSystem.registerDeprecatedFileSystemProvider(scheme, provider);
@@ -666,6 +663,12 @@ export function createApiFactory(
 			SourceBreakpoint: extHostTypes.SourceBreakpoint,
 			StatusBarAlignment: extHostTypes.StatusBarAlignment,
 			SymbolInformation: extHostTypes.SymbolInformation,
+			HierarchicalSymbolInformation: class extends extHostTypes.HierarchicalSymbolInformation {
+				constructor(name, kind, keyof, range) {
+					checkProposedApiEnabled(extension);
+					super(name, kind, keyof, range);
+				}
+			},
 			SymbolKind: extHostTypes.SymbolKind,
 			SourceControlInputBoxValidationType: extHostTypes.SourceControlInputBoxValidationType,
 			TextDocumentSaveReason: extHostTypes.TextDocumentSaveReason,
@@ -695,11 +698,9 @@ export function createApiFactory(
 			ConfigurationTarget: extHostTypes.ConfigurationTarget,
 			RelativePattern: extHostTypes.RelativePattern,
 
+			DeprecatedFileChangeType: extHostTypes.DeprecatedFileChangeType,
+			DeprecatedFileType: extHostTypes.DeprecatedFileType,
 			FileChangeType: extHostTypes.FileChangeType,
-			FileType: extHostTypes.FileType,
-			DeprecatedFileChangeType: extHostTypes.FileChangeType,
-			DeprecatedFileType: extHostTypes.FileType,
-			FileChangeType2: extHostTypes.FileChangeType2,
 			FileSystemError: extHostTypes.FileSystemError,
 			FoldingRange: extHostTypes.FoldingRange,
 			FoldingRangeKind: extHostTypes.FoldingRangeKind

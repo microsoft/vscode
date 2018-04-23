@@ -35,6 +35,7 @@ export interface IMarginData {
 
 export interface IEmptyContentData {
 	isAfterLines: boolean;
+	horizontalDistanceToText?: number;
 }
 
 interface IETextRange {
@@ -415,7 +416,13 @@ class HitTestRequest extends BareHitTestRequest {
 }
 
 const EMPTY_CONTENT_AFTER_LINES: IEmptyContentData = { isAfterLines: true };
-const EMPTY_CONTENT_IN_LINES: IEmptyContentData = { isAfterLines: false };
+
+function createEmptyContentDataInLines(horizontalDistanceToText: number): IEmptyContentData {
+	return {
+		isAfterLines: false,
+		horizontalDistanceToText: horizontalDistanceToText
+	};
+}
 
 export class MouseTargetFactory {
 
@@ -639,7 +646,9 @@ export class MouseTargetFactory {
 			if (ElementPath.isStrictChildOfViewLines(request.targetPath)) {
 				const lineNumber = ctx.getLineNumberAtVerticalOffset(request.mouseVerticalOffset);
 				if (ctx.model.getLineLength(lineNumber) === 0) {
-					return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(lineNumber, 1), void 0, EMPTY_CONTENT_IN_LINES);
+					const lineWidth = ctx.getLineWidth(lineNumber);
+					const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
+					return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(lineNumber, 1), void 0, detail);
 				}
 			}
 
@@ -713,9 +722,11 @@ export class MouseTargetFactory {
 		if (request.mouseContentHorizontalOffset > lineWidth) {
 			if (browser.isEdge && pos.column === 1) {
 				// See https://github.com/Microsoft/vscode/issues/10875
-				return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(lineNumber, ctx.model.getLineMaxColumn(lineNumber)), void 0, EMPTY_CONTENT_IN_LINES);
+				const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
+				return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(lineNumber, ctx.model.getLineMaxColumn(lineNumber)), void 0, detail);
 			}
-			return request.fulfill(MouseTargetType.CONTENT_EMPTY, pos, void 0, EMPTY_CONTENT_IN_LINES);
+			const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
+			return request.fulfill(MouseTargetType.CONTENT_EMPTY, pos, void 0, detail);
 		}
 
 		const visibleRange = ctx.visibleRangeForPosition2(lineNumber, column);
