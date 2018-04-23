@@ -192,7 +192,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._actionbarWidget = new ActionBar(actionsContainer.getHTMLElement(), {});
 		this._disposables.push(this._actionbarWidget);
 
-		this._toggleAction = new Action('review.expand', nls.localize('label.expand', "Expand"), this._isCollapsed ? EXPAND_ACTION_CLASS : COLLAPSE_ACTION_CLASS, true, () => {
+		/* this._toggleAction = new Action('review.expand', nls.localize('label.expand', "Expand"), this._isCollapsed ? EXPAND_ACTION_CLASS : COLLAPSE_ACTION_CLASS, true, () => {
 			if (this._isCollapsed) {
 			}
 			else {
@@ -201,7 +201,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 			return null;
 		});
 
-		this._actionbarWidget.push(this._toggleAction, { label: false, icon: true });
+		this._actionbarWidget.push(this._toggleAction, { label: false, icon: true }); */
 	}
 
 	toggleExpand() {

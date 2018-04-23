@@ -162,7 +162,6 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 			};
 
 			const _onDidChangeCommentThreads = new vscode.EventEmitter<vscode.CommentThreadChangedEvent>();
-			setTimeout(() => _onDidChangeCommentThreads.fire({ changed: [], added: [], removed: [] }), 5000);
 			vscode.workspace.registerDocumentCommentProvider({
 				onDidChangeCommentThreads: _onDidChangeCommentThreads.event,
 				provideDocumentComments: async (document: vscode.TextDocument, token: vscode.CancellationToken) => {

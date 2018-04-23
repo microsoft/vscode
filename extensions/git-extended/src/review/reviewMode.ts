@@ -281,36 +281,41 @@ export class ReviewMode implements vscode.DecorationProvider {
 			return [];
 		}
 
-		let sections = _.groupBy(comments, comment => comment.position);
+		let fileCommentGroups = _.groupBy(comments, comment => comment.path);
 		let ret: vscode.CommentThread[] = [];
 
-		for (let i in sections) {
-			let comments = sections[i];
+		for (let file in fileCommentGroups) {
+			let fileComments = fileCommentGroups[file];
+			let sections = _.groupBy(fileComments, comment => comment.position);
 
-			const comment = comments[0];
-			// If the position is null, the comment is on a line that has been changed. Fall back to using original position.
-			const commentPosition = comment.position === null ? comment.original_position : comment.position - 1;
-			const commentAbsolutePosition = comment.diff_hunk_range.start + commentPosition;
-			const pos = new vscode.Position(comment.currentPosition ? comment.currentPosition - 1 - 1 : commentAbsolutePosition - /* after line */ 1 - /* it's zero based*/ 1, 0);
-			const range = new vscode.Range(pos, pos);
+			for (let i in sections) {
+				let comments = sections[i];
 
-			ret.push({
-				threadId: comment.id,
-				resource: vscode.Uri.file(path.resolve(this._repository.path, comment.path)),
-				range,
-				comments: comments.map(comment => {
-					return {
-						commentId: comment.id,
-						body: new vscode.MarkdownString(comment.body),
-						userName: comment.user.login,
-						gravatar: comment.user.avatar_url
-					};
-				}),
-				collapsibleState: collapsibleState,
-				reply: this._reply
-			});
+				const comment = comments[0];
+				// If the position is null, the comment is on a line that has been changed. Fall back to using original position.
+				const commentPosition = comment.position === null ? comment.original_position : comment.position - 1;
+				const commentAbsolutePosition = comment.diff_hunk_range.start + commentPosition;
+				const pos = new vscode.Position(comment.currentPosition ? comment.currentPosition - 1 - 1 : commentAbsolutePosition - /* after line */ 1 - /* it's zero based*/ 1, 0);
+				const range = new vscode.Range(pos, pos);
+
+				ret.push({
+					threadId: comment.id,
+					resource: vscode.Uri.file(path.resolve(this._repository.path, comment.path)),
+					range,
+					comments: comments.map(comment => {
+						return {
+							commentId: comment.id,
+							body: new vscode.MarkdownString(comment.body),
+							userName: comment.user.login,
+							gravatar: comment.user.avatar_url
+						};
+					}),
+					collapsibleState: collapsibleState,
+					reply: this._reply
+				});
+			}
+
 		}
-
 		return ret;
 	}
 
@@ -391,12 +396,12 @@ export class ReviewMode implements vscode.DecorationProvider {
 
 	async switch(pr: PullRequest) {
 		try {
-			if (pr.prItem.maintainer_can_modify) {
-				await this._repository.checkoutPR(pr);
-			} else {
-				await this._repository.fetch(pr.remote.remoteName, `pull/${pr.prItem.number}/head:pull-request-${pr.prItem.number}`);
-				await this._repository.checkout(`pull-request-${pr.prItem.number}`);
-			}
+			// if (pr.prItem.maintainer_can_modify) {
+			// 	await this._repository.checkoutPR(pr);
+			// } else {
+			await this._repository.fetch(pr.remote.remoteName, `pull/${pr.prItem.number}/head:pull-request-${pr.prItem.number}`);
+			await this._repository.checkout(`pull-request-${pr.prItem.number}`);
+			// }
 		} catch (e) {
 			vscode.window.showErrorMessage(e);
 			return;
