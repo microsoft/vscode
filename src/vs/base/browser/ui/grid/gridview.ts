@@ -9,6 +9,7 @@ import { Event, anyEvent, Emitter } from 'vs/base/common/event';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { SplitView, IView } from 'vs/base/browser/ui/splitview/splitview';
 import { empty as EmptyDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { $, append } from 'vs/base/browser/dom';
 
 export { IView } from 'vs/base/browser/ui/splitview/splitview';
 export { Orientation } from 'vs/base/browser/ui/sash/sash';
@@ -215,8 +216,9 @@ export class GridView<T extends IView> implements IGrid<T>, IDisposable {
 	private root: BranchNode<T>;
 
 	constructor(container: HTMLElement) {
+		const el = append(container, $('.monaco-grid-view'));
 		this.root = new BranchNode(Orientation.VERTICAL);
-		this.root.render(container);
+		this.root.render(el);
 	}
 
 	addView(view: T, size: number, location: number[]): void {
