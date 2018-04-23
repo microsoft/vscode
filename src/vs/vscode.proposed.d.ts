@@ -189,11 +189,15 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * loose notes:
-	 * -activation event `onFileSystem:foo`,
-	 * -paths are hierarchical and the identifier of a file
-	 * -use posix-path-math
-	 * -etc...
+	 * The filesystem provider defines what the editor needs to read, write, discover,
+	 * and to manage files and folders. It allows extensions to serve files from remote places,
+	 * like ftp-servers, and to seamlessly integrate those into the editor.
+	 *
+	 * * *Note 1:* The filesystem provider API works with [uris](#Uri) and assumes hierarchical
+	 * paths, e.g. `foo:/my/path` is a child of `foo:/my/` and a parent of `foo:/my/path/deeper`.
+	 * * *Note 2:* There is an activation event `onFileSystem:<scheme>` that fires when a file
+	 * or folder is being accessed.
+	 *
 	 */
 	export interface FileSystemProvider {
 
@@ -286,6 +290,17 @@ declare module 'vscode' {
 	}
 
 	export namespace workspace {
+		/**
+		 * Register a filesystem provider for a given scheme, e.g. `ftp`.
+		 *
+		 * There can only be one provider per scheme and an error is being thrown when a scheme
+		 * has been claimed by another provider or when it is reserved.
+		 *
+		 * @param scheme The uri-[scheme](#Uri.scheme) the provider registers for.
+		 * @param provider The filesystem provider.
+		 * @param options Immutable metadata about the provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
 		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, options: { isCaseSensitive?: boolean }): Disposable;
 	}
 
