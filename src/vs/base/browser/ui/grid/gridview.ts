@@ -186,18 +186,6 @@ class LeafNode<T extends IView> extends AbstractNode {
 
 type Node<T extends IView> = BranchNode<T> | LeafNode<T>;
 
-/**
- * Explanation:
- *
- * it appears at first that grid nodes should be treated as tree nodes,
- * but that's not the case.
- * the tree is composed of two types of nodes: branch nodes and leaf nodes!
- *
- *	  |	B						*---A
- *  A |---    =>		 \---*---B
- * 		| C								 \---C
- */
-
 export class GridView<T extends IView> implements IGrid<T>, IDisposable {
 
 	private root: BranchNode<T>;
@@ -215,16 +203,12 @@ export class GridView<T extends IView> implements IGrid<T>, IDisposable {
 		if (parent instanceof BranchNode) {
 			parent.addChild(node, size, index);
 		} else {
-			// we must split!
 			const [, grandParent] = tail(pathToParent);
 			const [, parentIndex] = tail(rest);
-			// 1. remove parent from grandparent
 			grandParent.removeChild(parentIndex);
-			// 2. convert parent to Branch Node
+
 			const newParent = new BranchNode<T>(parent.orientation);
-			// 3. add parent to grandparent
 			grandParent.addChild(newParent, 20, parentIndex);
-			// 4. add node to parent
 			newParent.addChild(node, size, index);
 		}
 	}
@@ -250,12 +234,8 @@ export class GridView<T extends IView> implements IGrid<T>, IDisposable {
 		const [, grandParent] = tail(pathToParent);
 		const [, parentIndex] = tail(rest);
 
-		// parent only has one child
-		// 0. remove sibling from parent
 		const sibling = parent.removeChild(0);
-		// 1. remove parent from grandParent
 		grandParent.removeChild(parentIndex);
-		// 2. add sibling to grandparent
 		grandParent.addChild(sibling, 20, parentIndex);
 	}
 
