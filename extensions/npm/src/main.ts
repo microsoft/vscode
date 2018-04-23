@@ -6,9 +6,6 @@
 
 import * as httpRequest from 'request-light';
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-
-const localize = nls.loadMessageBundle();
 
 import { addJSONProviders } from './features/jsonContributions';
 import { NpmScriptsTreeDataProvider } from './npmView';
@@ -27,7 +24,7 @@ function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposab
 	if (vscode.workspace.workspaceFolders) {
 		let provider: vscode.TaskProvider = {
 			provideTasks: () => {
-				return provideNpmScripts(localize);
+				return provideNpmScripts();
 			},
 			resolveTask(_task: vscode.Task): vscode.Task | undefined {
 				return undefined;
@@ -42,7 +39,7 @@ function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposab
 
 async function registerExplorer(context: vscode.ExtensionContext, provider: vscode.TaskProvider) {
 	if (explorerIsEnabled()) {
-		let treeDataProvider = vscode.window.registerTreeDataProvider('npm', new NpmScriptsTreeDataProvider(context, provider, localize));
+		let treeDataProvider = vscode.window.registerTreeDataProvider('npm', new NpmScriptsTreeDataProvider(context, provider));
 		context.subscriptions.push(treeDataProvider);
 		if (await hasNpmScripts()) {
 			vscode.commands.executeCommand('setContext', 'hasNpmScripts', true);
