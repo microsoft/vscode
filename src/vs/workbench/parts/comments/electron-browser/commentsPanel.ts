@@ -12,7 +12,6 @@ import { CollapseAllAction, DefaultAccessibilityProvider, DefaultController, Def
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CommentThread, CommentThreadChangedEvent } from 'vs/editor/common/modes';
 import { localize } from 'vs/nls';
-import { IEditorService } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -132,13 +131,15 @@ export class CommentsPanel extends Panel {
 
 		const activeInput = this.editorService.getActiveEditorInput();
 		let currentActiveResource = activeInput ? activeInput.getResource() : void 0;
-		if (currentActiveResource.toString() === element.resource.toString()) {
+		if (currentActiveResource && currentActiveResource.toString() === element.resource.toString()) {
 			const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
 			const control = this.editorService.getActiveEditor().getControl();
 			if (threadToReveal && isCodeEditor(control)) {
 				const controller = ReviewController.get(control);
 				controller.revealCommentThread(threadToReveal);
 			}
+
+			return true;
 		}
 
 
