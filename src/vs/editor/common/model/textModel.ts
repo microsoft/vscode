@@ -2041,25 +2041,13 @@ export class TextModel extends Disposable implements model.ITextModel {
 			// limit search to not go after `maxBracketLength`
 			const searchEndOffset = Math.min(lineTokens.getEndOffset(tokenIndex), position.column - 1 + currentModeBrackets.maxBracketLength);
 
-			// first, check if there is a bracket to the right of `position`
-			let foundBracket = BracketsUtils.findNextBracketInToken(currentModeBrackets.forwardRegex, lineNumber, lineText, position.column - 1, searchEndOffset);
-			if (foundBracket && foundBracket.startColumn === position.column) {
-				let foundBracketText = lineText.substring(foundBracket.startColumn - 1, foundBracket.endColumn - 1);
-				foundBracketText = foundBracketText.toLowerCase();
-
-				let r = this._matchFoundBracket(foundBracket, currentModeBrackets.textIsBracket[foundBracketText], currentModeBrackets.textIsOpenBracket[foundBracketText]);
-
-				// check that we can actually match this bracket
-				if (r) {
-					return r;
-				}
-			}
-
-			// it might still be the case that [currentTokenStart -> currentTokenEnd] contains multiple brackets
+			// it might be the case that [currentTokenStart -> currentTokenEnd] contains multiple brackets
+			// `bestResult` will contain the most right-side result
+			let bestResult: [Range, Range] = null;
 			while (true) {
 				let foundBracket = BracketsUtils.findNextBracketInToken(currentModeBrackets.forwardRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
 				if (!foundBracket) {
-					// there are no brackets in this text
+					// there are no more brackets in this text
 					break;
 				}
 
@@ -2072,11 +2060,15 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 					// check that we can actually match this bracket
 					if (r) {
-						return r;
+						bestResult = r;
 					}
 				}
 
 				searchStartOffset = foundBracket.endColumn - 1;
+			}
+
+			if (bestResult) {
+				return bestResult;
 			}
 		}
 
