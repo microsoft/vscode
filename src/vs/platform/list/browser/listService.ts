@@ -480,7 +480,7 @@ export class TreeResourceNavigator extends Disposable {
 		const isMouseEvent = payload && payload.origin === 'mouse';
 		const isDoubleClick = isMouseEvent && originalEvent && originalEvent.detail === 2;
 
-		if (!isMouseEvent || this.tree.openOnSingleClick || isDoubleClick) {
+		if (!payload.preventOpenOnFocus && (!isMouseEvent || this.tree.openOnSingleClick || isDoubleClick)) {
 			this._openResource.fire({
 				editorOptions: {
 					preserveFocus: true,
