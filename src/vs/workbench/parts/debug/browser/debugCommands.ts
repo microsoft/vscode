@@ -45,9 +45,9 @@ export function registerCommands(): void {
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: 'debug.disableBreakpoint',
+		id: 'debug.enableOrDisableBreakpoint',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_D,
+		primary: undefined,
 		when: EditorContextKeys.editorTextFocus,
 		handler: (accessor) => {
 			const debugService = accessor.get(IDebugService);
@@ -60,7 +60,7 @@ export function registerCommands(): void {
 				const modelUri = control.getModel().uri;
 				const bp = debugService.getModel().getBreakpoints()
 					.filter(bp => bp.lineNumber === position.lineNumber, bp => bp.column === position.column && bp.uri.toString() === modelUri.toString()).pop();
-				if (bp && bp.enabled) {
+				if (bp) {
 					debugService.enableOrDisableBreakpoints(!bp.enabled, bp).done(null, errors.onUnexpectedError);
 				}
 			}
