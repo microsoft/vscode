@@ -147,6 +147,10 @@ class BranchNode<T extends IView> extends AbstractNode {
 		this.splitview.resizeView(index, size);
 	}
 
+	getChildSize(index: number): number {
+		return this.splitview.getViewSize(index);
+	}
+
 	private onDidChildrenChange(): void {
 		const onDidChildrenChange = anyEvent(...this.children.map(c => c.onDidChange));
 		this.onDidChangeDisposable.dispose();
@@ -260,7 +264,14 @@ export class GridView<T extends IView> implements IGrid<T>, IDisposable {
 	}
 
 	getViewSize(location: number[]): number {
-		throw new Error('Method not implemented.');
+		const [rest, index] = tail(location);
+		const [, parent] = this.getNode(rest);
+
+		if (!(parent instanceof BranchNode)) {
+			throw new Error('Invalid location');
+		}
+
+		return parent.getChildSize(index);
 	}
 
 	getViews(): IBranchNode<T> {
