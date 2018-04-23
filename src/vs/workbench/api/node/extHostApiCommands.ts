@@ -17,9 +17,9 @@ import * as modes from 'vs/editor/common/modes';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
-import { Position as EditorPosition, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { CustomCodeAction } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { ExtHostTask } from './extHostTask';
+import { ICommandsExecutor, PreviewHTMLAPICommand, OpenFolderAPICommand, DiffAPICommand, OpenAPICommand, RemoveFromRecentlyOpenedAPICommand } from './apiCommands';
 
 export class ExtHostApiCommands {
 
@@ -196,92 +196,68 @@ export class ExtHostApiCommands {
 			],
 			returns: 'A promise that resolves to an array of ColorPresentation objects.'
 		});
-		this._register('vscode.previewHtml', (uri: URI, position?: vscode.ViewColumn, label?: string, options?: any) => {
-			return this._commands.executeCommand('_workbench.previewHtml',
-				uri,
-				typeof position === 'number' && typeConverters.fromViewColumn(position),
-				label,
-				options);
-		}, {
-				description: `
+
+
+		// -----------------------------------------------------------------
+		// The following commands are registered on both sides separately.
+		//
+		// We are trying to maintain backwards compatibility for cases where
+		// API commands are encoded as markdown links, for example.
+		// -----------------------------------------------------------------
+
+		type ICommandHandler = (...args: any[]) => any;
+		const adjustHandler = (handler: (executor: ICommandsExecutor, ...args: any[]) => any): ICommandHandler => {
+			return (...args: any[]) => {
+				return handler(this._commands, ...args);
+			};
+		};
+
+		this._register(PreviewHTMLAPICommand.ID, adjustHandler(PreviewHTMLAPICommand.execute), {
+			description: `
 					Render the HTML of the resource in an editor view.
 
 					See [working with the HTML preview](https://code.visualstudio.com/docs/extensionAPI/vscode-api-commands#working-with-the-html-preview) for more information about the HTML preview's integration with the editor and for best practices for extension authors.
 				`,
-				args: [
-					{ name: 'uri', description: 'Uri of the resource to preview.', constraint: value => value instanceof URI || typeof value === 'string' },
-					{ name: 'column', description: '(optional) Column in which to preview.', constraint: value => typeof value === 'undefined' || (typeof value === 'number' && typeof types.ViewColumn[value] === 'string') },
-					{ name: 'label', description: '(optional) An human readable string that is used as title for the preview.', constraint: v => typeof v === 'string' || typeof v === 'undefined' },
-					{ name: 'options', description: '(optional) Options for controlling webview environment.', constraint: v => typeof v === 'object' || typeof v === 'undefined' }
-				]
-			});
+			args: [
+				{ name: 'uri', description: 'Uri of the resource to preview.', constraint: value => value instanceof URI || typeof value === 'string' },
+				{ name: 'column', description: '(optional) Column in which to preview.', constraint: value => typeof value === 'undefined' || (typeof value === 'number' && typeof types.ViewColumn[value] === 'string') },
+				{ name: 'label', description: '(optional) An human readable string that is used as title for the preview.', constraint: v => typeof v === 'string' || typeof v === 'undefined' },
+				{ name: 'options', description: '(optional) Options for controlling webview environment.', constraint: v => typeof v === 'object' || typeof v === 'undefined' }
+			]
+		});
 
-		this._register('vscode.openFolder', (uri?: URI, forceNewWindow?: boolean) => {
-			if (!uri) {
-				return this._commands.executeCommand('_files.pickFolderAndOpen', forceNewWindow);
-			}
+		this._register(OpenFolderAPICommand.ID, adjustHandler(OpenFolderAPICommand.execute), {
+			description: 'Open a folder or workspace in the current window or new window depending on the newWindow argument. Note that opening in the same window will shutdown the current extension host process and start a new one on the given folder/workspace unless the newWindow parameter is set to true.',
+			args: [
+				{ name: 'uri', description: '(optional) Uri of the folder or workspace file to open. If not provided, a native dialog will ask the user for the folder', constraint: value => value === void 0 || value instanceof URI },
+				{ name: 'newWindow', description: '(optional) Whether to open the folder/workspace in a new window or the same. Defaults to opening in the same window.', constraint: value => value === void 0 || typeof value === 'boolean' }
+			]
+		});
 
-			return this._commands.executeCommand('_files.windowOpen', [uri.fsPath], forceNewWindow);
-		}, {
-				description: 'Open a folder or workspace in the current window or new window depending on the newWindow argument. Note that opening in the same window will shutdown the current extension host process and start a new one on the given folder/workspace unless the newWindow parameter is set to true.',
-				args: [
-					{ name: 'uri', description: '(optional) Uri of the folder or workspace file to open. If not provided, a native dialog will ask the user for the folder', constraint: value => value === void 0 || value instanceof URI },
-					{ name: 'newWindow', description: '(optional) Whether to open the folder/workspace in a new window or the same. Defaults to opening in the same window.', constraint: value => value === void 0 || typeof value === 'boolean' }
-				]
-			});
+		this._register(DiffAPICommand.ID, adjustHandler(DiffAPICommand.execute), {
+			description: 'Opens the provided resources in the diff editor to compare their contents.',
+			args: [
+				{ name: 'left', description: 'Left-hand side resource of the diff editor', constraint: URI },
+				{ name: 'right', description: 'Right-hand side resource of the diff editor', constraint: URI },
+				{ name: 'title', description: '(optional) Human readable title for the diff editor', constraint: v => v === void 0 || typeof v === 'string' },
+				{ name: 'options', description: '(optional) Editor options, see vscode.TextDocumentShowOptions' }
+			]
+		});
 
-		this._register('vscode.diff', (left: URI, right: URI, label: string, options?: vscode.TextDocumentShowOptions) => {
-			return this._commands.executeCommand('_workbench.diff', [
-				left, right,
-				label,
-				undefined,
-				typeConverters.toTextEditorOptions(options),
-				options ? typeConverters.fromViewColumn(options.viewColumn) : undefined
-			]);
-		}, {
-				description: 'Opens the provided resources in the diff editor to compare their contents.',
-				args: [
-					{ name: 'left', description: 'Left-hand side resource of the diff editor', constraint: URI },
-					{ name: 'right', description: 'Right-hand side resource of the diff editor', constraint: URI },
-					{ name: 'title', description: '(optional) Human readable title for the diff editor', constraint: v => v === void 0 || typeof v === 'string' },
-					{ name: 'options', description: '(optional) Editor options, see vscode.TextDocumentShowOptions' }
-				]
-			});
+		this._register(OpenAPICommand.ID, adjustHandler(OpenAPICommand.execute), {
+			description: 'Opens the provided resource in the editor. Can be a text or binary file, or a http(s) url. If you need more control over the options for opening a text file, use vscode.window.showTextDocument instead.',
+			args: [
+				{ name: 'resource', description: 'Resource to open', constraint: URI },
+				{ name: 'columnOrOptions', description: '(optional) Either the column in which to open or editor options, see vscode.TextDocumentShowOptions', constraint: v => v === void 0 || typeof v === 'number' || typeof v === 'object' }
+			]
+		});
 
-		this._register('vscode.open', (resource: URI, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions) => {
-			let options: ITextEditorOptions;
-			let column: EditorPosition;
-
-			if (columnOrOptions) {
-				if (typeof columnOrOptions === 'number') {
-					column = typeConverters.fromViewColumn(columnOrOptions);
-				} else {
-					options = typeConverters.toTextEditorOptions(columnOrOptions);
-					column = typeConverters.fromViewColumn(columnOrOptions.viewColumn);
-				}
-			}
-
-			return this._commands.executeCommand('_workbench.open', [
-				resource,
-				options,
-				column
-			]);
-		}, {
-				description: 'Opens the provided resource in the editor. Can be a text or binary file, or a http(s) url. If you need more control over the options for opening a text file, use vscode.window.showTextDocument instead.',
-				args: [
-					{ name: 'resource', description: 'Resource to open', constraint: URI },
-					{ name: 'columnOrOptions', description: '(optional) Either the column in which to open or editor options, see vscode.TextDocumentShowOptions', constraint: v => v === void 0 || typeof v === 'number' || typeof v === 'object' }
-				]
-			});
-
-		this._register('vscode.removeFromRecentlyOpened', (path: string) => {
-			return this._commands.executeCommand('_workbench.removeFromRecentlyOpened', path);
-		}, {
-				description: 'Removes an entry with the given path from the recently opened list.',
-				args: [
-					{ name: 'path', description: 'Path to remove from recently opened.', constraint: value => typeof value === 'string' }
-				]
-			});
+		this._register(RemoveFromRecentlyOpenedAPICommand.ID, adjustHandler(RemoveFromRecentlyOpenedAPICommand.execute), {
+			description: 'Removes an entry with the given path from the recently opened list.',
+			args: [
+				{ name: 'path', description: 'Path to remove from recently opened.', constraint: value => typeof value === 'string' }
+			]
+		});
 	}
 
 	// --- command impl
