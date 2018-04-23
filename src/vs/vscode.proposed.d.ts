@@ -100,16 +100,44 @@ declare module 'vscode' {
 	//#region Joh: file system provider (new)
 
 	/**
+	 * A type that filesystem providers should use to signal errors.
 	 *
+	 * This class has factory methods for common error-cases, like `EntryNotFound` when
+	 * a file or folder doesn't exist. Use them like so `throw vscode.FileSystemError.EntryNotFound(uri);`
 	 */
 	export class FileSystemError extends Error {
 
-		static EntryExists(message?: string): FileSystemError;
-		static EntryNotFound(message?: string): FileSystemError;
-		static EntryNotADirectory(message?: string): FileSystemError;
-		static EntryIsADirectory(message?: string): FileSystemError;
+		/**
+		 * Create an error to signal that a file or folder wasn't found.
+		 * @param messageOrUri Message or uri.
+		 */
+		static EntryNotFound(messageOrUri?: string | Uri): FileSystemError;
 
-		constructor(message?: string);
+		/**
+		 * Create an error to signal that a file or folder already exists, e.g. when
+		 * creating but not overwriting a file.
+		 * @param messageOrUri Message or uri.
+		 */
+		static EntryExists(messageOrUri?: string | Uri): FileSystemError;
+
+		/**
+		 * Create an error to signal that a file is not a folder.
+		 * @param messageOrUri Message or uri.
+		 */
+		static EntryNotADirectory(messageOrUri?: string | Uri): FileSystemError;
+
+		/**
+		 * Create an error to signal that a file is a folder.
+		 * @param messageOrUri Message or uri.
+		 */
+		static EntryIsADirectory(messageOrUri?: string | Uri): FileSystemError;
+
+		/**
+		 * Creates a new filesystem error.
+		 *
+		 * @param messageOrUri Message or uri.
+		 */
+		constructor(messageOrUri?: string | Uri);
 	}
 
 	export enum FileChangeType2 {
@@ -122,6 +150,10 @@ declare module 'vscode' {
 	 * The event filesystem providers must use to signal a file change.
 	 */
 	export interface FileChangeEvent {
+
+		/**
+		 *
+		 */
 		type: FileChangeType2;
 
 		/**
@@ -131,7 +163,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Metadata about a file.
+	 * The `FileStat`-type represents metadata about a file.
 	 */
 	export interface FileStat2 {
 		/**
@@ -161,7 +193,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 *
+	 * Commonly used options when reading, writing, or stat'ing files or folders.
 	 */
 	export interface FileOptions {
 

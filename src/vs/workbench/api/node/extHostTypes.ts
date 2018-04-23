@@ -1834,26 +1834,26 @@ export enum FileType {
 
 export class FileSystemError extends Error {
 
-	static EntryExists(message?: string): FileSystemError {
-		return new FileSystemError(message, 'EntryExists', FileSystemError.EntryExists);
+	static EntryExists(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'EntryExists', FileSystemError.EntryExists);
 	}
-	static EntryNotFound(message?: string): FileSystemError {
-		return new FileSystemError(message, 'EntryNotFound', FileSystemError.EntryNotFound);
+	static EntryNotFound(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'EntryNotFound', FileSystemError.EntryNotFound);
 	}
-	static EntryNotADirectory(message?: string): FileSystemError {
-		return new FileSystemError(message, 'EntryNotADirectory', FileSystemError.EntryNotADirectory);
+	static EntryNotADirectory(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'EntryNotADirectory', FileSystemError.EntryNotADirectory);
 	}
-	static EntryIsADirectory(message?: string): FileSystemError {
-		return new FileSystemError(message, 'EntryIsADirectory', FileSystemError.EntryIsADirectory);
+	static EntryIsADirectory(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'EntryIsADirectory', FileSystemError.EntryIsADirectory);
 	}
 
-	constructor(message?: string, code?: string, hide?: Function) {
-		super(message);
+	constructor(uriOrMessage?: string | URI, code?: string, terminator?: Function) {
+		super(URI.isUri(uriOrMessage) ? uriOrMessage.toString(true) : uriOrMessage);
 		this.name = code ? `${code} (FileSystemError)` : `FileSystemError`;
 
-		if (typeof Error.captureStackTrace === 'function' && typeof hide === 'function') {
+		if (typeof Error.captureStackTrace === 'function' && typeof terminator === 'function') {
 			// nice stack traces
-			Error.captureStackTrace(this, hide);
+			Error.captureStackTrace(this, terminator);
 		}
 	}
 }
