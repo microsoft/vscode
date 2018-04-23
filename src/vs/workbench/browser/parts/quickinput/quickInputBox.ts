@@ -7,12 +7,13 @@
 
 import 'vs/css!./quickInput';
 import * as dom from 'vs/base/browser/dom';
-import { InputBox, IRange } from 'vs/base/browser/ui/inputbox/inputBox';
+import { InputBox, IRange, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { localize } from 'vs/nls';
-import { inputBackground, inputForeground, inputBorder } from 'vs/platform/theme/common/colorRegistry';
+import { inputBackground, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme } from 'vs/platform/theme/common/themeService';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import Severity from 'vs/base/common/severity';
 
 const $ = dom.$;
 
@@ -70,6 +71,14 @@ export class QuickInputBox {
 		this.inputBox.inputElement.type = isPassword ? 'password' : 'text';
 	}
 
+	showDecoration(decoration: Severity): void {
+		if (decoration === Severity.Ignore) {
+			this.inputBox.hideMessage();
+		} else {
+			this.inputBox.showMessage({ type: decoration === Severity.Info ? MessageType.INFO : decoration === Severity.Warning ? MessageType.WARNING : MessageType.ERROR, content: '' });
+		}
+	}
+
 	setFocus(): void {
 		this.inputBox.focus();
 	}
@@ -82,7 +91,13 @@ export class QuickInputBox {
 		this.inputBox.style({
 			inputForeground: theme.getColor(inputForeground),
 			inputBackground: theme.getColor(inputBackground),
-			inputBorder: theme.getColor(inputBorder)
+			inputBorder: theme.getColor(inputBorder),
+			inputValidationInfoBackground: theme.getColor(inputValidationInfoBackground),
+			inputValidationInfoBorder: theme.getColor(inputValidationInfoBorder),
+			inputValidationWarningBackground: theme.getColor(inputValidationWarningBackground),
+			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
+			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
+			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder),
 		});
 	}
 

@@ -32,6 +32,7 @@ import { chain, debounceEvent } from 'vs/base/common/event';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { onUnexpectedError, canceled } from 'vs/base/common/errors';
+import Severity from 'vs/base/common/severity';
 
 const $ = dom.$;
 
@@ -142,6 +143,7 @@ class TextInputController implements InputController<string> {
 				this.updatedValidation()
 					.then(validationError => {
 						ui.message.textContent = validationError || defaultMessage;
+						ui.inputBox.showDecoration(validationError ? Severity.Error : Severity.Ignore);
 					})
 					.then(null, onUnexpectedError);
 			}));
@@ -408,6 +410,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.controller = parameters.type === 'selectMany' ? new SelectManyController(this.ui, parameters) : new TextInputController(this.ui, parameters);
 		this.ui.checkAll.style.display = this.controller.showUI.checkAll ? null : 'none';
 		this.filterContainer.style.display = this.controller.showUI.inputBox ? null : 'none';
+		this.ui.inputBox.showDecoration(Severity.Ignore);
 		this.countContainer.style.display = this.controller.showUI.count ? null : 'none';
 		this.okContainer.style.display = this.controller.showUI.ok ? null : 'none';
 		this.ui.message.style.display = this.controller.showUI.message ? null : 'none';
