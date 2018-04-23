@@ -104,7 +104,10 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	getFocusedEditor(): ICodeEditor {
 		let editor = this._codeEditorService.getFocusedCodeEditor();
 		if (!editor) {
-			editor = this._workbenchEditorService.getActiveEditor().getControl() as ICodeEditor;
+			let activeEditor = this._workbenchEditorService.getActiveEditor();
+			if (activeEditor) {
+				editor = activeEditor.getControl() as ICodeEditor;
+			}
 		}
 
 		return editor;

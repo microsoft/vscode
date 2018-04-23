@@ -158,7 +158,8 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 	public reveal() {
 		if (this._isCollapsed) {
-			this._toggleAction.run();
+			this._isCollapsed = false;
+			this.show({ lineNumber: this._commentThread.range.startLineNumber, column: 1 }, 2);
 		}
 	}
 

@@ -23,6 +23,7 @@ import { ReviewController } from 'vs/workbench/parts/comments/electron-browser/c
 import { CommentsDataFilter, CommentsDataSource, CommentsModelRenderer } from 'vs/workbench/parts/comments/electron-browser/commentsTreeViewer';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { ICommentService } from 'vs/workbench/services/comments/electron-browser/commentService';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export const COMMENTS_PANEL_ID = 'workbench.panel.comments';
 export const COMMENTS_PANEL_TITLE = 'Comments';
@@ -38,7 +39,7 @@ export class CommentsPanel extends Panel {
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ICommentService private commentService: ICommentService,
-		@IEditorService private editorService: IEditorService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IActivityService private activityService: IActivityService
@@ -128,22 +129,42 @@ export class CommentsPanel extends Panel {
 		}
 
 		const range = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].range : element.range;
-		this.editorService.openEditor({
+
+		const activeInput = this.editorService.getActiveEditorInput();
+		let currentActiveResource = activeInput ? activeInput.getResource() : void 0;
+		if (currentActiveResource.toString() === element.resource.toString()) {
+			const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
+			const control = this.editorService.getActiveEditor().getControl();
+			if (threadToReveal && isCodeEditor(control)) {
+				const controller = ReviewController.get(control);
+				controller.revealCommentThread(threadToReveal);
+			}
+		}
+
+
+		let setCommentsForFile = new Promise((resolve, reject) => {
+			this.commentService.onDidSetResourceCommentInfos(e => {
+				if (e.resource.toString() === element.resource.toString()) {
+					resolve();
+				}
+			});
+		});
+		Promise.all([this.editorService.openEditor({
 			resource: element.resource,
 			options: {
 				pinned: pinned,
 				preserveFocus: preserveFocus,
 				selection: range
 			}
-		}, sideBySide).done(editor => {
-			// If clicking on the file name, open the first comment thread. If clicking on a comment, open its thread
+		}, sideBySide), setCommentsForFile]).then(vals => {
+			let editor = vals[0];
 			const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
 			const control = editor.getControl();
 			if (threadToReveal && isCodeEditor(control)) {
 				const controller = ReviewController.get(control);
-				// FIX there is a race between revealing the thread and the widget being created?
 				controller.revealCommentThread(threadToReveal);
 			}
+			setCommentsForFile = null;
 		});
 
 		return true;
