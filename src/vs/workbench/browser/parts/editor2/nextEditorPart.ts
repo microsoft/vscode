@@ -44,7 +44,7 @@ export class NextEditorPart extends Part implements INextEditorPartService {
 
 		// this.memento = this.getMemento(this.storageService, Scope.WORKSPACE);
 
-		this.viewer = this.instantiationService.createInstance(NextEditorGroupsViewer);
+		this.viewer = this._register(this.instantiationService.createInstance(NextEditorGroupsViewer));
 
 		this.initStyles();
 	}

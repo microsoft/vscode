@@ -14,11 +14,15 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { addClass, addClasses, Dimension } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { ITitleAreaControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
+import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
+import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND } from '../../../common/theme';
+import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
-export class NextEditorGroupView extends Disposable implements IView {
+export class NextEditorGroupView extends Themable implements IView {
 
 	private static readonly EDITOR_TITLE_HEIGHT = 35;
 
@@ -34,12 +38,15 @@ export class NextEditorGroupView extends Disposable implements IView {
 	private container: HTMLElement;
 
 	private titleAreaControl: ITitleAreaControl;
+	private progressBar: ProgressBar;
+	private editorContainer: HTMLElement;
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IContextKeyService private contextKeyService: IContextKeyService
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService
 	) {
-		super();
+		super(themeService);
 
 		this._group = this._register(instantiationService.createInstance(EditorGroup, 'Editor Group')); // TODO@grid group label?
 
@@ -83,8 +90,36 @@ export class NextEditorGroupView extends Disposable implements IView {
 		this.titleAreaControl.setContext(this._group);
 		this.titleAreaControl.refresh(true /* instant */);
 
-		// TODO@grid progress bar
-		// TODO@grid editors container
+		// Progress Bar
+		this.progressBar = new ProgressBar(this.container);
+		this._register(attachProgressBarStyler(this.progressBar, this.themeService));
+		this.progressBar.hide();
+
+		// Editor Container
+		this.editorContainer = document.createElement('div');
+		addClass(this.editorContainer, 'editor-container');
+		this.container.appendChild(this.editorContainer);
+
+		// Update Styles
+		this.updateStyles();
+	}
+
+	protected updateStyles(): void {
+		super.updateStyles();
+
+		// Title control (TODO@grid respect tab options)
+		const titleContainer = this.titleAreaControl.getContainer();
+		const borderColor = this.getColor(EDITOR_GROUP_HEADER_TABS_BORDER) || this.getColor(contrastBorder);
+
+		titleContainer.style.backgroundColor = this.getColor(EDITOR_GROUP_HEADER_TABS_BACKGROUND);
+		titleContainer.style.borderBottomWidth = borderColor ? '1px' : null;
+		titleContainer.style.borderBottomStyle = borderColor ? 'solid' : null;
+		titleContainer.style.borderBottomColor = borderColor;
+
+		// Editor container background
+		this._element.style.backgroundColor = this.getColor(editorBackground);
+
+		// TODO@grid Editor container border
 	}
 
 	openEditor(input: EditorInput, options?: EditorOptions): void {
