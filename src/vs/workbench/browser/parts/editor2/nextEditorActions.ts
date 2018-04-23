@@ -11,7 +11,7 @@ import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { INextEditorPartService } from 'vs/workbench/services/editor/common/nextEditorPartService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorInput } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 
 export class OpenNextEditorAction extends Action {
 
@@ -28,8 +28,10 @@ export class OpenNextEditorAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		const input = this.legacyEditorService.createInput({ resource: URI.file('') });
-
-		return this.nextEditorPartService.openEditor(input as EditorInput);
+		return this.nextEditorPartService.openEditor(this.legacyEditorService.createInput({ resource: URI.file('/Users/bpasero/Development/monaco/src/vs/workbench/browser/parts/editor2/nextEditorActions.ts') }) as EditorInput, EditorOptions.create({ pinned: true })).then(() => {
+			return this.nextEditorPartService.openEditor(this.legacyEditorService.createInput({ resource: URI.file('/Users/bpasero/Development/monaco/src/vs/workbench/browser/parts/editor2/nextEditorPart.ts') }) as EditorInput, EditorOptions.create({ pinned: true })).then(() => {
+				return this.nextEditorPartService.openEditor(this.legacyEditorService.createInput({ resource: URI.file('/Users/bpasero/Development/monaco/src/vs/workbench/browser/parts/editor2/nextEditorGroupsViewer.ts') }) as EditorInput, EditorOptions.create({ pinned: true }));
+			});
+		});
 	}
 }

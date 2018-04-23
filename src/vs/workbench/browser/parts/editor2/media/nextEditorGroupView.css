@@ -1,0 +1,12 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench > .editor > .content > .one-editor-silo > .container {
+	height: 100%;
+}
+
+.monaco-workbench > .editor > .content > .one-editor-silo > .container > .editor-container {
+	height: calc(100% - 35px); /* below title control */
+}

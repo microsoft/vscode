@@ -9,6 +9,7 @@ import { NextEditorGroupView } from 'vs/workbench/browser/parts/editor2/nextEdit
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { EditorLocation } from 'vs/workbench/browser/parts/editor2/nextEditor';
+import { Dimension, clearNode } from 'vs/base/browser/dom';
 
 export enum EditorGroupsOrientation {
 	VERTICAL,
@@ -29,21 +30,30 @@ export class NextEditorGroupsViewer {
 		return this._element;
 	}
 
-	split(location: EditorLocation, orientation: EditorGroupsOrientation): NextEditorGroupView {
-		if (!this.singletonTmpView) {
-			this.singletonTmpView = this.instantiationService.createInstance(NextEditorGroupView); // TODO@grid hook into GridWidget
-		}
-
-		this.singletonTmpView.render(this._element, orientation === EditorGroupsOrientation.HORIZONTAL ? Orientation.HORIZONTAL : Orientation.VERTICAL);
-
-		return this.singletonTmpView;
+	get groups(): NextEditorGroupView[] {
+		return this.singletonTmpView ? [this.singletonTmpView] : [];
 	}
 
 	groupAt(location: EditorLocation): NextEditorGroupView {
 		return this.singletonTmpView;
 	}
 
-	get groups(): NextEditorGroupView[] {
-		return this.singletonTmpView ? [this.singletonTmpView] : [];
+	split(location: EditorLocation, orientation: EditorGroupsOrientation): NextEditorGroupView {
+		if (!this.singletonTmpView) {
+			this.singletonTmpView = this.instantiationService.createInstance(NextEditorGroupView); // TODO@grid hook into GridWidget
+
+			const parent = this._element.parentElement;
+			clearNode(parent);
+			this._element = this.singletonTmpView.element;
+			parent.appendChild(this._element);
+		}
+
+		return this.singletonTmpView;
+	}
+
+	layout(dimension: Dimension): void {
+		if (this.singletonTmpView) {
+			this.singletonTmpView.layout(dimension.width, Orientation.HORIZONTAL);
+		}
 	}
 }

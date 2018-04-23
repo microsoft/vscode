@@ -26,7 +26,7 @@ export class NextEditorPart extends Part implements INextEditorPartService {
 
 	private readonly _onLayout: Emitter<Dimension>;
 
-	// private dimension: Dimension;
+	private dimension: Dimension;
 	// private memento: object;
 
 	private viewer: NextEditorGroupsViewer;
@@ -115,9 +115,10 @@ export class NextEditorPart extends Part implements INextEditorPartService {
 	layout(dimension: Dimension): Dimension[] {
 		const sizes = super.layout(dimension);
 
-		// this.dimension = sizes[1];
+		this.dimension = sizes[1];
 
-		// TODO@grid propagate layout
+		// Layout viewer
+		this.viewer.layout(this.dimension);
 
 		this._onLayout.fire(dimension);
 
