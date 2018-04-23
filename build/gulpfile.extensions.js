@@ -21,6 +21,7 @@ const nlsDev = require('vscode-nls-dev');
 const root = path.dirname(__dirname);
 const commit = util.getVersion(root);
 const i18n = require('./lib/i18n');
+const plumber = require('gulp-plumber');
 
 const extensionsPath = path.join(path.dirname(__dirname), 'extensions');
 
@@ -82,6 +83,13 @@ const tasks = compilations.map(function (tsconfigFile) {
 			const input = es.through();
 			const tsFilter = filter(['**/*.ts', '!**/lib/lib*.d.ts', '!**/node_modules/**'], { restore: true });
 			const output = input
+				.pipe(plumber({
+					errorHandler: function (err) {
+						if (err && !err.__reporter__) {
+							reporter(err);
+						}
+					}
+				}))
 				.pipe(tsFilter)
 				.pipe(util.loadSourcemaps())
 				.pipe(compilation())
