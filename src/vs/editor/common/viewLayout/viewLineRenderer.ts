@@ -221,14 +221,20 @@ export class CharacterMapping {
 	}
 }
 
+export const enum ForeignElementType {
+	None = 0,
+	Before = 1,
+	After = 2
+}
+
 export class RenderLineOutput {
 	_renderLineOutputBrand: void;
 
 	readonly characterMapping: CharacterMapping;
 	readonly containsRTL: boolean;
-	readonly containsForeignElements: boolean;
+	readonly containsForeignElements: ForeignElementType;
 
-	constructor(characterMapping: CharacterMapping, containsRTL: boolean, containsForeignElements: boolean) {
+	constructor(characterMapping: CharacterMapping, containsRTL: boolean, containsForeignElements: ForeignElementType) {
 		this.characterMapping = characterMapping;
 		this.containsRTL = containsRTL;
 		this.containsForeignElements = containsForeignElements;
@@ -238,7 +244,7 @@ export class RenderLineOutput {
 export function renderViewLine(input: RenderLineInput, sb: IStringBuilder): RenderLineOutput {
 	if (input.lineContent.length === 0) {
 
-		let containsForeignElements = false;
+		let containsForeignElements = ForeignElementType.None;
 
 		// This is basically for IE's hit test to work
 		let content: string = '<span><span>\u00a0</span></span>';
@@ -248,13 +254,17 @@ export function renderViewLine(input: RenderLineInput, sb: IStringBuilder): Rend
 			let classNames: string[] = [];
 			for (let i = 0, len = input.lineDecorations.length; i < len; i++) {
 				const lineDecoration = input.lineDecorations[i];
-				if (lineDecoration.type !== InlineDecorationType.Regular) {
+				if (lineDecoration.type === InlineDecorationType.Before) {
 					classNames.push(input.lineDecorations[i].className);
-					containsForeignElements = true;
+					containsForeignElements |= ForeignElementType.Before;
+				}
+				if (lineDecoration.type === InlineDecorationType.After) {
+					classNames.push(input.lineDecorations[i].className);
+					containsForeignElements |= ForeignElementType.After;
 				}
 			}
 
-			if (containsForeignElements) {
+			if (containsForeignElements !== ForeignElementType.None) {
 				content = `<span><span class="${classNames.join(' ')}"></span></span>`;
 			}
 		}
@@ -275,7 +285,7 @@ export class RenderLineOutput2 {
 		public readonly characterMapping: CharacterMapping,
 		public readonly html: string,
 		public readonly containsRTL: boolean,
-		public readonly containsForeignElements: boolean
+		public readonly containsForeignElements: ForeignElementType
 	) {
 	}
 }
@@ -293,7 +303,7 @@ class ResolvedRenderLineInput {
 		public readonly len: number,
 		public readonly isOverflowing: boolean,
 		public readonly parts: LinePart[],
-		public readonly containsForeignElements: boolean,
+		public readonly containsForeignElements: ForeignElementType,
 		public readonly tabSize: number,
 		public readonly containsRTL: boolean,
 		public readonly spaceWidth: number,
@@ -323,13 +333,17 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 	if (input.renderWhitespace === RenderWhitespace.All || input.renderWhitespace === RenderWhitespace.Boundary) {
 		tokens = _applyRenderWhitespace(lineContent, len, tokens, input.fauxIndentLength, input.tabSize, useMonospaceOptimizations, input.renderWhitespace === RenderWhitespace.Boundary);
 	}
-	let containsForeignElements = false;
+	let containsForeignElements = ForeignElementType.None;
 	if (input.lineDecorations.length > 0) {
 		for (let i = 0, len = input.lineDecorations.length; i < len; i++) {
 			const lineDecoration = input.lineDecorations[i];
-			if (lineDecoration.type !== InlineDecorationType.Regular) {
-				containsForeignElements = true;
-				break;
+			if (lineDecoration.type === InlineDecorationType.RegularAffectingLetterSpacing) {
+				// Pretend there are foreign elements... although not 100% accurate.
+				containsForeignElements |= ForeignElementType.Before;
+			} else if (lineDecoration.type === InlineDecorationType.Before) {
+				containsForeignElements |= ForeignElementType.Before;
+			} else if (lineDecoration.type === InlineDecorationType.After) {
+				containsForeignElements |= ForeignElementType.After;
 			}
 		}
 		tokens = _applyInlineDecorations(lineContent, len, tokens, input.lineDecorations);

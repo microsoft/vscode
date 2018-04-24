@@ -29,8 +29,6 @@
 	"performance": "在已啟用 'Developer: Startup Performance' 命令的情況下開始。",
 	"prof-startup": "啟動時執行 CPU 分析工具",
 	"disableExtensions": "停用所有已安裝的擴充功能。",
-	"inspect-extensions": "允許對擴充功能進行除錯和分析。檢查開發工具的連接 uri。",
-	"inspect-brk-extensions": "允許對擴展主機在啟動後暫停擴充功能進行除錯和分析。檢查開發工具中的連接 uri。",
 	"disableGPU": "停用 GPU 硬體加速。",
 	"uploadLogs": "上傳目前的工作階段紀錄至安全的端點。",
 	"maxMemory": "視窗的最大記憶體大小 (以 MB 為單位)。",

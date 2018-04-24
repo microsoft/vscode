@@ -8,7 +8,6 @@
 	],
 	"extensionHostProcess.crash": "Eklenti sunucusu beklenmeyen biçimde sonlandırıldı.",
 	"extensionHostProcess.unresponsiveCrash": "Eklenti sunucusu yanıt vermediğinden sonlandırıldı.",
-	"devTools": "Geliştirici Araçları",
 	"restart": "Eklenti Sunucusunu Yeniden Başlat",
 	"overwritingExtension": "{0} eklentisinin üzerine {1} yazılıyor.",
 	"extensionUnderDevelopment": "{0} konumundaki geliştirme eklentisi yükleniyor",

@@ -410,6 +410,18 @@
 				]
 			},
 			{
+				"target": "**/vs/code/electron-browser/**",
+				"restrictions": [
+					"vs/nls",
+					"vs/css!./**/*",
+					"vs/nls",
+					"**/vs/base/**",
+					"**/vs/platform/**",
+					"**/vs/code/**",
+					"*" // node modules
+				]
+			},
+			{
 				"target": "**/vs/code/**",
 				"restrictions": [
 					"vs/nls",
@@ -427,6 +439,13 @@
 				"target": "**/test/smoke/**",
 				"restrictions": [
 					"**/test/smoke/**",
+					"*"
+				]
+			},
+			{
+				"target": "**/test/smoke2/**",
+				"restrictions": [
+					"**/test/smoke2/**",
 					"*"
 				]
 			},

@@ -15,7 +15,6 @@
 	"vscode.extension.contributes.views": "Ajoute des vues à l'éditeur",
 	"views.explorer": "Mode Explorateur",
 	"views.debug": "Debug View",
-	"locationId.invalid": "'{0}' n'est pas un emplacement de vue valide",
 	"duplicateView1": "Impossible d’enregistrer des vues multiples avec le même id '{0}'» dans l’emplacement '{1}'",
 	"duplicateView2": "Une vue avec l’id `{0}` est déjà enregistrée à l’emplacement `{1}`"
 }

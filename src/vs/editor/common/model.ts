@@ -110,6 +110,10 @@ export interface IModelDecorationOptions {
 	 */
 	inlineClassName?: string;
 	/**
+	 * If there is an `inlineClassName` which affects letter spacing.
+	 */
+	inlineClassNameAffectsLetterSpacing?: boolean;
+	/**
 	 * If set, the decoration will be rendered before the text with this CSS class name.
 	 */
 	beforeContentClassName?: string;
@@ -440,6 +444,15 @@ export enum TrackedRangeStickiness {
 	NeverGrowsWhenTypingAtEdges = 1,
 	GrowsOnlyWhenTypingBefore = 2,
 	GrowsOnlyWhenTypingAfter = 3,
+}
+
+/**
+ * @internal
+ */
+export interface IActiveIndentGuideInfo {
+	startLineNumber: number;
+	endLineNumber: number;
+	indent: number;
 }
 
 /**
@@ -852,6 +865,11 @@ export interface ITextModel {
 	 * @internal
 	 */
 	matchBracket(position: IPosition): [Range, Range];
+
+	/**
+	 * @internal
+	 */
+	getActiveIndentGuide(lineNumber: number): IActiveIndentGuideInfo;
 
 	/**
 	 * @internal

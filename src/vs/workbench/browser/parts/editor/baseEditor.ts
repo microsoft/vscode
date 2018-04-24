@@ -80,6 +80,13 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	protected abstract createEditor(parent: HTMLElement): void;
 
 	/**
+	 * Subclasses can set this to false if it does not make sense to center editor input.
+	 */
+	public supportsCenteredLayout(): boolean {
+		return true;
+	}
+
+	/**
 	 * Overload this function to allow for passing in a position argument.
 	 */
 	public setVisible(visible: boolean, position?: Position): void; // setVisible is sync for editors

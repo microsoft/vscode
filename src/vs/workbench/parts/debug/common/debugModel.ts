@@ -525,6 +525,10 @@ export class Thread implements IThread {
 		return this.process.session.pause({ threadId: this.threadId });
 	}
 
+	public terminate(): TPromise<any> {
+		return this.process.session.terminateThreads({ threadIds: [this.threadId] });
+	}
+
 	public reverseContinue(): TPromise<any> {
 		return this.process.session.reverseContinue({ threadId: this.threadId });
 	}
@@ -875,10 +879,10 @@ export class Model implements IModel {
 		return this.breakpoints.filter(bp => bp.uri.toString() === uriString);
 	}
 
-	public getActivatedBreakpointsForResource(resource: uri): IBreakpoint[] {
+	public getEnabledBreakpointsForResource(resource: uri): IBreakpoint[] {
 		if (this.breakpointsActivated) {
 			const uriString = resource.toString();
-			return this.breakpoints.filter(bp => bp.uri.toString() === uriString);
+			return this.breakpoints.filter(bp => bp.uri.toString() === uriString && bp.enabled);
 		}
 		return [];
 	}
@@ -897,7 +901,7 @@ export class Model implements IModel {
 				const ebp = this.exceptionBreakpoints.filter(ebp => ebp.filter === d.filter).pop();
 				return new ExceptionBreakpoint(d.filter, d.label, ebp ? ebp.enabled : d.default);
 			});
-			this._onDidChangeBreakpoints.fire();
+			this._onDidChangeBreakpoints.fire({});
 		}
 	}
 
@@ -907,7 +911,7 @@ export class Model implements IModel {
 
 	public setBreakpointsActivated(activated: boolean): void {
 		this.breakpointsActivated = activated;
-		this._onDidChangeBreakpoints.fire();
+		this._onDidChangeBreakpoints.fire({});
 	}
 
 	public addBreakpoints(uri: uri, rawData: IBreakpointData[], fireEvent = true): IBreakpoint[] {

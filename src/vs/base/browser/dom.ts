@@ -289,7 +289,7 @@ function doRequestAnimationFrame(callback: (time: number) => void): number {
 			|| emulatedRequestAnimationFrame
 		);
 	}
-	return _animationFrame(callback);
+	return _animationFrame.call(self, callback);
 }
 
 /**
@@ -1082,7 +1082,7 @@ export function domContentLoaded(): TPromise<any> {
 	return new TPromise<any>((c, e) => {
 		const readyState = document.readyState;
 		if (readyState === 'complete' || (document && document.body !== null)) {
-			window.setImmediate(c);
+			platform.setImmediate(c);
 		} else {
 			window.addEventListener('DOMContentLoaded', c, false);
 		}

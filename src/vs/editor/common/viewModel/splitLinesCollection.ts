@@ -14,7 +14,7 @@ import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 import { ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
 import { ThemeColor, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
-import { IModelDecoration, ITextModel, IModelDeltaDecoration, EndOfLinePreference } from 'vs/editor/common/model';
+import { IModelDecoration, ITextModel, IModelDeltaDecoration, EndOfLinePreference, IActiveIndentGuideInfo } from 'vs/editor/common/model';
 
 export class OutputPosition {
 	_outputPositionBrand: void;
@@ -82,6 +82,7 @@ export interface IViewModelLinesCollection {
 
 	getViewLineCount(): number;
 	warmUpLookupCache(viewStartLineNumber: number, viewEndLineNumber: number): void;
+	getActiveIndentGuide(viewLineNumber: number): IActiveIndentGuideInfo;
 	getViewLinesIndentGuides(viewStartLineNumber: number, viewEndLineNumber: number): number[];
 	getViewLineContent(viewLineNumber: number): string;
 	getViewLineLength(viewLineNumber: number): number;
@@ -502,6 +503,22 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 	 */
 	public warmUpLookupCache(viewStartLineNumber: number, viewEndLineNumber: number): void {
 		this.prefixSumComputer.warmUpCache(viewStartLineNumber - 1, viewEndLineNumber - 1);
+	}
+
+	public getActiveIndentGuide(viewLineNumber: number): IActiveIndentGuideInfo {
+		this._ensureValidState();
+		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
+
+		const modelPosition = this.convertViewPositionToModelPosition(viewLineNumber, this.getViewLineMinColumn(viewLineNumber));
+		const result = this.model.getActiveIndentGuide(modelPosition.lineNumber);
+
+		const viewStartPosition = this.convertModelPositionToViewPosition(result.startLineNumber, 1);
+		const viewEndPosition = this.convertModelPositionToViewPosition(result.endLineNumber, 1);
+		return {
+			startLineNumber: viewStartPosition.lineNumber,
+			endLineNumber: viewEndPosition.lineNumber,
+			indent: result.indent
+		};
 	}
 
 	public getViewLinesIndentGuides(viewStartLineNumber: number, viewEndLineNumber: number): number[] {
@@ -1239,6 +1256,14 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 	}
 
 	public warmUpLookupCache(viewStartLineNumber: number, viewEndLineNumber: number): void {
+	}
+
+	public getActiveIndentGuide(viewLineNumber: number): IActiveIndentGuideInfo {
+		return {
+			startLineNumber: viewLineNumber,
+			endLineNumber: viewLineNumber,
+			indent: 0
+		};
 	}
 
 	public getViewLinesIndentGuides(viewStartLineNumber: number, viewEndLineNumber: number): number[] {

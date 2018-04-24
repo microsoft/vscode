@@ -46,6 +46,7 @@
 	"multiCursorModifier.ctrlCmd": "Se asigna a \"Control\" en Windows y Linux y a \"Comando\" en macOS.",
 	"multiCursorModifier.alt": "Se asigna a \"Alt\" en Windows y Linux y a \"Opción\" en macOS.",
 	"multiCursorModifier": "El modificador que se usará para agregar varios cursores con el mouse. \"ctrlCmd\" se asigna a \"Control\" en Windows y Linux y a \"Comando\" en macOS. Los gestos del mouse \"Ir a la definición\" y \"Abrir vínculo\" se adaptarán de modo que no entren en conflicto con el modificador multicurso",
+	"multiCursorMergeOverlapping": "Combinar varios cursores cuando se solapan.",
 	"quickSuggestions.strings": "Habilita sugerencias rápidas en las cadenas.",
 	"quickSuggestions.comments": "Habilita sugerencias rápidas en los comentarios.",
 	"quickSuggestions.other": "Habilita sugerencias rápidas fuera de las cadenas y los comentarios.",
@@ -88,6 +89,9 @@
 	"renderLineHighlight": "Controla cómo el editor debe presentar el resaltado de línea. Las posibilidades son \"ninguno\", \"margen\", \"línea\" y \"todo\".",
 	"codeLens": "Controla si el editor muestra lentes de código",
 	"folding": "Controla si el editor tiene habilitado el plegado de código.",
+	"foldingStrategyAuto": "Si está disponible, utilice una estrategia de plegado específica del idioma, de lo contrario volverá a la estrategia basada en sangría.",
+	"foldingStrategyIndentation": "Utilice siempre la estrategia de plegado basado en sangría.",
+	"foldingStrategy": "Controla la forma en que se calculan las gamas plegables. Las selecciones ' auto' utilizan una estrategia de plegado específica del idioma, si está disponible. 'Sangría' obliga a utilizar la estrategia de plegado con sangría.",
 	"showFoldingControls": "Controla cuándo los controles de plegado del margen son ocultados automáticamente.",
 	"matchBrackets": "Resaltar corchetes coincidentes cuando se seleccione uno de ellos.",
 	"glyphMargin": "Controla si el editor debe representar el margen de glifo vertical. El margen de glifo se usa, principalmente, para depuración.",
@@ -105,5 +109,7 @@
 	"selectionClipboard": "Controla si el portapapeles principal de Linux debe admitirse.",
 	"sideBySide": "Controla si el editor de diferencias muestra las diferencias en paralelo o alineadas.",
 	"ignoreTrimWhitespace": "Controla si el editor de diferencias muestra los cambios de espacio inicial o espacio final como diferencias.",
+	"largeFileSize": "Controla el umbral de tamaño de archivo en bytes más allá de los cuales se aplican reglas de optimización especiales",
+	"largeFileLineCount": "Controla el umbral de tamaño de archivo en términos de cuenta de línea más allá de las cuales se aplican reglas de optimización especiales",
 	"renderIndicators": "Controla si el editor de diff muestra indicadores +/- para cambios agregados/quitados"
 }

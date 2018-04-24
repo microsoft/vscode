@@ -33,6 +33,12 @@ export class ExtensionDescriptionRegistry {
 			if (Array.isArray(extensionDescription.activationEvents)) {
 				for (let j = 0, lenJ = extensionDescription.activationEvents.length; j < lenJ; j++) {
 					let activationEvent = extensionDescription.activationEvents[j];
+
+					// TODO@joao: there's no easy way to contribute this
+					if (activationEvent === 'onUri') {
+						activationEvent = `onUri:${extensionDescription.id}`;
+					}
+
 					this._activationMap[activationEvent] = this._activationMap[activationEvent] || [];
 					this._activationMap[activationEvent].push(extensionDescription);
 				}

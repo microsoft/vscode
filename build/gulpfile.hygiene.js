@@ -61,6 +61,7 @@ const indentationFilter = [
 	// except multiple specific files
 	'!**/package.json',
 	'!**/yarn.lock',
+	'!**/yarn-error.log',
 
 	// except multiple specific folders
 	'!**/octicons/**',
@@ -201,12 +202,17 @@ function hygiene(some) {
 		tsfmt.processString(file.path, file.contents.toString('utf8'), {
 			verify: false,
 			tsfmt: true,
-			// verbose: true
+			// verbose: true,
 			// keep checkJS happy
 			editorconfig: undefined,
 			replace: undefined,
 			tsconfig: undefined,
-			tslint: undefined
+			tsconfigFile: undefined,
+			tslint: undefined,
+			tslintFile: undefined,
+			tsfmtFile: undefined,
+			vscode: undefined,
+			vscodeFile: undefined
 		}).then(result => {
 			let original = result.src.replace(/\r\n/gm, '\n');
 			let formatted = result.dest.replace(/\r\n/gm, '\n');

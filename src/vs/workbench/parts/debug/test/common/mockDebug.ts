@@ -111,6 +111,7 @@ export class MockDebugService implements IDebugService {
 }
 
 export class MockSession implements ISession {
+
 	public readyForBreakpoints = true;
 	public emittedStopped = true;
 
@@ -214,6 +215,10 @@ export class MockSession implements ISession {
 	}
 
 	public pause(args: DebugProtocol.PauseArguments): TPromise<DebugProtocol.PauseResponse> {
+		return TPromise.as(null);
+	}
+
+	public terminateThreads(args: DebugProtocol.TerminateThreadsArguments): TPromise<DebugProtocol.TerminateThreadsResponse, any> {
 		return TPromise.as(null);
 	}
 

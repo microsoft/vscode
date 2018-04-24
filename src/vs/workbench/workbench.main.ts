@@ -19,10 +19,11 @@ import 'vs/editor/editor.all';
 import 'vs/workbench/services/actions/electron-browser/menusExtensionPoint';
 
 // Views
+import 'vs/workbench/api/browser/viewsContainersExtensionPoint';
 import 'vs/workbench/api/browser/viewsExtensionPoint';
 
 // Localizations
-import 'vs/workbench/parts/localizations/browser/localizations.contribution';
+import 'vs/workbench/parts/localizations/electron-browser/localizations.contribution';
 
 // Workbench
 import 'vs/workbench/browser/actions/toggleActivityBarVisibility';
@@ -68,6 +69,7 @@ import 'vs/workbench/parts/comments/electron-browser/comments.contribution';
 
 import 'vs/workbench/parts/html/electron-browser/html.contribution';
 
+import 'vs/workbench/parts/url/electron-browser/url.contribution';
 import 'vs/workbench/parts/webview/electron-browser/webview.contribution';
 
 import 'vs/workbench/parts/welcome/walkThrough/electron-browser/walkThrough.contribution';
@@ -86,8 +88,6 @@ import 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
 import 'vs/workbench/parts/terminal/electron-browser/terminalPanel'; // can be packaged separately
 
 import 'vs/workbench/electron-browser/workbench';
-
-import 'vs/workbench/parts/trust/electron-browser/unsupportedWorkspaceSettings.contribution';
 
 import 'vs/workbench/parts/relauncher/electron-browser/relauncher.contribution';
 

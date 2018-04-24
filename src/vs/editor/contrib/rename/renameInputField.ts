@@ -9,7 +9,7 @@ import 'vs/css!./renameInputField';
 import { localize } from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { inputBackground, inputBorder, inputForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
@@ -123,7 +123,7 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 		}
 	}
 
-	public getInput(where: Range, value: string, selectionStart: number, selectionEnd: number): TPromise<string | boolean> {
+	public getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number): TPromise<string | boolean> {
 
 		this._position = new Position(where.startLineNumber, where.startColumn);
 		this._inputField.value = value;

@@ -15,7 +15,7 @@ import { getLanguageModelCache } from './languageModelCache';
 import { formatError, runSafe } from './utils/runner';
 import URI from 'vscode-uri';
 import { getPathCompletionParticipant } from './pathCompletion';
-import { FoldingProviderServerCapabilities, FoldingRangesRequest } from 'vscode-languageserver-protocol-foldingprovider';
+import { FoldingRangeServerCapabilities, FoldingRangeRequest } from 'vscode-languageserver-protocol-foldingprovider';
 
 export interface Settings {
 	css: LanguageSettings;
@@ -49,9 +49,10 @@ connection.onShutdown(() => {
 });
 
 let scopedSettingsSupport = false;
-let workspaceFolders: WorkspaceFolder[] | undefined;
+let foldingRangeLimit = Number.MAX_VALUE;
+let workspaceFolders: WorkspaceFolder[];
 
-// After the server has started the client sends an initilize request. The server receives
+// After the server has started the client sends an initialize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
 connection.onInitialize((params: InitializeParams): InitializeResult => {
 	workspaceFolders = (<any>params).workspaceFolders;
@@ -62,21 +63,25 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		}
 	}
 
-	function hasClientCapability(name: string) {
+	function getClientCapability<T>(name: string, def: T) {
 		let keys = name.split('.');
 		let c: any = params.capabilities;
 		for (let i = 0; c && i < keys.length; i++) {
+			if (!c.hasOwnProperty(keys[i])) {
+				return def;
+			}
 			c = c[keys[i]];
 		}
-		return !!c;
+		return c;
 	}
-	let snippetSupport = hasClientCapability('textDocument.completion.completionItem.snippetSupport');
-	scopedSettingsSupport = hasClientCapability('workspace.configuration');
+	let snippetSupport = !!getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
+	scopedSettingsSupport = !!getClientCapability('workspace.configuration', false);
+	foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
 
-	let capabilities: ServerCapabilities & FoldingProviderServerCapabilities = {
+	let capabilities: ServerCapabilities & FoldingRangeServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
-		completionProvider: snippetSupport ? { resolveProvider: false } : undefined,
+		completionProvider: snippetSupport ? { resolveProvider: false, triggerCharacters: ['/'] } : undefined,
 		hoverProvider: true,
 		documentSymbolProvider: true,
 		referencesProvider: true,
@@ -85,7 +90,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		codeActionProvider: true,
 		renameProvider: true,
 		colorProvider: true,
-		foldingProvider: true
+		foldingRangeProvider: true
 	};
 	return { capabilities };
 });
@@ -192,7 +197,7 @@ connection.onCompletion((textDocumentPosition, token) => {
 		cssLS.setCompletionParticipants([getPathCompletionParticipant(document, workspaceFolders, pathCompletionList)]);
 		const result = cssLS.doComplete(document, textDocumentPosition.position, stylesheets.get(document))!; /* TODO: remove ! once LS has null annotations */
 		return {
-			isIncomplete: result.isIncomplete,
+			isIncomplete: pathCompletionList.isIncomplete,
 			items: [...pathCompletionList.items, ...result.items]
 		};
 	}, null, `Error while computing completions for ${textDocumentPosition.textDocument.uri}`, token);
@@ -276,11 +281,10 @@ connection.onRenameRequest((renameParameters, token) => {
 	}, null, `Error while computing renames for ${renameParameters.textDocument.uri}`, token);
 });
 
-connection.onRequest(FoldingRangesRequest.type, (params, token) => {
+connection.onRequest(FoldingRangeRequest.type, (params, token) => {
 	return runSafe(() => {
 		let document = documents.get(params.textDocument.uri);
-		let stylesheet = stylesheets.get(document);
-		return getLanguageService(document).findFoldingRegions(document, stylesheet);
+		return getLanguageService(document).getFoldingRanges(document, { rangeLimit: foldingRangeLimit });
 	}, null, `Error while computing folding ranges for ${params.textDocument.uri}`, token);
 });
 

@@ -17,7 +17,7 @@
 	],
   "dependencies": {
     "semver": "4.3.6",
-    "vscode-extension-telemetry": "0.0.15",
+    "vscode-extension-telemetry": "0.0.16",
     "vscode-nls": "^3.2.1"
   },
   "devDependencies": {
@@ -39,7 +39,6 @@
     "onCommand:javascript.goToProjectConfig",
     "onCommand:typescript.goToProjectConfig",
     "onCommand:typescript.openTsServerLog",
-    "onCommand:typescript.organizeImports",
     "onCommand:workbench.action.tasks.runTask"
   ],
   "main": "./out/extension",
@@ -71,8 +70,7 @@
           ],
           "default": null,
           "description": "%typescript.npm%",
-          "isExecutable": true,
-          "scope": "window"
+          "scope": "application"
         },
         "typescript.check.npmIsInstalled": {
           "type": "boolean",
@@ -118,8 +116,7 @@
           },
           "default": [],
           "description": "%typescript.tsserver.pluginPaths%",
-          "scope": "window",
-          "isExecutable": true
+          "scope": "application"
         },
         "typescript.tsserver.trace": {
           "type": "string",
@@ -466,23 +463,6 @@
         "command": "typescript.restartTsServer",
         "title": "%typescript.restartTsServer%",
         "category": "TypeScript"
-      },
-      {
-        "command": "typescript.organizeImports",
-        "title": "%typescript.organizeImports%",
-        "category": "TypeScript"
-      },
-      {
-        "command": "javascript.organizeImports",
-        "title": "%typescript.organizeImports%",
-        "category": "JavaScript"
-      }
-    ],
-    "keybindings": [
-      {
-        "command": "typescript.organizeImports",
-        "key": "shift+alt+o",
-        "when": "typescript.isManagedFile && typescript.canOrganizeImports"
       }
     ],
     "menus": {
@@ -530,22 +510,6 @@
         {
           "command": "typescript.restartTsServer",
           "when": "typescript.isManagedFile"
-        },
-        {
-          "command": "typescript.organizeImports",
-          "when": "editorLangId == typescriptreact && typescript.isManagedFile && typescript.canOrganizeImports"
-        },
-        {
-          "command": "typescript.organizeImports",
-          "when": "editorLangId == typescript && typescript.isManagedFile && typescript.canOrganizeImports"
-        },
-        {
-          "command": "javascript.organizeImports",
-          "when": "editorLangId == javascriptreact && typescript.isManagedFile && typescript.canOrganizeImports"
-        },
-        {
-          "command": "javascript.organizeImports",
-          "when": "editorLangId == javascript && typescript.isManagedFile && typescript.canOrganizeImports"
         }
       ]
     },

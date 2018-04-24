@@ -46,6 +46,7 @@
 	"multiCursorModifier.ctrlCmd": "Mapeia para 'Control' no Windows e Linux e para 'Command' no macOS.",
 	"multiCursorModifier.alt": "Mapeia para 'Alt' em Windows e Linux e para 'Option' em macOS.",
 	"multiCursorModifier": "O modificador a ser usado para adicionar vários cursores com o mouse. `ctrlCmd` mapeia para 'Control' no Windows e Linux e para 'Command' no macOS. Os gestos do mouse Ir para definição e Abrir Link irão adaptar-se de forma que eles não entrem em conflito com o modificador multicursor.",
+	"multiCursorMergeOverlapping": "Mesclar vários cursores quando eles estão sobrepostos.",
 	"quickSuggestions.strings": "Habilitar sugestões rápidas dentro de strings.",
 	"quickSuggestions.comments": "Habilitar sugestões rápidas dentro de comentários.",
 	"quickSuggestions.other": "Habilitar sugestões rápidas fora de strings e comentários.",
@@ -88,6 +89,9 @@
 	"renderLineHighlight": "Controla como o editor deve renderizar a linha atual, as possibilidades são 'none', 'gutter', 'line' e 'all'.",
 	"codeLens": "Controla se o editor exibirá a lente de códigos.",
 	"folding": "Controla se o editor tem codigo colapsível hablitado",
+	"foldingStrategyAuto": "Se disponível, use uma estratégia de dobramento específica de idioma, caso contrário, recua para a estratégia baseada na indentação.",
+	"foldingStrategyIndentation": "Sempre use a estratégia de dobragem baseada no indentação ",
+	"foldingStrategy": "Controla a maneira como os intervalos de dobra são calculados. As opções 'auto' usam uma estratégia de dobra específica de idioma, se disponível. 'indentação' força o uso da estratégia de dobragem baseada na indentação.",
 	"showFoldingControls": "Controla se os controles de desdobramento na divisão são ocultas automaticamente.",
 	"matchBrackets": "Realça colchetes correspondente quando um deles estiver selecionado.",
 	"glyphMargin": "Controla se o editor deve renderizar a margem vertical de ícones. A margem vertical de ícones é usada primordialmente na depuração",
@@ -105,5 +109,7 @@
 	"selectionClipboard": "Controla se a área primária de transferência Linux deve ser suportada.",
 	"sideBySide": "Controla se o editor de diff mostra as diff lado a lado ou inline.",
 	"ignoreTrimWhitespace": "Controla se o editor de diff mostra alterações nos espaços iniciais ou finais como diferenças",
+	"largeFileSize": "Controles de limite de tamanho do arquivo em bytes além do qual são aplicadas as regras de otimização especial",
+	"largeFileLineCount": "Limite de tamanho de arquivo de controles em termos de número de linhas, além do qual são aplicadas as regras de otimização especial",
 	"renderIndicators": "Controla se o editor de diff mostra indicadores +/- para alterações adicionadas/removidas"
 }

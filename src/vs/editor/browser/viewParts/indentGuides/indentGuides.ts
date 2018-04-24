@@ -11,12 +11,13 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorIndentGuides } from 'vs/editor/common/view/editorColorRegistry';
+import { editorIndentGuides, editorActiveIndentGuides } from 'vs/editor/common/view/editorColorRegistry';
 import { Position } from 'vs/editor/common/core/position';
 
 export class IndentGuidesOverlay extends DynamicViewOverlay {
 
 	private _context: ViewContext;
+	private _primaryLineNumber: number;
 	private _lineHeight: number;
 	private _spaceWidth: number;
 	private _renderResult: string[];
@@ -25,6 +26,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 	constructor(context: ViewContext) {
 		super();
 		this._context = context;
+		this._primaryLineNumber = 0;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
 		this._enabled = this._context.configuration.editor.viewInfo.renderIndentGuides;
@@ -53,6 +55,17 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 			this._enabled = this._context.configuration.editor.viewInfo.renderIndentGuides;
 		}
 		return true;
+	}
+	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+		const selection = e.selections[0];
+		const newPrimaryLineNumber = selection.isEmpty() ? selection.positionLineNumber : 0;
+
+		if (this._primaryLineNumber !== newPrimaryLineNumber) {
+			this._primaryLineNumber = newPrimaryLineNumber;
+			return true;
+		}
+
+		return false;
 	}
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		// true for inline decorations
@@ -97,16 +110,28 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 
 		const indents = this._context.model.getLinesIndentGuides(visibleStartLineNumber, visibleEndLineNumber);
 
+		let activeIndentStartLineNumber = 0;
+		let activeIndentEndLineNumber = 0;
+		let activeIndentLevel = 0;
+		if (this._primaryLineNumber) {
+			const activeIndentInfo = this._context.model.getActiveIndentGuide(this._primaryLineNumber);
+			activeIndentStartLineNumber = activeIndentInfo.startLineNumber;
+			activeIndentEndLineNumber = activeIndentInfo.endLineNumber;
+			activeIndentLevel = activeIndentInfo.indent;
+		}
+
 		let output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
+			const containsActiveIndentGuide = (activeIndentStartLineNumber <= lineNumber && lineNumber <= activeIndentEndLineNumber);
 			const lineIndex = lineNumber - visibleStartLineNumber;
 			const indent = indents[lineIndex];
 
 			let result = '';
 			let leftMostVisiblePosition = ctx.visibleRangeForPosition(new Position(lineNumber, 1));
 			let left = leftMostVisiblePosition ? leftMostVisiblePosition.left : 0;
-			for (let i = 0; i < indent; i++) {
-				result += `<div class="cigr" style="left:${left}px;height:${lineHeight}px;width:${indentGuideWidth}px"></div>`;
+			for (let i = 1; i <= indent; i++) {
+				let className = (containsActiveIndentGuide && i === activeIndentLevel ? 'cigra' : 'cigr');
+				result += `<div class="${className}" style="left:${left}px;height:${lineHeight}px;width:${indentGuideWidth}px"></div>`;
 				left += tabWidth;
 			}
 
@@ -128,8 +153,12 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 }
 
 registerThemingParticipant((theme, collector) => {
-	let editorGuideColor = theme.getColor(editorIndentGuides);
-	if (editorGuideColor) {
-		collector.addRule(`.monaco-editor .lines-content .cigr { box-shadow: 1px 0 0 0 ${editorGuideColor} inset; }`);
+	let editorIndentGuidesColor = theme.getColor(editorIndentGuides);
+	if (editorIndentGuidesColor) {
+		collector.addRule(`.monaco-editor .lines-content .cigr { box-shadow: 1px 0 0 0 ${editorIndentGuidesColor} inset; }`);
+	}
+	let editorActiveIndentGuidesColor = theme.getColor(editorActiveIndentGuides) || editorIndentGuidesColor;
+	if (editorActiveIndentGuidesColor) {
+		collector.addRule(`.monaco-editor .lines-content .cigra { box-shadow: 1px 0 0 0 ${editorActiveIndentGuidesColor} inset; }`);
 	}
 });

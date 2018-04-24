@@ -46,6 +46,7 @@
 	"multiCursorModifier.ctrlCmd": "Windows és Linux alatt a `Control`, macOS alatt a `Command` billentyűt jelenti.",
 	"multiCursorModifier.alt": "Windows és Linux alatt az `Alt`, macOS alatt az `Option` billentyűt jelenti.",
 	"multiCursorModifier": "Több kurzor hozzáadásához használt módosítóbillentyű. A `ctrlCmd` Windows és Linux alatt a `Control`, macOS alatt a `Command` billentyűt jelenti. A Definíció megkeresése és Hivatkozás megnyitása egérgesztusok automatikusan úgy lesznek beállítva, hogy ne ütközzenek a többkurzorhoz tartozó módosítóval.",
+	"multiCursorMergeOverlapping": "Több kurzor összeolvasztása, ha azok fedik egymást.",
 	"quickSuggestions.strings": "Kiegészítési javaslatok engedélyezése karakterláncokban (stringekben)",
 	"quickSuggestions.comments": "Kiegészítési javaslatok engedélyezése megjegyzésekben",
 	"quickSuggestions.other": "Kiegészítési javaslatok engedélyezése karakterláncokon (stringeken) és megjegyzéseken kívül",
@@ -88,6 +89,9 @@
 	"renderLineHighlight": "Meghatározza, hogy a szerkesztőablakban hogyan legyen kirajzolva az aktuális sor kiemelése. Lehetséges értékek: 'none', 'gutter', 'line', vagy 'all'.",
 	"codeLens": "Meghatározza, hogy megjelenjenek-e a kódlencsék",
 	"folding": "Meghatározza, hogy engedélyezve van-e a kódrészletek bezárása a szerkesztőablakban.",
+	"foldingStrategyAuto": "Nyelvspecifikus kódrész-bezárási stratégia használata, ha az rendelkezésre áll. Ha nem, akkor tartalékmegoldásként az indentálásalapú kódrész-bezárási stratégia használata.",
+	"foldingStrategyIndentation": "A kódrészek bezárása mindig az indentálásalapú kódrész-bezárási stratégia alapján történjen.",
+	"foldingStrategy": "Meghatározza, hogyan vannak meghatározva a bezárható kódrészek. Az 'auto' esetén a nyelvspecifikus kódbezárási stratégia van használva, ha az rendelkezésre áll. Az 'indentation' esetén minden esetben az indentálásalapú bezárási stratégia van használva.",
 	"showFoldingControls": "Meghatározza, hogy a kódrészletek bezárásához tartozó vezérlőelemek automatikusan el legyenek-e rejtve.",
 	"matchBrackets": "Zárójel kiválasztása esetén a hozzátartozó zárójel kiemelése.",
 	"glyphMargin": "Meghatározza, hogy legyen-e vertikális szimbólummargó a szerkesztőablakban. A szimbólummargó elsősorban hibakeresésnél van használva.",
@@ -105,5 +109,7 @@
 	"selectionClipboard": "Meghatározza-e, hogy támogatva van-e az elsődleges vágólap Linux alatt",
 	"sideBySide": "Meghatározza, hogy a differenciaszerkesztő ablakban egymás mellett vagy a sorban jelenjenek meg az eltérések",
 	"ignoreTrimWhitespace": "Meghatározza, hogy a differenciaszerkesztő ablakban megjelenjenek-e a sor elején vagy végén a szóközökben talált különbségek",
+	"largeFileSize": "Meghatározza azt a fájlméretet, ami fölött speciális optimalizálási szabályok lépnek érvénybe.",
+	"largeFileLineCount": "Meghatározza azt a sorszámot, ami fölött speciális optimalizálási szabályok lépnek érvénybe. ",
 	"renderIndicators": "Meghatározza, hogy a differenciaszerkesztő ablakban megjelenjenek-e a +/- jelzők az hozzáadott/eltávolított változásoknál"
 }

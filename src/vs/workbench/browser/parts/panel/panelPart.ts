@@ -43,7 +43,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private blockOpeningPanel: boolean;
 	private compositeBar: CompositeBar;
 	private dimension: Dimension;
-	private toolbarWidth = new Map<string, number>();
 
 	constructor(
 		id: string,
@@ -100,6 +99,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	private registerListeners(): void {
+
+		this.toUnbind.push(this.registry.onDidRegister(panelDescriptor => this.compositeBar.addComposite(panelDescriptor, false)));
 
 		// Activate panel action on opening of a panel
 		this.toUnbind.push(this.onDidPanelOpen(panel => {
@@ -181,7 +182,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		if (descriptor && descriptor.enabled !== enabled) {
 			descriptor.enabled = enabled;
 			if (enabled) {
-				this.compositeBar.addComposite(descriptor);
+				this.compositeBar.addComposite(descriptor, true);
 			} else {
 				this.compositeBar.removeComposite(id);
 			}
@@ -242,6 +243,11 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return sizes;
 	}
 
+	public shutdown(): void {
+		this.compositeBar.shutdown();
+		super.shutdown();
+	}
+
 	private layoutCompositeBar(): void {
 		if (this.dimension) {
 			let availableWidth = this.dimension.width - 40; // take padding into account
@@ -258,11 +264,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		if (!activePanel) {
 			return 0;
 		}
-		if (!this.toolbarWidth.has(activePanel.getId())) {
-			this.toolbarWidth.set(activePanel.getId(), this.toolBar.getContainer().offsetWidth);
-		}
-
-		return this.toolbarWidth.get(activePanel.getId());
+		return this.toolBar.getItemsWidth();
 	}
 }
 

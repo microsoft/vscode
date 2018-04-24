@@ -38,7 +38,7 @@
 	"trashFailed": "Nem sikerült törölni a kuka használatával. Szeretné helyette véglegesen törölni?",
 	"deletePermanentlyButtonLabel": "&&Törlés véglegesen",
 	"retryButtonLabel": "Új&&rapróbálkozás",
-	"importFiles": "Fájlok importálása",
+	"addFiles": "Fájlok hozzáadása",
 	"confirmOverwrite": "A célmappában már van ilyen nevű mappa vagy fájl. Le szeretné cserélni?",
 	"replaceButtonLabel": "&&Csere",
 	"fileIsAncestor": "A beillesztendő fájl a célmappa szülője",

@@ -106,6 +106,10 @@ export class SideBySideEditor extends BaseEditor {
 		return this.detailsEditor;
 	}
 
+	public supportsCenteredLayout(): boolean {
+		return false;
+	}
+
 	private updateInput(oldInput: SideBySideEditorInput, newInput: SideBySideEditorInput, options?: EditorOptions): void {
 		if (!newInput.matches(oldInput)) {
 			if (oldInput) {

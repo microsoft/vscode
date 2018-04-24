@@ -46,6 +46,7 @@
 	"multiCursorModifier.ctrlCmd": "映射为 \"Ctrl\" (Windows 和 Linux) 或 \"Command\" (macOS)",
 	"multiCursorModifier.alt": "映射为 \"Alt\" (Windows 和 Linux) 或 \"Option\" (macOS)",
 	"multiCursorModifier": "在通过鼠标添加多个光标时使用的修改键。\"ctrlCmd\" 会映射为 \"Ctrl\" (Windows 和 Linux) 或 \"Command\" (macOS)。“转到定义”和“打开链接”功能所需的鼠标动作将会相应调整，不与多光标修改键冲突。",
+	"multiCursorMergeOverlapping": "当多个光标重叠时进行合并。",
 	"quickSuggestions.strings": "在字符串内启用快速建议。",
 	"quickSuggestions.comments": "在注释内启用快速建议。",
 	"quickSuggestions.other": "在字符串和注释外启用快速建议。",
@@ -88,6 +89,9 @@
 	"renderLineHighlight": "控制编辑器应如何呈现当前行突出显示，可能为“无”、“装订线”、“线”和“全部”。",
 	"codeLens": "控制编辑器是否显示 CodeLens",
 	"folding": "控制编辑器是否启用代码折叠功能",
+	"foldingStrategyAuto": "若语言特定的折叠策略可用，将直接使用；否则，将回退到基于缩进的折叠策略。",
+	"foldingStrategyIndentation": "始终使用基于缩进的折叠策略",
+	"foldingStrategy": "控制折叠范围的计算方式。\"auto\" 将使用语言特定的折叠策略 (若可用)。\"indentation\" 将强制使用基于缩进的折叠策略。",
 	"showFoldingControls": "控制是否自动隐藏导航线上的折叠控件。",
 	"matchBrackets": "当选择其中一项时，将突出显示匹配的括号。",
 	"glyphMargin": "控制编辑器是否应呈现垂直字形边距。字形边距最常用于调试。",
@@ -105,5 +109,7 @@
 	"selectionClipboard": "控制是否支持 Linux 主剪贴板。",
 	"sideBySide": "控制 Diff 编辑器以并排或内联形式显示差异",
 	"ignoreTrimWhitespace": "控制差异编辑器是否将对前导空格或尾随空格的更改显示为差异",
+	"largeFileSize": "控制以字节为单位的文件大小阈值，大于此值时将应用特殊的优化规则",
+	"largeFileLineCount": "控制文件行数的阈值，大于此值时将应用特殊的优化规则",
 	"renderIndicators": "控制差异编辑器是否为已添加/删除的更改显示 +/- 指示符号"
 }

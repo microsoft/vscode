@@ -37,6 +37,7 @@
 	"defaultLanguage": "El modo de lenguaje predeterminado que se asigna a nuevos archivos.",
 	"editorConfigurationTitle": "Editor",
 	"formatOnSave": "Formatea un archivo al guardarlo. Debe haber un formateador disponible, el archivo no debe guardarse automáticamente y el editor no debe estar cerrándose.",
+	"formatOnSaveTimeout": "Tiempo de espera de aplicación de formato al guardar. Especifica un límite de tiempo en milisegundos para los comandos formatOnSave. Los comandos que tarden más del tiempo de espera especificado se cancelarán.",
 	"explorerConfigurationTitle": "Explorador de archivos",
 	"openEditorsVisible": "Número de editores mostrados en el panel de editores abiertos.",
 	"autoReveal": "Controla si el explorador debe mostrar y seleccionar automáticamente los archivos al abrirlos.",

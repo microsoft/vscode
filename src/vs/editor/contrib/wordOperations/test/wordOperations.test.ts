@@ -141,7 +141,6 @@ suite('WordOperations', () => {
 			moveWordLeft(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 + '.length + 1, '002');
 			moveWordLeft(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 '.length + 1, '003');
 			moveWordLeft(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+= 3 +5-'.length + 1, '004');
-			moveWordLeft(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+= 3 +5'.length + 1, '005');
 			moveWordLeft(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+= 3 +'.length + 1, '006');
 			moveWordLeft(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+= 3 '.length + 1, '007');
 			moveWordLeft(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+= '.length + 1, '008');
@@ -165,7 +164,6 @@ suite('WordOperations', () => {
 			moveWordStartLeft(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 + '.length + 1, '002');
 			moveWordStartLeft(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 '.length + 1, '003');
 			moveWordStartLeft(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+= 3 +5-'.length + 1, '004');
-			moveWordStartLeft(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+= 3 +5'.length + 1, '005');
 			moveWordStartLeft(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+= 3 +'.length + 1, '006');
 			moveWordStartLeft(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+= 3 '.length + 1, '007');
 			moveWordStartLeft(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+= '.length + 1, '008');
@@ -287,6 +285,18 @@ suite('WordOperations', () => {
 			moveWordRight(editor); assert.equal(editor.getPosition().column, 'console.log'.length + 1, '002');
 			moveWordRight(editor); assert.equal(editor.getPosition().column, 'console.log(err'.length + 1, '003');
 			moveWordRight(editor); assert.equal(editor.getPosition().column, 'console.log(err)'.length + 1, '004');
+		});
+	});
+
+	test('issue #48046: Word selection doesn\'t work as usual', () => {
+		withTestCodeEditor([
+			'deep.object.property'
+		], {}, (editor, _) => {
+			editor.setPosition(new Position(1, 21));
+
+			moveWordLeft(editor); assert.equal(editor.getPosition().column, 'deep.object.'.length + 1, '001');
+			moveWordLeft(editor); assert.equal(editor.getPosition().column, 'deep.'.length + 1, '002');
+			moveWordLeft(editor); assert.equal(editor.getPosition().column, ''.length + 1, '003');
 		});
 	});
 

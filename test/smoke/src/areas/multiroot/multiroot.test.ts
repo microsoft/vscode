@@ -3,16 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { SpectronApplication } from '../../spectron/application';
+import { Application } from '../../application';
 
 export function setup() {
 	describe('Multiroot', () => {
 
 		before(async function () {
-			this.app.suiteName = 'Multiroot';
-
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			// restart with preventing additional windows from restoring
 			// to ensure the window after restart is the multi-root workspace
@@ -20,7 +17,7 @@ export function setup() {
 		});
 
 		it('shows results from all folders', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 			await app.workbench.quickopen.openQuickOpen('*.*');
 
 			await app.workbench.quickopen.waitForQuickOpenElements(names => names.length === 6);
@@ -28,10 +25,8 @@ export function setup() {
 		});
 
 		it('shows workspace name in title', async function () {
-			const app = this.app as SpectronApplication;
-			const title = await app.client.getTitle();
-			await app.screenCapturer.capture('window title');
-			assert.ok(title.indexOf('smoketest (Workspace)') >= 0);
+			const app = this.app as Application;
+			await app.code.waitForTitle(title => /smoketest \(Workspace\)/i.test(title));
 		});
 	});
 }

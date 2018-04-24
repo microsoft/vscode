@@ -194,11 +194,6 @@ suite('Files - View Model', () => {
 		assert(validateFileName(s, '') !== null);
 		assert(validateFileName(s, '  ') !== null);
 		assert(validateFileName(s, 'Read Me') === null, 'name containing space');
-		assert(validateFileName(s, 'foo/bar') === null);
-		assert(validateFileName(s, 'foo\\bar') === null);
-		assert(validateFileName(s, 'all/slashes/are/same') === null);
-		assert(validateFileName(s, 'theres/one/different\\slash') === null);
-		assert(validateFileName(s, '/slashAtBeginning') === null);
 
 		if (isWindows) {
 			assert(validateFileName(s, 'foo:bar') !== null);
@@ -234,6 +229,38 @@ suite('Files - View Model', () => {
 		assert(validateFileName(s, '.foo') === null);
 		assert(validateFileName(s, 'foo.bar') === null);
 		assert(validateFileName(s, 'foo') === null);
+	});
+
+	test('Validate Multi-Path File Names', function () {
+		const d = new Date().getTime();
+		const wsFolder = createStat('/', 'workspaceFolder', true, false, 8096, d);
+
+		assert(validateFileName(wsFolder, 'foo/bar') === null);
+		assert(validateFileName(wsFolder, 'foo\\bar') === null);
+		assert(validateFileName(wsFolder, 'all/slashes/are/same') === null);
+		assert(validateFileName(wsFolder, 'theres/one/different\\slash') === null);
+		assert(validateFileName(wsFolder, '/slashAtBeginning') !== null);
+
+		// validation should detect if user tries to add a child to a file
+		const fileInRoot = createStat('/fileInRoot', 'fileInRoot', false, false, 8096, d);
+		wsFolder.addChild(fileInRoot);
+		assert(validateFileName(wsFolder, 'fileInRoot/aChild') !== null);
+		wsFolder.removeChild(fileInRoot);
+
+		// attempting to add a child to a deeply nested file
+		const s1 = createStat('/path', 'path', true, false, 8096, d);
+		const s2 = createStat('/path/to', 'to', true, false, 8096, d);
+		const s3 = createStat('/path/to/stat', 'stat', true, false, 8096, d);
+		wsFolder.addChild(s1);
+		s1.addChild(s2);
+		s2.addChild(s3);
+		const fileDeeplyNested = createStat('/path/to/stat/fileNested', 'fileNested', false, false, 8096, d);
+		s3.addChild(fileDeeplyNested);
+		assert(validateFileName(wsFolder, '/path/to/stat/fileNested/aChild') !== null);
+
+		// detect if path already exists
+		assert(validateFileName(wsFolder, '/path/to/stat/fileNested') !== null);
+		assert(validateFileName(wsFolder, '/path/to/stat/') !== null);
 	});
 
 	test('Merge Local with Disk', function () {

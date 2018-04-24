@@ -97,7 +97,7 @@ import URI from 'vs/base/common/uri';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
 import { domEvent } from 'vs/base/browser/event';
 import { InputFocusedContext } from 'vs/platform/workbench/common/contextkeys';
-import { ICustomViewsService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/common/views';
 import { CustomViewsService } from 'vs/workbench/browser/parts/views/customView';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
@@ -106,9 +106,12 @@ import { NotificationsAlerts } from 'vs/workbench/browser/parts/notifications/no
 import { NotificationsStatus } from 'vs/workbench/browser/parts/notifications/notificationsStatus';
 import { registerNotificationCommands } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
+import { IPCClient } from 'vs/base/parts/ipc/common/ipc';
+import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
-import { ICommentService, CommentService } from '../services/comments/electron-browser/commentService';
+import { ICommentService, CommentService } from 'vs/workbench/services/comments/electron-browser/commentService';
+import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/platform/url/electron-browser/inactiveExtensionUrlHandler';
 
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
 export const InZenModeContext = new RawContextKey<boolean>('inZenMode', false);
@@ -234,9 +237,10 @@ export class Workbench implements IPartService {
 	constructor(
 		parent: HTMLElement,
 		container: HTMLElement,
-		configuration: IWindowConfiguration,
+		private configuration: IWindowConfiguration,
 		serviceCollection: ServiceCollection,
 		private lifecycleService: LifecycleService,
+		private mainProcessClient: IPCClient,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
@@ -320,6 +324,12 @@ export class Workbench implements IPartService {
 
 		// Workbench Layout
 		this.createWorkbenchLayout();
+
+		// Driver
+		if (this.environmentService.driverHandle) {
+			registerWindowDriver(this.mainProcessClient, this.configuration.windowId, this.instantiationService)
+				.then(disposable => this.toUnbind.push(disposable));
+		}
 
 		// Restore Parts
 		return this.restoreParts();
@@ -567,7 +577,7 @@ export class Workbench implements IPartService {
 
 		// Custom views service
 		const customViewsService = this.instantiationService.createInstance(CustomViewsService);
-		serviceCollection.set(ICustomViewsService, customViewsService);
+		serviceCollection.set(IViewsService, customViewsService);
 
 		// Activity service (activitybar part)
 		this.activitybarPart = this.instantiationService.createInstance(ActivitybarPart, Identifiers.ACTIVITYBAR_PART);
@@ -578,7 +588,7 @@ export class Workbench implements IPartService {
 		// File Service
 		this.fileService = this.instantiationService.createInstance(RemoteFileService);
 		serviceCollection.set(IFileService, this.fileService);
-		this.toUnbind.push(this.fileService.onFileChanges(e => this.configurationService.handleWorkspaceFileEvents(e)));
+		this.configurationService.acquireFileService(this.fileService);
 
 		// Editor service (editor part)
 		this.editorPart = this.instantiationService.createInstance(EditorPart, Identifiers.EDITOR_PART, !this.hasFilesToCreateOpenOrDiff);
@@ -607,6 +617,9 @@ export class Workbench implements IPartService {
 
 		// SCM Service
 		serviceCollection.set(ISCMService, new SyncDescriptor(SCMService));
+
+		// Inactive extension URL handler
+		serviceCollection.set(IExtensionUrlHandler, new SyncDescriptor(ExtensionUrlHandler));
 
 		// Text Model Resolver Service
 		serviceCollection.set(ITextModelService, new SyncDescriptor(TextModelResolverService));
@@ -650,7 +663,7 @@ export class Workbench implements IPartService {
 
 		this.instantiationService.createInstance(DefaultConfigurationExportHelper);
 
-		this.configurationService.setInstantiationService(this.getInstantiationService());
+		this.configurationService.acquireInstantiationService(this.getInstantiationService());
 	}
 
 	private initSettings(): void {

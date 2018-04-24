@@ -17,7 +17,6 @@ import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, IActionOptions, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';

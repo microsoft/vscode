@@ -51,5 +51,7 @@
 	"workbench.action.terminal.hideFindWidget": "파인드 위젯 숨기기",
 	"nextTerminalFindTerm": "다음 검색어 표시",
 	"previousTerminalFindTerm": "이전 검색어 표시",
-	"quickOpenTerm": "활성 터미널 전환"
+	"quickOpenTerm": "활성 터미널 전환",
+	"workbench.action.terminal.selectToPreviousCommand": "이전 명령까지 선택",
+	"workbench.action.terminal.selectToNextCommand": "다음 명령까지 선택"
 }

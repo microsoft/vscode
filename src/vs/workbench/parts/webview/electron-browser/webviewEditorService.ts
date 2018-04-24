@@ -2,15 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { Position } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import * as vscode from 'vscode';
 import { WebviewEditorInput } from './webviewEditorInput';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 export const IWebviewEditorService = createDecorator<IWebviewEditorService>('webviewEditorService');
 
@@ -66,7 +67,7 @@ export interface WebviewEvents {
 	onDidClickLink?(link: URI, options: vscode.WebviewOptions): void;
 }
 
-export interface WebviewInputOptions extends vscode.WebviewOptions {
+export interface WebviewInputOptions extends vscode.WebviewOptions, vscode.WebviewPanelOptions {
 	tryRestoreScrollPosition?: boolean;
 }
 
@@ -99,11 +100,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 		webview: WebviewEditorInput,
 		column: Position | undefined
 	): void {
-		if (typeof column === 'undefined') {
-			column = webview.position;
-		}
-
-		if (webview.position === column) {
+		if (typeof column === 'undefined' || webview.position === column) {
 			this._editorService.openEditor(webview, { preserveFocus: false }, column);
 		} else {
 			this._editorGroupService.moveEditor(webview, webview.position, column, { preserveFocus: false });

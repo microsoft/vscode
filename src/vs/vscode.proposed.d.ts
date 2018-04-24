@@ -11,253 +11,42 @@ declare module 'vscode' {
 		export function sampleFunction(): Thenable<any>;
 	}
 
-	//#region Aeschli: folding
+	//#region Joh: file system provider (OLD)
 
-	export class FoldingRangeList {
-
-		/**
-		 * The folding ranges.
-		 */
-		ranges: FoldingRange[];
-
-		/**
-		 * Creates new folding range list.
-		 *
-		 * @param ranges The folding ranges
-		 */
-		constructor(ranges: FoldingRange[]);
-	}
-
-
-	export class FoldingRange {
-
-		/**
-		 * The start line number (zero-based) of the range to fold. The hidden area starts after the last character of that line.
-		 */
-		startLine: number;
-
-		/**
-		 * The end line number (0-based) of the range to fold. The hidden area ends at the last character of that line.
-		 */
-		endLine: number;
-
-		/**
-		 * The actual color value for this color range.
-		 */
-		type?: FoldingRangeType | string;
-
-		/**
-		 * Creates a new folding range.
-		 *
-		 * @param startLineNumber The first line of the fold
-		 * @param type The last line of the fold
-		 */
-		constructor(startLineNumber: number, endLineNumber: number, type?: FoldingRangeType | string);
-	}
-
-	export enum FoldingRangeType {
-		/**
-		 * Folding range for a comment
-		 */
-		Comment = 'comment',
-		/**
-		 * Folding range for a imports or includes
-		 */
-		Imports = 'imports',
-		/**
-		 * Folding range for a region (e.g. `#region`)
-		 */
-		Region = 'region'
-	}
-
-	export namespace languages {
-
-		/**
-		 * Register a folding provider.
-		 *
-		 * Multiple folding can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the best-matching provider is used. Failure
-		 * of the selected provider will cause a failure of the whole operation.
-		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A folding provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerFoldingProvider(selector: DocumentSelector, provider: FoldingProvider): Disposable;
-	}
-
-	export interface FoldingContext {
-		maxRanges?: number;
-	}
-
-	export interface FoldingProvider {
-		/**
-		 * Returns a list of folding ranges or null if the provider does not want to participate or was cancelled.
-		 */
-		provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken): ProviderResult<FoldingRangeList>;
-	}
-
-	//#endregion
-
-	//#region Joh: file system provider
-
-	// export enum FileErrorCodes {
-	// 	/**
-	// 	 * Not owner.
-	// 	 */
-	// 	EPERM = 1,
-	// 	/**
-	// 	 * No such file or directory.
-	// 	 */
-	// 	ENOENT = 2,
-	// 	/**
-	// 	 * I/O error.
-	// 	 */
-	// 	EIO = 5,
-	// 	/**
-	// 	 * Permission denied.
-	// 	 */
-	// 	EACCES = 13,
-	// 	/**
-	// 	 * File exists.
-	// 	 */
-	// 	EEXIST = 17,
-	// 	/**
-	// 	 * Not a directory.
-	// 	 */
-	// 	ENOTDIR = 20,
-	// 	/**
-	// 	 * Is a directory.
-	// 	 */
-	// 	EISDIR = 21,
-	// 	/**
-	// 	 *  File too large.
-	// 	 */
-	// 	EFBIG = 27,
-	// 	/**
-	// 	 * No space left on device.
-	// 	 */
-	// 	ENOSPC = 28,
-	// 	/**
-	// 	 * Directory is not empty.
-	// 	 */
-	// 	ENOTEMPTY = 66,
-	// 	/**
-	// 	 * Invalid file handle.
-	// 	 */
-	// 	ESTALE = 70,
-	// 	/**
-	// 	 * Illegal NFS file handle.
-	// 	 */
-	// 	EBADHANDLE = 10001,
-	// }
-
-	export enum FileChangeType {
+	export enum DeprecatedFileChangeType {
 		Updated = 0,
 		Added = 1,
 		Deleted = 2
 	}
-
-	export interface FileChange {
-		type: FileChangeType;
+	export interface DeprecatedFileChange {
+		type: DeprecatedFileChangeType;
 		resource: Uri;
 	}
-
-	export enum FileType {
+	export enum DeprecatedFileType {
 		File = 0,
 		Dir = 1,
 		Symlink = 2
 	}
-
-	export interface FileStat {
+	export interface DeprecatedFileStat {
 		id: number | string;
 		mtime: number;
-		// atime: number;
 		size: number;
-		type: FileType;
+		type: DeprecatedFileType;
 	}
-
-	// todo@joh discover files etc
-	// todo@joh CancellationToken everywhere
-	// todo@joh add open/close calls?
-	export interface FileSystemProvider {
-
-		readonly onDidChange?: Event<FileChange[]>;
-
-		// more...
-		// @deprecated - will go away
-		utimes(resource: Uri, mtime: number, atime: number): Thenable<FileStat>;
-
-		stat(resource: Uri): Thenable<FileStat>;
-
+	export interface DeprecatedFileSystemProvider {
+		readonly onDidChange?: Event<DeprecatedFileChange[]>;
+		utimes(resource: Uri, mtime: number, atime: number): Thenable<DeprecatedFileStat>;
+		stat(resource: Uri): Thenable<DeprecatedFileStat>;
 		read(resource: Uri, offset: number, length: number, progress: Progress<Uint8Array>): Thenable<number>;
-
-		// todo@joh - have an option to create iff not exist
-		// todo@remote
-		// offset - byte offset to start
-		// count - number of bytes to write
-		// Thenable<number> - number of bytes actually written
 		write(resource: Uri, content: Uint8Array): Thenable<void>;
-
-		// todo@remote
-		// Thenable<FileStat>
-		move(resource: Uri, target: Uri): Thenable<FileStat>;
-
-		// todo@remote
-		// helps with performance bigly
-		// copy?(from: Uri, to: Uri): Thenable<void>;
-
-		// todo@remote
-		// Thenable<FileStat>
-		mkdir(resource: Uri): Thenable<FileStat>;
-
-		readdir(resource: Uri): Thenable<[Uri, FileStat][]>;
-
-		// todo@remote
-		// ? merge both
-		// ? recursive del
+		move(resource: Uri, target: Uri): Thenable<DeprecatedFileStat>;
+		mkdir(resource: Uri): Thenable<DeprecatedFileStat>;
+		readdir(resource: Uri): Thenable<[Uri, DeprecatedFileStat][]>;
 		rmdir(resource: Uri): Thenable<void>;
 		unlink(resource: Uri): Thenable<void>;
-
-		// todo@remote
-		// create(resource: Uri): Thenable<FileStat>;
 	}
-
-	// todo@joh discover files etc
-	// todo@joh CancellationToken everywhere
-	// todo@joh add open/close calls?
-	export interface FileSystemProvider2 {
-
-		_version: 2;
-
-		readonly onDidChange?: Event<FileChange[]>;
-
-		stat(uri: Uri, token: CancellationToken): Thenable<FileStat>;
-
-		readdir(uri: Uri, token: CancellationToken): Thenable<[Uri, FileStat][]>;
-
-		readFile(uri: Uri, token: CancellationToken): Thenable<Uint8Array>;
-
-		writeFile(uri: Uri, content: Uint8Array, token: CancellationToken): Thenable<void>;
-
-		// todo@remote
-		// Thenable<FileStat>
-		rename(oldUri: Uri, newUri: Uri): Thenable<FileStat>;
-
-		// todo@remote
-		// helps with performance bigly
-		// copy?(from: Uri, to: Uri): Thenable<void>;
-
-		// todo@remote
-		// ? useTrash, expose trash
-		delete(resource: Uri, options: { recursive?: boolean; }): Thenable<void>;
-
-		// todo@remote
-		create(resource: Uri, options: { type: FileType }): Thenable<FileStat>;
-	}
-
 	export namespace workspace {
-		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, newProvider?: FileSystemProvider2): Disposable;
+		export function registerDeprecatedFileSystemProvider(scheme: string, provider: DeprecatedFileSystemProvider): Disposable;
 	}
 
 	//#endregion
@@ -444,25 +233,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joh: rename context
-
-	export interface RenameProvider2 extends RenameProvider {
-
-		/**
-		 * Optional function for resolving and validating a position at which rename is
-		 * being carried out.
-		 *
-		 * @param document The document in which rename will be invoked.
-		 * @param position The position at which rename will be invoked.
-		 * @param token A cancellation token.
-		 * @return The range of the identifier that is to be renamed. The lack of a result can signaled by returning `undefined` or `null`.
-		 */
-		resolveRenameLocation?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Range>;
-
-	}
-
-	//#endregion
-
 	//#region Joao: SCM validation
 
 	/**
@@ -513,185 +283,50 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Matt: WebView
+	//#region Matt: WebView Serializer
 
 	/**
-	 * Content settings for a webview.
+	 * Save and restore webview panels that have been persisted when vscode shuts down.
 	 */
-	export interface WebviewOptions {
+	interface WebviewPanelSerializer {
 		/**
-		 * Should scripts be enabled in the webview content?
+		 * Save a webview panel's `state`.
 		 *
-		 * Defaults to false (scripts-disabled).
-		 */
-		readonly enableScripts?: boolean;
-
-		/**
-		 * Should command uris be enabled in webview content?
+		 * Called before shutdown. Extensions have a 250ms timeframe to return a state. If serialization
+		 * takes longer than 250ms, the panel will not be serialized.
 		 *
-		 * Defaults to false.
-		 */
-		readonly enableCommandUris?: boolean;
-
-		/**
-		 * Should the find widget be enabled in the webview?
-		 *
-		 * Defaults to false.
-		 */
-		readonly enableFindWidget?: boolean;
-
-		/**
-		 * Should the webview's context be kept around even when the webview is no longer visible?
-		 *
-		 * Normally a webview's context is created when the webview becomes visible
-		 * and destroyed when the webview is hidden. Apps that have complex state
-		 * or UI can set the `retainContextWhenHidden` to make VS Code keep the webview
-		 * context around, even when the webview moves to a background tab. When
-		 * the webview becomes visible again, the context is automatically restored
-		 * in the exact same state it was in originally.
-		 *
-		 * `retainContextWhenHidden` has a high memory overhead and should only be used if
-		 * your webview's context cannot be quickly saved and restored.
-		 */
-		readonly retainContextWhenHidden?: boolean;
-
-		/**
-		 * Root paths from which the webview can load local (filesystem) resources using the `vscode-resource:` scheme.
-		 *
-		 * Default to the root folders of the current workspace plus the extension's install directory.
-		 *
-		 * Pass in an empty array to disallow access to any local resources.
-		 */
-		readonly localResourceRoots?: Uri[];
-	}
-
-	export interface WebviewOnDidChangeViewStateEvent {
-		readonly viewColumn: ViewColumn;
-		readonly active: boolean;
-	}
-
-	/**
-	 * A webview displays html content, like an iframe.
-	 */
-	export interface Webview {
-		/**
-		 * The type of the webview, such as `'markdown.preview'`
-		 */
-		readonly viewType: string;
-
-		/**
-		 * Content settings for the webview.
-		 */
-		readonly options: WebviewOptions;
-
-		/**
-		 * Title of the webview shown in UI.
-		 */
-		title: string;
-
-		/**
-		 * Contents of the webview.
-		 *
-		 * Should be a complete html document.
-		 */
-		html: string;
-
-		/**
-		 * The column in which the webview is showing.
-		 */
-		readonly viewColumn?: ViewColumn;
-
-		/**
-		 * Fired when the webview content posts a message.
-		 */
-		readonly onDidReceiveMessage: Event<any>;
-
-		/**
-		 * Fired when the webview is disposed.
-		 */
-		readonly onDidDispose: Event<void>;
-
-		/**
-		 * Fired when the webview's view state changes.
-		 */
-		readonly onDidChangeViewState: Event<WebviewOnDidChangeViewStateEvent>;
-
-		/**
-		 * Post a message to the webview content.
-		 *
-		 * Messages are only develivered if the webview is visible.
-		 *
-		 * @param message Body of the message.
-		 */
-		postMessage(message: any): Thenable<boolean>;
-
-		/**
-		 * Shows the webview in a given column.
-		 *
-		 * A webview may only be in a single column at a time. If it is already showing, this
-		 * command moves it to a new column.
-		 */
-		reveal(viewColumn: ViewColumn): void;
-
-		/**
-		 * Dispose of the the webview.
-		 *
-		 * This closes the webview if it showing and disposes of the resources owned by the webview.
-		 * Webview are also disposed when the user closes the webview editor. Both cases fire `onDispose`
-		 * event. Trying to use the webview after it has been disposed throws an exception.
-		 */
-		dispose(): any;
-	}
-
-	/**
-	 * Save and restore webviews that have been persisted when vscode shuts down.
-	 */
-	interface WebviewSerializer {
-		/**
-		 * Save a webview's `state`.
-		 *
-		 * Called before shutdown. Webview may or may not be visible.
-		 *
-		 * @param webview Webview to serialize.
+		 * @param webviewPanel webview Panel to serialize. May or may not be visible.
 		 *
 		 * @returns JSON serializable state blob.
 		 */
-		serializeWebview(webview: Webview): Thenable<any>;
+		serializeWebviewPanel(webviewPanel: WebviewPanel): Thenable<any>;
 
 		/**
-		 * Restore a webview from its `state`.
+		 * Restore a webview panel from its seriailzed `state`.
 		 *
-		 * Called when a serialized webview first becomes active.
+		 * Called when a serialized webview first becomes visible.
 		 *
-		 * @param webview Webview to restore. The serializer should take ownership of this webview.
+		 * @param webviewPanel Webview panel to restore. The serializer should take ownership of this panel.
 		 * @param state Persisted state.
+		 *
+		 * @return Thanble indicating that the webview has been fully restored.
 		 */
-		deserializeWebview(webview: Webview, state: any): Thenable<void>;
+		deserializeWebviewPanel(webviewPanel: WebviewPanel, state: any): Thenable<void>;
 	}
 
 	namespace window {
 		/**
-		 * Create and show a new webview.
-		 *
-		 * @param viewType Identifies the type of the webview.
-		 * @param title Title of the webview.
-		 * @param column Editor column to show the new webview in.
-		 * @param options Content settings for the webview.
-		 */
-		export function createWebview(viewType: string, title: string, column: ViewColumn, options: WebviewOptions): Webview;
-
-		/**
-		 * Registers a webview serializer.
+		 * Registers a webview panel serializer.
 		 *
 		 * Extensions that support reviving should have an `"onView:viewType"` activation method and
-		 * make sure that `registerWebviewSerializer` is called during activation.
+		 * make sure that [registerWebviewPanelSerializer](#registerWebviewPanelSerializer) is called during activation.
 		 *
 		 * Only a single serializer may be registered at a time for a given `viewType`.
 		 *
-		 * @param viewType Type of the webview that can be serialized.
+		 * @param viewType Type of the webview panel that can be serialized.
 		 * @param reviver Webview serializer.
 		 */
-		export function registerWebviewSerializer(viewType: string, reviver: WebviewSerializer): Disposable;
+		export function registerWebviewPanelSerializer(viewType: string, reviver: WebviewPanelSerializer): Disposable;
 	}
 
 	//#endregion
@@ -740,14 +375,29 @@ declare module 'vscode' {
 		execution: TaskExecution;
 	}
 
+	export interface TaskFilter {
+		/**
+		 * The task version as used in the tasks.json file.
+		 * The string support the package.json semver notation.
+		 */
+		version?: string;
+
+		/**
+		 * The task type to return;
+		 */
+		type?: string;
+	}
+
 	export namespace workspace {
 
 		/**
-		 * Fetches all task available in the systems. This includes tasks
+		 * Fetches all task available in the systems. Thisweweb includes tasks
 		 * from `tasks.json` files as well as tasks from task providers
 		 * contributed through extensions.
+		 *
+		 * @param filter a filter to filter the return tasks.
 		 */
-		export function fetchTasks(): Thenable<Task[]>;
+		export function fetchTasks(filter?: TaskFilter): Thenable<Task[]>;
 
 		/**
 		 * Executes a task that is managed by VS Code. The returned
@@ -756,6 +406,13 @@ declare module 'vscode' {
 		 * @param task the task to execute
 		 */
 		export function executeTask(task: Task): Thenable<TaskExecution>;
+
+		/**
+		 * The currently active task executions or an empty array.
+		 *
+		 * @readonly
+		 */
+		export let taskExecutions: TaskExecution[];
 
 		/**
 		 * Fires when a task starts.
@@ -834,4 +491,60 @@ declare module 'vscode' {
 		export function registerDocumentCommentProvider(provider: DocumentCommentProvider): Disposable;
 		export function registerWorkspaceCommentProvider(provider: WorkspaceCommentProvider): Disposable;
 	}
+	//#region Terminal
+
+	export interface Terminal {
+		onData: Event<string>;
+	}
+
+	export namespace window {
+		/**
+		 * The currently active terminals or an empty array.
+		 *
+		 * @readonly
+		 */
+		export let terminals: Terminal[];
+
+		/**
+		 * An [event](#Event) which fires when a terminal has been created, either through the
+		 * [createTerminal](#window.createTerminal) API or commands.
+		 */
+		export const onDidOpenTerminal: Event<Terminal>;
+	}
+
+	//#endregion
+
+	//#region URLs
+
+	export interface ProtocolHandler {
+		handleUri(uri: Uri): void;
+	}
+
+	export namespace window {
+
+		/**
+		 * Registers a protocol handler capable of handling system-wide URIs.
+		 */
+		export function registerProtocolHandler(handler: ProtocolHandler): Disposable;
+	}
+
+	//#endregion
+
+	//#region Joh: hierarchical document symbols, https://github.com/Microsoft/vscode/issues/34968
+
+	export class HierarchicalSymbolInformation {
+		name: string;
+		kind: SymbolKind;
+		location: Location;
+		range: Range;
+		children: HierarchicalSymbolInformation[];
+
+		constructor(name: string, kind: SymbolKind, location: Location, range: Range);
+	}
+
+	export interface DocumentSymbolProvider {
+		provideDocumentSymbols(document: TextDocument, token: CancellationToken): ProviderResult<HierarchicalSymbolInformation | SymbolInformation[]>;
+	}
+
+	//#endregion
 }

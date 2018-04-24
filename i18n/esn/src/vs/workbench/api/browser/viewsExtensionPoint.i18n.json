@@ -15,7 +15,6 @@
 	"vscode.extension.contributes.views": "Aporta vistas al editor",
 	"views.explorer": "Vista del explorador",
 	"views.debug": "Vista de depuración",
-	"locationId.invalid": "`{0}` no es una ubicación de vista válida",
 	"duplicateView1": "No se pueden registrar múltiples vistas con el mismo identificador '{0}' en la ubicación '{1}'",
 	"duplicateView2": "Una vista con el identificador '{0}' ya está registrada en la ubicación '{1}'"
 }

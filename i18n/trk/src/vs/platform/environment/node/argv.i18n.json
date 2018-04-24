@@ -29,8 +29,6 @@
 	"performance": "'Geliştirici: Başlangıç Performansı' komutu etkinleştirilmiş olarak başlat.",
 	"prof-startup": "Başlangıç sırasında CPU profil oluşturucusunu çalıştır",
 	"disableExtensions": "Yüklü tüm eklentileri devre dışı bırak.",
-	"inspect-extensions": "Eklentilerde hata ayıklama ve ayrımlamaya izin ver. Bağlantı URI'ı için geliştirici araçlarını kontrol edin.",
-	"inspect-brk-extensions": "Eklentilerde hata ayıklama ve ayrımlamaya eklenti sunucusu başladıktan hemen sonra duraklatılacak şekilde izin ver. Bağlantı URI'ı için geliştirici araçlarını kontrol edin.",
 	"disableGPU": "GPU donanım hızlandırmasını devre dışı bırak.",
 	"uploadLogs": "Geçerli oturumdaki günlükleri güvenli bir uçbirime yükler.",
 	"maxMemory": "Bir pencere için maksimum bellek miktarı (Mbyte olarak).",

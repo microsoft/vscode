@@ -35,7 +35,6 @@
 	"emmetExtensionsPath": "Emmet-profilokat és -kódtöredékeket tartalmazó mappa elérési útja.",
 	"emmetShowExpandedAbbreviation": "Kibontott Emmet-rövidítések megjelenítése javaslatként. Az \"inMarkupAndStylesheetFilesOnly\" beállítás csak a html, haml, jade, slim, xml, xsl, css, scss, sass, less és stylus típusú tartalmat jelenti. Az \"always\" beállítás a fájl összes részére vonatkozik a jelölőnyelvtől/css-től függetlenül.",
 	"emmetShowAbbreviationSuggestions": "Lehetséges Emmet-rövidítések megjelenítése javaslatként. Nem használható a stíluslapokon vagy ha az emmet.showExpandedAbbreviation értéke \"never\".",
-	"emmetIncludeLanguages": "Emmet-rövidítések engedélyezése olyan nyelvek esetében, amelyek alapértelmezés szerint nem támogatottak. Egy megfeleltetést kell felvenni a nyelv és egy emmet által támogatott nyelv között.\nPl.: {\"vue-html\": \"html\", \"javascript\": \"javascriptreact\"}",
 	"emmetVariables": "Az Emmet-kódrészletekben használt változók",
 	"emmetTriggerExpansionOnTab": "Ha engedélyezve van, akkor az Emmet-rövidítések a Tab billentyű lenyomásával bonthatók ki.",
 	"emmetPreferences": "Beállítások, melyek módosítják az Emmet műveleteinek és feloldó algoritmusainak viselkedését.",

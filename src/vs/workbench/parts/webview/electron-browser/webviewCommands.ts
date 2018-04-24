@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Command, ICommandOptions } from 'vs/editor/browser/editorExtensions';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Action } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { Command, ICommandOptions } from 'vs/editor/browser/editorExtensions';
+import * as nls from 'vs/nls';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { BaseWebviewEditor } from './baseWebviewEditor';
 
 export class ShowWebViewEditorFindWidgetCommand extends Command {
@@ -24,7 +23,7 @@ export class ShowWebViewEditorFindWidgetCommand extends Command {
 }
 
 export class HideWebViewEditorFindCommand extends Command {
-	public static readonly Id = 'editor.action.webvieweditor.hideFind';
+	public static readonly ID = 'editor.action.webvieweditor.hideFind';
 
 	public runCommand(accessor: ServicesAccessor, args: any): void {
 		const webViewEditor = getActiveWebviewEditor(accessor);
@@ -98,8 +97,8 @@ export class ReloadWebviewAction extends Action {
 
 	private getVisibleWebviews() {
 		return this.workbenchEditorService.getVisibleEditors()
-			.filter(c => c && (c as any).isWebviewEditor)
-			.map(e => e as BaseWebviewEditor);
+			.filter(editor => editor && (editor as BaseWebviewEditor).isWebviewEditor)
+			.map(editor => editor as BaseWebviewEditor);
 	}
 }
 

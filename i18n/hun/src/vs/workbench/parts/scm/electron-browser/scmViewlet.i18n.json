@@ -11,5 +11,6 @@
 	"installAdditionalSCMProviders": "További verziókezelő rendszerek telepítése...",
 	"no open repo": "Nincs aktív verziókezelő rendszer.",
 	"source control": "Verziókezelő rendszer",
-	"viewletTitle": "{0}: {1}"
+	"viewletTitle": "{0}: {1}",
+	"hideView": "Elrejtés"
 }

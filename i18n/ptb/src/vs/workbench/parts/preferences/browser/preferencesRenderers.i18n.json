@@ -13,9 +13,5 @@
 	"newExtensionLabel": "Mostrar Extensão \"{0}\"",
 	"editTtile": "Editar",
 	"replaceDefaultValue": "Substituir nas Configurações",
-	"copyDefaultValue": "Copiar para Configurações",
-	"unsupportedPHPExecutablePathSetting": "Essa configuração deve ser uma Configuração de Usuário. Para configurar o PHP para o espaço de trabalho, abra um arquivo PHP e clique em 'Caminho do PHP' na barra de status.",
-	"unsupportedWorkspaceSetting": "Essa configuração deve ser uma Configuração de Usuário.",
-	"unsupportedWorkbenchSetting": "Essa configuração não pode ser aplicada agora. Será aplicada quando você abrir esta pasta diretamente.",
-	"unsupportedWorkbenchSettingDevMode": "Essa configuração não pode ser aplicada agora. Ela será aplicada se você definir o seu escopo como 'recurso' durante o registo, ou quando você abrir esta pasta diretamente."
+	"copyDefaultValue": "Copiar para Configurações"
 }

@@ -41,6 +41,7 @@ import product from 'vs/platform/node/product';
 import * as strings from 'vs/base/common/strings';
 import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 
 let _SystemExtensionsRoot: string = null;
 function getSystemExtensionsRoot(): string {
@@ -424,7 +425,10 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	private _activateByEvent(activationEvent: string): TPromise<void> {
-		return this._extensionHostProcessManager.activateByEvent(activationEvent);
+		if (this._extensionHostProcessManager) {
+			return this._extensionHostProcessManager.activateByEvent(activationEvent);
+		}
+		return NO_OP_VOID_PROMISE;
 	}
 
 	public whenInstalledExtensionsRegistered(): TPromise<boolean> {
@@ -455,8 +459,8 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	public getExtensionsStatus(): { [id: string]: IExtensionsStatus; } {
-		const activationTimes = this._extensionHostProcessManager.getActivationTimes();
-		const runtimeErrors = this._extensionHostProcessManager.getRuntimeErrors();
+		const activationTimes = this._extensionHostProcessManager ? this._extensionHostProcessManager.getActivationTimes() : {};
+		const runtimeErrors = this._extensionHostProcessManager ? this._extensionHostProcessManager.getRuntimeErrors() : {};
 
 		let result: { [id: string]: IExtensionsStatus; } = Object.create(null);
 		if (this._registry) {
@@ -475,7 +479,10 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	public canProfileExtensionHost(): boolean {
-		return this._extensionHostProcessManager.canProfileExtensionHost();
+		if (this._extensionHostProcessManager) {
+			return this._extensionHostProcessManager.canProfileExtensionHost();
+		}
+		return false;
 	}
 
 	public startExtensionHostProfile(): TPromise<ProfileSession> {
@@ -491,7 +498,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 	private _scanAndHandleExtensions(): void {
 
-		this._getRuntimeExtension()
+		this._getRuntimeExtensions()
 			.then(runtimeExtensons => {
 				this._registry = new ExtensionDescriptionRegistry(runtimeExtensons);
 
@@ -516,7 +523,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			});
 	}
 
-	private _getRuntimeExtension(): TPromise<IExtensionDescription[]> {
+	private _getRuntimeExtensions(): TPromise<IExtensionDescription[]> {
 		const log = new Logger((severity, source, message) => {
 			this._logOrShowMessage(severity, this._isDev ? messageWithSource2(source, message) : message);
 		});
@@ -580,7 +587,36 @@ export class ExtensionService extends Disposable implements IExtensionService {
 							return runtimeExtensions;
 						}
 					});
-			});
+			}).then(extensions => this._updateEnableProposedApi(extensions));
+	}
+
+	private _updateEnableProposedApi(extensions: IExtensionDescription[]): IExtensionDescription[] {
+		const enableProposedApiForAll = !this._environmentService.isBuilt || (!!this._environmentService.extensionDevelopmentPath && product.nameLong.indexOf('Insiders') >= 0);
+		const enableProposedApiFor = this._environmentService.args['enable-proposed-api'] || [];
+		for (const extension of extensions) {
+			if (!isFalsyOrEmpty(product.extensionAllowedProposedApi)
+				&& product.extensionAllowedProposedApi.indexOf(extension.id) >= 0
+			) {
+				// fast lane -> proposed api is available to all extensions
+				// that are listed in product.json-files
+				extension.enableProposedApi = true;
+
+			} else if (extension.enableProposedApi && !extension.isBuiltin) {
+				if (
+					!enableProposedApiForAll &&
+					enableProposedApiFor.indexOf(extension.id) < 0
+				) {
+					extension.enableProposedApi = false;
+					console.error(`Extension '${extension.id} cannot use PROPOSED API (must started out of dev or enabled via --enable-proposed-api)`);
+
+				} else {
+					// proposed api is available when developing or when an extension was explicitly
+					// spelled out via a command line argument
+					console.warn(`Extension '${extension.id}' uses PROPOSED API which is subject to change and removal without notice.`);
+				}
+			}
+		}
+		return extensions;
 	}
 
 	private _handleExtensionPointMessage(msg: IMessage) {

@@ -11,6 +11,7 @@ import { nfcall, ninvoke, SimpleThrottler } from 'vs/base/common/async';
 import { mkdirp, rimraf } from 'vs/base/node/pfs';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { open as _openZip, Entry, ZipFile } from 'yauzl';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export interface IExtractOptions {
 	overwrite?: boolean;
@@ -26,10 +27,7 @@ interface IOptions {
 	sourcePathRegex: RegExp;
 }
 
-export enum ExtractErrorType {
-	Undefined,
-	CorruptZip
-}
+export type ExtractErrorType = 'CorruptZip' | 'Incomplete';
 
 export class ExtractError extends Error {
 
@@ -40,7 +38,7 @@ export class ExtractError extends Error {
 		let message = cause.message;
 
 		switch (type) {
-			case ExtractErrorType.CorruptZip: message = `Corrupt ZIP: ${message}`; break;
+			case 'CorruptZip': message = `Corrupt ZIP: ${message}`; break;
 		}
 
 		super(message);
@@ -58,12 +56,14 @@ function modeFromEntry(entry: Entry) {
 }
 
 function toExtractError(err: Error): ExtractError {
-	let type = ExtractErrorType.CorruptZip;
+	if (err instanceof ExtractError) {
+		return err;
+	}
 
-	console.log('WHAT');
+	let type: ExtractErrorType = void 0;
 
 	if (/end of central directory record signature not found/.test(err.message)) {
-		type = ExtractErrorType.CorruptZip;
+		type = 'CorruptZip';
 	}
 
 	return new ExtractError(type, err);
@@ -88,21 +88,31 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 	}));
 }
 
-function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions): TPromise<void> {
+function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, logService: ILogService): TPromise<void> {
 	let isCanceled = false;
 	let last = TPromise.wrap<any>(null);
+	let extractedEntriesCount = 0;
 
 	return new TPromise((c, e) => {
 		const throttler = new SimpleThrottler();
 
 		zipfile.once('error', e);
-		zipfile.once('close', () => last.then(c, e));
+		zipfile.once('close', () => last.then(() => {
+			if (isCanceled || zipfile.entryCount === extractedEntriesCount) {
+				c(null);
+			} else {
+				e(new ExtractError('Incomplete', new Error(nls.localize('incompleteExtract', "Incomplete. Extracted {0} of {1} entries", extractedEntriesCount, zipfile.entryCount))));
+			}
+		}, e));
 		zipfile.on('entry', (entry: Entry) => {
 			if (isCanceled) {
 				return;
 			}
 
+			logService.debug(targetPath, 'Extracting', entry.fileName);
+
 			if (!options.sourcePathRegex.test(entry.fileName)) {
+				extractedEntriesCount++;
 				return;
 			}
 
@@ -111,14 +121,14 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions): TP
 			// directory file names end with '/'
 			if (/\/$/.test(fileName)) {
 				const targetFileName = path.join(targetPath, fileName);
-				last = mkdirp(targetFileName);
+				last = mkdirp(targetFileName).then(() => extractedEntriesCount++);
 				return;
 			}
 
 			const stream = ninvoke(zipfile, zipfile.openReadStream, entry);
 			const mode = modeFromEntry(entry);
 
-			last = throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options)));
+			last = throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options).then(() => extractedEntriesCount++)));
 		});
 	}, () => {
 		isCanceled = true;
@@ -132,7 +142,7 @@ function openZip(zipFile: string): TPromise<ZipFile> {
 		.then(null, err => TPromise.wrapError(toExtractError(err)));
 }
 
-export function extract(zipPath: string, targetPath: string, options: IExtractOptions = {}): TPromise<void> {
+export function extract(zipPath: string, targetPath: string, options: IExtractOptions = {}, logService: ILogService): TPromise<void> {
 	const sourcePathRegex = new RegExp(options.sourcePath ? `^${options.sourcePath}` : '');
 
 	let promise = openZip(zipPath);
@@ -141,7 +151,7 @@ export function extract(zipPath: string, targetPath: string, options: IExtractOp
 		promise = promise.then(zipfile => rimraf(targetPath).then(() => zipfile));
 	}
 
-	return promise.then(zipfile => extractZip(zipfile, targetPath, { sourcePathRegex }));
+	return promise.then(zipfile => extractZip(zipfile, targetPath, { sourcePathRegex }, logService));
 }
 
 function read(zipPath: string, filePath: string): TPromise<Readable> {

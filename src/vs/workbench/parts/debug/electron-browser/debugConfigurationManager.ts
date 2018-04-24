@@ -8,7 +8,6 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import * as objects from 'vs/base/common/objects';
 import uri from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
@@ -26,7 +25,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugConfigurationProvider, IRawAdapter, ICompound, IDebugConfiguration, IConfig, IEnvConfig, IGlobalConfig, IConfigurationManager, ILaunch, IAdapterExecutable, IDebugAdapterProvider, IDebugAdapter } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugConfigurationProvider, IDebuggerContribution, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IAdapterExecutable, IDebugAdapterProvider, IDebugAdapter, ITerminalSettings, ITerminalLauncher } from 'vs/workbench/parts/debug/common/debug';
 import { Debugger } from 'vs/workbench/parts/debug/node/debugger';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
@@ -34,9 +33,10 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { TerminalLauncher } from 'vs/workbench/parts/debug/electron-browser/terminalSupport';
 
 // debuggers extension point
-export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawAdapter[]>('debuggers', [], {
+export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IDebuggerContribution[]>('debuggers', [], {
 	description: nls.localize('vscode.extension.contributes.debuggers', 'Contributes debug adapters.'),
 	type: 'array',
 	defaultSnippets: [{ body: [{ type: '', extensions: [] }] }],
@@ -230,6 +230,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	private _onDidSelectConfigurationName = new Emitter<void>();
 	private providers: IDebugConfigurationProvider[];
 	private debugAdapterProviders: Map<string, IDebugAdapterProvider>;
+	private terminalLauncher: ITerminalLauncher;
 
 
 	constructor(
@@ -240,7 +241,8 @@ export class ConfigurationManager implements IConfigurationManager {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ICommandService private commandService: ICommandService,
 		@IStorageService private storageService: IStorageService,
-		@ILifecycleService lifecycleService: ILifecycleService
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService
 	) {
 		this.providers = [];
 		this.debuggers = [];
@@ -263,10 +265,10 @@ export class ConfigurationManager implements IConfigurationManager {
 		debugConfigurationProvider.handle = handle;
 		this.providers = this.providers.filter(p => p.handle !== handle);
 		this.providers.push(debugConfigurationProvider);
-		const adapter = this.getDebugger(debugConfigurationProvider.type);
+		const dbg = this.getDebugger(debugConfigurationProvider.type);
 		// Check if the provider contributes provideDebugConfigurations method
-		if (adapter && debugConfigurationProvider.provideDebugConfigurations) {
-			adapter.hasConfigurationProvider = true;
+		if (dbg && debugConfigurationProvider.provideDebugConfigurations) {
+			dbg.hasConfigurationProvider = true;
 		}
 	}
 
@@ -303,16 +305,45 @@ export class ConfigurationManager implements IConfigurationManager {
 		return TPromise.as(undefined);
 	}
 
-	public registerDebugAdapterProvider(debugType: string, debugAdapterLauncher: IDebugAdapterProvider) {
-		this.debugAdapterProviders.set(debugType, debugAdapterLauncher);
+	public registerDebugAdapterProvider(debugTypes: string[], debugAdapterLauncher: IDebugAdapterProvider): IDisposable {
+		debugTypes.forEach(debugType => this.debugAdapterProviders.set(debugType, debugAdapterLauncher));
+		return {
+			dispose: () => {
+				debugTypes.forEach(debugType => this.debugAdapterProviders.delete(debugType));
+			}
+		};
 	}
 
-	public createDebugAdapter(debugType: string, adapterExecutable: IAdapterExecutable): IDebugAdapter {
-		let dap = this.debugAdapterProviders.get(debugType);
-		if (!dap) {
-			dap = this.debugAdapterProviders.get('*');
+	private getDebugAdapterProvider(type: string): IDebugAdapterProvider | undefined {
+		return this.debugAdapterProviders.get(type);
+	}
+
+	public createDebugAdapter(debugType: string, adapterExecutable: IAdapterExecutable): IDebugAdapter | undefined {
+		let dap = this.getDebugAdapterProvider(debugType);
+		if (dap) {
+			return dap.createDebugAdapter(debugType, adapterExecutable);
 		}
-		return dap.createDebugAdapter(debugType, adapterExecutable);
+		return undefined;
+	}
+
+	public substituteVariables(debugType: string, folder: IWorkspaceFolder, config: IConfig): TPromise<IConfig> {
+		let dap = this.getDebugAdapterProvider(debugType);
+		if (dap) {
+			return dap.substituteVariables(folder, config);
+		}
+		return TPromise.as(config);
+	}
+
+	public runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
+
+		let tl: ITerminalLauncher = this.getDebugAdapterProvider(debugType);
+		if (!tl) {
+			if (!this.terminalLauncher) {
+				this.terminalLauncher = this.instantiationService.createInstance(TerminalLauncher);
+			}
+			tl = this.terminalLauncher;
+		}
+		return tl.runInTerminal(args, config);
 	}
 
 	private registerListeners(lifecycleService: ILifecycleService): void {
@@ -332,7 +363,7 @@ export class ConfigurationManager implements IConfigurationManager {
 					if (duplicate) {
 						duplicate.merge(rawAdapter, extension.description);
 					} else {
-						this.debuggers.push(new Debugger(this, rawAdapter, extension.description, this.configurationService, this.commandService));
+						this.debuggers.push(new Debugger(this, rawAdapter, extension.description, this.configurationService, this.commandService, this.configurationResolverService));
 					}
 				});
 			});
@@ -525,7 +556,6 @@ class Launch implements ILaunch {
 		@IFileService private fileService: IFileService,
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
-		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IExtensionService private extensionService: IExtensionService
 	) {
@@ -582,41 +612,6 @@ class Launch implements ILaunch {
 		}
 
 		return config.configurations.filter(config => config && config.name === name).shift();
-	}
-
-	protected getWorkspaceForResolving(): IWorkspaceFolder {
-		if (this.workspace) {
-			return this.workspace;
-		}
-
-		if (this.contextService.getWorkspace().folders.length === 1) {
-			return this.contextService.getWorkspace().folders[0];
-		}
-
-		return undefined;
-	}
-
-	public resolveConfiguration(config: IConfig): TPromise<IConfig> {
-		const result = objects.deepClone(config) as IConfig;
-		// Set operating system specific properties #1873
-		const setOSProperties = (flag: boolean, osConfig: IEnvConfig) => {
-			if (flag && osConfig) {
-				Object.keys(osConfig).forEach(key => {
-					result[key] = osConfig[key];
-				});
-			}
-		};
-		setOSProperties(isWindows, result.windows);
-		setOSProperties(isMacintosh, result.osx);
-		setOSProperties(isLinux, result.linux);
-
-		// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
-		Object.keys(result).forEach(key => {
-			result[key] = this.configurationResolverService.resolveAny(this.getWorkspaceForResolving(), result[key]);
-		});
-
-		const adapter = this.configurationManager.getDebugger(result.type);
-		return this.configurationResolverService.resolveInteractiveVariables(result, adapter ? adapter.variables : null);
 	}
 
 	public openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
@@ -688,7 +683,7 @@ class WorkspaceLaunch extends Launch implements ILaunch {
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(configurationManager, undefined, fileService, editorService, configurationService, configurationResolverService, contextService, extensionService);
+		super(configurationManager, undefined, fileService, editorService, configurationService, contextService, extensionService);
 	}
 
 	get uri(): uri {
@@ -720,7 +715,7 @@ class UserLaunch extends Launch implements ILaunch {
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(configurationManager, undefined, fileService, editorService, configurationService, configurationResolverService, contextService, extensionService);
+		super(configurationManager, undefined, fileService, editorService, configurationService, contextService, extensionService);
 	}
 
 	get uri(): uri {

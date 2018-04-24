@@ -9,24 +9,32 @@ phases:
     inputs:
       versionSpec: "1.3.2"
   - powershell: |
+      $ErrorActionPreference = "Stop"
       yarn
       .\node_modules\.bin\gulp electron
       npm run gulp -- hygiene
       .\node_modules\.bin\tsc -p .\src\tsconfig.monaco.json --noEmit
       npm run compile
+      node build/lib/builtInExtensions.js
     name: build
   - powershell: |
+      $ErrorActionPreference = "Stop"
       .\scripts\test.bat --tfs
       .\scripts\test-integration.bat
+      yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)\artifacts" --log "$(Build.ArtifactStagingDirectory)\artifacts\smoketest.log"
     name: test
-  - task: PublishTestResults@2
+  - task: PublishBuildArtifacts@1
     inputs:
-      testResultsFiles: '.build\tests\unit-test-results.xml'
+      PathtoPublish: '$(Build.ArtifactStagingDirectory)/artifacts'
+      ArtifactName: build-artifacts-win32
+      publishLocation: Container
+    condition: succeededOrFailed()
 
 - phase: Linux
   queue: Hosted Linux Preview
   steps:
   - script: |
+      set -e
       apt-get update
       apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 libgconf-2-4 dbus xvfb libgtk-3-0
       cp build/tfs/linux/x64/xvfb.init /etc/init.d/xvfb
@@ -42,20 +50,21 @@ phases:
     inputs:
       versionSpec: "1.3.2"
   - script: |
+      set -e
       yarn
       npm run gulp -- electron-x64
   - script: |
+      set -e
       npm run gulp -- hygiene
       ./node_modules/.bin/tsc -p ./src/tsconfig.monaco.json --noEmit
       npm run compile
+      node build/lib/builtInExtensions.js
     name: build
   - script: |
+      set -e
       DISPLAY=:10 ./scripts/test.sh --tfs
       # DISPLAY=:10 ./scripts/test-integration.sh
     name: test
-  - task: PublishTestResults@2
-    inputs:
-      testResultsFiles: '.build/tests/unit-test-results.xml'
 
 - phase: macOS
   queue: Hosted macOS Preview
@@ -67,17 +76,25 @@ phases:
     inputs:
       versionSpec: "1.3.2"
   - script: |
+      set -e
       yarn
       npm run gulp -- electron-x64
   - script: |
+      set -e
       npm run gulp -- hygiene
       ./node_modules/.bin/tsc -p ./src/tsconfig.monaco.json --noEmit
       npm run compile
+      node build/lib/builtInExtensions.js
     name: build
   - script: |
+      set -e
       ./scripts/test.sh --tfs
       ./scripts/test-integration.sh
+      yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)/artifacts" --log "$(Build.ArtifactStagingDirectory)/artifacts/smoketest.log"
     name: test
-  - task: PublishTestResults@2
+  - task: PublishBuildArtifacts@1
     inputs:
-      testResultsFiles: '.build/tests/unit-test-results.xml'
+      PathtoPublish: '$(Build.ArtifactStagingDirectory)/artifacts'
+      ArtifactName: build-artifacts-darwin
+      publishLocation: Container
+    condition: succeededOrFailed()

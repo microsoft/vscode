@@ -59,8 +59,8 @@ async function tmpFile(name: string): Promise<string> {
 	return join(tmpParent, name);
 }
 
-async function getVersions(accessor: IApplicationAccessor): Promise<IVersions> {
-	return await asyncRequest<IVersions>({
+function getVersions(accessor: IApplicationAccessor): Promise<IVersions> {
+	return asyncRequest<IVersions>({
 		url: `${BASE_URL}/apps/${accessor.appId}/app_versions`,
 		method: 'GET',
 		headers: {
@@ -69,8 +69,8 @@ async function getVersions(accessor: IApplicationAccessor): Promise<IVersions> {
 	});
 }
 
-async function createVersion(accessor: IApplicationAccessor, version: string): Promise<IVersion> {
-	return await asyncRequest<IVersion>({
+function createVersion(accessor: IApplicationAccessor, version: string): Promise<IVersion> {
+	return asyncRequest<IVersion>({
 		url: `${BASE_URL}/apps/${accessor.appId}/app_versions/new`,
 		method: 'POST',
 		headers: {
@@ -82,8 +82,8 @@ async function createVersion(accessor: IApplicationAccessor, version: string): P
 	});
 }
 
-async function updateVersion(accessor: IVersionAccessor, symbolsPath: string) {
-	return await asyncRequest<IVersions>({
+function updateVersion(accessor: IVersionAccessor, symbolsPath: string) {
+	return asyncRequest<IVersions>({
 		url: `${BASE_URL}/apps/${accessor.appId}/app_versions/${accessor.id}`,
 		method: 'PUT',
 		headers: {
@@ -95,7 +95,7 @@ async function updateVersion(accessor: IVersionAccessor, symbolsPath: string) {
 	});
 }
 
-async function asyncRequest<T>(options: request.UrlOptions & request.CoreOptions): Promise<T> {
+function asyncRequest<T>(options: request.UrlOptions & request.CoreOptions): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
 		request(options, (error, response, body) => {
 			if (error) {
@@ -107,7 +107,7 @@ async function asyncRequest<T>(options: request.UrlOptions & request.CoreOptions
 	});
 }
 
-async function downloadAsset(repository, assetName: string, targetPath: string, electronVersion: string) {
+function downloadAsset(repository, assetName: string, targetPath: string, electronVersion: string) {
 	return new Promise((resolve, reject) => {
 		repository.getReleases({ tag_name: `v${electronVersion}` }, (err, releases) => {
 			if (err) {
@@ -136,6 +136,7 @@ async function downloadAsset(repository, assetName: string, targetPath: string, 
 }
 
 interface IOptions {
+	repository: string;
 	platform: Platform;
 	versions: { code: string; insiders: boolean; electron: string; };
 	access: { hockeyAppToken: string; hockeyAppId: string; githubToken: string };
@@ -147,7 +148,7 @@ async function ensureVersionAndSymbols(options: IOptions) {
 	console.log(`HockeyApp: checking for existing version ${options.versions.code} (${options.platform})`);
 	const versions = await getVersions({ accessToken: options.access.hockeyAppToken, appId: options.access.hockeyAppId });
 	if (versions.app_versions.some(v => v.version === options.versions.code)) {
-		console.log(`Returning without uploading symbols because version ${options.versions.code} (${options.platform}) was already found`);
+		console.log(`HockeyApp: Returning without uploading symbols because version ${options.versions.code} (${options.platform}) was already found`);
 		return;
 	}
 
@@ -155,7 +156,7 @@ async function ensureVersionAndSymbols(options: IOptions) {
 	const symbolsName = symbolsZipName(options.platform, options.versions.electron, options.versions.insiders);
 	const symbolsPath = await tmpFile('symbols.zip');
 	console.log(`HockeyApp: downloading symbols ${symbolsName} for electron ${options.versions.electron} (${options.platform}) into ${symbolsPath}`);
-	await downloadAsset(new github({ repo: 'Microsoft/vscode-electron-prebuilt', token: options.access.githubToken }), symbolsName, symbolsPath, options.versions.electron);
+	await downloadAsset(new github({ repo: options.repository, token: options.access.githubToken }), symbolsName, symbolsPath, options.versions.electron);
 
 	// Create version
 	console.log(`HockeyApp: creating new version ${options.versions.code} (${options.platform})`);
@@ -172,9 +173,13 @@ async function ensureVersionAndSymbols(options: IOptions) {
 // Environment
 const pakage = require('../../../package.json');
 const product = require('../../../product.json');
-const codeVersion = pakage.version;
+const repository = product.electronRepository;
 const electronVersion = require('../../lib/electron').getElectronVersion();
 const insiders = product.quality !== 'stable';
+let codeVersion = pakage.version;
+if (insiders) {
+	codeVersion = `${codeVersion}-insider`;
+}
 const githubToken = process.argv[2];
 const hockeyAppToken = process.argv[3];
 const is64 = process.argv[4] === 'x64';
@@ -190,20 +195,25 @@ if (process.platform === 'darwin') {
 }
 
 // Create version and upload symbols in HockeyApp
-ensureVersionAndSymbols({
-	platform,
-	versions: {
-		code: codeVersion,
-		insiders,
-		electron: electronVersion
-	},
-	access: {
-		githubToken,
-		hockeyAppToken,
-		hockeyAppId
-	}
-}).then(() => {
-	console.log('HockeyApp: done');
-}, error => {
-	console.error(`HockeyApp: error (${error})`);
-});
+if (repository && codeVersion && electronVersion && (product.quality === 'stable' || product.quality === 'insider')) {
+	ensureVersionAndSymbols({
+		repository,
+		platform,
+		versions: {
+			code: codeVersion,
+			insiders,
+			electron: electronVersion
+		},
+		access: {
+			githubToken,
+			hockeyAppToken,
+			hockeyAppId
+		}
+	}).then(() => {
+		console.log('HockeyApp: done');
+	}).catch(error => {
+		console.error(`HockeyApp: error (${error})`);
+	});
+} else {
+	console.log(`HockeyApp: skipping due to unexpected context (repository: ${repository}, codeVersion: ${codeVersion}, electronVersion: ${electronVersion}, quality: ${product.quality})`);
+}

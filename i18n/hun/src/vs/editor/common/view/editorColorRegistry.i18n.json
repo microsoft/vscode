@@ -16,6 +16,7 @@
 	"editorIndentGuides": "A szerkesztőablak segédvonalainak színe.",
 	"editorLineNumbers": "A szerkesztőablak sorszámainak színe.",
 	"editorActiveLineNumber": "A szerkesztőablak aktív sorához tartozó sorszám színe.",
+	"deprecatedEditorActiveLineNumber": "Az Id elavult. Használja helyette az 'editorLineNumber.activeForeground' beállítást!",
 	"editorRuler": "A szerkesztőablak sávjainak színe.",
 	"editorCodeLensForeground": "A szerkesztőablakban található kódlencsék előtérszíne",
 	"editorBracketMatchBackground": "Hozzátartozó zárójelek háttérszíne",

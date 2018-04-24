@@ -7,6 +7,7 @@
   "engines": {
     "vscode": "0.10.x"
   },
+  "enableProposedApi": true,
   "icon": "images/npm_icon.png",
   "categories": [
     "Other"
@@ -28,9 +29,73 @@
   "main": "./out/main",
   "activationEvents": [
     "onCommand:workbench.action.tasks.runTask",
-    "onLanguage:json"
+    "onLanguage:json",
+    "onView:npm",
+    "workspaceContains:**/package.json"
   ],
   "contributes": {
+    "views": {
+      "explorer": [
+        {
+          "id": "npm",
+          "name": "%view.name%",
+          "when": "hasNpmScripts"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "npm.runScript",
+        "title": "%command.run%"
+      },
+      {
+        "command": "npm.debugScript",
+        "title": "%command.debug%"
+      },
+      {
+        "command": "npm.openScript",
+        "title": "%command.openScript%"
+      },
+      {
+        "command": "npm.refresh",
+        "title": "%command.refresh%",
+        "icon": {
+          "light": "resources/light/refresh.svg",
+          "dark": "resources/dark/refresh.svg"
+        }
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "npm.refresh",
+          "when": "view == npm",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "npm.openScript",
+          "when": "view == npm && viewItem == packageJSON",
+          "group": "navigation"
+        },
+        {
+          "command": "npm.openScript",
+          "when": "view == npm && viewItem == script",
+          "group": "navigation@1"
+        },
+        {
+          "command": "npm.runScript",
+          "when": "view == npm && viewItem == script",
+          "group": "navigation@2"
+        },
+        {
+          "command": "npm.debugScript",
+          "when": "view == npm && viewItem == script",
+          "group": "navigation@3"
+        }
+      ]
+    },
     "configuration": {
       "id": "npm",
       "type": "object",
@@ -72,6 +137,12 @@
           },
           "description": "%config.npm.exclude%",
           "scope": "resource"
+        },
+        "npm.enableScriptExplorer": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource",
+          "description": "%config.npm.enableScriptExplorer%"
         }
       }
     },

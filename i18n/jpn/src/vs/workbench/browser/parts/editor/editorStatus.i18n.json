@@ -17,7 +17,7 @@
 	"screenReaderDetectedExtra": "スクリーン リーダーを使用しない場合、`editor.accessibilitySupport` を \"off\" にしてください。",
 	"disableTabMode": "アクセシビリティ モードを無効にする",
 	"gotoLine": "行へ移動",
-	"indentation": "インデント",
+	"selectIndentation": "インデントを選択",
 	"selectEncoding": "エンコードの選択",
 	"selectEOL": "改行コードの選択",
 	"selectLanguageMode": "言語モードの選択",

@@ -31,6 +31,9 @@ export interface IMouseDispatchData {
 	ctrlKey: boolean;
 	metaKey: boolean;
 	shiftKey: boolean;
+
+	leftButton: boolean;
+	middleButton: boolean;
 }
 
 export interface ICommandDelegate {
@@ -133,7 +136,13 @@ export class ViewController {
 	}
 
 	public dispatchMouse(data: IMouseDispatchData): void {
-		if (data.startedOnLineNumbers) {
+		if (data.middleButton) {
+			if (data.inSelectionMode) {
+				this.columnSelect(data.position, data.mouseColumn);
+			} else {
+				this.moveTo(data.position);
+			}
+		} else if (data.startedOnLineNumbers) {
 			// If the dragging started on the gutter, then have operations work on the entire line
 			if (this._hasMulticursorModifier(data)) {
 				if (data.inSelectionMode) {

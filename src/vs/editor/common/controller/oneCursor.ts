@@ -93,11 +93,6 @@ export class OneCursor {
 			viewState = new SingleCursorState(viewSelectionStart, modelState.selectionStartLeftoverVisibleColumns, viewPosition, modelState.leftoverVisibleColumns);
 		}
 
-		if (this.modelState && this.viewState && this.modelState.equals(modelState) && this.viewState.equals(viewState)) {
-			// No-op, early return
-			return;
-		}
-
 		this.modelState = modelState;
 		this.viewState = viewState;
 

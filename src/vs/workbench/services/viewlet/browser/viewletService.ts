@@ -33,6 +33,7 @@ export class ViewletService implements IViewletService {
 	private _onDidViewletEnable = new Emitter<{ id: string, enabled: boolean }>();
 	private disposables: IDisposable[] = [];
 
+	public get onDidViewletRegister(): Event<ViewletDescriptor> { return <Event<ViewletDescriptor>>this.viewletRegistry.onDidRegister; }
 	public get onDidViewletOpen(): Event<IViewlet> { return this.sidebarPart.onDidViewletOpen; }
 	public get onDidViewletClose(): Event<IViewlet> { return this.sidebarPart.onDidViewletClose; }
 	public get onDidViewletEnablementChange(): Event<{ id: string, enabled: boolean }> { return this._onDidViewletEnable.event; }

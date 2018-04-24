@@ -199,6 +199,10 @@ export class TextDiffEditor extends BaseTextEditor {
 		});
 	}
 
+	public supportsCenteredLayout(): boolean {
+		return false;
+	}
+
 	private restoreTextDiffEditorViewState(input: EditorInput): boolean {
 		if (input instanceof DiffEditorInput) {
 			const resource = this.toDiffEditorViewStateResource(input);

@@ -18,8 +18,17 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
+export interface IResourceEncodings {
+	getWriteEncoding(resource: URI, preferredEncoding?: string): string;
+}
+
 export interface IFileService {
 	_serviceBrand: any;
+
+	/**
+	 * Helper to determine read/write encoding for resources.
+	 */
+	encoding: IResourceEncodings;
 
 	/**
 	 * Allows to listen for file changes. The event will fire for every file within the opened workspace
@@ -33,14 +42,19 @@ export interface IFileService {
 	onAfterOperation: Event<FileOperationEvent>;
 
 	/**
+	 * An event that is fired when a file system provider is added or removed
+	 */
+	onDidChangeFileSystemProviderRegistrations: Event<IFileSystemProviderRegistrationEvent>;
+
+	/**
 	 * Registeres a file system provider for a certain scheme.
 	 */
-	registerProvider?(scheme: string, provider: IFileSystemProvider): IDisposable;
+	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable;
 
 	/**
 	 * Checks if this file service can handle the given resource.
 	 */
-	canHandleResource?(resource: URI): boolean;
+	canHandleResource(resource: URI): boolean;
 
 	/**
 	 * Resolve the properties of a file identified by the resource.
@@ -126,11 +140,6 @@ export interface IFileService {
 	del(resource: URI, useTrash?: boolean): TPromise<void>;
 
 	/**
-	 * Imports the file to the parent identified by the resource.
-	 */
-	importFile(source: URI, targetFolder: URI): TPromise<IImportResult>;
-
-	/**
 	 * Allows to start a watcher that reports file change events on the provided resource.
 	 */
 	watchFileChanges(resource: URI): void;
@@ -141,56 +150,96 @@ export interface IFileService {
 	unwatchFileChanges(resource: URI): void;
 
 	/**
-	 * Configures the file service with the provided options.
-	 */
-	updateOptions(options: object): void;
-
-	/**
-	 * Returns the preferred encoding to use for a given resource.
-	 */
-	getEncoding(resource: URI, preferredEncoding?: string): string;
-
-	/**
 	 * Frees up any resources occupied by this service.
 	 */
 	dispose(): void;
 }
 
-
-export enum FileType {
-	File = 0,
-	Dir = 1,
-	Symlink = 2
+export enum FileType2 {
+	File = 1,
+	Directory = 2,
+	SymbolicLink = 4,
 }
+
+export interface FileOptions {
+	/**
+	 * Create a file when it doesn't exists.
+	 */
+	create?: boolean;
+
+	/**
+	 * In combination with [`create`](FileOptions.create) but
+	 * the operation should fail when a file already exists.
+	 */
+	exclusive?: boolean;
+
+	/**
+	 * Open a file for reading.
+	 */
+	read?: boolean;
+
+	/**
+	 * Open a file for writing.
+	 */
+	write?: boolean;
+}
+
 export interface IStat {
-	id: number | string;
+	isFile?: boolean;
+	isDirectory?: boolean;
+	isSymbolicLink?: boolean;
 	mtime: number;
 	size: number;
-	type: FileType;
+}
+
+export interface IWatchOptions {
+	recursive?: boolean;
+	exclude?: string[];
+}
+
+export enum FileSystemProviderCapabilities {
+	FileReadWrite = 1 << 1,
+	FileOpenReadWriteClose = 1 << 2,
+	FileFolderCopy = 1 << 3,
+
+	PathCaseSensitive = 1 << 10
 }
 
 export interface IFileSystemProvider {
 
-	onDidChange?: Event<IFileChange[]>;
+	readonly capabilities: FileSystemProviderCapabilities;
 
-	// more...
-	//
+	onDidChangeFile: Event<IFileChange[]>;
+	watch(resource: URI, opts: IWatchOptions): IDisposable;
+
 	stat(resource: URI): TPromise<IStat>;
-	readFile(resource: URI): TPromise<Uint8Array>;
-	writeFile(resource: URI, content: Uint8Array): TPromise<void>;
-	move(from: URI, to: URI): TPromise<IStat>;
 	mkdir(resource: URI): TPromise<IStat>;
-	readdir(resource: URI): TPromise<[URI, IStat][]>;
+	readdir(resource: URI): TPromise<[string, IStat][]>;
 	delete(resource: URI): TPromise<void>;
+
+	rename(from: URI, to: URI, opts: FileOptions): TPromise<IStat>;
+	copy?(from: URI, to: URI, opts: FileOptions): TPromise<IStat>;
+
+	readFile?(resource: URI, opts: FileOptions): TPromise<Uint8Array>;
+	writeFile?(resource: URI, content: Uint8Array, opts: FileOptions): TPromise<void>;
+
+	open?(resource: URI, opts: FileOptions): TPromise<number>;
+	close?(fd: number): TPromise<void>;
+	read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
+	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
 }
 
+export interface IFileSystemProviderRegistrationEvent {
+	added: boolean;
+	scheme: string;
+	provider?: IFileSystemProvider;
+}
 
 export enum FileOperation {
 	CREATE,
 	DELETE,
 	MOVE,
-	COPY,
-	IMPORT
+	COPY
 }
 
 export class FileOperationEvent {
@@ -446,6 +495,14 @@ export interface ITextSnapshot {
 	read(): string;
 }
 
+export class StringSnapshot implements ITextSnapshot {
+	constructor(private _value: string) { }
+	read(): string {
+		let ret = this._value;
+		this._value = null;
+		return ret;
+	}
+}
 /**
  * Helper method to convert a snapshot into its full string form.
  */
@@ -541,6 +598,11 @@ export interface IUpdateContentOptions {
 	 * The etag of the file. This can be used to prevent dirty writes.
 	 */
 	etag?: string;
+
+	/**
+	 * Run mkdirp before saving.
+	 */
+	mkdirp?: boolean;
 }
 
 export interface IResolveFileOptions {
@@ -555,11 +617,6 @@ export interface ICreateFileOptions {
 	 * an error will be thrown (FILE_MODIFIED_SINCE).
 	 */
 	overwrite?: boolean;
-}
-
-export interface IImportResult {
-	stat: IFileStat;
-	isNew: boolean;
 }
 
 export class FileOperationError extends Error {

@@ -8,7 +8,6 @@
 	],
 	"extensionHostProcess.crash": "Host de extensão foi encerrado inesperadamente.",
 	"extensionHostProcess.unresponsiveCrash": "Host de extensão encerrado porque não foi responsivo.",
-	"devTools": "Ferramentas do Desenvolvedor",
 	"restart": "Reinicie o Host de extensão",
 	"overwritingExtension": "Sobrescrevendo extensão {0} por {1}.",
 	"extensionUnderDevelopment": "Carregando extensão de desenvolvimento em {0}",

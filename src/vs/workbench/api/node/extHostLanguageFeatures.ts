@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { mixin } from 'vs/base/common/objects';
 import * as vscode from 'vscode';
 import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
-import { Range, Disposable, CompletionList, SnippetString, CodeActionKind } from 'vs/workbench/api/node/extHostTypes';
+import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, HierarchicalSymbolInformation } from 'vs/workbench/api/node/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
@@ -22,6 +22,7 @@ import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isObject } from 'vs/base/common/types';
 
 // --- adapter
 
@@ -38,6 +39,9 @@ class OutlineAdapter {
 	provideDocumentSymbols(resource: URI): TPromise<SymbolInformationDto[]> {
 		let doc = this._documents.getDocumentData(resource).document;
 		return asWinJsPromise(token => this._provider.provideDocumentSymbols(doc, token)).then(value => {
+			if (value instanceof HierarchicalSymbolInformation) {
+				value = HierarchicalSymbolInformation.toFlatSymbolInformation(value);
+			}
 			if (Array.isArray(value)) {
 				return value.map(symbol => IdObject.mixin(TypeConverters.fromSymbolInformation(symbol)));
 			}
@@ -466,14 +470,14 @@ class NavigateTypeAdapter {
 
 class RenameAdapter {
 
-	static supportsResolving(provider: vscode.RenameProvider2): boolean {
+	static supportsResolving(provider: vscode.RenameProvider): boolean {
 		return typeof provider.resolveRenameLocation === 'function';
 	}
 
 	private _documents: ExtHostDocuments;
-	private _provider: vscode.RenameProvider2;
+	private _provider: vscode.RenameProvider;
 
-	constructor(documents: ExtHostDocuments, provider: vscode.RenameProvider2) {
+	constructor(documents: ExtHostDocuments, provider: vscode.RenameProvider) {
 		this._documents = documents;
 		this._provider = provider;
 	}
@@ -506,7 +510,7 @@ class RenameAdapter {
 		});
 	}
 
-	resolveRenameLocation(resource: URI, position: IPosition): TPromise<IRange> {
+	resolveRenameLocation(resource: URI, position: IPosition): TPromise<modes.RenameLocation> {
 		if (typeof this._provider.resolveRenameLocation !== 'function') {
 			return TPromise.as(undefined);
 		}
@@ -514,15 +518,28 @@ class RenameAdapter {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
 
-		return asWinJsPromise(token => this._provider.resolveRenameLocation(doc, pos, token)).then(range => {
+		return asWinJsPromise(token => this._provider.resolveRenameLocation(doc, pos, token)).then(rangeOrLocation => {
+
+			let range: vscode.Range;
+			let text: string;
+			if (Range.isRange(rangeOrLocation)) {
+				range = rangeOrLocation;
+				text = doc.getText(rangeOrLocation);
+
+			} else if (isObject(rangeOrLocation)) {
+				range = rangeOrLocation.range;
+				text = rangeOrLocation.placeholder;
+			}
+
 			if (!range) {
 				return undefined;
 			}
-			if (range && (!range.isSingleLine || range.start.line !== pos.line)) {
-				console.warn('INVALID rename context, range must be single line and on the same line');
+
+			if (!range.contains(pos)) {
+				console.warn('INVALID rename location: range must contain position');
 				return undefined;
 			}
-			return TypeConverters.fromRange(range);
+			return { range: TypeConverters.fromRange(range), text };
 		});
 	}
 }
@@ -803,16 +820,16 @@ class FoldingProviderAdapter {
 
 	constructor(
 		private _documents: ExtHostDocuments,
-		private _provider: vscode.FoldingProvider
+		private _provider: vscode.FoldingRangeProvider
 	) { }
 
-	provideFoldingRanges(resource: URI, context: modes.FoldingContext): TPromise<modes.IFoldingRangeList> {
+	provideFoldingRanges(resource: URI, context: modes.FoldingContext): TPromise<modes.FoldingRange[]> {
 		const doc = this._documents.getDocumentData(resource).document;
-		return asWinJsPromise(token => this._provider.provideFoldingRanges(doc, context, token)).then(list => {
-			if (!Array.isArray(list.ranges)) {
+		return asWinJsPromise(token => this._provider.provideFoldingRanges(doc, context, token)).then(ranges => {
+			if (!Array.isArray(ranges)) {
 				return void 0;
 			}
-			return TypeConverters.FoldingRangeList.from(list);
+			return ranges.map(TypeConverters.FoldingRange.from);
 		});
 	}
 }
@@ -823,10 +840,15 @@ type Adapter = OutlineAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapt
 	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter | TypeDefinitionAdapter
 	| ColorProviderAdapter | FoldingProviderAdapter;
 
+export interface ISchemeTransformer {
+	transformOutgoing(scheme: string): string;
+}
+
 export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	private static _handlePool: number = 0;
 
+	private readonly _schemeTransformer: ISchemeTransformer;
 	private _proxy: MainThreadLanguageFeaturesShape;
 	private _documents: ExtHostDocuments;
 	private _commands: ExtHostCommands;
@@ -836,11 +858,13 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	constructor(
 		mainContext: IMainContext,
+		schemeTransformer: ISchemeTransformer,
 		documents: ExtHostDocuments,
 		commands: ExtHostCommands,
 		heapMonitor: ExtHostHeapService,
 		diagnostics: ExtHostDiagnostics
 	) {
+		this._schemeTransformer = schemeTransformer;
 		this._proxy = mainContext.getProxy(MainContext.MainThreadLanguageFeatures);
 		this._documents = documents;
 		this._commands = commands;
@@ -877,6 +901,9 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	}
 
 	private _transformScheme(scheme: string): string {
+		if (this._schemeTransformer && typeof scheme === 'string') {
+			return this._schemeTransformer.transformOutgoing(scheme);
+		}
 		return scheme;
 	}
 
@@ -1013,9 +1040,9 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	// --- quick fix
 
-	registerCodeActionProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider): vscode.Disposable {
+	registerCodeActionProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider, metadata?: vscode.CodeActionProviderMetadata): vscode.Disposable {
 		const handle = this._addNewAdapter(new CodeActionAdapter(this._documents, this._commands.converter, this._diagnostics, provider));
-		this._proxy.$registerQuickFixSupport(handle, this._transformDocumentSelector(selector));
+		this._proxy.$registerQuickFixSupport(handle, this._transformDocumentSelector(selector), metadata && metadata.providedCodeActionKinds ? metadata.providedCodeActionKinds.map(kind => kind.value) : undefined);
 		return this._createDisposable(handle);
 	}
 
@@ -1078,9 +1105,9 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	// --- rename
 
-	registerRenameProvider(selector: vscode.DocumentSelector, provider: vscode.RenameProvider, canUseProposedApi = false): vscode.Disposable {
+	registerRenameProvider(selector: vscode.DocumentSelector, provider: vscode.RenameProvider): vscode.Disposable {
 		const handle = this._addNewAdapter(new RenameAdapter(this._documents, provider));
-		this._proxy.$registerRenameSupport(handle, this._transformDocumentSelector(selector), canUseProposedApi && RenameAdapter.supportsResolving(provider));
+		this._proxy.$registerRenameSupport(handle, this._transformDocumentSelector(selector), RenameAdapter.supportsResolving(provider));
 		return this._createDisposable(handle);
 	}
 
@@ -1088,7 +1115,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, RenameAdapter, adapter => adapter.provideRenameEdits(URI.revive(resource), position, newName));
 	}
 
-	$resolveRenameLocation(handle: number, resource: URI, position: IPosition): TPromise<IRange> {
+	$resolveRenameLocation(handle: number, resource: URI, position: IPosition): TPromise<modes.RenameLocation> {
 		return this._withAdapter(handle, RenameAdapter, adapter => adapter.resolveRenameLocation(resource, position));
 	}
 
@@ -1154,13 +1181,13 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, ColorProviderAdapter, adapter => adapter.provideColorPresentations(URI.revive(resource), colorInfo));
 	}
 
-	registerFoldingProvider(selector: vscode.DocumentSelector, provider: vscode.FoldingProvider): vscode.Disposable {
+	registerFoldingRangeProvider(selector: vscode.DocumentSelector, provider: vscode.FoldingRangeProvider): vscode.Disposable {
 		const handle = this._addNewAdapter(new FoldingProviderAdapter(this._documents, provider));
-		this._proxy.$registerFoldingProvider(handle, this._transformDocumentSelector(selector));
+		this._proxy.$registerFoldingRangeProvider(handle, this._transformDocumentSelector(selector));
 		return this._createDisposable(handle);
 	}
 
-	$provideFoldingRanges(handle: number, resource: UriComponents, context: vscode.FoldingContext): TPromise<modes.IFoldingRangeList> {
+	$provideFoldingRanges(handle: number, resource: UriComponents, context: vscode.FoldingContext): TPromise<modes.FoldingRange[]> {
 		return this._withAdapter(handle, FoldingProviderAdapter, adapter => adapter.provideFoldingRanges(URI.revive(resource), context));
 	}
 

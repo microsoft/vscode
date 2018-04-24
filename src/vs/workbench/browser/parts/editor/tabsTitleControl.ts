@@ -925,7 +925,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (tabHoverBackground) {
 		collector.addRule(`
 			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .tabs-container > .tab:hover  {
-				background: ${tabHoverBackground} !important;
+				background-color: ${tabHoverBackground} !important;
 			}
 		`);
 	}
@@ -934,7 +934,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (tabUnfocusedHoverBackground) {
 		collector.addRule(`
 			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.inactive .tabs-container > .tab:hover  {
-				background: ${tabUnfocusedHoverBackground} !important;
+				background-color: ${tabUnfocusedHoverBackground} !important;
 			}
 		`);
 	}

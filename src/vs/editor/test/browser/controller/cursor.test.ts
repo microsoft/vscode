@@ -1214,6 +1214,34 @@ suite('Editor Controller - Regression tests', () => {
 		model.dispose();
 	});
 
+	test('issue #47733: Undo mangles unicode characters', () => {
+		const languageId = new LanguageIdentifier('myMode', 3);
+		class MyMode extends MockMode {
+			constructor() {
+				super(languageId);
+				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+					surroundingPairs: [{ open: '"', close: '"' }]
+				}));
+			}
+		}
+
+		const mode = new MyMode();
+		const model = createTextModel('\'👁\'', undefined, languageId);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			editor.setSelection(new Selection(1, 1, 1, 2));
+
+			cursorCommand(cursor, H.Type, { text: '"' }, 'keyboard');
+			assert.equal(model.getValue(EndOfLinePreference.LF), '"\'"👁\'', 'assert1');
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getValue(EndOfLinePreference.LF), '\'👁\'', 'assert2');
+		});
+
+		model.dispose();
+		mode.dispose();
+	});
+
 	test('issue #46208: Allow empty selections in the undo/redo stack', () => {
 		let model = createTextModel('');
 
@@ -1774,6 +1802,21 @@ suite('Editor Controller - Regression tests', () => {
 		model.dispose();
 	});
 
+	test('issue #12887: Double-click highlighting separating white space', () => {
+		let model = createTextModel(
+			[
+				'abc def'
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			CoreNavigationCommands.WordSelect.runCoreEditorCommand(cursor, { position: new Position(1, 5) });
+			assert.deepEqual(cursor.getSelection(), new Selection(1, 5, 1, 8));
+		});
+
+		model.dispose();
+	});
+
 	test('issue #9675: Undo/Redo adds a stop in between CHN Characters', () => {
 		usingCursor({
 			text: [
@@ -2043,6 +2086,78 @@ suite('Editor Controller - Regression tests', () => {
 
 			assert.equal(model.getLineContent(1), 'const a = \'foo\';');
 			assert.equal(model.getLineContent(2), 'const b = \'\'');
+		});
+
+		model.dispose();
+	});
+
+	test('issue #15761: Cursor doesn\'t move in a redo operation', () => {
+		let model = createTextModel(
+			[
+				'hello'
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			editor.setSelections([
+				new Selection(1, 4, 1, 4)
+			]);
+
+			editor.executeEdits('test', [{
+				range: new Range(1, 1, 1, 1),
+				text: '*',
+				forceMoveMarkers: true
+			}]);
+			assertCursor(cursor, [
+				new Selection(1, 5, 1, 5),
+			]);
+
+			cursorCommand(cursor, H.Undo, null, 'keyboard');
+			assertCursor(cursor, [
+				new Selection(1, 4, 1, 4),
+			]);
+
+			cursorCommand(cursor, H.Redo, null, 'keyboard');
+			assertCursor(cursor, [
+				new Selection(1, 5, 1, 5),
+			]);
+		});
+
+		model.dispose();
+	});
+
+	test('issue #42783: API Calls with Undo Leave Cursor in Wrong Position', () => {
+		let model = createTextModel(
+			[
+				'ab'
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			editor.setSelections([
+				new Selection(1, 1, 1, 1)
+			]);
+
+			editor.executeEdits('test', [{
+				range: new Range(1, 1, 1, 3),
+				text: ''
+			}]);
+			assertCursor(cursor, [
+				new Selection(1, 1, 1, 1),
+			]);
+
+			cursorCommand(cursor, H.Undo, null, 'keyboard');
+			assertCursor(cursor, [
+				new Selection(1, 1, 1, 1),
+			]);
+
+			editor.executeEdits('test', [{
+				range: new Range(1, 1, 1, 2),
+				text: ''
+			}]);
+			assertCursor(cursor, [
+				new Selection(1, 1, 1, 1),
+			]);
 		});
 
 		model.dispose();

@@ -32,7 +32,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEditorGroupService, GroupArrangement, GroupOrientation, IEditorTabOptions, IMoveOptions } from 'vs/workbench/services/group/common/groupService';
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
-import { FileOperationEvent, IFileService, IResolveContentOptions, FileOperationError, IFileStat, IResolveFileResult, IImportResult, FileChangesEvent, IResolveFileOptions, IContent, IUpdateContentOptions, IStreamContent, ICreateFileOptions, ITextSnapshot } from 'vs/platform/files/common/files';
+import { FileOperationEvent, IFileService, IResolveContentOptions, FileOperationError, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, IContent, IUpdateContentOptions, IStreamContent, ICreateFileOptions, ITextSnapshot, IResourceEncodings } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
@@ -63,7 +63,8 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService, INotificationHandle, INotification, NoOpNotification, IPromptChoice } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -303,33 +304,6 @@ export class TestHistoryService implements IHistoryService {
 
 	public getLastActiveFile(): URI {
 		return void 0;
-	}
-}
-
-export class TestNotificationService implements INotificationService {
-
-	public _serviceBrand: any;
-
-	private static readonly NO_OP: INotificationHandle = new NoOpNotification();
-
-	public info(message: string): INotificationHandle {
-		return this.notify({ severity: Severity.Info, message });
-	}
-
-	public warn(message: string): INotificationHandle {
-		return this.notify({ severity: Severity.Warning, message });
-	}
-
-	public error(error: string | Error): INotificationHandle {
-		return this.notify({ severity: Severity.Error, message: error });
-	}
-
-	public notify(notification: INotification): INotificationHandle {
-		return TestNotificationService.NO_OP;
-	}
-
-	public prompt(severity: Severity, message: string, choices: IPromptChoice[], onCancel?: () => void): INotificationHandle {
-		return TestNotificationService.NO_OP;
 	}
 }
 
@@ -680,6 +654,8 @@ export class TestFileService implements IFileService {
 
 	public _serviceBrand: any;
 
+	public encoding: IResourceEncodings;
+
 	private readonly _onFileChanges: Emitter<FileChangesEvent>;
 	private readonly _onAfterOperation: Emitter<FileOperationEvent>;
 
@@ -797,15 +773,17 @@ export class TestFileService implements IFileService {
 		return TPromise.as(null);
 	}
 
+	onDidChangeFileSystemProviderRegistrations = Event.None;
+
+	registerProvider(scheme: string, provider) {
+		return { dispose() { } };
+	}
+
 	canHandleResource(resource: URI): boolean {
 		return resource.scheme === 'file';
 	}
 
 	del(resource: URI, useTrash?: boolean): TPromise<void> {
-		return TPromise.as(null);
-	}
-
-	importFile(source: URI, targetFolder: URI): TPromise<IImportResult> {
 		return TPromise.as(null);
 	}
 
@@ -815,10 +793,7 @@ export class TestFileService implements IFileService {
 	unwatchFileChanges(resource: URI): void {
 	}
 
-	updateOptions(options: any): void {
-	}
-
-	getEncoding(resource: URI): string {
+	getWriteEncoding(resource: URI): string {
 		return 'utf8';
 	}
 

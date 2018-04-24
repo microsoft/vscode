@@ -6,7 +6,7 @@
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import uri from 'vs/base/common/uri';
-import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IAdapterExecutable } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IAdapterExecutable, ITerminalSettings, IDebugAdapter, IDebugAdapterProvider } from 'vs/workbench/parts/debug/common/debug';
 import { TPromise } from 'vs/base/common/winjs.base';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
@@ -16,16 +16,18 @@ import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostC
 import severity from 'vs/base/common/severity';
 import { AbstractDebugAdapter, convertToVSCPaths, convertToDAPaths } from 'vs/workbench/parts/debug/node/debugAdapter';
 import * as paths from 'vs/base/common/paths';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
-export class MainThreadDebugService implements MainThreadDebugServiceShape {
+export class MainThreadDebugService implements MainThreadDebugServiceShape, IDebugAdapterProvider {
 
 	private _proxy: ExtHostDebugServiceShape;
 	private _toDispose: IDisposable[];
 	private _breakpointEventsActive: boolean;
 	private _debugAdapters: Map<number, ExtensionHostDebugAdapter>;
 	private _debugAdaptersHandleCounter = 1;
+
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -51,18 +53,26 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 				}
 			}
 		}));
-
 		this._debugAdapters = new Map<number, ExtensionHostDebugAdapter>();
+	}
 
-		// register a default DA provider
-		debugService.getConfigurationManager().registerDebugAdapterProvider('*', {
-			createDebugAdapter: (debugType, adapterInfo) => {
-				const handle = this._debugAdaptersHandleCounter++;
-				const da = new ExtensionHostDebugAdapter(handle, this._proxy, debugType, adapterInfo);
-				this._debugAdapters.set(handle, da);
-				return da;
-			}
-		});
+	public $registerDebugTypes(debugTypes: string[]) {
+		this._toDispose.push(this.debugService.getConfigurationManager().registerDebugAdapterProvider(debugTypes, this));
+	}
+
+	createDebugAdapter(debugType: string, adapterInfo): IDebugAdapter {
+		const handle = this._debugAdaptersHandleCounter++;
+		const da = new ExtensionHostDebugAdapter(handle, this._proxy, debugType, adapterInfo);
+		this._debugAdapters.set(handle, da);
+		return da;
+	}
+
+	substituteVariables(folder: IWorkspaceFolder, config: IConfig): TPromise<IConfig> {
+		return this._proxy.$substituteVariables(folder.uri, config);
+	}
+
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
+		return this._proxy.$runInTerminal(args, config);
 	}
 
 	public dispose(): void {
@@ -116,7 +126,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 						id: l.id,
 						enabled: l.enabled,
 						lineNumber: l.line + 1,
-						column: l.character > 0 ? l.character + 1 : 0,
+						column: l.character > 0 ? l.character + 1 : undefined, // a column value of 0 results in an omitted column attribute; see #46784
 						condition: l.condition,
 						hitCondition: l.hitCondition,
 						logMessage: l.logMessage
@@ -136,7 +146,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 		return void 0;
 	}
 
-	private convertToDto(bps: (IBreakpoint | IFunctionBreakpoint)[]): (ISourceBreakpointDto | IFunctionBreakpointDto)[] {
+	private convertToDto(bps: (ReadonlyArray<IBreakpoint | IFunctionBreakpoint>)): (ISourceBreakpointDto | IFunctionBreakpointDto)[] {
 		return bps.map(bp => {
 			if ('name' in bp) {
 				const fbp = <IFunctionBreakpoint>bp;
@@ -246,6 +256,9 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 	}
 }
 
+/**
+ * DebugAdapter that communicates via extension protocol with another debug adapter.
+ */
 class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 
 	constructor(private _handle: number, private _proxy: ExtHostDebugServiceShape, private _debugType: string, private _adapterExecutable: IAdapterExecutable | null) {

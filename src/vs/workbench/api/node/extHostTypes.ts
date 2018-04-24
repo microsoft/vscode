@@ -208,7 +208,7 @@ export class Position {
 
 export class Range {
 
-	static isRange(thing: any): thing is Range {
+	static isRange(thing: any): thing is vscode.Range {
 		if (thing instanceof Range) {
 			return true;
 		}
@@ -876,6 +876,38 @@ export class SymbolInformation {
 	}
 }
 
+export class HierarchicalSymbolInformation {
+	name: string;
+	location: Location;
+	kind: SymbolKind;
+	range: Range;
+	children: HierarchicalSymbolInformation[];
+
+	constructor(name: string, kind: SymbolKind, location: Location, range: Range) {
+		this.name = name;
+		this.kind = kind;
+		this.location = location;
+		this.range = range;
+		this.children = [];
+	}
+
+	static toFlatSymbolInformation(info: HierarchicalSymbolInformation): SymbolInformation[] {
+		let result: SymbolInformation[] = [];
+		HierarchicalSymbolInformation._toFlatSymbolInformation(info, undefined, result);
+		return result;
+	}
+
+	private static _toFlatSymbolInformation(info: HierarchicalSymbolInformation, containerName: string, bucket: SymbolInformation[]): void {
+		bucket.push(new SymbolInformation(info.name, info.kind, containerName, new Location(info.location.uri, info.range)));
+		if (Array.isArray(info.children)) {
+			for (const child of info.children) {
+				HierarchicalSymbolInformation._toFlatSymbolInformation(child, info.name, bucket);
+			}
+		}
+	}
+
+}
+
 export class CodeAction {
 	title: string;
 
@@ -903,6 +935,8 @@ export class CodeActionKind {
 	public static readonly RefactorExtract = CodeActionKind.Refactor.append('extract');
 	public static readonly RefactorInline = CodeActionKind.Refactor.append('inline');
 	public static readonly RefactorRewrite = CodeActionKind.Refactor.append('rewrite');
+	public static readonly Source = CodeActionKind.Empty.append('source');
+	public static readonly SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
 
 	constructor(
 		public readonly value: string
@@ -1812,59 +1846,91 @@ export enum LogLevel {
 
 //#region file api
 // todo@remote
-export enum FileChangeType {
+export enum DeprecatedFileChangeType {
 	Updated = 0,
 	Added = 1,
 	Deleted = 2
 }
 
-export enum FileType {
+export enum FileChangeType {
+	Changed = 1,
+	Created = 2,
+	Deleted = 3,
+}
+
+export enum DeprecatedFileType {
 	File = 0,
 	Dir = 1,
 	Symlink = 2
+}
+
+export class FileSystemError extends Error {
+
+	static FileExists(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'EntryExists', FileSystemError.FileExists);
+	}
+	static FileNotFound(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'EntryNotFound', FileSystemError.FileNotFound);
+	}
+	static FileNotADirectory(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'EntryNotADirectory', FileSystemError.FileNotADirectory);
+	}
+	static FileIsADirectory(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'EntryIsADirectory', FileSystemError.FileIsADirectory);
+	}
+
+	constructor(uriOrMessage?: string | URI, code?: string, terminator?: Function) {
+		super(URI.isUri(uriOrMessage) ? uriOrMessage.toString(true) : uriOrMessage);
+		this.name = code ? `${code} (FileSystemError)` : `FileSystemError`;
+
+		if (typeof Error.captureStackTrace === 'function' && typeof terminator === 'function') {
+			// nice stack traces
+			Error.captureStackTrace(this, terminator);
+		}
+	}
 }
 
 //#endregion
 
 //#region folding api
 
-export class FoldingRangeList {
-
-	ranges: FoldingRange[];
-
-	constructor(ranges: FoldingRange[]) {
-		this.ranges = ranges;
-	}
-}
-
 export class FoldingRange {
 
-	startLine: number;
+	start: number;
 
-	endLine: number;
+	end: number;
 
-	type?: FoldingRangeType | string;
+	kind?: FoldingRangeKind;
 
-	constructor(startLine: number, endLine: number, type?: FoldingRangeType | string) {
-		this.startLine = startLine;
-		this.endLine = endLine;
-		this.type = type;
+	constructor(start: number, end: number, kind?: FoldingRangeKind) {
+		this.start = start;
+		this.end = end;
+		this.kind = kind;
 	}
 }
 
-export enum FoldingRangeType {
+export class FoldingRangeKind {
 	/**
-	 * Folding range for a comment
+	 * Kind for folding range representing a comment. The value of the kind is 'comment'.
 	 */
-	Comment = 'comment',
+	static readonly Comment = new FoldingRangeKind('comment');
 	/**
-	 * Folding range for a imports or includes
+	 * Kind for folding range representing a import. The value of the kind is 'imports'.
 	 */
-	Imports = 'imports',
+	static readonly Imports = new FoldingRangeKind('imports');
 	/**
-	 * Folding range for a region (e.g. `#region`)
+	 * Kind for folding range representing regions (for example marked by `#region`, `#endregion`).
+	 * The value of the kind is 'region'.
 	 */
-	Region = 'region'
+	static readonly Region = new FoldingRangeKind('region');
+
+	/**
+	 * Creates a new [FoldingRangeKind](#FoldingRangeKind).
+	 *
+	 * @param value of the kind.
+	 */
+	public constructor(public value: string) {
+	}
 }
 
 //#endregion

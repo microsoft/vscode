@@ -29,6 +29,8 @@ import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, 
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar } from 'vs/workbench/browser/parts/compositebar/compositeBar';
 import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
+import { ViewLocation, ViewsRegistry } from 'vs/workbench/common/views';
+import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Dimension } from 'vs/base/browser/dom';
 
 export class ActivitybarPart extends Part {
@@ -79,9 +81,14 @@ export class ActivitybarPart extends Part {
 		});
 
 		this.registerListeners();
+		this.updateCompositebar();
 	}
 
 	private registerListeners(): void {
+
+		this.toUnbind.push(this.viewletService.onDidViewletRegister(() => this.updateCompositebar()));
+		this.toUnbind.push(ViewsRegistry.onViewsRegistered(() => this.updateCompositebar()));
+		this.toUnbind.push(ViewsRegistry.onViewsDeregistered(() => this.updateCompositebar()));
 
 		// Activate viewlet action on opening of a viewlet
 		this.toUnbind.push(this.viewletService.onDidViewletOpen(viewlet => this.compositeBar.activateComposite(viewlet.getId())));
@@ -91,7 +98,7 @@ export class ActivitybarPart extends Part {
 		this.toUnbind.push(this.compositeBar.onDidContextMenu(e => this.showContextMenu(e)));
 		this.toUnbind.push(this.viewletService.onDidViewletEnablementChange(({ id, enabled }) => {
 			if (enabled) {
-				this.compositeBar.addComposite(this.viewletService.getViewlet(id));
+				this.compositeBar.addComposite(this.viewletService.getViewlet(id), true);
 			} else {
 				this.compositeBar.removeComposite(id);
 			}
@@ -156,7 +163,9 @@ export class ActivitybarPart extends Part {
 	private showContextMenu(e: MouseEvent): void {
 		const event = new StandardMouseEvent(e);
 
-		const actions: Action[] = this.viewletService.getViewlets().map(viewlet => this.instantiationService.createInstance(ToggleCompositePinnedAction, viewlet, this.compositeBar));
+		const actions: Action[] = this.viewletService.getViewlets()
+			.filter(viewlet => this.canShow(viewlet))
+			.map(viewlet => this.instantiationService.createInstance(ToggleCompositePinnedAction, viewlet, this.compositeBar));
 		actions.push(new Separator());
 		actions.push(this.instantiationService.createInstance(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, nls.localize('hideActivitBar', "Hide Activity Bar")));
 
@@ -188,6 +197,26 @@ export class ActivitybarPart extends Part {
 		});
 	}
 
+	private updateCompositebar(): void {
+		const viewlets = this.viewletService.getViewlets();
+		for (const viewlet of viewlets) {
+			const canShow = this.canShow(viewlet);
+			if (canShow) {
+				this.compositeBar.addComposite(viewlet, false);
+			} else {
+				this.compositeBar.removeComposite(viewlet.id);
+			}
+		}
+	}
+
+	private canShow(viewlet: ViewletDescriptor): boolean {
+		const viewLocation = ViewLocation.get(viewlet.id);
+		if (viewLocation) {
+			return ViewsRegistry.getViews(viewLocation).length > 0;
+		}
+		return true;
+	}
+
 	public getPinned(): string[] {
 		return this.viewletService.getViewlets().map(v => v.id).filter(id => this.compositeBar.isPinned(id));
 	}
@@ -213,6 +242,11 @@ export class ActivitybarPart extends Part {
 		this.compositeBar.layout(new Dimension(dimension.width, availableHeight));
 
 		return sizes;
+	}
+
+	public shutdown(): void {
+		this.compositeBar.shutdown();
+		super.shutdown();
 	}
 
 	public dispose(): void {
