@@ -38,7 +38,7 @@ class VSCodeWorkspaceMarkdownDocumentProvider implements WorkspaceMarkdownDocume
 	}
 
 	async getAllMarkdownDocuments() {
-		const resources = await vscode.workspace.findFiles('**/*.md');
+		const resources = await vscode.workspace.findFiles('**/*.md', '**/node_modules/**');
 		const documents = await Promise.all(
 			resources.map(resource => vscode.workspace.openTextDocument(resource).then(x => x, () => undefined)));
 		return documents.filter(doc => doc && isMarkdownFile(doc)) as vscode.TextDocument[];
