@@ -5060,14 +5060,14 @@ declare module 'vscode' {
 	 */
 	export interface WebviewOptions {
 		/**
-		 * Should scripts be enabled in the webview content?
+		 * Controls whether scripts are enabled in the webview content or not.
 		 *
 		 * Defaults to false (scripts-disabled).
 		 */
 		readonly enableScripts?: boolean;
 
 		/**
-		 * Should command uris be enabled in webview content?
+		 * Controls whether command uris are enabled in webview content or not.
 		 *
 		 * Defaults to false.
 		 */
@@ -5147,7 +5147,7 @@ declare module 'vscode' {
 	 */
 	interface WebviewPanel {
 		/**
-		 * Type of the webview panel, such as `'markdown.preview'`.
+		 * Identifies the type of the webview panel, such as `'markdown.preview'`.
 		 */
 		readonly viewType: string;
 
