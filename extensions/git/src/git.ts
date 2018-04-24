@@ -1001,7 +1001,7 @@ export class Repository {
 	}
 
 	async pull(rebase?: boolean, remote?: string, branch?: string): Promise<void> {
-		const args = ['pull'];
+		const args = ['pull', '--tags'];
 
 		if (rebase) {
 			args.push('-r');
