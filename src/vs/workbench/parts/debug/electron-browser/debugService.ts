@@ -792,11 +792,11 @@ export class DebugService implements debug.IDebugService {
 		});
 	}
 
-	private substituteVariables(launch: debug.ILaunch, config: debug.IConfig): TPromise<debug.IConfig> {
+	private substituteVariables(launch: debug.ILaunch | undefined, config: debug.IConfig): TPromise<debug.IConfig> {
 		const dbg = this.configurationManager.getDebugger(config.type);
 		if (dbg) {
 			let folder: IWorkspaceFolder = undefined;
-			if (launch.workspace) {
+			if (launch && launch.workspace) {
 				folder = launch.workspace;
 			} else {
 				const folders = this.contextService.getWorkspace().folders;
