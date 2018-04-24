@@ -132,11 +132,12 @@ class KeybindingInputWidget extends Widget {
 export class DefineKeybindingWidget extends Widget {
 
 	private static readonly WIDTH = 400;
-	private static readonly HEIGHT = 90;
+	private static readonly HEIGHT = 110;
 
 	private _domNode: FastDomNode<HTMLElement>;
 	private _keybindingInputWidget: KeybindingInputWidget;
 	private _outputNode: HTMLElement;
+	private _conflictNode: HTMLElement;
 
 	private _firstPart: ResolvedKeybinding = null;
 	private _chordPart: ResolvedKeybinding = null;
@@ -146,6 +147,9 @@ export class DefineKeybindingWidget extends Widget {
 
 	private _onDidChange = this._register(new Emitter<[ResolvedKeybinding, ResolvedKeybinding]>());
 	public onDidChange: Event<[ResolvedKeybinding, ResolvedKeybinding]> = this._onDidChange.event;
+
+	private _onLinkClick = this._register(new Emitter<[ResolvedKeybinding, ResolvedKeybinding]>());
+	public readonly onLinkClick: Event<[ResolvedKeybinding, ResolvedKeybinding]> = this._onLinkClick.event;
 
 	constructor(
 		parent: HTMLElement,
@@ -174,6 +178,7 @@ export class DefineKeybindingWidget extends Widget {
 				this._chordPart = null;
 				this._keybindingInputWidget.setInputValue('');
 				dom.clearNode(this._outputNode);
+				dom.clearNode(this._conflictNode);
 				this._keybindingInputWidget.focus();
 			}
 			const disposable = this._onHide.event(() => {
@@ -228,6 +233,7 @@ export class DefineKeybindingWidget extends Widget {
 		this._register(this._keybindingInputWidget.onBlur(() => this.onCancel()));
 
 		this._outputNode = dom.append(this._domNode.domNode, dom.$('.output'));
+		this._conflictNode = dom.append(this._domNode.domNode, dom.$('.conflicts'));
 	}
 
 	private printKeybinding(keybinding: [ResolvedKeybinding, ResolvedKeybinding]): void {
@@ -235,6 +241,7 @@ export class DefineKeybindingWidget extends Widget {
 		this._firstPart = firstPart;
 		this._chordPart = chordPart;
 		dom.clearNode(this._outputNode);
+		dom.clearNode(this._conflictNode);
 		new KeybindingLabel(this._outputNode, OS).set(this._firstPart, null);
 		if (this._chordPart) {
 			this._outputNode.appendChild(document.createTextNode(nls.localize('defineKeybinding.chordsTo', "chord to")));
@@ -242,15 +249,22 @@ export class DefineKeybindingWidget extends Widget {
 		}
 	}
 
-	public printConflicts(numConflicts: number): void {
-		let outputString: string = nls.localize('defineKeybinding.conflicts', "Conflict(s)");
+	public printConflicts(numConflicts: number, keybinding: [ResolvedKeybinding, ResolvedKeybinding]): void {
+		let outputString: string = nls.localize('defineKeybinding.existing', "Existing");
 		if (numConflicts > 0) {
-			outputString = '(' + numConflicts + ' ' + outputString + ')';
+			outputString = numConflicts + ' ' + outputString;
 		}
 		else {
 			outputString = '';
 		}
-		this._outputNode.appendChild(document.createTextNode(outputString));
+		let textNode = document.createTextNode(outputString);
+		let textSpan = document.createElement('span');
+		dom.addClass(textSpan, 'conflictText');
+		textSpan.appendChild(textNode);
+		this._conflictNode.appendChild(textSpan);
+		textSpan.onmousedown = (e) => { e.preventDefault(); };
+		textSpan.onmouseup = (e) => { e.preventDefault(); };
+		textSpan.onclick = () => { this._onLinkClick.fire(keybinding); };
 	}
 
 	private onCancel(): void {
