@@ -5048,11 +5048,11 @@ declare module 'vscode' {
 		 * Copy files or folders. Implementing this function is optional but it will speedup
 		 * the copy operation.
 		 *
-		 * @param uri The existing file or folder.
-		 * @param target The target location.
+		 * @param source The existing file or folder.
+		 * @param destination The destination location.
 		 * @param token A cancellation token.
 		 */
-		copy?(uri: Uri, target: Uri, options: FileOptions, token: CancellationToken): FileStat | Thenable<FileStat>;
+		copy?(source: Uri, destination: Uri, options: FileOptions, token: CancellationToken): FileStat | Thenable<FileStat>;
 	}
 
 	/**
