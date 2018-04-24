@@ -5119,15 +5119,15 @@ declare module 'vscode' {
 	 */
 	export interface WebviewPanelOptions {
 		/**
-		 * Should the find widget be enabled in the panel?
+		 * Controls if the find widget is enabled in the panel.
 		 *
 		 * Defaults to false.
 		 */
 		readonly enableFindWidget?: boolean;
 
 		/**
-		 * Should the webview panel's content (iframe) be kept around even when the panel
-		 * is no longer visible?
+		 * Controls if the webview panel's content (iframe) is kept around even when the panel
+		 * is no longer visible.
 		 *
 		 * Normally the webview panel's html context is created when the panel becomes visible
 		 * and destroyed when it is is hidden. Extensions that have complex state
