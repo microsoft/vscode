@@ -215,6 +215,11 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'extensionHostDebugAdapter' }, "Run debug adapter in extension host"),
 			default: false
+		},
+		'debug.modalDialogOnStartFailure': {
+			type: 'boolean',
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'modalDialogOnStartFailure' }, "Show the user a modal error dialog if debug fails to start"),
+			default: true
 		}
 	}
 });
