@@ -664,7 +664,7 @@ const editorConfiguration: IConfigurationNode = {
 				'type': 'boolean'
 			},
 			'default': EDITOR_DEFAULTS.contribInfo.codeActionsOnSave,
-			'description': nls.localize('codeActionsOnSave', "Code actions kinds to be run on save.")
+			'description': nls.localize('codeActionsOnSave', "Code action kinds to be run on save.")
 		},
 		'editor.codeActionsOnSaveTimeout': {
 			'type': 'number',
