@@ -60,7 +60,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IViewDescriptorRef, PersistentContributableViewsModel, IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/contributableViews';
 import { ViewLocation, IViewDescriptor } from 'vs/workbench/common/views';
 import { ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IPanelDndController, Panel } from '../../../../base/browser/ui/splitview/panelview';
+import { IPanelDndController, Panel } from 'vs/base/browser/ui/splitview/panelview';
 
 export interface ISpliceEvent<T> {
 	index: number;
