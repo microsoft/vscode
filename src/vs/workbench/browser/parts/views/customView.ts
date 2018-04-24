@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
 import { LIGHT, FileThemeIcon, FolderThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ITree, IDataSource, IRenderer, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
-import { TreeItemCollapsibleState, ITreeItem, ITreeViewer, ICustomViewsService, ITreeViewDataProvider, ViewsRegistry, IViewDescriptor, TreeViewItemHandleArg, ICustomViewDescriptor, IViewsViewlet } from 'vs/workbench/common/views';
+import { TreeItemCollapsibleState, ITreeItem, ITreeViewer, IViewsService, ITreeViewDataProvider, ViewsRegistry, IViewDescriptor, TreeViewItemHandleArg, ICustomViewDescriptor, IViewsViewlet } from 'vs/workbench/common/views';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
@@ -33,7 +33,7 @@ import { FileIconThemableWorkbenchTree } from 'vs/workbench/browser/parts/views/
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 
-export class CustomViewsService extends Disposable implements ICustomViewsService {
+export class CustomViewsService extends Disposable implements IViewsService {
 
 	_serviceBrand: any;
 
@@ -56,12 +56,15 @@ export class CustomViewsService extends Disposable implements ICustomViewsServic
 	openView(id: string, focus: boolean): TPromise<void> {
 		const viewDescriptor = ViewsRegistry.getView(id);
 		if (viewDescriptor) {
-			return this.viewletService.openViewlet(viewDescriptor.id)
-				.then((viewlet: IViewsViewlet) => {
-					if (viewlet && viewlet.openView) {
-						viewlet.openView(id, focus);
-					}
-				});
+			const viewletDescriptor = this.viewletService.getViewlet(viewDescriptor.location.id);
+			if (viewletDescriptor) {
+				return this.viewletService.openViewlet(viewletDescriptor.id)
+					.then((viewlet: IViewsViewlet) => {
+						if (viewlet && viewlet.openView) {
+							viewlet.openView(id, focus);
+						}
+					});
+			}
 		}
 		return TPromise.as(null);
 	}

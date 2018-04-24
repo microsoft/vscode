@@ -182,9 +182,9 @@ export interface ICustomViewDescriptor extends IViewDescriptor {
 
 }
 
-export const ICustomViewsService = createDecorator<ICustomViewsService>('customViewsService');
+export const IViewsService = createDecorator<IViewsService>('viewsService');
 
-export interface ICustomViewsService {
+export interface IViewsService {
 	_serviceBrand: any;
 
 	getTreeViewer(id: string): ITreeViewer;

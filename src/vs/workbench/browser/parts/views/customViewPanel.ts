@@ -14,7 +14,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { fillInActions, ContextAwareMenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICustomViewsService, ITreeViewer } from 'vs/workbench/common/views';
+import { IViewsService, ITreeViewer } from 'vs/workbench/common/views';
 import { IViewletViewOptions, IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -31,10 +31,10 @@ export class CustomTreeViewPanel extends ViewsViewletPanel {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ICustomViewsService customViewsService: ICustomViewsService,
+		@IViewsService viewsService: IViewsService,
 	) {
 		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService, configurationService);
-		this.treeViewer = customViewsService.getTreeViewer(this.id);
+		this.treeViewer = viewsService.getTreeViewer(this.id);
 		this.disposables.push(toDisposable(() => this.treeViewer.setVisibility(false)));
 		this.menus = this.instantiationService.createInstance(Menus, this.id);
 		this.menus.onDidChangeTitle(() => this.updateActions(), this, this.disposables);
