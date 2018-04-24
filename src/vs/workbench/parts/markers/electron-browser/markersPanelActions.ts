@@ -41,7 +41,6 @@ export class ToggleMarkersPanelAction extends TogglePanelAction {
 		@IMarkersWorkbenchService markersWorkbenchService: IMarkersWorkbenchService
 	) {
 		super(id, label, Constants.MARKERS_PANEL_ID, panelService, partService);
-		this.enabled = markersWorkbenchService.markersModel.hasFilteredResources();
 	}
 }
 
