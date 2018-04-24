@@ -19,6 +19,7 @@ import { INextEditorPartService } from 'vs/workbench/services/editor/common/next
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { NextEditorGroupsViewer, EditorGroupsOrientation } from 'vs/workbench/browser/parts/editor2/nextEditorGroupsViewer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 
 export class NextEditorPart extends Part implements INextEditorPartService {
 
@@ -49,7 +50,7 @@ export class NextEditorPart extends Part implements INextEditorPartService {
 		this.initStyles();
 	}
 
-	openEditor(input: EditorInput, options?: EditorOptions): TPromise<void> {
+	openEditor(input: EditorInput, options?: EditorOptions): TPromise<BaseEditor> {
 
 		// TODO@grid arguments validation
 		// TODO@grid editor opening event and prevention
@@ -60,9 +61,8 @@ export class NextEditorPart extends Part implements INextEditorPartService {
 			editorGroup = this.viewer.split([], EditorGroupsOrientation.HORIZONTAL);
 		}
 
-		editorGroup.openEditor(input, options);
-
-		return TPromise.as(void 0);
+		// TODO@grid should this return type offer more helper methods (close, move, whenInputSet, etc?)
+		return editorGroup.openEditor(input, options);
 	}
 
 	private initStyles(): void {

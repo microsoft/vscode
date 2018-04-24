@@ -21,6 +21,9 @@ import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND } from 'vs/workbench/common/theme';
+import { NextEditorViewer } from 'vs/workbench/browser/parts/editor2/nextEditorViewer';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 
 export class NextEditorGroupView extends Themable implements IView {
 
@@ -39,7 +42,7 @@ export class NextEditorGroupView extends Themable implements IView {
 
 	private titleAreaControl: ITitleAreaControl;
 	private progressBar: ProgressBar;
-	private editorContainer: HTMLElement;
+	private editorViewer: NextEditorViewer;
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -53,10 +56,22 @@ export class NextEditorGroupView extends Themable implements IView {
 		this.create();
 	}
 
-	openEditor(input: EditorInput, options?: EditorOptions): void {
+	openEditor(input: EditorInput, options?: EditorOptions): TPromise<BaseEditor> {
+
+		// Update model
+		// TODO@grid massage options based on context
 		this._group.openEditor(input, options);
 
-		this.render(this.container, Orientation.HORIZONTAL);
+		// Show in editor viewer
+		// TODO@grid only when active!
+		const editorOpenPromise = this.editorViewer.openEditor(input, options);
+
+		// Update title control
+		// TODO@grid also, wouldn't it be better if the title widget would register as listener to changes to the group and just
+		// refresh itself instead of having to do this from the outside?
+		this.titleAreaControl.refresh();
+
+		return editorOpenPromise;
 	}
 
 	get element(): HTMLElement {
@@ -91,6 +106,7 @@ export class NextEditorGroupView extends Themable implements IView {
 		this.container.appendChild(titleContainer);
 
 		// Title widget
+		// TODO@grid if editor group is always bound to same context, simplify usage by passing over title container and group via ctor?
 		this.titleAreaControl = this._register(instantiationService.createInstance<ITitleAreaControl>(TabsTitleControl)); // TODO@grid title control choice (tabs vs no tabs)
 		this.titleAreaControl.create(titleContainer);
 		this.titleAreaControl.setContext(this._group);
@@ -102,10 +118,13 @@ export class NextEditorGroupView extends Themable implements IView {
 		this.progressBar.hide();
 
 		// Editor container
-		this.editorContainer = document.createElement('div');
-		addClass(this.editorContainer, 'editor-container');
-		this.editorContainer.setAttribute('role', 'tabpanel');
-		this.container.appendChild(this.editorContainer);
+		const editorContainer = document.createElement('div');
+		addClass(editorContainer, 'editor-container');
+		editorContainer.setAttribute('role', 'tabpanel');
+		this.container.appendChild(editorContainer);
+
+		// Editor viewer
+		this.editorViewer = this._register(instantiationService.createInstance(NextEditorViewer, editorContainer, this._group));
 
 		// Update styles
 		this.updateStyles();
@@ -130,7 +149,7 @@ export class NextEditorGroupView extends Themable implements IView {
 	}
 
 	render(container: HTMLElement, orientation: Orientation): void {
-		this.titleAreaControl.refresh(true /* instant */);
+		// TODO@grid implement
 	}
 
 	layout(size: number, orientation: Orientation): void {
