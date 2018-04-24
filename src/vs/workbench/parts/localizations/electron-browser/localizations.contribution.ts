@@ -26,6 +26,8 @@ import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IStorageService, } from 'vs/platform/storage/common/storage';
 import { TPromise } from 'vs/base/common/winjs.base';
 import product from 'vs/platform/node/product';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewlet } from 'vs/workbench/parts/extensions/common/extensions';
 
 // Register action to configure locale and related settings
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
@@ -41,6 +43,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		@IStorageService private storageService: IStorageService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
+		@IViewletService private viewletService: IViewletService
 	) {
 		super();
 		this.updateLocaleDefintionSchema();
@@ -102,7 +105,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 								if (extension) {
 									this.notificationService.prompt(Severity.Warning, localize('install language pack', "In the near future, VS Code will only support language packs in the form of Marketplace extensions. Please install the '{0}' extension in order to continue to use the currently configured language. ", extension.displayName || extension.displayName),
 										[
-											{ label: localize('install', "Install"), run: () => this.extensionManagementService.installFromGallery(extension) },
+											{ label: localize('install', "Install"), run: () => this.installExtension(extension) },
 											{ label: localize('more information', "More Information..."), run: () => window.open('https://go.microsoft.com/fwlink/?linkid=830387') }
 										]);
 								}
@@ -128,6 +131,14 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 	private isLanguageInstalled(language: string): TPromise<boolean> {
 		return this.extensionManagementService.getInstalled(LocalExtensionType.User)
 			.then(installed => installed.some(i => i.manifest && i.manifest.contributes && i.manifest.contributes.localizations && i.manifest.contributes.localizations.length && i.manifest.contributes.localizations.some(l => l.languageId.toLowerCase() === language)));
+	}
+
+	private installExtension(extension: IGalleryExtension): TPromise<void> {
+		return this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet.search(`@id:${extension.identifier.id}`))
+			.then(() => this.extensionManagementService.installFromGallery(extension))
+			.then(() => null, err => this.notificationService.error(err));
 	}
 }
 
