@@ -430,6 +430,11 @@ declare module 'vscode' {
 	//#region Terminal
 
 	export interface Terminal {
+		/**
+		 * Fires when the terminal's pty slave pseudo-device is written to. In other words, this is
+		 * provides access to the raw data stream from the process running within the terminal,
+		 * including ANSI sequences.
+		 */
 		onData: Event<string>;
 	}
 
