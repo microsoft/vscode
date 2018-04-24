@@ -431,7 +431,7 @@ declare module 'vscode' {
 
 	export interface Terminal {
 		/**
-		 * Fires when the terminal's pty slave pseudo-device is written to. In other words, this is
+		 * Fires when the terminal's pty slave pseudo-device is written to. In other words, this
 		 * provides access to the raw data stream from the process running within the terminal,
 		 * including ANSI sequences.
 		 */
