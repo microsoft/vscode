@@ -11,7 +11,7 @@ export function setup() {
 		it('verifies presence of all default status bar elements', async function () {
 			const app = this.app as Application;
 
-			// await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.BRANCH_STATUS);
+			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.BRANCH_STATUS);
 			if (app.quality !== Quality.Dev) {
 				await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.FEEDBACK_ICON);
 			}
@@ -26,7 +26,6 @@ export function setup() {
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.SELECTION_STATUS);
 		});
 
-		/*
 		it(`verifies that 'quick open' opens when clicking on status bar elements`, async function () {
 			const app = this.app as Application;
 
@@ -48,7 +47,6 @@ export function setup() {
 			await app.workbench.quickopen.waitForQuickOpenOpened();
 			await app.workbench.quickopen.closeQuickOpen();
 		});
-		*/
 
 		it(`verifies that 'Problems View' appears when clicking on 'Problems' status element`, async function () {
 			const app = this.app as Application;
