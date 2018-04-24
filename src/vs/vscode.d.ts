@@ -3988,7 +3988,7 @@ declare module 'vscode' {
 		 * modify the diagnostics-array returned from this call.
 		 *
 		 * @param uri A resource identifier.
-		 * @returns An immutable array of [diagnostics](#Diagnxostic) or `undefined`.
+		 * @returns An immutable array of [diagnostics](#Diagnostic) or `undefined`.
 		 */
 		get(uri: Uri): Diagnostic[] | undefined;
 
@@ -4969,7 +4969,7 @@ declare module 'vscode' {
 
 		/**
 		 * An event to signal that a resource has been created, changed, or deleted. This
-		 * event should fire for resources that are being [watched](#FileSystemProvider2.watch)
+		 * event should fire for resources that are being [watched](#FileSystemProvider.watch)
 		 * by clients of this provider.
 		 */
 		readonly onDidChangeFile: Event<FileChangeEvent[]>;
@@ -4982,7 +4982,7 @@ declare module 'vscode' {
 		watch(uri: Uri, options: { recursive?: boolean; excludes?: string[] }): Disposable;
 
 		/**
-		 * Retrieve metadata about a file. Throw an [`EntryNotFound`](#FileError.EntryNotFound)-error
+		 * Retrieve metadata about a file. Throw an [`FileNotFound`](#FileSystemError.FileNotFound)-error
 		 * in case the file does not exist.
 		 *
 		 * @param uri The uri of the file to retrieve meta data about.
@@ -4992,7 +4992,7 @@ declare module 'vscode' {
 		stat(uri: Uri, options: { /*future: followSymlinks*/ }, token: CancellationToken): FileStat | Thenable<FileStat>;
 
 		/**
-		 * Retrieve the meta data of all entries of a [directory](#FileType2.Directory)
+		 * Retrieve the meta data of all entries of a [directory](#FileStat.isDirectory)
 		 *
 		 * @param uri The uri of the folder.
 		 * @param token A cancellation token.
@@ -7263,7 +7263,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * An event describing the changes to the set of [breakpoints](#debug.Breakpoint).
+	 * An event describing the changes to the set of [breakpoints](#Breakpoint).
 	 */
 	export interface BreakpointsChangeEvent {
 		/**
