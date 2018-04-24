@@ -47,9 +47,9 @@
       }
     },
     "views": {
-      "explorer": [{
+      "scm": [{
         "id": "pr",
-        "name": "Pull Requests"
+        "name": "GitHub Pull Requests"
       }]
     },
     "commands": [{
