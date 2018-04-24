@@ -71,18 +71,24 @@ class VSCodeWorkspaceMarkdownDocumentProvider implements WorkspaceMarkdownDocume
 			if (isMarkdownFile(document)) {
 				this._onDidChangeMarkdownDocumentEmitter.fire(document);
 			}
-		}, this, this._disposables);
+		}, null, this._disposables);
 
 		this._watcher.onDidCreate(async resource => {
 			const document = await vscode.workspace.openTextDocument(resource);
 			if (isMarkdownFile(document)) {
 				this._onDidCreateMarkdownDocumentEmitter.fire(document);
 			}
-		}, this, this._disposables);
+		}, null, this._disposables);
 
 		this._watcher.onDidDelete(async resource => {
 			this._onDidDeleteMarkdownDocumentEmitter.fire(resource);
-		}, this, this._disposables);
+		}, null, this._disposables);
+
+		vscode.workspace.onDidChangeTextDocument(e => {
+			if (isMarkdownFile(e.document)) {
+				this._onDidChangeMarkdownDocumentEmitter.fire(e.document);
+			}
+		}, null, this._disposables);
 	}
 }
 
