@@ -11,6 +11,7 @@ import { nfcall, ninvoke, SimpleThrottler } from 'vs/base/common/async';
 import { mkdirp, rimraf } from 'vs/base/node/pfs';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { open as _openZip, Entry, ZipFile } from 'yauzl';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export interface IExtractOptions {
 	overwrite?: boolean;
@@ -87,7 +88,7 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 	}));
 }
 
-function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions): TPromise<void> {
+function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, logService: ILogService): TPromise<void> {
 	let isCanceled = false;
 	let last = TPromise.wrap<any>(null);
 	let extractedEntriesCount = 0;
@@ -107,6 +108,8 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions): TP
 			if (isCanceled) {
 				return;
 			}
+
+			logService.debug(targetPath, 'Extracting', entry.fileName);
 
 			if (!options.sourcePathRegex.test(entry.fileName)) {
 				extractedEntriesCount++;
@@ -139,7 +142,7 @@ function openZip(zipFile: string): TPromise<ZipFile> {
 		.then(null, err => TPromise.wrapError(toExtractError(err)));
 }
 
-export function extract(zipPath: string, targetPath: string, options: IExtractOptions = {}): TPromise<void> {
+export function extract(zipPath: string, targetPath: string, options: IExtractOptions = {}, logService: ILogService): TPromise<void> {
 	const sourcePathRegex = new RegExp(options.sourcePath ? `^${options.sourcePath}` : '');
 
 	let promise = openZip(zipPath);
@@ -148,7 +151,7 @@ export function extract(zipPath: string, targetPath: string, options: IExtractOp
 		promise = promise.then(zipfile => rimraf(targetPath).then(() => zipfile));
 	}
 
-	return promise.then(zipfile => extractZip(zipfile, targetPath, { sourcePathRegex }));
+	return promise.then(zipfile => extractZip(zipfile, targetPath, { sourcePathRegex }, logService));
 }
 
 function read(zipPath: string, filePath: string): TPromise<Readable> {
