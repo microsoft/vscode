@@ -65,6 +65,8 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 
 export class SearchView extends Viewlet implements IViewlet, IPanel {
 
+	private static readonly MAX_HISTORY_ITEMS = 100;
+
 	private static readonly MAX_TEXT_RESULTS = 10000;
 	private static readonly SHOW_REPLACE_STORAGE_KEY = 'vs.search.show.replace';
 
@@ -240,11 +242,12 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				builder.element('h4', { text: title });
 
 				this.inputPatternIncludes = new PatternInputWidget(builder.getContainer(), this.contextViewService, this.themeService, {
-					ariaLabel: nls.localize('label.includes', 'Search Include Patterns')
+					ariaLabel: nls.localize('label.includes', 'Search Include Patterns'),
+					history: patternIncludesHistory,
+					historyLimit: SearchView.MAX_HISTORY_ITEMS
 				});
 
 				this.inputPatternIncludes.setValue(patternIncludes);
-				this.inputPatternIncludes.setHistory(patternIncludesHistory);
 
 				this.inputPatternIncludes
 					.on(FindInput.OPTION_CHANGE, (e) => {
@@ -262,12 +265,13 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				builder.element('h4', { text: title });
 
 				this.inputPatternExcludes = new ExcludePatternInputWidget(builder.getContainer(), this.contextViewService, this.themeService, {
-					ariaLabel: nls.localize('label.excludes', 'Search Exclude Patterns')
+					ariaLabel: nls.localize('label.excludes', 'Search Exclude Patterns'),
+					history: patternExclusionsHistory,
+					historyLimit: SearchView.MAX_HISTORY_ITEMS
 				});
 
 				this.inputPatternExcludes.setValue(patternExclusions);
 				this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(useExcludesAndIgnoreFiles);
-				this.inputPatternExcludes.setHistory(patternExclusionsHistory);
 
 				this.inputPatternExcludes
 					.on(FindInput.OPTION_CHANGE, (e) => {
@@ -333,7 +337,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			isRegex: isRegex,
 			isCaseSensitive: isCaseSensitive,
 			isWholeWords: isWholeWords,
-			history: searchHistory
+			history: searchHistory,
+			historyLimit: SearchView.MAX_HISTORY_ITEMS
 		});
 
 		if (this.storageService.getBoolean(SearchView.SHOW_REPLACE_STORAGE_KEY, StorageScope.WORKSPACE, true)) {
@@ -1498,6 +1503,12 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private changeActionAtPosition(index: number, newAction: ClearSearchResultsAction | CancelSearchAction | RefreshAction | CollapseDeepestExpandedLevelAction): void {
 		this.actions.splice(index, 1, newAction);
 		this.updateTitleArea();
+	}
+
+	public clearHistory(): void {
+		this.searchWidget.clearHistory();
+		this.inputPatternExcludes.clearHistory();
+		this.inputPatternIncludes.clearHistory();
 	}
 
 	public shutdown(): void {

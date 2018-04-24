@@ -378,7 +378,7 @@ export class SearchTreeController extends WorkbenchTreeController {
 			this.contextMenu = this.menuService.createMenu(MenuId.SearchContext, tree.contextKeyService);
 		}
 
-		tree.setFocus(element);
+		tree.setFocus(element, { preventOpenOnFocus: true });
 
 		const anchor = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({

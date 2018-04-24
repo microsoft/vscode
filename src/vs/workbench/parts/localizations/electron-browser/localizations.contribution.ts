@@ -115,8 +115,9 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 	private getLanguagePackExtension(language: string): TPromise<IGalleryExtension> {
 		return this.localizationService.getLanguageIds(LanguageType.Core)
 			.then(coreLanguages => {
-				const extensionId = coreLanguages.some(c => c.toLowerCase() === language) ? product.quality !== 'insider' ? `MS-CEINTL.vscode-insiders-language-pack-${language}` : `MS-CEINTL.vscode-language-pack-${language}` : null;
-				if (extensionId) {
+				if (coreLanguages.some(c => c.toLowerCase() === language)) {
+					const extensionIdPrefix = language === 'zh-cn' ? 'zh-hans' : language === 'zh-tw' ? 'zh-hant' : language;
+					const extensionId = product.quality !== 'insider' ? `MS-CEINTL.vscode-insiders-language-pack-${extensionIdPrefix}` : `MS-CEINTL.vscode-language-pack-${extensionIdPrefix}`;
 					return this.galleryService.query({ names: [extensionId], pageSize: 1 })
 						.then(result => result.total === 1 ? result.firstPage[0] : null);
 				}

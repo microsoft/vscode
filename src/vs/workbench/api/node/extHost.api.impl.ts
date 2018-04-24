@@ -550,9 +550,9 @@ export function createApiFactory(
 			onDidEndTask: (listeners, thisArgs?, disposables?) => {
 				return extHostTask.onDidEndTask(listeners, thisArgs, disposables);
 			},
-			registerFileSystemProvider: proposedApiFunction(extension, (scheme, provider, options) => {
+			registerFileSystemProvider(scheme, provider, options) {
 				return extHostFileSystem.registerFileSystemProvider(scheme, provider, options);
-			}),
+			},
 			registerDeprecatedFileSystemProvider: proposedApiFunction(extension, (scheme, provider) => {
 				return extHostFileSystem.registerDeprecatedFileSystemProvider(scheme, provider);
 			}),

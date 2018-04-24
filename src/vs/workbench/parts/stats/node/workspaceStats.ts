@@ -9,7 +9,7 @@ import * as crypto from 'crypto';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
-import { IFileService, IFileStat } from 'vs/platform/files/common/files';
+import { IFileService, IFileStat, IResolveFileResult } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -36,6 +36,26 @@ const SecondLevelDomainWhitelist = [
 	'cloudapp.net',
 	'rhcloud.com',
 	'google.com'
+];
+const ModulesToLookFor = [
+	// Packages that suggest a node server
+	'express',
+	'sails',
+	'koa',
+	'hapi',
+	'socket.io',
+	'restify',
+	// JS frameworks
+	'react',
+	'react-native',
+	'@angular/core',
+	'vue',
+	// Other interesting packages
+	'aws-sdk',
+	'azure',
+	'azure-storage',
+	'@google-cloud/common',
+	'heroku-cli'
 ];
 
 type Tags = { [index: string]: boolean | number | string };
@@ -182,6 +202,20 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.sln" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.unity" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.express" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.sails" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.koa" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.hapi" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.socket.io" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.restify" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.react" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@angular/core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.vue" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.aws-sdk" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.azure-storage" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@google-cloud/common" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.heroku-cli" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.bower" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.yeoman.code.ext" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.cordova.high" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -192,7 +226,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.reactNative" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		}
 	*/
-	private getWorkspaceTags(configuration: IWindowConfiguration): TPromise<Tags> {
+	private async getWorkspaceTags(configuration: IWindowConfiguration): TPromise<Tags> {
 		const tags: Tags = Object.create(null);
 
 		const state = this.contextService.getWorkbenchState();
@@ -223,89 +257,82 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 		const folders = !isEmpty ? workspace.folders.map(folder => folder.uri) : this.environmentService.appQuality !== 'stable' && this.findFolders(configuration);
 		if (folders && folders.length && this.fileService) {
-			return this.fileService.resolveFiles(folders.map(resource => ({ resource }))).then(results => {
-				const names = (<IFileStat[]>[]).concat(...results.map(result => result.success ? (result.stat.children || []) : [])).map(c => c.name);
-				const nameSet = names.reduce((s, n) => s.add(n.toLowerCase()), new Set());
+			//return
+			const files: IResolveFileResult[] = await this.fileService.resolveFiles(folders.map(resource => ({ resource })));
+			const names = (<IFileStat[]>[]).concat(...files.map(result => result.success ? (result.stat.children || []) : [])).map(c => c.name);
+			const nameSet = names.reduce((s, n) => s.add(n.toLowerCase()), new Set());
 
-				tags['workspace.grunt'] = nameSet.has('gruntfile.js');
-				tags['workspace.gulp'] = nameSet.has('gulpfile.js');
-				tags['workspace.jake'] = nameSet.has('jakefile.js');
+			tags['workspace.grunt'] = nameSet.has('gruntfile.js');
+			tags['workspace.gulp'] = nameSet.has('gulpfile.js');
+			tags['workspace.jake'] = nameSet.has('jakefile.js');
 
-				tags['workspace.tsconfig'] = nameSet.has('tsconfig.json');
-				tags['workspace.jsconfig'] = nameSet.has('jsconfig.json');
-				tags['workspace.config.xml'] = nameSet.has('config.xml');
-				tags['workspace.vsc.extension'] = nameSet.has('vsc-extension-quickstart.md');
+			tags['workspace.tsconfig'] = nameSet.has('tsconfig.json');
+			tags['workspace.jsconfig'] = nameSet.has('jsconfig.json');
+			tags['workspace.config.xml'] = nameSet.has('config.xml');
+			tags['workspace.vsc.extension'] = nameSet.has('vsc-extension-quickstart.md');
 
-				tags['workspace.ASP5'] = nameSet.has('project.json') && this.searchArray(names, /^.+\.cs$/i);
-				tags['workspace.sln'] = this.searchArray(names, /^.+\.sln$|^.+\.csproj$/i);
-				tags['workspace.unity'] = nameSet.has('assets') && nameSet.has('library') && nameSet.has('projectsettings');
-				tags['workspace.npm'] = nameSet.has('package.json') || nameSet.has('node_modules');
-				tags['workspace.bower'] = nameSet.has('bower.json') || nameSet.has('bower_components');
+			tags['workspace.ASP5'] = nameSet.has('project.json') && this.searchArray(names, /^.+\.cs$/i);
+			tags['workspace.sln'] = this.searchArray(names, /^.+\.sln$|^.+\.csproj$/i);
+			tags['workspace.unity'] = nameSet.has('assets') && nameSet.has('library') && nameSet.has('projectsettings');
+			tags['workspace.npm'] = nameSet.has('package.json') || nameSet.has('node_modules');
+			tags['workspace.bower'] = nameSet.has('bower.json') || nameSet.has('bower_components');
 
-				tags['workspace.yeoman.code.ext'] = nameSet.has('vsc-extension-quickstart.md');
+			tags['workspace.yeoman.code.ext'] = nameSet.has('vsc-extension-quickstart.md');
 
-				let mainActivity = nameSet.has('mainactivity.cs') || nameSet.has('mainactivity.fs');
-				let appDelegate = nameSet.has('appdelegate.cs') || nameSet.has('appdelegate.fs');
-				let androidManifest = nameSet.has('androidmanifest.xml');
+			let mainActivity = nameSet.has('mainactivity.cs') || nameSet.has('mainactivity.fs');
+			let appDelegate = nameSet.has('appdelegate.cs') || nameSet.has('appdelegate.fs');
+			let androidManifest = nameSet.has('androidmanifest.xml');
 
-				let platforms = nameSet.has('platforms');
-				let plugins = nameSet.has('plugins');
-				let www = nameSet.has('www');
-				let properties = nameSet.has('properties');
-				let resources = nameSet.has('resources');
-				let jni = nameSet.has('jni');
+			let platforms = nameSet.has('platforms');
+			let plugins = nameSet.has('plugins');
+			let www = nameSet.has('www');
+			let properties = nameSet.has('properties');
+			let resources = nameSet.has('resources');
+			let jni = nameSet.has('jni');
 
-				if (tags['workspace.config.xml'] &&
-					!tags['workspace.language.cs'] && !tags['workspace.language.vb'] && !tags['workspace.language.aspx']) {
-					if (platforms && plugins && www) {
-						tags['workspace.cordova.high'] = true;
-					} else {
-						tags['workspace.cordova.low'] = true;
-					}
+			if (tags['workspace.config.xml'] &&
+				!tags['workspace.language.cs'] && !tags['workspace.language.vb'] && !tags['workspace.language.aspx']) {
+				if (platforms && plugins && www) {
+					tags['workspace.cordova.high'] = true;
+				} else {
+					tags['workspace.cordova.low'] = true;
 				}
+			}
 
-				if (mainActivity && properties && resources) {
-					tags['workspace.xamarin.android'] = true;
-				}
+			if (mainActivity && properties && resources) {
+				tags['workspace.xamarin.android'] = true;
+			}
 
-				if (appDelegate && resources) {
-					tags['workspace.xamarin.ios'] = true;
-				}
+			if (appDelegate && resources) {
+				tags['workspace.xamarin.ios'] = true;
+			}
 
-				if (androidManifest && jni) {
-					tags['workspace.android.cpp'] = true;
-				}
+			if (androidManifest && jni) {
+				tags['workspace.android.cpp'] = true;
+			}
 
-				if (nameSet.has('package.json')) {
-					return TPromise.join(folders.map(workspaceUri => {
-						const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/package.json` });
-						return this.fileService.resolveFile(uri).then(stats => {
-							return this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
-								content => {
-									try {
-										const packageJsonContents = JSON.parse(content.value);
-										return !!(packageJsonContents['dependencies'] && packageJsonContents['dependencies']['react-native']);
-									} catch (e) {
-
-									}
-									return false;
-								},
-								err => false
-							);
-						}, err => false);
-					})).then(reactNatives => {
-						if (reactNatives.indexOf(true) !== -1) {
-							tags['workspace.reactNative'] = true;
+			if (nameSet.has('package.json')) {
+				await TPromise.join(folders.map(async workspaceUri => {
+					const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/package.json` });
+					const content = await this.fileService.resolveContent(uri, { acceptTextOnly: true });
+					const packageJsonContents = JSON.parse(content.value);
+					if (packageJsonContents['dependencies']) {
+						for (let module of ModulesToLookFor) {
+							if ('react-native' === module) {
+								if (packageJsonContents['dependencies'][module]) {
+									tags['workspace.reactNative'] = true;
+								}
+							} else {
+								if (packageJsonContents['dependencies'][module]) {
+									tags['workspace.npm.' + module] = true;
+								}
+							}
 						}
-						return tags;
-					});
-				}
-
-				return tags;
-			}, error => { onUnexpectedError(error); return null; });
-		} else {
-			return TPromise.as(tags);
+					}
+				}));
+			}
 		}
+		return TPromise.as(tags);
 	}
 
 	private findFolders(configuration: IWindowConfiguration): URI[] {

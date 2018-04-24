@@ -27,7 +27,7 @@ interface ILanguagePack {
 	translations: { [id: string]: string };
 }
 
-const systemLanguages: string[] = ['de', 'en', 'en-US', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'zh-CN', 'zh-TW'];
+const systemLanguages: string[] = ['de', 'en', 'en-US', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'zh-CN', 'zh-Hans', 'zh-TW', 'zh-Hant'];
 if (product.quality !== 'stable') {
 	systemLanguages.push('hu');
 }
