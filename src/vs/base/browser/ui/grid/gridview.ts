@@ -14,6 +14,13 @@ import { $, append } from 'vs/base/browser/dom';
 export { IView } from 'vs/base/browser/ui/splitview/splitview';
 export { Orientation } from 'vs/base/browser/ui/sash/sash';
 
+/*
+TODO:
+- IView needs to change to accommodate width/height
+- GridView.getLocation(HTMLElement)
+- GridView.orientation setter/getter
+*/
+
 function orthogonal(orientation: Orientation): Orientation {
 	return orientation === Orientation.VERTICAL ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 }
