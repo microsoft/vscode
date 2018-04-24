@@ -800,11 +800,13 @@ export class IssueReporter extends Disposable {
 
 		// Sort extensions by name
 		extensionOptions.sort((a, b) => {
-			if (a.name > b.name) {
+			const aName = a.name.toLowerCase();
+			const bName = b.name.toLowerCase();
+			if (aName > bName) {
 				return 1;
 			}
 
-			if (a.name < b.name) {
+			if (aName < bName) {
 				return -1;
 			}
 
