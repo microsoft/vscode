@@ -559,14 +559,13 @@ export function createApiFactory(
 				return extHostFileSystem.registerDeprecatedFileSystemProvider(scheme, provider);
 			}),
 			registerSearchProvider: proposedApiFunction(extension, (scheme, provider) => {
-				return extHostFileSystem.registerSearchProvider(scheme, provider);
+				return extHostSearch.registerSearchProvider(scheme, provider);
 			}),
 			registerDocumentCommentProvider: proposedApiFunction(extension, (provider: vscode.DocumentCommentProvider) => {
 				return exthostCommentProviders.registerDocumentCommentProvider(provider);
 			}),
 			registerWorkspaceCommentProvider: proposedApiFunction(extension, (provider: vscode.WorkspaceCommentProvider) => {
 				return exthostCommentProviders.registerWorkspaceCommentProvider(provider);
-				return extHostSearch.registerSearchProvider(scheme, provider);
 			})
 		};
 
@@ -712,10 +711,9 @@ export function createApiFactory(
 			FileChangeType: extHostTypes.FileChangeType,
 			FileSystemError: extHostTypes.FileSystemError,
 			FoldingRange: extHostTypes.FoldingRange,
-			FoldingRangeType: extHostTypes.FoldingRangeType,
+			FoldingRangeKind: extHostTypes.FoldingRangeKind,
 
-			CommentThreadCollapsibleState: extHostTypes.CommentThreadCollapsibleState,
-			FoldingRangeKind: extHostTypes.FoldingRangeKind
+			CommentThreadCollapsibleState: extHostTypes.CommentThreadCollapsibleState
 		};
 	};
 }
