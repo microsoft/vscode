@@ -6,8 +6,8 @@
 import * as cp from 'child_process';
 import { Application } from '../../application';
 
-const DIFF_EDITOR_LINE_INSERT = '.monaco-diff-editor .editor.modified .line-insert';
-const SYNC_STATUSBAR = 'div[id="workbench.parts.statusbar"] .statusbar-entry a[title$="Synchronize Changes"]';
+// const DIFF_EDITOR_LINE_INSERT = '.monaco-diff-editor .editor.modified .line-insert';
+// const SYNC_STATUSBAR = 'div[id="workbench.parts.statusbar"] .statusbar-entry a[title$="Synchronize Changes"]';
 
 export function setup() {
 	describe('Git', () => {
@@ -18,6 +18,7 @@ export function setup() {
 			cp.execSync('git config user.email monacotools@microsoft.com', { cwd: app.workspacePath });
 		});
 
+		/*
 		it('reflects working tree changes', async function () {
 			const app = this.app as Application;
 
@@ -78,5 +79,6 @@ export function setup() {
 
 			cp.execSync('git reset --hard origin/master', { cwd: app.workspacePath });
 		});
+		*/
 	});
 }
