@@ -97,7 +97,7 @@ import URI from 'vs/base/common/uri';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
 import { domEvent } from 'vs/base/browser/event';
 import { InputFocusedContext } from 'vs/platform/workbench/common/contextkeys';
-import { ICustomViewsService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/common/views';
 import { CustomViewsService } from 'vs/workbench/browser/parts/views/customView';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
@@ -110,7 +110,7 @@ import { IPCClient } from 'vs/base/parts/ipc/common/ipc';
 import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
-import { IInactiveExtensionUrlHandler, InactiveExtensionUrlHandler } from 'vs/platform/url/electron-browser/inactiveExtensionUrlHandler';
+import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/platform/url/electron-browser/inactiveExtensionUrlHandler';
 
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
 export const InZenModeContext = new RawContextKey<boolean>('inZenMode', false);
@@ -576,7 +576,7 @@ export class Workbench implements IPartService {
 
 		// Custom views service
 		const customViewsService = this.instantiationService.createInstance(CustomViewsService);
-		serviceCollection.set(ICustomViewsService, customViewsService);
+		serviceCollection.set(IViewsService, customViewsService);
 
 		// Activity service (activitybar part)
 		this.activitybarPart = this.instantiationService.createInstance(ActivitybarPart, Identifiers.ACTIVITYBAR_PART);
@@ -618,7 +618,7 @@ export class Workbench implements IPartService {
 		serviceCollection.set(ISCMService, new SyncDescriptor(SCMService));
 
 		// Inactive extension URL handler
-		serviceCollection.set(IInactiveExtensionUrlHandler, new SyncDescriptor(InactiveExtensionUrlHandler));
+		serviceCollection.set(IExtensionUrlHandler, new SyncDescriptor(ExtensionUrlHandler));
 
 		// Text Model Resolver Service
 		serviceCollection.set(ITextModelService, new SyncDescriptor(TextModelResolverService));

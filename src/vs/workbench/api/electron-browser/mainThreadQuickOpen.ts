@@ -114,6 +114,6 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 			};
 		}
 
-		return asWinJsPromise(token => this._quickOpenService.input(inputOptions, token));
+		return asWinJsPromise(token => this._quickInputService.input(inputOptions, token));
 	}
 }

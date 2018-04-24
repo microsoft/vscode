@@ -80,6 +80,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		};
 
 		this._webviews.set(handle, webview);
+		this._activeWebview = handle;
 	}
 
 	$disposeWebview(handle: WebviewPanelHandle): void {
@@ -207,7 +208,8 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		}
 
 		if (newActiveWebview && newActiveWebview.handle === this._activeWebview) {
-			// No change
+			// Webview itself unchanged but position may have changed
+			this._proxy.$onDidChangeWebviewPanelViewState(newActiveWebview.handle, true, newActiveWebview.input.position);
 			return;
 		}
 

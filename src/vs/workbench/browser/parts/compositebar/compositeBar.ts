@@ -140,6 +140,7 @@ export class CompositeBar implements ICompositeBar {
 			this.activeCompositeId = undefined;
 		}
 		if (this.activeUnpinnedCompositeId === id) {
+			this.updateCompositeSwitcher();
 			this.activeUnpinnedCompositeId = undefined;
 		}
 	}

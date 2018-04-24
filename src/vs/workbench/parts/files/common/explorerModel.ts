@@ -216,6 +216,9 @@ export class ExplorerItem {
 	 * Adds a child element to this folder.
 	 */
 	public addChild(child: ExplorerItem): void {
+		if (!this.children) {
+			this.isDirectory = true;
+		}
 
 		// Inherit some parent properties to child
 		child.parent = this;

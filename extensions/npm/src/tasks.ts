@@ -8,6 +8,9 @@ import { TaskDefinition, Task, TaskGroup, WorkspaceFolder, RelativePattern, Shel
 import * as path from 'path';
 import * as fs from 'fs';
 import * as minimatch from 'minimatch';
+import * as nls from 'vscode-nls';
+
+const localize = nls.loadMessageBundle();
 
 export interface NpmTaskDefinition extends TaskDefinition {
 	script: string;
@@ -84,7 +87,7 @@ export async function hasNpmScripts(): Promise<boolean> {
 	}
 }
 
-export async function provideNpmScripts(localize: any): Promise<Task[]> {
+export async function provideNpmScripts(): Promise<Task[]> {
 	let emptyTasks: Task[] = [];
 	let allTasks: Task[] = [];
 
@@ -100,7 +103,7 @@ export async function provideNpmScripts(localize: any): Promise<Task[]> {
 				let paths = await workspace.findFiles(relativePattern, '**/node_modules/**');
 				for (let j = 0; j < paths.length; j++) {
 					if (!isExcluded(folder, paths[j])) {
-						let tasks = await provideNpmScriptsForFolder(localize, paths[j]);
+						let tasks = await provideNpmScriptsForFolder(paths[j]);
 						allTasks.push(...tasks);
 					}
 				}
@@ -137,14 +140,14 @@ function isExcluded(folder: WorkspaceFolder, packageJsonUri: Uri) {
 	return false;
 }
 
-async function provideNpmScriptsForFolder(localize: any, packageJsonUri: Uri): Promise<Task[]> {
+async function provideNpmScriptsForFolder(packageJsonUri: Uri): Promise<Task[]> {
 	let emptyTasks: Task[] = [];
 
 	let folder = workspace.getWorkspaceFolder(packageJsonUri);
 	if (!folder) {
 		return emptyTasks;
 	}
-	let scripts = await getScripts(packageJsonUri, localize);
+	let scripts = await getScripts(packageJsonUri);
 	if (!scripts) {
 		return emptyTasks;
 	}
@@ -232,7 +235,7 @@ async function readFile(file: string): Promise<string> {
 	});
 }
 
-export async function getScripts(packageJsonUri: Uri, localize: any): Promise<any> {
+export async function getScripts(packageJsonUri: Uri): Promise<any> {
 
 	if (packageJsonUri.scheme !== 'file') {
 		return null;

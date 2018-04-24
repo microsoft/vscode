@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SignatureHelpProvider, SignatureHelp, SignatureInformation, ParameterInformation, TextDocument, Position, CancellationToken } from 'vscode';
-
-import * as Previewer from '../utils/previewer';
+import { CancellationToken, ParameterInformation, Position, SignatureHelp, SignatureHelpProvider, SignatureInformation, TextDocument } from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
+import * as Previewer from '../utils/previewer';
 import * as typeConverters from '../utils/typeConverters';
+
 
 export default class TypeScriptSignatureHelpProvider implements SignatureHelpProvider {
 
@@ -23,9 +23,14 @@ export default class TypeScriptSignatureHelpProvider implements SignatureHelpPro
 		}
 		const args: Proto.SignatureHelpRequestArgs = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
 
-		const response = await this.client.execute('signatureHelp', args, token);
-		const info = response.body;
-		if (!info) {
+		let info: Proto.SignatureHelpItems | undefined = undefined;
+		try {
+			const response = await this.client.execute('signatureHelp', args, token);
+			info = response.body;
+			if (!info) {
+				return null;
+			}
+		} catch {
 			return null;
 		}
 
@@ -35,8 +40,8 @@ export default class TypeScriptSignatureHelpProvider implements SignatureHelpPro
 
 		info.items.forEach((item, i) => {
 			// keep active parameter in bounds
-			if (i === info.selectedItemIndex && item.isVariadic) {
-				result.activeParameter = Math.min(info.argumentIndex, item.parameters.length - 1);
+			if (i === info!.selectedItemIndex && item.isVariadic) {
+				result.activeParameter = Math.min(info!.argumentIndex, item.parameters.length - 1);
 			}
 
 			const signature = new SignatureInformation('');

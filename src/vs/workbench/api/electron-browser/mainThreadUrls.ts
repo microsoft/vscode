@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import URI from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IInactiveExtensionUrlHandler } from 'vs/platform/url/electron-browser/inactiveExtensionUrlHandler';
+import { IExtensionUrlHandler } from 'vs/platform/url/electron-browser/inactiveExtensionUrlHandler';
 
 class ExtensionUrlHandler implements IURLHandler {
 
@@ -37,12 +37,12 @@ export class MainThreadUrls implements MainThreadUrlsShape {
 	constructor(
 		context: IExtHostContext,
 		@IURLService private urlService: IURLService,
-		@IInactiveExtensionUrlHandler private inactiveExtensionUrlHandler: IInactiveExtensionUrlHandler
+		@IExtensionUrlHandler private inactiveExtensionUrlHandler: IExtensionUrlHandler
 	) {
 		this.proxy = context.getProxy(ExtHostContext.ExtHostUrls);
 	}
 
-	$registerExternalUriHandler(handle: number, extensionId: string): TPromise<void> {
+	$registerProtocolHandler(handle: number, extensionId: string): TPromise<void> {
 		const handler = new ExtensionUrlHandler(this.proxy, handle, extensionId);
 		const disposable = this.urlService.registerHandler(handler);
 
@@ -52,7 +52,7 @@ export class MainThreadUrls implements MainThreadUrlsShape {
 		return TPromise.as(null);
 	}
 
-	$unregisterExternalUriHandler(handle: number): TPromise<void> {
+	$unregisterProtocolHandler(handle: number): TPromise<void> {
 		const tuple = this.handlers.get(handle);
 
 		if (!tuple) {

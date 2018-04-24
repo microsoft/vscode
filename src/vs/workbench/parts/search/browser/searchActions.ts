@@ -393,7 +393,7 @@ export class ClearSearchResultsAction extends Action {
 
 	update(): void {
 		const searchView = getSearchView(this.viewletService, this.panelService);
-		this.enabled = searchView && searchView.hasSearchResults();
+		this.enabled = searchView && searchView.isSearchSubmitted();
 	}
 
 	public run(): TPromise<void> {
@@ -491,7 +491,9 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 			// If file match is removed then next element is the next file match
 			while (!!navigator.next() && !(navigator.current() instanceof FileMatch)) { }
 		} else {
-			navigator.next();
+			while (navigator.next() && !(navigator.current() instanceof Match)) {
+				viewer.expand(navigator.current());
+			}
 		}
 		return navigator.current();
 	}
@@ -750,7 +752,7 @@ function allFolderMatchesToString(folderMatches: FolderMatch[], maxMatches: numb
 	return folderResults.join(lineDelimiter + lineDelimiter);
 }
 
-export const copyAllCommand: ICommandHandler = (accessor) => {
+export const copyAllCommand: ICommandHandler = accessor => {
 	const viewletService = accessor.get(IViewletService);
 	const panelService = accessor.get(IPanelService);
 	const clipboardService = accessor.get(IClipboardService);
@@ -760,4 +762,12 @@ export const copyAllCommand: ICommandHandler = (accessor) => {
 
 	const text = allFolderMatchesToString(root.folderMatches(), maxClipboardMatches);
 	clipboardService.writeText(text);
+};
+
+export const clearHistoryCommand: ICommandHandler = accessor => {
+	const viewletService = accessor.get(IViewletService);
+	const panelService = accessor.get(IPanelService);
+	const searchView = getSearchView(viewletService, panelService);
+
+	searchView.clearHistory();
 };

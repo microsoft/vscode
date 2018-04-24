@@ -35,8 +35,8 @@ export class ExtensionDescriptionRegistry {
 					let activationEvent = extensionDescription.activationEvents[j];
 
 					// TODO@joao: there's no easy way to contribute this
-					if (activationEvent === 'onExternalUri') {
-						activationEvent = `onExternalUri:${extensionDescription.id}`;
+					if (activationEvent === 'onUri') {
+						activationEvent = `onUri:${extensionDescription.id}`;
 					}
 
 					this._activationMap[activationEvent] = this._activationMap[activationEvent] || [];

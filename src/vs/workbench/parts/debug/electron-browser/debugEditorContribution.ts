@@ -197,7 +197,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 					if (breakpoints.some(bp => !!bp.condition || !!bp.logMessage || !!bp.hitCondition)) {
 						const logPoint = breakpoints.every(bp => !!bp.logMessage);
 						const breakpointType = logPoint ? nls.localize('logPoint', "Log Point") : nls.localize('breakpoint', "Breakpoint");
-						this.dialogService.show(severity.Info, nls.localize('breakpointHasCondition', "This {0} has a valuable {1} that will get lost on remove. Consider disabling the {0} instead.",
+						this.dialogService.show(severity.Info, nls.localize('breakpointHasCondition', "This {0} has a {1} that will get lost on remove. Consider disabling the {0} instead.",
 							breakpointType.toLowerCase(), logPoint ? nls.localize('message', "message") : nls.localize('condition', "condition")), [
 								nls.localize('removeLogPoint', "Remove {0}", breakpointType),
 								nls.localize('disableLogPoint', "Disable {0}", breakpointType),

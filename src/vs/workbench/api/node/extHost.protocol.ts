@@ -374,8 +374,8 @@ export interface ExtHostWebviewsShape {
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
-	$registerExternalUriHandler(handle: number, extensionId: string): TPromise<void>;
-	$unregisterExternalUriHandler(handle: number): TPromise<void>;
+	$registerProtocolHandler(handle: number, extensionId: string): TPromise<void>;
+	$unregisterProtocolHandler(handle: number): TPromise<void>;
 }
 
 export interface ExtHostUrlsShape {

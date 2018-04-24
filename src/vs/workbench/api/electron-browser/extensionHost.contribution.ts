@@ -16,6 +16,7 @@ import { ColorExtensionPoint } from 'vs/workbench/services/themes/common/colorEx
 import { LanguageConfigurationFileHandler } from 'vs/workbench/parts/codeEditor/electron-browser/languageConfiguration/languageConfigurationExtensionPoint';
 
 // --- mainThread participants
+import 'vs/workbench/api/node/apiCommands';
 import './mainThreadCommands';
 import './mainThreadConfiguration';
 import './mainThreadDebugService';

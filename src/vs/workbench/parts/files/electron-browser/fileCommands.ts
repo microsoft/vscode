@@ -41,6 +41,7 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common
 import { getMultiSelectedEditorContexts } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Schemas } from 'vs/base/common/network';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 // Commands
 
@@ -398,7 +399,7 @@ function revealResourcesInOS(resources: URI[], windowsService: IWindowsService, 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: REVEAL_IN_OS_COMMAND_ID,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: undefined,
+	when: EditorContextKeys.editorTextFocus.toNegated(),
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R,
 	win: {
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_R
@@ -410,7 +411,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: undefined,
+	when: EditorContextKeys.editorTextFocus.toNegated(),
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_R),
 	id: 'workbench.action.files.revealActiveFileInWindows',
 	handler: (accessor: ServicesAccessor) => {

@@ -41,7 +41,7 @@ const viewsContainerSchema: IJSONSchema = {
 	type: 'object',
 	properties: {
 		id: {
-			description: localize('vscode.extension.contributes.views.containers.id', "Unique id used to identify the container in which views can be contributed using 'views' contribution point"),
+			description: localize({ key: 'vscode.extension.contributes.views.containers.id', comment: ['Contribution refers to those that an extension contributes to VS Code through an extension/contribution point. '] }, "Unique id used to identify the container in which views can be contributed using 'views' contribution point"),
 			type: 'string'
 		},
 		label: {
@@ -79,7 +79,7 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 			for (let extension of extensions) {
 				const { value, collector } = extension;
 				if (!extension.description.enableProposedApi) {
-					collector.error(localize('proposed', "'{0}' contribution is only available when running out of dev or with the following command line switch: --enable-proposed-api {1}", 'viewsContainer', extension.description.id));
+					collector.error(localize({ key: 'proposed', comment: ['Contribution refers to those that an extension contributes to VS Code through an extension/contribution point. '] }, "'viewsContainer' contribution is only available when running out of dev or with the following command line switch: --enable-proposed-api {0}", extension.description.id));
 					continue;
 				}
 				forEach(value, entry => {
@@ -130,7 +130,7 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 			// Generate CSS to show the icon in the activity bar
 			const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${cssClass}`;
 			const iconPath = join(extension.extensionFolderPath, descriptor.icon);
-			createCSSRule(iconClass, `-webkit-mask: url('${iconPath}') no-repeat 50% 50%; -webkit-mask-size: 22px;`);
+			createCSSRule(iconClass, `-webkit-mask: url('${iconPath}') no-repeat 50% 50%`);
 
 			// Register as viewlet
 			class CustomViewlet extends PersistentViewsViewlet {

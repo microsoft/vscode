@@ -240,7 +240,10 @@ export class RemoteFileService extends FileService {
 	// --- stat
 
 	private _withProvider(resource: URI): TPromise<IFileSystemProvider> {
-		return this._extensionService.activateByEvent('onFileSystemAccess:' + resource.scheme).then(() => {
+		return TPromise.join([
+			this._extensionService.activateByEvent('onFileSystem:' + resource.scheme),
+			this._extensionService.activateByEvent('onFileSystemAccess:' + resource.scheme) // todo@remote -> remove
+		]).then(() => {
 			const provider = this._provider.get(resource.scheme);
 			if (!provider) {
 				const err = new Error();

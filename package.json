@@ -82,6 +82,7 @@
     "gulp-image-resize": "^0.10.0",
     "gulp-json-editor": "^2.2.1",
     "gulp-mocha": "^2.1.3",
+    "gulp-plumber": "^1.2.0",
     "gulp-remote-src": "^0.4.0",
     "gulp-rename": "^1.2.0",
     "gulp-replace": "^0.5.4",

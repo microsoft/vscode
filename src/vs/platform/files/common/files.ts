@@ -185,9 +185,9 @@ export interface FileOptions {
 }
 
 export interface IStat {
-	isFile: boolean;
-	isDirectory: boolean;
-	isSymbolicLink: boolean;
+	isFile?: boolean;
+	isDirectory?: boolean;
+	isSymbolicLink?: boolean;
 	mtime: number;
 	size: number;
 }
