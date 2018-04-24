@@ -15,7 +15,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { TrackedRangeStickiness, IModelDeltaDecoration } from 'vs/editor/common/model';
+import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecoration } from 'vs/editor/common/model';
 import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -33,7 +33,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Emitter, Event } from 'vs/base/common/event';
 import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ZoneWidget, IOptions } from 'vs/editor/contrib/zoneWidget/zoneWidget';
-import { ReviewModel, ReviewStyle } from 'vs/workbench/parts/comments/common/reviewModel';
+import { ReviewModel } from 'vs/workbench/parts/comments/common/reviewModel';
 import { ICommentService } from '../../../services/comments/electron-browser/commentService';
 import { CommentThreadCollapsibleState } from '../../../api/node/extHostTypes';
 
@@ -45,6 +45,11 @@ declare var ResizeObserver: any;
 const REVIEW_DECORATION = ModelDecorationOptions.register({
 	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 	glyphMarginClassName: 'review'
+});
+
+const COMMENTING_RANGE_DECORATION = ModelDecorationOptions.register({
+	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+	glyphMarginClassName: 'commenting-range',
 });
 
 const NEW_COMMENT_DECORATION = ModelDecorationOptions.register({
@@ -426,6 +431,9 @@ export class ReviewZoneWidget extends ZoneWidget {
 			this._resizeObserver.disconnect();
 			this._resizeObserver = null;
 		}
+		this.editor.changeDecorations(accessor => {
+			accessor.deltaDecorations(this._decorationIDs, []);
+		});
 		this._localToDispose.forEach(local => local.dispose());
 		this._onDidClose.fire();
 	}
@@ -437,6 +445,8 @@ export class ReviewController implements IEditorContribution {
 	private editor: ICodeEditor;
 	private decorationIDs: string[];
 	private newCommentHintDecoration: string[];
+	private commentingRangeDecorationMap: Map<number, string[]>;
+	private commentingRangeDecorations: string[];
 	private _zoneWidget: ReviewZoneWidget;
 	private _zoneWidgets: ReviewZoneWidget[];
 	private _reviewPanelVisible: IContextKey<boolean>;
@@ -455,6 +465,8 @@ export class ReviewController implements IEditorContribution {
 		this.localToDispose = [];
 		this.decorationIDs = [];
 		this.newCommentHintDecoration = [];
+		this.commentingRangeDecorations = [];
+		this.commentingRangeDecorationMap = new Map();
 		this.mouseDownInfo = null;
 		this._commentInfos = [];
 		this._zoneWidgets = [];
@@ -464,40 +476,26 @@ export class ReviewController implements IEditorContribution {
 		this._reviewModel = new ReviewModel();
 
 		this._reviewModel.onDidChangeStyle(style => {
-			if (style === ReviewStyle.Gutter) {
-				this._zoneWidgets.forEach(zone => {
-					zone.dispose();
-				});
-				this._zoneWidgets = [];
+			this.editor.changeDecorations(accessor => {
+				this.decorationIDs = accessor.deltaDecorations(this.decorationIDs, []);
+			});
 
-				// this.editor.changeDecorations(accessor => {
-				// 	this.decorationIDs = accessor.deltaDecorations(this.decorationIDs, this._commentThreads.map(thread => ({
-				// 		range: thread.range,
-				// 		options: REVIEW_DECORATION
-				// 	})));
-				// });
-			} else {
-				this.editor.changeDecorations(accessor => {
-					this.decorationIDs = accessor.deltaDecorations(this.decorationIDs, []);
-				});
-
-				if (this._zoneWidget) {
-					this._zoneWidget.dispose();
-					this._zoneWidget = null;
-				}
-
-				this._zoneWidgets.forEach(zone => {
-					zone.dispose();
-				});
-
-				this._commentInfos.forEach(info => {
-					info.threads.forEach(thread => {
-						let zoneWidget = new ReviewZoneWidget(this.editor, info.owner, thread, info.reply, {}, this.themeService, this.commandService);
-						zoneWidget.display(thread.range.startLineNumber);
-						this._zoneWidgets.push(zoneWidget);
-					});
-				});
+			if (this._zoneWidget) {
+				this._zoneWidget.dispose();
+				this._zoneWidget = null;
 			}
+
+			this._zoneWidgets.forEach(zone => {
+				zone.dispose();
+			});
+
+			this._commentInfos.forEach(info => {
+				info.threads.forEach(thread => {
+					let zoneWidget = new ReviewZoneWidget(this.editor, info.owner, thread, info.reply, {}, this.themeService, this.commandService);
+					zoneWidget.display(thread.range.startLineNumber);
+					this._zoneWidgets.push(zoneWidget);
+				});
+			});
 		});
 
 		this.globalToDispose.push(this.commentService.onDidSetResourceCommentInfos(e => {
@@ -651,7 +649,6 @@ export class ReviewController implements IEditorContribution {
 				},
 				reply: newCommentInfo[0],
 				collapsibleState: CommentThreadCollapsibleState.Expanded,
-				// actions: newCommentAction.actions
 			}, newCommentInfo[0], {}, this.themeService, this.commandService);
 
 			this._zoneWidget.onDidClose(e => {
@@ -691,78 +688,107 @@ export class ReviewController implements IEditorContribution {
 	}
 
 	getNewCommentAction(line: number): [modes.Command, number] {
-
-		for (let i = 0; i < this._commentInfos.length; i++) {
-			let info = this._commentInfos[i];
-
-			for (let j = 0; j < info.commentingRanges.length; j++) {
-				if (info.commentingRanges[j].startLineNumber <= line && info.commentingRanges[j].endLineNumber >= line) {
-					return [info.reply, info.owner];
+		const decorations = this.editor.getLineDecorations(line);
+		let activeDecoration: IModelDecoration;
+		if (decorations) {
+			for (const decoration of decorations) {
+				if (decoration.options.glyphMarginClassName &&
+					decoration.options.glyphMarginClassName.indexOf('commenting-range') > -1 &&
+					decoration.options.glyphMarginClassName.indexOf('review') < 0
+				) {
+					activeDecoration = decoration;
 				}
 			}
 		}
 
-		return null;
+		if (!activeDecoration) {
+			return null;
+		}
+
+		let cmd: modes.Command = null;
+		let owner: number = -1;
+
+		this.commentingRangeDecorationMap.forEach((value, key) => {
+			if (!cmd && value.indexOf(activeDecoration.id) > -1) {
+				// index
+				let infos = this._commentInfos.filter(info => info.owner === Number(key));
+
+				if (infos && infos.length) {
+					cmd = infos[0].reply;
+					owner = Number(key);
+				}
+			}
+		});
+
+		return [cmd, owner];
 	}
 
 	marginFreeFromCommentHintDecorations(line: number): boolean {
-		let allowNewComment = false;
-
-		for (let i = 0; i < this._commentInfos.length; i++) {
-			let info = this._commentInfos[i];
-
-			for (let j = 0; j < info.commentingRanges.length; j++) {
-				if (info.commentingRanges[j].startLineNumber <= line && info.commentingRanges[j].endLineNumber >= line) {
-					allowNewComment = true;
-					break;
-				}
-			}
-		}
-
-		if (!allowNewComment) {
-			return false;
-		}
-
 		const decorations = this.editor.getLineDecorations(line);
+		let inCommentingRange = false;
 		if (decorations) {
 			for (const { options } of decorations) {
-				if (options.glyphMarginClassName && options.glyphMarginClassName.indexOf('review') > -1) {
+				if (options.glyphMarginClassName &&
+					options.glyphMarginClassName.indexOf('commenting-range') > -1
+				) {
+					inCommentingRange = true;
+				}
+				if (options.glyphMarginClassName &&
+					options.glyphMarginClassName.indexOf('review') > -1
+				) {
 					return false;
 				}
 			}
 		}
 
-		return true;
+		return inCommentingRange;
 	}
 
 	setComments(commentInfos: modes.CommentInfo[]): void {
 		this._commentInfos = commentInfos;
 
-		if (this._commentInfos.length === 0) {
-			return;
-		}
-
-		if (this._reviewModel.style === ReviewStyle.Gutter) {
-			// this.editor.changeDecorations(accessor => {
-			// 	this.decorationIDs = accessor.deltaDecorations(this.decorationIDs, commentThreads.map(thread => ({
-			// 		range: thread.range,
-			// 		options: REVIEW_DECORATION
-			// 	})));
-			// });
-		} else {
-			// create viewzones
-			this._zoneWidgets.forEach(zone => {
-				zone.dispose();
+		this.editor.changeDecorations(accessor => {
+			this.commentingRangeDecorationMap.forEach((val, index) => {
+				accessor.deltaDecorations(val, []);
+				this.commentingRangeDecorationMap.delete(index);
 			});
 
-			this._commentInfos.forEach(info => {
-				info.threads.forEach(thread => {
-					let zoneWidget = new ReviewZoneWidget(this.editor, info.owner, thread, info.reply, {}, this.themeService, this.commandService);
-					zoneWidget.display(thread.range.startLineNumber);
-					this._zoneWidgets.push(zoneWidget);
+			if (this._commentInfos.length === 0) {
+				return;
+			}
+
+			commentInfos.forEach(info => {
+				let ranges = [];
+				if (info.commentingRanges) {
+					ranges.push(...info.commentingRanges);
+				}
+
+				const commentingRangeDecorations: IModelDeltaDecoration[] = [];
+
+				ranges.forEach(range => {
+					commentingRangeDecorations.push({
+						options: COMMENTING_RANGE_DECORATION,
+						range: range
+					});
 				});
+
+				let commentingRangeDecorationIds = accessor.deltaDecorations(this.commentingRangeDecorations, commentingRangeDecorations);
+				this.commentingRangeDecorationMap.set(info.owner, commentingRangeDecorationIds);
 			});
-		}
+		});
+
+		// create viewzones
+		this._zoneWidgets.forEach(zone => {
+			zone.dispose();
+		});
+
+		this._commentInfos.forEach(info => {
+			info.threads.forEach(thread => {
+				let zoneWidget = new ReviewZoneWidget(this.editor, info.owner, thread, info.reply, {}, this.themeService, this.commandService);
+				zoneWidget.display(thread.range.startLineNumber);
+				this._zoneWidgets.push(zoneWidget);
+			});
+		});
 	}
 
 
