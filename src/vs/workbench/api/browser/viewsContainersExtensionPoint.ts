@@ -50,7 +50,7 @@ const viewsContainerSchema: IJSONSchema = {
 			type: 'string'
 		},
 		icon: {
-			description: localize('vscode.extension.contributes.views.containers.icon', 'Path to the container icon'),
+			description: localize('vscode.extension.contributes.views.containers.icon', "Path to the container icon. Icons are 24x24 centered on a 50x40 square and have a fill color of 'rgb(215, 218, 224)' or '#d7dae0'. It is recommended that icons be in SVG, though any image file type is accepted."),
 			type: 'string'
 		}
 	}
@@ -70,12 +70,22 @@ export const viewsContainersContribution: IJSONSchema = {
 
 export const viewsContainersExtensionPoint: IExtensionPoint<{ [loc: string]: IUserFriendlyViewsContainerDescriptor[] }> = ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: IUserFriendlyViewsContainerDescriptor[] }>('viewsContainers', [], viewsContainersContribution);
 
-const CUSTOM_VIEW_CONTAINER_ORDER = 5;
+const TEST_VIEW_CONTAINER_ORDER = 6;
 
 class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 
 	constructor() {
+		this.registerTestViewContainer();
 		this.handleAndRegisterCustomViewContainers();
+	}
+
+	private registerTestViewContainer(): void {
+		const id = 'test';
+		const title = localize('test', "Test");
+		const cssClass = `extensionViewlet-${id}`;
+		const icon = require.toUrl('./media/test.svg');
+
+		this.registerCustomViewlet({ id, title, icon }, TEST_VIEW_CONTAINER_ORDER, cssClass);
 	}
 
 	private handleAndRegisterCustomViewContainers() {
@@ -132,7 +142,7 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 		containers.forEach((descriptor, index) => {
 			const cssClass = `extensionViewlet-${descriptor.id}`;
 			const icon = join(extension.extensionFolderPath, descriptor.icon);
-			this.registerCustomViewlet({ id: descriptor.id, title: descriptor.title, icon }, CUSTOM_VIEW_CONTAINER_ORDER + index + 1, cssClass);
+			this.registerCustomViewlet({ id: descriptor.id, title: descriptor.title, icon }, TEST_VIEW_CONTAINER_ORDER + index + 1, cssClass);
 		});
 	}
 
@@ -186,7 +196,7 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 
 		// Generate CSS to show the icon in the activity bar
 		const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${cssClass}`;
-		createCSSRule(iconClass, `-webkit-mask: url('${descriptor.icon}') no-repeat 50% 50%;`);
+		createCSSRule(iconClass, `-webkit-mask: url('${descriptor.icon}') no-repeat 50% 50%`);
 	}
 }
 
