@@ -159,8 +159,8 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 
 		let debugArg = await this.extractDebugArg(scripts, task);
 		if (!debugArg) {
-			let message = localize('npm.noDebugOptions', 'Could not launch "{0}" for debugging, the script needs to include the node debug options: "--nolazy --inspect-brk=port", [learn more](https://code.visualstudio.com/docs/nodejs/nodejs-debugging#_launch-configuration-support-for-npm-and-other-tools).', task.name);
-			window.showErrorMessage(message);
+			let message = localize('npm.noDebugOptions', 'Could not launch "{0}" for debugging because the scripts lacks a node debug option, e.g. "--inspect-brk".', task.name);
+			window.showErrorMessage(message, { modal: true });
 			return;
 		}
 
