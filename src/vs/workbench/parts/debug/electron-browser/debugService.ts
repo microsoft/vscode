@@ -767,18 +767,17 @@ export class DebugService implements debug.IDebugService {
 				}
 
 				return (type ? TPromise.as(null) : this.configurationManager.guessDebugger().then(a => type = a && a.type)).then(() =>
-					(type ? this.extensionService.activateByEvent(`onDebugResolve:${type}`) : TPromise.as(null)).then(() =>
-						this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config).then(config => {
-							// a falsy config indicates an aborted launch
-							if (config && config.type) {
-								return this.createProcess(launch, config, sessionId);
-							}
+					this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config).then(config => {
+						// a falsy config indicates an aborted launch
+						if (config && config.type) {
+							return this.createProcess(launch, config, sessionId);
+						}
 
-							if (launch) {
-								return launch.openConfigFile(false, type).done(undefined, errors.onUnexpectedError);
-							}
-						})
-					)).then(() => undefined);
+						if (launch && type) {
+							return launch.openConfigFile(false, type).done(undefined, errors.onUnexpectedError);
+						}
+					})
+				).then(() => undefined);
 			})
 		))).then(() => wrapUpState(), err => {
 			wrapUpState();

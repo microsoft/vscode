@@ -242,6 +242,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		@ICommandService private commandService: ICommandService,
 		@IStorageService private storageService: IStorageService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@IExtensionService private extensionService: IExtensionService,
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService
 	) {
 		this.providers = [];
@@ -277,19 +278,21 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	public resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: IConfig): TPromise<IConfig> {
-		// pipe the config through the promises sequentially. append at the end the '*' types
-		const providers = this.providers.filter(p => p.type === type && p.resolveDebugConfiguration)
-			.concat(this.providers.filter(p => p.type === '*' && p.resolveDebugConfiguration));
+		return this.extensionService.activateByEvent(`onDebugResolve:${type}`).then(() => {
+			// pipe the config through the promises sequentially. append at the end the '*' types
+			const providers = this.providers.filter(p => p.type === type && p.resolveDebugConfiguration)
+				.concat(this.providers.filter(p => p.type === '*' && p.resolveDebugConfiguration));
 
-		return providers.reduce((promise, provider) => {
-			return promise.then(config => {
-				if (config) {
-					return provider.resolveDebugConfiguration(folderUri, config);
-				} else {
-					return Promise.resolve(config);
-				}
-			});
-		}, TPromise.as(debugConfiguration));
+			return providers.reduce((promise, provider) => {
+				return promise.then(config => {
+					if (config) {
+						return provider.resolveDebugConfiguration(folderUri, config);
+					} else {
+						return Promise.resolve(config);
+					}
+				});
+			}, TPromise.as(debugConfiguration));
+		});
 	}
 
 	public provideDebugConfigurations(folderUri: uri | undefined, type: string): TPromise<any[]> {
@@ -499,41 +502,48 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	public guessDebugger(type?: string): TPromise<Debugger> {
-		if (type) {
-			const adapter = this.getDebugger(type);
-			return TPromise.as(adapter);
-		}
+		return this.activateDebuggers().then(() => {
 
-		const editor = this.editorService.getActiveEditor();
-		let candidates: Debugger[];
-		if (editor) {
-			const codeEditor = editor.getControl();
-			if (isCodeEditor(codeEditor)) {
-				const model = codeEditor.getModel();
-				const language = model ? model.getLanguageIdentifier().language : undefined;
-				const adapters = this.debuggers.filter(a => a.languages && a.languages.indexOf(language) >= 0);
-				if (adapters.length === 1) {
-					return TPromise.as(adapters[0]);
-				}
-				if (adapters.length > 1) {
-					candidates = adapters;
+			if (type) {
+				const adapter = this.getDebugger(type);
+				return TPromise.as(adapter);
+			}
+
+			const editor = this.editorService.getActiveEditor();
+			let candidates: Debugger[];
+			if (editor) {
+				const codeEditor = editor.getControl();
+				if (isCodeEditor(codeEditor)) {
+					const model = codeEditor.getModel();
+					const language = model ? model.getLanguageIdentifier().language : undefined;
+					const adapters = this.debuggers.filter(a => a.languages && a.languages.indexOf(language) >= 0);
+					if (adapters.length === 1) {
+						return TPromise.as(adapters[0]);
+					}
+					if (adapters.length > 1) {
+						candidates = adapters;
+					}
 				}
 			}
-		}
 
-		if (!candidates) {
-			candidates = this.debuggers.filter(a => a.hasInitialConfiguration() || a.hasConfigurationProvider);
-		}
-		return this.quickOpenService.pick([...candidates, { label: 'More...', separator: { border: true } }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
-			.then(picked => {
-				if (picked instanceof Debugger) {
-					return picked;
-				}
-				if (picked) {
-					this.commandService.executeCommand('debug.installAdditionalDebuggers');
-				}
-				return undefined;
-			});
+			if (!candidates) {
+				candidates = this.debuggers.filter(a => a.hasInitialConfiguration() || a.hasConfigurationProvider);
+			}
+			return this.quickOpenService.pick([...candidates, { label: 'More...', separator: { border: true } }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
+				.then(picked => {
+					if (picked instanceof Debugger) {
+						return picked;
+					}
+					if (picked) {
+						this.commandService.executeCommand('debug.installAdditionalDebuggers');
+					}
+					return undefined;
+				});
+		});
+	}
+
+	public activateDebuggers(): TPromise<void> {
+		return this.extensionService.activateByEvent('onDebugInitialConfigurations').then(() => this.extensionService.activateByEvent('onDebug'));
 	}
 
 	private store(): void {
@@ -557,7 +567,6 @@ class Launch implements ILaunch {
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
-		@IExtensionService private extensionService: IExtensionService
 	) {
 		// noop
 	}
@@ -615,7 +624,7 @@ class Launch implements ILaunch {
 	}
 
 	public openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
-		return this.extensionService.activateByEvent('onDebugInitialConfigurations').then(() => this.extensionService.activateByEvent('onDebug').then(() => {
+		return this.configurationManager.activateDebuggers().then(() => {
 			const resource = this.uri;
 			let pinned = false;
 
@@ -668,7 +677,7 @@ class Launch implements ILaunch {
 			}, (error) => {
 				throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
 			});
-		}));
+		});
 	}
 }
 
@@ -681,9 +690,8 @@ class WorkspaceLaunch extends Launch implements ILaunch {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IExtensionService extensionService: IExtensionService
 	) {
-		super(configurationManager, undefined, fileService, editorService, configurationService, contextService, extensionService);
+		super(configurationManager, undefined, fileService, editorService, configurationService, contextService);
 	}
 
 	get uri(): uri {
@@ -712,10 +720,9 @@ class UserLaunch extends Launch implements ILaunch {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
 		@IPreferencesService private preferencesService: IPreferencesService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IExtensionService extensionService: IExtensionService
+		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
-		super(configurationManager, undefined, fileService, editorService, configurationService, contextService, extensionService);
+		super(configurationManager, undefined, fileService, editorService, configurationService, contextService);
 	}
 
 	get uri(): uri {
