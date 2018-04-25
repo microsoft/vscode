@@ -5,6 +5,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
+import { relative } from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { ThrottledDelayer, Delayer } from 'vs/base/common/async';
@@ -15,7 +16,7 @@ import * as glob from 'vs/base/common/glob';
 import { Action, IAction } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, SortOrderConfiguration, SortOrder, IExplorerView, ExplorerRootContext } from 'vs/workbench/parts/files/common/files';
-import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileService, FILES_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileService, FILES_EXCLUDE_CONFIG, IFileStat } from 'vs/platform/files/common/files';
 import { RefreshViewExplorerAction, NewFolderAction, NewFileAction } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/electron-browser/views/explorerViewer';
 import { toResource } from 'vs/workbench/common/editor';
@@ -471,34 +472,69 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 		// Add
 		if (e.operation === FileOperation.CREATE || e.operation === FileOperation.COPY) {
-			const addedElement = e.target;
-			const parentResource = resources.dirname(addedElement.resource);
-			const parents = this.model.findAll(parentResource);
+			const addedElement: IFileStat = e.target;
 
+			// compute the parent folder URI in which the new elements have been created
+			let parentResource: URI = addedElement.resource;
+			const maxTries = 100;
+			let numTries = 0;
+			while (!this.model.findClosest(parentResource) && numTries < maxTries) {
+				parentResource = resources.dirname(parentResource);
+				numTries++;
+			}
+
+			if (numTries === maxTries) {
+				return;
+			}
+
+			const parents: ExplorerItem[] = this.model.findAll(parentResource);
 			if (parents.length) {
+				const names: string[] = relative(parentResource.toString(), addedElement.resource.toString()).split(/[\\/]/).filter(Boolean);
 
-				// Add the new file to its parent (Model)
-				parents.forEach(p => {
-					// We have to check if the parent is resolved #29177
-					(p.isDirectoryResolved ? TPromise.as(null) : this.fileService.resolveFile(p.resource)).then(stat => {
-						if (stat) {
-							const modelStat = ExplorerItem.create(stat, p.root);
-							ExplorerItem.mergeLocalWithDisk(modelStat, p);
-						}
+				// convert names to URIs
+				const uris: URI[] = [];
+				names.reduce((prev: URI, curr: string) => {
+					const uri = prev.with({ path: paths.join(prev.path, curr) });
+					uris.push(uri);
+					return uri;
+				}, parentResource);
 
-						const childElement = ExplorerItem.create(addedElement, p.root);
-						p.removeChild(childElement); // make sure to remove any previous version of the file if any
-						p.addChild(childElement);
-						// Refresh the Parent (View)
-						this.explorerViewer.refresh(p).then(() => {
-							return this.reveal(childElement, 0.5).then(() => {
+				// convert URIs to IFileStat
+				Promise.all(uris.map((uri) => this.fileService.resolveFile(uri))).then((children: IFileStat[]) => {
 
-								// Focus new element
-								this.explorerViewer.setFocus(childElement);
-							});
-						}).done(null, errors.onUnexpectedError);
+					// Add the new file to its parent (Model)
+					parents.forEach(p => {
+						// We have to check if the parent is resolved #29177
+						(p.isDirectoryResolved ? TPromise.as(null) : this.fileService.resolveFile(p.resource)).then(stat => {
+							if (stat) {
+								const modelStat = ExplorerItem.create(stat, p.root);
+								ExplorerItem.mergeLocalWithDisk(modelStat, p);
+							}
+
+							const childElements: ExplorerItem[] = children.map(item => ExplorerItem.create(item, p.root));
+
+							// multi-path case: create children hierarchy
+							for (let i = 0; i < childElements.length - 1; i++) {
+								childElements[i].addChild(childElements[i + 1]);
+							}
+
+							const firstElement = childElements[0];
+							// if only one folder is created: lastElement === firstElement
+							const lastElement = childElements.length === 1 ? firstElement : childElements[childElements.length - 1];
+
+							p.removeChild(firstElement); // make sure to remove any previous version of the file if any
+							p.addChild(firstElement);
+							// Refresh the Parent (View)
+							this.explorerViewer.refresh(p).then(() => {
+								return this.reveal(lastElement, 0.5).then(() => {
+
+									// Focus new element
+									this.explorerViewer.setFocus(lastElement);
+								});
+							}).done(null, errors.onUnexpectedError);
+						});
 					});
-				});
+				}).catch(e => console.log(e));
 			}
 		}
 
