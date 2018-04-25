@@ -237,7 +237,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	 * Unlike, versionId, this can go down (via undo) or go to previous values (via redo)
 	 */
 	private _alternativeVersionId: number;
-	private readonly _shouldSimplifyMode: boolean;
+	private readonly _isTooLargeForSyncing: boolean;
 	private readonly _isTooLargeForTokenization: boolean;
 
 	//#region Editing
@@ -299,10 +299,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 			this._isTooLargeForTokenization = false;
 		}
 
-		this._shouldSimplifyMode = (
-			this._isTooLargeForTokenization
-			|| (bufferTextLength > TextModel.MODEL_SYNC_LIMIT)
-		);
+		this._isTooLargeForSyncing = (bufferTextLength > TextModel.MODEL_SYNC_LIMIT);
 
 		this._setVersionId(1);
 		this._isDisposed = false;
@@ -548,7 +545,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	}
 
 	public isTooLargeForSyncing(): boolean {
-		return this._shouldSimplifyMode;
+		return this._isTooLargeForSyncing;
 	}
 
 	public isTooLargeForTokenization(): boolean {
