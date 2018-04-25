@@ -9,7 +9,7 @@ import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/co
 
 export const INextEditorService = createDecorator<INextEditorService>('nextEditorService');
 
-// TODO@grid this should provide convinience methods on top of INextEditorPartService to make the 99%
+// TODO@grid this should provide convinience methods on top of INextEditorGroupsService to make the 99%
 // case of opening editors as simple as possible
 export interface INextEditorService {
 	_serviceBrand: ServiceIdentifier<any>;

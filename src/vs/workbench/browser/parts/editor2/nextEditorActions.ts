@@ -9,7 +9,7 @@ import URI from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { INextEditorPartService, SplitDirection } from 'vs/workbench/services/editor/common/nextEditorPartService';
+import { INextEditorGroupsService, SplitDirection } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -33,7 +33,7 @@ export class OpenNextEditorAction extends Action {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService private legacyEditorService: IWorkbenchEditorService,
-		@INextEditorPartService private nextEditorPartService: INextEditorPartService
+		@INextEditorGroupsService private nextEditorGroupsService: INextEditorGroupsService
 	) {
 		super(id, label);
 	}
@@ -47,13 +47,13 @@ export class OpenNextEditorAction extends Action {
 			return this.legacyEditorService.createInput({ resource: URI.file(input) }) as EditorInput;
 		});
 
-		const firstGroup = this.nextEditorPartService.activeGroup;
+		const firstGroup = this.nextEditorGroupsService.activeGroup;
 		firstGroup.openEditor(inputs[0]);
 
-		const secondGroup = firstGroup.splitGroup(SplitDirection.RIGHT);
+		const secondGroup = this.nextEditorGroupsService.addGroup(firstGroup, SplitDirection.RIGHT);
 		secondGroup.openEditor(inputs[1]);
 
-		const thirdGroup = secondGroup.splitGroup(SplitDirection.DOWN);
+		const thirdGroup = this.nextEditorGroupsService.addGroup(secondGroup, SplitDirection.DOWN);
 		thirdGroup.openEditor(inputs[2]);
 
 		return TPromise.as(void 0);

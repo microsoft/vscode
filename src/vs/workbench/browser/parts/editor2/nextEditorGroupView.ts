@@ -21,9 +21,9 @@ import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND } from 'vs/workbench/common/theme';
-import { INextEditor } from 'vs/workbench/services/editor/common/nextEditorPartService';
+import { INextEditor, INextEditorGroup } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 
-export class NextEditorGroupView extends Themable implements IView {
+export class NextEditorGroupView extends Themable implements IView, INextEditorGroup {
 
 	private static readonly EDITOR_TITLE_HEIGHT = 35;
 

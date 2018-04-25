@@ -111,7 +111,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { NextEditorPart } from 'vs/workbench/browser/parts/editor2/nextEditorPart';
-import { INextEditorPartService } from 'vs/workbench/services/editor/common/nextEditorPartService';
+import { INextEditorGroupsService } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { NextEditorService } from 'vs/workbench/services/editor/browser/nextEditorService';
 import { IInactiveExtensionUrlHandler, InactiveExtensionUrlHandler } from 'vs/platform/url/electron-browser/inactiveExtensionUrlHandler';
 
@@ -598,7 +598,7 @@ export class Workbench implements IPartService {
 		this.editorPart = this.instantiationService.createInstance(NextEditorPart, Identifiers.EDITOR_PART /*, !this.hasFilesToCreateOpenOrDiff*/);
 		this.toUnbind.push(toDisposable(() => this.editorPart.shutdown()));
 		serviceCollection.set(INextEditorService, new SyncDescriptor(NextEditorService, this.editorPart));
-		serviceCollection.set(INextEditorPartService, this.editorPart);
+		serviceCollection.set(INextEditorGroupsService, this.editorPart);
 
 		// Legacy Editor Services
 		this.noOpEditorPart = new NoOpEditorPart(this.instantiationService);

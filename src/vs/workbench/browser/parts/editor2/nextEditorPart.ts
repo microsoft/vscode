@@ -12,14 +12,14 @@ import { Part } from 'vs/workbench/browser/part';
 import { Dimension, addClass } from 'vs/base/browser/dom';
 import { Event, Emitter } from 'vs/base/common/event';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { INextEditorPartService, INextEditorGroup, SplitDirection, INextEditor } from 'vs/workbench/services/editor/common/nextEditorPartService';
+import { INextEditorGroupsService, INextEditorGroup, SplitDirection } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { GridView } from 'vs/base/browser/ui/grid/gridview';
 import { NextEditorGroupView } from 'vs/workbench/browser/parts/editor2/nextEditorGroupView';
-import { GroupIdentifier, EditorOptions, EditorInput } from 'vs/workbench/common/editor';
+import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
 
-export class NextEditorPart extends Part implements INextEditorPartService {
+export class NextEditorPart extends Part implements INextEditorGroupsService {
 
 	_serviceBrand: any;
 
@@ -27,8 +27,8 @@ export class NextEditorPart extends Part implements INextEditorPartService {
 
 	private dimension: Dimension;
 
-	private _activeGroup: NextEditorGroup;
-	private _groups: Map<GroupIdentifier, NextEditorGroup> = new Map<GroupIdentifier, NextEditorGroup>();
+	private _activeGroup: NextEditorGroupView;
+	private _groups: Map<GroupIdentifier, NextEditorGroupView> = new Map<GroupIdentifier, NextEditorGroupView>();
 
 	// TODO@grid temporary until GridView can provide this
 	private groupToLocation: Map<GroupIdentifier, number[]> = new Map<GroupIdentifier, number[]>();
@@ -62,42 +62,28 @@ export class NextEditorPart extends Part implements INextEditorPartService {
 		return this._groups.get(identifier);
 	}
 
-	// addGroup(index?: number): INextEditorGroup {
-	// 	const activeLocation = this.groupToLocation.get(this._activeGroup.id);
-	// 	const parentLocation = activeLocation.slice(0, activeLocation.length - 1);
+	addGroup(fromGroup: INextEditorGroup, direction: SplitDirection): INextEditorGroup {
+		const fromGroupLocation = this.groupToLocation.get(fromGroup.id);
 
-	// 	if (typeof index !== 'number') {
-	// 		index = activeLocation[activeLocation.length - 1] + 1;
-	// 	}
+		// TODO@grid properly compute the right location based on the "fromGroup" and "direction"
+		// arguments by finding out the current direction at the location from where to add a group to
+		return this.doCreateGroup([
+			...fromGroupLocation.slice(0, fromGroupLocation.length - 1), 	// parent location
+			fromGroupLocation[fromGroupLocation.length - 1] + 1				// just append after last view for now
+		]);
 
-	// 	return this.doCreateGroup([...parentLocation, index]);
-	// }
-
-	//#endregion
-
-	//#region Grid Controller
-
-	splitGroup(group: GroupIdentifier, direction: SplitDirection): INextEditorGroup {
-		const groupController = this.getGroup(group);
-		const groupLocation = this.groupToLocation.get(groupController.id);
-
-		// TODO@grid respect direction
-		return this.doCreateGroup(groupLocation);
+		// TODO@grid once 2 groups exist, set the orientation on the GridView so that we have an
+		// initial orientation for the entire grid
 	}
 
-	private doCreateGroup(location: number[]): NextEditorGroup {
-
-		// View
+	private doCreateGroup(location: number[]): NextEditorGroupView {
 		const groupView = this.instantiationService.createInstance(NextEditorGroupView);
 		this.grid.addView(groupView, null /* TODO@grid what size? */, location);
 
-		// Controller
-		const groupController = new NextEditorGroup(this, groupView);
-		this._groups.set(groupView.id, groupController);
+		this._groups.set(groupView.id, groupView);
+		this.groupToLocation.set(groupView.id, location);
 
-		this.groupToLocation.set(groupController.id, location);
-
-		return groupController;
+		return groupView;
 	}
 
 	//#endregion
@@ -153,28 +139,4 @@ export class NextEditorPart extends Part implements INextEditorPartService {
 	}
 
 	//#endregion
-}
-
-export class NextEditorGroup implements INextEditorGroup {
-
-	constructor(
-		private controller: NextEditorPart,
-		private _view: NextEditorGroupView
-	) { }
-
-	get id(): GroupIdentifier {
-		return this._view.id;
-	}
-
-	get view(): NextEditorGroupView {
-		return this._view;
-	}
-
-	openEditor(input: EditorInput, options?: EditorOptions): INextEditor {
-		return this._view.openEditor(input, options);
-	}
-
-	splitGroup(direction: SplitDirection): INextEditorGroup {
-		return this.controller.splitGroup(this.id, direction);
-	}
 }
