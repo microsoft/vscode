@@ -35,6 +35,8 @@ export class NextEditorGroupView extends Themable implements IView {
 
 	private group: EditorGroup;
 
+	private dimension: Dimension;
+
 	private _element: HTMLElement;
 	private container: HTMLElement;
 
@@ -52,6 +54,14 @@ export class NextEditorGroupView extends Themable implements IView {
 		this.group.label = `Group <${this.group.id}>`;
 	}
 
+	get id(): GroupIdentifier {
+		return this.group.id;
+	}
+
+	get element(): HTMLElement {
+		return this._element;
+	}
+
 	openEditor(input: EditorInput, options?: EditorOptions): INextEditor {
 
 		// Update model
@@ -66,13 +76,7 @@ export class NextEditorGroupView extends Themable implements IView {
 		return Object.create(null); // TODO@grid implement
 	}
 
-	get element(): HTMLElement {
-		return this._element;
-	}
-
-	get id(): GroupIdentifier {
-		return this.group.id;
-	}
+	//#region Themable Implementation
 
 	protected updateStyles(): void {
 		super.updateStyles();
@@ -91,6 +95,10 @@ export class NextEditorGroupView extends Themable implements IView {
 
 		// TODO@grid Editor container border
 	}
+
+	//#endregion
+
+	//#region IView implementation
 
 	render(container: HTMLElement): void {
 
@@ -138,9 +146,14 @@ export class NextEditorGroupView extends Themable implements IView {
 		this.updateStyles();
 	}
 
-	layout(size: number, orientation: Orientation): void {
+	layout(size: number): void {
+		this.dimension = new Dimension(size, -1); // TODO@grid need full dimension here
 
-		// Layout title
-		// this.titleAreaControl.layout(new Dimension(size, NextEditorGroupView.EDITOR_TITLE_HEIGHT));
+		// Layout title if present
+		if (this.titleAreaControl) {
+			this.titleAreaControl.layout(new Dimension(this.dimension.width, NextEditorGroupView.EDITOR_TITLE_HEIGHT));
+		}
 	}
+
+	//#endregion
 }

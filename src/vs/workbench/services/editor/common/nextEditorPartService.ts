@@ -40,5 +40,7 @@ export interface INextEditorPartService {
 	readonly activeGroup: INextEditorGroup;
 	readonly groups: INextEditorGroup[];
 
+	// addGroup(group: GroupIdentifier, direction: SplitDirection): INextEditorGroup;
+
 	getGroup(identifier: GroupIdentifier): INextEditorGroup;
 }

@@ -45,7 +45,7 @@ export class NextEditorPart extends Part implements INextEditorPartService {
 
 		this._onLayout = this._register(new Emitter<Dimension>());
 
-		this.createGrid();
+		this.doCreateGridView();
 	}
 
 	//#region Service Implementation
@@ -61,6 +61,17 @@ export class NextEditorPart extends Part implements INextEditorPartService {
 	getGroup(identifier: GroupIdentifier): INextEditorGroup {
 		return this._groups.get(identifier);
 	}
+
+	// addGroup(index?: number): INextEditorGroup {
+	// 	const activeLocation = this.groupToLocation.get(this._activeGroup.id);
+	// 	const parentLocation = activeLocation.slice(0, activeLocation.length - 1);
+
+	// 	if (typeof index !== 'number') {
+	// 		index = activeLocation[activeLocation.length - 1] + 1;
+	// 	}
+
+	// 	return this.doCreateGroup([...parentLocation, index]);
+	// }
 
 	//#endregion
 
@@ -97,7 +108,7 @@ export class NextEditorPart extends Part implements INextEditorPartService {
 		return this._onLayout.event;
 	}
 
-	private createGrid(): void {
+	private doCreateGridView(): void {
 
 		// Container
 		this.gridContainer = document.createElement('div');
