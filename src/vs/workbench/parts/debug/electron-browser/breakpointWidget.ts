@@ -80,7 +80,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWi
 		}
 
 		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(e => {
-			if (this.breakpoint && e.removed && e.removed.indexOf(this.breakpoint) >= 0) {
+			if (this.breakpoint && e && e.removed && e.removed.indexOf(this.breakpoint) >= 0) {
 				this.dispose();
 			}
 		}));
