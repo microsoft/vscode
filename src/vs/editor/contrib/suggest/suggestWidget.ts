@@ -579,6 +579,11 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		this._ariaAlert(this._getSuggestionAriaAlertLabel(item));
 
 		if (item === this.focusedItem) {
+			if (this.expandDocsSettingFromStorage()) {
+				this.showDetails();
+			} else {
+				removeClass(this.element, 'docs-side');
+			}
 			return;
 		}
 
@@ -724,7 +729,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			*/
 			this.telemetryService.publicLog('suggestWidget', { ...stats, ...this.editor.getTelemetryData() });
 
-			this.focusedItem = null;
 			this.list.splice(0, this.list.length, this.completionModel.items);
 
 			if (isFrozen) {
