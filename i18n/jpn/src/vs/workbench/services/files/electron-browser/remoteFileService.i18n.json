@@ -9,5 +9,6 @@
 	"fileNotFoundError": "ファイルが見つかりません ({0})",
 	"fileIsDirectoryError": "ファイルはディレクトリです",
 	"fileNotModifiedError": "ファイルは次の時点以後に変更されていません:",
-	"fileBinaryError": "ファイルはバイナリのようなので、テキストとして開くことができません"
+	"fileBinaryError": "ファイルはバイナリのようなので、テキストとして開くことができません",
+	"err.create": "ファイル {0} を作成できませんでした"
 }

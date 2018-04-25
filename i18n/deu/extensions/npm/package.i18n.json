@@ -14,5 +14,8 @@
 	"config.npm.exclude": "Konfigurieren Sie Globmuster für Ordner, die von der automatischen Skripterkennung ausgeschlossen werden sollen.",
 	"npm.parseError": "NPM-Aufgabenerkennung: Fehler beim Analysieren der Datei {0}",
 	"taskdef.script": "Das anzupassende NPM-Skript.",
-	"taskdef.path": "Der Pfad zu dem Ordner der Datei vom Typ \"package.json\", die das Skript bereitstellt. Kann ausgelassen werden."
+	"taskdef.path": "Der Pfad zu dem Ordner der Datei vom Typ \"package.json\", die das Skript bereitstellt. Kann ausgelassen werden.",
+	"command.refresh": "Aktualisieren",
+	"command.debug": "Debuggen",
+	"command.openScript": "Öffnen"
 }

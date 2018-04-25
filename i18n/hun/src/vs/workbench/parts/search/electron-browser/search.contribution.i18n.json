@@ -21,7 +21,7 @@
 	"openAnythingHandlerDescription": "Fájl megkeresése",
 	"openSymbolDescriptionNormal": "Szimbólum megkeresése a munkaterületen",
 	"searchConfigurationTitle": "Keresés",
-	"exclude": "Globális minták konfigurálása fájlok és mappák keresésből való kizárásához. Örökli az összes globális mintát a fliex.exclude beállításból.",
+	"exclude": "Fájlok és mappák keresésből való kizárására szolgáló globális minták. Örökli az összes globális mintát a fliex.exclude beállításból.",
 	"exclude.boolean": "A globális minta, amire illesztve lesznek a fájlok elérési útjai. A minta engedélyezéséhez vagy letiltásához állítsa igaz vagy hamis értékre.",
 	"exclude.when": "További ellenőrzés elvégzése az illeszkedő fájlok testvérein. Az illeszkedő fájl nevéhez használja a $(basename) változót!",
 	"useRipgrep": "Meghatározza, hogy a szövegben és fájlokban való kereséshez a ripgrep van-e használva.",

@@ -14,5 +14,8 @@
 	"config.npm.exclude": "為應從自動指令碼偵測排除的資料夾設定 Glob 模式。",
 	"npm.parseError": "Npm 工作刪除: 解析檔案 {0} 失敗",
 	"taskdef.script": "要自訂的 npm 指令碼。",
-	"taskdef.path": "提供指令碼之 package.json 檔案的資料夾路徑。可以省略。"
+	"taskdef.path": "提供指令碼之 package.json 檔案的資料夾路徑。可以省略。",
+	"command.refresh": "重新整理",
+	"command.debug": "偵錯",
+	"command.openScript": "開啟"
 }

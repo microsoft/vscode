@@ -14,5 +14,9 @@
 	"config.npm.exclude": "Azokat a mappákat leíró globális minta, amelyek ne legyenek vizsgálva az automatikus parancsfájlkeresés közben.",
 	"npm.parseError": "Npm-feladatok felderítése: nem sikerült beolvasni a következő fájlt: {0}",
 	"taskdef.script": "A testreszabott npm parancsfájl.",
-	"taskdef.path": "Azon mappa elérési útja, amely a parancsfájlt szolgáltató package.json fájlt tartalmazza. Elhagyható."
+	"taskdef.path": "Azon mappa elérési útja, amely a parancsfájlt szolgáltató package.json fájlt tartalmazza. Elhagyható.",
+	"command.refresh": "Frissítés",
+	"command.run": "Futtatás",
+	"command.debug": "Hibakeresés",
+	"command.openScript": "Megnyitás"
 }

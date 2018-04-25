@@ -14,5 +14,9 @@
 	"config.npm.exclude": "Otomatik betik algılamadan hariç tutulacak klasörler için glob desenlerini yapılandırın.",
 	"npm.parseError": "Npm görev algılama: {0} dosyası ayrıştırılamadı",
 	"taskdef.script": "Özelleştirilecek npm betiği.",
-	"taskdef.path": "Betiği sağlayan package.json dosyasını içeren klasör yolu. Atlanabilir."
+	"taskdef.path": "Betiği sağlayan package.json dosyasını içeren klasör yolu. Atlanabilir.",
+	"command.refresh": "Yenile",
+	"command.run": "Çalıştır",
+	"command.debug": "Hata Ayıklama",
+	"command.openScript": "Aç"
 }

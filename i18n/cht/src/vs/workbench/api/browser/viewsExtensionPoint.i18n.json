@@ -13,8 +13,6 @@
 	"vscode.extension.contributes.view.name": "使用人性化顯示名稱.",
 	"vscode.extension.contributes.view.when": "必須為 true 以顯示此檢視的條件",
 	"vscode.extension.contributes.views": "提供意見給編輯者",
-	"views.explorer": "檔案總管檢視",
-	"views.debug": "偵錯檢視",
 	"duplicateView1": "無法在位置 '{1}' 使用相同的識別碼 '{0}' 註冊多個檢視",
 	"duplicateView2": "識別碼為 '{0}' 的檢視已在位置 '{1}' 註冊"
 }

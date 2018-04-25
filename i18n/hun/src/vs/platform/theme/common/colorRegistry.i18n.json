@@ -29,7 +29,6 @@
 	"inputPlaceholderForeground": "A beviteli mezőkben használt helykitöltő szövegek előtérszíne.",
 	"inputValidationInfoBackground": "Beviteli mezők háttérszíne információs szintű validációs állapot esetén.",
 	"inputValidationInfoBorder": "Beviteli mezők keretszíne információs szintű validációs állapot esetén.",
-	"inputValidationWarningBackground": "Beviteli mezők háttérszíne figyelmeztetés szintű validációs állapot esetén.",
 	"inputValidationWarningBorder": "Beviteli mezők keretszíne figyelmeztetés szintű validációs állapot esetén.",
 	"inputValidationErrorBackground": "Beviteli mezők háttérszíne hiba szintű validációs állapot esetén.",
 	"inputValidationErrorBorder": "Beviteli mezők keretszíne hiba szintű validációs állapot esetén.",

@@ -22,7 +22,6 @@
 	"showVersions": "Zeigt Versionen der installierten Erweiterungen an, wenn \"--list-extension\" verwendet wird.",
 	"installExtension": "Installiert eine Extension.",
 	"uninstallExtension": "Deinstalliert eine Extension.",
-	"experimentalApis": "Aktiviert vorgeschlagene API-Features für eine Erweiterung.",
 	"verbose": "Ausführliche Ausgabe (impliziert \"-wait\").",
 	"log": "Log-Level zu verwenden. Standardwert ist \"Info\". Zulässige Werte sind \"kritisch\", \"Fehler\", \"warnen\", \"Info\", \"debug\", \"verfolgen\", \"aus\".",
 	"status": "Prozessnutzungs- und Diagnose-Informationen ausgeben.",

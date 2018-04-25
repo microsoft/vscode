@@ -21,6 +21,7 @@
 	"disconnectDebug": "Kapcsolat bontása",
 	"continueDebug": "Folytatás",
 	"pauseDebug": "Szüneteltetés",
+	"terminateThread": "Szál megszüntetése",
 	"restartFrame": "Keret újraindítása",
 	"removeBreakpoint": "Töréspont eltávolítása",
 	"removeAllBreakpoints": "Összes töréspont eltávolítása",

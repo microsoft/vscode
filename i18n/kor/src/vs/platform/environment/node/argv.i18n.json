@@ -22,7 +22,6 @@
 	"showVersions": "#NAME?",
 	"installExtension": "확장을 설치합니다.",
 	"uninstallExtension": "확장을 제거합니다.",
-	"experimentalApis": "확장에 대해 제안된 API 기능을 사용하도록 설정합니다.",
 	"verbose": "자세한 정보 표시를 출력합니다(--wait를 의미).",
 	"log": "사용할 로그 수준이며 기본값은 'info'입니다. 허용되는 값은 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'입니다.",
 	"status": "프로세스 사용 및 진단 정보를 인쇄합니다.",

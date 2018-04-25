@@ -12,6 +12,7 @@
 	"similarIssues": "相似的問題",
 	"open": "開啟",
 	"closed": "已關閉",
+	"noSimilarIssues": "未發現相似的問題",
 	"settingsSearchIssue": "設定值搜尋問題",
 	"bugReporter": "臭蟲回報",
 	"featureRequest": "功能要求",
