@@ -7,7 +7,6 @@
 
 import URI from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
-import * as resources from 'vs/base/common/resources';
 import { ResourceMap } from 'vs/base/common/map';
 import { isLinux } from 'vs/base/common/platform';
 import { IFileStat } from 'vs/platform/files/common/files';
@@ -139,7 +138,7 @@ export class ExplorerItem {
 			// the folder is fully resolved if either it has a list of children or the client requested this by using the resolveTo
 			// array of resource path to resolve.
 			stat.isDirectoryResolved = !!raw.children || (!!resolveTo && resolveTo.some((r) => {
-				return resources.isEqualOrParent(r, stat.resource, !isLinux /* ignorecase */);
+				return !!stat.find(r);
 			}));
 
 			// Recurse into children
