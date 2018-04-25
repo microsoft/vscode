@@ -24,7 +24,7 @@ const blockCommentStarSetting = 'typescript.blockCommentStarPrefix';
 
 
 export default class LanguageProvider {
-	private enableBlockCommentAltConf: any;
+	private enableBlockCommentStarPrefix: any;
 
 	private readonly diagnosticsManager: DiagnosticsManager;
 	private readonly bufferSyncSupport: BufferSyncSupport;
@@ -145,25 +145,30 @@ export default class LanguageProvider {
 
 		this.disposables.push(languages.registerWorkspaceSymbolProvider(new (await import('./features/workspaceSymbolProvider')).default(client, this.description.modeIds)));
 
-		await this.initBlockCommentStarSetting();
+		this.setLanguageConfiguration();
+	}
+
+	private initBlockCommentStarSetting() : void {
+		this.enableBlockCommentStarPrefix = workspace.getConfiguration().get(blockCommentStarSetting, true);
+	}
+
+	private setLanguageConfiguration() : void {
+		this.initBlockCommentStarSetting();
 
 		if (!this.description.isExternal) {
 			for (const modeId of this.description.modeIds) {
 				this.disposables.push(languages.setLanguageConfiguration(modeId,
-					this.enableBlockCommentAltConf ?
-					languageConfigurations.jsTsLanguageConfigurationAlt : languageConfigurations.jsTsLanguageConfiguration));
+					this.enableBlockCommentStarPrefix ?
+					languageConfigurations.jsTsLanguageConfiguration : languageConfigurations.jsTsLanguageConfigurationAlt));
 			}
 		}
 	}
 
-	private initBlockCommentStarSetting() : void {
-		this.enableBlockCommentAltConf = !workspace.getConfiguration().get(blockCommentStarSetting, true);
-	}
-
-
 	private configurationChanged(): void {
 		const config = workspace.getConfiguration(this.id);
 		this.updateValidate(config.get(validateSetting, true));
+
+		this.setLanguageConfiguration();
 
 		for (const toUpdate of this.toUpdateOnConfigurationChanged) {
 			toUpdate.updateConfiguration();

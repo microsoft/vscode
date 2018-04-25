@@ -746,7 +746,7 @@ export class LanguageConfigurationRegistryImpl {
 				oneLineAboveText = oneLineAboveScopedLineTokens.getLineContent();
 			}
 		}
-		//if the commentBlock.showAsterisk configuration is set, change beforeEnterText from " * " to "  "
+
 		let enterResult: EnterAction = null;
 
 		try {
