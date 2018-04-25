@@ -7,7 +7,7 @@ import uri from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ILaunch, IDebugService, State, DebugEvent, IProcess, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IModel, IViewModel, ISession } from 'vs/workbench/parts/debug/common/debug';
+import { ILaunch, IDebugService, State, DebugEvent, IProcess, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IModel, IViewModel, ISession, IBreakpoint } from 'vs/workbench/parts/debug/common/debug';
 
 export class MockDebugService implements IDebugService {
 	public _serviceBrand: any;
@@ -39,7 +39,7 @@ export class MockDebugService implements IDebugService {
 	public focusStackFrame(focusedStackFrame: IStackFrame): void {
 	}
 
-	public addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[]): TPromise<void> {
+	public addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[]): TPromise<IBreakpoint[]> {
 		return TPromise.as(null);
 	}
 
