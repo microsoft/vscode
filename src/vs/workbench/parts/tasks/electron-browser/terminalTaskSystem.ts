@@ -20,7 +20,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as TPath from 'vs/base/common/paths';
 
-import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ProblemMatcher, ProblemMatcherRegistry /*, ProblemPattern, getResource */ } from 'vs/workbench/parts/tasks/common/problemMatcher';
@@ -290,6 +290,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 					} else if (event.kind === ProblemCollectorEventKind.BackgroundProcessingEnds) {
 						eventCounter--;
 						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Inactive, task));
+						if (eventCounter === 0) {
+							let reveal = task.command.presentation.reveal;
+							if (reveal === RevealKind.Silent && watchingProblemMatcher.numberOfMatches > 0 && watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error) {
+								this.terminalService.setActiveInstance(terminal);
+								this.terminalService.showPanel(false);
+							}
+						}
 					}
 				}));
 				watchingProblemMatcher.aboutToStart();
@@ -324,6 +331,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 							this.idleTaskTerminals.set(key, terminal.id.toString(), Touch.AsOld);
 							break;
 					}
+					let reveal = task.command.presentation.reveal;
+					if (reveal === RevealKind.Silent && (exitCode !== 0 || watchingProblemMatcher.numberOfMatches > 0 && watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error)) {
+						this.terminalService.setActiveInstance(terminal);
+						this.terminalService.showPanel(false);
+					}
 					watchingProblemMatcher.done();
 					watchingProblemMatcher.dispose();
 					registeredLinkMatchers.forEach(handle => terminal.deregisterLinkMatcher(handle));
@@ -334,11 +346,6 @@ export class TerminalTaskSystem implements ITaskSystem {
 						this._onDidStateChange.fire(event);
 					}
 					eventCounter = 0;
-					let reveal = task.command.presentation.reveal;
-					if (exitCode && exitCode === 1 && watchingProblemMatcher.numberOfMatches === 0 && reveal !== RevealKind.Never) {
-						this.terminalService.setActiveInstance(terminal);
-						this.terminalService.showPanel(false);
-					}
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
 					resolve({ exitCode });
 				});
@@ -371,15 +378,16 @@ export class TerminalTaskSystem implements ITaskSystem {
 							this.idleTaskTerminals.set(key, terminal.id.toString(), Touch.AsOld);
 							break;
 					}
+					let reveal = task.command.presentation.reveal;
+					if (reveal === RevealKind.Silent && (exitCode !== 0 || startStopProblemMatcher.numberOfMatches > 0 && startStopProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error)) {
+						this.terminalService.setActiveInstance(terminal);
+						this.terminalService.showPanel(false);
+					}
 					startStopProblemMatcher.done();
 					startStopProblemMatcher.dispose();
 					registeredLinkMatchers.forEach(handle => terminal.deregisterLinkMatcher(handle));
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Inactive, task));
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
-					// See https://github.com/Microsoft/vscode/issues/31965
-					if (exitCode === 0 && startStopProblemMatcher.numberOfMatches > 0) {
-						exitCode = 1;
-					}
 					resolve({ exitCode });
 				});
 			});
