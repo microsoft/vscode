@@ -314,6 +314,9 @@ export function isValidBasename(name: string): boolean {
 }
 
 export function isEqual(pathA: string, pathB: string, ignoreCase?: boolean): boolean {
+	pathA = normalize(pathA);
+	pathB = normalize(pathB);
+
 	const identityEquals = (pathA === pathB);
 	if (!ignoreCase || identityEquals) {
 		return identityEquals;
@@ -338,6 +341,9 @@ export function isEqualOrParent(path: string, candidate: string, ignoreCase?: bo
 	if (candidate.length > path.length) {
 		return false;
 	}
+
+	path = normalize(path);
+	candidate = normalize(candidate);
 
 	if (ignoreCase) {
 		const beginsWith = startsWithIgnoreCase(path, candidate);
