@@ -56,8 +56,8 @@ const viewsContainerSchema: IJSONSchema = {
 	}
 };
 
-export const viewsContainerContribution: IJSONSchema = {
-	description: localize('vscode.extension.contributes.viewsContainer', 'Contributes views containers to the editor'),
+export const viewsContainersContribution: IJSONSchema = {
+	description: localize('vscode.extension.contributes.viewsContainers', 'Contributes views containers to the editor'),
 	type: 'object',
 	properties: {
 		'activitybar': {
@@ -68,7 +68,7 @@ export const viewsContainerContribution: IJSONSchema = {
 	}
 };
 
-export const viewsContainersExtensionPoint: IExtensionPoint<{ [loc: string]: IUserFriendlyViewsContainerDescriptor[] }> = ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: IUserFriendlyViewsContainerDescriptor[] }>('viewsContainers', [], viewsContainerContribution);
+export const viewsContainersExtensionPoint: IExtensionPoint<{ [loc: string]: IUserFriendlyViewsContainerDescriptor[] }> = ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: IUserFriendlyViewsContainerDescriptor[] }>('viewsContainers', [], viewsContainersContribution);
 class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 
 	constructor() {
@@ -80,7 +80,7 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 			for (let extension of extensions) {
 				const { value, collector } = extension;
 				if (!extension.description.enableProposedApi) {
-					collector.error(localize({ key: 'proposed', comment: ['Contribution refers to those that an extension contributes to VS Code through an extension/contribution point. '] }, "'viewsContainer' contribution is only available when running out of dev or with the following command line switch: --enable-proposed-api {0}", extension.description.id));
+					collector.error(localize({ key: 'proposed', comment: ['Contribution refers to those that an extension contributes to VS Code through an extension/contribution point. '] }, "'viewsContainers' contribution is only available when running out of dev or with the following command line switch: --enable-proposed-api {0}", extension.description.id));
 					continue;
 				}
 				forEach(value, entry => {
