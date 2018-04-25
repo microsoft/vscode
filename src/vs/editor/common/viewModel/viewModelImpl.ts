@@ -570,8 +570,8 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		return this.model.getEOL();
 	}
 
-	public getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean): string | string[] {
-		const newLineCharacter = this.model.getEOL();
+	public getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[] {
+		const newLineCharacter = forceCRLF ? '\r\n' : this.model.getEOL();
 
 		ranges = ranges.slice(0);
 		ranges.sort(Range.compareRangesUsingStarts);
@@ -599,7 +599,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 		let result: string[] = [];
 		for (let i = 0; i < nonEmptyRanges.length; i++) {
-			result.push(this.getValueInRange(nonEmptyRanges[i], EndOfLinePreference.TextDefined));
+			result.push(this.getValueInRange(nonEmptyRanges[i], forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
 		}
 		return result.length === 1 ? result[0] : result;
 	}
