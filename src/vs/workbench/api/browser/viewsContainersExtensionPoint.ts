@@ -42,7 +42,8 @@ const viewsContainerSchema: IJSONSchema = {
 	properties: {
 		id: {
 			description: localize({ key: 'vscode.extension.contributes.views.containers.id', comment: ['Contribution refers to those that an extension contributes to VS Code through an extension/contribution point. '] }, "Unique id used to identify the container in which views can be contributed using 'views' contribution point"),
-			type: 'string'
+			type: 'string',
+			pattern: '^[a-zA-Z0-9_-]+$'
 		},
 		label: {
 			description: localize('vscode.extension.contributes.views.containers.title', 'Human readable string used to render the container'),
@@ -104,7 +105,11 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 
 		for (let descriptor of viewsContainersDescriptors) {
 			if (typeof descriptor.id !== 'string') {
-				collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'id'));
+				collector.error(localize('requireidstring', "property `{0}` is mandatory and must be of type `string`. Allowed only alphanumeric letters, '_', '-'.", 'id'));
+				return false;
+			}
+			if (!(/^[a-z0-9_-]+$/i.test(descriptor.id))) {
+				collector.error(localize('requireidstring', "property `{0}` is mandatory and must be of type `string`. Allowed only alphanumeric letters, '_', '-'.", 'id'));
 				return false;
 			}
 			if (typeof descriptor.title !== 'string') {
