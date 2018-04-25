@@ -14,14 +14,13 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { addClass, addClasses, Dimension } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ITitleAreaControl } from 'vs/workbench/browser/parts/editor/titleControl';
-import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND } from 'vs/workbench/common/theme';
 import { INextEditor, INextEditorGroup } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { INextTitleAreaControl } from 'vs/workbench/browser/parts/editor2/nextTitleControl';
 
 export class NextEditorGroupView extends Themable implements IView, INextEditorGroup {
 
@@ -40,7 +39,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	private _element: HTMLElement;
 	private container: HTMLElement;
 
-	private titleAreaControl: ITitleAreaControl;
+	private titleAreaControl: INextTitleAreaControl;
 	private progressBar: ProgressBar;
 
 	constructor(

@@ -26,9 +26,6 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
-import { ITitleAreaControl } from 'vs/workbench/browser/parts/editor/titleControl';
-import { NoTabsTitleControl } from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
 import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup, EditorOptions, TextEditorOptions, IEditorIdentifier, EditorInput } from 'vs/workbench/common/editor';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -40,6 +37,21 @@ import { ResourcesDropHandler, LocalSelectionTransfer, DraggedEditorIdentifier }
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 
+export class NoOpTitleAreaControl {
+	private container = document.createElement('div');
+
+	hasContext(): boolean { return false; }
+	allowDragging(element: HTMLElement): boolean { return false; }
+	getContainer(): HTMLElement { return this.container; }
+	setDragged(dragged: boolean): void { }
+	create(parent: HTMLElement): void { }
+	refresh(instant?: boolean): void { }
+	update(instant?: boolean): void { }
+	updateEditorActionsToolbar(): void { }
+	layout(dimension: DOM.Dimension): void { }
+	dispose(): void { }
+	setContext(group: IEditorGroup): void { }
+}
 
 export enum Rochade {
 	NONE,
@@ -282,7 +294,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 			// Title Control
 			if (titleControl) {
-				const usingTabs = (titleControl instanceof TabsTitleControl);
+				const usingTabs = (titleControl instanceof NoOpTitleAreaControl);
 
 				// Recreate title when tabs change
 				if (usingTabs !== this.tabOptions.showTabs) {
@@ -1396,7 +1408,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 	}
 
 	private createTitleControl(context: IEditorGroup, silo: Builder, container: Builder, instantiationService: IInstantiationService): void {
-		const titleAreaControl = instantiationService.createInstance<ITitleAreaControl>(this.tabOptions.showTabs ? TabsTitleControl : NoTabsTitleControl);
+		const titleAreaControl = instantiationService.createInstance<NoOpTitleAreaControl>(this.tabOptions.showTabs ? NoOpTitleAreaControl : NoOpTitleAreaControl);
 		titleAreaControl.create(container.getHTMLElement());
 		titleAreaControl.setContext(context);
 		titleAreaControl.refresh(true /* instant */);
@@ -2230,7 +2242,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		return this.getFromContainer(position, EditorGroupsControl.PROGRESS_BAR_CONTROL_KEY);
 	}
 
-	private getTitleAreaControl(position: Position): ITitleAreaControl {
+	private getTitleAreaControl(position: Position): NoOpTitleAreaControl {
 		return this.getFromContainer(position, EditorGroupsControl.TITLE_AREA_CONTROL_KEY);
 	}
 

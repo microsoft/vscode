@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./media/tabstitle';
+import 'vs/css!./media/nextTabsTitleControl';
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
@@ -28,7 +28,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService } from 'vs/platform/actions/common/actions';
-import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
+import { NextTitleControl } from 'vs/workbench/browser/parts/editor2/nextTitleControl';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -50,7 +50,7 @@ interface IEditorInputLabel {
 
 type AugmentedLabel = IEditorInputLabel & { editor: IEditorInput };
 
-export class TabsTitleControl extends TitleControl {
+export class NextTabsTitleControl extends NextTitleControl {
 	private titleContainer: HTMLElement;
 	private tabsContainer: HTMLElement;
 	private editorToolbarContainer: HTMLElement;

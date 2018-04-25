@@ -101,12 +101,3 @@
 .hc-black .monaco-workbench > .part.editor > .content.horizontal-layout > .one-editor-silo > .container > .title .split-editor-action {
 	background: url('split-editor-horizontal-inverse.svg') center center no-repeat;
 }
-
-.monaco-workbench .show-group-editors-action {
-	background: url('stackview.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .show-group-editors-action,
-.hc-black .monaco-workbench .show-group-editors-action {
-	background: url('stackview-inverse.svg') center center no-repeat;
-}

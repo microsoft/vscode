@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./media/titlecontrol';
+import 'vs/css!./media/nextTitleControl';
 import * as nls from 'vs/nls';
 import { prepareActions } from 'vs/workbench/browser/actions';
 import { IAction, Action, IRunEvent } from 'vs/base/common/actions';
@@ -43,7 +43,7 @@ export interface IToolbarActions {
 	secondary: IAction[];
 }
 
-export interface ITitleAreaControl {
+export interface INextTitleAreaControl {
 	setContext(group: IEditorGroup): void;
 	hasContext(): boolean;
 	allowDragging(element: HTMLElement): boolean;
@@ -57,7 +57,7 @@ export interface ITitleAreaControl {
 	dispose(): void;
 }
 
-export abstract class TitleControl extends Themable implements ITitleAreaControl {
+export abstract class NextTitleControl extends Themable implements INextTitleAreaControl {
 
 	protected stacks: IEditorStacksModel;
 	protected context: IEditorGroup;

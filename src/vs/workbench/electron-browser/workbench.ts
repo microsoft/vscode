@@ -1139,7 +1139,7 @@ export class Workbench implements IPartService {
 		const editorContainer = this.editorPart.getContainer();
 		if (visibleEditors === 0) {
 			this.editorsVisibleContext.reset();
-			this.editorBackgroundDelayer.trigger(() => DOM.addClass(editorContainer, 'empty2')); // TODO@grid reenable (find "empty2")
+			this.editorBackgroundDelayer.trigger(() => DOM.addClass(editorContainer, 'empty2')); // TODO@grid reenable (find "empty2") and move this into editorPart.ts!
 		} else {
 			this.editorsVisibleContext.set(true);
 			this.editorBackgroundDelayer.trigger(() => DOM.removeClass(editorContainer, 'empty2'));
