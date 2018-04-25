@@ -164,6 +164,11 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 			return;
 		}
 
+		let protocol = 'inspector';
+		if (debugArg[0] === 'debug') {
+			protocol = 'legacy';
+		}
+
 		let packageManager = getPackageManager(script.getFolder());
 		const config: DebugConfiguration = {
 			type: 'node',
@@ -174,7 +179,8 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 				'run-script',
 				task.name,
 			],
-			port: debugArg[1]
+			port: debugArg[1],
+			protocol: protocol
 		};
 
 		if (isWorkspaceFolder(task.scope)) {
