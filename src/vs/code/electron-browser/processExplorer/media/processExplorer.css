@@ -43,7 +43,6 @@ th {
 	border-bottom: 1px solid #cccccc;
 	padding: .5rem;
 	border-top: 1px solid #cccccc;
-	text-align: center;
 }
 td {
 	padding: .25rem;
@@ -54,8 +53,13 @@ td {
 	text-align: center;
 }
 
+.nameLabel{
+	text-align: left;
+}
+
 .data {
 	white-space: pre;
+	padding-left: .5rem;
 }
 
 tbody > tr:hover {

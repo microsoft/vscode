@@ -85,6 +85,12 @@ namespace schema {
 				type: 'array',
 				items: viewDescriptor,
 				default: []
+			},
+			'test': {
+				description: localize('views.test', "Contributes views to Test container in the Activity bar"),
+				type: 'array',
+				items: viewDescriptor,
+				default: []
 			}
 		},
 		additionalProperties: {

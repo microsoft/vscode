@@ -75,7 +75,7 @@ function updateProcessInfo(processList): void {
 			<th class="cpu">${localize('cpu', "CPU %")}</th>
 			<th class="memory">${localize('memory', "Memory (MB)")}</th>
 			<th class="pid">${localize('pid', "pid")}</th>
-			<th>${localize('name', "Name")}</th>
+			<th class="nameLabel">${localize('name', "Name")}</th>
 		</tr>`;
 
 	processList.forEach(p => {
