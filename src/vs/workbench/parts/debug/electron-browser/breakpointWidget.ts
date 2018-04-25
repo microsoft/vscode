@@ -156,13 +156,13 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWi
 			let logMessage = this.breakpoint && this.breakpoint.logMessage;
 			this.rememberInput();
 
-			if (this.conditionInput) {
+			if (this.conditionInput || this.context === Context.CONDITION) {
 				condition = this.conditionInput;
 			}
-			if (this.hitCountInput) {
+			if (this.hitCountInput || this.context === Context.HIT_COUNT) {
 				hitCondition = this.hitCountInput;
 			}
-			if (this.logMessageInput) {
+			if (this.logMessageInput || this.context === Context.LOG_MESSAGE) {
 				logMessage = this.logMessageInput;
 			}
 
