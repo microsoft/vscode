@@ -98,7 +98,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		webview.html = value;
 	}
 
-	$reveal(handle: WebviewPanelHandle, column: Position | undefined): void {
+	$reveal(handle: WebviewPanelHandle, column: Position | null): void {
 		const webview = this.getWebview(handle);
 		if (webview.isDisposed()) {
 			return;

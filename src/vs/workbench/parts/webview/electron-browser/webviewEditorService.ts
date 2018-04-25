@@ -37,7 +37,7 @@ export interface IWebviewEditorService {
 
 	revealWebview(
 		webview: WebviewEditorInput,
-		column: Position | undefined
+		column: Position | null
 	): void;
 
 	registerReviver(
@@ -98,10 +98,10 @@ export class WebviewEditorService implements IWebviewEditorService {
 
 	revealWebview(
 		webview: WebviewEditorInput,
-		column: Position | undefined
+		column: Position | null
 	): void {
-		if (typeof column === 'undefined' || webview.position === column) {
-			this._editorService.openEditor(webview, { preserveFocus: false }, column);
+		if (!column || webview.position === column) {
+			this._editorService.openEditor(webview, { preserveFocus: false }, column || webview.position);
 		} else {
 			this._editorGroupService.moveEditor(webview, webview.position, column, { preserveFocus: false });
 		}
