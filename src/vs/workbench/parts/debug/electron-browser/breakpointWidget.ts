@@ -54,7 +54,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWi
 	private logMessageInput = '';
 	private breakpoint: IBreakpoint;
 
-	constructor(editor: ICodeEditor, private lineNumber: number, private column: number, private context: Context,
+	constructor(editor: ICodeEditor, private lineNumber: number, private context: Context,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IDebugService private debugService: IDebugService,
 		@IThemeService private themeService: IThemeService,
@@ -219,14 +219,23 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWi
 			provideCompletionItems: (model: ITextModel, position: Position, _context: SuggestContext, token: CancellationToken): Thenable<ISuggestResult> => {
 				let suggestionsPromise: TPromise<ISuggestResult>;
 				if (this.context === Context.CONDITION || this.context === Context.LOG_MESSAGE && this.isCurlyBracketOpen()) {
-					suggestionsPromise = provideSuggestionItems(this.editor.getModel(), new Position(this.lineNumber, this.column), 'none', undefined, _context).then(suggestions => {
+					suggestionsPromise = provideSuggestionItems(this.editor.getModel(), new Position(this.lineNumber, 1), 'none', undefined, _context).then(suggestions => {
+
+						let overwriteBefore = 0;
+						if (this.context === Context.CONDITION) {
+							overwriteBefore = position.column - 1;
+						} else {
+							// Inside the currly brackets, need to count how many useful characters are behind the position so they would all be taken into account
+							const value = this.input.getModel().getValue();
+							while ((position.column - 2 - overwriteBefore >= 0) && value[position.column - 2 - overwriteBefore] !== '{' && value[position.column - 2 - overwriteBefore] !== ' ') {
+								overwriteBefore++;
+							}
+						}
+
 						return {
 							suggestions: suggestions.map(s => {
-								if (this.context === Context.CONDITION) {
-									s.suggestion.overwriteBefore = position.column - 1;
-									s.suggestion.overwriteAfter = 0;
-								}
-
+								s.suggestion.overwriteAfter = 0;
+								s.suggestion.overwriteBefore = overwriteBefore;
 								return s.suggestion;
 							})
 						};

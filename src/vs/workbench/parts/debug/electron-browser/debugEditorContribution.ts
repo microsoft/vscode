@@ -395,7 +395,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.breakpointWidget.dispose();
 		}
 
-		this.breakpointWidget = this.instantiationService.createInstance(BreakpointWidget, this.editor, lineNumber, column, context);
+		this.breakpointWidget = this.instantiationService.createInstance(BreakpointWidget, this.editor, lineNumber, context);
 		this.breakpointWidget.show({ lineNumber, column: 1 }, 2);
 		this.breakpointWidgetVisible.set(true);
 	}
