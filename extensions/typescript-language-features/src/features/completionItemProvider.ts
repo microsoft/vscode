@@ -520,7 +520,11 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 		const snippet = new vscode.SnippetString();
 		const methodName = detail.displayParts.find(part => part.kind === 'methodName');
 		if (item.insertText) {
-			snippet.appendText(typeof item.insertText === 'string' ? item.insertText : item.insertText.value);
+			if (typeof item.insertText === 'string') {
+				snippet.appendText(item.insertText);
+			} else {
+				return item.insertText;
+			}
 		} else {
 			snippet.appendText((methodName && methodName.text) || item.label);
 		}
