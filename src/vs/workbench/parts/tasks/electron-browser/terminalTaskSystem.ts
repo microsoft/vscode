@@ -275,6 +275,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private executeCommand(task: CustomTask | ContributedTask, trigger: string): TPromise<ITaskSummary> {
 		let terminal: ITerminalInstance = undefined;
 		let executedCommand: string = undefined;
+		let error: TaskError = undefined;
 		let promise: TPromise<ITaskSummary> = undefined;
 		if (task.isBackground) {
 			promise = new TPromise<ITaskSummary>((resolve, reject) => {
@@ -293,7 +294,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 				}));
 				watchingProblemMatcher.aboutToStart();
 				let delayer: Async.Delayer<any> = undefined;
-				[terminal, executedCommand] = this.createTerminal(task);
+				[terminal, executedCommand, error] = this.createTerminal(task);
+				if (error || !terminal) {
+					return;
+				}
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
 				const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
 				const onData = terminal.onLineData((line) => {
@@ -341,7 +345,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 			});
 		} else {
 			promise = new TPromise<ITaskSummary>((resolve, reject) => {
-				[terminal, executedCommand] = this.createTerminal(task);
+				[terminal, executedCommand, error] = this.createTerminal(task);
+				if (error || !terminal) {
+					return;
+				}
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
 				let problemMatchers = this.resolveMatchers(task, task.problemMatchers);
@@ -376,6 +383,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 					resolve({ exitCode });
 				});
 			});
+		}
+		if (error) {
+			return TPromise.wrapError<ITaskSummary>(new Error(error.message));
 		}
 		if (!terminal) {
 			return TPromise.wrapError<ITaskSummary>(new Error(`Failed to create terminal for task ${task._label}`));
@@ -430,7 +440,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		});
 	}
 
-	private createTerminal(task: CustomTask | ContributedTask): [ITerminalInstance, string] {
+	private createTerminal(task: CustomTask | ContributedTask): [ITerminalInstance, string, TaskError | undefined] {
 		let options = this.resolveOptions(task, task.command.options);
 		let { command, args } = this.resolveCommandAndArgs(task);
 		let commandExecutable = CommandString.value(command);
@@ -448,9 +458,6 @@ export class TerminalTaskSystem implements ITaskSystem {
 		let shellLaunchConfig: IShellLaunchConfig = undefined;
 		let isShellCommand = task.command.runtime === RuntimeType.Shell;
 		if (isShellCommand) {
-			if (Platform.isWindows && ((options.cwd && TPath.isUNC(options.cwd)) || (!options.cwd && TPath.isUNC(process.cwd())))) {
-				throw new TaskError(Severity.Error, nls.localize('TerminalTaskSystem', 'Can\'t execute a shell command on an UNC drive.'), TaskErrors.UnknownError);
-			}
 			shellLaunchConfig = { name: terminalName, executable: null, args: null, waitOnExit };
 			let shellSpecified: boolean = false;
 			let shellOptions: ShellConfiguration = task.command.options && task.command.options.shell;
@@ -472,6 +479,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 			if (Platform.isWindows) {
 				windowsShellArgs = true;
 				let basename = path.basename(shellLaunchConfig.executable).toLowerCase();
+				if (basename === 'cmd.exe' && ((options.cwd && TPath.isUNC(options.cwd)) || (!options.cwd && TPath.isUNC(process.cwd())))) {
+					return [undefined, undefined, new TaskError(Severity.Error, nls.localize('TerminalTaskSystem', 'Can\'t execute a shell command on an UNC drive using cmd.exe.'), TaskErrors.UnknownError)];
+				}
 				if (basename === 'powershell.exe' || basename === 'pwsh.exe') {
 					if (!shellSpecified) {
 						toAdd.push('-Command');
@@ -568,7 +578,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 		if (terminalToReuse) {
 			terminalToReuse.terminal.reuseTerminal(shellLaunchConfig);
-			return [terminalToReuse.terminal, commandExecutable];
+			return [terminalToReuse.terminal, commandExecutable, undefined];
 		}
 
 		const result = this.terminalService.createTerminal(shellLaunchConfig);
@@ -582,7 +592,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			}
 		});
 		this.terminals[terminalKey] = { terminal: result, lastTask: taskKey };
-		return [result, commandExecutable];
+		return [result, commandExecutable, undefined];
 	}
 
 	private buildShellCommandLine(shellExecutable: string, shellOptions: ShellConfiguration, command: CommandString, args: CommandString[]): string {
