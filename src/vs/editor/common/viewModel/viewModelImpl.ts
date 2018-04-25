@@ -231,6 +231,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 					}
 				}
 				this.lines.acceptVersionId(versionId);
+				this.viewLayout.onHeightMaybeChanged();
 
 				if (!hadOtherModelChange && hadModelLineChangeThatChangedLineMapping) {
 					eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
