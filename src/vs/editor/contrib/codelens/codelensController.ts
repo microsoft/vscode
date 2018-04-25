@@ -171,11 +171,13 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		this._localToDispose.push({
 			dispose: () => {
 				if (this._editor.getModel()) {
+					const scrollState = StableEditorScrollState.capture(this._editor);
 					this._editor.changeDecorations((changeAccessor) => {
 						this._editor.changeViewZones((accessor) => {
 							this._disposeAllLenses(changeAccessor, accessor);
 						});
 					});
+					scrollState.restore(this._editor);
 				} else {
 					// No accessors available
 					this._disposeAllLenses(null, null);
