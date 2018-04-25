@@ -16,7 +16,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileChangesEvent, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileOptions, FileSystemProviderCapabilities, IContent, ICreateFileOptions, IFileStat, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IResolveFileOptions, IResolveFileResult, IStat, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot } from 'vs/platform/files/common/files';
+import { FileChangesEvent, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileOptions, FileSystemProviderCapabilities, IContent, ICreateFileOptions, IFileStat, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IResolveFileOptions, IResolveFileResult, IStat, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot, IWatchOptions } from 'vs/platform/files/common/files';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -117,17 +117,17 @@ class WorkspaceWatchLogic {
 	}
 
 	private _watchWorkspace(resource: URI) {
-		let exclude: string[] = [];
+		let excludes: string[] = [];
 		let config = this._configurationService.getValue<IFilesConfiguration>({ resource });
 		if (config.files && config.files.watcherExclude) {
 			for (const key in config.files.watcherExclude) {
 				if (config.files.watcherExclude[key] === true) {
-					exclude.push(key);
+					excludes.push(key);
 				}
 			}
 		}
 		this._watches.set(resource.toString(), resource);
-		this._fileService.watchFileChanges(resource, { recursive: true, exclude });
+		this._fileService.watchFileChanges(resource, { recursive: true, excludes });
 	}
 
 	private _unwatchWorkspace(resource: URI) {
@@ -599,9 +599,13 @@ export class RemoteFileService extends FileService {
 
 	private _activeWatches = new Map<string, { unwatch: Thenable<IDisposable>, count: number }>();
 
-	public watchFileChanges(resource: URI, opts: { recursive?: boolean, exclude?: string[] } = {}): void {
+	public watchFileChanges(resource: URI, opts?: IWatchOptions): void {
 		if (resource.scheme === Schemas.file) {
 			return super.watchFileChanges(resource);
+		}
+
+		if (!opts) {
+			opts = { recursive: false, excludes: [] };
 		}
 
 		const key = resource.toString();

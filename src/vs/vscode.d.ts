@@ -4979,7 +4979,7 @@ declare module 'vscode' {
 		 * @param uri
 		 * @param options
 		 */
-		watch(uri: Uri, options: { recursive?: boolean; excludes?: string[] }): Disposable;
+		watch(uri: Uri, options: { recursive: boolean; excludes: string[] }): Disposable;
 
 		/**
 		 * Retrieve metadata about a file. Throw an [`FileNotFound`](#FileSystemError.FileNotFound)-error

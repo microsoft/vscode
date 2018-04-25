@@ -193,8 +193,8 @@ export interface IStat {
 }
 
 export interface IWatchOptions {
-	recursive?: boolean;
-	exclude?: string[];
+	recursive: boolean;
+	excludes: string[];
 }
 
 export enum FileSystemProviderCapabilities {
