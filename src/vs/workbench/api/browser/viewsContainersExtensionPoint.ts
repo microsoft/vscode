@@ -45,7 +45,7 @@ const viewsContainerSchema: IJSONSchema = {
 			type: 'string',
 			pattern: '^[a-zA-Z0-9_-]+$'
 		},
-		label: {
+		title: {
 			description: localize('vscode.extension.contributes.views.containers.title', 'Human readable string used to render the container'),
 			type: 'string'
 		},
