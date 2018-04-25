@@ -147,7 +147,7 @@ export class FindModelBoundToEditorModel {
 		if (e.searchString || e.isReplaceRevealed || e.isRegex || e.wholeWord || e.matchCase || e.searchScope) {
 			let model = this._editor.getModel();
 
-			if (model.isTooLargeForHavingARichMode()) {
+			if (model.isTooLargeForSyncing()) {
 				this._startSearchingTimer.cancel();
 
 				this._startSearchingTimer.setIfNotSet(() => {

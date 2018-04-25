@@ -547,7 +547,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return this._attachedEditorCount;
 	}
 
-	public isTooLargeForHavingARichMode(): boolean {
+	public isTooLargeForSyncing(): boolean {
 		return this._shouldSimplifyMode;
 	}
 
