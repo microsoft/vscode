@@ -339,7 +339,7 @@ class TreeDataSource implements IDataSource {
 
 	public getChildren(tree: ITree, node: ITreeItem): TPromise<any[]> {
 		if (this.treeView.dataProvider) {
-			return this.location ? this.treeView.dataProvider.getChildren(node) : this.progressService.withProgress({ location: this.location }, () => this.treeView.dataProvider.getChildren(node));
+			return this.location ? this.progressService.withProgress({ location: this.location }, () => this.treeView.dataProvider.getChildren(node)) : this.treeView.dataProvider.getChildren(node);
 		}
 		return TPromise.as([]);
 	}
