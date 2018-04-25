@@ -10,7 +10,7 @@
 	const ipcRenderer = require('electron').ipcRenderer;
 
 
-	const registerVscodeResourceScheme = (function() {
+	const registerVscodeResourceScheme = (function () {
 		let hasRegistered = false;
 		return () => {
 			if (hasRegistered) {
@@ -172,6 +172,28 @@
 				const baseElement = newDocument.createElement('base');
 				baseElement.href = initData.baseUrl;
 				newDocument.head.appendChild(baseElement);
+			}
+
+			// apply default script
+			if (enableWrappedPostMessage) {
+				const defaultScript = newDocument.createElement('script');
+				defaultScript.textContent = `
+					const vscode = Object.freeze((function() {
+						const originalPostMessage = window.parent.postMessage.bind(window.parent);
+						return {
+							postMessage: function(msg) {
+								return originalPostMessage(msg, '*');
+							}
+						};
+					})());
+					delete window.parent;
+				`;
+
+				if (newDocument.head.hasChildNodes()) {
+					newDocument.head.insertBefore(defaultScript, newDocument.head.firstChild);
+				} else {
+					newDocument.head.appendChild(defaultScript);
+				}
 			}
 
 			// apply default styles
