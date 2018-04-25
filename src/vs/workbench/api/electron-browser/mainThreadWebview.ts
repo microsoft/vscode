@@ -2,11 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { localize } from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as map from 'vs/base/common/map';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { localize } from 'vs/nls';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Position } from 'vs/platform/editor/common/editor';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -179,9 +179,9 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			onDidClickLink: uri => this.onDidClickLink(handle, uri),
 			onMessage: message => this._proxy.$onMessage(handle, message),
 			onDispose: () => {
-				this._proxy.$onDidDisposeWebviewPanel(handle).then(() => {
-					this._webviews.delete(handle);
-				});
+				this._proxy.$onDidDisposeWebviewPanel(handle).then(
+					() => this._webviews.delete(handle),
+					() => this._webviews.delete(handle));
 			}
 		};
 	}
