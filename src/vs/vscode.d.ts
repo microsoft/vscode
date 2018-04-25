@@ -4824,23 +4824,41 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Enumeration of file types.
+	 */
+	export enum FileType {
+		/**
+		 * The file type is unknown.
+		 */
+		Unknown = 0,
+		/**
+		 * A regular file.
+		 */
+		File = 1,
+		/**
+		 * A directory.
+		 */
+		Directory = 2,
+		/**
+		 * A symbolic link to a file.
+		 */
+		SymbolicLink = 64
+	}
+
+	/**
 	 * The `FileStat`-type represents metadata about a file.
 	 */
 	export interface FileStat {
 		/**
-		 * The file is a regular file.
+		 * The type of the file, e.g. is a regular file, a directory, or symbolic link
+		 * to a file.
 		 */
-		isFile?: boolean;
+		type: FileType;
 
 		/**
-		 * The file is a directory.
+		 * The creation timestamp in milliseconds.
 		 */
-		isDirectory?: boolean;
-
-		/**
-		 * The file is symbolic link to another file.
-		 */
-		isSymbolicLink?: boolean;
+		ctime: number;
 
 		/**
 		 * The modification timestamp in milliseconds.
@@ -5001,7 +5019,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return A thenable that resolves to an array of tuples of file names and files stats.
 		 */
-		readDirectory(uri: Uri, options: { /*future: onlyType?*/ }, token: CancellationToken): [string, FileStat][] | Thenable<[string, FileStat][]>;
+		readDirectory(uri: Uri, options: { /*future: onlyType?*/ }, token: CancellationToken): [string, FileType][] | Thenable<[string, FileType][]>;
 
 		/**
 		 * Create a new directory. *Note* that new files are created via `write`-calls.

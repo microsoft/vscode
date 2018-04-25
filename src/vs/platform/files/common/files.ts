@@ -155,12 +155,6 @@ export interface IFileService {
 	dispose(): void;
 }
 
-export enum FileType2 {
-	File = 1,
-	Directory = 2,
-	SymbolicLink = 4,
-}
-
 export interface FileOptions {
 	/**
 	 * Create a file when it doesn't exists.
@@ -184,11 +178,17 @@ export interface FileOptions {
 	write?: boolean;
 }
 
+export enum FileType {
+	Unknown = 0,
+	File = 1,
+	Directory = 2,
+	SymbolicLink = 64
+}
+
 export interface IStat {
-	isFile?: boolean;
-	isDirectory?: boolean;
-	isSymbolicLink?: boolean;
+	type: FileType;
 	mtime: number;
+	ctime: number;
 	size: number;
 }
 
@@ -214,7 +214,7 @@ export interface IFileSystemProvider {
 
 	stat(resource: URI): TPromise<IStat>;
 	mkdir(resource: URI): TPromise<IStat>;
-	readdir(resource: URI): TPromise<[string, IStat][]>;
+	readdir(resource: URI): TPromise<[string, FileType][]>;
 	delete(resource: URI): TPromise<void>;
 
 	rename(from: URI, to: URI, opts: FileOptions): TPromise<IStat>;

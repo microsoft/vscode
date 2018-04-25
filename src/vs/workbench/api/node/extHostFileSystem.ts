@@ -81,31 +81,29 @@ class FileSystemProviderShim implements vscode.FileSystemProvider {
 	rename(oldUri: vscode.Uri, newUri: vscode.Uri): Thenable<vscode.FileStat> {
 		return this._delegate.move(oldUri, newUri).then(stat => FileSystemProviderShim._modernizeFileStat(stat));
 	}
-	readDirectory(resource: vscode.Uri): Thenable<[string, vscode.FileStat][]> {
+	readDirectory(resource: vscode.Uri): Thenable<[string, vscode.FileType][]> {
 		return this._delegate.readdir(resource).then(tuples => {
-			return tuples.map(tuple => <[string, vscode.FileStat]>[path.posix.basename(tuple[0].path), FileSystemProviderShim._modernizeFileStat(tuple[1])]);
+			return tuples.map(tuple => <[string, vscode.FileType]>[path.posix.basename(tuple[0].path), FileSystemProviderShim._modernizeFileStat(tuple[1]).type]);
 		});
 	}
 
 	private static _modernizeFileStat(stat: vscode.DeprecatedFileStat): vscode.FileStat {
 		let { mtime, size, type } = stat;
-		let isFile = false;
-		let isDirectory = false;
-		let isSymbolicLink = false;
+		let newType: files.FileType;
 
 		// no support for bitmask, effectively no support for symlinks
 		switch (type) {
 			case DeprecatedFileType.Dir:
-				isDirectory = true;
+				newType = files.FileType.Directory;
 				break;
 			case DeprecatedFileType.File:
-				isFile = true;
+				newType = files.FileType.File;
 				break;
 			case DeprecatedFileType.Symlink:
-				isSymbolicLink = true;
+				newType = files.FileType.File & files.FileType.SymbolicLink;
 				break;
 		}
-		return { mtime, size, isFile, isDirectory, isSymbolicLink };
+		return { type: newType, ctime: 0, mtime, size };
 	}
 
 	private static _modernizeFileChange(e: vscode.DeprecatedFileChange): vscode.FileChangeEvent {
@@ -246,18 +244,16 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	}
 
 	private static _asIStat(stat: vscode.FileStat): files.IStat {
-		const { isFile, isDirectory, isSymbolicLink, mtime, size } = stat;
-		return { isFile, isDirectory, isSymbolicLink, mtime, size };
+		const { type, ctime, mtime, size } = stat;
+		return { type, ctime, mtime, size };
 	}
 
 	$stat(handle: number, resource: UriComponents): TPromise<files.IStat, any> {
 		return asWinJsPromise(token => this._fsProvider.get(handle).stat(URI.revive(resource), {}, token)).then(ExtHostFileSystem._asIStat);
 	}
 
-	$readdir(handle: number, resource: UriComponents): TPromise<[string, files.IStat][], any> {
-		return asWinJsPromise(token => this._fsProvider.get(handle).readDirectory(URI.revive(resource), {}, token)).then(tuples => {
-			return tuples.map(([name, stat]) => <[string, files.IStat]>[name, ExtHostFileSystem._asIStat(stat)]);
-		});
+	$readdir(handle: number, resource: UriComponents): TPromise<[string, files.FileType][], any> {
+		return asWinJsPromise(token => this._fsProvider.get(handle).readDirectory(URI.revive(resource), {}, token));
 	}
 
 	$readFile(handle: number, resource: UriComponents, opts: files.FileOptions): TPromise<string> {
