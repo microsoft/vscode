@@ -9,9 +9,9 @@ import URI from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { INextEditorPartService } from 'vs/workbench/services/editor/common/nextEditorPartService';
+import { INextEditorPartService, SplitDirection } from 'vs/workbench/services/editor/common/nextEditorPartService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
@@ -39,10 +39,23 @@ export class OpenNextEditorAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		return this.nextEditorPartService.openEditor(this.legacyEditorService.createInput({ resource: URI.file('/Users/bpasero/Development/monaco/src/vs/workbench/browser/parts/editor2/nextEditorActions.ts') }) as EditorInput, EditorOptions.create({ pinned: true })).then(() => {
-			return this.nextEditorPartService.openEditor(this.legacyEditorService.createInput({ resource: URI.file('/Users/bpasero/Development/monaco/src/vs/workbench/browser/parts/editor2/nextEditorPart.ts') }) as EditorInput, EditorOptions.create({ pinned: true })).then(() => {
-				return this.nextEditorPartService.openEditor(this.legacyEditorService.createInput({ resource: URI.file('/Users/bpasero/Development/monaco/src/vs/workbench/browser/parts/editor2/nextEditorGroupsViewer.ts') }) as EditorInput, EditorOptions.create({ pinned: true }));
-			});
+		const inputs = [
+			'/Users/bpasero/Development/monaco/src/vs/workbench/browser/parts/editor2/nextEditorActions.ts',
+			'/Users/bpasero/Development/monaco/src/vs/workbench/browser/parts/editor2/nextEditorPart.ts',
+			'/Users/bpasero/Development/monaco/src/vs/workbench/browser/parts/editor2/nextEditorGroupsViewer.ts'
+		].map(input => {
+			return this.legacyEditorService.createInput({ resource: URI.file(input) }) as EditorInput;
 		});
+
+		const firstGroup = this.nextEditorPartService.activeGroup;
+		firstGroup.openEditor(inputs[0]);
+
+		const secondGroup = firstGroup.splitGroup(SplitDirection.RIGHT);
+		secondGroup.openEditor(inputs[1]);
+
+		const thirdGroup = secondGroup.splitGroup(SplitDirection.DOWN);
+		thirdGroup.openEditor(inputs[2]);
+
+		return TPromise.as(void 0);
 	}
 }

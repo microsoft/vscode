@@ -7,19 +7,17 @@
 
 import 'vs/css!./media/nextEditorpart';
 import 'vs/workbench/browser/parts/editor2/editor2.contribution';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
-import { Dimension, addClass, createCSSRule } from 'vs/base/browser/dom';
+import { Dimension, addClass } from 'vs/base/browser/dom';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { join } from 'vs/base/common/paths';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { INextEditorPartService } from 'vs/workbench/services/editor/common/nextEditorPartService';
-import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
-import { NextEditorGroupsViewer, EditorGroupsOrientation } from 'vs/workbench/browser/parts/editor2/nextEditorGroupsViewer';
+import { INextEditorPartService, INextEditorGroup, SplitDirection, INextEditor } from 'vs/workbench/services/editor/common/nextEditorPartService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { GridView } from 'vs/base/browser/ui/grid/gridview';
+import { NextEditorGroupView } from 'vs/workbench/browser/parts/editor2/nextEditorGroupView';
+import { GroupIdentifier, EditorOptions, EditorInput } from 'vs/workbench/common/editor';
+import { values } from 'vs/base/common/map';
 
 export class NextEditorPart extends Part implements INextEditorPartService {
 
@@ -28,49 +26,88 @@ export class NextEditorPart extends Part implements INextEditorPartService {
 	private readonly _onLayout: Emitter<Dimension>;
 
 	private dimension: Dimension;
-	// private memento: object;
 
-	private viewer: NextEditorGroupsViewer;
+	private _activeGroup: NextEditorGroup;
+	private _groups: Map<GroupIdentifier, NextEditorGroup> = new Map<GroupIdentifier, NextEditorGroup>();
+
+	// TODO@grid temporary until GridView can provide this
+	private groupToLocation: Map<GroupIdentifier, number[]> = new Map<GroupIdentifier, number[]>();
+
+	private grid: GridView<NextEditorGroupView>;
+	private gridContainer: HTMLElement;
 
 	constructor(
 		id: string,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		// @IStorageService private storageService: IStorageService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
-		this._onLayout = new Emitter<Dimension>();
+		this._onLayout = this._register(new Emitter<Dimension>());
 
-		// this.memento = this.getMemento(this.storageService, Scope.WORKSPACE);
-
-		this.viewer = this._register(this.instantiationService.createInstance(NextEditorGroupsViewer));
-
-		this.initStyles();
+		this.createGrid();
 	}
 
-	openEditor(input: EditorInput, options?: EditorOptions): TPromise<BaseEditor> {
+	//#region Service Implementation
 
-		// TODO@grid arguments validation
-		// TODO@grid editor opening event and prevention
-		// TODO@grid support options
-
-		let editorGroup = this.viewer.groupAt([0]);
-		if (!editorGroup) {
-			editorGroup = this.viewer.split([], EditorGroupsOrientation.HORIZONTAL);
-		}
-
-		// TODO@grid should this return type offer more helper methods (close, move, whenInputSet, etc?)
-		return editorGroup.openEditor(input, options);
+	get activeGroup(): INextEditorGroup {
+		return this._activeGroup;
 	}
 
-	private initStyles(): void {
+	get groups(): INextEditorGroup[] {
+		return values(this._groups);
+	}
 
-		// Letterpress Background when Empty
-		createCSSRule('.vs .monaco-workbench > .part.editor.empty', `background-image: url('${join(this.environmentService.appRoot, 'resources/letterpress.svg')}')`);
-		createCSSRule('.vs-dark .monaco-workbench > .part.editor.empty', `background-image: url('${join(this.environmentService.appRoot, 'resources/letterpress-dark.svg')}')`);
-		createCSSRule('.hc-black .monaco-workbench > .part.editor.empty', `background-image: url('${join(this.environmentService.appRoot, 'resources/letterpress-hc.svg')}')`);
+	getGroup(identifier: GroupIdentifier): INextEditorGroup {
+		return this._groups.get(identifier);
+	}
+
+	//#endregion
+
+	//#region Grid Controller
+
+	splitGroup(group: GroupIdentifier, direction: SplitDirection): INextEditorGroup {
+		const groupController = this.getGroup(group);
+		const groupLocation = this.groupToLocation.get(groupController.id);
+
+		// TODO@grid respect direction
+		return this.doCreateGroup(groupLocation);
+	}
+
+	private doCreateGroup(location: number[]): NextEditorGroup {
+
+		// View
+		const groupView = this.instantiationService.createInstance(NextEditorGroupView);
+		this.grid.addView(groupView, null /* TODO@grid what size? */, location);
+
+		// Controller
+		const groupController = new NextEditorGroup(this, groupView);
+		this._groups.set(groupView.id, groupController);
+
+		this.groupToLocation.set(groupController.id, location);
+
+		return groupController;
+	}
+
+	//#endregion
+
+	//#region Part Implementation
+
+	get onLayout(): Event<Dimension> {
+		return this._onLayout.event;
+	}
+
+	private createGrid(): void {
+
+		// Container
+		this.gridContainer = document.createElement('div');
+		addClass(this.gridContainer, 'content');
+
+		// Widget
+		this.grid = this._register(new GridView<NextEditorGroupView>(this.gridContainer));
+
+		// Initial View
+		this._activeGroup = this.doCreateGroup([0]);
 	}
 
 	protected updateStyles(): void {
@@ -79,35 +116,13 @@ export class NextEditorPart extends Part implements INextEditorPartService {
 		// Part container
 		const container = this.getContainer();
 		container.style.backgroundColor = this.getColor(editorBackground);
-
-		// TODO@grid set editor group color depending on group size
-
-		// Content area
-		// const content = this.getContentArea();
-
-		// const groupCount = this.stacks.groups.length;
-		// if (groupCount > 1) {
-		// 	addClass(content, 'multiple-groups');
-		// } else {
-		// 	removeClass(content, 'multiple-groups');
-		// }
-
-		// content.style.backgroundColor = groupCount > 0 ? this.getColor(EDITOR_GROUP_BACKGROUND) : null;
-	}
-
-	get onLayout(): Event<Dimension> {
-		return this._onLayout.event;
 	}
 
 	createContentArea(parent: HTMLElement): HTMLElement {
+		const contentArea = this.gridContainer;
 
-		// Container
-		const contentArea = document.createElement('div');
-		addClass(contentArea, 'content');
+		// Connect parent to viewer
 		parent.appendChild(contentArea);
-
-		// Viewer
-		contentArea.appendChild(this.viewer.element);
 
 		return contentArea;
 	}
@@ -117,32 +132,38 @@ export class NextEditorPart extends Part implements INextEditorPartService {
 
 		this.dimension = sizes[1];
 
-		// Layout viewer
-		this.viewer.layout(this.dimension);
+		// Layout Grid
+		this.grid.layout(this.dimension.width, this.dimension.height);
 
+		// Event
 		this._onLayout.fire(dimension);
 
 		return sizes;
 	}
 
-	shutdown(): void {
+	//#endregion
+}
 
-		// TODO@grid shutdown
-		// - persist part view state
-		// - pass on to instantiated editors
+export class NextEditorGroup implements INextEditorGroup {
 
-		super.shutdown();
+	constructor(
+		private controller: NextEditorPart,
+		private _view: NextEditorGroupView
+	) { }
+
+	get id(): GroupIdentifier {
+		return this._view.id;
 	}
 
-	dispose(): void {
+	get view(): NextEditorGroupView {
+		return this._view;
+	}
 
-		// Emitters
-		this._onLayout.dispose();
+	openEditor(input: EditorInput, options?: EditorOptions): INextEditor {
+		return this._view.openEditor(input, options);
+	}
 
-		// TODO@grid dispose
-		// - all visible and instantiated editors
-		// - tokens for opening
-
-		super.dispose();
+	splitGroup(direction: SplitDirection): INextEditorGroup {
+		return this.controller.splitGroup(this.id, direction);
 	}
 }

@@ -6,15 +6,39 @@
 'use strict';
 
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { GroupIdentifier } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 
 export const INextEditorPartService = createDecorator<INextEditorPartService>('nextEditorPartService');
+
+export interface INextEditor {
+	editor: IEditor;
+	whenInputSet: TPromise<void>;
+}
+
+export enum SplitDirection {
+	UP,
+	DOWN,
+	LEFT,
+	RIGHT
+}
+
+export interface INextEditorGroup {
+
+	readonly id: GroupIdentifier;
+
+	openEditor(input: IEditorInput, options?: IEditorOptions): INextEditor;
+
+	splitGroup(direction: SplitDirection): INextEditorGroup;
+}
 
 export interface INextEditorPartService {
 
 	_serviceBrand: ServiceIdentifier<any>;
 
-	openEditor(input: EditorInput, options?: EditorOptions): TPromise<BaseEditor>;
+	readonly activeGroup: INextEditorGroup;
+	readonly groups: INextEditorGroup[];
+
+	getGroup(identifier: GroupIdentifier): INextEditorGroup;
 }

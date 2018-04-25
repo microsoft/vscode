@@ -1139,10 +1139,10 @@ export class Workbench implements IPartService {
 		const editorContainer = this.editorPart.getContainer();
 		if (visibleEditors === 0) {
 			this.editorsVisibleContext.reset();
-			this.editorBackgroundDelayer.trigger(() => DOM.addClass(editorContainer, 'empty'));
+			this.editorBackgroundDelayer.trigger(() => DOM.addClass(editorContainer, 'empty2')); // TODO@grid reenable (find "empty2")
 		} else {
 			this.editorsVisibleContext.set(true);
-			this.editorBackgroundDelayer.trigger(() => DOM.removeClass(editorContainer, 'empty'));
+			this.editorBackgroundDelayer.trigger(() => DOM.removeClass(editorContainer, 'empty2'));
 		}
 	}
 
@@ -1288,7 +1288,7 @@ export class Workbench implements IPartService {
 	private createEditorPart(): void {
 		const editorContainer = $(this.workbench)
 			.div({
-				'class': ['part', 'editor', 'empty'],
+				'class': ['part', 'editor', 'empty2'],
 				id: Identifiers.EDITOR_PART,
 				role: 'main'
 			});

@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/nextEditorGroupView';
 import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
-import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, GroupIdentifier } from 'vs/workbench/common/editor';
 import { IView, Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -21,9 +21,7 @@ import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND } from 'vs/workbench/common/theme';
-import { NextEditorViewer } from 'vs/workbench/browser/parts/editor2/nextEditorViewer';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { INextEditor } from 'vs/workbench/services/editor/common/nextEditorPartService';
 
 export class NextEditorGroupView extends Themable implements IView {
 
@@ -35,14 +33,13 @@ export class NextEditorGroupView extends Themable implements IView {
 	private _onDidChange: Event<number | undefined> = Event.None;
 	get onDidChange(): Event<number | undefined> { return this._onDidChange; }
 
-	private _group: EditorGroup;
+	private group: EditorGroup;
 
 	private _element: HTMLElement;
 	private container: HTMLElement;
 
 	private titleAreaControl: ITitleAreaControl;
 	private progressBar: ProgressBar;
-	private editorViewer: NextEditorViewer;
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -51,44 +48,58 @@ export class NextEditorGroupView extends Themable implements IView {
 	) {
 		super(themeService);
 
-		this._group = this._register(instantiationService.createInstance(EditorGroup, 'Editor Group')); // TODO@grid group label?
-
-		this.create();
+		this.group = this._register(instantiationService.createInstance(EditorGroup, ''));
+		this.group.label = `Group <${this.group.id}>`;
 	}
 
-	openEditor(input: EditorInput, options?: EditorOptions): TPromise<BaseEditor> {
+	openEditor(input: EditorInput, options?: EditorOptions): INextEditor {
 
 		// Update model
 		// TODO@grid massage options based on context
-		this._group.openEditor(input, options);
-
-		// Show in editor viewer
-		// TODO@grid only when active!
-		const editorOpenPromise = this.editorViewer.openEditor(input, options);
+		this.group.openEditor(input, options);
 
 		// Update title control
 		// TODO@grid also, wouldn't it be better if the title widget would register as listener to changes to the group and just
 		// refresh itself instead of having to do this from the outside?
-		this.titleAreaControl.refresh();
+		// this.titleAreaControl.refresh();
 
-		return editorOpenPromise;
+		return Object.create(null); // TODO@grid implement
 	}
 
 	get element(): HTMLElement {
 		return this._element;
 	}
 
-	get group(): EditorGroup {
-		return this._group;
+	get id(): GroupIdentifier {
+		return this.group.id;
 	}
 
-	private create(): void {
+	protected updateStyles(): void {
+		super.updateStyles();
+
+		// Title control (TODO@grid respect tab options)
+		// const titleContainer = this.titleAreaControl.getContainer();
+		// const borderColor = this.getColor(EDITOR_GROUP_HEADER_TABS_BORDER) || this.getColor(contrastBorder);
+
+		// titleContainer.style.backgroundColor = this.getColor(EDITOR_GROUP_HEADER_TABS_BACKGROUND);
+		// titleContainer.style.borderBottomWidth = borderColor ? '1px' : null;
+		// titleContainer.style.borderBottomStyle = borderColor ? 'solid' : null;
+		// titleContainer.style.borderBottomColor = borderColor;
+
+		// Editor container background
+		this._element.style.backgroundColor = this.getColor(editorBackground);
+
+		// TODO@grid Editor container border
+	}
+
+	render(container: HTMLElement): void {
 
 		// TODO@grid simplify containers by flattening the hierarchy more?
 
 		// Overall container
 		this._element = document.createElement('div');
 		addClass(this._element, 'one-editor-silo');
+		container.appendChild(this._element);
 
 		// Title / Progress / Editor container
 		this.container = document.createElement('div');
@@ -107,10 +118,10 @@ export class NextEditorGroupView extends Themable implements IView {
 
 		// Title widget
 		// TODO@grid if editor group is always bound to same context, simplify usage by passing over title container and group via ctor?
-		this.titleAreaControl = this._register(instantiationService.createInstance<ITitleAreaControl>(TabsTitleControl)); // TODO@grid title control choice (tabs vs no tabs)
-		this.titleAreaControl.create(titleContainer);
-		this.titleAreaControl.setContext(this._group);
-		this.titleAreaControl.refresh(true /* instant */);
+		// this.titleAreaControl = this._register(instantiationService.createInstance<ITitleAreaControl>(TabsTitleControl)); // TODO@grid title control choice (tabs vs no tabs)
+		// this.titleAreaControl.create(titleContainer);
+		// this.titleAreaControl.setContext(this.group);
+		// this.titleAreaControl.refresh(true /* instant */);
 
 		// Progress bar
 		this.progressBar = new ProgressBar(this.container);
@@ -123,38 +134,13 @@ export class NextEditorGroupView extends Themable implements IView {
 		editorContainer.setAttribute('role', 'tabpanel');
 		this.container.appendChild(editorContainer);
 
-		// Editor viewer
-		this.editorViewer = this._register(instantiationService.createInstance(NextEditorViewer, editorContainer, this._group));
-
 		// Update styles
 		this.updateStyles();
-	}
-
-	protected updateStyles(): void {
-		super.updateStyles();
-
-		// Title control (TODO@grid respect tab options)
-		const titleContainer = this.titleAreaControl.getContainer();
-		const borderColor = this.getColor(EDITOR_GROUP_HEADER_TABS_BORDER) || this.getColor(contrastBorder);
-
-		titleContainer.style.backgroundColor = this.getColor(EDITOR_GROUP_HEADER_TABS_BACKGROUND);
-		titleContainer.style.borderBottomWidth = borderColor ? '1px' : null;
-		titleContainer.style.borderBottomStyle = borderColor ? 'solid' : null;
-		titleContainer.style.borderBottomColor = borderColor;
-
-		// Editor container background
-		this._element.style.backgroundColor = this.getColor(editorBackground);
-
-		// TODO@grid Editor container border
-	}
-
-	render(container: HTMLElement, orientation: Orientation): void {
-		// TODO@grid implement
 	}
 
 	layout(size: number, orientation: Orientation): void {
 
 		// Layout title
-		this.titleAreaControl.layout(new Dimension(size, NextEditorGroupView.EDITOR_TITLE_HEIGHT));
+		// this.titleAreaControl.layout(new Dimension(size, NextEditorGroupView.EDITOR_TITLE_HEIGHT));
 	}
 }
