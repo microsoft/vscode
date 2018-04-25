@@ -22,6 +22,7 @@ import { matchesFuzzy } from 'vs/base/common/filters';
 import { ViewsRegistry, ViewLocation, IViewsService } from 'vs/workbench/common/views';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
+import { VIEWLET_ID as SCM_VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
 
 export const VIEW_PICKER_PREFIX = 'view ';
 
@@ -144,7 +145,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 
 		// Viewlet Views
 		viewlets.forEach((viewlet, index) => {
-			const viewLocation: ViewLocation = ViewLocation.get(viewlet.id);
+			const viewLocation: ViewLocation = viewlet.id === SCM_VIEWLET_ID ? ViewLocation.SCM : ViewLocation.get(viewlet.id);
 			if (viewLocation) {
 				const viewEntriesForViewlet: ViewEntry[] = getViewEntriesForViewlet(viewlet, viewLocation);
 				viewEntries.push(...viewEntriesForViewlet);
