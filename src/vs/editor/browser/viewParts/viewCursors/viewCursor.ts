@@ -13,6 +13,7 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import * as dom from 'vs/base/browser/dom';
+import * as strings from 'vs/base/common/strings';
 
 export interface IViewCursorRenderData {
 	domNode: HTMLElement;
@@ -154,6 +155,9 @@ export class ViewCursor {
 		if (this._cursorStyle === TextEditorCursorStyle.Block) {
 			const lineData = this._context.model.getViewLineData(this._position.lineNumber);
 			textContent = lineData.content.charAt(this._position.column - 1);
+			if (strings.isHighSurrogate(lineData.content.charCodeAt(this._position.column - 1))) {
+				textContent += lineData.content.charAt(this._position.column);
+			}
 			const tokenIndex = lineData.tokens.findTokenIndexAtOffset(this._position.column - 1);
 			textContentClassName = lineData.tokens.getClassName(tokenIndex);
 		}
