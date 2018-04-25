@@ -285,9 +285,6 @@ namespace TaskDTO {
 				}
 			}
 		}
-		if (!result.execution) {
-			return undefined;
-		}
 		return result;
 	}
 

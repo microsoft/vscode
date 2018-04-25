@@ -4471,6 +4471,9 @@ declare module 'vscode' {
 		 *     script: string;
 		 * }
 		 * ```
+		 *
+		 * Note that type identifier starting with a '$' are reserved for internal
+		 * usages and shouldn't be used by extensions.
 		 */
 		readonly type: string;
 
