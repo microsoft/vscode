@@ -155,6 +155,8 @@ class TextModelSnapshot implements ITextSnapshot {
 export class TextModel extends Disposable implements model.ITextModel {
 
 	private static readonly MODEL_SYNC_LIMIT = 50 * 1024 * 1024; // 50 MB
+	private static readonly LARGE_FILE_SIZE_THRESHOLD = 20 * 1024 * 1024; // 20 MB;
+	private static readonly LARGE_FILE_LINE_COUNT_THRESHOLD = 300 * 1000; // 300K lines
 
 	public static DEFAULT_CREATION_OPTIONS: model.ITextModelCreationOptions = {
 		isForSimpleWidget: false,
@@ -163,8 +165,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		detectIndentation: false,
 		defaultEOL: model.DefaultEndOfLine.LF,
 		trimAutoWhitespace: EDITOR_MODEL_DEFAULTS.trimAutoWhitespace,
-		largeFileSize: EDITOR_MODEL_DEFAULTS.largeFileSize,
-		largeFileLineCount: EDITOR_MODEL_DEFAULTS.largeFileLineCount,
+		largeFileOptimizations: EDITOR_MODEL_DEFAULTS.largeFileOptimizations,
 	};
 
 	public static createFromString(text: string, options: model.ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, languageIdentifier: LanguageIdentifier = null, uri: URI = null): TextModel {
@@ -285,13 +286,18 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		const bufferLineCount = this._buffer.getLineCount();
 		const bufferTextLength = this._buffer.getValueLengthInRange(new Range(1, 1, bufferLineCount, this._buffer.getLineLength(bufferLineCount) + 1), model.EndOfLinePreference.TextDefined);
+
 		// !!! Make a decision in the ctor and permanently respect this decision !!!
 		// If a model is too large at construction time, it will never get tokenized,
 		// under no circumstances.
-		this._isTooLargeForTokenization = (
-			(bufferTextLength > creationOptions.largeFileSize)
-			|| (bufferLineCount > creationOptions.largeFileLineCount)
-		);
+		if (creationOptions.largeFileOptimizations) {
+			this._isTooLargeForTokenization = (
+				(bufferTextLength > TextModel.LARGE_FILE_SIZE_THRESHOLD)
+				|| (bufferLineCount > TextModel.LARGE_FILE_LINE_COUNT_THRESHOLD)
+			);
+		} else {
+			this._isTooLargeForTokenization = false;
+		}
 
 		this._shouldSimplifyMode = (
 			this._isTooLargeForTokenization

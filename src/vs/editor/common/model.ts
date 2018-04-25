@@ -400,8 +400,7 @@ export interface ITextModelCreationOptions {
 	trimAutoWhitespace: boolean;
 	defaultEOL: DefaultEndOfLine;
 	isForSimpleWidget: boolean;
-	largeFileSize: number;
-	largeFileLineCount: number;
+	largeFileOptimizations: boolean;
 }
 
 export interface ITextModelUpdateOptions {
