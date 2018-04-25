@@ -56,7 +56,8 @@ export class CustomViewsService extends Disposable implements IViewsService {
 	openView(id: string, focus: boolean): TPromise<void> {
 		const viewDescriptor = ViewsRegistry.getView(id);
 		if (viewDescriptor) {
-			const viewletDescriptor = this.viewletService.getViewlet(viewDescriptor.location.id);
+			const viewletId = viewDescriptor.location === ViewLocation.SCM ? 'workbench.view.scm' : viewDescriptor.location.id;
+			const viewletDescriptor = this.viewletService.getViewlet(viewletId);
 			if (viewletDescriptor) {
 				return this.viewletService.openViewlet(viewletDescriptor.id)
 					.then((viewlet: IViewsViewlet) => {
