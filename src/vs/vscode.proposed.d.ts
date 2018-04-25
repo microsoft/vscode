@@ -412,7 +412,7 @@ declare module 'vscode' {
 		 *
 		 * @readonly
 		 */
-		export let taskExecutions: TaskExecution[];
+		export let taskExecutions: ReadonlyArray<TaskExecution>;
 
 		/**
 		 * Fires when a task starts.
