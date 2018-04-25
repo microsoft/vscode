@@ -100,6 +100,10 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 	$reveal(handle: WebviewPanelHandle, column: Position | undefined): void {
 		const webview = this.getWebview(handle);
+		if (webview.isDisposed()) {
+			return;
+		}
+
 		this._webviewService.revealWebview(webview, column);
 	}
 
@@ -140,6 +144,10 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 	}
 
 	canRevive(webview: WebviewEditorInput): boolean {
+		if (webview.isDisposed()) {
+			return false;
+		}
+
 		return this._revivers.has(webview.viewType) || webview.reviver !== null;
 	}
 
