@@ -11,7 +11,7 @@ import * as minimist from 'minimist';
 import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
 import * as mkdirp from 'mkdirp';
-import { Application, Quality } from './application';
+import { Application } from './application';
 
 import { setup as setupDataMigrationTests } from './areas/workbench/data-migration.test';
 import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
@@ -74,76 +74,13 @@ if (parseInt(process.version.substr(1)) < 6) {
 	fail('Please update your Node version to greater than 6 to run the smoke test.');
 }
 
-const repoPath = path.join(__dirname, '..', '..', '..');
-
-function getDevElectronPath(): string {
-	const buildPath = path.join(repoPath, '.build');
-	const product = require(path.join(repoPath, 'product.json'));
-
-	switch (process.platform) {
-		case 'darwin':
-			return path.join(buildPath, 'electron', `${product.nameLong}.app`, 'Contents', 'MacOS', 'Electron');
-		case 'linux':
-			return path.join(buildPath, 'electron', `${product.applicationName}`);
-		case 'win32':
-			return path.join(buildPath, 'electron', `${product.nameShort}.exe`);
-		default:
-			throw new Error('Unsupported platform.');
-	}
-}
-
-function getBuildElectronPath(root: string): string {
-	switch (process.platform) {
-		case 'darwin':
-			return path.join(root, 'Contents', 'MacOS', 'Electron');
-		case 'linux': {
-			const product = require(path.join(root, 'resources', 'app', 'product.json'));
-			return path.join(root, product.applicationName);
-		}
-		case 'win32': {
-			const product = require(path.join(root, 'resources', 'app', 'product.json'));
-			return path.join(root, `${product.nameShort}.exe`);
-		}
-		default:
-			throw new Error('Unsupported platform.');
-	}
-}
-
-let testCodePath = opts.build;
-// let stableCodePath = opts['stable-build'];
-let electronPath: string;
-// let stablePath: string;
-
-if (testCodePath) {
-	electronPath = getBuildElectronPath(testCodePath);
-
-	// if (stableCodePath) {
-	// 	stablePath = getBuildElectronPath(stableCodePath);
-	// }
-} else {
-	testCodePath = getDevElectronPath();
-	electronPath = testCodePath;
-	process.env.VSCODE_REPOSITORY = repoPath;
-	process.env.VSCODE_DEV = '1';
-	process.env.VSCODE_CLI = '1';
-}
-
-if (!fs.existsSync(electronPath || '')) {
-	fail(`Can't find Code at ${electronPath}.`);
-}
+// if (!opts.build) {
+// 	process.env.VSCODE_CLI = '1';
+// }
 
 const userDataDir = path.join(testDataPath, 'd');
 // process.env.VSCODE_WORKSPACE_PATH = workspaceFilePath;
 process.env.VSCODE_KEYBINDINGS_PATH = keybindingsPath;
-
-let quality: Quality;
-if (process.env.VSCODE_DEV === '1') {
-	quality = Quality.Dev;
-} else if (electronPath.indexOf('Code - Insiders') >= 0 /* macOS/Windows */ || electronPath.indexOf('code-insiders') /* Linux */ >= 0) {
-	quality = Quality.Insiders;
-} else {
-	quality = Quality.Stable;
-}
 
 function getKeybindingPlatform(): string {
 	switch (process.platform) {
@@ -238,7 +175,7 @@ async function setup(): Promise<void> {
 	console.log('*** Smoketest setup done!\n');
 }
 
-function createApp(quality: Quality): Application {
+function createApp(): Application {
 	const loggers: Logger[] = [];
 
 	if (opts.verbose) {
@@ -250,7 +187,6 @@ function createApp(quality: Quality): Application {
 	}
 
 	return new Application({
-		quality,
 		codePath: opts.build,
 		workspacePath,
 		userDataDir,
@@ -278,7 +214,7 @@ describe('Data Migration', () => {
 
 describe('Test', () => {
 	before(async function () {
-		const app = createApp(quality);
+		const app = createApp();
 		await app!.start();
 		this.app = app;
 	});

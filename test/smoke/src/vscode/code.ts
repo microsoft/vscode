@@ -18,7 +18,8 @@ function getDevElectronPath(): string {
 
 	switch (process.platform) {
 		case 'darwin':
-			return path.join(buildPath, 'electron', `${product.nameLong}.app`, 'Contents', 'MacOS', 'Electron');
+			const appName = product.darwinExecutable || 'Electron';
+			return path.join(buildPath, 'electron', `${product.nameLong}.app`, 'Contents', 'MacOS', appName);
 		case 'linux':
 			return path.join(buildPath, 'electron', `${product.applicationName}`);
 		case 'win32':
@@ -31,7 +32,9 @@ function getDevElectronPath(): string {
 function getBuildElectronPath(root: string): string {
 	switch (process.platform) {
 		case 'darwin':
-			return path.join(root, 'Contents', 'MacOS', 'Electron');
+			const product = require(path.join(root, 'Contents', 'Resources', 'app', 'product.json'));
+			const appName = product.darwinExecutable || 'Electron';
+			return path.join(root, 'Contents', 'MacOS', appName);
 		case 'linux': {
 			const product = require(path.join(root, 'resources', 'app', 'product.json'));
 			return path.join(root, product.applicationName);
@@ -104,6 +107,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 	const electronPath = codePath ? getBuildElectronPath(codePath) : getDevElectronPath();
 	const outPath = codePath ? getBuildOutPath(codePath) : getDevOutPath();
 	const handle = await createDriverHandle();
+	const env = { ...process.env };
 
 	const args = [
 		options.workspacePath,
@@ -120,13 +124,14 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 
 	if (!codePath) {
 		args.unshift(repoPath);
+		env['VSCODE_DEV'] = '1';
 	}
 
 	if (options.extraArgs) {
 		args.push(...options.extraArgs);
 	}
 
-	const spawnOptions: cp.SpawnOptions = {};
+	const spawnOptions: cp.SpawnOptions = { env };
 
 	const child = cp.spawn(electronPath, args, spawnOptions);
 

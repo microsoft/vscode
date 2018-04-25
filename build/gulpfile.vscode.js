@@ -134,6 +134,7 @@ const config = {
 	copyright: 'Copyright (C) 2018 Microsoft. All rights reserved',
 	darwinIcon: 'resources/darwin/code.icns',
 	darwinBundleIdentifier: product.darwinBundleIdentifier,
+	darwinExecutable: product.darwinExecutable,
 	darwinApplicationCategoryType: 'public.app-category.developer-tools',
 	darwinHelpBookFolder: 'VS Code HelpBook',
 	darwinHelpBookName: 'VS Code HelpBook',

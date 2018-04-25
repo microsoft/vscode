@@ -5,7 +5,7 @@
 
 function realpath() { /usr/bin/python -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$0"; }
 CONTENTS="$(dirname "$(dirname "$(dirname "$(dirname "$(realpath "$0")")")")")"
-ELECTRON="$CONTENTS/MacOS/Electron"
+ELECTRON="$CONTENTS/MacOS/$(ls "$CONTENTS/MacOS")"
 CLI="$CONTENTS/Resources/app/out/cli.js"
 ELECTRON_RUN_AS_NODE=1 "$ELECTRON" "$CLI" "$@"
 exit $?
