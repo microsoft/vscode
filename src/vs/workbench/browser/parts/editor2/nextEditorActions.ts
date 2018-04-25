@@ -40,21 +40,29 @@ export class OpenNextEditorAction extends Action {
 
 	run(): TPromise<any> {
 		const inputs = [
+			'/Users/bpasero/Development/monaco/src/vs/workbench/browser/parts/editor2/editor2.contribution.ts',
 			'/Users/bpasero/Development/monaco/src/vs/workbench/browser/parts/editor2/nextEditorActions.ts',
+			'/Users/bpasero/Development/monaco/src/vs/workbench/browser/parts/editor2/nextEditorGroupView.ts',
 			'/Users/bpasero/Development/monaco/src/vs/workbench/browser/parts/editor2/nextEditorPart.ts',
-			'/Users/bpasero/Development/monaco/src/vs/workbench/browser/parts/editor2/nextEditorGroupsViewer.ts'
+			'/Users/bpasero/Development/monaco/src/vs/workbench/browser/parts/editor2/nextNoTabsTitleControl.ts',
+			'/Users/bpasero/Development/monaco/src/vs/workbench/browser/parts/editor2/nextTabsTitleControl.ts',
+			'/Users/bpasero/Development/monaco/src/vs/workbench/browser/parts/editor2/nextTitleControl.ts'
 		].map(input => {
 			return this.legacyEditorService.createInput({ resource: URI.file(input) }) as EditorInput;
 		});
 
 		const firstGroup = this.nextEditorGroupsService.activeGroup;
-		firstGroup.openEditor(inputs[0]);
+		firstGroup.openEditor(inputs[0], { pinned: true });
+		firstGroup.openEditor(inputs[1], { pinned: true });
+		firstGroup.openEditor(inputs[2], { pinned: true });
 
 		const secondGroup = this.nextEditorGroupsService.addGroup(firstGroup, SplitDirection.RIGHT);
-		secondGroup.openEditor(inputs[1]);
+		secondGroup.openEditor(inputs[3], { pinned: true });
+		secondGroup.openEditor(inputs[4], { pinned: true });
 
 		const thirdGroup = this.nextEditorGroupsService.addGroup(secondGroup, SplitDirection.DOWN);
-		thirdGroup.openEditor(inputs[2]);
+		thirdGroup.openEditor(inputs[5], { pinned: true });
+		thirdGroup.openEditor(inputs[6], { pinned: true });
 
 		return TPromise.as(void 0);
 	}
