@@ -124,7 +124,7 @@ export class BreakpointsView extends ViewsViewletPanel {
 		const actions: IAction[] = [];
 		const element = e.element;
 
-		const breakpointType = element instanceof Breakpoint && element.logMessage ? nls.localize('logPoint', "Log Point") : nls.localize('breakpoint', "Breakpoint");
+		const breakpointType = element instanceof Breakpoint && element.logMessage ? nls.localize('logPoint', "Logpoint") : nls.localize('breakpoint', "Breakpoint");
 		if (element instanceof Breakpoint || element instanceof FunctionBreakpoint) {
 			actions.push(new Action('workbench.action.debug.openEditorAndEditBreakpoint', nls.localize('editBreakpoint', "Edit {0}...", breakpointType), undefined, true, () => {
 				if (element instanceof Breakpoint) {
@@ -594,7 +594,7 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 		if (process && breakpoint.condition && !process.session.capabilities.supportsLogPoints) {
 			return {
 				className: 'debug-breakpoint-unsupported',
-				message: nls.localize('logBreakpointUnsupported', "Log points not supported by this debug type"),
+				message: nls.localize('logBreakpointUnsupported', "Logpoints not supported by this debug type"),
 			};
 		}
 

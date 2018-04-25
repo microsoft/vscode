@@ -74,8 +74,8 @@ class LogPointAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.debug.action.toggleLogPoint',
-			label: nls.localize('logPointEditorAction', "Debug: Add Log Point..."),
-			alias: 'Debug: Add Log Point...',
+			label: nls.localize('logPointEditorAction', "Debug: Add Logpoint..."),
+			alias: 'Debug: Add Logpoint...',
 			precondition: null
 		});
 	}

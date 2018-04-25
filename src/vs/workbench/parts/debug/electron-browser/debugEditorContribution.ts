@@ -95,7 +95,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private getContextMenuActions(breakpoints: IBreakpoint[], uri: uri, lineNumber: number): TPromise<(IAction | ContextSubMenu)[]> {
 		const actions: (IAction | ContextSubMenu)[] = [];
 		if (breakpoints.length === 1) {
-			const breakpointType = breakpoints[0].logMessage ? nls.localize('logPoint', "Log Point") : nls.localize('breakpoint', "Breakpoint");
+			const breakpointType = breakpoints[0].logMessage ? nls.localize('logPoint', "Logpoint") : nls.localize('breakpoint', "Breakpoint");
 			actions.push(new RemoveBreakpointAction(RemoveBreakpointAction.ID, nls.localize('removeBreakpoint', "Remove {0}", breakpointType), this.debugService, this.keybindingService));
 			actions.push(new Action(
 				'workbench.debug.action.editBreakpointAction',
@@ -156,7 +156,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			));
 			actions.push(new Action(
 				'addLogPoint',
-				nls.localize('addLogPoint', "Add Log Point..."),
+				nls.localize('addLogPoint', "Add Logpoint..."),
 				null,
 				true,
 				() => TPromise.as(this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(lineNumber, undefined, BreakpointWidgetContext.LOG_MESSAGE))
@@ -196,7 +196,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				if (breakpoints.length) {
 					if (breakpoints.some(bp => !!bp.condition || !!bp.logMessage || !!bp.hitCondition)) {
 						const logPoint = breakpoints.every(bp => !!bp.logMessage);
-						const breakpointType = logPoint ? nls.localize('logPoint', "Log Point") : nls.localize('breakpoint', "Breakpoint");
+						const breakpointType = logPoint ? nls.localize('logPoint', "Logpoint") : nls.localize('breakpoint', "Breakpoint");
 						this.dialogService.show(severity.Info, nls.localize('breakpointHasCondition', "This {0} has a {1} that will get lost on remove. Consider disabling the {0} instead.",
 							breakpointType.toLowerCase(), logPoint ? nls.localize('message', "message") : nls.localize('condition', "condition")), [
 								nls.localize('removeLogPoint', "Remove {0}", breakpointType),
