@@ -210,7 +210,7 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 	}
 
 	public allowDragging(element: HTMLElement): boolean {
-		return !findParentWithClass(element, 'monaco-action-bar', 'one-editor-silo');
+		return !findParentWithClass(element, 'monaco-action-bar', 'editor-group-container');
 	}
 
 	protected initActions(services: IInstantiationService): void {

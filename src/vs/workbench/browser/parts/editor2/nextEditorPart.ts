@@ -48,7 +48,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		this.doCreateGridView();
 	}
 
-	//#region Service Implementation
+	//#region INextEditorGroupsService Implementation
 
 	get activeGroup(): INextEditorGroup {
 		return this._activeGroup;

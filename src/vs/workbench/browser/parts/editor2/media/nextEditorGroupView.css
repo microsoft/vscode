@@ -3,10 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench > .editor > .content > .one-editor-silo > .container {
+.monaco-workbench > .part.editor > .content .editor-group-container {
 	height: 100%;
 }
 
-.monaco-workbench > .editor > .content > .one-editor-silo > .container > .editor-container {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title {
+	height: 35px;
+	display: flex;
+	box-sizing:	border-box;
+	overflow: hidden;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .editor-container {
 	height: calc(100% - 35px); /* below title control */
 }

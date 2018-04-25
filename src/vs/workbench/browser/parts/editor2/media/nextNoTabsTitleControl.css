@@ -5,7 +5,7 @@
 
 /* Title Label */
 
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-label {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .title-label {
 	line-height: 35px;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -13,35 +13,35 @@
 	padding-left: 20px;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .monaco-icon-label::before {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .monaco-icon-label::before {
 	height: 35px; /* tweak the icon size of the editor labels when icons are enabled */
 }
 
 /* Title Actions */
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-actions {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .title-actions {
 	display: flex;
 	flex: initial;
 	opacity: 0.5;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .title-actions {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title.active .title-actions {
 	opacity: 1;
 }
 
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.dirty .title-actions .close-editor-action {
+.vs .monaco-workbench > .part.editor > .content .editor-group-container > .title.dirty .title-actions .close-editor-action {
 	background: url('close-dirty.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.dirty .title-actions .close-editor-action,
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.dirty .title-actions .close-editor-action {
+.vs-dark .monaco-workbench > .part.editor > .content .editor-group-container > .title.dirty .title-actions .close-editor-action,
+.hc-black .monaco-workbench > .part.editor > .content .editor-group-container > .title.dirty .title-actions .close-editor-action {
 	background: url('close-dirty-inverse.svg') center center no-repeat;
 }
 
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.dirty .title-actions .close-editor-action:hover {
+.vs .monaco-workbench > .part.editor > .content .editor-group-container > .title.dirty .title-actions .close-editor-action:hover {
 	background: url('close.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.dirty .title-actions .close-editor-action:hover,
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.dirty .title-actions .close-editor-action:hover {
+.vs-dark .monaco-workbench > .part.editor > .content .editor-group-container > .title.dirty .title-actions .close-editor-action:hover,
+.hc-black .monaco-workbench > .part.editor > .content .editor-group-container > .title.dirty .title-actions .close-editor-action:hover {
 	background: url('close-inverse.svg') center center no-repeat;
 }
