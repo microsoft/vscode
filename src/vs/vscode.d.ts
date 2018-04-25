@@ -5027,7 +5027,7 @@ declare module 'vscode' {
 		writeFile(uri: Uri, content: Uint8Array, options: FileOptions, token: CancellationToken): void | Thenable<void>;
 
 		/**
-		 * Delete a file or folder from the underlying storage.
+		 * Delete a file.
 		 *
 		 * @param uri The resource that is to be deleted
 		 * @param options Options bag for future use
