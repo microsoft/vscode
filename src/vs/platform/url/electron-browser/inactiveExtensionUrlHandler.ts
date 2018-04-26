@@ -40,7 +40,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 	readonly _serviceBrand: any;
 
-	private extensionIds = new Set<string>();
+	private extensionHandlers = new Map<string, IURLHandler>();
 	private uriBuffer = new Map<string, { timestamp: number, uri: URI }[]>();
 	private disposable: IDisposable;
 
@@ -63,6 +63,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		}
 
 		const extensionId = uri.authority;
+		const wasHandlerAvailable = this.extensionHandlers.has(extensionId);
 
 		const result = await this.dialogService.confirm({
 			message: localize('confirmUrl', "Do you want to let the {0} extension open the following URL?", extensionId),
@@ -73,8 +74,14 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			return true;
 		}
 
-		// let the ExtensionUrlHandler instance handle this
-		if (this.extensionIds.has(extensionId)) {
+		const handler = this.extensionHandlers.get(extensionId);
+		if (handler) {
+			if (!wasHandlerAvailable) {
+				// forward it directly
+				return handler.handleURL(uri);
+			}
+
+			// let the ExtensionUrlHandler instance handle this
 			return TPromise.as(false);
 		}
 
@@ -96,7 +103,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	}
 
 	registerExtensionHandler(extensionId: string, handler: IURLHandler): void {
-		this.extensionIds.add(extensionId);
+		this.extensionHandlers.set(extensionId, handler);
 
 		const uris = this.uriBuffer.get(extensionId) || [];
 
@@ -108,7 +115,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	}
 
 	unregisterExtensionHandler(extensionId: string): void {
-		this.extensionIds.delete(extensionId);
+		this.extensionHandlers.delete(extensionId);
 	}
 
 	// forget about all uris buffered more than 5 minutes ago
@@ -129,7 +136,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 	dispose(): void {
 		this.disposable.dispose();
-		this.extensionIds.clear();
+		this.extensionHandlers.clear();
 		this.uriBuffer.clear();
 	}
 }
