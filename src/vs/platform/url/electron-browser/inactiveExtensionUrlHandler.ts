@@ -65,9 +65,16 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		const extensionId = uri.authority;
 		const wasHandlerAvailable = this.extensionHandlers.has(extensionId);
 
+		const extensions = await this.extensionService.getExtensions();
+		const extension = extensions.filter(e => e.id === extensionId)[0];
+
+		if (!extension) {
+			return false;
+		}
+
 		const result = await this.dialogService.confirm({
-			message: localize('confirmUrl', "Do you want to let the {0} extension open the following URL?", extensionId),
-			detail: uri.toString()
+			message: localize('confirmUrl', "Allow an extension to open this URL?", extensionId),
+			detail: `${extension.displayName || extension.name} (${extensionId}) wants to open a URL:\n\n${uri.toString()}`
 		});
 
 		if (!result.confirmed) {
