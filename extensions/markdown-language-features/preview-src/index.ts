@@ -3,16 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getSettings } from './settings';
-import { postCommand, postMessage } from './messaging';
-import { onceDocumentLoaded } from './events';
-import { getEditorLineNumberForPageOffset, scrollToRevealSourceLine } from './scroll-sync';
 import { ActiveLineMarker } from './activeLineMarker';
+import { onceDocumentLoaded } from './events';
+import { createPosterForVsCode } from './messaging';
+import { getEditorLineNumberForPageOffset, scrollToRevealSourceLine } from './scroll-sync';
+import { getSettings } from './settings';
 import throttle = require('lodash.throttle');
+
+declare var acquireVsCodeApi: any;
 
 var scrollDisabled = true;
 const marker = new ActiveLineMarker();
 const settings = getSettings();
+
+const vscode = acquireVsCodeApi();
+vscode.postMessage({});
+
+const messaging = createPosterForVsCode(vscode);
+
+window.cspAlerter.setPoster(messaging);
+window.styleLoadingMonitor.setPoster(messaging);
 
 onceDocumentLoaded(() => {
 	if (settings.scrollPreviewWithEditor) {
@@ -75,7 +85,7 @@ document.addEventListener('dblclick', event => {
 	const offset = event.pageY;
 	const line = getEditorLineNumberForPageOffset(offset);
 	if (typeof line === 'number' && !isNaN(line)) {
-		postMessage('didClick', { line: Math.floor(line) });
+		messaging.postMessage('didClick', { line: Math.floor(line) });
 	}
 });
 
@@ -92,7 +102,7 @@ document.addEventListener('click', event => {
 			}
 			if (node.href.startsWith('file://') || node.href.startsWith('vscode-resource:')) {
 				const [path, fragment] = node.href.replace(/^(file:\/\/|vscode-resource:)/i, '').split('#');
-				postCommand('_markdown.openDocumentLink', [{ path, fragment }]);
+				messaging.postCommand('_markdown.openDocumentLink', [{ path, fragment }]);
 				event.preventDefault();
 				event.stopPropagation();
 				break;
@@ -110,7 +120,7 @@ if (settings.scrollEditorWithPreview) {
 		} else {
 			const line = getEditorLineNumberForPageOffset(window.scrollY);
 			if (typeof line === 'number' && !isNaN(line)) {
-				postMessage('revealLine', { line });
+				messaging.postMessage('revealLine', { line });
 			}
 		}
 	}, 50));

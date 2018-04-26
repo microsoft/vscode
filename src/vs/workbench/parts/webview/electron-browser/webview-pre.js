@@ -178,15 +178,25 @@
 			if (enableWrappedPostMessage) {
 				const defaultScript = newDocument.createElement('script');
 				defaultScript.textContent = `
-					const vscode = Object.freeze((function() {
+					const acquireVsCodeApi = (function() {
 						const originalPostMessage = window.parent.postMessage.bind(window.parent);
-						return {
-							postMessage: function(msg) {
-								return originalPostMessage(msg, '*');
+						let acquired = false;
+
+						return () => {
+							if (acquired) {
+								throw new Error('An instance of the VS Code API has already been acquired');
 							}
+							acquired = true;
+							return Object.freeze({
+								postMessage: function(msg) {
+									return originalPostMessage(msg, '*');
+								}
+							});
 						};
-					})());
+					})();
 					delete window.parent;
+					delete window.top;
+					delete window.frameElement;
 				`;
 
 				if (newDocument.head.hasChildNodes()) {
