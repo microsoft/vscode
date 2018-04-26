@@ -156,6 +156,7 @@ suite('Files - View Model', () => {
 		assert.strictEqual(s1.find(toResource('foobar')), null);
 
 		assert.strictEqual(s1.find(toResource('/')), s1);
+		assert.strictEqual(s1.find(toResource('')), s1);
 	});
 
 	test('Find with mixed case', function () {
