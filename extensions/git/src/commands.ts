@@ -348,15 +348,18 @@ export class CommandCenter {
 		}
 
 		const config = workspace.getConfiguration('git');
-		let value = config.get<string>('defaultCloneDirectory') || os.homedir();
+		let defaultCloneDirectory = config.get<string>('defaultCloneDirectory') || os.homedir();
+		defaultCloneDirectory = defaultCloneDirectory.replace(/^~/, os.homedir());
 
-		const parentPath = await window.showInputBox({
-			prompt: localize('parent', "Parent Directory"),
-			value,
-			ignoreFocusOut: true
+		const uris = await window.showOpenDialog({
+			canSelectFiles: false,
+			canSelectFolders: true,
+			canSelectMany: false,
+			defaultUri: Uri.file(defaultCloneDirectory),
+			openLabel: localize('selectFolder', "Select Repository Location")
 		});
 
-		if (!parentPath) {
+		if (!uris || uris.length === 0) {
 			/* __GDPR__
 				"clone" : {
 					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
@@ -365,6 +368,9 @@ export class CommandCenter {
 			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_directory' });
 			return;
 		}
+
+		const uri = uris[0];
+		const parentPath = uri.fsPath;
 
 		try {
 			const opts = {
@@ -375,7 +381,7 @@ export class CommandCenter {
 
 			const repositoryPath = await window.withProgress(
 				opts,
-				(_, token) => this.git.clone(url!, parentPath.replace(/^~/, os.homedir()), token)
+				(_, token) => this.git.clone(url!, parentPath, token)
 			);
 
 			const choices = [];
