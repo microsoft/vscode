@@ -31,7 +31,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { localize } from 'vs/nls';
-import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
+import { isUndefined } from 'vs/base/common/types';
 
 export interface IViewOptions extends IPanelOptions {
 	id: string;
@@ -586,21 +586,7 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 
 	protected getViewDescriptorsFromRegistry(): IViewDescriptor[] {
 		return ViewsRegistry.getViews(this.location)
-			.sort((a, b) => {
-				const viewStateA = this.viewsStates.get(a.id);
-				const viewStateB = this.viewsStates.get(b.id);
-				const orderA = viewStateA && typeof viewStateA.order === 'number' ? viewStateA.order : a.order;
-				const orderB = viewStateB && typeof viewStateB.order === 'number' ? viewStateB.order : b.order;
-
-				if (isUndefinedOrNull(orderB)) {
-					return -1;
-				}
-				if (isUndefinedOrNull(orderA)) {
-					return 1;
-				}
-
-				return orderA - orderB;
-			});
+			.sort((a, b) => this.getViewOrder(a) - this.getViewOrder(b));
 	}
 
 	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewsViewletPanel {
@@ -613,6 +599,12 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 
 	protected getView(id: string): ViewsViewletPanel {
 		return this.viewsViewletPanels.filter(view => view.id === id)[0];
+	}
+
+	private getViewOrder(viewDescriptor: IViewDescriptor): number {
+		const viewState = this.viewsStates.get(viewDescriptor.id);
+		const viewOrder = viewState && typeof viewState.order === 'number' ? viewState.order : viewDescriptor.order;
+		return typeof viewOrder === 'number' ? viewOrder : Number.MAX_VALUE;
 	}
 
 	private snapshotViewsStates(): void {
