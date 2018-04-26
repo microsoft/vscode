@@ -157,8 +157,13 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 
 		let debugArg = await this.extractDebugArg(scripts, task);
 		if (!debugArg) {
-			let message = localize('npm.noDebugOptions', 'Could not launch "{0}" for debugging because the scripts lacks a node debug option, e.g. "--inspect-brk".', task.name);
-			window.showErrorMessage(message, { modal: true });
+			let message = localize('noDebugOptions', 'Could not launch "{0}" for debugging because the scripts lacks a node debug option, e.g. "--inspect-brk".', task.name);
+			let learnMore = localize('learnMore', 'Learn More');
+			let ok = localize('ok', 'OK');
+			let result = await window.showErrorMessage(message, { modal: true }, ok, learnMore);
+			if (result === learnMore) {
+				commands.executeCommand('vscode.open', Uri.parse('https://code.visualstudio.com/docs/nodejs/nodejs-debugging#_launch-configuration-support-for-npm-and-other-tools'));
+			}
 			return;
 		}
 
@@ -187,7 +192,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 	}
 
 	private scriptNotValid(task: Task) {
-		let message = localize('npm.scriptInvalid', 'Could not find the script "{0}". Try to refresh the view.', task.name);
+		let message = localize('scriptInvalid', 'Could not find the script "{0}". Try to refresh the view.', task.name);
 		window.showErrorMessage(message);
 	}
 
