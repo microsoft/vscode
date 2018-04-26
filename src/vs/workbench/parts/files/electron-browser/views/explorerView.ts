@@ -476,14 +476,13 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 			// compute the parent folder URI in which the new elements have been created
 			let parentResource: URI = addedElement.resource;
-			const maxTries = 100;
-			let numTries = 0;
-			while (!this.model.findClosest(parentResource) && numTries < maxTries) {
+			let closest = this.model.findClosest(parentResource);
+			while (!closest && parentResource.path !== '/') {
 				parentResource = resources.dirname(parentResource);
-				numTries++;
+				closest = this.model.findClosest(parentResource);
 			}
 
-			if (numTries === maxTries) {
+			if (parentResource.path === '/') {
 				return;
 			}
 
