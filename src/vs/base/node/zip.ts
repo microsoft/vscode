@@ -96,6 +96,11 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, log
 	return new TPromise((c, e) => {
 		const throttler = new SimpleThrottler();
 
+		const readNextEntry = () => {
+			extractedEntriesCount++;
+			zipfile.readEntry();
+		};
+
 		zipfile.once('error', e);
 		zipfile.once('close', () => last.then(() => {
 			if (isCanceled || zipfile.entryCount === extractedEntriesCount) {
@@ -104,6 +109,7 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, log
 				e(new ExtractError('Incomplete', new Error(nls.localize('incompleteExtract', "Incomplete. Found {0} of {1} entries", extractedEntriesCount, zipfile.entryCount))));
 			}
 		}, e));
+		zipfile.readEntry();
 		zipfile.on('entry', (entry: Entry) => {
 			logService.debug(targetPath, 'Found', entry.fileName);
 
@@ -112,7 +118,7 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, log
 			}
 
 			if (!options.sourcePathRegex.test(entry.fileName)) {
-				extractedEntriesCount++;
+				readNextEntry();
 				return;
 			}
 
@@ -121,14 +127,14 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, log
 			// directory file names end with '/'
 			if (/\/$/.test(fileName)) {
 				const targetFileName = path.join(targetPath, fileName);
-				last = mkdirp(targetFileName).then(() => extractedEntriesCount++);
+				last = mkdirp(targetFileName).then(() => readNextEntry());
 				return;
 			}
 
 			const stream = ninvoke(zipfile, zipfile.openReadStream, entry);
 			const mode = modeFromEntry(entry);
 
-			last = throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options).then(() => extractedEntriesCount++)));
+			last = throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options).then(() => readNextEntry())));
 		});
 	}, () => {
 		logService.debug(targetPath, 'Cancelled.');
@@ -138,15 +144,15 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, log
 	}).then(null, err => TPromise.wrapError(toExtractError(err)));
 }
 
-function openZip(zipFile: string): TPromise<ZipFile> {
-	return nfcall<ZipFile>(_openZip, zipFile)
+function openZip(zipFile: string, lazy: boolean = false): TPromise<ZipFile> {
+	return nfcall<ZipFile>(_openZip, zipFile, lazy ? { lazyEntries: true } : void 0)
 		.then(null, err => TPromise.wrapError(toExtractError(err)));
 }
 
 export function extract(zipPath: string, targetPath: string, options: IExtractOptions = {}, logService: ILogService): TPromise<void> {
 	const sourcePathRegex = new RegExp(options.sourcePath ? `^${options.sourcePath}` : '');
 
-	let promise = openZip(zipPath);
+	let promise = openZip(zipPath, true);
 
 	if (options.overwrite) {
 		promise = promise.then(zipfile => rimraf(targetPath).then(() => zipfile));
