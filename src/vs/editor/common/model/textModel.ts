@@ -2488,6 +2488,11 @@ export class TextModel extends Disposable implements model.ITextModel {
 			if (downLineNumber > lineCount || downLineNumber > maxLineNumber) {
 				goDown = false;
 			}
+			if (distance > 50000) {
+				// stop processing
+				goUp = false;
+				goDown = false;
+			}
 
 			if (goUp) {
 				// compute indent level going up
