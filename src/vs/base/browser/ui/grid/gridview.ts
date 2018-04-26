@@ -19,6 +19,9 @@ TODO:
 - IView needs to change to accommodate width/height
 - GridView.getLocation(HTMLElement)
 - GridView.orientation setter/getter
+
+- create grid wrapper which lets you talk only abut views, not locations
+- create grid wrapper which automatically sizes the new views
 */
 
 function orthogonal(orientation: Orientation): Orientation {
