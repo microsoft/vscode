@@ -5007,54 +5007,48 @@ declare module 'vscode' {
 		 * in case the file does not exist.
 		 *
 		 * @param uri The uri of the file to retrieve meta data about.
-		 * @param token A cancellation token.
 		 * @return The file metadata about the file.
 		 */
-		stat(uri: Uri, options: { /*future: followSymlinks*/ }, token: CancellationToken): FileStat | Thenable<FileStat>;
+		stat(uri: Uri, options: { /*future: followSymlinks*/ }): FileStat | Thenable<FileStat>;
 
 		/**
 		 * Retrieve the meta data of all entries of a [directory](#FileStat.isDirectory)
 		 *
 		 * @param uri The uri of the folder.
-		 * @param token A cancellation token.
 		 * @return A thenable that resolves to an array of tuples of file names and files stats.
 		 */
-		readDirectory(uri: Uri, options: { /*future: onlyType?*/ }, token: CancellationToken): [string, FileType][] | Thenable<[string, FileType][]>;
+		readDirectory(uri: Uri, options: { /*future: onlyType?*/ }): [string, FileType][] | Thenable<[string, FileType][]>;
 
 		/**
 		 * Create a new directory. *Note* that new files are created via `write`-calls.
 		 *
 		 * @param uri The uri of the *new* folder.
-		 * @param token A cancellation token.
 		 */
-		createDirectory(uri: Uri, options: { /*future: permissions?*/ }, token: CancellationToken): FileStat | Thenable<FileStat>;
+		createDirectory(uri: Uri, options: { /*future: permissions?*/ }): FileStat | Thenable<FileStat>;
 
 		/**
 		 * Read the entire contents of a file.
 		 *
 		 * @param uri The uri of the file.
-		 * @param token A cancellation token.
 		 * @return A thenable that resolves to an array of bytes.
 		 */
-		readFile(uri: Uri, options: FileOptions, token: CancellationToken): Uint8Array | Thenable<Uint8Array>;
+		readFile(uri: Uri, options: FileOptions): Uint8Array | Thenable<Uint8Array>;
 
 		/**
 		 * Write data to a file, replacing its entire contents.
 		 *
 		 * @param uri The uri of the file.
 		 * @param content The new content of the file.
-		 * @param token A cancellation token.
 		 */
-		writeFile(uri: Uri, content: Uint8Array, options: FileOptions, token: CancellationToken): void | Thenable<void>;
+		writeFile(uri: Uri, content: Uint8Array, options: FileOptions): void | Thenable<void>;
 
 		/**
 		 * Delete a file.
 		 *
 		 * @param uri The resource that is to be deleted
 		 * @param options Options bag for future use
-		 * @param token A cancellation token.
 		 */
-		delete(uri: Uri, options: { /*future: useTrash?, followSymlinks?*/ }, token: CancellationToken): void | Thenable<void>;
+		delete(uri: Uri, options: { /*future: useTrash?, followSymlinks?*/ }): void | Thenable<void>;
 
 		/**
 		 * Rename a file or folder.
@@ -5062,11 +5056,10 @@ declare module 'vscode' {
 		 * @param oldUri The existing file or folder.
 		 * @param newUri The target location.
 		 * @param options Defines if existing files should be overwriten.
-		 * @param token A cancellation token.
 		 * @throws [`FileNotFound`](FileSystemError.FileNotFound) when `oldUri` doesn't exist
 		 * @throws [`FileExists`](FileSystemError.FileExists) when `newUri` exists and when the `overwrite` option is not `true`.
 		 */
-		rename(oldUri: Uri, newUri: Uri, options: { overwrite: boolean }, token: CancellationToken): FileStat | Thenable<FileStat>;
+		rename(oldUri: Uri, newUri: Uri, options: { overwrite: boolean }): FileStat | Thenable<FileStat>;
 
 		/**
 		 * Copy files or folders. Implementing this function is optional but it will speedup
@@ -5075,11 +5068,10 @@ declare module 'vscode' {
 		 * @param source The existing file or folder.
 		 * @param destination The destination location.
 		 * @param options Defines if existing files should be overwriten.
-		 * @param token A cancellation token.
 		 * @throws [`FileNotFound`](FileSystemError.FileNotFound) when `source` doesn't exist
 		 * @throws [`FileExists`](FileSystemError.FileExists) when `destination` exists and when the `overwrite` option is not `true`.
 		 */
-		copy?(source: Uri, destination: Uri, options: { overwrite: boolean }, token: CancellationToken): FileStat | Thenable<FileStat>;
+		copy?(source: Uri, destination: Uri, options: { overwrite: boolean }): FileStat | Thenable<FileStat>;
 	}
 
 	/**
