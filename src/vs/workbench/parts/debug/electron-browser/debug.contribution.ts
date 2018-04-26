@@ -205,10 +205,10 @@ configurationRegistry.registerConfiguration({
 			default: 'openOnFirstSessionStart',
 			description: nls.localize('openDebug', "Controls whether debug view should be open on debugging session start.")
 		},
-		'debug.hideNonDebugHovers': {
+		'debug.enableAllHovers': {
 			type: 'boolean',
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'hideNonDebugHovers' }, "Controls if the non debug hovers should be hidden while debugging. If false the hover providers will be called to provide a hover. Regular hovers will not be shown even if this setting is false."),
-			default: true
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'enableAllHovers' }, "Controls if the non debug hovers should be enabled while debugging. If true the hover providers will be called to provide a hover. Regular hovers will not be shown even if this setting is true."),
+			default: false
 		},
 		'launch': {
 			type: 'object',
