@@ -557,6 +557,12 @@ export class RemoteFileService extends FileService {
 			}).then(fileStat => {
 				this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.MOVE, fileStat));
 				return fileStat;
+			}, err => {
+				const result = this._tryParseFileOperationResult(err);
+				if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
+					throw new FileOperationError(localize('fileMoveConflict', "Unable to move/copy. File already exists at destination."), result);
+				}
+				throw err;
 			});
 		});
 	}
@@ -581,7 +587,18 @@ export class RemoteFileService extends FileService {
 
 			if (source.scheme === target.scheme && (provider.capabilities & FileSystemProviderCapabilities.FileFolderCopy)) {
 				// good: provider supports copy withing scheme
-				return provider.copy(source, target, { overwrite }).then(stat => toIFileStat(provider, [target, stat]));
+				return provider.copy(source, target, { overwrite }).then(stat => {
+					return toIFileStat(provider, [target, stat]);
+				}).then(fileStat => {
+					this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, fileStat));
+					return fileStat;
+				}, err => {
+					const result = this._tryParseFileOperationResult(err);
+					if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
+						throw new FileOperationError(localize('fileMoveConflict', "Unable to move/copy. File already exists at destination."), result);
+					}
+					throw err;
+				});
 			}
 
 			const prepare = overwrite
@@ -603,7 +620,10 @@ export class RemoteFileService extends FileService {
 							return fileStat;
 						});
 					}, err => {
-						if (err instanceof Error && err.name === 'ENOPRO') {
+						const result = this._tryParseFileOperationResult(err);
+						if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
+							throw new FileOperationError(localize('fileMoveConflict', "Unable to move/copy. File already exists at destination."), result);
+						} else if (err instanceof Error && err.name === 'ENOPRO') {
 							// file scheme
 							return super.updateContent(target, content.value, { encoding: content.encoding });
 						} else {
