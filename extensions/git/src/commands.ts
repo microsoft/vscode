@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, CancellationTokenSource, StatusBarAlignment, MessageOptions } from 'vscode';
+import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, MessageOptions } from 'vscode';
 import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
 import { Repository, Resource, Status, CommitOptions, ResourceGroupType } from './repository';
 import { Model } from './model';
@@ -328,8 +328,6 @@ export class CommandCenter {
 		return '';
 	}
 
-	private static cloneId = 0;
-
 	@command('git.clone')
 	async clone(url?: string): Promise<void> {
 		if (!url) {
@@ -368,22 +366,17 @@ export class CommandCenter {
 			return;
 		}
 
-		const tokenSource = new CancellationTokenSource();
-		const cancelCommandId = `cancelClone${CommandCenter.cloneId++}`;
-		const commandDisposable = commands.registerCommand(cancelCommandId, () => tokenSource.cancel());
-
-		const statusBarItem = window.createStatusBarItem(StatusBarAlignment.Left);
-		statusBarItem.text = localize('cancel', "$(sync~spin) Cloning repository... Click to cancel");
-		statusBarItem.tooltip = localize('cancel tooltip', "Cancel clone");
-		statusBarItem.command = cancelCommandId;
-		statusBarItem.show();
-
-		const clonePromise = this.git.clone(url, parentPath.replace(/^~/, os.homedir()), tokenSource.token);
-
 		try {
-			window.withProgress({ location: ProgressLocation.SourceControl, title: localize('cloning', "Cloning git repository...") }, () => clonePromise);
+			const opts = {
+				location: ProgressLocation.Notification,
+				title: localize('cloning', "Cloning git repository '{0}'...", url),
+				cancellable: true
+			};
 
-			const repositoryPath = await clonePromise;
+			const repositoryPath = await window.withProgress(
+				opts,
+				(_, token) => this.git.clone(url!, parentPath.replace(/^~/, os.homedir()), token)
+			);
 
 			const open = localize('openrepo', "Open Repository");
 			const result = await window.showInformationMessage(localize('proposeopen', "Would you like to open the cloned repository?"), open);
@@ -419,9 +412,6 @@ export class CommandCenter {
 			}
 
 			throw err;
-		} finally {
-			commandDisposable.dispose();
-			statusBarItem.dispose();
 		}
 	}
 
