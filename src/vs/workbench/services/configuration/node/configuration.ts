@@ -161,9 +161,17 @@ export abstract class AbstractFolderConfiguration extends Disposable implements 
 	loadConfiguration(): TPromise<ConfigurationModel> {
 		return this.loadFolderConfigurationContents()
 			.then((contents) => {
+
+				// reset
+				this._standAloneConfigurations = [];
+				this._folderSettingsModelParser.parse('');
+
+				// parse
 				this.parseContents(contents);
+
 				// Consolidate (support *.json files in the workspace settings folder)
 				this.consolidate();
+
 				this._loaded = true;
 				return this._cache;
 			});
@@ -183,7 +191,6 @@ export abstract class AbstractFolderConfiguration extends Disposable implements 
 	}
 
 	private parseContents(contents: { resource: URI, value: string }[]): void {
-		this._standAloneConfigurations = [];
 		for (const content of contents) {
 			const name = paths.basename(content.resource.path);
 			if (name === `${FOLDER_SETTINGS_NAME}.json`) {
@@ -334,12 +341,12 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 
 	private toFolderRelativePath(resource: URI): string {
 		if (resource.scheme === Schemas.file) {
-			if (paths.isEqualOrParent(resource.fsPath, this.folder.fsPath, !isLinux /* ignorecase */)) {
-				return paths.normalize(relative(this.folder.fsPath, resource.fsPath));
+			if (paths.isEqualOrParent(resource.fsPath, this.folderConfigurationPath.fsPath, !isLinux /* ignorecase */)) {
+				return paths.normalize(relative(this.folderConfigurationPath.fsPath, resource.fsPath));
 			}
 		} else {
-			if (paths.isEqualOrParent(resource.path, this.folder.path, true /* ignorecase */)) {
-				return paths.normalize(relative(this.folder.path, resource.path));
+			if (paths.isEqualOrParent(resource.path, this.folderConfigurationPath.path, true /* ignorecase */)) {
+				return paths.normalize(relative(this.folderConfigurationPath.path, resource.path));
 			}
 		}
 		return null;
