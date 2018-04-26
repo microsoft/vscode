@@ -378,8 +378,18 @@ export class CommandCenter {
 				(_, token) => this.git.clone(url!, parentPath.replace(/^~/, os.homedir()), token)
 			);
 
+			const choices = [];
+			let message = localize('proposeopen', "Would you like to open the cloned repository?");
 			const open = localize('openrepo', "Open Repository");
-			const result = await window.showInformationMessage(localize('proposeopen', "Would you like to open the cloned repository?"), open);
+			choices.push(open);
+
+			const addToWorkspace = localize('add', "Add to Workspace");
+			if (workspace.workspaceFolders) {
+				message = localize('proposeopen2', "Would you like to open the cloned repository, or add it to the current workspace?");
+				choices.push(addToWorkspace);
+			}
+
+			const result = await window.showInformationMessage(message, ...choices);
 
 			const openFolder = result === open;
 			/* __GDPR__
@@ -389,8 +399,13 @@ export class CommandCenter {
 				}
 			*/
 			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'success' }, { openFolder: openFolder ? 1 : 0 });
+
+			const uri = Uri.file(repositoryPath);
+
 			if (openFolder) {
-				commands.executeCommand('vscode.openFolder', Uri.file(repositoryPath));
+				commands.executeCommand('vscode.openFolder', uri);
+			} else if (result === addToWorkspace) {
+				workspace.updateWorkspaceFolders(workspace.workspaceFolders!.length, 0, { uri });
 			}
 		} catch (err) {
 			if (/already exists and is not an empty directory/.test(err && err.stderr || '')) {
