@@ -255,9 +255,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		tags['workspace.roots'] = isEmpty ? 0 : workspace.folders.length;
 		tags['workspace.empty'] = isEmpty;
 
-		let folders = !isEmpty ? workspace.folders.map(folder => folder.uri) : this.environmentService.appQuality !== 'stable' && this.findFolders(configuration);
+		const folders = !isEmpty ? workspace.folders.map(folder => folder.uri) : this.environmentService.appQuality !== 'stable' && this.findFolders(configuration);
 		if (folders && folders.length && this.fileService) {
-			folders = folders.filter(x => x.scheme === 'file');
 			//return
 			const files: IResolveFileResult[] = await this.fileService.resolveFiles(folders.map(resource => ({ resource })));
 			const names = (<IFileStat[]>[]).concat(...files.map(result => result.success ? (result.stat.children || []) : [])).map(c => c.name);
@@ -315,20 +314,25 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			if (nameSet.has('package.json')) {
 				await TPromise.join(folders.map(async workspaceUri => {
 					const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/package.json` });
-					const content = await this.fileService.resolveContent(uri, { acceptTextOnly: true });
-					const packageJsonContents = JSON.parse(content.value);
-					if (packageJsonContents['dependencies']) {
-						for (let module of ModulesToLookFor) {
-							if ('react-native' === module) {
-								if (packageJsonContents['dependencies'][module]) {
-									tags['workspace.reactNative'] = true;
-								}
-							} else {
-								if (packageJsonContents['dependencies'][module]) {
-									tags['workspace.npm.' + module] = true;
+					try {
+						const content = await this.fileService.resolveContent(uri, { acceptTextOnly: true });
+						const packageJsonContents = JSON.parse(content.value);
+						if (packageJsonContents['dependencies']) {
+							for (let module of ModulesToLookFor) {
+								if ('react-native' === module) {
+									if (packageJsonContents['dependencies'][module]) {
+										tags['workspace.reactNative'] = true;
+									}
+								} else {
+									if (packageJsonContents['dependencies'][module]) {
+										tags['workspace.npm.' + module] = true;
+									}
 								}
 							}
 						}
+					}
+					catch (e) {
+						// Ignore errors when resolving file or parsing file contents
 					}
 				}));
 			}
