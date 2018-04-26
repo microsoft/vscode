@@ -9,6 +9,7 @@
 	<script src="../out/vs/loader.js"></script>
 	<script>
 		require.config({ baseUrl: '../out' });
+		let count = 0;
 
 		require(['vs/base/browser/ui/grid/gridview', 'vs/base/common/event'], ({ GridView }, { Event }) => {
 			const grid = new GridView(document.body);
@@ -16,17 +17,24 @@
 			window.onresize = layout;
 			layout();
 
-			const view = {
-				minimumSize: 20,
-				maximumSize: Number.POSITIVE_INFINITY,
-				onDidChange: Event.None,
-				layout() { },
-				render() {
-					console.log('RENDER');
-				}
-			};
+			function createView() {
+				let id = ++count;
 
-			grid.addView(view, 200, [0]);
+				return {
+					minimumSize: 20,
+					maximumSize: Number.POSITIVE_INFINITY,
+					onDidChange: Event.None,
+					layout() { },
+					render(el) {
+						el.textContent = `hello${id}`;
+						console.log('RENDER');
+					}
+				};
+			}
+
+			grid.addView(createView(), 200, [0]);
+			grid.addView(createView(), 200, [1]);
+			grid.addView(createView(), 200, [2]);
 		});
 	</script>
 	<style>
