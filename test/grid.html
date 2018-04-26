@@ -26,15 +26,16 @@
 					onDidChange: Event.None,
 					layout() { },
 					render(el) {
+						el.style.backgroundColor = `hsl(${Math.round(Math.random() * 360)}, 72%, 72%)`;
 						el.textContent = `hello${id}`;
 						console.log('RENDER');
 					}
 				};
 			}
 
-			grid.addView(createView(), 200, [0]);
-			grid.addView(createView(), 200, [1]);
-			grid.addView(createView(), 200, [2]);
+			grid.addView(createView(), 50, [0]);
+			grid.addView(createView(), 50, [1]);
+			grid.addView(createView(), 50, [2]);
 		});
 	</script>
 	<style>

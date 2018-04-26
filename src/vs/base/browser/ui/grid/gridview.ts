@@ -5,6 +5,7 @@
 
 'use strict';
 
+import 'vs/css!./gridview';
 import { Event, anyEvent, Emitter } from 'vs/base/common/event';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { SplitView, IView } from 'vs/base/browser/ui/splitview/splitview';
