@@ -5002,7 +5002,6 @@ declare module 'vscode' {
 		 * Create a new directory. *Note* that new files are created via `write`-calls.
 		 *
 		 * @param uri The uri of the new folder.
-		 * @returns Metadata about the created directory or a thenable that resolves to such.
 		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when the parent of `uri` doesn't exist.
 		 * @throws [`FileExists`](#FileSystemError.FileExists) when `uri` already exists.
 		 * @throws [`NoPermissions`](#FileSystemError.NoPermissions) when permissions aren't sufficient.
@@ -5047,7 +5046,6 @@ declare module 'vscode' {
 		 * @param oldUri The existing file or folder.
 		 * @param newUri The target location.
 		 * @param options Defines if existing files should be overwriten.
-		 * @returns Metadata about the renamed file or a thenable that resolves to such.
 		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `oldUri` doesn't exist.
 		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when parent of `newUri` doesn't exist
 		 * @throws [`FileExists`](#FileSystemError.FileExists) when `newUri` exists and when the `overwrite` option is not `true`.
@@ -5062,7 +5060,6 @@ declare module 'vscode' {
 		 * @param source The existing file or folder.
 		 * @param destination The destination location.
 		 * @param options Defines if existing files should be overwriten.
-		 * @returns Metadata about the copied file or a thenable that resolves to such.
 		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `source` doesn't exist
 		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when parent of `destination` doesn't exist
 		 * @throws [`FileExists`](#FileSystemError.FileExists) when `destination` exists and when the `overwrite` option is not `true`.
