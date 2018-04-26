@@ -1091,4 +1091,26 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 
 		model.dispose();
 	});
+
+	test('issue #48741: Broken undo stack with move lines up with multiple cursors', () => {
+		let model = createEditableTextModelFromString([
+			'line1',
+			'line2',
+			'line3',
+			'',
+		].join('\n'));
+
+		const undoEdits = model.applyEdits([
+			{ range: new Range(4, 1, 4, 1), text: 'line3', },
+			{ range: new Range(3, 1, 3, 6), text: null, },
+			{ range: new Range(2, 1, 3, 1), text: null, },
+			{ range: new Range(3, 6, 3, 6), text: '\nline2' }
+		]);
+
+		model.applyEdits(undoEdits);
+
+		assert.deepEqual(model.getValue(), 'line1\nline2\nline3\n');
+
+		model.dispose();
+	});
 });
