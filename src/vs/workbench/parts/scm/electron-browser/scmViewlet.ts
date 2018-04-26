@@ -358,6 +358,11 @@ class MainPanel extends ViewletPanel {
 		this.list.setSelection(selection);
 		this.list.setFocus([selection[0]]);
 	}
+
+	dispose(): void {
+		this.visibilityDisposables = dispose(this.visibilityDisposables);
+		super.dispose();
+	}
 }
 
 interface ResourceGroupTemplate {
