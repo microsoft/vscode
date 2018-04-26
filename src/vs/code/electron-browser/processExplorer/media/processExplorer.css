@@ -43,10 +43,12 @@ th {
 	border-bottom: 1px solid #cccccc;
 	padding: .5rem;
 	border-top: 1px solid #cccccc;
+	cursor: default;
 }
 td {
 	padding: .25rem;
 	vertical-align: top;
+	cursor: default;
 }
 
 .centered {
