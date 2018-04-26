@@ -17,7 +17,7 @@ import { IEditorGroup, toResource, IEditorIdentifier } from 'vs/workbench/common
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { getPathLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
-import { startsWith, startsWithIgnoreCase, equalsIgnoreCase, rtrim } from 'vs/base/common/strings';
+import { startsWith, startsWithIgnoreCase, rtrim } from 'vs/base/common/strings';
 
 export class Model {
 
