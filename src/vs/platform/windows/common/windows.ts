@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
+import { Event, latch, anyEvent } from 'vs/base/common/event';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -343,8 +343,8 @@ export class ActiveWindowManager implements IDisposable {
 	private _activeWindowId: number;
 
 	constructor(@IWindowsService windowsService: IWindowsService) {
-		windowsService.onWindowOpen(this.setActiveWindow, this, this.disposables);
-		windowsService.onWindowFocus(this.setActiveWindow, this, this.disposables);
+		const onActiveWindowChange = latch(anyEvent(windowsService.onWindowOpen, windowsService.onWindowFocus));
+		onActiveWindowChange(this.setActiveWindow, this, this.disposables);
 	}
 
 	private setActiveWindow(windowId: number) {
