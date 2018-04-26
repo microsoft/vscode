@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { FileOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IFileSystemProvider, IStat, IWatchOptions, FileType, FileOverwriteOptions } from 'vs/platform/files/common/files';
+import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IFileSystemProvider, IStat, IWatchOptions, FileType, FileOverwriteOptions } from 'vs/platform/files/common/files';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../node/extHost.protocol';
 
@@ -94,13 +94,13 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 		});
 	}
 
-	readFile(resource: URI, opts: FileOptions): TPromise<Uint8Array, any> {
-		return this._proxy.$readFile(this._handle, resource, opts).then(encoded => {
+	readFile(resource: URI): TPromise<Uint8Array, any> {
+		return this._proxy.$readFile(this._handle, resource).then(encoded => {
 			return Buffer.from(encoded, 'base64');
 		});
 	}
 
-	writeFile(resource: URI, content: Uint8Array, opts: FileOptions): TPromise<void, any> {
+	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): TPromise<void, any> {
 		let encoded = Buffer.isBuffer(content)
 			? content.toString('base64')
 			: Buffer.from(content.buffer, content.byteOffset, content.byteLength).toString('base64');

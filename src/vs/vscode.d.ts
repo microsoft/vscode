@@ -4997,58 +4997,69 @@ declare module 'vscode' {
 
 		/**
 		 * Subscribe to events in the file or folder denoted by `uri`.
-		 * @param uri
-		 * @param options
+		 * @param uri The uri of the file to be watched.
+		 * @param options Configures the watch.
+		 * @returns A disposable that tells the provider to stop watching this `uri`.
 		 */
 		watch(uri: Uri, options: { recursive: boolean; excludes: string[] }): Disposable;
 
 		/**
-		 * Retrieve metadata about a file. Throw an [`FileNotFound`](#FileSystemError.FileNotFound)-error
-		 * in case the file does not exist.
+		 * Retrieve metadata about a file.
 		 *
 		 * @param uri The uri of the file to retrieve meta data about.
 		 * @return The file metadata about the file.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `uri` doesn't exist.
 		 */
-		stat(uri: Uri, options: { /*future: followSymlinks*/ }): FileStat | Thenable<FileStat>;
+		stat(uri: Uri): FileStat | Thenable<FileStat>;
 
 		/**
-		 * Retrieve the meta data of all entries of a [directory](#FileStat.isDirectory)
+		 * Retrieve the meta data of all entries of a [directory](#FileType.Directory)
 		 *
 		 * @param uri The uri of the folder.
-		 * @return A thenable that resolves to an array of tuples of file names and files stats.
+		 * @return An array of name/type-tuples or a thenable that resolves to such.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `uri` doesn't exist.
 		 */
-		readDirectory(uri: Uri, options: { /*future: onlyType?*/ }): [string, FileType][] | Thenable<[string, FileType][]>;
+		readDirectory(uri: Uri): [string, FileType][] | Thenable<[string, FileType][]>;
 
 		/**
 		 * Create a new directory. *Note* that new files are created via `write`-calls.
 		 *
-		 * @param uri The uri of the *new* folder.
+		 * @param uri The uri of the new folder.
+		 * @returns Metadata about the created directory or a thenable that resolves to such.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when the parent of `uri` doesn't exist.
+		 * @throws [`FileExists`](#FileSystemError.FileExists) when `uri` already exists.
 		 */
-		createDirectory(uri: Uri, options: { /*future: permissions?*/ }): FileStat | Thenable<FileStat>;
+		createDirectory(uri: Uri): FileStat | Thenable<FileStat>;
 
 		/**
 		 * Read the entire contents of a file.
 		 *
 		 * @param uri The uri of the file.
-		 * @return A thenable that resolves to an array of bytes.
+		 * @return An array of bytes or a thenable that resolves to such.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `uri` doesn't exist.
 		 */
-		readFile(uri: Uri, options: FileOptions): Uint8Array | Thenable<Uint8Array>;
+		readFile(uri: Uri): Uint8Array | Thenable<Uint8Array>;
 
 		/**
 		 * Write data to a file, replacing its entire contents.
 		 *
 		 * @param uri The uri of the file.
 		 * @param content The new content of the file.
+		 * @param options Defines is missing files should or must be created.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `uri` doesn't exist and `create` is not set.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when the parent of `uri` doesn't exist and `create` is set.
+		 * @throws [`FileExists`](#FileSystemError.FileExists) when `uri` already exists and `overwrite` is set.
 		 */
-		writeFile(uri: Uri, content: Uint8Array, options: FileOptions): void | Thenable<void>;
+		writeFile(uri: Uri, content: Uint8Array, options: { create: boolean, overwrite: boolean }): void | Thenable<void>;
 
 		/**
 		 * Delete a file.
 		 *
-		 * @param uri The resource that is to be deleted
-		 * @param options Options bag for future use
+		 * @param uri The resource that is to be deleted.
+		 * @param options Defines if deletion of folders is recursive.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `uri` doesn't exist.
 		 */
-		delete(uri: Uri, options: { /*future: useTrash?, followSymlinks?*/ }): void | Thenable<void>;
+		delete(uri: Uri, options: { recursive: boolean }): void | Thenable<void>;
 
 		/**
 		 * Rename a file or folder.
@@ -5056,8 +5067,9 @@ declare module 'vscode' {
 		 * @param oldUri The existing file or folder.
 		 * @param newUri The target location.
 		 * @param options Defines if existing files should be overwriten.
-		 * @throws [`FileNotFound`](FileSystemError.FileNotFound) when `oldUri` doesn't exist
-		 * @throws [`FileExists`](FileSystemError.FileExists) when `newUri` exists and when the `overwrite` option is not `true`.
+		 * @returns Metadata about the renamed file or a thenable that resolves to such.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `oldUri` doesn't exist.
+		 * @throws [`FileExists`](#FileSystemError.FileExists) when `newUri` exists and when the `overwrite` option is not `true`.
 		 */
 		rename(oldUri: Uri, newUri: Uri, options: { overwrite: boolean }): FileStat | Thenable<FileStat>;
 
@@ -5068,6 +5080,7 @@ declare module 'vscode' {
 		 * @param source The existing file or folder.
 		 * @param destination The destination location.
 		 * @param options Defines if existing files should be overwriten.
+		 * @returns Metadata about the copied file or a thenable that resolves to such.
 		 * @throws [`FileNotFound`](FileSystemError.FileNotFound) when `source` doesn't exist
 		 * @throws [`FileExists`](FileSystemError.FileExists) when `destination` exists and when the `overwrite` option is not `true`.
 		 */

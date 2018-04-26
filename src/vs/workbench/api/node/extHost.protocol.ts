@@ -42,7 +42,7 @@ import { ITreeItem } from 'vs/workbench/common/views';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { SerializedError } from 'vs/base/common/errors';
-import { IStat, FileChangeType, IWatchOptions, FileSystemProviderCapabilities, FileOptions, FileType, FileOverwriteOptions } from 'vs/platform/files/common/files';
+import { IStat, FileChangeType, IWatchOptions, FileSystemProviderCapabilities, FileWriteOptions, FileType, FileOverwriteOptions } from 'vs/platform/files/common/files';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { CommentRule, CharacterPair, EnterAction } from 'vs/editor/common/modes/languageConfiguration';
 import { ISingleEditOperation } from 'vs/editor/common/model';
@@ -583,8 +583,8 @@ export interface ExtHostWorkspaceShape {
 export interface ExtHostFileSystemShape {
 	$stat(handle: number, resource: UriComponents): TPromise<IStat>;
 	$readdir(handle: number, resource: UriComponents): TPromise<[string, FileType][]>;
-	$readFile(handle: number, resource: UriComponents, opts: FileOptions): TPromise<string>;
-	$writeFile(handle: number, resource: UriComponents, base64Encoded: string, opts: FileOptions): TPromise<void>;
+	$readFile(handle: number, resource: UriComponents): TPromise<string>;
+	$writeFile(handle: number, resource: UriComponents, base64Encoded: string, opts: FileWriteOptions): TPromise<void>;
 	$rename(handle: number, resource: UriComponents, target: UriComponents, opts: FileOverwriteOptions): TPromise<IStat>;
 	$copy(handle: number, resource: UriComponents, target: UriComponents, opts: FileOverwriteOptions): TPromise<IStat>;
 	$mkdir(handle: number, resource: UriComponents): TPromise<IStat>;

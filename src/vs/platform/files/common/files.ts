@@ -159,27 +159,9 @@ export interface FileOverwriteOptions {
 	overwrite: boolean;
 }
 
-export interface FileOptions {
-	/**
-	 * Create a file when it doesn't exists.
-	 */
-	create?: boolean;
-
-	/**
-	 * In combination with [`create`](FileOptions.create) but
-	 * the operation should fail when a file already exists.
-	 */
-	exclusive?: boolean;
-
-	/**
-	 * Open a file for reading.
-	 */
-	read?: boolean;
-
-	/**
-	 * Open a file for writing.
-	 */
-	write?: boolean;
+export interface FileWriteOptions {
+	overwrite: boolean;
+	create: boolean;
 }
 
 export enum FileType {
@@ -224,10 +206,10 @@ export interface IFileSystemProvider {
 	rename(from: URI, to: URI, opts: FileOverwriteOptions): TPromise<IStat>;
 	copy?(from: URI, to: URI, opts: FileOverwriteOptions): TPromise<IStat>;
 
-	readFile?(resource: URI, opts: FileOptions): TPromise<Uint8Array>;
-	writeFile?(resource: URI, content: Uint8Array, opts: FileOptions): TPromise<void>;
+	readFile?(resource: URI): TPromise<Uint8Array>;
+	writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): TPromise<void>;
 
-	open?(resource: URI, opts: FileOptions): TPromise<number>;
+	open?(resource: URI): TPromise<number>;
 	close?(fd: number): TPromise<void>;
 	read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
 	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;

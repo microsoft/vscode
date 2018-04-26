@@ -16,7 +16,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileChangesEvent, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileOptions, FileSystemProviderCapabilities, IContent, ICreateFileOptions, IFileStat, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IResolveFileOptions, IResolveFileResult, IStat, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot, IWatchOptions, FileType } from 'vs/platform/files/common/files';
+import { FileChangesEvent, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileWriteOptions, FileSystemProviderCapabilities, IContent, ICreateFileOptions, IFileStat, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IResolveFileOptions, IResolveFileResult, IStat, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot, IWatchOptions, FileType } from 'vs/platform/files/common/files';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -380,7 +380,7 @@ export class RemoteFileService extends FileService {
 					}
 				};
 
-				const readable = createReadableOfProvider(provider, resource, options.position || 0, { read: true });
+				const readable = createReadableOfProvider(provider, resource, options.position || 0);
 
 				return toDecodeStream(readable, decodeStreamOpts).then(data => {
 
@@ -414,7 +414,7 @@ export class RemoteFileService extends FileService {
 			return this._withProvider(resource).then(provider => {
 
 				const encoding = this.encoding.getWriteEncoding(resource);
-				return this._writeFile(provider, resource, new StringSnapshot(content), encoding, { write: true, create: true, exclusive: !(options && options.overwrite) });
+				return this._writeFile(provider, resource, new StringSnapshot(content), encoding, { create: true, overwrite: Boolean(options && options.overwrite) });
 
 			}).then(fileStat => {
 				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
@@ -436,12 +436,12 @@ export class RemoteFileService extends FileService {
 			}
 			return this._withProvider(resource).then(provider => {
 				const snapshot = typeof value === 'string' ? new StringSnapshot(value) : value;
-				return this._writeFile(provider, resource, snapshot, options && options.encoding, { write: true });
+				return this._writeFile(provider, resource, snapshot, options && options.encoding, { create: false, overwrite: false });
 			});
 		}
 	}
 
-	private _writeFile(provider: IFileSystemProvider, resource: URI, snapshot: ITextSnapshot, preferredEncoding: string, options: FileOptions): TPromise<IFileStat> {
+	private _writeFile(provider: IFileSystemProvider, resource: URI, snapshot: ITextSnapshot, preferredEncoding: string, options: FileWriteOptions): TPromise<IFileStat> {
 		const readable = createReadableOfSnapshot(snapshot);
 		const encoding = this.encoding.getWriteEncoding(resource, preferredEncoding);
 		const decoder = decodeStream(encoding);
@@ -592,7 +592,7 @@ export class RemoteFileService extends FileService {
 							provider, target,
 							new StringSnapshot(content.value),
 							content.encoding,
-							{ write: true, create: true, exclusive: !overwrite }
+							{ create: true, overwrite }
 						).then(fileStat => {
 							this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, fileStat));
 							return fileStat;
