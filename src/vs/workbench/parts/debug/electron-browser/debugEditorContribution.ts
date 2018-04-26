@@ -45,6 +45,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 import { memoize } from 'vs/base/common/decorators';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { getHover } from 'vs/editor/contrib/hover/getHover';
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;
@@ -57,6 +58,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	private toDispose: lifecycle.IDisposable[];
 	private hoverWidget: DebugHoverWidget;
+	private nonDebugHoverPosition: Position;
 	private hoverRange: Range;
 
 	private breakpointHintDecoration: string[];
@@ -239,6 +241,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.toDispose.push(this.editor.onMouseDown((e: IEditorMouseEvent) => this.onEditorMouseDown(e)));
 		this.toDispose.push(this.editor.onMouseMove((e: IEditorMouseEvent) => this.onEditorMouseMove(e)));
 		this.toDispose.push(this.editor.onMouseLeave((e: IEditorMouseEvent) => {
+			this.provideNonDebugHoverScheduler.cancel();
 			const hoverDomNode = this.hoverWidget.getDomNode();
 			if (!hoverDomNode) {
 				return;
@@ -332,12 +335,28 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	@memoize
 	private get showHoverScheduler(): RunOnceScheduler {
-		return new RunOnceScheduler(() => this.showHover(this.hoverRange, false), HOVER_DELAY);
+		const scheduler = new RunOnceScheduler(() => this.showHover(this.hoverRange, false), HOVER_DELAY);
+		this.toDispose.push(scheduler);
+
+		return scheduler;
 	}
 
 	@memoize
 	private get hideHoverScheduler(): RunOnceScheduler {
-		return new RunOnceScheduler(() => this.hoverWidget.hide(), HOVER_DELAY);
+		const scheduler = new RunOnceScheduler(() => this.hoverWidget.hide(), HOVER_DELAY);
+		this.toDispose.push(scheduler);
+
+		return scheduler;
+	}
+
+	@memoize
+	private get provideNonDebugHoverScheduler(): RunOnceScheduler {
+		const scheduler = new RunOnceScheduler(() => {
+			getHover(this.editor.getModel(), this.nonDebugHoverPosition);
+		}, HOVER_DELAY);
+		this.toDispose.push(scheduler);
+
+		return scheduler;
 	}
 
 	private hideHoverWidget(): void {
@@ -345,6 +364,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.hideHoverScheduler.schedule();
 		}
 		this.showHoverScheduler.cancel();
+		this.provideNonDebugHoverScheduler.cancel();
 	}
 
 	// hover business
@@ -362,6 +382,10 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			return;
 		}
 
+		if (!this.configurationService.getValue<IDebugConfiguration>('debug').enableAllHovers) {
+			this.nonDebugHoverPosition = mouseEvent.target.position;
+			this.provideNonDebugHoverScheduler.schedule();
+		}
 		const targetType = mouseEvent.target.type;
 		const stopKey = env.isMacintosh ? 'metaKey' : 'ctrlKey';
 

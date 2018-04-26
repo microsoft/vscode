@@ -205,6 +205,11 @@ configurationRegistry.registerConfiguration({
 			default: 'openOnFirstSessionStart',
 			description: nls.localize('openDebug', "Controls whether debug view should be open on debugging session start.")
 		},
+		'debug.enableAllHovers': {
+			type: 'boolean',
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'enableAllHovers' }, "Controls if the non debug hovers should be enabled while debugging. If true the hover providers will be called to provide a hover. Regular hovers will not be shown even if this setting is true."),
+			default: false
+		},
 		'launch': {
 			type: 'object',
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'launch' }, "Global debug launch configuration. Should be used as an alternative to 'launch.json' that is shared across workspaces"),
