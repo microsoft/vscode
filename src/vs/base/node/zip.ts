@@ -101,15 +101,15 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, log
 			if (isCanceled || zipfile.entryCount === extractedEntriesCount) {
 				c(null);
 			} else {
-				e(new ExtractError('Incomplete', new Error(nls.localize('incompleteExtract', "Incomplete. Extracted {0} of {1} entries", extractedEntriesCount, zipfile.entryCount))));
+				e(new ExtractError('Incomplete', new Error(nls.localize('incompleteExtract', "Incomplete. Found {0} of {1} entries", extractedEntriesCount, zipfile.entryCount))));
 			}
 		}, e));
 		zipfile.on('entry', (entry: Entry) => {
+			logService.debug(targetPath, 'Found', entry.fileName);
+
 			if (isCanceled) {
 				return;
 			}
-
-			logService.debug(targetPath, 'Extracting', entry.fileName);
 
 			if (!options.sourcePathRegex.test(entry.fileName)) {
 				extractedEntriesCount++;
@@ -131,6 +131,7 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, log
 			last = throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options).then(() => extractedEntriesCount++)));
 		});
 	}, () => {
+		logService.debug(targetPath, 'Cancelled.');
 		isCanceled = true;
 		last.cancel();
 		zipfile.close();
