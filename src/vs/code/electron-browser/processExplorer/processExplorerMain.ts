@@ -161,7 +161,7 @@ export function startup(data: ProcessExplorerData): void {
 		const tableRows = document.getElementsByTagName('tr');
 		for (let i = 0; i < tableRows.length; i++) {
 			const tableRow = tableRows[i];
-			tableRow.addEventListener('click', (e) => {
+			tableRow.addEventListener('contextmenu', (e) => {
 				showContextMenu(e);
 			});
 		}
