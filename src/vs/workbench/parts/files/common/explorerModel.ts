@@ -338,14 +338,14 @@ export class ExplorerItem {
 		if (resource && this.resource.scheme === resource.scheme && this.resource.authority === resource.authority &&
 			(isLinux ? startsWith(resource.path, this.resource.path) : startsWithIgnoreCase(resource.path, this.resource.path))
 		) {
-			return this.findByPath(resource.path, this.resource.path.length);
+			return this.findByPath(rtrim(resource.path, paths.nativeSep), this.resource.path.length);
 		}
 
 		return null; //Unable to find
 	}
 
 	private findByPath(path: string, index: number): ExplorerItem {
-		if (paths.isEqual(rtrim(this.resource.path, paths.sep), rtrim(path, paths.sep), !isLinux)) {
+		if (paths.isEqual(rtrim(this.resource.path, paths.sep), path, !isLinux)) {
 			return this;
 		}
 
