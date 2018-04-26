@@ -75,15 +75,12 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	}
 	public onFlushed(lineCount: number): void {
 		this._linesLayout.onFlushed(lineCount);
-		this._updateHeight();
 	}
 	public onLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
 		this._linesLayout.onLinesDeleted(fromLineNumber, toLineNumber);
-		this._updateHeight();
 	}
 	public onLinesInserted(fromLineNumber: number, toLineNumber: number): void {
 		this._linesLayout.onLinesInserted(fromLineNumber, toLineNumber);
-		this._updateHeight();
 	}
 
 	// ---- end view event handlers

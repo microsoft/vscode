@@ -15,5 +15,5 @@
 	"command.debug": "Debug",
 	"command.openScript": "Open",
 	"npm.scriptInvalid": "Could not find the script '{0}'. Try to refresh the view.",
-	"npm.noDebugOptions": "Could not launch '{0}' for debugging, the script needs to include the node debug options: '--nolazy --inspect-brk=port', [learn more](https://code.visualstudio.com/docs/nodejs/nodejs-debugging#_launch-configuration-support-for-npm-and-other-tools).`"
+	"npm.noDebugOptions": "Could not launch '{0}' for debugging because the scripts lacks a node debug option, e.g. '--inspect-brk'."
 }

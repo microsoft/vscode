@@ -392,7 +392,18 @@ export class Git {
 		const folderPath = path.join(parentPath, folderName);
 
 		await mkdirp(parentPath);
-		await this.exec(parentPath, ['clone', url, folderPath], { cancellationToken });
+
+		try {
+			await this.exec(parentPath, ['clone', url, folderPath], { cancellationToken });
+		} catch (err) {
+			if (err.stderr) {
+				err.stderr = err.stderr.replace(/^Cloning.+$/m, '').trim();
+				err.stderr = err.stderr.replace(/^ERROR:\s+/, '').trim();
+			}
+
+			throw err;
+		}
+
 		return folderPath;
 	}
 
@@ -1001,7 +1012,7 @@ export class Repository {
 	}
 
 	async pull(rebase?: boolean, remote?: string, branch?: string): Promise<void> {
-		const args = ['pull'];
+		const args = ['pull', '--tags'];
 
 		if (rebase) {
 			args.push('-r');
@@ -1021,7 +1032,8 @@ export class Repository {
 				err.gitErrorCode = GitErrorCodes.NoUserNameConfigured;
 			} else if (/Could not read from remote repository/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.RemoteConnectionError;
-			} else if (/Pull is not possible because you have unmerged files|Cannot pull with rebase: You have unstaged changes|Your local changes to the following files would be overwritten|Please, commit your changes before you can merge/.test(err.stderr)) {
+			} else if (/Pull is not possible because you have unmerged files|Cannot pull with rebase: You have unstaged changes|Your local changes to the following files would be overwritten|Please, commit your changes before you can merge/i.test(err.stderr)) {
+				err.stderr = err.stderr.replace(/Cannot pull with rebase: You have unstaged changes/i, 'Cannot pull with rebase, you have unstaged changes');
 				err.gitErrorCode = GitErrorCodes.DirtyWorkTree;
 			}
 

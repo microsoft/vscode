@@ -501,11 +501,32 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 	public getPreviousElementAfterRemoved(viewer: ITree, element: RenderableMatch): RenderableMatch {
 		let navigator: INavigator<any> = this.getNavigatorAt(element, viewer);
 		let previousElement = navigator.previous();
-		if (element instanceof Match && element.parent().matches().length === 1) {
-			// If this is the only match, then the file match is also removed
-			// Hence take the previous element to file match
+
+		// If this is the only match, then the file/folder match is also removed
+		// Hence take the previous element.
+		const parent = element.parent();
+		if (parent === previousElement) {
 			previousElement = navigator.previous();
 		}
+
+		if (parent instanceof FileMatch && parent.parent() === previousElement) {
+			previousElement = navigator.previous();
+		}
+
+		// If the previous element is a File or Folder, expand it and go to its last child.
+		// Spell out the two cases, would be too easy to create an infinite loop, like by adding another level...
+		if (previousElement && previousElement instanceof FolderMatch) {
+			navigator.next();
+			viewer.expand(previousElement);
+			previousElement = navigator.previous();
+		}
+
+		if (previousElement && previousElement instanceof FileMatch) {
+			navigator.next();
+			viewer.expand(previousElement);
+			previousElement = navigator.previous();
+		}
+
 		return previousElement;
 	}
 

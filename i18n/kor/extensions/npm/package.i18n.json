@@ -14,5 +14,8 @@
 	"config.npm.exclude": "자동 스크립트 검색에서 제외할 폴더에 대한 Glob 패턴을 구성합니다.",
 	"npm.parseError": "Npm 작업 검색: {0} 파일을 구문 분석하지 못했습니다.",
 	"taskdef.script": "사용자 지정할 npm 스크립트입니다.",
-	"taskdef.path": "스크립트를 제공하는 package.json 파일의 폴더에 대한 경로이며 생략할 수 있습니다."
+	"taskdef.path": "스크립트를 제공하는 package.json 파일의 폴더에 대한 경로이며 생략할 수 있습니다.",
+	"command.refresh": "새로 고침",
+	"command.debug": "디버그",
+	"command.openScript": "열기"
 }

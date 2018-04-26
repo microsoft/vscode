@@ -11,6 +11,7 @@
 	"open": "開啟設定",
 	"saveAndRetry": "儲存並重試",
 	"errorUnknownKey": "因為 {1} 非已註冊的組態，所以無法寫入至 {0}。",
+	"errorInvalidWorkspaceConfigurationApplication": "無法寫入 {0} 至工作區設定。此設定只能寫入使用者設定中。",
 	"errorInvalidFolderConfiguration": "因為 {0} 不支援資料夾資源範圍，所以無法寫入至資料夾設定。",
 	"errorInvalidUserTarget": "因為 {0} 不支援全域範圍，所以無法寫入至使用者設定。",
 	"errorInvalidWorkspaceTarget": "因為 {0} 不支援多資料夾工作區中使用工作區範圍，所以無法寫入工作區設定。",

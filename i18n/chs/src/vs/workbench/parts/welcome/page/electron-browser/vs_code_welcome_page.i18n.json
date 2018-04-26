@@ -27,7 +27,7 @@
 	"welcomePage.installExtensionPacks": "工具和语言",
 	"welcomePage.installExtensionPacksDescription": "安装对 {0} 和 {1} 的支持",
 	"welcomePage.moreExtensions": "更多",
-	"welcomePage.installKeymapDescription": "设置与按键绑定",
+	"welcomePage.installKeymapDescription": "设置和按键绑定",
 	"welcomePage.installKeymapExtension": "安装 {0} 和 {1} 的设置和快捷键",
 	"welcomePage.others": "其他",
 	"welcomePage.colorTheme": "颜色主题",

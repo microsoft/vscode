@@ -22,7 +22,6 @@
 	"showVersions": "使用 --list-extension 時，顯示安裝的擴充功能版本。",
 	"installExtension": "安裝擴充功能。",
 	"uninstallExtension": "解除安裝擴充功能。",
-	"experimentalApis": "為延伸模組啟用建議的 API 功能。",
 	"verbose": "列印詳細資訊輸出 (表示 --wait)。",
 	"log": "使用的日誌級別。預設為\"訊息\"。允許的值是 \"關鍵\"、\"錯誤\"、\"警告\"、\"訊息\"、\"偵錯\"、\"追蹤\"、\"關閉\"。",
 	"status": "列印進程使用方式和診斷資訊。",

@@ -85,14 +85,15 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			// It's the first instance so it should be made active automatically
 			this.setActiveInstanceByIndex(0);
 		}
-		this._onInstanceCreated.fire(instance);
 		this._onInstancesChanged.fire();
 		this._suggestShellChange(wasNewTerminalAction);
 		return instance;
 	}
 
 	public createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance {
-		return this._instantiationService.createInstance(TerminalInstance, terminalFocusContextKey, configHelper, container, shellLaunchConfig, true);
+		const instance = this._instantiationService.createInstance(TerminalInstance, terminalFocusContextKey, configHelper, container, shellLaunchConfig, true);
+		this._onInstanceCreated.fire(instance);
+		return instance;
 	}
 
 	public requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): void {

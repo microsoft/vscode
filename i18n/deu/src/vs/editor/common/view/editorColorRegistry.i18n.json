@@ -16,6 +16,7 @@
 	"editorIndentGuides": "Farbe der Führungslinien für Einzüge im Editor.",
 	"editorLineNumbers": "Zeilennummernfarbe im Editor.",
 	"editorActiveLineNumber": "Zeilennummernfarbe der aktiven Editorzeile.",
+	"deprecatedEditorActiveLineNumber": "ID ist veraltet. Verwenden Sie stattdessen \"editorLineNumber.activeForeground\".",
 	"editorRuler": "Farbe des Editor-Lineals.",
 	"editorCodeLensForeground": "Vordergrundfarbe der CodeLens-Links im Editor",
 	"editorBracketMatchBackground": "Hintergrundfarbe für zusammengehörige Klammern",

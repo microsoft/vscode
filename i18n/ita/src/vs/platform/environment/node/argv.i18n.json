@@ -22,7 +22,6 @@
 	"showVersions": "Mostra le versioni delle estensioni installate, quando si usa --list-extension.",
 	"installExtension": "Installa un'estensione.",
 	"uninstallExtension": "Disinstalla un'estensione.",
-	"experimentalApis": "Abilita funzionalità di API proposte per un'estensione specifica.",
 	"verbose": "Visualizza l'output dettagliato (implica --wait).",
 	"log": "Livello di logging da utilizzare. Il valore predefinito è 'info'. I valori consentiti sono 'critical, 'error', 'warn', 'info', 'debug', 'trace', 'off'.",
 	"status": "Stampare le informazioni di utilizzo e diagnostica di processo.",

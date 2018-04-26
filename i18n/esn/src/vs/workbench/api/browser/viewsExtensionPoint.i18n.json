@@ -13,8 +13,7 @@
 	"vscode.extension.contributes.view.name": "Nombre de la vista en lenguaje natural. Será mostrado",
 	"vscode.extension.contributes.view.when": "Condición que se debe cumplir para mostrar esta vista",
 	"vscode.extension.contributes.views": "Aporta vistas al editor",
-	"views.explorer": "Vista del explorador",
-	"views.debug": "Vista de depuración",
+	"views.explorer": "Aporta vistas al contenedor del explorador en la barra de actividades",
 	"duplicateView1": "No se pueden registrar múltiples vistas con el mismo identificador '{0}' en la ubicación '{1}'",
 	"duplicateView2": "Una vista con el identificador '{0}' ya está registrada en la ubicación '{1}'"
 }

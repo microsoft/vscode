@@ -228,7 +228,7 @@ const schema: IJSONSchema = {
 					},
 					{
 						label: 'onUri',
-						body: 'onView',
+						body: 'onUri',
 						description: nls.localize('vscode.extension.activationEvents.onUri', 'An activation event emitted whenever a system-wide Uri directed towards this extension is open.'),
 					},
 					{

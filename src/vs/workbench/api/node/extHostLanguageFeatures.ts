@@ -1105,9 +1105,9 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	// --- rename
 
-	registerRenameProvider(selector: vscode.DocumentSelector, provider: vscode.RenameProvider, canUseProposedApi = false): vscode.Disposable {
+	registerRenameProvider(selector: vscode.DocumentSelector, provider: vscode.RenameProvider): vscode.Disposable {
 		const handle = this._addNewAdapter(new RenameAdapter(this._documents, provider));
-		this._proxy.$registerRenameSupport(handle, this._transformDocumentSelector(selector), canUseProposedApi && RenameAdapter.supportsResolving(provider));
+		this._proxy.$registerRenameSupport(handle, this._transformDocumentSelector(selector), RenameAdapter.supportsResolving(provider));
 		return this._createDisposable(handle);
 	}
 
@@ -1116,7 +1116,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	}
 
 	$resolveRenameLocation(handle: number, resource: URI, position: IPosition): TPromise<modes.RenameLocation> {
-		return this._withAdapter(handle, RenameAdapter, adapter => adapter.resolveRenameLocation(resource, position));
+		return this._withAdapter(handle, RenameAdapter, adapter => adapter.resolveRenameLocation(URI.revive(resource), position));
 	}
 
 	// --- suggestion

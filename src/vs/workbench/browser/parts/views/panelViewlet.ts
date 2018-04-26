@@ -46,6 +46,9 @@ export abstract class ViewletPanel extends Panel {
 	private _onDidFocus = new Emitter<void>();
 	readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
+	private _onDidChangeTitleArea = new Emitter<void>();
+	readonly onDidChangeTitleArea: Event<void> = this._onDidChangeTitleArea.event;
+
 	protected actionRunner: IActionRunner;
 	protected toolbar: ToolBar;
 	private headerContainer: HTMLElement;
@@ -103,6 +106,7 @@ export abstract class ViewletPanel extends Panel {
 	protected updateActions(): void {
 		this.toolbar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
 		this.toolbar.context = this.getActionsContext();
+		this._onDidChangeTitleArea.fire();
 	}
 
 	protected updateActionsVisibility(): void {
@@ -221,6 +225,14 @@ export class PanelViewlet extends Viewlet {
 		return [];
 	}
 
+	getActionItem(action: IAction): IActionItem {
+		if (this.isSingleView()) {
+			return this.panelItems[0].panel.getActionItem(action);
+		}
+
+		return super.getActionItem(action);
+	}
+
 	focus(): void {
 		super.focus();
 
@@ -263,6 +275,11 @@ export class PanelViewlet extends Viewlet {
 	private addPanel(panel: ViewletPanel, size: number, index = this.panelItems.length - 1): void {
 		const disposables: IDisposable[] = [];
 		const onDidFocus = panel.onDidFocus(() => this.lastFocusedPanel = panel, null, disposables);
+		const onDidChangeTitleArea = panel.onDidChangeTitleArea(() => {
+			if (this.isSingleView()) {
+				this.updateTitleArea();
+			}
+		}, null, disposables);
 		const onDidChange = panel.onDidChange(() => {
 			if (panel === this.lastFocusedPanel && !panel.isExpanded()) {
 				this.lastFocusedPanel = undefined;
@@ -275,7 +292,7 @@ export class PanelViewlet extends Viewlet {
 			headerHighContrastBorder: index === 0 ? null : contrastBorder,
 			dropBackground: SIDE_BAR_DRAG_AND_DROP_BACKGROUND
 		}, panel);
-		const disposable = combinedDisposable([onDidFocus, panelStyler, onDidChange]);
+		const disposable = combinedDisposable([onDidFocus, onDidChangeTitleArea, panelStyler, onDidChange]);
 		const panelItem: IViewletPanelItem = { panel, disposable };
 
 		this.panelItems.splice(index, 0, panelItem);

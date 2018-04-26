@@ -13,5 +13,6 @@
 	"refactor.label": "Refactorizar...",
 	"editor.action.refactor.noneMessage": "No hay refactorizaciones disponibles",
 	"source.label": "Acción de la fuente...",
-	"editor.action.source.noneMessage": "No hay acciones de fuente disponibles"
+	"editor.action.source.noneMessage": "No hay acciones de fuente disponibles",
+	"organizeImports.label": "Organizar Importaciones"
 }

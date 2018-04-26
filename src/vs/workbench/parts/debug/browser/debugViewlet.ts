@@ -89,10 +89,7 @@ export class DebugViewlet extends PersistentViewsViewlet {
 
 	public getActionItem(action: IAction): IActionItem {
 		if (action.id === StartAction.ID) {
-			if (!this.startDebugActionItem) {
-				this.startDebugActionItem = this._register(this.instantiationService.createInstance(StartDebugActionItem, null, action));
-			}
-
+			this.startDebugActionItem = this.instantiationService.createInstance(StartDebugActionItem, null, action);
 			return this.startDebugActionItem;
 		}
 

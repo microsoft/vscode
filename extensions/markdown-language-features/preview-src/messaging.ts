@@ -5,15 +5,17 @@
 
 import { getSettings } from './settings';
 
+declare var vscode: any;
+
 /**
  * Post a message to the markdown extension
  */
 export function postMessage(type: string, body: object) {
-	window.parent.postMessage({
+	vscode.postMessage({
 		type,
 		source: getSettings().source,
 		body
-	}, '*');
+	});
 }
 
 /**

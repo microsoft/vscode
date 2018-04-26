@@ -22,7 +22,6 @@
 	"showVersions": "--list-extensions'u kullanırken, yüklü eklentilerin sürümlerini gösterir.",
 	"installExtension": "Bir eklenti yükler.",
 	"uninstallExtension": "Bir eklentiyi kaldırır.",
-	"experimentalApis": "Bir eklenti için önerilen API özelliklerini etkinleştirir.",
 	"verbose": "Ayrıntılı çıktı oluştur (--wait anlamına gelir).",
 	"log": "Kullanılacak günlüğe yazma düzeyi. Varsayılan değer 'info'dur. İzin verilen değerler 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off' şeklindedir.",
 	"status": "İşlem kullanımını ve tanılama bilgilerini yazdır.",

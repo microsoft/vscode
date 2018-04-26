@@ -45,6 +45,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as vscode from 'vscode';
 import * as paths from 'vs/base/common/paths';
+import * as files from 'vs/platform/files/common/files';
 import { MainContext, ExtHostContext, IInitData, IExtHostContext } from './extHost.protocol';
 import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
@@ -240,7 +241,6 @@ export function createApiFactory(
 				return extHostDiagnostics.createDiagnosticCollection(name);
 			},
 			get onDidChangeDiagnostics() {
-				checkProposedApiEnabled(extension);
 				return extHostDiagnostics.onDidChangeDiagnostics;
 			},
 			getDiagnostics: (resource?) => {
@@ -277,7 +277,7 @@ export function createApiFactory(
 				return extHostLanguageFeatures.registerReferenceProvider(checkSelector(selector), provider);
 			},
 			registerRenameProvider(selector: vscode.DocumentSelector, provider: vscode.RenameProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerRenameProvider(checkSelector(selector), provider, extension.enableProposedApi);
+				return extHostLanguageFeatures.registerRenameProvider(checkSelector(selector), provider);
 			},
 			registerDocumentSymbolProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerDocumentSymbolProvider(checkSelector(selector), provider);
@@ -701,6 +701,7 @@ export function createApiFactory(
 			DeprecatedFileChangeType: extHostTypes.DeprecatedFileChangeType,
 			DeprecatedFileType: extHostTypes.DeprecatedFileType,
 			FileChangeType: extHostTypes.FileChangeType,
+			FileType: files.FileType,
 			FileSystemError: extHostTypes.FileSystemError,
 			FoldingRange: extHostTypes.FoldingRange,
 			FoldingRangeKind: extHostTypes.FoldingRangeKind

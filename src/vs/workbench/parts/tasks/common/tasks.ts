@@ -7,13 +7,11 @@
 import * as Types from 'vs/base/common/types';
 import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import * as Objects from 'vs/base/common/objects';
-import { generateUuid } from 'vs/base/common/uuid';
 import { UriComponents } from 'vs/base/common/uri';
 
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ProblemMatcher } from 'vs/workbench/parts/tasks/common/problemMatcher';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-
 
 export enum ShellQuoting {
 	/**
@@ -445,20 +443,18 @@ export namespace CustomTask {
 		return candidate && candidate.type === 'custom';
 	}
 	export function getDefinition(task: CustomTask): TaskIdentifier {
-		if (task.command === void 0) {
-			return undefined;
-		}
-		if (task.command.runtime === RuntimeType.Shell) {
-			return {
-				_key: generateUuid(),
-				type: 'shell'
-			};
+		let type: string;
+		if (task.command !== void 0) {
+			type = task.command.runtime === RuntimeType.Shell ? 'shell' : 'process';
 		} else {
-			return {
-				_key: generateUuid(),
-				type: 'process'
-			};
+			type = '$composite';
 		}
+		let result: TaskIdentifier = {
+			type,
+			_key: task._id,
+			id: task._id
+		};
+		return result;
 	}
 }
 
@@ -617,7 +613,7 @@ export namespace Task {
 	export function getTaskDefinition(task: Task): TaskIdentifier {
 		if (ContributedTask.is(task)) {
 			return task.defines;
-		} else if (CustomTask.is(task) && task.command !== void 0) {
+		} else if (CustomTask.is(task)) {
 			return CustomTask.getDefinition(task);
 		} else {
 			return undefined;

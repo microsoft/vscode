@@ -16,7 +16,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileChangesEvent, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileOptions, FileSystemProviderCapabilities, IContent, ICreateFileOptions, IFileStat, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IResolveFileOptions, IResolveFileResult, IStat, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot } from 'vs/platform/files/common/files';
+import { FileChangesEvent, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileOptions, FileSystemProviderCapabilities, IContent, ICreateFileOptions, IFileStat, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IResolveFileOptions, IResolveFileResult, IStat, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot, IWatchOptions, FileType } from 'vs/platform/files/common/files';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -25,13 +25,26 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
 import { createReadableOfProvider, createReadableOfSnapshot, createWritableOfProvider } from 'vs/workbench/services/files/electron-browser/streams';
 
+class TypeOnlyStat implements IStat {
+
+	constructor(readonly type: FileType) {
+		//
+	}
+
+	// todo@remote -> make a getter and warn when
+	// being used in development.
+	mtime: number = 0;
+	ctime: number = 0;
+	size: number = 0;
+}
+
 function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse?: (tuple: [URI, IStat]) => boolean): TPromise<IFileStat> {
 	const [resource, stat] = tuple;
 	const fileStat: IFileStat = {
 		resource,
 		name: posix.basename(resource.path),
-		isDirectory: stat.isDirectory,
-		isSymbolicLink: stat.isSymbolicLink,
+		isDirectory: (stat.type & FileType.Directory) !== 0,
+		isSymbolicLink: (stat.type & FileType.SymbolicLink) !== 0,
 		mtime: stat.mtime,
 		size: stat.size,
 		etag: stat.mtime.toString(29) + stat.size.toString(31),
@@ -43,9 +56,9 @@ function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse
 			return provider.readdir(resource).then(entries => {
 				// resolve children if requested
 				return TPromise.join(entries.map(tuple => {
-					const [name, stat] = tuple;
+					const [name, type] = tuple;
 					const childResource = resource.with({ path: posix.join(resource.path, name) });
-					return toIFileStat(provider, [childResource, stat], recurse);
+					return toIFileStat(provider, [childResource, new TypeOnlyStat(type)], recurse);
 				})).then(children => {
 					fileStat.children = children;
 					return fileStat;
@@ -117,17 +130,17 @@ class WorkspaceWatchLogic {
 	}
 
 	private _watchWorkspace(resource: URI) {
-		let exclude: string[] = [];
+		let excludes: string[] = [];
 		let config = this._configurationService.getValue<IFilesConfiguration>({ resource });
 		if (config.files && config.files.watcherExclude) {
 			for (const key in config.files.watcherExclude) {
 				if (config.files.watcherExclude[key] === true) {
-					exclude.push(key);
+					excludes.push(key);
 				}
 			}
 		}
 		this._watches.set(resource.toString(), resource);
-		this._fileService.watchFileChanges(resource, { recursive: true, exclude });
+		this._fileService.watchFileChanges(resource, { recursive: true, excludes });
 	}
 
 	private _unwatchWorkspace(resource: URI) {
@@ -599,9 +612,13 @@ export class RemoteFileService extends FileService {
 
 	private _activeWatches = new Map<string, { unwatch: Thenable<IDisposable>, count: number }>();
 
-	public watchFileChanges(resource: URI, opts: { recursive?: boolean, exclude?: string[] } = {}): void {
+	public watchFileChanges(resource: URI, opts?: IWatchOptions): void {
 		if (resource.scheme === Schemas.file) {
 			return super.watchFileChanges(resource);
+		}
+
+		if (!opts) {
+			opts = { recursive: false, excludes: [] };
 		}
 
 		const key = resource.toString();

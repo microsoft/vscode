@@ -255,8 +255,9 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		tags['workspace.roots'] = isEmpty ? 0 : workspace.folders.length;
 		tags['workspace.empty'] = isEmpty;
 
-		const folders = !isEmpty ? workspace.folders.map(folder => folder.uri) : this.environmentService.appQuality !== 'stable' && this.findFolders(configuration);
+		let folders = !isEmpty ? workspace.folders.map(folder => folder.uri) : this.environmentService.appQuality !== 'stable' && this.findFolders(configuration);
 		if (folders && folders.length && this.fileService) {
+			folders = folders.filter(x => x.scheme === 'file');
 			//return
 			const files: IResolveFileResult[] = await this.fileService.resolveFiles(folders.map(resource => ({ resource })));
 			const names = (<IFileStat[]>[]).concat(...files.map(result => result.success ? (result.stat.children || []) : [])).map(c => c.name);

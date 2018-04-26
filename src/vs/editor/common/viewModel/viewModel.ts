@@ -124,6 +124,7 @@ export interface IViewModel {
 
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
 	getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
+	getViewLineData(lineNumber: number): ViewLineData;
 	getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): MinimapLinesRenderingData;
 	getCompletelyVisibleViewRange(): Range;
 	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
@@ -147,7 +148,7 @@ export interface IViewModel {
 
 	deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
 	getEOL(): string;
-	getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean): string | string[];
+	getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[];
 	getHTMLToCopy(ranges: Range[], emptySelectionClipboard: boolean): string;
 }
 

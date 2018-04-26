@@ -10,7 +10,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ServicesAccessor, registerEditorAction, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, CONTEXT_DEBUG_STATE, State, REPL_ID, VIEWLET_ID, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, CONTEXT_DEBUG_STATE, State, REPL_ID, VIEWLET_ID, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, IBreakpoint } from 'vs/workbench/parts/debug/common/debug';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -74,8 +74,8 @@ class LogPointAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.debug.action.toggleLogPoint',
-			label: nls.localize('logPointEditorAction', "Debug: Add Log Point..."),
-			alias: 'Debug: Add Log Point...',
+			label: nls.localize('logPointEditorAction', "Debug: Add Logpoint..."),
+			alias: 'Debug: Add Logpoint...',
 			precondition: null
 		});
 	}
@@ -107,26 +107,27 @@ class RunToCursorAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
 		const debugService = accessor.get(IDebugService);
-
 		if (debugService.state !== State.Stopped) {
 			return TPromise.as(null);
 		}
-		const position = editor.getPosition();
-		const uri = editor.getModel().uri;
 
+		let breakpointToRemove: IBreakpoint;
 		const oneTimeListener = debugService.getViewModel().focusedProcess.session.onDidEvent(event => {
 			if (event.event === 'stopped' || event.event === 'exit') {
-				const toRemove = debugService.getModel().getBreakpoints()
-					.filter(bp => bp.lineNumber === position.lineNumber && bp.uri.toString() === uri.toString()).pop();
-				if (toRemove) {
-					debugService.removeBreakpoints(toRemove.getId());
+				if (breakpointToRemove) {
+					debugService.removeBreakpoints(breakpointToRemove.getId());
 				}
 				oneTimeListener.dispose();
 			}
 		});
 
+		const position = editor.getPosition();
+		const uri = editor.getModel().uri;
 		const bpExists = !!(debugService.getModel().getBreakpoints().filter(bp => bp.column === position.column && bp.lineNumber === position.lineNumber && bp.uri.toString() === uri.toString()).pop());
-		return (bpExists ? TPromise.as(null) : debugService.addBreakpoints(uri, [{ lineNumber: position.lineNumber, column: position.column }])).then(() => {
+		return (bpExists ? TPromise.as(null) : debugService.addBreakpoints(uri, [{ lineNumber: position.lineNumber, column: position.column }])).then((breakpoints) => {
+			if (breakpoints && breakpoints.length) {
+				breakpointToRemove = breakpoints[0];
+			}
 			debugService.getViewModel().focusedThread.continue();
 		});
 	}

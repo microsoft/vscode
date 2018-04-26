@@ -28,7 +28,7 @@
 	"terminal.integrated.setLocaleVariables": "Meghatározza, hogy a lokálváltozók be vannak-e állítva a terminál indításánál. Alapértelmezett értéke igaz OS X-en, hamis más platformokon.",
 	"terminal.integrated.rightClickBehavior": "Meghatározza, hogy a terminál hogyan reagál a jobb kattintásra. Lehetséges értékek: 'default', 'copyPaste' és 'selectWord'. 'default' esetén megjelenik a helyi menü, 'copyPaste' esetén másolja a kijelölt szöveget, ha van, egyébként beilleszt, 'selectWord' esetén pedig kijelöli a kurzor alatti szót és megjeleníti a helyi menüt.",
 	"terminal.integrated.cwd": "Explicit elérési út, ahol a terminál indítva lesz. Ez a shellfolyamat munkakönyvtára (cwd) lesz. Ez a beállítás nagyon hasznos olyan munkaterületeken, ahol a gyökérkönyvtár nem felel meg munkakönyvtárnak.",
-	"terminal.integrated.confirmOnExit": "Meghatározza, hogy megerősítést kér-e az alkalamzás, ha van aktív terminál-munkafolyamat.",
+	"terminal.integrated.confirmOnExit": "Az alkalmazás kérjen-e megerősítést kilépéskor, ha van aktív terminál-munkafolyamat.",
 	"terminal.integrated.enableBell": "Meghatározza, hogy engedélyezve van-e a csengő a terminálba.",
 	"terminal.integrated.commandsToSkipShell": "Olyan parancsazonosítók listája, melyek nem lesznek elküldve a shellnek, és ehelyett mindig a Code kezeli le őket. Ez lehetővé teszi, hogy az olyan billentyűparancsok, melyeket normál esetben a shell dolgozna fel, ugyanúgy működjenek, mint mikor a terminálon nincs fókusz. Például ilyen a gyorsmegnyitás indításához használt Ctrl+P.",
 	"terminal.integrated.env.osx": "A VS Code folyamatához hozzáadott környezeti változókat tartalmazó objektum, amit az OS X-es terminál használ.",

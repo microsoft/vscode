@@ -258,6 +258,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 			checkboxList.filter(value);
 		});
 		this.toUnbind.push(inputBox.onKeyDown(event => {
+			if (!checkboxList.isDisplayed()) {
+				return;
+			}
 			switch (event.keyCode) {
 				case KeyCode.DownArrow:
 					checkboxList.focus('First');
@@ -488,7 +491,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 	protected updateStyles() {
 		const theme = this.themeService.getTheme();
-		if (this.ui.inputBox) {
+		if (this.ui) {
 			this.ui.inputBox.style(theme);
 		}
 		if (this.container) {

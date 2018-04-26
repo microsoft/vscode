@@ -25,5 +25,6 @@
 	"peekViewEditorBackground": "ピーク ビュー エディターの背景色。",
 	"peekViewEditorGutterBackground": "ピーク ビュー エディターの余白の背景色。",
 	"peekViewResultsMatchHighlight": "ピーク ビュー結果リストの一致した強調表示色。",
-	"peekViewEditorMatchHighlight": "ピーク ビュー エディターの一致した強調表示色。"
+	"peekViewEditorMatchHighlight": "ピーク ビュー エディターの一致した強調表示色。",
+	"peekViewEditorMatchHighlightBorder": "ピーク ビュー エディターの一致した強調境界色。"
 }

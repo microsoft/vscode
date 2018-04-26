@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { FileOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IFileSystemProvider, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { FileOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IFileSystemProvider, IStat, IWatchOptions, FileType } from 'vs/platform/files/common/files';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../node/extHost.protocol';
 
@@ -115,7 +115,7 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 		return this._proxy.$mkdir(this._handle, resource);
 	}
 
-	readdir(resource: URI): TPromise<[string, IStat][], any> {
+	readdir(resource: URI): TPromise<[string, FileType][], any> {
 		return this._proxy.$readdir(this._handle, resource);
 	}
 

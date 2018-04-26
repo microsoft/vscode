@@ -21,6 +21,7 @@
 	"disconnectDebug": "切断",
 	"continueDebug": "続行",
 	"pauseDebug": "一時停止",
+	"terminateThread": "スレッドを終了",
 	"restartFrame": "フレームの再起動",
 	"removeBreakpoint": "ブレークポイントの削除",
 	"removeAllBreakpoints": "すべてのブレークポイントを削除する",

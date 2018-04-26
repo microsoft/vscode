@@ -15,7 +15,7 @@
 	"markers.panel.aria.label.problems.tree": "Problèmes regroupés par fichiers",
 	"markers.panel.no.problems.build": "Aucun problème n'a été détecté dans l'espace de travail jusqu'à présent.",
 	"markers.panel.no.problems.filters": "Aucun résultat trouvé avec les critères de filtre fourni.",
-	"markers.panel.no.problems.file.exclusions": "Tous les problèmes sont masqués car le filtre d'exclusion de fichiers est activé.",
+	"markers.panel.no.problems.file.exclusions": "Tous les problèmes sont cachés parce que le filtre d’exclusion de fichiers est activé.",
 	"markers.panel.action.useFilesExclude": "Filtrer en utilisant le paramètre d’exclusion de fichiers",
 	"markers.panel.action.donotUseFilesExclude": "Ne pas utiliser le paramètre d’exclusion de fichiers",
 	"markers.panel.action.filter": "Filtrer les problèmes",

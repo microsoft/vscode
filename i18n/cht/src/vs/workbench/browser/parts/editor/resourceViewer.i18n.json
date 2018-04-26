@@ -12,6 +12,7 @@
 	"sizeGB": "{0}GB",
 	"sizeTB": "{0}TB",
 	"resourceOpenExternalButton": "要使用外部程式打開影像嗎?",
+	"openAsText": "是否確定要開啟?",
 	"zoom.action.fit.label": "整個影像",
 	"imgMeta": "{0}x{1} {2}"
 }

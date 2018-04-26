@@ -9,5 +9,6 @@
 	"fileNotFoundError": "Archivo no encontrado ({0})",
 	"fileIsDirectoryError": "El archivo es un directorio",
 	"fileNotModifiedError": "Archivo no modificado desde",
-	"fileBinaryError": "El archivo parece ser binario y no se puede abrir como texto"
+	"fileBinaryError": "El archivo parece ser binario y no se puede abrir como texto",
+	"err.create": "No se pudo crear el archivo {0}"
 }
