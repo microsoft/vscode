@@ -240,7 +240,12 @@ export class RemoteFileService extends FileService {
 			case 'EntryIsADirectory':
 				res = FileOperationResult.FILE_IS_DIRECTORY;
 				break;
+			case 'NoPermissions':
+				res = FileOperationResult.FILE_PERMISSION_DENIED;
+				break;
 			case 'EntryExists':
+				res = FileOperationResult.FILE_MOVE_CONFLICT;
+				break;
 			case 'EntryNotADirectory':
 			default:
 				// todo

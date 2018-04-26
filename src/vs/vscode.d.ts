@@ -4854,17 +4854,14 @@ declare module 'vscode' {
 		 * to a file.
 		 */
 		type: FileType;
-
 		/**
-		 * The creation timestamp in milliseconds.
+		 * The creation timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
 		 */
 		ctime: number;
-
 		/**
-		 * The modification timestamp in milliseconds.
+		 * The modification timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
 		 */
 		mtime: number;
-
 		/**
 		 * The size in bytes.
 		 */
@@ -4903,6 +4900,12 @@ declare module 'vscode' {
 		 * @param messageOrUri Message or uri.
 		 */
 		static FileIsADirectory(messageOrUri?: string | Uri): FileSystemError;
+
+		/**
+		 * Create an error to signal that an operation lacks required permissions.
+		 * @param messageOrUri Message or uri.
+		 */
+		static NoPermissions(messageOrUri?: string | Uri): FileSystemError;
 
 		/**
 		 * Creates a new filesystem error.
@@ -5043,6 +5046,7 @@ declare module 'vscode' {
 		 * @param options Defines if existing files should be overwriten.
 		 * @returns Metadata about the renamed file or a thenable that resolves to such.
 		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `oldUri` doesn't exist.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when parent of `newUri` doesn't exist
 		 * @throws [`FileExists`](#FileSystemError.FileExists) when `newUri` exists and when the `overwrite` option is not `true`.
 		 */
 		rename(oldUri: Uri, newUri: Uri, options: { overwrite: boolean }): FileStat | Thenable<FileStat>;
@@ -5055,8 +5059,9 @@ declare module 'vscode' {
 		 * @param destination The destination location.
 		 * @param options Defines if existing files should be overwriten.
 		 * @returns Metadata about the copied file or a thenable that resolves to such.
-		 * @throws [`FileNotFound`](FileSystemError.FileNotFound) when `source` doesn't exist
-		 * @throws [`FileExists`](FileSystemError.FileExists) when `destination` exists and when the `overwrite` option is not `true`.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `source` doesn't exist
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when parent of `destination` doesn't exist
+		 * @throws [`FileExists`](#FileSystemError.FileExists) when `destination` exists and when the `overwrite` option is not `true`.
 		 */
 		copy?(source: Uri, destination: Uri, options: { overwrite: boolean }): FileStat | Thenable<FileStat>;
 	}
