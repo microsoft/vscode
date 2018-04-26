@@ -351,6 +351,7 @@ export interface IDebugConfiguration {
 	showInStatusBar: 'never' | 'always' | 'onFirstSessionStart';
 	internalConsoleOptions: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
 	extensionHostDebugAdapter: boolean;
+	hideNonDebugHovers: boolean;
 }
 
 export interface IGlobalConfig {

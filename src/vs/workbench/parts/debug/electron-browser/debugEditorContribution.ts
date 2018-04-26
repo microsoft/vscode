@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as errors from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { RunOnceScheduler, asWinJsPromise } from 'vs/base/common/async';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import * as env from 'vs/base/common/platform';
 import uri from 'vs/base/common/uri';
@@ -16,7 +16,7 @@ import { Constants } from 'vs/editor/common/core/uint';
 import { IAction, Action } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { StandardTokenType } from 'vs/editor/common/modes';
+import { StandardTokenType, HoverProviderRegistry } from 'vs/editor/common/modes';
 import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/model/wordHelper';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -57,6 +57,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	private toDispose: lifecycle.IDisposable[];
 	private hoverWidget: DebugHoverWidget;
+	private nonDebugHoverPosition: Position;
 	private hoverRange: Range;
 
 	private breakpointHintDecoration: string[];
@@ -340,6 +341,17 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		return new RunOnceScheduler(() => this.hoverWidget.hide(), HOVER_DELAY);
 	}
 
+	@memoize
+	private get provideNonDebugHoverScheduler(): RunOnceScheduler {
+		return new RunOnceScheduler(() => {
+			const model = this.editor.getModel();
+			const supports = HoverProviderRegistry.ordered(model);
+			TPromise.join(supports.map(s =>
+				asWinJsPromise(token => s.provideHover(model, this.nonDebugHoverPosition, token)))
+			).done(undefined, errors.onUnexpectedError);
+		}, HOVER_DELAY);
+	}
+
 	private hideHoverWidget(): void {
 		if (!this.hideHoverScheduler.isScheduled() && this.hoverWidget.isVisible()) {
 			this.hideHoverScheduler.schedule();
@@ -362,6 +374,10 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			return;
 		}
 
+		if (!this.configurationService.getValue<IDebugConfiguration>('debug').hideNonDebugHovers) {
+			this.nonDebugHoverPosition = mouseEvent.target.position;
+			this.provideNonDebugHoverScheduler.schedule();
+		}
 		const targetType = mouseEvent.target.type;
 		const stopKey = env.isMacintosh ? 'metaKey' : 'ctrlKey';
 
