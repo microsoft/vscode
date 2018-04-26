@@ -589,8 +589,8 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 			.sort((a, b) => {
 				const viewStateA = this.viewsStates.get(a.id);
 				const viewStateB = this.viewsStates.get(b.id);
-				const orderA = viewStateA ? viewStateA.order : a.order;
-				const orderB = viewStateB ? viewStateB.order : b.order;
+				const orderA = viewStateA && typeof viewStateA.order === 'number' ? viewStateA.order : a.order;
+				const orderB = viewStateB && typeof viewStateB.order === 'number' ? viewStateB.order : b.order;
 
 				if (isUndefinedOrNull(orderB)) {
 					return -1;
