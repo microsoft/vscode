@@ -516,8 +516,8 @@ export class RemoteFileService extends FileService {
 			return super.createFolder(resource);
 		} else {
 			return this._withProvider(resource).then(provider => {
-				return provider.mkdir(resource).then(stat => {
-					return toIFileStat(provider, [resource, stat]);
+				return provider.mkdir(resource).then(() => {
+					return this.resolveFile(resource);
 				});
 			}).then(fileStat => {
 				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
@@ -552,8 +552,8 @@ export class RemoteFileService extends FileService {
 			: TPromise.as(null);
 
 		return prepare.then(() => this._withProvider(source)).then(provider => {
-			return provider.rename(source, target, { overwrite }).then(stat => {
-				return toIFileStat(provider, [target, stat]);
+			return provider.rename(source, target, { overwrite }).then(() => {
+				return this.resolveFile(target);
 			}).then(fileStat => {
 				this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.MOVE, fileStat));
 				return fileStat;
@@ -587,8 +587,8 @@ export class RemoteFileService extends FileService {
 
 			if (source.scheme === target.scheme && (provider.capabilities & FileSystemProviderCapabilities.FileFolderCopy)) {
 				// good: provider supports copy withing scheme
-				return provider.copy(source, target, { overwrite }).then(stat => {
-					return toIFileStat(provider, [target, stat]);
+				return provider.copy(source, target, { overwrite }).then(() => {
+					return this.resolveFile(target);
 				}).then(fileStat => {
 					this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, fileStat));
 					return fileStat;

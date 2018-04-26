@@ -78,8 +78,8 @@ class FileSystemProviderShim implements vscode.FileSystemProvider {
 	stat(resource: vscode.Uri): Thenable<vscode.FileStat> {
 		return this._delegate.stat(resource).then(stat => FileSystemProviderShim._modernizeFileStat(stat));
 	}
-	rename(oldUri: vscode.Uri, newUri: vscode.Uri): Thenable<vscode.FileStat> {
-		return this._delegate.move(oldUri, newUri).then(stat => FileSystemProviderShim._modernizeFileStat(stat));
+	rename(oldUri: vscode.Uri, newUri: vscode.Uri): Thenable<void> {
+		return this._delegate.move(oldUri, newUri).then(stat => void 0);
 	}
 	readDirectory(resource: vscode.Uri): Thenable<[string, vscode.FileType][]> {
 		return this._delegate.readdir(resource).then(tuples => {
@@ -135,8 +135,8 @@ class FileSystemProviderShim implements vscode.FileSystemProvider {
 			}
 		});
 	}
-	createDirectory(resource: vscode.Uri): Thenable<vscode.FileStat> {
-		return this._delegate.mkdir(resource).then(stat => FileSystemProviderShim._modernizeFileStat(stat));
+	createDirectory(resource: vscode.Uri): Thenable<void> {
+		return this._delegate.mkdir(resource).then(stat => void 0);
 	}
 
 	// --- read/write
@@ -272,16 +272,16 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		return asWinJsPromise(token => this._fsProvider.get(handle).delete(URI.revive(resource), { recursive: true }));
 	}
 
-	$rename(handle: number, oldUri: UriComponents, newUri: UriComponents, opts: files.FileOverwriteOptions): TPromise<files.IStat, any> {
-		return asWinJsPromise(token => this._fsProvider.get(handle).rename(URI.revive(oldUri), URI.revive(newUri), opts)).then(ExtHostFileSystem._asIStat);
+	$rename(handle: number, oldUri: UriComponents, newUri: UriComponents, opts: files.FileOverwriteOptions): TPromise<void, any> {
+		return asWinJsPromise(token => this._fsProvider.get(handle).rename(URI.revive(oldUri), URI.revive(newUri), opts));
 	}
 
-	$copy(handle: number, oldUri: UriComponents, newUri: UriComponents, opts: files.FileOverwriteOptions): TPromise<files.IStat, any> {
-		return asWinJsPromise(token => this._fsProvider.get(handle).copy(URI.revive(oldUri), URI.revive(newUri), opts)).then(ExtHostFileSystem._asIStat);
+	$copy(handle: number, oldUri: UriComponents, newUri: UriComponents, opts: files.FileOverwriteOptions): TPromise<void, any> {
+		return asWinJsPromise(token => this._fsProvider.get(handle).copy(URI.revive(oldUri), URI.revive(newUri), opts));
 	}
 
-	$mkdir(handle: number, resource: UriComponents): TPromise<files.IStat, any> {
-		return asWinJsPromise(token => this._fsProvider.get(handle).createDirectory(URI.revive(resource))).then(ExtHostFileSystem._asIStat);
+	$mkdir(handle: number, resource: UriComponents): TPromise<void, any> {
+		return asWinJsPromise(token => this._fsProvider.get(handle).createDirectory(URI.revive(resource)));
 	}
 
 	$watch(handle: number, session: number, resource: UriComponents, opts: files.IWatchOptions): void {

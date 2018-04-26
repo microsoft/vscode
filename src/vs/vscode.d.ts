@@ -5005,8 +5005,9 @@ declare module 'vscode' {
 		 * @returns Metadata about the created directory or a thenable that resolves to such.
 		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when the parent of `uri` doesn't exist.
 		 * @throws [`FileExists`](#FileSystemError.FileExists) when `uri` already exists.
+		 * @throws [`NoPermissions`](#FileSystemError.NoPermissions) when permissions aren't sufficient.
 		 */
-		createDirectory(uri: Uri): FileStat | Thenable<FileStat>;
+		createDirectory(uri: Uri): void | Thenable<void>;
 
 		/**
 		 * Read the entire contents of a file.
@@ -5026,6 +5027,7 @@ declare module 'vscode' {
 		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `uri` doesn't exist and `create` is not set.
 		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when the parent of `uri` doesn't exist and `create` is set.
 		 * @throws [`FileExists`](#FileSystemError.FileExists) when `uri` already exists and `overwrite` is set.
+		 * @throws [`NoPermissions`](#FileSystemError.NoPermissions) when permissions aren't sufficient.
 		 */
 		writeFile(uri: Uri, content: Uint8Array, options: { create: boolean, overwrite: boolean }): void | Thenable<void>;
 
@@ -5035,6 +5037,7 @@ declare module 'vscode' {
 		 * @param uri The resource that is to be deleted.
 		 * @param options Defines if deletion of folders is recursive.
 		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `uri` doesn't exist.
+		 * @throws [`NoPermissions`](#FileSystemError.NoPermissions) when permissions aren't sufficient.
 		 */
 		delete(uri: Uri, options: { recursive: boolean }): void | Thenable<void>;
 
@@ -5048,8 +5051,9 @@ declare module 'vscode' {
 		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `oldUri` doesn't exist.
 		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when parent of `newUri` doesn't exist
 		 * @throws [`FileExists`](#FileSystemError.FileExists) when `newUri` exists and when the `overwrite` option is not `true`.
+		 * @throws [`NoPermissions`](#FileSystemError.NoPermissions) when permissions aren't sufficient.
 		 */
-		rename(oldUri: Uri, newUri: Uri, options: { overwrite: boolean }): FileStat | Thenable<FileStat>;
+		rename(oldUri: Uri, newUri: Uri, options: { overwrite: boolean }): void | Thenable<void>;
 
 		/**
 		 * Copy files or folders. Implementing this function is optional but it will speedup
@@ -5062,8 +5066,9 @@ declare module 'vscode' {
 		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `source` doesn't exist
 		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when parent of `destination` doesn't exist
 		 * @throws [`FileExists`](#FileSystemError.FileExists) when `destination` exists and when the `overwrite` option is not `true`.
+		 * @throws [`NoPermissions`](#FileSystemError.NoPermissions) when permissions aren't sufficient.
 		 */
-		copy?(source: Uri, destination: Uri, options: { overwrite: boolean }): FileStat | Thenable<FileStat>;
+		copy?(source: Uri, destination: Uri, options: { overwrite: boolean }): void | Thenable<void>;
 	}
 
 	/**

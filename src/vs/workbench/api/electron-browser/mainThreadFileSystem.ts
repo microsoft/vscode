@@ -111,7 +111,7 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 		return this._proxy.$delete(this._handle, resource);
 	}
 
-	mkdir(resource: URI): TPromise<IStat, any> {
+	mkdir(resource: URI): TPromise<void, any> {
 		return this._proxy.$mkdir(this._handle, resource);
 	}
 
@@ -119,11 +119,11 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 		return this._proxy.$readdir(this._handle, resource);
 	}
 
-	rename(resource: URI, target: URI, opts: FileOverwriteOptions): TPromise<IStat, any> {
+	rename(resource: URI, target: URI, opts: FileOverwriteOptions): TPromise<void, any> {
 		return this._proxy.$rename(this._handle, resource, target, opts);
 	}
 
-	copy(resource: URI, target: URI, opts: FileOverwriteOptions): TPromise<IStat, any> {
+	copy(resource: URI, target: URI, opts: FileOverwriteOptions): TPromise<void, any> {
 		return this._proxy.$copy(this._handle, resource, target, opts);
 	}
 }

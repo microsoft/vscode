@@ -199,12 +199,12 @@ export interface IFileSystemProvider {
 	watch(resource: URI, opts: IWatchOptions): IDisposable;
 
 	stat(resource: URI): TPromise<IStat>;
-	mkdir(resource: URI): TPromise<IStat>;
+	mkdir(resource: URI): TPromise<void>;
 	readdir(resource: URI): TPromise<[string, FileType][]>;
 	delete(resource: URI): TPromise<void>;
 
-	rename(from: URI, to: URI, opts: FileOverwriteOptions): TPromise<IStat>;
-	copy?(from: URI, to: URI, opts: FileOverwriteOptions): TPromise<IStat>;
+	rename(from: URI, to: URI, opts: FileOverwriteOptions): TPromise<void>;
+	copy?(from: URI, to: URI, opts: FileOverwriteOptions): TPromise<void>;
 
 	readFile?(resource: URI): TPromise<Uint8Array>;
 	writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): TPromise<void>;
