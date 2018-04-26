@@ -19,27 +19,25 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 	private titleContainer: HTMLElement;
 	private editorLabel: ResourceLabel;
 
-	public create(parent: HTMLElement): void {
-		super.create(parent);
-
+	protected doCreate(parent: HTMLElement): void {
 		this.titleContainer = parent;
 
 		// Gesture Support
 		Gesture.addTarget(this.titleContainer);
 
 		// Pin on double click
-		this.toUnbind.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.DBLCLICK, (e: MouseEvent) => this.onTitleDoubleClick(e)));
+		this._register(DOM.addDisposableListener(this.titleContainer, DOM.EventType.DBLCLICK, (e: MouseEvent) => this.onTitleDoubleClick(e)));
 
 		// Detect mouse click
-		this.toUnbind.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.CLICK, (e: MouseEvent) => this.onTitleClick(e)));
+		this._register(DOM.addDisposableListener(this.titleContainer, DOM.EventType.CLICK, (e: MouseEvent) => this.onTitleClick(e)));
 
 		// Detect touch
-		this.toUnbind.push(DOM.addDisposableListener(this.titleContainer, TouchEventType.Tap, (e: GestureEvent) => this.onTitleClick(e)));
+		this._register(DOM.addDisposableListener(this.titleContainer, TouchEventType.Tap, (e: GestureEvent) => this.onTitleClick(e)));
 
 		// Editor Label
 		this.editorLabel = this.instantiationService.createInstance(ResourceLabel, this.titleContainer, void 0);
-		this.toUnbind.push(this.editorLabel);
-		this.toUnbind.push(this.editorLabel.onClick(e => this.onTitleLabelClick(e)));
+		this._register(this.editorLabel);
+		this._register(this.editorLabel.onClick(e => this.onTitleLabelClick(e)));
 
 		// Right Actions Container
 		const actionsContainer = document.createElement('div');
@@ -50,8 +48,8 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 		this.createEditorActionsToolBar(actionsContainer);
 
 		// Context Menu
-		this.toUnbind.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.CONTEXT_MENU, (e: Event) => this.onContextMenu({ group: this.context, editor: this.context.activeEditor }, e, this.titleContainer)));
-		this.toUnbind.push(DOM.addDisposableListener(this.titleContainer, TouchEventType.Contextmenu, (e: Event) => this.onContextMenu({ group: this.context, editor: this.context.activeEditor }, e, this.titleContainer)));
+		this._register(DOM.addDisposableListener(this.titleContainer, DOM.EventType.CONTEXT_MENU, (e: Event) => this.onContextMenu({ group: this.group, editor: this.group.activeEditor }, e, this.titleContainer)));
+		this._register(DOM.addDisposableListener(this.titleContainer, TouchEventType.Contextmenu, (e: Event) => this.onContextMenu({ group: this.group, editor: this.group.activeEditor }, e, this.titleContainer)));
 	}
 
 	private onTitleLabelClick(e: MouseEvent): void {
@@ -63,25 +61,15 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 
 	private onTitleDoubleClick(e: MouseEvent): void {
 		DOM.EventHelper.stop(e);
-		if (!this.context) {
-			return;
-		}
 
-		const group = this.context;
-
-		this.editorGroupService.pinEditor(group, group.activeEditor);
+		this.editorGroupService.pinEditor(this.group, this.group.activeEditor);
 	}
 
 	private onTitleClick(e: MouseEvent | GestureEvent): void {
-		if (!this.context) {
-			return;
-		}
-
-		const group = this.context;
 
 		// Close editor on middle mouse click
 		if (e instanceof MouseEvent && e.button === 1 /* Middle Button */) {
-			this.closeOneEditorAction.run({ groupId: group.id, editorIndex: group.indexOf(group.activeEditor) }).done(null, errors.onUnexpectedError);
+			this.closeOneEditorAction.run({ groupId: this.group.id, editorIndex: this.group.indexOf(this.group.activeEditor) }).done(null, errors.onUnexpectedError);
 		}
 
 		// Focus editor group unless:
@@ -89,13 +77,12 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 		// - mouse click: do not focus group if there are more than one as it otherwise makes group DND funky
 		// - touch: always focus
 		else if ((this.stacks.groups.length === 1 || !(e instanceof MouseEvent)) && !DOM.isAncestor(((e as GestureEvent).initialTarget || e.target || e.srcElement) as HTMLElement, this.editorActionsToolbar.getContainer())) {
-			this.editorGroupService.focusGroup(group);
+			this.editorGroupService.focusGroup(this.group);
 		}
 	}
 
 	protected doRefresh(): void {
-		const group = this.context;
-		const editor = group && group.activeEditor;
+		const editor = this.group.activeEditor;
 		if (!editor) {
 			this.editorLabel.clear();
 			this.clearEditorActionsToolbar();
@@ -103,8 +90,8 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 			return; // return early if we are being closed
 		}
 
-		const isPinned = group.isPinned(group.activeEditor);
-		const isActive = this.stacks.isActive(group);
+		const isPinned = this.group.isPinned(this.group.activeEditor);
+		const isActive = this.stacks.isActive(this.group);
 
 		// Activity state
 		if (isActive) {

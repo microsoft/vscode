@@ -57,7 +57,7 @@ export function toDisposable(...fns: (() => void)[]): IDisposable {
 
 export abstract class Disposable implements IDisposable {
 
-	private _toDispose: IDisposable[];
+	protected _toDispose: IDisposable[];
 
 	constructor() {
 		this._toDispose = [];

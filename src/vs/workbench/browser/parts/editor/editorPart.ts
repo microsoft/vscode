@@ -408,7 +408,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// resource context is updated and the correct number of actions will be resolved from the title
 		// area.
 		if (newGroupOpened && this.stacks.isActive(group)) {
-			this.editorGroupsControl.updateTitleAreas(true /* refresh new active group */);
+			this.editorGroupsControl.updateTitleAreas(true /* refresh new active group */); // TODO@grid keep this semantic
 		}
 
 		return inputPromise;
@@ -674,7 +674,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			this.onGroupFocusChanged();
 
 			// Update title area sync to avoid some flickering with actions
-			this.editorGroupsControl.updateTitleAreas();
+			this.editorGroupsControl.updateTitleAreas(); // TODO@grid this only updates the editor group actions toolbar sync
 		}
 	}
 

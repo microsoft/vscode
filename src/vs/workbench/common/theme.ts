@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken } from 'vs/platform/theme/common/colorRegistry';
-import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 
@@ -418,7 +418,6 @@ export const NOTIFICATIONS_BORDER = registerColor('notifications.border', {
  * Base class for all themable workbench components.
  */
 export class Themable extends Disposable {
-	private _toUnbind: IDisposable[];
 	private theme: ITheme;
 
 	constructor(
@@ -426,15 +425,14 @@ export class Themable extends Disposable {
 	) {
 		super();
 
-		this._toUnbind = [];
 		this.theme = themeService.getTheme();
 
 		// Hook up to theme changes
-		this._toUnbind.push(this.themeService.onThemeChange(theme => this.onThemeChange(theme)));
+		this._register(this.themeService.onThemeChange(theme => this.onThemeChange(theme)));
 	}
 
-	protected get toUnbind() {
-		return this._toUnbind;
+	protected get toUnbind(): IDisposable[] {
+		return this._toDispose;
 	}
 
 	protected onThemeChange(theme: ITheme): void {
@@ -455,11 +453,5 @@ export class Themable extends Disposable {
 		}
 
 		return color ? color.toString() : null;
-	}
-
-	public dispose(): void {
-		this._toUnbind = dispose(this._toUnbind);
-
-		super.dispose();
 	}
 }

@@ -69,7 +69,10 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		// Update title control
 		// TODO@grid also, wouldn't it be better if the title widget would register as listener to changes to the group and just
 		// refresh itself instead of having to do this from the outside?
-		this.doCreateOrGetTitleArea().refresh();
+		// See editorGroupsControl#handleStacksChanged() as example for how this is done currently
+		this.doCreateOrGetTitleArea().refresh(true);
+
+		// TODO@grid introduce in a similar fashion editorControl?
 
 		return Object.create(null);
 	}
@@ -82,13 +85,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 				[IContextKeyService, this._register(this.contextKeyService.createScoped(this.container))]
 			));
 
-			// TODO@grid if editor group is always bound to same context, simplify usage by passing over title container and group via ctor?
-			this.titleAreaControl = this._register(containerInstantiationService.createInstance<INextTitleAreaControl>(NextTabsTitleControl)); // TODO@grid title control choice (tabs vs no tabs)
-			this.titleAreaControl.create(this.titleContainer);
-			this.titleAreaControl.setContext(this.group);
-			this.titleAreaControl.refresh(true /* instant */);
-
-			this.updateStyles();
+			this.titleAreaControl = this._register(containerInstantiationService.createInstance(NextTabsTitleControl, this.titleContainer, this.group));
 		}
 
 		return this.titleAreaControl;
@@ -101,16 +98,12 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	protected updateStyles(): void {
 		super.updateStyles();
 
-		// Title control (TODO@grid respect tab options)
-		if (this.titleAreaControl) {
-			const titleContainer = this.titleAreaControl.getContainer();
-			const borderColor = this.getColor(EDITOR_GROUP_HEADER_TABS_BORDER) || this.getColor(contrastBorder);
-
-			titleContainer.style.backgroundColor = this.getColor(EDITOR_GROUP_HEADER_TABS_BACKGROUND);
-			titleContainer.style.borderBottomWidth = borderColor ? '1px' : null;
-			titleContainer.style.borderBottomStyle = borderColor ? 'solid' : null;
-			titleContainer.style.borderBottomColor = borderColor;
-		}
+		// Title control
+		const borderColor = this.getColor(EDITOR_GROUP_HEADER_TABS_BORDER) || this.getColor(contrastBorder);
+		this.titleContainer.style.backgroundColor = this.getColor(EDITOR_GROUP_HEADER_TABS_BACKGROUND);
+		this.titleContainer.style.borderBottomWidth = borderColor ? '1px' : null;
+		this.titleContainer.style.borderBottomStyle = borderColor ? 'solid' : null;
+		this.titleContainer.style.borderBottomColor = borderColor;
 
 		// Editor background
 		this.container.style.backgroundColor = this.getColor(editorBackground);
@@ -129,7 +122,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 		// Title container
 		this.titleContainer = document.createElement('div');
-		addClasses(this.titleContainer, 'title', 'tabs', 'show-file-icons', 'active'); // TODO@grid title options (tabs, icons, etc...)
+		addClasses(this.titleContainer, 'title', 'tabs', 'show-file-icons', 'active');
 		this.container.appendChild(this.titleContainer);
 
 		// Progress bar

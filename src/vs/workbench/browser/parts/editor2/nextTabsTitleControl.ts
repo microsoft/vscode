@@ -41,6 +41,7 @@ import { activeContrastBorder, contrastBorder, editorBackground } from 'vs/platf
 import { ResourcesDropHandler, fillResourceDataTransfers, LocalSelectionTransfer, DraggedEditorIdentifier } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 interface IEditorInputLabel {
 	name: string;
@@ -64,6 +65,8 @@ export class NextTabsTitleControl extends NextTitleControl {
 	private transfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 
 	constructor(
+		parent: HTMLElement,
+		group: IEditorGroup,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
@@ -74,9 +77,10 @@ export class NextTabsTitleControl extends NextTitleControl {
 		@INotificationService notificationService: INotificationService,
 		@IMenuService menuService: IMenuService,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IExtensionService extensionService: IExtensionService
 	) {
-		super(contextMenuService, instantiationService, editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickOpenService, themeService);
+		super(parent, group, contextMenuService, instantiationService, editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickOpenService, themeService, extensionService);
 
 		this.tabDisposeables = [];
 		this.editorLabels = [];
@@ -110,9 +114,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 		return this.instantiationService.createChild(new ServiceCollection([IWorkbenchEditorService, delegatingEditorService]));
 	}
 
-	public create(parent: HTMLElement): void {
-		super.create(parent);
-
+	protected doCreate(parent: HTMLElement): void {
 		this.titleContainer = parent;
 
 		// Tabs Container
@@ -121,7 +123,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 		DOM.addClass(this.tabsContainer, 'tabs-container');
 
 		// Forward scrolling inside the container to our custom scrollbar
-		this.toUnbind.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.SCROLL, e => {
+		this._register(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.SCROLL, e => {
 			if (DOM.hasClass(this.tabsContainer, 'scroll')) {
 				this.scrollbar.setScrollPosition({
 					scrollLeft: this.tabsContainer.scrollLeft // during DND the  container gets scrolled so we need to update the custom scrollbar
@@ -130,19 +132,16 @@ export class NextTabsTitleControl extends NextTitleControl {
 		}));
 
 		// New file when double clicking on tabs container (but not tabs)
-		this.toUnbind.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DBLCLICK, e => {
+		this._register(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DBLCLICK, e => {
 			const target = e.target;
 			if (target instanceof HTMLElement && target.className.indexOf('tabs-container') === 0) {
 				DOM.EventHelper.stop(e);
 
-				const group = this.context;
-				if (group) {
-					this.editorService.openEditor({ options: { pinned: true, index: group.count /* always at the end */ } } as IUntitledResourceInput).done(null, errors.onUnexpectedError); // untitled are always pinned
-				}
+				this.editorService.openEditor({ options: { pinned: true, index: this.group.count /* always at the end */ } } as IUntitledResourceInput).done(null, errors.onUnexpectedError); // untitled are always pinned
 			}
 		}));
 
-		this.toUnbind.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+		this._register(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			if (e.button === 1) {
 				e.preventDefault(); // required to prevent auto-scrolling (https://github.com/Microsoft/vscode/issues/16690)
 			}
@@ -164,7 +163,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 		this.titleContainer.appendChild(this.scrollbar.getDomNode());
 
 		// Drag over
-		this.toUnbind.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
+		this._register(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
 			const draggedEditor = this.transfer.hasData(DraggedEditorIdentifier.prototype) ? this.transfer.getData(DraggedEditorIdentifier.prototype)[0].identifier : void 0;
 
 			// update the dropEffect, otherwise it would look like a "move" operation. but only if we are
@@ -181,7 +180,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 				// Find out if the currently dragged editor is the last tab of this group and in that
 				// case we do not want to show any drop feedback because the drop would be a no-op
 				let draggedEditorIsLastTab = false;
-				if (draggedEditor && this.context === draggedEditor.group && this.context.indexOf(draggedEditor.editor) === this.context.count - 1) {
+				if (draggedEditor && this.group === draggedEditor.group && this.group.indexOf(draggedEditor.editor) === this.group.count - 1) {
 					draggedEditorIsLastTab = true;
 				}
 
@@ -192,31 +191,28 @@ export class NextTabsTitleControl extends NextTitleControl {
 		}));
 
 		// Drag leave
-		this.toUnbind.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
+		this._register(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
 			this.updateDropFeedback(this.tabsContainer, false);
 			DOM.removeClass(this.tabsContainer, 'scroll');
 		}));
 
 		// Drag end
-		this.toUnbind.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_END, (e: DragEvent) => {
+		this._register(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_END, (e: DragEvent) => {
 			this.updateDropFeedback(this.tabsContainer, false);
 			DOM.removeClass(this.tabsContainer, 'scroll');
 		}));
 
 		// Drop onto tabs container
-		this.toUnbind.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DROP, (e: DragEvent) => {
+		this._register(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DROP, (e: DragEvent) => {
 			this.updateDropFeedback(this.tabsContainer, false);
 			DOM.removeClass(this.tabsContainer, 'scroll');
 
 			const target = e.target;
 			if (target instanceof HTMLElement && target.className.indexOf('tabs-container') === 0) {
-				const group = this.context;
-				if (group) {
-					const targetPosition = this.stacks.positionOfGroup(group);
-					const targetIndex = group.count;
+				const targetPosition = this.stacks.positionOfGroup(this.group);
+				const targetIndex = this.group.count;
 
-					this.onDrop(e, group, targetPosition, targetIndex);
-				}
+				this.onDrop(e, this.group, targetPosition, targetIndex);
 			}
 		}));
 
@@ -231,7 +227,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 
 	private updateDropFeedback(element: HTMLElement, isDND: boolean, index?: number): void {
 		const isTab = (typeof index === 'number');
-		const isActiveTab = isTab && this.context && this.context.isActive(this.context.getEditor(index));
+		const isActiveTab = isTab && this.group.isActive(this.group.getEditor(index));
 
 		// Background
 		const noDNDBackgroundColor = isTab ? this.getColor(isActiveTab ? TAB_ACTIVE_BACKGROUND : TAB_INACTIVE_BACKGROUND) : null;
@@ -257,14 +253,9 @@ export class NextTabsTitleControl extends NextTitleControl {
 	}
 
 	protected doUpdate(): void {
-		if (!this.context) {
-			return;
-		}
-
-		const group = this.context;
 
 		// Tabs container activity state
-		const isGroupActive = this.stacks.isActive(group);
+		const isGroupActive = this.stacks.isActive(this.group);
 		if (isGroupActive) {
 			DOM.addClass(this.titleContainer, 'active');
 			DOM.removeClass(this.titleContainer, 'inactive');
@@ -274,7 +265,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 		}
 
 		// Compute labels and protect against duplicates
-		const editorsOfGroup = this.context.getEditors();
+		const editorsOfGroup = this.group.getEditors();
 		const labels = this.getTabLabels(editorsOfGroup);
 
 		// Tab label and styles
@@ -284,8 +275,8 @@ export class NextTabsTitleControl extends NextTitleControl {
 				return; // could be a race condition between updating tabs and creating tabs
 			}
 
-			const isPinned = group.isPinned(index);
-			const isTabActive = group.isActive(editor);
+			const isPinned = this.group.isPinned(index);
+			const isTabActive = this.group.isActive(editor);
 			const isDirty = editor.isDirty();
 
 			const label = labels[index];
@@ -466,8 +457,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 	}
 
 	protected doRefresh(): void {
-		const group = this.context;
-		const editor = group && group.activeEditor;
+		const editor = this.group.activeEditor;
 		if (!editor) {
 			this.clearTabs();
 
@@ -477,7 +467,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 		}
 
 		// Handle Tabs
-		this.handleTabs(group.count);
+		this.handleTabs(this.group.count);
 		DOM.removeClass(this.titleContainer, 'empty');
 
 		// Update Tabs
@@ -540,7 +530,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 		DOM.addClass(tabCloseContainer, 'tab-close');
 		tabContainer.appendChild(tabCloseContainer);
 
-		const actionRunner = new TabActionRunner(() => this.context, index);
+		const actionRunner = new TabActionRunner(() => this.group, index);
 		this.tabDisposeables.push(actionRunner);
 
 		const bar = new ActionBar(tabCloseContainer, { ariaLabel: nls.localize('araLabelTabActions', "Tab actions"), actionRunner });
@@ -663,7 +653,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 			tab.blur();
 
 			if (e.button === 1 /* Middle Button*/ && !this.isTabActionBar((e.target || e.srcElement) as HTMLElement)) {
-				this.closeOneEditorAction.run({ groupId: this.context.id, editorIndex: index }).done(null, errors.onUnexpectedError);
+				this.closeOneEditorAction.run({ groupId: this.group.id, editorIndex: index }).done(null, errors.onUnexpectedError);
 			}
 		}));
 
@@ -825,11 +815,10 @@ export class NextTabsTitleControl extends NextTitleControl {
 	}
 
 	private getGroupPositionAndEditor(index: number): { group: IEditorGroup, position: Position, editor: IEditorInput } {
-		const group = this.context;
-		const position = this.stacks.positionOfGroup(group);
-		const editor = group.getEditor(index);
+		const position = this.stacks.positionOfGroup(this.group);
+		const editor = this.group.getEditor(index);
 
-		return { group, position, editor };
+		return { group: this.group, position, editor };
 	}
 
 	private onDrop(e: DragEvent, group: IEditorGroup, targetPosition: Position, targetIndex: number): void {
@@ -985,7 +974,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 					background: linear-gradient(to left, ${adjustedColor}, transparent);
 				}
 
-				
+
 				.monaco-workbench > .part.editor > .content.dragged-over .editor-group-container > .title.active .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
 					background: linear-gradient(to left, ${adjustedColorDrag}, transparent);
 				}
