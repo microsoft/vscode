@@ -4948,32 +4948,6 @@ declare module 'vscode' {
 		 */
 		uri: Uri;
 	}
-	/**
-	 * Commonly used options when reading, writing, or stat'ing files or folders.
-	 */
-	export interface FileOptions {
-
-		/**
-		 * Create a file when it doesn't exists
-		 */
-		create?: boolean;
-
-		/**
-		 * In combination with [`create`](FileOptions.create) but
-		 * the operation should fail when a file already exists.
-		 */
-		exclusive?: boolean;
-
-		/**
-		 * Open a file for reading.
-		 */
-		read?: boolean;
-
-		/**
-		 * Open a file for writing.
-		 */
-		write?: boolean;
-	}
 
 	/**
 	 * The filesystem provider defines what the editor needs to read, write, discover,
