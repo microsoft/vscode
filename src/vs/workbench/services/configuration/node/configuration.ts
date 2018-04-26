@@ -288,17 +288,19 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 
 		// Find changes that affect workspace configuration files
 		for (let i = 0, len = events.length; i < len; i++) {
-			const resource = events[i].resource;
-			const folderRelativePath = this.toFolderRelativePath(resource);
-			if (!folderRelativePath) {
-				continue; // event is not inside folder
-			}
 
+			const resource = events[i].resource;
 			const basename = paths.basename(resource.path);
 			const isJson = paths.extname(basename) === '.json';
 			const isDeletedSettingsFolder = (events[i].type === FileChangeType.DELETED && basename === this.configFolderRelativePath);
+
 			if (!isJson && !isDeletedSettingsFolder) {
 				continue; // only JSON files or the actual settings folder
+			}
+
+			const folderRelativePath = this.toFolderRelativePath(resource);
+			if (!folderRelativePath) {
+				continue; // event is not inside folder
 			}
 
 			// Handle case where ".vscode" got deleted
