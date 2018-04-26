@@ -300,6 +300,31 @@ export class NullLogService implements ILogService {
 	dispose(): void { }
 }
 
+export interface IOutputWriter {
+	trace(message: string): void;
+	debug(message: string): void;
+	info(message: string): void;
+	warn(message: string): void;
+	error(message: string): void;
+	critical(message: string): void;
+	setLevel(level: number): void;
+	clearFormatters(): void;
+	flush(): void;
+	drop(): void;
+}
+
+export class NullOutputWriter implements IOutputWriter {
+	trace(message: string): void { }
+	debug(message: string): void { }
+	info(message: string): void { }
+	warn(message: string): void { }
+	error(message: string): void { }
+	critical(message: string): void { }
+	setLevel(level: number): void { }
+	clearFormatters(): void { }
+	flush(): void { }
+	drop(): void { }
+}
 
 export function getLogLevel(environmentService: IEnvironmentService): LogLevel {
 	if (environmentService.verbose) {

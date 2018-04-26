@@ -6,7 +6,7 @@
 'use strict';
 
 import * as path from 'path';
-import { ILogService, LogLevel, NullLogService, AbstractLogService } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel, NullLogService, AbstractLogService, NullOutputWriter, IOutputWriter } from 'vs/platform/log/common/log';
 import * as spdlog from 'spdlog';
 
 export function createSpdLogService(processName: string, logLevel: LogLevel, logsFolder: string): ILogService {
@@ -23,6 +23,16 @@ export function createSpdLogService(processName: string, logLevel: LogLevel, log
 		console.error(e);
 	}
 	return new NullLogService();
+}
+
+export function createSpdLogOutputWriter(name: string, filename: string, filesize: number, filecount: number): IOutputWriter {
+	// Do not crash if spdlog rotating logger cannot be loaded (workaround for https://github.com/Microsoft/vscode/issues/47883)
+	try {
+		return new spdlog.RotatingLogger(name, filename, filesize, filecount);
+	} catch (e) {
+		console.error(e);
+	}
+	return new NullOutputWriter();
 }
 
 class SpdLogService extends AbstractLogService implements ILogService {

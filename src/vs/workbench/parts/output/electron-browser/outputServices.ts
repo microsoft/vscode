@@ -31,13 +31,13 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IPanel } from 'vs/workbench/common/panel';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { RotatingLogger } from 'spdlog';
 import { toLocalISOString } from 'vs/base/common/date';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, IOutputWriter } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { createSpdLogOutputWriter } from 'vs/platform/log/node/spdlogService';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
@@ -201,7 +201,7 @@ abstract class AbstractFileOutputChannel extends Disposable {
  */
 class OutputChannelBackedByFile extends AbstractFileOutputChannel implements OutputChannel {
 
-	private outputWriter: RotatingLogger;
+	private outputWriter: IOutputWriter;
 	private appendedMessage = '';
 	private loadingFromFileInProgress: boolean = false;
 	private resettingDelayer: ThrottledDelayer<void>;
@@ -219,7 +219,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 		super({ ...outputChannelIdentifier, file: URI.file(paths.join(outputDir, `${outputChannelIdentifier.id}.log`)) }, modelUri, OUTPUT_MIME, fileService, modelService, modeService);
 
 		// Use one rotating file to check for main file reset
-		this.outputWriter = new RotatingLogger(this.id, this.file.fsPath, 1024 * 1024 * 30, 1);
+		this.outputWriter = createSpdLogOutputWriter(this.id, this.file.fsPath, 1024 * 1024 * 30, 1);
 		this.outputWriter.clearFormatters();
 		this.rotatingFilePath = `${outputChannelIdentifier.id}.1.log`;
 		this._register(watchOutputDirectory(paths.dirname(this.file.fsPath), logService, (eventType, file) => this.onFileChangedInOutputDirector(eventType, file)));
