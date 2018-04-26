@@ -547,7 +547,7 @@ export class RemoteFileService extends FileService {
 			: TPromise.as(null);
 
 		return prepare.then(() => this._withProvider(source)).then(provider => {
-			return provider.rename(source, target, { create: true, exclusive: !overwrite }).then(stat => {
+			return provider.rename(source, target, { overwrite }).then(stat => {
 				return toIFileStat(provider, [target, stat]);
 			}).then(fileStat => {
 				this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.MOVE, fileStat));
@@ -576,7 +576,7 @@ export class RemoteFileService extends FileService {
 
 			if (source.scheme === target.scheme && (provider.capabilities & FileSystemProviderCapabilities.FileFolderCopy)) {
 				// good: provider supports copy withing scheme
-				return provider.copy(source, target, { create: true, exclusive: !overwrite }).then(stat => toIFileStat(provider, [target, stat]));
+				return provider.copy(source, target, { overwrite }).then(stat => toIFileStat(provider, [target, stat]));
 			}
 
 			const prepare = overwrite

@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { FileOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IFileSystemProvider, IStat, IWatchOptions, FileType } from 'vs/platform/files/common/files';
+import { FileOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IFileSystemProvider, IStat, IWatchOptions, FileType, FileOverwriteOptions } from 'vs/platform/files/common/files';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../node/extHost.protocol';
 
@@ -119,11 +119,11 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 		return this._proxy.$readdir(this._handle, resource);
 	}
 
-	rename(resource: URI, target: URI, opts: FileOptions): TPromise<IStat, any> {
+	rename(resource: URI, target: URI, opts: FileOverwriteOptions): TPromise<IStat, any> {
 		return this._proxy.$rename(this._handle, resource, target, opts);
 	}
 
-	copy(resource: URI, target: URI, opts: FileOptions): TPromise<IStat, any> {
+	copy(resource: URI, target: URI, opts: FileOverwriteOptions): TPromise<IStat, any> {
 		return this._proxy.$copy(this._handle, resource, target, opts);
 	}
 }

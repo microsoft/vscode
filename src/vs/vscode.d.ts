@@ -5061,9 +5061,12 @@ declare module 'vscode' {
 		 *
 		 * @param oldUri The existing file or folder.
 		 * @param newUri The target location.
+		 * @param options Defines if existing files should be overwriten.
 		 * @param token A cancellation token.
+		 * @throws [`FileNotFound`](FileSystemError.FileNotFound) when `oldUri` doesn't exist
+		 * @throws [`FileExists`](FileSystemError.FileExists) when `newUri` exists and when the `overwrite` option is not `true`.
 		 */
-		rename(oldUri: Uri, newUri: Uri, options: FileOptions, token: CancellationToken): FileStat | Thenable<FileStat>;
+		rename(oldUri: Uri, newUri: Uri, options: { overwrite: boolean }, token: CancellationToken): FileStat | Thenable<FileStat>;
 
 		/**
 		 * Copy files or folders. Implementing this function is optional but it will speedup
@@ -5071,9 +5074,12 @@ declare module 'vscode' {
 		 *
 		 * @param source The existing file or folder.
 		 * @param destination The destination location.
+		 * @param options Defines if existing files should be overwriten.
 		 * @param token A cancellation token.
+		 * @throws [`FileNotFound`](FileSystemError.FileNotFound) when `source` doesn't exist
+		 * @throws [`FileExists`](FileSystemError.FileExists) when `destination` exists and when the `overwrite` option is not `true`.
 		 */
-		copy?(source: Uri, destination: Uri, options: FileOptions, token: CancellationToken): FileStat | Thenable<FileStat>;
+		copy?(source: Uri, destination: Uri, options: { overwrite: boolean }, token: CancellationToken): FileStat | Thenable<FileStat>;
 	}
 
 	/**

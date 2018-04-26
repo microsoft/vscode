@@ -155,6 +155,10 @@ export interface IFileService {
 	dispose(): void;
 }
 
+export interface FileOverwriteOptions {
+	overwrite: boolean;
+}
+
 export interface FileOptions {
 	/**
 	 * Create a file when it doesn't exists.
@@ -217,8 +221,8 @@ export interface IFileSystemProvider {
 	readdir(resource: URI): TPromise<[string, FileType][]>;
 	delete(resource: URI): TPromise<void>;
 
-	rename(from: URI, to: URI, opts: FileOptions): TPromise<IStat>;
-	copy?(from: URI, to: URI, opts: FileOptions): TPromise<IStat>;
+	rename(from: URI, to: URI, opts: FileOverwriteOptions): TPromise<IStat>;
+	copy?(from: URI, to: URI, opts: FileOverwriteOptions): TPromise<IStat>;
 
 	readFile?(resource: URI, opts: FileOptions): TPromise<Uint8Array>;
 	writeFile?(resource: URI, content: Uint8Array, opts: FileOptions): TPromise<void>;
