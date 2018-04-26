@@ -452,8 +452,8 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		this.viewportStartLineTop = this.viewLayout.getVerticalOffsetForLineNumber(startLineNumber);
 	}
 
-	public getActiveIndentGuide(lineNumber: number): IActiveIndentGuideInfo {
-		return this.lines.getActiveIndentGuide(lineNumber);
+	public getActiveIndentGuide(lineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo {
+		return this.lines.getActiveIndentGuide(lineNumber, minLineNumber, maxLineNumber);
 	}
 
 	public getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[] {

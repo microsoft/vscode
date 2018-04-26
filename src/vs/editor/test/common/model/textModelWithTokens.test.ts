@@ -433,7 +433,7 @@ suite('TextModel.getLineIndentGuide', () => {
 			}
 
 			const expected = { startLineNumber, endLineNumber, indent };
-			const actual = model.getActiveIndentGuide(lineNumber);
+			const actual = model.getActiveIndentGuide(lineNumber, 1, model.getLineCount());
 
 			assert.deepEqual(actual, expected, `line number ${lineNumber}`);
 		}

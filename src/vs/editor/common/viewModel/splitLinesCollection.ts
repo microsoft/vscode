@@ -82,7 +82,7 @@ export interface IViewModelLinesCollection {
 
 	getViewLineCount(): number;
 	warmUpLookupCache(viewStartLineNumber: number, viewEndLineNumber: number): void;
-	getActiveIndentGuide(viewLineNumber: number): IActiveIndentGuideInfo;
+	getActiveIndentGuide(viewLineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo;
 	getViewLinesIndentGuides(viewStartLineNumber: number, viewEndLineNumber: number): number[];
 	getViewLineContent(viewLineNumber: number): string;
 	getViewLineLength(viewLineNumber: number): number;
@@ -505,12 +505,16 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		this.prefixSumComputer.warmUpCache(viewStartLineNumber - 1, viewEndLineNumber - 1);
 	}
 
-	public getActiveIndentGuide(viewLineNumber: number): IActiveIndentGuideInfo {
+	public getActiveIndentGuide(viewLineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo {
 		this._ensureValidState();
 		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
+		minLineNumber = this._toValidViewLineNumber(minLineNumber);
+		maxLineNumber = this._toValidViewLineNumber(maxLineNumber);
 
 		const modelPosition = this.convertViewPositionToModelPosition(viewLineNumber, this.getViewLineMinColumn(viewLineNumber));
-		const result = this.model.getActiveIndentGuide(modelPosition.lineNumber);
+		const modelMinPosition = this.convertViewPositionToModelPosition(minLineNumber, this.getViewLineMinColumn(minLineNumber));
+		const modelMaxPosition = this.convertViewPositionToModelPosition(maxLineNumber, this.getViewLineMinColumn(maxLineNumber));
+		const result = this.model.getActiveIndentGuide(modelPosition.lineNumber, modelMinPosition.lineNumber, modelMaxPosition.lineNumber);
 
 		const viewStartPosition = this.convertModelPositionToViewPosition(result.startLineNumber, 1);
 		const viewEndPosition = this.convertModelPositionToViewPosition(result.endLineNumber, 1);
@@ -1258,7 +1262,7 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 	public warmUpLookupCache(viewStartLineNumber: number, viewEndLineNumber: number): void {
 	}
 
-	public getActiveIndentGuide(viewLineNumber: number): IActiveIndentGuideInfo {
+	public getActiveIndentGuide(viewLineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo {
 		return {
 			startLineNumber: viewLineNumber,
 			endLineNumber: viewLineNumber,

@@ -2389,7 +2389,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return TextModel.computeIndentLevel(this._buffer.getLineContent(lineIndex + 1), this._options.tabSize);
 	}
 
-	public getActiveIndentGuide(lineNumber: number): model.IActiveIndentGuideInfo {
+	public getActiveIndentGuide(lineNumber: number, minLineNumber: number, maxLineNumber: number): model.IActiveIndentGuideInfo {
 		this._assertNotDisposed();
 		const lineCount = this.getLineCount();
 
@@ -2482,10 +2482,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 			const upLineNumber = lineNumber - distance;
 			const downLineNumber = lineNumber + distance;
 
-			if (upLineNumber < 1) {
+			if (upLineNumber < 1 || upLineNumber < minLineNumber) {
 				goUp = false;
 			}
-			if (downLineNumber > lineCount) {
+			if (downLineNumber > lineCount || downLineNumber > maxLineNumber) {
 				goDown = false;
 			}
 
