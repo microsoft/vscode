@@ -210,6 +210,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'launch' }, "Global debug launch configuration. Should be used as an alternative to 'launch.json' that is shared across workspaces"),
 			default: { configurations: [], compounds: [] },
 			$ref: launchSchemaId
+		},
+		'debug.modalDialogOnStartFailure': {
+			type: 'boolean',
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'modalDialogOnStartFailure' }, "Show the user a modal error dialog if debug fails to start"),
+			default: true
 		}
 	}
 });

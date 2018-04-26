@@ -1001,7 +1001,10 @@ export class DebugService implements debug.IDebugService {
 					this.inDebugMode.reset();
 				}
 
-				this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []);
+				const modalDialogOnStartFailure = this.configurationService.getValue<debug.IDebugConfiguration>('debug').modalDialogOnStartFailure;
+				if (modalDialogOnStartFailure) {
+					this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []);
+				}
 				return undefined;
 			});
 		});
