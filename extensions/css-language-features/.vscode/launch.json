@@ -18,6 +18,7 @@
 			"stopOnEntry": false,
 			"sourceMaps": true,
 			"outFiles": ["${workspaceFolder}/client/out/**/*.js"],
+			"smartStep": true,
 			"preLaunchTask": "npm: compile"
 		},
 		{
@@ -39,6 +40,7 @@
 			"port": 6044,
 			"sourceMaps": true,
 			"outFiles": ["${workspaceFolder}/server/out/**/*.js"],
+			"smartStep": true,
 			"restart": true
 		}
 	]
