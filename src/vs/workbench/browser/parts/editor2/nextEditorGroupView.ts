@@ -27,12 +27,6 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	private static readonly EDITOR_TITLE_HEIGHT = 35;
 
-	readonly minimumSize: number = 200;
-	readonly maximumSize: number = Number.MAX_VALUE;
-
-	private _onDidChange: Event<number | undefined> = Event.None;
-	get onDidChange(): Event<number | undefined> { return this._onDidChange; }
-
 	private group: EditorGroup;
 
 	private dimension: Dimension;
@@ -86,6 +80,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 			));
 
 			this.titleAreaControl = this._register(containerInstantiationService.createInstance(NextTabsTitleControl, this.titleContainer, this.group));
+			this.doLayoutTitleControl();
 		}
 
 		return this.titleAreaControl;
@@ -112,6 +107,11 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	//#endregion
 
 	//#region IView implementation
+
+	readonly minimumSize = 200;
+	readonly maximumSize = Number.POSITIVE_INFINITY;
+
+	get onDidChange() { return Event.None; }
 
 	render(container: HTMLElement): void {
 
@@ -145,8 +145,12 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 		// Layout title if present
 		if (this.titleAreaControl) {
-			this.titleAreaControl.layout(new Dimension(this.dimension.width, NextEditorGroupView.EDITOR_TITLE_HEIGHT));
+			this.doLayoutTitleControl();
 		}
+	}
+
+	private doLayoutTitleControl(): void {
+		this.titleAreaControl.layout(new Dimension(this.dimension.width, NextEditorGroupView.EDITOR_TITLE_HEIGHT));
 	}
 
 	//#endregion
