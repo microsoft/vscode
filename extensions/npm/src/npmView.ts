@@ -6,7 +6,7 @@
 
 import * as path from 'path';
 import {
-	DebugConfiguration, Event, EventEmitter, ExtensionContext, Task, TaskProvider,
+	DebugConfiguration, Event, EventEmitter, ExtensionContext, Task,
 	TextDocument, ThemeIcon, TreeDataProvider, TreeItem, TreeItemCollapsibleState, Uri,
 	WorkspaceFolder, commands, debug, window, workspace, Selection
 } from 'vscode';
@@ -92,14 +92,12 @@ class NpmScript extends TreeItem {
 
 export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 	private taskTree: Folder[] | PackageJSON[] | null = null;
-	private taskProvider: TaskProvider;
 	private extensionContext: ExtensionContext;
 	private _onDidChangeTreeData: EventEmitter<TreeItem | null> = new EventEmitter<TreeItem | null>();
 	readonly onDidChangeTreeData: Event<TreeItem | null> = this._onDidChangeTreeData.event;
 
-	constructor(context: ExtensionContext, taskProvider: TaskProvider) {
+	constructor(context: ExtensionContext) {
 		const subscriptions = context.subscriptions;
-		this.taskProvider = taskProvider;
 		this.extensionContext = context;
 		subscriptions.push(commands.registerCommand('npm.runScript', this.runScript, this));
 		subscriptions.push(commands.registerCommand('npm.debugScript', this.debugScript, this));
@@ -265,7 +263,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 
 	async getChildren(element?: TreeItem): Promise<TreeItem[]> {
 		if (!this.taskTree) {
-			let tasks = await this.taskProvider.provideTasks();
+			let tasks = await workspace.fetchTasks({ type: 'npm' });
 			if (tasks) {
 				this.taskTree = this.buildTaskTree(tasks);
 			}
