@@ -102,6 +102,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 
 		// Widget
 		this.grid = this._register(new GridView<NextEditorGroupView>(this.gridContainer));
+		this.grid.layout(1, 1); // TODO@grid should work without calling layout
 
 		// Initial View
 		this._activeGroup = this.doCreateGroup([0]);

@@ -22,6 +22,7 @@ import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BAC
 import { INextEditor, INextEditorGroup } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { INextTitleAreaControl } from 'vs/workbench/browser/parts/editor2/nextTitleControl';
 import { NextTabsTitleControl } from 'vs/workbench/browser/parts/editor2/nextTabsTitleControl';
+import { NextEditorControl } from 'vs/workbench/browser/parts/editor2/nextEditorControl';
 
 export class NextEditorGroupView extends Themable implements IView, INextEditorGroup {
 
@@ -35,6 +36,9 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	private titleContainer: HTMLElement;
 	private titleAreaControl: INextTitleAreaControl;
+
+	private editorContainer: HTMLElement;
+	private editorControl: NextEditorControl;
 
 	private progressBar: ProgressBar;
 
@@ -64,19 +68,16 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		// TODO@grid also, wouldn't it be better if the title widget would register as listener to changes to the group and just
 		// refresh itself instead of having to do this from the outside?
 		// See editorGroupsControl#handleStacksChanged() as example for how this is done currently
-		this.doCreateOrGetTitleArea().refresh(true);
+		this.doCreateOrGetTitleControl().refresh(true);
 
-		// TODO@grid introduce in a similar fashion editorControl?
-
-		return Object.create(null);
+		// Forward to editor control
+		return this.doCreateOrGetEditorControl().openEditor(input, options);
 	}
 
-	private doCreateOrGetTitleArea(): INextTitleAreaControl {
+	private doCreateOrGetTitleControl(): INextTitleAreaControl {
 		if (!this.titleAreaControl) {
-
-			// Scoped instantiation service for a scoped context key service
 			const containerInstantiationService = this.instantiationService.createChild(new ServiceCollection(
-				[IContextKeyService, this._register(this.contextKeyService.createScoped(this.container))]
+				[IContextKeyService, this._register(this.contextKeyService.createScoped(this.container))] // Scoped instantiation service for a scoped context key service
 			));
 
 			this.titleAreaControl = this._register(containerInstantiationService.createInstance(NextTabsTitleControl, this.titleContainer, this.group));
@@ -84,6 +85,15 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		}
 
 		return this.titleAreaControl;
+	}
+
+	private doCreateOrGetEditorControl(): NextEditorControl {
+		if (!this.editorControl) {
+			this.editorControl = this._register(this.instantiationService.createInstance(NextEditorControl, this.editorContainer, this.group));
+			this.doLayoutEditorControl();
+		}
+
+		return this.editorControl;
 	}
 
 	//#endregion
@@ -108,7 +118,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	//#region IView implementation
 
-	readonly minimumSize = 200;
+	readonly minimumSize = 150;
 	readonly maximumSize = Number.POSITIVE_INFINITY;
 
 	get onDidChange() { return Event.None; }
@@ -131,10 +141,10 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		this.progressBar.hide();
 
 		// Editor container
-		const editorContainer = document.createElement('div');
-		addClass(editorContainer, 'editor-container');
-		editorContainer.setAttribute('role', 'tabpanel');
-		this.container.appendChild(editorContainer);
+		this.editorContainer = document.createElement('div');
+		addClass(this.editorContainer, 'editor-container');
+		this.editorContainer.setAttribute('role', 'tabpanel');
+		this.container.appendChild(this.editorContainer);
 
 		// Update styles
 		this.updateStyles();
@@ -143,14 +153,23 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	layout(size: number): void {
 		this.dimension = new Dimension(size, -1); // TODO@grid need full dimension here
 
-		// Layout title if present
+		// Layout title control if present
 		if (this.titleAreaControl) {
 			this.doLayoutTitleControl();
+		}
+
+		// Layout editor control if present
+		if (this.editorControl) {
+			this.doLayoutEditorControl();
 		}
 	}
 
 	private doLayoutTitleControl(): void {
 		this.titleAreaControl.layout(new Dimension(this.dimension.width, NextEditorGroupView.EDITOR_TITLE_HEIGHT));
+	}
+
+	private doLayoutEditorControl(): void {
+		this.editorControl.layout(new Dimension(this.dimension.width, 150 /* TODO@grid need full dimension here */ - NextEditorGroupView.EDITOR_TITLE_HEIGHT));
 	}
 
 	//#endregion
