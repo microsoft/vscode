@@ -30,6 +30,10 @@ TODO:
 - create grid wrapper which lets you talk only abut views, not locations
 	- GridView.getLocation(HTMLElement)
 - create grid wrapper which automatically sizes the new views
+
+- NEW: 	add a color to show a border where the sash is, similar to how other
+		widgets have a color (e.g. Button, with applyStyles). Challenge is that this
+		color has to be applied via JS and not CSS to not apply it to all views
 */
 
 function orthogonal(orientation: Orientation): Orientation {
