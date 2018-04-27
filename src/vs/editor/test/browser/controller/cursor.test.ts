@@ -1220,7 +1220,7 @@ suite('Editor Controller - Regression tests', () => {
 			constructor() {
 				super(languageId);
 				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
-					surroundingPairs: [{ open: '"', close: '"' }]
+					surroundingPairs: [{ open: '%', close: '%' }]
 				}));
 			}
 		}
@@ -1231,8 +1231,8 @@ suite('Editor Controller - Regression tests', () => {
 		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			editor.setSelection(new Selection(1, 1, 1, 2));
 
-			cursorCommand(cursor, H.Type, { text: '"' }, 'keyboard');
-			assert.equal(model.getValue(EndOfLinePreference.LF), '"\'"👁\'', 'assert1');
+			cursorCommand(cursor, H.Type, { text: '%' }, 'keyboard');
+			assert.equal(model.getValue(EndOfLinePreference.LF), '%\'%👁\'', 'assert1');
 
 			cursorCommand(cursor, H.Undo, {});
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\'👁\'', 'assert2');
@@ -4156,6 +4156,43 @@ suite('autoClosingPairs', () => {
 
 			assert.equal(model.getValue(), 'var a = `asd`');
 		});
+		mode.dispose();
+	});
+
+	test('issue #41825: Special handling of quotes in surrounding pairs', () => {
+		const languageId = new LanguageIdentifier('myMode', 3);
+		class MyMode extends MockMode {
+			constructor() {
+				super(languageId);
+				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+					surroundingPairs: [
+						{ open: '"', close: '"' },
+						{ open: '\'', close: '\'' },
+					]
+				}));
+			}
+		}
+
+		const mode = new MyMode();
+		const model = createTextModel('var x = \'hi\';', undefined, languageId);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			editor.setSelections([
+				new Selection(1, 9, 1, 10),
+				new Selection(1, 12, 1, 13)
+			]);
+			cursorCommand(cursor, H.Type, { text: '"' }, 'keyboard');
+			assert.equal(model.getValue(EndOfLinePreference.LF), 'var x = "hi";', 'assert1');
+
+			editor.setSelections([
+				new Selection(1, 9, 1, 10),
+				new Selection(1, 12, 1, 13)
+			]);
+			cursorCommand(cursor, H.Type, { text: '\'' }, 'keyboard');
+			assert.equal(model.getValue(EndOfLinePreference.LF), 'var x = \'hi\';', 'assert2');
+		});
+
+		model.dispose();
 		mode.dispose();
 	});
 
