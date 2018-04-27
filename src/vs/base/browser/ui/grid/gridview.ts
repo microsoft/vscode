@@ -34,6 +34,7 @@ TODO:
 - NEW: 	add a color to show a border where the sash is, similar to how other
 		widgets have a color (e.g. Button, with applyStyles). Challenge is that this
 		color has to be applied via JS and not CSS to not apply it to all views
+- fix splitview issue: it can't be used before layout was called
 */
 
 function orthogonal(orientation: Orientation): Orientation {
