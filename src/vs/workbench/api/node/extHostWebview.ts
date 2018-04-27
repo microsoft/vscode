@@ -201,9 +201,10 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		viewType: string,
 		title: string,
 		viewColumn: vscode.ViewColumn,
-		options: vscode.WebviewPanelOptions & vscode.WebviewOptions,
+		options: (vscode.WebviewPanelOptions & vscode.WebviewOptions) | undefined,
 		extensionFolderPath: string
 	): vscode.WebviewPanel {
+		options = options || {};
 		const handle = ExtHostWebviews.webviewHandlePool++ + '';
 		this._proxy.$createWebviewPanel(handle, viewType, title, typeConverters.fromViewColumn(viewColumn), options, extensionFolderPath);
 
