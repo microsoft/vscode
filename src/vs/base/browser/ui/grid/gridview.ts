@@ -486,7 +486,6 @@ export class SplitGridView<T extends IView> implements IDisposable {
 
 	constructor(container: HTMLElement, view: T) {
 		this.gridview = new GridView(container);
-		this.gridview.layout(100, 100);
 		this._addView(view, 0, [0]);
 	}
 
