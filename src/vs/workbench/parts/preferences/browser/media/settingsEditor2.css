@@ -105,11 +105,11 @@
 }
 
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row > .setting-item-container > .setting-item-left {
-	width: 600px;
+	flex: 1;
 }
 
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row > .setting-item-container > .setting-item-right {
-	flex: 1;
+	min-width: 180px;
 	margin: 21px 10px;
 }
 
