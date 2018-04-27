@@ -65,7 +65,7 @@ export abstract class ViewletPanel extends Panel {
 		this.actionRunner = options.actionRunner;
 	}
 
-	protected render(): void {
+	render(): void {
 		super.render();
 
 		const focusTracker = trackFocus(this.element);

@@ -382,7 +382,7 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 			for (const viewDescriptor of toAdd) {
 				let viewState = this.viewsStates.get(viewDescriptor.id);
 				let index = visible.indexOf(viewDescriptor);
-				const view = this.createView(viewDescriptor,
+				const panel = this.createView(viewDescriptor,
 					{
 						id: viewDescriptor.id,
 						name: viewDescriptor.name,
@@ -390,10 +390,11 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 						expanded: !(viewState ? viewState.collapsed : viewDescriptor.collapsed),
 						viewletSettings: this.viewletSettings
 					});
-				toCreate.push(view);
+				panel.render();
+				toCreate.push(panel);
 
 				const size = (viewState && viewState.size) || 200;
-				panelsToAdd.push({ panel: view, size, index });
+				panelsToAdd.push({ panel, size, index });
 			}
 
 			this.addPanels(panelsToAdd);
@@ -586,7 +587,7 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 	}
 
 	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewsViewletPanel {
-		return this.instantiationService.createInstance(viewDescriptor.ctor, options);
+		return this.instantiationService.createInstance(viewDescriptor.ctor, options) as ViewsViewletPanel;
 	}
 
 	protected get views(): ViewsViewletPanel[] {

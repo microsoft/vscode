@@ -30,6 +30,9 @@ export interface IPanelStyles {
 	headerHighContrastBorder?: Color;
 }
 
+/**
+ * Remember to call render after ctor
+ */
 export abstract class Panel implements IView {
 
 	private static readonly HEADER_SIZE = 22;
@@ -40,7 +43,7 @@ export abstract class Panel implements IView {
 	private _minimumBodySize: number;
 	private _maximumBodySize: number;
 	private ariaHeaderLabel: string;
-	private styles: IPanelStyles | undefined = undefined;
+	private styles: IPanelStyles = {};
 
 	readonly element: HTMLElement;
 	private header: HTMLElement;
@@ -107,7 +110,6 @@ export abstract class Panel implements IView {
 		this._maximumBodySize = typeof options.maximumBodySize === 'number' ? options.maximumBodySize : Number.POSITIVE_INFINITY;
 
 		this.element = $('.panel');
-		this.render();
 	}
 
 	isExpanded(): boolean {
@@ -138,7 +140,7 @@ export abstract class Panel implements IView {
 		this._onDidChange.fire();
 	}
 
-	protected render(): void {
+	render(): void {
 		this.header = $('.panel-header');
 		append(this.element, this.header);
 		this.header.setAttribute('tabindex', '0');

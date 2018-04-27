@@ -768,7 +768,7 @@ export class RepositoryPanel extends ViewletPanel {
 		this.menus = instantiationService.createInstance(SCMMenus, repository.provider);
 	}
 
-	protected render(): void {
+	render(): void {
 		super.render();
 		this.menus.onDidChangeTitle(this.updateActions, this, this.disposables);
 	}
@@ -1168,6 +1168,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 
 		if (shouldMainPanelBeVisible) {
 			this.mainPanel = this.instantiationService.createInstance(MainPanel, this);
+			this.mainPanel.render();
 			this.addPanels([{ panel: this.mainPanel, size: this.mainPanel.minimumSize, index: 0 }]);
 
 			const selectionChangeDisposable = this.mainPanel.onSelectionChange(this.onSelectionChange, this);
@@ -1302,7 +1303,11 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		// Collect new selected panels
 		const newRepositoryPanels = repositories
 			.filter(r => this.repositoryPanels.every(p => p.repository !== r))
-			.map(r => this.instantiationService.createInstance(RepositoryPanel, r, this));
+			.map(r => {
+				const panel = this.instantiationService.createInstance(RepositoryPanel, r, this);
+				panel.render();
+				return panel;
+			});
 
 		// Add new selected panels
 		let index = repositoryPanels.length + (this.mainPanel ? 1 : 0);
@@ -1363,6 +1368,8 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 			expanded: !collapsed,
 			viewletSettings: {} // what is this
 		}) as ViewsViewletPanel;
+
+		panel.render();
 
 		this.addPanels([{ panel, size: size || panel.minimumSize, index: start + index }]);
 		panel.setVisible(true);
