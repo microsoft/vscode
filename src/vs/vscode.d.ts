@@ -4952,7 +4952,8 @@ declare module 'vscode' {
 	 * paths, e.g. `foo:/my/path` is a child of `foo:/my/` and a parent of `foo:/my/path/deeper`.
 	 * * *Note 2:* There is an activation event `onFileSystem:<scheme>` that fires when a file
 	 * or folder is being accessed.
-	 *
+	 * * *Note 3:* The word 'file' is often used to denote all [kinds](#FileType) of files, e.g.
+	 * folders, symbolic links, and regular files.
 	 */
 	export interface FileSystemProvider {
 
@@ -4965,23 +4966,28 @@ declare module 'vscode' {
 
 		/**
 		 * Subscribe to events in the file or folder denoted by `uri`.
+		 *
+		 * The editor will call this function for files and folders. In the latter case, the
+		 * options differ from defaults, e.g. what files/folders to exclude from watching
+		 * and if subfolders, sub-subfolder, etc. should be watched (`recursive`).
+		 *
 		 * @param uri The uri of the file to be watched.
 		 * @param options Configures the watch.
-		 * @returns A disposable that tells the provider to stop watching this `uri`.
+		 * @returns A disposable that tells the provider to stop watching the `uri`.
 		 */
 		watch(uri: Uri, options: { recursive: boolean; excludes: string[] }): Disposable;
 
 		/**
 		 * Retrieve metadata about a file.
 		 *
-		 * @param uri The uri of the file to retrieve meta data about.
+		 * @param uri The uri of the file to retrieve metadata about.
 		 * @return The file metadata about the file.
 		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `uri` doesn't exist.
 		 */
 		stat(uri: Uri): FileStat | Thenable<FileStat>;
 
 		/**
-		 * Retrieve the meta data of all entries of a [directory](#FileType.Directory)
+		 * Retrieve all entries of a [directory](#FileType.Directory).
 		 *
 		 * @param uri The uri of the folder.
 		 * @return An array of name/type-tuples or a thenable that resolves to such.
@@ -4990,10 +4996,10 @@ declare module 'vscode' {
 		readDirectory(uri: Uri): [string, FileType][] | Thenable<[string, FileType][]>;
 
 		/**
-		 * Create a new directory. *Note* that new files are created via `write`-calls.
+		 * Create a new directory (Note, that new files are created via `write`-calls).
 		 *
 		 * @param uri The uri of the new folder.
-		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when the parent of `uri` doesn't exist.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when the parent of `uri` doesn't exist, e.g. no mkdirp-logic required.
 		 * @throws [`FileExists`](#FileSystemError.FileExists) when `uri` already exists.
 		 * @throws [`NoPermissions`](#FileSystemError.NoPermissions) when permissions aren't sufficient.
 		 */
@@ -5015,7 +5021,7 @@ declare module 'vscode' {
 		 * @param content The new content of the file.
 		 * @param options Defines if missing files should or must be created.
 		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `uri` doesn't exist and `create` is not set.
-		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when the parent of `uri` doesn't exist and `create` is set.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when the parent of `uri` doesn't exist and `create` is set, e.g. no mkdirp-logic required.
 		 * @throws [`FileExists`](#FileSystemError.FileExists) when `uri` already exists, `create` is set but `overwrite` is not set.
 		 * @throws [`NoPermissions`](#FileSystemError.NoPermissions) when permissions aren't sufficient.
 		 */
@@ -5034,11 +5040,11 @@ declare module 'vscode' {
 		/**
 		 * Rename a file or folder.
 		 *
-		 * @param oldUri The existing file or folder.
-		 * @param newUri The target location.
+		 * @param oldUri The existing file.
+		 * @param newUri The new location.
 		 * @param options Defines if existing files should be overwriten.
 		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `oldUri` doesn't exist.
-		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when parent of `newUri` doesn't exist
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when parent of `newUri` doesn't exist, e.g. no mkdirp-logic required.
 		 * @throws [`FileExists`](#FileSystemError.FileExists) when `newUri` exists and when the `overwrite` option is not `true`.
 		 * @throws [`NoPermissions`](#FileSystemError.NoPermissions) when permissions aren't sufficient.
 		 */
@@ -5048,11 +5054,11 @@ declare module 'vscode' {
 		 * Copy files or folders. Implementing this function is optional but it will speedup
 		 * the copy operation.
 		 *
-		 * @param source The existing file or folder.
+		 * @param source The existing file.
 		 * @param destination The destination location.
 		 * @param options Defines if existing files should be overwriten.
-		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `source` doesn't exist
-		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when parent of `destination` doesn't exist
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `source` doesn't exist.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when parent of `destination` doesn't exist, e.g. no mkdirp-logic required.
 		 * @throws [`FileExists`](#FileSystemError.FileExists) when `destination` exists and when the `overwrite` option is not `true`.
 		 * @throws [`NoPermissions`](#FileSystemError.NoPermissions) when permissions aren't sufficient.
 		 */
