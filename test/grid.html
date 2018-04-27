@@ -60,19 +60,22 @@
 
 			debug(grid);
 			console.log('-------');
-			grid.addView(createView(), 100, [0]);// 50
+			grid.addView(createView(), 100, [0]);
 			debug(grid);
 			console.log('-------');
-			grid.addView(createView(), 100, [1]);
+			grid.addView(createView(), 400, [1]);
 			debug(grid);
 			console.log('-------');
-			grid.addView(createView(), 100, [1, 1]);
+			grid.addView(createView(), 300, [1, 1]);
 			debug(grid);
 			console.log('-------');
-			grid.addView(createView(), 100, [1, 1, 1]);
+			grid.addView(createView(), 200, [1, 1, 1]);
 			debug(grid);
 			console.log('-------');
 			grid.addView(createView(), 100, [1, 1, 1, 1]);
+			debug(grid);
+			console.log('-------');
+			grid.addView(createView(), 50, [1, 1, 1, 2]);
 			debug(grid);
 			console.log('-------');
 		});
@@ -108,6 +111,30 @@
 		.action:hover {
 			cursor: pointer;
 			background-color: #ffffff54;
+		}
+
+		.split-view-view {
+			position: relative;
+		}
+
+		.monaco-grid-view .monaco-split-view2>.split-view-container>.split-view-view:not(:first-child)::before {
+			content: '';
+			position: absolute;
+			top: 0;
+			left: 0;
+			background: black;
+			z-index: 100;
+			pointer-events: none;
+		}
+
+		.monaco-grid-view .monaco-split-view2.horizontal>.split-view-container>.split-view-view:not(:first-child)::before {
+			height: 100%;
+			width: 1px;
+		}
+
+		.monaco-grid-view .monaco-split-view2.vertical>.split-view-container>.split-view-view:not(:first-child)::before {
+			height: 1px;
+			width: 100%;
 		}
 	</style>
 </head>
