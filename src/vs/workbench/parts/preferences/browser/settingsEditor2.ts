@@ -114,7 +114,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private currentLocalSearchProvider: ISearchProvider;
 	private currentRemoteSearchProvider: ISearchProvider;
 
-	private searchResults: ISearchResult[] = [];
+	private searchResults: ISearchResult[];
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -303,12 +303,9 @@ export class SettingsEditor2 extends BaseEditor {
 		} else {
 			// When clearing the input, update immediately to clear it
 			this.localSearchDelayer.cancel();
-			// this.preferencesRenderers.localFilterPreferences(query);
-
 			this.remoteSearchThrottle.cancel();
-			// return this.preferencesRenderers.remoteSearchPreferences(query);
 
-			this.searchResults = [];
+			this.searchResults = null;
 			this.renderEntries();
 			return TPromise.wrap(null);
 		}
@@ -325,53 +322,15 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private filterOrSearchPreferences(query: string, type: SearchResultIdx, searchProvider: ISearchProvider): TPromise<void> {
-		// this.lastQuery = query;
-
 		const filterPs: TPromise<ISearchResult>[] = [this._filterOrSearchPreferencesModel(query, this.defaultSettingsEditorModel, searchProvider)];
-		// filterPs.push(this.searchAllSettingsTargets(query, searchProvider));
 
 		return TPromise.join(filterPs).then(results => {
 			const [result] = results;
+			this.searchResults = this.searchResults || [];
 			this.searchResults[type] = result;
-			this.renderSearchResults(this.searchResults);
+			this.render();
 		});
 	}
-
-	// private searchAllSettingsTargets(query: string, searchProvider: ISearchProvider): TPromise<void> {
-	// 	const searchPs = [
-	// 		this.searchSettingsTarget(query, searchProvider, ConfigurationTarget.WORKSPACE),
-	// 		this.searchSettingsTarget(query, searchProvider, ConfigurationTarget.USER)
-	// 	];
-
-	// 	for (const folder of this.workspaceContextService.getWorkspace().folders) {
-	// 		const folderSettingsResource = this.preferencesService.getFolderSettingsResource(folder.uri);
-	// 		searchPs.push(this.searchSettingsTarget(query, searchProvider, folderSettingsResource));
-	// 	}
-
-
-	// 	return TPromise.join(searchPs).then(() => { });
-	// }
-
-	// private searchSettingsTarget(query: string, provider: ISearchProvider, target: SettingsTarget): TPromise<void> {
-	// 	if (!query) {
-	// 		// Don't open the other settings targets when query is empty
-	// 		this._onDidFilterResultsCountChange.fire({ target, count: 0 });
-	// 		return TPromise.wrap(null);
-	// 	}
-
-	// 	return this.getPreferencesEditorModel(target).then(model => {
-	// 		return model && this._filterOrSearchPreferencesModel('', <ISettingsEditorModel>model, provider);
-	// 	}).then(result => {
-	// 		const count = result ? this._flatten(result.filteredGroups).length : 0;
-	// 		this._onDidFilterResultsCountChange.fire({ target, count });
-	// 	}, err => {
-	// 		if (!isPromiseCanceledError(err)) {
-	// 			return TPromise.wrapError(err);
-	// 		}
-
-	// 		return null;
-	// 	});
-	// }
 
 	private _filterOrSearchPreferencesModel(filter: string, model: ISettingsEditorModel, provider: ISearchProvider): TPromise<ISearchResult> {
 		const searchP = provider ? provider.searchModel(model) : TPromise.wrap(null);
@@ -397,30 +356,7 @@ export class SettingsEditor2 extends BaseEditor {
 			});
 	}
 
-	// private async getPreferencesEditorModel(target: SettingsTarget): TPromise<ISettingsEditorModel | null> {
-	// 	const resource = target === ConfigurationTarget.USER ? this.preferencesService.userSettingsResource :
-	// 		target === ConfigurationTarget.WORKSPACE ? this.preferencesService.workspaceSettingsResource :
-	// 			target;
-
-	// 	if (!resource) {
-	// 		return null;
-	// 	}
-
-	// 	const targetKey = resource.toString();
-	// 	if (!this._prefsModelsForSearch.has(targetKey)) {
-	// 		try {
-	// 			const model = this._register(await this.preferencesService.createPreferencesEditorModel(resource));
-	// 			this._prefsModelsForSearch.set(targetKey, <ISettingsEditorModel>model);
-	// 		} catch (e) {
-	// 			// Will throw when the settings file doesn't exist.
-	// 			return null;
-	// 		}
-	// 	}
-
-	// 	return this._prefsModelsForSearch.get(targetKey);
-	// }
-
-	private renderSearchResults(searchResults: ISearchResult[]): void {
+	private getEntriesFromSearch(searchResults: ISearchResult[]): IListEntry[] {
 		const entries: ISettingItemEntry[] = [];
 		const seenSettings = new Set<string>();
 
@@ -440,7 +376,7 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 		}
 
-		this.settingsList.splice(0, this.settingsList.length, entries);
+		return entries;
 	}
 
 	private renderEntries(): void {
@@ -451,6 +387,24 @@ export class SettingsEditor2 extends BaseEditor {
 		const focusedRowItem = DOM.findParentWithClass(<HTMLElement>document.activeElement, 'monaco-list-row');
 		const focusedRowId = focusedRowItem && focusedRowItem.id;
 
+		const entries = this.searchResults ?
+			this.getEntriesFromSearch(this.searchResults) :
+			this.getEntriesFromModel();
+
+		this.settingsList.splice(0, this.settingsList.length, entries);
+
+		// Hack to restore the same focused element after editing.
+		// TODO@roblou figure out the whole keyboard navigation story
+		if (focusedRowId) {
+			const rowSelector = `.monaco-list-row#${focusedRowId}`;
+			const inputElementToFocus: HTMLElement = this.settingsListContainer.querySelector(`${rowSelector} input, ${rowSelector} select`);
+			if (inputElementToFocus) {
+				inputElementToFocus.focus();
+			}
+		}
+	}
+
+	private getEntriesFromModel(): IListEntry[] {
 		const entries: IListEntry[] = [];
 		for (let groupIdx = 0; groupIdx < this.defaultSettingsEditorModel.settingsGroups.length; groupIdx++) {
 			if (groupIdx > 0 && !(this.showAllSettings)) {
@@ -462,7 +416,7 @@ export class SettingsEditor2 extends BaseEditor {
 			for (const section of group.sections) {
 				for (const setting of section.settings) {
 					const entry = this.settingToEntry(setting);
-					if (!this.showConfiguredSettingsOnly || (this.showConfiguredSettingsOnly && entry.isConfigured)) {
+					if (!this.showConfiguredSettingsOnly || entry.isConfigured) {
 						groupEntries.push(entry);
 					}
 				}
@@ -490,17 +444,7 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 		}
 
-		this.settingsList.splice(0, this.settingsList.length, entries);
-
-		// Hack to restore the same focused element after editing.
-		// TODO@roblou figure out the whole keyboard navigation story
-		if (focusedRowId) {
-			const rowSelector = `.monaco-list-row#${focusedRowId}`;
-			const inputElementToFocus: HTMLElement = this.settingsListContainer.querySelector(`${rowSelector} input, ${rowSelector} select`);
-			if (inputElementToFocus) {
-				inputElementToFocus.focus();
-			}
-		}
+		return entries;
 	}
 
 	private settingToEntry(s: ISetting): ISettingItemEntry {
@@ -567,7 +511,6 @@ interface ISettingItemTemplate {
 
 	containerElement: HTMLElement;
 	labelElement: HTMLElement;
-	// keyElement: HTMLElement;
 	descriptionElement: HTMLElement;
 	valueElement: HTMLElement;
 	overridesElement: HTMLElement;
@@ -612,7 +555,6 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 
 		const titleElement = DOM.append(leftElement, $('.setting-item-title'));
 		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
-		// const keyElement = DOM.append(titleElement, $('span.setting-item-key'));
 		const overridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
 		const descriptionElement = DOM.append(leftElement, $('.setting-item-description'));
 
@@ -623,7 +565,6 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 			toDispose: [],
 
 			containerElement: itemContainer,
-			// keyElement,
 			labelElement,
 			descriptionElement,
 			valueElement,
@@ -634,7 +575,6 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 	renderElement(entry: ISettingItemEntry, index: number, template: ISettingItemTemplate): void {
 		DOM.toggleClass(template.parent, 'odd', index % 2 === 1);
 
-		// template.keyElement.textContent = entry.key;
 		template.labelElement.textContent = settingKeyToLabel(entry.key);
 		template.labelElement.title = entry.key;
 		template.descriptionElement.textContent = entry.description;
