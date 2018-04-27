@@ -1935,8 +1935,10 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		let marginHTML: string[] = [];
 		let lineDecorationsWidth = this.modifiedEditorConfiguration.layoutInfo.decorationsWidth;
 		let lineHeight = this.modifiedEditorConfiguration.lineHeight;
+		const typicalHalfwidthCharacterWidth = this.modifiedEditorConfiguration.fontInfo.typicalHalfwidthCharacterWidth;
+		let maxCharsPerLine = 0;
 		for (let lineNumber = lineChange.originalStartLineNumber; lineNumber <= lineChange.originalEndLineNumber; lineNumber++) {
-			this._renderOriginalLine(lineNumber - lineChange.originalStartLineNumber, this.originalModel, this.modifiedEditorConfiguration, this.modifiedEditorTabSize, lineNumber, decorations, sb);
+			maxCharsPerLine = Math.max(maxCharsPerLine, this._renderOriginalLine(lineNumber - lineChange.originalStartLineNumber, this.originalModel, this.modifiedEditorConfiguration, this.modifiedEditorTabSize, lineNumber, decorations, sb));
 
 			if (this.renderIndicators) {
 				let index = lineNumber - lineChange.originalStartLineNumber;
@@ -1945,6 +1947,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 				]);
 			}
 		}
+		maxCharsPerLine += this.modifiedEditorConfiguration.viewInfo.scrollBeyondLastColumn;
 
 		let domNode = document.createElement('div');
 		domNode.className = 'view-lines line-delete';
@@ -1960,12 +1963,13 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			shouldNotShrink: true,
 			afterLineNumber: (lineChange.modifiedEndLineNumber === 0 ? lineChange.modifiedStartLineNumber : lineChange.modifiedStartLineNumber - 1),
 			heightInLines: lineChangeOriginalLength,
+			minWidthInPx: (maxCharsPerLine * typicalHalfwidthCharacterWidth),
 			domNode: domNode,
 			marginDomNode: marginDomNode
 		};
 	}
 
-	private _renderOriginalLine(count: number, originalModel: ITextModel, config: editorOptions.InternalEditorOptions, tabSize: number, lineNumber: number, decorations: InlineDecoration[], sb: IStringBuilder): void {
+	private _renderOriginalLine(count: number, originalModel: ITextModel, config: editorOptions.InternalEditorOptions, tabSize: number, lineNumber: number, decorations: InlineDecoration[], sb: IStringBuilder): number {
 		const lineTokens = originalModel.getLineTokens(lineNumber);
 		const lineContent = lineTokens.getLineContent();
 
@@ -1982,7 +1986,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 
 		const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, originalModel.mightContainNonBasicASCII());
 		const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, originalModel.mightContainRTL());
-		renderViewLine(new RenderLineInput(
+		const output = renderViewLine(new RenderLineInput(
 			(config.fontInfo.isMonospace && !config.viewInfo.disableMonospaceOptimizations),
 			lineContent,
 			isBasicASCII,
@@ -1999,6 +2003,9 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		), sb);
 
 		sb.appendASCIIString('</div>');
+
+		const absoluteOffsets = output.characterMapping.getAbsoluteOffsets();
+		return absoluteOffsets.length > 0 ? absoluteOffsets[absoluteOffsets.length - 1] : 0;
 	}
 }
 

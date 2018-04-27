@@ -142,7 +142,8 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		let isViewportWrapping = this._configuration.editor.wrappingInfo.isViewportWrapping;
 		if (!isViewportWrapping) {
 			const extraHorizontalSpace = this._configuration.editor.viewInfo.scrollBeyondLastColumn * this._configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
-			return Math.max(maxLineWidth + extraHorizontalSpace, viewportWidth);
+			const whitespaceMinWidth = this._linesLayout.getWhitespaceMinWidth();
+			return Math.max(maxLineWidth + extraHorizontalSpace, viewportWidth, whitespaceMinWidth);
 		}
 		return Math.max(maxLineWidth, viewportWidth);
 	}
@@ -173,8 +174,8 @@ export class ViewLayout extends Disposable implements IViewLayout {
 
 	// ---- IVerticalLayoutProvider
 
-	public addWhitespace(afterLineNumber: number, ordinal: number, height: number): number {
-		return this._linesLayout.insertWhitespace(afterLineNumber, ordinal, height);
+	public addWhitespace(afterLineNumber: number, ordinal: number, height: number, minWidth: number): number {
+		return this._linesLayout.insertWhitespace(afterLineNumber, ordinal, height, minWidth);
 	}
 	public changeWhitespace(id: number, newAfterLineNumber: number, newHeight: number): boolean {
 		return this._linesLayout.changeWhitespace(id, newAfterLineNumber, newHeight);

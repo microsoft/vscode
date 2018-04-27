@@ -14,7 +14,7 @@ suite('Editor ViewLayout - WhitespaceComputer', () => {
 		var whitespaceComputer = new WhitespaceComputer();
 
 		// Insert a whitespace after line number 2, of height 10
-		var a = whitespaceComputer.insertWhitespace(2, 0, 10);
+		var a = whitespaceComputer.insertWhitespace(2, 0, 10, 0);
 		// whitespaces: a(2, 10)
 		assert.equal(whitespaceComputer.getCount(), 1);
 		assert.equal(whitespaceComputer.getAfterLineNumberForWhitespaceIndex(0), 2);
@@ -27,7 +27,7 @@ suite('Editor ViewLayout - WhitespaceComputer', () => {
 		assert.equal(whitespaceComputer.getAccumulatedHeightBeforeLineNumber(4), 10);
 
 		// Insert a whitespace again after line number 2, of height 20
-		var b = whitespaceComputer.insertWhitespace(2, 0, 20);
+		var b = whitespaceComputer.insertWhitespace(2, 0, 20, 0);
 		// whitespaces: a(2, 10), b(2, 20)
 		assert.equal(whitespaceComputer.getCount(), 2);
 		assert.equal(whitespaceComputer.getAfterLineNumberForWhitespaceIndex(0), 2);
@@ -72,7 +72,7 @@ suite('Editor ViewLayout - WhitespaceComputer', () => {
 		assert.equal(whitespaceComputer.getAccumulatedHeightBeforeLineNumber(4), 10);
 
 		// Add a whitespace before the first line of height 50
-		b = whitespaceComputer.insertWhitespace(0, 0, 50);
+		b = whitespaceComputer.insertWhitespace(0, 0, 50, 0);
 		// whitespaces: b(0, 50), a(2, 10)
 		assert.equal(whitespaceComputer.getCount(), 2);
 		assert.equal(whitespaceComputer.getAfterLineNumberForWhitespaceIndex(0), 0);
@@ -88,7 +88,7 @@ suite('Editor ViewLayout - WhitespaceComputer', () => {
 		assert.equal(whitespaceComputer.getAccumulatedHeightBeforeLineNumber(4), 60);
 
 		// Add a whitespace after line 4 of height 20
-		whitespaceComputer.insertWhitespace(4, 0, 20);
+		whitespaceComputer.insertWhitespace(4, 0, 20, 0);
 		// whitespaces: b(0, 50), a(2, 10), c(4, 20)
 		assert.equal(whitespaceComputer.getCount(), 3);
 		assert.equal(whitespaceComputer.getAfterLineNumberForWhitespaceIndex(0), 0);
@@ -108,7 +108,7 @@ suite('Editor ViewLayout - WhitespaceComputer', () => {
 		assert.equal(whitespaceComputer.getAccumulatedHeightBeforeLineNumber(5), 80);
 
 		// Add a whitespace after line 3 of height 30
-		whitespaceComputer.insertWhitespace(3, 0, 30);
+		whitespaceComputer.insertWhitespace(3, 0, 30, 0);
 		// whitespaces: b(0, 50), a(2, 10), d(3, 30), c(4, 20)
 		assert.equal(whitespaceComputer.getCount(), 4);
 		assert.equal(whitespaceComputer.getAfterLineNumberForWhitespaceIndex(0), 0);
@@ -379,9 +379,9 @@ suite('Editor ViewLayout - WhitespaceComputer', () => {
 	test('WhitespaceComputer changeWhitespaceAfterLineNumber & getFirstWhitespaceIndexAfterLineNumber', () => {
 		var whitespaceComputer = new WhitespaceComputer();
 
-		var a = whitespaceComputer.insertWhitespace(0, 0, 1);
-		var b = whitespaceComputer.insertWhitespace(7, 0, 1);
-		var c = whitespaceComputer.insertWhitespace(3, 0, 1);
+		var a = whitespaceComputer.insertWhitespace(0, 0, 1, 0);
+		var b = whitespaceComputer.insertWhitespace(7, 0, 1, 0);
+		var c = whitespaceComputer.insertWhitespace(3, 0, 1, 0);
 
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(0), a); // 0
 		assert.equal(whitespaceComputer.getAfterLineNumberForWhitespaceIndex(0), 0);
@@ -504,32 +504,32 @@ suite('Editor ViewLayout - WhitespaceComputer', () => {
 	test('WhitespaceComputer Bug', () => {
 		var whitespaceComputer = new WhitespaceComputer();
 
-		var a = whitespaceComputer.insertWhitespace(0, 0, 1);
-		var b = whitespaceComputer.insertWhitespace(7, 0, 1);
+		var a = whitespaceComputer.insertWhitespace(0, 0, 1, 0);
+		var b = whitespaceComputer.insertWhitespace(7, 0, 1, 0);
 
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(0), a); // 0
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(1), b); // 7
 
-		var c = whitespaceComputer.insertWhitespace(3, 0, 1);
+		var c = whitespaceComputer.insertWhitespace(3, 0, 1, 0);
 
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(0), a); // 0
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(1), c); // 3
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(2), b); // 7
 
-		var d = whitespaceComputer.insertWhitespace(2, 0, 1);
+		var d = whitespaceComputer.insertWhitespace(2, 0, 1, 0);
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(0), a); // 0
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(1), d); // 2
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(2), c); // 3
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(3), b); // 7
 
-		var e = whitespaceComputer.insertWhitespace(8, 0, 1);
+		var e = whitespaceComputer.insertWhitespace(8, 0, 1, 0);
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(0), a); // 0
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(1), d); // 2
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(2), c); // 3
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(3), b); // 7
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(4), e); // 8
 
-		var f = whitespaceComputer.insertWhitespace(11, 0, 1);
+		var f = whitespaceComputer.insertWhitespace(11, 0, 1, 0);
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(0), a); // 0
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(1), d); // 2
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(2), c); // 3
@@ -537,7 +537,7 @@ suite('Editor ViewLayout - WhitespaceComputer', () => {
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(4), e); // 8
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(5), f); // 11
 
-		var g = whitespaceComputer.insertWhitespace(10, 0, 1);
+		var g = whitespaceComputer.insertWhitespace(10, 0, 1, 0);
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(0), a); // 0
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(1), d); // 2
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(2), c); // 3
@@ -546,7 +546,7 @@ suite('Editor ViewLayout - WhitespaceComputer', () => {
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(5), g); // 10
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(6), f); // 11
 
-		var h = whitespaceComputer.insertWhitespace(0, 0, 1);
+		var h = whitespaceComputer.insertWhitespace(0, 0, 1, 0);
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(0), a); // 0
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(1), h); // 0
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(2), d); // 2

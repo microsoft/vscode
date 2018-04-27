@@ -3341,6 +3341,11 @@ declare namespace monaco.editor {
 		 */
 		heightInPx?: number;
 		/**
+		 * The minimum width in px of the view zone.
+		 * If this is set, the editor will ensure that the scroll width is >= than this value.
+		 */
+		minWidthInPx?: number;
+		/**
 		 * The dom node of the view zone
 		 */
 		domNode: HTMLElement;

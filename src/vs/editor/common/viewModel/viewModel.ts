@@ -75,7 +75,7 @@ export interface IViewLayout {
 	 * Reserve rendering space.
 	 * @return an identifier that can be later used to remove or change the whitespace.
 	 */
-	addWhitespace(afterLineNumber: number, ordinal: number, height: number): number;
+	addWhitespace(afterLineNumber: number, ordinal: number, height: number, minWidth: number): number;
 	/**
 	 * Change the properties of a whitespace.
 	 */
