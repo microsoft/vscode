@@ -72,11 +72,11 @@ abstract class AbstractNode implements ISplitView {
 
 	readonly orientation: Orientation;
 
-	private _size: number | undefined;
-	get size(): number | undefined { return this._size; }
+	private _size: number;
+	get size(): number { return this._size; }
 
-	private _orthogonalSize: number | undefined;
-	get orthogonalSize(): number | undefined { return this._orthogonalSize; }
+	private _orthogonalSize: number;
+	get orthogonalSize(): number { return this._orthogonalSize; }
 
 	abstract readonly minimumSize: number;
 	abstract readonly maximumSize: number;
@@ -84,7 +84,7 @@ abstract class AbstractNode implements ISplitView {
 	abstract readonly maximumOrthogonalSize: number;
 	abstract readonly onDidChange: Event<number>;
 
-	constructor(orientation: Orientation, size?: number, orthogonalSize?: number) {
+	constructor(orientation: Orientation, size: number = 0, orthogonalSize: number = 0) {
 		this.orientation = orientation;
 		this._size = size;
 		this._orthogonalSize = orthogonalSize;
@@ -128,7 +128,7 @@ class BranchNode extends AbstractNode {
 	get onDidChange(): Event<number | undefined> { return this._onDidChange.event; }
 	private onDidChangeDisposable: IDisposable;
 
-	constructor(orientation: Orientation, size?: number, orthogonalSize?: number) {
+	constructor(orientation: Orientation, size: number = 0, orthogonalSize: number = 0) {
 		super(orientation, size, orthogonalSize);
 
 		this._onDidChange = new Emitter<number | undefined>();
