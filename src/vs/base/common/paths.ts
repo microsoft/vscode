@@ -27,6 +27,8 @@ export function dirname(path: string): string {
 		return '.';
 	} else if (~idx === 0) {
 		return path[0];
+	} else if (~idx === path.length - 1) {
+		return dirname(path.substring(0, path.length - 1));
 	} else {
 		let res = path.substring(0, ~idx);
 		if (isWindows && res[res.length - 1] === ':') {

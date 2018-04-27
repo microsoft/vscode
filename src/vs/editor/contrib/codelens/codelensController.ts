@@ -10,7 +10,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CodeLensProviderRegistry, ICodeLensSymbol } from 'vs/editor/common/modes';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
@@ -20,6 +19,7 @@ import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOption
 import { CodeLens, CodeLensHelper } from 'vs/editor/contrib/codelens/codelensWidget';
 import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
 
 export class CodeLensContribution implements editorCommon.IEditorContribution {
 
@@ -171,11 +171,13 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		this._localToDispose.push({
 			dispose: () => {
 				if (this._editor.getModel()) {
+					const scrollState = StableEditorScrollState.capture(this._editor);
 					this._editor.changeDecorations((changeAccessor) => {
 						this._editor.changeViewZones((accessor) => {
 							this._disposeAllLenses(changeAccessor, accessor);
 						});
 					});
+					scrollState.restore(this._editor);
 				} else {
 					// No accessors available
 					this._disposeAllLenses(null, null);
@@ -219,16 +221,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			}
 		}
 
-		let visiblePosition: Position = null;
-		let visiblePositionScrollDelta = 0;
-		if (this._editor.getScrollTop() !== 0) {
-			const visibleRanges = this._editor.getVisibleRanges();
-			if (visibleRanges.length > 0) {
-				visiblePosition = visibleRanges[0].getStartPosition();
-				const visiblePositionScrollTop = this._editor.getTopForPosition(visiblePosition.lineNumber, visiblePosition.column);
-				visiblePositionScrollDelta = this._editor.getScrollTop() - visiblePositionScrollTop;
-			}
-		}
+		const scrollState = StableEditorScrollState.capture(this._editor);
 
 		this._editor.changeDecorations((changeAccessor) => {
 			this._editor.changeViewZones((accessor) => {
@@ -270,10 +263,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			});
 		});
 
-		if (visiblePosition) {
-			const visiblePositionScrollTop = this._editor.getTopForPosition(visiblePosition.lineNumber, visiblePosition.column);
-			this._editor.setScrollTop(visiblePositionScrollTop + visiblePositionScrollDelta);
-		}
+		scrollState.restore(this._editor);
 	}
 
 	private _onViewportChanged(): void {

@@ -6,47 +6,50 @@
 
 import * as httpRequest from 'request-light';
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-
-const localize = nls.loadMessageBundle();
 
 import { addJSONProviders } from './features/jsonContributions';
 import { NpmScriptsTreeDataProvider } from './npmView';
-import { provideNpmScripts, hasNpmScripts, explorerIsEnabled } from './tasks';
+import { provideNpmScripts, explorerIsEnabled } from './tasks';
 
 let taskProvider: vscode.Disposable | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-	taskProvider = registerTaskProvider(context);
+	taskProvider = registerTaskProvider();
+	registerExplorer(context);
 	configureHttpRequest();
-	vscode.workspace.onDidChangeConfiguration(() => configureHttpRequest());
+	vscode.workspace.onDidChangeConfiguration((e) => {
+		configureHttpRequest();
+		if (e.affectsConfiguration('npm.enableScriptExplorer')) {
+			updateExplorerVisibility();
+		}
+	});
 	context.subscriptions.push(addJSONProviders(httpRequest.xhr));
 }
 
-function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposable | undefined {
+function registerTaskProvider(): vscode.Disposable | undefined {
 	if (vscode.workspace.workspaceFolders) {
 		let provider: vscode.TaskProvider = {
 			provideTasks: () => {
-				return provideNpmScripts(localize);
+				return provideNpmScripts();
 			},
 			resolveTask(_task: vscode.Task): vscode.Task | undefined {
 				return undefined;
 			}
 		};
-		let disposable = vscode.workspace.registerTaskProvider('npm', provider);
-		registerExplorer(context, provider);
-		return disposable;
+		return vscode.workspace.registerTaskProvider('npm', provider);
 	}
 	return undefined;
 }
 
-async function registerExplorer(context: vscode.ExtensionContext, provider: vscode.TaskProvider) {
-	if (explorerIsEnabled()) {
-		let treeDataProvider = vscode.window.registerTreeDataProvider('npm', new NpmScriptsTreeDataProvider(context, provider, localize));
+function updateExplorerVisibility() {
+	vscode.commands.executeCommand('setContext', 'showExplorer', explorerIsEnabled());
+}
+
+async function registerExplorer(context: vscode.ExtensionContext) {
+	if (vscode.workspace.workspaceFolders) {
+		let treeDataProvider = vscode.window.registerTreeDataProvider('npm', new NpmScriptsTreeDataProvider(context));
 		context.subscriptions.push(treeDataProvider);
-		if (await hasNpmScripts()) {
-			vscode.commands.executeCommand('setContext', 'hasNpmScripts', true);
-		}
+		updateExplorerVisibility();
 	}
 }
 

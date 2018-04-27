@@ -469,6 +469,7 @@ export class RawDebugSession implements debug.ISession {
 		if (request.command === 'runInTerminal') {
 
 			this._debugger.runInTerminal(<DebugProtocol.RunInTerminalRequestArguments>request.arguments).then(_ => {
+				response.body = {};
 				this.debugAdapter.sendResponse(response);
 			}, err => {
 				response.success = false;

@@ -609,7 +609,7 @@ export class DiffReview extends Disposable {
 				'That encodes that at original line 154 (which is now line 159), 12 lines were removed/changed with 39 lines.',
 				'Variables 0 and 1 refer to the diff index out of total number of diffs.',
 				'Variables 2 and 4 will be numbers (a line number).',
-				'Variables 3 and 4 will be "no lines", "1 line" or "X lines", localized separately.'
+				'Variables 3 and 5 will be "no lines", "1 line" or "X lines", localized separately.'
 			]
 		}, "Difference {0} of {1}: original {2}, {3}, modified {4}, {5}", (diffIndex + 1), this._diffs.length, minOriginalLine, originalChangedLinesCntAria, minModifiedLine, modifiedChangedLinesCntAria));
 		header.appendChild(cell);

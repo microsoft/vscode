@@ -26,6 +26,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { memoize } from 'vs/base/common/decorators';
 
 export class DebugViewlet extends PersistentViewsViewlet {
 
@@ -69,12 +70,17 @@ export class DebugViewlet extends PersistentViewsViewlet {
 		}
 	}
 
+	@memoize
+	private get actions(): IAction[] {
+		return [
+			this._register(this.instantiationService.createInstance(StartAction, StartAction.ID, StartAction.LABEL)),
+			this._register(this.instantiationService.createInstance(ConfigureAction, ConfigureAction.ID, ConfigureAction.LABEL)),
+			this._register(this.instantiationService.createInstance(ToggleReplAction, ToggleReplAction.ID, ToggleReplAction.LABEL))
+		];
+	}
+
 	public getActions(): IAction[] {
-		const actions = [];
-		actions.push(this.instantiationService.createInstance(StartAction, StartAction.ID, StartAction.LABEL));
-		actions.push(this.instantiationService.createInstance(ConfigureAction, ConfigureAction.ID, ConfigureAction.LABEL));
-		actions.push(this._register(this.instantiationService.createInstance(ToggleReplAction, ToggleReplAction.ID, ToggleReplAction.LABEL)));
-		return actions;
+		return this.actions;
 	}
 
 	public getSecondaryActions(): IAction[] {

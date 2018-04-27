@@ -10,12 +10,12 @@ import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/plat
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ConfigureLocaleAction } from 'vs/workbench/parts/localizations/browser/localizationsActions';
+import { ConfigureLocaleAction } from 'vs/workbench/parts/localizations/electron-browser/localizationsActions';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
+import { ILocalizationsService, LanguageType } from 'vs/platform/localizations/common/localizations';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { language } from 'vs/base/common/platform';
-import { IExtensionManagementService, DidInstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
+import * as platform from 'vs/base/common/platform';
+import { IExtensionManagementService, DidInstallExtensionEvent, LocalExtensionType, IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import Severity from 'vs/base/common/severity';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
@@ -24,6 +24,10 @@ import URI from 'vs/base/common/uri';
 import { join } from 'vs/base/common/paths';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IStorageService, } from 'vs/platform/storage/common/storage';
+import { TPromise } from 'vs/base/common/winjs.base';
+import product from 'vs/platform/node/product';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewlet } from 'vs/workbench/parts/extensions/common/extensions';
 
 // Register action to configure locale and related settings
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
@@ -37,10 +41,13 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWindowsService private windowsService: IWindowsService,
 		@IStorageService private storageService: IStorageService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
+		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
+		@IViewletService private viewletService: IViewletService
 	) {
 		super();
 		this.updateLocaleDefintionSchema();
+		this.checkAndInstall();
 		this._register(this.localizationService.onDidLanguagesChange(() => this.updateLocaleDefintionSchema()));
 		this._register(this.extensionManagementService.onDidInstallExtension(e => this.onDidInstallExtension(e)));
 	}
@@ -63,7 +70,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		const donotAskUpdateKey = 'langugage.update.donotask';
 		if (!this.storageService.getBoolean(donotAskUpdateKey) && e.local && e.local.manifest.contributes && e.local.manifest.contributes.localizations && e.local.manifest.contributes.localizations.length) {
 			const locale = e.local.manifest.contributes.localizations[0].languageId;
-			if (language !== locale) {
+			if (platform.language !== locale) {
 				this.notificationService.prompt(
 					Severity.Info,
 					localize('updateLocale', "Would you like to change VS Code's UI language to {0} and restart?", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId),
@@ -85,6 +92,53 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 				);
 			}
 		}
+	}
+
+	private checkAndInstall(): void {
+		const language = platform.language;
+		if (language !== 'en' && language !== 'en_us') {
+			this.isLanguageInstalled(language)
+				.then(installed => {
+					if (!installed) {
+						this.getLanguagePackExtension(language)
+							.then(extension => {
+								if (extension) {
+									this.notificationService.prompt(Severity.Warning, localize('install language pack', "In the near future, VS Code will only support language packs in the form of Marketplace extensions. Please install the '{0}' extension in order to continue to use the currently configured language. ", extension.displayName || extension.displayName),
+										[
+											{ label: localize('install', "Install"), run: () => this.installExtension(extension) },
+											{ label: localize('more information', "More Information..."), run: () => window.open('https://go.microsoft.com/fwlink/?linkid=872941') }
+										]);
+								}
+							});
+					}
+				});
+		}
+	}
+
+	private getLanguagePackExtension(language: string): TPromise<IGalleryExtension> {
+		return this.localizationService.getLanguageIds(LanguageType.Core)
+			.then(coreLanguages => {
+				if (coreLanguages.some(c => c.toLowerCase() === language)) {
+					const extensionIdPrefix = language === 'zh-cn' ? 'zh-hans' : language === 'zh-tw' ? 'zh-hant' : language;
+					const extensionId = product.quality !== 'insider' ? `MS-CEINTL.vscode-insiders-language-pack-${extensionIdPrefix}` : `MS-CEINTL.vscode-language-pack-${extensionIdPrefix}`;
+					return this.galleryService.query({ names: [extensionId], pageSize: 1 })
+						.then(result => result.total === 1 ? result.firstPage[0] : null);
+				}
+				return null;
+			});
+	}
+
+	private isLanguageInstalled(language: string): TPromise<boolean> {
+		return this.extensionManagementService.getInstalled(LocalExtensionType.User)
+			.then(installed => installed.some(i => i.manifest && i.manifest.contributes && i.manifest.contributes.localizations && i.manifest.contributes.localizations.length && i.manifest.contributes.localizations.some(l => l.languageId.toLowerCase() === language)));
+	}
+
+	private installExtension(extension: IGalleryExtension): TPromise<void> {
+		return this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet.search(`@id:${extension.identifier.id}`))
+			.then(() => this.extensionManagementService.installFromGallery(extension))
+			.then(() => null, err => this.notificationService.error(err));
 	}
 }
 
@@ -111,7 +165,7 @@ function registerLocaleDefinitionSchema(languages: string[]): void {
 	});
 }
 
-registerLocaleDefinitionSchema([language]);
+registerLocaleDefinitionSchema([platform.language]);
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(LocalizationWorkbenchContribution, LifecyclePhase.Eventually);
 

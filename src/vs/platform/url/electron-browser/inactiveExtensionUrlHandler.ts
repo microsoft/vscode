@@ -9,6 +9,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { localize } from 'vs/nls';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
@@ -17,9 +19,9 @@ function isExtensionId(value: string): boolean {
 	return /^[a-z0-9][a-z0-9\-]*\.[a-z0-9][a-z0-9\-]*$/i.test(value);
 }
 
-export const IInactiveExtensionUrlHandler = createDecorator<IInactiveExtensionUrlHandler>('inactiveExtensionUrlHandler');
+export const IExtensionUrlHandler = createDecorator<IExtensionUrlHandler>('inactiveExtensionUrlHandler');
 
-export interface IInactiveExtensionUrlHandler {
+export interface IExtensionUrlHandler {
 	readonly _serviceBrand: any;
 	registerExtensionHandler(extensionId: string, handler: IURLHandler): void;
 	unregisterExtensionHandler(extensionId: string): void;
@@ -31,18 +33,21 @@ export interface IInactiveExtensionUrlHandler {
  * activates the extension and re-opens the URL once the extension registers
  * a URL handler. If the extension never registers a URL handler, the urls
  * will eventually be garbage collected.
+ *
+ * It also makes sure the user confirms opening URLs directed towards extensions.
  */
-export class InactiveExtensionUrlHandler implements IInactiveExtensionUrlHandler, IURLHandler {
+export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 	readonly _serviceBrand: any;
 
-	private extensionIds = new Set<string>();
+	private extensionHandlers = new Map<string, IURLHandler>();
 	private uriBuffer = new Map<string, { timestamp: number, uri: URI }[]>();
 	private disposable: IDisposable;
 
 	constructor(
 		@IURLService urlService: IURLService,
-		@IExtensionService private extensionService: IExtensionService
+		@IExtensionService private extensionService: IExtensionService,
+		@IDialogService private dialogService: IDialogService
 	) {
 		const interval = setInterval(() => this.garbageCollect(), THIRTY_SECONDS);
 
@@ -52,15 +57,38 @@ export class InactiveExtensionUrlHandler implements IInactiveExtensionUrlHandler
 		]);
 	}
 
-	handleURL(uri: URI): TPromise<boolean> {
+	async handleURL(uri: URI): TPromise<boolean> {
 		if (!isExtensionId(uri.authority)) {
-			return TPromise.as(false);
+			return false;
 		}
 
 		const extensionId = uri.authority;
+		const wasHandlerAvailable = this.extensionHandlers.has(extensionId);
 
-		// let the ExtensionUrlHandler instance handle this
-		if (this.extensionIds.has(extensionId)) {
+		const extensions = await this.extensionService.getExtensions();
+		const extension = extensions.filter(e => e.id === extensionId)[0];
+
+		if (!extension) {
+			return false;
+		}
+
+		const result = await this.dialogService.confirm({
+			message: localize('confirmUrl', "Allow an extension to open this URL?", extensionId),
+			detail: `${extension.displayName || extension.name} (${extensionId}) wants to open a URL:\n\n${uri.toString()}`
+		});
+
+		if (!result.confirmed) {
+			return true;
+		}
+
+		const handler = this.extensionHandlers.get(extensionId);
+		if (handler) {
+			if (!wasHandlerAvailable) {
+				// forward it directly
+				return handler.handleURL(uri);
+			}
+
+			// let the ExtensionUrlHandler instance handle this
 			return TPromise.as(false);
 		}
 
@@ -76,12 +104,13 @@ export class InactiveExtensionUrlHandler implements IInactiveExtensionUrlHandler
 		uris.push({ timestamp, uri });
 
 		// activate the extension
-		return this.extensionService.activateByEvent(`onUri:${extensionId}`)
-			.then(() => true);
+		await this.extensionService.activateByEvent(`onUri:${extensionId}`);
+
+		return true;
 	}
 
 	registerExtensionHandler(extensionId: string, handler: IURLHandler): void {
-		this.extensionIds.add(extensionId);
+		this.extensionHandlers.set(extensionId, handler);
 
 		const uris = this.uriBuffer.get(extensionId) || [];
 
@@ -93,7 +122,7 @@ export class InactiveExtensionUrlHandler implements IInactiveExtensionUrlHandler
 	}
 
 	unregisterExtensionHandler(extensionId: string): void {
-		this.extensionIds.delete(extensionId);
+		this.extensionHandlers.delete(extensionId);
 	}
 
 	// forget about all uris buffered more than 5 minutes ago
@@ -114,7 +143,7 @@ export class InactiveExtensionUrlHandler implements IInactiveExtensionUrlHandler
 
 	dispose(): void {
 		this.disposable.dispose();
-		this.extensionIds.clear();
+		this.extensionHandlers.clear();
 		this.uriBuffer.clear();
 	}
 }

@@ -13,8 +13,6 @@
 	"vscode.extension.contributes.view.name": "Il nome della visualizzazione. Verrà mostrato",
 	"vscode.extension.contributes.view.when": "Condizione che deve essere vera per mostrare questa visualizzazione",
 	"vscode.extension.contributes.views": "Contribuisce visualizzazioni all'editor",
-	"views.explorer": "Visualizzazione di esplorazione",
-	"views.debug": "Visualizzazione Debug",
 	"duplicateView1": "Non è possibile registrare più visualizzazioni con stesso ID `{0}` nel percorso `{1}`",
 	"duplicateView2": "Nel percorso `{1}` è già registrata una visualizzazione con ID `{0}` "
 }

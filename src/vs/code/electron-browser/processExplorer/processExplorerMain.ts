@@ -75,7 +75,7 @@ function updateProcessInfo(processList): void {
 			<th class="cpu">${localize('cpu', "CPU %")}</th>
 			<th class="memory">${localize('memory', "Memory (MB)")}</th>
 			<th class="pid">${localize('pid', "pid")}</th>
-			<th>${localize('name', "Name")}</th>
+			<th class="nameLabel">${localize('name', "Name")}</th>
 		</tr>`;
 
 	processList.forEach(p => {
@@ -161,7 +161,7 @@ export function startup(data: ProcessExplorerData): void {
 		const tableRows = document.getElementsByTagName('tr');
 		for (let i = 0; i < tableRows.length; i++) {
 			const tableRow = tableRows[i];
-			tableRow.addEventListener('click', (e) => {
+			tableRow.addEventListener('contextmenu', (e) => {
 				showContextMenu(e);
 			});
 		}

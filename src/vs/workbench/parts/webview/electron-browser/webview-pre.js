@@ -10,7 +10,7 @@
 	const ipcRenderer = require('electron').ipcRenderer;
 
 
-	const registerVscodeResourceScheme = (function() {
+	const registerVscodeResourceScheme = (function () {
 		let hasRegistered = false;
 		return () => {
 			if (hasRegistered) {
@@ -172,6 +172,38 @@
 				const baseElement = newDocument.createElement('base');
 				baseElement.href = initData.baseUrl;
 				newDocument.head.appendChild(baseElement);
+			}
+
+			// apply default script
+			if (enableWrappedPostMessage) {
+				const defaultScript = newDocument.createElement('script');
+				defaultScript.textContent = `
+					const acquireVsCodeApi = (function() {
+						const originalPostMessage = window.parent.postMessage.bind(window.parent);
+						let acquired = false;
+
+						return () => {
+							if (acquired) {
+								throw new Error('An instance of the VS Code API has already been acquired');
+							}
+							acquired = true;
+							return Object.freeze({
+								postMessage: function(msg) {
+									return originalPostMessage(msg, '*');
+								}
+							});
+						};
+					})();
+					delete window.parent;
+					delete window.top;
+					delete window.frameElement;
+				`;
+
+				if (newDocument.head.hasChildNodes()) {
+					newDocument.head.insertBefore(defaultScript, newDocument.head.firstChild);
+				} else {
+					newDocument.head.appendChild(defaultScript);
+				}
 			}
 
 			// apply default styles

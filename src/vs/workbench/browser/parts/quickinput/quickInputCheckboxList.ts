@@ -352,6 +352,14 @@ export class QuickInputCheckboxList {
 		}
 	}
 
+	display(display: boolean) {
+		this.container.style.display = display ? null : 'none';
+	}
+
+	isDisplayed() {
+		return this.container.style.display !== 'none';
+	}
+
 	dispose() {
 		this.elementDisposables = dispose(this.elementDisposables);
 		this.disposables = dispose(this.disposables);

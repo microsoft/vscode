@@ -736,12 +736,12 @@ class BaseDeleteFileAction extends BaseFileAction {
 
 	private getMoveToTrashMessage(distinctElements: ExplorerItem[]): string {
 		if (this.containsBothDirectoryAndFile(distinctElements)) {
-			return getConfirmMessage(nls.localize('confirmMoveTrashMessageFilesAndDirectories', "Are you sure you want to delete the following {0} files/directories and its contents?", distinctElements.length), distinctElements.map(e => e.resource));
+			return getConfirmMessage(nls.localize('confirmMoveTrashMessageFilesAndDirectories', "Are you sure you want to delete the following {0} files/directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
 		}
 
 		if (distinctElements.length > 1) {
 			if (distinctElements[0].isDirectory) {
-				return getConfirmMessage(nls.localize('confirmMoveTrashMessageMultipleDirectories', "Are you sure you want to delete the following {0} directories and its contents?", distinctElements.length), distinctElements.map(e => e.resource));
+				return getConfirmMessage(nls.localize('confirmMoveTrashMessageMultipleDirectories', "Are you sure you want to delete the following {0} directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
 			}
 
 			return getConfirmMessage(nls.localize('confirmMoveTrashMessageMultiple', "Are you sure you want to delete the following {0} files?", distinctElements.length), distinctElements.map(e => e.resource));
@@ -756,12 +756,12 @@ class BaseDeleteFileAction extends BaseFileAction {
 
 	private getDeleteMessage(distinctElements: ExplorerItem[]): string {
 		if (this.containsBothDirectoryAndFile(distinctElements)) {
-			return getConfirmMessage(nls.localize('confirmDeleteMessageFilesAndDirectories', "Are you sure you want to permanently delete the following {0} files/directories and its contents?", distinctElements.length), distinctElements.map(e => e.resource));
+			return getConfirmMessage(nls.localize('confirmDeleteMessageFilesAndDirectories', "Are you sure you want to permanently delete the following {0} files/directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
 		}
 
 		if (distinctElements.length > 1) {
 			if (distinctElements[0].isDirectory) {
-				return getConfirmMessage(nls.localize('confirmDeleteMessageMultipleDirectories', "Are you sure you want to permanently delete the following {0} directories and its contents?", distinctElements.length), distinctElements.map(e => e.resource));
+				return getConfirmMessage(nls.localize('confirmDeleteMessageMultipleDirectories', "Are you sure you want to permanently delete the following {0} directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
 			}
 
 			return getConfirmMessage(nls.localize('confirmDeleteMessageMultiple', "Are you sure you want to permanently delete the following {0} files?", distinctElements.length), distinctElements.map(e => e.resource));

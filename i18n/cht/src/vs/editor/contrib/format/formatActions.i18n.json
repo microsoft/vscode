@@ -12,5 +12,7 @@
 	"hintnn": "在行 {1} 與行 {2} 之間編輯了 {0} 項格式",
 	"no.provider": "尚無安裝適用於 '{0}' 檔案的格式器",
 	"formatDocument.label": "將文件格式化",
-	"formatSelection.label": "將選取項目格式化"
+	"no.documentprovider": "未安裝 '{0}' 檔案的文件格式器。",
+	"formatSelection.label": "將選取項目格式化",
+	"no.selectionprovider": "未安裝 '{0}' 檔案的選擇格式器。"
 }

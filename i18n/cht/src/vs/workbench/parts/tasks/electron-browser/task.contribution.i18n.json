@@ -31,6 +31,8 @@
 	"selectProblemMatcher": "選取錯誤和警告的種類以掃描工作輸出",
 	"customizeParseErrors": "當前的工作組態存在錯誤.請更正錯誤再執行工作.",
 	"moreThanOneBuildTask": "定義了很多建置工作於tasks.json.執行第一個.",
+	"TaskSystem.activeSame.background": "工作 '{0}' 已在使用中並且處於背景模式。",
+	"TaskSystem.activeSame.noBackground": "工作 '{0}' 已在使用中。",
 	"terminateTask": "終止工作",
 	"restartTask": "重新啟動工作",
 	"TaskSystem.active": "已有工作在執行。請先終止該工作，然後再執行其他工作。",

@@ -155,6 +155,7 @@ export const isWebKit = (userAgent.indexOf('AppleWebKit') >= 0);
 export const isChrome = (userAgent.indexOf('Chrome') >= 0);
 export const isSafari = (userAgent.indexOf('Chrome') === -1) && (userAgent.indexOf('Safari') >= 0);
 export const isIPad = (userAgent.indexOf('iPad') >= 0);
+export const isEdgeWebView = isEdge && (userAgent.indexOf('WebView/') >= 0);
 
 export const isChromev56 = (
 	userAgent.indexOf('Chrome/56.') >= 0

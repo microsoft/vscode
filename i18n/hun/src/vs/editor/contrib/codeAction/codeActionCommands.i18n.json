@@ -14,5 +14,6 @@
 	"editor.action.refactor.noneMessage": "Nem áll rendelkezésre refaktorálási lehetőség",
 	"source.label": "Forrásművelet...",
 	"editor.action.source.noneMessage": "Nem áll rendelkezésre forrásművelet",
-	"organizeImports.label": "Importálások rendezése"
+	"organizeImports.label": "Importálások rendezése",
+	"editor.action.organize.noneMessage": "Nem áll rendelkezésre importálások rendezésére szolgáló művelet"
 }

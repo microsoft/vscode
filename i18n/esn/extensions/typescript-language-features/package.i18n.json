@@ -60,5 +60,6 @@
 	"typescript.autoImportSuggestions.enabled": "Habilita o deshabilita sugerencias de importación automática.  Requiere TypeScript >= 2.6.1.",
 	"typescript.experimental.syntaxFolding": "Habilita/deshabilita los marcadores de plegado sensibles a la sintaxis.",
 	"taskDefinition.tsconfig.description": "Archivo tsconfig que define la compilación de TS.",
-	"javascript.suggestionActions.enabled": "Habilitar/deshabilitar sugerencias de diagnóstico para los archivos JavaScript en el editor. Requiere TypeScript > = 2.8 "
+	"javascript.suggestionActions.enabled": "Habilitar/deshabilitar sugerencias de diagnóstico para los archivos JavaScript en el editor. Requiere TypeScript > = 2.8 ",
+	"typescript.suggestionActions.enabled": "Habilitar/deshabilitar sugerencias de diagnóstico para los archivos JavaScript en el editor. Requiere TypeScript > = 2.8 "
 }

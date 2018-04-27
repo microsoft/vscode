@@ -14,5 +14,8 @@
 	"config.npm.exclude": "Configura patrones globales para carpetas que deben excluirse de la detección automática de scripts. ",
 	"npm.parseError": "Detección de tareas de nueva gestión pública: no se pudo analizar el archivo {0}",
 	"taskdef.script": "Script npm que debe personalizarse.",
-	"taskdef.path": "Ruta de acceso a la carpeta del archivo package.json que proporciona el script. Se puede omitir."
+	"taskdef.path": "Ruta de acceso a la carpeta del archivo package.json que proporciona el script. Se puede omitir.",
+	"command.refresh": "Actualizar",
+	"command.debug": "Depurar",
+	"command.openScript": "Abrir"
 }

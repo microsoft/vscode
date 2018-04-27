@@ -11,12 +11,12 @@ import { TernarySearchTree, keys } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IDecodeStreamOptions, decodeStream, toDecodeStream } from 'vs/base/node/encoding';
+import { IDecodeStreamOptions, toDecodeStream, encodeStream } from 'vs/base/node/encoding';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileChangesEvent, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileOptions, FileSystemProviderCapabilities, IContent, ICreateFileOptions, IFileStat, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IResolveFileOptions, IResolveFileResult, IStat, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot } from 'vs/platform/files/common/files';
+import { FileChangesEvent, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileWriteOptions, FileSystemProviderCapabilities, IContent, ICreateFileOptions, IFileStat, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IResolveFileOptions, IResolveFileResult, IStat, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot, IWatchOptions, FileType } from 'vs/platform/files/common/files';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -25,13 +25,26 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
 import { createReadableOfProvider, createReadableOfSnapshot, createWritableOfProvider } from 'vs/workbench/services/files/electron-browser/streams';
 
+class TypeOnlyStat implements IStat {
+
+	constructor(readonly type: FileType) {
+		//
+	}
+
+	// todo@remote -> make a getter and warn when
+	// being used in development.
+	mtime: number = 0;
+	ctime: number = 0;
+	size: number = 0;
+}
+
 function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse?: (tuple: [URI, IStat]) => boolean): TPromise<IFileStat> {
 	const [resource, stat] = tuple;
 	const fileStat: IFileStat = {
 		resource,
 		name: posix.basename(resource.path),
-		isDirectory: stat.isDirectory,
-		isSymbolicLink: stat.isSymbolicLink,
+		isDirectory: (stat.type & FileType.Directory) !== 0,
+		isSymbolicLink: (stat.type & FileType.SymbolicLink) !== 0,
 		mtime: stat.mtime,
 		size: stat.size,
 		etag: stat.mtime.toString(29) + stat.size.toString(31),
@@ -43,9 +56,9 @@ function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse
 			return provider.readdir(resource).then(entries => {
 				// resolve children if requested
 				return TPromise.join(entries.map(tuple => {
-					const [name, stat] = tuple;
+					const [name, type] = tuple;
 					const childResource = resource.with({ path: posix.join(resource.path, name) });
-					return toIFileStat(provider, [childResource, stat], recurse);
+					return toIFileStat(provider, [childResource, new TypeOnlyStat(type)], recurse);
 				})).then(children => {
 					fileStat.children = children;
 					return fileStat;
@@ -117,17 +130,17 @@ class WorkspaceWatchLogic {
 	}
 
 	private _watchWorkspace(resource: URI) {
-		let exclude: string[] = [];
+		let excludes: string[] = [];
 		let config = this._configurationService.getValue<IFilesConfiguration>({ resource });
 		if (config.files && config.files.watcherExclude) {
 			for (const key in config.files.watcherExclude) {
 				if (config.files.watcherExclude[key] === true) {
-					exclude.push(key);
+					excludes.push(key);
 				}
 			}
 		}
 		this._watches.set(resource.toString(), resource);
-		this._fileService.watchFileChanges(resource, { recursive: true, exclude });
+		this._fileService.watchFileChanges(resource, { recursive: true, excludes });
 	}
 
 	private _unwatchWorkspace(resource: URI) {
@@ -227,7 +240,12 @@ export class RemoteFileService extends FileService {
 			case 'EntryIsADirectory':
 				res = FileOperationResult.FILE_IS_DIRECTORY;
 				break;
+			case 'NoPermissions':
+				res = FileOperationResult.FILE_PERMISSION_DENIED;
+				break;
 			case 'EntryExists':
+				res = FileOperationResult.FILE_MOVE_CONFLICT;
+				break;
 			case 'EntryNotADirectory':
 			default:
 				// todo
@@ -367,7 +385,7 @@ export class RemoteFileService extends FileService {
 					}
 				};
 
-				const readable = createReadableOfProvider(provider, resource, options.position || 0, { read: true });
+				const readable = createReadableOfProvider(provider, resource, options.position || 0);
 
 				return toDecodeStream(readable, decodeStreamOpts).then(data => {
 
@@ -394,14 +412,38 @@ export class RemoteFileService extends FileService {
 
 	// --- saving
 
+	private static async _mkdirp(provider: IFileSystemProvider, directory: URI): Promise<void> {
+
+		let basenames: string[] = [];
+		while (directory.path !== '/') {
+			try {
+				let stat = await provider.stat(directory);
+				if ((stat.type & FileType.Directory) === 0) {
+					throw new Error(`${directory.toString()} is not a directory`);
+				}
+				break; // we have hit a directory -> good
+			} catch (e) {
+				// ENOENT
+				basenames.push(posix.basename(directory.path));
+				directory = directory.with({ path: posix.dirname(directory.path) });
+			}
+		}
+		for (let i = basenames.length - 1; i >= 0; i--) {
+			directory = directory.with({ path: posix.join(directory.path, basenames[i]) });
+			await provider.mkdir(directory);
+		}
+	}
+
 	createFile(resource: URI, content?: string, options?: ICreateFileOptions): TPromise<IFileStat> {
 		if (resource.scheme === Schemas.file) {
 			return super.createFile(resource, content, options);
 		} else {
-			return this._withProvider(resource).then(provider => {
 
-				const encoding = this.encoding.getWriteEncoding(resource);
-				return this._writeFile(provider, resource, new StringSnapshot(content), encoding, { write: true, create: true, exclusive: !(options && options.overwrite) });
+			return this._withProvider(resource).then(provider => {
+				return RemoteFileService._mkdirp(provider, resource.with({ path: posix.dirname(resource.path) })).then(() => {
+					const encoding = this.encoding.getWriteEncoding(resource);
+					return this._writeFile(provider, resource, new StringSnapshot(content), encoding, { create: true, overwrite: Boolean(options && options.overwrite) });
+				});
 
 			}).then(fileStat => {
 				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
@@ -414,27 +456,26 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
-	async updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): TPromise<IFileStat> {
+	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): TPromise<IFileStat> {
 		if (resource.scheme === Schemas.file) {
 			return super.updateContent(resource, value, options);
 		} else {
-			if (options && options.mkdirp) {
-				await this._mkdirp(resource.with({ path: posix.dirname(resource.path) }));
-			}
 			return this._withProvider(resource).then(provider => {
-				const snapshot = typeof value === 'string' ? new StringSnapshot(value) : value;
-				return this._writeFile(provider, resource, snapshot, options && options.encoding, { write: true });
+				return RemoteFileService._mkdirp(provider, resource.with({ path: posix.dirname(resource.path) })).then(() => {
+					const snapshot = typeof value === 'string' ? new StringSnapshot(value) : value;
+					return this._writeFile(provider, resource, snapshot, options && options.encoding, { create: true, overwrite: true });
+				});
 			});
 		}
 	}
 
-	private _writeFile(provider: IFileSystemProvider, resource: URI, snapshot: ITextSnapshot, preferredEncoding: string, options: FileOptions): TPromise<IFileStat> {
+	private _writeFile(provider: IFileSystemProvider, resource: URI, snapshot: ITextSnapshot, preferredEncoding: string, options: FileWriteOptions): TPromise<IFileStat> {
 		const readable = createReadableOfSnapshot(snapshot);
 		const encoding = this.encoding.getWriteEncoding(resource, preferredEncoding);
-		const decoder = decodeStream(encoding);
+		const encoder = encodeStream(encoding);
 		const target = createWritableOfProvider(provider, resource, options);
 		return new TPromise<IFileStat>((resolve, reject) => {
-			readable.pipe(decoder).pipe(target);
+			readable.pipe(encoder).pipe(target);
 			target.once('error', err => reject(err));
 			target.once('finish', _ => resolve(void 0));
 		}).then(_ => {
@@ -458,27 +499,6 @@ export class RemoteFileService extends FileService {
 		});
 	}
 
-	private async _mkdirp(directory: URI): Promise<void> {
-		let basenames: string[] = [];
-		while (directory.path !== '/') {
-			try {
-				let stat = await this.resolveFile(directory);
-				if (!stat.isDirectory) {
-					throw new Error(`${directory.toString()} is not a directory`);
-				}
-			} catch (e) {
-				// ENOENT
-				basenames.push(posix.basename(directory.path));
-				directory = directory.with({ path: posix.dirname(directory.path) });
-			}
-			break;
-		}
-		for (let i = basenames.length - 1; i >= 0; i--) {
-			directory = directory.with({ path: posix.join(directory.path, basenames[i]) });
-			await this.createFolder(directory);
-		}
-	}
-
 	// --- delete
 
 	del(resource: URI, useTrash?: boolean): TPromise<void> {
@@ -498,8 +518,10 @@ export class RemoteFileService extends FileService {
 			return super.createFolder(resource);
 		} else {
 			return this._withProvider(resource).then(provider => {
-				return provider.mkdir(resource).then(stat => {
-					return toIFileStat(provider, [resource, stat]);
+				return RemoteFileService._mkdirp(provider, resource.with({ path: posix.dirname(resource.path) })).then(() => {
+					return provider.mkdir(resource).then(() => {
+						return this.resolveFile(resource);
+					});
 				});
 			}).then(fileStat => {
 				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
@@ -534,11 +556,17 @@ export class RemoteFileService extends FileService {
 			: TPromise.as(null);
 
 		return prepare.then(() => this._withProvider(source)).then(provider => {
-			return provider.rename(source, target, { create: true, exclusive: !overwrite }).then(stat => {
-				return toIFileStat(provider, [target, stat]);
+			return provider.rename(source, target, { overwrite }).then(() => {
+				return this.resolveFile(target);
 			}).then(fileStat => {
 				this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.MOVE, fileStat));
 				return fileStat;
+			}, err => {
+				const result = this._tryParseFileOperationResult(err);
+				if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
+					throw new FileOperationError(localize('fileMoveConflict', "Unable to move/copy. File already exists at destination."), result);
+				}
+				throw err;
 			});
 		});
 	}
@@ -563,7 +591,18 @@ export class RemoteFileService extends FileService {
 
 			if (source.scheme === target.scheme && (provider.capabilities & FileSystemProviderCapabilities.FileFolderCopy)) {
 				// good: provider supports copy withing scheme
-				return provider.copy(source, target, { create: true, exclusive: !overwrite }).then(stat => toIFileStat(provider, [target, stat]));
+				return provider.copy(source, target, { overwrite }).then(() => {
+					return this.resolveFile(target);
+				}).then(fileStat => {
+					this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, fileStat));
+					return fileStat;
+				}, err => {
+					const result = this._tryParseFileOperationResult(err);
+					if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
+						throw new FileOperationError(localize('fileMoveConflict', "Unable to move/copy. File already exists at destination."), result);
+					}
+					throw err;
+				});
 			}
 
 			const prepare = overwrite
@@ -579,13 +618,16 @@ export class RemoteFileService extends FileService {
 							provider, target,
 							new StringSnapshot(content.value),
 							content.encoding,
-							{ write: true, create: true, exclusive: !overwrite }
+							{ create: true, overwrite }
 						).then(fileStat => {
 							this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, fileStat));
 							return fileStat;
 						});
 					}, err => {
-						if (err instanceof Error && err.name === 'ENOPRO') {
+						const result = this._tryParseFileOperationResult(err);
+						if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
+							throw new FileOperationError(localize('fileMoveConflict', "Unable to move/copy. File already exists at destination."), result);
+						} else if (err instanceof Error && err.name === 'ENOPRO') {
 							// file scheme
 							return super.updateContent(target, content.value, { encoding: content.encoding });
 						} else {
@@ -599,9 +641,13 @@ export class RemoteFileService extends FileService {
 
 	private _activeWatches = new Map<string, { unwatch: Thenable<IDisposable>, count: number }>();
 
-	public watchFileChanges(resource: URI, opts: { recursive?: boolean, exclude?: string[] } = {}): void {
+	public watchFileChanges(resource: URI, opts?: IWatchOptions): void {
 		if (resource.scheme === Schemas.file) {
 			return super.watchFileChanges(resource);
+		}
+
+		if (!opts) {
+			opts = { recursive: false, excludes: [] };
 		}
 
 		const key = resource.toString();

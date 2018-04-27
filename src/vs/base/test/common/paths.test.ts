@@ -20,6 +20,7 @@ suite('Paths', () => {
 		assert.equal(paths.dirname('/'), '/');
 		assert.equal(paths.dirname('\\'), '\\');
 		assert.equal(paths.dirname('foo'), '.');
+		assert.equal(paths.dirname('/folder/'), '/');
 		if (platform.isWindows) {
 			assert.equal(paths.dirname('c:\\some\\file.txt'), 'c:\\some');
 			assert.equal(paths.dirname('c:\\some'), 'c:\\');

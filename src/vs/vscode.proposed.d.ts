@@ -13,248 +13,40 @@ declare module 'vscode' {
 
 	//#region Joh: file system provider (OLD)
 
-	export enum FileChangeType {
+	export enum DeprecatedFileChangeType {
 		Updated = 0,
 		Added = 1,
 		Deleted = 2
 	}
-
-	export interface FileChange {
-		type: FileChangeType;
+	export interface DeprecatedFileChange {
+		type: DeprecatedFileChangeType;
 		resource: Uri;
 	}
-
-	export enum FileType {
+	export enum DeprecatedFileType {
 		File = 0,
 		Dir = 1,
 		Symlink = 2
 	}
-
-	export interface FileStat {
+	export interface DeprecatedFileStat {
 		id: number | string;
 		mtime: number;
-		// atime: number;
 		size: number;
-		type: FileType;
+		type: DeprecatedFileType;
 	}
-
-	// todo@joh discover files etc
-	// todo@joh CancellationToken everywhere
-	// todo@joh add open/close calls?
-	export interface FileSystemProvider {
-
-		readonly onDidChange?: Event<FileChange[]>;
-
-		// more...
-		// @deprecated - will go away
-		utimes(resource: Uri, mtime: number, atime: number): Thenable<FileStat>;
-
-		stat(resource: Uri): Thenable<FileStat>;
-
+	export interface DeprecatedFileSystemProvider {
+		readonly onDidChange?: Event<DeprecatedFileChange[]>;
+		utimes(resource: Uri, mtime: number, atime: number): Thenable<DeprecatedFileStat>;
+		stat(resource: Uri): Thenable<DeprecatedFileStat>;
 		read(resource: Uri, offset: number, length: number, progress: Progress<Uint8Array>): Thenable<number>;
-
-		// todo@joh - have an option to create iff not exist
-		// todo@remote
-		// offset - byte offset to start
-		// count - number of bytes to write
-		// Thenable<number> - number of bytes actually written
 		write(resource: Uri, content: Uint8Array): Thenable<void>;
-
-		// todo@remote
-		// Thenable<FileStat>
-		move(resource: Uri, target: Uri): Thenable<FileStat>;
-
-		// todo@remote
-		// helps with performance bigly
-		// copy?(from: Uri, to: Uri): Thenable<void>;
-
-		// todo@remote
-		// Thenable<FileStat>
-		mkdir(resource: Uri): Thenable<FileStat>;
-
-		readdir(resource: Uri): Thenable<[Uri, FileStat][]>;
-
-		// todo@remote
-		// ? merge both
-		// ? recursive del
+		move(resource: Uri, target: Uri): Thenable<DeprecatedFileStat>;
+		mkdir(resource: Uri): Thenable<DeprecatedFileStat>;
+		readdir(resource: Uri): Thenable<[Uri, DeprecatedFileStat][]>;
 		rmdir(resource: Uri): Thenable<void>;
 		unlink(resource: Uri): Thenable<void>;
-
-		// todo@remote
-		// create(resource: Uri): Thenable<FileStat>;
 	}
-
-	export type DeprecatedFileChangeType = FileChangeType;
-	export type DeprecatedFileType = FileType;
-	export type DeprecatedFileChange = FileChange;
-	export type DeprecatedFileStat = FileStat;
-	export type DeprecatedFileSystemProvider = FileSystemProvider;
-
 	export namespace workspace {
 		export function registerDeprecatedFileSystemProvider(scheme: string, provider: DeprecatedFileSystemProvider): Disposable;
-		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, newProvider?: FileSystemProvider2): Disposable;
-	}
-
-	//#endregion
-
-	//#region Joh: file system provider (new)
-
-	/**
-	 *
-	 */
-	export class FileSystemError extends Error {
-
-		static EntryExists(message?: string): FileSystemError;
-		static EntryNotFound(message?: string): FileSystemError;
-		static EntryNotADirectory(message?: string): FileSystemError;
-		static EntryIsADirectory(message?: string): FileSystemError;
-
-		constructor(message?: string);
-	}
-
-	export enum FileChangeType2 {
-		Changed = 1,
-		Created = 2,
-		Deleted = 3,
-	}
-
-	export interface FileChange2 {
-		type: FileChangeType2;
-		uri: Uri;
-	}
-
-	export interface FileStat2 {
-		isFile: boolean;
-		isDirectory: boolean;
-		isSymbolicLink: boolean;
-		mtime: number;
-		size: number;
-	}
-
-	/**
-	 *
-	 */
-	export interface FileOptions {
-
-		/**
-		 * Create a file when it doesn't exists
-		 */
-		create?: boolean;
-
-		/**
-		 * In combination with [`create`](FileOptions.create) but
-		 * the operation should fail when a file already exists.
-		 */
-		exclusive?: boolean;
-
-		/**
-		 * Open a file for reading.
-		 */
-		read?: boolean;
-
-		/**
-		 * Open a file for writing.
-		 */
-		write?: boolean;
-	}
-
-	/**
-	 *
-	 */
-	export interface FileSystemProvider2 {
-
-		_version: 9;
-
-		/**
-		 * An event to signal that a resource has been created, changed, or deleted. This
-		 * event should fire for resources that are being [watched](#FileSystemProvider2.watch)
-		 * by clients of this provider.
-		 */
-		readonly onDidChangeFile: Event<FileChange2[]>;
-
-		/**
-		 * Subscribe to events in the file or folder denoted by `uri`.
-		 * @param uri
-		 * @param options
-		 */
-		watch(uri: Uri, options: { recursive?: boolean; excludes?: string[] }): Disposable;
-
-		/**
-		 * Retrieve metadata about a file. Throw an [`EntryNotFound`](#FileError.EntryNotFound)-error
-		 * in case the file does not exist.
-		 *
-		 * @param uri The uri of the file to retrieve meta data about.
-		 * @param token A cancellation token.
-		 * @return The file metadata about the file.
-		 */
-		stat(uri: Uri, options: { /*future: followSymlinks*/ }, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
-
-		/**
-		 * Retrieve the meta data of all entries of a [directory](#FileType2.Directory)
-		 *
-		 * @param uri The uri of the folder.
-		 * @param token A cancellation token.
-		 * @return A thenable that resolves to an array of tuples of file names and files stats.
-		 */
-		readDirectory(uri: Uri, options: { /*future: onlyType?*/ }, token: CancellationToken): [string, FileStat2][] | Thenable<[string, FileStat2][]>;
-
-		/**
-		 * Create a new directory. *Note* that new files are created via `write`-calls.
-		 *
-		 * @param uri The uri of the *new* folder.
-		 * @param token A cancellation token.
-		 */
-		createDirectory(uri: Uri, options: { /*future: permissions?*/ }, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
-
-		/**
-		 * Read the entire contents of a file.
-		 *
-		 * @param uri The uri of the file.
-		 * @param token A cancellation token.
-		 * @return A thenable that resolves to an array of bytes.
-		 */
-		readFile(uri: Uri, options: FileOptions, token: CancellationToken): Uint8Array | Thenable<Uint8Array>;
-
-		/**
-		 * Write data to a file, replacing its entire contents.
-		 *
-		 * @param uri The uri of the file.
-		 * @param content The new content of the file.
-		 * @param token A cancellation token.
-		 */
-		writeFile(uri: Uri, content: Uint8Array, options: FileOptions, token: CancellationToken): void | Thenable<void>;
-
-		/**
-		 * Delete a file or folder from the underlying storage.
-		 *
-		 * @param uri The resource that is to be deleted
-		 * @param options Options bag for future use
-		 * @param token A cancellation token.
-		 */
-		delete(uri: Uri, options: { /*future: useTrash?, followSymlinks?*/ }, token: CancellationToken): void | Thenable<void>;
-
-		/**
-		 * Rename a file or folder.
-		 *
-		 * @param oldUri The existing file or folder.
-		 * @param newUri The target location.
-		 * @param token A cancellation token.
-		 */
-		rename(oldUri: Uri, newUri: Uri, options: FileOptions, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
-
-		/**
-		 * Copy files or folders. Implementing this function is optional but it will speedup
-		 * the copy operation.
-		 *
-		 * @param uri The existing file or folder.
-		 * @param target The target location.
-		 * @param token A cancellation token.
-		 */
-		copy?(uri: Uri, target: Uri, options: FileOptions, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
-	}
-
-	export namespace workspace {
-		export function registerFileSystemProvider2(scheme: string, provider: FileSystemProvider2, options: { isCaseSensitive?: boolean }): Disposable;
 	}
 
 	//#endregion
@@ -620,7 +412,7 @@ declare module 'vscode' {
 		 *
 		 * @readonly
 		 */
-		export let taskExecutions: TaskExecution[];
+		export let taskExecutions: ReadonlyArray<TaskExecution>;
 
 		/**
 		 * Fires when a task starts.
@@ -638,6 +430,11 @@ declare module 'vscode' {
 	//#region Terminal
 
 	export interface Terminal {
+		/**
+		 * Fires when the terminal's pty slave pseudo-device is written to. In other words, this
+		 * provides access to the raw data stream from the process running within the terminal,
+		 * including ANSI sequences.
+		 */
 		onData: Event<string>;
 	}
 
@@ -670,6 +467,24 @@ declare module 'vscode' {
 		 * Registers a protocol handler capable of handling system-wide URIs.
 		 */
 		export function registerProtocolHandler(handler: ProtocolHandler): Disposable;
+	}
+
+	//#endregion
+
+	//#region Joh: hierarchical document symbols, https://github.com/Microsoft/vscode/issues/34968
+
+	export class HierarchicalSymbolInformation {
+		name: string;
+		kind: SymbolKind;
+		location: Location;
+		range: Range;
+		children: HierarchicalSymbolInformation[];
+
+		constructor(name: string, kind: SymbolKind, location: Location, range: Range);
+	}
+
+	export interface DocumentSymbolProvider {
+		provideDocumentSymbols(document: TextDocument, token: CancellationToken): ProviderResult<HierarchicalSymbolInformation | SymbolInformation[]>;
 	}
 
 	//#endregion

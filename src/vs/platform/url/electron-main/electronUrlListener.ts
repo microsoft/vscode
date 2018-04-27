@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { mapEvent, fromNodeEventEmitter, filterEvent } from 'vs/base/common/event';
+import { mapEvent, fromNodeEventEmitter, filterEvent, once } from 'vs/base/common/event';
 import { IURLService } from 'vs/platform/url/common/url';
 import product from 'vs/platform/node/product';
 import { app } from 'electron';
@@ -24,13 +24,12 @@ function uriFromRawUrl(url: string): URI | null {
 
 export class ElectronURLListener {
 
-	private buffer: URI[] = [];
 	private disposables: IDisposable[] = [];
 
 	constructor(
 		initial: string | string[],
 		@IURLService private urlService: IURLService,
-		@IWindowsMainService private windowsService: IWindowsMainService
+		@IWindowsMainService windowsService: IWindowsMainService
 	) {
 		const globalBuffer = ((<any>global).getOpenUrls() || []) as string[];
 		const rawBuffer = [
@@ -38,7 +37,8 @@ export class ElectronURLListener {
 			...globalBuffer
 		];
 
-		this.buffer = rawBuffer.map(uriFromRawUrl).filter(uri => !!uri);
+		const buffer = rawBuffer.map(uriFromRawUrl).filter(uri => !!uri);
+		const flush = () => buffer.forEach(uri => urlService.open(uri));
 
 		app.setAsDefaultProtocolClient(product.urlProtocol, process.execPath, ['--open-url', '--']);
 
@@ -51,34 +51,16 @@ export class ElectronURLListener {
 			});
 
 		const onOpenUrl = filterEvent(mapEvent(onOpenElectronUrl, uriFromRawUrl), uri => !!uri);
-		onOpenUrl(this.open, this, this.disposables);
+		onOpenUrl(this.urlService.open, this.urlService, this.disposables);
 
-		this.windowsService.onWindowReady(this.flushBuffer, this, this.disposables);
-		this.flushBuffer();
-	}
-
-	private open(uri: URI): void {
-		const shouldBuffer = this.windowsService.getWindows()
+		const isWindowReady = windowsService.getWindows()
 			.filter(w => w.readyState === ReadyState.READY)
-			.length === 0;
+			.length > 0;
 
-		if (shouldBuffer) {
-			this.buffer.push(uri);
+		if (isWindowReady) {
+			flush();
 		} else {
-			this.urlService.open(uri).then(handled => {
-				if (!handled) {
-					this.buffer.push(uri);
-				}
-			});
-		}
-	}
-
-	private flushBuffer(): void {
-		const buffer = this.buffer;
-		this.buffer = [];
-
-		for (const uri of buffer) {
-			this.open(uri);
+			once(windowsService.onWindowReady)(flush);
 		}
 	}
 

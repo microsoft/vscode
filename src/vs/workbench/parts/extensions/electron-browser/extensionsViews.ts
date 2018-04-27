@@ -209,7 +209,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			return new PagedModel(this.sortExtensions(result, options));
 		}
 
-		const idMatch = /@id:([a-z0-9][a-z0-9\-]*\.[a-z0-9][a-z0-9\-]*)/.exec(value);
+		const idMatch = /@id:(([a-z0-9A-Z][a-z0-9\-A-Z]*)\.([a-z0-9A-Z][a-z0-9\-A-Z]*))/.exec(value);
 
 		if (idMatch) {
 			const name = idMatch[1];

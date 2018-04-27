@@ -14,5 +14,6 @@
 	"editor.action.refactor.noneMessage": "利用可能なリファクタリングはありません",
 	"source.label": "ソース アクション...",
 	"editor.action.source.noneMessage": "利用可能なソース アクションはありません",
-	"organizeImports.label": "インポートを整理"
+	"organizeImports.label": "インポートを整理",
+	"editor.action.organize.noneMessage": "利用可能なインポートの整理アクションはありません"
 }

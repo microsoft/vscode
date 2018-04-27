@@ -11,7 +11,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TokenizationRegistry, ColorId, LanguageId } from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
-import { MinimapLinesRenderingData, ViewLineRenderingData, ViewModelDecoration, IViewModel, ICoordinatesConverter, IOverviewRulerDecorations } from 'vs/editor/common/viewModel/viewModel';
+import { MinimapLinesRenderingData, ViewLineRenderingData, ViewModelDecoration, IViewModel, ICoordinatesConverter, IOverviewRulerDecorations, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { SplitLinesCollection, IViewModelLinesCollection, IdentityLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { MinimapTokensColorTracker } from 'vs/editor/common/view/minimapCharRenderer';
@@ -231,6 +231,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 					}
 				}
 				this.lines.acceptVersionId(versionId);
+				this.viewLayout.onHeightMaybeChanged();
 
 				if (!hadOtherModelChange && hadModelLineChangeThatChangedLineMapping) {
 					eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
@@ -451,8 +452,8 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		this.viewportStartLineTop = this.viewLayout.getVerticalOffsetForLineNumber(startLineNumber);
 	}
 
-	public getActiveIndentGuide(lineNumber: number): IActiveIndentGuideInfo {
-		return this.lines.getActiveIndentGuide(lineNumber);
+	public getActiveIndentGuide(lineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo {
+		return this.lines.getActiveIndentGuide(lineNumber, minLineNumber, maxLineNumber);
 	}
 
 	public getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[] {
@@ -515,6 +516,10 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		);
 	}
 
+	public getViewLineData(lineNumber: number): ViewLineData {
+		return this.lines.getViewLineData(lineNumber);
+	}
+
 	public getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): MinimapLinesRenderingData {
 		let result = this.lines.getViewLinesData(startLineNumber, endLineNumber, needed);
 		return new MinimapLinesRenderingData(
@@ -569,8 +574,8 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		return this.model.getEOL();
 	}
 
-	public getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean): string | string[] {
-		const newLineCharacter = this.model.getEOL();
+	public getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[] {
+		const newLineCharacter = forceCRLF ? '\r\n' : this.model.getEOL();
 
 		ranges = ranges.slice(0);
 		ranges.sort(Range.compareRangesUsingStarts);
@@ -598,7 +603,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 		let result: string[] = [];
 		for (let i = 0; i < nonEmptyRanges.length; i++) {
-			result.push(this.getValueInRange(nonEmptyRanges[i], EndOfLinePreference.TextDefined));
+			result.push(this.getValueInRange(nonEmptyRanges[i], forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
 		}
 		return result.length === 1 ? result[0] : result;
 	}

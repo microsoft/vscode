@@ -22,7 +22,7 @@ const taskDefinitionSchema: IJSONSchema = {
 	properties: {
 		type: {
 			type: 'string',
-			description: nls.localize('TaskDefinition.description', 'The actual task type')
+			description: nls.localize('TaskDefinition.description', 'The actual task type. Please note that types starting with a \'$\' are reserved for internal usage.')
 		},
 		required: {
 			type: 'array',

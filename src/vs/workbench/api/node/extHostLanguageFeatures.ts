@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { mixin } from 'vs/base/common/objects';
 import * as vscode from 'vscode';
 import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
-import { Range, Disposable, CompletionList, SnippetString, CodeActionKind } from 'vs/workbench/api/node/extHostTypes';
+import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, HierarchicalSymbolInformation } from 'vs/workbench/api/node/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
@@ -39,6 +39,9 @@ class OutlineAdapter {
 	provideDocumentSymbols(resource: URI): TPromise<SymbolInformationDto[]> {
 		let doc = this._documents.getDocumentData(resource).document;
 		return asWinJsPromise(token => this._provider.provideDocumentSymbols(doc, token)).then(value => {
+			if (value instanceof HierarchicalSymbolInformation) {
+				value = HierarchicalSymbolInformation.toFlatSymbolInformation(value);
+			}
 			if (Array.isArray(value)) {
 				return value.map(symbol => IdObject.mixin(TypeConverters.fromSymbolInformation(symbol)));
 			}
@@ -468,7 +471,7 @@ class NavigateTypeAdapter {
 class RenameAdapter {
 
 	static supportsResolving(provider: vscode.RenameProvider): boolean {
-		return typeof provider.resolveRenameLocation === 'function';
+		return typeof provider.prepareRename === 'function';
 	}
 
 	private _documents: ExtHostDocuments;
@@ -508,14 +511,14 @@ class RenameAdapter {
 	}
 
 	resolveRenameLocation(resource: URI, position: IPosition): TPromise<modes.RenameLocation> {
-		if (typeof this._provider.resolveRenameLocation !== 'function') {
+		if (typeof this._provider.prepareRename !== 'function') {
 			return TPromise.as(undefined);
 		}
 
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
 
-		return asWinJsPromise(token => this._provider.resolveRenameLocation(doc, pos, token)).then(rangeOrLocation => {
+		return asWinJsPromise(token => this._provider.prepareRename(doc, pos, token)).then(rangeOrLocation => {
 
 			let range: vscode.Range;
 			let text: string;
@@ -1102,9 +1105,9 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	// --- rename
 
-	registerRenameProvider(selector: vscode.DocumentSelector, provider: vscode.RenameProvider, canUseProposedApi = false): vscode.Disposable {
+	registerRenameProvider(selector: vscode.DocumentSelector, provider: vscode.RenameProvider): vscode.Disposable {
 		const handle = this._addNewAdapter(new RenameAdapter(this._documents, provider));
-		this._proxy.$registerRenameSupport(handle, this._transformDocumentSelector(selector), canUseProposedApi && RenameAdapter.supportsResolving(provider));
+		this._proxy.$registerRenameSupport(handle, this._transformDocumentSelector(selector), RenameAdapter.supportsResolving(provider));
 		return this._createDisposable(handle);
 	}
 
@@ -1113,7 +1116,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	}
 
 	$resolveRenameLocation(handle: number, resource: URI, position: IPosition): TPromise<modes.RenameLocation> {
-		return this._withAdapter(handle, RenameAdapter, adapter => adapter.resolveRenameLocation(resource, position));
+		return this._withAdapter(handle, RenameAdapter, adapter => adapter.resolveRenameLocation(URI.revive(resource), position));
 	}
 
 	// --- suggestion

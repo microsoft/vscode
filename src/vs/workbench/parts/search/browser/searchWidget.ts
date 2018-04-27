@@ -39,6 +39,7 @@ export interface ISearchWidgetOptions {
 	isCaseSensitive?: boolean;
 	isWholeWords?: boolean;
 	history?: string[];
+	historyLimit?: number;
 }
 
 class ReplaceAllAction extends Action {
@@ -127,7 +128,7 @@ export class SearchWidget extends Widget {
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
-		this.searchHistory = new HistoryNavigator<string>(options.history);
+		this.searchHistory = new HistoryNavigator<string>(options.history, options.historyLimit);
 		this.replaceActive = Constants.ReplaceActiveKey.bindTo(this.keyBindingService);
 		this.searchInputBoxFocused = Constants.SearchInputBoxFocusedKey.bindTo(this.keyBindingService);
 		this.replaceInputBoxFocused = Constants.ReplaceInputBoxFocusedKey.bindTo(this.keyBindingService);
@@ -177,6 +178,10 @@ export class SearchWidget extends Widget {
 
 	public getHistory(): string[] {
 		return this.searchHistory.getHistory();
+	}
+
+	public clearHistory(): void {
+		this.searchHistory.clear();
 	}
 
 	public showNextSearchTerm() {

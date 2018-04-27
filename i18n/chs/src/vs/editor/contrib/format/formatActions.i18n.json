@@ -12,5 +12,7 @@
 	"hintnn": "第 {1} 行到第 {2} 行间进行了 {0} 次格式编辑",
 	"no.provider": "当前没有安装“{0}”文件的格式化程序。",
 	"formatDocument.label": "格式化文件",
-	"formatSelection.label": "格式化选定代码"
+	"no.documentprovider": "当前没有安装“{0}”文件的文档格式化程序。",
+	"formatSelection.label": "格式化选定代码",
+	"no.selectionprovider": "当前没有安装“{0}”文件的选定项格式化程序。"
 }

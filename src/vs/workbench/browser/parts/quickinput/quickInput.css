@@ -30,6 +30,9 @@
 
 .quick-input-box {
 	flex-grow: 1;
+}
+
+.quick-input-widget[data-type=selectMany] .quick-input-box {
 	margin-left: 5px;
 }
 
@@ -51,6 +54,10 @@
 	font-size: 85%;
 	padding: 7px 6px 6px 6px;
 	line-height: initial;
+}
+
+.quick-input-message {
+	margin: 0px 11px;
 }
 
 .quick-input-progress.monaco-progress-container,

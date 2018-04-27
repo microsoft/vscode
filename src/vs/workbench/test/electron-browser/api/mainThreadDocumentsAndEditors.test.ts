@@ -89,7 +89,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 		this.timeout(1000 * 60); // increase timeout for this one test
 
 		const model = modelService.createModel(hugeModelString, null, null);
-		assert.ok(model.isTooLargeForHavingARichMode());
+		assert.ok(model.isTooLargeForSyncing());
 
 		assert.equal(deltas.length, 1);
 		const [delta] = deltas;

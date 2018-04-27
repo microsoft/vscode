@@ -12,5 +12,7 @@
 	"hintnn": "{0} modifications de format effectuées entre les lignes {1} et {2}",
 	"no.provider": "Il n’y a aucun formateur installé pour les fichiers '{0}'.",
 	"formatDocument.label": "Mettre en forme le document",
-	"formatSelection.label": "Mettre en forme la sélection"
+	"no.documentprovider": "Il n’y a aucun formateur de document installé pour les fichiers '{0}'.",
+	"formatSelection.label": "Mettre en forme la sélection",
+	"no.selectionprovider": "Il n’y a aucun formateur de sélection installé pour les fichiers '{0}'."
 }

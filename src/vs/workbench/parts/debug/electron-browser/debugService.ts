@@ -155,6 +155,7 @@ export class DebugService implements debug.IDebugService {
 
 		if (broadcast.channel === EXTENSION_ATTACH_BROADCAST_CHANNEL) {
 			const initialAttach = process.configuration.request === 'launch';
+
 			process.configuration.request = 'attach';
 			process.configuration.port = broadcast.payload.port;
 			// Do not end process on initial attach (since the request is still 'launch')
@@ -164,7 +165,6 @@ export class DebugService implements debug.IDebugService {
 				this.onSessionEnd(session);
 				this.doCreateProcess(process.session.root, process.configuration, process.getId());
 			}
-
 			return;
 		}
 
@@ -605,11 +605,11 @@ export class DebugService implements debug.IDebugService {
 		return this.sendAllBreakpoints();
 	}
 
-	public addBreakpoints(uri: uri, rawBreakpoints: debug.IBreakpointData[]): TPromise<void> {
-		this.model.addBreakpoints(uri, rawBreakpoints);
+	public addBreakpoints(uri: uri, rawBreakpoints: debug.IBreakpointData[]): TPromise<debug.IBreakpoint[]> {
+		const breakpoints = this.model.addBreakpoints(uri, rawBreakpoints);
 		rawBreakpoints.forEach(rbp => aria.status(nls.localize('breakpointAdded', "Added breakpoint, line {0}, file {1}", rbp.lineNumber, uri.fsPath)));
 
-		return this.sendBreakpoints(uri);
+		return this.sendBreakpoints(uri).then(() => breakpoints);
 	}
 
 	public updateBreakpoints(uri: uri, data: { [id: string]: DebugProtocol.Breakpoint }, sendOnResourceSaved: boolean): void {
@@ -773,18 +773,17 @@ export class DebugService implements debug.IDebugService {
 				}
 
 				return (type ? TPromise.as(null) : this.configurationManager.guessDebugger().then(a => type = a && a.type)).then(() =>
-					(type ? this.extensionService.activateByEvent(`onDebugResolve:${type}`) : TPromise.as(null)).then(() =>
-						this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config).then(config => {
-							// a falsy config indicates an aborted launch
-							if (config && config.type) {
-								return this.createProcess(launch, config, sessionId);
-							}
+					this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config).then(config => {
+						// a falsy config indicates an aborted launch
+						if (config && config.type) {
+							return this.createProcess(launch, config, sessionId);
+						}
 
-							if (launch) {
-								return launch.openConfigFile(false, type).done(undefined, errors.onUnexpectedError);
-							}
-						})
-					)).then(() => undefined);
+						if (launch && type) {
+							return launch.openConfigFile(false, type).done(undefined, errors.onUnexpectedError);
+						}
+					})
+				).then(() => undefined);
 			})
 		))).then(() => wrapUpState(), err => {
 			wrapUpState();
@@ -792,11 +791,11 @@ export class DebugService implements debug.IDebugService {
 		});
 	}
 
-	private substituteVariables(launch: debug.ILaunch, config: debug.IConfig): TPromise<debug.IConfig> {
+	private substituteVariables(launch: debug.ILaunch | undefined, config: debug.IConfig): TPromise<debug.IConfig> {
 		const dbg = this.configurationManager.getDebugger(config.type);
 		if (dbg) {
 			let folder: IWorkspaceFolder = undefined;
-			if (launch.workspace) {
+			if (launch && launch.workspace) {
 				folder = launch.workspace;
 			} else {
 				const folders = this.contextService.getWorkspace().folders;

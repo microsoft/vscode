@@ -610,7 +610,7 @@ namespace TaskDTO {
 				scope = value.scope.uri.toJSON();
 			}
 		}
-		if (!execution || !definition || !scope) {
+		if (!definition || !scope) {
 			return undefined;
 		}
 		let group = (value.group as types.TaskGroup) ? (value.group as types.TaskGroup).id : undefined;
@@ -655,7 +655,7 @@ namespace TaskDTO {
 				scope = types.TaskScope.Workspace;
 			}
 		}
-		if (!execution || !definition || !scope) {
+		if (!definition || !scope) {
 			return undefined;
 		}
 		let result = new types.Task(definition, scope, value.name, value.source.label, execution, value.problemMatchers);

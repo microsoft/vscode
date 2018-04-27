@@ -14,7 +14,7 @@ import * as path from 'path';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { values } from 'vs/base/common/map';
-import { Range, FileType, FileChangeType, FileChangeType2 } from 'vs/workbench/api/node/extHostTypes';
+import { Range, DeprecatedFileType, DeprecatedFileChangeType, FileChangeType } from 'vs/workbench/api/node/extHostTypes';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { Schemas } from 'vs/base/common/network';
 
@@ -57,11 +57,9 @@ class FsLinkProvider implements vscode.DocumentLinkProvider {
 	}
 }
 
-class FileSystemProviderShim implements vscode.FileSystemProvider2 {
+class FileSystemProviderShim implements vscode.FileSystemProvider {
 
-	_version: 9 = 9;
-
-	onDidChangeFile: vscode.Event<vscode.FileChange2[]>;
+	onDidChangeFile: vscode.Event<vscode.FileChangeEvent[]>;
 
 	constructor(private readonly _delegate: vscode.DeprecatedFileSystemProvider) {
 		if (!this._delegate.onDidChange) {
@@ -77,51 +75,49 @@ class FileSystemProviderShim implements vscode.FileSystemProvider2 {
 		return { dispose() { } };
 	}
 
-	stat(resource: vscode.Uri): Thenable<vscode.FileStat2> {
+	stat(resource: vscode.Uri): Thenable<vscode.FileStat> {
 		return this._delegate.stat(resource).then(stat => FileSystemProviderShim._modernizeFileStat(stat));
 	}
-	rename(oldUri: vscode.Uri, newUri: vscode.Uri): Thenable<vscode.FileStat2> {
-		return this._delegate.move(oldUri, newUri).then(stat => FileSystemProviderShim._modernizeFileStat(stat));
+	rename(oldUri: vscode.Uri, newUri: vscode.Uri): Thenable<void> {
+		return this._delegate.move(oldUri, newUri).then(stat => void 0);
 	}
-	readDirectory(resource: vscode.Uri): Thenable<[string, vscode.FileStat2][]> {
+	readDirectory(resource: vscode.Uri): Thenable<[string, vscode.FileType][]> {
 		return this._delegate.readdir(resource).then(tuples => {
-			return tuples.map(tuple => <[string, vscode.FileStat2]>[path.posix.basename(tuple[0].path), FileSystemProviderShim._modernizeFileStat(tuple[1])]);
+			return tuples.map(tuple => <[string, vscode.FileType]>[path.posix.basename(tuple[0].path), FileSystemProviderShim._modernizeFileStat(tuple[1]).type]);
 		});
 	}
 
-	private static _modernizeFileStat(stat: vscode.DeprecatedFileStat): vscode.FileStat2 {
+	private static _modernizeFileStat(stat: vscode.DeprecatedFileStat): vscode.FileStat {
 		let { mtime, size, type } = stat;
-		let isFile = false;
-		let isDirectory = false;
-		let isSymbolicLink = false;
+		let newType: files.FileType;
 
 		// no support for bitmask, effectively no support for symlinks
 		switch (type) {
-			case FileType.Dir:
-				isDirectory = true;
+			case DeprecatedFileType.Dir:
+				newType = files.FileType.Directory;
 				break;
-			case FileType.File:
-				isFile = true;
+			case DeprecatedFileType.File:
+				newType = files.FileType.File;
 				break;
-			case FileType.Symlink:
-				isSymbolicLink = true;
+			case DeprecatedFileType.Symlink:
+				newType = files.FileType.File & files.FileType.SymbolicLink;
 				break;
 		}
-		return { mtime, size, isFile, isDirectory, isSymbolicLink };
+		return { type: newType, ctime: 0, mtime, size };
 	}
 
-	private static _modernizeFileChange(e: vscode.DeprecatedFileChange): vscode.FileChange2 {
+	private static _modernizeFileChange(e: vscode.DeprecatedFileChange): vscode.FileChangeEvent {
 		let { resource, type } = e;
-		let newType: vscode.FileChangeType2;
+		let newType: vscode.FileChangeType;
 		switch (type) {
-			case FileChangeType.Updated:
-				newType = FileChangeType2.Changed;
+			case DeprecatedFileChangeType.Updated:
+				newType = FileChangeType.Changed;
 				break;
-			case FileChangeType.Added:
-				newType = FileChangeType2.Created;
+			case DeprecatedFileChangeType.Added:
+				newType = FileChangeType.Created;
 				break;
-			case FileChangeType.Deleted:
-				newType = FileChangeType2.Deleted;
+			case DeprecatedFileChangeType.Deleted:
+				newType = FileChangeType.Deleted;
 				break;
 
 		}
@@ -132,15 +128,15 @@ class FileSystemProviderShim implements vscode.FileSystemProvider2 {
 
 	delete(resource: vscode.Uri): Thenable<void> {
 		return this._delegate.stat(resource).then(stat => {
-			if (stat.type === FileType.Dir) {
+			if (stat.type === DeprecatedFileType.Dir) {
 				return this._delegate.rmdir(resource);
 			} else {
 				return this._delegate.unlink(resource);
 			}
 		});
 	}
-	createDirectory(resource: vscode.Uri): Thenable<vscode.FileStat2> {
-		return this._delegate.mkdir(resource).then(stat => FileSystemProviderShim._modernizeFileStat(stat));
+	createDirectory(resource: vscode.Uri): Thenable<void> {
+		return this._delegate.mkdir(resource).then(stat => void 0);
 	}
 
 	// --- read/write
@@ -156,7 +152,7 @@ class FileSystemProviderShim implements vscode.FileSystemProvider2 {
 		});
 	}
 
-	writeFile(resource: vscode.Uri, content: Uint8Array, options: files.FileOptions): Thenable<void> {
+	writeFile(resource: vscode.Uri, content: Uint8Array, options: files.FileWriteOptions): Thenable<void> {
 		return this._delegate.write(resource, content);
 	}
 }
@@ -165,7 +161,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 
 	private readonly _proxy: MainThreadFileSystemShape;
 	private readonly _linkProvider = new FsLinkProvider();
-	private readonly _fsProvider = new Map<number, vscode.FileSystemProvider2>();
+	private readonly _fsProvider = new Map<number, vscode.FileSystemProvider>();
 	private readonly _usedSchemes = new Set<string>();
 	private readonly _watches = new Map<number, IDisposable>();
 
@@ -187,20 +183,10 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	}
 
 	registerDeprecatedFileSystemProvider(scheme: string, provider: vscode.DeprecatedFileSystemProvider) {
-		return this.registerFileSystemProvider2(scheme, new FileSystemProviderShim(provider), { isCaseSensitive: false });
+		return this.registerFileSystemProvider(scheme, new FileSystemProviderShim(provider), { isCaseSensitive: false });
 	}
 
-	registerFileSystemProvider(scheme: string, provider: vscode.DeprecatedFileSystemProvider, newProvider: vscode.FileSystemProvider2) {
-		if (newProvider && newProvider._version === 9) {
-			return this.registerFileSystemProvider2(scheme, newProvider, { isCaseSensitive: false });
-		} else if (provider) {
-			return this.registerFileSystemProvider2(scheme, new FileSystemProviderShim(provider), { isCaseSensitive: false });
-		} else {
-			throw new Error('FAILED to register file system provider, the new provider does not meet the version-constraint and there is no old provider');
-		}
-	}
-
-	registerFileSystemProvider2(scheme: string, provider: vscode.FileSystemProvider2, options: { isCaseSensitive?: boolean }) {
+	registerFileSystemProvider(scheme: string, provider: vscode.FileSystemProvider, options: { isCaseSensitive?: boolean }) {
 
 		if (this._usedSchemes.has(scheme)) {
 			throw new Error(`a provider for the scheme '${scheme}' is already registered`);
@@ -231,13 +217,13 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 				}
 				let newType: files.FileChangeType;
 				switch (type) {
-					case FileChangeType2.Changed:
+					case FileChangeType.Changed:
 						newType = files.FileChangeType.UPDATED;
 						break;
-					case FileChangeType2.Created:
+					case FileChangeType.Created:
 						newType = files.FileChangeType.ADDED;
 						break;
-					case FileChangeType2.Deleted:
+					case FileChangeType.Deleted:
 						newType = files.FileChangeType.DELETED;
 						break;
 				}
@@ -257,40 +243,45 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		};
 	}
 
+	private static _asIStat(stat: vscode.FileStat): files.IStat {
+		const { type, ctime, mtime, size } = stat;
+		return { type, ctime, mtime, size };
+	}
+
 	$stat(handle: number, resource: UriComponents): TPromise<files.IStat, any> {
-		return asWinJsPromise(token => this._fsProvider.get(handle).stat(URI.revive(resource), {}, token));
+		return asWinJsPromise(token => this._fsProvider.get(handle).stat(URI.revive(resource))).then(ExtHostFileSystem._asIStat);
 	}
 
-	$readdir(handle: number, resource: UriComponents): TPromise<[string, files.IStat][], any> {
-		return asWinJsPromise(token => this._fsProvider.get(handle).readDirectory(URI.revive(resource), {}, token));
+	$readdir(handle: number, resource: UriComponents): TPromise<[string, files.FileType][], any> {
+		return asWinJsPromise(token => this._fsProvider.get(handle).readDirectory(URI.revive(resource)));
 	}
 
-	$readFile(handle: number, resource: UriComponents, opts: files.FileOptions): TPromise<string> {
+	$readFile(handle: number, resource: UriComponents): TPromise<string> {
 		return asWinJsPromise(token => {
-			return this._fsProvider.get(handle).readFile(URI.revive(resource), opts, token);
+			return this._fsProvider.get(handle).readFile(URI.revive(resource));
 		}).then(data => {
 			return Buffer.isBuffer(data) ? data.toString('base64') : Buffer.from(data.buffer, data.byteOffset, data.byteLength).toString('base64');
 		});
 	}
 
-	$writeFile(handle: number, resource: UriComponents, base64Content: string, opts: files.FileOptions): TPromise<void, any> {
-		return asWinJsPromise(token => this._fsProvider.get(handle).writeFile(URI.revive(resource), Buffer.from(base64Content, 'base64'), opts, token));
+	$writeFile(handle: number, resource: UriComponents, base64Content: string, opts: files.FileWriteOptions): TPromise<void, any> {
+		return asWinJsPromise(token => this._fsProvider.get(handle).writeFile(URI.revive(resource), Buffer.from(base64Content, 'base64'), opts));
 	}
 
 	$delete(handle: number, resource: UriComponents): TPromise<void, any> {
-		return asWinJsPromise(token => this._fsProvider.get(handle).delete(URI.revive(resource), {}, token));
+		return asWinJsPromise(token => this._fsProvider.get(handle).delete(URI.revive(resource), { recursive: true }));
 	}
 
-	$rename(handle: number, oldUri: UriComponents, newUri: UriComponents, opts: files.FileOptions): TPromise<files.IStat, any> {
-		return asWinJsPromise(token => this._fsProvider.get(handle).rename(URI.revive(oldUri), URI.revive(newUri), opts, token));
+	$rename(handle: number, oldUri: UriComponents, newUri: UriComponents, opts: files.FileOverwriteOptions): TPromise<void, any> {
+		return asWinJsPromise(token => this._fsProvider.get(handle).rename(URI.revive(oldUri), URI.revive(newUri), opts));
 	}
 
-	$copy(handle: number, oldUri: UriComponents, newUri: UriComponents, opts: files.FileOptions): TPromise<files.IStat, any> {
-		return asWinJsPromise(token => this._fsProvider.get(handle).copy(URI.revive(oldUri), URI.revive(newUri), opts, token));
+	$copy(handle: number, oldUri: UriComponents, newUri: UriComponents, opts: files.FileOverwriteOptions): TPromise<void, any> {
+		return asWinJsPromise(token => this._fsProvider.get(handle).copy(URI.revive(oldUri), URI.revive(newUri), opts));
 	}
 
-	$mkdir(handle: number, resource: UriComponents): TPromise<files.IStat, any> {
-		return asWinJsPromise(token => this._fsProvider.get(handle).createDirectory(URI.revive(resource), {}, token));
+	$mkdir(handle: number, resource: UriComponents): TPromise<void, any> {
+		return asWinJsPromise(token => this._fsProvider.get(handle).createDirectory(URI.revive(resource)));
 	}
 
 	$watch(handle: number, session: number, resource: UriComponents, opts: files.IWatchOptions): void {

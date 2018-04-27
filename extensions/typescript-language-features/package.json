@@ -17,7 +17,7 @@
 	],
   "dependencies": {
     "semver": "4.3.6",
-    "vscode-extension-telemetry": "0.0.16",
+    "vscode-extension-telemetry": "0.0.17",
     "vscode-nls": "^3.2.1"
   },
   "devDependencies": {
@@ -411,7 +411,7 @@
         },
         "typescript.experimental.syntaxFolding": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "%typescript.experimental.syntaxFolding%"
         },
         "javascript.suggestionActions.enabled": {
@@ -541,12 +541,13 @@
     "problemPatterns": [
       {
         "name": "tsc",
-        "regexp": "^([^\\s].*)\\((\\d+|\\d+,\\d+|\\d+,\\d+,\\d+,\\d+)\\):\\s+(error|warning|info)\\s+(TS\\d+)\\s*:\\s*(.*)$",
+        "regexp": "^([^\\s].*)[\\(:](\\d+)[,:](\\d+)(?:\\):\\s+|\\s+-\\s+)(error|warning|info)\\s+(TS\\d+)\\s*:\\s*(.*)$",
         "file": 1,
-        "location": 2,
-        "severity": 3,
-        "code": 4,
-        "message": 5
+        "line": 2,
+        "column": 3,
+        "severity": 4,
+        "code": 5,
+        "message": 6
       }
     ],
     "problemMatchers": [

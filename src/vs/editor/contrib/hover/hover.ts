@@ -23,6 +23,7 @@ import { registerThemingParticipant, IThemeService } from 'vs/platform/theme/com
 import { editorHoverHighlight, editorHoverBackground, editorHoverBorder, textLinkForeground, textCodeBlockBackground } from 'vs/platform/theme/common/colorRegistry';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
+import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 
 export class ModesHoverController implements editorCommon.IEditorContribution {
 
@@ -114,8 +115,8 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 	}
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
-		var targetType = mouseEvent.target.type;
-		var stopKey = platform.isMacintosh ? 'metaKey' : 'ctrlKey';
+		let targetType = mouseEvent.target.type;
+		let stopKey = platform.isMacintosh ? 'metaKey' : 'ctrlKey';
 
 		if (this._isMouseDown && this._hoverClicked && this.contentWidget.isColorPickerVisible()) {
 			return;
@@ -129,6 +130,15 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 		if (targetType === MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail === ModesGlyphHoverWidget.ID && !mouseEvent.event[stopKey]) {
 			// mouse moved on top of overlay hover widget
 			return;
+		}
+
+		if (targetType === MouseTargetType.CONTENT_EMPTY) {
+			const epsilon = this._editor.getConfiguration().fontInfo.typicalHalfwidthCharacterWidth / 2;
+			const data = <IEmptyContentData>mouseEvent.target.detail;
+			if (data && !data.isAfterLines && typeof data.horizontalDistanceToText === 'number' && data.horizontalDistanceToText < epsilon) {
+				// Let hover kick in even when the mouse is technically in the empty area after a line, given the distance is small enough
+				targetType = MouseTargetType.CONTENT_TEXT;
+			}
 		}
 
 		if (this._editor.getConfiguration().contribInfo.hover && targetType === MouseTargetType.CONTENT_TEXT) {

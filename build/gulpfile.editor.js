@@ -124,6 +124,17 @@ gulp.task('editor-distro', ['clean-editor-distro', 'compile-editor-esm', 'minify
 			gulp.src('src/vs/monaco.d.ts')
 		).pipe(gulp.dest('out-monaco-editor-core')),
 
+		// place the .d.ts in the esm folder
+		gulp.src('src/vs/monaco.d.ts')
+			.pipe(es.through(function (data) {
+				this.emit('data', new File({
+					path: data.path.replace(/monaco\.d\.ts/, 'editor.api.d.ts'),
+					base: data.base,
+					contents: data.contents
+				}));
+			}))
+			.pipe(gulp.dest('out-monaco-editor-core/esm/vs/editor')),
+
 		// package.json
 		gulp.src('build/monaco/package.json')
 			.pipe(es.through(function (data) {

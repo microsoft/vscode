@@ -10,9 +10,9 @@
   version "7.0.43"
   resolved "https://registry.yarnpkg.com/@types/node/-/node-7.0.43.tgz#a187e08495a075f200ca946079c914e1a5fe962c"
 
-vscode-css-languageservice@^3.0.9-next.10:
-  version "3.0.9-next.10"
-  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-3.0.9-next.10.tgz#be73d571221176b43d2c398a4a27f7d38206952d"
+vscode-css-languageservice@^3.0.9-next.14:
+  version "3.0.9-next.14"
+  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-3.0.9-next.14.tgz#156822b2d8c56487ffd47105cc884fa3983664ca"
   dependencies:
     vscode-languageserver-types "^3.6.1"
     vscode-nls "^3.2.1"

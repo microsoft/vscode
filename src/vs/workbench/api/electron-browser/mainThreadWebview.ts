@@ -2,11 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { localize } from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as map from 'vs/base/common/map';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { localize } from 'vs/nls';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Position } from 'vs/platform/editor/common/editor';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -80,6 +80,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		};
 
 		this._webviews.set(handle, webview);
+		this._activeWebview = handle;
 	}
 
 	$disposeWebview(handle: WebviewPanelHandle): void {
@@ -97,8 +98,12 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		webview.html = value;
 	}
 
-	$reveal(handle: WebviewPanelHandle, column: Position | undefined): void {
+	$reveal(handle: WebviewPanelHandle, column: Position | null): void {
 		const webview = this.getWebview(handle);
+		if (webview.isDisposed()) {
+			return;
+		}
+
 		this._webviewService.revealWebview(webview, column);
 	}
 
@@ -139,6 +144,10 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 	}
 
 	canRevive(webview: WebviewEditorInput): boolean {
+		if (webview.isDisposed()) {
+			return false;
+		}
+
 		return this._revivers.has(webview.viewType) || webview.reviver !== null;
 	}
 
@@ -178,9 +187,9 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			onDidClickLink: uri => this.onDidClickLink(handle, uri),
 			onMessage: message => this._proxy.$onMessage(handle, message),
 			onDispose: () => {
-				this._proxy.$onDidDisposeWebviewPanel(handle).then(() => {
-					this._webviews.delete(handle);
-				});
+				this._proxy.$onDidDisposeWebviewPanel(handle).then(
+					() => this._webviews.delete(handle),
+					() => this._webviews.delete(handle));
 			}
 		};
 	}
@@ -207,7 +216,8 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		}
 
 		if (newActiveWebview && newActiveWebview.handle === this._activeWebview) {
-			// No change
+			// Webview itself unchanged but position may have changed
+			this._proxy.$onDidChangeWebviewPanelViewState(newActiveWebview.handle, true, newActiveWebview.input.position);
 			return;
 		}
 

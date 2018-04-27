@@ -21,6 +21,7 @@
 	"disconnectDebug": "Déconnecter",
 	"continueDebug": "Continuer",
 	"pauseDebug": "Suspendre",
+	"terminateThread": "Terminer le thread",
 	"restartFrame": "Redémarrer le frame",
 	"removeBreakpoint": "Supprimer un point d'arrêt",
 	"removeAllBreakpoints": "Supprimer tous les points d'arrêt",

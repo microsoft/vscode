@@ -9,5 +9,6 @@
 	"fileNotFoundError": "Fichier introuvable ({0})",
 	"fileIsDirectoryError": "Le fichier est un répertoire",
 	"fileNotModifiedError": "Fichier non modifié depuis",
-	"fileBinaryError": "Il semble que le fichier soit binaire. Impossible de l'ouvrir en tant que texte"
+	"fileBinaryError": "Il semble que le fichier soit binaire. Impossible de l'ouvrir en tant que texte",
+	"err.create": "Impossible de créer le fichier {0}"
 }

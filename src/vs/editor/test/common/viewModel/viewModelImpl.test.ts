@@ -7,6 +7,7 @@
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { testViewModel } from 'vs/editor/test/common/viewModel/testViewModel';
+import { EndOfLineSequence } from 'vs/editor/common/model';
 
 suite('ViewModel', () => {
 
@@ -109,7 +110,7 @@ suite('ViewModel', () => {
 
 	function assertGetPlainTextToCopy(text: string[], ranges: Range[], emptySelectionClipboard: boolean, expected: string | string[]): void {
 		testViewModel(text, {}, (viewModel, model) => {
-			let actual = viewModel.getPlainTextToCopy(ranges, emptySelectionClipboard);
+			let actual = viewModel.getPlainTextToCopy(ranges, emptySelectionClipboard, false);
 			assert.deepEqual(actual, expected);
 		});
 	}
@@ -249,5 +250,13 @@ suite('ViewModel', () => {
 			true,
 			'line2\nline3\n'
 		);
+	});
+
+	test('issue #22688 - always use CRLF for clipboard on Windows', () => {
+		testViewModel(USUAL_TEXT, {}, (viewModel, model) => {
+			model.setEOL(EndOfLineSequence.LF);
+			let actual = viewModel.getPlainTextToCopy([new Range(2, 1, 5, 1)], true, true);
+			assert.deepEqual(actual, 'line2\r\nline3\r\nline4\r\n');
+		});
 	});
 });

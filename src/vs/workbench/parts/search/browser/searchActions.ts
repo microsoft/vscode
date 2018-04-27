@@ -491,7 +491,9 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 			// If file match is removed then next element is the next file match
 			while (!!navigator.next() && !(navigator.current() instanceof FileMatch)) { }
 		} else {
-			navigator.next();
+			while (navigator.next() && !(navigator.current() instanceof Match)) {
+				viewer.expand(navigator.current());
+			}
 		}
 		return navigator.current();
 	}
@@ -499,11 +501,32 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 	public getPreviousElementAfterRemoved(viewer: ITree, element: RenderableMatch): RenderableMatch {
 		let navigator: INavigator<any> = this.getNavigatorAt(element, viewer);
 		let previousElement = navigator.previous();
-		if (element instanceof Match && element.parent().matches().length === 1) {
-			// If this is the only match, then the file match is also removed
-			// Hence take the previous element to file match
+
+		// If this is the only match, then the file/folder match is also removed
+		// Hence take the previous element.
+		const parent = element.parent();
+		if (parent === previousElement) {
 			previousElement = navigator.previous();
 		}
+
+		if (parent instanceof FileMatch && parent.parent() === previousElement) {
+			previousElement = navigator.previous();
+		}
+
+		// If the previous element is a File or Folder, expand it and go to its last child.
+		// Spell out the two cases, would be too easy to create an infinite loop, like by adding another level...
+		if (previousElement && previousElement instanceof FolderMatch) {
+			navigator.next();
+			viewer.expand(previousElement);
+			previousElement = navigator.previous();
+		}
+
+		if (previousElement && previousElement instanceof FileMatch) {
+			navigator.next();
+			viewer.expand(previousElement);
+			previousElement = navigator.previous();
+		}
+
 		return previousElement;
 	}
 
@@ -750,7 +773,7 @@ function allFolderMatchesToString(folderMatches: FolderMatch[], maxMatches: numb
 	return folderResults.join(lineDelimiter + lineDelimiter);
 }
 
-export const copyAllCommand: ICommandHandler = (accessor) => {
+export const copyAllCommand: ICommandHandler = accessor => {
 	const viewletService = accessor.get(IViewletService);
 	const panelService = accessor.get(IPanelService);
 	const clipboardService = accessor.get(IClipboardService);
@@ -760,4 +783,12 @@ export const copyAllCommand: ICommandHandler = (accessor) => {
 
 	const text = allFolderMatchesToString(root.folderMatches(), maxClipboardMatches);
 	clipboardService.writeText(text);
+};
+
+export const clearHistoryCommand: ICommandHandler = accessor => {
+	const viewletService = accessor.get(IViewletService);
+	const panelService = accessor.get(IPanelService);
+	const searchView = getSearchView(viewletService, panelService);
+
+	searchView.clearHistory();
 };

@@ -21,6 +21,7 @@
 	"workbench.action.terminal.newWorkspacePlaceholder": "為新的終端機選擇目前的工作目錄",
 	"workbench.action.terminal.newInActiveWorkspace": "建立新的整合式終端機 (於目前工作區)",
 	"workbench.action.terminal.split": "分割終端機",
+	"workbench.action.terminal.splitInActiveWorkspace": "分割終端機 (於使用中的工作區)",
 	"workbench.action.terminal.focusPreviousPane": "聚焦上一個窗格",
 	"workbench.action.terminal.focusNextPane": "聚焦下一個窗格",
 	"workbench.action.terminal.resizePaneLeft": "調整窗格左側",

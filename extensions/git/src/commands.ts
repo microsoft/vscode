@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, CancellationTokenSource, StatusBarAlignment, MessageOptions } from 'vscode';
+import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, MessageOptions } from 'vscode';
 import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
 import { Repository, Resource, Status, CommitOptions, ResourceGroupType } from './repository';
 import { Model } from './model';
@@ -328,8 +328,6 @@ export class CommandCenter {
 		return '';
 	}
 
-	private static cloneId = 0;
-
 	@command('git.clone')
 	async clone(url?: string): Promise<void> {
 		if (!url) {
@@ -350,15 +348,18 @@ export class CommandCenter {
 		}
 
 		const config = workspace.getConfiguration('git');
-		let value = config.get<string>('defaultCloneDirectory') || os.homedir();
+		let defaultCloneDirectory = config.get<string>('defaultCloneDirectory') || os.homedir();
+		defaultCloneDirectory = defaultCloneDirectory.replace(/^~/, os.homedir());
 
-		const parentPath = await window.showInputBox({
-			prompt: localize('parent', "Parent Directory"),
-			value,
-			ignoreFocusOut: true
+		const uris = await window.showOpenDialog({
+			canSelectFiles: false,
+			canSelectFolders: true,
+			canSelectMany: false,
+			defaultUri: Uri.file(defaultCloneDirectory),
+			openLabel: localize('selectFolder', "Select Repository Location")
 		});
 
-		if (!parentPath) {
+		if (!uris || uris.length === 0) {
 			/* __GDPR__
 				"clone" : {
 					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
@@ -368,25 +369,33 @@ export class CommandCenter {
 			return;
 		}
 
-		const tokenSource = new CancellationTokenSource();
-		const cancelCommandId = `cancelClone${CommandCenter.cloneId++}`;
-		const commandDisposable = commands.registerCommand(cancelCommandId, () => tokenSource.cancel());
-
-		const statusBarItem = window.createStatusBarItem(StatusBarAlignment.Left);
-		statusBarItem.text = localize('cancel', "$(sync~spin) Cloning repository... Click to cancel");
-		statusBarItem.tooltip = localize('cancel tooltip', "Cancel clone");
-		statusBarItem.command = cancelCommandId;
-		statusBarItem.show();
-
-		const clonePromise = this.git.clone(url, parentPath.replace(/^~/, os.homedir()), tokenSource.token);
+		const uri = uris[0];
+		const parentPath = uri.fsPath;
 
 		try {
-			window.withProgress({ location: ProgressLocation.SourceControl, title: localize('cloning', "Cloning git repository...") }, () => clonePromise);
+			const opts = {
+				location: ProgressLocation.Notification,
+				title: localize('cloning', "Cloning git repository '{0}'...", url),
+				cancellable: true
+			};
 
-			const repositoryPath = await clonePromise;
+			const repositoryPath = await window.withProgress(
+				opts,
+				(_, token) => this.git.clone(url!, parentPath, token)
+			);
 
+			const choices = [];
+			let message = localize('proposeopen', "Would you like to open the cloned repository?");
 			const open = localize('openrepo', "Open Repository");
-			const result = await window.showInformationMessage(localize('proposeopen', "Would you like to open the cloned repository?"), open);
+			choices.push(open);
+
+			const addToWorkspace = localize('add', "Add to Workspace");
+			if (workspace.workspaceFolders) {
+				message = localize('proposeopen2', "Would you like to open the cloned repository, or add it to the current workspace?");
+				choices.push(addToWorkspace);
+			}
+
+			const result = await window.showInformationMessage(message, ...choices);
 
 			const openFolder = result === open;
 			/* __GDPR__
@@ -396,8 +405,13 @@ export class CommandCenter {
 				}
 			*/
 			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'success' }, { openFolder: openFolder ? 1 : 0 });
+
+			const uri = Uri.file(repositoryPath);
+
 			if (openFolder) {
-				commands.executeCommand('vscode.openFolder', Uri.file(repositoryPath));
+				commands.executeCommand('vscode.openFolder', uri);
+			} else if (result === addToWorkspace) {
+				workspace.updateWorkspaceFolders(workspace.workspaceFolders!.length, 0, { uri });
 			}
 		} catch (err) {
 			if (/already exists and is not an empty directory/.test(err && err.stderr || '')) {
@@ -419,9 +433,6 @@ export class CommandCenter {
 			}
 
 			throw err;
-		} finally {
-			commandDisposable.dispose();
-			statusBarItem.dispose();
 		}
 	}
 

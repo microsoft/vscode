@@ -58,9 +58,9 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IViewDescriptorRef, PersistentContributableViewsModel, IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/contributableViews';
-import { ViewLocation, IViewDescriptor } from 'vs/workbench/common/views';
+import { ViewLocation, IViewDescriptor, IViewsViewlet } from 'vs/workbench/common/views';
 import { ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IPanelDndController, Panel } from '../../../../base/browser/ui/splitview/panelview';
+import { IPanelDndController, Panel } from 'vs/base/browser/ui/splitview/panelview';
 
 export interface ISpliceEvent<T> {
 	index: number;
@@ -357,6 +357,11 @@ class MainPanel extends ViewletPanel {
 
 		this.list.setSelection(selection);
 		this.list.setFocus([selection[0]]);
+	}
+
+	dispose(): void {
+		this.visibilityDisposables = dispose(this.visibilityDisposables);
+		super.dispose();
 	}
 }
 
@@ -1038,7 +1043,7 @@ class SCMPanelDndController implements IPanelDndController {
 	}
 }
 
-export class SCMViewlet extends PanelViewlet implements IViewModel {
+export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewlet {
 
 	private el: HTMLElement;
 	private menus: SCMMenus;
@@ -1456,6 +1461,16 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 
 	protected isSingleView(): boolean {
 		return super.isSingleView() && this.repositoryPanels.length + this.contributedViews.visibleViewDescriptors.length === 1;
+	}
+
+	openView(id: string, focus?: boolean): TPromise<void> {
+		this.contributedViews.setVisible(id, true);
+		const panel = this.panels.filter(panel => panel instanceof ViewsViewletPanel && panel.id === id)[0];
+		if (panel) {
+			panel.setExpanded(true);
+			panel.focus();
+		}
+		return TPromise.as(null);
 	}
 
 	hide(repository: ISCMRepository): void {

@@ -114,7 +114,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		let activeIndentEndLineNumber = 0;
 		let activeIndentLevel = 0;
 		if (this._primaryLineNumber) {
-			const activeIndentInfo = this._context.model.getActiveIndentGuide(this._primaryLineNumber);
+			const activeIndentInfo = this._context.model.getActiveIndentGuide(this._primaryLineNumber, visibleStartLineNumber, visibleEndLineNumber);
 			activeIndentStartLineNumber = activeIndentInfo.startLineNumber;
 			activeIndentEndLineNumber = activeIndentInfo.endLineNumber;
 			activeIndentLevel = activeIndentInfo.indent;

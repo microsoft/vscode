@@ -12,5 +12,7 @@
 	"hintnn": "{0} formázást végzett a(z) {1}. és {2}. sorok között",
 	"no.provider": "Nincs formázó telepítve a(z) '{0}' típusú fájlokhoz.",
 	"formatDocument.label": "Dokumentum formázása",
-	"formatSelection.label": "Kijelölt tartalom formázása"
+	"no.documentprovider": "Nincs dokumentumformázó telepítve a(z) '{0}' típusú fájlokhoz.",
+	"formatSelection.label": "Kijelölt tartalom formázása",
+	"no.selectionprovider": "Nincs kijelölésformázó telepítve a(z) '{0}' típusú fájlokhoz."
 }

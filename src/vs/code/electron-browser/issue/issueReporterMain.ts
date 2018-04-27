@@ -107,7 +107,9 @@ export class IssueReporter extends Disposable {
 		});
 
 		ipcRenderer.send('issueSystemInfoRequest');
-		ipcRenderer.send('issuePerformanceInfoRequest');
+		if (configuration.data.issueType === IssueType.PerformanceIssue) {
+			ipcRenderer.send('issuePerformanceInfoRequest');
+		}
 		this.logService.trace('issueReporter: Sent data requests');
 
 		if (window.document.documentElement.lang !== 'en') {
@@ -294,7 +296,11 @@ export class IssueReporter extends Disposable {
 
 	private setEventHandlers(): void {
 		this.addEventListener('issue-type', 'change', (event: Event) => {
-			this.issueReporterModel.update({ issueType: parseInt((<HTMLInputElement>event.target).value) });
+			const issueType = parseInt((<HTMLInputElement>event.target).value);
+			this.issueReporterModel.update({ issueType: issueType });
+			if (issueType === IssueType.PerformanceIssue && !this.receivedPerformanceInfo) {
+				ipcRenderer.send('issuePerformanceInfoRequest');
+			}
 			this.updatePreviewButtonState();
 			this.render();
 		});
@@ -800,11 +806,13 @@ export class IssueReporter extends Disposable {
 
 		// Sort extensions by name
 		extensionOptions.sort((a, b) => {
-			if (a.name > b.name) {
+			const aName = a.name.toLowerCase();
+			const bName = b.name.toLowerCase();
+			if (aName > bName) {
 				return 1;
 			}
 
-			if (a.name < b.name) {
+			if (aName < bName) {
 				return -1;
 			}
 
