@@ -36,6 +36,7 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { isPromiseCanceledError, getErrorMessage } from 'vs/base/common/errors';
 import { ILogService } from 'vs/platform/log/common/log';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { IEditor } from 'vs/platform/editor/common/editor';
 
 const SETTINGS_ENTRY_TEMPLATE_ID = 'settings.entry.template';
 const SETTINGS_GROUP_ENTRY_TEMPLATE_ID = 'settings.group.template';
@@ -213,7 +214,19 @@ export class SettingsEditor2 extends BaseEditor {
 		openSettingsButton.label = localize('openSettingsLabel', "Open config file");
 		openSettingsButton.element.classList.add('open-settings-button');
 
-		this._register(openSettingsButton.onDidClick(() => this.preferencesService.openGlobalSettings()));
+		this._register(openSettingsButton.onDidClick(() => this.openSettingsFile()));
+	}
+
+	private openSettingsFile(): TPromise<IEditor> {
+		const currentSettingsTarget = this.settingsTargetsWidget.settingsTarget;
+
+		if (currentSettingsTarget === ConfigurationTarget.USER) {
+			return this.preferencesService.openGlobalSettings();
+		} else if (currentSettingsTarget === ConfigurationTarget.WORKSPACE) {
+			return this.preferencesService.openWorkspaceSettings();
+		} else {
+			return this.preferencesService.openFolderSettings(currentSettingsTarget);
+		}
 	}
 
 	private createBody(parent: HTMLElement): void {
