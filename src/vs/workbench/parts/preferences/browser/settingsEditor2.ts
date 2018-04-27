@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -24,7 +23,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { attachInputBoxStyler, attachSelectBoxStyler, attachButtonStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { SearchWidget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
@@ -650,15 +649,11 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 	}
 
 	private renderBool(entry: ISettingItemEntry, template: ISettingItemTemplate, onChange: (value: boolean) => void): void {
-		const checkbox = new Checkbox({
-			isChecked: entry.value,
-			title: entry.key,
-			onChange: e => onChange(checkbox.checked),
-			actionClassName: 'setting-value-checkbox'
-		});
-		template.toDispose.push(checkbox);
+		const checkboxElement = <HTMLInputElement>DOM.append(template.valueElement, $('input.setting-value-checkbox'));
+		checkboxElement.type = 'checkbox';
+		checkboxElement.checked = entry.value;
 
-		template.valueElement.appendChild(checkbox.domNode);
+		template.toDispose.push(DOM.addDisposableListener(checkboxElement, 'change', e => onChange(checkboxElement.checked)));
 	}
 
 	private renderEnum(entry: ISettingItemEntry, template: ISettingItemTemplate, onChange: (value: string) => void): void {
@@ -763,3 +758,10 @@ function settingKeyToLabel(key: string): string {
 		.replace(/^[a-z]/g, match => match.toUpperCase()) // foo => Foo
 		.replace(/ [a-z]/g, match => match.toUpperCase()); // Foo bar => Foo Bar
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	const configuredItemBackgroundColor = theme.getColor(configuredItemBackground);
+	if (configuredItemBackgroundColor) {
+		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .monaco-list-row.is-configured .setting-value-checkbox::after { background-color: ${configuredItemBackgroundColor}; }`);
+	}
+});

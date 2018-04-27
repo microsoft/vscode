@@ -35,6 +35,7 @@
 
 .settings-editor > .settings-header > .settings-header-controls {
 	margin-top: 7px;
+	height: 30px;
 	display: flex;
 }
 
@@ -44,6 +45,11 @@
 
 .settings-editor > .settings-header .settings-tabs-widget > .monaco-action-bar .action-item:not(:first-child) .action-label {
 	margin-left: 33px;
+}
+
+.settings-editor > .settings-header .settings-tabs-widget .monaco-action-bar .action-item .dropdown-icon {
+	/** The tab widget container height is shorter than elsewhere, need to tweak this */
+	padding-top: 3px;
 }
 
 .settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right {
@@ -62,6 +68,7 @@
 	white-space: nowrap;
 	padding: 4px 10px;
 	margin-right: 10px;
+	height: 26px;
 }
 
 .settings-editor > .settings-body .settings-list-container .settings-list-offset-helper {
@@ -145,18 +152,19 @@
 	height: 26px;
 }
 
-.settings-editor > .settings-body > .settings-list-container .monaco-list-row .monaco-custom-checkbox.unchecked {
-	background: url("action-remove.svg") center center no-repeat;
-	/* Unchecked border style needs to be stylable on checkbox. Themeable? */
-	border-color: #75715e !important;
-}
-
-.settings-editor > .settings-body > .settings-list-container .monaco-list-row .monaco-custom-checkbox.checked {
-	background: url("action-remove-focus.svg") center center no-repeat;
-}
-
-.settings-editor > .settings-body > .settings-list-container .monaco-list-row .monaco-custom-checkbox {
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-value-checkbox {
 	margin-left: auto;
+	position: relative;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row.is-configured .setting-value-checkbox::after {
+	content: ' ';
+	display: block;
+	height: 3px;
+	width: 18px;
+	position: absolute;
+	top: 15px;
+	left: -3px;
 }
 
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-value > .setting-reset-button.monaco-button {
