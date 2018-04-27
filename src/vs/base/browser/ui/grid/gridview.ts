@@ -293,7 +293,7 @@ export class GridView implements IGrid, IDisposable {
 			newParent.orthogonalLayout(parent.orthogonalSize);
 
 			const newSibling = new LeafNode(parent.view, grandParent.orientation, parent.size);
-			newParent.addChild(newSibling, Number.MAX_VALUE, 0);
+			newParent.addChild(newSibling, 0, 0);
 
 			const node = new LeafNode(view, grandParent.orientation, parent.size);
 			newParent.addChild(node, size, index);
@@ -417,6 +417,33 @@ export function getRelativeLocation(rootOrientation: Orientation, location: numb
 	}
 }
 
+function indexInParent(element: HTMLElement): number {
+	const parentElement = element.parentElement;
+	let el = parentElement.firstElementChild;
+	let index = 0;
+
+	while (el !== element && el !== parentElement.lastElementChild) {
+		el = el.nextElementSibling;
+		index++;
+	}
+
+	return index;
+}
+
+/**
+ * This will break as soon as DOM structures of the Splitview or Gridview change.
+ */
+function getGridLocation(element: HTMLElement): number[] {
+	const index = indexInParent(element);
+	const greatGrandParent = element.parentElement.parentElement.parentElement;
+
+	if (/\bmonaco-grid-view\b/.test(greatGrandParent.className)) {
+		return [index];
+	}
+
+	return [...getGridLocation(greatGrandParent), index];
+}
+
 export enum Direction {
 	Up,
 	Down,
@@ -424,7 +451,7 @@ export enum Direction {
 	Right
 }
 
-class GridView2View<T extends IView> implements IView {
+class SplitGridViewView<T extends IView> implements IView {
 
 	constructor(readonly view: T) { }
 
@@ -447,71 +474,78 @@ class GridView2View<T extends IView> implements IView {
 	}
 }
 
-interface IViewItem {
-	element?: HTMLElement;
+interface ITypedViewItem {
+	element: HTMLElement;
 	disposable: IDisposable;
 }
 
-// object grid view
-
-// this grid view talks about T objects, not locations
-// it always has at least 1 view
-//
-export class GridView2<T extends IView> implements IDisposable {
+export class SplitGridView<T extends IView> implements IDisposable {
 
 	private gridview: GridView;
-	private views = new Map<T, IViewItem>();
+	private views = new Map<T, ITypedViewItem>();
 
 	constructor(container: HTMLElement, view: T) {
 		this.gridview = new GridView(container);
-		this._addView(view, Number.MAX_VALUE, [0]);
+		this.gridview.layout(100, 100);
+		this._addView(view, 0, [0]);
 	}
 
-	addView(view: T, size: number, reference: T, direction: Direction): void {
-		if (this.views.has(view)) {
+	splitView(view: T, direction: Direction, newView: T, size: number): void {
+		if (this.views.has(newView)) {
 			throw new Error('Can\'t add same view twice');
 		}
 
-		const location = this.getViewLocation(reference);
-		this._addView(view, size, location);
+		const referenceLocation = this.getViewLocation(view);
+		const location = getRelativeLocation(this.gridview.orientation, referenceLocation, direction);
 
-		const viewWrapper = new GridView2View(view);
-		const disposable = viewWrapper.onDidRender(el => item.element = el);
-		const item: IViewItem = { disposable };
-		this.views.set(view, item);
-
-		// this.gridview.addView(viewWrapper, size, )
+		this._addView(newView, size, location);
 	}
 
 	private _addView(view: T, size: number, location: number[]): void {
-		const viewWrapper = new GridView2View(view);
+		const viewWrapper = new SplitGridViewView(view);
 		const disposable = viewWrapper.onDidRender(el => item.element = el);
-		const item: IViewItem = { disposable };
+		const item: ITypedViewItem = { disposable, element: null as HTMLElement };
+
 		this.views.set(view, item);
-		this.gridview.addView(view, size, location);
+		this.gridview.addView(viewWrapper, size, location);
 	}
 
 	removeView(view: T): void {
-		if (!this.views.has(view)) {
+		if (this.views.size === 1) {
+			throw new Error('Can\'t remove last view');
+		}
+
+		const item = this.views.get(view);
+
+		if (!item) {
 			throw new Error('View not found');
 		}
 
-		// TODO: don't allow removing last view
+		item.disposable.dispose();
+
+		const location = this.getViewLocation(view);
+		this.gridview.removeView(location);
+		this.views.delete(view);
 	}
 
 	layout(width: number, height: number): void {
 		this.gridview.layout(width, height);
 	}
 
-	moveView(from: number[], to: number[]): void {
+	moveView(from: T, to: T): void {
+		const fromLocation = this.getViewLocation(from);
+		const toLocation = this.getViewLocation(to);
+		return this.gridview.moveView(fromLocation, toLocation);
 	}
 
-	resizeView(location: number[], size: number): void {
+	resizeView(view: T, size: number): void {
+		const location = this.getViewLocation(view);
+		return this.gridview.resizeView(location, size);
 	}
 
-	getViewSize(location: number[]): number {
-		// TODO
-		return 0;
+	getViewSize(view: T): number {
+		const location = this.getViewLocation(view);
+		return this.gridview.getViewSize(location);
 	}
 
 	getViews(): GridBranchNode {
@@ -519,8 +553,17 @@ export class GridView2<T extends IView> implements IDisposable {
 	}
 
 	private getViewLocation(view: T): number[] {
-		// TODO
-		return [];
+		const item = this.views.get(view);
+
+		if (!item) {
+			throw new Error('View not found');
+		}
+
+		if (!item.element) {
+			throw new Error('View was not rendered');
+		}
+
+		return getGridLocation(item.element);
 	}
 
 	dispose(): void {
