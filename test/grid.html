@@ -11,31 +11,62 @@
 		require.config({ baseUrl: '../out' });
 		let count = 0;
 
+		function debug(grid) {
+			function _debug(node, indent = '') {
+				if (node.children) {
+					console.log(`${indent}|- * ${node.orientation === 1 ? 'horizontal' : 'vertical'} (${node.size}, ${node.orthogonalSize})`);
+					indent = indent + '   ';
+					for (const child of node.children) {
+						_debug(child, indent);
+					}
+				} else {
+					console.log(`${indent}|- ${(node.view).ID} (${node.size}, ${node.orthogonalSize})`);
+				}
+			}
+
+			_debug(grid.root);
+		}
+
 		require(['vs/base/browser/ui/grid/gridview', 'vs/base/common/event'], ({ GridView }, { Event }) => {
 			const grid = new GridView(document.body);
 			const layout = () => grid.layout(document.body.clientWidth, document.body.clientHeight);
-			window.onresize = layout;
+			window.onresize = () => {
+				layout();
+				debug(grid);
+			};
 			layout();
 
 			function createView() {
 				let id = ++count;
 
+				let element;
 				return {
+					ID: `${id}`,
 					minimumSize: 20,
 					maximumSize: Number.POSITIVE_INFINITY,
 					onDidChange: Event.None,
-					layout() { },
+					layout(size) {
+						element.textContent = `hello${id} (${size})`
+					},
 					render(el) {
+						element = el;
 						el.style.backgroundColor = `hsl(${Math.round(Math.random() * 360)}, 72%, 72%)`;
 						el.textContent = `hello${id}`;
-						console.log('RENDER');
 					}
 				};
 			}
 
-			grid.addView(createView(), 50, [0]);
-			grid.addView(createView(), 50, [1]);
-			grid.addView(createView(), 50, [2]);
+			debug(grid);
+			console.log('-------');
+			grid.addView(createView(), 100, [0]);// 50
+			debug(grid);
+			console.log('-------');
+			grid.addView(createView(), 100, [1]);
+			debug(grid);
+			console.log('-------');
+			grid.addView(createView(), 100, [1, 1]);
+			debug(grid);
+			console.log('-------');
 		});
 	</script>
 	<style>

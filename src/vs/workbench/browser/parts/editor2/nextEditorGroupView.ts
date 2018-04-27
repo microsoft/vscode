@@ -8,7 +8,6 @@
 import 'vs/css!./media/nextEditorGroupView';
 import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
 import { EditorInput, EditorOptions, GroupIdentifier } from 'vs/workbench/common/editor';
-import { IView } from 'vs/base/browser/ui/splitview/splitview';
 import { Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { addClass, addClasses, Dimension } from 'vs/base/browser/dom';
@@ -23,6 +22,7 @@ import { INextEditor, INextEditorGroup } from 'vs/workbench/services/editor/comm
 import { INextTitleAreaControl } from 'vs/workbench/browser/parts/editor2/nextTitleControl';
 import { NextTabsTitleControl } from 'vs/workbench/browser/parts/editor2/nextTabsTitleControl';
 import { NextEditorControl } from 'vs/workbench/browser/parts/editor2/nextEditorControl';
+import { IView } from 'vs/base/browser/ui/grid/gridview';
 
 export class NextEditorGroupView extends Themable implements IView, INextEditorGroup {
 
@@ -118,8 +118,10 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	//#region IView implementation
 
-	readonly minimumSize = 150;
-	readonly maximumSize = Number.POSITIVE_INFINITY;
+	readonly minimumWidth = 150;
+	readonly maximumWidth = 150;
+	readonly minimumHeight = Number.POSITIVE_INFINITY;
+	readonly maximumHeight = Number.POSITIVE_INFINITY;
 
 	get onDidChange() { return Event.None; }
 
@@ -150,8 +152,8 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		this.updateStyles();
 	}
 
-	layout(size: number): void {
-		this.dimension = new Dimension(size, -1); // TODO@grid need full dimension here
+	layout(width: number, height: number): void {
+		this.dimension = new Dimension(width, height); // TODO@grid need full dimension here
 
 		// Layout title control if present
 		if (this.titleAreaControl) {
