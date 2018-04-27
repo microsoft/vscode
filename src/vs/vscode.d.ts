@@ -5013,10 +5013,10 @@ declare module 'vscode' {
 		 *
 		 * @param uri The uri of the file.
 		 * @param content The new content of the file.
-		 * @param options Defines is missing files should or must be created.
+		 * @param options Defines if missing files should or must be created.
 		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `uri` doesn't exist and `create` is not set.
 		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when the parent of `uri` doesn't exist and `create` is set.
-		 * @throws [`FileExists`](#FileSystemError.FileExists) when `uri` already exists and `overwrite` is set.
+		 * @throws [`FileExists`](#FileSystemError.FileExists) when `uri` already exists, `create` is set but `overwrite` is not set.
 		 * @throws [`NoPermissions`](#FileSystemError.NoPermissions) when permissions aren't sufficient.
 		 */
 		writeFile(uri: Uri, content: Uint8Array, options: { create: boolean, overwrite: boolean }): void | Thenable<void>;
