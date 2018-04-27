@@ -2624,6 +2624,11 @@ declare namespace monaco.editor {
 		 */
 		scrollBeyondLastLine?: boolean;
 		/**
+		 * Enable that scrolling can go beyond the last column by a number of columns.
+		 * Defaults to 5.
+		 */
+		scrollBeyondLastColumn?: number;
+		/**
 		 * Enable that the editor animates scrolling to a position.
 		 * Defaults to false.
 		 */
@@ -3088,6 +3093,7 @@ declare namespace monaco.editor {
 		readonly cursorWidth: number;
 		readonly hideCursorInOverviewRuler: boolean;
 		readonly scrollBeyondLastLine: boolean;
+		readonly scrollBeyondLastColumn: number;
 		readonly smoothScrolling: boolean;
 		readonly stopRenderingLineAfter: number;
 		readonly renderWhitespace: 'none' | 'boundary' | 'all';

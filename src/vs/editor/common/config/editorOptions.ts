@@ -301,6 +301,11 @@ export interface IEditorOptions {
 	 */
 	scrollBeyondLastLine?: boolean;
 	/**
+	 * Enable that scrolling can go beyond the last column by a number of columns.
+	 * Defaults to 5.
+	 */
+	scrollBeyondLastColumn?: number;
+	/**
 	 * Enable that the editor animates scrolling to a position.
 	 * Defaults to false.
 	 */
@@ -825,6 +830,7 @@ export interface InternalEditorViewOptions {
 	readonly cursorWidth: number;
 	readonly hideCursorInOverviewRuler: boolean;
 	readonly scrollBeyondLastLine: boolean;
+	readonly scrollBeyondLastColumn: number;
 	readonly smoothScrolling: boolean;
 	readonly stopRenderingLineAfter: number;
 	readonly renderWhitespace: 'none' | 'boundary' | 'all';
@@ -1105,6 +1111,7 @@ export class InternalEditorOptions {
 			&& a.cursorWidth === b.cursorWidth
 			&& a.hideCursorInOverviewRuler === b.hideCursorInOverviewRuler
 			&& a.scrollBeyondLastLine === b.scrollBeyondLastLine
+			&& a.scrollBeyondLastColumn === b.scrollBeyondLastColumn
 			&& a.smoothScrolling === b.smoothScrolling
 			&& a.stopRenderingLineAfter === b.stopRenderingLineAfter
 			&& a.renderWhitespace === b.renderWhitespace
@@ -1718,6 +1725,7 @@ export class EditorOptionsValidator {
 			cursorWidth: _clampedInt(opts.cursorWidth, defaults.cursorWidth, 0, Number.MAX_VALUE),
 			hideCursorInOverviewRuler: _boolean(opts.hideCursorInOverviewRuler, defaults.hideCursorInOverviewRuler),
 			scrollBeyondLastLine: _boolean(opts.scrollBeyondLastLine, defaults.scrollBeyondLastLine),
+			scrollBeyondLastColumn: _clampedInt(opts.scrollBeyondLastColumn, defaults.scrollBeyondLastColumn, 0, Constants.MAX_SAFE_SMALL_INTEGER),
 			smoothScrolling: _boolean(opts.smoothScrolling, defaults.smoothScrolling),
 			stopRenderingLineAfter: _clampedInt(opts.stopRenderingLineAfter, defaults.stopRenderingLineAfter, -1, Constants.MAX_SAFE_SMALL_INTEGER),
 			renderWhitespace: renderWhitespace,
@@ -1830,6 +1838,7 @@ export class InternalEditorOptionsFactory {
 				cursorWidth: opts.viewInfo.cursorWidth,
 				hideCursorInOverviewRuler: opts.viewInfo.hideCursorInOverviewRuler,
 				scrollBeyondLastLine: opts.viewInfo.scrollBeyondLastLine,
+				scrollBeyondLastColumn: opts.viewInfo.scrollBeyondLastColumn,
 				smoothScrolling: opts.viewInfo.smoothScrolling,
 				stopRenderingLineAfter: opts.viewInfo.stopRenderingLineAfter,
 				renderWhitespace: (accessibilityIsOn ? 'none' : opts.viewInfo.renderWhitespace), // DISABLED WHEN SCREEN READER IS ATTACHED
@@ -2280,6 +2289,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		cursorWidth: 0,
 		hideCursorInOverviewRuler: false,
 		scrollBeyondLastLine: true,
+		scrollBeyondLastColumn: 5,
 		smoothScrolling: false,
 		stopRenderingLineAfter: 10000,
 		renderWhitespace: 'none',

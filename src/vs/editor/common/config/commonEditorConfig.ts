@@ -254,6 +254,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.viewInfo.scrollBeyondLastLine,
 			'description': nls.localize('scrollBeyondLastLine', "Controls if the editor will scroll beyond the last line")
 		},
+		'editor.scrollBeyondLastColumn': {
+			'type': 'number',
+			'default': EDITOR_DEFAULTS.viewInfo.scrollBeyondLastColumn,
+			'description': nls.localize('scrollBeyondLastColumn', "Controls if the editor will scroll beyond the last column")
+		},
 		'editor.smoothScrolling': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.viewInfo.smoothScrolling,
