@@ -92,10 +92,6 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 		viewsContainersExtensionPoint.setHandler((extensions) => {
 			for (let extension of extensions) {
 				const { value, collector } = extension;
-				if (!extension.description.enableProposedApi) {
-					collector.error(localize({ key: 'proposed', comment: ['Contribution refers to those that an extension contributes to VS Code through an extension/contribution point. '] }, "'viewsContainers' contribution is only available when running out of dev or with the following command line switch: --enable-proposed-api {0}", extension.description.id));
-					continue;
-				}
 				forEach(value, entry => {
 					if (!this.isValidViewsContainer(entry.value, collector)) {
 						return;
@@ -118,11 +114,11 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 
 		for (let descriptor of viewsContainersDescriptors) {
 			if (typeof descriptor.id !== 'string') {
-				collector.error(localize('requireidstring', "property `{0}` is mandatory and must be of type `string`. Allowed only alphanumeric letters, '_', '-'.", 'id'));
+				collector.error(localize('requireidstring', "property `{0}` is mandatory and must be of type `string`. Only alphanumeric characters, '_', and '-' are allowed.", 'id'));
 				return false;
 			}
 			if (!(/^[a-z0-9_-]+$/i.test(descriptor.id))) {
-				collector.error(localize('requireidstring', "property `{0}` is mandatory and must be of type `string`. Allowed only alphanumeric letters, '_', '-'.", 'id'));
+				collector.error(localize('requireidstring', "property `{0}` is mandatory and must be of type `string`. Only alphanumeric characters, '_', and '-' are allowed.", 'id'));
 				return false;
 			}
 			if (typeof descriptor.title !== 'string') {
@@ -147,56 +143,62 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 	}
 
 	private registerCustomViewlet(descriptor: IUserFriendlyViewsContainerDescriptor, order: number, cssClass: string): void {
+		const viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
 		const id = `workbench.view.extension.${descriptor.id}`;
-		const location: ViewLocation = ViewLocation.register(id);
 
-		// Register as viewlet
-		class CustomViewlet extends PersistentViewsViewlet {
-			constructor(
-				@IPartService partService: IPartService,
-				@ITelemetryService telemetryService: ITelemetryService,
-				@IWorkspaceContextService contextService: IWorkspaceContextService,
-				@IStorageService storageService: IStorageService,
-				@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-				@IInstantiationService instantiationService: IInstantiationService,
-				@IContextKeyService contextKeyService: IContextKeyService,
-				@IThemeService themeService: IThemeService,
-				@IContextMenuService contextMenuService: IContextMenuService,
-				@IExtensionService extensionService: IExtensionService
-			) {
-				super(id, location, `${id}.state`, true, partService, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
+		if (!viewletRegistry.getViewlet(id)) {
+
+			const location: ViewLocation = ViewLocation.register(id);
+
+			// Register as viewlet
+			class CustomViewlet extends PersistentViewsViewlet {
+				constructor(
+					@IPartService partService: IPartService,
+					@ITelemetryService telemetryService: ITelemetryService,
+					@IWorkspaceContextService contextService: IWorkspaceContextService,
+					@IStorageService storageService: IStorageService,
+					@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+					@IInstantiationService instantiationService: IInstantiationService,
+					@IContextKeyService contextKeyService: IContextKeyService,
+					@IThemeService themeService: IThemeService,
+					@IContextMenuService contextMenuService: IContextMenuService,
+					@IExtensionService extensionService: IExtensionService
+				) {
+					super(id, location, `${id}.state`, true, partService, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
+				}
 			}
-		}
-		const viewletDescriptor = new ViewletDescriptor(
-			CustomViewlet,
-			id,
-			descriptor.title,
-			cssClass,
-			order
-		);
+			const viewletDescriptor = new ViewletDescriptor(
+				CustomViewlet,
+				id,
+				descriptor.title,
+				cssClass,
+				order
+			);
 
-		Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(viewletDescriptor);
+			viewletRegistry.registerViewlet(viewletDescriptor);
 
-		// Register Action to Open Viewlet
-		class OpenCustomViewletAction extends ToggleViewletAction {
-			constructor(
-				id: string, label: string,
-				@IViewletService viewletService: IViewletService,
-				@IWorkbenchEditorService editorService: IWorkbenchEditorService
-			) {
-				super(id, label, id, viewletService, editorService);
+			// Register Action to Open Viewlet
+			class OpenCustomViewletAction extends ToggleViewletAction {
+				constructor(
+					id: string, label: string,
+					@IViewletService viewletService: IViewletService,
+					@IWorkbenchEditorService editorService: IWorkbenchEditorService
+				) {
+					super(id, label, id, viewletService, editorService);
+				}
 			}
-		}
-		const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-		registry.registerWorkbenchAction(
-			new SyncActionDescriptor(OpenCustomViewletAction, id, localize('showViewlet', "Show {0}", descriptor.title)),
-			'View: Show {0}',
-			localize('view', "View")
-		);
+			const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
+			registry.registerWorkbenchAction(
+				new SyncActionDescriptor(OpenCustomViewletAction, id, localize('showViewlet', "Show {0}", descriptor.title)),
+				'View: Show {0}',
+				localize('view', "View")
+			);
 
-		// Generate CSS to show the icon in the activity bar
-		const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${cssClass}`;
-		createCSSRule(iconClass, `-webkit-mask: url('${descriptor.icon}') no-repeat 50% 50%`);
+			// Generate CSS to show the icon in the activity bar
+			const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${cssClass}`;
+			createCSSRule(iconClass, `-webkit-mask: url('${descriptor.icon}') no-repeat 50% 50%`);
+		}
+
 	}
 }
 

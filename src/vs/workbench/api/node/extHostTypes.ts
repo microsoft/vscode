@@ -1878,6 +1878,9 @@ export class FileSystemError extends Error {
 	static FileIsADirectory(messageOrUri?: string | URI): FileSystemError {
 		return new FileSystemError(messageOrUri, 'EntryIsADirectory', FileSystemError.FileIsADirectory);
 	}
+	static NoPermissions(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'NoPermissions', FileSystemError.NoPermissions);
+	}
 
 	constructor(uriOrMessage?: string | URI, code?: string, terminator?: Function) {
 		super(URI.isUri(uriOrMessage) ? uriOrMessage.toString(true) : uriOrMessage);

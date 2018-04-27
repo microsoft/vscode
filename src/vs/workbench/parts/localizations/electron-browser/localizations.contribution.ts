@@ -106,7 +106,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 									this.notificationService.prompt(Severity.Warning, localize('install language pack', "In the near future, VS Code will only support language packs in the form of Marketplace extensions. Please install the '{0}' extension in order to continue to use the currently configured language. ", extension.displayName || extension.displayName),
 										[
 											{ label: localize('install', "Install"), run: () => this.installExtension(extension) },
-											{ label: localize('more information', "More Information..."), run: () => window.open('https://go.microsoft.com/fwlink/?linkid=830387') }
+											{ label: localize('more information', "More Information..."), run: () => window.open('https://go.microsoft.com/fwlink/?linkid=872941') }
 										]);
 								}
 							});

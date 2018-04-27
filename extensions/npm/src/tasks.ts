@@ -164,7 +164,7 @@ async function provideNpmScriptsForFolder(packageJsonUri: Uri): Promise<Task[]> 
 		result.push(task);
 	});
 	// always add npm install (without a problem matcher)
-	// result.push(createTask('install', 'install', rootPath, folder, []));
+	result.push(createTask('install', 'install', folder, packageJsonUri, []));
 	return result;
 }
 

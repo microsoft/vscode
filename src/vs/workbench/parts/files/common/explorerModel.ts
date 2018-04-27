@@ -17,7 +17,7 @@ import { IEditorGroup, toResource, IEditorIdentifier } from 'vs/workbench/common
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { getPathLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
-import { startsWith, startsWithIgnoreCase, equalsIgnoreCase } from 'vs/base/common/strings';
+import { startsWith, startsWithIgnoreCase, rtrim } from 'vs/base/common/strings';
 
 export class Model {
 
@@ -338,17 +338,14 @@ export class ExplorerItem {
 		if (resource && this.resource.scheme === resource.scheme && this.resource.authority === resource.authority &&
 			(isLinux ? startsWith(resource.path, this.resource.path) : startsWithIgnoreCase(resource.path, this.resource.path))
 		) {
-			return this.findByPath(resource.path, this.resource.path.length);
+			return this.findByPath(rtrim(resource.path, paths.sep), this.resource.path.length);
 		}
 
 		return null; //Unable to find
 	}
 
 	private findByPath(path: string, index: number): ExplorerItem {
-		if (this.resource.path === path) {
-			return this;
-		}
-		if (!isLinux && equalsIgnoreCase(this.resource.path, path)) {
+		if (paths.isEqual(rtrim(this.resource.path, paths.sep), path, !isLinux)) {
 			return this;
 		}
 

@@ -154,11 +154,17 @@ export class DebugService implements debug.IDebugService {
 		const session = <RawDebugSession>process.session;
 
 		if (broadcast.channel === EXTENSION_ATTACH_BROADCAST_CHANNEL) {
-			this.onSessionEnd(session);
+			const initialAttach = process.configuration.request === 'launch';
 
 			process.configuration.request = 'attach';
 			process.configuration.port = broadcast.payload.port;
-			this.doCreateProcess(process.session.root, process.configuration, process.getId());
+			// Do not end process on initial attach (since the request is still 'launch')
+			if (initialAttach) {
+				session.attach(process.configuration);
+			} else {
+				this.onSessionEnd(session);
+				this.doCreateProcess(process.session.root, process.configuration, process.getId());
+			}
 			return;
 		}
 

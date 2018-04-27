@@ -471,7 +471,7 @@ class NavigateTypeAdapter {
 class RenameAdapter {
 
 	static supportsResolving(provider: vscode.RenameProvider): boolean {
-		return typeof provider.resolveRenameLocation === 'function';
+		return typeof provider.prepareRename === 'function';
 	}
 
 	private _documents: ExtHostDocuments;
@@ -511,14 +511,14 @@ class RenameAdapter {
 	}
 
 	resolveRenameLocation(resource: URI, position: IPosition): TPromise<modes.RenameLocation> {
-		if (typeof this._provider.resolveRenameLocation !== 'function') {
+		if (typeof this._provider.prepareRename !== 'function') {
 			return TPromise.as(undefined);
 		}
 
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
 
-		return asWinJsPromise(token => this._provider.resolveRenameLocation(doc, pos, token)).then(rangeOrLocation => {
+		return asWinJsPromise(token => this._provider.prepareRename(doc, pos, token)).then(rangeOrLocation => {
 
 			let range: vscode.Range;
 			let text: string;

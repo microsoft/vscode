@@ -985,7 +985,7 @@ export class ShowEnabledExtensionsAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('@enabled');
+				viewlet.search('@enabled ');
 				viewlet.focus();
 			});
 	}
@@ -1008,7 +1008,7 @@ export class ShowInstalledExtensionsAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('@installed');
+				viewlet.search('@installed ');
 				viewlet.focus();
 			});
 	}
@@ -1213,7 +1213,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 						return TPromise.as(null);
 					}
 
-					viewlet.search('@recommended');
+					viewlet.search('@recommended ');
 					viewlet.focus();
 
 					return this.extensionsWorkbenchService.queryGallery({ names: toInstall, source: 'install-all-workspace-recommendations' }).then(pager => {
@@ -1292,7 +1292,7 @@ export class InstallRecommendedExtensionAction extends Action {
 					return TPromise.as(null);
 				}
 
-				viewlet.search('@recommended');
+				viewlet.search('@recommended ');
 				viewlet.focus();
 
 				return this.extensionsWorkbenchService.queryGallery({ names: [this.extensionId], source: 'install-recommendation' }).then(pager => {

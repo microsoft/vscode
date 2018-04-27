@@ -6,7 +6,7 @@
 
 import * as path from 'path';
 import {
-	DebugConfiguration, Event, EventEmitter, ExtensionContext, Task, TaskProvider,
+	DebugConfiguration, Event, EventEmitter, ExtensionContext, Task,
 	TextDocument, ThemeIcon, TreeDataProvider, TreeItem, TreeItemCollapsibleState, Uri,
 	WorkspaceFolder, commands, debug, window, workspace, Selection
 } from 'vscode';
@@ -92,14 +92,12 @@ class NpmScript extends TreeItem {
 
 export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 	private taskTree: Folder[] | PackageJSON[] | null = null;
-	private taskProvider: TaskProvider;
 	private extensionContext: ExtensionContext;
 	private _onDidChangeTreeData: EventEmitter<TreeItem | null> = new EventEmitter<TreeItem | null>();
 	readonly onDidChangeTreeData: Event<TreeItem | null> = this._onDidChangeTreeData.event;
 
-	constructor(context: ExtensionContext, taskProvider: TaskProvider) {
+	constructor(context: ExtensionContext) {
 		const subscriptions = context.subscriptions;
-		this.taskProvider = taskProvider;
 		this.extensionContext = context;
 		subscriptions.push(commands.registerCommand('npm.runScript', this.runScript, this));
 		subscriptions.push(commands.registerCommand('npm.debugScript', this.debugScript, this));
@@ -159,8 +157,13 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 
 		let debugArg = await this.extractDebugArg(scripts, task);
 		if (!debugArg) {
-			let message = localize('npm.noDebugOptions', 'Could not launch "{0}" for debugging because the scripts lacks a node debug option, e.g. "--inspect-brk".', task.name);
-			window.showErrorMessage(message, { modal: true });
+			let message = localize('noDebugOptions', 'Could not launch "{0}" for debugging because the scripts lacks a node debug option, e.g. "--inspect-brk".', task.name);
+			let learnMore = localize('learnMore', 'Learn More');
+			let ok = localize('ok', 'OK');
+			let result = await window.showErrorMessage(message, { modal: true }, ok, learnMore);
+			if (result === learnMore) {
+				commands.executeCommand('vscode.open', Uri.parse('https://code.visualstudio.com/docs/nodejs/nodejs-debugging#_launch-configuration-support-for-npm-and-other-tools'));
+			}
 			return;
 		}
 
@@ -189,7 +192,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 	}
 
 	private scriptNotValid(task: Task) {
-		let message = localize('npm.scriptInvalid', 'Could not find the script "{0}". Try to refresh the view.', task.name);
+		let message = localize('scriptInvalid', 'Could not find the script "{0}". Try to refresh the view.', task.name);
 		window.showErrorMessage(message);
 	}
 
@@ -265,7 +268,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 
 	async getChildren(element?: TreeItem): Promise<TreeItem[]> {
 		if (!this.taskTree) {
-			let tasks = await this.taskProvider.provideTasks();
+			let tasks = await workspace.fetchTasks({ type: 'npm' });
 			if (tasks) {
 				this.taskTree = this.buildTaskTree(tasks);
 			}
@@ -295,7 +298,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		let packageJson = null;
 
 		tasks.forEach(each => {
-			if (isWorkspaceFolder(each.scope)) {
+			if (isWorkspaceFolder(each.scope) && each.name !== 'install') {
 				folder = folders.get(each.scope.name);
 				if (!folder) {
 					folder = new Folder(each.scope);

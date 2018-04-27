@@ -396,7 +396,7 @@ export class CodeApplication {
 		this.lifecycleService.ready();
 
 		// Propagate to clients
-		this.windowsMainService = accessor.get(IWindowsMainService); // TODO@Joao: unfold this
+		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService); // TODO@Joao: unfold this
 
 		const args = this.environmentService.args;
 
@@ -404,6 +404,25 @@ export class CodeApplication {
 		const activeWindowManager = new ActiveWindowManager(windowsService);
 		const urlHandlerChannel = this.electronIpcServer.getChannel('urlHandler', { route: () => activeWindowManager.activeClientId });
 		const multiplexURLHandler = new URLHandlerChannelClient(urlHandlerChannel);
+
+		// On Mac, Code can be running without any open windows, so we must create a window to handle urls,
+		// if there is none
+		if (platform.isMacintosh) {
+			const environmentService = accessor.get(IEnvironmentService);
+
+			urlService.registerHandler({
+				async handleURL(uri: URI): TPromise<boolean> {
+					if (windowsMainService.getWindowCount() === 0) {
+						const cli = { ...environmentService.args, goto: true };
+						const [window] = windowsMainService.open({ context: OpenContext.API, cli, forceEmpty: true });
+
+						return window.ready().then(() => urlService.open(uri));
+					}
+
+					return false;
+				}
+			});
+		}
 
 		// Register the multiple URL handker
 		urlService.registerHandler(multiplexURLHandler);

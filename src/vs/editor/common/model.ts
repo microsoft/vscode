@@ -868,7 +868,7 @@ export interface ITextModel {
 	/**
 	 * @internal
 	 */
-	getActiveIndentGuide(lineNumber: number): IActiveIndentGuideInfo;
+	getActiveIndentGuide(lineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo;
 
 	/**
 	 * @internal

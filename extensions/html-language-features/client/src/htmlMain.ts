@@ -47,7 +47,14 @@ export function activate(context: ExtensionContext) {
 		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
 	};
 
-	let documentSelector = ['html', 'handlebars', 'razor'];
+	let documentSelector = [
+		{ language: 'html', scheme: 'file' },
+		{ language: 'html', scheme: 'untitled' },
+		{ language: 'handlebars', scheme: 'file' },
+		{ language: 'handlebars', scheme: 'untitled' },
+		{ language: 'razor', scheme: 'file' },
+		{ language: 'razor', scheme: 'untitled' }
+	];
 	let embeddedLanguages = { css: true, javascript: true };
 
 	// Options to control the language client

@@ -4,20 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-
-import { MarkdownEngine } from './markdownEngine';
-import { ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './security';
-import { Logger } from './logger';
 import { CommandManager } from './commandManager';
 import * as commands from './commands/index';
-import { loadDefaultTelemetryReporter } from './telemetryReporter';
-import { getMarkdownExtensionContributions } from './markdownExtensions';
 import LinkProvider from './features/documentLinkProvider';
 import MDDocumentSymbolProvider from './features/documentSymbolProvider';
-import MarkdownWorkspaceSymbolProvider from './features/workspaceSymbolProvider';
+import MarkdownFoldingProvider from './features/foldingProvider';
 import { MarkdownContentProvider } from './features/previewContentProvider';
 import { MarkdownPreviewManager } from './features/previewManager';
-import MarkdownFoldingProvider from './features/foldingProvider';
+import MarkdownWorkspaceSymbolProvider from './features/workspaceSymbolProvider';
+import { Logger } from './logger';
+import { MarkdownEngine } from './markdownEngine';
+import { getMarkdownExtensionContributions } from './markdownExtensions';
+import { ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './security';
+import { loadDefaultTelemetryReporter } from './telemetryReporter';
 
 
 export function activate(context: vscode.ExtensionContext) {
@@ -30,7 +29,10 @@ export function activate(context: vscode.ExtensionContext) {
 	const engine = new MarkdownEngine(contributions);
 	const logger = new Logger();
 
-	const selector = 'markdown';
+	const selector: vscode.DocumentSelector = [
+		{ language: 'markdown', scheme: 'file' },
+		{ language: 'markdown', scheme: 'untitled' }
+	];
 
 	const contentProvider = new MarkdownContentProvider(engine, context, cspArbiter, contributions, logger);
 	const symbolProvider = new MDDocumentSymbolProvider(engine);

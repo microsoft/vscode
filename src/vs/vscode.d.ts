@@ -88,9 +88,13 @@ declare module 'vscode' {
 	export interface TextDocument {
 
 		/**
-		 * The associated URI for this document. Most documents have the __file__-scheme, indicating that they
-		 * represent files on disk. However, some documents may have other schemes indicating that they are not
-		 * available on disk.
+		 * The associated uri for this document.
+		 *
+		 * *Note* that most documents use the `file`-scheme, which means they are files on disk. However, **not** all documents are
+		 * saved on disk and therefore the `scheme` must be checked before trying to access the underlying file or siblings on disk.
+		 *
+		 * @see [FileSystemProvider](#FileSystemProvider)
+		 * @see [TextDocumentContentProvider](#TextDocumentContentProvider)
 		 */
 		readonly uri: Uri;
 
@@ -101,7 +105,9 @@ declare module 'vscode' {
 		readonly fileName: string;
 
 		/**
-		 * Is this document representing an untitled file.
+		 * Is this document representing an untitled file which has never been saved yet. *Note* that
+		 * this does not mean the document will be saved to disk, use [`uri.scheme`](#Uri.scheme)
+		 * to figure out where a document will be [saved](#FileSystemProvider), e.g. `file`, `ftp` etc.
 		 */
 		readonly isUntitled: boolean;
 
@@ -2762,7 +2768,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return The range or range and placeholder text of the identifier that is to be renamed. The lack of a result can signaled by returning `undefined` or `null`.
 		 */
-		resolveRenameLocation?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Range | { range: Range, placeholder: string }>;
+		prepareRename?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Range | { range: Range, placeholder: string }>;
 	}
 
 	/**
@@ -3443,17 +3449,6 @@ declare module 'vscode' {
 		 * @param value of the kind.
 		 */
 		public constructor(value: string);
-	}
-
-
-	/**
-	 * Metadata about the kind of folding ranges that a [FoldingRangeProvider](#FoldingRangeProvider) providers uses.
-	 */
-	export interface FoldingRangeProviderMetadata {
-		/**
-		 * [FoldingRangeKind](#FoldingRangeKind) that this provider may return.
-		 */
-		readonly providedFoldingRangeKinds?: ReadonlyArray<FoldingRangeKind>;
 	}
 
 	/**
@@ -4854,17 +4849,14 @@ declare module 'vscode' {
 		 * to a file.
 		 */
 		type: FileType;
-
 		/**
-		 * The creation timestamp in milliseconds.
+		 * The creation timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
 		 */
 		ctime: number;
-
 		/**
-		 * The modification timestamp in milliseconds.
+		 * The modification timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
 		 */
 		mtime: number;
-
 		/**
 		 * The size in bytes.
 		 */
@@ -4903,6 +4895,12 @@ declare module 'vscode' {
 		 * @param messageOrUri Message or uri.
 		 */
 		static FileIsADirectory(messageOrUri?: string | Uri): FileSystemError;
+
+		/**
+		 * Create an error to signal that an operation lacks required permissions.
+		 * @param messageOrUri Message or uri.
+		 */
+		static NoPermissions(messageOrUri?: string | Uri): FileSystemError;
 
 		/**
 		 * Creates a new filesystem error.
@@ -4948,32 +4946,6 @@ declare module 'vscode' {
 		 */
 		uri: Uri;
 	}
-	/**
-	 * Commonly used options when reading, writing, or stat'ing files or folders.
-	 */
-	export interface FileOptions {
-
-		/**
-		 * Create a file when it doesn't exists
-		 */
-		create?: boolean;
-
-		/**
-		 * In combination with [`create`](FileOptions.create) but
-		 * the operation should fail when a file already exists.
-		 */
-		exclusive?: boolean;
-
-		/**
-		 * Open a file for reading.
-		 */
-		read?: boolean;
-
-		/**
-		 * Open a file for writing.
-		 */
-		write?: boolean;
-	}
 
 	/**
 	 * The filesystem provider defines what the editor needs to read, write, discover,
@@ -4984,7 +4956,8 @@ declare module 'vscode' {
 	 * paths, e.g. `foo:/my/path` is a child of `foo:/my/` and a parent of `foo:/my/path/deeper`.
 	 * * *Note 2:* There is an activation event `onFileSystem:<scheme>` that fires when a file
 	 * or folder is being accessed.
-	 *
+	 * * *Note 3:* The word 'file' is often used to denote all [kinds](#FileType) of files, e.g.
+	 * folders, symbolic links, and regular files.
 	 */
 	export interface FileSystemProvider {
 
@@ -4997,83 +4970,103 @@ declare module 'vscode' {
 
 		/**
 		 * Subscribe to events in the file or folder denoted by `uri`.
-		 * @param uri
-		 * @param options
+		 *
+		 * The editor will call this function for files and folders. In the latter case, the
+		 * options differ from defaults, e.g. what files/folders to exclude from watching
+		 * and if subfolders, sub-subfolder, etc. should be watched (`recursive`).
+		 *
+		 * @param uri The uri of the file to be watched.
+		 * @param options Configures the watch.
+		 * @returns A disposable that tells the provider to stop watching the `uri`.
 		 */
 		watch(uri: Uri, options: { recursive: boolean; excludes: string[] }): Disposable;
 
 		/**
-		 * Retrieve metadata about a file. Throw an [`FileNotFound`](#FileSystemError.FileNotFound)-error
-		 * in case the file does not exist.
+		 * Retrieve metadata about a file.
 		 *
-		 * @param uri The uri of the file to retrieve meta data about.
-		 * @param token A cancellation token.
+		 * @param uri The uri of the file to retrieve metadata about.
 		 * @return The file metadata about the file.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `uri` doesn't exist.
 		 */
-		stat(uri: Uri, options: { /*future: followSymlinks*/ }, token: CancellationToken): FileStat | Thenable<FileStat>;
+		stat(uri: Uri): FileStat | Thenable<FileStat>;
 
 		/**
-		 * Retrieve the meta data of all entries of a [directory](#FileStat.isDirectory)
+		 * Retrieve all entries of a [directory](#FileType.Directory).
 		 *
 		 * @param uri The uri of the folder.
-		 * @param token A cancellation token.
-		 * @return A thenable that resolves to an array of tuples of file names and files stats.
+		 * @return An array of name/type-tuples or a thenable that resolves to such.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `uri` doesn't exist.
 		 */
-		readDirectory(uri: Uri, options: { /*future: onlyType?*/ }, token: CancellationToken): [string, FileType][] | Thenable<[string, FileType][]>;
+		readDirectory(uri: Uri): [string, FileType][] | Thenable<[string, FileType][]>;
 
 		/**
-		 * Create a new directory. *Note* that new files are created via `write`-calls.
+		 * Create a new directory (Note, that new files are created via `write`-calls).
 		 *
-		 * @param uri The uri of the *new* folder.
-		 * @param token A cancellation token.
+		 * @param uri The uri of the new folder.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when the parent of `uri` doesn't exist, e.g. no mkdirp-logic required.
+		 * @throws [`FileExists`](#FileSystemError.FileExists) when `uri` already exists.
+		 * @throws [`NoPermissions`](#FileSystemError.NoPermissions) when permissions aren't sufficient.
 		 */
-		createDirectory(uri: Uri, options: { /*future: permissions?*/ }, token: CancellationToken): FileStat | Thenable<FileStat>;
+		createDirectory(uri: Uri): void | Thenable<void>;
 
 		/**
 		 * Read the entire contents of a file.
 		 *
 		 * @param uri The uri of the file.
-		 * @param token A cancellation token.
-		 * @return A thenable that resolves to an array of bytes.
+		 * @return An array of bytes or a thenable that resolves to such.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `uri` doesn't exist.
 		 */
-		readFile(uri: Uri, options: FileOptions, token: CancellationToken): Uint8Array | Thenable<Uint8Array>;
+		readFile(uri: Uri): Uint8Array | Thenable<Uint8Array>;
 
 		/**
 		 * Write data to a file, replacing its entire contents.
 		 *
 		 * @param uri The uri of the file.
 		 * @param content The new content of the file.
-		 * @param token A cancellation token.
+		 * @param options Defines if missing files should or must be created.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `uri` doesn't exist and `create` is not set.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when the parent of `uri` doesn't exist and `create` is set, e.g. no mkdirp-logic required.
+		 * @throws [`FileExists`](#FileSystemError.FileExists) when `uri` already exists, `create` is set but `overwrite` is not set.
+		 * @throws [`NoPermissions`](#FileSystemError.NoPermissions) when permissions aren't sufficient.
 		 */
-		writeFile(uri: Uri, content: Uint8Array, options: FileOptions, token: CancellationToken): void | Thenable<void>;
+		writeFile(uri: Uri, content: Uint8Array, options: { create: boolean, overwrite: boolean }): void | Thenable<void>;
 
 		/**
 		 * Delete a file.
 		 *
-		 * @param uri The resource that is to be deleted
-		 * @param options Options bag for future use
-		 * @param token A cancellation token.
+		 * @param uri The resource that is to be deleted.
+		 * @param options Defines if deletion of folders is recursive.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `uri` doesn't exist.
+		 * @throws [`NoPermissions`](#FileSystemError.NoPermissions) when permissions aren't sufficient.
 		 */
-		delete(uri: Uri, options: { /*future: useTrash?, followSymlinks?*/ }, token: CancellationToken): void | Thenable<void>;
+		delete(uri: Uri, options: { recursive: boolean }): void | Thenable<void>;
 
 		/**
 		 * Rename a file or folder.
 		 *
-		 * @param oldUri The existing file or folder.
-		 * @param newUri The target location.
-		 * @param token A cancellation token.
+		 * @param oldUri The existing file.
+		 * @param newUri The new location.
+		 * @param options Defines if existing files should be overwriten.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `oldUri` doesn't exist.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when parent of `newUri` doesn't exist, e.g. no mkdirp-logic required.
+		 * @throws [`FileExists`](#FileSystemError.FileExists) when `newUri` exists and when the `overwrite` option is not `true`.
+		 * @throws [`NoPermissions`](#FileSystemError.NoPermissions) when permissions aren't sufficient.
 		 */
-		rename(oldUri: Uri, newUri: Uri, options: FileOptions, token: CancellationToken): FileStat | Thenable<FileStat>;
+		rename(oldUri: Uri, newUri: Uri, options: { overwrite: boolean }): void | Thenable<void>;
 
 		/**
 		 * Copy files or folders. Implementing this function is optional but it will speedup
 		 * the copy operation.
 		 *
-		 * @param source The existing file or folder.
+		 * @param source The existing file.
 		 * @param destination The destination location.
-		 * @param token A cancellation token.
+		 * @param options Defines if existing files should be overwriten.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `source` doesn't exist.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when parent of `destination` doesn't exist, e.g. no mkdirp-logic required.
+		 * @throws [`FileExists`](#FileSystemError.FileExists) when `destination` exists and when the `overwrite` option is not `true`.
+		 * @throws [`NoPermissions`](#FileSystemError.NoPermissions) when permissions aren't sufficient.
 		 */
-		copy?(source: Uri, destination: Uri, options: FileOptions, token: CancellationToken): FileStat | Thenable<FileStat>;
+		copy?(source: Uri, destination: Uri, options: { overwrite: boolean }): void | Thenable<void>;
 	}
 
 	/**
@@ -5153,9 +5146,11 @@ declare module 'vscode' {
 		 * Normally the webview panel's html context is created when the panel becomes visible
 		 * and destroyed when it is is hidden. Extensions that have complex state
 		 * or UI can set the `retainContextWhenHidden` to make VS Code keep the webview
-		 * context around, even when the webview moves to a background tab. When
-		 * the panel becomes visible again, the context is automatically restored
-		 * in the exact same state it was in originally.
+		 * context around, even when the webview moves to a background tab. When a webview using
+		 * `retainContextWhenHidden` becomes hidden, its scripts and other dynamic content are suspended.
+		 * When the panel becomes visible again, the context is automatically restored
+		 * in the exact same state it was in originally. You cannot send messages to a
+		 * hidden webview, even with `retainContextWhenHidden` enabled.
 		 *
 		 * `retainContextWhenHidden` has a high memory overhead and should only be used if
 		 * your panel's context cannot be quickly saved and restored.
@@ -6921,7 +6916,7 @@ declare module 'vscode' {
 		 * @param metadata Metadata about the kind of code actions the provider providers.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerFoldingRangeProvider(selector: DocumentSelector, provider: FoldingRangeProvider, metadata?: FoldingRangeProviderMetadata): Disposable;
+		export function registerFoldingRangeProvider(selector: DocumentSelector, provider: FoldingRangeProvider): Disposable;
 
 		/**
 		 * Set a [language configuration](#LanguageConfiguration) for a language.
