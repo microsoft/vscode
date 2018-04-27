@@ -33,7 +33,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 	// TODO@grid temporary until GridView can provide this
 	private groupToLocation: Map<GroupIdentifier, number[]> = new Map<GroupIdentifier, number[]>();
 
-	private grid: GridView<NextEditorGroupView>;
+	private grid: GridView;
 	private gridContainer: HTMLElement;
 
 	constructor(
@@ -101,7 +101,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		addClass(this.gridContainer, 'content');
 
 		// Widget
-		this.grid = this._register(new GridView<NextEditorGroupView>(this.gridContainer));
+		this.grid = this._register(new GridView(this.gridContainer));
 		this.grid.layout(1, 1); // TODO@grid should work without calling layout
 
 		// Initial View

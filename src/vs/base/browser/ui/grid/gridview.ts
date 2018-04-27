@@ -25,6 +25,7 @@ export interface IView {
 /*
 TODO:
 - GridView.orientation setter/getter
+- implement move
 
 - create grid wrapper which lets you talk only abut views, not locations
 	- GridView.getLocation(HTMLElement)
@@ -35,24 +36,24 @@ function orthogonal(orientation: Orientation): Orientation {
 	return orientation === Orientation.VERTICAL ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 }
 
-export class GridLeafNode<T extends IView> {
-	constructor(readonly view: T) { }
+export class GridLeafNode {
+	constructor(readonly view: IView) { }
 }
 
-export class GridBranchNode<T extends IView> {
-	constructor(readonly children: GridNode<T>[]) { }
+export class GridBranchNode {
+	constructor(readonly children: GridNode[]) { }
 }
 
-export type GridNode<T extends IView> = GridLeafNode<T> | GridBranchNode<T>;
+export type GridNode = GridLeafNode | GridBranchNode;
 
-export interface IGrid<T extends IView> {
+export interface IGrid {
 	layout(width: number, height: number): void;
 	addView(view: IView, size: number, location: number[]): void;
 	removeView(location: number[]): void;
 	moveView(from: number[], to: number[]): void;
 	resizeView(location: number[], size: number): void;
 	getViewSize(location: number[]): number;
-	getViews(): GridBranchNode<T>;
+	getViews(): GridBranchNode;
 }
 
 function tail<T>(arr: T[]): [T[], T] {
@@ -98,9 +99,9 @@ abstract class AbstractNode implements ISplitView {
 	dispose(): void { }
 }
 
-class BranchNode<T extends IView> extends AbstractNode {
+class BranchNode extends AbstractNode {
 
-	readonly children: Node<T>[];
+	readonly children: Node[];
 	private splitview: SplitView;
 
 	get minimumSize(): number {
@@ -150,7 +151,7 @@ class BranchNode<T extends IView> extends AbstractNode {
 		this.orthogonalLayout(this.orthogonalSize);
 	}
 
-	addChild(node: Node<T>, size: number, index: number): void {
+	addChild(node: Node, size: number, index: number): void {
 		if (index < 0 || index > this.children.length) {
 			throw new Error('Invalid index');
 		}
@@ -160,7 +161,7 @@ class BranchNode<T extends IView> extends AbstractNode {
 		this.onDidChildrenChange();
 	}
 
-	removeChild(index: number): Node<T> {
+	removeChild(index: number): Node {
 		if (index < 0 || index >= this.children.length) {
 			throw new Error('Invalid index');
 		}
@@ -205,9 +206,9 @@ class BranchNode<T extends IView> extends AbstractNode {
 	}
 }
 
-class LeafNode<T extends IView> extends AbstractNode {
+class LeafNode extends AbstractNode {
 
-	constructor(readonly view: T, orientation: Orientation, orthogonalSize: number) {
+	constructor(readonly view: IView, orientation: Orientation, orthogonalSize: number) {
 		super(orientation, undefined, orthogonalSize);
 	}
 
@@ -254,11 +255,11 @@ class LeafNode<T extends IView> extends AbstractNode {
 	}
 }
 
-type Node<T extends IView> = BranchNode<T> | LeafNode<T>;
+type Node = BranchNode | LeafNode;
 
-export class GridView<T extends IView> implements IGrid<T>, IDisposable {
+export class GridView implements IGrid, IDisposable {
 
-	private root: BranchNode<T>;
+	private root: BranchNode;
 
 	constructor(container: HTMLElement) {
 		const el = append(container, $('.monaco-grid-view'));
@@ -266,12 +267,12 @@ export class GridView<T extends IView> implements IGrid<T>, IDisposable {
 		this.root.render(el);
 	}
 
-	addView(view: T, size: number, location: number[]): void {
+	addView(view: IView, size: number, location: number[]): void {
 		const [rest, index] = tail(location);
 		const [pathToParent, parent] = this.getNode(rest);
 
 		if (parent instanceof BranchNode) {
-			const node = new LeafNode<T>(view, orthogonal(parent.orientation), parent.orthogonalSize);
+			const node = new LeafNode(view, orthogonal(parent.orientation), parent.orthogonalSize);
 			parent.addChild(node, size, index);
 
 		} else {
@@ -279,14 +280,14 @@ export class GridView<T extends IView> implements IGrid<T>, IDisposable {
 			const [, parentIndex] = tail(rest);
 			grandParent.removeChild(parentIndex);
 
-			const newParent = new BranchNode<T>(parent.orientation, parent.size, parent.orthogonalSize);
+			const newParent = new BranchNode(parent.orientation, parent.size, parent.orthogonalSize);
 			grandParent.addChild(newParent, parent.size, parentIndex);
 			newParent.orthogonalLayout(parent.orthogonalSize);
 
-			const newSibling = new LeafNode<T>(parent.view, grandParent.orientation, parent.size);
+			const newSibling = new LeafNode(parent.view, grandParent.orientation, parent.size);
 			newParent.addChild(newSibling, Number.MAX_VALUE, 0);
 
-			const node = new LeafNode<T>(view, grandParent.orientation, parent.size);
+			const node = new LeafNode(view, grandParent.orientation, parent.size);
 			newParent.addChild(node, size, index);
 		}
 	}
@@ -348,11 +349,11 @@ export class GridView<T extends IView> implements IGrid<T>, IDisposable {
 		return parent.getChildSize(index);
 	}
 
-	getViews(): GridBranchNode<T> {
-		return this._getViews(this.root) as GridBranchNode<T>;
+	getViews(): GridBranchNode {
+		return this._getViews(this.root) as GridBranchNode;
 	}
 
-	private _getViews(node: Node<T>): GridNode<T> {
+	private _getViews(node: Node): GridNode {
 		if (node instanceof BranchNode) {
 			return new GridBranchNode(node.children.map(c => this._getViews(c)));
 		} else {
@@ -360,7 +361,7 @@ export class GridView<T extends IView> implements IGrid<T>, IDisposable {
 		}
 	}
 
-	private getNode(location: number[], node: Node<T> = this.root, path: BranchNode<T>[] = []): [BranchNode<T>[], Node<T>] {
+	private getNode(location: number[], node: Node = this.root, path: BranchNode[] = []): [BranchNode[], Node] {
 		if (location.length === 0) {
 			return [path, node];
 		}

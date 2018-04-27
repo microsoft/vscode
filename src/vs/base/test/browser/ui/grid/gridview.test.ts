@@ -71,7 +71,7 @@ class TestView implements IView {
 	}
 }
 
-function nodesToArrays(node: GridNode<any>): any {
+function nodesToArrays(node: GridNode): any {
 	if (node instanceof GridBranchNode) {
 		return node.children.map(nodesToArrays);
 	} else {
