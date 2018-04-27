@@ -56,11 +56,11 @@ export class OpenNextEditorAction extends Action {
 		firstGroup.openEditor(inputs[1], { pinned: true });
 		firstGroup.openEditor(inputs[2], { pinned: true });
 
-		const secondGroup = this.nextEditorGroupsService.addGroup(firstGroup, SplitDirection.RIGHT);
+		const secondGroup = this.nextEditorGroupsService.addGroup(firstGroup, SplitDirection.DOWN);
 		secondGroup.openEditor(inputs[3], { pinned: true });
 		secondGroup.openEditor(inputs[4], { pinned: true });
 
-		const thirdGroup = this.nextEditorGroupsService.addGroup(secondGroup, SplitDirection.DOWN);
+		const thirdGroup = this.nextEditorGroupsService.addGroup(secondGroup, SplitDirection.RIGHT);
 		thirdGroup.openEditor(inputs[5], { pinned: true });
 		thirdGroup.openEditor(inputs[6], { pinned: true });
 

@@ -119,8 +119,8 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	//#region IView implementation
 
 	readonly minimumWidth = 150;
-	readonly maximumWidth = 150;
-	readonly minimumHeight = Number.POSITIVE_INFINITY;
+	readonly minimumHeight = 150;
+	readonly maximumWidth = Number.POSITIVE_INFINITY;
 	readonly maximumHeight = Number.POSITIVE_INFINITY;
 
 	get onDidChange() { return Event.None; }
@@ -153,7 +153,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	}
 
 	layout(width: number, height: number): void {
-		this.dimension = new Dimension(width, height); // TODO@grid need full dimension here
+		this.dimension = new Dimension(width, height);
 
 		// Layout title control if present
 		if (this.titleAreaControl) {
@@ -171,7 +171,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	}
 
 	private doLayoutEditorControl(): void {
-		this.editorControl.layout(new Dimension(this.dimension.width, 150 /* TODO@grid need full dimension here */ - NextEditorGroupView.EDITOR_TITLE_HEIGHT));
+		this.editorControl.layout(new Dimension(this.dimension.width, this.dimension.height - NextEditorGroupView.EDITOR_TITLE_HEIGHT));
 	}
 
 	//#endregion

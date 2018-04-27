@@ -78,7 +78,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 
 	private doCreateGroup(location: number[]): NextEditorGroupView {
 		const groupView = this.instantiationService.createInstance(NextEditorGroupView);
-		this.grid.addView(groupView, 50 /* TODO@grid what size? */, location);
+		this.grid.addView(groupView, groupView.minimumWidth /* TODO@grid what size? */, location);
 
 		this._groups.set(groupView.id, groupView);
 		this.groupToLocation.set(groupView.id, location);
