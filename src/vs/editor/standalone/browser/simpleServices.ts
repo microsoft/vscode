@@ -359,7 +359,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		this._cachedResolver = null;
 		this._dynamicKeybindings = [];
 
-		this.toDispose.push(dom.addDisposableListener(domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		this._register(dom.addDisposableListener(domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			let keyEvent = new StandardKeyboardEvent(e);
 			let shouldPreventDefault = this._dispatch(keyEvent, keyEvent.target);
 			if (shouldPreventDefault) {
@@ -418,6 +418,10 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 			this._cachedResolver = new KeybindingResolver(defaults, overrides);
 		}
 		return this._cachedResolver;
+	}
+
+	protected _documentHasFocus(): boolean {
+		return document.hasFocus();
 	}
 
 	private _toNormalizedKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
