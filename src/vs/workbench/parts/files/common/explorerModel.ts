@@ -338,7 +338,7 @@ export class ExplorerItem {
 		if (resource && this.resource.scheme === resource.scheme && this.resource.authority === resource.authority &&
 			(isLinux ? startsWith(resource.path, this.resource.path) : startsWithIgnoreCase(resource.path, this.resource.path))
 		) {
-			return this.findByPath(rtrim(resource.path, paths.nativeSep), this.resource.path.length);
+			return this.findByPath(rtrim(resource.path, paths.sep), this.resource.path.length);
 		}
 
 		return null; //Unable to find
