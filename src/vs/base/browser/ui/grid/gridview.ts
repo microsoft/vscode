@@ -13,12 +13,12 @@ import { empty as EmptyDisposable, IDisposable } from 'vs/base/common/lifecycle'
 import { $, append } from 'vs/base/browser/dom';
 
 export interface IView {
+	readonly element: HTMLElement;
 	readonly minimumWidth: number;
 	readonly maximumWidth: number;
 	readonly minimumHeight: number;
 	readonly maximumHeight: number;
 	readonly onDidChange: Event<{ width: number; height: number; }>;
-	render(container: HTMLElement): void;
 	layout(width: number, height: number): void;
 }
 
@@ -79,6 +79,7 @@ abstract class AbstractNode implements ISplitView {
 	private _orthogonalSize: number;
 	get orthogonalSize(): number { return this._orthogonalSize; }
 
+	abstract readonly element: HTMLElement;
 	abstract readonly minimumSize: number;
 	abstract readonly maximumSize: number;
 	abstract readonly minimumOrthogonalSize: number;
@@ -99,13 +100,12 @@ abstract class AbstractNode implements ISplitView {
 		this._orthogonalSize = size;
 	}
 
-	abstract render(container: HTMLElement): void;
-
 	dispose(): void { }
 }
 
 class BranchNode extends AbstractNode {
 
+	readonly element: HTMLElement;
 	readonly children: Node[];
 	private splitview: SplitView;
 
@@ -135,6 +135,11 @@ class BranchNode extends AbstractNode {
 		this._onDidChange = new Emitter<number | undefined>();
 		this.children = [];
 		this.onDidChangeDisposable = EmptyDisposable;
+
+		this.element = $('.monaco-grid-branch-node');
+		this.splitview = new SplitView(this.element, { orientation: this.orientation });
+		this.layout(this.size);
+		this.orthogonalLayout(this.orthogonalSize);
 	}
 
 	layout(size: number): void {
@@ -148,12 +153,6 @@ class BranchNode extends AbstractNode {
 	orthogonalLayout(size: number): void {
 		super.layout(size);
 		this.splitview.layout(size);
-	}
-
-	render(container: HTMLElement): void {
-		this.splitview = new SplitView(container, { orientation: this.orientation });
-		this.layout(this.size);
-		this.orthogonalLayout(this.orthogonalSize);
 	}
 
 	addChild(node: Node, size: number, index: number): void {
@@ -225,6 +224,10 @@ class LeafNode extends AbstractNode {
 		return this.orientation === Orientation.HORIZONTAL ? this.size : this.orthogonalSize;
 	}
 
+	get element(): HTMLElement {
+		return this.view.element;
+	}
+
 	get minimumSize(): number {
 		return this.orientation === Orientation.HORIZONTAL ? this.view.minimumHeight : this.view.minimumWidth;
 	}
@@ -243,10 +246,6 @@ class LeafNode extends AbstractNode {
 
 	get onDidChange(): Event<number> {
 		return mapEvent(this.view.onDidChange, this.orientation === Orientation.HORIZONTAL ? ({ width }) => width : ({ height }) => height);
-	}
-
-	render(container: HTMLElement): void {
-		return this.view.render(container);
 	}
 
 	layout(size: number): void {
@@ -273,7 +272,7 @@ export class GridView implements IGrid, IDisposable {
 	constructor(container: HTMLElement) {
 		const el = append(container, $('.monaco-grid-view'));
 		this.root = new BranchNode(Orientation.VERTICAL);
-		this.root.render(el);
+		el.appendChild(this.root.element);
 	}
 
 	addView(view: IView, size: number, location: number[]): void {
@@ -435,14 +434,13 @@ function indexInParent(element: HTMLElement): number {
  * This will break as soon as DOM structures of the Splitview or Gridview change.
  */
 function getGridLocation(element: HTMLElement): number[] {
-	const index = indexInParent(element);
-	const greatGrandParent = element.parentElement.parentElement.parentElement;
-
-	if (/\bmonaco-grid-view\b/.test(greatGrandParent.className)) {
-		return [index];
+	if (/\bmonaco-grid-view\b/.test(element.parentElement.className)) {
+		return [];
 	}
 
-	return [...getGridLocation(greatGrandParent), index];
+	const index = indexInParent(element.parentElement);
+	const ancestor = element.parentElement.parentElement.parentElement.parentElement;
+	return [...getGridLocation(ancestor), index];
 }
 
 export enum Direction {
@@ -452,38 +450,10 @@ export enum Direction {
 	Right
 }
 
-class SplitGridViewView<T extends IView> implements IView {
-
-	constructor(readonly view: T) { }
-
-	get minimumWidth(): number { return this.view.minimumWidth; }
-	get maximumWidth(): number { return this.view.maximumWidth; }
-	get minimumHeight(): number { return this.view.minimumHeight; }
-	get maximumHeight(): number { return this.view.maximumHeight; }
-	get onDidChange(): Event<{ width: number; height: number; }> { return this.view.onDidChange; }
-
-	private _onDidRender = new Emitter<HTMLElement>();
-	readonly onDidRender: Event<HTMLElement> = this._onDidRender.event;
-
-	render(container: HTMLElement): void {
-		this._onDidRender.fire(container);
-		this.view.render(container);
-	}
-
-	layout(width: number, height: number): void {
-		this.view.layout(width, height);
-	}
-}
-
-interface ITypedViewItem {
-	element: HTMLElement;
-	disposable: IDisposable;
-}
-
 export class SplitGridView<T extends IView> implements IDisposable {
 
 	private gridview: GridView;
-	private views = new Map<T, ITypedViewItem>();
+	private views = new Map<T, HTMLElement>();
 
 	constructor(container: HTMLElement, view: T) {
 		this.gridview = new GridView(container);
@@ -502,12 +472,8 @@ export class SplitGridView<T extends IView> implements IDisposable {
 	}
 
 	private _addView(view: T, size: number, location: number[]): void {
-		const viewWrapper = new SplitGridViewView(view);
-		const disposable = viewWrapper.onDidRender(el => item.element = el);
-		const item: ITypedViewItem = { disposable, element: null as HTMLElement };
-
-		this.views.set(view, item);
-		this.gridview.addView(viewWrapper, size, location);
+		this.views.set(view, view.element);
+		this.gridview.addView(view, size, location);
 	}
 
 	removeView(view: T): void {
@@ -515,13 +481,9 @@ export class SplitGridView<T extends IView> implements IDisposable {
 			throw new Error('Can\'t remove last view');
 		}
 
-		const item = this.views.get(view);
-
-		if (!item) {
+		if (!this.views.has(view)) {
 			throw new Error('View not found');
 		}
-
-		item.disposable.dispose();
 
 		const location = this.getViewLocation(view);
 		this.gridview.removeView(location);
@@ -553,17 +515,13 @@ export class SplitGridView<T extends IView> implements IDisposable {
 	}
 
 	private getViewLocation(view: T): number[] {
-		const item = this.views.get(view);
+		const element = this.views.get(view);
 
-		if (!item) {
+		if (!element) {
 			throw new Error('View not found');
 		}
 
-		if (!item.element) {
-			throw new Error('View was not rendered');
-		}
-
-		return getGridLocation(item.element);
+		return getGridLocation(element);
 	}
 
 	dispose(): void {

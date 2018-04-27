@@ -32,8 +32,6 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	private dimension: Dimension;
 
-	private container: HTMLElement;
-
 	private titleContainer: HTMLElement;
 	private titleAreaControl: INextTitleAreaControl;
 
@@ -41,6 +39,8 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	private editorControl: NextEditorControl;
 
 	private progressBar: ProgressBar;
+
+	readonly element: HTMLElement;
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -51,6 +51,10 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 		this.group = this._register(instantiationService.createInstance(EditorGroup, ''));
 		this.group.label = `Group <${this.group.id}>`;
+
+		this.element = document.createElement('div');
+		addClass(this.element, 'editor-group-container');
+		this._render();
 	}
 
 	//#region INextEditorGroup Implementation
@@ -77,7 +81,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	private doCreateOrGetTitleControl(): INextTitleAreaControl {
 		if (!this.titleAreaControl) {
 			const containerInstantiationService = this.instantiationService.createChild(new ServiceCollection(
-				[IContextKeyService, this._register(this.contextKeyService.createScoped(this.container))] // Scoped instantiation service for a scoped context key service
+				[IContextKeyService, this._register(this.contextKeyService.createScoped(this.element))] // Scoped instantiation service for a scoped context key service
 			));
 
 			this.titleAreaControl = this._register(containerInstantiationService.createInstance(NextTabsTitleControl, this.titleContainer, this.group));
@@ -111,7 +115,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		this.titleContainer.style.borderBottomColor = borderColor;
 
 		// Editor background
-		this.container.style.backgroundColor = this.getColor(editorBackground);
+		this.element.style.backgroundColor = this.getColor(editorBackground);
 	}
 
 	//#endregion
@@ -125,20 +129,15 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	get onDidChange() { return Event.None; }
 
-	render(container: HTMLElement): void {
-
-		// Overall container
-		this.container = document.createElement('div');
-		addClass(this.container, 'editor-group-container');
-		container.appendChild(this.container);
+	private _render(): void {
 
 		// Title container
 		this.titleContainer = document.createElement('div');
 		addClasses(this.titleContainer, 'title', 'tabs', 'show-file-icons', 'active');
-		this.container.appendChild(this.titleContainer);
+		this.element.appendChild(this.titleContainer);
 
 		// Progress bar
-		this.progressBar = new ProgressBar(this.container);
+		this.progressBar = new ProgressBar(this.element);
 		this._register(attachProgressBarStyler(this.progressBar, this.themeService));
 		this.progressBar.hide();
 
@@ -146,7 +145,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		this.editorContainer = document.createElement('div');
 		addClass(this.editorContainer, 'editor-container');
 		this.editorContainer.setAttribute('role', 'tabpanel');
-		this.container.appendChild(this.editorContainer);
+		this.element.appendChild(this.editorContainer);
 
 		// Update styles
 		this.updateStyles();

@@ -25,8 +25,11 @@ class TestView implements IView {
 	get maximumHeight(): number { return this._maximumHeight; }
 	set maximumHeight(size: number) { this._maximumHeight = size; this._onDidChange.fire(); }
 
-	private _onDidRender = new Emitter<{ container: HTMLElement }>();
-	readonly onDidRender = this._onDidRender.event;
+	private _element: HTMLElement = document.createElement('div');
+	get element(): HTMLElement { this._onDidGetElement.fire(); return this._element; }
+
+	private _onDidGetElement = new Emitter<void>();
+	readonly onDidGetElement = this._onDidGetElement.event;
 
 	private _width = 0;
 	get width(): number { return this._width; }
@@ -50,10 +53,6 @@ class TestView implements IView {
 		assert(_minimumHeight <= _maximumHeight, 'gridview view minimum height must be <= maximum height');
 	}
 
-	render(container: HTMLElement): void {
-		this._onDidRender.fire({ container });
-	}
-
 	layout(width: number, height: number): void {
 		this._width = width;
 		this._height = height;
@@ -66,7 +65,7 @@ class TestView implements IView {
 
 	dispose(): void {
 		this._onDidChange.dispose();
-		this._onDidRender.dispose();
+		this._onDidGetElement.dispose();
 		this._onDidLayout.dispose();
 		this._onDidFocus.dispose();
 	}
@@ -80,7 +79,7 @@ function nodesToArrays(node: GridNode): any {
 	}
 }
 
-suite('GridView', function () {
+suite('Gridview', function () {
 	let container: HTMLElement;
 
 	setup(function () {

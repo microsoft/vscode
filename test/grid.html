@@ -20,7 +20,7 @@
 						_debug(child, indent);
 					}
 				} else {
-					console.log(`${indent}|- ${(node.view.view).ID} (${node.width}, ${node.height})`);
+					console.log(`${indent}|- ${(node.view).ID} (${node.width}, ${node.height})`);
 				}
 			}
 
@@ -31,9 +31,15 @@
 			function createView() {
 				let id = ++count;
 
-				let element;
+				let element = document.createElement('div');
+				element.style.width = '100%';
+				element.style.height = '100%';
+				element.style.backgroundColor = `hsl(${Math.round(Math.random() * 360)}, 72%, 72%)`;
+				element.textContent = `hello${id}`;
+
 				return {
 					ID: `hello${id}`,
+					element,
 					minimumWidth: 100,
 					maximumWidth: Number.POSITIVE_INFINITY,
 					minimumHeight: 100,
@@ -41,11 +47,6 @@
 					onDidChange: Event.None,
 					layout(width, height) {
 						element.textContent = `hello${id} (${width}, ${height})`
-					},
-					render(el) {
-						element = el;
-						el.style.backgroundColor = `hsl(${Math.round(Math.random() * 360)}, 72%, 72%)`;
-						el.textContent = `hello${id}`;
 					}
 				};
 			}
