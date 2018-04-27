@@ -42,23 +42,19 @@ export abstract class Panel implements IView {
 	private ariaHeaderLabel: string;
 	private styles: IPanelStyles | undefined = undefined;
 
-	private el: HTMLElement;
+	readonly element: HTMLElement;
 	private header: HTMLElement;
 	protected disposables: IDisposable[] = [];
 
 	private _onDidChange = new Emitter<number | undefined>();
 	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
 
-	get element(): HTMLElement {
-		return this.el;
-	}
-
 	get draggableElement(): HTMLElement {
 		return this.header;
 	}
 
 	get dropTargetElement(): HTMLElement {
-		return this.el;
+		return this.element;
 	}
 
 	private _dropBackground: Color | undefined;
@@ -109,6 +105,9 @@ export abstract class Panel implements IView {
 		this.ariaHeaderLabel = options.ariaHeaderLabel || '';
 		this._minimumBodySize = typeof options.minimumBodySize === 'number' ? options.minimumBodySize : 120;
 		this._maximumBodySize = typeof options.maximumBodySize === 'number' ? options.maximumBodySize : Number.POSITIVE_INFINITY;
+
+		this.element = $('.panel');
+		this.render();
 	}
 
 	isExpanded(): boolean {
@@ -139,11 +138,9 @@ export abstract class Panel implements IView {
 		this._onDidChange.fire();
 	}
 
-	render(container: HTMLElement): void {
-		this.el = append(container, $('.panel'));
-
+	protected render(): void {
 		this.header = $('.panel-header');
-		append(this.el, this.header);
+		append(this.element, this.header);
 		this.header.setAttribute('tabindex', '0');
 		this.header.setAttribute('role', 'toolbar');
 		this.header.setAttribute('aria-label', this.ariaHeaderLabel);
@@ -177,7 +174,7 @@ export abstract class Panel implements IView {
 		// onHeaderKeyDown.filter(e => e.keyCode === KeyCode.DownArrow)
 		// 	.event(focusNext, this, this.disposables);
 
-		const body = append(this.el, $('.panel-body'));
+		const body = append(this.element, $('.panel-body'));
 		this.renderBody(body);
 	}
 

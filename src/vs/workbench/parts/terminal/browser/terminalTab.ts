@@ -115,9 +115,8 @@ class SplitPaneContainer {
 	}
 
 	private _addChild(size: number, instance: ITerminalInstance, index: number): void {
-		const child = new SplitPane(this.orientation === Orientation.HORIZONTAL ? this._height : this._width);
+		const child = new SplitPane(instance, this.orientation === Orientation.HORIZONTAL ? this._height : this._width);
 		child.orientation = this.orientation;
-		child.instance = instance;
 		if (typeof index === 'number') {
 			this._children.splice(index, 0, child);
 		} else {
@@ -197,23 +196,21 @@ class SplitPane implements IView {
 	public minimumSize: number = SPLIT_PANE_MIN_SIZE;
 	public maximumSize: number = Number.MAX_VALUE;
 
-	public instance: ITerminalInstance;
 	public orientation: Orientation | undefined;
 	protected _size: number;
 
 	private _onDidChange: Event<number | undefined> = Event.None;
 	public get onDidChange(): Event<number | undefined> { return this._onDidChange; }
 
+	readonly element: HTMLElement;
+
 	constructor(
+		readonly instance: ITerminalInstance,
 		public orthogonalSize: number
 	) {
-	}
-
-	public render(container: HTMLElement): void {
-		if (!container) {
-			return;
-		}
-		this.instance.attachToElement(container);
+		this.element = document.createElement('div');
+		this.element.className = 'terminal-split-pane';
+		this.instance.attachToElement(this.element);
 	}
 
 	public layout(size: number): void {

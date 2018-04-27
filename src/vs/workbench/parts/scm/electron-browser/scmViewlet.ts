@@ -768,8 +768,8 @@ export class RepositoryPanel extends ViewletPanel {
 		this.menus = instantiationService.createInstance(SCMMenus, repository.provider);
 	}
 
-	render(container: HTMLElement): void {
-		super.render(container);
+	protected render(): void {
+		super.render();
 		this.menus.onDidChangeTitle(this.updateActions, this, this.disposables);
 	}
 
