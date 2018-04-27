@@ -298,7 +298,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		let packageJson = null;
 
 		tasks.forEach(each => {
-			if (isWorkspaceFolder(each.scope)) {
+			if (isWorkspaceFolder(each.scope) && each.name !== 'install') {
 				folder = folders.get(each.scope.name);
 				if (!folder) {
 					folder = new Folder(each.scope);
