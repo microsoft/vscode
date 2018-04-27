@@ -133,7 +133,11 @@ suite('window namespace tests', () => {
 		assert.ok(window.activeTextEditor!.document === docB);
 		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Two);
 
-		await window.showTextDocument(docC);
+		const editor = await window.showTextDocument(docC);
+		assert.ok(
+			window.activeTextEditor === editor,
+			`wanted fileName:${editor.document.fileName}/viewColumn:${editor.viewColumn} but got fileName:${window.activeTextEditor!.document.fileName}/viewColumn:${window.activeTextEditor!.viewColumn}. a:${docA.fileName}, b:${docB.fileName}, c:${docC.fileName}`
+		);
 		assert.ok(window.activeTextEditor!.document === docC);
 		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.One);
 	});
@@ -377,13 +381,13 @@ suite('window namespace tests', () => {
 			accept.then(() => assert.ok(false), err => assert.ok(err))
 				.then(() => new Promise(resolve => setTimeout(resolve, 10)))
 		])
-		.then(() => {
-			const close = commands.executeCommand('workbench.action.closeQuickOpen');
-			return Promise.all([result, close])
-				.then(([value]) => {
-					assert.equal(value, undefined);
-				});
-		});
+			.then(() => {
+				const close = commands.executeCommand('workbench.action.closeQuickOpen');
+				return Promise.all([result, close])
+					.then(([value]) => {
+						assert.equal(value, undefined);
+					});
+			});
 	});
 
 
