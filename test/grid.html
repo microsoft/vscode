@@ -42,11 +42,13 @@
 				let element;
 				return {
 					ID: `${id}`,
-					minimumSize: 20,
-					maximumSize: Number.POSITIVE_INFINITY,
+					minimumWidth: 20,
+					maximumWidth: Number.POSITIVE_INFINITY,
+					minimumHeight: 20,
+					maximumHeight: Number.POSITIVE_INFINITY,
 					onDidChange: Event.None,
-					layout(size) {
-						element.textContent = `hello${id} (${size})`
+					layout(width, height) {
+						element.textContent = `hello${id} (${width}, ${height})`
 					},
 					render(el) {
 						element = el;

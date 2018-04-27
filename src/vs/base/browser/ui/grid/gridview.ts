@@ -69,10 +69,12 @@ function tail<T>(arr: T[]): [T[], T] {
 
 abstract class AbstractNode implements ISplitView {
 
-	abstract minimumSize: number;
-	abstract maximumSize: number;
+	readonly orientation: Orientation;
 
-	abstract onDidChange: Event<number>;
+	abstract readonly minimumSize: number;
+	abstract readonly maximumSize: number;
+	abstract readonly onDidChange: Event<number>;
+
 	abstract render(container: HTMLElement): void;
 
 	private _size: number | undefined;
@@ -81,7 +83,8 @@ abstract class AbstractNode implements ISplitView {
 	private _orthogonalSize: number | undefined;
 	get orthogonalSize(): number | undefined { return this._orthogonalSize; }
 
-	constructor(size?: number, orthogonalSize?: number) {
+	constructor(orientation: Orientation, size?: number, orthogonalSize?: number) {
+		this.orientation = orientation;
 		this._size = size;
 		this._orthogonalSize = orthogonalSize;
 	}
@@ -101,7 +104,6 @@ class BranchNode<T extends IView> extends AbstractNode {
 
 	readonly children: Node<T>[];
 	private splitview: SplitView;
-	readonly orientation: Orientation;
 
 	get minimumSize(): number {
 		let result = 0;
@@ -140,9 +142,8 @@ class BranchNode<T extends IView> extends AbstractNode {
 	private onDidChangeDisposable: IDisposable;
 
 	constructor(orientation: Orientation, size?: number, orthogonalSize?: number) {
-		super(size, orthogonalSize);
+		super(orientation, size, orthogonalSize);
 
-		this.orientation = orientation;
 		this._onDidChange = new Emitter<number | undefined>();
 		this.children = [];
 		this.onDidChangeDisposable = EmptyDisposable;
@@ -224,12 +225,22 @@ class BranchNode<T extends IView> extends AbstractNode {
 
 class LeafNode<T extends IView> extends AbstractNode {
 
-	constructor(readonly view: T, orthogonalSize: number) {
-		super(undefined, orthogonalSize);
+	constructor(readonly view: T, orientation: Orientation, orthogonalSize: number) {
+		super(orientation, undefined, orthogonalSize);
 	}
 
-	get minimumSize(): number { return /* this.view.minimumSize */ 20; }
-	get maximumSize(): number { return /* this.view.maximumSize */ Number.MAX_VALUE; }
+	get minimumSize(): number {
+		return this.orientation === Orientation.HORIZONTAL
+			? this.view.minimumHeight
+			: this.view.minimumWidth;
+	}
+
+	get maximumSize(): number {
+		return this.orientation === Orientation.HORIZONTAL
+			? this.view.maximumHeight
+			: this.view.maximumWidth;
+	}
+
 	get onDidChange(): Event<number> { return this.view.onDidChange; }
 
 	render(container: HTMLElement): void {
@@ -238,7 +249,12 @@ class LeafNode<T extends IView> extends AbstractNode {
 
 	layout(size: number): void {
 		super.layout(size);
-		return this.view.layout(size, void 0);
+
+		const [width, height] = this.orientation === Orientation.HORIZONTAL
+			? [this.orthogonalSize, this.size]
+			: [this.size, this.orthogonalSize];
+
+		return this.view.layout(width, height);
 	}
 }
 
@@ -259,7 +275,7 @@ export class GridView<T extends IView> implements IGrid<T>, IDisposable {
 		const [pathToParent, parent] = this.getNode(rest);
 
 		if (parent instanceof BranchNode) {
-			const node = new LeafNode<T>(view, parent.size);
+			const node = new LeafNode<T>(view, orthogonal(parent.orientation), parent.size);
 			parent.addChild(node, size, index);
 		} else {
 			const [, grandParent] = tail(pathToParent);
@@ -272,10 +288,10 @@ export class GridView<T extends IView> implements IGrid<T>, IDisposable {
 			grandParent.addChild(newParent, parent.size, parentIndex);
 			newParent.layout(parent.orthogonalSize);
 
-			const newSibling = new LeafNode<T>(parent.view, parent.size);
+			const newSibling = new LeafNode<T>(parent.view, grandParent.orientation, parent.size);
 			newParent.addChild(newSibling, Number.MAX_VALUE, 0);
 
-			const node = new LeafNode<T>(view, parent.size);
+			const node = new LeafNode<T>(view, grandParent.orientation, parent.size);
 			newParent.addChild(node, size, index);
 		}
 	}
