@@ -3447,17 +3447,6 @@ declare module 'vscode' {
 		public constructor(value: string);
 	}
 
-
-	/**
-	 * Metadata about the kind of folding ranges that a [FoldingRangeProvider](#FoldingRangeProvider) providers uses.
-	 */
-	export interface FoldingRangeProviderMetadata {
-		/**
-		 * [FoldingRangeKind](#FoldingRangeKind) that this provider may return.
-		 */
-		readonly providedFoldingRangeKinds?: ReadonlyArray<FoldingRangeKind>;
-	}
-
 	/**
 	 * Folding context (for future use)
 	 */
@@ -6917,7 +6906,7 @@ declare module 'vscode' {
 		 * @param metadata Metadata about the kind of code actions the provider providers.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerFoldingRangeProvider(selector: DocumentSelector, provider: FoldingRangeProvider, metadata?: FoldingRangeProviderMetadata): Disposable;
+		export function registerFoldingRangeProvider(selector: DocumentSelector, provider: FoldingRangeProvider): Disposable;
 
 		/**
 		 * Set a [language configuration](#LanguageConfiguration) for a language.
