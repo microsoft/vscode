@@ -31,7 +31,7 @@
     "onCommand:workbench.action.tasks.runTask",
     "onLanguage:json",
     "onView:npm",
-    "workspaceContains:**/package.json"
+    "workspaceContains:package.json"
   ],
   "contributes": {
     "views": {
