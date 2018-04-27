@@ -7,17 +7,18 @@
 
 import 'vs/css!./media/nextEditorpart';
 import 'vs/workbench/browser/parts/editor2/editor2.contribution';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
 import { Dimension, addClass } from 'vs/base/browser/dom';
 import { Event, Emitter } from 'vs/base/common/event';
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { INextEditorGroupsService, INextEditorGroup, SplitDirection } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { GridView } from 'vs/base/browser/ui/grid/gridview';
 import { NextEditorGroupView } from 'vs/workbench/browser/parts/editor2/nextEditorGroupView';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
+import { EDITOR_GROUP_BORDER } from 'vs/workbench/common/theme';
 
 export class NextEditorPart extends Part implements INextEditorGroupsService {
 
@@ -141,3 +142,35 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 
 	//#endregion
 }
+
+// Group borders (TODO@grid this should be a color the GridView exposes)
+registerThemingParticipant((theme, collector) => {
+	const groupBorderColor = theme.getColor(EDITOR_GROUP_BORDER) || theme.getColor(contrastBorder);
+	if (groupBorderColor) {
+		collector.addRule(`
+			.monaco-workbench > .part.editor > .content .split-view-view {
+				position: relative;
+			}
+
+			.monaco-workbench > .part.editor > .content .split-view-view:not(:first-child)::before {
+				content: '';
+				position: absolute;
+				top: 0;
+				left: 0;
+				z-index: 100;
+				pointer-events: none;
+				background: ${groupBorderColor}
+			}
+
+			.monaco-workbench > .part.editor > .content .horizontal .split-view-view:not(:first-child)::before {
+				height: 100%;
+				width: 1px;
+			}
+
+			.monaco-workbench > .part.editor > .content .vertical .split-view-view:not(:first-child)::before {
+				height: 1px;
+				width: 100%;
+			}
+		`);
+	}
+});
