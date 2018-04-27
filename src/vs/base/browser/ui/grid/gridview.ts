@@ -6,32 +6,28 @@
 'use strict';
 
 import 'vs/css!./gridview';
-import { Event, anyEvent, Emitter } from 'vs/base/common/event';
+import { Event, anyEvent, Emitter, mapEvent } from 'vs/base/common/event';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { SplitView, IView as ISplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { empty as EmptyDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { $, append } from 'vs/base/browser/dom';
-
-// export { IView } from 'vs/base/browser/ui/splitview/splitview';
-export { Orientation } from 'vs/base/browser/ui/sash/sash';
 
 export interface IView {
 	readonly minimumWidth: number;
 	readonly maximumWidth: number;
 	readonly minimumHeight: number;
 	readonly maximumHeight: number;
-	readonly onDidChange: Event<number | undefined>;
+	readonly onDidChange: Event<{ width: number; height: number; }>;
 	render(container: HTMLElement): void;
 	layout(width: number, height: number): void;
 }
 
 /*
 TODO:
-- IView needs to change to accommodate width/height
-- GridView.getLocation(HTMLElement)
 - GridView.orientation setter/getter
 
 - create grid wrapper which lets you talk only abut views, not locations
+	- GridView.getLocation(HTMLElement)
 - create grid wrapper which automatically sizes the new views
 */
 
@@ -240,7 +236,9 @@ class LeafNode<T extends IView> extends AbstractNode {
 		return this.orientation === Orientation.HORIZONTAL ? this.view.maximumWidth : this.view.maximumHeight;
 	}
 
-	get onDidChange(): Event<number> { return this.view.onDidChange; }
+	get onDidChange(): Event<number> {
+		return mapEvent(this.view.onDidChange, this.orientation === Orientation.HORIZONTAL ? ({ width }) => width : ({ height }) => height);
+	}
 
 	render(container: HTMLElement): void {
 		return this.view.render(container);

@@ -9,7 +9,7 @@ import { GridView, IView, GridNode, GridBranchNode } from 'vs/base/browser/ui/gr
 
 class TestView implements IView {
 
-	private _onDidChange = new Emitter<number | undefined>();
+	private _onDidChange = new Emitter<{ width: number; height: number; }>();
 	readonly onDidChange = this._onDidChange.event;
 
 	get minimumWidth(): number { return this._minimumWidth; }
