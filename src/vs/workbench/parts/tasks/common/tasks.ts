@@ -456,6 +456,12 @@ export namespace CustomTask {
 		};
 		return result;
 	}
+	export function customizes(task: CustomTask): TaskIdentifier {
+		if (task._source && task._source.customizes) {
+			return task._source.customizes;
+		}
+		return undefined;
+	}
 }
 
 export interface ConfiguringTask extends CommonTask, ConfigurationProperties {

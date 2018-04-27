@@ -696,9 +696,17 @@ class TaskService implements ITaskService {
 			let result: Task[] = [];
 			map.forEach((tasks) => {
 				for (let task of tasks) {
-					let definition = Task.getTaskDefinition(task);
-					if (definition && definition.type === filter.type) {
+					if (ContributedTask.is(task) && task.defines.type === filter.type) {
 						result.push(task);
+					} else if (CustomTask.is(task)) {
+						if (task.type === filter.type) {
+							result.push(task);
+						} else {
+							let customizes = CustomTask.customizes(task);
+							if (customizes && customizes.type === filter.type) {
+								result.push(task);
+							}
+						}
 					}
 				}
 			});
