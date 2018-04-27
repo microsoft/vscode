@@ -17,7 +17,7 @@ export interface INextEditor {
 	whenInputSet: TPromise<void>;
 }
 
-export enum SplitDirection {
+export enum Direction {
 	UP,
 	DOWN,
 	LEFT,
@@ -40,5 +40,5 @@ export interface INextEditorGroupsService {
 
 	getGroup(identifier: GroupIdentifier): INextEditorGroup;
 
-	addGroup(fromGroup: INextEditorGroup, direction: SplitDirection): INextEditorGroup;
+	addGroup(fromGroup: INextEditorGroup, direction: Direction): INextEditorGroup;
 }

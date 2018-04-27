@@ -12,9 +12,9 @@ import { Part } from 'vs/workbench/browser/part';
 import { Dimension, addClass } from 'vs/base/browser/dom';
 import { Event, Emitter } from 'vs/base/common/event';
 import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { INextEditorGroupsService, INextEditorGroup, SplitDirection } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { INextEditorGroupsService, INextEditorGroup, Direction } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { GridView } from 'vs/base/browser/ui/grid/gridview';
+import { SplitGridView, Direction as GridViewDirection } from 'vs/base/browser/ui/grid/gridview';
 import { NextEditorGroupView } from 'vs/workbench/browser/parts/editor2/nextEditorGroupView';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
@@ -31,11 +31,8 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 	private _activeGroup: NextEditorGroupView;
 	private _groups: Map<GroupIdentifier, NextEditorGroupView> = new Map<GroupIdentifier, NextEditorGroupView>();
 
-	// TODO@grid temporary until GridView can provide this
-	private groupToLocation: Map<GroupIdentifier, number[]> = new Map<GroupIdentifier, number[]>();
-
-	private grid: GridView;
 	private gridContainer: HTMLElement;
+	private gridWidget: SplitGridView<NextEditorGroupView>;
 
 	constructor(
 		id: string,
@@ -63,28 +60,25 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		return this._groups.get(identifier);
 	}
 
-	addGroup(fromGroup: INextEditorGroup, direction: SplitDirection): INextEditorGroup {
-		const fromGroupLocation = this.groupToLocation.get(fromGroup.id);
+	addGroup(fromGroup: INextEditorGroup, direction: Direction): INextEditorGroup {
+		const groupView = this.doCreateGroupView();
 
-		// TODO@grid properly compute the right location based on the "fromGroup" and "direction"
-		// arguments by finding out the current direction at the location from where to add a group to
-		return this.doCreateGroup([
-			...fromGroupLocation.slice(0, fromGroupLocation.length - 1), 	// parent location
-			fromGroupLocation[fromGroupLocation.length - 1] + 1				// just append after last view for now
-		]);
-
-		// TODO@grid once 2 groups exist, set the orientation on the GridView so that we have an
-		// initial orientation for the entire grid
-	}
-
-	private doCreateGroup(location: number[]): NextEditorGroupView {
-		const groupView = this.instantiationService.createInstance(NextEditorGroupView);
-		this.grid.addView(groupView, groupView.minimumWidth /* TODO@grid what size? */, location);
-
-		this._groups.set(groupView.id, groupView);
-		this.groupToLocation.set(groupView.id, location);
+		this.gridWidget.splitView(
+			this._groups.get(fromGroup.id),
+			this.toGridViewDirection(direction),
+			groupView, 3 * groupView.minimumWidth /* TODO@grid what size? */
+		);
 
 		return groupView;
+	}
+
+	private toGridViewDirection(direction: Direction): GridViewDirection {
+		switch (direction) {
+			case Direction.UP: return GridViewDirection.Up;
+			case Direction.DOWN: return GridViewDirection.Down;
+			case Direction.LEFT: return GridViewDirection.Left;
+			case Direction.RIGHT: return GridViewDirection.Right;
+		}
 	}
 
 	//#endregion
@@ -101,12 +95,18 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		this.gridContainer = document.createElement('div');
 		addClass(this.gridContainer, 'content');
 
-		// Widget
-		this.grid = this._register(new GridView(this.gridContainer));
-		this.grid.layout(1, 1); // TODO@grid should work without calling layout
+		// Grid widget
+		const initialGroup = this.doCreateGroupView();
+		this._activeGroup = initialGroup;
+		this.gridWidget = this._register(new SplitGridView(this.gridContainer, initialGroup));
+	}
 
-		// Initial View
-		this._activeGroup = this.doCreateGroup([0]);
+	private doCreateGroupView(): NextEditorGroupView {
+		const groupView = this.instantiationService.createInstance(NextEditorGroupView);
+
+		this._groups.set(groupView.id, groupView);
+
+		return groupView;
 	}
 
 	protected updateStyles(): void {
@@ -132,7 +132,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		this.dimension = sizes[1];
 
 		// Layout Grid
-		this.grid.layout(this.dimension.width, this.dimension.height);
+		this.gridWidget.layout(this.dimension.width, this.dimension.height);
 
 		// Event
 		this._onLayout.fire(dimension);
@@ -152,7 +152,7 @@ registerThemingParticipant((theme, collector) => {
 				position: relative;
 			}
 
-			.monaco-workbench > .part.editor > .content .split-view-view:not(:first-child)::before {
+			.monaco-workbench > .part.editor > .content .monaco-grid-view .monaco-split-view2 > .split-view-container > .split-view-view:not(:first-child)::before {
 				content: '';
 				position: absolute;
 				top: 0;
@@ -162,12 +162,12 @@ registerThemingParticipant((theme, collector) => {
 				background: ${groupBorderColor}
 			}
 
-			.monaco-workbench > .part.editor > .content .horizontal .split-view-view:not(:first-child)::before {
+			.monaco-workbench > .part.editor > .content .monaco-grid-view .monaco-split-view2.horizontal > .split-view-container>.split-view-view:not(:first-child)::before {
 				height: 100%;
 				width: 1px;
 			}
 
-			.monaco-workbench > .part.editor > .content .vertical .split-view-view:not(:first-child)::before {
+			.monaco-workbench > .part.editor > .content .monaco-grid-view .monaco-split-view2.vertical > .split-view-container > .split-view-view:not(:first-child)::before {
 				height: 1px;
 				width: 100%;
 			}

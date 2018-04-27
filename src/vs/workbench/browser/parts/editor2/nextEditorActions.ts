@@ -9,7 +9,7 @@ import URI from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { INextEditorGroupsService, SplitDirection } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { INextEditorGroupsService, Direction } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -56,11 +56,11 @@ export class OpenNextEditorAction extends Action {
 		firstGroup.openEditor(inputs[1], { pinned: true });
 		firstGroup.openEditor(inputs[2], { pinned: true });
 
-		const secondGroup = this.nextEditorGroupsService.addGroup(firstGroup, SplitDirection.DOWN);
+		const secondGroup = this.nextEditorGroupsService.addGroup(firstGroup, Direction.DOWN);
 		secondGroup.openEditor(inputs[3], { pinned: true });
 		secondGroup.openEditor(inputs[4], { pinned: true });
 
-		const thirdGroup = this.nextEditorGroupsService.addGroup(secondGroup, SplitDirection.RIGHT);
+		const thirdGroup = this.nextEditorGroupsService.addGroup(secondGroup, Direction.RIGHT);
 		thirdGroup.openEditor(inputs[5], { pinned: true });
 		thirdGroup.openEditor(inputs[6], { pinned: true });
 
