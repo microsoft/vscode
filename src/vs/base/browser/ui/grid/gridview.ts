@@ -109,11 +109,11 @@ class BranchNode<T extends IView> extends AbstractNode {
 	private splitview: SplitView;
 
 	get minimumSize(): number {
-		return this.children.reduce((r, c) => r + c.minimumOrthogonalSize, 0);
+		return Math.max(...this.children.map(c => c.minimumOrthogonalSize));
 	}
 
 	get maximumSize(): number {
-		return this.children.reduce((r, c) => r + c.maximumOrthogonalSize, 0);
+		return Math.min(...this.children.map(c => c.maximumOrthogonalSize));
 	}
 
 	get minimumOrthogonalSize(): number {
@@ -147,10 +147,6 @@ class BranchNode<T extends IView> extends AbstractNode {
 	orthogonalLayout(size: number): void {
 		super.layout(size);
 		this.splitview.layout(size);
-
-		// for (const child of this.children) {
-		// 	child.layout(size);
-		// }
 	}
 
 	render(container: HTMLElement): void {
