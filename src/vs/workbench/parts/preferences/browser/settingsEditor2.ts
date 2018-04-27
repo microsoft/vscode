@@ -99,7 +99,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private showConfiguredSettingsOnly = false;
 	private showAllSettings = false;
-	private showConfiguredSettingsOnlyButton: Button;
+	private showConfiguredSettingsOnlyCheckbox: HTMLInputElement;
 
 	private settingsListContainer: HTMLElement;
 	private settingsList: List<IListEntry>;
@@ -204,13 +204,15 @@ export class SettingsEditor2 extends BaseEditor {
 	private createHeaderControls(parent: HTMLElement): void {
 		const headerControlsContainerRight = DOM.append(parent, $('.settings-header-controls-right'));
 
-		this.showConfiguredSettingsOnlyButton = this._register(new Button(headerControlsContainerRight, { title: true }));
-		this.showConfiguredSettingsOnlyButton.label = localize('showOverrides', "Show overrides");
-		this.showConfiguredSettingsOnlyButton.element.classList.add('configured-only-button');
+		this.showConfiguredSettingsOnlyCheckbox = DOM.append(headerControlsContainerRight, $('input#configured-only-checkbox'));
+		this.showConfiguredSettingsOnlyCheckbox.type = 'checkbox';
+		const showConfiguredSettingsOnlyLabel = <HTMLLabelElement>DOM.append(headerControlsContainerRight, $('label.configured-only-label'));
+		showConfiguredSettingsOnlyLabel.textContent = localize('showOverriddenOnly', "Show overridden only");
+		showConfiguredSettingsOnlyLabel.htmlFor = 'configured-only-checkbox';
 
-		this._register(this.showConfiguredSettingsOnlyButton.onDidClick(() => this.onShowConfiguredOnlyClicked()));
+		this._register(DOM.addDisposableListener(this.showConfiguredSettingsOnlyCheckbox, 'change', e => this.onShowConfiguredOnlyClicked()));
 
-		const openSettingsButton = this._register(new Button(headerControlsContainerRight, { title: true, buttonBackground: null }));
+		const openSettingsButton = this._register(new Button(headerControlsContainerRight, { title: true, buttonBackground: null, buttonHoverBackground: null }));
 		openSettingsButton.label = localize('openSettingsLabel', "Open config file");
 		openSettingsButton.element.classList.add('open-settings-button');
 
@@ -268,7 +270,7 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private onShowConfiguredOnlyClicked(): void {
-		this.showConfiguredSettingsOnly = !this.showConfiguredSettingsOnly;
+		this.showConfiguredSettingsOnly = this.showConfiguredSettingsOnlyCheckbox.checked;
 		this.render();
 	}
 

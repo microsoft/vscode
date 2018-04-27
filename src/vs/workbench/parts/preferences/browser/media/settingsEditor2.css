@@ -39,10 +39,6 @@
 	display: flex;
 }
 
-.settings-editor > .settings-header .settings-target-container {
-	flex: 1;
-}
-
 .settings-editor > .settings-header .settings-tabs-widget > .monaco-action-bar .action-item:not(:first-child) .action-label {
 	margin-left: 33px;
 }
@@ -53,6 +49,8 @@
 }
 
 .settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right {
+	margin-left: auto;
+	padding-top: 3px;
 	display: flex;
 }
 
@@ -61,14 +59,18 @@
 .settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .open-settings-button:active {
 	background: none;
 	opacity: 0.7;
+	padding: 0;
 	text-decoration: underline;
 }
 
-.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .configured-only-button {
+.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right #configured-only-checkbox {
+	flex-shrink: 0;
+}
+
+.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .configured-only-label {
 	white-space: nowrap;
-	padding: 4px 10px;
 	margin-right: 10px;
-	height: 26px;
+	margin-left: 2px;
 }
 
 .settings-editor > .settings-body .settings-list-container .settings-list-offset-helper {
