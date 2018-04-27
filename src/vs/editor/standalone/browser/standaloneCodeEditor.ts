@@ -16,7 +16,7 @@ import { IModelChangedEvent } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { StandaloneKeybindingService } from 'vs/editor/standalone/browser/simpleServices';
+import { StandaloneKeybindingService, applyConfigurationValues } from 'vs/editor/standalone/browser/simpleServices';
 import { IEditorContextViewService } from 'vs/editor/standalone/browser/standaloneServices';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
@@ -30,6 +30,7 @@ import * as aria from 'vs/base/browser/ui/aria/aria';
 import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 /**
  * Description of an action contribution
@@ -284,6 +285,7 @@ export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeE
 export class StandaloneEditor extends StandaloneCodeEditor implements IStandaloneCodeEditor {
 
 	private _contextViewService: IEditorContextViewService;
+	private readonly _configurationService: IConfigurationService;
 	private _ownsModel: boolean;
 
 	constructor(
@@ -298,7 +300,9 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		@IContextViewService contextViewService: IContextViewService,
 		@IStandaloneThemeService themeService: IStandaloneThemeService,
 		@INotificationService notificationService: INotificationService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
+		applyConfigurationValues(configurationService, options, false);
 		options = options || {};
 		if (typeof options.theme === 'string') {
 			themeService.setTheme(options.theme);
@@ -308,6 +312,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService, themeService, notificationService);
 
 		this._contextViewService = <IEditorContextViewService>contextViewService;
+		this._configurationService = configurationService;
 		this._register(toDispose);
 
 		if (typeof model === 'undefined') {
@@ -331,6 +336,11 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		super.dispose();
 	}
 
+	public updateOptions(newOptions: IEditorOptions): void {
+		applyConfigurationValues(this._configurationService, newOptions, false);
+		super.updateOptions(newOptions);
+	}
+
 	_attachModel(model: ITextModel): void {
 		super._attachModel(model);
 		if (this._view) {
@@ -350,6 +360,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 export class StandaloneDiffEditor extends DiffEditorWidget implements IStandaloneDiffEditor {
 
 	private _contextViewService: IEditorContextViewService;
+	private readonly _configurationService: IConfigurationService;
 
 	constructor(
 		domElement: HTMLElement,
@@ -362,8 +373,10 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IStandaloneThemeService themeService: IStandaloneThemeService,
-		@INotificationService notificationService: INotificationService
+		@INotificationService notificationService: INotificationService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
+		applyConfigurationValues(configurationService, options, true);
 		options = options || {};
 		if (typeof options.theme === 'string') {
 			options.theme = themeService.setTheme(options.theme);
@@ -372,6 +385,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		super(domElement, options, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService);
 
 		this._contextViewService = <IEditorContextViewService>contextViewService;
+		this._configurationService = configurationService;
 
 		this._register(toDispose);
 
@@ -380,6 +394,11 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 
 	public dispose(): void {
 		super.dispose();
+	}
+
+	public updateOptions(newOptions: IDiffEditorOptions): void {
+		applyConfigurationValues(this._configurationService, newOptions, true);
+		super.updateOptions(newOptions);
 	}
 
 	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: IEditorOptions): CodeEditor {

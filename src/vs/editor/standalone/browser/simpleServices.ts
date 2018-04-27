@@ -41,6 +41,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { INotificationService, INotification, INotificationHandle, NoOpNotification, IPromptChoice } from 'vs/platform/notification/common/notification';
 import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IPosition, Position as Pos } from 'vs/editor/common/core/position';
+import { isEditorConfigurationKey, isDiffEditorConfigurationKey } from 'vs/editor/common/config/commonEditorConfig';
 
 export class SimpleEditor implements IEditor {
 
@@ -358,7 +359,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		this._cachedResolver = null;
 		this._dynamicKeybindings = [];
 
-		this.toDispose.push(dom.addDisposableListener(domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		this._register(dom.addDisposableListener(domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			let keyEvent = new StandardKeyboardEvent(e);
 			let shouldPreventDefault = this._dispatch(keyEvent, keyEvent.target);
 			if (shouldPreventDefault) {
@@ -417,6 +418,10 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 			this._cachedResolver = new KeybindingResolver(defaults, overrides);
 		}
 		return this._cachedResolver;
+	}
+
+	protected _documentHasFocus(): boolean {
+		return document.hasFocus();
 	}
 
 	private _toNormalizedKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
@@ -495,6 +500,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 	}
 
 	public updateValue(key: string, value: any, arg3?: any, arg4?: any): TPromise<void> {
+		this.configuration().updateValue(key, value);
 		return TPromise.as(null);
 	}
 
@@ -619,4 +625,21 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
 		return true;
 	}
+}
+
+export function applyConfigurationValues(configurationService: IConfigurationService, source: any, isDiffEditor: boolean): void {
+	if (!source) {
+		return;
+	}
+	if (!(configurationService instanceof SimpleConfigurationService)) {
+		return;
+	}
+	Object.keys(source).forEach((key) => {
+		if (isEditorConfigurationKey(key)) {
+			configurationService.updateValue(`editor.${key}`, source[key]);
+		}
+		if (isDiffEditor && isDiffEditorConfigurationKey(key)) {
+			configurationService.updateValue(`diffEditor.${key}`, source[key]);
+		}
+	});
 }
