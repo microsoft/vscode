@@ -700,4 +700,24 @@ const editorConfiguration: IConfigurationNode = {
 	}
 };
 
+let cachedEditorConfigurationKeys: { [key: string]: boolean; } = null;
+function getEditorConfigurationKeys(): { [key: string]: boolean; } {
+	if (cachedEditorConfigurationKeys === null) {
+		cachedEditorConfigurationKeys = Object.create(null);
+		Object.keys(editorConfiguration.properties).forEach((prop) => {
+			cachedEditorConfigurationKeys[prop] = true;
+		});
+	}
+	return cachedEditorConfigurationKeys;
+}
+
+export function isEditorConfigurationKey(key: string): boolean {
+	const editorConfigurationKeys = getEditorConfigurationKeys();
+	return (editorConfigurationKeys[`editor.${key}`] || false);
+}
+export function isDiffEditorConfigurationKey(key: string): boolean {
+	const editorConfigurationKeys = getEditorConfigurationKeys();
+	return (editorConfigurationKeys[`diffEditor.${key}`] || false);
+}
+
 configurationRegistry.registerConfiguration(editorConfiguration);
