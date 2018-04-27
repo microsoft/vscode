@@ -69,11 +69,11 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		handle: WebviewPanelHandle,
 		viewType: string,
 		title: string,
-		column: Position,
+		showOptions: { viewColumn: Position, preserveFocus: boolean },
 		options: WebviewInputOptions,
 		extensionFolderPath: string
 	): void {
-		const webview = this._webviewService.createWebview(MainThreadWebviews.viewType, title, column, options, extensionFolderPath, this.createWebviewEventDelegate(handle));
+		const webview = this._webviewService.createWebview(MainThreadWebviews.viewType, title, showOptions, options, extensionFolderPath, this.createWebviewEventDelegate(handle));
 		webview.state = {
 			viewType: viewType,
 			state: undefined
@@ -98,13 +98,13 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		webview.html = value;
 	}
 
-	$reveal(handle: WebviewPanelHandle, column: Position | null): void {
+	$reveal(handle: WebviewPanelHandle, viewColumn: Position | null, preserveFocus: boolean): void {
 		const webview = this.getWebview(handle);
 		if (webview.isDisposed()) {
 			return;
 		}
 
-		this._webviewService.revealWebview(webview, column);
+		this._webviewService.revealWebview(webview, viewColumn, preserveFocus);
 	}
 
 	async $postMessage(handle: WebviewPanelHandle, message: any): TPromise<boolean> {
