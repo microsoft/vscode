@@ -1,7 +1,7 @@
 /*---------------------------------------------------------------------------------------------
-*  Copyright (c) Microsoft Corporation. All rights reserved.
-*  Licensed under the MIT License. See License.txt in the project root for license information.
-*--------------------------------------------------------------------------------------------*/
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 
 'use strict';
 
@@ -12,10 +12,13 @@ import { Dimension } from 'vs/base/browser/dom';
 
 export class NextEditorControl extends Disposable {
 
+	// @ts-ignore
 	private dimension: Dimension;
 
 	constructor(
+		// @ts-ignore
 		private parent: HTMLElement,
+		// @ts-ignore
 		private group: IEditorGroup
 	) {
 		super();
