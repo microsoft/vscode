@@ -32,25 +32,25 @@ suite('Common Editor Config', () => {
 		assert.equal(zoom.getZoomLevel(), 9);
 
 		zoom.setZoomLevel(-9);
-		assert.equal(zoom.getZoomLevel(), -9);
+		assert.equal(zoom.getZoomLevel(), -5);
 
-		zoom.setZoomLevel(10);
-		assert.equal(zoom.getZoomLevel(), 9);
+		zoom.setZoomLevel(20);
+		assert.equal(zoom.getZoomLevel(), 20);
 
 		zoom.setZoomLevel(-10);
-		assert.equal(zoom.getZoomLevel(), -9);
+		assert.equal(zoom.getZoomLevel(), -5);
 
 		zoom.setZoomLevel(9.1);
-		assert.equal(zoom.getZoomLevel(), 9);
+		assert.equal(zoom.getZoomLevel(), 9.1);
 
 		zoom.setZoomLevel(-9.1);
-		assert.equal(zoom.getZoomLevel(), -9);
+		assert.equal(zoom.getZoomLevel(), -5);
 
 		zoom.setZoomLevel(Infinity);
-		assert.equal(zoom.getZoomLevel(), 9);
+		assert.equal(zoom.getZoomLevel(), 20);
 
 		zoom.setZoomLevel(Number.NEGATIVE_INFINITY);
-		assert.equal(zoom.getZoomLevel(), -9);
+		assert.equal(zoom.getZoomLevel(), -5);
 	});
 
 	class TestWrappingConfiguration extends TestConfiguration {
