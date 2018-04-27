@@ -34,9 +34,9 @@
 				let element;
 				return {
 					ID: `hello${id}`,
-					minimumWidth: 20,
+					minimumWidth: 100,
 					maximumWidth: Number.POSITIVE_INFINITY,
-					minimumHeight: 20,
+					minimumHeight: 100,
 					maximumHeight: Number.POSITIVE_INFINITY,
 					onDidChange: Event.None,
 					layout(width, height) {
@@ -66,11 +66,15 @@
 			debug(grid);
 			console.log('-------');
 			const view3 = createView();
-			grid.splitView(view2, Direction.Right, view3, 200);
+			grid.splitView(view2, Direction.Right, view3, 400);
 			debug(grid);
 			console.log('-------');
 			const view4 = createView();
 			grid.splitView(view3, Direction.Right, view4, 200);
+			debug(grid);
+			console.log('-------');
+			const view5 = createView();
+			grid.splitView(view2, Direction.Down, view5, 200);
 			debug(grid);
 			console.log('-------');
 			// grid.splitView(createView(), 400, [1]);
