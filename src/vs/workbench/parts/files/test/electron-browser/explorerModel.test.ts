@@ -191,20 +191,20 @@ suite('Files - View Model', () => {
 		const sChild = createStat('/path/to/stat/alles.klar', 'alles.klar', true, true, 8096, d);
 		s.addChild(sChild);
 
-		assert(validateFileName(s, null) !== null);
-		assert(validateFileName(s, '') !== null);
-		assert(validateFileName(s, '  ') !== null);
+		assert(validateFileName(s, null).getErrorMessage() !== null);
+		assert(validateFileName(s, '').getErrorMessage() !== null);
+		assert(validateFileName(s, '  ').getErrorMessage() !== null);
 		assert(validateFileName(s, 'Read Me') === null, 'name containing space');
 
 		if (isWindows) {
-			assert(validateFileName(s, 'foo:bar') !== null);
-			assert(validateFileName(s, 'foo*bar') !== null);
-			assert(validateFileName(s, 'foo?bar') !== null);
-			assert(validateFileName(s, 'foo<bar') !== null);
-			assert(validateFileName(s, 'foo>bar') !== null);
-			assert(validateFileName(s, 'foo|bar') !== null);
+			assert(validateFileName(s, 'foo:bar').getErrorMessage() !== null);
+			assert(validateFileName(s, 'foo*bar').getErrorMessage() !== null);
+			assert(validateFileName(s, 'foo?bar').getErrorMessage() !== null);
+			assert(validateFileName(s, 'foo<bar').getErrorMessage() !== null);
+			assert(validateFileName(s, 'foo>bar').getErrorMessage() !== null);
+			assert(validateFileName(s, 'foo|bar').getErrorMessage() !== null);
 		}
-		assert(validateFileName(s, 'alles.klar') !== null);
+		assert(validateFileName(s, 'alles.klar').getErrorMessage() !== null);
 
 		assert(validateFileName(s, '.foo') === null);
 		assert(validateFileName(s, 'foo.bar') === null);
@@ -217,14 +217,14 @@ suite('Files - View Model', () => {
 		const sChild = createStat('/path/to/stat/alles.klar', 'alles.klar', true, true, 8096, d);
 		s.addChild(sChild);
 
-		assert(validateFileName(s, 'alles.klar') !== null);
+		assert(validateFileName(s, 'alles.klar').getErrorMessage() !== null);
 
 		if (isLinux) {
 			assert(validateFileName(s, 'Alles.klar') === null);
 			assert(validateFileName(s, 'Alles.Klar') === null);
 		} else {
-			assert(validateFileName(s, 'Alles.klar') !== null);
-			assert(validateFileName(s, 'Alles.Klar') !== null);
+			assert(validateFileName(s, 'Alles.klar').getErrorMessage() !== null);
+			assert(validateFileName(s, 'Alles.Klar').getErrorMessage() !== null);
 		}
 
 		assert(validateFileName(s, '.foo') === null);
@@ -240,12 +240,12 @@ suite('Files - View Model', () => {
 		assert(validateFileName(wsFolder, 'foo\\bar') === null);
 		assert(validateFileName(wsFolder, 'all/slashes/are/same') === null);
 		assert(validateFileName(wsFolder, 'theres/one/different\\slash') === null);
-		assert(validateFileName(wsFolder, '/slashAtBeginning') !== null);
+		assert(validateFileName(wsFolder, '/slashAtBeginning').getErrorMessage() !== null);
 
 		// validation should detect if user tries to add a child to a file
 		const fileInRoot = createStat('/fileInRoot', 'fileInRoot', false, false, 8096, d);
 		wsFolder.addChild(fileInRoot);
-		assert(validateFileName(wsFolder, 'fileInRoot/aChild') !== null);
+		assert(validateFileName(wsFolder, 'fileInRoot/aChild').getErrorMessage() !== null);
 		wsFolder.removeChild(fileInRoot);
 
 		// attempting to add a child to a deeply nested file
@@ -257,11 +257,11 @@ suite('Files - View Model', () => {
 		s2.addChild(s3);
 		const fileDeeplyNested = createStat('/path/to/stat/fileNested', 'fileNested', false, false, 8096, d);
 		s3.addChild(fileDeeplyNested);
-		assert(validateFileName(wsFolder, '/path/to/stat/fileNested/aChild') !== null);
+		assert(validateFileName(wsFolder, '/path/to/stat/fileNested/aChild').getErrorMessage() !== null);
 
 		// detect if path already exists
-		assert(validateFileName(wsFolder, '/path/to/stat/fileNested') !== null);
-		assert(validateFileName(wsFolder, '/path/to/stat/') !== null);
+		assert(validateFileName(wsFolder, '/path/to/stat/fileNested').getErrorMessage() !== null);
+		assert(validateFileName(wsFolder, '/path/to/stat/').getErrorMessage() !== null);
 	});
 
 	test('Merge Local with Disk', function () {
