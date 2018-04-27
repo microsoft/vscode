@@ -67,20 +67,17 @@ abstract class AbstractNode implements ISplitView {
 
 	readonly orientation: Orientation;
 
-	abstract readonly minimumSize: number;
-	abstract readonly maximumSize: number;
-	abstract readonly minimumOrthogonalSize: number;
-	abstract readonly maximumOrthogonalSize: number;
-
-	abstract readonly onDidChange: Event<number>;
-
-	abstract render(container: HTMLElement): void;
-
 	private _size: number | undefined;
 	get size(): number | undefined { return this._size; }
 
 	private _orthogonalSize: number | undefined;
 	get orthogonalSize(): number | undefined { return this._orthogonalSize; }
+
+	abstract readonly minimumSize: number;
+	abstract readonly maximumSize: number;
+	abstract readonly minimumOrthogonalSize: number;
+	abstract readonly maximumOrthogonalSize: number;
+	abstract readonly onDidChange: Event<number>;
 
 	constructor(orientation: Orientation, size?: number, orthogonalSize?: number) {
 		this.orientation = orientation;
@@ -95,6 +92,8 @@ abstract class AbstractNode implements ISplitView {
 	orthogonalLayout(size: number): void {
 		this._orthogonalSize = size;
 	}
+
+	abstract render(container: HTMLElement): void;
 
 	dispose(): void { }
 }
@@ -319,7 +318,6 @@ export class GridView<T extends IView> implements IGrid<T>, IDisposable {
 	}
 
 	layout(width: number, height: number): void {
-		console.log('grid layout', width, height);
 		this.root.layout(width);
 		this.root.orthogonalLayout(height);
 	}
