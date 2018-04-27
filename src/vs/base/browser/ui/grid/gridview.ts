@@ -265,6 +265,10 @@ export class GridView implements IGrid, IDisposable {
 
 	private root: BranchNode;
 
+	get orientation(): Orientation {
+		return this.root.orientation;
+	}
+
 	constructor(container: HTMLElement) {
 		const el = append(container, $('.monaco-grid-view'));
 		this.root = new BranchNode(Orientation.VERTICAL);
@@ -388,5 +392,138 @@ export class GridView implements IGrid, IDisposable {
 
 	dispose(): void {
 		this.root.dispose();
+	}
+}
+
+export function getRelativeLocation(rootOrientation: Orientation, location: number[], direction: Direction): number[] {
+	const orientation = location.length % 2 === 0
+		? orthogonal(rootOrientation)
+		: rootOrientation;
+
+	const sameDimension = (orientation === Orientation.HORIZONTAL && (direction === Direction.Left || direction === Direction.Right))
+		|| (orientation === Orientation.VERTICAL && (direction === Direction.Up || direction === Direction.Down));
+
+	if (sameDimension) {
+		let [rest, index] = tail(location);
+
+		if (direction === Direction.Right || direction === Direction.Down) {
+			index += 1;
+		}
+
+		return [...rest, index];
+	} else {
+		const index = (direction === Direction.Right || direction === Direction.Down) ? 1 : 0;
+		return [...location, index];
+	}
+}
+
+export enum Direction {
+	Up,
+	Down,
+	Left,
+	Right
+}
+
+class GridView2View<T extends IView> implements IView {
+
+	constructor(readonly view: T) { }
+
+	get minimumWidth(): number { return this.view.minimumWidth; }
+	get maximumWidth(): number { return this.view.maximumWidth; }
+	get minimumHeight(): number { return this.view.minimumHeight; }
+	get maximumHeight(): number { return this.view.maximumHeight; }
+	get onDidChange(): Event<{ width: number; height: number; }> { return this.view.onDidChange; }
+
+	private _onDidRender = new Emitter<HTMLElement>();
+	readonly onDidRender: Event<HTMLElement> = this._onDidRender.event;
+
+	render(container: HTMLElement): void {
+		this._onDidRender.fire(container);
+		this.view.render(container);
+	}
+
+	layout(width: number, height: number): void {
+		this.view.layout(width, height);
+	}
+}
+
+interface IViewItem {
+	element?: HTMLElement;
+	disposable: IDisposable;
+}
+
+// object grid view
+
+// this grid view talks about T objects, not locations
+// it always has at least 1 view
+//
+export class GridView2<T extends IView> implements IDisposable {
+
+	private gridview: GridView;
+	private views = new Map<T, IViewItem>();
+
+	constructor(container: HTMLElement, view: T) {
+		this.gridview = new GridView(container);
+		this._addView(view, Number.MAX_VALUE, [0]);
+	}
+
+	addView(view: T, size: number, reference: T, direction: Direction): void {
+		if (this.views.has(view)) {
+			throw new Error('Can\'t add same view twice');
+		}
+
+		const location = this.getViewLocation(reference);
+		this._addView(view, size, location);
+
+		const viewWrapper = new GridView2View(view);
+		const disposable = viewWrapper.onDidRender(el => item.element = el);
+		const item: IViewItem = { disposable };
+		this.views.set(view, item);
+
+		// this.gridview.addView(viewWrapper, size, )
+	}
+
+	private _addView(view: T, size: number, location: number[]): void {
+		const viewWrapper = new GridView2View(view);
+		const disposable = viewWrapper.onDidRender(el => item.element = el);
+		const item: IViewItem = { disposable };
+		this.views.set(view, item);
+		this.gridview.addView(view, size, location);
+	}
+
+	removeView(view: T): void {
+		if (!this.views.has(view)) {
+			throw new Error('View not found');
+		}
+
+		// TODO: don't allow removing last view
+	}
+
+	layout(width: number, height: number): void {
+		this.gridview.layout(width, height);
+	}
+
+	moveView(from: number[], to: number[]): void {
+	}
+
+	resizeView(location: number[], size: number): void {
+	}
+
+	getViewSize(location: number[]): number {
+		// TODO
+		return 0;
+	}
+
+	getViews(): GridBranchNode {
+		return this.gridview.getViews();
+	}
+
+	private getViewLocation(view: T): number[] {
+		// TODO
+		return [];
+	}
+
+	dispose(): void {
+		this.gridview.dispose();
 	}
 }
