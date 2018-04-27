@@ -20,7 +20,7 @@
 						_debug(child, indent);
 					}
 				} else {
-					console.log(`${indent}|- ${(node.view).ID} (${node.size}, ${node.orthogonalSize})`);
+					console.log(`${indent}|- ${(node.view).ID} (${node.width}, ${node.height})`);
 				}
 			}
 
@@ -67,6 +67,12 @@
 			debug(grid);
 			console.log('-------');
 			grid.addView(createView(), 100, [1, 1]);
+			debug(grid);
+			console.log('-------');
+			grid.addView(createView(), 100, [1, 1, 1]);
+			debug(grid);
+			console.log('-------');
+			grid.addView(createView(), 100, [1, 1, 1, 1]);
 			debug(grid);
 			console.log('-------');
 		});

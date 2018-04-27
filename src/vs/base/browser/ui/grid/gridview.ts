@@ -73,6 +73,9 @@ abstract class AbstractNode implements ISplitView {
 
 	abstract readonly minimumSize: number;
 	abstract readonly maximumSize: number;
+	abstract readonly minimumOrthogonalSize: number;
+	abstract readonly maximumOrthogonalSize: number;
+
 	abstract readonly onDidChange: Event<number>;
 
 	abstract render(container: HTMLElement): void;
@@ -106,35 +109,19 @@ class BranchNode<T extends IView> extends AbstractNode {
 	private splitview: SplitView;
 
 	get minimumSize(): number {
-		let result = 0;
-
-		for (const child of this.children) {
-			if (!(child instanceof BranchNode)) {
-				continue;
-			}
-
-			for (const grandchild of child.children) {
-				result += grandchild.minimumSize;
-			}
-		}
-
-		return result;
+		return this.children.reduce((r, c) => r + c.minimumOrthogonalSize, 0);
 	}
 
 	get maximumSize(): number {
-		let result = 0;
+		return this.children.reduce((r, c) => r + c.maximumOrthogonalSize, 0);
+	}
 
-		for (const child of this.children) {
-			if (!(child instanceof BranchNode)) {
-				continue;
-			}
+	get minimumOrthogonalSize(): number {
+		return this.children.reduce((r, c) => r + c.minimumSize, 0);
+	}
 
-			for (const grandchild of child.children) {
-				result += grandchild.maximumSize;
-			}
-		}
-
-		return result;
+	get maximumOrthogonalSize(): number {
+		return this.children.reduce((r, c) => r + c.maximumSize, 0);
 	}
 
 	private _onDidChange: Emitter<number | undefined>;
@@ -150,7 +137,7 @@ class BranchNode<T extends IView> extends AbstractNode {
 	}
 
 	layout(size: number): void {
-		super.layout(size);
+		super.orthogonalLayout(size);
 
 		for (const child of this.children) {
 			child.orthogonalLayout(size);
@@ -158,8 +145,12 @@ class BranchNode<T extends IView> extends AbstractNode {
 	}
 
 	orthogonalLayout(size: number): void {
-		super.orthogonalLayout(size);
+		super.layout(size);
 		this.splitview.layout(size);
+
+		// for (const child of this.children) {
+		// 	child.layout(size);
+		// }
 	}
 
 	render(container: HTMLElement): void {
@@ -229,16 +220,28 @@ class LeafNode<T extends IView> extends AbstractNode {
 		super(orientation, undefined, orthogonalSize);
 	}
 
+	private get width(): number {
+		return this.orientation === Orientation.HORIZONTAL ? this.orthogonalSize : this.size;
+	}
+
+	private get height(): number {
+		return this.orientation === Orientation.HORIZONTAL ? this.size : this.orthogonalSize;
+	}
+
 	get minimumSize(): number {
-		return this.orientation === Orientation.HORIZONTAL
-			? this.view.minimumHeight
-			: this.view.minimumWidth;
+		return this.orientation === Orientation.HORIZONTAL ? this.view.minimumHeight : this.view.minimumWidth;
 	}
 
 	get maximumSize(): number {
-		return this.orientation === Orientation.HORIZONTAL
-			? this.view.maximumHeight
-			: this.view.maximumWidth;
+		return this.orientation === Orientation.HORIZONTAL ? this.view.maximumHeight : this.view.maximumWidth;
+	}
+
+	get minimumOrthogonalSize(): number {
+		return this.orientation === Orientation.HORIZONTAL ? this.view.minimumWidth : this.view.minimumHeight;
+	}
+
+	get maximumOrthogonalSize(): number {
+		return this.orientation === Orientation.HORIZONTAL ? this.view.maximumWidth : this.view.maximumHeight;
 	}
 
 	get onDidChange(): Event<number> { return this.view.onDidChange; }
@@ -249,12 +252,12 @@ class LeafNode<T extends IView> extends AbstractNode {
 
 	layout(size: number): void {
 		super.layout(size);
+		return this.view.layout(this.width, this.height);
+	}
 
-		const [width, height] = this.orientation === Orientation.HORIZONTAL
-			? [this.orthogonalSize, this.size]
-			: [this.size, this.orthogonalSize];
-
-		return this.view.layout(width, height);
+	orthogonalLayout(size: number): void {
+		super.orthogonalLayout(size);
+		return this.view.layout(this.width, this.height);
 	}
 }
 
@@ -275,18 +278,17 @@ export class GridView<T extends IView> implements IGrid<T>, IDisposable {
 		const [pathToParent, parent] = this.getNode(rest);
 
 		if (parent instanceof BranchNode) {
-			const node = new LeafNode<T>(view, orthogonal(parent.orientation), parent.size);
+			const node = new LeafNode<T>(view, orthogonal(parent.orientation), parent.orthogonalSize);
 			parent.addChild(node, size, index);
+
 		} else {
 			const [, grandParent] = tail(pathToParent);
 			const [, parentIndex] = tail(rest);
 			grandParent.removeChild(parentIndex);
 
-			// console.log('PROMOTE', parent.size, parent.orthogonalSize);
-			const newParent = new BranchNode<T>(orthogonal(grandParent.orientation), parent.orthogonalSize, parent.size);
-			// console.log('TO', newParent.orientation, newParent.size, newParent.orthogonalSize);
+			const newParent = new BranchNode<T>(parent.orientation, parent.size, parent.orthogonalSize);
 			grandParent.addChild(newParent, parent.size, parentIndex);
-			newParent.layout(parent.orthogonalSize);
+			newParent.orthogonalLayout(parent.orthogonalSize);
 
 			const newSibling = new LeafNode<T>(parent.view, grandParent.orientation, parent.size);
 			newParent.addChild(newSibling, Number.MAX_VALUE, 0);
