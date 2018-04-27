@@ -88,9 +88,13 @@ declare module 'vscode' {
 	export interface TextDocument {
 
 		/**
-		 * The associated URI for this document. Most documents have the __file__-scheme, indicating that they
-		 * represent files on disk. However, some documents may have other schemes indicating that they are not
-		 * available on disk.
+		 * The associated uri for this document.
+		 *
+		 * *Note* that most documents use the `file`-scheme, which means they are files on disk. However, **not** all documents are
+		 * saved on disk and therefore the `scheme` must be checked before trying to access the underlying file or siblings on disk.
+		 *
+		 * @see [FileSystemProvider](#FileSystemProvider)
+		 * @see [TextDocumentContentProvider](#TextDocumentContentProvider)
 		 */
 		readonly uri: Uri;
 
