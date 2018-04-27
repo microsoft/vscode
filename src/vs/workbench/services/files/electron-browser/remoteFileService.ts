@@ -11,7 +11,7 @@ import { TernarySearchTree, keys } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IDecodeStreamOptions, decodeStream, toDecodeStream } from 'vs/base/node/encoding';
+import { IDecodeStreamOptions, toDecodeStream, encodeStream } from 'vs/base/node/encoding';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -472,10 +472,10 @@ export class RemoteFileService extends FileService {
 	private _writeFile(provider: IFileSystemProvider, resource: URI, snapshot: ITextSnapshot, preferredEncoding: string, options: FileWriteOptions): TPromise<IFileStat> {
 		const readable = createReadableOfSnapshot(snapshot);
 		const encoding = this.encoding.getWriteEncoding(resource, preferredEncoding);
-		const decoder = decodeStream(encoding);
+		const encoder = encodeStream(encoding);
 		const target = createWritableOfProvider(provider, resource, options);
 		return new TPromise<IFileStat>((resolve, reject) => {
-			readable.pipe(decoder).pipe(target);
+			readable.pipe(encoder).pipe(target);
 			target.once('error', err => reject(err));
 			target.once('finish', _ => resolve(void 0));
 		}).then(_ => {
