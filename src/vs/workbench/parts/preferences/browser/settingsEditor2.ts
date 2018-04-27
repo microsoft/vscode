@@ -273,11 +273,8 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private onDidChangeSetting(key: string, value: any): void {
-		this.configurationService.updateValue(key, value, <ConfigurationTarget>this.settingsTargetsWidget.settingsTarget).then(
-			() => this.render(),
-			e => {
-				// ConfigurationService displays the error
-			});
+		// ConfigurationService displays the error
+		this.configurationService.updateValue(key, value, <ConfigurationTarget>this.settingsTargetsWidget.settingsTarget);
 	}
 
 	private render(): TPromise<any> {
@@ -445,48 +442,62 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private renderEntries(): void {
-		if (this.defaultSettingsEditorModel) {
+		if (!this.defaultSettingsEditorModel) {
+			return;
+		}
 
-			const entries: IListEntry[] = [];
-			for (let groupIdx = 0; groupIdx < this.defaultSettingsEditorModel.settingsGroups.length; groupIdx++) {
-				if (groupIdx > 0 && !(this.showAllSettings)) {
-					break;
-				}
+		const focusedRowItem = DOM.findParentWithClass(<HTMLElement>document.activeElement, 'monaco-list-row');
+		const focusedRowId = focusedRowItem && focusedRowItem.id;
 
-				const group = this.defaultSettingsEditorModel.settingsGroups[groupIdx];
-				const groupEntries = [];
-				for (const section of group.sections) {
-					for (const setting of section.settings) {
-						const entry = this.settingToEntry(setting);
-						if (!this.showConfiguredSettingsOnly || (this.showConfiguredSettingsOnly && entry.isConfigured)) {
-							groupEntries.push(entry);
-						}
+		const entries: IListEntry[] = [];
+		for (let groupIdx = 0; groupIdx < this.defaultSettingsEditorModel.settingsGroups.length; groupIdx++) {
+			if (groupIdx > 0 && !(this.showAllSettings)) {
+				break;
+			}
+
+			const group = this.defaultSettingsEditorModel.settingsGroups[groupIdx];
+			const groupEntries = [];
+			for (const section of group.sections) {
+				for (const setting of section.settings) {
+					const entry = this.settingToEntry(setting);
+					if (!this.showConfiguredSettingsOnly || (this.showConfiguredSettingsOnly && entry.isConfigured)) {
+						groupEntries.push(entry);
 					}
-				}
-
-				if (groupEntries.length) {
-					entries.push(<IGroupTitleEntry>{
-						id: group.id,
-						templateId: SETTINGS_GROUP_ENTRY_TEMPLATE_ID,
-						title: group.title
-					});
-
-					entries.push(...groupEntries);
-				}
-
-				if (groupIdx === 0) {
-					const showAllSettingsLabel = this.showAllSettings ?
-						localize('showFewerSettingsLabel', "Show Fewer Settings") :
-						localize('showAllSettingsLabel', "Show All Settings");
-					entries.push(<IButtonRowEntry>{
-						id: ALL_SETTINGS_BUTTON_ID,
-						label: showAllSettingsLabel,
-						templateId: BUTTON_ROW_ENTRY_TEMPLATE
-					});
 				}
 			}
 
-			this.settingsList.splice(0, this.settingsList.length, entries);
+			if (groupEntries.length) {
+				entries.push(<IGroupTitleEntry>{
+					id: group.id,
+					templateId: SETTINGS_GROUP_ENTRY_TEMPLATE_ID,
+					title: group.title
+				});
+
+				entries.push(...groupEntries);
+			}
+
+			if (groupIdx === 0) {
+				const showAllSettingsLabel = this.showAllSettings ?
+					localize('showFewerSettingsLabel', "Show Fewer Settings") :
+					localize('showAllSettingsLabel', "Show All Settings");
+				entries.push(<IButtonRowEntry>{
+					id: ALL_SETTINGS_BUTTON_ID,
+					label: showAllSettingsLabel,
+					templateId: BUTTON_ROW_ENTRY_TEMPLATE
+				});
+			}
+		}
+
+		this.settingsList.splice(0, this.settingsList.length, entries);
+
+		// Hack to restore the same focused element after editing.
+		// TODO@roblou figure out the whole keyboard navigation story
+		if (focusedRowId) {
+			const rowSelector = `.monaco-list-row#${focusedRowId}`;
+			const inputElementToFocus: HTMLElement = this.settingsListContainer.querySelector(`${rowSelector} input, ${rowSelector} select`);
+			if (inputElementToFocus) {
+				inputElementToFocus.focus();
+			}
 		}
 	}
 
@@ -662,7 +673,7 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 	}
 
 	private renderBool(entry: ISettingItemEntry, template: ISettingItemTemplate, onChange: (value: boolean) => void): void {
-		const checkboxElement = <HTMLInputElement>DOM.append(template.valueElement, $('input.setting-value-checkbox'));
+		const checkboxElement = <HTMLInputElement>DOM.append(template.valueElement, $('input.setting-value-checkbox.setting-value-input'));
 		checkboxElement.type = 'checkbox';
 		checkboxElement.checked = entry.value;
 
