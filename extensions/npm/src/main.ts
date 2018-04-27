@@ -49,8 +49,8 @@ async function registerExplorer(context: vscode.ExtensionContext) {
 	if (vscode.workspace.workspaceFolders) {
 		let treeDataProvider = vscode.window.registerTreeDataProvider('npm', new NpmScriptsTreeDataProvider(context));
 		context.subscriptions.push(treeDataProvider);
+		updateExplorerVisibility();
 	}
-	updateExplorerVisibility();
 }
 
 function configureHttpRequest() {
