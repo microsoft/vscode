@@ -306,6 +306,7 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 		secondaryEditorActions = prepareActions(editorActions.secondary);
 
 		const tabOptions = this.editorGroupService.getTabOptions();
+		tabOptions.showTabs = true; // TODO@grid support real options
 
 		const primaryEditorActionIds = primaryEditorActions.map(a => a.id);
 		if (!tabOptions.showTabs) {
