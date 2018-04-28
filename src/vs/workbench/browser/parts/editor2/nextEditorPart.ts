@@ -66,7 +66,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		this.gridWidget.splitView(
 			this._groups.get(fromGroup.id),
 			this.toGridViewDirection(direction),
-			groupView, 3 * groupView.minimumWidth /* TODO@grid what size? */
+			groupView, direction === Direction.DOWN ? this.dimension.height / 2 : this.dimension.width / 2 /* TODO@grid what size? */
 		);
 
 		return groupView;
@@ -138,6 +138,23 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		this._onLayout.fire(dimension);
 
 		return sizes;
+	}
+
+	shutdown(): void {
+
+		// Forward to all groups
+		this._groups.forEach(group => group.shutdown());
+
+		super.shutdown();
+	}
+
+	dispose(): void {
+
+		// Forward to all groups
+		this._groups.forEach(group => group.dispose());
+		this._groups.clear();
+
+		super.dispose();
 	}
 
 	//#endregion

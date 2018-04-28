@@ -14,7 +14,7 @@ export const INextEditorGroupsService = createDecorator<INextEditorGroupsService
 
 export interface INextEditor {
 	editor: IEditor;
-	whenInputSet: TPromise<void>;
+	whenInputSet: TPromise<boolean /* input changed */>;
 }
 
 export enum Direction {

@@ -22,7 +22,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorInput, EditorOptions, ConfirmResult, IWorkbenchEditorConfiguration, TextEditorOptions, SideBySideEditorInput, TextCompareEditorVisible, TEXT_DIFF_EDITOR_ID, EditorOpeningEvent, IEditorOpeningEvent } from 'vs/workbench/common/editor';
 import { EditorGroupsControl, Rochade, IEditorGroupsControl, ProgressState } from 'vs/workbench/browser/parts/editor/editorGroupsControl';
-import { WorkbenchProgressService } from 'vs/workbench/services/progress/browser/progressService';
+import { ScopedProgressService } from 'vs/workbench/services/progress/browser/progressService';
 import { IEditorGroupService, GroupOrientation, GroupArrangement, IEditorTabOptions, IMoveOptions } from 'vs/workbench/services/group/common/groupService';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IEditorPart } from 'vs/workbench/services/editor/common/editorService';
@@ -493,7 +493,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// Otherwise instantiate
-		const progressService = this.instantiationService.createInstance(WorkbenchProgressService, this.editorGroupsControl.getProgressBar(position), descriptor.getId(), true);
+		const progressService = this.instantiationService.createInstance(ScopedProgressService, this.editorGroupsControl.getProgressBar(position), descriptor.getId(), true);
 		const editorInstantiationService = this.editorGroupsControl.getInstantiationService(position).createChild(new ServiceCollection([IProgressService, progressService]));
 
 		const editor = descriptor.instantiate(editorInstantiationService);

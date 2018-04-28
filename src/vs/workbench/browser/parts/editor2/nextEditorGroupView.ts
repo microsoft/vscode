@@ -23,14 +23,16 @@ import { INextTitleAreaControl } from 'vs/workbench/browser/parts/editor2/nextTi
 import { NextTabsTitleControl } from 'vs/workbench/browser/parts/editor2/nextTabsTitleControl';
 import { NextEditorControl } from 'vs/workbench/browser/parts/editor2/nextEditorControl';
 import { IView } from 'vs/base/browser/ui/grid/gridview';
+import { IProgressService } from 'vs/platform/progress/common/progress';
+import { ProgressService } from 'vs/workbench/services/progress/browser/progressService';
 
 export class NextEditorGroupView extends Themable implements IView, INextEditorGroup {
 
 	private static readonly EDITOR_TITLE_HEIGHT = 35;
 
 	private group: EditorGroup;
-
 	private dimension: Dimension;
+	private scopedInstantiationService: IInstantiationService;
 
 	private titleContainer: HTMLElement;
 	private titleAreaControl: INextTitleAreaControl;
@@ -39,8 +41,6 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	private editorControl: NextEditorControl;
 
 	private progressBar: ProgressBar;
-
-	readonly element: HTMLElement;
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -54,7 +54,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 		this.element = document.createElement('div');
 		addClass(this.element, 'editor-group-container');
-		this._render();
+		this.doRender();
 	}
 
 	//#region INextEditorGroup Implementation
@@ -75,16 +75,27 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		this.doCreateOrGetTitleControl().refresh(true);
 
 		// Forward to editor control
+		// TODO@grid emit input change event when it changed from nextEditorPart?
+		// TODO@grid handle input errors as well:
+		//	- emit editor open fail event from nextEditorPart?
+		//  - close active editor to reveal next one
 		return this.doCreateOrGetEditorControl().openEditor(input, options);
+	}
+
+	private doCreateOrGetScopedInstantiationService(): IInstantiationService {
+		if (!this.scopedInstantiationService) {
+			this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
+				[IContextKeyService, this._register(this.contextKeyService.createScoped(this.element))],
+				[IProgressService, new ProgressService(this.progressBar)]
+			));
+		}
+
+		return this.scopedInstantiationService;
 	}
 
 	private doCreateOrGetTitleControl(): INextTitleAreaControl {
 		if (!this.titleAreaControl) {
-			const containerInstantiationService = this.instantiationService.createChild(new ServiceCollection(
-				[IContextKeyService, this._register(this.contextKeyService.createScoped(this.element))] // Scoped instantiation service for a scoped context key service
-			));
-
-			this.titleAreaControl = this._register(containerInstantiationService.createInstance(NextTabsTitleControl, this.titleContainer, this.group));
+			this.titleAreaControl = this._register(this.doCreateOrGetScopedInstantiationService().createInstance(NextTabsTitleControl, this.titleContainer, this.group));
 			this.doLayoutTitleControl();
 		}
 
@@ -93,7 +104,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	private doCreateOrGetEditorControl(): NextEditorControl {
 		if (!this.editorControl) {
-			this.editorControl = this._register(this.instantiationService.createInstance(NextEditorControl, this.editorContainer, this.group));
+			this.editorControl = this._register(this.doCreateOrGetScopedInstantiationService().createInstance(NextEditorControl, this.editorContainer, this.group));
 			this.doLayoutEditorControl();
 		}
 
@@ -116,20 +127,24 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 		// Editor background
 		this.element.style.backgroundColor = this.getColor(editorBackground);
+
+		// TODO@grid use editor group background for empty groups?
 	}
 
 	//#endregion
 
 	//#region IView implementation
 
-	readonly minimumWidth = 150;
-	readonly minimumHeight = 150;
+	readonly element: HTMLElement;
+
+	readonly minimumWidth = 170;
+	readonly minimumHeight = 70;
 	readonly maximumWidth = Number.POSITIVE_INFINITY;
 	readonly maximumHeight = Number.POSITIVE_INFINITY;
 
 	get onDidChange() { return Event.None; }
 
-	private _render(): void {
+	private doRender(): void {
 
 		// Title container
 		this.titleContainer = document.createElement('div');
@@ -137,7 +152,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		this.element.appendChild(this.titleContainer);
 
 		// Progress bar
-		this.progressBar = new ProgressBar(this.element);
+		this.progressBar = this._register(new ProgressBar(this.element));
 		this._register(attachProgressBarStyler(this.progressBar, this.themeService));
 		this.progressBar.hide();
 
@@ -154,23 +169,27 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	layout(width: number, height: number): void {
 		this.dimension = new Dimension(width, height);
 
-		// Layout title control if present
-		if (this.titleAreaControl) {
-			this.doLayoutTitleControl();
-		}
-
-		// Layout editor control if present
-		if (this.editorControl) {
-			this.doLayoutEditorControl();
-		}
+		// Forward to controls
+		this.doLayoutTitleControl();
+		this.doLayoutEditorControl();
 	}
 
 	private doLayoutTitleControl(): void {
-		this.titleAreaControl.layout(new Dimension(this.dimension.width, NextEditorGroupView.EDITOR_TITLE_HEIGHT));
+		if (this.titleAreaControl) {
+			this.titleAreaControl.layout(new Dimension(this.dimension.width, NextEditorGroupView.EDITOR_TITLE_HEIGHT));
+		}
 	}
 
 	private doLayoutEditorControl(): void {
-		this.editorControl.layout(new Dimension(this.dimension.width, this.dimension.height - NextEditorGroupView.EDITOR_TITLE_HEIGHT));
+		if (this.editorControl) {
+			this.editorControl.layout(new Dimension(this.dimension.width, this.dimension.height - NextEditorGroupView.EDITOR_TITLE_HEIGHT));
+		}
+	}
+
+	shutdown(): void {
+		if (this.editorControl) {
+			this.editorControl.shutdown();
+		}
 	}
 
 	//#endregion

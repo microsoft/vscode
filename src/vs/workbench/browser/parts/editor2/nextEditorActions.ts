@@ -14,6 +14,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { EditorInput } from 'vs/workbench/common/editor';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { join } from 'vs/base/common/paths';
 
 export class NextEditorContribution implements IWorkbenchContribution {
 
@@ -40,29 +41,31 @@ export class OpenNextEditorAction extends Action {
 
 	run(): TPromise<any> {
 		const inputs = [
-			'/Users/bpasero/Development/monaco/src/vs/workbench/browser/parts/editor2/editor2.contribution.ts',
-			'/Users/bpasero/Development/monaco/src/vs/workbench/browser/parts/editor2/nextEditorActions.ts',
-			'/Users/bpasero/Development/monaco/src/vs/workbench/browser/parts/editor2/nextEditorGroupView.ts',
-			'/Users/bpasero/Development/monaco/src/vs/workbench/browser/parts/editor2/nextEditorPart.ts',
-			'/Users/bpasero/Development/monaco/src/vs/workbench/browser/parts/editor2/nextNoTabsTitleControl.ts',
-			'/Users/bpasero/Development/monaco/src/vs/workbench/browser/parts/editor2/nextTabsTitleControl.ts',
-			'/Users/bpasero/Development/monaco/src/vs/workbench/browser/parts/editor2/nextTitleControl.ts'
+			join(process.cwd(), 'src/vs/workbench/browser/parts/editor2/editor2.contribution.ts'),
+			join(process.cwd(), 'src/vs/workbench/browser/parts/editor2/nextEditorActions.ts'),
+			join(process.cwd(), 'src/vs/workbench/browser/parts/editor2/nextEditorGroupView.ts'),
+			join(process.cwd(), 'src/vs/workbench/browser/parts/editor2/nextEditorPart.ts'),
+			join(process.cwd(), 'src/vs/workbench/browser/parts/editor2/nextNoTabsTitleControl.ts'),
+			join(process.cwd(), 'src/vs/workbench/browser/parts/editor2/nextTabsTitleControl.ts'),
+			join(process.cwd(), 'src/vs/workbench/browser/parts/editor2/nextTitleControl.ts')
 		].map(input => {
 			return this.legacyEditorService.createInput({ resource: URI.file(input) }) as EditorInput;
 		});
 
-		const firstGroup = this.nextEditorGroupsService.activeGroup;
-		firstGroup.openEditor(inputs[0], { pinned: true });
-		firstGroup.openEditor(inputs[1], { pinned: true });
-		firstGroup.openEditor(inputs[2], { pinned: true });
+		setTimeout(() => {
+			const firstGroup = this.nextEditorGroupsService.activeGroup;
+			firstGroup.openEditor(inputs[0], { pinned: true });
+			firstGroup.openEditor(inputs[1], { pinned: true });
+			firstGroup.openEditor(inputs[2], { pinned: true });
 
-		const secondGroup = this.nextEditorGroupsService.addGroup(firstGroup, Direction.DOWN);
-		secondGroup.openEditor(inputs[3], { pinned: true });
-		secondGroup.openEditor(inputs[4], { pinned: true });
+			const secondGroup = this.nextEditorGroupsService.addGroup(firstGroup, Direction.DOWN);
+			secondGroup.openEditor(inputs[3], { pinned: true });
+			secondGroup.openEditor(inputs[4], { pinned: true });
 
-		const thirdGroup = this.nextEditorGroupsService.addGroup(secondGroup, Direction.RIGHT);
-		thirdGroup.openEditor(inputs[5], { pinned: true });
-		thirdGroup.openEditor(inputs[6], { pinned: true });
+			const thirdGroup = this.nextEditorGroupsService.addGroup(secondGroup, Direction.RIGHT);
+			thirdGroup.openEditor(inputs[5], { pinned: true });
+			thirdGroup.openEditor(inputs[6], { pinned: true });
+		}, 0);
 
 		return TPromise.as(void 0);
 	}
