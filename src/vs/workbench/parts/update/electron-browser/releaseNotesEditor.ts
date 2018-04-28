@@ -76,14 +76,15 @@ export class ReleaseNotesManager {
 		if (this._currentReleaseNotes) {
 			this._currentReleaseNotes.setName(title);
 			this._currentReleaseNotes.html = html;
-			this._webviewEditorService.revealWebview(this._currentReleaseNotes, activeEditor ? activeEditor.position : undefined);
+			this._webviewEditorService.revealWebview(this._currentReleaseNotes, activeEditor ? activeEditor.position : undefined, true);
 		} else {
 			this._currentReleaseNotes = this._webviewEditorService.createWebview(
 				'releaseNotes',
 				title,
-				activeEditor ? activeEditor.position : Position.ONE,
+				{ viewColumn: activeEditor ? activeEditor.position : Position.ONE, preserveFocus: true },
 				{ tryRestoreScrollPosition: true, enableFindWidget: true },
-				undefined, {
+				undefined,
+				{
 					onDidClickLink: uri => this.onDidClickLink(uri),
 					onDispose: () => { this._currentReleaseNotes = undefined; }
 				});
