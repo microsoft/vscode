@@ -156,7 +156,7 @@
 		{
 			"scope": "constant.character.escape",
 			"settings": {
-				"foreground": "#000000"
+				"foreground": "#ff0000"
 			}
 		}
 
