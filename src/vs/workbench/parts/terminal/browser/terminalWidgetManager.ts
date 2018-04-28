@@ -77,7 +77,7 @@ class MessageWidget {
 		this._domNode = document.createElement('div');
 		this._domNode.style.position = 'absolute';
 		this._domNode.style.left = `${_left}px`;
-		this._domNode.style.bottom = `${_container.offsetHeight - _top}px`;
+		this._domNode.style.bottom = `${_container.offsetHeight - (_top > 29 ? _top : 29)}px`;
 		this._domNode.classList.add('terminal-message-widget', 'fadeIn');
 		this._domNode.textContent = _text;
 		this._container.appendChild(this._domNode);
