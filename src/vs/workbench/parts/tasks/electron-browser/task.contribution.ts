@@ -34,6 +34,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -1814,7 +1815,7 @@ class TaskService implements ITaskService {
 	}
 
 	private canSkipPicker(): boolean {
-		return this.configurationService.getValue<any>().workbench.quickOpen.skipTaskQuickOpen;
+		return this.configurationService.getValue<any>().tasks.skipPicker;
 	}
 
 	private showQuickPick(tasks: TPromise<Task[]> | Task[], placeHolder: string, defaultEntry?: TaskQuickPickEntry, group: boolean = false, sort: boolean = false): TPromise<Task> {
@@ -2362,6 +2363,22 @@ outputChannelRegistry.registerChannel(TaskService.OutputChannelId, TaskService.O
 
 // Task Service
 registerSingleton(ITaskService, TaskService);
+
+// Register configuration
+const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+configurationRegistry.registerConfiguration({
+	id: 'tasks',
+	order: 25,
+	title: nls.localize('tasksConfigurationTitle', "Tasks"),
+	type: 'object',
+	properties: {
+		'tasks.skipPicker': {
+			'type': 'boolean',
+			'description': nls.localize('skipTaskPicker', "Controls whether the quick panel is skipped in conditions when there is only one (build, test, etc...) task to pick from."),
+			'default': false
+		}
+	}
+});
 
 // Register Quick Open
 const quickOpenRegistry = (Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen));
