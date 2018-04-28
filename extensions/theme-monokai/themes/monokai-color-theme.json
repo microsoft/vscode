@@ -54,7 +54,7 @@
 		"sideBarSectionHeader.background": "#272822",
 		"pickerGroup.foreground": "#75715E",
 		"input.background": "#414339",
-		"inputOption.activeBorder": "#75715E",
+		"inputOption.activeBorder": "#c4b87b",
 		"focusBorder": "#75715E",
 		"editorWidget.background": "#1e1f1c",
 		"debugToolBar.background": "#1e1f1c",
