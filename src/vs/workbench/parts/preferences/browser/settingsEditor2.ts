@@ -136,7 +136,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.remoteSearchThrottle = new ThrottledDelayer(200);
 		this.searchResultModel = new SearchResultModel();
 
-		this._register(configurationService.onDidChangeConfiguration(() => this.render()));
+		this._register(configurationService.onDidChangeConfiguration(() => this.renderEntries()));
 	}
 
 	createEditor(parent: HTMLElement): void {
@@ -279,8 +279,10 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private onDidChangeSetting(key: string, value: any): void {
-		// ConfigurationService displays the error
-		this.configurationService.updateValue(key, value, <ConfigurationTarget>this.settingsTargetsWidget.settingsTarget);
+		// ConfigurationService displays the error if this fails.
+		// Force a render afterwards because onDidConfigurationUpdate doesn't fire if the update doesn't result in an effective setting value change
+		this.configurationService.updateValue(key, value, <ConfigurationTarget>this.settingsTargetsWidget.settingsTarget)
+			.then(() => this.renderEntries());
 
 		const reportModifiedProps = {
 			key,
