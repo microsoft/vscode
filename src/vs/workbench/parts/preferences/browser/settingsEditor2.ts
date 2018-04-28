@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import * as arrays from 'vs/base/common/arrays';
+import * as objects from 'vs/base/common/objects';
+import { Button } from 'vs/base/browser/ui/button/button';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -11,6 +14,7 @@ import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IAction } from 'vs/base/common/actions';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import { Color } from 'vs/base/common/color';
+import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -19,23 +23,21 @@ import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IEditor } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
+import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { attachInputBoxStyler, attachSelectBoxStyler, attachButtonStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
+import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions } from 'vs/workbench/common/editor';
-import { SearchWidget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
-import { IPreferencesService, ISetting, ISettingsEditorModel, ISearchResult } from 'vs/workbench/services/preferences/common/preferences';
+import { SearchWidget, SettingsTargetsWidget, SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
+import { IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
 import { PreferencesEditorInput2 } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-import { Button } from 'vs/base/browser/ui/button/button';
 import { IPreferencesSearchService, ISearchProvider } from '../common/preferences';
-import { isPromiseCanceledError, getErrorMessage } from 'vs/base/common/errors';
-import { ILogService } from 'vs/platform/log/common/log';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { IEditor } from 'vs/platform/editor/common/editor';
 
 const SETTINGS_ENTRY_TEMPLATE_ID = 'settings.entry.template';
 const SETTINGS_GROUP_ENTRY_TEMPLATE_ID = 'settings.group.template';
@@ -106,6 +108,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private dimension: DOM.Dimension;
 	private searchFocusContextKey: IContextKey<boolean>;
 
+	private delayedModifyLogging: Delayer<void>;
 	private delayedFilterLogging: Delayer<void>;
 	private localSearchDelayer: Delayer<void>;
 	private remoteSearchThrottle: ThrottledDelayer<void>;
@@ -113,7 +116,8 @@ export class SettingsEditor2 extends BaseEditor {
 	private currentLocalSearchProvider: ISearchProvider;
 	private currentRemoteSearchProvider: ISearchProvider;
 
-	private searchResults: ISearchResult[];
+	private searchResultModel: SearchResultModel;
+	private pendingSettingModifiedReport: { key: string, value: any };
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -126,9 +130,11 @@ export class SettingsEditor2 extends BaseEditor {
 		@ILogService private logService: ILogService
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService);
+		this.delayedModifyLogging = new Delayer<void>(1000);
 		this.delayedFilterLogging = new Delayer<void>(1000);
 		this.localSearchDelayer = new Delayer(100);
 		this.remoteSearchThrottle = new ThrottledDelayer(200);
+		this.searchResultModel = new SearchResultModel();
 
 		this._register(configurationService.onDidChangeConfiguration(() => this.render()));
 	}
@@ -275,6 +281,79 @@ export class SettingsEditor2 extends BaseEditor {
 	private onDidChangeSetting(key: string, value: any): void {
 		// ConfigurationService displays the error
 		this.configurationService.updateValue(key, value, <ConfigurationTarget>this.settingsTargetsWidget.settingsTarget);
+
+		const reportModifiedProps = {
+			key,
+			query: this.searchWidget.getValue(),
+			searchResults: this.searchResultModel.getUniqueResults(),
+			rawResults: this.searchResultModel.getRawResults(),
+			showConfiguredOnly: this.showConfiguredSettingsOnly,
+			isReset: typeof value === 'undefined',
+			settingsTarget: this.settingsTargetsWidget.settingsTarget as SettingsTarget
+		};
+
+		if (this.pendingSettingModifiedReport && key !== this.pendingSettingModifiedReport.key) {
+			this.reportModifiedSetting(reportModifiedProps);
+		}
+
+		this.pendingSettingModifiedReport = { key, value };
+		this.delayedModifyLogging.trigger(() => this.reportModifiedSetting(reportModifiedProps));
+	}
+
+	private reportModifiedSetting(props: { key: string, query: string, searchResults: ISearchResult[], rawResults: ISearchResult[], showConfiguredOnly: boolean, isReset: boolean, settingsTarget: SettingsTarget }): void {
+		this.pendingSettingModifiedReport = null;
+
+		const remoteResult = props.searchResults && props.searchResults[SearchResultIdx.Remote];
+		const localResult = props.searchResults && props.searchResults[SearchResultIdx.Local];
+
+		let groupId = undefined;
+		let nlpIndex = undefined;
+		let displayIndex = undefined;
+		if (props.searchResults) {
+			const localIndex = arrays.firstIndex(localResult.filterMatches, m => m.setting.key === props.key);
+			groupId = localIndex >= 0 ?
+				'local' :
+				'remote';
+
+			displayIndex = localIndex >= 0 ?
+				localIndex :
+				remoteResult && (arrays.firstIndex(remoteResult.filterMatches, m => m.setting.key === props.key) + localResult.filterMatches.length);
+
+			const rawResults = this.searchResultModel.getRawResults();
+			if (rawResults[SearchResultIdx.Remote]) {
+				const _nlpIndex = arrays.firstIndex(rawResults[SearchResultIdx.Remote].filterMatches, m => m.setting.key === props.key);
+				nlpIndex = _nlpIndex >= 0 ? _nlpIndex : undefined;
+			}
+		}
+
+		const reportedTarget = props.settingsTarget === ConfigurationTarget.USER ? 'user' :
+			props.settingsTarget === ConfigurationTarget.WORKSPACE ? 'workspace' :
+				'folder';
+
+		const data = {
+			key: props.key,
+			query: props.query,
+			groupId,
+			nlpIndex,
+			displayIndex,
+			showConfiguredOnly: props.showConfiguredOnly,
+			isReset: props.isReset,
+			target: reportedTarget
+		};
+
+		/* __GDPR__
+			"settingEditor.settingModified" : {
+				"key" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"query" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+				"groupId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"nlpIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"displayIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"showConfiguredOnly" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"isReset" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		this.telemetryService.publicLog('settingEditor.settingModified', data);
 	}
 
 	private render(): TPromise<any> {
@@ -290,8 +369,8 @@ export class SettingsEditor2 extends BaseEditor {
 		const query = this.searchWidget.getValue().trim();
 		this.delayedFilterLogging.cancel();
 		this.triggerSearch(query).then(() => {
-			if (query && this.searchResults) {
-				this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(query, this.searchResults));
+			if (query && this.searchResultModel.hasResults()) {
+				this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(query, this.searchResultModel.getUniqueResults()));
 			}
 		});
 	}
@@ -307,7 +386,7 @@ export class SettingsEditor2 extends BaseEditor {
 			this.localSearchDelayer.cancel();
 			this.remoteSearchThrottle.cancel();
 
-			this.searchResults = null;
+			this.searchResultModel.clear();
 			this.renderEntries();
 			return TPromise.wrap(null);
 		}
@@ -324,14 +403,8 @@ export class SettingsEditor2 extends BaseEditor {
 		const counts = {};
 		const filterResult = results[SearchResultIdx.Local];
 		counts['filterResult'] = filterResult.filterMatches.length;
-		if (nlpResult && nlpResult.filterMatches.length) {
-			const localMatchKeys = new Set();
-			filterResult.filterMatches
-				.forEach(m => localMatchKeys.add(m.setting.key));
-
-			counts['nlpResult'] = nlpResult.filterMatches
-				.filter(m => !localMatchKeys.has(m.setting.key))
-				.length;
+		if (nlpResult) {
+			counts['nlpResult'] = nlpResult.filterMatches.length;
 		}
 
 		const requestCount = nlpMetadata && nlpMetadata.requestCount;
@@ -370,8 +443,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 		return TPromise.join(filterPs).then(results => {
 			const [result] = results;
-			this.searchResults = this.searchResults || [];
-			this.searchResults[type] = result;
+			this.searchResultModel.setResult(type, result);
 			return this.render();
 		});
 	}
@@ -431,8 +503,8 @@ export class SettingsEditor2 extends BaseEditor {
 		const focusedRowItem = DOM.findParentWithClass(<HTMLElement>document.activeElement, 'monaco-list-row');
 		const focusedRowId = focusedRowItem && focusedRowItem.id;
 
-		const entries = this.searchResults ?
-			this.getEntriesFromSearch(this.searchResults) :
+		const entries = this.searchResultModel.hasResults() ?
+			this.getEntriesFromSearch(this.searchResultModel.getUniqueResults()) :
 			this.getEntriesFromModel();
 
 		this.settingsList.splice(0, this.settingsList.length, entries);
@@ -775,3 +847,51 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .monaco-list-row.is-configured .setting-value-checkbox::after { background-color: ${configuredItemBackgroundColor}; }`);
 	}
 });
+
+class SearchResultModel {
+	private rawSearchResults: ISearchResult[];
+	private cachedUniqueSearchResults: ISearchResult[];
+
+	getUniqueResults(): ISearchResult[] {
+		if (this.cachedUniqueSearchResults) {
+			return this.cachedUniqueSearchResults;
+		}
+
+		if (!this.rawSearchResults) {
+			return null;
+		}
+
+		const localMatchKeys = new Set();
+		const localResult = objects.deepClone(this.rawSearchResults[SearchResultIdx.Local]);
+		if (localResult) {
+			localResult.filterMatches.forEach(m => localMatchKeys.add(m.setting.key));
+		}
+
+		const remoteResult = objects.deepClone(this.rawSearchResults[SearchResultIdx.Remote]);
+		if (remoteResult) {
+			remoteResult.filterMatches = remoteResult.filterMatches.filter(m => !localMatchKeys.has(m.setting.key));
+		}
+
+		this.cachedUniqueSearchResults = [localResult, remoteResult];
+		return this.cachedUniqueSearchResults;
+	}
+
+	getRawResults(): ISearchResult[] {
+		return this.rawSearchResults;
+	}
+
+	hasResults(): boolean {
+		return !!this.rawSearchResults;
+	}
+
+	clear(): void {
+		this.cachedUniqueSearchResults = null;
+		this.rawSearchResults = null;
+	}
+
+	setResult(type: SearchResultIdx, result: ISearchResult): void {
+		this.cachedUniqueSearchResults = null;
+		this.rawSearchResults = this.rawSearchResults || [];
+		this.rawSearchResults[type] = result;
+	}
+}
