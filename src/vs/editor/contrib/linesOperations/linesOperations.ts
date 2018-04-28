@@ -83,7 +83,7 @@ class CopyLinesDownAction extends AbstractCopyLinesAction {
 
 // move lines
 
-abstract class AbstractMoveLinesAction extends EditorAction {
+export abstract class AbstractMoveLinesAction extends EditorAction {
 
 	private down: boolean;
 
@@ -101,7 +101,7 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 		let rangeAll = [];
 		let result = null;
 
-		if (allSelections[0].startLineNumber === 1 || allSelections[allSelections.length - 1].startLineNumber >= maxLine) {
+		if ((allSelections[0].startLineNumber === 1 && this.down === false) || (allSelections[allSelections.length - 1].startLineNumber >= maxLine && this.down === true)) {
 			return null;
 		}
 
@@ -215,7 +215,7 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 
 }
 
-class MoveLinesUpAction extends AbstractMoveLinesAction {
+export class MoveLinesUpAction extends AbstractMoveLinesAction {
 	constructor() {
 		super(false, {
 			id: 'editor.action.moveLinesUpAction',
@@ -231,7 +231,7 @@ class MoveLinesUpAction extends AbstractMoveLinesAction {
 	}
 }
 
-class MoveLinesDownAction extends AbstractMoveLinesAction {
+export class MoveLinesDownAction extends AbstractMoveLinesAction {
 	constructor() {
 		super(true, {
 			id: 'editor.action.moveLinesDownAction',
