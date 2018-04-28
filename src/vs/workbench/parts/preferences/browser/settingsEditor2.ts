@@ -32,7 +32,6 @@ import { PreferencesEditorInput2 } from 'vs/workbench/services/preferences/commo
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { IPreferencesSearchService, ISearchProvider } from '../common/preferences';
-import { IProgressService } from 'vs/platform/progress/common/progress';
 import { isPromiseCanceledError, getErrorMessage } from 'vs/base/common/errors';
 import { ILogService } from 'vs/platform/log/common/log';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
@@ -124,7 +123,6 @@ export class SettingsEditor2 extends BaseEditor {
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPreferencesSearchService private preferencesSearchService: IPreferencesSearchService,
-		@IProgressService private progressService: IProgressService,
 		@ILogService private logService: ILogService
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService);
@@ -291,14 +289,18 @@ export class SettingsEditor2 extends BaseEditor {
 	private onInputChanged(): void {
 		const query = this.searchWidget.getValue().trim();
 		this.delayedFilterLogging.cancel();
-		this.triggerSearch(query);
+		this.triggerSearch(query).then(() => {
+			if (query && this.searchResults) {
+				this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(query, this.searchResults));
+			}
+		});
 	}
 
 	private triggerSearch(query: string): TPromise<void> {
 		if (query) {
 			return TPromise.join([
 				this.localSearchDelayer.trigger(() => this.localFilterPreferences(query)),
-				this.remoteSearchThrottle.trigger(() => this.progressService.showWhile(this.remoteSearchPreferences(query), 500))
+				this.remoteSearchThrottle.trigger(() => this.remoteSearchPreferences(query), 500)
 			]) as TPromise;
 		} else {
 			// When clearing the input, update immediately to clear it
@@ -309,6 +311,48 @@ export class SettingsEditor2 extends BaseEditor {
 			this.renderEntries();
 			return TPromise.wrap(null);
 		}
+	}
+
+	private reportFilteringUsed(query: string, results: ISearchResult[]): void {
+		const nlpResult = results[SearchResultIdx.Remote];
+		const nlpMetadata = nlpResult && nlpResult.metadata;
+
+		const durations = {};
+		durations['nlpResult'] = nlpMetadata && nlpMetadata.duration;
+
+		// Count unique results
+		const counts = {};
+		const filterResult = results[SearchResultIdx.Local];
+		counts['filterResult'] = filterResult.filterMatches.length;
+		if (nlpResult && nlpResult.filterMatches.length) {
+			const localMatchKeys = new Set();
+			filterResult.filterMatches
+				.forEach(m => localMatchKeys.add(m.setting.key));
+
+			counts['nlpResult'] = nlpResult.filterMatches
+				.filter(m => !localMatchKeys.has(m.setting.key))
+				.length;
+		}
+
+		const requestCount = nlpMetadata && nlpMetadata.requestCount;
+
+		const data = {
+			query,
+			durations,
+			counts,
+			requestCount
+		};
+
+		/* __GDPR__
+			"settingsEditor.filter" : {
+				"query": { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+				"durations.nlpResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"counts.nlpResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"counts.filterResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"requestCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			}
+		*/
+		this.telemetryService.publicLog('defaultSettings.filter', data);
 	}
 
 	private localFilterPreferences(query: string): TPromise<void> {
@@ -328,7 +372,7 @@ export class SettingsEditor2 extends BaseEditor {
 			const [result] = results;
 			this.searchResults = this.searchResults || [];
 			this.searchResults[type] = result;
-			this.render();
+			return this.render();
 		});
 	}
 
