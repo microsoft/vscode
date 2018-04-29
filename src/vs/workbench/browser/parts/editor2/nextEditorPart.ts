@@ -112,7 +112,22 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 	}
 
 	private doSetGroupActive(group: NextEditorGroupView): void {
+		if (this._activeGroup === group) {
+			return; // return if this is already the active group
+		}
+
+		const previousActiveGroup = this._activeGroup;
 		this._activeGroup = group;
+
+		// Mark previous one as inactive
+		if (previousActiveGroup) {
+			previousActiveGroup.setActive(false);
+		}
+
+		// Mark group as new active
+		group.setActive(true);
+
+		// Event
 		this._onDidActiveGroupChange.fire(group);
 	}
 

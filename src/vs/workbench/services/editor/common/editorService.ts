@@ -139,7 +139,6 @@ export interface IEditorPart {
 	getActiveEditorInput(): IEditorInput;
 }
 
-// TODO@grid temporary
 export class NoOpEditorPart implements IEditorPart, IEditorGroupService {
 
 	_serviceBrand: ServiceIdentifier<any>;

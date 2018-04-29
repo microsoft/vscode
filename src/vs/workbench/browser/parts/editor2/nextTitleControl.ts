@@ -13,7 +13,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
-import { IEditorStacksModel, IEditorIdentifier, EditorInput, toResource, IEditorCommandsContext, IEditorGroup } from 'vs/workbench/common/editor';
+import { IEditorStacksModel, IEditorIdentifier, EditorInput, toResource, IEditorCommandsContext, IEditorGroup, EditorOptions } from 'vs/workbench/common/editor';
 import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -35,32 +35,26 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Themable } from 'vs/workbench/common/theme';
 import { isDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Dimension, findParentWithClass } from 'vs/base/browser/dom';
+import { Dimension } from 'vs/base/browser/dom';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { INextEditorGroupsService } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 
 export interface IToolbarActions {
 	primary: IAction[];
 	secondary: IAction[];
 }
 
-export interface INextTitleAreaControl {
-	allowDragging(element: HTMLElement): boolean;
-	setDragged(dragged: boolean): void;
+export interface INextTitleAreaControl extends IDisposable {
 
-	refresh(instant?: boolean): void;
-	update(instant?: boolean): void;
-	updateEditorActionsToolbar(): void;
+	openEditor(input: EditorInput, options?: EditorOptions): void;
+	setActive(isActive: boolean): void;
 
 	layout(dimension: Dimension): void;
-
-	dispose(): void;
 }
 
 export abstract class NextTitleControl extends Themable implements INextTitleAreaControl {
 
 	protected stacks: IEditorStacksModel;
-
-	protected dragged: boolean;
 
 	protected closeOneEditorAction: CloseOneEditorAction;
 	protected splitEditorAction: SplitEditorAction;
@@ -86,6 +80,7 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IEditorGroupService protected editorGroupService: IEditorGroupService,
+		@INextEditorGroupsService protected nextEditorGroupsService: INextEditorGroupsService,
 		@IContextKeyService protected contextKeyService: IContextKeyService,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@ITelemetryService protected telemetryService: ITelemetryService,
@@ -120,22 +115,11 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 
 	private registerListeners(): void {
 
-		// Update when extensions register so that e.g.
-		// actions are properly reflected in the toolbar
-		this._register(this.extensionService.onDidRegisterExtensions(() => this.update()));
+		// Update when extensions register so that e.g. actions are properly reflected in the toolbar
+		this._register(this.extensionService.onDidRegisterExtensions(() => this.doScheduleUpdate()));
 	}
 
 	protected abstract doCreate(parent: HTMLElement): void;
-
-	public setDragged(dragged: boolean): void {
-		this.dragged = dragged;
-	}
-
-	protected updateStyles(): void {
-		super.updateStyles();
-
-		this.update(true); // run an update when the theme changes to new styles
-	}
 
 	private onSchedule(): void {
 		if (this.refreshScheduled) {
@@ -147,7 +131,7 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 		this.refreshScheduled = false;
 	}
 
-	public update(instant?: boolean): void {
+	private doScheduleUpdate(instant?: boolean): void {
 		if (instant) {
 			this.titleAreaUpdateScheduler.cancel();
 			this.onSchedule();
@@ -158,7 +142,7 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 		this.titleAreaToolbarUpdateScheduler.cancel(); // a title area update will always refresh the toolbar too
 	}
 
-	public refresh(instant?: boolean) {
+	private doScheduleRefresh(instant?: boolean) {
 		this.refreshScheduled = true;
 
 		if (instant) {
@@ -171,19 +155,11 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 		this.titleAreaToolbarUpdateScheduler.cancel(); // a title area update will always refresh the toolbar too
 	}
 
-	protected abstract doRefresh(): void;
-
 	protected doUpdate(): void {
 		this.doRefresh();
 	}
 
-	public layout(dimension: Dimension): void {
-		// Subclasses can opt in to react on layout
-	}
-
-	public allowDragging(element: HTMLElement): boolean {
-		return !findParentWithClass(element, 'monaco-action-bar', 'editor-group-container');
-	}
+	protected abstract doRefresh(): void;
 
 	protected initActions(services: IInstantiationService): void {
 		this.closeOneEditorAction = services.createInstance(CloseOneEditorAction, CloseOneEditorAction.ID, CloseOneEditorAction.LABEL);
@@ -285,9 +261,9 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 		return { primary, secondary };
 	}
 
-	public updateEditorActionsToolbar(): void {
+	protected updateEditorActionsToolbar(): void {
 		const editor = this.group.activeEditor;
-		const isActive = this.stacks.isActive(this.group);
+		const isActive = this.nextEditorGroupsService.isGroupActive(this.group.id);
 
 		// Update Editor Actions Toolbar
 		let primaryEditorActions: IAction[] = [];
@@ -385,7 +361,32 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 		return keybinding ? keybinding.getLabel() : void 0;
 	}
 
-	public dispose(): void {
+	//#region IThemeable implementation
+
+	protected updateStyles(): void {
+		super.updateStyles();
+
+		// run a sync update when the theme changes to new styles
+		this.doScheduleUpdate(true);
+	}
+
+	//#endregion
+
+	//#region INextTitleAreaControl implementation
+
+	openEditor(input: EditorInput, options?: EditorOptions): void {
+		this.doScheduleRefresh(true); // TODO@grid optimize if possible
+	}
+
+	setActive(isActive: boolean): void {
+		this.doScheduleUpdate(true); // TODO@grid optimize if possible
+	}
+
+	layout(dimension: Dimension): void {
+		// Optionally implemented in subclasses
+	}
+
+	dispose(): void {
 		super.dispose();
 
 		// Actions
@@ -399,4 +400,6 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 		// Toolbar
 		this.editorActionsToolbar.dispose();
 	}
+
+	//#endregion
 }

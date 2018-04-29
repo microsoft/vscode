@@ -42,6 +42,7 @@ import { ResourcesDropHandler, fillResourceDataTransfers, LocalSelectionTransfer
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { INextEditorGroupsService } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 
 interface IEditorInputLabel {
 	name: string;
@@ -71,6 +72,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@INextEditorGroupsService nextEditorGroupsService: INextEditorGroupsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -80,7 +82,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 		@IThemeService themeService: IThemeService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(parent, group, contextMenuService, instantiationService, editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickOpenService, themeService, extensionService);
+		super(parent, group, contextMenuService, instantiationService, editorService, editorGroupService, nextEditorGroupsService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickOpenService, themeService, extensionService);
 
 		this.tabDisposeables = [];
 		this.editorLabels = [];
@@ -254,21 +256,13 @@ export class NextTabsTitleControl extends NextTitleControl {
 
 	protected doUpdate(): void {
 
-		// Tabs container activity state
-		const isGroupActive = this.stacks.isActive(this.group);
-		if (isGroupActive) {
-			DOM.addClass(this.titleContainer, 'active');
-			DOM.removeClass(this.titleContainer, 'inactive');
-		} else {
-			DOM.addClass(this.titleContainer, 'inactive');
-			DOM.removeClass(this.titleContainer, 'active');
-		}
 
 		// Compute labels and protect against duplicates
 		const editorsOfGroup = this.group.getEditors();
 		const labels = this.getTabLabels(editorsOfGroup);
 
 		// Tab label and styles
+		const isGroupActive = this.nextEditorGroupsService.isGroupActive(this.group.id);
 		editorsOfGroup.forEach((editor, index) => {
 			const tabContainer = this.tabsContainer.children[index] as HTMLElement;
 			if (!tabContainer) {
@@ -460,10 +454,9 @@ export class NextTabsTitleControl extends NextTitleControl {
 		const editor = this.group.activeEditor;
 		if (!editor) {
 			this.clearTabs();
-
 			this.clearEditorActionsToolbar();
 
-			return; // return early if we are being closed
+			return;
 		}
 
 		// Handle Tabs
@@ -544,7 +537,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 		return tabContainer;
 	}
 
-	public layout(dimension: DOM.Dimension): void {
+	layout(dimension: DOM.Dimension): void {
 		if (!this.activeTab || !dimension) {
 			return;
 		}
@@ -857,7 +850,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 		return !isCopy || source.id === target.id;
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		super.dispose();
 
 		this.layoutScheduled = dispose(this.layoutScheduled);
@@ -873,7 +866,7 @@ class TabActionRunner extends ActionRunner {
 		super();
 	}
 
-	public run(action: IAction, context?: any): TPromise<void> {
+	run(action: IAction, context?: any): TPromise<void> {
 		const group = this.group();
 		if (!group) {
 			return TPromise.as(void 0);

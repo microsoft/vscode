@@ -54,9 +54,7 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 
 	private onTitleLabelClick(e: MouseEvent): void {
 		DOM.EventHelper.stop(e, false);
-		if (!this.dragged) {
-			setTimeout(() => this.quickOpenService.show()); // delayed to let the onTitleClick() come first which can cause a focus change which can close quick open
-		}
+		setTimeout(() => this.quickOpenService.show()); // delayed to let the onTitleClick() come first which can cause a focus change which can close quick open
 	}
 
 	private onTitleDoubleClick(e: MouseEvent): void {
@@ -91,14 +89,7 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 		}
 
 		const isPinned = this.group.isPinned(this.group.activeEditor);
-		const isActive = this.stacks.isActive(this.group);
-
-		// Activity state
-		if (isActive) {
-			DOM.addClass(this.titleContainer, 'active');
-		} else {
-			DOM.removeClass(this.titleContainer, 'active');
-		}
+		const isActive = this.nextEditorGroupsService.isGroupActive(this.group.id);
 
 		// Dirty state
 		if (editor.isDirty()) {

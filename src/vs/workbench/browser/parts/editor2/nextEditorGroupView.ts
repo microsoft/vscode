@@ -10,7 +10,7 @@ import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
 import { EditorInput, EditorOptions, GroupIdentifier } from 'vs/workbench/common/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { addClass, addClasses, Dimension, trackFocus } from 'vs/base/browser/dom';
+import { addClass, addClasses, Dimension, trackFocus, toggleClass } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
@@ -69,6 +69,18 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		return this._onWillDispose.event;
 	}
 
+	setActive(isActive: boolean): void {
+
+		// Update container
+		toggleClass(this.element, 'active', isActive);
+		toggleClass(this.element, 'inactive', !isActive);
+
+		// Update title control
+		if (this.titleAreaControl) {
+			this.titleAreaControl.setActive(isActive);
+		}
+	}
+
 	//#region INextEditorGroup Implementation
 
 	get id(): GroupIdentifier {
@@ -84,11 +96,8 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		// Update model
 		this.group.openEditor(input, options);
 
-		// Update title control
-		// TODO@grid also, wouldn't it be better if the title widget would register as listener to changes to the group and just
-		// refresh itself instead of having to do this from the outside?
-		// See editorGroupsControl#handleStacksChanged() as example for how this is done currently
-		this.doCreateOrGetTitleControl().refresh(true);
+		// Forward to title control
+		this.doCreateOrGetTitleControl().openEditor(input, options);
 
 		// Forward to editor control
 		// TODO@grid emit input change event when it changed from nextEditorPart?

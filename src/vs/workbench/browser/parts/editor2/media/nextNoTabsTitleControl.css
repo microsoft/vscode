@@ -24,7 +24,7 @@
 	opacity: 0.5;
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title.active .title-actions {
+.monaco-workbench > .part.editor > .content .editor-group-container.active > .title .title-actions {
 	opacity: 1;
 }
 
