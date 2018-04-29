@@ -17,7 +17,7 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { SettingsEditor2 } from 'vs/workbench/parts/preferences/browser/settingsEditor2';
-import { DefaultPreferencesEditorInput, PreferencesEditorInput, KeybindingsEditorInput, PreferencesEditorInput2 } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
+import { DefaultPreferencesEditorInput, PreferencesEditorInput, KeybindingsEditorInput, SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { KeybindingsEditor } from 'vs/workbench/parts/preferences/browser/keybindingsEditor';
 import { OpenRawDefaultSettingsAction, OpenSettingsAction, OpenGlobalSettingsAction, OpenGlobalKeybindingsFileAction, OpenWorkspaceSettingsAction, OpenFolderSettingsAction, ConfigureLanguageBasedSettingsAction, OPEN_FOLDER_SETTINGS_COMMAND, OpenGlobalKeybindingsAction, OpenSettings2Action } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import {
@@ -52,10 +52,10 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
 		SettingsEditor2,
 		SettingsEditor2.ID,
-		nls.localize('defaultPreferencesEditor2', "Default Preferences Editor 2")
+		nls.localize('settingsEditor2', "Settings Editor 2")
 	),
 	[
-		new SyncDescriptor(PreferencesEditorInput2)
+		new SyncDescriptor(SettingsEditor2Input)
 	]
 );
 
@@ -147,6 +147,17 @@ class KeybindingsEditorInputFactory implements IEditorInputFactory {
 	}
 }
 
+class SettingsEditor2InputFactory implements IEditorInputFactory {
+
+	public serialize(editorInput: SettingsEditor2Input): string {
+		return JSON.stringify({});
+	}
+
+	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
+		return instantiationService.createInstance(SettingsEditor2Input);
+	}
+}
+
 
 interface ISerializedDefaultPreferencesEditorInput {
 	resource: string;
@@ -173,6 +184,7 @@ class DefaultPreferencesEditorInputFactory implements IEditorInputFactory {
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(PreferencesEditorInput.ID, PreferencesEditorInputFactory);
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(DefaultPreferencesEditorInput.ID, DefaultPreferencesEditorInputFactory);
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(KeybindingsEditorInput.ID, KeybindingsEditorInputFactory);
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(SettingsEditor2Input.ID, SettingsEditor2InputFactory);
 
 // Contribute Global Actions
 const category = nls.localize('preferences', "Preferences");

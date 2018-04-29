@@ -403,7 +403,7 @@ function remoteSettingToISetting(remoteSetting: IRemoteSetting): IExtensionSetti
 	};
 }
 
-export class SettingMatches {
+class SettingMatches {
 
 	private readonly descriptionMatchingWords: Map<string, IRange[]> = new Map<string, IRange[]>();
 	private readonly keyMatchingWords: Map<string, IRange[]> = new Map<string, IRange[]>();

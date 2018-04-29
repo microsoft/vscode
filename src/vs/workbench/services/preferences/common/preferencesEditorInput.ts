@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { SideBySideEditorInput, EditorInput } from 'vs/workbench/common/editor';
-import { Verbosity } from 'vs/platform/editor/common/editor';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { OS } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import * as nls from 'vs/nls';
+import { Verbosity } from 'vs/platform/editor/common/editor';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { EditorInput, SideBySideEditorInput } from 'vs/workbench/common/editor';
+import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { KeybindingsEditorModel } from 'vs/workbench/services/preferences/common/keybindingsEditorModel';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { OS } from 'vs/base/common/platform';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { IPreferencesService } from './preferences';
 import { DefaultSettingsEditorModel } from './preferencesModels';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
@@ -83,30 +84,29 @@ export class KeybindingsEditorInput extends EditorInput {
 	}
 }
 
-export class PreferencesEditorInput2 extends EditorInput {
+export class SettingsEditor2Input extends EditorInput {
 
-	public static readonly ID: string = 'workbench.input.preferences2';
+	public static readonly ID: string = 'workbench.input.settings2';
 
-	public readonly defaultSettingsEditorModel: DefaultSettingsEditorModel;
-
-	constructor(model, @IInstantiationService instantiationService: IInstantiationService) {
+	constructor(
+		@IPreferencesService private preferencesService: IPreferencesService
+	) {
 		super();
-		this.defaultSettingsEditorModel = model;
 	}
 
 	getTypeId(): string {
-		return PreferencesEditorInput2.ID;
+		return SettingsEditor2Input.ID;
 	}
 
 	getName(): string {
-		return nls.localize('prefsEditorInput2', "Settings (Experimental)");
+		return nls.localize('settingsEditor2InputName', "Settings (Experimental)");
 	}
 
 	resolve(refresh?: boolean): TPromise<DefaultSettingsEditorModel> {
-		return TPromise.wrap(this.defaultSettingsEditorModel);
+		return <TPromise<DefaultSettingsEditorModel>>this.preferencesService.createPreferencesEditorModel(URI.parse('vscode://defaultsettings/0/settings.json'));
 	}
 
 	matches(otherInput: any): boolean {
-		return otherInput instanceof PreferencesEditorInput2;
+		return otherInput instanceof SettingsEditor2Input;
 	}
 }

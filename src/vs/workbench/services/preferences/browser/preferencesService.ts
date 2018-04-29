@@ -24,7 +24,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IPreferencesService, IPreferencesEditorModel, ISetting, getSettingsTargetName, FOLDER_SETTINGS_PATH, DEFAULT_SETTINGS_EDITOR_SETTING } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel, DefaultKeybindingsEditorModel, defaultKeybindingsContents, DefaultSettings, WorkspaceConfigurationEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { DefaultPreferencesEditorInput, PreferencesEditorInput, KeybindingsEditorInput, PreferencesEditorInput2 } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
+import { DefaultPreferencesEditorInput, PreferencesEditorInput, KeybindingsEditorInput, SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -183,8 +183,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	openSettings2(): TPromise<IEditor> {
-		return this.createDefaultSettingsEditorModel(this.userSettingsResource)
-			.then(model => this.editorService.openEditor(this.instantiationService.createInstance(PreferencesEditorInput2, model), { pinned: true }).then(() => null));
+		return this.editorService.openEditor(this.instantiationService.createInstance(SettingsEditor2Input), { pinned: true }).then(() => null);
 	}
 
 	openWorkspaceSettings(options?: IEditorOptions, position?: EditorPosition): TPromise<IEditor> {
