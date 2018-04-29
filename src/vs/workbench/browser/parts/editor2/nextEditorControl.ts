@@ -7,12 +7,12 @@
 
 import { Disposable, dispose } from 'vs/base/common/lifecycle';
 import { EditorInput, EditorOptions, IEditorGroup } from 'vs/workbench/common/editor';
-import { INextEditor } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { IOpenEditorResult } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { Dimension, show, hide } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorRegistry, Extensions as EditorExtensions, IEditorDescriptor } from 'vs/workbench/browser/editor';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IPartService } from '../../../services/part/common/partService';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { isPromiseCanceledError, isErrorWithActions, IErrorWithActions } from 'vs/base/common/errors';
 import { INotificationActions, INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -26,7 +26,7 @@ export class NextEditorControl extends Disposable {
 	private dimension: Dimension;
 	private editorOpenToken: number = 0;
 
-	private visibleEditor: BaseEditor;
+	private _activeEditor: BaseEditor;
 	private instantiatedEditors: BaseEditor[] = [];
 
 	constructor(
@@ -40,7 +40,11 @@ export class NextEditorControl extends Disposable {
 		super();
 	}
 
-	openEditor(input: EditorInput, options?: EditorOptions): INextEditor {
+	get activeEditor(): BaseEditor {
+		return this._activeEditor;
+	}
+
+	openEditor(input: EditorInput, options?: EditorOptions): IOpenEditorResult {
 
 		// Token and progress monitor
 		const editorOpenToken = ++this.editorOpenToken;
@@ -54,7 +58,7 @@ export class NextEditorControl extends Disposable {
 		}));
 
 		// Editor widget
-		const editor = this.doShowEditor(input, options, monitor);
+		const editor = this.doShowEditor(input, options);
 
 		// Set input
 		let whenInputSet: TPromise<boolean>;
@@ -67,30 +71,24 @@ export class NextEditorControl extends Disposable {
 		return { editor, whenInputSet };
 	}
 
-	private doShowEditor(input: EditorInput, options: EditorOptions, monitor: ProgressMonitor): BaseEditor {
+	private doShowEditor(input: EditorInput, options: EditorOptions): BaseEditor {
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(input);
 
-		// Return early if the currently visible editor can handle the input
-		if (this.visibleEditor && descriptor.describes(this.visibleEditor)) {
-			return this.visibleEditor;
+		// Return early if the currently active editor can handle the input
+		if (this._activeEditor && descriptor.describes(this._activeEditor)) {
+			return this._activeEditor;
 		}
 
 		// Hide active one first
-		if (this.visibleEditor) {
-			this.doHideEditor(this.visibleEditor);
-		}
+		this.doHideActiveEditor();
 
-		// Create Editor
-		const editor = this.doCreateEditor(descriptor, monitor);
+		// Create editor
+		const editor = this.doCreateEditor(descriptor);
 
-		// Make sure that the user meanwhile did not open another editor or something went wrong
-		if (!editor || !this.visibleEditor || editor.getId() !== this.visibleEditor.getId()) {
-			monitor.cancel();
+		// Remember editor as active
+		this._activeEditor = editor;
 
-			return null;
-		}
-
-		// Show editor (TODO@grid track focus?)
+		// Show editor
 		this.parent.appendChild(editor.getContainer());
 		show(editor.getContainer());
 
@@ -103,22 +101,12 @@ export class NextEditorControl extends Disposable {
 		return editor;
 	}
 
-	private doCreateEditor(descriptor: IEditorDescriptor, monitor: ProgressMonitor): BaseEditor {
+	private doCreateEditor(descriptor: IEditorDescriptor): BaseEditor {
 
 		// Instantiate editor
 		const editor = this.doInstantiateEditor(descriptor);
 
-		// Make sure that the user meanwhile did not open another editor
-		if (monitor.token !== this.editorOpenToken) {
-			monitor.cancel();
-
-			return null;
-		}
-
-		// Remember editor as visible
-		this.visibleEditor = editor;
-
-		// Create editor as needed
+		// Create editor container as needed
 		if (!editor.getContainer()) {
 			const editorInstanceContainer = document.createElement('div');
 			editorInstanceContainer.id = descriptor.getId();
@@ -148,10 +136,10 @@ export class NextEditorControl extends Disposable {
 		const previousInput = editor.input;
 		const inputChanged = (!previousInput || !previousInput.matches(input) || (options && options.forceOpen));
 
-		// Call into Editor
+		// Call into editor
 		return editor.setInput(input, options).then(() => {
 
-			// Progress Done
+			// Progress done
 			monitor.done();
 
 			// Focus (unless prevented)
@@ -163,7 +151,7 @@ export class NextEditorControl extends Disposable {
 			return inputChanged;
 		}, e => {
 
-			// Progress Done
+			// Progress done
 			monitor.done();
 
 			// Error handling
@@ -193,35 +181,36 @@ export class NextEditorControl extends Disposable {
 		}
 	}
 
-	private doHideEditor(editor: BaseEditor): void {
+	private doHideActiveEditor(): void {
+		if (!this._activeEditor) {
+			return;
+		}
 
-		// Hide in side by side control
-		const editorInstanceContainer = editor.getContainer();
+		// Remove control from parent and hide
+		const editorInstanceContainer = this._activeEditor.getContainer();
 		this.parent.removeChild(editorInstanceContainer);
 		hide(editorInstanceContainer);
 
-		// Indicate to Editor
-		editor.clearInput();
-		editor.setVisible(false);
+		// Indicate to editor
+		this._activeEditor.clearInput();
+		this._activeEditor.setVisible(false);
 
-		// Clear visible editor
-		this.visibleEditor = null;
+		// Clear active editor
+		this._activeEditor = null;
 	}
 
 	layout(dimension: Dimension): void {
 		this.dimension = dimension;
 
-		if (this.visibleEditor) {
-			this.visibleEditor.layout(this.dimension);
+		if (this._activeEditor) {
+			this._activeEditor.layout(this.dimension);
 		}
 	}
 
 	shutdown(): void {
 
 		// Forward to all editors
-		this.instantiatedEditors.forEach(editor => {
-			editor.shutdown();
-		});
+		this.instantiatedEditors.forEach(editor => editor.shutdown());
 	}
 
 	dispose(): void {

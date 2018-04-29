@@ -279,7 +279,7 @@ export class Workbench implements IPartService {
 	}
 
 	public get onEditorLayout(): Event<IDimension> {
-		return this.editorPart.onLayout;
+		return this.editorPart.onDidLayout;
 	}
 
 	/**

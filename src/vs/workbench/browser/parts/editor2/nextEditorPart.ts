@@ -10,9 +10,9 @@ import 'vs/workbench/browser/parts/editor2/editor2.contribution';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
 import { Dimension, addClass } from 'vs/base/browser/dom';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event, Emitter, once } from 'vs/base/common/event';
 import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { INextEditorGroupsService, INextEditorGroup, Direction } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { INextEditorGroupsService, Direction } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SplitGridView, Direction as GridViewDirection } from 'vs/base/browser/ui/grid/gridview';
 import { NextEditorGroupView } from 'vs/workbench/browser/parts/editor2/nextEditorGroupView';
@@ -24,7 +24,8 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 
 	_serviceBrand: any;
 
-	private readonly _onLayout: Emitter<Dimension>;
+	private _onDidLayout: Emitter<Dimension> = this._register(new Emitter<Dimension>());
+	private _onDidActiveGroupChange: Emitter<NextEditorGroupView> = this._register(new Emitter<NextEditorGroupView>());
 
 	private dimension: Dimension;
 
@@ -41,26 +42,41 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 	) {
 		super(id, { hasTitle: false }, themeService);
 
-		this._onLayout = this._register(new Emitter<Dimension>());
-
 		this.doCreateGridView();
 	}
 
 	//#region INextEditorGroupsService Implementation
 
-	get activeGroup(): INextEditorGroup {
+	get onDidActiveGroupChange(): Event<NextEditorGroupView> {
+		return this._onDidActiveGroupChange.event;
+	}
+
+	get activeGroup(): NextEditorGroupView {
 		return this._activeGroup;
 	}
 
-	get groups(): INextEditorGroup[] {
+	get groups(): NextEditorGroupView[] {
 		return values(this._groups);
 	}
 
-	getGroup(identifier: GroupIdentifier): INextEditorGroup {
+	getGroup(identifier: GroupIdentifier): NextEditorGroupView {
 		return this._groups.get(identifier);
 	}
 
-	addGroup(fromGroup: INextEditorGroup, direction: Direction): INextEditorGroup {
+	isGroupActive(identifier: GroupIdentifier): boolean {
+		return this._activeGroup && this._activeGroup.id === identifier;
+	}
+
+	setGroupActive(identifier: GroupIdentifier): NextEditorGroupView {
+		const groupView = this.getGroup(identifier);
+		if (groupView) {
+			this.doSetGroupActive(groupView);
+		}
+
+		return groupView;
+	}
+
+	addGroup(fromGroup: NextEditorGroupView, direction: Direction): NextEditorGroupView {
 		const groupView = this.doCreateGroupView();
 
 		this.gridWidget.splitView(
@@ -81,14 +97,6 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		}
 	}
 
-	//#endregion
-
-	//#region Part Implementation
-
-	get onLayout(): Event<Dimension> {
-		return this._onLayout.event;
-	}
-
 	private doCreateGridView(): void {
 
 		// Container
@@ -97,16 +105,43 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 
 		// Grid widget
 		const initialGroup = this.doCreateGroupView();
-		this._activeGroup = initialGroup;
 		this.gridWidget = this._register(new SplitGridView(this.gridContainer, initialGroup));
+
+		// Set group active
+		this.doSetGroupActive(initialGroup);
+	}
+
+	private doSetGroupActive(group: NextEditorGroupView): void {
+		this._activeGroup = group;
+		this._onDidActiveGroupChange.fire(group);
 	}
 
 	private doCreateGroupView(): NextEditorGroupView {
 		const groupView = this.instantiationService.createInstance(NextEditorGroupView);
 
+		// Keep in map
 		this._groups.set(groupView.id, groupView);
 
+		// Track focus
+		const focusListener = groupView.onDidFocus(() => {
+			this.doSetGroupActive(groupView);
+		});
+
+		// Track dispose
+		once(groupView.onWillDispose)(() => {
+			focusListener.dispose();
+			this._groups.delete(groupView.id);
+		});
+
 		return groupView;
+	}
+
+	//#endregion
+
+	//#region Part Implementation
+
+	get onDidLayout(): Event<Dimension> {
+		return this._onDidLayout.event;
 	}
 
 	protected updateStyles(): void {
@@ -135,7 +170,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		this.gridWidget.layout(this.dimension.width, this.dimension.height);
 
 		// Event
-		this._onLayout.fire(dimension);
+		this._onDidLayout.fire(dimension);
 
 		return sizes;
 	}

@@ -8,9 +8,9 @@
 import 'vs/css!./media/nextEditorGroupView';
 import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
 import { EditorInput, EditorOptions, GroupIdentifier } from 'vs/workbench/common/editor';
-import { Event } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { addClass, addClasses, Dimension } from 'vs/base/browser/dom';
+import { addClass, addClasses, Dimension, trackFocus } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
@@ -18,17 +18,21 @@ import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND } from 'vs/workbench/common/theme';
-import { INextEditor, INextEditorGroup } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { IOpenEditorResult, INextEditorGroup } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { INextTitleAreaControl } from 'vs/workbench/browser/parts/editor2/nextTitleControl';
 import { NextTabsTitleControl } from 'vs/workbench/browser/parts/editor2/nextTabsTitleControl';
 import { NextEditorControl } from 'vs/workbench/browser/parts/editor2/nextEditorControl';
 import { IView } from 'vs/base/browser/ui/grid/gridview';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ProgressService } from 'vs/workbench/services/progress/browser/progressService';
+import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 
 export class NextEditorGroupView extends Themable implements IView, INextEditorGroup {
 
 	private static readonly EDITOR_TITLE_HEIGHT = 35;
+
+	private _onDidFocus: Emitter<void> = this._register(new Emitter<void>());
+	private _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
 
 	private group: EditorGroup;
 	private dimension: Dimension;
@@ -57,13 +61,25 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		this.doRender();
 	}
 
+	get onDidFocus(): Event<void> {
+		return this._onDidFocus.event;
+	}
+
+	get onWillDispose(): Event<void> {
+		return this._onWillDispose.event;
+	}
+
 	//#region INextEditorGroup Implementation
 
 	get id(): GroupIdentifier {
 		return this.group.id;
 	}
 
-	openEditor(input: EditorInput, options?: EditorOptions): INextEditor {
+	get activeEditor(): BaseEditor {
+		return this.editorControl ? this.editorControl.activeEditor : void 0;
+	}
+
+	openEditor(input: EditorInput, options?: EditorOptions): IOpenEditorResult {
 
 		// Update model
 		this.group.openEditor(input, options);
@@ -109,6 +125,13 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		}
 
 		return this.editorControl;
+	}
+
+	focusEditor(): void {
+		const activeEditor = this.activeEditor;
+		if (activeEditor) {
+			activeEditor.focus();
+		}
 	}
 
 	//#endregion
@@ -162,6 +185,12 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		this.editorContainer.setAttribute('role', 'tabpanel');
 		this.element.appendChild(this.editorContainer);
 
+		// Track focus in editor container
+		const focusTracker = this._register(trackFocus(this.editorContainer));
+		this._register(focusTracker.onDidFocus(() => {
+			this._onDidFocus.fire();
+		}));
+
 		// Update styles
 		this.updateStyles();
 	}
@@ -190,6 +219,12 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		if (this.editorControl) {
 			this.editorControl.shutdown();
 		}
+	}
+
+	dispose(): void {
+		this._onWillDispose.fire();
+
+		super.dispose();
 	}
 
 	//#endregion

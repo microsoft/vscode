@@ -291,7 +291,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.editorGroupsControl.resizeGroup(position, groupSizeChange);
 	}
 
-	public get onLayout(): Event<Dimension> {
+	public get onDidLayout(): Event<Dimension> {
 		return this._onLayout.event;
 	}
 
