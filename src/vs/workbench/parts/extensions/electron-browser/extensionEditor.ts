@@ -412,7 +412,7 @@ export class ExtensionEditor extends BaseEditor {
 		if (this.editorLoadComplete) {
 			/* __GDPR__
 				"extensionEditor:navbarChange" : {
-					"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"navItem": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"${include}": [
 						"${GalleryExtensionTelemetryData}"
 					]
