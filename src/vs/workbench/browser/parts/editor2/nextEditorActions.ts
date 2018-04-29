@@ -65,6 +65,8 @@ export class OpenNextEditorAction extends Action {
 			const thirdGroup = this.nextEditorGroupsService.addGroup(secondGroup, Direction.RIGHT);
 			thirdGroup.openEditor(inputs[5], { pinned: true });
 			thirdGroup.openEditor(inputs[6], { pinned: true });
+
+			this.nextEditorGroupsService.addGroup(firstGroup, Direction.RIGHT); // play with empty group
 		}, 0);
 
 		return TPromise.as(void 0);
