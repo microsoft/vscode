@@ -78,13 +78,13 @@ const $ = DOM.$;
 
 export const configuredItemBackground = registerColor('settings.configuredItemBackground', {
 	dark: '#0d466c',
-	light: '#0d466c',
-	hc: '#000000'
+	light: '#c5e6ff',
+	hc: '#0d466c'
 }, localize('configuredItemBackground', "The background color for a configured setting."));
 
 export const configuredItemForeground = registerColor('settings.configuredItemForeground', {
 	dark: '#dddddd',
-	light: '#dddddd',
+	light: '#6c6c6c',
 	hc: '#dddddd'
 }, localize('configuredItemForeground', "The foreground color for a configured setting."));
 

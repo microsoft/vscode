@@ -97,6 +97,10 @@
 	background-color: rgba(130, 130, 130, 0.04);
 }
 
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row:not(.odd) {
+	background-color: initial;
+}
+
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row.setting-item {
 	padding: 3px 0px;
 }
