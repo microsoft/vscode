@@ -14,7 +14,7 @@ import { provideNpmScripts, explorerIsEnabled } from './tasks';
 let taskProvider: vscode.Disposable | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-	taskProvider = registerTaskProvider();
+	taskProvider = registerTaskProvider(context);
 	registerExplorer(context);
 	configureHttpRequest();
 	vscode.workspace.onDidChangeConfiguration((e) => {
@@ -26,11 +26,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(addJSONProviders(httpRequest.xhr));
 }
 
-function registerTaskProvider(): vscode.Disposable | undefined {
+function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposable | undefined {
 	if (vscode.workspace.workspaceFolders) {
+		let cachedTasks: vscode.Task[] | undefined = undefined;
+
+		let flushCache = () => cachedTasks = undefined;
+		let watcher = vscode.workspace.createFileSystemWatcher('**/package.json');
+		watcher.onDidChange((_e) => flushCache());
+		watcher.onDidDelete((_e) => flushCache());
+		watcher.onDidCreate((_e) => flushCache());
+		context.subscriptions.push(watcher);
+
 		let provider: vscode.TaskProvider = {
-			provideTasks: () => {
-				return provideNpmScripts();
+			provideTasks: async () => {
+				if (!cachedTasks) {
+					cachedTasks = await provideNpmScripts();
+				}
+				return cachedTasks;
 			},
 			resolveTask(_task: vscode.Task): vscode.Task | undefined {
 				return undefined;
