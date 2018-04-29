@@ -151,7 +151,6 @@ class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 		return other && this.id === other.id && other instanceof TestFileEditorInput;
 	}
 
-
 	public setEncoding(encoding: string) {
 	}
 

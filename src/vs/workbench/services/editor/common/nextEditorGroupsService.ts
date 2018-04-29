@@ -46,8 +46,8 @@ export interface INextEditorGroupsService {
 
 	getGroup(identifier: GroupIdentifier): INextEditorGroup;
 
-	isGroupActive(identifier: GroupIdentifier): boolean;
-	setGroupActive(identifier: GroupIdentifier): INextEditorGroup;
+	isGroupActive(group: INextEditorGroup | GroupIdentifier): boolean;
+	setGroupActive(group: INextEditorGroup | GroupIdentifier): INextEditorGroup;
 
-	addGroup(fromGroup: INextEditorGroup, direction: Direction): INextEditorGroup;
+	addGroup(fromGroup: INextEditorGroup | GroupIdentifier, direction: Direction): INextEditorGroup;
 }

@@ -63,12 +63,12 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		return this._groups.get(identifier);
 	}
 
-	isGroupActive(identifier: GroupIdentifier): boolean {
-		return this._activeGroup && this._activeGroup.id === identifier;
+	isGroupActive(group: NextEditorGroupView | GroupIdentifier): boolean {
+		return this._activeGroup && this._activeGroup === this.asGroupView(group);
 	}
 
-	setGroupActive(identifier: GroupIdentifier): NextEditorGroupView {
-		const groupView = this.getGroup(identifier);
+	setGroupActive(group: NextEditorGroupView | GroupIdentifier): NextEditorGroupView {
+		const groupView = this.asGroupView(group);
 		if (groupView) {
 			this.doSetGroupActive(groupView);
 		}
@@ -76,11 +76,11 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		return groupView;
 	}
 
-	addGroup(fromGroup: NextEditorGroupView, direction: Direction): NextEditorGroupView {
+	addGroup(fromGroup: NextEditorGroupView | GroupIdentifier, direction: Direction): NextEditorGroupView {
 		const groupView = this.doCreateGroupView();
 
 		this.gridWidget.splitView(
-			this._groups.get(fromGroup.id),
+			this.asGroupView(fromGroup),
 			this.toGridViewDirection(direction),
 			groupView, direction === Direction.DOWN ? this.dimension.height / 2 : this.dimension.width / 2 /* TODO@grid what size? */
 		);
@@ -95,6 +95,14 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 			case Direction.LEFT: return GridViewDirection.Left;
 			case Direction.RIGHT: return GridViewDirection.Right;
 		}
+	}
+
+	private asGroupView(group: NextEditorGroupView | GroupIdentifier): NextEditorGroupView {
+		if (typeof group === 'number') {
+			return this.getGroup(group);
+		}
+
+		return group;
 	}
 
 	private doCreateGridView(): void {
