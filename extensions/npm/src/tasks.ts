@@ -9,6 +9,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as minimatch from 'minimatch';
 import * as nls from 'vscode-nls';
+import { JSONVisitor, visit, ParseErrorCode } from 'jsonc-parser/lib/main';
 
 const localize = nls.loadMessageBundle();
 
@@ -235,23 +236,59 @@ async function readFile(file: string): Promise<string> {
 	});
 }
 
-export async function getScripts(packageJsonUri: Uri): Promise<any> {
+export type StringMap = { [s: string]: string; };
+
+async function findAllScripts(buffer: string): Promise<StringMap> {
+	var scripts: StringMap = {};
+	let script: string | undefined = undefined;
+	let inScripts = false;
+
+	let visitor: JSONVisitor = {
+		onError(_error: ParseErrorCode, _offset: number, _length: number) {
+			// TODO inform user about the parse error
+		},
+		onObjectEnd() {
+			if (inScripts) {
+				inScripts = false;
+			}
+		},
+		onLiteralValue(value: any, _offset: number, _length: number) {
+			console.log(value);
+			if (script) {
+				scripts[script] = value;
+				script = undefined;
+			}
+		},
+		onObjectProperty(property: string, _offset: number, _length: number) {
+			if (property === 'scripts') {
+				inScripts = true;
+			}
+			else if (inScripts) {
+				script = property;
+			}
+		}
+	};
+	visit(buffer, visitor);
+	return scripts;
+}
+
+export async function getScripts(packageJsonUri: Uri): Promise<StringMap | undefined> {
 
 	if (packageJsonUri.scheme !== 'file') {
-		return null;
+		return undefined;
 	}
 
 	let packageJson = packageJsonUri.fsPath;
 	if (!await exists(packageJson)) {
-		return null;
+		return undefined;
 	}
 
 	try {
 		var contents = await readFile(packageJson);
-		var json = JSON.parse(contents);
-		return json.scripts;
+		var json = findAllScripts(contents);//JSON.parse(contents);
+		return json;
 	} catch (e) {
-		let localizedParseError = localize('npm.parseError', 'Npm task detection: failed to parse the file {0}', packageJsonUri);
+		let localizedParseError = localize('npm.parseError', 'Npm task detection: failed to parse the file {0}', packageJsonUri.fsPath);
 		throw new Error(localizedParseError);
 	}
 }
