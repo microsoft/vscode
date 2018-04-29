@@ -217,7 +217,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this._register(DOM.addDisposableListener(this.showConfiguredSettingsOnlyCheckbox, 'change', e => this.onShowConfiguredOnlyClicked()));
 
 		const openSettingsButton = this._register(new Button(headerControlsContainerRight, { title: true, buttonBackground: null, buttonHoverBackground: null }));
-		openSettingsButton.label = localize('openSettingsLabel', "Open config file");
+		openSettingsButton.label = localize('openSettingsLabel', "Open settings.json");
 		openSettingsButton.element.classList.add('open-settings-button');
 
 		this._register(openSettingsButton.onDidClick(() => this.openSettingsFile()));
@@ -246,6 +246,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 		const settingItemRenderer = this.instantiationService.createInstance(SettingItemRenderer);
 		this._register(settingItemRenderer.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value)));
+		this._register(settingItemRenderer.onDidOpenSettings(() => this.openSettingsFile()));
 
 		const buttonItemRenderer = new ButtonRowRenderer();
 		this._register(buttonItemRenderer.onDidClick(e => this.onShowAllSettingsClicked()));
@@ -657,6 +658,9 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 	private readonly _onDidChangeSetting: Emitter<ISettingChangeEvent> = new Emitter<ISettingChangeEvent>();
 	public readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
 
+	private readonly _onDidOpenSettings: Emitter<void> = new Emitter<void>();
+	public readonly onDidOpenSettings: Event<void> = this._onDidOpenSettings.event;
+
 	get templateId(): string { return SETTINGS_ENTRY_TEMPLATE_ID; }
 
 	constructor(
@@ -728,7 +732,7 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 		} else if (entry.type === 'number') {
 			this.renderText(entry, template, value => onChange(parseInt(value)));
 		} else {
-			template.valueElement.textContent = 'Edit in settings.json!';
+			this.renderEditInSettingsJson(entry, template);
 		}
 	}
 
@@ -765,6 +769,14 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 
 		template.toDispose.push(
 			inputBox.onDidChange(e => onChange(e)));
+	}
+
+	private renderEditInSettingsJson(entry: ISettingItemEntry, template: ISettingItemTemplate): void {
+		const openSettingsButton = new Button(template.valueElement, { title: true, buttonBackground: null, buttonHoverBackground: null });
+		openSettingsButton.onDidClick(() => this._onDidOpenSettings.fire());
+		openSettingsButton.label = localize('editInSettingsJson', "Edit in settings.json");
+		openSettingsButton.element.classList.add('edit-in-settings-button');
+		template.toDispose.push(openSettingsButton);
 	}
 
 	disposeTemplate(template: ISettingItemTemplate): void {
