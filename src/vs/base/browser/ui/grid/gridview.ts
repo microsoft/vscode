@@ -557,6 +557,10 @@ export enum Direction {
 	Right
 }
 
+function directionOrientation(direction: Direction): Orientation {
+	return direction === Direction.Up || direction === Direction.Down ? Orientation.VERTICAL : Orientation.HORIZONTAL;
+}
+
 export class SplitGridView<T extends IView> implements IDisposable {
 
 	private gridview: GridView;
@@ -573,6 +577,12 @@ export class SplitGridView<T extends IView> implements IDisposable {
 	splitView(view: T, direction: Direction, newView: T, size: number): void {
 		if (this.views.has(newView)) {
 			throw new Error('Can\'t add same view twice');
+		}
+
+		const orientation = directionOrientation(direction);
+
+		if (this.views.size === 1 && this.orientation !== orientation) {
+			this.orientation = orientation;
 		}
 
 		const referenceLocation = this.getViewLocation(view);
