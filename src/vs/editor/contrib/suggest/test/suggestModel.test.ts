@@ -19,7 +19,6 @@ import { IState, ISuggestResult, ISuggestSupport, LanguageIdentifier, MetadataCo
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { ICompletionItem } from 'vs/editor/contrib/suggest/completionModel';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { LineContext, SuggestModel } from 'vs/editor/contrib/suggest/suggestModel';
 import { ISelectedSuggestion } from 'vs/editor/contrib/suggest/suggestWidget';
@@ -464,7 +463,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				model.trigger({ auto: false });
 			}, event => {
 				assert.equal(event.auto, false);
-				assert.equal(event.completionModel.incomplete, true);
+				assert.equal(event.completionModel.incomplete.size, 1);
 				assert.equal(event.completionModel.items.length, 1);
 
 				return assertEvent(model.onDidCancel, () => {
@@ -501,7 +500,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				model.trigger({ auto: false });
 			}, event => {
 				assert.equal(event.auto, false);
-				assert.equal(event.completionModel.incomplete, true);
+				assert.equal(event.completionModel.incomplete.size, 1);
 				assert.equal(event.completionModel.items.length, 1);
 
 				return assertEvent(model.onDidSuggest, () => {
@@ -511,7 +510,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					editor.trigger('keyboard', Handler.Type, { text: ';' });
 				}, event => {
 					assert.equal(event.auto, false);
-					assert.equal(event.completionModel.incomplete, true);
+					assert.equal(event.completionModel.incomplete.size, 1);
 					assert.equal(event.completionModel.items.length, 1);
 
 				});
@@ -704,7 +703,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			provideCompletionItems(doc, pos) {
 				return {
 					incomplete: true,
-					suggestions: [{ type: 'folder', label: 'CompleteNot', insertText: 'Incomplete', sortText: 'a', overwriteBefore: 1 }],
+					suggestions: [{ type: 'folder', label: 'CompleteNot', insertText: 'Incomplete', sortText: 'a', overwriteBefore: pos.column - 1 }],
 					dispose() { disposeA += 1; }
 				};
 			}
@@ -713,7 +712,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			provideCompletionItems(doc, pos) {
 				return {
 					incomplete: false,
-					suggestions: [{ type: 'folder', label: 'Complete', insertText: 'Complete', sortText: 'z', overwriteBefore: 1 }],
+					suggestions: [{ type: 'folder', label: 'Complete', insertText: 'Complete', sortText: 'z', overwriteBefore: pos.column - 1 }],
 					dispose() { disposeB += 1; }
 				};
 			},
@@ -724,27 +723,20 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 		return withOracle(async (model, editor) => {
 
-			let itemA: ICompletionItem;
-			let itemB: ICompletionItem;
-
 			await assertEvent(model.onDidSuggest, () => {
-				model.trigger({ auto: true });
+				editor.setValue('');
+				editor.setSelection(new Selection(1, 1, 1, 1));
+				editor.trigger('keyboard', Handler.Type, { text: 'c' });
 
 			}, event => {
 				assert.equal(event.auto, true);
 				assert.equal(event.completionModel.items.length, 2);
 				assert.equal(disposeA, 0);
 				assert.equal(disposeB, 0);
-
-				itemA = event.completionModel.items[0];
-				itemB = event.completionModel.items[1];
-
-				assert.equal(itemA.suggestion.label, 'CompleteNot');
-				assert.equal(itemB.suggestion.label, 'Complete');
 			});
 
 			await assertEvent(model.onDidSuggest, () => {
-				model.trigger({ auto: true }, true, [itemA.support], [itemB]);
+				editor.trigger('keyboard', Handler.Type, { text: 'o' });
 			}, event => {
 				assert.equal(event.auto, true);
 				assert.equal(event.completionModel.items.length, 2);
