@@ -143,12 +143,6 @@ export function guessIndentation(source: ITextBuffer, defaultTabSize: number, de
 		previousLineIndentation = currentLineIndentation;
 	}
 
-	// Take into account the last line as well
-	let deltaSpacesCount = spacesDiff(previousLineText, previousLineIndentation, '', 0);
-	if (deltaSpacesCount <= MAX_ALLOWED_TAB_SIZE_GUESS) {
-		spacesDiffCount[deltaSpacesCount]++;
-	}
-
 	let insertSpaces = defaultInsertSpaces;
 	if (linesIndentedWithTabsCount !== linesIndentedWithSpacesCount) {
 		insertSpaces = (linesIndentedWithTabsCount < linesIndentedWithSpacesCount);
