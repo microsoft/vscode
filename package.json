@@ -48,7 +48,7 @@
     "vscode-ripgrep": "^0.8.1",
     "vscode-textmate": "^3.3.3",
     "vscode-xterm": "3.4.0-beta3",
-    "yauzl": "2.8.0"
+    "yauzl": "^2.9.1"
   },
   "devDependencies": {
     "7zip": "0.0.6",
