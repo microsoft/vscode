@@ -6,28 +6,29 @@
 
 import * as assert from 'assert';
 import { Event } from 'vs/base/common/event';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { Handler } from 'vs/editor/common/editorCommon';
-import { ISuggestSupport, ISuggestResult, SuggestRegistry, SuggestTriggerKind, LanguageIdentifier, TokenizationRegistry, IState, MetadataConsts } from 'vs/editor/common/modes';
-import { SuggestModel, LineContext } from 'vs/editor/contrib/suggest/suggestModel';
-import { TestCodeEditor, createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { IStorageService, NullStorageService } from 'vs/platform/storage/common/storage';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { ISelectedSuggestion } from 'vs/editor/contrib/suggest/suggestWidget';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { Handler } from 'vs/editor/common/editorCommon';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { IState, ISuggestResult, ISuggestSupport, LanguageIdentifier, MetadataConsts, SuggestRegistry, SuggestTriggerKind, TokenizationRegistry } from 'vs/editor/common/modes';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
+import { ICompletionItem } from 'vs/editor/contrib/suggest/completionModel';
+import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { LineContext, SuggestModel } from 'vs/editor/contrib/suggest/suggestModel';
+import { ISelectedSuggestion } from 'vs/editor/contrib/suggest/suggestWidget';
+import { TestCodeEditor, createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IStorageService, NullStorageService } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 
 function createMockEditor(model: TextModel): TestCodeEditor {
 	return createTestCodeEditor({
@@ -689,6 +690,66 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				const [first] = event.completionModel.items;
 
 				assert.equal(first.support, alwaysSomethingSupport);
+			});
+		});
+	});
+
+
+	test('Fails to render completion details #47988', function () {
+
+		let disposeA = 0;
+		let disposeB = 0;
+
+		disposables.push(SuggestRegistry.register({ scheme: 'test' }, {
+			provideCompletionItems(doc, pos) {
+				return {
+					incomplete: true,
+					suggestions: [{ type: 'folder', label: 'CompleteNot', insertText: 'Incomplete', sortText: 'a', overwriteBefore: 1 }],
+					dispose() { disposeA += 1; }
+				};
+			}
+		}));
+		disposables.push(SuggestRegistry.register({ scheme: 'test' }, {
+			provideCompletionItems(doc, pos) {
+				return {
+					incomplete: false,
+					suggestions: [{ type: 'folder', label: 'Complete', insertText: 'Complete', sortText: 'z', overwriteBefore: 1 }],
+					dispose() { disposeB += 1; }
+				};
+			},
+			resolveCompletionItem(doc, pos, item) {
+				return item;
+			},
+		}));
+
+		return withOracle(async (model, editor) => {
+
+			let itemA: ICompletionItem;
+			let itemB: ICompletionItem;
+
+			await assertEvent(model.onDidSuggest, () => {
+				model.trigger({ auto: true });
+
+			}, event => {
+				assert.equal(event.auto, true);
+				assert.equal(event.completionModel.items.length, 2);
+				assert.equal(disposeA, 0);
+				assert.equal(disposeB, 0);
+
+				itemA = event.completionModel.items[0];
+				itemB = event.completionModel.items[1];
+
+				assert.equal(itemA.suggestion.label, 'CompleteNot');
+				assert.equal(itemB.suggestion.label, 'Complete');
+			});
+
+			await assertEvent(model.onDidSuggest, () => {
+				model.trigger({ auto: true }, true, [itemA.support], [itemB]);
+			}, event => {
+				assert.equal(event.auto, true);
+				assert.equal(event.completionModel.items.length, 2);
+				assert.equal(disposeA, 1);
+				assert.equal(disposeB, 0);
 			});
 		});
 	});
