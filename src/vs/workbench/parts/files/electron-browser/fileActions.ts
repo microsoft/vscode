@@ -35,7 +35,7 @@ import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IUntitledResourceInput } from 'vs/platform/editor/common/editor';
+import { IUntitledResourceInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, ServicesAccessor, IConstructorSignature2 } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -160,12 +160,12 @@ class TriggerRenameFileAction extends BaseFileAction {
 		this._updateEnablement();
 	}
 
-	public validateFileName(name: string): string {
+	public validateFileName(name: string): ErrorMessage {
 		const names: string[] = name.split(/[\\/]/).filter(part => !!part);
 		if (names.length > 1) {	// error only occurs on multi-path
 			const comparer = isLinux ? strings.compare : strings.compareIgnoreCase;
 			if (comparer(names[0], this.element.name) === 0) {
-				return nls.localize('renameWhenSourcePathIsParentOfTargetError', "Please use the 'New Folder' or 'New File' command to add children to an existing folder");
+				return ErrorMessage.getObject('renameWhenSourcePathIsParentOfTargetError', 'Please use the \'New Folder\' or \'New File\' command to add children to an existing folder', null);
 			}
 		}
 
@@ -197,7 +197,7 @@ class TriggerRenameFileAction extends BaseFileAction {
 				}
 
 				return {
-					content: message,
+					content: message.getErrorMessage(),
 					formatContent: true,
 					type: MessageType.ERROR
 				};
@@ -262,7 +262,7 @@ export abstract class BaseRenameAction extends BaseFileAction {
 		return promise;
 	}
 
-	public validateFileName(parent: ExplorerItem, name: string): string {
+	public validateFileName(parent: ExplorerItem, name: string): ErrorMessage {
 		let source = this.element.name;
 		let target = name;
 
@@ -412,7 +412,7 @@ export class BaseNewAction extends BaseFileAction {
 						}
 
 						return {
-							content: message,
+							content: message.getErrorMessage(),
 							formatContent: true,
 							type: MessageType.ERROR
 						};
@@ -496,7 +496,7 @@ export class GlobalNewUntitledFileAction extends Action {
 /* Create New File/Folder (only used internally by explorerViewer) */
 export abstract class BaseCreateAction extends BaseRenameAction {
 
-	public validateFileName(parent: ExplorerItem, name: string): string {
+	public validateFileName(parent: ExplorerItem, name: string): ErrorMessage {
 		if (this.element instanceof NewStatPlaceholder) {
 			return validateFileName(parent, name, false);
 		}
@@ -522,7 +522,23 @@ class CreateFileAction extends BaseCreateAction {
 
 		this._updateEnablement();
 	}
+	public validateFileName(parent: ExplorerItem, name: string): ErrorMessage {
+		var message = super.validateFileName(parent, name);
+		if (message) {
+			if (message.type === ErrorMessage.fileNameExistsError) {
+				var resource = parent.resource;
+				const editorOptions: ITextEditorOptions = {
+					preserveFocus: true,
+				};
+				this.editorService.openEditor({
+					resource: resource.with({ path: paths.join(resource.path, name) }),
+					options: editorOptions
 
+				});
+			}
+		}
+		return message;
+	}
 	public runAction(fileName: string): TPromise<any> {
 		const resource = this.element.parent.resource;
 		return this.fileService.createFile(resource.with({ path: paths.join(resource.path, fileName) })).then(stat => {
@@ -1400,20 +1416,43 @@ export class CopyPathAction extends Action {
 	}
 }
 
+export class ErrorMessage {
+	public static readonly emptyFileName = 'emptyFileNameError';
+	public static readonly fileNameStartsWithSlashError = 'fileNameStartsWithSlashError';
+	public static readonly fileNameExistsError = 'fileNameExistsError';
+	public static readonly fileUsedAsFolderError = 'fileUsedAsFolderError';
+	public static readonly invalidFileNameError = 'invalidFileNameError';
+	public static readonly filePathTooLongError = 'filePathTooLongError';
+	public type: string;
+	public message: string;
+	public substitue: string;
+	public static getObject(type: string, message: string, substitue: string): ErrorMessage {
+		var em = new ErrorMessage();
+		em.type = type;
+		em.message = message;
+		em.substitue = substitue;
+		return em;
+	}
 
-export function validateFileName(parent: ExplorerItem, name: string, allowOverwriting: boolean = false): string {
+	public getErrorMessage(): string {
+		return nls.localize(this.type, this.message, this.substitue);
+	}
+}
+
+
+export function validateFileName(parent: ExplorerItem, name: string, allowOverwriting: boolean = false): ErrorMessage {
 
 	// Produce a well formed file name
 	name = getWellFormedFileName(name);
 
 	// Name not provided
 	if (!name || name.length === 0 || /^\s+$/.test(name)) {
-		return nls.localize('emptyFileNameError', "A file or folder name must be provided.");
+		return ErrorMessage.getObject('emptyFileNameError', 'A file or folder name must be provided.', null);
 	}
 
 	// Relative paths only
 	if (name[0] === '/' || name[0] === '\\') {
-		return nls.localize('fileNameStartsWithSlashError', "A file or folder name cannot start with a slash.");
+		return ErrorMessage.getObject('fileNameStartsWithSlashError', 'A file or folder name cannot start with a slash.', null);
 	}
 
 	const names: string[] = name.split(/[\\/]/).filter(part => !!part);
@@ -1421,24 +1460,24 @@ export function validateFileName(parent: ExplorerItem, name: string, allowOverwr
 
 	// Do not allow to overwrite existing file
 	if (!allowOverwriting && analyzedPath.fullPathAlreadyExists) {
-		return nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name);
+		return ErrorMessage.getObject('fileNameExistsError', 'A file or folder **{0}** already exists at this location. Please choose a different name.', name);
 	}
 
 	// A file must always be a leaf
 	if (analyzedPath.lastExistingPathSegment.isFile) {
-		return nls.localize('fileUsedAsFolderError', "**{0}** is a file and cannot have any descendants.", analyzedPath.lastExistingPathSegment.name);
+		return ErrorMessage.getObject('fileUsedAsFolderError', '**{0}** is a file and cannot have any descendants.', analyzedPath.lastExistingPathSegment.name);
 	}
 
 	// Invalid File name
 	if (names.some((folderName) => !paths.isValidBasename(folderName))) {
-		return nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", trimLongName(name));
+		return ErrorMessage.getObject('invalidFileNameError', 'The name **{0}** is not valid as a file or folder name. Please choose a different name.', trimLongName(name));
 	}
 
 	// Max length restriction (on Windows)
 	if (isWindows) {
 		const fullPathLength = name.length + parent.resource.fsPath.length + 1 /* path segment */;
 		if (fullPathLength > 255) {
-			return nls.localize('filePathTooLongError', "The name **{0}** results in a path that is too long. Please choose a shorter name.", trimLongName(name));
+			return ErrorMessage.getObject('filePathTooLongError', 'The name **{0}** results in a path that is too long. Please choose a shorter name.', trimLongName(name));
 		}
 	}
 
