@@ -33,7 +33,7 @@ import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/se
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { SearchWidget, SettingsTargetsWidget, SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ContextKeyExpr, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { registerEditorContribution, Command, IEditorContributionCtor } from 'vs/editor/browser/editorExtensions';
+import { registerEditorContribution, Command, IEditorContributionCtor, EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -965,8 +965,15 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService);
 	}
 
+	private static _getContributions(): IEditorContributionCtor[] {
+		let skipContributions = [FoldingController.prototype, SelectionHighlighter.prototype, FindController.prototype];
+		let contributions = EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.prototype) === -1);
+		contributions.push(DefaultSettingsEditorContribution);
+		return contributions;
+	}
+
 	public createEditorControl(parent: HTMLElement, configuration: IEditorOptions): editorCommon.IEditor {
-		const editor = this.instantiationService.createInstance(DefaultPreferencesCodeEditor, parent, configuration, false);
+		const editor = this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, { contributions: DefaultPreferencesEditor._getContributions() });
 
 		// Inform user about editor being readonly if user starts type
 		this.toUnbind.push(editor.onDidType(() => this.showReadonlyHint(editor)));
@@ -1028,18 +1035,6 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 	protected getAriaLabel(): string {
 		return nls.localize('preferencesAriaLabel', "Default preferences. Readonly text editor.");
 	}
-}
-
-class DefaultPreferencesCodeEditor extends CodeEditorWidget {
-
-	protected _getContributions(): IEditorContributionCtor[] {
-		let contributions = super._getContributions();
-		let skipContributions = [FoldingController.prototype, SelectionHighlighter.prototype, FindController.prototype];
-		contributions = contributions.filter(c => skipContributions.indexOf(c.prototype) === -1);
-		contributions.push(DefaultSettingsEditorContribution);
-		return contributions;
-	}
-
 }
 
 interface ISettingsEditorContribution extends editorCommon.IEditorContribution {

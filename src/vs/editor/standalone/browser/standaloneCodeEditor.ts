@@ -175,7 +175,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 				? nls.localize('accessibilityHelpMessageIE', "Press Ctrl+F1 for Accessibility Options.")
 				: nls.localize('accessibilityHelpMessage', "Press Alt+F1 for Accessibility Options.")
 		);
-		super(domElement, options, false, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService);
+		super(domElement, options, {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = keybindingService;

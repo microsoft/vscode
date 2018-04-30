@@ -182,7 +182,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 	protected createEditorControl(parent: HTMLElement, configuration: IEditorOptions): IEditor {
 
 		// Use a getter for the instantiation service since some subclasses might use scoped instantiation services
-		return this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, false);
+		return this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, {});
 	}
 
 	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {

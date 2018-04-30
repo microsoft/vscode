@@ -41,7 +41,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IContentWidgetData, IOverlayWidgetData, View } from 'vs/editor/browser/view/viewImpl';
-import { IEditorContributionCtor, EditorAction, EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { IEditorContributionCtor, EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { ICommandDelegate } from 'vs/editor/browser/view/viewController';
@@ -51,6 +51,26 @@ import { Color } from 'vs/base/common/color';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
 
 let EDITOR_ID = 0;
+
+export interface ICodeEditorWidgetOptions {
+	/**
+	 * Is this a simple widget (not a real code editor) ?
+	 * Defaults to false.
+	 */
+	isSimpleWidget?: boolean;
+
+	/**
+	 * Contributions to instantiate.
+	 * Defaults to EditorExtensionsRegistry.getEditorContributions().
+	 */
+	contributions?: IEditorContributionCtor[];
+
+	/**
+	 * Telemetry data associated with this CodeEditorWidget.
+	 * Defaults to null.
+	 */
+	telemetryData?: object;
+}
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
@@ -143,6 +163,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	//#endregion
 
 	public readonly isSimpleWidget: boolean;
+	private readonly _telemetryData: object;
 
 	private readonly domElement: HTMLElement;
 	private readonly id: number;
@@ -182,7 +203,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	constructor(
 		domElement: HTMLElement,
 		options: editorOptions.IEditorOptions,
-		isSimpleWidget: boolean,
+		codeEditorWidgetOptions: ICodeEditorWidgetOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
@@ -195,7 +216,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this.id = (++EDITOR_ID);
 		this._decorationTypeKeysToIds = {};
 		this._decorationTypeSubtypes = {};
-		this.isSimpleWidget = isSimpleWidget;
+		this.isSimpleWidget = codeEditorWidgetOptions.isSimpleWidget || false;
+		this._telemetryData = codeEditorWidgetOptions.telemetryData || null;
 
 		options = options || {};
 		this._configuration = this._register(this._createConfiguration(options));
@@ -230,7 +252,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this.contentWidgets = {};
 		this.overlayWidgets = {};
 
-		let contributions = this._getContributions();
+		let contributions: IEditorContributionCtor[] = codeEditorWidgetOptions.contributions;
+		if (!Array.isArray(contributions)) {
+			contributions = EditorExtensionsRegistry.getEditorContributions();
+		}
 		for (let i = 0, len = contributions.length; i < len; i++) {
 			let ctor = contributions[i];
 			try {
@@ -241,7 +266,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			}
 		}
 
-		this._getActions().forEach((action) => {
+		EditorExtensionsRegistry.getEditorActions().forEach((action) => {
 			const internalAction = new InternalEditorAction(
 				action.id,
 				action.label,
@@ -262,14 +287,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	protected _createConfiguration(options: editorOptions.IEditorOptions): editorCommon.IConfiguration {
 		return new Configuration(options, this.domElement);
-	}
-
-	protected _getContributions(): IEditorContributionCtor[] {
-		return EditorExtensionsRegistry.getEditorContributions();
-	}
-
-	protected _getActions(): EditorAction[] {
-		return EditorExtensionsRegistry.getEditorActions();
 	}
 
 	public getId(): string {
@@ -1478,7 +1495,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		"EditorTelemetryData" : {}
 	*/
 	public getTelemetryData(): { [key: string]: any; } {
-		return null;
+		return this._telemetryData;
 	}
 }
 

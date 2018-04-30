@@ -43,6 +43,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { dispose } from 'vs/base/common/lifecycle';
 import { OpenMode, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 
 const $ = dom.$;
 
@@ -75,7 +76,7 @@ export class Repl extends Panel implements IPrivateReplService {
 	private renderer: ReplExpressionsRenderer;
 	private container: HTMLElement;
 	private treeContainer: HTMLElement;
-	private replInput: SimpleDebugEditor;
+	private replInput: CodeEditorWidget;
 	private replInputContainer: HTMLElement;
 	private refreshTimeoutHandle: number;
 	private actions: IAction[];
@@ -174,7 +175,7 @@ export class Repl extends Panel implements IPrivateReplService {
 
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
-		this.replInput = scopedInstantiationService.createInstance(SimpleDebugEditor, this.replInputContainer, SimpleDebugEditor.getEditorOptions());
+		this.replInput = scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, SimpleDebugEditor.getEditorOptions(), SimpleDebugEditor.getCodeEditorWidgetOptions());
 
 		modes.SuggestRegistry.register({ scheme: debug.DEBUG_SCHEME, hasAccessToAllModels: true }, {
 			triggerCharacters: ['.'],

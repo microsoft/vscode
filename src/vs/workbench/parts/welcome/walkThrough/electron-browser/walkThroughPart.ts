@@ -29,8 +29,7 @@ import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/cont
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { once } from 'vs/base/common/event';
 import { isObject } from 'vs/base/common/types';
-import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, textPreformatForeground, contrastBorder, textBlockQuoteBackground, textBlockQuoteBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -53,27 +52,6 @@ interface IViewState {
 
 interface IWalkThroughEditorViewState {
 	viewState: IViewState;
-}
-
-class WalkThroughCodeEditor extends CodeEditorWidget {
-
-	constructor(
-		domElement: HTMLElement,
-		options: IEditorOptions,
-		private telemetryData: Object,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@ICommandService commandService: ICommandService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService,
-		@INotificationService notificationService: INotificationService,
-	) {
-		super(domElement, options, false, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService);
-	}
-
-	getTelemetryData() {
-		return this.telemetryData;
-	}
 }
 
 export class WalkThroughPart extends BaseEditor {
@@ -330,7 +308,9 @@ export class WalkThroughPart extends BaseEditor {
 						target: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 						snippet: i
 					};
-					const editor = this.instantiationService.createInstance(WalkThroughCodeEditor, div, options, telemetryData);
+					const editor = this.instantiationService.createInstance(CodeEditorWidget, div, options, {
+						telemetryData: telemetryData
+					});
 					editor.setModel(model);
 					this.contentDisposables.push(editor);
 

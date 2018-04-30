@@ -14,12 +14,11 @@ import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
-import { EditorAction } from 'vs/editor/browser/editorExtensions';
 import { ITextModel } from 'vs/editor/common/model';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
+import { CodeEditorWidget, ICodeEditorWidgetOptions, } from 'vs/editor/browser/widget/codeEditorWidget';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TestCodeEditorService, TestCommandService } from 'vs/editor/test/browser/editorTestServices';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -27,13 +26,6 @@ import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class TestCodeEditor extends CodeEditorWidget implements editorBrowser.ICodeEditor {
-
-	protected _getContributions(): IConstructorSignature1<editorBrowser.ICodeEditor, editorCommon.IEditorContribution>[] {
-		return [];
-	}
-	protected _getActions(): EditorAction[] {
-		return [];
-	}
 
 	//#region testing overrides
 	protected _createConfiguration(options: editorOptions.IEditorOptions): editorCommon.IConfiguration {
@@ -95,7 +87,7 @@ export function withTestCodeEditor(text: string[], options: TestCodeEditorCreati
 export function createTestCodeEditor(options: TestCodeEditorCreationOptions): TestCodeEditor {
 
 	const services: ServiceCollection = options.serviceCollection || new ServiceCollection();
-	const instantiationService = new InstantiationService(services);
+	const instantiationService: IInstantiationService = new InstantiationService(services);
 
 	if (!services.has(ICodeEditorService)) {
 		services.set(ICodeEditorService, new TestCodeEditorService());
@@ -113,7 +105,15 @@ export function createTestCodeEditor(options: TestCodeEditorCreationOptions): Te
 		services.set(IThemeService, new TestThemeService());
 	}
 
-	const editor = instantiationService.createInstance(TestCodeEditor, <any>new TestEditorDomElement(), options, false);
+	const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
+		contributions: []
+	};
+	const editor = instantiationService.createInstance(
+		TestCodeEditor,
+		<HTMLElement><any>new TestEditorDomElement(),
+		options,
+		codeEditorWidgetOptions
+	);
 	editor.setModel(options.model);
 	return editor;
 }
