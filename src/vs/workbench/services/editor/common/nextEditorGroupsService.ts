@@ -14,8 +14,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 export const INextEditorGroupsService = createDecorator<INextEditorGroupsService>('nextEditorGroupsService');
 
 export interface IOpenEditorResult {
-	editor: IEditor;
-	whenInputSet: TPromise<boolean /* input changed */>;
+	control: IEditor;
+	whenOpened: TPromise<boolean /* input changed */>;
 }
 
 export enum Direction {
@@ -27,12 +27,24 @@ export enum Direction {
 
 export interface INextEditorGroup {
 
+	readonly onDidActiveEditorChange: Event<IEditor>;
+
 	readonly id: GroupIdentifier;
 	readonly activeEditor: IEditor;
 
-	openEditor(input: IEditorInput, options?: IEditorOptions): IOpenEditorResult;
+	openEditor(editor: IEditorInput, options?: IEditorOptions): IOpenEditorResult;
 
-	focusEditor(): void;
+	focusActiveEditor(): void;
+
+	/**
+	 * Set an editor to be pinned. A pinned editor is not replaced
+	 * when another editor opens at the same location.
+	 * 
+	 * 
+	 * @param editor the editor to pin, or the currently active editor
+	 * if not specified.
+	 */
+	pinEditor(editor?: IEditorInput): void;
 }
 
 export interface INextEditorGroupsService {

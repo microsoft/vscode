@@ -33,6 +33,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	private _onDidFocus: Emitter<void> = this._register(new Emitter<void>());
 	private _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
+	private _onDidActiveEditorChange: Emitter<BaseEditor> = this._register(new Emitter<BaseEditor>());
 
 	private group: EditorGroup;
 	private dimension: Dimension;
@@ -83,6 +84,10 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	//#region INextEditorGroup Implementation
 
+	get onDidActiveEditorChange(): Event<BaseEditor> {
+		return this._onDidActiveEditorChange.event;
+	}
+
 	get id(): GroupIdentifier {
 		return this.group.id;
 	}
@@ -100,11 +105,16 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		this.doCreateOrGetTitleControl().openEditor(input, options);
 
 		// Forward to editor control
-		// TODO@grid emit input change event when it changed from nextEditorPart?
 		// TODO@grid handle input errors as well:
-		//	- emit editor open fail event from nextEditorPart?
 		//  - close active editor to reveal next one
-		return this.doCreateOrGetEditorControl().openEditor(input, options);
+		const openEditorResult = this.doCreateOrGetEditorControl().openEditor(input, options);
+		openEditorResult.whenOpened.then(changed => {
+			if (changed) {
+				this._onDidActiveEditorChange.fire(openEditorResult.control as BaseEditor);
+			}
+		}, () => void 0 /* TODO@grid handle errors here as open fail event? but do not re-emit to outside */);
+
+		return openEditorResult;
 	}
 
 	private doCreateOrGetScopedInstantiationService(): IInstantiationService {
@@ -136,10 +146,27 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		return this.editorControl;
 	}
 
-	focusEditor(): void {
+	focusActiveEditor(): void {
 		const activeEditor = this.activeEditor;
 		if (activeEditor) {
 			activeEditor.focus();
+		}
+	}
+
+	pinEditor(input?: EditorInput): void {
+		if (!input) {
+			input = this.activeEditor ? this.activeEditor.input : void 0;
+		}
+
+		if (input && !this.group.isPinned(input)) {
+
+			// Update model
+			this.group.pin(input);
+
+			// Forward to title control
+			if (this.titleAreaControl) {
+				this.titleAreaControl.pinEditor(input);
+			}
 		}
 	}
 

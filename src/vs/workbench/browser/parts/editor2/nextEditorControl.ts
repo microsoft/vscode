@@ -57,18 +57,18 @@ export class NextEditorControl extends Disposable {
 			return null;
 		}));
 
-		// Editor widget
-		const editor = this.doShowEditor(input, options);
+		// Editor control
+		const editorControl = this.doShowEditor(input, options);
 
 		// Set input
-		let whenInputSet: TPromise<boolean>;
-		if (editor) {
-			whenInputSet = this.doSetInput(editor, input, options, monitor);
+		let whenOpened: TPromise<boolean>;
+		if (editorControl) {
+			whenOpened = this.doSetInput(editorControl, input, options, monitor);
 		} else {
-			whenInputSet = TPromise.as(false);
+			whenOpened = TPromise.as(false);
 		}
 
-		return { editor, whenInputSet };
+		return { control: editorControl, whenOpened };
 	}
 
 	private doShowEditor(input: EditorInput, options: EditorOptions): BaseEditor {
