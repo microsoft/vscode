@@ -28,7 +28,8 @@
 		}
 
 		require(['vs/base/browser/ui/grid/gridview', 'vs/base/common/event'], ({ SplitGridView, Direction }, { Event }) => {
-			const views = new Map();
+			let dragging;
+			let draggingOver;
 
 			function createView() {
 				let id = `${++count}`;
@@ -37,12 +38,36 @@
 				element.className = 'box';
 				element.style.backgroundColor = `hsl(${Math.round(Math.random() * 360)}, 72%, 72%)`;
 
-				element.addEventListener('dragover', ev => ev.preventDefault());
+				element.addEventListener('dragover', ev => {
+					ev.preventDefault();
+
+					if (draggingOver === view) {
+						return;
+					}
+
+					if (draggingOver) {
+						draggingOver.element.style.opacity = 1;
+					}
+
+					if (dragging !== view) {
+						element.style.opacity = 0.5;
+					}
+
+					draggingOver = view;
+				});
+
 				element.addEventListener('drop', ev => {
 					ev.preventDefault();
 
-					const from = views.get(ev.dataTransfer.getData('text'));
-					grid.swapViews(from, view);
+					if (draggingOver) {
+						draggingOver.element.style.opacity = 1;
+					}
+
+					if (!dragging) {
+						return;
+					}
+
+					grid.swapViews(dragging, view);
 				});
 
 				let label = document.createElement('div');
@@ -50,7 +75,8 @@
 				label.draggable = true;
 				element.appendChild(label);
 				label.textContent = `hello${id}`;
-				label.addEventListener('dragstart', ev => ev.dataTransfer.setData('text', id));
+				label.addEventListener('dragstart', ev => { dragging = view; ev.dataTransfer.setData('text', id); });
+				label.addEventListener('dragend', () => { dragging = undefined; draggingOver = undefined; });
 
 				let remove = document.createElement('div');
 				remove.className = 'box-remove';
@@ -69,9 +95,8 @@
 					layout(width, height) {
 						label.textContent = `hello${id} (${width}, ${height})`
 					}
-				}
+				};
 
-				views.set(id, view);
 				return view;
 			}
 
