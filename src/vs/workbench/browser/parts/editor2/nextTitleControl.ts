@@ -365,10 +365,7 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 	//#region IThemeable implementation
 
 	protected updateStyles(): void {
-		super.updateStyles();
-
-		// run a sync update when the theme changes to new styles
-		this.doScheduleUpdate(true);
+		this.doScheduleUpdate(true); // run a sync update when the theme changes to new styles
 	}
 
 	//#endregion

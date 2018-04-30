@@ -54,7 +54,7 @@
 	display: none;
 }
 
-/* Drag Cursor */
+/* Drag Cursor (TODO@grid this depends on the feature to drag an entire group to another location) */
 .monaco-workbench > .part.editor > .content.multiple-groups .editor-group-container > .title,
 .monaco-workbench > .part.editor > .content.multiple-groups .editor-group-container > .title.tabs .scrollbar .slider,
 .monaco-workbench > .part.editor > .content.multiple-groups .editor-group-container > .title .monaco-icon-label::before,

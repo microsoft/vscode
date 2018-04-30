@@ -7,6 +7,12 @@
 	height: 100%;
 }
 
+.monaco-workbench > .part.editor > .content .editor-group-container.empty.active {
+	outline-width: 1px;
+	outline-style: solid;
+	outline-offset: -2px;
+}
+
 .monaco-workbench > .part.editor > .content .editor-group-container > .title {
 	height: 35px;
 	display: flex;
@@ -16,4 +22,9 @@
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .editor-container {
 	height: calc(100% - 35px); /* below title control */
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container.empty > .title,
+.monaco-workbench > .part.editor > .content .editor-group-container.empty > .editor-container  {
+	display: none;
 }

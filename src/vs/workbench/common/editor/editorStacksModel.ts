@@ -12,7 +12,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Position, Direction } from 'vs/platform/editor/common/editor';
 import { ResourceMap } from 'vs/base/common/map';
@@ -44,22 +44,9 @@ export interface ISerializedEditorGroup {
 	preview: number;
 }
 
-export class EditorGroup implements IEditorGroup {
+export class EditorGroup extends Disposable implements IEditorGroup {
 
 	private static IDS = 0;
-
-	private _id: GroupIdentifier;
-	private _label: string;
-
-	private editors: EditorInput[];
-	private mru: EditorInput[];
-	private mapResourceToEditorCount: ResourceMap<number>;
-
-	private preview: EditorInput; // editor in preview state
-	private active: EditorInput;  // editor in active state
-
-	private toDispose: IDisposable[];
-	private editorOpenPositioning: 'left' | 'right' | 'first' | 'last';
 
 	private readonly _onEditorActivated: Emitter<EditorInput>;
 	private readonly _onEditorOpened: Emitter<EditorInput>;
@@ -73,32 +60,43 @@ export class EditorGroup implements IEditorGroup {
 	private readonly _onEditorStateChanged: Emitter<EditorInput>;
 	private readonly _onEditorsStructureChanged: Emitter<EditorInput>;
 
+	private _id: GroupIdentifier;
+	private _label: string;
+
+	private editors: EditorInput[];
+	private mru: EditorInput[];
+	private mapResourceToEditorCount: ResourceMap<number>;
+
+	private preview: EditorInput; // editor in preview state
+	private active: EditorInput;  // editor in active state
+
+	private editorOpenPositioning: 'left' | 'right' | 'first' | 'last';
+
 	constructor(
 		arg1: string | ISerializedEditorGroup,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
+		super();
+
 		this._id = EditorGroup.IDS++;
 
 		this.editors = [];
 		this.mru = [];
-		this.toDispose = [];
 		this.mapResourceToEditorCount = new ResourceMap<number>();
 		this.onConfigurationUpdated();
 
-		this._onEditorActivated = new Emitter<EditorInput>();
-		this._onEditorOpened = new Emitter<EditorInput>();
-		this._onEditorClosed = new Emitter<EditorCloseEvent>();
-		this._onEditorDisposed = new Emitter<EditorInput>();
-		this._onEditorDirty = new Emitter<EditorInput>();
-		this._onEditorLabelChange = new Emitter<EditorInput>();
-		this._onEditorMoved = new Emitter<EditorInput>();
-		this._onEditorPinned = new Emitter<EditorInput>();
-		this._onEditorUnpinned = new Emitter<EditorInput>();
-		this._onEditorStateChanged = new Emitter<EditorInput>();
-		this._onEditorsStructureChanged = new Emitter<EditorInput>();
-
-		this.toDispose.push(this._onEditorActivated, this._onEditorOpened, this._onEditorClosed, this._onEditorDisposed, this._onEditorDirty, this._onEditorLabelChange, this._onEditorMoved, this._onEditorPinned, this._onEditorUnpinned, this._onEditorStateChanged, this._onEditorsStructureChanged);
+		this._onEditorActivated = this._register(new Emitter<EditorInput>());
+		this._onEditorOpened = this._register(new Emitter<EditorInput>());
+		this._onEditorClosed = this._register(new Emitter<EditorCloseEvent>());
+		this._onEditorDisposed = this._register(new Emitter<EditorInput>());
+		this._onEditorDirty = this._register(new Emitter<EditorInput>());
+		this._onEditorLabelChange = this._register(new Emitter<EditorInput>());
+		this._onEditorMoved = this._register(new Emitter<EditorInput>());
+		this._onEditorPinned = this._register(new Emitter<EditorInput>());
+		this._onEditorUnpinned = this._register(new Emitter<EditorInput>());
+		this._onEditorStateChanged = this._register(new Emitter<EditorInput>());
+		this._onEditorsStructureChanged = this._register(new Emitter<EditorInput>());
 
 		if (typeof arg1 === 'object') {
 			this.deserialize(arg1);
@@ -110,7 +108,7 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 	}
 
 	private onConfigurationUpdated(event?: IConfigurationChangeEvent): void {
@@ -686,10 +684,6 @@ export class EditorGroup implements IEditorGroup {
 		this.mru = data.mru.map(i => this.editors[i]);
 		this.active = this.mru[0];
 		this.preview = this.editors[data.preview];
-	}
-
-	public dispose(): void {
-		dispose(this.toDispose);
 	}
 }
 

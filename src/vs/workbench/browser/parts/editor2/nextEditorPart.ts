@@ -25,7 +25,10 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 	_serviceBrand: any;
 
 	private _onDidLayout: Emitter<Dimension> = this._register(new Emitter<Dimension>());
+	get onDidLayout(): Event<Dimension> { return this._onDidLayout.event; }
+
 	private _onDidActiveGroupChange: Emitter<NextEditorGroupView> = this._register(new Emitter<NextEditorGroupView>());
+	get onDidActiveGroupChange(): Event<NextEditorGroupView> { return this._onDidActiveGroupChange.event; }
 
 	private dimension: Dimension;
 
@@ -46,10 +49,6 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 	}
 
 	//#region INextEditorGroupsService Implementation
-
-	get onDidActiveGroupChange(): Event<NextEditorGroupView> {
-		return this._onDidActiveGroupChange.event;
-	}
 
 	get activeGroup(): NextEditorGroupView {
 		return this._activeGroup;
@@ -163,12 +162,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 
 	//#region Part Implementation
 
-	get onDidLayout(): Event<Dimension> {
-		return this._onDidLayout.event;
-	}
-
 	protected updateStyles(): void {
-		super.updateStyles();
 
 		// Part container
 		const container = this.getContainer();
