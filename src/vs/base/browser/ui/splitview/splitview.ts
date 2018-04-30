@@ -174,7 +174,7 @@ export class SplitView implements IDisposable {
 		this.state = State.Idle;
 	}
 
-	removeView(index: number): void {
+	removeView(index: number): IView {
 		if (this.state !== State.Idle) {
 			throw new Error('Cant modify splitview');
 		}
@@ -182,7 +182,7 @@ export class SplitView implements IDisposable {
 		this.state = State.Busy;
 
 		if (index < 0 || index >= this.viewItems.length) {
-			return;
+			throw new Error('Index out of bounds');
 		}
 
 		// Remove view
@@ -198,6 +198,8 @@ export class SplitView implements IDisposable {
 
 		this.relayout();
 		this.state = State.Idle;
+
+		return viewItem.view;
 	}
 
 	moveView(from: number, to: number): void {
@@ -205,31 +207,9 @@ export class SplitView implements IDisposable {
 			throw new Error('Cant modify splitview');
 		}
 
-		this.state = State.Busy;
-
-		if (from < 0 || from >= this.viewItems.length) {
-			return;
-		}
-
-		if (to < 0 || to >= this.viewItems.length) {
-			return;
-		}
-
-		if (from === to) {
-			return;
-		}
-
-		const viewItem = this.viewItems.splice(from, 1)[0];
-		this.viewItems.splice(to, 0, viewItem);
-
-		if (to + 1 < this.viewItems.length) {
-			this.viewContainer.insertBefore(viewItem.container, this.viewItems[to + 1].container);
-		} else {
-			this.viewContainer.appendChild(viewItem.container);
-		}
-
-		this.layoutViews();
-		this.state = State.Idle;
+		const size = this.getViewSize(from);
+		const view = this.removeView(from);
+		this.addView(view, size, to);
 	}
 
 	private relayout(lowPriorityIndex?: number): void {
