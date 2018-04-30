@@ -10,7 +10,7 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import { join } from 'vs/base/common/paths';
-import { validateFileName } from 'vs/workbench/parts/files/electron-browser/fileActions';
+import { validateFileName, extractPathSegments } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerModel';
 
 function createStat(path: string, name: string, isFolder: boolean, hasChildren: boolean, size: number, mtime: number): ExplorerItem {
@@ -262,6 +262,21 @@ suite('Files - View Model', () => {
 		// detect if path already exists
 		assert(validateFileName(wsFolder, '/path/to/stat/fileNested') !== null);
 		assert(validateFileName(wsFolder, '/path/to/stat/') !== null);
+	});
+
+	test('Split Multi-Path OS-Specific', function () {
+		const isLinux = true;
+		const notLinux = false;
+		// basic tests
+		assert.deepStrictEqual(extractPathSegments('folder1', isLinux), ['folder1']);
+		assert.deepStrictEqual(extractPathSegments('folder1/', isLinux), ['folder1']);
+		assert.deepStrictEqual(extractPathSegments('folder1/folder2//', notLinux), ['folder1', 'folder2']);
+		assert.deepStrictEqual(extractPathSegments('folder1\\folder2', isLinux), ['folder1', 'folder2']);
+
+		// quoted path segments
+		assert.deepStrictEqual(extractPathSegments('"folder1\\folder2"', isLinux), ['"folder1\\folder2"']);
+		assert.deepStrictEqual(extractPathSegments('"folder1//folder2"', isLinux), ['"folder1', 'folder2"']);
+		assert.deepStrictEqual(extractPathSegments('"folder1\\folder2"', notLinux), ['"folder1', 'folder2"']);
 	});
 
 	test('Merge Local with Disk', function () {

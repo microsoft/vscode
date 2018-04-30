@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { isWindows } from 'vs/base/common/platform';
+import { isWindows, isLinux } from 'vs/base/common/platform';
 import { startsWithIgnoreCase, equalsIgnoreCase } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
 
@@ -293,7 +293,15 @@ export function isValidBasename(name: string): boolean {
 
 	INVALID_FILE_CHARS.lastIndex = 0; // the holy grail of software development
 	if (INVALID_FILE_CHARS.test(name)) {
-		return false; // check for certain invalid file characters
+		let isValid = false;
+		if (isLinux && name.indexOf('/') === -1) {	// forward slashes are not allowed
+			if (name.search(/^['"].+?\\.+?['"]$/) === 0) {	// name starts & ends with a quote and contains a backslash
+				isValid = true;	// linux allows names with backslashes as long as they are in quotes. e.g 'file1\name'
+			}
+		}
+		if (!isValid) {
+			return false; // check for certain invalid file characters
+		}
 	}
 
 	if (isWindows && WINDOWS_FORBIDDEN_NAMES.test(name)) {

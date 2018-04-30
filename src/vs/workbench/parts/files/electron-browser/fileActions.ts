@@ -13,7 +13,7 @@ import { sequence, ITask, always } from 'vs/base/common/async';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
 import URI from 'vs/base/common/uri';
-import { posix } from 'path';
+import { posix, join } from 'path';
 import * as errors from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as strings from 'vs/base/common/strings';
@@ -311,7 +311,7 @@ class RenameFileAction extends BaseRenameAction {
 
 			// Otherwise, a parent of the dirty resource got moved, so we have to reparent more complicated. Example:
 			else {
-				renamed = this.element.parent.resource.with({ path: paths.join(targetPath, d.path.substr(this.element.resource.path.length + 1)) });
+				renamed = this.element.parent.resource.with({ path: join(targetPath, d.path.substr(this.element.resource.path.length + 1)) });
 			}
 
 			dirtyRenamed.push(renamed);
@@ -525,7 +525,7 @@ class CreateFileAction extends BaseCreateAction {
 
 	public runAction(fileName: string): TPromise<any> {
 		const resource = this.element.parent.resource;
-		return this.fileService.createFile(resource.with({ path: paths.join(resource.path, fileName) })).then(stat => {
+		return this.fileService.createFile(resource.with({ path: join(resource.path, fileName) })).then(stat => {
 			return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 		}, (error) => {
 			this.onErrorWithRetry(error, () => this.runAction(fileName));
@@ -552,7 +552,7 @@ class CreateFolderAction extends BaseCreateAction {
 
 	public runAction(fileName: string): TPromise<any> {
 		const resource = this.element.parent.resource;
-		return this.fileService.createFolder(resource.with({ path: paths.join(resource.path, fileName) })).then(null, (error) => {
+		return this.fileService.createFolder(resource.with({ path: join(resource.path, fileName) })).then(null, (error) => {
 			this.onErrorWithRetry(error, () => this.runAction(fileName));
 		});
 	}
@@ -859,7 +859,7 @@ export class AddFilesAction extends BaseFileAction {
 						resources.forEach(resource => {
 							addPromisesFactory.push(() => {
 								const sourceFile = resource;
-								const targetFile = targetElement.resource.with({ path: paths.join(targetElement.resource.path, paths.basename(sourceFile.path)) });
+								const targetFile = targetElement.resource.with({ path: join(targetElement.resource.path, paths.basename(sourceFile.path)) });
 
 								// if the target exists and is dirty, make sure to revert it. otherwise the dirty contents
 								// of the target file would replace the contents of the added file. since we already
@@ -1416,7 +1416,7 @@ export function validateFileName(parent: ExplorerItem, name: string, allowOverwr
 		return nls.localize('fileNameStartsWithSlashError', "A file or folder name cannot start with a slash.");
 	}
 
-	const names: string[] = name.split(/[\\/]/).filter(part => !!part);
+	const names: string[] = extractPathSegments(name, isLinux);
 	const analyzedPath = analyzePath(parent, names);
 
 	// Do not allow to overwrite existing file
@@ -1443,6 +1443,25 @@ export function validateFileName(parent: ExplorerItem, name: string, allowOverwr
 	}
 
 	return null;
+}
+
+export function extractPathSegments(name: string, isLinux: boolean) {
+	const slashes: RegExp = /[\\/]/;
+	if (!isLinux) {
+		return name.split(slashes).filter(part => !!part);
+	} else {
+		const quotedBackslashes: RegExp = /(["'].*?\\.*?["'])/;	// 'folder1\\folder2' shouldn't be split https://github.com/Microsoft/vscode/issues/44693
+		const partiallySplittedNames: string[] = name.split(quotedBackslashes).filter(part => !!part); // "'folder1\\folder2'/folder3" becomes ["'folder1\folder2'", "/folder3"]
+		const splittedNames: string[] = [];
+		for (const part of partiallySplittedNames) {
+			if (part.search(quotedBackslashes) !== -1) {
+				splittedNames.push(part);
+			} else {
+				part.split(slashes).filter(part => !!part).forEach(p => splittedNames.push(p));
+			}
+		}
+		return splittedNames;
+	}
 }
 
 function analyzePath(parent: ExplorerItem, pathNames: string[]): { fullPathAlreadyExists: boolean; lastExistingPathSegment: { isFile: boolean; name: string; } } {
