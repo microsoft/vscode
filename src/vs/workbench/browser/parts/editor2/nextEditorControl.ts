@@ -19,8 +19,6 @@ import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/p
 export interface IOpenEditorResult {
 	readonly control: BaseEditor;
 	readonly editorChanged: boolean;
-
-	whenOpened: Thenable<void>;
 }
 
 export class NextEditorControl extends Disposable {
@@ -44,7 +42,7 @@ export class NextEditorControl extends Disposable {
 		return this._activeControl;
 	}
 
-	openEditor(editor: EditorInput, options?: EditorOptions): IOpenEditorResult {
+	openEditor(editor: EditorInput, options?: EditorOptions): Thenable<IOpenEditorResult> {
 
 		// Token and progress monitor
 		const editorOpenToken = ++this.editorOpenToken;
@@ -61,17 +59,10 @@ export class NextEditorControl extends Disposable {
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editor);
 		const control = this.doShowEditorControl(descriptor, options);
 
-		const editorChanged = (!control.input || !control.input.matches(editor) || (options && options.forceOpen));
+		const willEditorChange = (!control.input || !control.input.matches(editor) || (options && options.forceOpen));
 
 		// Set input
-		let whenOpened: Thenable<void>;
-		if (control) {
-			whenOpened = this.doSetInput(control, editor, options, monitor);
-		} else {
-			whenOpened = TPromise.as(void 0);
-		}
-
-		return { control, editorChanged, whenOpened } as IOpenEditorResult;
+		return this.doSetInput(control, editor, options, monitor).then((() => (({ control, editorChanged: willEditorChange } as IOpenEditorResult))));
 	}
 
 	private doShowEditorControl(descriptor: IEditorDescriptor, options: EditorOptions): BaseEditor {

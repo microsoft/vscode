@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/nextEditorGroupView';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
+import { EditorGroup, IEditorOpenOptions } from 'vs/workbench/common/editor/editorStacksModel';
 import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, IEditorOpeningEvent, EditorOpeningEvent } from 'vs/workbench/common/editor';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -200,29 +200,35 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	private doOpenEditor(editor: EditorInput, options?: EditorOptions): Thenable<void> {
 
 		// Update model
-		this.group.openEditor(editor, {
+		const openEditorOptions: IEditorOpenOptions = {
 			index: options ? options.index : void 0,
 			pinned: editor.isDirty() || (options && options.pinned) || (options && typeof options.index === 'number'),
-			active: !options || !options.inactive
-		});
+			active: this.group.count === 0 || !options || !options.inactive
+		};
+		this.group.openEditor(editor, openEditorOptions);
 
 		// Forward to title control
 		this.doCreateOrGetTitleControl().openEditor(editor, options);
 
-		// Forward to editor control
-		const openEditorResult = this.doCreateOrGetEditorControl().openEditor(editor, options);
+		// Forward to editor control if the editor should become active
+		let openEditorPromise: Thenable<void>;
+		if (openEditorOptions.active) {
+			openEditorPromise = this.doCreateOrGetEditorControl().openEditor(editor, options).then(result => {
 
-		return openEditorResult.whenOpened.then(changed => {
+				// Editor change event
+				if (result.editorChanged) {
+					this._onDidActiveEditorChange.fire(editor);
+				}
+			}, error => {
 
-			// Editor change event
-			if (changed) {
-				this._onDidActiveEditorChange.fire(editor);
-			}
-		}, error => {
+				// Handle errors but do not bubble them up
+				this.doHandleOpenEditorError(error, editor, options);
+			});
+		} else {
+			openEditorPromise = TPromise.as(void 0);
+		}
 
-			// Handle errors but do not bubble them up
-			this.doHandleOpenEditorError(error, editor, options);
-		});
+		return openEditorPromise;
 	}
 
 	private doHandleOpenEditorError(error: Error, editor: EditorInput, options?: EditorOptions): void {
