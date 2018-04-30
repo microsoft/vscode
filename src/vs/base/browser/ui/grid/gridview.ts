@@ -24,19 +24,16 @@ export interface IView {
 
 /*
 TODO:
-- GridView.orientation setter/getter
-- implement move
-
-- create grid wrapper which automatically sizes the new views
-
+- fix splitview issue: it can't be used before layout was called
 - NEW: 	add a color to show a border where the sash is, similar to how other
 		widgets have a color (e.g. Button, with applyStyles). Challenge is that this
 		color has to be applied via JS and not CSS to not apply it to all views
-- fix splitview issue: it can't be used before layout was called
 - NEW:  provide a method to find a neighbour view from a given view. this would
 		help when removing a view to know which next view to set active. The definition
 		of the next view could be to a) check on the same dimension first (left/up) and
 		then go one dimension up.
+- create grid wrapper which automatically sizes the new views
+- implement serialization/deserialization util
 */
 
 function orthogonal(orientation: Orientation): Orientation {
@@ -117,8 +114,7 @@ class BranchNode implements ISplitView, IDisposable {
 
 		this.element = $('.monaco-grid-branch-node');
 		this.splitview = new SplitView(this.element, { orientation: this.orientation });
-		this.layout(this.size);
-		this.orthogonalLayout(this.orthogonalSize);
+		this.splitview.layout(size);
 	}
 
 	layout(size: number): void {
@@ -266,18 +262,63 @@ class LeafNode implements ISplitView, IDisposable {
 
 type Node = BranchNode | LeafNode;
 
+function flipNode(node: Node, size: number, orthogonalSize: number): Node {
+	if (node instanceof BranchNode) {
+		const result = new BranchNode(orthogonal(node.orientation), size, orthogonalSize);
+
+		let totalSize = 0;
+
+		for (let i = node.children.length - 1; i >= 0; i--) {
+			const child = node.children[i];
+			const childSize = child instanceof BranchNode ? child.orthogonalSize : child.size;
+
+			let newSize = Math.round((size * childSize) / node.size);
+			totalSize += newSize;
+
+			// The last view to add should adjust to rounding errors
+			if (i === 0) {
+				newSize += size - totalSize;
+			}
+
+			result.addChild(flipNode(child, orthogonalSize, newSize), newSize, 0);
+		}
+
+		return result;
+	} else {
+		return new LeafNode(node.view, orthogonal(node.orientation), orthogonalSize);
+	}
+}
+
 export class GridView implements IGrid, IDisposable {
 
+	private element: HTMLElement;
 	private root: BranchNode;
 
 	get orientation(): Orientation {
 		return this.root.orientation;
 	}
 
+	set orientation(orientation: Orientation) {
+		if (this.root.orientation === orientation) {
+			return;
+		}
+
+		const oldRoot = this.root;
+		this.element.removeChild(oldRoot.element);
+
+		this.root = flipNode(oldRoot, oldRoot.orthogonalSize, oldRoot.size) as BranchNode;
+		this.element.appendChild(this.root.element);
+
+		this.root.layout(oldRoot.size);
+		this.root.orthogonalLayout(oldRoot.orthogonalSize);
+
+		oldRoot.dispose();
+	}
+
 	constructor(container: HTMLElement) {
-		const el = append(container, $('.monaco-grid-view'));
+		this.element = append(container, $('.monaco-grid-view'));
 		this.root = new BranchNode(Orientation.VERTICAL);
-		el.appendChild(this.root.element);
+		this.element.appendChild(this.root.element);
 	}
 
 	addView(view: IView, size: number, location: number[]): void {
@@ -350,8 +391,12 @@ export class GridView implements IGrid, IDisposable {
 	}
 
 	layout(width: number, height: number): void {
-		this.root.layout(width);
-		this.root.orthogonalLayout(height);
+		const [size, orthogonalSize] = this.root.orientation === Orientation.VERTICAL
+			? [width, height]
+			: [height, width];
+
+		this.root.layout(size);
+		this.root.orthogonalLayout(orthogonalSize);
 	}
 
 	swapViews(from: number[], to: number[]): void {
@@ -516,6 +561,9 @@ export class SplitGridView<T extends IView> implements IDisposable {
 
 	private gridview: GridView;
 	private views = new Map<T, HTMLElement>();
+
+	get orientation(): Orientation { return this.gridview.orientation; }
+	set orientation(orientation: Orientation) { this.gridview.orientation = orientation; }
 
 	constructor(container: HTMLElement, view: T) {
 		this.gridview = new GridView(container);

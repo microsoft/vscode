@@ -75,6 +75,11 @@
 				return view;
 			}
 
+			// const box = document.createElement('div');
+			// box.style.height = '500px';
+			// box.style.width = '800px';
+			// document.body.appendChild(box);
+
 			const view1 = createView();
 			const grid = new SplitGridView(document.body, view1);
 			const layout = () => grid.layout(document.body.clientWidth, document.body.clientHeight);
@@ -90,18 +95,18 @@
 			grid.splitView(view1, Direction.Down, view2, 400);
 			debug(grid);
 			console.log('-------');
-			const view3 = createView();
-			grid.splitView(view2, Direction.Right, view3, 400);
-			debug(grid);
-			console.log('-------');
-			const view4 = createView();
-			grid.splitView(view1, Direction.Right, view4, 200);
-			debug(grid);
-			console.log('-------');
-			const view5 = createView();
-			grid.splitView(view1, Direction.Down, view5, 200);
-			debug(grid);
-			console.log('-------');
+			// const view3 = createView();
+			// grid.splitView(view1, Direction.Right, view3, 400);
+			// debug(grid);
+			// console.log('-------');
+			// const view4 = createView();
+			// grid.splitView(view2, Direction.Left, view4, 200);
+			// debug(grid);
+			// console.log('-------');
+			// const view5 = createView();
+			// grid.splitView(view1, Direction.Down, view5, 200);
+			// debug(grid);
+			// console.log('-------');
 			// const view5 = createView();
 			// grid.splitView(view2, Direction.Down, view5, 200);
 			// debug(grid);
@@ -121,6 +126,13 @@
 			// grid.splitView(createView(), 50, [1, 1, 1, 2]);
 			// debug(grid);
 			// console.log('-------');
+
+
+			window.addEventListener('keypress', ev => {
+				if (ev.key === 'x') {
+					grid.orientation = (grid.orientation + 1) % 2;
+				}
+			})
 		});
 	</script>
 	<style>
