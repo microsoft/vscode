@@ -4819,7 +4819,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Enumeration of file types.
+	 * Enumeration of file types. The types `File` and `Directory` can also be
+	 * a symbolic links, in that use `FileType.File | FileType.SymbolicLink` and
+	 * `FileType.Directory | FileType.SymbolicLink`.
 	 */
 	export enum FileType {
 		/**
