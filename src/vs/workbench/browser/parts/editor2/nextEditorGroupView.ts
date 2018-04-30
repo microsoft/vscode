@@ -184,7 +184,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	//#region openEditor()
 
-	openEditor(editor: EditorInput, options?: EditorOptions): TPromise<void> {
+	openEditor(editor: EditorInput, options?: EditorOptions): Thenable<void> {
 
 		// Editor opening event allows for prevention
 		const event = new EditorOpeningEvent(editor, options, this.group.id);
@@ -198,7 +198,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		return this.doOpenEditor(editor, options);
 	}
 
-	private doOpenEditor(editor: EditorInput, options?: EditorOptions): TPromise<void> {
+	private doOpenEditor(editor: EditorInput, options?: EditorOptions): Thenable<void> {
 
 		// Update model
 		this.group.openEditor(editor, options);
@@ -283,7 +283,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	//#region closeEditor()
 
-	closeEditor(editor: EditorInput = this.activeEditor): TPromise<void> {
+	closeEditor(editor: EditorInput = this.activeEditor): Thenable<void> {
 
 		// Check for dirty and veto
 		return this.handleDirty([editor], true /* ignore if opened in other group */).then(veto => {
@@ -325,7 +325,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 				this.ignoreOpenEditorErrors = true;
 			}
 
-			this.openEditor(this.group.activeEditor, !focusNext ? EditorOptions.create({ preserveFocus: true }) : null).done(() => {
+			this.openEditor(this.group.activeEditor, !focusNext ? EditorOptions.create({ preserveFocus: true }) : null).then(() => {
 				this.ignoreOpenEditorErrors = false;
 			}, error => {
 				onUnexpectedError(error);
@@ -341,7 +341,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		this.group.closeEditor(editor);
 	}
 
-	private handleDirty(editors: EditorInput[], ignoreIfOpenedInOtherGroup?: boolean): TPromise<boolean /* veto */> {
+	private handleDirty(editors: EditorInput[], ignoreIfOpenedInOtherGroup?: boolean): Thenable<boolean /* veto */> {
 		if (!editors.length) {
 			return TPromise.as(false); // no veto
 		}
@@ -355,7 +355,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		});
 	}
 
-	private doHandleDirty(editor: EditorInput, ignoreIfOpenedInOtherGroup?: boolean): TPromise<boolean /* veto */> {
+	private doHandleDirty(editor: EditorInput, ignoreIfOpenedInOtherGroup?: boolean): Thenable<boolean /* veto */> {
 		if (!editor || !editor.isDirty() || (ignoreIfOpenedInOtherGroup && this.isOpenedInOtherGroup(editor))) {
 			return TPromise.as(false); // no veto
 		}

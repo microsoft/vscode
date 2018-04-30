@@ -9,7 +9,6 @@ import { Event } from 'vs/base/common/event';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { GroupIdentifier, IEditorOpeningEvent } from 'vs/workbench/common/editor';
 import { IEditorInput, IEditor, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 export const INextEditorGroupsService = createDecorator<INextEditorGroupsService>('nextEditorGroupsService');
 
@@ -31,7 +30,7 @@ export interface INextEditorGroup {
 	readonly activeControl: IEditor;
 	readonly activeEditor: IEditorInput;
 
-	openEditor(editor: IEditorInput, options?: IEditorOptions): TPromise<void>;
+	openEditor(editor: IEditorInput, options?: IEditorOptions): Thenable<void>;
 
 	/**
 	 * Close an editor from the group. This may trigger a confirmation dialog if
@@ -42,7 +41,7 @@ export interface INextEditorGroup {
 	 *
 	 * @returns a promise when the editor is closed.
 	 */
-	closeEditor(editor?: IEditorInput): TPromise<void>;
+	closeEditor(editor?: IEditorInput): Thenable<void>;
 
 	focusActiveEditor(): void;
 

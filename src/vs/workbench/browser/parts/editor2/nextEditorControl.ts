@@ -20,7 +20,7 @@ export interface IOpenEditorResult {
 	readonly control: BaseEditor;
 	readonly editorChanged: boolean;
 
-	whenOpened: TPromise<void>;
+	whenOpened: Thenable<void>;
 }
 
 export class NextEditorControl extends Disposable {
@@ -64,7 +64,7 @@ export class NextEditorControl extends Disposable {
 		const editorChanged = (!control.input || !control.input.matches(editor) || (options && options.forceOpen));
 
 		// Set input
-		let whenOpened: TPromise<void>;
+		let whenOpened: Thenable<void>;
 		if (control) {
 			whenOpened = this.doSetInput(control, editor, options, monitor);
 		} else {
@@ -134,7 +134,7 @@ export class NextEditorControl extends Disposable {
 		return control;
 	}
 
-	private doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions, monitor: ProgressMonitor): TPromise<void> {
+	private doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions, monitor: ProgressMonitor): Thenable<void> {
 
 		// Call into editor control
 		return control.setInput(editor, options).then(() => {
