@@ -50,8 +50,13 @@
 				label.draggable = true;
 				element.appendChild(label);
 				label.textContent = `hello${id}`;
-
 				label.addEventListener('dragstart', ev => ev.dataTransfer.setData('text', id));
+
+				let remove = document.createElement('div');
+				remove.className = 'box-remove';
+				remove.textContent = 'Remove';
+				element.appendChild(remove);
+				remove.addEventListener('click', () => grid.removeView(view));
 
 				const view = {
 					ID: `hello${id}`,
