@@ -28,16 +28,32 @@
 		}
 
 		require(['vs/base/browser/ui/grid/gridview', 'vs/base/common/event'], ({ SplitGridView, Direction }, { Event }) => {
+			const views = new Map();
+
 			function createView() {
-				let id = ++count;
+				let id = `${++count}`;
 
 				let element = document.createElement('div');
-				element.style.width = '100%';
-				element.style.height = '100%';
+				element.className = 'box';
 				element.style.backgroundColor = `hsl(${Math.round(Math.random() * 360)}, 72%, 72%)`;
-				element.textContent = `hello${id}`;
 
-				return {
+				element.addEventListener('dragover', ev => ev.preventDefault());
+				element.addEventListener('drop', ev => {
+					ev.preventDefault();
+
+					const from = views.get(ev.dataTransfer.getData('text'));
+					grid.moveView(from, view);
+				});
+
+				let label = document.createElement('div');
+				label.className = 'box-label';
+				label.draggable = true;
+				element.appendChild(label);
+				label.textContent = `hello${id}`;
+
+				label.addEventListener('dragstart', ev => ev.dataTransfer.setData('text', id));
+
+				const view = {
 					ID: `hello${id}`,
 					element,
 					minimumWidth: 100,
@@ -46,9 +62,12 @@
 					maximumHeight: Number.POSITIVE_INFINITY,
 					onDidChange: Event.None,
 					layout(width, height) {
-						element.textContent = `hello${id} (${width}, ${height})`
+						label.textContent = `hello${id} (${width}, ${height})`
 					}
-				};
+				}
+
+				views.set(id, view);
+				return view;
 			}
 
 			const view1 = createView();
@@ -104,29 +123,20 @@
 			margin: 0;
 		}
 
-		.node {
+		.box {
+			display: flex;
 			width: 100%;
 			height: 100%;
-			box-sizing: border-box;
-			display: flex;
-			align-items: center;
 			justify-content: center;
+			align-items: center;
 		}
 
-		.action {
-			display: inline-block;
-			width: 16px;
-			height: 16px;
-			border: 1px solid #3c3c3c;
-			text-align: center;
-			line-height: 16px;
-			border-radius: 3px;
-		}
-
-		.action:hover {
+		.box-label {
+			background: rgba(255, 255, 255, 0.5);
 			cursor: pointer;
-			background-color: #ffffff54;
 		}
+
+		/* Borders */
 
 		.split-view-view {
 			position: relative;

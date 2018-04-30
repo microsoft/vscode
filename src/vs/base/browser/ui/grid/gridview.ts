@@ -27,8 +27,6 @@ TODO:
 - GridView.orientation setter/getter
 - implement move
 
-- create grid wrapper which lets you talk only abut views, not locations
-	- GridView.getLocation(HTMLElement)
 - create grid wrapper which automatically sizes the new views
 
 - NEW: 	add a color to show a border where the sash is, similar to how other
@@ -142,16 +140,14 @@ class BranchNode implements ISplitView, IDisposable {
 		this.onDidChildrenChange();
 	}
 
-	removeChild(index: number): Node {
+	removeChild(index: number): void {
 		if (index < 0 || index >= this.children.length) {
 			throw new Error('Invalid index');
 		}
 
-		const child = this.children[index];
 		this.splitview.removeView(index);
 		this.children.splice(index, 1);
 		this.onDidChildrenChange();
-		return child;
 	}
 
 	resizeChild(index: number, size: number): void {
@@ -288,11 +284,17 @@ export class GridView implements IGrid, IDisposable {
 		}
 	}
 
-	removeView(location: number[]): void {
+	removeView(location: number[]): IView {
 		const [rest, index] = tail(location);
 		const [pathToParent, parent] = this.getNode(rest);
 
 		if (!(parent instanceof BranchNode)) {
+			throw new Error('Invalid location');
+		}
+
+		const node = parent.children[index];
+
+		if (!(node instanceof LeafNode)) {
 			throw new Error('Invalid location');
 		}
 
@@ -303,15 +305,18 @@ export class GridView implements IGrid, IDisposable {
 		}
 
 		if (parent.children.length > 1) {
-			return;
+			return node.view;
 		}
 
 		const [, grandParent] = tail(pathToParent);
 		const [, parentIndex] = tail(rest);
 
-		const sibling = parent.removeChild(0);
+		const sibling = parent.children[0];
+		parent.removeChild(0);
 		grandParent.removeChild(parentIndex);
 		grandParent.addChild(sibling, 20, parentIndex);
+
+		return node.view;
 	}
 
 	layout(width: number, height: number): void {
@@ -320,7 +325,9 @@ export class GridView implements IGrid, IDisposable {
 	}
 
 	moveView(from: number[], to: number[]): void {
-		throw new Error('Method not implemented.');
+		const size = this.getViewSize(from);
+		const view = this.removeView(from);
+		this.addView(view, size, to);
 	}
 
 	resizeView(location: number[], size: number): void {
