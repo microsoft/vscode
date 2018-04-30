@@ -67,6 +67,7 @@ export class ParameterHintsModel extends Disposable {
 		this._register(this.editor.onDidChangeModel(e => this.onModelChanged()));
 		this._register(this.editor.onDidChangeModelLanguage(_ => this.onModelChanged()));
 		this._register(this.editor.onDidChangeCursorSelection(e => this.onCursorChange(e)));
+		this._register(this.editor.onDidChangeModelContent(e => this.onModelContentChange()));
 		this._register(SignatureHelpProviderRegistry.onDidChange(this.onModelChanged, this));
 
 		this.onEditorConfigurationChange();
@@ -158,6 +159,12 @@ export class ParameterHintsModel extends Disposable {
 		if (e.source === 'mouse') {
 			this.cancel();
 		} else if (this.isTriggered()) {
+			this.trigger();
+		}
+	}
+
+	private onModelContentChange(): void {
+		if (this.isTriggered()) {
 			this.trigger();
 		}
 	}
