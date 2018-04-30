@@ -69,45 +69,17 @@ function tail<T>(arr: T[]): [T[], T] {
 	return [arr.slice(0, arr.length - 1), arr[arr.length - 1]];
 }
 
-abstract class AbstractNode implements ISplitView {
+class BranchNode implements ISplitView, IDisposable {
 
-	readonly orientation: Orientation;
+	readonly element: HTMLElement;
+	readonly children: Node[];
+	private splitview: SplitView;
 
 	private _size: number;
 	get size(): number { return this._size; }
 
 	private _orthogonalSize: number;
 	get orthogonalSize(): number { return this._orthogonalSize; }
-
-	abstract readonly element: HTMLElement;
-	abstract readonly minimumSize: number;
-	abstract readonly maximumSize: number;
-	abstract readonly minimumOrthogonalSize: number;
-	abstract readonly maximumOrthogonalSize: number;
-	abstract readonly onDidChange: Event<number>;
-
-	constructor(orientation: Orientation, size: number = 0, orthogonalSize: number = 0) {
-		this.orientation = orientation;
-		this._size = size;
-		this._orthogonalSize = orthogonalSize;
-	}
-
-	layout(size: number): void {
-		this._size = size;
-	}
-
-	orthogonalLayout(size: number): void {
-		this._orthogonalSize = size;
-	}
-
-	dispose(): void { }
-}
-
-class BranchNode extends AbstractNode {
-
-	readonly element: HTMLElement;
-	readonly children: Node[];
-	private splitview: SplitView;
 
 	get minimumSize(): number {
 		return Math.max(...this.children.map(c => c.minimumOrthogonalSize));
@@ -129,8 +101,13 @@ class BranchNode extends AbstractNode {
 	get onDidChange(): Event<number | undefined> { return this._onDidChange.event; }
 	private onDidChangeDisposable: IDisposable;
 
-	constructor(orientation: Orientation, size: number = 0, orthogonalSize: number = 0) {
-		super(orientation, size, orthogonalSize);
+	constructor(
+		readonly orientation: Orientation,
+		size: number = 0,
+		orthogonalSize: number = 0
+	) {
+		this._size = size;
+		this._orthogonalSize = orthogonalSize;
 
 		this._onDidChange = new Emitter<number | undefined>();
 		this.children = [];
@@ -143,7 +120,7 @@ class BranchNode extends AbstractNode {
 	}
 
 	layout(size: number): void {
-		super.orthogonalLayout(size);
+		this._orthogonalSize = size;
 
 		for (const child of this.children) {
 			child.orthogonalLayout(size);
@@ -151,7 +128,7 @@ class BranchNode extends AbstractNode {
 	}
 
 	orthogonalLayout(size: number): void {
-		super.layout(size);
+		this._size = size;
 		this.splitview.layout(size);
 	}
 
@@ -206,14 +183,23 @@ class BranchNode extends AbstractNode {
 
 		this.onDidChangeDisposable.dispose();
 		this.splitview.dispose();
-		super.dispose();
 	}
 }
 
-class LeafNode extends AbstractNode {
+class LeafNode implements ISplitView, IDisposable {
 
-	constructor(readonly view: IView, orientation: Orientation, orthogonalSize: number) {
-		super(orientation, undefined, orthogonalSize);
+	private _size: number = 0;
+	get size(): number { return this._size; }
+
+	private _orthogonalSize: number;
+	get orthogonalSize(): number { return this._orthogonalSize; }
+
+	constructor(
+		readonly view: IView,
+		readonly orientation: Orientation,
+		orthogonalSize: number = 0
+	) {
+		this._orthogonalSize = orthogonalSize;
 	}
 
 	private get width(): number {
@@ -249,14 +235,16 @@ class LeafNode extends AbstractNode {
 	}
 
 	layout(size: number): void {
-		super.layout(size);
+		this._size = size;
 		return this.view.layout(this.width, this.height);
 	}
 
 	orthogonalLayout(size: number): void {
-		super.orthogonalLayout(size);
+		this._orthogonalSize = size;
 		return this.view.layout(this.width, this.height);
 	}
+
+	dispose(): void { }
 }
 
 type Node = BranchNode | LeafNode;
