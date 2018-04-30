@@ -89,13 +89,8 @@
 	};
 
 	const onMessage = (message) => {
-		if (enableWrappedPostMessage) {
-			// Modern webview. Forward wrapped message
-			ipcRenderer.sendToHost('onmessage', message.data);
-		} else {
-			// Old school webview. Forward exact message
-			ipcRenderer.sendToHost(message.data.command, message.data.data);
-		}
+		// Old school webview. Forward exact message
+		ipcRenderer.sendToHost(message.data.command, message.data.data);
 	};
 
 	var isHandlingScroll = false;
@@ -191,7 +186,7 @@
 							acquired = true;
 							return Object.freeze({
 								postMessage: function(msg) {
-									return originalPostMessage(msg, '*');
+									return originalPostMessage({ command: 'onmessage', data: msg }, '*');
 								}
 							});
 						};
