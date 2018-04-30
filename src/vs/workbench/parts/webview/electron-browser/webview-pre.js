@@ -34,6 +34,7 @@
 	var loadTimeout;
 	var pendingMessages = [];
 	var enableWrappedPostMessage = false;
+	let isInDevelopmentMode = false;
 
 	const initData = {
 		initialScrollProgress: undefined
@@ -89,7 +90,6 @@
 	};
 
 	const onMessage = (message) => {
-		// Old school webview. Forward exact message
 		ipcRenderer.sendToHost(message.data.command, message.data.data);
 	};
 
@@ -322,6 +322,12 @@
 			// write new content onto iframe
 			newFrame.contentDocument.open('text/html', 'replace');
 			newFrame.contentWindow.onbeforeunload = () => {
+				if (isInDevelopmentMode) { // Allow reloads while developing a webview
+					ipcRenderer.sendToHost('do-reload');
+					return false;
+				}
+
+				// Block navigation when not in development mode
 				console.log('prevented webview navigation');
 				return false;
 			};
@@ -393,6 +399,10 @@
 
 		ipcRenderer.on('initial-scroll-position', (event, progress) => {
 			initData.initialScrollProgress = progress;
+		});
+
+		ipcRenderer.on('devtools-opened', () => {
+			isInDevelopmentMode = true;
 		});
 
 		// Forward messages from the embedded iframe

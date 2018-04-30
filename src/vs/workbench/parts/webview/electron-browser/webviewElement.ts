@@ -158,6 +158,10 @@ export class WebviewElement {
 							this._onDidScroll.fire({ scrollYPercentage: event.args[0] });
 						}
 						return;
+
+					case 'do-reload':
+						this.reload();
+						return;
 				}
 			}),
 			addDisposableListener(this._webview, 'focus', () => {
@@ -169,7 +173,10 @@ export class WebviewElement {
 				if (this._contextKey) {
 					this._contextKey.reset();
 				}
-			})
+			}),
+			addDisposableListener(this._webview, 'devtools-opened', () => {
+				this._send('devtools-opened');
+			}),
 		);
 
 		this._webviewFindWidget = new WebviewFindWidget(this._contextViewService, this);
