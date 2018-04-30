@@ -8,7 +8,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { IURLService } from 'vs/platform/url/common/url';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickInputService } from 'vs/platform/quickInput/common/quickInput';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
@@ -22,13 +22,13 @@ export class OpenUrlAction extends Action {
 		id: string,
 		label: string,
 		@IURLService private urlService: IURLService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IQuickInputService private quickInputService: IQuickInputService,
 	) {
 		super(id, label);
 	}
 
 	async run(): TPromise<any> {
-		const input = await this.quickOpenService.input({ prompt: 'URL to open' });
+		const input = await this.quickInputService.input({ prompt: 'URL to open' });
 		const uri = URI.parse(input);
 
 		this.urlService.open(uri);

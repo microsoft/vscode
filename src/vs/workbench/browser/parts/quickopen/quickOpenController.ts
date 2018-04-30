@@ -35,7 +35,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry, CLOSE_ON_FOCUS_LOST_CONFIG } from 'vs/workbench/browser/quickopen';
 import * as errors from 'vs/base/common/errors';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IPickOpenEntry, IFilePickOpenEntry, IInputOptions, IQuickOpenService, IPickOptions, IShowOptions, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
+import { IPickOpenEntry, IFilePickOpenEntry, IQuickOpenService, IPickOptions, IShowOptions, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -161,86 +161,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		if (this.pickOpenWidget) {
 			this.pickOpenWidget.navigate(next, quickNavigate);
 		}
-	}
-
-	public input(options: IInputOptions = {}, token: CancellationToken = CancellationToken.None): TPromise<string> {
-		if (this.pickOpenWidget && this.pickOpenWidget.isVisible()) {
-			this.pickOpenWidget.hide(HideReason.CANCELED);
-		}
-
-		const defaultMessage = options.prompt
-			? nls.localize('inputModeEntryDescription', "{0} (Press 'Enter' to confirm or 'Escape' to cancel)", options.prompt)
-			: nls.localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
-
-		let currentPick = defaultMessage;
-		let currentValidation: TPromise<boolean>;
-		let currentDecoration: Severity;
-		let lastValue: string;
-
-		const init = (resolve: (value: IPickOpenEntry | TPromise<IPickOpenEntry>) => any, reject: (value: any) => any) => {
-
-			// open quick pick with just one choice. we will recurse whenever
-			// the validation/success message changes
-			this.doPick(TPromise.as([{ label: currentPick, tooltip: currentPick /* make sure message/validation can be read through the hover */ }]), {
-				ignoreFocusLost: options.ignoreFocusLost,
-				autoFocus: { autoFocusFirstEntry: true },
-				password: options.password,
-				placeHolder: options.placeHolder,
-				value: lastValue === void 0 ? options.value : lastValue,
-				valueSelection: options.valueSelection,
-				inputDecoration: currentDecoration,
-				onDidType: (value) => {
-					if (lastValue !== value) {
-
-						lastValue = value;
-
-						if (options.validateInput) {
-							if (currentValidation) {
-								currentValidation.cancel();
-							}
-
-							currentValidation = TPromise.timeout(100).then(() => {
-								return options.validateInput(value).then(message => {
-									currentDecoration = !!message ? Severity.Error : void 0;
-									const newPick = message || defaultMessage;
-									if (newPick !== currentPick) {
-										options.valueSelection = null;
-										currentPick = newPick;
-										resolve(new TPromise<any>(init));
-									}
-
-									return !message;
-								});
-							}, err => {
-								// ignore
-								return null;
-							});
-						}
-					}
-				}
-			}, token).then(resolve, reject);
-		};
-
-		return new TPromise(init).then(item => {
-
-			if (!currentValidation) {
-				if (options.validateInput) {
-					currentValidation = options
-						.validateInput(lastValue === void 0 ? options.value : lastValue)
-						.then(message => !message);
-				} else {
-					currentValidation = TPromise.as(true);
-				}
-			}
-
-			return currentValidation.then(valid => {
-				if (valid && item) {
-					return lastValue === void 0 ? (options.value || '') : lastValue;
-				}
-
-				return void 0;
-			});
-		});
 	}
 
 	public pick(picks: TPromise<string[]>, options?: IPickOptions, token?: CancellationToken): TPromise<string>;

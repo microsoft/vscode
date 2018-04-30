@@ -17,6 +17,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IQuickOpenService, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickInputService } from 'vs/platform/quickInput/common/quickInput';
 import { ActionBarContributor } from 'vs/workbench/browser/actions';
 import { TerminalEntry } from 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -898,6 +899,7 @@ export class RenameTerminalAction extends Action {
 	constructor(
 		id: string, label: string,
 		@IQuickOpenService protected quickOpenService: IQuickOpenService,
+		@IQuickInputService protected quickInputService: IQuickInputService,
 		@ITerminalService protected terminalService: ITerminalService
 	) {
 		super(id, label);
@@ -908,7 +910,7 @@ export class RenameTerminalAction extends Action {
 		if (!terminalInstance) {
 			return TPromise.as(void 0);
 		}
-		return this.quickOpenService.input({
+		return this.quickInputService.input({
 			value: terminalInstance.title,
 			prompt: nls.localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
 		}).then(name => {
@@ -1034,9 +1036,10 @@ export class RenameTerminalQuickOpenAction extends RenameTerminalAction {
 		id: string, label: string,
 		private terminal: TerminalEntry,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IQuickInputService quickInputService: IQuickInputService,
 		@ITerminalService terminalService: ITerminalService
 	) {
-		super(id, label, quickOpenService, terminalService);
+		super(id, label, quickOpenService, quickInputService, terminalService);
 		this.class = 'quick-open-terminal-configure';
 	}
 
