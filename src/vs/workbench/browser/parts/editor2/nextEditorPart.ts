@@ -24,11 +24,15 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 
 	_serviceBrand: any;
 
+	//#region Events
+
 	private _onDidLayout: Emitter<Dimension> = this._register(new Emitter<Dimension>());
 	get onDidLayout(): Event<Dimension> { return this._onDidLayout.event; }
 
 	private _onDidActiveGroupChange: Emitter<NextEditorGroupView> = this._register(new Emitter<NextEditorGroupView>());
 	get onDidActiveGroupChange(): Event<NextEditorGroupView> { return this._onDidActiveGroupChange.event; }
+
+	//#endregion
 
 	private dimension: Dimension;
 
@@ -106,9 +110,10 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 
 		// Activate next group if the removed one was active
 		if (isActive) {
-			const nextActiveGroup = this.groups[0]; // TODO@grid find the actual neighbour of the removed group
+			const nextActiveGroup = this.groups[0]; // TODO@grid keep a MRU list of active groups to make active
 			this.setGroupActive(nextActiveGroup);
 
+			// Restore focus if we had it previously
 			if (hasFocus) {
 				nextActiveGroup.focusActiveEditor();
 			}

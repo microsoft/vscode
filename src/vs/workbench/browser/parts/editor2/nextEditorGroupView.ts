@@ -126,7 +126,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		// Update styles
 		this.updateStyles();
 
-		// Update containers
+		// Update container
 		this.updateContainer();
 	}
 
@@ -189,8 +189,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		// Editor opening event allows for prevention
 		const event = new EditorOpeningEvent(editor, options, this.group.id);
 		this._onWillOpenEditor.fire(event);
-		const prevented = event.isPrevented();
-		if (prevented) {
+		if (event.isPrevented()) {
 			return TPromise.as(void 0);
 		}
 
@@ -201,7 +200,11 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	private doOpenEditor(editor: EditorInput, options?: EditorOptions): Thenable<void> {
 
 		// Update model
-		this.group.openEditor(editor, options);
+		this.group.openEditor(editor, {
+			index: options ? options.index : void 0,
+			pinned: editor.isDirty() || (options && options.pinned) || (options && typeof options.index === 'number'),
+			active: !options || !options.inactive
+		});
 
 		// Forward to title control
 		this.doCreateOrGetTitleControl().openEditor(editor, options);
@@ -315,7 +318,9 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		this.group.closeEditor(this.activeEditor);
 
 		// Open next active if possible
-		if (this.group.count > 0) {
+		const nextActiveEditor = this.group.activeEditor;
+		if (nextActiveEditor) {
+
 			// When closing an editor due to an error we can end up in a loop where we continue closing
 			// editors that fail to open (e.g. when the file no longer exists). We do not want to show
 			// repeated errors in this case to the user. As such, if we open the next editor and we are
@@ -325,7 +330,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 				this.ignoreOpenEditorErrors = true;
 			}
 
-			this.openEditor(this.group.activeEditor, !focusNext ? EditorOptions.create({ preserveFocus: true }) : null).then(() => {
+			this.openEditor(nextActiveEditor, !focusNext ? EditorOptions.create({ preserveFocus: true }) : null).then(() => {
 				this.ignoreOpenEditorErrors = false;
 			}, error => {
 				onUnexpectedError(error);
@@ -336,9 +341,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	}
 
 	private doCloseInactiveEditor(editor: EditorInput): void {
-
-		// Closing inactive editor is just a model update
-		this.group.closeEditor(editor);
+		this.group.closeEditor(editor); // Closing inactive editor is just a model update
 	}
 
 	private handleDirty(editors: EditorInput[], ignoreIfOpenedInOtherGroup?: boolean): Thenable<boolean /* veto */> {
@@ -378,8 +381,10 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 						return editor.save().then(ok => !ok);
 
 					case ConfirmResult.DONT_SAVE:
+
 						// first try a normal revert where the contents of the editor are restored
 						return editor.revert().then(ok => !ok, error => {
+
 							// if that fails, since we are about to close the editor, we accept that
 							// the editor cannot be reverted and instead do a soft revert that just
 							// enables us to close the editor. With this, a user can always close a

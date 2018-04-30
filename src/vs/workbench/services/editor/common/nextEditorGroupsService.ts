@@ -7,7 +7,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { GroupIdentifier, IEditorOpeningEvent } from 'vs/workbench/common/editor';
+import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { IEditorInput, IEditor, IEditorOptions } from 'vs/platform/editor/common/editor';
 
 export const INextEditorGroupsService = createDecorator<INextEditorGroupsService>('nextEditorGroupsService');
@@ -21,15 +21,14 @@ export enum Direction {
 
 export interface INextEditorGroup {
 
-	readonly onDidActiveEditorChange: Event<IEditorInput>;
-	readonly onWillOpenEditor: Event<IEditorOpeningEvent>;
-	readonly onDidOpenEditorFail: Event<IEditorInput>;
-
 	readonly id: GroupIdentifier;
-
 	readonly activeControl: IEditor;
 	readonly activeEditor: IEditorInput;
 
+	/**
+	 * Open an editor in this group. The returned promise is resolved when the
+	 * editor has finished loading.
+	 */
 	openEditor(editor: IEditorInput, options?: IEditorOptions): Thenable<void>;
 
 	/**
@@ -43,6 +42,9 @@ export interface INextEditorGroup {
 	 */
 	closeEditor(editor?: IEditorInput): Thenable<void>;
 
+	/**
+	 * Move keyboard focus into the current active editor.
+	 */
 	focusActiveEditor(): void;
 
 	/**
@@ -66,8 +68,8 @@ export interface INextEditorGroupsService {
 
 	getGroup(identifier: GroupIdentifier): INextEditorGroup;
 
-	isGroupActive(group: INextEditorGroup | GroupIdentifier): boolean;
 	setGroupActive(group: INextEditorGroup | GroupIdentifier): INextEditorGroup;
+	isGroupActive(group: INextEditorGroup | GroupIdentifier): boolean;
 
 	addGroup(fromGroup: INextEditorGroup | GroupIdentifier, direction: Direction): INextEditorGroup;
 	removeGroup(group: INextEditorGroup | GroupIdentifier): void;
