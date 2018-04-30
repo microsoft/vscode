@@ -57,7 +57,7 @@ export interface IGrid {
 	layout(width: number, height: number): void;
 	addView(view: IView, size: number, location: number[]): void;
 	removeView(location: number[]): void;
-	moveView(from: number[], to: number[]): void;
+	swapViews(from: number[], to: number[]): void;
 	resizeView(location: number[], size: number): void;
 	getViewSize(location: number[]): number;
 	getViews(): GridBranchNode;
@@ -152,6 +152,23 @@ class BranchNode implements ISplitView, IDisposable {
 		this.splitview.removeView(index);
 		this.children.splice(index, 1);
 		this.onDidChildrenChange();
+	}
+
+	swapChildren(from: number, to: number): void {
+		if (from === to) {
+			return;
+		}
+
+		if (from < 0 || from >= this.children.length) {
+			throw new Error('Invalid from index');
+		}
+
+		if (to < 0 || to >= this.children.length) {
+			throw new Error('Invalid to index');
+		}
+
+		this.splitview.moveView(from, to);
+		[this.children[from], this.children[to]] = [this.children[to], this.children[from]];
 	}
 
 	resizeChild(index: number, size: number): void {
@@ -328,10 +345,47 @@ export class GridView implements IGrid, IDisposable {
 		this.root.orthogonalLayout(height);
 	}
 
-	moveView(from: number[], to: number[]): void {
-		const size = this.getViewSize(from);
-		const view = this.removeView(from);
-		this.addView(view, size, to);
+	swapViews(from: number[], to: number[]): void {
+		const fromSize = this.getViewSize(from);
+		const [fromRest, fromIndex] = tail(from);
+		const [, fromParent] = this.getNode(fromRest);
+
+		if (!(fromParent instanceof BranchNode)) {
+			throw new Error('Invalid from location');
+		}
+
+		const fromNode = fromParent.children[fromIndex];
+
+		if (!(fromNode instanceof LeafNode)) {
+			throw new Error('Invalid from location');
+		}
+
+		const toSize = this.getViewSize(to);
+		const [toRest, toIndex] = tail(to);
+		const [, toParent] = this.getNode(toRest);
+
+		if (!(toParent instanceof BranchNode)) {
+			throw new Error('Invalid to location');
+		}
+
+		const toNode = toParent.children[toIndex];
+
+		if (!(toNode instanceof LeafNode)) {
+			throw new Error('Invalid to location');
+		}
+
+		if (fromParent === toParent) {
+			fromParent.swapChildren(fromIndex, toIndex);
+		} else {
+			fromParent.removeChild(fromIndex);
+			toParent.removeChild(toIndex);
+
+			fromParent.addChild(toNode, fromSize, fromIndex);
+			toParent.addChild(fromNode, toSize, toIndex);
+
+			fromParent.layout(fromParent.orthogonalSize);
+			toParent.layout(toParent.orthogonalSize);
+		}
 	}
 
 	resizeView(location: number[], size: number): void {
@@ -493,10 +547,10 @@ export class SplitGridView<T extends IView> implements IDisposable {
 		this.gridview.layout(width, height);
 	}
 
-	moveView(from: T, to: T): void {
+	swapViews(from: T, to: T): void {
 		const fromLocation = this.getViewLocation(from);
 		const toLocation = this.getViewLocation(to);
-		return this.gridview.moveView(fromLocation, toLocation);
+		return this.gridview.swapViews(fromLocation, toLocation);
 	}
 
 	resizeView(view: T, size: number): void {

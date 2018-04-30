@@ -42,7 +42,7 @@
 					ev.preventDefault();
 
 					const from = views.get(ev.dataTransfer.getData('text'));
-					grid.moveView(from, view);
+					grid.swapViews(from, view);
 				});
 
 				let label = document.createElement('div');
@@ -95,13 +95,13 @@
 			debug(grid);
 			console.log('-------');
 			const view4 = createView();
-			grid.splitView(view3, Direction.Right, view4, 200);
+			grid.splitView(view1, Direction.Right, view4, 200);
 			debug(grid);
 			console.log('-------');
-			const view5 = createView();
-			grid.splitView(view2, Direction.Down, view5, 200);
-			debug(grid);
-			console.log('-------');
+			// const view5 = createView();
+			// grid.splitView(view2, Direction.Down, view5, 200);
+			// debug(grid);
+			// console.log('-------');
 			// grid.splitView(createView(), 400, [1]);
 			// debug(grid);
 			// console.log('-------');
