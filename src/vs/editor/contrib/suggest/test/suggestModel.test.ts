@@ -12,11 +12,8 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { ISuggestSupport, ISuggestResult, SuggestRegistry, SuggestTriggerKind, LanguageIdentifier, TokenizationRegistry, IState, MetadataConsts } from 'vs/editor/common/modes';
 import { SuggestModel, LineContext } from 'vs/editor/contrib/suggest/suggestModel';
-import { TestCodeEditor, MockScopeLocation } from 'vs/editor/test/browser/testCodeEditor';
+import { TestCodeEditor, createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -31,23 +28,15 @@ import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 
 function createMockEditor(model: TextModel): TestCodeEditor {
-	const contextKeyService = new MockContextKeyService();
-	const telemetryService = NullTelemetryService;
-	const notificationService = new TestNotificationService();
-	const instantiationService = new InstantiationService(new ServiceCollection(
-		[IContextKeyService, contextKeyService],
-		[ITelemetryService, telemetryService],
-		[IStorageService, NullStorageService],
-		[INotificationService, TestNotificationService]
-	));
-
-	const editor = new TestCodeEditor(new MockScopeLocation(), {}, false, instantiationService, contextKeyService, notificationService);
-	editor.setModel(model);
-	return editor;
+	return createTestCodeEditor({
+		model: model,
+		serviceCollection: new ServiceCollection(
+			[ITelemetryService, NullTelemetryService],
+			[IStorageService, NullStorageService]
+		)
+	});
 }
 
 suite('SuggestModel - Context', function () {

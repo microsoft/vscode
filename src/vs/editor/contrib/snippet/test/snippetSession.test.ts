@@ -28,7 +28,7 @@ suite('SnippetSession', function () {
 
 	setup(function () {
 		model = TextModel.createFromString('function foo() {\n    console.log(a);\n}');
-		editor = createTestCodeEditor(model);
+		editor = createTestCodeEditor({ model: model });
 		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5)]);
 		assert.equal(model.getEOL(), '\n');
 	});
