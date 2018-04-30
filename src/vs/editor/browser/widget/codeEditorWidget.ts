@@ -52,7 +52,7 @@ import { ClassName } from 'vs/editor/common/model/intervalTree';
 
 let EDITOR_ID = 0;
 
-export abstract class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
+export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
 	//#region Eventing
 	private readonly _onDidDispose: Emitter<void> = this._register(new Emitter<void>());
@@ -264,8 +264,13 @@ export abstract class CodeEditorWidget extends Disposable implements editorBrows
 		return new Configuration(options, this.domElement);
 	}
 
-	protected abstract _getContributions(): IEditorContributionCtor[];
-	protected abstract _getActions(): EditorAction[];
+	protected _getContributions(): IEditorContributionCtor[] {
+		return EditorExtensionsRegistry.getEditorContributions();
+	}
+
+	protected _getActions(): EditorAction[] {
+		return EditorExtensionsRegistry.getEditorActions();
+	}
 
 	public getId(): string {
 		return this.getEditorType() + ':' + this.id;

@@ -22,7 +22,7 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { CodeEditor } from 'vs/editor/browser/codeEditor';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
@@ -85,7 +85,7 @@ class VisualEditorState {
 		return allViewZones.filter((z) => !this._zonesMap[String(z.id)]);
 	}
 
-	public clean(editor: CodeEditor): void {
+	public clean(editor: CodeEditorWidget): void {
 		// (1) View zones
 		if (this._zones.length > 0) {
 			editor.changeViewZones((viewChangeAccessor: editorBrowser.IViewZoneChangeAccessor) => {
@@ -101,7 +101,7 @@ class VisualEditorState {
 		this._decorations = editor.deltaDecorations(this._decorations, []);
 	}
 
-	public apply(editor: CodeEditor, overviewRuler: editorBrowser.IOverviewRuler, newDecorations: IEditorDiffDecorationsWithZones, restoreScrollState: boolean): void {
+	public apply(editor: CodeEditorWidget, overviewRuler: editorBrowser.IOverviewRuler, newDecorations: IEditorDiffDecorationsWithZones, restoreScrollState: boolean): void {
 
 		const scrollState = restoreScrollState ? StableEditorScrollState.capture(editor) : null;
 
@@ -160,12 +160,12 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	private _reviewHeight: number;
 	private readonly _measureDomElementToken: number;
 
-	private originalEditor: CodeEditor;
+	private originalEditor: CodeEditorWidget;
 	private _originalDomNode: HTMLElement;
 	private _originalEditorState: VisualEditorState;
 	private _originalOverviewRuler: editorBrowser.IOverviewRuler;
 
-	private modifiedEditor: CodeEditor;
+	private modifiedEditor: CodeEditorWidget;
 	private _modifiedDomNode: HTMLElement;
 	private _modifiedEditorState: VisualEditorState;
 	private _modifiedOverviewRuler: editorBrowser.IOverviewRuler;
@@ -468,8 +468,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		}));
 	}
 
-	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: editorOptions.IEditorOptions): CodeEditor {
-		return instantiationService.createInstance(CodeEditor, container, options);
+	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: editorOptions.IEditorOptions): CodeEditorWidget {
+		return instantiationService.createInstance(CodeEditorWidget, container, options, false);
 	}
 
 	public dispose(): void {

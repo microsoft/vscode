@@ -19,7 +19,7 @@ import { WalkThroughInput } from 'vs/workbench/parts/welcome/walkThrough/node/wa
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { marked } from 'vs/base/common/marked/marked';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { CodeEditor } from 'vs/editor/browser/codeEditor';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { localize } from 'vs/nls';
@@ -55,7 +55,7 @@ interface IWalkThroughEditorViewState {
 	viewState: IViewState;
 }
 
-class WalkThroughCodeEditor extends CodeEditor {
+class WalkThroughCodeEditor extends CodeEditorWidget {
 
 	constructor(
 		domElement: HTMLElement,
@@ -68,7 +68,7 @@ class WalkThroughCodeEditor extends CodeEditor {
 		@IThemeService themeService: IThemeService,
 		@INotificationService notificationService: INotificationService,
 	) {
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService);
+		super(domElement, options, false, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService);
 	}
 
 	getTelemetryData() {
@@ -214,7 +214,7 @@ export class WalkThroughPart extends BaseEditor {
 		size(this.content, dimension.width, dimension.height);
 		this.updateSizeClasses();
 		this.contentDisposables.forEach(disposable => {
-			if (disposable instanceof CodeEditor) {
+			if (disposable instanceof CodeEditorWidget) {
 				disposable.layout();
 			}
 		});

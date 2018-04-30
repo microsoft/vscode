@@ -13,7 +13,7 @@ import { IDisposable, dispose, toDisposable, empty as EmptyDisposable, combinedD
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter, anyEvent as anyEvent, filterEvent, once } from 'vs/base/common/event';
 import * as ext from 'vs/workbench/common/contributions';
-import { CodeEditor } from 'vs/editor/browser/codeEditor';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -1190,11 +1190,11 @@ export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution,
 			.map(e => e.getControl())
 
 			// only interested in code editor widgets
-			.filter(c => c instanceof CodeEditor)
+			.filter(c => c instanceof CodeEditorWidget)
 
 			// set model registry and map to models
 			.map(editor => {
-				const codeEditor = editor as CodeEditor;
+				const codeEditor = editor as CodeEditorWidget;
 				const controller = DirtyDiffController.get(codeEditor);
 				controller.modelRegistry = this;
 				return codeEditor.getModel();
