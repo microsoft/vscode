@@ -146,6 +146,7 @@
 	"miConditionalBreakpoint": "&&Koşullu Kesme Noktası...",
 	"miColumnBreakpoint": "&&Sütun Kesme Noktası",
 	"miFunctionBreakpoint": "&&Fonksiyon Kesme Noktası",
+	"miLogPoint": "&&Günlük Noktası...",
 	"miNewBreakpoint": "&&Yeni Kesme Noktası",
 	"miEnableAllBreakpoints": "Tüm Kesme Noktalarını Etkinleştir",
 	"miDisableAllBreakpoints": "&&Tüm Kesme Noktalarını Devre Dışı Bırak",

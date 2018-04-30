@@ -14,6 +14,7 @@
 	"editorCursorBackground": "Colore di sfondo del cursore editor. Permette di personalizzare il colore di un carattere quando sovrapposto da un blocco cursore.",
 	"editorWhitespaces": "Colore dei caratteri di spazio vuoto nell'editor.",
 	"editorIndentGuides": "Colore delle guide per i rientri dell'editor.",
+	"editorActiveIndentGuide": "Colore delle guide di indentazione dell'editor attivo",
 	"editorLineNumbers": "Colore dei numeri di riga dell'editor.",
 	"editorActiveLineNumber": "Colore dei numeri per la riga attiva dell'editor",
 	"deprecatedEditorActiveLineNumber": "Id è deprecato. In alternativa utilizzare 'editorLineNumber.activeForeground'.",

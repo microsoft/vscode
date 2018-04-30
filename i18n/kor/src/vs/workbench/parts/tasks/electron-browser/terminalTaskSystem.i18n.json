@@ -11,6 +11,6 @@
 	"TerminalTaskSystem.terminalName": "작업 - {0}",
 	"closeTerminal": "터미널을 종료하려면 아무 키나 누르세요.",
 	"reuseTerminal": "터미널이 작업에서 다시 사용됩니다. 닫으려면 아무 키나 누르세요.",
-	"TerminalTaskSystem": "UNC 드라이브에서 셸 명령을 실행할 수 없습니다.",
+	"TerminalTaskSystem": "Cmd.exe를 사용하여 UNC 드라이브에 셸 명령을 실행할 수 없습니다.",
 	"unkownProblemMatcher": "문제 선택기 {0}을(를) 확인할 수 없습니다. 이 선택기는 무시됩니다."
 }

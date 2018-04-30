@@ -18,6 +18,7 @@
 	"thereIsUpdateAvailable": "Bir güncelleştirme var.",
 	"download now": "Şimdi İndir",
 	"later": "Daha Sonra",
+	"updateAvailable": "Bir güncelleştirme var: {0} {1}",
 	"installUpdate": "Güncelleştirmeyi Yükle",
 	"updateInstalling": "{0} {1} arka planda yükleniyor, bittiğinde bilgi vereceğiz.",
 	"updateNow": "Şimdi Güncelle",

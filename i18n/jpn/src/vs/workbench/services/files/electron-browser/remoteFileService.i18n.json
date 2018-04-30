@@ -10,5 +10,6 @@
 	"fileIsDirectoryError": "ファイルはディレクトリです",
 	"fileNotModifiedError": "ファイルは次の時点以後に変更されていません:",
 	"fileBinaryError": "ファイルはバイナリのようなので、テキストとして開くことができません",
-	"err.create": "ファイル {0} を作成できませんでした"
+	"err.create": "ファイル {0} を作成できませんでした",
+	"fileMoveConflict": "移動/コピーできません。移動/コピー先にファイルが既に存在します。"
 }

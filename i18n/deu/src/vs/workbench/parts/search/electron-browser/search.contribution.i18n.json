@@ -10,6 +10,8 @@
 	"copyMatchLabel": "Kopieren",
 	"copyPathLabel": "Pfad kopieren",
 	"copyAllLabel": "Alles kopieren",
+	"clearSearchHistoryLabel": "Suchverlauf löschen",
+	"toggleSearchViewPositionLabel": "Position der Suchansicht umschalten",
 	"findInFolder": "In Ordner suchen...",
 	"findInWorkspace": "In Arbeitsbereich suchen...",
 	"showTriggerActions": "Zu Symbol im Arbeitsbereich wechseln...",
@@ -28,5 +30,6 @@
 	"search.quickOpen.includeSymbols": "Konfigurieren Sie diese Option, um Ergebnisse aus einer globalen Symbolsuche in die Dateiergebnisse für Quick Open einzuschließen.",
 	"search.followSymlinks": "Steuert, ob Symlinks während der Suche gefolgt werden.",
 	"search.smartCase": "Sucht ohne Berücksichtigung von Groß-/Kleinschreibung, wenn das Muster kleingeschrieben ist, andernfalls wird mit Berücksichtigung von Groß-/Kleinschreibung gesucht.",
-	"search.globalFindClipboard": "Steuert, ob die Suchansicht die freigegebene Suchzwischenablage auf macOS lesen oder verändern soll"
+	"search.globalFindClipboard": "Steuert, ob die Suchansicht die freigegebene Suchzwischenablage auf macOS lesen oder verändern soll",
+	"search.location": "Steuert, ob die Suche als Ansicht in der Seitenleiste oder als Bedienfeld im Bedienfeldbereich angezeigt wird, damit horizontal mehr Platz zur Verfügung steht. In der nächsten Version wird das horizontale Layout im Bedienfeld verbessert, und dies wird keine Vorschau mehr sein."
 }

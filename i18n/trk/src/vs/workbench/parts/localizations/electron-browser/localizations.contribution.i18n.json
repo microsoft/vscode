@@ -11,6 +11,7 @@
 	"no": "Hayır",
 	"neverAgain": "Tekrar Gösterme",
 	"install": "Yükle",
+	"more information": "Daha Fazla Bilgi...",
 	"JsonSchema.locale": "Kullanılacak Kullanıcı Arayüzü Dili.",
 	"vscode.extension.contributes.localizations": "Düzenleyiciye yerelleştirmeleri ekler",
 	"vscode.extension.contributes.localizations.languageId": "Görüntülenen dizelerin çevrileceği dilin id'si.",

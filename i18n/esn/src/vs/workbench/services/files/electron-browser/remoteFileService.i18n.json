@@ -10,5 +10,6 @@
 	"fileIsDirectoryError": "El archivo es un directorio",
 	"fileNotModifiedError": "Archivo no modificado desde",
 	"fileBinaryError": "El archivo parece ser binario y no se puede abrir como texto",
-	"err.create": "No se pudo crear el archivo {0}"
+	"err.create": "No se pudo crear el archivo {0}",
+	"fileMoveConflict": "No se puede mover o copiar. El archivo ya existe en la ubicación de destino. "
 }

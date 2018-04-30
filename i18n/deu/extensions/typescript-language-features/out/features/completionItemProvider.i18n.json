@@ -8,5 +8,6 @@
 	],
 	"selectCodeAction": "Anzuwendende Codeaktion auswählen",
 	"acquiringTypingsLabel": "Eingaben werden abgerufen...",
-	"acquiringTypingsDetail": "Eingabedefinitionen für IntelliSense werden abgerufen."
+	"acquiringTypingsDetail": "Eingabedefinitionen für IntelliSense werden abgerufen.",
+	"autoImportLabel": "Automatischer Import von {0}"
 }
