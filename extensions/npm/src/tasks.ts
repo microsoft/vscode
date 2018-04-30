@@ -245,7 +245,7 @@ async function findAllScripts(buffer: string): Promise<StringMap> {
 
 	let visitor: JSONVisitor = {
 		onError(_error: ParseErrorCode, _offset: number, _length: number) {
-			// TODO inform user about the parse error
+			// TODO: inform user about the parse error
 		},
 		onObjectEnd() {
 			if (inScripts) {
