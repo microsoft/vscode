@@ -90,6 +90,9 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		this._register(TabFocus.onDidChangeTabFocus(_ => this._recomputeOptions()));
 	}
 
+	public observeReferenceElement(dimension?: editorCommon.IDimension): void {
+	}
+
 	public dispose(): void {
 		super.dispose();
 	}

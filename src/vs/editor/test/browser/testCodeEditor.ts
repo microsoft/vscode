@@ -8,7 +8,6 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
@@ -37,7 +36,7 @@ export class TestCodeEditor extends CodeEditorWidget implements editorBrowser.IC
 	}
 
 	//#region testing overrides
-	protected _createConfiguration(options: editorOptions.IEditorOptions): CommonEditorConfiguration {
+	protected _createConfiguration(options: editorOptions.IEditorOptions): editorCommon.IConfiguration {
 		return new TestConfiguration(options);
 	}
 	protected _createView(): void {
