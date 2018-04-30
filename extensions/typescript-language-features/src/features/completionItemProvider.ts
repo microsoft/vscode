@@ -242,6 +242,9 @@ namespace CompletionConfiguration {
 }
 
 export default class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider {
+
+	public static readonly triggerCharacters = ['.', '"', '\'', '/', '@'];
+
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
 		private readonly typingsStatus: TypingsStatus,
@@ -279,10 +282,11 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 			return [];
 		}
 
-		const args: Proto.CompletionsRequestArgs = {
+		const args: Proto.CompletionsRequestArgs & { triggerCharacter?: string } = {
 			...typeConverters.Position.toFileLocationRequestArgs(file, position),
 			includeExternalModuleExports: completionConfiguration.autoImportSuggestions,
-			includeInsertTextCompletions: true
+			includeInsertTextCompletions: true,
+			triggerCharacter: context.triggerCharacter
 		};
 
 		let msg: Proto.CompletionEntry[] | undefined = undefined;
@@ -437,7 +441,7 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 		line: vscode.TextLine,
 		position: vscode.Position
 	): boolean {
-		if (context.triggerCharacter === '"' || context.triggerCharacter === '\'') {
+		if ((context.triggerCharacter === '"' || context.triggerCharacter === '\'') && !this.client.apiVersion.has290Features()) {
 			if (!config.quickSuggestionsForPaths) {
 				return false;
 			}
