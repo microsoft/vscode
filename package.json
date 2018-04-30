@@ -41,7 +41,7 @@
     "semver": "^5.5.0",
     "spdlog": "0.6.0",
     "sudo-prompt": "^8.0.0",
-    "v8-inspect-profiler": "^0.0.7",
+    "v8-inspect-profiler": "^0.0.8",
     "vscode-chokidar": "1.6.2",
     "vscode-debugprotocol": "1.28.0",
     "vscode-nsfw": "1.0.17",
