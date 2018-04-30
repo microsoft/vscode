@@ -359,7 +359,6 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		this.renderDisposeables = [];
 
 		const activeParameter = signature.parameters[this.hints.activeParameter];
-		dom.removeClass(this.docs, 'markdown-docs');
 
 		if (activeParameter && activeParameter.documentation) {
 			const documentation = $('span.documentation');
