@@ -21,6 +21,7 @@
 	"workbench.action.terminal.newWorkspacePlaceholder": "새 터미널의 현재 작업 디렉토리를 선택합니다.",
 	"workbench.action.terminal.newInActiveWorkspace": "새 통합 터미널 만들기(활성 작업 영역에)",
 	"workbench.action.terminal.split": "터미널 분할",
+	"workbench.action.terminal.splitInActiveWorkspace": "터미널 분할(활성 작업 영역에서)",
 	"workbench.action.terminal.focusPreviousPane": "이전 창에 포커스",
 	"workbench.action.terminal.focusNextPane": "다음 창에 포커스",
 	"workbench.action.terminal.resizePaneLeft": "창 왼쪽 크기 조정",
@@ -43,6 +44,7 @@
 	"workbench.action.terminal.scrollUpPage": "위로 스크롤(페이지)",
 	"workbench.action.terminal.scrollToTop": "맨 위로 스크롤",
 	"workbench.action.terminal.clear": "지우기",
+	"workbench.action.terminal.clearSelection": "선택 영역 지우기",
 	"workbench.action.terminal.allowWorkspaceShell": "작업 영역 셸 구성 허용",
 	"workbench.action.terminal.disallowWorkspaceShell": "작업 영역 셸 구성 허용 안 함",
 	"workbench.action.terminal.rename": "이름 바꾸기",
@@ -52,6 +54,8 @@
 	"nextTerminalFindTerm": "다음 검색어 표시",
 	"previousTerminalFindTerm": "이전 검색어 표시",
 	"quickOpenTerm": "활성 터미널 전환",
+	"workbench.action.terminal.scrollToPreviousCommand": "이전 명령으로 스크롤",
+	"workbench.action.terminal.scrollToNextCommand": "다음 명령으로 스크롤",
 	"workbench.action.terminal.selectToPreviousCommand": "이전 명령까지 선택",
 	"workbench.action.terminal.selectToNextCommand": "다음 명령까지 선택"
 }

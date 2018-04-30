@@ -21,6 +21,7 @@
 	"disconnectDebug": "Bağlantıyı Kes",
 	"continueDebug": "Devam Et",
 	"pauseDebug": "Duraklat",
+	"terminateThread": "İş Parçacığını Sonlandır",
 	"restartFrame": "Çerçeveyi Yeniden Başlat",
 	"removeBreakpoint": "Kesme Noktasını Kaldır",
 	"removeAllBreakpoints": "Tüm Kesme Noktalarını Kaldır",

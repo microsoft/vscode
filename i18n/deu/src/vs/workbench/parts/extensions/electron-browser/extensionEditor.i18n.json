@@ -36,6 +36,8 @@
 	"view location": "Wo",
 	"localizations": "Lokalisierungen ({0})",
 	"localizations language id": "Sprach-ID",
+	"localizations language name": "Name der Sprache",
+	"localizations localized language name": "Name der Sprache (lokalisiert)",
 	"colorThemes": "Farbdesigns ({0})",
 	"iconThemes": "Symboldesigns ({0})",
 	"colors": "Farben ({0})",

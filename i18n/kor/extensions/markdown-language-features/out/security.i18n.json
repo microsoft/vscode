@@ -8,6 +8,8 @@
 	],
 	"strict.title": "Strict",
 	"strict.description": "보안 콘텐츠만 로드",
+	"insecureLocalContent.title": "안전하지 않은 로컬 콘텐츠 허용",
+	"insecureLocalContent.description": "localhost에서 제공되는 http를 통한 콘텐츠 로드 사용",
 	"insecureContent.title": "안전하지 않은 콘텐츠 허용",
 	"insecureContent.description": "http를 통한 콘텐츠 로드 사용",
 	"disable.title": "사용 안 함",

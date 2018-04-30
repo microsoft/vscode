@@ -25,5 +25,6 @@
 	"peekViewEditorBackground": "Colore di sfondo dell'editor di visualizzazioni rapide.",
 	"peekViewEditorGutterBackground": "Colore di sfondo della barra di navigazione nell'editor visualizzazione rapida.",
 	"peekViewResultsMatchHighlight": "Colore dell'evidenziazione delle corrispondenze nell'elenco risultati della visualizzazione rapida.",
-	"peekViewEditorMatchHighlight": "Colore dell'evidenziazione delle corrispondenze nell'editor di visualizzazioni rapide."
+	"peekViewEditorMatchHighlight": "Colore dell'evidenziazione delle corrispondenze nell'editor di visualizzazioni rapide.",
+	"peekViewEditorMatchHighlightBorder": "Bordo dell'evidenziazione delle corrispondenze nell'editor di visualizzazioni rapide."
 }

@@ -14,6 +14,7 @@
 	"fileInvalidPath": "Érvénytelen fájlerőforrás ({0})",
 	"fileIsDirectoryError": "A fájl egy könyvtár",
 	"fileNotModifiedError": "A fájl azóta nem módosult",
+	"fileTooLargeForHeapError": "Egy ekkora fájl megnyitásához újra kell indítania a VS Code-ot, és engedélyeznie kell, hogy több memóriát használhasson.",
 	"fileTooLargeError": "A fájl túl nagy a megnyitáshoz",
 	"fileNotFoundError": "Fájl nem található ({0})",
 	"fileBinaryError": "A fájl binárisnak tűnik és nem nyitható meg szövegként",

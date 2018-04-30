@@ -8,10 +8,12 @@
 	],
 	"quickFixWithKb": "Korrekturen anzeigen ({0})",
 	"quickFix": "Korrekturen anzeigen",
+	"quickfix.trigger.label": "Schnelle Problembehebung …",
 	"editor.action.quickFix.noneMessage": "Keine Code-Aktionen verfügbar",
 	"refactor.label": "Umgestalten...",
 	"editor.action.refactor.noneMessage": "Keine Refactorings verfügbar",
 	"source.label": "Quellaktion…",
 	"editor.action.source.noneMessage": "Keine Quellaktionen verfügbar",
-	"organizeImports.label": "Importe organisieren"
+	"organizeImports.label": "Importe organisieren",
+	"editor.action.organize.noneMessage": "Keine Aktion zum Organisieren von Importen verfügbar"
 }

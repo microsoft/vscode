@@ -25,6 +25,7 @@
 	"vscode.extension.activationEvents.onDebugResolve": "Événement d'activation envoyé quand une session de débogage du type spécifié est sur le point d’être lancée (et une méthode resolveDebugConfiguration correspondante doit être appelée).",
 	"vscode.extension.activationEvents.workspaceContains": "Événement d'activation envoyé quand un dossier ouvert contient au moins un fichier correspondant au modèle glob spécifié.",
 	"vscode.extension.activationEvents.onView": "Événement d'activation envoyé quand la vue spécifiée est développée.",
+	"vscode.extension.activationEvents.onUri": "Événement d'activation envoyé quand un URI système dirigé vers cette extension est ouvert.",
 	"vscode.extension.activationEvents.star": "Événement d'activation envoyé au démarrage de VS Code. Pour garantir la qualité de l'expérience utilisateur, utilisez cet événement d'activation dans votre extension uniquement quand aucune autre combinaison d'événements d'activation ne fonctionne dans votre cas d'utilisation.",
 	"vscode.extension.badges": "Ensemble de badges à afficher dans la barre latérale de la page d'extensions de Marketplace.",
 	"vscode.extension.badges.url": "URL de l'image du badge.",

@@ -14,6 +14,11 @@
 	"vscode.extension.contributes.view.when": "Condición que se debe cumplir para mostrar esta vista",
 	"vscode.extension.contributes.views": "Aporta vistas al editor",
 	"views.explorer": "Aporta vistas al contenedor del explorador en la barra de actividades",
+	"views.debug": "Contribuye vistas al contenedor de depuración en la barra de actividades",
+	"views.scm": "Contribuye vistas al contenedor SCM en la barra de actividades",
+	"views.test": "Contribuye vistas al contenedor de pruebas en la barra de actividades",
+	"views.contributed": "Contribuye vistas al contenedor de vistas aportadas",
+	"ViewContainerDoesnotExist": "Contenedor de vistas ' {0} ' no existe y todas las vistas registradas se agregarán al 'Explorer'.",
 	"duplicateView1": "No se pueden registrar múltiples vistas con el mismo identificador '{0}' en la ubicación '{1}'",
 	"duplicateView2": "Una vista con el identificador '{0}' ya está registrada en la ubicación '{1}'"
 }

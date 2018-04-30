@@ -15,6 +15,8 @@
 	"typescript.tsdk.desc": "A tsservert és a lib*.d.ts fájlokat tartalmazó mappa elérési útja.",
 	"typescript.disableAutomaticTypeAcquisition": "Automatikus típusdefiníció-letöltés letiltása. Legalább 2.0.6-os TypeScriptet igényel.",
 	"typescript.tsserver.log": "Engedélyezi a TS-szerver naplózását egy fájlba. Ez a napló a TS-szerverrel kapcsolatos problémák diagnosztizálására használható. A napló tartalmazhat elérési utakat, forráskódot és más potenciálisan érzékeny, projekttel kapcsolatos adatot.",
+	"typescript.tsserver.pluginPaths": "További felderített elérési utak, amelyek TypeScript nyelvi szerver beépülőket tartalmaznak. TypeScript >=2.3.0-t igényel.",
+	"typescript.tsserver.pluginPaths.item": "Abszolút vagy relatív elérési út. A relatív elérési utak a munkaterületi mappákhoz relatívan lesznek feloldva.",
 	"typescript.tsserver.trace": "Engedélyezi a TS-szervernek küldött üzenetek naplózását. Ez a napló a TS-szerverrel kapcsolatos problémák diagnosztizálására használható. A napló tartalmazhat elérési utakat, forráskódot és más potenciálisan érzékeny, projekttel kapcsolatos adatot. ",
 	"typescript.validate.enable": "TypeScript-validálás engedélyezése vagy letiltása.",
 	"typescript.format.enable": "Alapértelmezett TypeScript-formázó engedélyezése vagy letiltása.",
@@ -26,6 +28,9 @@
 	"format.insertSpaceAfterKeywordsInControlFlowStatements": "Meghatározza a szóközök kezelését vezérlési szerkezetek kulcsszavai után.",
 	"format.insertSpaceAfterFunctionKeywordForAnonymousFunctions": "Meghatározza a szóközök kezelését a névtelen függvényekben található function kulcsszó után.",
 	"format.insertSpaceBeforeFunctionParenthesis": "Meghatározza a szóközök kezelését a függvényargumentumokat tartalmazó zárójel előtt. TypeScript >= 2.1.5-öt igényel.",
+	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": "Meghatározza a szóközök kezelését nem üres zárójelek nyitása után és zárása előtt.",
+	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets": "Meghatározza a szóközök kezelését nem üres szögletes zárójelek nyitása után és zárása előtt.",
+	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": "Meghatározza a szóközök kezelését nem üres kapcsos zárójelek nyitása után és zárása előtt. TypeScript >= 2.3.0-t igényel.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": "Meghatározza a szóközök kezelését a sablonkarakterláncok (template stringek) kapcsos zárójeleinek nyitása után és zárása előtt. TypeScript >= 2.0.6-ot igényel.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces": "Meghatározza a szóközök kezelését JSX-kifejezések kapcsos zárójeleinek nyitása után és zárása előtt. TypeScript >= 2.0.6-ot igényel.",
 	"format.insertSpaceAfterTypeAssertion": "Meghatározza a szóközök kezelését a típuskényszerítések utn. TypeScript >= 2.4-t igényel.",
@@ -54,5 +59,7 @@
 	"javascript.implicitProjectConfig.experimentalDecorators": " 'experimentalDecorators' beállítás engedélyezése azon JavaScript-fájlok esetében, amelyek nem részei a projektnek. A meglévő jsconfig.json vagy tsconfig.json fájlok felülírják ezt a beállítást. TypeScript >= 2.3.1-et igényel.",
 	"typescript.autoImportSuggestions.enabled": "Automatikus importálási ajánlatok engedélyezése vagy letiltása. TypeScript >= 2.6.1-t igényel.",
 	"typescript.experimental.syntaxFolding": "Szintaxisalapú becsukható kódrészletek engedélyezése vagy letiltása.",
-	"taskDefinition.tsconfig.description": "A tsconfig-fájl, ami meghatározza a TS-buildet."
+	"taskDefinition.tsconfig.description": "A tsconfig-fájl, ami meghatározza a TS-buildet.",
+	"javascript.suggestionActions.enabled": "Ajánlásokat tartalmazó diagnosztikák engedélyezése vagy letiltása a JavaScript-fájlokban. TypeScript >= 2.8-at igényel.",
+	"typescript.suggestionActions.enabled": "Ajánlásokat tartalmazó diagnosztikák engedélyezése vagy letiltása a TypeScript-fájlokban. TypeScript >= 2.8-at igényel."
 }
