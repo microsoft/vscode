@@ -52,20 +52,6 @@ export function getPackageManager(folder: WorkspaceFolder): string {
 	return workspace.getConfiguration('npm', folder.uri).get<string>('packageManager', 'npm');
 }
 
-export function explorerIsEnabled(): boolean {
-	let folders = workspace.workspaceFolders;
-	if (!folders) {
-		return false;
-	}
-	for (let i = 0; i < folders.length; i++) {
-		let folder = folders[i];
-		if (workspace.getConfiguration('npm', folder.uri).get<boolean>('enableScriptExplorer') === true) {
-			return true;
-		}
-	}
-	return false;
-}
-
 export async function hasNpmScripts(): Promise<boolean> {
 	let folders = workspace.workspaceFolders;
 	if (!folders) {

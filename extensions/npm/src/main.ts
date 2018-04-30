@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
 
 import { addJSONProviders } from './features/jsonContributions';
 import { NpmScriptsTreeDataProvider } from './npmView';
-import { provideNpmScripts, explorerIsEnabled } from './tasks';
+import { provideNpmScripts } from './tasks';
 
 let taskProvider: vscode.Disposable | undefined;
 
@@ -17,11 +17,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	taskProvider = registerTaskProvider(context);
 	registerExplorer(context);
 	configureHttpRequest();
-	vscode.workspace.onDidChangeConfiguration((e) => {
+	vscode.workspace.onDidChangeConfiguration(() => {
 		configureHttpRequest();
-		if (e.affectsConfiguration('npm.enableScriptExplorer')) {
-			updateExplorerVisibility();
-		}
 	});
 	context.subscriptions.push(addJSONProviders(httpRequest.xhr));
 }
@@ -53,15 +50,10 @@ function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposab
 	return undefined;
 }
 
-function updateExplorerVisibility() {
-	vscode.commands.executeCommand('setContext', 'showExplorer', explorerIsEnabled());
-}
-
 async function registerExplorer(context: vscode.ExtensionContext) {
 	if (vscode.workspace.workspaceFolders) {
 		let treeDataProvider = vscode.window.registerTreeDataProvider('npm', new NpmScriptsTreeDataProvider(context));
 		context.subscriptions.push(treeDataProvider);
-		updateExplorerVisibility();
 	}
 }
 
