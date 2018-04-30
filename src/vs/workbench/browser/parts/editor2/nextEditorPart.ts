@@ -9,7 +9,7 @@ import 'vs/css!./media/nextEditorpart';
 import 'vs/workbench/browser/parts/editor2/editor2.contribution';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
-import { Dimension, addClass } from 'vs/base/browser/dom';
+import { Dimension, addClass, isAncestor } from 'vs/base/browser/dom';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { INextEditorGroupsService, Direction } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
@@ -97,8 +97,22 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 			return;
 		}
 
-		// Remove from grid widget
+		const isActive = this.isGroupActive(groupView);
+		const hasFocus = isAncestor(document.activeElement, groupView.element);
+
+		// Remove from grid widget & dispose
 		this.gridWidget.removeView(groupView);
+		groupView.dispose();
+
+		// Activate next group if the removed one was active
+		if (isActive) {
+			const nextActiveGroup = this.groups[0]; // TODO@grid find the actual neighbour of the removed group
+			this.setGroupActive(nextActiveGroup);
+
+			if (hasFocus) {
+				nextActiveGroup.focusActiveEditor();
+			}
+		}
 	}
 
 	private toGridViewDirection(direction: Direction): GridViewDirection {

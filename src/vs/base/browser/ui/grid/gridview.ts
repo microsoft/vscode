@@ -33,6 +33,10 @@ TODO:
 		widgets have a color (e.g. Button, with applyStyles). Challenge is that this
 		color has to be applied via JS and not CSS to not apply it to all views
 - fix splitview issue: it can't be used before layout was called
+- NEW:  provide a method to find a neighbour view from a given view. this would
+		help when removing a view to know which next view to set active. The definition
+		of the next view could be to a) check on the same dimension first (left/up) and
+		then go one dimension up.
 */
 
 function orthogonal(orientation: Orientation): Orientation {
