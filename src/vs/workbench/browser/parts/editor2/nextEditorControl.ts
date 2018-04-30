@@ -26,8 +26,8 @@ export class NextEditorControl extends Disposable {
 	private dimension: Dimension;
 	private editorOpenToken: number = 0;
 
-	private _activeEditor: BaseEditor;
-	private instantiatedEditors: BaseEditor[] = [];
+	private _activeControl: BaseEditor;
+	private controls: BaseEditor[] = [];
 
 	constructor(
 		private parent: HTMLElement,
@@ -40,11 +40,11 @@ export class NextEditorControl extends Disposable {
 		super();
 	}
 
-	get activeEditor(): BaseEditor {
-		return this._activeEditor;
+	get activeControl(): BaseEditor {
+		return this._activeControl;
 	}
 
-	openEditor(input: EditorInput, options?: EditorOptions): IOpenEditorResult {
+	openEditor(editor: EditorInput, options?: EditorOptions): IOpenEditorResult {
 
 		// Token and progress monitor
 		const editorOpenToken = ++this.editorOpenToken;
@@ -58,86 +58,86 @@ export class NextEditorControl extends Disposable {
 		}));
 
 		// Editor control
-		const editorControl = this.doShowEditor(input, options);
+		const control = this.doShowEditor(editor, options);
 
 		// Set input
 		let whenOpened: TPromise<boolean>;
-		if (editorControl) {
-			whenOpened = this.doSetInput(editorControl, input, options, monitor);
+		if (control) {
+			whenOpened = this.doSetInput(control, editor, options, monitor);
 		} else {
 			whenOpened = TPromise.as(false);
 		}
 
-		return { control: editorControl, whenOpened };
+		return { control: control, whenOpened };
 	}
 
-	private doShowEditor(input: EditorInput, options: EditorOptions): BaseEditor {
-		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(input);
+	private doShowEditor(editor: EditorInput, options: EditorOptions): BaseEditor {
+		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editor);
 
-		// Return early if the currently active editor can handle the input
-		if (this._activeEditor && descriptor.describes(this._activeEditor)) {
-			return this._activeEditor;
+		// Return early if the currently active editor control can handle the input
+		if (this._activeControl && descriptor.describes(this._activeControl)) {
+			return this._activeControl;
 		}
 
 		// Hide active one first
 		this.doHideActiveEditor();
 
 		// Create editor
-		const editor = this.doCreateEditor(descriptor);
+		const control = this.doCreateEditorControl(descriptor);
 
 		// Remember editor as active
-		this._activeEditor = editor;
+		this._activeControl = control;
 
 		// Show editor
-		this.parent.appendChild(editor.getContainer());
-		show(editor.getContainer());
+		this.parent.appendChild(control.getContainer());
+		show(control.getContainer());
 
 		// Indicate to editor that it is now visible
-		editor.setVisible(true, this.group.id /* TODO@grid use group id instead of position */);
+		control.setVisible(true, this.group.id /* TODO@grid use group id instead of position */);
 
 		// Layout
-		editor.layout(this.dimension);
+		control.layout(this.dimension);
 
-		return editor;
+		return control;
 	}
 
-	private doCreateEditor(descriptor: IEditorDescriptor): BaseEditor {
+	private doCreateEditorControl(descriptor: IEditorDescriptor): BaseEditor {
 
 		// Instantiate editor
-		const editor = this.doInstantiateEditor(descriptor);
+		const control = this.doInstantiateEditorControl(descriptor);
 
 		// Create editor container as needed
-		if (!editor.getContainer()) {
-			const editorInstanceContainer = document.createElement('div');
-			editorInstanceContainer.id = descriptor.getId();
+		if (!control.getContainer()) {
+			const controlInstanceContainer = document.createElement('div');
+			controlInstanceContainer.id = descriptor.getId();
 
-			editor.create(editorInstanceContainer);
+			control.create(controlInstanceContainer);
 		}
 
-		return editor;
+		return control;
 	}
 
-	private doInstantiateEditor(descriptor: IEditorDescriptor): BaseEditor {
+	private doInstantiateEditorControl(descriptor: IEditorDescriptor): BaseEditor {
 
 		// Return early if already instantiated
-		const instantiatedEditor = this.instantiatedEditors.filter(e => descriptor.describes(e))[0];
-		if (instantiatedEditor) {
-			return instantiatedEditor;
+		const existingControl = this.controls.filter(e => descriptor.describes(e))[0];
+		if (existingControl) {
+			return existingControl;
 		}
 
 		// Otherwise instantiate new
-		const editor = descriptor.instantiate(this.instantiationService);
-		this.instantiatedEditors.push(editor);
+		const control = descriptor.instantiate(this.instantiationService);
+		this.controls.push(control);
 
-		return editor;
+		return control;
 	}
 
-	private doSetInput(editor: BaseEditor, input: EditorInput, options: EditorOptions, monitor: ProgressMonitor): TPromise<boolean> {
-		const previousInput = editor.input;
-		const inputChanged = (!previousInput || !previousInput.matches(input) || (options && options.forceOpen));
+	private doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions, monitor: ProgressMonitor): TPromise<boolean> {
+		const previousEditor = control.input;
+		const editorChanged = (!previousEditor || !previousEditor.matches(editor) || (options && options.forceOpen));
 
-		// Call into editor
-		return editor.setInput(input, options).then(() => {
+		// Call into editor control
+		return control.setInput(editor, options).then(() => {
 
 			// Progress done
 			monitor.done();
@@ -145,23 +145,23 @@ export class NextEditorControl extends Disposable {
 			// Focus (unless prevented)
 			const focus = !options || !options.preserveFocus;
 			if (focus) {
-				editor.focus();
+				control.focus();
 			}
 
-			return inputChanged;
+			return editorChanged;
 		}, e => {
 
 			// Progress done
 			monitor.done();
 
 			// Error handling
-			this.doHandleSetInputError(e, editor, input, options, monitor);
+			this.doHandleSetInputError(e, control, editor, options, monitor);
 
 			return null;
 		});
 	}
 
-	private doHandleSetInputError(error: Error, editor: BaseEditor, input: EditorInput, options: EditorOptions, monitor: ProgressMonitor): void {
+	private doHandleSetInputError(error: Error, control: BaseEditor, editor: EditorInput, options: EditorOptions, monitor: ProgressMonitor): void {
 
 		// Report error only if this was not us restoring previous error state or
 		// we are told to ignore errors that occur from opening an editor
@@ -173,7 +173,7 @@ export class NextEditorControl extends Disposable {
 
 			const handle = this.notificationService.notify({
 				severity: Severity.Error,
-				message: localize('editorOpenError', "Unable to open '{0}': {1}.", input.getName(), toErrorMessage(error)),
+				message: localize('editorOpenError', "Unable to open '{0}': {1}.", editor.getName(), toErrorMessage(error)),
 				actions
 			});
 
@@ -182,41 +182,41 @@ export class NextEditorControl extends Disposable {
 	}
 
 	private doHideActiveEditor(): void {
-		if (!this._activeEditor) {
+		if (!this._activeControl) {
 			return;
 		}
 
 		// Remove control from parent and hide
-		const editorInstanceContainer = this._activeEditor.getContainer();
-		this.parent.removeChild(editorInstanceContainer);
-		hide(editorInstanceContainer);
+		const controlInstanceContainer = this._activeControl.getContainer();
+		this.parent.removeChild(controlInstanceContainer);
+		hide(controlInstanceContainer);
 
-		// Indicate to editor
-		this._activeEditor.clearInput();
-		this._activeEditor.setVisible(false);
+		// Indicate to editor control
+		this._activeControl.clearInput();
+		this._activeControl.setVisible(false);
 
-		// Clear active editor
-		this._activeEditor = null;
+		// Clear active control
+		this._activeControl = null;
 	}
 
 	layout(dimension: Dimension): void {
 		this.dimension = dimension;
 
-		if (this._activeEditor) {
-			this._activeEditor.layout(this.dimension);
+		if (this._activeControl) {
+			this._activeControl.layout(this.dimension);
 		}
 	}
 
 	shutdown(): void {
 
-		// Forward to all editors
-		this.instantiatedEditors.forEach(editor => editor.shutdown());
+		// Forward to all editor controls
+		this.controls.forEach(editor => editor.shutdown());
 	}
 
 	dispose(): void {
 
-		// Forward to all editors
-		this.instantiatedEditors = dispose(this.instantiatedEditors);
+		// Forward to all editor controls
+		this.controls = dispose(this.controls);
 
 		super.dispose();
 	}

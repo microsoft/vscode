@@ -21,14 +21,14 @@ export class NextEditorContribution implements IWorkbenchContribution {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		instantiationService.createInstance(OpenNextEditorAction, OpenNextEditorAction.ID, OpenNextEditorAction.LABEL).run();
+		instantiationService.createInstance(GridOpenEditorsAction, GridOpenEditorsAction.ID, GridOpenEditorsAction.LABEL).run();
 	}
 }
 
-export class OpenNextEditorAction extends Action {
+export class GridOpenEditorsAction extends Action {
 
-	static readonly ID = 'workbench.action.openNextEditor';
-	static readonly LABEL = localize('openNextEditor', "Next Editor");
+	static readonly ID = 'workbench.action.gridOpenEditors';
+	static readonly LABEL = localize('gridOpenEditors', "Grid: Open Some Editors");
 
 	constructor(
 		id: string,
@@ -68,6 +68,46 @@ export class OpenNextEditorAction extends Action {
 
 			this.nextEditorGroupsService.addGroup(firstGroup, Direction.RIGHT); // play with empty group
 		}, 0);
+
+		return TPromise.as(void 0);
+	}
+}
+
+export class GridCloseActiveEditorAction extends Action {
+
+	static readonly ID = 'workbench.action.gridCloseActiveEditor';
+	static readonly LABEL = localize('gridCloseActiveEditor', "Grid: Close Active Editor");
+
+	constructor(
+		id: string,
+		label: string,
+		@INextEditorGroupsService private nextEditorGroupsService: INextEditorGroupsService
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<any> {
+		this.nextEditorGroupsService.activeGroup.closeEditor();
+
+		return TPromise.as(void 0);
+	}
+}
+
+export class GridRemoveActiveGroupAction extends Action {
+
+	static readonly ID = 'workbench.action.gridRemoveActiveGroup';
+	static readonly LABEL = localize('gridRemoveActiveGroup', "Grid: Remove Active Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@INextEditorGroupsService private nextEditorGroupsService: INextEditorGroupsService
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<any> {
+		this.nextEditorGroupsService.removeGroup(this.nextEditorGroupsService.activeGroup);
 
 		return TPromise.as(void 0);
 	}

@@ -27,22 +27,34 @@ export enum Direction {
 
 export interface INextEditorGroup {
 
-	readonly onDidActiveEditorChange: Event<IEditor>;
+	readonly onDidActiveEditorChange: Event<IEditorInput>;
 
 	readonly id: GroupIdentifier;
-	readonly activeEditor: IEditor;
+
+	readonly activeControl: IEditor;
+	readonly activeEditor: IEditorInput;
 
 	openEditor(editor: IEditorInput, options?: IEditorOptions): IOpenEditorResult;
+
+	/**
+	 * Close an editor from the group. This may trigger a confirmation dialog if
+	 * the editor is dirty and thus returns a promise as value.
+	 *
+	 * @param editor the editor to close, or the currently active editor
+	 * if unspecified.
+	 *
+	 * @returns a promise when the editor is closed.
+	 */
+	closeEditor(editor?: IEditorInput): TPromise<void>;
 
 	focusActiveEditor(): void;
 
 	/**
 	 * Set an editor to be pinned. A pinned editor is not replaced
 	 * when another editor opens at the same location.
-	 * 
-	 * 
+	 *
 	 * @param editor the editor to pin, or the currently active editor
-	 * if not specified.
+	 * if unspecified.
 	 */
 	pinEditor(editor?: IEditorInput): void;
 }
@@ -62,4 +74,5 @@ export interface INextEditorGroupsService {
 	setGroupActive(group: INextEditorGroup | GroupIdentifier): INextEditorGroup;
 
 	addGroup(fromGroup: INextEditorGroup | GroupIdentifier, direction: Direction): INextEditorGroup;
+	removeGroup(group: INextEditorGroup | GroupIdentifier): void;
 }

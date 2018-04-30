@@ -43,7 +43,7 @@ suite('editor2 tests', () => {
 		const downGroup = part.addGroup(rightGroup, Direction.DOWN);
 		assert.equal(part.groups.length, 3);
 		assert.ok(part.isGroupActive(rightGroup));
-		assert.ok(!downGroup.activeEditor);
+		assert.ok(!downGroup.activeControl);
 
 		activeGroupChangeListener.dispose();
 	});

@@ -48,7 +48,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		this.doCreateGridView();
 	}
 
-	//#region INextEditorGroupsService Implementation
+	//#region INextEditorGroupsService
 
 	get activeGroup(): NextEditorGroupView {
 		return this._activeGroup;
@@ -85,6 +85,20 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		);
 
 		return groupView;
+	}
+
+	removeGroup(group: NextEditorGroupView | GroupIdentifier): void {
+		const groupView = this.asGroupView(group);
+		if (
+			!groupView ||
+			this._groups.size === 1 ||	// Cannot remove the last root group
+			!groupView.isEmpty()		// TODO@grid what about removing a group with editors, move them to other group?
+		) {
+			return;
+		}
+
+		// Remove from grid widget
+		this.gridWidget.removeView(groupView);
 	}
 
 	private toGridViewDirection(direction: Direction): GridViewDirection {
@@ -139,7 +153,11 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 	}
 
 	private doCreateGroupView(): NextEditorGroupView {
-		const groupView = this.instantiationService.createInstance(NextEditorGroupView);
+		const groupView = this.instantiationService.createInstance(NextEditorGroupView, {
+			isOpenedInOtherGroup: editor => {
+				return this.groups.some(group => group !== groupView && group.contains(editor));
+			}
+		});
 
 		// Keep in map
 		this._groups.set(groupView.id, groupView);
@@ -160,7 +178,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 
 	//#endregion
 
-	//#region Part Implementation
+	//#region Part
 
 	protected updateStyles(): void {
 

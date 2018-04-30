@@ -6,8 +6,9 @@
 'use strict';
 
 import 'vs/css!./media/nextEditorGroupView';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
-import { EditorInput, EditorOptions, GroupIdentifier } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass } from 'vs/base/browser/dom';
@@ -27,6 +28,11 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ProgressService } from 'vs/workbench/services/progress/browser/progressService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { localize } from 'vs/nls';
+import { onUnexpectedError } from 'vs/base/common/errors';
+
+export interface IGroupsAccessor {
+	isOpenedInOtherGroup(editor: EditorInput): boolean;
+}
 
 export class NextEditorGroupView extends Themable implements IView, INextEditorGroup {
 
@@ -38,10 +44,12 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	private _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
 	get onWillDispose(): Event<void> { return this._onWillDispose.event; }
 
-	private _onDidActiveEditorChange: Emitter<BaseEditor> = this._register(new Emitter<BaseEditor>());
-	get onDidActiveEditorChange(): Event<BaseEditor> { return this._onDidActiveEditorChange.event; }
+	private _onDidActiveEditorChange: Emitter<EditorInput> = this._register(new Emitter<EditorInput>());
+	get onDidActiveEditorChange(): Event<EditorInput> { return this._onDidActiveEditorChange.event; }
 
 	private group: EditorGroup;
+	private isActive: boolean;
+
 	private dimension: Dimension;
 	private scopedInstantiationService: IInstantiationService;
 
@@ -51,9 +59,12 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	private editorContainer: HTMLElement;
 	private editorControl: NextEditorControl;
 
+	// private ignoreOpenEditorErrors: boolean;
+
 	private progressBar: ProgressBar;
 
 	constructor(
+		private groupsAccessor: IGroupsAccessor,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService
@@ -104,10 +115,9 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	}
 
 	private updateContainer(): void {
-		const empty = this.group.count === 0;
 
-		// Empty Container: allow to focus 
-		if (empty) {
+		// Empty Container: allow to focus
+		if (this.isEmpty()) {
 			addClass(this.element, 'empty');
 			this.element.tabIndex = 0;
 			this.element.setAttribute('aria-label', localize('emptyEditorGroup', "Empty Editor Group"));
@@ -122,6 +132,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	}
 
 	setActive(isActive: boolean): void {
+		this.isActive = isActive;
 
 		// Update container
 		toggleClass(this.element, 'active', isActive);
@@ -133,31 +144,45 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		}
 	}
 
-	//#region INextEditorGroup Implementation
+	contains(editor: EditorInput): boolean {
+		return this.group.contains(editor);
+	}
+
+	isEmpty(): boolean {
+		return this.group.count === 0;
+	}
+
+	//#region INextEditorGroup
 
 	get id(): GroupIdentifier {
 		return this.group.id;
 	}
 
-	get activeEditor(): BaseEditor {
-		return this.editorControl ? this.editorControl.activeEditor : void 0;
+	get activeControl(): BaseEditor {
+		return this.editorControl ? this.editorControl.activeControl : void 0;
 	}
 
-	openEditor(input: EditorInput, options?: EditorOptions): IOpenEditorResult {
+	get activeEditor(): EditorInput {
+		return this.activeControl ? this.activeControl.input : void 0;
+	}
+
+	//#region openEditor()
+
+	openEditor(editor: EditorInput, options?: EditorOptions): IOpenEditorResult {
 
 		// Update model
-		this.group.openEditor(input, options);
+		this.group.openEditor(editor, options);
 
 		// Forward to title control
-		this.doCreateOrGetTitleControl().openEditor(input, options);
+		this.doCreateOrGetTitleControl().openEditor(editor, options);
 
 		// Forward to editor control
 		// TODO@grid handle input errors as well:
 		//  - close active editor to reveal next one
-		const openEditorResult = this.doCreateOrGetEditorControl().openEditor(input, options);
+		const openEditorResult = this.doCreateOrGetEditorControl().openEditor(editor, options);
 		openEditorResult.whenOpened.then(changed => {
 			if (changed) {
-				this._onDidActiveEditorChange.fire(openEditorResult.control as BaseEditor);
+				this._onDidActiveEditorChange.fire(editor);
 			}
 		}, () => void 0 /* TODO@grid handle errors here as open fail event? but do not re-emit to outside */);
 
@@ -193,33 +218,161 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		return this.editorControl;
 	}
 
-	focusActiveEditor(): void {
-		const activeEditor = this.activeEditor;
-		if (activeEditor) {
-			activeEditor.focus();
+	//#endregion
+
+	//#region closeEditor()
+
+	closeEditor(editor: EditorInput = this.activeEditor): TPromise<void> {
+
+		// Check for dirty and veto
+		return this.handleDirty([editor], true /* ignore if opened in other group */).then(veto => {
+			if (veto) {
+				return;
+			}
+
+			// Do close
+			this.doCloseEditor(editor);
+		});
+	}
+
+	private doCloseEditor(editor: EditorInput, focusNext = this.isActive): void {
+
+		// Closing the active editor of the group is a bit more work
+		if (this.activeEditor && this.activeEditor.matches(editor)) {
+			this.doCloseActiveEditor(focusNext);
+		}
+
+		// Closing inactive editor is just a model update
+		else {
+			this.doCloseInactiveEditor(editor);
 		}
 	}
 
-	pinEditor(input?: EditorInput): void {
-		if (!input) {
-			input = this.activeEditor ? this.activeEditor.input : void 0;
+	private doCloseActiveEditor(focusNext = this.isActive, fromError?: boolean): void {
+
+		// Update model
+		this.group.closeEditor(this.activeEditor);
+
+		// Open next active if possible
+		if (this.group.count > 0) {
+			// When closing an editor due to an error we can end up in a loop where we continue closing
+			// editors that fail to open (e.g. when the file no longer exists). We do not want to show
+			// repeated errors in this case to the user. As such, if we open the next editor and we are
+			// in a scope of a previous editor failing, we silence the input errors until the editor is
+			// opened.
+			if (fromError) {
+				// this.ignoreOpenEditorErrors = true;
+			}
+
+			this.openEditor(this.group.activeEditor, !focusNext ? EditorOptions.create({ preserveFocus: true }) : null).whenOpened.done(() => {
+				// this.ignoreOpenEditorErrors = false;
+			}, error => {
+				onUnexpectedError(error);
+
+				// this.ignoreOpenEditorErrors = false;
+			});
+		}
+	}
+
+	private doCloseInactiveEditor(editor: EditorInput): void {
+
+		// Closing inactive editor is just a model update
+		this.group.closeEditor(editor);
+	}
+
+	private handleDirty(editors: EditorInput[], ignoreIfOpenedInOtherGroup?: boolean): TPromise<boolean /* veto */> {
+		if (!editors.length) {
+			return TPromise.as(false); // no veto
 		}
 
-		if (input && !this.group.isPinned(input)) {
+		return this.doHandleDirty(editors.shift(), ignoreIfOpenedInOtherGroup).then(veto => {
+			if (veto) {
+				return veto;
+			}
+
+			return this.handleDirty(editors, ignoreIfOpenedInOtherGroup);
+		});
+	}
+
+	private doHandleDirty(editor: EditorInput, ignoreIfOpenedInOtherGroup?: boolean): TPromise<boolean /* veto */> {
+		if (!editor || !editor.isDirty() || (ignoreIfOpenedInOtherGroup && this.isOpenedInOtherGroup(editor))) {
+			return TPromise.as(false); // no veto
+		}
+
+		// Switch to editor that we want to handle
+		return this.openEditor(editor, null).whenOpened.then(() => {
+			return editor.confirmSave().then(res => {
+
+				// It could be that the editor saved meanwhile, so we check again
+				// to see if anything needs to happen before closing for good.
+				// This can happen for example if autoSave: onFocusChange is configured
+				// so that the save happens when the dialog opens.
+				if (!editor.isDirty()) {
+					return res === ConfirmResult.CANCEL ? true : false;
+				}
+
+				// Otherwise, handle accordingly
+				switch (res) {
+					case ConfirmResult.SAVE:
+						return editor.save().then(ok => !ok);
+
+					case ConfirmResult.DONT_SAVE:
+						// first try a normal revert where the contents of the editor are restored
+						return editor.revert().then(ok => !ok, error => {
+							// if that fails, since we are about to close the editor, we accept that
+							// the editor cannot be reverted and instead do a soft revert that just
+							// enables us to close the editor. With this, a user can always close a
+							// dirty editor even when reverting fails.
+							return editor.revert({ soft: true }).then(ok => !ok);
+						});
+
+					case ConfirmResult.CANCEL:
+						return true; // veto
+				}
+			});
+		});
+	}
+
+	private isOpenedInOtherGroup(editor: EditorInput): boolean {
+		if (this.groupsAccessor.isOpenedInOtherGroup(editor)) {
+			return true;
+		}
+
+		if (editor instanceof SideBySideEditorInput && this.groupsAccessor.isOpenedInOtherGroup(editor.master)) {
+			return true; // consider right-hand-side diff editors too
+		}
+
+		return false;
+	}
+
+	//#endregion
+
+	//#region other INextEditorGroup methods
+
+	focusActiveEditor(): void {
+		if (this.activeControl) {
+			this.activeControl.focus();
+		}
+	}
+
+	pinEditor(editor: EditorInput = this.activeEditor): void {
+		if (editor && !this.group.isPinned(editor)) {
 
 			// Update model
-			this.group.pin(input);
+			this.group.pin(editor);
 
 			// Forward to title control
 			if (this.titleAreaControl) {
-				this.titleAreaControl.pinEditor(input);
+				this.titleAreaControl.pinEditor(editor);
 			}
 		}
 	}
 
 	//#endregion
 
-	//#region Themable Implementation
+	//#endregion
+
+	//#region Themable
 
 	protected updateStyles(): void {
 
@@ -240,7 +393,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	//#endregion
 
-	//#region IView implementation
+	//#region IView
 
 	readonly element: HTMLElement = document.createElement('div');
 

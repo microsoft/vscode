@@ -362,7 +362,7 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 		return keybinding ? keybinding.getLabel() : void 0;
 	}
 
-	//#region IThemeable implementation
+	//#region IThemeable
 
 	protected updateStyles(): void {
 		this.doScheduleUpdate(true); // run a sync update when the theme changes to new styles
@@ -370,7 +370,7 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 
 	//#endregion
 
-	//#region INextTitleAreaControl implementation
+	//#region INextTitleAreaControl
 
 	openEditor(input: EditorInput, options?: EditorOptions): void {
 		this.doScheduleRefresh(true); // TODO@grid optimize if possible
