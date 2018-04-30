@@ -1912,28 +1912,10 @@ export class FoldingRange {
 	}
 }
 
-export class FoldingRangeKind {
-	/**
-	 * Kind for folding range representing a comment. The value of the kind is 'comment'.
-	 */
-	static readonly Comment = new FoldingRangeKind('comment');
-	/**
-	 * Kind for folding range representing a import. The value of the kind is 'imports'.
-	 */
-	static readonly Imports = new FoldingRangeKind('imports');
-	/**
-	 * Kind for folding range representing regions (for example marked by `#region`, `#endregion`).
-	 * The value of the kind is 'region'.
-	 */
-	static readonly Region = new FoldingRangeKind('region');
-
-	/**
-	 * Creates a new [FoldingRangeKind](#FoldingRangeKind).
-	 *
-	 * @param value of the kind.
-	 */
-	public constructor(public value: string) {
-	}
+export enum FoldingRangeKind {
+	Comment = 1,
+	Imports = 2,
+	Region = 3
 }
 
 //#endregion

@@ -3411,7 +3411,7 @@ declare module 'vscode' {
 		 * Describes the [Kind](#FoldingRangeKind) of the folding range such as [Comment](#FoldingRangeKind.Comment) or
 		 * [Region](#FoldingRangeKind.Region). The kind is used to categorize folding ranges and used by commands
 		 * like 'Fold all comments'. See
-		 * [FoldingRangeKind](#FoldingRangeKind) for an enumeration of standardized kinds.
+		 * [FoldingRangeKind](#FoldingRangeKind) for an enumeration of all kinds.
 		 */
 		kind?: FoldingRangeKind;
 
@@ -3425,30 +3425,19 @@ declare module 'vscode' {
 		constructor(start: number, end: number, kind?: FoldingRangeKind);
 	}
 
-	export class FoldingRangeKind {
+	export enum FoldingRangeKind {
 		/**
-		 * Kind for folding range representing a comment. The value of the kind is 'comment'.
+		 * Kind for folding range representing a comment.
 		 */
-		static readonly Comment: FoldingRangeKind;
+		Comment = 1,
 		/**
-		 * Kind for folding range representing a import. The value of the kind is 'imports'.
+		 * Kind for folding range representing a import.
 		 */
-		static readonly Imports: FoldingRangeKind;
+		Imports = 2,
 		/**
 		 * Kind for folding range representing regions (for example a folding range marked by `#region` and `#endregion`).
-		 * The value of the kind is 'region'.
 		 */
-		static readonly Region: FoldingRangeKind;
-		/**
-		 * String value of the kind, e.g. `comment`.
-		 */
-		readonly value: string;
-		/**
-		 * Creates a new [FoldingRangeKind](#FoldingRangeKind).
-		 *
-		 * @param value of the kind.
-		 */
-		public constructor(value: string);
+		Region = 3
 	}
 
 	/**
