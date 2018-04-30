@@ -333,16 +333,18 @@ export class GridView implements IGrid, IDisposable {
 		const [, parentIndex] = tail(rest);
 
 		const sibling = parent.children[0];
-
-		if (!(sibling instanceof LeafNode)) {
-			throw new Error('Invalid grid state');
-		}
-
 		parent.removeChild(0);
 		grandParent.removeChild(parentIndex);
 
-		const newSibling = new LeafNode(sibling.view, orthogonal(sibling.orientation), sibling.size);
-		grandParent.addChild(newSibling, sibling.orthogonalSize, parentIndex);
+		if (sibling instanceof BranchNode) {
+			for (let i = 0; i < sibling.children.length; i++) {
+				const child = sibling.children[i];
+				grandParent.addChild(child, child.size, parentIndex + i);
+			}
+		} else {
+			const newSibling = new LeafNode(sibling.view, orthogonal(sibling.orientation), sibling.size);
+			grandParent.addChild(newSibling, sibling.orthogonalSize, parentIndex);
+		}
 
 		return node.view;
 	}
