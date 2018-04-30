@@ -8,8 +8,8 @@
 import 'vs/css!./media/nextEditorGroupView';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
-import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput } from 'vs/workbench/common/editor';
-import { Event, Emitter } from 'vs/base/common/event';
+import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, IEditorOpeningEvent, EditorOpeningEvent } from 'vs/workbench/common/editor';
+import { Event, Emitter, once } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -19,7 +19,7 @@ import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_BACKGROUND } from 'vs/workbench/common/theme';
-import { IOpenEditorResult, INextEditorGroup } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { INextEditorGroup } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { INextTitleAreaControl } from 'vs/workbench/browser/parts/editor2/nextTitleControl';
 import { NextTabsTitleControl } from 'vs/workbench/browser/parts/editor2/nextTabsTitleControl';
 import { NextEditorControl } from 'vs/workbench/browser/parts/editor2/nextEditorControl';
@@ -28,7 +28,11 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ProgressService } from 'vs/workbench/services/progress/browser/progressService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { localize } from 'vs/nls';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { onUnexpectedError, isPromiseCanceledError, isErrorWithActions, IErrorWithActions } from 'vs/base/common/errors';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { dispose } from 'vs/base/common/lifecycle';
+import { Severity, INotificationService, INotificationActions } from 'vs/platform/notification/common/notification';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 
 export interface IGroupsAccessor {
 	isOpenedInOtherGroup(editor: EditorInput): boolean;
@@ -38,6 +42,8 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	private static readonly EDITOR_TITLE_HEIGHT = 35;
 
+	//#region events
+
 	private _onDidFocus: Emitter<void> = this._register(new Emitter<void>());
 	get onDidFocus(): Event<void> { return this._onDidFocus.event; }
 
@@ -46,6 +52,14 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	private _onDidActiveEditorChange: Emitter<EditorInput> = this._register(new Emitter<EditorInput>());
 	get onDidActiveEditorChange(): Event<EditorInput> { return this._onDidActiveEditorChange.event; }
+
+	private _onWillOpenEditor: Emitter<IEditorOpeningEvent> = this._register(new Emitter<IEditorOpeningEvent>());
+	get onWillOpenEditor(): Event<IEditorOpeningEvent> { return this._onWillOpenEditor.event; }
+
+	private _onDidOpenEditorFail: Emitter<EditorInput> = this._register(new Emitter<EditorInput>());
+	get onDidOpenEditorFail(): Event<EditorInput> { return this._onDidOpenEditorFail.event; }
+
+	//#endregion
 
 	private group: EditorGroup;
 	private isActive: boolean;
@@ -59,7 +73,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	private editorContainer: HTMLElement;
 	private editorControl: NextEditorControl;
 
-	// private ignoreOpenEditorErrors: boolean;
+	private ignoreOpenEditorErrors: boolean;
 
 	private progressBar: ProgressBar;
 
@@ -67,7 +81,9 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		private groupsAccessor: IGroupsAccessor,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IPartService private partService: IPartService,
+		@INotificationService private notificationService: INotificationService
 	) {
 		super(themeService);
 
@@ -168,7 +184,21 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	//#region openEditor()
 
-	openEditor(editor: EditorInput, options?: EditorOptions): IOpenEditorResult {
+	openEditor(editor: EditorInput, options?: EditorOptions): TPromise<void> {
+
+		// Editor opening event allows for prevention
+		const event = new EditorOpeningEvent(editor, options, this.group.id);
+		this._onWillOpenEditor.fire(event);
+		const prevented = event.isPrevented();
+		if (prevented) {
+			return TPromise.as(void 0);
+		}
+
+		// Proceed with opening
+		return this.doOpenEditor(editor, options);
+	}
+
+	private doOpenEditor(editor: EditorInput, options?: EditorOptions): TPromise<void> {
 
 		// Update model
 		this.group.openEditor(editor, options);
@@ -177,16 +207,47 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		this.doCreateOrGetTitleControl().openEditor(editor, options);
 
 		// Forward to editor control
-		// TODO@grid handle input errors as well:
-		//  - close active editor to reveal next one
 		const openEditorResult = this.doCreateOrGetEditorControl().openEditor(editor, options);
-		openEditorResult.whenOpened.then(changed => {
+
+		return openEditorResult.whenOpened.then(changed => {
+
+			// Editor change event
 			if (changed) {
 				this._onDidActiveEditorChange.fire(editor);
 			}
-		}, () => void 0 /* TODO@grid handle errors here as open fail event? but do not re-emit to outside */);
+		}, error => {
 
-		return openEditorResult;
+			// Handle errors but do not bubble them up
+			this.doHandleOpenEditorError(error, editor, options);
+		});
+	}
+
+	private doHandleOpenEditorError(error: Error, editor: EditorInput, options?: EditorOptions): void {
+
+		// Report error only if this was not us restoring previous error state or
+		// we are told to ignore errors that occur from opening an editor
+		if (this.partService.isCreated() && !isPromiseCanceledError(error) && !this.ignoreOpenEditorErrors) {
+			const actions: INotificationActions = { primary: [] };
+			if (isErrorWithActions(error)) {
+				actions.primary = (error as IErrorWithActions).actions;
+			}
+
+			const handle = this.notificationService.notify({
+				severity: Severity.Error,
+				message: localize('editorOpenError', "Unable to open '{0}': {1}.", editor.getName(), toErrorMessage(error)),
+				actions
+			});
+
+			once(handle.onDidClose)(() => dispose(actions.primary));
+		}
+
+		// Event
+		this._onDidOpenEditorFail.fire(editor);
+
+		// Recover by closing the active editor (if the input is still the active one)
+		if (this.activeEditor === editor) {
+			this.doCloseActiveEditor(!(options && options.preserveFocus) /* still preserve focus as needed */, true /* from error */);
+		}
 	}
 
 	private doCreateOrGetScopedInstantiationService(): IInstantiationService {
@@ -261,15 +322,15 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 			// in a scope of a previous editor failing, we silence the input errors until the editor is
 			// opened.
 			if (fromError) {
-				// this.ignoreOpenEditorErrors = true;
+				this.ignoreOpenEditorErrors = true;
 			}
 
-			this.openEditor(this.group.activeEditor, !focusNext ? EditorOptions.create({ preserveFocus: true }) : null).whenOpened.done(() => {
-				// this.ignoreOpenEditorErrors = false;
+			this.openEditor(this.group.activeEditor, !focusNext ? EditorOptions.create({ preserveFocus: true }) : null).done(() => {
+				this.ignoreOpenEditorErrors = false;
 			}, error => {
 				onUnexpectedError(error);
 
-				// this.ignoreOpenEditorErrors = false;
+				this.ignoreOpenEditorErrors = false;
 			});
 		}
 	}
@@ -300,7 +361,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		}
 
 		// Switch to editor that we want to handle
-		return this.openEditor(editor, null).whenOpened.then(() => {
+		return this.openEditor(editor).then(() => {
 			return editor.confirmSave().then(res => {
 
 				// It could be that the editor saved meanwhile, so we check again

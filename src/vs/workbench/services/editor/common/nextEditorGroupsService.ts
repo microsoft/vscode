@@ -7,16 +7,11 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { GroupIdentifier } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IEditorOpeningEvent } from 'vs/workbench/common/editor';
 import { IEditorInput, IEditor, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 export const INextEditorGroupsService = createDecorator<INextEditorGroupsService>('nextEditorGroupsService');
-
-export interface IOpenEditorResult {
-	control: IEditor;
-	whenOpened: TPromise<boolean /* input changed */>;
-}
 
 export enum Direction {
 	UP,
@@ -28,13 +23,15 @@ export enum Direction {
 export interface INextEditorGroup {
 
 	readonly onDidActiveEditorChange: Event<IEditorInput>;
+	readonly onWillOpenEditor: Event<IEditorOpeningEvent>;
+	readonly onDidOpenEditorFail: Event<IEditorInput>;
 
 	readonly id: GroupIdentifier;
 
 	readonly activeControl: IEditor;
 	readonly activeEditor: IEditorInput;
 
-	openEditor(editor: IEditorInput, options?: IEditorOptions): IOpenEditorResult;
+	openEditor(editor: IEditorInput, options?: IEditorOptions): TPromise<void>;
 
 	/**
 	 * Close an editor from the group. This may trigger a confirmation dialog if

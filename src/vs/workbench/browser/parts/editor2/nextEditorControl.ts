@@ -7,20 +7,21 @@
 
 import { Disposable, dispose } from 'vs/base/common/lifecycle';
 import { EditorInput, EditorOptions, IEditorGroup } from 'vs/workbench/common/editor';
-import { IOpenEditorResult } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { Dimension, show, hide } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorRegistry, Extensions as EditorExtensions, IEditorDescriptor } from 'vs/workbench/browser/editor';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { isPromiseCanceledError, isErrorWithActions, IErrorWithActions } from 'vs/base/common/errors';
-import { INotificationActions, INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { localize } from 'vs/nls';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { once } from 'vs/base/common/event';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
+
+export interface IOpenEditorResult {
+	readonly control: BaseEditor;
+	readonly editorChanged: boolean;
+
+	whenOpened: TPromise<void>;
+}
 
 export class NextEditorControl extends Disposable {
 	private dimension: Dimension;
@@ -34,7 +35,6 @@ export class NextEditorControl extends Disposable {
 		private group: IEditorGroup,
 		@IPartService private partService: IPartService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@INotificationService private notificationService: INotificationService,
 		@IProgressService private progressService: IProgressService
 	) {
 		super();
@@ -58,21 +58,23 @@ export class NextEditorControl extends Disposable {
 		}));
 
 		// Editor control
-		const control = this.doShowEditor(editor, options);
+		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editor);
+		const control = this.doShowEditorControl(descriptor, options);
+
+		const editorChanged = (!control.input || !control.input.matches(editor) || (options && options.forceOpen));
 
 		// Set input
-		let whenOpened: TPromise<boolean>;
+		let whenOpened: TPromise<void>;
 		if (control) {
 			whenOpened = this.doSetInput(control, editor, options, monitor);
 		} else {
-			whenOpened = TPromise.as(false);
+			whenOpened = TPromise.as(void 0);
 		}
 
-		return { control: control, whenOpened };
+		return { control, editorChanged, whenOpened } as IOpenEditorResult;
 	}
 
-	private doShowEditor(editor: EditorInput, options: EditorOptions): BaseEditor {
-		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editor);
+	private doShowEditorControl(descriptor: IEditorDescriptor, options: EditorOptions): BaseEditor {
 
 		// Return early if the currently active editor control can handle the input
 		if (this._activeControl && descriptor.describes(this._activeControl)) {
@@ -132,9 +134,7 @@ export class NextEditorControl extends Disposable {
 		return control;
 	}
 
-	private doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions, monitor: ProgressMonitor): TPromise<boolean> {
-		const previousEditor = control.input;
-		const editorChanged = (!previousEditor || !previousEditor.matches(editor) || (options && options.forceOpen));
+	private doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions, monitor: ProgressMonitor): TPromise<void> {
 
 		// Call into editor control
 		return control.setInput(editor, options).then(() => {
@@ -147,38 +147,13 @@ export class NextEditorControl extends Disposable {
 			if (focus) {
 				control.focus();
 			}
-
-			return editorChanged;
 		}, e => {
 
 			// Progress done
 			monitor.done();
 
-			// Error handling
-			this.doHandleSetInputError(e, control, editor, options, monitor);
-
-			return null;
+			return TPromise.wrapError(e);
 		});
-	}
-
-	private doHandleSetInputError(error: Error, control: BaseEditor, editor: EditorInput, options: EditorOptions, monitor: ProgressMonitor): void {
-
-		// Report error only if this was not us restoring previous error state or
-		// we are told to ignore errors that occur from opening an editor
-		if (this.partService.isCreated() && !isPromiseCanceledError(error) /* && TODO@grid !this.ignoreOpenEditorErrors */) {
-			const actions: INotificationActions = { primary: [] };
-			if (isErrorWithActions(error)) {
-				actions.primary = (error as IErrorWithActions).actions;
-			}
-
-			const handle = this.notificationService.notify({
-				severity: Severity.Error,
-				message: localize('editorOpenError', "Unable to open '{0}': {1}.", editor.getName(), toErrorMessage(error)),
-				actions
-			});
-
-			once(handle.onDidClose)(() => dispose(actions.primary));
-		}
 	}
 
 	private doHideActiveEditor(): void {
