@@ -163,7 +163,7 @@ class BranchNode implements ISplitView, IDisposable {
 			throw new Error('Invalid to index');
 		}
 
-		this.splitview.moveView(from, to);
+		this.splitview.swapViews(from, to);
 		[this.children[from], this.children[to]] = [this.children[to], this.children[from]];
 	}
 

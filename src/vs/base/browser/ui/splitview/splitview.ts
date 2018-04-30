@@ -212,6 +212,23 @@ export class SplitView implements IDisposable {
 		this.addView(view, size, to);
 	}
 
+	swapViews(from: number, to: number): void {
+		if (this.state !== State.Idle) {
+			throw new Error('Cant modify splitview');
+		}
+
+		if (from > to) {
+			return this.swapViews(to, from);
+		}
+
+		const fromSize = this.getViewSize(from);
+		const toSize = this.getViewSize(to);
+		const toView = this.removeView(to);
+		const fromView = this.removeView(from);
+		this.addView(toView, fromSize, from);
+		this.addView(fromView, toSize, to);
+	}
+
 	private relayout(lowPriorityIndex?: number): void {
 		const contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
 		this.resize(this.viewItems.length - 1, this.size - contentSize, undefined, lowPriorityIndex);
