@@ -8,6 +8,7 @@
 	],
 	"completeInEnglish": "請用英語填寫這張表格。",
 	"issueTypeLabel": "這是一個",
+	"issueSourceLabel": "檔案，位於",
 	"vscode": "Visual Studio Code",
 	"extension": "擴充功能",
 	"disableExtensionsLabelText": "嘗試在 {0} 之後重現問題。如果問題僅在使用中的擴充功能時重現，則可能是擴充功能的問題。",

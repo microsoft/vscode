@@ -12,5 +12,7 @@
 	"hintnn": "Sono state apportate {0} modifiche di formattazione tra le righe {1} e {2}",
 	"no.provider": "Non c'è alcun formattatore installato per i file '{0}'.",
 	"formatDocument.label": "Formatta documento",
-	"formatSelection.label": "Formatta selezione"
+	"no.documentprovider": "Non è installato alcun formattatore di documenti per i file '{0}'.",
+	"formatSelection.label": "Formatta selezione",
+	"no.selectionprovider": "Non è installato alcun formattatore di selezione per i file '{0}'."
 }

@@ -14,6 +14,7 @@
 	"editorCursorBackground": "Hintergrundfarbe vom Editor-Cursor. Erlaubt die Anpassung der Farbe von einem Zeichen, welches von einem Block-Cursor überdeckt wird.",
 	"editorWhitespaces": "Farbe der Leerzeichen im Editor.",
 	"editorIndentGuides": "Farbe der Führungslinien für Einzüge im Editor.",
+	"editorActiveIndentGuide": "Farbe der Führungslinien für Einzüge im aktiven Editor.",
 	"editorLineNumbers": "Zeilennummernfarbe im Editor.",
 	"editorActiveLineNumber": "Zeilennummernfarbe der aktiven Editorzeile.",
 	"deprecatedEditorActiveLineNumber": "ID ist veraltet. Verwenden Sie stattdessen \"editorLineNumber.activeForeground\".",

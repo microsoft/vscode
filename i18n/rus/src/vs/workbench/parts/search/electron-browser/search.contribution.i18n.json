@@ -10,6 +10,7 @@
 	"copyMatchLabel": "Копировать",
 	"copyPathLabel": "Скопировать путь",
 	"copyAllLabel": "Копировать все",
+	"clearSearchHistoryLabel": "Очистить историю поиска",
 	"findInFolder": "Найти в папке...",
 	"findInWorkspace": "Найти в рабочей области...",
 	"showTriggerActions": "Перейти к символу в рабочей области...",

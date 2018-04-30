@@ -38,6 +38,7 @@
 	"confirmDeleteMessageMultiple": "Aşağıdaki {0} dosyayı kalıcı olarak silmek istediğinizden emin misiniz?",
 	"confirmDeleteMessageFolder": "'{0}' öğesini ve içindekileri kalıcı olarak silmek istediğinizden emin misiniz?",
 	"confirmDeleteMessageFile": "'{0}' öğesini kalıcı olarak silmek istediğinizden emin misiniz?",
+	"addFiles": "Dosya Ekle",
 	"confirmOverwrite": "Hedef klasörde aynı ada sahip bir dosya veya klasör zaten var. Değiştirmek istiyor musunuz?",
 	"replaceButtonLabel": "&&Değiştir",
 	"fileIsAncestor": "Yapıştırılacak dosya hedef klasörün atalarından biridir",

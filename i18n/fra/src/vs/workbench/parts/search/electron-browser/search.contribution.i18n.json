@@ -10,6 +10,7 @@
 	"copyMatchLabel": "Copier",
 	"copyPathLabel": "Copier le chemin",
 	"copyAllLabel": "Copier tout",
+	"clearSearchHistoryLabel": "Effacer l'historique de recherche",
 	"toggleSearchViewPositionLabel": "Basculer la position de la vue de Recherche",
 	"findInFolder": "Rechercher dans le dossier...",
 	"findInWorkspace": "Trouver dans l’espace de travail...",

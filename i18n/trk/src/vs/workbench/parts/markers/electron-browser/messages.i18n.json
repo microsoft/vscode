@@ -14,6 +14,7 @@
 	"markers.panel.title.problems": "Sorunlar",
 	"markers.panel.aria.label.problems.tree": "Dosyalara göre gruplandırılmış sorunlar",
 	"markers.panel.no.problems.build": "Şu ana kadar çalışma alanında herhangi bir sorun tespit edilmedi.",
+	"markers.panel.no.problems.filters": "Belirtilen süzgeç ölçütleriyle sonuç bulunamadı.",
 	"markers.panel.action.filter": "Sorunları Süz",
 	"markers.panel.filter.ariaLabel": "Sorunları Süz",
 	"markers.panel.filter.errors": "hatalar",
