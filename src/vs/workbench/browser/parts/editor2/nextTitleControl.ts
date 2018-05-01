@@ -37,7 +37,7 @@ import { isDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension } from 'vs/base/browser/dom';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { INextEditorGroupsService } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { INextEditorGroupsService, Direction } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -276,7 +276,20 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 		if (isActive) {
 			primaryEditorActions = prepareActions(editorActions.primary);
 			if (editor instanceof EditorInput && editor.supportsSplitEditor()) {
-				primaryEditorActions.push(this.splitEditorAction);
+				// TODO@grid temporary actions to play with
+				// primaryEditorActions.push(this.splitEditorAction);
+
+				primaryEditorActions.push(new Action('split.right', 'Split Right', 'split-editor-right-action', true, () => {
+					this.nextEditorGroupsService.addGroup(this.nextEditorGroupsService.activeGroup, Direction.RIGHT, { copyEditor: true });
+
+					return TPromise.as(true);
+				}));
+
+				primaryEditorActions.push(new Action('split.down', 'Split Down', 'split-editor-down-action', true, () => {
+					this.nextEditorGroupsService.addGroup(this.nextEditorGroupsService.activeGroup, Direction.DOWN, { copyEditor: true });
+
+					return TPromise.as(true);
+				}));
 			}
 		}
 

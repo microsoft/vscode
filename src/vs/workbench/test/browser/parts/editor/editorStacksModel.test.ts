@@ -1995,4 +1995,25 @@ suite('Editor Stacks Model', () => {
 		assert.equal(notfound2, null);
 		assert.equal(notfound3, null);
 	});
+
+	test('Stack - Clone Group', function () {
+		const model = create();
+		const group = model.openGroup('group');
+
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
+
+		// Pinned and Active
+		group.openEditor(input1, { pinned: true, active: true });
+		group.openEditor(input2, { pinned: true, active: true });
+		group.openEditor(input3, { pinned: false, active: true });
+
+		const clone = group.clone();
+		assert.equal(clone.count, 3);
+		assert.equal(clone.isPinned(input1), true);
+		assert.equal(clone.isPinned(input2), true);
+		assert.equal(clone.isPinned(input3), false);
+		assert.equal(clone.isActive(input3), true);
+	});
 });

@@ -64,7 +64,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	private group: EditorGroup;
 	private isActive: boolean;
 
-	private dimension: Dimension;
+	private _dimension: Dimension;
 	private scopedInstantiationService: IInstantiationService;
 
 	private titleContainer: HTMLElement;
@@ -78,6 +78,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	private progressBar: ProgressBar;
 
 	constructor(
+		sourceView: NextEditorGroupView,
 		private groupsAccessor: IGroupsAccessor,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
@@ -87,7 +88,11 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	) {
 		super(themeService);
 
-		this.group = this._register(instantiationService.createInstance(EditorGroup, ''));
+		if (sourceView) {
+			this.group = this._register(sourceView.group.clone());
+		} else {
+			this.group = this._register(instantiationService.createInstance(EditorGroup, ''));
+		}
 		this.group.label = `Group <${this.group.id}>`;
 
 		this.doCreate();
@@ -147,6 +152,10 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		}
 	}
 
+	get dimension(): Dimension {
+		return this._dimension;
+	}
+
 	setActive(isActive: boolean): void {
 		this.isActive = isActive;
 
@@ -166,6 +175,10 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	isEmpty(): boolean {
 		return this.group.count === 0;
+	}
+
+	isPinned(editor: EditorInput): boolean {
+		return this.group.isPinned(editor);
 	}
 
 	//#region INextEditorGroup
@@ -477,7 +490,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	get onDidChange() { return Event.None; }
 
 	layout(width: number, height: number): void {
-		this.dimension = new Dimension(width, height);
+		this._dimension = new Dimension(width, height);
 
 		// Forward to controls
 		this.doLayoutTitleControl();
@@ -486,13 +499,13 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	private doLayoutTitleControl(): void {
 		if (this.titleAreaControl) {
-			this.titleAreaControl.layout(new Dimension(this.dimension.width, NextEditorGroupView.EDITOR_TITLE_HEIGHT));
+			this.titleAreaControl.layout(new Dimension(this._dimension.width, NextEditorGroupView.EDITOR_TITLE_HEIGHT));
 		}
 	}
 
 	private doLayoutEditorControl(): void {
 		if (this.editorControl) {
-			this.editorControl.layout(new Dimension(this.dimension.width, this.dimension.height - NextEditorGroupView.EDITOR_TITLE_HEIGHT));
+			this.editorControl.layout(new Dimension(this._dimension.width, this._dimension.height - NextEditorGroupView.EDITOR_TITLE_HEIGHT));
 		}
 	}
 

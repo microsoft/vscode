@@ -685,6 +685,18 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 		this.active = this.mru[0];
 		this.preview = this.editors[data.preview];
 	}
+
+	public clone(): EditorGroup {
+		const group = this.instantiationService.createInstance(EditorGroup, '');
+		group.editors = this.editors.slice(0);
+		group.mru = this.mru.slice(0);
+		group.mapResourceToEditorCount = this.mapResourceToEditorCount.clone();
+		group.preview = this.preview;
+		group.active = this.active;
+		group.editorOpenPositioning = this.editorOpenPositioning;
+
+		return group;
+	}
 }
 
 interface ISerializedEditorStacksModel {

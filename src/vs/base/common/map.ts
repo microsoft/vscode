@@ -420,6 +420,14 @@ export class ResourceMap<T> {
 	public keys(): URI[] {
 		return keys(this.map).map(URI.parse);
 	}
+
+	public clone(): ResourceMap<T> {
+		const resourceMap = new ResourceMap<T>();
+
+		resourceMap.map.forEach((value, key) => resourceMap.map.set(key, value));
+
+		return resourceMap;
+	}
 }
 
 // We should fold BoundedMap and LinkedMap. See https://github.com/Microsoft/vscode/issues/28496

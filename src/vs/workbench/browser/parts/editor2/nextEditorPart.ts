@@ -12,11 +12,11 @@ import { Part } from 'vs/workbench/browser/part';
 import { Dimension, addClass, isAncestor } from 'vs/base/browser/dom';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { INextEditorGroupsService, Direction } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { INextEditorGroupsService, Direction, IAddGroupOptions } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SplitGridView, Direction as GridViewDirection } from 'vs/base/browser/ui/grid/gridview';
 import { NextEditorGroupView } from 'vs/workbench/browser/parts/editor2/nextEditorGroupView';
-import { GroupIdentifier } from 'vs/workbench/common/editor';
+import { GroupIdentifier, EditorOptions } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER } from 'vs/workbench/common/theme';
 
@@ -79,16 +79,34 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		return groupView;
 	}
 
-	addGroup(fromGroup: NextEditorGroupView | GroupIdentifier, direction: Direction): NextEditorGroupView {
-		const groupView = this.doCreateGroupView();
+	addGroup(fromGroup: NextEditorGroupView | GroupIdentifier, direction: Direction, options: IAddGroupOptions = Object.create(null)): NextEditorGroupView {
+		const { copyGroup, copyEditor } = options;
 
+		const fromGroupView = this.asGroupView(fromGroup);
+		const newGroupView = this.doCreateGroupView(copyGroup ? fromGroupView : void 0);
+
+		// Add to grid widget
 		this.gridWidget.splitView(
-			this.asGroupView(fromGroup),
+			fromGroupView,
 			this.toGridViewDirection(direction),
-			groupView, direction === Direction.DOWN ? this.dimension.height / 2 : this.dimension.width / 2 /* TODO@grid what size? */
+			newGroupView,
+			direction === Direction.DOWN ? fromGroupView.dimension.height / 2 : fromGroupView.dimension.width / 2 /* TODO@grid what size? */
 		);
 
-		return groupView;
+		// Check for options
+		const activeEditor = fromGroupView.activeEditor;
+		if ((copyGroup || copyEditor) && activeEditor) {
+			let options: EditorOptions;
+			if (copyGroup) {
+				options = EditorOptions.create({ pinned: fromGroupView.isPinned(activeEditor) }); // copy group preserves all pinned state
+			} else {
+				options = EditorOptions.create({ pinned: true }); // copy of single editor is a sign of importance, so pin it
+			}
+
+			newGroupView.openEditor(activeEditor, options);
+		}
+
+		return newGroupView;
 	}
 
 	removeGroup(group: NextEditorGroupView | GroupIdentifier): void {
@@ -171,8 +189,8 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		this._onDidActiveGroupChange.fire(group);
 	}
 
-	private doCreateGroupView(): NextEditorGroupView {
-		const groupView = this.instantiationService.createInstance(NextEditorGroupView, {
+	private doCreateGroupView(sourceView?: NextEditorGroupView): NextEditorGroupView {
+		const groupView = this.instantiationService.createInstance(NextEditorGroupView, sourceView, {
 			isOpenedInOtherGroup: editor => {
 				return this.groups.some(group => group !== groupView && group.contains(editor));
 			}

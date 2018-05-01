@@ -57,6 +57,11 @@ export interface INextEditorGroup {
 	pinEditor(editor?: IEditorInput): void;
 }
 
+export interface IAddGroupOptions {
+	copyGroup?: boolean;
+	copyEditor?: boolean;
+}
+
 export interface INextEditorGroupsService {
 
 	_serviceBrand: ServiceIdentifier<any>;
@@ -71,6 +76,6 @@ export interface INextEditorGroupsService {
 	setGroupActive(group: INextEditorGroup | GroupIdentifier): INextEditorGroup;
 	isGroupActive(group: INextEditorGroup | GroupIdentifier): boolean;
 
-	addGroup(fromGroup: INextEditorGroup | GroupIdentifier, direction: Direction): INextEditorGroup;
+	addGroup(fromGroup: INextEditorGroup | GroupIdentifier, direction: Direction, options?: IAddGroupOptions): INextEditorGroup;
 	removeGroup(group: INextEditorGroup | GroupIdentifier): void;
 }
