@@ -243,7 +243,7 @@ namespace CompletionConfiguration {
 
 export default class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider {
 
-	public static readonly triggerCharacters = ['.', '"', '\'', '/', '@'];
+	public static readonly triggerCharacters = ['.', '"', '\'', '/', '@', '<'];
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
@@ -471,6 +471,10 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 			if (!pre.match(/^\s*\*[ ]?@/) && !pre.match(/\/\*\*+[ ]?@/)) {
 				return false;
 			}
+		}
+
+		if (context.triggerCharacter === '<') {
+			return this.client.apiVersion.has290Features();
 		}
 
 		return true;
