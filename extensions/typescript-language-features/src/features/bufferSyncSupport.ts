@@ -81,9 +81,7 @@ class SyncedBuffer {
 			return;
 		}
 
-		for (const event of events) {
-			const range = event.range;
-			const text = event.text;
+		for (const { range, text } of events) {
 			const args: Proto.ChangeRequestArgs = {
 				file: filePath,
 				line: range.start.line + 1,
