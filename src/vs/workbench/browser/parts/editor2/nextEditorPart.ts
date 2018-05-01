@@ -37,7 +37,8 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 	private dimension: Dimension;
 
 	private _activeGroup: NextEditorGroupView;
-	private _groups: Map<GroupIdentifier, NextEditorGroupView> = new Map<GroupIdentifier, NextEditorGroupView>();
+	private groupViews: Map<GroupIdentifier, NextEditorGroupView> = new Map<GroupIdentifier, NextEditorGroupView>();
+	private mostRecentActive: GroupIdentifier[] = [];
 
 	private gridContainer: HTMLElement;
 	private gridWidget: SplitGridView<NextEditorGroupView>;
@@ -59,11 +60,11 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 	}
 
 	get groups(): NextEditorGroupView[] {
-		return values(this._groups);
+		return values(this.groupViews);
 	}
 
 	getGroup(identifier: GroupIdentifier): NextEditorGroupView {
-		return this._groups.get(identifier);
+		return this.groupViews.get(identifier);
 	}
 
 	isGroupActive(group: NextEditorGroupView | GroupIdentifier): boolean {
@@ -113,7 +114,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		const groupView = this.asGroupView(group);
 		if (
 			!groupView ||
-			this._groups.size === 1 ||	// Cannot remove the last root group
+			this.groupViews.size === 1 ||	// Cannot remove the last root group
 			!groupView.isEmpty()		// TODO@grid what about removing a group with editors, move them to other group?
 		) {
 			return;
@@ -128,7 +129,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 
 		// Activate next group if the removed one was active
 		if (isActive) {
-			const nextActiveGroup = this.groups[0]; // TODO@grid keep a MRU list of active groups to make active
+			const nextActiveGroup = this.asGroupView(this.mostRecentActive[this.mostRecentActive.length - 1]);
 			this.setGroupActive(nextActiveGroup);
 
 			// Restore focus if we had it previously
@@ -177,6 +178,9 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		const previousActiveGroup = this._activeGroup;
 		this._activeGroup = group;
 
+		// Update list of most recently active groups
+		this.doUpdateMostRecentActive(group, true);
+
 		// Mark previous one as inactive
 		if (previousActiveGroup) {
 			previousActiveGroup.setActive(false);
@@ -189,6 +193,17 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		this._onDidActiveGroupChange.fire(group);
 	}
 
+	private doUpdateMostRecentActive(group: NextEditorGroupView, makeMostRecentlyActive?: boolean): void {
+		const index = this.mostRecentActive.indexOf(group.id);
+		if (index !== -1) {
+			this.mostRecentActive.splice(index, 1);
+		}
+
+		if (makeMostRecentlyActive) {
+			this.mostRecentActive.push(group.id);
+		}
+	}
+
 	private doCreateGroupView(sourceView?: NextEditorGroupView): NextEditorGroupView {
 		const groupView = this.instantiationService.createInstance(NextEditorGroupView, sourceView, {
 			isOpenedInOtherGroup: editor => {
@@ -197,7 +212,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		});
 
 		// Keep in map
-		this._groups.set(groupView.id, groupView);
+		this.groupViews.set(groupView.id, groupView);
 
 		// Track focus
 		const focusListener = groupView.onDidFocus(() => {
@@ -207,7 +222,8 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		// Track dispose
 		once(groupView.onWillDispose)(() => {
 			focusListener.dispose();
-			this._groups.delete(groupView.id);
+			this.groupViews.delete(groupView.id);
+			this.doUpdateMostRecentActive(groupView);
 		});
 
 		return groupView;
@@ -250,7 +266,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 	shutdown(): void {
 
 		// Forward to all groups
-		this._groups.forEach(group => group.shutdown());
+		this.groupViews.forEach(group => group.shutdown());
 
 		super.shutdown();
 	}
@@ -258,8 +274,8 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 	dispose(): void {
 
 		// Forward to all groups
-		this._groups.forEach(group => group.dispose());
-		this._groups.clear();
+		this.groupViews.forEach(group => group.dispose());
+		this.groupViews.clear();
 
 		super.dispose();
 	}
