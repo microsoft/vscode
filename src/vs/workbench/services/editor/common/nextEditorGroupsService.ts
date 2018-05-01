@@ -43,11 +43,6 @@ export interface INextEditorGroup {
 	closeEditor(editor?: IEditorInput): Thenable<void>;
 
 	/**
-	 * Move keyboard focus into the current active editor.
-	 */
-	focusActiveEditor(): void;
-
-	/**
 	 * Set an editor to be pinned. A pinned editor is not replaced
 	 * when another editor opens at the same location.
 	 *
@@ -55,6 +50,11 @@ export interface INextEditorGroup {
 	 * if unspecified.
 	 */
 	pinEditor(editor?: IEditorInput): void;
+
+	/**
+	 * Move keyboard focus into the group.
+	 */
+	focus(): void;
 }
 
 export interface IAddGroupOptions {
@@ -73,7 +73,8 @@ export interface INextEditorGroupsService {
 
 	getGroup(identifier: GroupIdentifier): INextEditorGroup;
 
-	setGroupActive(group: INextEditorGroup | GroupIdentifier): INextEditorGroup;
+	focusGroup(group: INextEditorGroup | GroupIdentifier): INextEditorGroup;
+	activateGroup(group: INextEditorGroup | GroupIdentifier): INextEditorGroup;
 	isGroupActive(group: INextEditorGroup | GroupIdentifier): boolean;
 
 	addGroup(fromGroup: INextEditorGroup | GroupIdentifier, direction: Direction, options?: IAddGroupOptions): INextEditorGroup;

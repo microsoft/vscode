@@ -36,7 +36,7 @@ suite('editor2 tests', () => {
 
 		assert.equal(activeGroupChangeCounter, 0);
 
-		part.setGroupActive(rightGroup);
+		part.activateGroup(rightGroup);
 		assert.ok(part.isGroupActive(rightGroup));
 		assert.equal(activeGroupChangeCounter, 1);
 

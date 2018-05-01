@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/nextEditorGroupView';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { EditorGroup, IEditorOpenOptions } from 'vs/workbench/common/editor/editorStacksModel';
+import { EditorGroup, IEditorOpenOptions, EditorCloseEvent } from 'vs/workbench/common/editor/editorStacksModel';
 import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, IEditorOpeningEvent, EditorOpeningEvent } from 'vs/workbench/common/editor';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -33,6 +33,9 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { dispose } from 'vs/base/common/lifecycle';
 import { Severity, INotificationService, INotificationActions } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { RunOnceWorker } from 'vs/base/common/async';
+import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 
 export interface IGroupsAccessor {
 	isOpenedInOtherGroup(editor: EditorInput): boolean;
@@ -41,6 +44,7 @@ export interface IGroupsAccessor {
 export class NextEditorGroupView extends Themable implements IView, INextEditorGroup {
 
 	private static readonly EDITOR_TITLE_HEIGHT = 35;
+	private static readonly ENABLE_PREVIEW_SETTING = 'workbench.editor.enablePreview';
 
 	//#region events
 
@@ -50,8 +54,8 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	private _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
 	get onWillDispose(): Event<void> { return this._onWillDispose.event; }
 
-	private _onDidActiveEditorChange: Emitter<EditorInput> = this._register(new Emitter<EditorInput>());
-	get onDidActiveEditorChange(): Event<EditorInput> { return this._onDidActiveEditorChange.event; }
+	private _onDidActiveEditorChange: Emitter<void> = this._register(new Emitter<void>());
+	get onDidActiveEditorChange(): Event<void> { return this._onDidActiveEditorChange.event; }
 
 	private _onWillOpenEditor: Emitter<IEditorOpeningEvent> = this._register(new Emitter<IEditorOpeningEvent>());
 	get onWillOpenEditor(): Event<IEditorOpeningEvent> { return this._onWillOpenEditor.event; }
@@ -74,6 +78,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	private editorControl: NextEditorControl;
 
 	private ignoreOpenEditorErrors: boolean;
+	private disposedEditorsWorker: RunOnceWorker<EditorInput>;
 
 	private progressBar: ProgressBar;
 
@@ -84,7 +89,9 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IPartService private partService: IPartService,
-		@INotificationService private notificationService: INotificationService
+		@INotificationService private notificationService: INotificationService,
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(themeService);
 
@@ -95,12 +102,81 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		}
 		this.group.label = `Group <${this.group.id}>`;
 
+		this.disposedEditorsWorker = this._register(new RunOnceWorker(editors => this.handleDisposedEditors(editors), 0));
+
 		this.doCreate();
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
 		this._register(this.group.onEditorsStructureChanged(() => this.updateContainer()));
+		this._register(this.group.onEditorDirty(editor => this.pinEditor(editor)));
+		this._register(this.group.onEditorOpened(editor => this.onEditorOpened(editor)));
+		this._register(this.group.onEditorClosed(editor => this.onEditorClosed(editor)));
+		this._register(this.group.onEditorDisposed(editor => this.onEditorDisposed(editor)));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onDidChangeConfiguration(e)));
+	}
+
+	private onEditorOpened(editor: EditorInput): void {
+		/* __GDPR__
+			"editorOpened" : {
+				"${include}": [
+					"${EditorTelemetryDescriptor}"
+				]
+			}
+		*/
+		this.telemetryService.publicLog('editorOpened', editor.getTelemetryDescriptor());
+	}
+
+	private onEditorClosed(event: EditorCloseEvent): void {
+		/* __GDPR__
+			"editorClosed" : {
+				"${include}": [
+					"${EditorTelemetryDescriptor}"
+				]
+			}
+		*/
+		this.telemetryService.publicLog('editorClosed', event.editor.getTelemetryDescriptor());
+	}
+
+	private onEditorDisposed(editor: EditorInput): void {
+
+		// To prevent race conditions, we handle disposed editors in our worker with a timeout
+		// because it can happen that an input is being disposed with the intent to replace
+		// it with some other input right after.
+		this.disposedEditorsWorker.work(editor);
+	}
+
+	private handleDisposedEditors(editors: EditorInput[]): void {
+
+		// Split between visible and hidden editors
+		let activeEditor: EditorInput;
+		const inactiveEditors: EditorInput[] = [];
+		editors.forEach(editor => {
+			if (this.group.isActive(editor)) {
+				activeEditor = editor;
+			} else {
+				inactiveEditors.push(editor);
+			}
+		});
+
+		// Close all inactive editors first to prevent UI flicker
+		inactiveEditors.forEach(hidden => this.doCloseEditor(hidden, false));
+
+		// Close active one last
+		if (activeEditor) {
+			this.doCloseEditor(activeEditor, false);
+		}
+	}
+
+	private onDidChangeConfiguration(event: IConfigurationChangeEvent): void {
+
+		// Pin preview editor once user disables preview
+		if (event.affectsConfiguration(NextEditorGroupView.ENABLE_PREVIEW_SETTING)) {
+			if (!this.configurationService.getValue<string>(NextEditorGroupView.ENABLE_PREVIEW_SETTING)) {
+				this.pinEditor(this.group.previewEditor);
+			}
+		}
 	}
 
 	private doCreate(): void {
@@ -200,10 +276,11 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	openEditor(editor: EditorInput, options?: EditorOptions): Thenable<void> {
 
 		// Editor opening event allows for prevention
-		const event = new EditorOpeningEvent(editor, options, this.group.id);
+		const event = new EditorOpeningEvent(editor, options, this.group.id); // TODO@grid position => group ID
 		this._onWillOpenEditor.fire(event);
-		if (event.isPrevented()) {
-			return TPromise.as(void 0);
+		const prevented = event.isPrevented();
+		if (prevented) {
+			return prevented().then(() => void 0); // TODO@grid do we need the BaseEditor return type still in the event?
 		}
 
 		// Proceed with opening
@@ -215,7 +292,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		// Update model
 		const openEditorOptions: IEditorOpenOptions = {
 			index: options ? options.index : void 0,
-			pinned: editor.isDirty() || (options && options.pinned) || (options && typeof options.index === 'number'),
+			pinned: editor.isDirty() || (options && options.pinned) || (options && typeof options.index === 'number'), // TODO@grid respect editor.previewEditors setting
 			active: this.group.count === 0 || !options || !options.inactive
 		};
 		this.group.openEditor(editor, openEditorOptions);
@@ -230,7 +307,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 				// Editor change event
 				if (result.editorChanged) {
-					this._onDidActiveEditorChange.fire(editor);
+					this._onDidActiveEditorChange.fire();
 				}
 			}, error => {
 
@@ -356,6 +433,12 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 				this.ignoreOpenEditorErrors = false;
 			});
+		} else {
+
+			// Editor Change Event
+			this._onDidActiveEditorChange.fire();
+
+			// TODO@grid introduce and support a setting to close the group when the last editor closes
 		}
 	}
 
@@ -434,9 +517,11 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	//#region other INextEditorGroup methods
 
-	focusActiveEditor(): void {
+	focus(): void {
 		if (this.activeControl) {
 			this.activeControl.focus();
+		} else {
+			this.element.focus();
 		}
 	}
 

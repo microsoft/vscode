@@ -71,10 +71,19 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		return this._activeGroup && this._activeGroup === this.asGroupView(group);
 	}
 
-	setGroupActive(group: NextEditorGroupView | GroupIdentifier): NextEditorGroupView {
+	activateGroup(group: NextEditorGroupView | GroupIdentifier): NextEditorGroupView {
 		const groupView = this.asGroupView(group);
 		if (groupView) {
 			this.doSetGroupActive(groupView);
+		}
+
+		return groupView;
+	}
+
+	focusGroup(group: NextEditorGroupView | GroupIdentifier): NextEditorGroupView {
+		const groupView = this.asGroupView(group);
+		if (groupView) {
+			groupView.focus();
 		}
 
 		return groupView;
@@ -115,7 +124,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		if (
 			!groupView ||
 			this.groupViews.size === 1 ||	// Cannot remove the last root group
-			!groupView.isEmpty()		// TODO@grid what about removing a group with editors, move them to other group?
+			!groupView.isEmpty()			// TODO@grid what about removing a group with editors, move them to other group?
 		) {
 			return;
 		}
@@ -130,11 +139,11 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		// Activate next group if the removed one was active
 		if (isActive) {
 			const nextActiveGroup = this.asGroupView(this.mostRecentActive[this.mostRecentActive.length - 1]);
-			this.setGroupActive(nextActiveGroup);
+			this.activateGroup(nextActiveGroup);
 
 			// Restore focus if we had it previously
 			if (hasFocus) {
-				nextActiveGroup.focusActiveEditor();
+				nextActiveGroup.focus();
 			}
 		}
 	}
@@ -164,7 +173,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 
 		// Grid widget
 		const initialGroup = this.doCreateGroupView();
-		this.gridWidget = this._register(new SplitGridView(this.gridContainer, initialGroup));
+		this.gridWidget = this._register(new SplitGridView(this.gridContainer, initialGroup)); // TODO@grid restore UI state
 
 		// Set group active
 		this.doSetGroupActive(initialGroup);
@@ -191,6 +200,8 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 
 		// Event
 		this._onDidActiveGroupChange.fire(group);
+
+		// TODO@grid if this part emits a active editor change event, it also needs to fire now
 	}
 
 	private doUpdateMostRecentActive(group: NextEditorGroupView, makeMostRecentlyActive?: boolean): void {
@@ -264,6 +275,8 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 	}
 
 	shutdown(): void {
+
+		// TODO@grid persist some UI state in the memento
 
 		// Forward to all groups
 		this.groupViews.forEach(group => group.shutdown());

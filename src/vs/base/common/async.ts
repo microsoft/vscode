@@ -620,12 +620,13 @@ export class IntervalTimer extends Disposable {
 
 export class RunOnceScheduler {
 
+	protected runner: (...args: any[]) => void;
+
 	private timeoutToken: number;
-	private runner: () => void;
 	private timeout: number;
 	private timeoutHandler: () => void;
 
-	constructor(runner: () => void, timeout: number) {
+	constructor(runner: (...args: any[]) => void, timeout: number) {
 		this.timeoutToken = -1;
 		this.runner = runner;
 		this.timeout = timeout;
@@ -668,8 +669,41 @@ export class RunOnceScheduler {
 	private onTimeout() {
 		this.timeoutToken = -1;
 		if (this.runner) {
-			this.runner();
+			this.doRun();
 		}
+	}
+
+	protected doRun(): void {
+		this.runner();
+	}
+}
+
+export class RunOnceWorker<T> extends RunOnceScheduler {
+	private units: T[] = [];
+
+	constructor(runner: (units: T[]) => void, timeout: number) {
+		super(runner, timeout);
+	}
+
+	work(unit: T): void {
+		this.units.push(unit);
+
+		if (!this.isScheduled()) {
+			this.schedule();
+		}
+	}
+
+	protected doRun(): void {
+		const units = this.units;
+		this.units = [];
+
+		this.runner(units);
+	}
+
+	dispose(): void {
+		this.units = [];
+
+		super.dispose();
 	}
 }
 

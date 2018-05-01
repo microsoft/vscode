@@ -73,7 +73,7 @@ export class NextEditorControl extends Disposable {
 		}
 
 		// Hide active one first
-		this.doHideActiveEditor();
+		this.doHideActiveEditorControl();
 
 		// Create editor
 		const control = this.doCreateEditorControl(descriptor);
@@ -147,7 +147,7 @@ export class NextEditorControl extends Disposable {
 		});
 	}
 
-	private doHideActiveEditor(): void {
+	private doHideActiveEditorControl(): void {
 		if (!this._activeControl) {
 			return;
 		}
