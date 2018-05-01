@@ -296,10 +296,6 @@ export class TabsTitleControl extends TitleControl {
 			// Container
 			tabContainer.setAttribute('aria-label', `${name}, tab`);
 			tabContainer.title = title;
-			tabContainer.style.borderLeft = (index !== 0) ? this.getColor(TAB_BORDER) ? '1px solid transparent' : null : null;
-			tabContainer.style.borderLeftColor = (index !== 0) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
-			tabContainer.style.borderRight = (index === editorsOfGroup.length - 1) ? this.getColor(TAB_BORDER) ? '1px solid transparent' : null : null;
-			tabContainer.style.borderRightColor = (index === editorsOfGroup.length - 1) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
 			tabContainer.style.outlineColor = this.getColor(activeContrastBorder);
 
 			const tabOptions = this.editorGroupService.getTabOptions();
@@ -947,6 +943,33 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`
 			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .tabs-container > .tab:hover  {
 				box-shadow: ${tabHoverBorder} 0 -1px inset !important;
+			}
+		`);
+	}
+
+	const tabBorderColor = theme.getColor(TAB_BORDER) || theme.getColor(contrastBorder);
+	if (tabBorderColor) {
+		collector.addRule(`
+			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab::before {
+				content: "";
+				position: absolute;
+				top: 0;
+				left: -1px;
+				bottom: 0;
+				z-index: 2;
+				width: 1px;
+				background: ${tabBorderColor}
+			}
+
+			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:last-child::after {
+				content: "";
+				position: absolute;
+				top: 0;
+				right: -1px;
+				bottom: 0;
+				z-index: 2;
+				width: 1px;
+				background: ${tabBorderColor}
 			}
 		`);
 	}

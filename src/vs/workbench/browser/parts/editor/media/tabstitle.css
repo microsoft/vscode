@@ -37,6 +37,7 @@
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab {
 	display: flex;
+	position: relative;
 	white-space: nowrap;
 	cursor: pointer;
 	height: 35px;

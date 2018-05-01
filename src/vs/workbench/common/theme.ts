@@ -49,8 +49,8 @@ export const TAB_UNFOCUSED_HOVER_BACKGROUND = registerColor('tab.unfocusedHoverB
 }, nls.localize('tabUnfocusedHoverBackground', "Tab background color in an unfocused group when hovering. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 export const TAB_BORDER = registerColor('tab.border', {
-	dark: null,
-	light: null,
+	dark: '#252526',
+	light: '#F3F3F3',
 	hc: contrastBorder
 }, nls.localize('tabBorder', "Border to separate tabs from each other. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
