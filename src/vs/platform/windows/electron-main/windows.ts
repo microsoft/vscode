@@ -47,7 +47,7 @@ export interface ICodeWindow {
 	readyState: ReadyState;
 	ready(): TPromise<ICodeWindow>;
 
-	load(config: IWindowConfiguration, isReload?: boolean): void;
+	load(config: IWindowConfiguration, isReload?: boolean, temporaryArgs?: ParsedArgs): void;
 	reload(configuration?: IWindowConfiguration, cli?: ParsedArgs): void;
 
 	focus(): void;
