@@ -206,6 +206,11 @@ export default class BufferSyncSupport {
 		if (!filepath) {
 			return;
 		}
+
+		if (this.syncedBuffers.has(resource)) {
+			return;
+		}
+
 		const syncedBuffer = new SyncedBuffer(document, filepath, this, this.client);
 		this.syncedBuffers.set(resource, syncedBuffer);
 		syncedBuffer.open();
