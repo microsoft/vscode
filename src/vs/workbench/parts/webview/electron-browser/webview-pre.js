@@ -179,6 +179,8 @@
 						const originalPostMessage = window.parent.postMessage.bind(window.parent);
 						let acquired = false;
 
+						let state = ${data.state ? `JSON.parse(${JSON.stringify(data.state)})` : undefined};
+
 						return () => {
 							if (acquired) {
 								throw new Error('An instance of the VS Code API has already been acquired');
@@ -187,6 +189,12 @@
 							return Object.freeze({
 								postMessage: function(msg) {
 									return originalPostMessage({ command: 'onmessage', data: msg }, '*');
+								},
+								setState: function(state) {
+									return originalPostMessage({ command: 'do-update-state', data: JSON.stringify(state) }, '*');
+								},
+								getState: function() {
+									return state;
 								}
 							});
 						};
