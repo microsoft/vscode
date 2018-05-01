@@ -45,6 +45,18 @@ suite('editor2 tests', () => {
 		assert.ok(part.isGroupActive(rightGroup));
 		assert.ok(!downGroup.activeControl);
 
+		part.removeGroup(downGroup);
+		assert.equal(part.groups.length, 2);
+		assert.ok(part.isGroupActive(rightGroup));
+
+		part.removeGroup(rightGroup);
+		assert.equal(part.groups.length, 1);
+		assert.ok(part.isGroupActive(rootGroup));
+
+		part.removeGroup(rootGroup); // cannot remove root group
+		assert.equal(part.groups.length, 1);
+		assert.ok(part.isGroupActive(rootGroup));
+
 		activeGroupChangeListener.dispose();
 	});
 });
