@@ -1825,7 +1825,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	//#endregion
 }
 
-// #region Handled or Adopted
+//#region Handled or Adopted
 
 interface IEditorPartUIState {
 	ratio: number[];

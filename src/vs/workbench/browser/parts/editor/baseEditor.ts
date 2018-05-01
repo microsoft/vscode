@@ -26,7 +26,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 export abstract class BaseEditor extends Panel implements IEditor {
 	protected _input: EditorInput;
 	private _options: EditorOptions;
-	private _position: Position;
+	private _position: Position; // TODO@grid change to GroupIdentifier and revisit if methods make sense (changePosition, setVisible, etc.)
 
 	constructor(id: string, telemetryService: ITelemetryService, themeService: IThemeService) {
 		super(id, telemetryService, themeService);

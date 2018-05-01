@@ -177,6 +177,8 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 				this.pinEditor(this.group.previewEditor);
 			}
 		}
+
+		// TODO@grid handle title area related settings (tabs, etc, see EditorGroupsControl#updateTabOptions())
 	}
 
 	private doCreate(): void {
@@ -191,7 +193,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 		// Title container
 		this.titleContainer = document.createElement('div');
-		addClasses(this.titleContainer, 'title', 'tabs', 'show-file-icons');
+		addClasses(this.titleContainer, 'title', 'tabs', 'show-file-icons'); // TODO@grid support tab/icon options
 		this.element.appendChild(this.titleContainer);
 
 		// Progress bar
@@ -550,7 +552,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		this.element.style.backgroundColor = this.getColor(EDITOR_GROUP_BACKGROUND);
 		this.element.style.outlineColor = this.getColor(focusBorder);
 
-		// Title control
+		// Title control (TODO@grid respect tab options)
 		const borderColor = this.getColor(EDITOR_GROUP_HEADER_TABS_BORDER) || this.getColor(contrastBorder);
 		this.titleContainer.style.backgroundColor = this.getColor(EDITOR_GROUP_HEADER_TABS_BACKGROUND);
 		this.titleContainer.style.borderBottomWidth = borderColor ? '1px' : null;

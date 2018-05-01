@@ -20,6 +20,16 @@ import { GroupIdentifier, EditorOptions } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER } from 'vs/workbench/common/theme';
 
+// TODO@grid provide DND support of groups/editors:
+// - editor: move/copy to existing group, move/copy to new split group (up, down, left, right)
+// - group: move/copy to existing group (merges?), move/copy to new split group (up, down, left, right)
+
+// TODO@grid enable centered editor layout if one group is visible and centered editor layout is enabled (IPartService#isEditorLayoutCentered(), should this move here?)
+
+// TODO@grid enable double click on sash to even out widths in one dimension
+
+// TODO@grid enable minimized/maximized groups in one dimension
+
 export class NextEditorPart extends Part implements INextEditorGroupsService {
 
 	_serviceBrand: any;
@@ -202,6 +212,8 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		this._onDidActiveGroupChange.fire(group);
 
 		// TODO@grid if this part emits a active editor change event, it also needs to fire now
+
+		// TODO@grid if the group is minimized, it should now restore to be maximized
 	}
 
 	private doUpdateMostRecentActive(group: NextEditorGroupView, makeMostRecentlyActive?: boolean): void {
@@ -236,6 +248,8 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 			this.groupViews.delete(groupView.id);
 			this.doUpdateMostRecentActive(groupView);
 		});
+
+		// TODO@grid if the view gets minimized, the previous active group should become active
 
 		return groupView;
 	}
