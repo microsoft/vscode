@@ -462,6 +462,14 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	//#endregion
 
+	//#region isOpen()
+
+	isOpened(editor: EditorInput): boolean {
+		return this.group.contains(editor);
+	}
+
+	//#endregion
+
 	//#region moveEditor()
 
 	moveEditor(editor: EditorInput, target: NextEditorGroupView, options?: IMoveEditorOptions): void {

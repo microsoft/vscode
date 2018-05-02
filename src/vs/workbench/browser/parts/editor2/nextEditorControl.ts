@@ -117,6 +117,9 @@ export class NextEditorControl extends Disposable {
 	}
 
 	private doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions): Thenable<void> {
+
+		// Show progress while setting input after a certain timeout. If the workbench is opening
+		// be more relaxed about progress showing by increasing the delay a little bit to reduce flicker.
 		const operationId = this.editorOperation.start(this.partService.isCreated() ? 800 : 3200);
 
 		// Call into editor control

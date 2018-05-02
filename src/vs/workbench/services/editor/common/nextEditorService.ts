@@ -13,7 +13,8 @@ export const INextEditorService = createDecorator<INextEditorService>('nextEdito
 
 export type IResourceEditor = IResourceInput | IUntitledResourceInput | IResourceDiffInput | IResourceSideBySideInput;
 
-export type SIDE_BY_SIDE = -1;
+export const SIDE_BY_SIDE_VALUE = -1;
+export type SIDE_BY_SIDE = typeof SIDE_BY_SIDE_VALUE;
 
 // TODO@grid this should provide convinience methods on top of INextEditorGroupsService to make the 99%
 // case of opening editors as simple as possible

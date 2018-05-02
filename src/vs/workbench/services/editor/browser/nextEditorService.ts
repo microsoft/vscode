@@ -24,8 +24,9 @@ import { basename } from 'vs/base/common/paths';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { INextEditorGroupsService, INextEditorGroup } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
-import { INextEditorService, IResourceEditor, SIDE_BY_SIDE } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorGroupsService, INextEditorGroup, Direction } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { INextEditorService, IResourceEditor, SIDE_BY_SIDE, SIDE_BY_SIDE_VALUE } from 'vs/workbench/services/editor/common/nextEditorService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 type ICachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
 
@@ -43,7 +44,8 @@ export class NextEditorService implements INextEditorService {
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IFileService private fileService: IFileService
+		@IFileService private fileService: IFileService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.fileInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getFileInputFactory();
 	}
@@ -79,14 +81,44 @@ export class NextEditorService implements INextEditorService {
 	private doOpenEditor(input: IEditorInput, options?: EditorOptions, group?: GroupIdentifier | SIDE_BY_SIDE): Thenable<IEditor> {
 		let targetGroup: INextEditorGroup;
 
-		if (group === -1) {
-			group = void 0; // TODO@grid find correct side group based on active group
+		// Group: Side by Side
+		if (group === SIDE_BY_SIDE_VALUE) {
+			targetGroup = this.nextEditorGroupsService.addGroup(this.nextEditorGroupsService.activeGroup, Direction.RIGHT);
 		}
 
+		// Group: Specific Group
 		if (typeof group === 'number') {
 			targetGroup = this.nextEditorGroupsService.getGroup(group);
 		}
 
+		// Group: Unspecified without a specific index to open
+		else if (!options || typeof options.index !== 'number') {
+			const groupsByLastActive = this.nextEditorGroupsService.getGroups(true);
+
+			// Respect option to reveal an editor if it is already visible in any group
+			if (options && options.revealIfVisible) {
+				for (let i = 0; i < groupsByLastActive.length; i++) {
+					const group = groupsByLastActive[i];
+					if (input.matches(group.activeEditor)) {
+						targetGroup = group;
+						break;
+					}
+				}
+			}
+
+			// Respect option to reveal an editor if it is open (not necessarily visible)
+			if ((options && options.revealIfOpened) || this.configurationService.getValue<boolean>('workbench.editor.revealIfOpen')) {
+				for (let i = 0; i < groupsByLastActive.length; i++) {
+					const group = groupsByLastActive[i];
+					if (group.isOpened(input)) {
+						targetGroup = group;
+						break;
+					}
+				}
+			}
+		}
+
+		// Fallback to active group if target not valid
 		if (!targetGroup) {
 			targetGroup = this.nextEditorGroupsService.activeGroup;
 		}
@@ -213,72 +245,3 @@ export class NextEditorService implements INextEditorService {
 		return getPathLabel(res.fsPath, context, environment);
 	}
 }
-
-//#region TODO@grid adopt legacy code to find a position based on options
-// private findPosition(input: EditorInput, options ?: EditorOptions, sideBySide ?: boolean, ratio ?: number[]): Position;
-// 	private findPosition(input: EditorInput, options ?: EditorOptions, desiredPosition ?: Position, ratio ?: number[]): Position;
-// 	private findPosition(input: EditorInput, options ?: EditorOptions, arg1 ?: any, ratio ?: number[]): Position {
-
-// 	// With defined ratios, always trust the provided position
-// 	if (ratio && types.isNumber(arg1)) {
-// 		return arg1;
-// 	}
-
-// 	// No editor open
-// 	const visibleEditors = this.getVisibleEditors();
-// 	const activeEditor = this.getActiveEditor();
-// 	if (visibleEditors.length === 0 || !activeEditor) {
-// 		return Position.ONE; // can only be ONE
-// 	}
-
-// 	// Ignore revealIfVisible/revealIfOpened option if we got instructed explicitly to
-// 	// * open at a specific index
-// 	// * open to the side
-// 	// * open in a specific group
-// 	const skipReveal = (options && options.index) || arg1 === true /* open to side */ || typeof arg1 === 'number' /* open specific group */;
-
-// 	// Respect option to reveal an editor if it is already visible
-// 	if (!skipReveal && options && options.revealIfVisible) {
-// 		const group = this.stacks.findGroup(input, true);
-// 		if (group) {
-// 			return this.stacks.positionOfGroup(group);
-// 		}
-// 	}
-
-// 	// Respect option to reveal an editor if it is open (not necessarily visible)
-// 	if (!skipReveal && (this.revealIfOpen /* workbench.editor.revealIfOpen */ || (options && options.revealIfOpened))) {
-// 		const group = this.stacks.findGroup(input);
-// 		if (group) {
-// 			return this.stacks.positionOfGroup(group);
-// 		}
-// 	}
-
-// 	// Position is unknown: pick last active or ONE
-// 	if (types.isUndefinedOrNull(arg1) || arg1 === false) {
-// 		const lastActivePosition = this.editorGroupsControl.getActivePosition();
-
-// 		return lastActivePosition || Position.ONE;
-// 	}
-
-// 	// Position is sideBySide: Find position relative to active editor
-// 	if (arg1 === true) {
-// 		switch (activeEditor.position) {
-// 			case Position.ONE:
-// 				return Position.TWO;
-// 			case Position.TWO:
-// 				return Position.THREE;
-// 			case Position.THREE:
-// 				return null; // Cannot open to the side of the right/bottom most editor
-// 		}
-
-// 		return null; // Prevent opening to the side
-// 	}
-
-// 	// Position is provided, validate it
-// 	if (arg1 === Position.THREE && visibleEditors.length === 1) {
-// 		return Position.TWO;
-// 	}
-
-// 	return arg1;
-// }
-//#endregion

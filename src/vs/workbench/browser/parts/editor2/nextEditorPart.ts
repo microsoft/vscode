@@ -19,6 +19,7 @@ import { NextEditorGroupView, IGroupsAccessor } from 'vs/workbench/browser/parts
 import { GroupIdentifier, EditorOptions } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER } from 'vs/workbench/common/theme';
+import { distinct } from 'vs/base/common/arrays';
 
 // TODO@grid provide DND support of groups/editors:
 // - editor: move/copy to existing group, move/copy to new split group (up, down, left, right)
@@ -71,6 +72,18 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 
 	get groups(): NextEditorGroupView[] {
 		return values(this.groupViews);
+	}
+
+	getGroups(sortByMostRecentlyActive?: boolean): NextEditorGroupView[] {
+		if (!sortByMostRecentlyActive) {
+			return this.groups;
+		}
+
+		const mostRecentActive = this.mostRecentActive.map(groupId => this.getGroup(groupId));
+
+		// there can be groups that got never active, even though they exist. in this case
+		// make sure to ust append them at the end so that all groups are returned properly
+		return distinct([...mostRecentActive, ...this.groups]);
 	}
 
 	getGroup(identifier: GroupIdentifier): NextEditorGroupView {
@@ -148,7 +161,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 
 		// Activate next group if the removed one was active
 		if (!this._activeGroup) {
-			const nextActiveGroup = this.asGroupView(this.mostRecentActive[this.mostRecentActive.length - 1]);
+			const nextActiveGroup = this.asGroupView(this.mostRecentActive[0]);
 			this.activateGroup(nextActiveGroup);
 
 			// Restore focus if we had it previously
@@ -218,12 +231,15 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 
 	private doUpdateMostRecentActive(group: NextEditorGroupView, makeMostRecentlyActive?: boolean): void {
 		const index = this.mostRecentActive.indexOf(group.id);
+
+		// Remove from MRU list
 		if (index !== -1) {
 			this.mostRecentActive.splice(index, 1);
 		}
 
+		// Add to front as needed
 		if (makeMostRecentlyActive) {
-			this.mostRecentActive.push(group.id);
+			this.mostRecentActive.unshift(group.id);
 		}
 	}
 

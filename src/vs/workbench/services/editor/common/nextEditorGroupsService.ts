@@ -41,6 +41,12 @@ export interface INextEditorGroup {
 	openEditor(editor: IEditorInput, options?: IEditorOptions): Thenable<void>;
 
 	/**
+	 * Find out if the provided editor is opened in the group. An editor can be opened
+	 * but not actively visible.
+	 */
+	isOpened(editor: IEditorInput): boolean;
+
+	/**
 	 * Move an editor from this group either within this group or to another group.
 	 */
 	moveEditor(editor: IEditorInput, target: INextEditorGroup, options?: IMoveEditorOptions): void;
@@ -85,6 +91,7 @@ export interface INextEditorGroupsService {
 	readonly activeGroup: INextEditorGroup;
 	readonly groups: INextEditorGroup[];
 
+	getGroups(sortByMostRecentlyActive?: boolean): INextEditorGroup[];
 	getGroup(identifier: GroupIdentifier): INextEditorGroup;
 
 	focusGroup(group: INextEditorGroup | GroupIdentifier): INextEditorGroup;
