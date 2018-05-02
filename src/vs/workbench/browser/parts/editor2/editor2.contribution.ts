@@ -5,6 +5,7 @@
 
 'use strict';
 
+import 'vs/workbench/browser/parts/editor/editor.contribution'; // TODO@grid merge editor.contribution into this
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
