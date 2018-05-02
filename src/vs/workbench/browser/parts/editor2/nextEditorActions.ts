@@ -73,6 +73,28 @@ export class GridOpenEditorsAction extends Action {
 	}
 }
 
+export class GridOpenOneEditorAction extends Action {
+
+	static readonly ID = 'workbench.action.gridOpenOneEditor';
+	static readonly LABEL = localize('gridOpenOneEditor', "Grid: Open One Editor");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private legacyEditorService: IWorkbenchEditorService,
+		@INextEditorGroupsService private nextEditorGroupsService: INextEditorGroupsService
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<any> {
+		const path = join(process.cwd(), 'src/vs/workbench/browser/parts/editor2/editor2.contribution.ts');
+		this.nextEditorGroupsService.activeGroup.openEditor(this.legacyEditorService.createInput({ resource: URI.file(path) }) as EditorInput);
+
+		return TPromise.as(void 0);
+	}
+}
+
 export class GridCloseActiveEditorAction extends Action {
 
 	static readonly ID = 'workbench.action.gridCloseActiveEditor';

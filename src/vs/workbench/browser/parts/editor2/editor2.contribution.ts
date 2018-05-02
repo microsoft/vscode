@@ -10,7 +10,7 @@ import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { GridOpenEditorsAction, GridCloseActiveEditorAction, GridRemoveActiveGroupAction, NextEditorContribution } from 'vs/workbench/browser/parts/editor2/nextEditorActions';
+import { GridOpenEditorsAction, GridCloseActiveEditorAction, GridRemoveActiveGroupAction, NextEditorContribution, GridOpenOneEditorAction } from 'vs/workbench/browser/parts/editor2/nextEditorActions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
@@ -20,6 +20,7 @@ const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.Workbenc
 registry.registerWorkbenchAction(new SyncActionDescriptor(GridOpenEditorsAction, GridOpenEditorsAction.ID, GridOpenEditorsAction.LABEL), 'Grid: Open Some Editors', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(GridCloseActiveEditorAction, GridCloseActiveEditorAction.ID, GridCloseActiveEditorAction.LABEL), 'Grid: Close Active Editor', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(GridRemoveActiveGroupAction, GridRemoveActiveGroupAction.ID, GridRemoveActiveGroupAction.LABEL), 'Grid: Remove Active Group', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(GridOpenOneEditorAction, GridOpenOneEditorAction.ID, GridOpenOneEditorAction.LABEL), 'Grid: Open One Editor', category);
 
 // Register Workbench Contribution
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NextEditorContribution, LifecyclePhase.Running);

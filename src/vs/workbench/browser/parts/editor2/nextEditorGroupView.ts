@@ -131,17 +131,17 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	private registerListeners(): void {
 
 		// Model Events
-		this._register(this.group.onDidEditorsStructureChange(() => this.updateContainer()));
-		this._register(this.group.onDidEditorBecomeDirty(editor => this.pinEditor(editor)));
-		this._register(this.group.onDidEditorOpen(editor => this.onEditorOpened(editor)));
-		this._register(this.group.onDidEditorClose(editor => this.onEditorClosed(editor)));
-		this._register(this.group.onDidEditorDispose(editor => this.onEditorDisposed(editor)));
+		this._register(this.group.onDidEditorOpen(editor => this.onDidEditorOpen(editor)));
+		this._register(this.group.onDidEditorClose(editor => this.onDidEditorClose(editor)));
+		this._register(this.group.onDidEditorDispose(editor => this.onDidEditorDispose(editor)));
+		this._register(this.group.onDidEditorBecomeDirty(editor => this.onDidEditorBecomeDirty(editor)));
+		this._register(this.group.onDidEditorLabelChange(editor => this.onDidEditorLabelChange(editor)));
 
 		// Configuration Changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onDidChangeConfiguration(e)));
 	}
 
-	private onEditorOpened(editor: EditorInput): void {
+	private onDidEditorOpen(editor: EditorInput): void {
 		/* __GDPR__
 			"editorOpened" : {
 				"${include}": [
@@ -150,9 +150,12 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 			}
 		*/
 		this.telemetryService.publicLog('editorOpened', editor.getTelemetryDescriptor());
+
+		// Update container
+		this.updateContainer();
 	}
 
-	private onEditorClosed(event: EditorCloseEvent): void {
+	private onDidEditorClose(event: EditorCloseEvent): void {
 
 		// Before close
 		this._onWillCloseEditor.fire(event.editor);
@@ -171,6 +174,9 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 			}
 		*/
 		this.telemetryService.publicLog('editorClosed', event.editor.getTelemetryDescriptor());
+
+		// Update container
+		this.updateContainer();
 	}
 
 	private handleEditorClosed(editor: EditorInput): void {
@@ -190,7 +196,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		});
 	}
 
-	private onEditorDisposed(editor: EditorInput): void {
+	private onDidEditorDispose(editor: EditorInput): void {
 
 		// To prevent race conditions, we handle disposed editors in our worker with a timeout
 		// because it can happen that an input is being disposed with the intent to replace
@@ -230,6 +236,25 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		}
 
 		// TODO@grid handle title area related settings (tabs, etc, see EditorGroupsControl#updateTabOptions())
+	}
+
+	private onDidEditorBecomeDirty(editor: EditorInput): void {
+
+		// Always show dirty editors pinned
+		this.pinEditor(editor);
+
+		// Forward to title control
+		if (this.titleAreaControl) {
+			this.titleAreaControl.updateEditorLabel(editor);
+		}
+	}
+
+	private onDidEditorLabelChange(editor: EditorInput): void {
+
+		// Forward to title control
+		if (this.titleAreaControl) {
+			this.titleAreaControl.updateEditorLabel(editor);
+		}
 	}
 
 	private doCreate(): void {

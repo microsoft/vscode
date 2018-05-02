@@ -50,6 +50,7 @@ export interface INextTitleAreaControl extends IDisposable {
 	moveEditor(editor: EditorInput, targetIndex: number): void;
 	setActive(isActive: boolean): void;
 	pinEditor(editor: EditorInput): void;
+	updateEditorLabel(editor: EditorInput): void;
 
 	layout(dimension: Dimension): void;
 }
@@ -399,6 +400,10 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 
 	setActive(isActive: boolean): void {
 		this.doScheduleUpdate(true); // TODO@grid optimize if possible
+	}
+
+	updateEditorLabel(editor: EditorInput): void {
+		this.doScheduleUpdate(); // TODO@grid optimize if possible
 	}
 
 	layout(dimension: Dimension): void {
