@@ -11,7 +11,7 @@ import { EditorGroup, IEditorOpenOptions, EditorCloseEvent } from 'vs/workbench/
 import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, IEditorOpeningEvent, EditorOpeningEvent, TextEditorOptions } from 'vs/workbench/common/editor';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass } from 'vs/base/browser/dom';
+import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass, addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
@@ -234,6 +234,10 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		this.titleContainer = document.createElement('div');
 		addClasses(this.titleContainer, 'title', 'tabs', 'show-file-icons'); // TODO@grid support tab/icon options
 		this.element.appendChild(this.titleContainer);
+		this._register(addDisposableListener(this.titleContainer, EventType.MOUSE_UP, e => {
+			EventHelper.stop(e);
+			this.focus();
+		}));
 
 		// Progress bar
 		this.progressBar = this._register(new ProgressBar(this.element));
