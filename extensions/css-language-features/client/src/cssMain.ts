@@ -27,14 +27,7 @@ export function activate(context: ExtensionContext) {
 		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
 	};
 
-	let documentSelector = [
-		{ language: 'css', scheme: 'file' },
-		{ language: 'css', scheme: 'untitled' },
-		{ language: 'scss', scheme: 'file' },
-		{ language: 'scss', scheme: 'untitled' },
-		{ language: 'less', scheme: 'file' },
-		{ language: 'less', scheme: 'untitled' },
-	];
+	let documentSelector = ['css', 'scss', 'less'];
 
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
