@@ -3446,6 +3446,10 @@ declare module 'vscode' {
 	export interface FoldingContext {
 	}
 
+	/**
+	 * The folding range provider interface defines the contract between extensions and
+	 * [Folding](https://code.visualstudio.com/docs/editor/codebasics#_folding) in the editor.
+	 */
 	export interface FoldingRangeProvider {
 		/**
 		 * Returns a list of folding ranges or null and undefined if the provider
