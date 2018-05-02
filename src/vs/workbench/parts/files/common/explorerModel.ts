@@ -168,6 +168,7 @@ export class ExplorerItem {
 		// Stop merging when a folder is not resolved to avoid loosing local data
 		const mergingDirectories = disk.isDirectory || local.isDirectory;
 		if (mergingDirectories && local.isDirectoryResolved && !disk.isDirectoryResolved) {
+			local.isDirectoryResolved = false;
 			return;
 		}
 
