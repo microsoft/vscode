@@ -21,7 +21,7 @@ export class Terminal {
 	}
 
 	async runCommand(commandText: string): Promise<void> {
-		await this.code.waitForPaste(XTERM_TEXTAREA, commandText);
+		await this.code.writeInTerminal(XTERM_SELECTOR, commandText);
 		await this.code.dispatchKeybinding('enter');
 	}
 

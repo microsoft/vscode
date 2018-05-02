@@ -158,11 +158,6 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		return windowDriver.setValue(selector, text);
 	}
 
-	async paste(windowId: number, selector: string, text: string): TPromise<void> {
-		const windowDriver = await this.getWindowDriver(windowId);
-		return windowDriver.paste(selector, text);
-	}
-
 	async getTitle(windowId: number): TPromise<string> {
 		const windowDriver = await this.getWindowDriver(windowId);
 		return windowDriver.getTitle();
@@ -186,6 +181,11 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	async getTerminalBuffer(windowId: number, selector: string): TPromise<string[]> {
 		const windowDriver = await this.getWindowDriver(windowId);
 		return windowDriver.getTerminalBuffer(selector);
+	}
+
+	async writeInTerminal(windowId: number, selector: string, text: string): TPromise<void> {
+		const windowDriver = await this.getWindowDriver(windowId);
+		return windowDriver.writeInTerminal(selector, text);
 	}
 
 	private async getWindowDriver(windowId: number): TPromise<IWindowDriver> {

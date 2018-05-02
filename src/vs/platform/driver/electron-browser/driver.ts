@@ -109,21 +109,6 @@ class WindowDriver implements IWindowDriver {
 		inputElement.dispatchEvent(event);
 	}
 
-	async paste(selector: string, text: string): TPromise<void> {
-		const element = document.querySelector(selector);
-
-		if (!element) {
-			throw new Error('Element not found');
-		}
-
-		const inputElement = element as HTMLInputElement;
-		const clipboardData = new DataTransfer();
-		clipboardData.setData('text/plain', text);
-		const event = new ClipboardEvent('paste', { clipboardData } as any);
-
-		inputElement.dispatchEvent(event);
-	}
-
 	async getTitle(): TPromise<string> {
 		return document.title;
 	}
@@ -185,6 +170,22 @@ class WindowDriver implements IWindowDriver {
 		}
 
 		return lines;
+	}
+
+	async writeInTerminal(selector: string, text: string): TPromise<void> {
+		const element = document.querySelector(selector);
+
+		if (!element) {
+			throw new Error('Element not found');
+		}
+
+		const xterm = (element as any).xterm;
+
+		if (!xterm) {
+			throw new Error('Xterm not found');
+		}
+
+		xterm.send(text);
 	}
 
 	async openDevTools(): TPromise<void> {
