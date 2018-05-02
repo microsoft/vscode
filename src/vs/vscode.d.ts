@@ -4894,6 +4894,13 @@ declare module 'vscode' {
 		static NoPermissions(messageOrUri?: string | Uri): FileSystemError;
 
 		/**
+		 * Create an error to signal that the file system is unavailable or too busy to
+		 * complete a request.
+		 * @param messageOrUri Message or uri.
+		 */
+		static Unavailable(messageOrUri?: string | Uri): FileSystemError;
+
+		/**
 		 * Creates a new filesystem error.
 		 *
 		 * @param messageOrUri Message or uri.
