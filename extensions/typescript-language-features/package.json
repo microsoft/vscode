@@ -22,7 +22,8 @@
   },
   "devDependencies": {
     "@types/node": "8.0.33",
-    "@types/semver": "5.4.0"
+    "@types/semver": "5.4.0",
+    "vscode": "^1.1.10"
   },
   "scripts": {
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript ./tsconfig.json"
