@@ -14,7 +14,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorContribution, IActionOptions } from 'vs/editor/browser/editorExtensions';
 import { OnTypeFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry } from 'vs/editor/common/modes';
 import { getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFormattingEdits, NoProviderError } from 'vs/editor/contrib/format/format';
-import { EditOperationsCommand } from 'vs/editor/contrib/format/formatCommand';
+import { FormattingEdit } from 'vs/editor/contrib/format/formattingEdit';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
@@ -161,7 +161,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 				return;
 			}
 
-			EditOperationsCommand.executeAsCommand(this.editor, edits);
+			FormattingEdit.execute(this.editor, edits);
 			alertFormattingEdits(edits);
 
 		}, (err) => {
@@ -244,7 +244,7 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 			if (!state.validate(this.editor) || isFalsyOrEmpty(edits)) {
 				return;
 			}
-			EditOperationsCommand.execute(this.editor, edits);
+			FormattingEdit.execute(this.editor, edits);
 			alertFormattingEdits(edits);
 		});
 	}
@@ -280,7 +280,7 @@ export abstract class AbstractFormatAction extends EditorAction {
 				return;
 			}
 
-			EditOperationsCommand.execute(editor, edits);
+			FormattingEdit.execute(editor, edits);
 			alertFormattingEdits(edits);
 			editor.focus();
 		}, err => {
