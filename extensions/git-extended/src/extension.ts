@@ -11,6 +11,7 @@ import { Configuration } from './configuration';
 import { Resource } from './common/resources';
 import { ReviewMode } from './review/reviewMode';
 import { CredentialStore } from './credentials';
+import { PullRequestService } from './services/pullRequestService';
 
 export async function activate(context: vscode.ExtensionContext) {
 	// initialize resources
@@ -61,7 +62,8 @@ export async function activate(context: vscode.ExtensionContext) {
 		repositoryInitialized = true;
 		let credentialStore = new CredentialStore(configuration);
 		await repository.connectGitHub(credentialStore);
-		let reviewMode = new ReviewMode(repository, context.workspaceState, repo);
+		let pullRequestService = new PullRequestService();
+		let reviewMode = new ReviewMode(repository, pullRequestService, context.workspaceState, repo);
 		await (new PRProvider(context, configuration, reviewMode)).activate(repository);
 	});
 }

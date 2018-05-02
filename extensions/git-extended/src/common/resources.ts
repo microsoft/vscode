@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { GitChangeType } from './models/file';
 import { FileChangeTreeItem } from './treeItems';
-import { PullRequest } from './models/pullrequest';
+import { PullRequestModel } from './models/pullRequestModel';
 
 export class Resource {
 	static icons: any;
@@ -72,7 +72,7 @@ export class Resource {
 		};
 	}
 
-	static getGravatarUri(pr: PullRequest, size: number = 64): vscode.Uri {
+	static getGravatarUri(pr: PullRequestModel, size: number = 64): vscode.Uri {
 		let key = pr.getUserGravatar();
 		let gravatar = vscode.Uri.parse(`${key}&s=${size}`);
 

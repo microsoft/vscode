@@ -5,12 +5,12 @@
 
 import * as vscode from 'vscode';
 import { GitChangeType } from './models/file';
-import { PullRequest, PRType } from './models/pullrequest';
+import { PullRequestModel, PRType } from './models/pullRequestModel';
 
 export class PRGroupTreeItem implements vscode.TreeItem {
 	public readonly label: string;
 	public collapsibleState: vscode.TreeItemCollapsibleState;
-	public prs: PullRequest[];
+	public prs: PullRequestModel[];
 	public type: PRType;
 	constructor(type: PRType) {
 		this.prs = [];

@@ -6,6 +6,8 @@
 import { Remote } from './remote';
 import { parseComments } from '../comment';
 import { Comment } from './comment';
+import { IAccount } from './account';
+import { GitReferenceModel } from './gitReferenceModel';
 
 export enum PRType {
 	RequestReview = 0,
@@ -15,8 +17,70 @@ export enum PRType {
 	All = 4
 }
 
-export class PullRequest {
-	constructor(public readonly otcokit: any, public readonly remote: Remote, public prItem: any) { }
+export enum PullRequestStateEnum {
+	Open,
+	Merged,
+	Closed,
+}
+
+export class PullRequestModel {
+	public prNumber: number;
+	public title: string;
+	public state: PullRequestStateEnum = PullRequestStateEnum.Open;
+	public commentCount: number;
+	public commitCount: number;
+	public author: IAccount;
+	public assignee: IAccount;
+	public createdAt: string;
+	public updatedAt: string;
+
+	public get isOpen(): boolean {
+		return this.state === PullRequestStateEnum.Open;
+	}
+	public get isMerged(): boolean {
+		return this.state === PullRequestStateEnum.Merged;
+	}
+
+	public head: GitReferenceModel;
+	public base: GitReferenceModel;
+
+	constructor(public readonly otcokit: any, public readonly remote: Remote, public prItem: any) {
+		this.prNumber = prItem.number;
+		this.title = prItem.title;
+		this.author = {
+			login: prItem.user.login,
+			isUser: prItem.user.type === 'User',
+			isEnterprise: prItem.user.type === 'Enterprise',
+			avatarUrl: prItem.user.avatar_url,
+		};
+		switch (prItem.state) {
+			case 'open':
+				this.state = PullRequestStateEnum.Open;
+				break;
+			case 'merged':
+				this.state = PullRequestStateEnum.Merged;
+				break;
+			case 'closed':
+				this.state = PullRequestStateEnum.Closed;
+				break;
+		}
+		if (prItem.assignee) {
+			this.assignee = {
+				login: prItem.assignee.login,
+				isUser: prItem.assignee.type === 'User',
+				isEnterprise: prItem.assignee.type === 'Enterprise',
+				avatarUrl: prItem.assignee.avatar_url,
+			};
+		}
+
+		this.createdAt = prItem.created_at;
+		this.updatedAt = prItem.updated_at ? prItem.updated_at : this.createdAt;
+		this.commentCount = prItem.comments;
+		this.commitCount = prItem.commits;
+
+		this.head = new GitReferenceModel(prItem.head.ref, prItem.head.label, prItem.head.sha, prItem.head.repo.clone_url);
+		this.base = new GitReferenceModel(prItem.base.ref, prItem.base.label, prItem.base.sha, prItem.base.repo.clone_url);
+	}
 
 	async getFiles() {
 		const { data } = await this.otcokit.pullRequests.getFiles({

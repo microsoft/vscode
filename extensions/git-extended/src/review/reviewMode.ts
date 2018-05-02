@@ -11,9 +11,10 @@ import { mapCommentsToHead, parseDiff, mapHeadLineToDiffHunkPosition, getDiffLin
 import * as _ from 'lodash';
 import { GitContentProvider } from './gitContentProvider';
 import { Comment } from '../common/models/comment';
-import { PullRequest } from '../common/models/pullrequest';
+import { PullRequestModel } from '../common/models/pullRequestModel';
 import { toGitUri } from '../common/uri';
 import { GitChangeType } from '../common/models/file';
+import { PullRequestService } from '../services/pullRequestService';
 
 const REVIEW_STATE = 'git-extended.state';
 
@@ -42,6 +43,7 @@ export class ReviewMode implements vscode.DecorationProvider {
 	private _onDidChangeCommentThreads = new vscode.EventEmitter<vscode.CommentThreadChangedEvent>();
 	constructor(
 		private _repository: Repository,
+		private _pullRequestService: PullRequestService,
 		private _workspaceState: vscode.Memento,
 		private _gitRepo: any
 	) {
@@ -72,52 +74,40 @@ export class ReviewMode implements vscode.DecorationProvider {
 	}
 
 	async validateState() {
-		let branch = this._repository.HEAD.name;
+		let localInfo = await this._pullRequestService.getPullRequestForCurrentBranch(this._repository);
+		if (!localInfo) {
+			return;
+		}
+
+		if (this._prNumber === localInfo.prNumber) {
+			return;
+		}
+
+		let branch = this._repository.HEAD;
 		if (!branch) {
 			this.clear();
 			return;
 		}
 
-		let state = this._workspaceState.get(`${REVIEW_STATE}:${branch}`) as ReviewState;
-		if (!state) { // not in review state
-			this.clear();
-			return;
-		}
-
-		let remoteName = state.remote;
-		let remote = this._repository.remotes.find(remote => remote.remoteName === remoteName);
-
+		let remote = branch.upstream ? branch.upstream.remote : null;
 		if (!remote) {
 			this.clear();
 			return;
 		}
 
-		if (this._prNumber === state.prNumber) {
-			return;
-		}
-
-		this._prNumber = state.prNumber;
-		if (!state.head || !state.base) {
-			// load pr
-			this._lastCommitSha = null;
-		} else {
-			this._lastCommitSha = state['head'].sha;
-		}
-
 		// we switch to another PR, let's clean up first.
 		this.clear();
-		let githubRepo = this._repository.githubRepositories.find(repo => repo.remote.equals(remote));
+		this._prNumber = localInfo.prNumber;
+		this._lastCommitSha = null;
+		let githubRepo = this._repository.githubRepositories.find(repo => repo.remote.remoteName === remote);
 
 		if (!githubRepo) {
 			return; // todo, should show warning
 		}
 
 		const pr = await githubRepo.getPullRequest(this._prNumber);
-		state.base = pr.prItem.base;
-		state.head = pr.prItem.head;
-		this._workspaceState.update(`${REVIEW_STATE}:${branch}`, state);
 		if (!this._lastCommitSha) {
-			this._lastCommitSha = state.head.sha;
+			this._lastCommitSha = pr.head.sha;
 		}
 
 		await this.getPullRequestData(pr);
@@ -274,7 +264,7 @@ export class ReviewMode implements vscode.DecorationProvider {
 		return Promise.resolve(null);
 	}
 
-	private async getPullRequestData(pr: PullRequest): Promise<void> {
+	private async getPullRequestData(pr: PullRequestModel): Promise<void> {
 		this._comments = await pr.getComments();
 		const data = await pr.getFiles();
 		const baseSha = await pr.getBaseCommitSha();
@@ -334,7 +324,7 @@ export class ReviewMode implements vscode.DecorationProvider {
 						};
 					}),
 					collapsibleState: collapsibleState,
-					reply: this._reply
+					postReviewComment: this._reply
 				});
 			}
 
@@ -447,28 +437,23 @@ export class ReviewMode implements vscode.DecorationProvider {
 		});
 	}
 
-	async switch(pr: PullRequest) {
+	async switch(pr: PullRequestModel) {
 		try {
-			// if (pr.prItem.maintainer_can_modify) {
-			// 	await this._repository.checkoutPR(pr);
-			// } else {
-			await this._repository.fetch(pr.remote.remoteName, `pull/${pr.prItem.number}/head:pull-request-${pr.prItem.number}`);
-			await this._repository.checkout(`pull-request-${pr.prItem.number}`);
-			// }
+			let localBranches = await this._pullRequestService.getLocalBranches(this._repository, pr);
+
+			if (localBranches.length > 0) {
+				await this._pullRequestService.switchToBranch(this._repository, pr);
+				return;
+			} else {
+				let branchName = await this._pullRequestService.getDefaultLocalBranchName(this._repository, pr.prNumber, pr.title);
+				await this._pullRequestService.checkout(this._repository, pr, branchName);
+			}
 		} catch (e) {
 			vscode.window.showErrorMessage(e);
 			return;
 		}
 
-		this._workspaceState.update(`${REVIEW_STATE}:pull-request-${pr.prItem.number}`, {
-			remote: pr.remote.remoteName,
-			prNumber: pr.prItem.number,
-			branch: `pull-request-${pr.prItem.number}`,
-			head: pr.prItem.head,
-			base: pr.prItem.base
-		}).then(async e => {
-			await this._repository.status();
-		});
+		await this._repository.status();
 	}
 
 	clear() {

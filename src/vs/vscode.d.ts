@@ -4961,7 +4961,7 @@ declare module 'vscode' {
 	 *
 	 * * *Note 1:* The filesystem provider API works with [uris](#Uri) and assumes hierarchical
 	 * paths, e.g. `foo:/my/path` is a child of `foo:/my/` and a parent of `foo:/my/path/deeper`.
-	 * * *Note 2:* There is an activation event `onFileSystem:<scheme>` that fires when a file
+	 * * *Note 2:* There is an activation event `onFileSystem:<-scheme>` that fires when a file
 	 * or folder is being accessed.
 	 *
 	 */

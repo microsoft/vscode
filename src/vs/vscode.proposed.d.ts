@@ -430,7 +430,7 @@ declare module 'vscode' {
 	interface CommentInfo {
 		threads: CommentThread[];
 		commentingRanges?: Range[];
-		reply?: Command;
+		postReviewComment?: Command;
 	}
 
 	export enum CommentThreadCollapsibleState {
@@ -450,7 +450,7 @@ declare module 'vscode' {
 		range: Range;
 		comments: Comment[];
 		collapsibleState?: CommentThreadCollapsibleState;
-		reply?: Command;
+		postReviewComment?: Command;
 	}
 
 	interface Comment {

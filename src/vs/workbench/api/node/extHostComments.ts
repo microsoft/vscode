@@ -107,7 +107,7 @@ function convertCommentInfo(owner: number, vscodeCommentInfo: vscode.CommentInfo
 		owner: owner,
 		threads: vscodeCommentInfo.threads.map(x => convertCommentThread(x, commandsConverter)),
 		commentingRanges: vscodeCommentInfo.commentingRanges ? vscodeCommentInfo.commentingRanges.map(range => extHostTypeConverter.fromRange(range)) : [],
-		reply: vscodeCommentInfo.reply ? commandsConverter.toInternal(vscodeCommentInfo.reply) : null
+		reply: vscodeCommentInfo.postReviewComment ? commandsConverter.toInternal(vscodeCommentInfo.postReviewComment) : null
 	};
 }
 
@@ -118,7 +118,7 @@ function convertCommentThread(vscodeCommentThread: vscode.CommentThread, command
 		range: extHostTypeConverter.fromRange(vscodeCommentThread.range),
 		comments: vscodeCommentThread.comments.map(convertComment),
 		collapsibleState: vscodeCommentThread.collapsibleState,
-		reply: vscodeCommentThread.reply ? commandsConverter.toInternal(vscodeCommentThread.reply) : null
+		reply: vscodeCommentThread.postReviewComment ? commandsConverter.toInternal(vscodeCommentThread.postReviewComment) : null
 	};
 }
 

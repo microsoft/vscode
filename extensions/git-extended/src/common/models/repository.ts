@@ -9,7 +9,8 @@ import { GitProcess } from 'dugite';
 import { uniqBy, anyEvent, filterEvent, isDescendant } from '../util';
 import { parseRemote } from '../remote';
 import { CredentialStore } from '../../credentials';
-import { PullRequest, PRType } from './pullrequest';
+import { PullRequestModel, PRType } from './pullRequestModel';
+import { UriString } from './uriString';
 
 export enum RefType {
 	Head,
@@ -58,6 +59,12 @@ export class Repository {
 		return this._remotes;
 	}
 
+	// todo
+	private _cloneUrl: UriString;
+	get cloneUrl(): UriString {
+		return this._cloneUrl;
+	}
+
 	private statusTimeout: any;
 	private disposables: vscode.Disposable[] = [];
 
@@ -104,6 +111,13 @@ export class Repository {
 		this._HEAD = HEAD;
 		this._refs = refs;
 		this._remotes = remotes;
+
+		if (this._HEAD.upstream.remote) {
+			let currentRemote = this._remotes.filter(remote => remote.remoteName === this._HEAD.upstream.remote);
+			if (currentRemote && currentRemote.length) {
+				this._cloneUrl =  new UriString(currentRemote[0].url);
+			}
+		}
 
 		this._onDidRunGitStatus.fire();
 	}
@@ -169,6 +183,14 @@ export class Repository {
 		}
 	}
 
+	async createBranch(branchName: string, tip?: string) {
+		const result = await GitProcess.exec(['branch', branchName, tip ? tip : ''], this.path);
+
+		if (result.exitCode !== 0) {
+			throw new Error(result.stderr);
+		}
+	}
+
 	async getBranch(name: string): Promise<Branch> {
 		if (name === 'HEAD') {
 			return this.getHEAD();
@@ -176,7 +198,7 @@ export class Repository {
 
 		const result = await GitProcess.exec(['rev-parse', name], this.path);
 
-		if (!result.stdout) {
+		if (result.exitCode !== 0 || !result.stdout) {
 			return Promise.reject<Branch>(new Error('No such branch'));
 		}
 
@@ -271,7 +293,7 @@ export class Repository {
 		}
 	}
 
-	async checkoutPR(pr: PullRequest) {
+	async checkoutPR(pr: PullRequestModel) {
 		let cloneUrl = pr.prItem.head.repo.clone_url;
 		let result = await GitProcess.exec(['remote', 'add', `pull/${pr.prItem.number}`, cloneUrl], this.path);
 
@@ -290,6 +312,54 @@ export class Repository {
 			throw (result.exitCode);
 		}
 	}
+
+	async setConfig(key: string, value: string) {
+		await GitProcess.exec(['config', '--local', key, value], this.path);
+	}
+
+	async getConfig(key: string) {
+		let result = await GitProcess.exec(['config', '--local', '--get', key], this.path);
+
+		if (result.exitCode !== 0) {
+			throw (result.exitCode);
+		}
+
+		return result.stdout;
+	}
+
+	async getConfigs() {
+		let result = await GitProcess.exec(['config', '--local', '-l'], this.path);
+
+		if (result.exitCode !== 0) {
+			throw (result.exitCode);
+		}
+
+		let entries = result.stdout.split(/\r|\r\n|\n/);
+
+		return entries.map(entry => {
+			let ret = entry.split('=');
+			return {
+				key: ret[0],
+				value: ret[1]
+			};
+		});
+	}
+
+	async setTrackingBranch(localBranchName: string, trackedBranchName: string) {
+		let result = await GitProcess.exec(['branch', `--set-upstream-to=${trackedBranchName}`, localBranchName], this.path);
+
+		if (result.exitCode !== 0) {
+			throw (result.exitCode);
+		}
+	}
+
+	async setRemote(name: string, remoteUrl: string) {
+		let result = await GitProcess.exec(['remote', 'add', name, remoteUrl], this.path);
+
+		if (result.exitCode !== 0) {
+			throw (result.exitCode);
+		}
+	}
 }
 
 export class GitHubRepository {
@@ -302,7 +372,7 @@ export class GitHubRepository {
 				owner: this.remote.owner,
 				repo: this.remote.name,
 			});
-			let ret = data.map(item => new PullRequest(this.octokit, this.remote, item));
+			let ret = data.map(item => new PullRequestModel(this.octokit, this.remote, item));
 			return ret;
 		} else {
 
@@ -310,7 +380,22 @@ export class GitHubRepository {
 			const { data } = await this.octokit.search.issues({
 				q: this.getPRFetchQuery(this.remote.owner, this.remote.name, user.data.login, prType)
 			});
-			return data.items.map(item => new PullRequest(this.octokit, this.remote, item));
+			let promises = [];
+
+			data.items.forEach(item => {
+				promises.push(new Promise(async (resolve, reject) => {
+					let prData = await this.octokit.pullRequests.get({
+						owner: this.remote.owner,
+						repo: this.remote.name,
+						number: item.number
+					});
+					resolve(prData);
+				}));
+			});
+
+			return Promise.all(promises).then(values => {
+				return values.map(item => new PullRequestModel(this.octokit, this.remote, item.data));
+			});
 		}
 	}
 
@@ -320,7 +405,7 @@ export class GitHubRepository {
 			repo: this.remote.name,
 			number: id
 		});
-		let ret = new PullRequest(this.octokit, this.remote, data);
+		let ret = new PullRequestModel(this.octokit, this.remote, data);
 		return ret;
 	}
 

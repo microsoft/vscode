@@ -16,14 +16,14 @@ import { Resource } from '../common/resources';
 import { ReviewMode } from '../review/reviewMode';
 import { toPRUri } from '../common/uri';
 import * as fs from 'fs';
-import { PullRequest, PRType } from '../common/models/pullrequest';
+import { PullRequestModel, PRType } from '../common/models/pullRequestModel';
 
-export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | PullRequest | FileChangeTreeItem>, vscode.TextDocumentContentProvider, vscode.DecorationProvider {
+export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | PullRequestModel | FileChangeTreeItem>, vscode.TextDocumentContentProvider, vscode.DecorationProvider {
 	private context: vscode.ExtensionContext;
 	private repository: Repository;
 	private configuration: Configuration;
 	private reviewMode: ReviewMode;
-	private _onDidChangeTreeData = new vscode.EventEmitter<PRGroupTreeItem | PullRequest | FileChangeTreeItem | undefined>();
+	private _onDidChangeTreeData = new vscode.EventEmitter<PRGroupTreeItem | PullRequestModel | FileChangeTreeItem | undefined>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 	private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
 	get onDidChange(): vscode.Event<vscode.Uri> { return this._onDidChange.event; }
@@ -38,8 +38,8 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 
 	async activate(repository: Repository) {
 		this.repository = repository;
-		this.context.subscriptions.push(vscode.window.registerTreeDataProvider<PRGroupTreeItem | PullRequest | FileChangeTreeItem>('pr', this));
-		this.context.subscriptions.push(vscode.commands.registerCommand('pr.pick', async (pr: PullRequest) => {
+		this.context.subscriptions.push(vscode.window.registerTreeDataProvider<PRGroupTreeItem | PullRequestModel | FileChangeTreeItem>('pr', this));
+		this.context.subscriptions.push(vscode.commands.registerCommand('pr.pick', async (pr: PullRequestModel) => {
 			await this.reviewMode.switch(pr);
 		}));
 		this.context.subscriptions.push(this.configuration.onDidChange(e => {
@@ -47,12 +47,12 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 		}));
 	}
 
-	getTreeItem(element: PRGroupTreeItem | PullRequest | FileChangeTreeItem): vscode.TreeItem {
+	getTreeItem(element: PRGroupTreeItem | PullRequestModel | FileChangeTreeItem): vscode.TreeItem {
 		if (element instanceof PRGroupTreeItem) {
 			return element;
 		}
 
-		if (element instanceof PullRequest) {
+		if (element instanceof PullRequestModel) {
 			return {
 				label: element.prItem.title,
 				collapsibleState: 1,
@@ -70,7 +70,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 		}
 	}
 
-	async getChildren(element?: PRGroupTreeItem | PullRequest | FileChangeTreeItem): Promise<(PRGroupTreeItem | PullRequest | FileChangeTreeItem)[]> {
+	async getChildren(element?: PRGroupTreeItem | PullRequestModel | FileChangeTreeItem): Promise<(PRGroupTreeItem | PullRequestModel | FileChangeTreeItem)[]> {
 		if (!element) {
 			return Promise.resolve([
 				new PRGroupTreeItem(PRType.RequestReview),
@@ -88,7 +88,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 			return this.getPRs(element);
 		}
 
-		if (element instanceof PullRequest) {
+		if (element instanceof PullRequestModel) {
 			const comments = await element.getComments();
 			const data = await element.getFiles();
 			const baseSha = await element.getBaseCommitSha();
@@ -214,7 +214,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 									};
 								}),
 								collapsibleState: vscode.CommentThreadCollapsibleState.Expanded,
-								reply: reply
+								postReviewComment: reply
 							});
 						}
 
@@ -233,7 +233,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 		}
 	}
 
-	async getPRs(element: PRGroupTreeItem): Promise<PullRequest[]> {
+	async getPRs(element: PRGroupTreeItem): Promise<PullRequestModel[]> {
 		let promises = this.repository.githubRepositories.map(async githubRepository => {
 			return await githubRepository.getPullRequests(element.type);
 		});
@@ -243,7 +243,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 		});
 	}
 
-	async getComments(element: PullRequest): Promise<Comment[]> {
+	async getComments(element: PullRequestModel): Promise<Comment[]> {
 		const reviewData = await element.otcokit.pullRequests.getComments({
 			owner: element.remote.owner,
 			repo: element.remote.name,
