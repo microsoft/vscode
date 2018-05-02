@@ -789,7 +789,7 @@ export interface IEditorGroup {
 }
 
 export interface IEditorIdentifier {
-	group: IEditorGroup;
+	group: IEditorGroup; // TODO@grid this should be the group identifier instead
 	editor: IEditorInput;
 }
 

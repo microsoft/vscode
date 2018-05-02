@@ -597,8 +597,8 @@ export class Workbench implements IPartService {
 		// Editor service (next editor part)
 		this.editorPart = this.instantiationService.createInstance(NextEditorPart, Identifiers.EDITOR_PART /*, !this.hasFilesToCreateOpenOrDiff*/);
 		this.toUnbind.push(toDisposable(() => this.editorPart.shutdown()));
-		serviceCollection.set(INextEditorService, new SyncDescriptor(NextEditorService, this.editorPart));
 		serviceCollection.set(INextEditorGroupsService, this.editorPart);
+		serviceCollection.set(INextEditorService, new SyncDescriptor(NextEditorService));
 
 		// Legacy Editor Services
 		this.noOpEditorPart = new NoOpEditorPart(this.instantiationService);

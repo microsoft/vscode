@@ -48,8 +48,8 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 		this.createEditorActionsToolBar(actionsContainer);
 
 		// Context Menu
-		this._register(DOM.addDisposableListener(this.titleContainer, DOM.EventType.CONTEXT_MENU, (e: Event) => this.onContextMenu({ group: this.group, editor: this.group.activeEditor }, e, this.titleContainer)));
-		this._register(DOM.addDisposableListener(this.titleContainer, TouchEventType.Contextmenu, (e: Event) => this.onContextMenu({ group: this.group, editor: this.group.activeEditor }, e, this.titleContainer)));
+		this._register(DOM.addDisposableListener(this.titleContainer, DOM.EventType.CONTEXT_MENU, (e: Event) => this.onContextMenu(this.group.activeEditor, e, this.titleContainer)));
+		this._register(DOM.addDisposableListener(this.titleContainer, TouchEventType.Contextmenu, (e: Event) => this.onContextMenu(this.group.activeEditor, e, this.titleContainer)));
 	}
 
 	private onTitleLabelClick(e: MouseEvent): void {
@@ -60,7 +60,7 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 	private onTitleDoubleClick(e: MouseEvent): void {
 		DOM.EventHelper.stop(e);
 
-		this.editorGroupService.pinEditor(this.group, this.group.activeEditor);
+		this.groupController.pinEditor(this.group.activeEditor);
 	}
 
 	private onTitleClick(e: MouseEvent | GestureEvent): void {
@@ -75,7 +75,7 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 		// - mouse click: do not focus group if there are more than one as it otherwise makes group DND funky
 		// - touch: always focus
 		else if ((this.stacks.groups.length === 1 || !(e instanceof MouseEvent)) && !DOM.isAncestor(((e as GestureEvent).initialTarget || e.target || e.srcElement) as HTMLElement, this.editorActionsToolbar.getContainer())) {
-			this.editorGroupService.focusGroup(this.group);
+			this.groupController.focus();
 		}
 	}
 
@@ -89,7 +89,7 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 		}
 
 		const isPinned = this.group.isPinned(this.group.activeEditor);
-		const isActive = this.nextEditorGroupsService.isGroupActive(this.group.id);
+		const isActive = this.groupController.isActive;
 
 		// Dirty state
 		if (editor.isDirty()) {
@@ -102,7 +102,7 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 		const resource = toResource(editor, { supportSideBySide: true });
 		const name = editor.getName() || '';
 
-		const labelFormat = this.editorGroupService.getTabOptions().labelFormat;
+		const labelFormat = 'default'; //TODO@grid support tab options (this.editorGroupService.getTabOptions().labelFormat);
 		let description: string;
 		if (labelFormat === 'default' && !isActive) {
 			description = ''; // hide description when group is not active and style is 'default'

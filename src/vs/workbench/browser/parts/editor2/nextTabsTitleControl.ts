@@ -13,7 +13,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { isMacintosh } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
-import { Position, IEditorInput, Verbosity, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
+import { IEditorInput, Verbosity, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
@@ -22,7 +22,7 @@ import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IWorkbenchEditorService, DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IEditorTabOptions } from 'vs/workbench/services/group/common/groupService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -43,6 +43,7 @@ import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { INextEditorGroupsService } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 
 interface IEditorInputLabel {
 	name: string;
@@ -70,9 +71,8 @@ export class NextTabsTitleControl extends NextTitleControl {
 		group: IEditorGroup,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@INextEditorGroupsService nextEditorGroupsService: INextEditorGroupsService,
+		@INextEditorService private nextEditorService: INextEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -82,7 +82,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 		@IThemeService themeService: IThemeService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(parent, group, contextMenuService, instantiationService, editorService, editorGroupService, nextEditorGroupsService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickOpenService, themeService, extensionService);
+		super(parent, group, contextMenuService, instantiationService, nextEditorGroupsService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickOpenService, themeService, extensionService);
 
 		this.tabDisposeables = [];
 		this.editorLabels = [];
@@ -93,7 +93,6 @@ export class NextTabsTitleControl extends NextTitleControl {
 	}
 
 	private createScopedInstantiationService(): IInstantiationService {
-		const stacks = this.editorGroupService.getStacksModel();
 		const delegatingEditorService = this.instantiationService.createInstance(DelegatingWorkbenchEditorService);
 
 		// We create a scoped instantiation service to override the behaviour when closing an inactive editor
@@ -102,10 +101,10 @@ export class NextTabsTitleControl extends NextTitleControl {
 		// the inactive editors because closing the active one will always cause a tab switch that sets focus.
 		// We also want to block the tabs container to reveal the currently active tab because that makes it very
 		// hard to close multiple inactive tabs next to each other.
-		delegatingEditorService.setEditorCloseHandler((position, editor) => {
-			const group = stacks.groupAt(position);
-			if (group && stacks.isActive(group) && !group.isActive(editor)) {
-				this.editorGroupService.focusGroup(group);
+		delegatingEditorService.setEditorCloseHandler((groupId, editor) => {
+			const group = this.nextEditorGroupsService.getGroup(groupId);
+			if (group.isActive && group.activeEditor !== editor) {
+				group.focus();
 			}
 
 			this.blockRevealActiveTab = true;
@@ -139,7 +138,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 			if (target instanceof HTMLElement && target.className.indexOf('tabs-container') === 0) {
 				DOM.EventHelper.stop(e);
 
-				this.editorService.openEditor({ options: { pinned: true, index: this.group.count /* always at the end */ } } as IUntitledResourceInput).done(null, errors.onUnexpectedError); // untitled are always pinned
+				this.nextEditorService.openEditor({ options: { pinned: true, index: this.group.count /* always at the end */ } } as IUntitledResourceInput); // untitled are always pinned
 			}
 		}));
 
@@ -211,10 +210,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 
 			const target = e.target;
 			if (target instanceof HTMLElement && target.className.indexOf('tabs-container') === 0) {
-				const targetPosition = this.stacks.positionOfGroup(this.group);
-				const targetIndex = this.group.count;
-
-				this.onDrop(e, this.group, targetPosition, targetIndex);
+				this.onDrop(e, this.group.count);
 			}
 		}));
 
@@ -262,7 +258,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 		const labels = this.getTabLabels(editorsOfGroup);
 
 		// Tab label and styles
-		const isGroupActive = this.nextEditorGroupsService.isGroupActive(this.group.id);
+		const isGroupActive = this.groupController.isActive;
 		editorsOfGroup.forEach((editor, index) => {
 			const tabContainer = this.tabsContainer.children[index] as HTMLElement;
 			if (!tabContainer) {
@@ -285,7 +281,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 			tabContainer.style.borderRightColor = (index === editorsOfGroup.length - 1) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
 			tabContainer.style.outlineColor = this.getColor(activeContrastBorder);
 
-			const tabOptions = this.editorGroupService.getTabOptions();
+			const tabOptions = {} as IEditorTabOptions; // TODO@grid support tab options (this.editorGroupService.getTabOptions());
 
 			['off', 'left', 'right'].forEach(option => {
 				const domAction = tabOptions.tabCloseButton === option ? DOM.addClass : DOM.removeClass;
@@ -349,7 +345,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 	}
 
 	private getTabLabels(editors: IEditorInput[]): IEditorInputLabel[] {
-		const labelFormat = this.editorGroupService.getTabOptions().labelFormat;
+		const labelFormat = 'default'; // TODO@grid support tab options (this.editorGroupService.getTabOptions().labelFormat);
 		const { verbosity, shortenDuplicates } = this.getLabelConfigFlags(labelFormat);
 
 		// Build labels and descriptions for each editor
@@ -613,9 +609,8 @@ export class NextTabsTitleControl extends NextTitleControl {
 				return void 0; // only for left mouse click
 			}
 
-			const { editor, position } = this.getGroupPositionAndEditor(index);
 			if (!this.isTabActionBar(((e as GestureEvent).initialTarget || e.target || e.srcElement) as HTMLElement)) {
-				setTimeout(() => this.editorService.openEditor(editor, null, position).done(null, errors.onUnexpectedError)); // timeout to keep focus in editor after mouse up
+				setTimeout(() => this.groupController.openEditor(this.group.getEditor(index))); // timeout to keep focus in editor after mouse up
 			}
 
 			return void 0;
@@ -624,9 +619,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 		const showContextMenu = (e: Event) => {
 			DOM.EventHelper.stop(e);
 
-			const { group, editor } = this.getGroupPositionAndEditor(index);
-
-			this.onContextMenu({ group, editor }, e, tab);
+			this.onContextMenu(this.group.getEditor(index), e, tab);
 		};
 
 		// Open on Click
@@ -668,12 +661,10 @@ export class NextTabsTitleControl extends NextTitleControl {
 			const event = new StandardKeyboardEvent(e);
 			let handled = false;
 
-			const { group, position, editor } = this.getGroupPositionAndEditor(index);
-
 			// Run action on Enter/Space
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				handled = true;
-				this.editorService.openEditor(editor, null, position).done(null, errors.onUnexpectedError);
+				this.groupController.openEditor(this.group.getEditor(index));
 			}
 
 			// Navigate in editors
@@ -686,13 +677,13 @@ export class NextTabsTitleControl extends NextTitleControl {
 				} else if (event.equals(KeyCode.Home)) {
 					targetIndex = 0;
 				} else {
-					targetIndex = group.count - 1;
+					targetIndex = this.group.count - 1;
 				}
 
-				const target = group.getEditor(targetIndex);
+				const target = this.group.getEditor(targetIndex);
 				if (target) {
 					handled = true;
-					this.editorService.openEditor(target, { preserveFocus: true }, position).done(null, errors.onUnexpectedError);
+					this.groupController.openEditor(target, { preserveFocus: true });
 					(<HTMLElement>this.tabsContainer.childNodes[targetIndex]).focus();
 				}
 			}
@@ -711,24 +702,20 @@ export class NextTabsTitleControl extends NextTitleControl {
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DBLCLICK, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e);
 
-			const { group, editor } = this.getGroupPositionAndEditor(index);
-
-			this.editorGroupService.pinEditor(group, editor);
+			this.groupController.pinEditor(this.group.getEditor(index));
 		}));
 
 		// Context menu
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.CONTEXT_MENU, (e: Event) => {
 			DOM.EventHelper.stop(e, true);
-			const { group, editor } = this.getGroupPositionAndEditor(index);
 
-			this.onContextMenu({ group, editor }, e, tab);
+			this.onContextMenu(this.group.getEditor(index), e, tab);
 		}, true /* use capture to fix https://github.com/Microsoft/vscode/issues/19145 */));
 
 		// Drag start
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_START, (e: DragEvent) => {
-			const { group, editor } = this.getGroupPositionAndEditor(index);
-
-			this.transfer.setData([new DraggedEditorIdentifier({ editor, group })], DraggedEditorIdentifier.prototype);
+			const editor = this.group.getEditor(index);
+			this.transfer.setData([new DraggedEditorIdentifier({ editor, group: this.group })], DraggedEditorIdentifier.prototype);
 
 			e.dataTransfer.effectAllowed = 'copyMove';
 
@@ -758,8 +745,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 			let draggedEditorIsTab = false;
 			const draggedEditor = this.transfer.hasData(DraggedEditorIdentifier.prototype) ? this.transfer.getData(DraggedEditorIdentifier.prototype)[0].identifier : void 0;
 			if (draggedEditor) {
-				const { group, editor } = this.getGroupPositionAndEditor(index);
-				if (draggedEditor.editor === editor && draggedEditor.group === group) {
+				if (draggedEditor.editor === this.group.getEditor(index) && draggedEditor.group === this.group) {
 					draggedEditorIsTab = true;
 				}
 			}
@@ -795,9 +781,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 			DOM.removeClass(tab, 'dragged-over');
 			this.updateDropFeedback(tab, false, index);
 
-			const { group, position } = this.getGroupPositionAndEditor(index);
-
-			this.onDrop(e, group, position, index);
+			this.onDrop(e, index);
 		}));
 
 		return combinedDisposable(disposables);
@@ -807,14 +791,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 		return !!DOM.findParentWithClass(element, 'monaco-action-bar', 'tab');
 	}
 
-	private getGroupPositionAndEditor(index: number): { group: IEditorGroup, position: Position, editor: IEditorInput } {
-		const position = this.stacks.positionOfGroup(this.group);
-		const editor = this.group.getEditor(index);
-
-		return { group: this.group, position, editor };
-	}
-
-	private onDrop(e: DragEvent, group: IEditorGroup, targetPosition: Position, targetIndex: number): void {
+	private onDrop(e: DragEvent, targetIndex: number): void {
 		DOM.EventHelper.stop(e, true);
 
 		this.updateDropFeedback(this.tabsContainer, false);
@@ -825,13 +802,14 @@ export class NextTabsTitleControl extends NextTitleControl {
 		if (draggedEditor) {
 
 			// Move editor to target position and index
-			if (this.isMoveOperation(e, draggedEditor.group, group)) {
-				this.editorGroupService.moveEditor(draggedEditor.editor, draggedEditor.group, group, { index: targetIndex });
+			if (this.isMoveOperation(e, draggedEditor.group)) {
+				const sourceGroup = this.nextEditorGroupsService.getGroup(draggedEditor.group.id);
+				sourceGroup.moveEditor(draggedEditor.editor, this.groupController, { index: targetIndex });
 			}
 
 			// Copy: just open editor at target index
 			else {
-				this.editorService.openEditor(draggedEditor.editor, { pinned: true, index: targetIndex }, targetPosition).done(null, errors.onUnexpectedError);
+				this.groupController.openEditor(draggedEditor.editor, { pinned: true, index: targetIndex });
 			}
 
 			this.transfer.clearData();
@@ -840,14 +818,14 @@ export class NextTabsTitleControl extends NextTitleControl {
 		// External DND
 		else {
 			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: false /* open workspace file as file if dropped */ });
-			dropHandler.handleDrop(e, () => this.editorGroupService.focusGroup(targetPosition), targetPosition, targetIndex);
+			dropHandler.handleDrop(e, () => this.groupController.focus(), this.group.id /* TODO@grid position => group id */, targetIndex);
 		}
 	}
 
-	private isMoveOperation(e: DragEvent, source: IEditorGroup, target: IEditorGroup) {
+	private isMoveOperation(e: DragEvent, source: IEditorGroup) {
 		const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
 
-		return !isCopy || source.id === target.id;
+		return !isCopy || source.id === this.group.id;
 	}
 
 	dispose(): void {

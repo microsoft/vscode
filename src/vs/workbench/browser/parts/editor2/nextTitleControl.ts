@@ -16,9 +16,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { IEditorStacksModel, IEditorIdentifier, EditorInput, toResource, IEditorCommandsContext, IEditorGroup, EditorOptions } from 'vs/workbench/common/editor';
 import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -37,7 +35,8 @@ import { isDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension } from 'vs/base/browser/dom';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { INextEditorGroupsService, Direction } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { INextEditorGroupsService, Direction, INextEditorGroup } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { IEditorInput } from 'vs/platform/editor/common/editor';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -46,9 +45,11 @@ export interface IToolbarActions {
 
 export interface INextTitleAreaControl extends IDisposable {
 
-	openEditor(input: EditorInput, options?: EditorOptions): void;
+	openEditor(editor: EditorInput, options?: EditorOptions): void;
+	closeEditor(editor: EditorInput): void;
+	moveEditor(editor: EditorInput, targetIndex: number): void;
 	setActive(isActive: boolean): void;
-	pinEditor(input: EditorInput): void;
+	pinEditor(editor: EditorInput): void;
 
 	layout(dimension: Dimension): void;
 }
@@ -79,8 +80,6 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 		protected group: IEditorGroup,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
-		@IEditorGroupService protected editorGroupService: IEditorGroupService,
 		@INextEditorGroupsService protected nextEditorGroupsService: INextEditorGroupsService,
 		@IContextKeyService protected contextKeyService: IContextKeyService,
 		@IKeybindingService protected keybindingService: IKeybindingService,
@@ -93,7 +92,6 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 	) {
 		super(themeService);
 
-		this.stacks = editorGroupService.getStacksModel();
 		this.mapActionsToEditors = Object.create(null);
 
 		this.titleAreaUpdateScheduler = new RunOnceScheduler(() => this.onSchedule(), 0);
@@ -156,6 +154,10 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 		this.titleAreaToolbarUpdateScheduler.cancel(); // a title area update will always refresh the toolbar too
 	}
 
+	protected get groupController(): INextEditorGroup {
+		return this.nextEditorGroupsService.getGroup(this.group.id);
+	}
+
 	protected doUpdate(): void {
 		this.doRefresh();
 	}
@@ -198,13 +200,12 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 	}
 
 	protected actionItemProvider(action: Action): IActionItem {
-		const position = this.stacks.positionOfGroup(this.group);
-		const editor = this.editorService.getVisibleEditors()[position];
+		const activeControl = this.groupController.activeControl;
 
 		// Check Active Editor
 		let actionItem: IActionItem;
-		if (editor instanceof BaseEditor) {
-			actionItem = editor.getActionItem(action);
+		if (activeControl instanceof BaseEditor) {
+			actionItem = activeControl.getActionItem(action);
 		}
 
 		// Check extensions
@@ -220,20 +221,19 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 		const secondary: IAction[] = [];
 
 		const { group } = identifier;
-		const position = this.stacks.positionOfGroup(group);
 
 		// Update the resource context
 		this.resourceContext.set(group && toResource(group.activeEditor, { supportSideBySide: true }));
 
 		// Editor actions require the editor control to be there, so we retrieve it via service
-		const control = this.editorService.getVisibleEditors()[position];
-		if (control instanceof BaseEditor && control.input && typeof control.position === 'number') {
+		const activeControl = this.groupController.activeControl;
+		if (activeControl instanceof BaseEditor && activeControl.input && typeof activeControl.position === 'number') {
 
 			// Editor Control Actions
-			let editorActions = this.mapActionsToEditors[control.getId()];
+			let editorActions = this.mapActionsToEditors[activeControl.getId()];
 			if (!editorActions) {
-				editorActions = { primary: control.getActions(), secondary: control.getSecondaryActions() };
-				this.mapActionsToEditors[control.getId()] = editorActions;
+				editorActions = { primary: activeControl.getActions(), secondary: activeControl.getSecondaryActions() };
+				this.mapActionsToEditors[activeControl.getId()] = editorActions;
 			}
 			primary.push(...editorActions.primary);
 			secondary.push(...editorActions.secondary);
@@ -243,7 +243,7 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 			// use the correct context key service per editor only once. Don't
 			// take this code as sample of how to work with menus
 			this.disposeOnEditorActions = dispose(this.disposeOnEditorActions);
-			const widget = control.getControl();
+			const widget = activeControl.getControl();
 			const codeEditor = isCodeEditor(widget) && widget || isDiffEditor(widget) && widget.getModifiedEditor();
 			const scopedContextKeyService = codeEditor && codeEditor.invokeWithinContext(accessor => accessor.get(IContextKeyService)) || this.contextKeyService;
 			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService);
@@ -264,7 +264,7 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 
 	protected updateEditorActionsToolbar(): void {
 		const editor = this.group.activeEditor;
-		const isActive = this.nextEditorGroupsService.isGroupActive(this.group.id);
+		const isActive = this.groupController.isActive;
 
 		// Update Editor Actions Toolbar
 		let primaryEditorActions: IAction[] = [];
@@ -295,8 +295,7 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 
 		secondaryEditorActions = prepareActions(editorActions.secondary);
 
-		const tabOptions = this.editorGroupService.getTabOptions();
-		tabOptions.showTabs = true; // TODO@grid support real options
+		const tabOptions = { showTabs: true }; // TODO@grid support real options (this.editorGroupService.getTabOptions();)
 
 		const primaryEditorActionIds = primaryEditorActions.map(a => a.id);
 		if (!tabOptions.showTabs) {
@@ -328,11 +327,11 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 		this.currentSecondaryEditorActionIds = [];
 	}
 
-	protected onContextMenu(identifier: IEditorIdentifier, e: Event, node: HTMLElement): void {
+	protected onContextMenu(editor: IEditorInput, e: Event, node: HTMLElement): void {
 
 		// Update the resource context
 		const currentContext = this.resourceContext.get();
-		this.resourceContext.set(toResource(identifier.editor, { supportSideBySide: true }));
+		this.resourceContext.set(toResource(editor, { supportSideBySide: true }));
 
 		// Find target anchor
 		let anchor: HTMLElement | { x: number, y: number } = node;
@@ -349,18 +348,15 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => TPromise.as(actions),
-			getActionsContext: () => ({ groupId: identifier.group.id, editorIndex: identifier.group.indexOf(identifier.editor) } as IEditorCommandsContext),
+			getActionsContext: () => ({ groupId: this.group.id, editorIndex: this.group.indexOf(editor) } as IEditorCommandsContext),
 			getKeyBinding: (action) => this.getKeybinding(action),
 			onHide: (cancel) => {
 
 				// restore previous context
 				this.resourceContext.set(currentContext);
 
-				// restore focus to active editor if any
-				const editor = this.editorService.getActiveEditor();
-				if (editor) {
-					editor.focus();
-				}
+				// restore focus to active group
+				this.nextEditorGroupsService.activeGroup.focus();
 			}
 		});
 	}
@@ -385,11 +381,19 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 
 	//#region INextTitleAreaControl
 
-	openEditor(input: EditorInput, options?: EditorOptions): void {
+	openEditor(editor: EditorInput, options?: EditorOptions): void {
 		this.doScheduleRefresh(true); // TODO@grid optimize if possible
 	}
 
-	pinEditor(input: EditorInput): void {
+	closeEditor(editor: EditorInput): void {
+		this.doScheduleRefresh(); // TODO@grid optimize if possible
+	}
+
+	moveEditor(editor: EditorInput, targetIndex: number): void {
+		this.doScheduleUpdate(true); // TODO@grid optimize if possible
+	}
+
+	pinEditor(editor: EditorInput): void {
 		this.doScheduleUpdate(true); // TODO@grid optimize if possible
 	}
 
