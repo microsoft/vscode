@@ -265,18 +265,12 @@ export interface CustomCodeAction extends CodeActionDto {
 
 class CodeActionAdapter {
 
-	private _documents: ExtHostDocuments;
-	private _commands: CommandsConverter;
-	private _diagnostics: ExtHostDiagnostics;
-	private _provider: vscode.CodeActionProvider;
-
-	constructor(documents: ExtHostDocuments, commands: CommandsConverter, diagnostics: ExtHostDiagnostics, provider: vscode.CodeActionProvider) {
-		this._documents = documents;
-		this._commands = commands;
-		this._diagnostics = diagnostics;
-		this._provider = provider;
-	}
-
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _commands: CommandsConverter,
+		private readonly _diagnostics: ExtHostDiagnostics,
+		private readonly _provider: vscode.CodeActionProvider
+	) { }
 
 	provideCodeActions(resource: URI, range: IRange, context: modes.CodeActionContext): TPromise<CodeActionDto[]> {
 
