@@ -501,7 +501,7 @@ export class TextAreaInput extends Disposable {
 		}
 
 		let copyHTML: string = null;
-		if (!browser.isEdgeOrIE && (copyPlainText.length < 65536 || CopyOptions.forceCopyWithSyntaxHighlighting)) {
+		if (browser.hasClipboardSupport() && (copyPlainText.length < 65536 || CopyOptions.forceCopyWithSyntaxHighlighting)) {
 			copyHTML = this._host.getHTMLToCopy();
 		}
 		ClipboardEventUtils.setTextData(e, copyPlainText, copyHTML);
