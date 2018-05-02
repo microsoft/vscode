@@ -149,9 +149,13 @@ async function poll<T>(
 	retryInterval: number = 100 // millis
 ): Promise<T> {
 	let trial = 1;
+	let lastError: string = '';
 
 	while (true) {
 		if (trial > retryCount) {
+			console.error('** Timeout!');
+			console.error(lastError);
+
 			throw new Error(`Timeout: ${timeoutMessage} after ${(retryCount * retryInterval) / 1000} seconds.`);
 		}
 
@@ -161,13 +165,11 @@ async function poll<T>(
 
 			if (acceptFn(result)) {
 				return result;
+			} else {
+				lastError = 'Did not pass accept function';
 			}
 		} catch (e) {
-			// console.warn(e);
-
-			if (/Method not implemented/.test(e.message)) {
-				throw e;
-			}
+			lastError = Array.isArray(e.stack) ? e.stack.join(os.EOL) : e.stack;
 		}
 
 		await new Promise(resolve => setTimeout(resolve, retryInterval));
