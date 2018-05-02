@@ -1,0 +1,213 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.settings-editor {
+	padding: 11px 0px 0px 27px;
+	max-width: 800px;
+	margin: auto;
+}
+
+/* header styling */
+
+.settings-editor > .settings-header {
+	padding: 0px 10px 0px 0px;
+}
+
+.settings-editor > .settings-header > .search-container {
+	position: relative;
+}
+
+.settings-editor > .settings-header .search-container > .settings-search-input {
+	vertical-align: middle;
+}
+
+.settings-editor > .settings-header .search-container > .settings-search-input > .monaco-inputbox {
+	height: 30px;
+	width: 100%;
+}
+
+.settings-editor > .settings-header .search-container > .settings-search-input > .monaco-inputbox .input {
+	font-size: 14px;
+	padding-left: 10px;
+}
+
+.settings-editor > .settings-header > .settings-header-controls {
+	margin-top: 7px;
+	height: 30px;
+	display: flex;
+}
+
+.settings-editor > .settings-header .settings-tabs-widget > .monaco-action-bar .action-item:not(:first-child) .action-label {
+	margin-left: 33px;
+}
+
+.settings-editor > .settings-header .settings-tabs-widget .monaco-action-bar .action-item .dropdown-icon {
+	/** The tab widget container height is shorter than elsewhere, need to tweak this */
+	padding-top: 3px;
+}
+
+.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right {
+	margin-left: auto;
+	padding-top: 3px;
+	display: flex;
+}
+
+.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .open-settings-button,
+.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .open-settings-button:hover,
+.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .open-settings-button:active {
+	background: none;
+	opacity: 0.7;
+	padding: 0;
+	text-decoration: underline;
+}
+
+.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right #configured-only-checkbox {
+	flex-shrink: 0;
+}
+
+.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .configured-only-label {
+	white-space: nowrap;
+	margin-right: 10px;
+	margin-left: 2px;
+}
+
+.settings-editor > .settings-body .settings-list-container .settings-list-offset-helper {
+	opacity: 0;
+	position: absolute;
+}
+
+.settings-editor > .settings-body .settings-list-container .monaco-list::before {
+	outline: none !important;
+}
+
+.settings-editor > .settings-body .settings-list-container {
+	flex: 1;
+	border-spacing: 0;
+	border-collapse: separate;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row {
+	cursor: default;
+	white-space: normal;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row.odd {
+	background-color: rgba(130, 130, 130, 0.04);
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row:not(.odd) {
+	background-color: initial;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row.setting-item {
+	padding: 3px 0px;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row > .setting-item-container {
+	display: flex;
+	height: 100%;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row > .setting-item-container > .setting-item-left {
+	flex: 1;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row > .setting-item-container > .setting-item-right {
+	min-width: 180px;
+	margin: 21px 10px;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-title {
+	line-height: initial;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-title .setting-item-overrides {
+	opacity: 0.5;
+	margin-left: 10px;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-label {
+	font-size: 15px;
+	font-weight: bold;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-key {
+	margin-left: 10px;
+	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 90%;
+	opacity: 0.8;
+	display: none;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-description {
+	opacity: 0.7;
+	margin-top: 5px;
+	height: 36px;
+	overflow: hidden;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-value {
+	display: flex;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-value > .edit-in-settings-button,
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-value > .edit-in-settings-button:hover,
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-value > .edit-in-settings-button:active {
+	margin: auto;
+	text-decoration: underline;
+	opacity: 0.7;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-value > .edit-in-settings-button + .setting-reset-button.monaco-button {
+	display: none;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row .monaco-select-box {
+	width: 100%;
+	font: inherit;
+	height: 26px;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-value-checkbox {
+	margin-left: auto;
+	position: relative;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row.is-configured .setting-value-checkbox::after {
+	content: ' ';
+	display: block;
+	height: 3px;
+	width: 18px;
+	position: absolute;
+	top: 15px;
+	left: -3px;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-value > .setting-reset-button.monaco-button {
+	display: inline-block;
+	background: url("action-remove-dark.svg") center center no-repeat;
+	width: 16px;
+	height: 16px;
+	margin: auto;
+	margin-left: 3px;
+	visibility: hidden;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row.is-configured:hover .setting-item-value > .setting-reset-button.monaco-button {
+	visibility: visible;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row.all-settings {
+	display: flex;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row.all-settings .all-settings-button {
+	margin: auto;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row.all-settings .all-settings-button .monaco-button {
+	padding-left: 10px;
+	padding-right: 10px;
+}

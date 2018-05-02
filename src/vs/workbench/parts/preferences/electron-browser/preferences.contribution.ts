@@ -16,9 +16,10 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
-import { DefaultPreferencesEditorInput, PreferencesEditorInput, KeybindingsEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
+import { SettingsEditor2 } from 'vs/workbench/parts/preferences/browser/settingsEditor2';
+import { DefaultPreferencesEditorInput, PreferencesEditorInput, KeybindingsEditorInput, SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { KeybindingsEditor } from 'vs/workbench/parts/preferences/browser/keybindingsEditor';
-import { OpenRawDefaultSettingsAction, OpenSettingsAction, OpenGlobalSettingsAction, OpenGlobalKeybindingsFileAction, OpenWorkspaceSettingsAction, OpenFolderSettingsAction, ConfigureLanguageBasedSettingsAction, OPEN_FOLDER_SETTINGS_COMMAND, OpenGlobalKeybindingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
+import { OpenRawDefaultSettingsAction, OpenSettingsAction, OpenGlobalSettingsAction, OpenGlobalKeybindingsFileAction, OpenWorkspaceSettingsAction, OpenFolderSettingsAction, ConfigureLanguageBasedSettingsAction, OPEN_FOLDER_SETTINGS_COMMAND, OpenGlobalKeybindingsAction, OpenSettings2Action } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import {
 	IKeybindingsEditor, IPreferencesSearchService, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_SEARCH,
 	KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS
@@ -44,6 +45,17 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	),
 	[
 		new SyncDescriptor(PreferencesEditorInput)
+	]
+);
+
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
+	new EditorDescriptor(
+		SettingsEditor2,
+		SettingsEditor2.ID,
+		nls.localize('settingsEditor2', "Settings Editor 2")
+	),
+	[
+		new SyncDescriptor(SettingsEditor2Input)
 	]
 );
 
@@ -135,6 +147,17 @@ class KeybindingsEditorInputFactory implements IEditorInputFactory {
 	}
 }
 
+class SettingsEditor2InputFactory implements IEditorInputFactory {
+
+	public serialize(editorInput: SettingsEditor2Input): string {
+		return JSON.stringify({});
+	}
+
+	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
+		return instantiationService.createInstance(SettingsEditor2Input);
+	}
+}
+
 
 interface ISerializedDefaultPreferencesEditorInput {
 	resource: string;
@@ -161,12 +184,14 @@ class DefaultPreferencesEditorInputFactory implements IEditorInputFactory {
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(PreferencesEditorInput.ID, PreferencesEditorInputFactory);
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(DefaultPreferencesEditorInput.ID, DefaultPreferencesEditorInputFactory);
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(KeybindingsEditorInput.ID, KeybindingsEditorInputFactory);
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(SettingsEditor2Input.ID, SettingsEditor2InputFactory);
 
 // Contribute Global Actions
 const category = nls.localize('preferences', "Preferences");
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenRawDefaultSettingsAction, OpenRawDefaultSettingsAction.ID, OpenRawDefaultSettingsAction.LABEL), 'Preferences: Open Raw Default Settings', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenSettingsAction, OpenSettingsAction.ID, OpenSettingsAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.US_COMMA }), 'Preferences: Open Settings', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenSettings2Action, OpenSettings2Action.ID, OpenSettings2Action.LABEL), 'Preferences: Open Settings (Experimental)', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL), 'Preferences: Open User Settings', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalKeybindingsAction, OpenGlobalKeybindingsAction.ID, OpenGlobalKeybindingsAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_S) }), 'Preferences: Open Keyboard Shortcuts', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalKeybindingsFileAction, OpenGlobalKeybindingsFileAction.ID, OpenGlobalKeybindingsFileAction.LABEL, { primary: null }), 'Preferences: Open Keyboard Shortcuts File', category);
