@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/processExplorer';
 import { listProcesses, ProcessItem } from 'vs/base/node/ps';
-import { remote, webFrame, ipcRenderer } from 'electron';
+import { remote, webFrame, ipcRenderer, clipboard } from 'electron';
 import { repeat } from 'vs/base/common/strings';
 import { totalmem } from 'os';
 import product from 'vs/platform/node/product';
@@ -137,27 +137,60 @@ function applyZoom(zoomLevel: number): void {
 function showContextMenu(e) {
 	e.preventDefault();
 
+	const menu = new remote.Menu();
+
 	const pid = parseInt(e.currentTarget.id);
 	if (pid && typeof pid === 'number') {
-		const menu = new remote.Menu();
 		menu.append(new remote.MenuItem({
 			label: localize('killProcess', "Kill Process"),
 			click() {
 				process.kill(pid, 'SIGTERM');
 			}
-		})
-		);
+		}));
 
 		menu.append(new remote.MenuItem({
 			label: localize('forceKillProcess', "Force Kill Process"),
 			click() {
 				process.kill(pid, 'SIGKILL');
 			}
-		})
-		);
+		}));
 
-		menu.popup(remote.getCurrentWindow());
+		menu.append(new remote.MenuItem({
+			type: 'separator'
+		}));
+
+		menu.append(new remote.MenuItem({
+			label: localize('copy', "Copy"),
+			click() {
+				const row = document.getElementById(pid.toString());
+				if (row) {
+					clipboard.writeText(row.innerText);
+				}
+			}
+		}));
+
+		menu.append(new remote.MenuItem({
+			label: localize('copyAll', "Copy All"),
+			click() {
+				const processList = document.getElementById('process-list');
+				if (processList) {
+					clipboard.writeText(processList.innerText);
+				}
+			}
+		}));
+	} else {
+		menu.append(new remote.MenuItem({
+			label: localize('copyAll', "Copy All"),
+			click() {
+				const processList = document.getElementById('process-list');
+				if (processList) {
+					clipboard.writeText(processList.innerText);
+				}
+			}
+		}));
 	}
+
+	menu.popup(remote.getCurrentWindow());
 }
 
 export function startup(data: ProcessExplorerData): void {
