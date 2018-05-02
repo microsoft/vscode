@@ -858,6 +858,9 @@ export class DebugService implements debug.IDebugService {
 					return this.showError(err.message, [debugAnywayAction, this.taskService.configureAction()]);
 				});
 			}, err => {
+				if (err && err.message) {
+					return this.showError(err.message);
+				}
 				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 					return this.showError(nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved on disk and that you have a debug extension installed for that file type."));
 				}
