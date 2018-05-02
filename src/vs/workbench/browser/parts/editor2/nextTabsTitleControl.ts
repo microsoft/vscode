@@ -252,7 +252,6 @@ export class NextTabsTitleControl extends NextTitleControl {
 
 	protected doUpdate(): void {
 
-
 		// Compute labels and protect against duplicates
 		const editorsOfGroup = this.group.getEditors();
 		const labels = this.getTabLabels(editorsOfGroup);
