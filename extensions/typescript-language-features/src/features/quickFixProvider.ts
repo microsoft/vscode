@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from '../utils/typeConverters';
-import FormattingConfigurationManager from './formattingConfigurationManager';
+import FileConfigurationManager from './fileConfigurationManager';
 import { getEditForCodeAction, applyCodeActionCommands } from '../utils/codeAction';
 import { Command, CommandManager } from '../utils/commandManager';
 import { DiagnosticsManager } from './diagnostics';
@@ -131,7 +131,7 @@ export default class TypeScriptQuickFixProvider implements vscode.CodeActionProv
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
-		private readonly formattingConfigurationManager: FormattingConfigurationManager,
+		private readonly formattingConfigurationManager: FileConfigurationManager,
 		commandManager: CommandManager,
 		private readonly diagnosticsManager: DiagnosticsManager,
 		private readonly bufferSyncSupport: BufferSyncSupport
@@ -167,7 +167,7 @@ export default class TypeScriptQuickFixProvider implements vscode.CodeActionProv
 			return [];
 		}
 
-		await this.formattingConfigurationManager.ensureFormatOptionsForDocument(document, token);
+		await this.formattingConfigurationManager.ensureConfigurationForDocument(document, token);
 
 		const results: vscode.CodeAction[] = [];
 		for (const diagnostic of fixableDiagnostics) {

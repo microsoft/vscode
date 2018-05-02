@@ -12,9 +12,9 @@
   "engines": {
     "vscode": "*"
   },
-	"categories": [
-		"Programming Languages"
-	],
+  "categories": [
+    "Programming Languages"
+  ],
   "dependencies": {
     "semver": "4.3.6",
     "vscode-extension-telemetry": "0.0.17",
@@ -425,6 +425,26 @@
           "type": "boolean",
           "default": true,
           "description": "%typescript.suggestionActions.enabled%",
+          "scope": "window"
+        },
+        "javascript.preferences.quoteStyle": {
+          "type": "string",
+          "default": "double",
+          "enum": [
+            "single",
+            "double"
+          ],
+          "description": "%typescript.preferences.quoteStyle%",
+          "scope": "window"
+        },
+        "typescript.preferences.quoteStyle": {
+          "type": "string",
+          "default": "double",
+          "enum": [
+            "single",
+            "double"
+          ],
+          "description": "%typescript.preferences.quoteStyle%",
           "scope": "window"
         }
       }
