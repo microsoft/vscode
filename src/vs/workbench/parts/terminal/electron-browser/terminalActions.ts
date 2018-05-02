@@ -17,7 +17,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IQuickOpenService, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
-import { IQuickInputService } from 'vs/platform/quickInput/common/quickInput';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ActionBarContributor } from 'vs/workbench/browser/actions';
 import { TerminalEntry } from 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
