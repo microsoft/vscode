@@ -762,8 +762,13 @@ export class DebugService implements debug.IDebugService {
 					// a no-folder workspace has no launch.config
 					config = <debug.IConfig>{};
 				}
+
 				if (noDebug) {
 					config.noDebug = true;
+				}
+				const trace = this.configurationService.getValue<debug.IDebugConfiguration>('debug').trace;
+				if (trace !== 'off') {
+					config.trace = trace;
 				}
 
 				return (type ? TPromise.as(null) : this.configurationManager.guessDebugger().then(a => type = a && a.type)).then(() =>

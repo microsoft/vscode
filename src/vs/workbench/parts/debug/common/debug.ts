@@ -353,6 +353,7 @@ export interface IDebugConfiguration {
 	internalConsoleOptions: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
 	extensionHostDebugAdapter: boolean;
 	enableAllHovers: boolean;
+	trace: string;
 }
 
 export interface IGlobalConfig {
@@ -367,6 +368,7 @@ export interface IEnvConfig {
 	postDebugTask?: string;
 	debugServer?: number;
 	noDebug?: boolean;
+	trace?: string;
 }
 
 export interface IConfig extends IEnvConfig {
