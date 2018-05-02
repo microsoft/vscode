@@ -300,6 +300,7 @@ export class FileRenderer implements IRenderer {
 
 		const done = once((commit: boolean, blur: boolean) => {
 			tree.clearHighlight();
+			label.element.style.display = 'none';
 
 			if (commit && inputBox.value) {
 				editableData.action.run({ value: inputBox.value });
