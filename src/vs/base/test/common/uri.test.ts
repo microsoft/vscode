@@ -51,15 +51,15 @@ suite('URI', () => {
 	test('URI#fsPath - no `fsPath` when no `path`', () => {
 		const value = URI.parse('file://%2Fhome%2Fticino%2Fdesktop%2Fcpluscplus%2Ftest.cpp');
 		assert.equal(value.authority, '/home/ticino/desktop/cpluscplus/test.cpp');
-		assert.equal(value.path, '');
-		assert.equal(value.fsPath, '');
+		assert.equal(value.path, '/');
+		assert.equal(value.fsPath, '/');
 	});
 
 	test('http#toString', () => {
 		assert.equal(URI.from({ scheme: 'http', authority: 'www.msft.com', path: '/my/path' }).toString(), 'http://www.msft.com/my/path');
 		assert.equal(URI.from({ scheme: 'http', authority: 'www.msft.com', path: '/my/path' }).toString(), 'http://www.msft.com/my/path');
 		assert.equal(URI.from({ scheme: 'http', authority: 'www.MSFT.com', path: '/my/path' }).toString(), 'http://www.msft.com/my/path');
-		assert.equal(URI.from({ scheme: 'http', authority: '', path: 'my/path' }).toString(), 'http:my/path');
+		assert.equal(URI.from({ scheme: 'http', authority: '', path: 'my/path' }).toString(), 'http:/my/path');
 		assert.equal(URI.from({ scheme: 'http', authority: '', path: '/my/path' }).toString(), 'http:/my/path');
 		assert.equal(URI.from({ scheme: '', authority: '', path: 'my/path' }).toString(), 'my/path');
 		assert.equal(URI.from({ scheme: '', authority: '', path: '/my/path' }).toString(), '/my/path');
@@ -213,7 +213,7 @@ suite('URI', () => {
 		value = URI.parse('file:?q');
 		assert.equal(value.scheme, 'file');
 		assert.equal(value.authority, '');
-		assert.equal(value.path, '');
+		assert.equal(value.path, '/');
 		assert.equal(value.query, 'q');
 		assert.equal(value.fragment, '');
 
@@ -227,7 +227,7 @@ suite('URI', () => {
 		value = URI.parse('file:#d');
 		assert.equal(value.scheme, 'file');
 		assert.equal(value.authority, '');
-		assert.equal(value.path, '');
+		assert.equal(value.path, '/');
 		assert.equal(value.query, '');
 		assert.equal(value.fragment, 'd');
 
