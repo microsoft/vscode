@@ -295,11 +295,15 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 			const resolvedSymbols = new Array<ICodeLensSymbol>(request.length);
 			const promises = request.map((request, i) => {
-				return asWinJsPromise((token) => {
-					return request.provider.resolveCodeLens(model, request.symbol, token);
-				}).then(symbol => {
-					resolvedSymbols[i] = symbol;
-				});
+				if (typeof request.provider.resolveCodeLens === 'function') {
+					return asWinJsPromise((token) => {
+						return request.provider.resolveCodeLens(model, request.symbol, token);
+					}).then(symbol => {
+						resolvedSymbols[i] = symbol;
+					});
+				}
+				resolvedSymbols[i] = request.symbol;
+				return TPromise.as(void 0);
 			});
 
 			return TPromise.join(promises).then(() => {
