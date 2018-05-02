@@ -1213,6 +1213,14 @@ export class TextModel extends Disposable implements model.ITextModel {
 							continue;
 						}
 
+						if (
+							trimLineNumber === editRange.startLineNumber && editRange.startColumn === 1
+							&& editRange.isEmpty() && editText && editText.length > 0 && editText.charAt(editText.length - 1) === '\n'
+						) {
+							// This edit inserts a new line (and maybe other text) before `trimLine`
+							continue;
+						}
+
 						// Looks like we can't trim this line as it would interfere with an incoming edit
 						allowTrimLine = false;
 						break;
