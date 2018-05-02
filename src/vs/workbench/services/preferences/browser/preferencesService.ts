@@ -37,6 +37,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { parse } from 'vs/base/common/json';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { assign } from 'vs/base/common/objects';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -261,7 +262,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				if (!options) {
 					options = { pinned: true };
 				} else {
-					options.pinned = true;
+					options = assign(options, { pinned: true });
 				}
 
 				if (openDefaultSettings) {

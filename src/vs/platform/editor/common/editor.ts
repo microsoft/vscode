@@ -286,7 +286,7 @@ export interface IEditorOptions {
 	 * An editor that is pinned remains in the editor stack even when another editor is being opened.
 	 * An editor that is not pinned will always get replaced by another editor that is not pinned.
 	 */
-	pinned?: boolean;
+	readonly pinned?: boolean;
 
 	/**
 	 * The index in the document stack where to insert the editor into when opening.
