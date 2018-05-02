@@ -48,17 +48,17 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 
 	private static IDS = 0;
 
-	private readonly _onEditorActivated: Emitter<EditorInput>;
-	private readonly _onEditorOpened: Emitter<EditorInput>;
-	private readonly _onEditorClosed: Emitter<EditorCloseEvent>;
-	private readonly _onEditorDisposed: Emitter<EditorInput>;
-	private readonly _onEditorDirty: Emitter<EditorInput>;
-	private readonly _onEditorLabelChange: Emitter<EditorInput>;
-	private readonly _onEditorMoved: Emitter<EditorInput>;
-	private readonly _onEditorPinned: Emitter<EditorInput>;
-	private readonly _onEditorUnpinned: Emitter<EditorInput>;
-	private readonly _onEditorStateChanged: Emitter<EditorInput>;
-	private readonly _onEditorsStructureChanged: Emitter<EditorInput>;
+	private readonly _onDidEditorActivate: Emitter<EditorInput>;
+	private readonly _onDidEditorOpen: Emitter<EditorInput>;
+	private readonly _onDidEditorClose: Emitter<EditorCloseEvent>;
+	private readonly _onDidEditorDispose: Emitter<EditorInput>;
+	private readonly _onDidEditorBecomeDirty: Emitter<EditorInput>;
+	private readonly _onDidEditorLabelChange: Emitter<EditorInput>;
+	private readonly _onDidEditorMove: Emitter<EditorInput>;
+	private readonly _onDidEditorPin: Emitter<EditorInput>;
+	private readonly _onDidEditorUnpin: Emitter<EditorInput>;
+	private readonly _onDidEditorStateChange: Emitter<EditorInput>;
+	private readonly _onDidEditorsStructureChange: Emitter<EditorInput>;
 
 	private _id: GroupIdentifier;
 	private _label: string;
@@ -86,17 +86,17 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 		this.mapResourceToEditorCount = new ResourceMap<number>();
 		this.onConfigurationUpdated();
 
-		this._onEditorActivated = this._register(new Emitter<EditorInput>());
-		this._onEditorOpened = this._register(new Emitter<EditorInput>());
-		this._onEditorClosed = this._register(new Emitter<EditorCloseEvent>());
-		this._onEditorDisposed = this._register(new Emitter<EditorInput>());
-		this._onEditorDirty = this._register(new Emitter<EditorInput>());
-		this._onEditorLabelChange = this._register(new Emitter<EditorInput>());
-		this._onEditorMoved = this._register(new Emitter<EditorInput>());
-		this._onEditorPinned = this._register(new Emitter<EditorInput>());
-		this._onEditorUnpinned = this._register(new Emitter<EditorInput>());
-		this._onEditorStateChanged = this._register(new Emitter<EditorInput>());
-		this._onEditorsStructureChanged = this._register(new Emitter<EditorInput>());
+		this._onDidEditorActivate = this._register(new Emitter<EditorInput>());
+		this._onDidEditorOpen = this._register(new Emitter<EditorInput>());
+		this._onDidEditorClose = this._register(new Emitter<EditorCloseEvent>());
+		this._onDidEditorDispose = this._register(new Emitter<EditorInput>());
+		this._onDidEditorBecomeDirty = this._register(new Emitter<EditorInput>());
+		this._onDidEditorLabelChange = this._register(new Emitter<EditorInput>());
+		this._onDidEditorMove = this._register(new Emitter<EditorInput>());
+		this._onDidEditorPin = this._register(new Emitter<EditorInput>());
+		this._onDidEditorUnpin = this._register(new Emitter<EditorInput>());
+		this._onDidEditorStateChange = this._register(new Emitter<EditorInput>());
+		this._onDidEditorsStructureChange = this._register(new Emitter<EditorInput>());
 
 		if (typeof arg1 === 'object') {
 			this.deserialize(arg1);
@@ -131,48 +131,48 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 		return this.editors.length;
 	}
 
-	public get onEditorActivated(): Event<EditorInput> {
-		return this._onEditorActivated.event;
+	public get onDidEditorActivate(): Event<EditorInput> {
+		return this._onDidEditorActivate.event;
 	}
 
-	public get onEditorOpened(): Event<EditorInput> {
-		return this._onEditorOpened.event;
+	public get onDidEditorOpen(): Event<EditorInput> {
+		return this._onDidEditorOpen.event;
 	}
 
-	public get onEditorClosed(): Event<EditorCloseEvent> {
-		return this._onEditorClosed.event;
+	public get onDidEditorClose(): Event<EditorCloseEvent> {
+		return this._onDidEditorClose.event;
 	}
 
-	public get onEditorDisposed(): Event<EditorInput> {
-		return this._onEditorDisposed.event;
+	public get onDidEditorDispose(): Event<EditorInput> {
+		return this._onDidEditorDispose.event;
 	}
 
-	public get onEditorDirty(): Event<EditorInput> {
-		return this._onEditorDirty.event;
+	public get onDidEditorBecomeDirty(): Event<EditorInput> {
+		return this._onDidEditorBecomeDirty.event;
 	}
 
-	public get onEditorLabelChange(): Event<EditorInput> {
-		return this._onEditorLabelChange.event;
+	public get onDidEditorLabelChange(): Event<EditorInput> {
+		return this._onDidEditorLabelChange.event;
 	}
 
-	public get onEditorMoved(): Event<EditorInput> {
-		return this._onEditorMoved.event;
+	public get onDidEditorMove(): Event<EditorInput> {
+		return this._onDidEditorMove.event;
 	}
 
-	public get onEditorPinned(): Event<EditorInput> {
-		return this._onEditorPinned.event;
+	public get onDidEditorPin(): Event<EditorInput> {
+		return this._onDidEditorPin.event;
 	}
 
-	public get onEditorUnpinned(): Event<EditorInput> {
-		return this._onEditorUnpinned.event;
+	public get onDidEditorUnpin(): Event<EditorInput> {
+		return this._onDidEditorUnpin.event;
 	}
 
-	public get onEditorStateChanged(): Event<EditorInput> {
-		return this._onEditorStateChanged.event;
+	public get onDidEditorStateChange(): Event<EditorInput> {
+		return this._onDidEditorStateChange.event;
 	}
 
-	public get onEditorsStructureChanged(): Event<EditorInput> {
-		return this._onEditorsStructureChanged.event;
+	public get onDidEditorsStructureChange(): Event<EditorInput> {
+		return this._onDidEditorsStructureChange.event;
 	}
 
 	public getEditors(mru?: boolean): EditorInput[] {
@@ -283,7 +283,7 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 			this.hookEditorListeners(editor);
 
 			// Event
-			this.fireEvent(this._onEditorOpened, editor, true);
+			this.fireEvent(this._onDidEditorOpen, editor, true);
 
 			// Handle active
 			if (makeActive) {
@@ -318,22 +318,22 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 		const onceDispose = once(editor.onDispose);
 		unbind.push(onceDispose(() => {
 			if (this.indexOf(editor) >= 0) {
-				this._onEditorDisposed.fire(editor);
+				this._onDidEditorDispose.fire(editor);
 			}
 		}));
 
 		// Re-Emit dirty state changes
 		unbind.push(editor.onDidChangeDirty(() => {
-			this.fireEvent(this._onEditorDirty, editor, false);
+			this.fireEvent(this._onDidEditorBecomeDirty, editor, false);
 		}));
 
 		// Re-Emit label changes
 		unbind.push(editor.onDidChangeLabel(() => {
-			this.fireEvent(this._onEditorLabelChange, editor, false);
+			this.fireEvent(this._onDidEditorLabelChange, editor, false);
 		}));
 
 		// Clean up dispose listeners once the editor gets closed
-		unbind.push(this.onEditorClosed(event => {
+		unbind.push(this.onDidEditorClose(event => {
 			if (event.editor.matches(editor)) {
 				dispose(unbind);
 			}
@@ -349,7 +349,7 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 		this.splice(replaceIndex, false, replaceWidth);
 
 		if (event) {
-			this.fireEvent(this._onEditorClosed, event, true);
+			this.fireEvent(this._onDidEditorClose, event, true);
 		}
 	}
 
@@ -357,7 +357,7 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 		const event = this.doCloseEditor(editor, openNext, false);
 
 		if (event) {
-			this.fireEvent(this._onEditorClosed, event, true);
+			this.fireEvent(this._onDidEditorClose, event, true);
 		}
 	}
 
@@ -437,7 +437,7 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 		this.editors.splice(toIndex, 0, editor);
 
 		// Event
-		this.fireEvent(this._onEditorMoved, editor, true);
+		this.fireEvent(this._onDidEditorMove, editor, true);
 	}
 
 	public setActive(editor: EditorInput): void {
@@ -456,7 +456,7 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 		this.setMostRecentlyUsed(editor);
 
 		// Event
-		this.fireEvent(this._onEditorActivated, editor, false);
+		this.fireEvent(this._onDidEditorActivate, editor, false);
 	}
 
 	public pin(editor: EditorInput): void {
@@ -473,7 +473,7 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 		this.preview = null;
 
 		// Event
-		this.fireEvent(this._onEditorPinned, editor, false);
+		this.fireEvent(this._onDidEditorPin, editor, false);
 	}
 
 	public unpin(editor: EditorInput): void {
@@ -491,7 +491,7 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 		this.preview = editor;
 
 		// Event
-		this.fireEvent(this._onEditorUnpinned, editor, false);
+		this.fireEvent(this._onDidEditorUnpin, editor, false);
 
 		// Close old preview editor if any
 		this.closeEditor(oldPreview);
@@ -525,9 +525,9 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 		emitter.fire(arg2);
 
 		if (isStructuralChange) {
-			this._onEditorsStructureChanged.fire(arg2 instanceof EditorInput ? arg2 : arg2.editor);
+			this._onDidEditorsStructureChange.fire(arg2 instanceof EditorInput ? arg2 : arg2.editor);
 		} else {
-			this._onEditorStateChanged.fire(arg2 instanceof EditorInput ? arg2 : arg2.editor);
+			this._onDidEditorStateChange.fire(arg2 instanceof EditorInput ? arg2 : arg2.editor);
 		}
 	}
 
@@ -1210,17 +1210,17 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 		// Funnel editor changes in the group through our event aggregator
 		const unbind: IDisposable[] = [];
-		unbind.push(group.onEditorsStructureChanged(editor => this._onModelChanged.fire({ group, editor, structural: true })));
-		unbind.push(group.onEditorStateChanged(editor => this._onModelChanged.fire({ group, editor })));
-		unbind.push(group.onEditorOpened(editor => this._onEditorOpened.fire({ editor, group })));
-		unbind.push(group.onEditorClosed(event => {
+		unbind.push(group.onDidEditorsStructureChange(editor => this._onModelChanged.fire({ group, editor, structural: true })));
+		unbind.push(group.onDidEditorStateChange(editor => this._onModelChanged.fire({ group, editor })));
+		unbind.push(group.onDidEditorOpen(editor => this._onEditorOpened.fire({ editor, group })));
+		unbind.push(group.onDidEditorClose(event => {
 			this._onWillCloseEditor.fire(event);
 			this.handleOnEditorClosed(event);
 			this._onEditorClosed.fire(event);
 		}));
-		unbind.push(group.onEditorDisposed(editor => this._onEditorDisposed.fire({ editor, group })));
-		unbind.push(group.onEditorDirty(editor => this._onEditorDirty.fire({ editor, group })));
-		unbind.push(group.onEditorLabelChange(editor => this._onEditorLabelChange.fire({ editor, group })));
+		unbind.push(group.onDidEditorDispose(editor => this._onEditorDisposed.fire({ editor, group })));
+		unbind.push(group.onDidEditorBecomeDirty(editor => this._onEditorDirty.fire({ editor, group })));
+		unbind.push(group.onDidEditorLabelChange(editor => this._onEditorLabelChange.fire({ editor, group })));
 		unbind.push(this.onGroupClosed(g => {
 			if (g === group) {
 				dispose(unbind);

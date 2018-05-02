@@ -96,12 +96,12 @@ function groupListener(group: EditorGroup): GroupEvents {
 		moved: []
 	};
 
-	group.onEditorOpened(e => groupEvents.opened.push(e));
-	group.onEditorClosed(e => groupEvents.closed.push(e));
-	group.onEditorActivated(e => groupEvents.activated.push(e));
-	group.onEditorPinned(e => groupEvents.pinned.push(e));
-	group.onEditorUnpinned(e => groupEvents.unpinned.push(e));
-	group.onEditorMoved(e => groupEvents.moved.push(e));
+	group.onDidEditorOpen(e => groupEvents.opened.push(e));
+	group.onDidEditorClose(e => groupEvents.closed.push(e));
+	group.onDidEditorActivate(e => groupEvents.activated.push(e));
+	group.onDidEditorPin(e => groupEvents.pinned.push(e));
+	group.onDidEditorUnpin(e => groupEvents.unpinned.push(e));
+	group.onDidEditorMove(e => groupEvents.moved.push(e));
 
 	return groupEvents;
 }

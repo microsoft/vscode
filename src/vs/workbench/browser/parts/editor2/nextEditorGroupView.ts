@@ -117,11 +117,11 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	private registerListeners(): void {
 
 		// Model Events
-		this._register(this.group.onEditorsStructureChanged(() => this.updateContainer()));
-		this._register(this.group.onEditorDirty(editor => this.pinEditor(editor)));
-		this._register(this.group.onEditorOpened(editor => this.onEditorOpened(editor)));
-		this._register(this.group.onEditorClosed(editor => this.onEditorClosed(editor)));
-		this._register(this.group.onEditorDisposed(editor => this.onEditorDisposed(editor)));
+		this._register(this.group.onDidEditorsStructureChange(() => this.updateContainer()));
+		this._register(this.group.onDidEditorBecomeDirty(editor => this.pinEditor(editor)));
+		this._register(this.group.onDidEditorOpen(editor => this.onEditorOpened(editor)));
+		this._register(this.group.onDidEditorClose(editor => this.onEditorClosed(editor)));
+		this._register(this.group.onDidEditorDispose(editor => this.onEditorDisposed(editor)));
 
 		// Configuration Changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onDidChangeConfiguration(e)));
