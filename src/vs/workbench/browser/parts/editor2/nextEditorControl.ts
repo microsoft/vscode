@@ -14,7 +14,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
+import { IProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
 
 export interface IOpenEditorResult {
 	readonly control: BaseEditor;
@@ -23,7 +23,7 @@ export interface IOpenEditorResult {
 
 export class NextEditorControl extends Disposable {
 	private dimension: Dimension;
-	private editorOpenToken: number = 0;
+	private editorOperation: LongRunningOperation;
 
 	private _activeControl: BaseEditor;
 	private controls: BaseEditor[] = [];
@@ -33,9 +33,11 @@ export class NextEditorControl extends Disposable {
 		private group: IEditorGroup,
 		@IPartService private partService: IPartService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IProgressService private progressService: IProgressService
+		@IProgressService progressService: IProgressService
 	) {
 		super();
+
+		this.editorOperation = new LongRunningOperation(progressService);
 	}
 
 	get activeControl(): BaseEditor {
@@ -44,17 +46,6 @@ export class NextEditorControl extends Disposable {
 
 	openEditor(editor: EditorInput, options?: EditorOptions): Thenable<IOpenEditorResult> {
 
-		// Token and progress monitor
-		const editorOpenToken = ++this.editorOpenToken;
-		const progressDelay = this.partService.isCreated() ? 800 : 3200; // reduce chance of showing progress right on startup
-		const monitor = new ProgressMonitor(editorOpenToken, TPromise.timeout(progressDelay).then(() => {
-			if (editorOpenToken === this.editorOpenToken) {
-				return this.progressService.show(true);
-			}
-
-			return null;
-		}));
-
 		// Editor control
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editor);
 		const control = this.doShowEditorControl(descriptor, options);
@@ -62,7 +53,7 @@ export class NextEditorControl extends Disposable {
 		const willEditorChange = (!control.input || !control.input.matches(editor) || (options && options.forceOpen));
 
 		// Set input
-		return this.doSetInput(control, editor, options, monitor).then((() => (({ control, editorChanged: willEditorChange } as IOpenEditorResult))));
+		return this.doSetInput(control, editor, options).then((() => (({ control, editorChanged: willEditorChange } as IOpenEditorResult))));
 	}
 
 	private doShowEditorControl(descriptor: IEditorDescriptor, options: EditorOptions): BaseEditor {
@@ -125,23 +116,26 @@ export class NextEditorControl extends Disposable {
 		return control;
 	}
 
-	private doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions, monitor: ProgressMonitor): Thenable<void> {
+	private doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions): Thenable<void> {
+		const operationId = this.editorOperation.start(this.partService.isCreated() ? 800 : 3200);
 
 		// Call into editor control
 		return control.setInput(editor, options).then(() => {
 
-			// Progress done
-			monitor.done();
+			// Operation done
+			this.editorOperation.stop(operationId);
 
-			// Focus (unless prevented)
-			const focus = !options || !options.preserveFocus;
-			if (focus) {
-				control.focus();
+			// Focus (unless prevented or another operation is running)
+			if (this.editorOperation.isCurrent(operationId)) {
+				const focus = !options || !options.preserveFocus;
+				if (focus) {
+					control.focus();
+				}
 			}
 		}, e => {
 
-			// Progress done
-			monitor.done();
+			// Operation done
+			this.editorOperation.stop(operationId);
 
 			return TPromise.wrapError(e);
 		});
@@ -185,37 +179,5 @@ export class NextEditorControl extends Disposable {
 		this.controls = dispose(this.controls);
 
 		super.dispose();
-	}
-}
-
-class ProgressMonitor {
-	private isDone: boolean;
-	private runner: IProgressRunner;
-
-	constructor(
-		private _token: number,
-		private progressPromise: TPromise<IProgressRunner>
-	) {
-		progressPromise.then(runner => this.runner = runner, () => void 0 /* ignore cancellation */);
-	}
-
-	get token(): number {
-		return this._token;
-	}
-
-	cancel(): void {
-		this.done();
-	}
-
-	done(): void {
-		if (!this.isDone) {
-			this.isDone = true;
-
-			this.progressPromise.cancel();
-
-			if (this.runner) {
-				this.runner.done();
-			}
-		}
 	}
 }

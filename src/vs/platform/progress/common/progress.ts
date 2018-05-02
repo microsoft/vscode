@@ -91,3 +91,50 @@ export interface IProgressService2 {
 
 	withProgress<P extends Thenable<R>, R=any>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => P, onDidCancel?: () => void): P;
 }
+
+/**
+ * A helper to show progress during a long running operation. If the operation
+ * is started multiple times, only the last invocation will drive the progress.
+ */
+export class LongRunningOperation {
+	private currentOperationId = 0;
+	private currentProgressRunner: IProgressRunner;
+	private currentProgressTimeout: number;
+
+	constructor(
+		private progressService: IProgressService
+	) {
+	}
+
+	start(progressDelay: number): number {
+
+		// Clear previous
+		if (this.currentProgressTimeout) {
+			clearTimeout(this.currentProgressTimeout);
+		}
+
+		// Start new
+		const newOperationId = ++this.currentOperationId;
+		this.currentProgressTimeout = setTimeout(() => {
+			if (newOperationId === this.currentOperationId) {
+				this.currentProgressRunner = this.progressService.show(true);
+			}
+		}, progressDelay);
+
+		return newOperationId;
+	}
+
+	stop(operationId: number): void {
+		if (this.currentOperationId === operationId) {
+			clearTimeout(this.currentProgressTimeout);
+
+			if (this.currentProgressRunner) {
+				this.currentProgressRunner.done();
+			}
+		}
+	}
+
+	isCurrent(operationId): boolean {
+		return this.currentOperationId === operationId;
+	}
+}
