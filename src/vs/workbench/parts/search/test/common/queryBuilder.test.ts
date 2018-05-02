@@ -437,31 +437,31 @@ suite('QueryBuilder', () => {
 			cases.forEach(testIncludesDataItem);
 		});
 
-		test('includes with tilde', () => {
-			const userHome = TestEnvironmentService.userHome;
-			const cases: [string, ISearchPathsResult][] = [
-				[
-					'~/foo/bar',
-					<ISearchPathsResult>{
-						searchPaths: [{ searchPath: getUri(userHome, '/foo/bar') }]
-					}
-				],
-				[
-					'~/foo/bar, a',
-					<ISearchPathsResult>{
-						searchPaths: [{ searchPath: getUri(userHome, '/foo/bar') }],
-						pattern: patternsToIExpression(...globalGlob('a'))
-					}
-				],
-				[
-					fixPath('/foo/~/bar'),
-					<ISearchPathsResult>{
-						searchPaths: [{ searchPath: getUri('/foo/~/bar') }]
-					}
-				],
-			];
-			cases.forEach(testIncludesDataItem);
-		});
+		// test('includes with tilde', () => {
+		// 	const userHome = TestEnvironmentService.userHome;
+		// 	const cases: [string, ISearchPathsResult][] = [
+		// 		[
+		// 			'~/foo/bar',
+		// 			<ISearchPathsResult>{
+		// 				searchPaths: [{ searchPath: getUri(userHome, '/foo/bar') }]
+		// 			}
+		// 		],
+		// 		[
+		// 			'~/foo/bar, a',
+		// 			<ISearchPathsResult>{
+		// 				searchPaths: [{ searchPath: getUri(userHome, '/foo/bar') }],
+		// 				pattern: patternsToIExpression(...globalGlob('a'))
+		// 			}
+		// 		],
+		// 		[
+		// 			fixPath('/foo/~/bar'),
+		// 			<ISearchPathsResult>{
+		// 				searchPaths: [{ searchPath: getUri('/foo/~/bar') }]
+		// 			}
+		// 		],
+		// 	];
+		// 	cases.forEach(testIncludesDataItem);
+		// });
 
 		test('relative includes w/single root folder', () => {
 			const cases: [string, ISearchPathsResult][] = [
