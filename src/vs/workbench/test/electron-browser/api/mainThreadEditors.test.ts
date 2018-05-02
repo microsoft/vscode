@@ -10,7 +10,7 @@ import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/electron-browser
 import { SingleProxyRPCProtocol, TestRPCProtocol } from './testRPCProtocol';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { TestCodeEditorService } from 'vs/editor/test/browser/testCodeEditorService';
+import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostDocumentsAndEditorsShape, ExtHostContext, ExtHostDocumentsShape } from 'vs/workbench/api/node/extHost.protocol';
@@ -27,6 +27,7 @@ import { TestFileService } from 'vs/workbench/test/workbenchTestServices';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IFileStat } from 'vs/platform/files/common/files';
 import { ResourceTextEdit } from 'vs/editor/common/modes';
+import { BulkEditService } from '../../../services/bulkEdit/electron-browser/bulkEditService';
 
 suite('MainThreadEditors', () => {
 
@@ -80,6 +81,8 @@ suite('MainThreadEditors', () => {
 			onEditorGroupMoved = Event.None;
 		};
 
+		const bulkEditService = new BulkEditService(modelService, workbenchEditorService, null, fileService);
+
 		const rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, new class extends mock<ExtHostDocumentsShape>() {
 			$acceptModelChanged(): void {
@@ -101,17 +104,16 @@ suite('MainThreadEditors', () => {
 			null,
 			null,
 			editorGroupService,
+			bulkEditService,
 		);
 
 		editors = new MainThreadTextEditors(
 			documentAndEditor,
 			SingleProxyRPCProtocol(null),
 			codeEditorService,
+			bulkEditService,
 			workbenchEditorService,
 			editorGroupService,
-			null,
-			fileService,
-			modelService
 		);
 	});
 

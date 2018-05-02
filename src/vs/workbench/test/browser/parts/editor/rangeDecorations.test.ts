@@ -40,7 +40,7 @@ suite('Editor - Range decorations', () => {
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		text = 'LINE1' + '\n' + 'LINE2' + '\n' + 'LINE3' + '\n' + 'LINE4' + '\r\n' + 'LINE5';
 		model = aModel(URI.file('some_file'));
-		codeEditor = createTestCodeEditor(model);
+		codeEditor = createTestCodeEditor({ model: model });
 		mockEditorService(codeEditor.getModel().uri);
 
 		instantiationService.stub(WorkbenchEditorService.IWorkbenchEditorService, 'getActiveEditor', { getControl: () => { return codeEditor; } });

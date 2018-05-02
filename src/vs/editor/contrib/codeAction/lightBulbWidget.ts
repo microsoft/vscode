@@ -144,6 +144,10 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		}
 		const { lineNumber } = this._model.position;
 		const model = this._editor.getModel();
+		if (!model) {
+			return;
+		}
+
 		const tabSize = model.getOptions().tabSize;
 		const lineContent = model.getLineContent(lineNumber);
 		const indent = TextModel.computeIndentLevel(lineContent, tabSize);

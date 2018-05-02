@@ -234,6 +234,8 @@ class SuggestionDetails {
 		chain<IConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
 			.filter(e => e.fontInfo)
 			.on(this.configureFont, this, this.disposables);
+
+		markdownRenderer.onDidRenderCodeBlock(() => this.scrollbar.scanDomNode(), this, this.disposables);
 	}
 
 	get element() {

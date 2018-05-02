@@ -33,7 +33,7 @@ suite('CodeAction', () => {
 		});
 		markerService = new MarkerService();
 		model = TextModel.createFromString('foobar  foo bar\nfarboo far boo', undefined, languageIdentifier, uri);
-		editor = createTestCodeEditor(model);
+		editor = createTestCodeEditor({ model: model });
 		editor.setPosition({ lineNumber: 1, column: 1 });
 	});
 

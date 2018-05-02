@@ -172,7 +172,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 	constructor(
 		editor: ICodeEditor,
-		markdownRenderner: MarkdownRenderer,
+		markdownRenderer: MarkdownRenderer,
 		private readonly _themeService: IThemeService
 	) {
 		super(ModesContentHoverWidget.ID, editor);
@@ -181,8 +181,8 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._highlightDecorations = [];
 		this._isChangingDecorations = false;
 
-		this._markdownRenderer = markdownRenderner;
-		markdownRenderner.onDidRenderCodeBlock(this.onContentsChange, this, this.toDispose);
+		this._markdownRenderer = markdownRenderer;
+		markdownRenderer.onDidRenderCodeBlock(this.onContentsChange, this, this.toDispose);
 
 		this._hoverOperation = new HoverOperation(
 			this._computer,

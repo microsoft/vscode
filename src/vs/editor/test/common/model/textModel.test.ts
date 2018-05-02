@@ -508,7 +508,7 @@ suite('Editor Model - TextModel', () => {
 			'        x',
 			'        x',
 		], '6x4, 2x5, 4x8');
-		assertGuess(true, 4, [
+		assertGuess(true, undefined, [
 			'x',
 			' x',
 			' x',
@@ -529,6 +529,25 @@ suite('Editor Model - TextModel', () => {
 			'\tx',
 			'\t    x'
 		], 'mixed whitespace 2');
+	});
+
+	test('issue #44991: Wrong indentation size auto-detection', () => {
+		assertGuess(true, 4, [
+			'a = 10             # 0 space indent',
+			'b = 5              # 0 space indent',
+			'if a > 10:         # 0 space indent',
+			'    a += 1         # 4 space indent      delta 4 spaces',
+			'    if b > 5:      # 4 space indent',
+			'        b += 1     # 8 space indent      delta 4 spaces',
+			'        b += 1     # 8 space indent',
+			'        b += 1     # 8 space indent',
+			'# comment line 1   # 0 space indent      delta 8 spaces',
+			'# comment line 2   # 0 space indent',
+			'# comment line 3   # 0 space indent',
+			'        b += 1     # 8 space indent      delta 8 spaces',
+			'        b += 1     # 8 space indent',
+			'        b += 1     # 8 space indent',
+		]);
 	});
 
 	test('validatePosition', () => {

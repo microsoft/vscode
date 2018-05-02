@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/processExplorer';
 import { listProcesses, ProcessItem } from 'vs/base/node/ps';
-import { remote, webFrame } from 'electron';
+import { remote, webFrame, ipcRenderer } from 'electron';
 import { repeat } from 'vs/base/common/strings';
 import { totalmem } from 'os';
 import product from 'vs/platform/node/product';
@@ -17,6 +17,7 @@ import * as browser from 'vs/base/browser/browser';
 import * as platform from 'vs/base/common/platform';
 
 let processList: any[];
+let mapPidToWindowTitle = new Map<number, string>();
 
 function getProcessList(rootProcess: ProcessItem) {
 	const processes: any[] = [];
@@ -33,8 +34,17 @@ function getProcessItem(processes: any[], item: ProcessItem, indent: number): vo
 
 	const MB = 1024 * 1024;
 
+	let name = item.name;
+	if (isRoot) {
+		name = `${product.applicationName} main`;
+	}
+
+	if (name === 'window') {
+		const windowTitle = mapPidToWindowTitle.get(item.pid);
+		name = windowTitle !== undefined ? `${name} (${mapPidToWindowTitle.get(item.pid)})` : name;
+	}
+
 	// Format name with indent
-	const name = isRoot ? `${product.applicationName} main` : item.name;
 	const formattedName = isRoot ? name : `${repeat('    ', indent)} ${name}`;
 	const memory = process.platform === 'win32' ? item.mem : (totalmem() * (item.mem / 100));
 	processes.push({
@@ -154,18 +164,28 @@ export function startup(data: ProcessExplorerData): void {
 	applyStyles(data.styles);
 	applyZoom(data.zoomLevel);
 
-	setInterval(() => listProcesses(remote.process.pid).then(processes => {
-		processList = getProcessList(processes);
-		updateProcessInfo(processList);
+	// Map window process pids to titles, annotate process names with this when rendering to distinguish between them
+	ipcRenderer.on('windowsInfoResponse', (event, windows) => {
+		mapPidToWindowTitle = new Map<number, string>();
+		windows.forEach(window => mapPidToWindowTitle.set(window.pid, window.title));
+	});
 
-		const tableRows = document.getElementsByTagName('tr');
-		for (let i = 0; i < tableRows.length; i++) {
-			const tableRow = tableRows[i];
-			tableRow.addEventListener('contextmenu', (e) => {
-				showContextMenu(e);
-			});
-		}
-	}), 1200);
+	setInterval(() => {
+		ipcRenderer.send('windowsInfoRequest');
+
+		listProcesses(remote.process.pid).then(processes => {
+			processList = getProcessList(processes);
+			updateProcessInfo(processList);
+
+			const tableRows = document.getElementsByTagName('tr');
+			for (let i = 0; i < tableRows.length; i++) {
+				const tableRow = tableRows[i];
+				tableRow.addEventListener('contextmenu', (e) => {
+					showContextMenu(e);
+				});
+			}
+		});
+	}, 1200);
 
 
 	document.onkeydown = (e: KeyboardEvent) => {

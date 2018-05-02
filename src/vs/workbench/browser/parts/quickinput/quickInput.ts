@@ -33,6 +33,7 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { onUnexpectedError, canceled } from 'vs/base/common/errors';
 import Severity from 'vs/base/common/severity';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const $ = dom.$;
 
@@ -221,6 +222,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IThemeService themeService: IThemeService
 	) {
 		super(QuickInputService.ID, themeService);
@@ -327,7 +329,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 				}
 			}
 			if (!this.ignoreFocusLost && !this.environmentService.args['sticky-quickopen'] && this.configurationService.getValue(CLOSE_ON_FOCUS_LOST_CONFIG)) {
-				this.close();
+				this.close(undefined, true);
 			}
 		}));
 		this.toUnbind.push(dom.addDisposableListener(this.container, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
@@ -364,20 +366,36 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.updateStyles();
 	}
 
-	private close(ok?: true | Thenable<never>) {
+	private close(ok?: true | Thenable<never>, focusLost?: boolean) {
+		if (this.container.style.display === 'none') {
+			return TPromise.as(undefined);
+		}
 		if (this.controller) {
 			const resolved = this.controller.resolve(ok);
 			if (resolved) {
 				const result = resolved
 					.then(() => {
 						this.container.style.display = 'none';
+						if (!focusLost) {
+							this.restoreFocus();
+						}
 					});
 				result.then(null, onUnexpectedError);
 				return result;
 			}
 		}
 		this.container.style.display = 'none';
+		if (!focusLost) {
+			this.restoreFocus();
+		}
 		return TPromise.as(undefined);
+	}
+
+	private restoreFocus(): void {
+		const editor = this.editorService.getActiveEditor();
+		if (editor) {
+			editor.focus();
+		}
 	}
 
 	pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options: IPickOptions = {}, token?: CancellationToken): TPromise<T[]> {

@@ -178,6 +178,7 @@ export class ExtensionEditor extends BaseEditor {
 	private transientDisposables: IDisposable[] = [];
 	private disposables: IDisposable[];
 	private activeWebview: WebviewElement;
+	private editorLoadComplete: boolean = false;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -268,6 +269,7 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	setInput(input: ExtensionsInput, options: EditorOptions): TPromise<void> {
+		this.editorLoadComplete = false;
 		const extension = input.extension;
 
 		this.transientDisposables = dispose(this.transientDisposables);
@@ -379,6 +381,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.navbar.push(NavbarSection.Changelog, localize('changelog', "Changelog"));
 		this.navbar.push(NavbarSection.Dependencies, localize('dependencies', "Dependencies"));
 
+		this.editorLoadComplete = true;
 		return super.setInput(input, options);
 	}
 
@@ -406,6 +409,18 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private onNavbarChange(extension: IExtension, id: string): void {
+		if (this.editorLoadComplete) {
+			/* __GDPR__
+				"extensionEditor:navbarChange" : {
+					"navItem": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"${include}": [
+						"${GalleryExtensionTelemetryData}"
+					]
+				}
+			*/
+			this.telemetryService.publicLog('extensionEditor:navbarChange', assign(extension.telemetryData, { navItem: id }));
+		}
+
 		this.contentDisposables = dispose(this.contentDisposables);
 		this.content.innerHTML = '';
 		this.activeWebview = null;

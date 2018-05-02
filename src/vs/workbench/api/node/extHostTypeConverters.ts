@@ -625,7 +625,27 @@ export namespace ProgressLocation {
 
 export namespace FoldingRange {
 	export function from(r: vscode.FoldingRange): modes.FoldingRange {
-		return { start: r.start + 1, end: r.end + 1, kind: r.kind };
+		let range: modes.FoldingRange = { start: r.start + 1, end: r.end + 1 };
+		if (r.kind) {
+			range.kind = FoldingRangeKind.from(r.kind);
+		}
+		return range;
+	}
+}
+
+export namespace FoldingRangeKind {
+	export function from(kind: vscode.FoldingRangeKind | undefined): modes.FoldingRangeKind | undefined {
+		if (kind) {
+			switch (kind) {
+				case types.FoldingRangeKind.Comment:
+					return modes.FoldingRangeKind.Comment;
+				case types.FoldingRangeKind.Imports:
+					return modes.FoldingRangeKind.Imports;
+				case types.FoldingRangeKind.Region:
+					return modes.FoldingRangeKind.Region;
+			}
+		}
+		return void 0;
 	}
 }
 

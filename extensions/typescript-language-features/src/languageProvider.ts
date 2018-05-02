@@ -92,9 +92,10 @@ export default class LanguageProvider {
 		const selector = this.documentSelector;
 		const config = workspace.getConfiguration(this.id);
 
+		const TypeScriptCompletionItemProvider = (await import('./features/completionItemProvider')).default;
 		this.disposables.push(languages.registerCompletionItemProvider(selector,
-			new (await import('./features/completionItemProvider')).default(client, typingsStatus, commandManager),
-			'.', '"', '\'', '/', '@'));
+			new TypeScriptCompletionItemProvider(client, typingsStatus, commandManager),
+			...TypeScriptCompletionItemProvider.triggerCharacters));
 
 		this.disposables.push(languages.registerCompletionItemProvider(selector, new (await import('./features/directiveCommentCompletionProvider')).default(client), '@'));
 

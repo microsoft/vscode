@@ -33,6 +33,7 @@ export class WebviewElement {
 	private _webviewFindWidget: WebviewFindWidget;
 	private _findStarted: boolean = false;
 	private _contents: string = '';
+	private _state: string | undefined = undefined;
 
 	constructor(
 		private readonly _styleElement: Element,
@@ -158,6 +159,15 @@ export class WebviewElement {
 							this._onDidScroll.fire({ scrollYPercentage: event.args[0] });
 						}
 						return;
+
+					case 'do-reload':
+						this.reload();
+						return;
+
+					case 'do-update-state':
+						this._state = event.args[0];
+						this._onDidUpdateState.fire(this._state);
+						return;
 				}
 			}),
 			addDisposableListener(this._webview, 'focus', () => {
@@ -169,7 +179,10 @@ export class WebviewElement {
 				if (this._contextKey) {
 					this._contextKey.reset();
 				}
-			})
+			}),
+			addDisposableListener(this._webview, 'devtools-opened', () => {
+				this._send('devtools-opened');
+			}),
 		);
 
 		this._webviewFindWidget = new WebviewFindWidget(this._contextViewService, this);
@@ -213,6 +226,9 @@ export class WebviewElement {
 	private readonly _onDidScroll = new Emitter<{ scrollYPercentage: number }>();
 	public readonly onDidScroll: Event<{ scrollYPercentage: number }> = this._onDidScroll.event;
 
+	private readonly _onDidUpdateState = new Emitter<string | undefined>();
+	public readonly onDidUpdateState: Event<string | undefined> = this._onDidUpdateState.event;
+
 	private readonly _onMessage = new Emitter<any>();
 	public readonly onMessage: Event<any> = this._onMessage.event;
 
@@ -226,6 +242,10 @@ export class WebviewElement {
 		this._send('initial-scroll-position', value);
 	}
 
+	public set state(value: string | undefined) {
+		this._state = value;
+	}
+
 	public set options(value: WebviewOptions) {
 		this._options = value;
 	}
@@ -234,7 +254,8 @@ export class WebviewElement {
 		this._contents = value;
 		this._send('content', {
 			contents: value,
-			options: this._options
+			options: this._options,
+			state: this._state
 		});
 	}
 

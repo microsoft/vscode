@@ -9,19 +9,21 @@ phases:
     inputs:
       versionSpec: "1.3.2"
   - powershell: |
+      function exec([scriptblock]$cmd, [string]$errorMessage = "Error executing command: " + $cmd) { & $cmd; if ($LastExitCode -ne 0) { throw $errorMessage } }
       $ErrorActionPreference = "Stop"
-      yarn
-      .\node_modules\.bin\gulp electron
-      npm run gulp -- hygiene
-      .\node_modules\.bin\tsc -p .\src\tsconfig.monaco.json --noEmit
-      npm run compile
-      node build/lib/builtInExtensions.js
+      exec { & yarn }
+      exec { & .\node_modules\.bin\gulp electron }
+      exec { & npm run gulp -- hygiene }
+      exec { & .\node_modules\.bin\tsc -p .\src\tsconfig.monaco.json --noEmit }
+      exec { & npm run compile }
+      exec { & node build/lib/builtInExtensions.js }
     name: build
   - powershell: |
+      function exec([scriptblock]$cmd, [string]$errorMessage = "Error executing command: " + $cmd) { & $cmd; if ($LastExitCode -ne 0) { throw $errorMessage } }
       $ErrorActionPreference = "Stop"
-      .\scripts\test.bat --tfs
-      .\scripts\test-integration.bat
-      yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)\artifacts" --log "$(Build.ArtifactStagingDirectory)\artifacts\smoketest.log"
+      exec { & .\scripts\test.bat --tfs }
+      exec { & .\scripts\test-integration.bat }
+      exec { & yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)\artifacts" --log "$(Build.ArtifactStagingDirectory)\artifacts\smoketest.log" }
     name: test
   - task: PublishBuildArtifacts@1
     inputs:

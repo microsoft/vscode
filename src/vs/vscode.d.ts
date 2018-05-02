@@ -3411,7 +3411,7 @@ declare module 'vscode' {
 		 * Describes the [Kind](#FoldingRangeKind) of the folding range such as [Comment](#FoldingRangeKind.Comment) or
 		 * [Region](#FoldingRangeKind.Region). The kind is used to categorize folding ranges and used by commands
 		 * like 'Fold all comments'. See
-		 * [FoldingRangeKind](#FoldingRangeKind) for an enumeration of standardized kinds.
+		 * [FoldingRangeKind](#FoldingRangeKind) for an enumeration of all kinds.
 		 */
 		kind?: FoldingRangeKind;
 
@@ -3425,30 +3425,19 @@ declare module 'vscode' {
 		constructor(start: number, end: number, kind?: FoldingRangeKind);
 	}
 
-	export class FoldingRangeKind {
+	export enum FoldingRangeKind {
 		/**
-		 * Kind for folding range representing a comment. The value of the kind is 'comment'.
+		 * Kind for folding range representing a comment.
 		 */
-		static readonly Comment: FoldingRangeKind;
+		Comment = 1,
 		/**
-		 * Kind for folding range representing a import. The value of the kind is 'imports'.
+		 * Kind for folding range representing a import.
 		 */
-		static readonly Imports: FoldingRangeKind;
+		Imports = 2,
 		/**
 		 * Kind for folding range representing regions (for example a folding range marked by `#region` and `#endregion`).
-		 * The value of the kind is 'region'.
 		 */
-		static readonly Region: FoldingRangeKind;
-		/**
-		 * String value of the kind, e.g. `comment`.
-		 */
-		readonly value: string;
-		/**
-		 * Creates a new [FoldingRangeKind](#FoldingRangeKind).
-		 *
-		 * @param value of the kind.
-		 */
-		public constructor(value: string);
+		Region = 3
 	}
 
 	/**
@@ -4819,7 +4808,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Enumeration of file types.
+	 * Enumeration of file types. The types `File` and `Directory` can also be
+	 * a symbolic links, in that use `FileType.File | FileType.SymbolicLink` and
+	 * `FileType.Directory | FileType.SymbolicLink`.
 	 */
 	export enum FileType {
 		/**
@@ -5217,8 +5208,9 @@ declare module 'vscode' {
 		 * method moves it to a new column.
 		 *
 		 * @param viewColumn View column to show the panel in. Shows in the current `viewColumn` if undefined.
+		 * @param preserveFocus When `true`, the webview will not take focus.
 		 */
-		reveal(viewColumn?: ViewColumn): void;
+		reveal(viewColumn?: ViewColumn, preserveFocus?: boolean): void;
 
 		/**
 		 * Dispose of the webview panel.
@@ -5727,12 +5719,12 @@ declare module 'vscode' {
 		 *
 		 * @param viewType Identifies the type of the webview panel.
 		 * @param title Title of the panel.
-		 * @param position Editor column to show the new panel in.
+		 * @param showOptions Where to show the webview in the editor. If preserveFocus is set, the new webview will not take focus.
 		 * @param options Settings for the new panel.
 		 *
 		 * @return New webview panel.
 		 */
-		export function createWebviewPanel(viewType: string, title: string, position: ViewColumn, options: WebviewPanelOptions & WebviewOptions): WebviewPanel;
+		export function createWebviewPanel(viewType: string, title: string, showOptions: ViewColumn | { viewColumn: ViewColumn, preserveFocus?: boolean }, options?: WebviewPanelOptions & WebviewOptions): WebviewPanel;
 
 		/**
 		 * Set a message to the status bar. This is a short hand for the more powerful
@@ -6907,13 +6899,16 @@ declare module 'vscode' {
 		/**
 		 * Register a folding range provider.
 		 *
-		 * Multiple folding can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the best-matching provider is used. Failure
-		 * of the selected provider will cause a failure of the whole operation.
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged.
+		 * If multiple folding ranges start at the same position, only the range of the first registered provider is used.
+		 * If a folding range overlaps with an other range that has a smaller position, it is also ignored.
+		 *
+		 * A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A folding range provider.
-		 * @param metadata Metadata about the kind of code actions the provider providers.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerFoldingRangeProvider(selector: DocumentSelector, provider: FoldingRangeProvider): Disposable;

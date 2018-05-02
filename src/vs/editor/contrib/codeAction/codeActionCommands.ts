@@ -8,18 +8,14 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { BulkEdit } from 'vs/editor/browser/services/bulkEdit';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CodeAction } from 'vs/editor/common/modes';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IFileService } from 'vs/platform/files/common/files';
-import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { CodeActionModel, CodeActionsComputeEvent, SUPPORTED_CODE_ACTIONS } from './codeActionModel';
@@ -27,6 +23,7 @@ import { CodeActionAutoApply, CodeActionFilter, CodeActionKind } from './codeAct
 import { CodeActionContextMenu } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
+import { IBulkEditService } from '../../browser/services/bulkEditService';
 
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(
@@ -54,8 +51,7 @@ export class QuickFixController implements IEditorContribution {
 		@ICommandService private readonly _commandService: ICommandService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@ITextModelService private readonly _textModelService: ITextModelService,
-		@optional(IFileService) private _fileService: IFileService
+		@IBulkEditService private readonly _bulkEditService: IBulkEditService
 	) {
 		this._editor = editor;
 		this._model = new CodeActionModel(this._editor, markerService, contextKeyService);
@@ -131,19 +127,18 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	private async _onApplyCodeAction(action: CodeAction): TPromise<void> {
-		await applyCodeAction(action, this._textModelService, this._fileService, this._commandService, this._editor);
+		await applyCodeAction(action, this._bulkEditService, this._commandService, this._editor);
 	}
 }
 
 export async function applyCodeAction(
 	action: CodeAction,
-	textModelService: ITextModelService,
-	fileService: IFileService,
+	bulkEditService: IBulkEditService,
 	commandService: ICommandService,
 	editor: ICodeEditor,
 ) {
 	if (action.edit) {
-		await BulkEdit.perform(action.edit.edits, textModelService, fileService, editor);
+		await bulkEditService.apply(action.edit, { editor });
 	}
 	if (action.command) {
 		await commandService.executeCommand(action.command.id, ...action.command.arguments);

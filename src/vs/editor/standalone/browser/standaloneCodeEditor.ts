@@ -18,7 +18,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { StandaloneKeybindingService, applyConfigurationValues } from 'vs/editor/standalone/browser/simpleServices';
 import { IEditorContextViewService } from 'vs/editor/standalone/browser/standaloneServices';
-import { CodeEditor } from 'vs/editor/browser/codeEditor';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
@@ -153,7 +153,7 @@ function createAriaDomNode() {
 /**
  * A code editor to be used both by the standalone editor and the standalone diff editor.
  */
-export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeEditor {
+export class StandaloneCodeEditor extends CodeEditorWidget implements IStandaloneCodeEditor {
 
 	private _standaloneKeybindingService: StandaloneKeybindingService;
 
@@ -175,7 +175,7 @@ export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeE
 				? nls.localize('accessibilityHelpMessageIE', "Press Ctrl+F1 for Accessibility Options.")
 				: nls.localize('accessibilityHelpMessage', "Press Alt+F1 for Accessibility Options.")
 		);
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService);
+		super(domElement, options, {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = keybindingService;
@@ -401,7 +401,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		super.updateOptions(newOptions);
 	}
 
-	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: IEditorOptions): CodeEditor {
+	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: IEditorOptions): CodeEditorWidget {
 		return instantiationService.createInstance(StandaloneCodeEditor, container, options);
 	}
 

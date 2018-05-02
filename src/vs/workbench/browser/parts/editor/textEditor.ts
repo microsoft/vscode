@@ -12,7 +12,7 @@ import * as objects from 'vs/base/common/objects';
 import * as types from 'vs/base/common/types';
 import * as errors from 'vs/base/common/errors';
 import * as DOM from 'vs/base/browser/dom';
-import { CodeEditor } from 'vs/editor/browser/codeEditor';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorInput, EditorOptions, EditorViewStateMemento } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorViewState, IEditor } from 'vs/editor/common/editorCommon';
@@ -182,7 +182,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 	protected createEditorControl(parent: HTMLElement, configuration: IEditorOptions): IEditor {
 
 		// Use a getter for the instantiation service since some subclasses might use scoped instantiation services
-		return this.instantiationService.createInstance(CodeEditor, parent, configuration);
+		return this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, {});
 	}
 
 	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
