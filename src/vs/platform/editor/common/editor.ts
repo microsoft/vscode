@@ -271,14 +271,14 @@ export interface IEditorOptions {
 	/**
 	 * Will reveal the editor if it is already opened and visible in any of the opened editor groups. Note
 	 * that this option is just a hint that might be ignored if the user wants to open an editor explicitly
-	 * to the side of another one.
+	 * to the side of another one or into a specific editor group.
 	 */
 	readonly revealIfVisible?: boolean;
 
 	/**
 	 * Will reveal the editor if it is already opened (even when not visible) in any of the opened editor groups. Note
 	 * that this option is just a hint that might be ignored if the user wants to open an editor explicitly
-	 * to the side of another one.
+	 * to the side of another one or into a specific editor group.
 	 */
 	readonly revealIfOpened?: boolean;
 

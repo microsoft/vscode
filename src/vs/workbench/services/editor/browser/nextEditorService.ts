@@ -87,7 +87,7 @@ export class NextEditorService implements INextEditorService {
 		}
 
 		// Group: Specific Group
-		if (typeof group === 'number') {
+		else if (typeof group === 'number') {
 			targetGroup = this.nextEditorGroupsService.getGroup(group);
 		}
 
