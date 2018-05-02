@@ -25,7 +25,9 @@
           ".jscsrc",
           ".eslintrc",
           ".babelrc",
-          ".webmanifest"
+          ".webmanifest",
+          ".js.map",
+          ".css.map"
         ],
         "filenames": [
           ".watchmanconfig",
