@@ -13,8 +13,9 @@ import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { CodeActionOracle } from 'vs/editor/contrib/codeAction/codeActionModel';
 import { CodeActionProviderRegistry, LanguageIdentifier } from 'vs/editor/common/modes';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Selection } from 'vs/editor/common/core/selection';
 
 suite('CodeAction', () => {
 
@@ -99,9 +100,11 @@ suite('CodeAction', () => {
 	test('Oracle -> marker wins over selection', () => {
 
 		let range: Range;
+		let providedSelection: Selection;
 		let reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
-			provideCodeActions(doc, _range) {
+			provideCodeActions(doc, _range, context) {
 				range = _range;
+				providedSelection = context.selection;
 				return [];
 			}
 		});
@@ -119,15 +122,21 @@ suite('CodeAction', () => {
 			fixes.push(e.actions);
 		}, 10);
 
-		editor.setSelection({ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 13 });
+
+		let selection = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 13 };
+		editor.setSelection(selection);
 
 		return TPromise.join<any>([TPromise.timeout(20)].concat(fixes)).then(_ => {
 
 			// -> marker wins
 			assert.deepEqual(range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6 });
 
+			// but make sure context has original selection
+			assertSelectionEqual(providedSelection, selection);
+
 			// 'auto' triggered, non-empty selection BUT within a marker
-			editor.setSelection({ startLineNumber: 1, startColumn: 2, endLineNumber: 1, endColumn: 4 });
+			selection = { startLineNumber: 1, startColumn: 2, endLineNumber: 1, endColumn: 4 };
+			editor.setSelection(selection);
 
 			return TPromise.join([TPromise.timeout(20)].concat(fixes)).then(_ => {
 				reg.dispose();
@@ -135,6 +144,8 @@ suite('CodeAction', () => {
 
 				// assert marker
 				assert.deepEqual(range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6 });
+
+				assertSelectionEqual(providedSelection, selection);
 			});
 		});
 	});
@@ -192,3 +203,10 @@ suite('CodeAction', () => {
 	});
 
 });
+
+function assertSelectionEqual(selection: Selection, expectedRange: IRange) {
+	assert.strictEqual(selection.startLineNumber, expectedRange.startLineNumber);
+	assert.strictEqual(selection.startColumn, expectedRange.startColumn);
+	assert.strictEqual(selection.endLineNumber, expectedRange.endLineNumber);
+	assert.strictEqual(selection.endColumn, expectedRange.endColumn);
+}

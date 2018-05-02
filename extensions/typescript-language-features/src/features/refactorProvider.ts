@@ -114,21 +114,16 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 			return [];
 		}
 
-		if (!vscode.window.activeTextEditor) {
+		if (!context.selection || context.selection.isEmpty) {
 			return [];
 		}
 
-		const editor = vscode.window.activeTextEditor;
 		const file = this.client.normalizePath(document.uri);
-		if (!file || editor.document.uri.fsPath !== document.uri.fsPath) {
+		if (!file) {
 			return [];
 		}
 
-		if (editor.selection.isEmpty) {
-			return [];
-		}
-
-		const range = editor.selection;
+		const range = context.selection;
 		const args: Proto.GetApplicableRefactorsRequestArgs = typeConverters.Range.toFileRangeRequestArgs(file, range);
 		try {
 			const response = await this.client.execute('getApplicableRefactors', args, token);

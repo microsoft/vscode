@@ -46,6 +46,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModel, EndOfLineSequence } from 'vs/editor/common/model';
 import { getColors } from 'vs/editor/contrib/colorPicker/color';
+import { Selection } from 'vs/editor/common/core/selection';
 
 const defaultSelector = { scheme: 'far' };
 const model: ITextModel = EditorModel.createFromString(
@@ -654,7 +655,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		return rpcProtocol.sync().then(() => {
-			return getCodeActions(model, model.getFullModelRange()).then(value => {
+			return getCodeActions(model, model.getFullModelRange(), undefined).then(value => {
 				assert.equal(value.length, 2);
 
 				const [first, second] = value;
@@ -681,7 +682,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		return rpcProtocol.sync().then(() => {
-			return getCodeActions(model, model.getFullModelRange()).then(value => {
+			return getCodeActions(model, model.getFullModelRange(), undefined).then(value => {
 				assert.equal(value.length, 1);
 
 				const [first] = value;
@@ -707,7 +708,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		return rpcProtocol.sync().then(() => {
-			return getCodeActions(model, model.getFullModelRange()).then(value => {
+			return getCodeActions(model, model.getFullModelRange(), undefined).then(value => {
 				assert.equal(value.length, 1);
 			});
 		});
@@ -727,8 +728,30 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		return rpcProtocol.sync().then(() => {
-			return getCodeActions(model, model.getFullModelRange()).then(value => {
+			return getCodeActions(model, model.getFullModelRange(), undefined).then(value => {
 				assert.equal(value.length, 1);
+			});
+		});
+	});
+
+	test('Quick Fix, selection conversion', function () {
+
+		let selection: vscode.Selection | undefined = undefined;
+		disposables.push(extHost.registerCodeActionProvider(defaultSelector, {
+			provideCodeActions(_doc, _range, context): vscode.CodeAction[] {
+				selection = context.selection;
+				return [];
+			}
+		}));
+
+		return rpcProtocol.sync().then(() => {
+			return getCodeActions(model, model.getFullModelRange(), new Selection(1, 2, 2, 1)).then(value => {
+				assert.equal(value.length, 0);
+
+				assert.equal(selection.start.line, 0);
+				assert.equal(selection.start.character, 1);
+				assert.equal(selection.end.line, 1);
+				assert.equal(selection.end.character, 0);
 			});
 		});
 	});

@@ -18,6 +18,7 @@ import { Color } from 'vs/base/common/color';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import * as model from 'vs/editor/common/model';
 import { isObject } from 'vs/base/common/types';
+import { Selection } from 'vs/editor/common/core/selection';
 
 /**
  * Open ended enum at runtime
@@ -352,6 +353,7 @@ export interface CodeAction {
  */
 export interface CodeActionContext {
 	only?: string;
+	selection?: Selection;
 }
 
 /**

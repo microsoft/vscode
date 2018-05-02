@@ -41,10 +41,11 @@ export class CodeActionOracle {
 
 	trigger(trigger: CodeActionTrigger) {
 		let rangeOrSelection = this._getRangeOfMarker() || this._getRangeOfSelectionUnlessWhitespaceEnclosed();
+		const selection = this._editor.getSelection();
 		if (!rangeOrSelection && trigger.type === 'manual') {
-			rangeOrSelection = this._editor.getSelection();
+			rangeOrSelection = selection;
 		}
-		return this._createEventAndSignalChange(trigger, rangeOrSelection);
+		return this._createEventAndSignalChange(trigger, rangeOrSelection, selection);
 	}
 
 	private _onMarkerChanges(resources: URI[]): void {
@@ -101,12 +102,13 @@ export class CodeActionOracle {
 		return selection;
 	}
 
-	private _createEventAndSignalChange(trigger: CodeActionTrigger, rangeOrSelection: Range | Selection): TPromise<CodeAction[] | undefined> {
+	private _createEventAndSignalChange(trigger: CodeActionTrigger, rangeOrSelection: Range | Selection, selection: Selection): TPromise<CodeAction[] | undefined> {
 		if (!rangeOrSelection) {
 			// cancel
 			this._signalChange({
 				trigger,
 				range: undefined,
+				selection: undefined,
 				position: undefined,
 				actions: undefined,
 			});
@@ -116,11 +118,12 @@ export class CodeActionOracle {
 			const model = this._editor.getModel();
 			const range = model.validateRange(rangeOrSelection);
 			const position = rangeOrSelection instanceof Selection ? rangeOrSelection.getPosition() : rangeOrSelection.getStartPosition();
-			const actions = getCodeActions(model, range, trigger && trigger.filter);
+			const actions = getCodeActions(model, range, selection, trigger && trigger.filter);
 
 			this._signalChange({
 				trigger,
 				range,
+				selection,
 				position,
 				actions
 			});
@@ -132,6 +135,7 @@ export class CodeActionOracle {
 export interface CodeActionsComputeEvent {
 	trigger: CodeActionTrigger;
 	range: Range;
+	selection?: Selection;
 	position: Position;
 	actions: TPromise<CodeAction[]>;
 }

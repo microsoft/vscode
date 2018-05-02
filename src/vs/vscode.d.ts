@@ -1988,6 +1988,13 @@ declare module 'vscode' {
 		readonly diagnostics: Diagnostic[];
 
 		/**
+		 * The current selection in the editor.
+		 *
+		 * Undefined if there is no current selection.
+		 */
+		readonly selection?: Selection;
+
+		/**
 		 * Requested kind of actions to return.
 		 *
 		 * Actions not of this kind are filtered out before being shown by the lightbulb.
