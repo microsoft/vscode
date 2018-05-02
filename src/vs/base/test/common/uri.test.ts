@@ -428,6 +428,25 @@ suite('URI', () => {
 	});
 
 
+	test('class URI cannot represent relative file paths #34449', function () {
+
+		let path = '/foo/bar';
+		assert.equal(URI.file(path).path, path);
+		path = 'foo/bar';
+		assert.equal(URI.file(path).path, '/foo/bar');
+		path = './foo/bar';
+		assert.equal(URI.file(path).path, '/./foo/bar'); // todo@joh missing normalization
+
+		const fileUri1 = URI.parse(`file:foo/bar`);
+		assert.equal(fileUri1.path, '/foo/bar');
+		assert.equal(fileUri1.authority, '');
+		const uri = fileUri1.toString();
+		assert.equal(uri, 'file:///foo/bar');
+		const fileUri2 = URI.parse(uri);
+		assert.equal(fileUri2.path, '/foo/bar');
+		assert.equal(fileUri2.authority, '');
+	});
+
 	test('URI - (de)serialize', function () {
 
 		var values = [
