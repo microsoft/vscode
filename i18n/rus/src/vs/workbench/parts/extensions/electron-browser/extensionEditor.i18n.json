@@ -36,6 +36,8 @@
 	"view location": "Где",
 	"localizations": "Локализации ({0})",
 	"localizations language id": "Идентификатор языка",
+	"localizations language name": "Название языка",
+	"localizations localized language name": "Название языка (локализованное)",
 	"colorThemes": "Цветовые темы ({0})",
 	"iconThemes": "Темы значков ({0})",
 	"colors": "Цвета ({0})",

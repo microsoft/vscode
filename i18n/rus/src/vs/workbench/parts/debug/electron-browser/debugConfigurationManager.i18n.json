@@ -35,6 +35,7 @@
 	"useUniqueNames": "Используйте уникальное имя конфигурации.",
 	"app.launch.json.compound.folder": "Имя папки, в которой расположен составной объект.",
 	"app.launch.json.compounds.configurations": "Имена конфигураций, которые будут запущены как часть этого составного объекта.",
+	"debugNoType": "Параметр 'type' отладчика является обязательным и должен иметь тип 'string'.",
 	"selectDebug": "Выбор среды",
 	"DebugConfig.failed": "Не удается создать файл launch.json в папке .vscode ({0}).",
 	"workspace": "рабочая область",

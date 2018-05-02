@@ -21,6 +21,7 @@
 	"workbench.action.terminal.newWorkspacePlaceholder": "Выбрать текущий рабочий каталог для нового терминала",
 	"workbench.action.terminal.newInActiveWorkspace": "Создать новый интегрированный терминал (в активной рабочей области)",
 	"workbench.action.terminal.split": "Разделить терминал",
+	"workbench.action.terminal.splitInActiveWorkspace": "Разбить окно терминала (в активной рабочей области)",
 	"workbench.action.terminal.focusPreviousPane": "Перейти на предыдущую область",
 	"workbench.action.terminal.focusNextPane": "Перейти на следующую область",
 	"workbench.action.terminal.resizePaneLeft": "Изменить размер области слева",
@@ -43,6 +44,7 @@
 	"workbench.action.terminal.scrollUpPage": "Прокрутить вверх (страницу)",
 	"workbench.action.terminal.scrollToTop": "Прокрутить до верхней границы",
 	"workbench.action.terminal.clear": "Очистить",
+	"workbench.action.terminal.clearSelection": "Очистить выбранное",
 	"workbench.action.terminal.allowWorkspaceShell": "Разрешить настройку оболочки в рабочей области",
 	"workbench.action.terminal.disallowWorkspaceShell": "Запретить настройку оболочки в рабочей области",
 	"workbench.action.terminal.rename": "Переименовать",
@@ -52,6 +54,8 @@
 	"nextTerminalFindTerm": "Показать следующий найденный термин",
 	"previousTerminalFindTerm": "Показать предыдущий найденный термин",
 	"quickOpenTerm": "Переключить активный терминал",
+	"workbench.action.terminal.scrollToPreviousCommand": "Перейти к предыдущей команде",
+	"workbench.action.terminal.scrollToNextCommand": "Перейти к следующей команде",
 	"workbench.action.terminal.selectToPreviousCommand": "Выбрать предыдущую команду",
 	"workbench.action.terminal.selectToNextCommand": "Выбрать следующую команду"
 }
