@@ -2033,8 +2033,8 @@ declare module 'vscode' {
 		/**
 		 * Creates a new code action.
 		 *
-		 * A code action must have at least a [title](#CodeAction.title) and either [edits](#CodeAction.edit)
-		 * or a [command](#CodeAction.command).
+		 * A code action must have at least a [title](#CodeAction.title) and [edits](#CodeAction.edit)
+		 * and/or a [command](#CodeAction.command).
 		 *
 		 * @param title The title of the code action.
 		 * @param kind The kind of the code action.
