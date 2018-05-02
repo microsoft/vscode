@@ -55,7 +55,6 @@ const _slash = '/';
 const _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
 const _driveLetterPath = /^\/[a-zA-Z]:/;
 const _upperCaseDrive = /^(\/)?([A-Z]:)/;
-const _driveLetter = /^[a-zA-Z]:/;
 
 /**
  * Uniform Resource Identifier (URI) http://tools.ietf.org/html/rfc3986.
@@ -146,6 +145,11 @@ export default class URI implements UriComponents {
 			this.path = path || _empty;
 			this.query = query || _empty;
 			this.fragment = fragment || _empty;
+
+			// if (this.path[0] !== _slash) {
+			// 	this.path = _slash + this.path;
+			// }
+
 			_validateUri(this);
 		}
 	}
@@ -249,15 +253,11 @@ export default class URI implements UriComponents {
 			}
 		}
 
-		// Ensure that path starts with a slash
-		// or that it is at least a slash
-		if (_driveLetter.test(path)) {
-			path = _slash + path;
-
-		} else if (path[0] !== _slash) {
-			// tricky -> makes invalid paths
-			// but otherwise we have to stop
-			// allowing relative paths...
+		// the slash-character is our 'default base' as we don't
+		// support constructing URIs relative to other URIs. This
+		// also means that we alter and potentially break paths.
+		// see https://tools.ietf.org/html/rfc3986#section-5.1.4
+		if (path[0] !== _slash) {
 			path = _slash + path;
 		}
 
