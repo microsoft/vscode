@@ -8,7 +8,7 @@
 import 'vs/css!./media/nextEditorGroupView';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorGroup, IEditorOpenOptions, EditorCloseEvent } from 'vs/workbench/common/editor/editorStacksModel';
-import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, IEditorOpeningEvent, EditorOpeningEvent } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, IEditorOpeningEvent, EditorOpeningEvent, TextEditorOptions } from 'vs/workbench/common/editor';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass } from 'vs/base/browser/dom';
@@ -19,7 +19,7 @@ import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_BACKGROUND } from 'vs/workbench/common/theme';
-import { INextEditorGroup } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { INextEditorGroup, IMoveEditorOptions } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { INextTitleAreaControl } from 'vs/workbench/browser/parts/editor2/nextTitleControl';
 import { NextTabsTitleControl } from 'vs/workbench/browser/parts/editor2/nextTabsTitleControl';
 import { NextEditorControl } from 'vs/workbench/browser/parts/editor2/nextEditorControl';
@@ -36,6 +36,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RunOnceWorker } from 'vs/base/common/async';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
+import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 
 export interface IGroupsAccessor {
 	getGroups(): NextEditorGroupView[];
@@ -72,7 +73,8 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	//#endregion
 
 	private group: EditorGroup;
-	private isActive: boolean;
+
+	private _isActive: boolean;
 
 	private _dimension: Dimension;
 	private scopedInstantiationService: IInstantiationService;
@@ -272,7 +274,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	}
 
 	setActive(isActive: boolean): void {
-		this.isActive = isActive;
+		this._isActive = isActive;
 
 		// Update container
 		toggleClass(this.element, 'active', isActive);
@@ -304,6 +306,10 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	get activeEditor(): EditorInput {
 		return this.activeControl ? this.activeControl.input : void 0;
+	}
+
+	get isActive(): boolean {
+		return this._isActive;
 	}
 
 	//#region openEditor()
@@ -415,6 +421,64 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	//#endregion
 
+	//#region moveEditor()
+
+	moveEditor(editor: EditorInput, target: NextEditorGroupView, options?: IMoveEditorOptions): void {
+
+		// Move within same group
+		if (this === target) {
+			this.doMoveEditorInsideGroup(editor, options);
+		}
+
+		// Move across groups
+		else {
+			this.doMoveEditorAcrossGroups(editor, target, options);
+		}
+	}
+
+	private doMoveEditorInsideGroup(editor: EditorInput, moveOptions?: IMoveEditorOptions): void {
+		const moveToIndex = moveOptions ? moveOptions.index : void 0;
+		if (typeof moveToIndex !== 'number') {
+			return; // do nothing if we move into same group without index
+		}
+
+		const currentIndex = this.group.indexOf(editor);
+		if (currentIndex === moveToIndex) {
+			return; // do nothing if editor is already at the given index
+		}
+
+		// Update model
+		this.group.moveEditor(editor, moveToIndex);
+		this.group.pin(editor);
+
+		// Forward to title area
+		if (this.titleAreaControl) {
+			this.titleAreaControl.moveEditor(editor, moveToIndex);
+			this.titleAreaControl.pinEditor(editor);
+		}
+	}
+
+	private doMoveEditorAcrossGroups(editor: EditorInput, target: NextEditorGroupView, moveOptions: IMoveEditorOptions = Object.create(null)): void {
+		let options: EditorOptions;
+
+		// When moving an editor, try to preserve as much view state as possible by checking
+		// for the editor to be a text editor and creating the options accordingly if so
+		const codeEditor = getCodeEditor(this.activeControl);
+		if (codeEditor && editor.matches(this.activeEditor)) {
+			options = TextEditorOptions.fromEditor(codeEditor, moveOptions);
+		} else {
+			options = EditorOptions.create(moveOptions);
+		}
+
+		// A move to another group is an open first...
+		target.openEditor(editor, options);
+
+		// ...and a close afterwards
+		this.doCloseEditor(editor, false /* do not activate next one behind if any */);
+	}
+
+	//#endregion
+
 	//#region closeEditor()
 
 	closeEditor(editor: EditorInput = this.activeEditor): Thenable<void> {
@@ -430,7 +494,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		});
 	}
 
-	private doCloseEditor(editor: EditorInput, focusNext = this.isActive): void {
+	private doCloseEditor(editor: EditorInput, focusNext = this._isActive): void {
 
 		// Closing the active editor of the group is a bit more work
 		if (this.activeEditor && this.activeEditor.matches(editor)) {
@@ -443,10 +507,15 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		}
 	}
 
-	private doCloseActiveEditor(focusNext = this.isActive, fromError?: boolean): void {
+	private doCloseActiveEditor(focusNext = this._isActive, fromError?: boolean): void {
 
 		// Update model
 		this.group.closeEditor(this.activeEditor);
+
+		// Forward to title control
+		if (this.titleAreaControl) {
+			this.titleAreaControl.closeEditor(this.activeEditor);
+		}
 
 		// Open next active if possible
 		const nextActiveEditor = this.group.activeEditor;
@@ -478,9 +547,14 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	}
 
 	private doCloseInactiveEditor(editor: EditorInput): void {
-		this.group.closeEditor(editor); // Closing inactive editor is just a model update
 
-		// TODO@grid need to update the title area control as well!
+		// Update model
+		this.group.closeEditor(editor);
+
+		// Forward to title control
+		if (this.titleAreaControl) {
+			this.titleAreaControl.closeEditor(editor);
+		}
 	}
 
 	private handleDirty(editors: EditorInput[], ignoreIfOpenedInOtherGroup?: boolean): Thenable<boolean /* veto */> {

@@ -28,34 +28,34 @@ suite('editor2 tests', () => {
 		// always a root group
 		const rootGroup = part.groups[0];
 		assert.equal(part.groups.length, 1);
-		assert.ok(part.isGroupActive(rootGroup));
+		assert.ok(rootGroup.isActive);
 
 		const rightGroup = part.addGroup(rootGroup, Direction.RIGHT);
 		assert.equal(part.groups.length, 2);
-		assert.ok(part.isGroupActive(rootGroup));
+		assert.ok(rootGroup.isActive);
 
 		assert.equal(activeGroupChangeCounter, 0);
 
 		part.activateGroup(rightGroup);
-		assert.ok(part.isGroupActive(rightGroup));
+		assert.ok(rightGroup.isActive);
 		assert.equal(activeGroupChangeCounter, 1);
 
 		const downGroup = part.addGroup(rightGroup, Direction.DOWN);
 		assert.equal(part.groups.length, 3);
-		assert.ok(part.isGroupActive(rightGroup));
+		assert.ok(rightGroup.isActive);
 		assert.ok(!downGroup.activeControl);
 
 		part.removeGroup(downGroup);
 		assert.equal(part.groups.length, 2);
-		assert.ok(part.isGroupActive(rightGroup));
+		assert.ok(rightGroup.isActive);
 
 		part.removeGroup(rightGroup);
 		assert.equal(part.groups.length, 1);
-		assert.ok(part.isGroupActive(rootGroup));
+		assert.ok(rootGroup.isActive);
 
 		part.removeGroup(rootGroup); // cannot remove root group
 		assert.equal(part.groups.length, 1);
-		assert.ok(part.isGroupActive(rootGroup));
+		assert.ok(rootGroup.isActive);
 
 		activeGroupChangeListener.dispose();
 	});

@@ -19,17 +19,31 @@ export enum Direction {
 	RIGHT
 }
 
+export interface IMoveEditorOptions {
+	index?: number;
+	inactive?: boolean;
+	preserveFocus?: boolean;
+}
+
 export interface INextEditorGroup {
 
 	readonly id: GroupIdentifier;
+
 	readonly activeControl: IEditor;
 	readonly activeEditor: IEditorInput;
+
+	readonly isActive: boolean;
 
 	/**
 	 * Open an editor in this group. The returned promise is resolved when the
 	 * editor has finished loading.
 	 */
 	openEditor(editor: IEditorInput, options?: IEditorOptions): Thenable<void>;
+
+	/**
+	 * Move an editor from this group either within this group or to another group.
+	 */
+	moveEditor(editor: IEditorInput, target: INextEditorGroup, options?: IMoveEditorOptions): void;
 
 	/**
 	 * Close an editor from the group. This may trigger a confirmation dialog if
@@ -75,7 +89,6 @@ export interface INextEditorGroupsService {
 
 	focusGroup(group: INextEditorGroup | GroupIdentifier): INextEditorGroup;
 	activateGroup(group: INextEditorGroup | GroupIdentifier): INextEditorGroup;
-	isGroupActive(group: INextEditorGroup | GroupIdentifier): boolean;
 
 	addGroup(fromGroup: INextEditorGroup | GroupIdentifier, direction: Direction, options?: IAddGroupOptions): INextEditorGroup;
 	removeGroup(group: INextEditorGroup | GroupIdentifier): void;

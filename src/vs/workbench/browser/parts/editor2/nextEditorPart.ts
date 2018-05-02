@@ -15,7 +15,7 @@ import { editorBackground, contrastBorder } from 'vs/platform/theme/common/color
 import { INextEditorGroupsService, Direction, IAddGroupOptions } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SplitGridView, Direction as GridViewDirection } from 'vs/base/browser/ui/grid/gridview';
-import { NextEditorGroupView } from 'vs/workbench/browser/parts/editor2/nextEditorGroupView';
+import { NextEditorGroupView, IGroupsAccessor } from 'vs/workbench/browser/parts/editor2/nextEditorGroupView';
 import { GroupIdentifier, EditorOptions } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER } from 'vs/workbench/common/theme';
@@ -77,10 +77,6 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		return this.groupViews.get(identifier);
 	}
 
-	isGroupActive(group: NextEditorGroupView | GroupIdentifier): boolean {
-		return this._activeGroup && this._activeGroup === this.asGroupView(group);
-	}
-
 	activateGroup(group: NextEditorGroupView | GroupIdentifier): NextEditorGroupView {
 		const groupView = this.asGroupView(group);
 		if (groupView) {
@@ -139,7 +135,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 			return;
 		}
 
-		const isActive = this.isGroupActive(groupView);
+		const isActive = groupView.isActive;
 		const hasFocus = isAncestor(document.activeElement, groupView.element);
 
 		// Remove from grid widget & dispose
@@ -228,7 +224,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 	}
 
 	private doCreateGroupView(sourceView?: NextEditorGroupView): NextEditorGroupView {
-		const groupView = this.instantiationService.createInstance(NextEditorGroupView, sourceView, { getGroups: () => this.groups });
+		const groupView = this.instantiationService.createInstance(NextEditorGroupView, sourceView, { getGroups: () => this.groups } as IGroupsAccessor);
 
 		// Keep in map
 		this.groupViews.set(groupView.id, groupView);

@@ -476,76 +476,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	//#endregion
 
-	//#region TODO@grid move editor
-
-	public moveEditor(input: EditorInput, from: EditorGroup, to: EditorGroup, moveOptions?: IMoveOptions): void;
-	public moveEditor(input: EditorInput, from: Position, to: Position, moveOptions?: IMoveOptions): void;
-	public moveEditor(input: EditorInput, arg2: any, arg3: any, moveOptions?: IMoveOptions): void {
-		const fromGroup = (typeof arg2 === 'number') ? this.stacks.groupAt(arg2) : arg2;
-		if (!fromGroup) {
-			return;
-		}
-
-		// Move within group
-		if (arg2 === arg3) {
-			this.doMoveEditorInsideGroups(input, fromGroup, moveOptions);
-		}
-
-		// Move across groups
-		else {
-			const toPosition = (typeof arg3 === 'number') ? arg3 : this.stacks.positionOfGroup(arg3);
-
-			this.doMoveEditorAcrossGroups(input, fromGroup, toPosition, moveOptions);
-		}
-	}
-
-	private doMoveEditorInsideGroups(input: EditorInput, group: EditorGroup, moveOptions?: IMoveOptions): void {
-		let toIndex = moveOptions && moveOptions.index;
-
-		if (typeof toIndex !== 'number') {
-			return; // do nothing if we move into same group without index
-		}
-
-		const currentIndex = group.indexOf(input);
-		if (currentIndex === toIndex) {
-			return; // do nothing if editor is already at the given index
-		}
-
-		// Update stacks model
-		group.moveEditor(input, toIndex);
-		group.pin(input);
-	}
-
-	private doMoveEditorAcrossGroups(input: EditorInput, fromGroup: EditorGroup, to: Position, moveOptions?: IMoveOptions): void {
-		if (fromGroup.count === 1) {
-			const toGroup = this.stacks.groupAt(to);
-			if (!toGroup && this.stacks.positionOfGroup(fromGroup) < to) {
-				return; // do nothing if the group to move only has one editor and is the last group already
-			}
-		}
-
-		const index = moveOptions && moveOptions.index;
-		const inactive = moveOptions && moveOptions.inactive;
-		const preserveFocus = moveOptions && moveOptions.preserveFocus;
-
-		// When moving an editor, try to preserve as much view state as possible by checking
-		// for the editor to be a text editor and creating the options accordingly if so
-		let options = EditorOptions.create({ pinned: true, index, inactive, preserveFocus });
-		const activeEditor = this.getActiveEditor();
-		const codeEditor = getCodeEditor(activeEditor);
-		if (codeEditor && activeEditor.position === this.stacks.positionOfGroup(fromGroup) && input.matches(activeEditor.input)) {
-			options = TextEditorOptions.fromEditor(codeEditor, { pinned: true, index, inactive, preserveFocus });
-		}
-
-		// A move to another group is an open first...
-		this.openEditor(input, options, to).done(null, errors.onUnexpectedError);
-
-		// and a close afterwards...
-		this.doCloseEditor(fromGroup, input, false /* do not activate next one behind if any */);
-	}
-
-	//#endregion
-
 	//#region TODO@grid group arrangement
 
 	public arrangeGroups(arrangement: GroupArrangement): void {
@@ -919,6 +849,72 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		this.initStyles();
 		this.registerListeners();
+	}
+
+	public moveEditor(input: EditorInput, from: EditorGroup, to: EditorGroup, moveOptions?: IMoveOptions): void;
+	public moveEditor(input: EditorInput, from: Position, to: Position, moveOptions?: IMoveOptions): void;
+	public moveEditor(input: EditorInput, arg2: any, arg3: any, moveOptions?: IMoveOptions): void {
+		const fromGroup = (typeof arg2 === 'number') ? this.stacks.groupAt(arg2) : arg2;
+		if (!fromGroup) {
+			return;
+		}
+
+		// Move within group
+		if (arg2 === arg3) {
+			this.doMoveEditorInsideGroups(input, fromGroup, moveOptions);
+		}
+
+		// Move across groups
+		else {
+			const toPosition = (typeof arg3 === 'number') ? arg3 : this.stacks.positionOfGroup(arg3);
+
+			this.doMoveEditorAcrossGroups(input, fromGroup, toPosition, moveOptions);
+		}
+	}
+
+	private doMoveEditorInsideGroups(input: EditorInput, group: EditorGroup, moveOptions?: IMoveOptions): void {
+		let toIndex = moveOptions && moveOptions.index;
+
+		if (typeof toIndex !== 'number') {
+			return; // do nothing if we move into same group without index
+		}
+
+		const currentIndex = group.indexOf(input);
+		if (currentIndex === toIndex) {
+			return; // do nothing if editor is already at the given index
+		}
+
+		// Update stacks model
+		group.moveEditor(input, toIndex);
+		group.pin(input);
+	}
+
+	private doMoveEditorAcrossGroups(input: EditorInput, fromGroup: EditorGroup, to: Position, moveOptions?: IMoveOptions): void {
+		if (fromGroup.count === 1) {
+			const toGroup = this.stacks.groupAt(to);
+			if (!toGroup && this.stacks.positionOfGroup(fromGroup) < to) {
+				return; // do nothing if the group to move only has one editor and is the last group already
+			}
+		}
+
+		const index = moveOptions && moveOptions.index;
+		const inactive = moveOptions && moveOptions.inactive;
+		const preserveFocus = moveOptions && moveOptions.preserveFocus;
+
+		// When moving an editor, try to preserve as much view state as possible by checking
+		// for the editor to be a text editor and creating the options accordingly if so
+		let options = EditorOptions.create({ pinned: true, index, inactive, preserveFocus });
+		const activeEditor = this.getActiveEditor();
+		const codeEditor = getCodeEditor(activeEditor);
+		if (codeEditor && activeEditor.position === this.stacks.positionOfGroup(fromGroup) && input.matches(activeEditor.input)) {
+			options = TextEditorOptions.fromEditor(codeEditor, { pinned: true, index, inactive, preserveFocus });
+		}
+
+		// A move to another group is an open first...
+		this.openEditor(input, options, to).done(null, errors.onUnexpectedError);
+
+		// and a close afterwards...
+		this.doCloseEditor(fromGroup, input, false /* do not activate next one behind if any */);
 	}
 
 	private registerListeners(): void {
