@@ -92,6 +92,10 @@ export interface OpenDialogOptions {
 	message?: string;
 }
 
+export interface IDevToolsOptions {
+	mode: 'right' | 'bottom' | 'undocked' | 'detach';
+}
+
 export interface IWindowsService {
 
 	_serviceBrand: any;
@@ -110,7 +114,7 @@ export interface IWindowsService {
 	showOpenDialog(windowId: number, options: OpenDialogOptions): TPromise<string[]>;
 
 	reloadWindow(windowId: number, args?: ParsedArgs): TPromise<void>;
-	openDevTools(windowId: number): TPromise<void>;
+	openDevTools(windowId: number, options?: IDevToolsOptions): TPromise<void>;
 	toggleDevTools(windowId: number): TPromise<void>;
 	closeWorkspace(windowId: number): TPromise<void>;
 	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult>;
@@ -185,7 +189,7 @@ export interface IWindowService {
 	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	reloadWindow(args?: ParsedArgs): TPromise<void>;
-	openDevTools(): TPromise<void>;
+	openDevTools(options?: IDevToolsOptions): TPromise<void>;
 	toggleDevTools(): TPromise<void>;
 	closeWorkspace(): TPromise<void>;
 	updateTouchBar(items: ICommandAction[][]): TPromise<void>;

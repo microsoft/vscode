@@ -12,6 +12,7 @@ import { IPCClient } from 'vs/base/parts/ipc/common/ipc';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { getTopLeftOffset, getClientArea } from 'vs/base/browser/dom';
 import * as electron from 'electron';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 function serializeElement(element: Element, recursive: boolean): IElement {
 	const attributes = Object.create(null);
@@ -40,7 +41,9 @@ function serializeElement(element: Element, recursive: boolean): IElement {
 
 class WindowDriver implements IWindowDriver {
 
-	constructor() { }
+	constructor(
+		@IWindowService private windowService: IWindowService
+	) { }
 
 	async click(selector: string, xoffset?: number, yoffset?: number): TPromise<void> {
 		return this._click(selector, 1, xoffset, yoffset);
@@ -183,6 +186,10 @@ class WindowDriver implements IWindowDriver {
 
 		return lines;
 	}
+
+	async openDevTools(): TPromise<void> {
+		await this.windowService.openDevTools({ mode: 'detach' });
+	}
 }
 
 export async function registerWindowDriver(
@@ -197,7 +204,11 @@ export async function registerWindowDriver(
 	const windowDriverRegistryChannel = client.getChannel('windowDriverRegistry');
 	const windowDriverRegistry = new WindowDriverRegistryChannelClient(windowDriverRegistryChannel);
 
-	await windowDriverRegistry.registerWindowDriver(windowId);
+	const options = await windowDriverRegistry.registerWindowDriver(windowId);
+
+	if (options.verbose) {
+		windowDriver.openDevTools();
+	}
 
 	const disposable = toDisposable(() => windowDriverRegistry.reloadWindowDriver(windowId));
 	return combinedDisposable([disposable, client]);

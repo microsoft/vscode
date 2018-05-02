@@ -150,13 +150,17 @@ export class DriverChannelClient implements IDriver {
 	}
 }
 
+export interface IDriverOptions {
+	verbose: boolean;
+}
+
 export interface IWindowDriverRegistry {
-	registerWindowDriver(windowId: number): TPromise<void>;
+	registerWindowDriver(windowId: number): TPromise<IDriverOptions>;
 	reloadWindowDriver(windowId: number): TPromise<void>;
 }
 
 export interface IWindowDriverRegistryChannel extends IChannel {
-	call(command: 'registerWindowDriver', arg: number): TPromise<void>;
+	call(command: 'registerWindowDriver', arg: number): TPromise<IDriverOptions>;
 	call(command: 'reloadWindowDriver', arg: number): TPromise<void>;
 	call(command: string, arg: any): TPromise<any>;
 }
@@ -181,7 +185,7 @@ export class WindowDriverRegistryChannelClient implements IWindowDriverRegistry 
 
 	constructor(private channel: IWindowDriverRegistryChannel) { }
 
-	registerWindowDriver(windowId: number): TPromise<void> {
+	registerWindowDriver(windowId: number): TPromise<IDriverOptions> {
 		return this.channel.call('registerWindowDriver', windowId);
 	}
 

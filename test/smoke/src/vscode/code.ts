@@ -87,6 +87,7 @@ export interface SpawnOptions {
 	userDataDir: string;
 	extensionsPath: string;
 	logger: Logger;
+	verbose?: boolean;
 	extraArgs?: string[];
 }
 
@@ -120,6 +121,10 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 
 	if (!codePath) {
 		args.unshift(repoPath);
+	}
+
+	if (options.verbose) {
+		args.push('--driver-verbose');
 	}
 
 	if (options.extraArgs) {
