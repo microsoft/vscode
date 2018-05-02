@@ -21,7 +21,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { Position } from 'vs/editor/common/core/position';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'vs/editor/contrib/goToDeclaration/clickLinkGesture';
+import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'vs/editor/contrib/goToDefinition/clickLinkGesture';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 import { INotificationService } from 'vs/platform/notification/common/notification';

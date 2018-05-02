@@ -26,7 +26,7 @@ import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumen
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/quickOpen';
 import { DocumentSymbolProviderRegistry, DocumentHighlightKind, Hover, ResourceTextEdit } from 'vs/editor/common/modes';
 import { getCodeLensData } from 'vs/editor/contrib/codelens/codelens';
-import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from 'vs/editor/contrib/goToDeclaration/goToDeclaration';
+import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from 'vs/editor/contrib/goToDefinition/goToDefinition';
 import { getHover } from 'vs/editor/contrib/hover/getHover';
 import { getOccurrencesAtPosition } from 'vs/editor/contrib/wordHighlighter/wordHighlighter';
 import { provideReferences } from 'vs/editor/contrib/referenceSearch/referenceSearch';
