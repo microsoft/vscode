@@ -38,7 +38,7 @@ import { RunOnceWorker } from 'vs/base/common/async';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 
 export interface IGroupsAccessor {
-	isOpenedInOtherGroup(editor: EditorInput): boolean;
+	getGroups(): NextEditorGroupView[];
 }
 
 export class NextEditorGroupView extends Themable implements IView, INextEditorGroup {
@@ -59,6 +59,12 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	private _onWillOpenEditor: Emitter<IEditorOpeningEvent> = this._register(new Emitter<IEditorOpeningEvent>());
 	get onWillOpenEditor(): Event<IEditorOpeningEvent> { return this._onWillOpenEditor.event; }
+
+	private _onWillCloseEditor: Emitter<EditorInput> = this._register(new Emitter<EditorInput>());
+	get onWillCloseEditor(): Event<EditorInput> { return this._onWillCloseEditor.event; }
+
+	private _onDidCloseEditor: Emitter<EditorInput> = this._register(new Emitter<EditorInput>());
+	get onDidCloseEditor(): Event<EditorInput> { return this._onDidCloseEditor.event; }
 
 	private _onDidOpenEditorFail: Emitter<EditorInput> = this._register(new Emitter<EditorInput>());
 	get onDidOpenEditorFail(): Event<EditorInput> { return this._onDidOpenEditorFail.event; }
@@ -100,7 +106,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		} else {
 			this.group = this._register(instantiationService.createInstance(EditorGroup, ''));
 		}
-		this.group.label = `Group <${this.group.id}>`;
+		this.group.label = `Group <${this.group.id}>`; // TODO@grid find a way to have a proper label
 
 		this.disposedEditorsWorker = this._register(new RunOnceWorker(editors => this.handleDisposedEditors(editors), 0));
 
@@ -109,11 +115,15 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	}
 
 	private registerListeners(): void {
+
+		// Model Events
 		this._register(this.group.onEditorsStructureChanged(() => this.updateContainer()));
 		this._register(this.group.onEditorDirty(editor => this.pinEditor(editor)));
 		this._register(this.group.onEditorOpened(editor => this.onEditorOpened(editor)));
 		this._register(this.group.onEditorClosed(editor => this.onEditorClosed(editor)));
 		this._register(this.group.onEditorDisposed(editor => this.onEditorDisposed(editor)));
+
+		// Configuration Changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onDidChangeConfiguration(e)));
 	}
 
@@ -129,6 +139,16 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	}
 
 	private onEditorClosed(event: EditorCloseEvent): void {
+
+		// Before close
+		this._onWillCloseEditor.fire(event.editor);
+
+		// Handle event
+		this.handleEditorClosed(event.editor);
+
+		// After close
+		this._onDidCloseEditor.fire(event.editor);
+
 		/* __GDPR__
 			"editorClosed" : {
 				"${include}": [
@@ -137,6 +157,23 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 			}
 		*/
 		this.telemetryService.publicLog('editorClosed', event.editor.getTelemetryDescriptor());
+	}
+
+	private handleEditorClosed(editor: EditorInput): void {
+		const editorsToClose = [editor];
+
+		// Include both sides of side by side editors when being closed and not opened multiple times
+		if (editor instanceof SideBySideEditorInput && !this.groupsAccessor.getGroups().some(groupView => groupView.group.contains(editor))) {
+			editorsToClose.push(editor.master, editor.details);
+		}
+
+		// Close the editor when it is no longer open in any group including diff editors
+		editorsToClose.forEach(editorToClose => {
+			const resource = editorToClose ? editorToClose.getResource() : void 0; // prefer resource to not close right-hand side editors of a diff editor
+			if (!this.groupsAccessor.getGroups().some(groupView => groupView.group.contains(resource || editorToClose))) {
+				editorToClose.close();
+			}
+		});
 	}
 
 	private onEditorDisposed(editor: EditorInput): void {
@@ -245,10 +282,6 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		if (this.titleAreaControl) {
 			this.titleAreaControl.setActive(isActive);
 		}
-	}
-
-	contains(editor: EditorInput): boolean {
-		return this.group.contains(editor);
 	}
 
 	isEmpty(): boolean {
@@ -446,6 +479,8 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	private doCloseInactiveEditor(editor: EditorInput): void {
 		this.group.closeEditor(editor); // Closing inactive editor is just a model update
+
+		// TODO@grid need to update the title area control as well!
 	}
 
 	private handleDirty(editors: EditorInput[], ignoreIfOpenedInOtherGroup?: boolean): Thenable<boolean /* veto */> {
@@ -463,8 +498,18 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	}
 
 	private doHandleDirty(editor: EditorInput, ignoreIfOpenedInOtherGroup?: boolean): Thenable<boolean /* veto */> {
-		if (!editor || !editor.isDirty() || (ignoreIfOpenedInOtherGroup && this.isOpenedInOtherGroup(editor))) {
+
+		// Return quickly if editor is not dirty
+		if (!editor.isDirty()) {
 			return TPromise.as(false); // no veto
+		}
+
+		// Return if editor is opened in other group and we are OK with it
+		if (ignoreIfOpenedInOtherGroup) {
+			const containedInOtherGroup = this.groupsAccessor.getGroups().some(groupView => groupView !== this && groupView.group.contains(editor, true /* support side by side */));
+			if (containedInOtherGroup) {
+				return TPromise.as(false); // no veto
+			}
 		}
 
 		// Switch to editor that we want to handle
@@ -501,18 +546,6 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 				}
 			});
 		});
-	}
-
-	private isOpenedInOtherGroup(editor: EditorInput): boolean {
-		if (this.groupsAccessor.isOpenedInOtherGroup(editor)) {
-			return true;
-		}
-
-		if (editor instanceof SideBySideEditorInput && this.groupsAccessor.isOpenedInOtherGroup(editor.master)) {
-			return true; // consider right-hand-side diff editors too
-		}
-
-		return false;
 	}
 
 	//#endregion

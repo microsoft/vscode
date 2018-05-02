@@ -2016,4 +2016,21 @@ suite('Editor Stacks Model', () => {
 		assert.equal(clone.isPinned(input3), false);
 		assert.equal(clone.isActive(input3), true);
 	});
+
+	test('Stack - contains() with diff editor support', function () {
+		const model = create();
+
+		const group1 = model.openGroup('group1');
+
+		const input1 = input();
+		const input2 = input();
+
+		const diffInput = new DiffEditorInput('name', 'description', input1, input2);
+
+		group1.openEditor(input2, { pinned: true, active: true });
+
+		assert.equal(group1.contains(input2), true);
+		assert.equal(group1.contains(diffInput), false);
+		assert.equal(group1.contains(diffInput, true), true);
+	});
 });

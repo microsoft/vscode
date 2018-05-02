@@ -601,9 +601,23 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 		return -1;
 	}
 
-	public contains(editorOrResource: EditorInput | URI): boolean {
+	public contains(editorOrResource: EditorInput | URI): boolean;
+	public contains(editor: EditorInput, supportSideBySide?: boolean): boolean;
+	public contains(editorOrResource: EditorInput | URI, supportSideBySide?: boolean): boolean {
 		if (editorOrResource instanceof EditorInput) {
-			return this.indexOf(editorOrResource) >= 0;
+			const index = this.indexOf(editorOrResource);
+			if (index >= 0) {
+				return true;
+			}
+
+			if (supportSideBySide && editorOrResource instanceof SideBySideEditorInput) {
+				const index = this.indexOf(editorOrResource.master);
+				if (index >= 0) {
+					return true;
+				}
+			}
+
+			return false;
 		}
 
 		const counter = this.mapResourceToEditorCount.get(editorOrResource);

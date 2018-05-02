@@ -228,11 +228,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 	}
 
 	private doCreateGroupView(sourceView?: NextEditorGroupView): NextEditorGroupView {
-		const groupView = this.instantiationService.createInstance(NextEditorGroupView, sourceView, {
-			isOpenedInOtherGroup: editor => {
-				return this.groups.some(group => group !== groupView && group.contains(editor));
-			}
-		});
+		const groupView = this.instantiationService.createInstance(NextEditorGroupView, sourceView, { getGroups: () => this.groups });
 
 		// Keep in map
 		this.groupViews.set(groupView.id, groupView);
@@ -290,7 +286,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 
 	shutdown(): void {
 
-		// TODO@grid persist some UI state in the memento
+		// TODO@grid persist some UI state in the memento (note: a group can turn empty if none of the inputs can be serialized!)
 
 		// Forward to all groups
 		this.groupViews.forEach(group => group.shutdown());
