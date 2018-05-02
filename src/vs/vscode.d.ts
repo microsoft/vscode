@@ -4832,7 +4832,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The `FileStat`-type represents metadata about a file.
+	 * The `FileStat`-type represents metadata about a file
 	 */
 	export interface FileStat {
 		/**
@@ -4981,6 +4981,10 @@ declare module 'vscode' {
 
 		/**
 		 * Retrieve metadata about a file.
+		 *
+		 * Note that the metadata for symbolic links should be the metadata of the file they refer to.
+		 * Still, the [SymbolicLink](#FileType.SymbolicLink)-type must be used in addition to the actual type, e.g.
+		 * `FileType.SymbolicLink | FileType.Directory`.
 		 *
 		 * @param uri The uri of the file to retrieve metadata about.
 		 * @return The file metadata about the file.
