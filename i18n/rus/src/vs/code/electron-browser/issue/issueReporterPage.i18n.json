@@ -8,6 +8,7 @@
 	],
 	"completeInEnglish": "Заполните форму на английском языке.",
 	"issueTypeLabel": "Это",
+	"issueSourceLabel": "Файл в",
 	"vscode": "Visual Studio Code",
 	"extension": "Расширение",
 	"disableExtensionsLabelText": "Попробуйте воспроизвести проблему после {0}. Если проблема появляется только когда расширения включены, то это скорее всего проблема с расширением.",

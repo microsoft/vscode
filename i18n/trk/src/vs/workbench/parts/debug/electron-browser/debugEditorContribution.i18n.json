@@ -8,6 +8,10 @@
 	],
 	"logPoint": "Günlük Noktası",
 	"breakpoint": "Kesme Noktası",
+	"removeBreakpoint": "Kaldır: {0}",
+	"editBreakpoint": "Düzenle: {0}...",
+	"disableBreakpoint": "Devre Dışı Bırak: {0}",
+	"enableBreakpoint": "Etkinleştir: {0}",
 	"removeBreakpoints": "Kesme Noktalarını Kaldır",
 	"removeBreakpointOnColumn": "{0}. Sütundaki Kesme Noktasını Kaldır",
 	"removeLineBreakpoint": "Satır Kesme Noktasını Kaldır",
@@ -24,6 +28,8 @@
 	"addLogPoint": "Günlük Noktası Ekle...",
 	"message": "mesaj",
 	"condition": "koşul",
+	"removeLogPoint": "Kaldır: {0}",
+	"disableLogPoint": "Devre Dışı Bırak: {0}",
 	"cancel": "İptal",
 	"addConfiguration": "Yapılandırma Ekle..."
 }

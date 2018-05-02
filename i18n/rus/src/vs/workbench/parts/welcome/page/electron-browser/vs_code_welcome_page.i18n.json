@@ -27,6 +27,8 @@
 	"welcomePage.installExtensionPacks": "Средства и языки",
 	"welcomePage.installExtensionPacksDescription": "Установить поддержку для {0} и {1}",
 	"welcomePage.moreExtensions": "Еще",
+	"welcomePage.installKeymapDescription": "Параметры и настраиваемые сочетания клавиш",
+	"welcomePage.installKeymapExtension": "Установить параметры и настраиваемые сочетания клавиш из {0} и {1}",
 	"welcomePage.others": "Другие",
 	"welcomePage.colorTheme": "Цветовая тема",
 	"welcomePage.colorThemeDescription": "Настройте редактор и код удобным образом.",

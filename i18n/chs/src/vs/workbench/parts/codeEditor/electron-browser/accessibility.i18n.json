@@ -15,7 +15,7 @@
 	"auto_unknown": "编辑器被配置为使用平台 API 以检测是否附加了屏幕阅读器，但当前运行时不支持此功能。",
 	"auto_on": "编辑器自动检测到已附加屏幕阅读器。",
 	"auto_off": "编辑器被配置为自动检测是否附加了屏幕阅读器，当前未检测到。",
-	"configuredOn": "已配置编辑器对屏幕阅读器进行永久优化 — 你更改 \"editor.accessibilitySupport\" 设置进行调整。",
+	"configuredOn": "已配置编辑器对屏幕阅读器进行永久优化 — 您可以更改 \"editor.accessibilitySupport\" 设置进行调整。",
 	"configuredOff": "编辑器被配置为不对屏幕阅读器的使用进行优化。",
 	"tabFocusModeOnMsg": "在当前编辑器中按 Tab 会将焦点移动到下一个可聚焦的元素。按 {0} 来切换此行为。",
 	"tabFocusModeOnMsgNoKb": "若在当前编辑器中按 Tab 键，将移动焦点到下一个可聚焦的元素。当前无法通过按键绑定触发命令 {0}。",

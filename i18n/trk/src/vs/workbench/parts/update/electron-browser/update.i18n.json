@@ -21,6 +21,7 @@
 	"updateAvailable": "Bir güncelleştirme var: {0} {1}",
 	"installUpdate": "Güncelleştirmeyi Yükle",
 	"updateInstalling": "{0} {1} arka planda yükleniyor, bittiğinde bilgi vereceğiz.",
+	"updateAvailableAfterRestart": "En son güncellemeyi uygulamak için {0} uygulamasını yeniden başlatın.",
 	"updateNow": "Şimdi Güncelle",
 	"commandPalette": "Komut Paleti...",
 	"settings": "Ayarlar",
