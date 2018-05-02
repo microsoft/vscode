@@ -24,7 +24,7 @@ phases:
       yarn compile
     displayName: Compile Sources
   - powershell: |
-      yarn sync-builtin-extensions
+      yarn download-builtin-extensions
     displayName: Download Built-in Extensions
   - powershell: |
       .\scripts\test.bat --tfs
@@ -77,7 +77,7 @@ phases:
       yarn compile
     displayName: Compile Sources
   - script: |
-      yarn sync-builtin-extensions
+      yarn download-builtin-extensions
     displayName: Download Built-in Extensions
   - script: |
       DISPLAY=:10 ./scripts/test.sh --tfs
@@ -108,7 +108,7 @@ phases:
       yarn compile
     displayName: Compile Sources
   - script: |
-      yarn sync-builtin-extensions
+      yarn download-builtin-extensions
     displayName: Download Built-in Extensions
   - script: |
       ./scripts/test.sh --tfs
