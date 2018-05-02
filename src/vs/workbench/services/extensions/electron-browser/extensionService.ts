@@ -32,7 +32,7 @@ import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { ExtHostCustomersRegistry } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { mark, time } from 'vs/base/common/performance';
+import { mark } from 'vs/base/common/performance';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Barrier } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -508,12 +508,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				let messageHandler = (msg: IMessage) => this._handleExtensionPointMessage(msg);
 
 				for (let i = 0, len = extensionPoints.length; i < len; i++) {
-					const clock = time(`handleExtensionPoint:${extensionPoints[i].name}`);
-					try {
-						ExtensionService._handleExtensionPoint(extensionPoints[i], availableExtensions, messageHandler);
-					} finally {
-						clock.stop();
-					}
+					ExtensionService._handleExtensionPoint(extensionPoints[i], availableExtensions, messageHandler);
 				}
 
 				mark('extensionHostReady');
