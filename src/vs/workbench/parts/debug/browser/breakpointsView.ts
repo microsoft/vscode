@@ -591,7 +591,7 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 	}
 
 	if (breakpoint.logMessage) {
-		if (process && breakpoint.condition && !process.session.capabilities.supportsLogPoints) {
+		if (process && !process.session.capabilities.supportsLogPoints) {
 			return {
 				className: 'debug-breakpoint-unsupported',
 				message: nls.localize('logBreakpointUnsupported', "Logpoints not supported by this debug type"),
