@@ -10,6 +10,7 @@
 	"yes": "Evet",
 	"no": "Hayır",
 	"neverAgain": "Tekrar Gösterme",
+	"install language pack": "Yakın gelecekte, VS Code dil paketlerini sadece Market uzantısı biçiminde destekleyecektir. Şu an yapılandırmada yer alan dili kullanmaya devam etmek için lütfen '{0}' eklentisini yükleyin.",
 	"install": "Yükle",
 	"more information": "Daha Fazla Bilgi...",
 	"JsonSchema.locale": "Kullanılacak Kullanıcı Arayüzü Dili.",

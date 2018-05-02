@@ -9,6 +9,7 @@
 	"completeInEnglish": "Lütfen formu İngilizce olarak doldurunuz.",
 	"issueTypeLabel": "Bu bir",
 	"vscode": "Visual Studio Code",
+	"extension": "Eklenti",
 	"disableExtensions": "tüm eklentileri devre dışı bırakıp pencereyi yeniden yükleyin",
 	"chooseExtension": "Eklenti",
 	"issueTitleLabel": "Başlık",

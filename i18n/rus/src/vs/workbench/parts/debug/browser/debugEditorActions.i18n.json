@@ -8,6 +8,7 @@
 	],
 	"toggleBreakpointAction": "Отладка: переключить точку останова",
 	"conditionalBreakpointEditorAction": "Отладка: добавить условную точку останова…",
+	"logPointEditorAction": "Отладка: добавить точку журнала... ",
 	"runToCursor": "Выполнить до курсора",
 	"debugEvaluate": "Отладка: вычисление",
 	"debugAddToWatch": "Отладка: добавить контрольное значение",

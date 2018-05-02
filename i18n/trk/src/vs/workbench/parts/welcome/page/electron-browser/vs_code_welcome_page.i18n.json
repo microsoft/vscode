@@ -28,6 +28,7 @@
 	"welcomePage.installExtensionPacksDescription": "{0} ve {1} için destek yükle",
 	"welcomePage.moreExtensions": "fazlası",
 	"welcomePage.installKeymapDescription": "Ayarlar ve tuş bağları",
+	"welcomePage.installKeymapExtension": "{0} ve {1} için ayarları ve klavye kısayollarını yükle",
 	"welcomePage.others": "diğerleri",
 	"welcomePage.colorTheme": "Renk teması",
 	"welcomePage.colorThemeDescription": "Düzenleyici ve kodlarınız sevdiğiniz şekilde görünsün",

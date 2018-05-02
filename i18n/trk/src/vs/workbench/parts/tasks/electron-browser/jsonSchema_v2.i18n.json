@@ -12,7 +12,7 @@
 	"JsonSchema.tasks.dependsOn.array": "Bu görevin bağlı olduğu diğer görevler.",
 	"JsonSchema.tasks.presentation": "Görevin çıktısını gösterip, girdisini okumak için kullanılacak paneli yapılandırır.",
 	"JsonSchema.tasks.presentation.echo": "Çalıştırılan komutun panele yazdırılıp yazdırılmayacağını denetler. Varsayılan olarak açıktır.",
-	"JsonSchema.tasks.presentation.focus": "Panelin, kendisine odaklanmaya izin verip vermeyeceğini denetler. Varsayılan olarak kapalıdır. Eğer \"true\" olarak ayarlanırsa panel de açığa çıkar.",
+	"JsonSchema.tasks.presentation.focus": "Panelin, kendisine odaklanmaya izin verip vermeyeceğini denetler. Varsayılan olarak kapalıdır. Eğer \"true\" değeri atanırsa panel de açığa çıkar.",
 	"JsonSchema.tasks.presentation.reveal.always": "Bu görev yürütülürken terminali her zaman ortaya çıkarır.",
 	"JsonSchema.tasks.presentation.reveal.silent": "Sadece hiçbir sorun eşleştiricisi görevle ilişkilendirilmemiş ve görev çalıştırılırken hata oluşuyorsa terminali ortaya çıkar.",
 	"JsonSchema.tasks.presentation.reveal.never": "Bu görev yürütülürken terminali hiçbir zaman ortaya çıkarmaz.",
