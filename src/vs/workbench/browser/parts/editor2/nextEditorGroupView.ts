@@ -47,6 +47,18 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	private static readonly EDITOR_TITLE_HEIGHT = 35;
 	private static readonly ENABLE_PREVIEW_SETTING = 'workbench.editor.enablePreview';
 
+	//#region factory
+
+	static createNew(groupsAccessor: IGroupsAccessor, instantiationService: IInstantiationService): NextEditorGroupView {
+		return instantiationService.createInstance(NextEditorGroupView, groupsAccessor, null);
+	}
+
+	static createCopy(copyFrom: NextEditorGroupView, groupsAccessor: IGroupsAccessor, instantiationService: IInstantiationService): NextEditorGroupView {
+		return instantiationService.createInstance(NextEditorGroupView, groupsAccessor, copyFrom);
+	}
+
+	//#endregion
+
 	//#region events
 
 	private _onDidFocus: Emitter<void> = this._register(new Emitter<void>());
@@ -91,8 +103,8 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	private progressBar: ProgressBar;
 
 	constructor(
-		sourceView: NextEditorGroupView,
 		private groupsAccessor: IGroupsAccessor,
+		copyFromView: NextEditorGroupView,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
@@ -103,8 +115,8 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	) {
 		super(themeService);
 
-		if (sourceView) {
-			this.group = this._register(sourceView.group.clone());
+		if (copyFromView) {
+			this.group = this._register(copyFromView.group.clone());
 		} else {
 			this.group = this._register(instantiationService.createInstance(EditorGroup, ''));
 		}
