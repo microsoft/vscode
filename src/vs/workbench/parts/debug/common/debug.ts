@@ -145,7 +145,7 @@ export interface IProcess extends ITreeElement {
 	readonly state: ProcessState;
 	getSourceForUri(modelUri: uri): Source;
 	getThread(threadId: number): IThread;
-	getAllThreads(): IThread[];
+	getAllThreads(): ReadonlyArray<IThread>;
 	getSource(raw: DebugProtocol.Source): Source;
 	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]>;
 }
@@ -225,57 +225,57 @@ export interface IStackFrame extends ITreeElement {
 }
 
 export interface IEnablement extends ITreeElement {
-	enabled: boolean;
+	readonly enabled: boolean;
 }
 
 export interface IBreakpointData {
-	id?: string;
-	lineNumber: number;
-	column?: number;
-	enabled?: boolean;
-	condition?: string;
-	logMessage?: string;
-	hitCondition?: string;
+	readonly id?: string;
+	readonly lineNumber: number;
+	readonly column?: number;
+	readonly enabled?: boolean;
+	readonly condition?: string;
+	readonly logMessage?: string;
+	readonly hitCondition?: string;
 }
 
 export interface IBreakpointUpdateData extends DebugProtocol.Breakpoint {
-	condition?: string;
-	hitCondition?: string;
-	logMessage?: string;
+	readonly condition?: string;
+	readonly hitCondition?: string;
+	readonly logMessage?: string;
 }
 
 export interface IBaseBreakpoint extends IEnablement {
-	condition: string;
-	hitCondition: string;
-	logMessage: string;
-	verified: boolean;
-	idFromAdapter: number;
+	readonly condition: string;
+	readonly hitCondition: string;
+	readonly logMessage: string;
+	readonly verified: boolean;
+	readonly idFromAdapter: number;
 }
 
 export interface IBreakpoint extends IBaseBreakpoint {
-	uri: uri;
-	lineNumber: number;
-	endLineNumber?: number;
-	column: number;
-	endColumn?: number;
-	message: string;
-	adapterData: any;
+	readonly uri: uri;
+	readonly lineNumber: number;
+	readonly endLineNumber?: number;
+	readonly column: number;
+	readonly endColumn?: number;
+	readonly message: string;
+	readonly adapterData: any;
 }
 
 export interface IFunctionBreakpoint extends IBaseBreakpoint {
-	name: string;
+	readonly name: string;
 }
 
 export interface IExceptionBreakpoint extends IEnablement {
-	filter: string;
-	label: string;
+	readonly filter: string;
+	readonly label: string;
 }
 
 export interface IExceptionInfo {
-	id?: string;
-	description?: string;
-	breakMode: string;
-	details?: DebugProtocol.ExceptionDetails;
+	readonly id?: string;
+	readonly description?: string;
+	readonly breakMode: string;
+	readonly details?: DebugProtocol.ExceptionDetails;
 }
 
 // model interfaces
@@ -284,17 +284,18 @@ export interface IViewModel extends ITreeElement {
 	/**
 	 * Returns the focused debug process or null if no process is stopped.
 	 */
-	focusedProcess: IProcess;
+	readonly focusedProcess: IProcess;
 
 	/**
 	 * Returns the focused thread or null if no thread is stopped.
 	 */
-	focusedThread: IThread;
+	readonly focusedThread: IThread;
 
 	/**
 	 * Returns the focused stack frame or null if there are no stack frames.
 	 */
-	focusedStackFrame: IStackFrame;
+	readonly focusedStackFrame: IStackFrame;
+
 	getSelectedExpression(): IExpression;
 	getSelectedFunctionBreakpoint(): IFunctionBreakpoint;
 	setSelectedExpression(expression: IExpression): void;
@@ -409,8 +410,8 @@ export interface IDebugAdapterProvider extends ITerminalLauncher {
 }
 
 export interface IAdapterExecutable {
-	command?: string;
-	args?: string[];
+	readonly command?: string;
+	readonly args?: string[];
 }
 
 export interface IPlatformSpecificAdapterContribution {
@@ -446,7 +447,7 @@ export interface IDebuggerContribution extends IPlatformSpecificAdapterContribut
 }
 
 export interface IDebugConfigurationProvider {
-	type: string;
+	readonly type: string;
 	handle: number;
 	resolveDebugConfiguration?(folderUri: uri | undefined, debugConfiguration: IConfig): TPromise<IConfig>;
 	provideDebugConfigurations?(folderUri: uri | undefined): TPromise<IConfig[]>;

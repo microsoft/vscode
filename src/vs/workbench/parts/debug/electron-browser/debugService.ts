@@ -696,7 +696,7 @@ export class DebugService implements debug.IDebugService {
 				if (this.model.getProcesses().length === 0) {
 					this.removeReplExpressions();
 					this.allProcesses.clear();
-					this.model.getBreakpoints().forEach(bp => bp.verified = false);
+					this.model.unverifyBreakpoints();
 				}
 				this.launchJsonChanged = false;
 

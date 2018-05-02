@@ -39,7 +39,17 @@ export class ViewModel implements IViewModel {
 	}
 
 	public get focusedThread(): IThread {
-		return this._focusedStackFrame ? this._focusedStackFrame.thread : (this._focusedProcess ? this._focusedProcess.getAllThreads().pop() : null);
+		if (this._focusedStackFrame) {
+			return this._focusedStackFrame.thread;
+		}
+		if (this._focusedProcess) {
+			const threads = this._focusedProcess.getAllThreads();
+			if (threads && threads.length) {
+				return threads[threads.length - 1];
+			}
+		}
+
+		return undefined;
 	}
 
 	public get focusedStackFrame(): IStackFrame {
