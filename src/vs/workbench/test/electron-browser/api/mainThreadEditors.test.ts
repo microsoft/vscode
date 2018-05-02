@@ -50,15 +50,15 @@ suite('MainThreadEditors', () => {
 		deletedResources.clear();
 
 		const fileService = new class extends TestFileService {
-			async moveFile(from, target): TPromise<IFileStat> {
+			async moveFile(from: URI, target: URI): TPromise<IFileStat> {
 				movedResources.set(from, target);
 				return createMockFileStat(target);
 			}
-			async createFile(uri): TPromise<IFileStat> {
+			async createFile(uri: URI): TPromise<IFileStat> {
 				createdResources.add(uri);
 				return createMockFileStat(uri);
 			}
-			async del(uri): TPromise<any> {
+			async del(uri: URI): TPromise<any> {
 				deletedResources.add(uri);
 			}
 		};

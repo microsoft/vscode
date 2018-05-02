@@ -64,7 +64,7 @@ export class MoveLinesCommand implements ICommand {
 			getLanguageIdAtPosition: (lineNumber: number, column: number) => {
 				return model.getLanguageIdAtPosition(lineNumber, column);
 			},
-			getLineContent: null
+			getLineContent: <(lineNumber: number) => string>null,
 		};
 
 		if (s.startLineNumber === s.endLineNumber && model.getLineMaxColumn(s.startLineNumber) === 1) {

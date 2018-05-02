@@ -222,7 +222,7 @@ export class ExtensionHostProcessManager extends Disposable {
 		}
 
 		// Check that no named customers are missing
-		const expected: ProxyIdentifier<any>[] = Object.keys(MainContext).map((key) => MainContext[key]);
+		const expected: ProxyIdentifier<any>[] = Object.keys(MainContext).map((key) => (<any>MainContext)[key]);
 		this._extensionHostProcessRPCProtocol.assertRegistered(expected);
 
 		return this._extensionHostProcessRPCProtocol.getProxy(ExtHostContext.ExtHostExtensionService);

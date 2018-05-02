@@ -87,7 +87,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			sub.dispose();
 
 			assert.ok(event);
-			assert.throws(() => event.document = null);
+			assert.throws(() => { event.document = null; });
 		});
 	});
 

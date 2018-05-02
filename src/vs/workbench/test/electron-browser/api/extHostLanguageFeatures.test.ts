@@ -77,7 +77,7 @@ suite('ExtHostLanguageFeatures', function () {
 			instantiationService.stub(IMarkerService, MarkerService);
 			instantiationService.stub(IHeapService, {
 				_serviceBrand: undefined,
-				trackRecursive(args) {
+				trackRecursive(args: any) {
 					// nothing
 					return args;
 				}
@@ -136,7 +136,7 @@ suite('ExtHostLanguageFeatures', function () {
 		assert.equal(DocumentSymbolProviderRegistry.all(model).length, 0);
 		let d1 = extHost.registerDocumentSymbolProvider(defaultSelector, <vscode.DocumentSymbolProvider>{
 			provideDocumentSymbols() {
-				return [];
+				return <vscode.SymbolInformation[]>[];
 			}
 		});
 

@@ -869,7 +869,7 @@ function depth(n: IntervalNode): number {
 	return (getNodeColor(n) === NodeColor.Black ? 1 : 0) + depth(n.left);
 }
 
-function assertValidNode(n: IntervalNode, delta): void {
+function assertValidNode(n: IntervalNode, delta: number): void {
 	if (n === SENTINEL) {
 		return;
 	}

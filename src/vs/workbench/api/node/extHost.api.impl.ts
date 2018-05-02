@@ -125,7 +125,7 @@ export function createApiFactory(
 	const extHostProgress = rpcProtocol.set(ExtHostContext.ExtHostProgress, new ExtHostProgress(rpcProtocol.getProxy(MainContext.MainThreadProgress)));
 
 	// Check that no named customers are missing
-	const expected: ProxyIdentifier<any>[] = Object.keys(ExtHostContext).map((key) => ExtHostContext[key]);
+	const expected: ProxyIdentifier<any>[] = Object.keys(ExtHostContext).map((key) => (<any>ExtHostContext)[key]);
 	rpcProtocol.assertRegistered(expected);
 
 	// Other instances
@@ -243,7 +243,7 @@ export function createApiFactory(
 			get onDidChangeDiagnostics() {
 				return extHostDiagnostics.onDidChangeDiagnostics;
 			},
-			getDiagnostics: (resource?) => {
+			getDiagnostics: (resource?: vscode.Uri) => {
 				return <any>extHostDiagnostics.getDiagnostics(resource);
 			},
 			getLanguages(): TPromise<string[]> {
@@ -749,7 +749,7 @@ function defineAPI(factory: IExtensionApiFactory, extensionPaths: TernarySearchT
 
 	const node_module = <any>require.__$__nodeRequire('module');
 	const original = node_module._load;
-	node_module._load = function load(request, parent, isMain) {
+	node_module._load = function load(request: string, parent: any, isMain: any) {
 		if (request !== 'vscode') {
 			return original.apply(this, arguments);
 		}

@@ -21,7 +21,7 @@ let editTypes = [
 ];
 
 for (let fileSize of fileSizes) {
-	let chunks = [];
+	let chunks: string[] = [];
 
 	let chunkCnt = Math.floor(fileSize / (64 * 1000));
 	if (chunkCnt === 0) {
