@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as vscode from 'vscode';
 import 'mocha';
 import { templateToSnippet } from '../features/jsDocCompletionProvider';
 
@@ -14,7 +13,7 @@ suite('typescript.jsDocSnippet', () => {
 		assert.strictEqual(templateToSnippet(input).value, input);
 	});
 
-	test('Should put curosr inside multiline line input', async () => {
+	test('Should put cursor inside multiline line input', async () => {
 		assert.strictEqual(
 			templateToSnippet([
 				'/**',
@@ -24,6 +23,54 @@ suite('typescript.jsDocSnippet', () => {
 			[
 				'/**',
 				' * $0',
+				' */'
+			].join('\n'));
+	});
+
+	test('Should add placeholders after each parameter', async () => {
+		assert.strictEqual(
+			templateToSnippet([
+				'/**',
+				' * @param a',
+				' * @param b',
+				' */'
+			].join('\n')).value,
+			[
+				'/**',
+				' * @param a ${1}',
+				' * @param b ${2}',
+				' */'
+			].join('\n'));
+	});
+
+	test('Should add placeholders for types', async () => {
+		assert.strictEqual(
+			templateToSnippet([
+				'/**',
+				' * @param {*} a',
+				' * @param {*} b',
+				' */'
+			].join('\n')).value,
+			[
+				'/**',
+				' * @param {${1:*}} a ${2}',
+				' * @param {${3:*}} b ${4}',
+				' */'
+			].join('\n'));
+	});
+
+	test('Should properly escape dollars in parameter names', async () => {
+		assert.strictEqual(
+			templateToSnippet([
+				'/**',
+				' * ',
+				' * @param $arg',
+				' */'
+			].join('\n')).value,
+			[
+				'/**',
+				' * $0',
+				' * @param $arg ${1}',
 				' */'
 			].join('\n'));
 	});
