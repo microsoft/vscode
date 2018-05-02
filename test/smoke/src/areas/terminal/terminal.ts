@@ -22,6 +22,8 @@ export class Terminal {
 
 	async runCommand(commandText: string): Promise<void> {
 		await this.code.writeInTerminal(XTERM_SELECTOR, commandText);
+		// hold your horses
+		await new Promise(c => setTimeout(c, 500));
 		await this.code.dispatchKeybinding('enter');
 	}
 
