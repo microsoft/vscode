@@ -52,7 +52,11 @@ suite('URI', () => {
 		const value = URI.parse('file://%2Fhome%2Fticino%2Fdesktop%2Fcpluscplus%2Ftest.cpp');
 		assert.equal(value.authority, '/home/ticino/desktop/cpluscplus/test.cpp');
 		assert.equal(value.path, '/');
-		assert.equal(value.fsPath, '/');
+		if (isWindows) {
+			assert.equal(value.fsPath, '\\');
+		} else {
+			assert.equal(value.fsPath, '/');
+		}
 	});
 
 	test('http#toString', () => {
