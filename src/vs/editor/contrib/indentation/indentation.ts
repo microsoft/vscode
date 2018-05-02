@@ -350,7 +350,7 @@ export class AutoIndentOnPasteCommand implements ICommand {
 			builder.addEditOperation(Range.lift(edit.range), edit.text);
 		}
 
-		var selectionIsSet = false;
+		let selectionIsSet = false;
 		if (Array.isArray(this._edits) && this._edits.length === 1 && this._initialSelection.isEmpty()) {
 			if (this._edits[0].range.startColumn === this._initialSelection.endColumn &&
 				this._edits[0].range.startLineNumber === this._initialSelection.endLineNumber) {

@@ -91,10 +91,10 @@ class FormatOnType implements editorCommon.IEditorContribution {
 			return;
 		}
 
-		var model = this.editor.getModel();
+		const model = this.editor.getModel();
 
 		// no support
-		var [support] = OnTypeFormattingEditProviderRegistry.ordered(model);
+		const [support] = OnTypeFormattingEditProviderRegistry.ordered(model);
 		if (!support || !support.autoFormatTriggerCharacters) {
 			return;
 		}
@@ -118,14 +118,14 @@ class FormatOnType implements editorCommon.IEditorContribution {
 			return;
 		}
 
-		var model = this.editor.getModel(),
-			position = this.editor.getPosition(),
-			canceled = false;
+		const model = this.editor.getModel();
+		const position = this.editor.getPosition();
+		let canceled = false;
 
 		// install a listener that checks if edits happens before the
 		// position on which we format right now. If so, we won't
 		// apply the format edits
-		var unbind = this.editor.onDidChangeModelContent((e) => {
+		const unbind = this.editor.onDidChangeModelContent((e) => {
 			if (e.isFlush) {
 				// a model.setValue() was called
 				// cancel only once

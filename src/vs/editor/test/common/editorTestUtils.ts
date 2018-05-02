@@ -10,7 +10,7 @@ import { LanguageIdentifier } from 'vs/editor/common/modes';
 import URI from 'vs/base/common/uri';
 
 export function withEditorModel(text: string[], callback: (model: TextModel) => void): void {
-	var model = TextModel.createFromString(text.join('\n'));
+	let model = TextModel.createFromString(text.join('\n'));
 	callback(model);
 	model.dispose();
 }

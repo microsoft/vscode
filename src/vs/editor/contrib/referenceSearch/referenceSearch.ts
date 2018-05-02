@@ -181,7 +181,7 @@ function openReferenceToSide(accessor: ServicesAccessor, args: any) {
 }
 
 function withController(accessor: ServicesAccessor, fn: (controller: ReferencesController) => void): void {
-	var outerEditor = getOuterEditor(accessor);
+	const outerEditor = getOuterEditor(accessor);
 	if (!outerEditor) {
 		return;
 	}

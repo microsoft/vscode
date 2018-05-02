@@ -32,7 +32,7 @@ function randomStr(len: number) {
 		len = 10;
 	}
 	return (function () {
-		var j, ref, results;
+		let j, ref, results;
 		results = [];
 		for (
 			j = 1, ref = len;
@@ -1696,7 +1696,7 @@ suite('search offset cache', () => {
 		pieceTable.delete(15, 2);
 		str = str.substring(0, 15) + str.substring(15 + 2);
 
-		var content = pieceTable.getLinesRawContent();
+		let content = pieceTable.getLinesRawContent();
 		assert(content === str);
 	});
 

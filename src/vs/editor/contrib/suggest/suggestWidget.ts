@@ -465,20 +465,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		this.setState(State.Hidden);
 
 		this.onThemeChange(themeService.getTheme());
-
-		// TODO@Alex: this is useful, but spammy
-		// var isVisible = false;
-		// this.onDidVisibilityChange((newIsVisible) => {
-		// 	if (isVisible === newIsVisible) {
-		// 		return;
-		// 	}
-		// 	isVisible = newIsVisible;
-		// 	if (isVisible) {
-		// 		alert(nls.localize('suggestWidgetAriaVisible', "Suggestions opened"));
-		// 	} else {
-		// 		alert(nls.localize('suggestWidgetAriaInvisible', "Suggestions closed"));
-		// 	}
-		// });
 	}
 
 	private onCursorSelectionChanged(): void {

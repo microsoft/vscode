@@ -240,10 +240,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			if (this._showAtPosition.lineNumber !== range.startLineNumber) {
 				this.hide();
 			} else {
-				var filteredMessages: HoverPart[] = [];
-				for (var i = 0, len = this._messages.length; i < len; i++) {
-					var msg = this._messages[i];
-					var rng = msg.range;
+				let filteredMessages: HoverPart[] = [];
+				for (let i = 0, len = this._messages.length; i < len; i++) {
+					const msg = this._messages[i];
+					const rng = msg.range;
 					if (rng.startColumn <= range.startColumn && rng.endColumn >= range.endColumn) {
 						filteredMessages.push(msg);
 					}
@@ -299,10 +299,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._colorPicker = null;
 
 		// update column from which to show
-		var renderColumn = Number.MAX_VALUE,
-			highlightRange = messages[0].range,
-			fragment = document.createDocumentFragment(),
-			isEmptyHoverContent = true;
+		let renderColumn = Number.MAX_VALUE;
+		let highlightRange = messages[0].range;
+		let fragment = document.createDocumentFragment();
+		let isEmptyHoverContent = true;
 
 		let containColorPicker = false;
 		let markdownDisposeable: IDisposable;

@@ -90,7 +90,7 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 	private _onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
 		this._isMouseDown = true;
 
-		var targetType = mouseEvent.target.type;
+		const targetType = mouseEvent.target.type;
 
 		if (targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ModesContentHoverWidget.ID) {
 			this._hoverClicked = true;
