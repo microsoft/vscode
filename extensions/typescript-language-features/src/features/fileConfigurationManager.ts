@@ -9,7 +9,6 @@ import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as languageIds from '../utils/languageModeIds';
 
-
 // TODO: for TS 2.8
 type UserPreferences = any;
 
@@ -157,7 +156,8 @@ export default class FileConfigurationManager {
 			document.uri);
 
 		return {
-			quotePreference: config.get<'single' | 'double' | undefined>('quoteStyle')
+			quotePreference: config.get<'single' | 'double' | undefined>('quoteStyle'),
+			importModuleSpecifierPreference: config.get<'relative' | 'non-relative' | undefined>('importModuleSpecifier')
 		};
 	}
 }
