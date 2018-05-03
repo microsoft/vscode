@@ -115,10 +115,10 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 
 		// Add to grid widget
 		this.gridWidget.addView(
+			newGroupView,
+			direction === Direction.DOWN ? fromGroupView.dimension.height / 2 : fromGroupView.dimension.width / 2 /* TODO@grid what size? */,
 			fromGroupView,
 			this.toGridViewDirection(direction),
-			newGroupView,
-			direction === Direction.DOWN ? fromGroupView.dimension.height / 2 : fromGroupView.dimension.width / 2 /* TODO@grid what size? */
 		);
 
 		// Check for options

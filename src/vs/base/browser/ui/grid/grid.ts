@@ -89,7 +89,7 @@ export class Grid<T extends IView> implements IDisposable {
 		this.gridview.layout(width, height);
 	}
 
-	addView(referenceView: T, direction: Direction, newView: T, size: number): void {
+	addView(newView: T, size: number, referenceView: T, direction: Direction): void {
 		if (this.views.has(newView)) {
 			throw new Error('Can\'t add same view twice');
 		}
