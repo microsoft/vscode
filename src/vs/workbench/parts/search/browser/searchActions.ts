@@ -714,7 +714,8 @@ function matchToString(match: Match): string {
 
 const lineDelimiter = isWindows ? '\r\n' : '\n';
 function fileMatchToString(fileMatch: FileMatch, maxMatches: number): { text: string, count: number } {
-	const matchTextRows = fileMatch.matches()
+	let matches = fileMatch.matches().sort(matchComparer);
+	const matchTextRows = matches
 		.slice(0, maxMatches)
 		.map(matchToString)
 		.map(matchText => '  ' + matchText);
@@ -728,8 +729,7 @@ function folderMatchToString(folderMatch: FolderMatch, maxMatches: number): { te
 	const fileResults: string[] = [];
 	let numMatches = 0;
 
-	let sorter = new SearchSorter();
-	let matches = folderMatch.matches().sort((matchA, matchB) => sorter.compare(null, matchA, matchB));
+	let matches = folderMatch.matches().sort(matchComparer);
 
 	for (let i = 0; i < folderMatch.fileCount() && numMatches < maxMatches; i++) {
 		const fileResult = fileMatchToString(matches[i], maxMatches - numMatches);
@@ -760,27 +760,30 @@ export const copyMatchCommand: ICommandHandler = (accessor, match: RenderableMat
 		clipboardService.writeText(text);
 	}
 };
+function matchComparer(elementA: RenderableMatch, elementB: RenderableMatch): number {
+	if (elementA instanceof FolderMatch && elementB instanceof FolderMatch) {
+		return elementA.index() - elementB.index();
+	}
 
+	if (elementA instanceof FileMatch && elementB instanceof FileMatch) {
+		return elementA.resource().fsPath.localeCompare(elementB.resource().fsPath) || elementA.name().localeCompare(elementB.name());
+	}
+
+	if (elementA instanceof Match && elementB instanceof Match) {
+		return Range.compareRangesUsingStarts(elementA.range(), elementB.range());
+	}
+	return undefined;
+}
 export class SearchSorter implements ISorter {
-	public compare(tree: ITree, elementA: FileMatchOrMatch, elementB: FileMatchOrMatch): number {
-		if (elementA instanceof FolderMatch && elementB instanceof FolderMatch) {
-			return elementA.index() - elementB.index();
-		}
-
-		if (elementA instanceof FileMatch && elementB instanceof FileMatch) {
-			return elementA.resource().fsPath.localeCompare(elementB.resource().fsPath) || elementA.name().localeCompare(elementB.name());
-		}
-
-		if (elementA instanceof Match && elementB instanceof Match) {
-			return Range.compareRangesUsingStarts(elementA.range(), elementB.range());
-		}
-		return undefined;
+	public compare(tree: ITree, elementA: RenderableMatch, elementB: RenderableMatch): number {
+		return matchComparer(elementA, elementB);
 	}
 }
 
 function allFolderMatchesToString(folderMatches: FolderMatch[], maxMatches: number): string {
 	const folderResults: string[] = [];
 	let numMatches = 0;
+	folderMatches.sort(matchComparer);
 	for (let i = 0; i < folderMatches.length && numMatches < maxMatches; i++) {
 		const folderResult = folderMatchToString(folderMatches[i], maxMatches - numMatches);
 		if (folderResult.count) {
