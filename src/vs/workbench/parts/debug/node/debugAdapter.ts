@@ -220,13 +220,13 @@ export abstract class StreamDebugAdapter extends AbstractDebugAdapter {
 */
 export class DebugAdapter extends StreamDebugAdapter {
 
-	private _serverProcess: cp.ChildProcess;
+	private serverProcess: cp.ChildProcess;
 
-	constructor(private _debugType: string, private _adapterExecutable: IAdapterExecutable | null, extensionDescriptions: IExtensionDescription[], private _outputService?: IOutputService) {
+	constructor(private debugType: string, private adapterExecutable: IAdapterExecutable | null, extensionDescriptions: IExtensionDescription[], private outputService?: IOutputService) {
 		super();
 
-		if (!this._adapterExecutable) {
-			this._adapterExecutable = DebugAdapter.platformAdapterExecutable(extensionDescriptions, this._debugType);
+		if (!this.adapterExecutable) {
+			this.adapterExecutable = DebugAdapter.platformAdapterExecutable(extensionDescriptions, this.debugType);
 		}
 	}
 
@@ -235,54 +235,54 @@ export class DebugAdapter extends StreamDebugAdapter {
 		return new TPromise<void>((c, e) => {
 
 			// verify executables
-			if (this._adapterExecutable.command) {
-				if (paths.isAbsolute(this._adapterExecutable.command)) {
-					if (!fs.existsSync(this._adapterExecutable.command)) {
-						e(new Error(nls.localize('debugAdapterBinNotFound', "Debug adapter executable '{0}' does not exist.", this._adapterExecutable.command)));
+			if (this.adapterExecutable.command) {
+				if (paths.isAbsolute(this.adapterExecutable.command)) {
+					if (!fs.existsSync(this.adapterExecutable.command)) {
+						e(new Error(nls.localize('debugAdapterBinNotFound', "Debug adapter executable '{0}' does not exist.", this.adapterExecutable.command)));
 					}
 				} else {
 					// relative path
-					if (this._adapterExecutable.command.indexOf('/') < 0 && this._adapterExecutable.command.indexOf('\\') < 0) {
+					if (this.adapterExecutable.command.indexOf('/') < 0 && this.adapterExecutable.command.indexOf('\\') < 0) {
 						// no separators: command looks like a runtime name like 'node' or 'mono'
 						// TODO: check that the runtime is available on PATH
 					}
 				}
 			} else {
 				e(new Error(nls.localize({ key: 'debugAdapterCannotDetermineExecutable', comment: ['Adapter executable file not found'] },
-					"Cannot determine executable for debug adapter '{0}'.", this._debugType)));
+					"Cannot determine executable for debug adapter '{0}'.", this.debugType)));
 			}
 
-			if (this._adapterExecutable.command === 'node' && this._outputService) {
-				if (Array.isArray(this._adapterExecutable.args) && this._adapterExecutable.args.length > 0) {
-					stdfork.fork(this._adapterExecutable.args[0], this._adapterExecutable.args.slice(1), {}, (err, child) => {
+			if (this.adapterExecutable.command === 'node' && this.outputService) {
+				if (Array.isArray(this.adapterExecutable.args) && this.adapterExecutable.args.length > 0) {
+					stdfork.fork(this.adapterExecutable.args[0], this.adapterExecutable.args.slice(1), {}, (err, child) => {
 						if (err) {
-							e(new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from '{0}'.", this._adapterExecutable.args[0])));
+							e(new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from '{0}'.", this.adapterExecutable.args[0])));
 						}
-						this._serverProcess = child;
+						this.serverProcess = child;
 						c(null);
 					});
 				} else {
 					e(new Error(nls.localize('unableToLaunchDebugAdapterNoArgs', "Unable to launch debug adapter.")));
 				}
 			} else {
-				this._serverProcess = cp.spawn(this._adapterExecutable.command, this._adapterExecutable.args);
+				this.serverProcess = cp.spawn(this.adapterExecutable.command, this.adapterExecutable.args);
 				c(null);
 			}
 		}).then(_ => {
-			this._serverProcess.on('error', (err: Error) => this._onError.fire(err));
-			this._serverProcess.on('exit', (code: number, signal: string) => this._onExit.fire(code));
+			this.serverProcess.on('error', (err: Error) => this._onError.fire(err));
+			this.serverProcess.on('exit', (code: number, signal: string) => this._onExit.fire(code));
 
-			if (this._outputService) {
+			if (this.outputService) {
 				const sanitize = (s: string) => s.toString().replace(/\r?\n$/mg, '');
 				// this.serverProcess.stdout.on('data', (data: string) => {
 				// 	console.log('%c' + sanitize(data), 'background: #ddd; font-style: italic;');
 				// });
-				this._serverProcess.stderr.on('data', (data: string) => {
-					this._outputService.getChannel(ExtensionsChannelId).append(sanitize(data));
+				this.serverProcess.stderr.on('data', (data: string) => {
+					this.outputService.getChannel(ExtensionsChannelId).append(sanitize(data));
 				});
 			}
 
-			this.connect(this._serverProcess.stdout, this._serverProcess.stdin);
+			this.connect(this.serverProcess.stdout, this.serverProcess.stdin);
 		}, err => {
 			this._onError.fire(err);
 		});
@@ -295,7 +295,7 @@ export class DebugAdapter extends StreamDebugAdapter {
 		// processes. Therefore we use TASKKILL.EXE
 		if (platform.isWindows) {
 			return new TPromise<void>((c, e) => {
-				const killer = cp.exec(`taskkill /F /T /PID ${this._serverProcess.pid}`, function (err, stdout, stderr) {
+				const killer = cp.exec(`taskkill /F /T /PID ${this.serverProcess.pid}`, function (err, stdout, stderr) {
 					if (err) {
 						return e(err);
 					}
@@ -304,7 +304,7 @@ export class DebugAdapter extends StreamDebugAdapter {
 				killer.on('error', e);
 			});
 		} else {
-			this._serverProcess.kill('SIGTERM');
+			this.serverProcess.kill('SIGTERM');
 			return TPromise.as(null);
 		}
 	}
