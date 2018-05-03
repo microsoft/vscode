@@ -313,8 +313,8 @@ export class DebugAdapter extends StreamDebugAdapter {
 		if (!contribution) {
 			return undefined;
 		}
-		let result: IDebuggerContribution = {};
 
+		const result: IDebuggerContribution = Object.create(null);
 		if (contribution.runtime) {
 			if (contribution.runtime.indexOf('./') === 0) {	// TODO
 				result.runtime = paths.join(extensionFolderPath, contribution.runtime);
@@ -354,10 +354,8 @@ export class DebugAdapter extends StreamDebugAdapter {
 		return result;
 	}
 
-	static platformAdapterExecutable(extensionDescriptions: IExtensionDescription[], debugType: string): IAdapterExecutable {
-
-		let result: IDebuggerContribution = {};
-
+	public static platformAdapterExecutable(extensionDescriptions: IExtensionDescription[], debugType: string): IAdapterExecutable {
+		const result: IDebuggerContribution = Object.create(null);
 		debugType = debugType.toLowerCase();
 
 		// merge all contributions into one
@@ -365,15 +363,13 @@ export class DebugAdapter extends StreamDebugAdapter {
 			if (ed.contributes) {
 				const debuggers = <IDebuggerContribution[]>ed.contributes['debuggers'];
 				if (debuggers && debuggers.length > 0) {
-					const dbgs = debuggers.filter(d => strings.equalsIgnoreCase(d.type, debugType));
-					for (const dbg of dbgs) {
-
+					debuggers.filter(dbg => strings.equalsIgnoreCase(dbg.type, debugType)).forEach(dbg => {
 						// extract relevant attributes and make then absolute where needed
-						const dbg1 = DebugAdapter.extract(dbg, ed.extensionFolderPath);
+						const extractedDbg = DebugAdapter.extract(dbg, ed.extensionFolderPath);
 
 						// merge
-						objects.mixin(result, dbg1, ed.isBuiltin);
-					}
+						objects.mixin(result, extractedDbg, ed.isBuiltin);
+					});
 				}
 			}
 		}
