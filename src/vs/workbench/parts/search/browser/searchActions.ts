@@ -8,10 +8,11 @@ import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { ITree } from 'vs/base/parts/tree/browser/tree';
+import { ITree, ISorter } from 'vs/base/parts/tree/browser/tree';
 import { INavigator } from 'vs/base/common/iterator';
 import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
 import { Match, FileMatch, FileMatchOrMatch, FolderMatch, RenderableMatch, SearchResult } from 'vs/workbench/parts/search/common/searchModel';
+import { Range } from 'vs/editor/common/core/range';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -713,11 +714,11 @@ function matchToString(match: Match): string {
 
 const lineDelimiter = isWindows ? '\r\n' : '\n';
 function fileMatchToString(fileMatch: FileMatch, maxMatches: number): { text: string, count: number } {
-	const matchTextRows = fileMatch.matches()
+	let matches = fileMatch.matches().sort(matchComparer);
+	const matchTextRows = matches
 		.slice(0, maxMatches)
 		.map(matchToString)
 		.map(matchText => '  ' + matchText);
-
 	return {
 		text: `${uriToClipboardString(fileMatch.resource())}${lineDelimiter}${matchTextRows.join(lineDelimiter)}`,
 		count: matchTextRows.length
@@ -728,8 +729,10 @@ function folderMatchToString(folderMatch: FolderMatch, maxMatches: number): { te
 	const fileResults: string[] = [];
 	let numMatches = 0;
 
+	let matches = folderMatch.matches().sort(matchComparer);
+
 	for (let i = 0; i < folderMatch.fileCount() && numMatches < maxMatches; i++) {
-		const fileResult = fileMatchToString(folderMatch.matches()[i], maxMatches - numMatches);
+		const fileResult = fileMatchToString(matches[i], maxMatches - numMatches);
 		numMatches += fileResult.count;
 		fileResults.push(fileResult.text);
 	}
@@ -757,11 +760,30 @@ export const copyMatchCommand: ICommandHandler = (accessor, match: RenderableMat
 		clipboardService.writeText(text);
 	}
 };
+function matchComparer(elementA: RenderableMatch, elementB: RenderableMatch): number {
+	if (elementA instanceof FolderMatch && elementB instanceof FolderMatch) {
+		return elementA.index() - elementB.index();
+	}
+
+	if (elementA instanceof FileMatch && elementB instanceof FileMatch) {
+		return elementA.resource().fsPath.localeCompare(elementB.resource().fsPath) || elementA.name().localeCompare(elementB.name());
+	}
+
+	if (elementA instanceof Match && elementB instanceof Match) {
+		return Range.compareRangesUsingStarts(elementA.range(), elementB.range());
+	}
+	return undefined;
+}
+export class SearchSorter implements ISorter {
+	public compare(tree: ITree, elementA: RenderableMatch, elementB: RenderableMatch): number {
+		return matchComparer(elementA, elementB);
+	}
+}
 
 function allFolderMatchesToString(folderMatches: FolderMatch[], maxMatches: number): string {
 	const folderResults: string[] = [];
 	let numMatches = 0;
-
+	folderMatches.sort(matchComparer);
 	for (let i = 0; i < folderMatches.length && numMatches < maxMatches; i++) {
 		const folderResult = folderMatchToString(folderMatches[i], maxMatches - numMatches);
 		if (folderResult.count) {
