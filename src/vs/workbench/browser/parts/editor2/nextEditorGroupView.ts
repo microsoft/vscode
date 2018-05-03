@@ -655,7 +655,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 		// Forward to title control
 		if (this.titleAreaControl) {
-			this.titleAreaControl.closeEditor(editor);
+			this.titleAreaControl.closeEditor(editor); // TODO@grid avoid calling this for many editors to avoid perf issues
 		}
 	}
 

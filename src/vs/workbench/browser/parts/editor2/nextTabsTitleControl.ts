@@ -240,11 +240,32 @@ export class NextTabsTitleControl extends NextTitleControl {
 	}
 
 	updateEditorLabel(editor: IEditorInput): void {
-		this.redraw(); // TODO@grid optimize
+		this.redraw(true /* labels only */);
 	}
 
-	updateEditorDirty(editor: IEditorInput): void {
-		this.redraw(); // TODO@grid optimize
+	updateEditorDirty(editor: IEditorInput): void;
+	updateEditorDirty(editor: IEditorInput, tabContainer: HTMLElement): void;
+	updateEditorDirty(editor: IEditorInput, containerCandidate?: HTMLElement): void {
+		this.withTabContainer(editor, containerCandidate, tabContainer => {
+			if (editor.isDirty()) {
+				addClass(tabContainer, 'dirty');
+			} else {
+				removeClass(tabContainer, 'dirty');
+			}
+		});
+	}
+
+	private withTabContainer(editor: IEditorInput, containerCandidate: HTMLElement, fn: (tabContainer: HTMLElement) => void): void {
+		let tabContainer = containerCandidate;
+		if (!tabContainer) {
+			const index = this.group.getIndexOfEditor(editor);
+
+			tabContainer = this.tabsContainer.children[index] as HTMLElement;
+		}
+
+		if (tabContainer) {
+			fn(tabContainer);
+		}
 	}
 
 	private recreate(): void {
@@ -331,108 +352,6 @@ export class NextTabsTitleControl extends NextTitleControl {
 		this.tabDisposeables.push(combinedDisposable([eventsDisposable, actionBar, editorLabel]));
 
 		return tabContainer;
-	}
-
-	private getTabLabels(editors: IEditorInput[]): IEditorInputLabel[] {
-		const labelFormat = 'default'; // TODO@grid support tab options (this.editorGroupService.getTabOptions().labelFormat);
-		const { verbosity, shortenDuplicates } = this.getLabelConfigFlags(labelFormat);
-
-		// Build labels and descriptions for each editor
-		const labels = editors.map(editor => ({
-			editor,
-			name: editor.getName(),
-			description: editor.getDescription(verbosity),
-			title: editor.getTitle(Verbosity.LONG)
-		}));
-
-		// Shorten labels as needed
-		if (shortenDuplicates) {
-			this.shortenTabLabels(labels);
-		}
-
-		return labels;
-	}
-
-	private shortenTabLabels(labels: AugmentedLabel[]): void {
-
-		// Gather duplicate titles, while filtering out invalid descriptions
-		const mapTitleToDuplicates = new Map<string, AugmentedLabel[]>();
-		for (const label of labels) {
-			if (typeof label.description === 'string') {
-				getOrSet(mapTitleToDuplicates, label.name, []).push(label);
-			} else {
-				label.description = '';
-			}
-		}
-
-		// Identify duplicate titles and shorten descriptions
-		mapTitleToDuplicates.forEach(duplicateTitles => {
-
-			// Remove description if the title isn't duplicated
-			if (duplicateTitles.length === 1) {
-				duplicateTitles[0].description = '';
-
-				return;
-			}
-
-			// Identify duplicate descriptions
-			const mapDescriptionToDuplicates = new Map<string, AugmentedLabel[]>();
-			for (const label of duplicateTitles) {
-				getOrSet(mapDescriptionToDuplicates, label.description, []).push(label);
-			}
-
-			// For editors with duplicate descriptions, check whether any long descriptions differ
-			let useLongDescriptions = false;
-			mapDescriptionToDuplicates.forEach((duplicateDescriptions, name) => {
-				if (!useLongDescriptions && duplicateDescriptions.length > 1) {
-					const [first, ...rest] = duplicateDescriptions.map(({ editor }) => editor.getDescription(Verbosity.LONG));
-					useLongDescriptions = rest.some(description => description !== first);
-				}
-			});
-
-			// If so, replace all descriptions with long descriptions
-			if (useLongDescriptions) {
-				mapDescriptionToDuplicates.clear();
-				duplicateTitles.forEach(label => {
-					label.description = label.editor.getDescription(Verbosity.LONG);
-					getOrSet(mapDescriptionToDuplicates, label.description, []).push(label);
-				});
-			}
-
-			// Obtain final set of descriptions
-			const descriptions: string[] = [];
-			mapDescriptionToDuplicates.forEach((_, description) => descriptions.push(description));
-
-			// Remove description if all descriptions are identical
-			if (descriptions.length === 1) {
-				for (const label of mapDescriptionToDuplicates.get(descriptions[0])) {
-					label.description = '';
-				}
-
-				return;
-			}
-
-			// Shorten descriptions
-			const shortenedDescriptions = shorten(descriptions);
-			descriptions.forEach((description, i) => {
-				for (const label of mapDescriptionToDuplicates.get(description)) {
-					label.description = shortenedDescriptions[i];
-				}
-			});
-		});
-	}
-
-	private getLabelConfigFlags(value: string) {
-		switch (value) {
-			case 'short':
-				return { verbosity: Verbosity.SHORT, shortenDuplicates: false };
-			case 'medium':
-				return { verbosity: Verbosity.MEDIUM, shortenDuplicates: false };
-			case 'long':
-				return { verbosity: Verbosity.LONG, shortenDuplicates: false };
-			default:
-				return { verbosity: Verbosity.MEDIUM, shortenDuplicates: true };
-		}
 	}
 
 	private hookTabListeners(tab: HTMLElement, index: number): IDisposable {
@@ -627,23 +546,18 @@ export class NextTabsTitleControl extends NextTitleControl {
 		return combinedDisposable(disposables);
 	}
 
-	protected redraw(): void {
+	protected redraw(labelsOnly?: boolean): void {
 
 		// Compute labels and protect against duplicates
 		const editorsOfGroup = this.group.editors;
 		const labels = this.getTabLabels(editorsOfGroup);
 
 		// Tab label and styles
-		const isGroupActive = this.group.active;
 		editorsOfGroup.forEach((editor, index) => {
 			const tabContainer = this.tabsContainer.children[index] as HTMLElement;
 			if (!tabContainer) {
 				return; // could be a race condition between updating tabs and creating tabs
 			}
-
-			const isEditorPinned = this.group.isPinned(editor);
-			const isEditorActive = this.group.isActive(editor);
-			const isEditorDirty = editor.isDirty();
 
 			const label = labels[index];
 			const name = label.name;
@@ -653,71 +567,178 @@ export class NextTabsTitleControl extends NextTitleControl {
 			// Container
 			tabContainer.setAttribute('aria-label', `${name}, tab`);
 			tabContainer.title = title;
-			tabContainer.style.borderLeftColor = (index !== 0) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
-			tabContainer.style.borderRightColor = (index === editorsOfGroup.length - 1) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
-			tabContainer.style.outlineColor = this.getColor(activeContrastBorder);
 
-			const tabOptions = {} as IEditorTabOptions; // TODO@grid support tab options (this.editorGroupService.getTabOptions());
+			if (!labelsOnly) {
+				tabContainer.style.borderLeftColor = (index !== 0) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
+				tabContainer.style.borderRightColor = (index === editorsOfGroup.length - 1) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
+				tabContainer.style.outlineColor = this.getColor(activeContrastBorder);
 
-			['off', 'left', 'right'].forEach(option => {
-				const domAction = tabOptions.tabCloseButton === option ? addClass : removeClass;
-				domAction(tabContainer, `close-button-${option}`);
-			});
+				const tabOptions = {} as IEditorTabOptions; // TODO@grid support tab options (this.editorGroupService.getTabOptions());
 
-			['fit', 'shrink'].forEach(option => {
-				const domAction = tabOptions.tabSizing === option ? addClass : removeClass;
-				domAction(tabContainer, `sizing-${option}`);
-			});
+				['off', 'left', 'right'].forEach(option => {
+					const domAction = tabOptions.tabCloseButton === option ? addClass : removeClass;
+					domAction(tabContainer, `close-button-${option}`);
+				});
 
-			if (tabOptions.showIcons && !!tabOptions.iconTheme) {
-				addClass(tabContainer, 'has-icon-theme');
-			} else {
-				removeClass(tabContainer, 'has-icon-theme');
+				['fit', 'shrink'].forEach(option => {
+					const domAction = tabOptions.tabSizing === option ? addClass : removeClass;
+					domAction(tabContainer, `sizing-${option}`);
+				});
+
+				if (tabOptions.showIcons && !!tabOptions.iconTheme) {
+					addClass(tabContainer, 'has-icon-theme');
+				} else {
+					removeClass(tabContainer, 'has-icon-theme');
+				}
 			}
 
 			// Label
 			const tabLabel = this.editorLabels[index];
-			tabLabel.setLabel({ name, description, resource: toResource(editor, { supportSideBySide: true }) }, { extraClasses: ['tab-label'], italic: !isEditorPinned });
+			tabLabel.setLabel({ name, description, resource: toResource(editor, { supportSideBySide: true }) }, { extraClasses: ['tab-label'], italic: !this.group.isPinned(editor) });
 
 			// Active state
-			if (isEditorActive) {
-				addClass(tabContainer, 'active');
-				tabContainer.setAttribute('aria-selected', 'true');
-				tabContainer.style.backgroundColor = this.getColor(TAB_ACTIVE_BACKGROUND);
-				tabLabel.element.style.color = this.getColor(isGroupActive ? TAB_ACTIVE_FOREGROUND : TAB_UNFOCUSED_ACTIVE_FOREGROUND);
+			if (!labelsOnly) {
+				if (this.group.isActive(editor)) {
+					addClass(tabContainer, 'active');
+					tabContainer.setAttribute('aria-selected', 'true');
+					tabContainer.style.backgroundColor = this.getColor(TAB_ACTIVE_BACKGROUND);
+					tabLabel.element.style.color = this.getColor(this.group.active ? TAB_ACTIVE_FOREGROUND : TAB_UNFOCUSED_ACTIVE_FOREGROUND);
 
-				// Use boxShadow for the active tab border because if we also have a editor group header
-				// color, the two colors would collide and the tab border never shows up.
-				// see https://github.com/Microsoft/vscode/issues/33111
-				const activeTabBorderColor = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
-				if (activeTabBorderColor) {
-					tabContainer.style.boxShadow = `${activeTabBorderColor} 0 -1px inset`;
+					// Use boxShadow for the active tab border because if we also have a editor group header
+					// color, the two colors would collide and the tab border never shows up.
+					// see https://github.com/Microsoft/vscode/issues/33111
+					const activeTabBorderColor = this.getColor(this.group.active ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
+					if (activeTabBorderColor) {
+						tabContainer.style.boxShadow = `${activeTabBorderColor} 0 -1px inset`;
+					} else {
+						tabContainer.style.boxShadow = null;
+					}
+
+					this.activeTab = tabContainer;
 				} else {
+					removeClass(tabContainer, 'active');
+					tabContainer.setAttribute('aria-selected', 'false');
+					tabContainer.style.backgroundColor = this.getColor(TAB_INACTIVE_BACKGROUND);
+					tabLabel.element.style.color = this.getColor(this.group.active ? TAB_INACTIVE_FOREGROUND : TAB_UNFOCUSED_INACTIVE_FOREGROUND);
 					tabContainer.style.boxShadow = null;
 				}
-
-				this.activeTab = tabContainer;
-			} else {
-				removeClass(tabContainer, 'active');
-				tabContainer.setAttribute('aria-selected', 'false');
-				tabContainer.style.backgroundColor = this.getColor(TAB_INACTIVE_BACKGROUND);
-				tabLabel.element.style.color = this.getColor(isGroupActive ? TAB_INACTIVE_FOREGROUND : TAB_UNFOCUSED_INACTIVE_FOREGROUND);
-				tabContainer.style.boxShadow = null;
 			}
 
 			// Dirty State
-			if (isEditorDirty) {
-				addClass(tabContainer, 'dirty');
-			} else {
-				removeClass(tabContainer, 'dirty');
+			if (!labelsOnly) {
+				this.updateEditorDirty(editor, tabContainer);
 			}
 		});
 
 		// Update Editor Actions Toolbar
-		this.updateEditorActionsToolbar();
+		if (!labelsOnly) {
+			this.updateEditorActionsToolbar();
+		}
 
 		// Ensure the active tab is always revealed
 		this.layout(this.dimension);
+	}
+
+	private getTabLabels(editors: IEditorInput[]): IEditorInputLabel[] {
+		const labelFormat = 'default'; // TODO@grid support tab options (this.editorGroupService.getTabOptions().labelFormat);
+		const { verbosity, shortenDuplicates } = this.getLabelConfigFlags(labelFormat);
+
+		// Build labels and descriptions for each editor
+		const labels = editors.map(editor => ({
+			editor,
+			name: editor.getName(),
+			description: editor.getDescription(verbosity),
+			title: editor.getTitle(Verbosity.LONG)
+		}));
+
+		// Shorten labels as needed
+		if (shortenDuplicates) {
+			this.shortenTabLabels(labels);
+		}
+
+		return labels;
+	}
+
+	private shortenTabLabels(labels: AugmentedLabel[]): void {
+
+		// Gather duplicate titles, while filtering out invalid descriptions
+		const mapTitleToDuplicates = new Map<string, AugmentedLabel[]>();
+		for (const label of labels) {
+			if (typeof label.description === 'string') {
+				getOrSet(mapTitleToDuplicates, label.name, []).push(label);
+			} else {
+				label.description = '';
+			}
+		}
+
+		// Identify duplicate titles and shorten descriptions
+		mapTitleToDuplicates.forEach(duplicateTitles => {
+
+			// Remove description if the title isn't duplicated
+			if (duplicateTitles.length === 1) {
+				duplicateTitles[0].description = '';
+
+				return;
+			}
+
+			// Identify duplicate descriptions
+			const mapDescriptionToDuplicates = new Map<string, AugmentedLabel[]>();
+			for (const label of duplicateTitles) {
+				getOrSet(mapDescriptionToDuplicates, label.description, []).push(label);
+			}
+
+			// For editors with duplicate descriptions, check whether any long descriptions differ
+			let useLongDescriptions = false;
+			mapDescriptionToDuplicates.forEach((duplicateDescriptions, name) => {
+				if (!useLongDescriptions && duplicateDescriptions.length > 1) {
+					const [first, ...rest] = duplicateDescriptions.map(({ editor }) => editor.getDescription(Verbosity.LONG));
+					useLongDescriptions = rest.some(description => description !== first);
+				}
+			});
+
+			// If so, replace all descriptions with long descriptions
+			if (useLongDescriptions) {
+				mapDescriptionToDuplicates.clear();
+				duplicateTitles.forEach(label => {
+					label.description = label.editor.getDescription(Verbosity.LONG);
+					getOrSet(mapDescriptionToDuplicates, label.description, []).push(label);
+				});
+			}
+
+			// Obtain final set of descriptions
+			const descriptions: string[] = [];
+			mapDescriptionToDuplicates.forEach((_, description) => descriptions.push(description));
+
+			// Remove description if all descriptions are identical
+			if (descriptions.length === 1) {
+				for (const label of mapDescriptionToDuplicates.get(descriptions[0])) {
+					label.description = '';
+				}
+
+				return;
+			}
+
+			// Shorten descriptions
+			const shortenedDescriptions = shorten(descriptions);
+			descriptions.forEach((description, i) => {
+				for (const label of mapDescriptionToDuplicates.get(description)) {
+					label.description = shortenedDescriptions[i];
+				}
+			});
+		});
+	}
+
+	private getLabelConfigFlags(value: string) {
+		switch (value) {
+			case 'short':
+				return { verbosity: Verbosity.SHORT, shortenDuplicates: false };
+			case 'medium':
+				return { verbosity: Verbosity.MEDIUM, shortenDuplicates: false };
+			case 'long':
+				return { verbosity: Verbosity.LONG, shortenDuplicates: false };
+			default:
+				return { verbosity: Verbosity.MEDIUM, shortenDuplicates: true };
+		}
 	}
 
 	layout(dimension: Dimension): void {

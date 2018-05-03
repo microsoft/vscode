@@ -103,9 +103,7 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 	}
 
 	private registerListeners(): void {
-
-		// Update when extensions register so that e.g. actions are properly reflected in the toolbar
-		this._register(this.extensionService.onDidRegisterExtensions(() => this.redraw()));
+		this._register(this.extensionService.onDidRegisterExtensions(() => this.updateEditorActionsToolbar()));
 	}
 
 	protected abstract create(parent: HTMLElement): void;
