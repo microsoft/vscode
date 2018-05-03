@@ -223,7 +223,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 
 	public renderElement(tree: ITree, element: any, templateId: string, templateData: any): void {
 		if (templateId === ReplExpressionsRenderer.VARIABLE_TEMPLATE_ID) {
-			renderVariable(tree, element, templateData, false);
+			renderVariable(element, templateData, false);
 		} else if (templateId === ReplExpressionsRenderer.EXPRESSION_TEMPLATE_ID) {
 			this.renderExpression(tree, element, templateData);
 		} else if (templateId === ReplExpressionsRenderer.SIMPLE_REPL_ELEMENT_TEMPLATE_ID) {

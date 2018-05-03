@@ -50,7 +50,7 @@ export function renderViewTree(container: HTMLElement): HTMLElement {
 	return treeContainer;
 }
 
-function replaceWhitespace(value: string): string {
+export function replaceWhitespace(value: string): string {
 	const map: { [x: string]: string } = { '\n': '\\n', '\r': '\\r', '\t': '\\t' };
 	return value.replace(/[\n\r\t]/g, char => map[char]);
 }
@@ -98,7 +98,7 @@ export function renderExpressionValue(expressionOrValue: IExpression | string, c
 	}
 }
 
-export function renderVariable(tree: ITree, variable: Variable, data: IVariableTemplateData, showChanged: boolean): void {
+export function renderVariable(variable: Variable, data: IVariableTemplateData, showChanged: boolean): void {
 	if (variable.available) {
 		data.name.textContent = replaceWhitespace(variable.name);
 		data.name.title = variable.type ? variable.type : variable.name;

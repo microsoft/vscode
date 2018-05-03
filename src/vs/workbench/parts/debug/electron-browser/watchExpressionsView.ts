@@ -284,7 +284,7 @@ class WatchExpressionsRenderer implements IRenderer {
 		if (templateId === WatchExpressionsRenderer.WATCH_EXPRESSION_TEMPLATE_ID) {
 			this.renderWatchExpression(tree, element, templateData);
 		} else {
-			renderVariable(tree, element, templateData, true);
+			renderVariable(element, templateData, true);
 		}
 	}
 
