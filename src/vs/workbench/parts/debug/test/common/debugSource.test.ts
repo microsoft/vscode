@@ -40,12 +40,12 @@ suite('Debug - Source', () => {
 	});
 
 	test('get encoded debug data', () => {
-		const checkData = (uri: uri, expectedName, expectedPath, expectedSourceReference, expectedProcessId) => {
-			let { name, path, sourceReference, processId } = Source.getEncodedDebugData(uri);
+		const checkData = (uri: uri, expectedName, expectedPath, expectedSourceReference, expectedSessionId) => {
+			let { name, path, sourceReference, sessionId } = Source.getEncodedDebugData(uri);
 			assert.equal(name, expectedName);
 			assert.equal(path, expectedPath);
 			assert.equal(sourceReference, expectedSourceReference);
-			assert.equal(processId, expectedProcessId);
+			assert.equal(sessionId, expectedSessionId);
 		};
 
 		checkData(uri.file('a/b/c/d'), 'd', normalize('/a/b/c/d', true), undefined, undefined);

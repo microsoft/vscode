@@ -86,10 +86,10 @@ export class Source {
 		}, sideBySide);
 	}
 
-	public static getEncodedDebugData(modelUri: uri): { name: string, path: string, processId: string, sourceReference: number } {
+	public static getEncodedDebugData(modelUri: uri): { name: string, path: string, sessionId: string, sourceReference: number } {
 		let path: string;
 		let sourceReference: number;
-		let processId: string;
+		let sessionId: string;
 
 		switch (modelUri.scheme) {
 			case Schemas.file:
@@ -104,7 +104,7 @@ export class Source {
 						if (pair.length === 2) {
 							switch (pair[0]) {
 								case 'session':
-									processId = decodeURIComponent(pair[1]);
+									sessionId = decodeURIComponent(pair[1]);
 									break;
 								case 'ref':
 									sourceReference = parseInt(pair[1]);
@@ -123,7 +123,7 @@ export class Source {
 			name: resources.basenameOrAuthority(modelUri),
 			path,
 			sourceReference,
-			processId
+			sessionId
 		};
 	}
 }

@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { replaceWhitespace, renderExpressionValue, renderVariable } from 'vs/workbench/parts/debug/browser/baseDebugView';
 import * as dom from 'vs/base/browser/dom';
-import { Expression, Variable, Process, Scope, StackFrame, Thread } from 'vs/workbench/parts/debug/common/debugModel';
+import { Expression, Variable, Session, Scope, StackFrame, Thread } from 'vs/workbench/parts/debug/common/debugModel';
 import { MockSession } from 'vs/workbench/parts/debug/test/common/mockDebug';
 const $ = dom.$;
 
@@ -53,12 +53,12 @@ suite('Debug - Base Debug View', () => {
 
 	test('render variable', () => {
 		const rawSession = new MockSession();
-		const process = new Process({ name: 'mockProcess', type: 'node', request: 'launch' }, rawSession);
-		const thread = new Thread(process, 'mockthread', 1);
+		const session = new Session({ name: 'mockSession', type: 'node', request: 'launch' }, rawSession);
+		const thread = new Thread(session, 'mockthread', 1);
 		const stackFrame = new StackFrame(thread, 1, null, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: undefined, endColumn: undefined }, 0);
 		const scope = new Scope(stackFrame, 1, 'local', 1, false, 10, 10);
 
-		let variable = new Variable(process, scope, 2, 'foo', 'bar.foo', undefined, 0, 0, {}, 'string');
+		let variable = new Variable(session, scope, 2, 'foo', 'bar.foo', undefined, 0, 0, {}, 'string');
 		let expression = $('.');
 		let name = $('.');
 		let value = $('.');
@@ -77,7 +77,7 @@ suite('Debug - Base Debug View', () => {
 		assert.equal(name.textContent, 'foo:');
 		assert.equal(name.title, 'string');
 
-		variable = new Variable(process, scope, 2, 'console', 'console', '5', 0, 0, { kind: 'virtual' });
+		variable = new Variable(session, scope, 2, 'console', 'console', '5', 0, 0, { kind: 'virtual' });
 		expression = $('.');
 		name = $('.');
 		value = $('.');

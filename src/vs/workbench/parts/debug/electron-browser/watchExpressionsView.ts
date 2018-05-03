@@ -214,7 +214,7 @@ class WatchExpressionsDataSource implements IDataSource {
 		if (element instanceof Model) {
 			const viewModel = this.debugService.getViewModel();
 			return TPromise.join(element.getWatchExpressions().map(we =>
-				we.name ? we.evaluate(viewModel.focusedProcess, viewModel.focusedStackFrame, 'watch').then(() => we) : TPromise.as(we)));
+				we.name ? we.evaluate(viewModel.focusedSession, viewModel.focusedStackFrame, 'watch').then(() => we) : TPromise.as(we)));
 		}
 
 		let expression = <Expression>element;

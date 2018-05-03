@@ -64,7 +64,7 @@ export class SocketDebugAdapter extends StreamDebugAdapter {
 	}
 }
 
-export class RawDebugSession implements debug.ISession {
+export class RawDebugSession implements debug.IRawSession {
 
 	private debugAdapter: debug.IDebugAdapter;
 

@@ -142,7 +142,7 @@ export class DebugHoverWidget implements IContentWidget {
 	public showAt(range: Range, focus: boolean): TPromise<void> {
 		const pos = range.getStartPosition();
 
-		const process = this.debugService.getViewModel().focusedProcess;
+		const session = this.debugService.getViewModel().focusedSession;
 		const lineContent = this.editor.getModel().getLineContent(pos.lineNumber);
 		const { start, end } = getExactExpressionStartAndEnd(lineContent, range.startColumn, range.endColumn);
 		// use regex to extract the sub-expression #9821
@@ -152,9 +152,9 @@ export class DebugHoverWidget implements IContentWidget {
 		}
 
 		let promise: TPromise<IExpression>;
-		if (process.session.capabilities.supportsEvaluateForHovers) {
+		if (session.raw.capabilities.supportsEvaluateForHovers) {
 			const result = new Expression(matchingExpression);
-			promise = result.evaluate(process, this.debugService.getViewModel().focusedStackFrame, 'hover').then(() => result);
+			promise = result.evaluate(session, this.debugService.getViewModel().focusedStackFrame, 'hover').then(() => result);
 		} else {
 			promise = this.findExpressionInStackFrame(matchingExpression.split('.').map(word => word.trim()).filter(word => !!word));
 		}
