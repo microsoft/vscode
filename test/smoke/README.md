@@ -16,7 +16,7 @@ You must always run the smoketest version which matches the release you are test
 
 ```
 git checkout release/1.22
-cd test/smoke &&  yarn && yarn compile
+yarn
 yarn smoketest --build PATH_TO_RELEASE_BUILD
 ```
 
