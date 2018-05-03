@@ -33,7 +33,7 @@ TODO:
 		of the next view could be to a) check on the same dimension first (left/up) and
 		then go one dimension up.
 - create grid wrapper which automatically sizes the new views
-- implement serialization/deserialization util
+- implement serialization/deserialization util 
 */
 
 function orthogonal(orientation: Orientation): Orientation {
