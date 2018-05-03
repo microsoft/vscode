@@ -12,8 +12,8 @@ import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel } from 'vs/workbench/browser/labels';
-import { ITree, IDataSource, IAccessibilityProvider, IFilter, IRenderer, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
-import { Match, SearchResult, FileMatch, FileMatchOrMatch, SearchModel, FolderMatch } from 'vs/workbench/parts/search/common/searchModel';
+import { ITree, IDataSource, IAccessibilityProvider, IFilter, IRenderer, ContextMenuEvent, ISorter } from 'vs/base/parts/tree/browser/tree';
+import { Match, SearchResult, FileMatch, FileMatchOrMatch, SearchModel, FolderMatch, searchMatchComparer, RenderableMatch } from 'vs/workbench/parts/search/common/searchModel';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
 import { RemoveAction, ReplaceAllAction, ReplaceAction, ReplaceAllInFolderAction } from 'vs/workbench/parts/search/browser/searchActions';
@@ -110,6 +110,11 @@ export class SearchDataSource implements IDataSource {
 	}
 }
 
+export class SearchSorter implements ISorter {
+	public compare(tree: ITree, elementA: RenderableMatch, elementB: RenderableMatch): number {
+		return searchMatchComparer(elementA, elementB);
+	}
+}
 
 interface IFolderMatchTemplate {
 	label: FileLabel;
