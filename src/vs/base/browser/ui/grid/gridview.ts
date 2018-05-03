@@ -55,16 +55,6 @@ export class GridBranchNode {
 
 export type GridNode = GridLeafNode | GridBranchNode;
 
-export interface IGrid {
-	layout(width: number, height: number): void;
-	addView(view: IView, size: number, location: number[]): void;
-	removeView(location: number[]): void;
-	swapViews(from: number[], to: number[]): void;
-	resizeView(location: number[], size: number): void;
-	getViewSize(location: number[]): number;
-	getViews(): GridBranchNode;
-}
-
 class BranchNode implements ISplitView, IDisposable {
 
 	readonly element: HTMLElement;
@@ -286,7 +276,7 @@ function flipNode(node: Node, size: number, orthogonalSize: number): Node {
 	}
 }
 
-export class GridView implements IGrid, IDisposable {
+export class GridView implements IDisposable {
 
 	private element: HTMLElement;
 	private root: BranchNode;
