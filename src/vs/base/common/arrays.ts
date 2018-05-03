@@ -16,6 +16,14 @@ export function tail<T>(array: T[], n: number = 0): T {
 	return array[array.length - (1 + n)];
 }
 
+export function tail2<T>(arr: T[]): [T[], T] {
+	if (arr.length === 0) {
+		throw new Error('Invalid tail call');
+	}
+
+	return [arr.slice(0, arr.length - 1), arr[arr.length - 1]];
+}
+
 export function equals<T>(one: T[], other: T[], itemEquals: (a: T, b: T) => boolean = (a, b) => a === b): boolean {
 	if (one.length !== other.length) {
 		return false;

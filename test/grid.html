@@ -27,7 +27,7 @@
 			_debug(grid.gridview.root);
 		}
 
-		require(['vs/base/browser/ui/grid/gridview', 'vs/base/common/event'], ({ GridWidget, Direction }, { Event }) => {
+		require(['vs/base/browser/ui/grid/grid', 'vs/base/common/event'], ({ Grid, Direction }, { Event }) => {
 			let dragging;
 			let draggingOver;
 
@@ -106,7 +106,7 @@
 			// document.body.appendChild(box);
 
 			const view1 = createView();
-			const grid = new GridWidget(document.body, view1);
+			const grid = new Grid(document.body, view1);
 			const layout = () => grid.layout(document.body.clientWidth, document.body.clientHeight);
 			window.onresize = () => {
 				layout();
