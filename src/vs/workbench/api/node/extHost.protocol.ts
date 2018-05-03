@@ -258,6 +258,7 @@ export interface ISerializedDocumentFilter {
 	language?: string;
 	scheme?: string;
 	pattern?: vscode.GlobPattern;
+	exclusive?: boolean;
 }
 
 export interface MainThreadLanguageFeaturesShape extends IDisposable {

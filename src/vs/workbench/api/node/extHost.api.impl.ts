@@ -147,18 +147,23 @@ export function createApiFactory(
 		// we cannot say if the extension is doing it right or wrong...
 		let checkSelector = (function () {
 			let done = initData.environment.extensionDevelopmentPath !== extension.extensionFolderPath;
-			function inform(selector: vscode.DocumentSelector) {
-				console.info(`Extension '${extension.id}' uses a document selector without scheme. Learn more about this: https://go.microsoft.com/fwlink/?linkid=872305`);
-				done = true;
+			function informOnce(selector: vscode.DocumentSelector) {
+				if (!done) {
+					console.info(`Extension '${extension.id}' uses a document selector without scheme. Learn more about this: https://go.microsoft.com/fwlink/?linkid=872305`);
+					done = true;
+				}
 			}
 			return function perform(selector: vscode.DocumentSelector): vscode.DocumentSelector {
-				if (!done) {
-					if (Array.isArray(selector)) {
-						selector.forEach(perform);
-					} else if (typeof selector === 'string') {
-						inform(selector);
-					} else if (typeof selector.scheme === 'undefined') {
-						inform(selector);
+				if (Array.isArray(selector)) {
+					selector.forEach(perform);
+				} else if (typeof selector === 'string') {
+					informOnce(selector);
+				} else {
+					if (typeof selector.scheme === 'undefined') {
+						informOnce(selector);
+					}
+					if (!extension.enableProposedApi && typeof selector.exclusive === 'boolean') {
+						throwProposedApiError(extension);
 					}
 				}
 				return selector;
