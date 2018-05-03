@@ -201,16 +201,16 @@ export default class TypeScriptQuickFixProvider implements vscode.CodeActionProv
 		document: vscode.TextDocument,
 		file: string,
 		diagnostic: vscode.Diagnostic,
-		tsAction: Proto.CodeFixAction
+		tsAction: Proto.CodeAction
 	): Promise<Iterable<vscode.CodeAction>> {
 		const singleFix = this.getSingleFixForTsCodeAction(diagnostic, tsAction);
-		const fixAll = await this.getFixAllForTsCodeAction(document, file, diagnostic, tsAction);
+		const fixAll = await this.getFixAllForTsCodeAction(document, file, diagnostic, tsAction as Proto.CodeFixAction);
 		return fixAll ? [singleFix, fixAll] : [singleFix];
 	}
 
 	private getSingleFixForTsCodeAction(
 		diagnostic: vscode.Diagnostic,
-		tsAction: Proto.CodeFixAction
+		tsAction: Proto.CodeAction
 	): vscode.CodeAction {
 		const codeAction = new vscode.CodeAction(tsAction.description, vscode.CodeActionKind.QuickFix);
 		codeAction.edit = getEditForCodeAction(this.client, tsAction);

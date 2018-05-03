@@ -9,9 +9,6 @@ import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as languageIds from '../utils/languageModeIds';
 
-// TODO: for TS 2.8
-type UserPreferences = any;
-
 function objsAreEqual<T>(a: T, b: T): boolean {
 	let keys = Object.keys(a);
 	for (let i = 0; i < keys.length; i++) {
@@ -25,7 +22,7 @@ function objsAreEqual<T>(a: T, b: T): boolean {
 
 interface FileConfiguration {
 	formatOptions: Proto.FormatCodeSettings;
-	preferences: UserPreferences;
+	preferences: Proto.UserPreferences;
 }
 
 function areFileConfigurationsEqual(a: FileConfiguration, b: FileConfiguration): boolean {
@@ -146,7 +143,7 @@ export default class FileConfigurationManager {
 		};
 	}
 
-	private getPreferences(document: TextDocument): UserPreferences {
+	private getPreferences(document: TextDocument): Proto.UserPreferences {
 		if (!this.client.apiVersion.has290Features()) {
 			return {};
 		}
