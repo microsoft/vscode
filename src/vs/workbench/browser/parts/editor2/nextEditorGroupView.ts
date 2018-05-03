@@ -37,6 +37,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RunOnceWorker } from 'vs/base/common/async';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
+import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 
 export interface IGroupsAccessor {
 	readonly groups: NextEditorGroupView[];
@@ -247,7 +248,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 		// Forward to title control
 		if (this.titleAreaControl) {
-			this.titleAreaControl.updateEditorLabel(editor);
+			this.titleAreaControl.updateEditorDirty(editor);
 		}
 	}
 
@@ -266,30 +267,10 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		// Container
 		addClasses(this.element, 'editor-group-container');
 
-		const containerFocusTracker = this._register(trackFocus(this.element));
-		this._register(containerFocusTracker.onDidFocus(() => {
-			if (this.isEmpty()) {
-				this._onDidFocus.fire(); // only when empty to prevent accident focus
-			}
-		}));
-
 		// Title container
 		this.titleContainer = document.createElement('div');
 		addClasses(this.titleContainer, 'title', 'tabs', 'show-file-icons'); // TODO@grid support tab/icon options
 		this.element.appendChild(this.titleContainer);
-		this._register(addDisposableListener(this.titleContainer, EventType.MOUSE_UP, (e: MouseEvent) => {
-			if (e.button !== 0) {
-				return; // only left-mouse-click
-			}
-
-			const target = e.target as HTMLElement;
-			if (findParentWithClass(target, 'monaco-action-bar', this.titleContainer)) {
-				return; // not when clicking on actions
-			}
-
-			EventHelper.stop(e);
-			this.focus();
-		}));
 
 		// Progress bar
 		this.progressBar = this._register(new ProgressBar(this.element));
@@ -301,16 +282,56 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		addClass(this.editorContainer, 'editor-container');
 		this.element.appendChild(this.editorContainer);
 
-		const editorFocusTracker = this._register(trackFocus(this.editorContainer));
-		this._register(editorFocusTracker.onDidFocus(() => {
-			this._onDidFocus.fire();
-		}));
-
 		// Update styles
 		this.updateStyles();
 
 		// Update container
 		this.updateContainer();
+
+		// Track Focus
+		this.doTrackFocus();
+	}
+
+	private doTrackFocus(): void {
+
+		// Container
+		const containerFocusTracker = this._register(trackFocus(this.element));
+		this._register(containerFocusTracker.onDidFocus(() => {
+			if (this.isEmpty()) {
+				this._onDidFocus.fire(); // only when empty to prevent accident focus
+			}
+		}));
+
+		// Title Container
+		const handleTitleClickOrTouch = (e: MouseEvent | GestureEvent): void => {
+			let target: HTMLElement;
+			if (e instanceof MouseEvent) {
+				if (e.button !== 0) {
+					return void 0; // only for left mouse click
+				}
+
+				target = e.target as HTMLElement;
+			} else {
+				target = (e as GestureEvent).initialTarget as HTMLElement;
+			}
+
+			if (findParentWithClass(target, 'monaco-action-bar', this.titleContainer)) {
+				return; // not when clicking on actions
+			}
+
+			EventHelper.stop(e);
+
+			this.focus();
+		};
+
+		this._register(addDisposableListener(this.titleContainer, EventType.MOUSE_UP, e => handleTitleClickOrTouch(e)));
+		this._register(addDisposableListener(this.titleContainer, TouchEventType.Tap, e => handleTitleClickOrTouch(e)));
+
+		// Editor Container
+		const editorFocusTracker = this._register(trackFocus(this.editorContainer));
+		this._register(editorFocusTracker.onDidFocus(() => {
+			this._onDidFocus.fire();
+		}));
 	}
 
 	private updateContainer(): void {
@@ -420,7 +441,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		this.group.openEditor(editor, openEditorOptions);
 
 		// Forward to title control
-		this.doCreateOrGetTitleControl().openEditor(editor, options);
+		this.doCreateOrGetTitleControl().openEditor(editor);
 
 		// Forward to editor control if the editor should become active
 		let openEditorPromise: Thenable<void>;

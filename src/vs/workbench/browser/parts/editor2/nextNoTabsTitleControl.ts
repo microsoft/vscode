@@ -9,7 +9,7 @@ import 'vs/css!./media/nextNoTabsTitleControl';
 import { toResource } from 'vs/workbench/common/editor';
 import { NextTitleControl } from 'vs/workbench/browser/parts/editor2/nextTitleControl';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
-import { Verbosity } from 'vs/platform/editor/common/editor';
+import { Verbosity, IEditorInput } from 'vs/platform/editor/common/editor';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { addDisposableListener, EventType, addClass, EventHelper, removeClass } from 'vs/base/browser/dom';
@@ -17,8 +17,10 @@ import { addDisposableListener, EventType, addClass, EventHelper, removeClass } 
 export class NextNoTabsTitleControl extends NextTitleControl {
 	private titleContainer: HTMLElement;
 	private editorLabel: ResourceLabel;
+	private lastRenderedEditor: IEditorInput;
+	private isActive: boolean;
 
-	protected doCreate(parent: HTMLElement): void {
+	protected create(parent: HTMLElement): void {
 		this.titleContainer = parent;
 
 		// Gesture Support
@@ -71,9 +73,63 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 		}
 	}
 
-	protected doRefresh(): void {
+	openEditor(editor: IEditorInput): void {
+		this.ifActiveEditorChanged(() => this.redraw());
+	}
+
+	closeEditor(editor: IEditorInput): void {
+		this.ifActiveEditorChanged(() => this.redraw());
+	}
+
+	moveEditor(editor: IEditorInput, targetIndex: number): void {
+		this.ifActiveEditorChanged(() => this.redraw());
+	}
+
+	pinEditor(editor: IEditorInput): void {
+		this.ifEditorIsActive(editor, () => this.redraw());
+	}
+
+	setActive(isActive: boolean): void {
+		if (this.isActive !== isActive) {
+			this.isActive = isActive;
+
+			this.redraw();
+		}
+	}
+
+	updateEditorLabel(editor: IEditorInput): void {
+		this.ifEditorIsActive(editor, () => this.redraw());
+	}
+
+	updateEditorDirty(editor: IEditorInput): void {
+		this.ifEditorIsActive(editor, () => {
+			if (editor.isDirty()) {
+				addClass(this.titleContainer, 'dirty');
+			} else {
+				removeClass(this.titleContainer, 'dirty');
+			}
+		});
+	}
+
+	private ifActiveEditorChanged(fn: () => void): void {
+		if (this.lastRenderedEditor !== this.group.activeEditor) {
+			fn(); // only run if active editor changed
+		}
+	}
+
+	private ifEditorIsActive(editor: IEditorInput, fn: () => void): void {
+		if (editor === this.group.activeEditor) {
+			fn();  // only run if editor is current active
+		}
+	}
+
+	protected redraw(): void {
 		const editor = this.group.activeEditor;
+		this.lastRenderedEditor = editor;
+
+		// Clear if there is no editor
 		if (!editor) {
+			removeClass(this.titleContainer, 'dirty');
 			this.editorLabel.clear();
 			this.clearEditorActionsToolbar();
 
@@ -84,11 +140,7 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 		const isGroupActive = this.group.active;
 
 		// Dirty state
-		if (editor.isDirty()) {
-			addClass(this.titleContainer, 'dirty');
-		} else {
-			removeClass(this.titleContainer, 'dirty');
-		}
+		this.updateEditorDirty(editor);
 
 		// Editor Label
 		const resource = toResource(editor, { supportSideBySide: true });

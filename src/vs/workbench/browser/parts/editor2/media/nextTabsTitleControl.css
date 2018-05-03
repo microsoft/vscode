@@ -5,10 +5,6 @@
 
 /* Title Container */
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title.empty {
-	background: inherit !important; /* prevents some ugly flickering when opening first tab */
-}
-
 .monaco-workbench > .part.editor > .content .editor-group-container > .title.tabs > .monaco-scrollable-element {
 	flex: 1;
 }

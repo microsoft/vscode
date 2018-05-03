@@ -41,7 +41,6 @@ import { INextEditorGroup } from 'vs/workbench/services/editor/common/nextEditor
 import { IGroupsAccessor } from 'vs/workbench/browser/parts/editor2/nextEditorGroupView';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { addClass, addDisposableListener, hasClass, EventType, EventHelper, removeClass, clearNode, Dimension, scheduleAtNextAnimationFrame, findParentWithClass } from 'vs/base/browser/dom';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { localize } from 'vs/nls';
 
 interface IEditorInputLabel {
@@ -53,16 +52,20 @@ interface IEditorInputLabel {
 type AugmentedLabel = IEditorInputLabel & { editor: IEditorInput };
 
 export class NextTabsTitleControl extends NextTitleControl {
+
 	private titleContainer: HTMLElement;
 	private tabsContainer: HTMLElement;
 	private editorToolbarContainer: HTMLElement;
-	private activeTab: HTMLElement;
-	private editorLabels: ResourceLabel[];
 	private scrollbar: ScrollableElement;
-	private tabDisposeables: IDisposable[];
-	private blockRevealActiveTab: boolean;
+
+	private activeTab: HTMLElement;
+	private editorLabels: ResourceLabel[] = [];
+	private tabDisposeables: IDisposable[] = [];
+
 	private dimension: Dimension;
 	private layoutScheduled: IDisposable;
+	private blockRevealActiveTab: boolean;
+
 	private transfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 
 	constructor(
@@ -82,12 +85,9 @@ export class NextTabsTitleControl extends NextTitleControl {
 		@IExtensionService extensionService: IExtensionService
 	) {
 		super(parent, groupsAccessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickOpenService, themeService, extensionService);
-
-		this.tabDisposeables = [];
-		this.editorLabels = [];
 	}
 
-	protected doCreate(parent: HTMLElement): void {
+	protected create(parent: HTMLElement): void {
 		this.titleContainer = parent;
 
 		// Tabs Container
@@ -114,9 +114,10 @@ export class NextTabsTitleControl extends NextTitleControl {
 			}
 		}));
 
+		// Prevent auto-scrolling (https://github.com/Microsoft/vscode/issues/16690)
 		this._register(addDisposableListener(this.tabsContainer, EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			if (e.button === 1) {
-				e.preventDefault(); // required to prevent auto-scrolling (https://github.com/Microsoft/vscode/issues/16690)
+				e.preventDefault();
 			}
 		}));
 
@@ -218,97 +219,118 @@ export class NextTabsTitleControl extends NextTitleControl {
 		}
 	}
 
-	protected doUpdate(): void {
+	openEditor(editor: IEditorInput): void {
+		this.recreate(); // TODO@grid optimize
+	}
 
-		// Compute labels and protect against duplicates
-		const editorsOfGroup = this.group.editors;
-		const labels = this.getTabLabels(editorsOfGroup);
+	closeEditor(editor: IEditorInput): void {
+		this.recreate(); // TODO@grid optimize
+	}
 
-		// Tab label and styles
-		const isGroupActive = this.group.active;
-		editorsOfGroup.forEach((editor, index) => {
-			const tabContainer = this.tabsContainer.children[index] as HTMLElement;
-			if (!tabContainer) {
-				return; // could be a race condition between updating tabs and creating tabs
+	moveEditor(editor: IEditorInput, targetIndex: number): void {
+		this.recreate(); // TODO@grid optimize
+	}
+
+	pinEditor(editor: IEditorInput): void {
+		this.redraw(); // TODO@grid optimize
+	}
+
+	setActive(isActive: boolean): void {
+		this.redraw(); // TODO@grid optimize
+	}
+
+	updateEditorLabel(editor: IEditorInput): void {
+		this.redraw(); // TODO@grid optimize
+	}
+
+	updateEditorDirty(editor: IEditorInput): void {
+		this.redraw(); // TODO@grid optimize
+	}
+
+	private recreate(): void {
+
+		// There are tabs to show
+		if (this.group.activeEditor) {
+
+			// Create tabs as needed
+			this.createTabs();
+
+			// Redraw tabs
+			this.redraw();
+		}
+
+		// No tabs to show
+		else {
+			clearNode(this.tabsContainer);
+
+			this.tabDisposeables = dispose(this.tabDisposeables);
+			this.editorLabels = [];
+
+			this.clearEditorActionsToolbar();
+		}
+	}
+
+	private createTabs(): void {
+		const tabs = this.tabsContainer.children;
+		const tabsCount = tabs.length;
+		const tabsNeeded = this.group.count;
+
+		// Nothing to do if count did not change
+		if (tabsCount === tabsNeeded) {
+			return;
+		}
+
+		// We need more tabs: create new ones
+		if (tabsCount < tabsNeeded) {
+			for (let i = tabsCount; i < tabsNeeded; i++) {
+				this.tabsContainer.appendChild(this.createTab(i));
 			}
+		}
 
-			const isEditorPinned = this.group.isPinned(editor);
-			const isEditorActive = this.group.isActive(editor);
-			const isEditorDirty = editor.isDirty();
-
-			const label = labels[index];
-			const name = label.name;
-			const description = label.description || '';
-			const title = label.title || '';
-
-			// Container
-			tabContainer.setAttribute('aria-label', `${name}, tab`);
-			tabContainer.title = title;
-			tabContainer.style.borderLeftColor = (index !== 0) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
-			tabContainer.style.borderRightColor = (index === editorsOfGroup.length - 1) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
-			tabContainer.style.outlineColor = this.getColor(activeContrastBorder);
-
-			const tabOptions = {} as IEditorTabOptions; // TODO@grid support tab options (this.editorGroupService.getTabOptions());
-
-			['off', 'left', 'right'].forEach(option => {
-				const domAction = tabOptions.tabCloseButton === option ? addClass : removeClass;
-				domAction(tabContainer, `close-button-${option}`);
-			});
-
-			['fit', 'shrink'].forEach(option => {
-				const domAction = tabOptions.tabSizing === option ? addClass : removeClass;
-				domAction(tabContainer, `sizing-${option}`);
-			});
-
-			if (tabOptions.showIcons && !!tabOptions.iconTheme) {
-				addClass(tabContainer, 'has-icon-theme');
-			} else {
-				removeClass(tabContainer, 'has-icon-theme');
+		// We need less tabs: delete the ones we do not need
+		else {
+			for (let i = 0; i < tabsCount - tabsNeeded; i++) {
+				(this.tabsContainer.lastChild as HTMLElement).remove();
+				this.editorLabels.pop();
+				this.tabDisposeables.pop().dispose();
 			}
+		}
+	}
 
-			// Label
-			const tabLabel = this.editorLabels[index];
-			tabLabel.setLabel({ name, description, resource: toResource(editor, { supportSideBySide: true }) }, { extraClasses: ['tab-label'], italic: !isEditorPinned });
+	private createTab(index: number): HTMLElement {
 
-			// Active state
-			if (isEditorActive) {
-				addClass(tabContainer, 'active');
-				tabContainer.setAttribute('aria-selected', 'true');
-				tabContainer.style.backgroundColor = this.getColor(TAB_ACTIVE_BACKGROUND);
-				tabLabel.element.style.color = this.getColor(isGroupActive ? TAB_ACTIVE_FOREGROUND : TAB_UNFOCUSED_ACTIVE_FOREGROUND);
+		// Tab Container
+		const tabContainer = document.createElement('div');
+		tabContainer.draggable = true;
+		tabContainer.tabIndex = 0;
+		tabContainer.setAttribute('role', 'presentation'); // cannot use role "tab" here due to https://github.com/Microsoft/vscode/issues/8659
+		addClass(tabContainer, 'tab');
 
-				// Use boxShadow for the active tab border because if we also have a editor group header
-				// color, the two colors would collide and the tab border never shows up.
-				// see https://github.com/Microsoft/vscode/issues/33111
-				const activeTabBorderColor = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
-				if (activeTabBorderColor) {
-					tabContainer.style.boxShadow = `${activeTabBorderColor} 0 -1px inset`;
-				} else {
-					tabContainer.style.boxShadow = null;
-				}
+		// Gesture Support
+		Gesture.addTarget(tabContainer);
 
-				this.activeTab = tabContainer;
-			} else {
-				removeClass(tabContainer, 'active');
-				tabContainer.setAttribute('aria-selected', 'false');
-				tabContainer.style.backgroundColor = this.getColor(TAB_INACTIVE_BACKGROUND);
-				tabLabel.element.style.color = this.getColor(isGroupActive ? TAB_INACTIVE_FOREGROUND : TAB_UNFOCUSED_INACTIVE_FOREGROUND);
-				tabContainer.style.boxShadow = null;
-			}
+		// Tab Editor Label
+		const editorLabel = this.instantiationService.createInstance(ResourceLabel, tabContainer, void 0);
+		this.editorLabels.push(editorLabel);
 
-			// Dirty State
-			if (isEditorDirty) {
-				addClass(tabContainer, 'dirty');
-			} else {
-				removeClass(tabContainer, 'dirty');
-			}
-		});
+		// Tab Close
+		const tabCloseContainer = document.createElement('div');
+		addClass(tabCloseContainer, 'tab-close');
+		tabContainer.appendChild(tabCloseContainer);
 
-		// Update Editor Actions Toolbar
-		this.updateEditorActionsToolbar();
+		const actionRunner = new TabActionRunner(() => this.group.id, index);
+		this.tabDisposeables.push(actionRunner);
 
-		// Ensure the active tab is always revealed
-		this.layout(this.dimension);
+		const actionBar = new ActionBar(tabCloseContainer, { ariaLabel: localize('araLabelTabActions', "Tab actions"), actionRunner });
+		actionBar.push(this.closeOneEditorAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.closeOneEditorAction) });
+		actionBar.onDidBeforeRun(() => this.blockRevealActiveTabOnce());
+
+		// Eventing
+		const eventsDisposable = this.hookTabListeners(tabContainer, index);
+
+		this.tabDisposeables.push(combinedDisposable([eventsDisposable, actionBar, editorLabel]));
+
+		return tabContainer;
 	}
 
 	private getTabLabels(editors: IEditorInput[]): IEditorInputLabel[] {
@@ -413,163 +435,6 @@ export class NextTabsTitleControl extends NextTitleControl {
 		}
 	}
 
-	protected doRefresh(): void {
-		const editor = this.group.activeEditor;
-		if (!editor) {
-			this.clearTabs();
-			this.clearEditorActionsToolbar();
-
-			return;
-		}
-
-		// Handle Tabs
-		this.handleTabs(this.group.count);
-		removeClass(this.titleContainer, 'empty');
-
-		// Update Tabs
-		this.doUpdate();
-	}
-
-	private clearTabs(): void {
-		clearNode(this.tabsContainer);
-
-		this.tabDisposeables = dispose(this.tabDisposeables);
-		this.editorLabels = [];
-
-		addClass(this.titleContainer, 'empty');
-	}
-
-	private handleTabs(tabsNeeded: number): void {
-		const tabs = this.tabsContainer.children;
-		const tabsCount = tabs.length;
-
-		// Nothing to do if count did not change
-		if (tabsCount === tabsNeeded) {
-			return;
-		}
-
-		// We need more tabs: create new ones
-		if (tabsCount < tabsNeeded) {
-			for (let i = tabsCount; i < tabsNeeded; i++) {
-				this.tabsContainer.appendChild(this.createTab(i));
-			}
-		}
-
-		// We need less tabs: delete the ones we do not need
-		else {
-			for (let i = 0; i < tabsCount - tabsNeeded; i++) {
-				(this.tabsContainer.lastChild as HTMLElement).remove();
-				this.editorLabels.pop();
-				this.tabDisposeables.pop().dispose();
-			}
-		}
-	}
-
-	private createTab(index: number): HTMLElement {
-
-		// Tab Container
-		const tabContainer = document.createElement('div');
-		tabContainer.draggable = true;
-		tabContainer.tabIndex = 0;
-		tabContainer.setAttribute('role', 'presentation'); // cannot use role "tab" here due to https://github.com/Microsoft/vscode/issues/8659
-		addClass(tabContainer, 'tab');
-
-		// Gesture Support
-		Gesture.addTarget(tabContainer);
-
-		// Tab Editor Label
-		const editorLabel = this.instantiationService.createInstance(ResourceLabel, tabContainer, void 0);
-		this.editorLabels.push(editorLabel);
-
-		// Tab Close
-		const tabCloseContainer = document.createElement('div');
-		addClass(tabCloseContainer, 'tab-close');
-		tabContainer.appendChild(tabCloseContainer);
-
-		const actionRunner = new TabActionRunner(() => this.group.id, index);
-		this.tabDisposeables.push(actionRunner);
-
-		const bar = new ActionBar(tabCloseContainer, { ariaLabel: localize('araLabelTabActions', "Tab actions"), actionRunner });
-		bar.push(this.closeOneEditorAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.closeOneEditorAction) });
-		bar.onDidBeforeRun(() => {
-
-			// When closing tabs through the tab close button, the user might want to 
-			// rapidly close tabs in sequence and as such revealing the active tab
-			// after each close would be annoying. As such we block the automated
-			// revealing of the active tab once after the close is triggered.
-			this.blockRevealActiveTab = true;
-		});
-
-		// Eventing
-		const disposable = this.hookTabListeners(tabContainer, index);
-
-		this.tabDisposeables.push(combinedDisposable([disposable, bar, editorLabel]));
-
-		return tabContainer;
-	}
-
-	layout(dimension: Dimension): void {
-		if (!this.activeTab || !dimension) {
-			return;
-		}
-
-		this.dimension = dimension;
-
-		// The layout of tabs can be an expensive operation because we access DOM properties
-		// that can result in the browser doing a full page layout to validate them. To buffer
-		// this a little bit we try at least to schedule this work on the next animation frame.
-		if (!this.layoutScheduled) {
-			this.layoutScheduled = scheduleAtNextAnimationFrame(() => {
-				this.doLayout(this.dimension);
-				this.layoutScheduled = void 0;
-			});
-		}
-	}
-
-	private doLayout(dimension: Dimension): void {
-		const visibleContainerWidth = this.tabsContainer.offsetWidth;
-		const totalContainerWidth = this.tabsContainer.scrollWidth;
-
-		let activeTabPosX: number;
-		let activeTabWidth: number;
-
-		if (!this.blockRevealActiveTab) {
-			activeTabPosX = this.activeTab.offsetLeft;
-			activeTabWidth = this.activeTab.offsetWidth;
-		}
-
-		// Update scrollbar
-		this.scrollbar.setScrollDimensions({
-			width: visibleContainerWidth,
-			scrollWidth: totalContainerWidth
-		});
-
-		// Return now if we are blocked to reveal the active tab and clear flag
-		if (this.blockRevealActiveTab) {
-			this.blockRevealActiveTab = false;
-			return;
-		}
-
-		// Reveal the active one
-		const containerScrollPosX = this.scrollbar.getScrollPosition().scrollLeft;
-		const activeTabFits = activeTabWidth <= visibleContainerWidth;
-
-		// Tab is overflowing to the right: Scroll minimally until the element is fully visible to the right
-		// Note: only try to do this if we actually have enough width to give to show the tab fully!
-		if (activeTabFits && containerScrollPosX + visibleContainerWidth < activeTabPosX + activeTabWidth) {
-			this.scrollbar.setScrollPosition({
-				scrollLeft: containerScrollPosX + ((activeTabPosX + activeTabWidth) /* right corner of tab */ - (containerScrollPosX + visibleContainerWidth) /* right corner of view port */)
-			});
-		}
-
-		// Tab is overlflowng to the left or does not fit: Scroll it into view to the left
-		else if (containerScrollPosX > activeTabPosX || !activeTabFits) {
-			this.scrollbar.setScrollPosition({
-				scrollLeft: activeTabPosX
-			});
-		}
-	}
-
 	private hookTabListeners(tab: HTMLElement, index: number): IDisposable {
 		const disposables: IDisposable[] = [];
 
@@ -584,7 +449,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 				return void 0; // only for left mouse click
 			}
 
-			if (!this.isTabActionBar(((e as GestureEvent).initialTarget || e.target || e.srcElement) as HTMLElement)) {
+			if (!this.originatesFromTabActionBar(e)) {
 				setTimeout(() => this.group.openEditor(this.group.getEditor(index))); // timeout to keep focus in editor after mouse up
 			}
 
@@ -597,10 +462,8 @@ export class NextTabsTitleControl extends NextTitleControl {
 			this.onContextMenu(this.group.getEditor(index), e, tab);
 		};
 
-		// Open on Click
+		// Open on Click / Touch
 		disposables.push(addDisposableListener(tab, EventType.MOUSE_DOWN, (e: MouseEvent) => handleClickOrTouch(e)));
-
-		// Open on Touch
 		disposables.push(addDisposableListener(tab, TouchEventType.Tap, (e: GestureEvent) => handleClickOrTouch(e)));
 
 		// Touch Scroll Support
@@ -611,10 +474,12 @@ export class NextTabsTitleControl extends NextTitleControl {
 		// Close on mouse middle click
 		disposables.push(addDisposableListener(tab, EventType.MOUSE_UP, (e: MouseEvent) => {
 			EventHelper.stop(e);
+
 			tab.blur();
 
-			if (e.button === 1 /* Middle Button*/ && !this.isTabActionBar((e.target || e.srcElement) as HTMLElement)) {
-				this.closeOneEditorAction.run({ groupId: this.group.id, editorIndex: index }).done(null, onUnexpectedError);
+			if (e.button === 1 /* Middle Button*/ && !this.originatesFromTabActionBar(e)) {
+				this.blockRevealActiveTabOnce();
+				this.closeOneEditorAction.run({ groupId: this.group.id, editorIndex: index });
 			}
 		}));
 
@@ -762,7 +627,179 @@ export class NextTabsTitleControl extends NextTitleControl {
 		return combinedDisposable(disposables);
 	}
 
-	private isTabActionBar(element: HTMLElement): boolean {
+	protected redraw(): void {
+
+		// Compute labels and protect against duplicates
+		const editorsOfGroup = this.group.editors;
+		const labels = this.getTabLabels(editorsOfGroup);
+
+		// Tab label and styles
+		const isGroupActive = this.group.active;
+		editorsOfGroup.forEach((editor, index) => {
+			const tabContainer = this.tabsContainer.children[index] as HTMLElement;
+			if (!tabContainer) {
+				return; // could be a race condition between updating tabs and creating tabs
+			}
+
+			const isEditorPinned = this.group.isPinned(editor);
+			const isEditorActive = this.group.isActive(editor);
+			const isEditorDirty = editor.isDirty();
+
+			const label = labels[index];
+			const name = label.name;
+			const description = label.description || '';
+			const title = label.title || '';
+
+			// Container
+			tabContainer.setAttribute('aria-label', `${name}, tab`);
+			tabContainer.title = title;
+			tabContainer.style.borderLeftColor = (index !== 0) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
+			tabContainer.style.borderRightColor = (index === editorsOfGroup.length - 1) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
+			tabContainer.style.outlineColor = this.getColor(activeContrastBorder);
+
+			const tabOptions = {} as IEditorTabOptions; // TODO@grid support tab options (this.editorGroupService.getTabOptions());
+
+			['off', 'left', 'right'].forEach(option => {
+				const domAction = tabOptions.tabCloseButton === option ? addClass : removeClass;
+				domAction(tabContainer, `close-button-${option}`);
+			});
+
+			['fit', 'shrink'].forEach(option => {
+				const domAction = tabOptions.tabSizing === option ? addClass : removeClass;
+				domAction(tabContainer, `sizing-${option}`);
+			});
+
+			if (tabOptions.showIcons && !!tabOptions.iconTheme) {
+				addClass(tabContainer, 'has-icon-theme');
+			} else {
+				removeClass(tabContainer, 'has-icon-theme');
+			}
+
+			// Label
+			const tabLabel = this.editorLabels[index];
+			tabLabel.setLabel({ name, description, resource: toResource(editor, { supportSideBySide: true }) }, { extraClasses: ['tab-label'], italic: !isEditorPinned });
+
+			// Active state
+			if (isEditorActive) {
+				addClass(tabContainer, 'active');
+				tabContainer.setAttribute('aria-selected', 'true');
+				tabContainer.style.backgroundColor = this.getColor(TAB_ACTIVE_BACKGROUND);
+				tabLabel.element.style.color = this.getColor(isGroupActive ? TAB_ACTIVE_FOREGROUND : TAB_UNFOCUSED_ACTIVE_FOREGROUND);
+
+				// Use boxShadow for the active tab border because if we also have a editor group header
+				// color, the two colors would collide and the tab border never shows up.
+				// see https://github.com/Microsoft/vscode/issues/33111
+				const activeTabBorderColor = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
+				if (activeTabBorderColor) {
+					tabContainer.style.boxShadow = `${activeTabBorderColor} 0 -1px inset`;
+				} else {
+					tabContainer.style.boxShadow = null;
+				}
+
+				this.activeTab = tabContainer;
+			} else {
+				removeClass(tabContainer, 'active');
+				tabContainer.setAttribute('aria-selected', 'false');
+				tabContainer.style.backgroundColor = this.getColor(TAB_INACTIVE_BACKGROUND);
+				tabLabel.element.style.color = this.getColor(isGroupActive ? TAB_INACTIVE_FOREGROUND : TAB_UNFOCUSED_INACTIVE_FOREGROUND);
+				tabContainer.style.boxShadow = null;
+			}
+
+			// Dirty State
+			if (isEditorDirty) {
+				addClass(tabContainer, 'dirty');
+			} else {
+				removeClass(tabContainer, 'dirty');
+			}
+		});
+
+		// Update Editor Actions Toolbar
+		this.updateEditorActionsToolbar();
+
+		// Ensure the active tab is always revealed
+		this.layout(this.dimension);
+	}
+
+	layout(dimension: Dimension): void {
+		if (!this.activeTab || !dimension) {
+			return;
+		}
+
+		this.dimension = dimension;
+
+		// The layout of tabs can be an expensive operation because we access DOM properties
+		// that can result in the browser doing a full page layout to validate them. To buffer
+		// this a little bit we try at least to schedule this work on the next animation frame.
+		if (!this.layoutScheduled) {
+			this.layoutScheduled = scheduleAtNextAnimationFrame(() => {
+				this.doLayout(this.dimension);
+				this.layoutScheduled = void 0;
+			});
+		}
+	}
+
+	private doLayout(dimension: Dimension): void {
+		const visibleContainerWidth = this.tabsContainer.offsetWidth;
+		const totalContainerWidth = this.tabsContainer.scrollWidth;
+
+		let activeTabPosX: number;
+		let activeTabWidth: number;
+
+		if (!this.blockRevealActiveTab) {
+			activeTabPosX = this.activeTab.offsetLeft;
+			activeTabWidth = this.activeTab.offsetWidth;
+		}
+
+		// Update scrollbar
+		this.scrollbar.setScrollDimensions({
+			width: visibleContainerWidth,
+			scrollWidth: totalContainerWidth
+		});
+
+		// Return now if we are blocked to reveal the active tab and clear flag
+		if (this.blockRevealActiveTab) {
+			this.blockRevealActiveTab = false;
+			return;
+		}
+
+		// Reveal the active one
+		const containerScrollPosX = this.scrollbar.getScrollPosition().scrollLeft;
+		const activeTabFits = activeTabWidth <= visibleContainerWidth;
+
+		// Tab is overflowing to the right: Scroll minimally until the element is fully visible to the right
+		// Note: only try to do this if we actually have enough width to give to show the tab fully!
+		if (activeTabFits && containerScrollPosX + visibleContainerWidth < activeTabPosX + activeTabWidth) {
+			this.scrollbar.setScrollPosition({
+				scrollLeft: containerScrollPosX + ((activeTabPosX + activeTabWidth) /* right corner of tab */ - (containerScrollPosX + visibleContainerWidth) /* right corner of view port */)
+			});
+		}
+
+		// Tab is overlflowng to the left or does not fit: Scroll it into view to the left
+		else if (containerScrollPosX > activeTabPosX || !activeTabFits) {
+			this.scrollbar.setScrollPosition({
+				scrollLeft: activeTabPosX
+			});
+		}
+	}
+
+	private blockRevealActiveTabOnce(): void {
+
+		// When closing tabs through the tab close button or gesture, the user 
+		// might want to rapidly close tabs in sequence and as such revealing 
+		// the active tab after each close would be annoying. As such we block 
+		// the automated revealing of the active tab once after the close is 
+		// triggered.
+		this.blockRevealActiveTab = true;
+	}
+
+	private originatesFromTabActionBar(event: MouseEvent | GestureEvent): boolean {
+		let element: HTMLElement;
+		if (event instanceof MouseEvent) {
+			element = (event.target || event.srcElement) as HTMLElement;
+		} else {
+			element = (event as GestureEvent).initialTarget as HTMLElement;
+		}
+
 		return !!findParentWithClass(element, 'monaco-action-bar', 'tab');
 	}
 

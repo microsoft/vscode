@@ -12,7 +12,7 @@ import { IAction, Action, IRunEvent } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import * as arrays from 'vs/base/common/arrays';
-import { EditorInput, toResource, IEditorCommandsContext, EditorOptions } from 'vs/workbench/common/editor';
+import { toResource, IEditorCommandsContext } from 'vs/workbench/common/editor';
 import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -45,12 +45,13 @@ export interface IToolbarActions {
 
 export interface INextTitleAreaControl extends IDisposable {
 
-	openEditor(editor: EditorInput, options?: EditorOptions): void;
-	closeEditor(editor: EditorInput): void;
-	moveEditor(editor: EditorInput, targetIndex: number): void;
+	openEditor(editor: IEditorInput): void;
+	closeEditor(editor: IEditorInput): void;
+	moveEditor(editor: IEditorInput, targetIndex: number): void;
 	setActive(isActive: boolean): void;
-	pinEditor(editor: EditorInput): void;
-	updateEditorLabel(editor: EditorInput): void;
+	pinEditor(editor: IEditorInput): void;
+	updateEditorLabel(editor: IEditorInput): void;
+	updateEditorDirty(editor: IEditorInput): void;
 
 	layout(dimension: Dimension): void;
 }
@@ -97,23 +98,19 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 		this.splitEditorGroupHorizontalAction = this._register(this.instantiationService.createInstance(SplitEditorGroupHorizontalAction, SplitEditorGroupHorizontalAction.ID, SplitEditorGroupHorizontalAction.LABEL));
 		this.splitEditorGroupVerticalAction = this._register(this.instantiationService.createInstance(SplitEditorGroupVerticalAction, SplitEditorGroupVerticalAction.ID, SplitEditorGroupVerticalAction.LABEL));
 
-		this.doCreate(parent);
+		this.create(parent);
 		this.registerListeners();
 	}
-
-	protected abstract doCreate(parent: HTMLElement): void;
 
 	private registerListeners(): void {
 
 		// Update when extensions register so that e.g. actions are properly reflected in the toolbar
-		this._register(this.extensionService.onDidRegisterExtensions(() => this.doUpdate()));
+		this._register(this.extensionService.onDidRegisterExtensions(() => this.redraw()));
 	}
 
-	protected doUpdate(): void {
-		this.doRefresh();
-	}
+	protected abstract create(parent: HTMLElement): void;
 
-	protected abstract doRefresh(): void;
+	protected abstract redraw(): void;
 
 	protected createEditorActionsToolBar(container: HTMLElement): void {
 		this.editorActionsToolbar = new ToolBar(container, this.contextMenuService, {
@@ -294,36 +291,26 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 	//#region IThemeable
 
 	protected updateStyles(): void {
-		this.doUpdate(); // run an update when the theme changes due to potentially new styles
+		this.redraw();
 	}
 
 	//#endregion
 
 	//#region INextTitleAreaControl
 
-	openEditor(editor: EditorInput, options?: EditorOptions): void {
-		this.doRefresh(); // TODO@grid optimize if possible
-	}
+	abstract openEditor(editor: IEditorInput): void;
 
-	closeEditor(editor: EditorInput): void {
-		this.doRefresh(); // TODO@grid optimize if possible
-	}
+	abstract closeEditor(editor: IEditorInput): void;
 
-	moveEditor(editor: EditorInput, targetIndex: number): void {
-		this.doUpdate(); // TODO@grid optimize if possible
-	}
+	abstract moveEditor(editor: IEditorInput, targetIndex: number): void;
 
-	pinEditor(editor: EditorInput): void {
-		this.doUpdate(); // TODO@grid optimize if possible
-	}
+	abstract pinEditor(editor: IEditorInput): void;
 
-	setActive(isActive: boolean): void {
-		this.doUpdate(); // TODO@grid optimize if possible
-	}
+	abstract setActive(isActive: boolean): void;
 
-	updateEditorLabel(editor: EditorInput): void {
-		this.doUpdate(); // TODO@grid optimize if possible
-	}
+	abstract updateEditorLabel(editor: IEditorInput): void;
+
+	abstract updateEditorDirty(editor: IEditorInput): void;
 
 	layout(dimension: Dimension): void {
 		// Optionally implemented in subclasses
