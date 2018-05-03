@@ -370,7 +370,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	}
 
 	get activeEditor(): EditorInput {
-		return this.activeControl ? this.activeControl.input : void 0;
+		return this.group.activeEditor;
 	}
 
 	get active(): boolean {
