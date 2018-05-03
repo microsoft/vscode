@@ -33,7 +33,7 @@ TODO:
 		of the next view could be to a) check on the same dimension first (left/up) and
 		then go one dimension up.
 - create grid wrapper which automatically sizes the new views
-- implement serialization/deserialization util 
+- implement serialization/deserialization util
 */
 
 function orthogonal(orientation: Orientation): Orientation {
@@ -561,7 +561,7 @@ function directionOrientation(direction: Direction): Orientation {
 	return direction === Direction.Up || direction === Direction.Down ? Orientation.VERTICAL : Orientation.HORIZONTAL;
 }
 
-export class SplitGridView<T extends IView> implements IDisposable {
+export class GridWidget<T extends IView> implements IDisposable {
 
 	private gridview: GridView;
 	private views = new Map<T, HTMLElement>();

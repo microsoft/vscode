@@ -14,7 +14,7 @@ import { Event, Emitter, once } from 'vs/base/common/event';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { INextEditorGroupsService, Direction, CopyKind } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { SplitGridView, Direction as GridViewDirection } from 'vs/base/browser/ui/grid/gridview';
+import { GridWidget, Direction as GridViewDirection } from 'vs/base/browser/ui/grid/gridview';
 import { NextEditorGroupView, IGroupsAccessor } from 'vs/workbench/browser/parts/editor2/nextEditorGroupView';
 import { GroupIdentifier, EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
@@ -53,7 +53,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 	private mostRecentActiveGroups: GroupIdentifier[] = [];
 
 	private gridContainer: HTMLElement;
-	private gridWidget: SplitGridView<NextEditorGroupView>;
+	private gridWidget: GridWidget<NextEditorGroupView>;
 
 	constructor(
 		id: string,
@@ -205,7 +205,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 
 		// Grid widget
 		const initialGroup = this.doCreateGroupView();
-		this.gridWidget = this._register(new SplitGridView(this.gridContainer, initialGroup)); // TODO@grid restore UI state
+		this.gridWidget = this._register(new GridWidget(this.gridContainer, initialGroup)); // TODO@grid restore UI state
 
 		// Set group active
 		this.doSetGroupActive(initialGroup);
