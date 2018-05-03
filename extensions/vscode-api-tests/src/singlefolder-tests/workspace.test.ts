@@ -75,12 +75,12 @@ suite('workspace-namespace', () => {
 		});
 	});
 
-	test('openTextDocument, untitled is dirty', function () {
-		return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + join(vscode.workspace.rootPath || '', './newfile.txt'))).then(doc => {
-			assert.equal(doc.uri.scheme, 'untitled');
-			assert.ok(doc.isDirty);
-		});
-	});
+	// test('openTextDocument, untitled is dirty', function () {
+	// 	return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + join(vscode.workspace.rootPath || '', './newfile.txt'))).then(doc => {
+	// 		assert.equal(doc.uri.scheme, 'untitled');
+	// 		assert.ok(doc.isDirty);
+	// 	});
+	// });
 
 	test('openTextDocument, untitled with host', function () {
 		const uri = vscode.Uri.parse('untitled://localhost/c%24/Users/jrieken/code/samples/foobar.txt');
@@ -113,30 +113,30 @@ suite('workspace-namespace', () => {
 		});
 	});
 
-	test('openTextDocument, untitled closes on save', function () {
-		const path = join(vscode.workspace.rootPath || '', './newfile.txt');
+	// test('openTextDocument, untitled closes on save', function () {
+	// 	const path = join(vscode.workspace.rootPath || '', './newfile.txt');
 
-		return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + path)).then(doc => {
-			assert.equal(doc.uri.scheme, 'untitled');
-			assert.ok(doc.isDirty);
+	// 	return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + path)).then(doc => {
+	// 		assert.equal(doc.uri.scheme, 'untitled');
+	// 		assert.ok(doc.isDirty);
 
-			let closed: vscode.TextDocument;
-			let d0 = vscode.workspace.onDidCloseTextDocument(e => closed = e);
+	// 		let closed: vscode.TextDocument;
+	// 		let d0 = vscode.workspace.onDidCloseTextDocument(e => closed = e);
 
-			return vscode.window.showTextDocument(doc).then(() => {
-				return doc.save().then(() => {
-					assert.ok(closed === doc);
-					assert.ok(!doc.isDirty);
-					assert.ok(fs.existsSync(path));
+	// 		return vscode.window.showTextDocument(doc).then(() => {
+	// 			return doc.save().then(() => {
+	// 				assert.ok(closed === doc);
+	// 				assert.ok(!doc.isDirty);
+	// 				assert.ok(fs.existsSync(path));
 
-					d0.dispose();
+	// 				d0.dispose();
 
-					return deleteFile(vscode.Uri.file(join(vscode.workspace.rootPath || '', './newfile.txt')));
-				});
-			});
+	// 				return deleteFile(vscode.Uri.file(join(vscode.workspace.rootPath || '', './newfile.txt')));
+	// 			});
+	// 		});
 
-		});
-	});
+	// 	});
+	// });
 
 	test('openTextDocument, uri scheme/auth/path', function () {
 
@@ -513,14 +513,14 @@ suite('workspace-namespace', () => {
 	// 	});
 	// });
 
-	test('applyEdit', () => {
+	// test('applyEdit', () => {
 
-		return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + join(vscode.workspace.rootPath || '', './new2.txt'))).then(doc => {
-			let edit = new vscode.WorkspaceEdit();
-			edit.insert(doc.uri, new vscode.Position(0, 0), new Array(1000).join('Hello World'));
-			return vscode.workspace.applyEdit(edit);
-		});
-	});
+	// 	return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + join(vscode.workspace.rootPath || '', './new2.txt'))).then(doc => {
+	// 		let edit = new vscode.WorkspaceEdit();
+	// 		edit.insert(doc.uri, new vscode.Position(0, 0), new Array(1000).join('Hello World'));
+	// 		return vscode.workspace.applyEdit(edit);
+	// 	});
+	// });
 
 
 	// test('applyEdit should fail when editing deleted resource', async () => {
