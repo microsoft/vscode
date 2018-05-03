@@ -18,14 +18,13 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Scope } from 'vs/workbench/common/memento';
 import { Dimension } from 'vs/base/browser/dom';
 import { BaseWebviewEditor } from 'vs/workbench/parts/webview/electron-browser/baseWebviewEditor';
 import { WebviewElement, WebviewOptions } from 'vs/workbench/parts/webview/electron-browser/webviewElement';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export interface HtmlPreviewEditorViewState {
 	scrollYPercentage: number;
@@ -55,12 +54,11 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IPartService private readonly _partService: IPartService,
 		@IStorageService readonly _storageService: IStorageService,
-		@ITextModelService private readonly _textModelResolverService: ITextModelService
+		@ITextModelService private readonly _textModelResolverService: ITextModelService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super(HtmlPreviewPart.ID, telemetryService, themeService, contextKeyService);
 
@@ -94,11 +92,8 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 				webviewOptions = this.input.options;
 			}
 
-			this._webview = new WebviewElement(
+			this._webview = this._instantiationService.createInstance(WebviewElement,
 				this._partService.getContainer(Parts.EDITOR_PART),
-				this.themeService,
-				this._environmentService,
-				this._contextViewService,
 				this.contextKey,
 				this.findInputFocusContextKey,
 				{
