@@ -108,6 +108,7 @@ export default class TypeScriptServiceClientHost {
 					id: 'typescript-plugins',
 					modeIds: Array.from(languages.values()),
 					diagnosticSource: 'ts-plugins',
+					diagnosticOwner: 'typescript',
 					isExternal: true
 				};
 				const manager = new LanguageProvider(this.client, description, this.commandManager, this.typingsStatus);

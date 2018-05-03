@@ -53,7 +53,7 @@ export default class LanguageProvider {
 			}
 		}, this._validate);
 
-		this.diagnosticsManager = new DiagnosticsManager(description.id);
+		this.diagnosticsManager = new DiagnosticsManager(description.diagnosticOwner);
 
 		workspace.onDidChangeConfiguration(this.configurationChanged, this, this.disposables);
 		this.configurationChanged();
