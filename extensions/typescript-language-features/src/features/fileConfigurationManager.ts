@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace as Workspace, FormattingOptions, TextDocument, CancellationToken, window, Disposable, workspace } from 'vscode';
+import { workspace as Workspace, FormattingOptions, TextDocument, CancellationToken, window, Disposable, workspace, WorkspaceConfiguration } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
@@ -156,9 +156,25 @@ export default class FileConfigurationManager {
 			document.uri);
 
 		return {
-			quotePreference: config.get<'single' | 'double' | undefined>('quoteStyle'),
-			importModuleSpecifierPreference: config.get<'relative' | 'non-relative' | undefined>('importModuleSpecifier')
+			quotePreference: getQuoteStylePreference(config),
+			importModuleSpecifierPreference: getImportModuleSpecifierPreference(config)
 		};
+	}
+}
+
+function getQuoteStylePreference(config: WorkspaceConfiguration) {
+	switch (config.get<string>('quoteStyle')) {
+		case 'single': return 'single';
+		case 'double': return 'double';
+		default: return undefined;
+	}
+}
+
+function getImportModuleSpecifierPreference(config: WorkspaceConfiguration) {
+	switch (config.get<string>('importModuleSpecifier')) {
+		case 'relative': return 'relative';
+		case 'non-relative': return 'non-relative';
+		default: return undefined;
 	}
 }
 

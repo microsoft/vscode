@@ -430,36 +430,44 @@
         "javascript.preferences.quoteStyle": {
           "type": "string",
           "enum": [
+            "auto",
             "single",
             "double"
           ],
+          "default": "auto",
           "description": "%typescript.preferences.quoteStyle%",
           "scope": "window"
         },
         "typescript.preferences.quoteStyle": {
           "type": "string",
           "enum": [
+            "auto",
             "single",
             "double"
           ],
+          "default": "auto",
           "description": "%typescript.preferences.quoteStyle%",
           "scope": "window"
         },
         "javascript.preferences.importModuleSpecifier": {
           "type": "string",
           "enum": [
+            "auto",
             "relative",
             "non-relative"
           ],
+          "default": "auto",
           "description": "%typescript.preferences.importModuleSpecifier%",
           "scope": "window"
         },
         "typescript.preferences.importModuleSpecifier": {
           "type": "string",
           "enum": [
+            "auto",
             "relative",
             "non-relative"
           ],
+          "default": "auto",
           "description": "%typescript.preferences.importModuleSpecifier%",
           "scope": "window"
         }
