@@ -8,7 +8,7 @@
 import 'vs/css!./gridview';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { tail2 as tail } from 'vs/base/common/arrays';
+import { tail2 as tail, equals } from 'vs/base/common/arrays';
 import { orthogonal, IView, GridView, GridBranchNode } from './gridview';
 
 export { Orientation } from './gridview';
@@ -82,7 +82,8 @@ export class Grid<T extends IView> implements IDisposable {
 
 	constructor(container: HTMLElement, view: T) {
 		this.gridview = new GridView(container);
-		this._addView(view, 0, [0]);
+		this.views.set(view, view.element);
+		this.gridview.addView(view, 0, [0]);
 	}
 
 	layout(width: number, height: number): void {
@@ -103,12 +104,8 @@ export class Grid<T extends IView> implements IDisposable {
 		const referenceLocation = this.getViewLocation(referenceView);
 		const location = getRelativeLocation(this.gridview.orientation, referenceLocation, direction);
 
-		this._addView(newView, size, location);
-	}
-
-	private _addView(view: T, size: number, location: number[]): void {
-		this.views.set(view, view.element);
-		this.gridview.addView(view, size, location);
+		this.views.set(newView, newView.element);
+		this.gridview.addView(newView, size, location);
 	}
 
 	removeView(view: T): void {
@@ -123,6 +120,33 @@ export class Grid<T extends IView> implements IDisposable {
 		const location = this.getViewLocation(view);
 		this.gridview.removeView(location);
 		this.views.delete(view);
+	}
+
+	moveView(view: T, size: number, referenceView: T, direction: Direction): void {
+		if (!this.views.has(view)) {
+			throw new Error('View not found');
+		}
+
+		const fromLocation = this.getViewLocation(view);
+		const [fromRest, fromIndex] = tail(fromLocation);
+
+		const referenceLocation = this.getViewLocation(referenceView);
+		const toLocation = getRelativeLocation(this.gridview.orientation, referenceLocation, direction);
+
+		if (fromLocation.length <= toLocation.length) {
+			const toRest = toLocation.slice(0, fromRest.length);
+
+			if (equals(fromRest, toRest)) {
+				const index = fromRest.length;
+
+				if (fromIndex <= toLocation[index]) {
+					toLocation[index] -= 1;
+				}
+			}
+		}
+
+		this.gridview.removeView(fromLocation);
+		this.gridview.addView(view, size, toLocation);
 	}
 
 	swapViews(from: T, to: T): void {
