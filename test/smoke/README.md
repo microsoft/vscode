@@ -10,11 +10,13 @@ yarn smoketest
 yarn smoketest --build "path/to/code"
 ```
 
-The script calls mocha, so all mocha arguments should work fine. For example, use `-f Git` to filter all tests except the `Git` tests.
+Screenshots can be captured when tests fail. In order to get them, you need to use the argument `--screenshots SCREENSHOT_DIR`.
 
-A `--verbose` flag can be used to log to the console all the low level driver calls make to Code.
+## How to debug issues
 
-Screenshots can be captured when tests fail. In order to get them,you need to use the argument `--screenshots SCREENSHOT_DIR`.
+You can use a `--verbose` flag to log all the low level driver calls make to Code.
+
+You can also use any mocha argument. For example, use `-f Git` to filter all tests except the `Git` tests.
 
 ## Pitfalls
 

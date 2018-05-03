@@ -15,6 +15,8 @@
 	"typescript.tsdk.desc": "Gibt den Ordnerpfad mit den zu verwendenden tsserver- und lib*.d.ts-Dateien an.",
 	"typescript.disableAutomaticTypeAcquisition": "Deaktiviert die automatische Typerfassung. Erfordert TypeScript >= 2.0.6.",
 	"typescript.tsserver.log": "Aktiviert die Protokollierung des TS-Servers in eine Datei. Mithilfe der Protokolldatei lassen sich Probleme beim TS-Server diagnostizieren. Die Protokolldatei kann Dateipfade, Quellcode und weitere potenziell sensible Informationen aus Ihrem Projekt enthalten.",
+	"typescript.tsserver.pluginPaths": "Zusätzliche Pfade zum Suchen von Typescript Language Service-Plug-Ins. Erfordert TypeScript 2.3.0 oder höher. ",
+	"typescript.tsserver.pluginPaths.item": "Ein absoluter oder relativer Pfad. Ein relativer Pfad wird in Bezug auf die Arbeitsbereichsordner aufgelöst.",
 	"typescript.tsserver.trace": "Aktiviert die Ablaufverfolgung von an den TS-Server gesendeten Nachrichten. Mithilfe der Ablaufverfolgung lassen sich Probleme beim TS-Server diagnostizieren. Die Ablaufverfolgung kann Dateipfade, Quellcode und weitere potenziell sensible Informationen aus Ihrem Projekt enthalten.",
 	"typescript.validate.enable": "TypeScript-Überprüfung aktivieren/deaktivieren.",
 	"typescript.format.enable": "Standardmäßigen TypeScript-Formatierer aktivieren/deaktivieren.",
@@ -26,6 +28,9 @@
 	"format.insertSpaceAfterKeywordsInControlFlowStatements": "Definiert die Verarbeitung von Leerzeichen nach Schlüsselwörtern in einer Flusssteuerungsanweisung.",
 	"format.insertSpaceAfterFunctionKeywordForAnonymousFunctions": "Definiert die Verarbeitung von Leerzeichen nach einem Funktionsschlüsselwort für anonyme Funktionen.",
 	"format.insertSpaceBeforeFunctionParenthesis": "Definiert die Verarbeitung von Leerzeichen vor Funktionsargumentklammern. Erfordert TypeScript >= 2.1.5.",
+	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": "Definiert die Verarbeitung von Leerzeichen nach öffnenden und vor schließenden nicht leeren runden Klammern.",
+	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets": "Definiert die Verarbeitung von Leerzeichen nach öffnenden und vor schließenden nicht leeren eckigen Klammern.",
+	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": "Definiert die Verarbeitung von Leerzeichen nach öffnenden und vor schließenden nicht leeren geschweiften Klammern. Erfordert TypeScript 2.3.0 oder höher.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": "Definiert die Verarbeitung von Leerzeichen nach öffnenden und vor schließenden geschweiften Klammern für Vorlagenzeichenfolgen. Erfordert TypeScript >= 2.0.6.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces": "Definiert die Verarbeitung von Leerzeichen nach öffnenden und vor schließenden geschweiften Klammern für JSX-Ausdrücke. Erfordert TypeScript >= 2.0.6.",
 	"format.insertSpaceAfterTypeAssertion": "Definiert die Verarbeitung von Leerzeichen nach Typassertionen in TypeScript. Erfordert TypeScript >= 2.4.",
@@ -54,5 +59,7 @@
 	"javascript.implicitProjectConfig.experimentalDecorators": "Aktiviert oder deaktiviert \"experimentalDecorators\" für JavaScript-Dateien, die nicht Teil eines Projekts sind. Vorhandene jsconfig.json- oder tsconfig.json-Dateien setzen diese Einstellung außer Kraft. Erfordert TypeScript 2.3.1 oder höher.",
 	"typescript.autoImportSuggestions.enabled": "Aktiviert oder deaktiviert Vorschläge für den automatischen Import. Erfordert TypeScript 2.6.1 oder höher.",
 	"typescript.experimental.syntaxFolding": "Aktiviert bzw. deaktiviert die syntaxabhängigen Faltungsmarkierungen.",
-	"taskDefinition.tsconfig.description": "Die \"tsconfig\"-Datei, die den TS-Build definiert."
+	"taskDefinition.tsconfig.description": "Die \"tsconfig\"-Datei, die den TS-Build definiert.",
+	"javascript.suggestionActions.enabled": "Aktiviert/deaktiviert Vorschlagsdiagnosen für JavaScript-Dateien im Editor. Erfordert TypeScript 2.8 oder höher.",
+	"typescript.suggestionActions.enabled": "Aktiviert/deaktiviert Vorschlagsdiagnosen für TypeScript-Dateien im Editor. Erfordert TypeScript 2.8 oder höher."
 }

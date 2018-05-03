@@ -856,16 +856,11 @@ function getUri(...slashPathParts: string[]): uri {
 }
 
 function fixPath(...slashPathParts: string[]): string {
-	const pathParts = arrays.flatten(slashPathParts.map(part => part.split('/')));
-	if (process.platform === 'win32') {
-		if (slashPathParts.length === 1 && slashPathParts[0].match(/^c:/)) {
-			return slashPathParts[0];
-		} else {
-			return paths.join('c:', ...pathParts);
-		}
-	} else {
-		return paths.join(...pathParts);
+	if (process.platform === 'win32' && slashPathParts.length && !slashPathParts[0].match(/^c:/i)) {
+		slashPathParts.unshift('c:');
 	}
+
+	return paths.join(...slashPathParts);
 }
 
 function normalizeExpression(expression: IExpression): IExpression {

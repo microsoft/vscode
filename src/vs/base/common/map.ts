@@ -333,6 +333,32 @@ export class TernarySearchTree<E> {
 		return undefined;
 	}
 
+	private _nodeIterator(node: TernarySearchTreeNode<E>): IIterator<E> {
+		let res = {
+			done: false,
+			value: undefined
+		};
+		let idx: number;
+		let data: E[];
+		let next = () => {
+			if (!data) {
+				// lazy till first invocation
+				data = [];
+				idx = 0;
+				this._forEach(node, value => data.push(value));
+			}
+			if (idx >= data.length) {
+				res.done = true;
+				res.value = undefined;
+			} else {
+				res.done = false;
+				res.value = data[idx++];
+			}
+			return res;
+		};
+		return { next };
+	}
+
 	forEach(callback: (value: E, index: string) => any) {
 		this._forEach(this._root, callback);
 	}
@@ -354,18 +380,6 @@ export class TernarySearchTree<E> {
 			this._forEach(node.right, callback);
 		}
 	}
-
-	private *_nodeIterator(node: TernarySearchTreeNode<E>): any & IIterator<E> {
-		if (node) {
-			yield* this._nodeIterator(node.left);
-			if (node.value) {
-				yield node.value;
-			}
-			yield* this._nodeIterator(node.mid);
-			yield* this._nodeIterator(node.right);
-		}
-	}
-
 }
 
 export class ResourceMap<T> {

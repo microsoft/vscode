@@ -675,7 +675,11 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 					tabsCharDelta += insertSpacesCount - 1;
 					charOffsetInPart += insertSpacesCount - 1;
 					if (insertSpacesCount > 0) {
-						sb.write1(0x2192); // &rarr;
+						if (insertSpacesCount > 1) {
+							sb.write1(0x2192); // RIGHTWARDS ARROW
+						} else {
+							sb.write1(0xffeb); // HALFWIDTH RIGHTWARDS ARROW
+						}
 						insertSpacesCount--;
 					}
 					while (insertSpacesCount > 0) {

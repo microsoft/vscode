@@ -2033,8 +2033,8 @@ declare module 'vscode' {
 		/**
 		 * Creates a new code action.
 		 *
-		 * A code action must have at least a [title](#CodeAction.title) and either [edits](#CodeAction.edit)
-		 * or a [command](#CodeAction.command).
+		 * A code action must have at least a [title](#CodeAction.title) and [edits](#CodeAction.edit)
+		 * and/or a [command](#CodeAction.command).
 		 *
 		 * @param title The title of the code action.
 		 * @param kind The kind of the code action.
@@ -3446,6 +3446,10 @@ declare module 'vscode' {
 	export interface FoldingContext {
 	}
 
+	/**
+	 * The folding range provider interface defines the contract between extensions and
+	 * [Folding](https://code.visualstudio.com/docs/editor/codebasics#_folding) in the editor.
+	 */
 	export interface FoldingRangeProvider {
 		/**
 		 * Returns a list of folding ranges or null and undefined if the provider
@@ -4832,7 +4836,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The `FileStat`-type represents metadata about a file.
+	 * The `FileStat`-type represents metadata about a file
 	 */
 	export interface FileStat {
 		/**
@@ -4892,6 +4896,13 @@ declare module 'vscode' {
 		 * @param messageOrUri Message or uri.
 		 */
 		static NoPermissions(messageOrUri?: string | Uri): FileSystemError;
+
+		/**
+		 * Create an error to signal that the file system is unavailable or too busy to
+		 * complete a request.
+		 * @param messageOrUri Message or uri.
+		 */
+		static Unavailable(messageOrUri?: string | Uri): FileSystemError;
 
 		/**
 		 * Creates a new filesystem error.
@@ -4974,6 +4985,10 @@ declare module 'vscode' {
 
 		/**
 		 * Retrieve metadata about a file.
+		 *
+		 * Note that the metadata for symbolic links should be the metadata of the file they refer to.
+		 * Still, the [SymbolicLink](#FileType.SymbolicLink)-type must be used in addition to the actual type, e.g.
+		 * `FileType.SymbolicLink | FileType.Directory`.
 		 *
 		 * @param uri The uri of the file to retrieve metadata about.
 		 * @return The file metadata about the file.

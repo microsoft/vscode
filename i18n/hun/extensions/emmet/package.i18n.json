@@ -35,6 +35,7 @@
 	"emmetExtensionsPath": "Emmet-profilokat és -kódtöredékeket tartalmazó mappa elérési útja.",
 	"emmetShowExpandedAbbreviation": "Kibontott Emmet-rövidítések megjelenítése javaslatként. Az \"inMarkupAndStylesheetFilesOnly\" beállítás csak a html, haml, jade, slim, xml, xsl, css, scss, sass, less és stylus típusú tartalmat jelenti. Az \"always\" beállítás a fájl összes részére vonatkozik a jelölőnyelvtől/css-től függetlenül.",
 	"emmetShowAbbreviationSuggestions": "Lehetséges Emmet-rövidítések megjelenítése javaslatként. Nem használható a stíluslapokon vagy ha az emmet.showExpandedAbbreviation értéke \"never\".",
+	"emmetIncludeLanguages": "Emmet-rövidítések engedélyezése olyan nyelvek esetében, amelyek alapértelmezés szerint nem támogatottak. Egy megfeleltetést kell felvenni a nyelv és egy emmet által támogatott nyelv között.\nPl.: {\"vue-html\": \"html\", \"javascript\": \"javascriptreact\"}",
 	"emmetVariables": "Az Emmet-kódrészletekben használt változók",
 	"emmetTriggerExpansionOnTab": "Ha engedélyezve van, akkor az Emmet-rövidítések a Tab billentyű lenyomásával bonthatók ki.",
 	"emmetPreferences": "Beállítások, melyek módosítják az Emmet műveleteinek és feloldó algoritmusainak viselkedését.",
@@ -59,5 +60,6 @@
 	"emmetPreferencesCssMozProperties": "CSS-tulajdonságok vesszővel ellátott listája, melyek 'moz' gyártói előtagot kapnak azoknál az Emmet-rövidtéseknél, melyek `-` karakterrel kezdődnek. Állítsa üres szövegre, ha soha nem szeretne 'moz' előtagot használni.",
 	"emmetPreferencesCssOProperties": "CSS-tulajdonságok vesszővel ellátott listája, melyek 'o' gyártói előtagot kapnak azoknál az Emmet-rövidtéseknél, melyek `-` karakterrel kezdődnek. Állítsa üres szövegre, ha soha nem szeretne 'o' előtagot használni.",
 	"emmetPreferencesCssMsProperties": "CSS-tulajdonságok vesszővel ellátott listája, melyek 'ms' gyártói előtagot kapnak azoknál az Emmet-rövidtéseknél, melyek `-` karakterrel kezdődnek. Állítsa üres szövegre, ha soha nem szeretne 'ms' előtagot használni.",
-	"emmetPreferencesCssFuzzySearchMinScore": "A minimális pontszám (0-tól 1-ig), amit egy fuzzy keresési találatnak el kell érnie. Az alacsonyabb értékek álpozitív találatokat eredményezhetnek, míg a magasabb értékek szűkítik a lehetséges találatok számát."
+	"emmetPreferencesCssFuzzySearchMinScore": "A minimális pontszám (0-tól 1-ig), amit egy fuzzy keresési találatnak el kell érnie. Az alacsonyabb értékek álpozitív találatokat eredményezhetnek, míg a magasabb értékek szűkítik a lehetséges találatok számát.",
+	"emmetOptimizeStylesheetParsing": "Ha az értéke false, az egész fájl fel lesz dolgozva annak meghatározásához, hogy az aktuális pozíció ércényes-e Emmet-rövidítések kibontásához. Ha az értéke true, csak az aktuális pozíció körüli tartalom lesz feldolgozva a CSS/SCSS/LESS-fájlokban."
 }

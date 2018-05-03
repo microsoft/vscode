@@ -33,8 +33,8 @@ export class TokenSelectionSupport {
 	}
 
 	public getRangesToPositionSync(resource: URI, position: Position): ILogicalSelectionEntry[] {
-		var model = this._modelService.getModel(resource),
-			entries: ILogicalSelectionEntry[] = [];
+		const model = this._modelService.getModel(resource);
+		let entries: ILogicalSelectionEntry[] = [];
 
 		if (model) {
 			this._doGetRangesToPosition(model, position).forEach(range => {
@@ -50,12 +50,12 @@ export class TokenSelectionSupport {
 
 	private _doGetRangesToPosition(model: ITextModel, position: Position): Range[] {
 
-		var tree = build(model),
-			node: Node,
-			lastRange: Range;
+		let tree = build(model);
+		let node: Node;
+		let lastRange: Range;
 
 		node = find(tree, position);
-		var ranges: Range[] = [];
+		let ranges: Range[] = [];
 		while (node) {
 			if (!lastRange || !Range.equalsRange(lastRange, node.range)) {
 				ranges.push(node.range);

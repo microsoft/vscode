@@ -87,6 +87,7 @@ export interface SpawnOptions {
 	userDataDir: string;
 	extensionsPath: string;
 	logger: Logger;
+	verbose?: boolean;
 	extraArgs?: string[];
 }
 
@@ -122,6 +123,10 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		args.unshift(repoPath);
 	}
 
+	if (options.verbose) {
+		args.push('--driver-verbose');
+	}
+
 	if (options.extraArgs) {
 		args.push(...options.extraArgs);
 	}
@@ -144,9 +149,13 @@ async function poll<T>(
 	retryInterval: number = 100 // millis
 ): Promise<T> {
 	let trial = 1;
+	let lastError: string = '';
 
 	while (true) {
 		if (trial > retryCount) {
+			console.error('** Timeout!');
+			console.error(lastError);
+
 			throw new Error(`Timeout: ${timeoutMessage} after ${(retryCount * retryInterval) / 1000} seconds.`);
 		}
 
@@ -156,13 +165,11 @@ async function poll<T>(
 
 			if (acceptFn(result)) {
 				return result;
+			} else {
+				lastError = 'Did not pass accept function';
 			}
 		} catch (e) {
-			// console.warn(e);
-
-			if (/Method not implemented/.test(e.message)) {
-				throw e;
-			}
+			lastError = Array.isArray(e.stack) ? e.stack.join(os.EOL) : e.stack;
 		}
 
 		await new Promise(resolve => setTimeout(resolve, retryInterval));
@@ -240,11 +247,6 @@ export class Code {
 		await poll(() => this.driver.setValue(windowId, selector, value), () => true, `set value '${selector}'`);
 	}
 
-	async waitForPaste(selector: string, value: string): Promise<void> {
-		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.paste(windowId, selector, value), () => true, `paste '${selector}'`);
-	}
-
 	async waitForElements(selector: string, recursive: boolean, accept: (result: IElement[]) => boolean = result => result.length > 0): Promise<IElement[]> {
 		const windowId = await this.getActiveWindowId();
 		return await poll(() => this.driver.getElements(windowId, selector, recursive), accept, `get elements '${selector}'`);
@@ -273,6 +275,11 @@ export class Code {
 	async waitForTerminalBuffer(selector: string, accept: (result: string[]) => boolean): Promise<void> {
 		const windowId = await this.getActiveWindowId();
 		await poll(() => this.driver.getTerminalBuffer(windowId, selector), accept, `get terminal buffer '${selector}'`);
+	}
+
+	async writeInTerminal(selector: string, value: string): Promise<void> {
+		const windowId = await this.getActiveWindowId();
+		await poll(() => this.driver.writeInTerminal(windowId, selector, value), () => true, `writeInTerminal '${selector}'`);
 	}
 
 	private async getActiveWindowId(): Promise<number> {

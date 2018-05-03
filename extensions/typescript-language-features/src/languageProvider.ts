@@ -11,7 +11,7 @@ import TypeScriptServiceClient from './typescriptServiceClient';
 import BufferSyncSupport from './features/bufferSyncSupport';
 
 import TypingsStatus from './utils/typingsStatus';
-import FormattingConfigurationManager from './features/formattingConfigurationManager';
+import FileConfigurationManager from './features/fileConfigurationManager';
 import * as languageConfigurations from './utils/languageConfigurations';
 import { CommandManager } from './utils/commandManager';
 import { DiagnosticsManager, DiagnosticKind } from './features/diagnostics';
@@ -28,7 +28,7 @@ const foldingSetting = 'typescript.experimental.syntaxFolding';
 export default class LanguageProvider {
 	private readonly diagnosticsManager: DiagnosticsManager;
 	private readonly bufferSyncSupport: BufferSyncSupport;
-	private readonly formattingOptionsManager: FormattingConfigurationManager;
+	private readonly fileConfigurationManager: FileConfigurationManager;
 
 	private readonly toUpdateOnConfigurationChanged: ({ updateConfiguration: () => void })[] = [];
 
@@ -46,7 +46,7 @@ export default class LanguageProvider {
 		private readonly commandManager: CommandManager,
 		typingsStatus: TypingsStatus
 	) {
-		this.formattingOptionsManager = new FormattingConfigurationManager(client);
+		this.fileConfigurationManager = new FileConfigurationManager(client);
 		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds, {
 			delete: (resource) => {
 				this.diagnosticsManager.delete(resource);
@@ -70,7 +70,7 @@ export default class LanguageProvider {
 
 		this.diagnosticsManager.dispose();
 		this.bufferSyncSupport.dispose();
-		this.formattingOptionsManager.dispose();
+		this.fileConfigurationManager.dispose();
 	}
 
 	@memoize
@@ -94,13 +94,13 @@ export default class LanguageProvider {
 
 		const TypeScriptCompletionItemProvider = (await import('./features/completionItemProvider')).default;
 		this.disposables.push(languages.registerCompletionItemProvider(selector,
-			new TypeScriptCompletionItemProvider(client, typingsStatus, commandManager),
+			new TypeScriptCompletionItemProvider(client, typingsStatus, this.fileConfigurationManager, commandManager),
 			...TypeScriptCompletionItemProvider.triggerCharacters));
 
 		this.disposables.push(languages.registerCompletionItemProvider(selector, new (await import('./features/directiveCommentCompletionProvider')).default(client), '@'));
 
 		const { TypeScriptFormattingProvider, FormattingProviderManager } = await import('./features/formattingProvider');
-		const formattingProvider = new TypeScriptFormattingProvider(client, this.formattingOptionsManager);
+		const formattingProvider = new TypeScriptFormattingProvider(client, this.fileConfigurationManager);
 		formattingProvider.updateConfiguration(config);
 		this.disposables.push(languages.registerOnTypeFormattingEditProvider(selector, formattingProvider, ';', '}', '\n'));
 
@@ -119,9 +119,9 @@ export default class LanguageProvider {
 		this.disposables.push(languages.registerDocumentSymbolProvider(selector, new (await import('./features/documentSymbolProvider')).default(client)));
 		this.disposables.push(languages.registerSignatureHelpProvider(selector, new (await import('./features/signatureHelpProvider')).default(client), '(', ','));
 		this.disposables.push(languages.registerRenameProvider(selector, new (await import('./features/renameProvider')).default(client)));
-		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/quickFixProvider')).default(client, this.formattingOptionsManager, commandManager, this.diagnosticsManager, this.bufferSyncSupport)));
+		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/quickFixProvider')).default(client, this.fileConfigurationManager, commandManager, this.diagnosticsManager, this.bufferSyncSupport)));
 
-		const refactorProvider = new (await import('./features/refactorProvider')).default(client, this.formattingOptionsManager, commandManager);
+		const refactorProvider = new (await import('./features/refactorProvider')).default(client, this.fileConfigurationManager, commandManager);
 		this.disposables.push(languages.registerCodeActionsProvider(selector, refactorProvider, refactorProvider.metadata));
 
 		await this.initFoldingProvider();
@@ -226,7 +226,7 @@ export default class LanguageProvider {
 		this.diagnosticsManager.reInitialize();
 		this.bufferSyncSupport.reOpenDocuments();
 		this.bufferSyncSupport.requestAllDiagnostics();
-		this.formattingOptionsManager.reset();
+		this.fileConfigurationManager.reset();
 		this.registerVersionDependentProviders();
 	}
 

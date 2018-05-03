@@ -199,7 +199,7 @@ export class CodeLensHelper {
 	}
 
 	commit(changeAccessor: IModelDecorationsChangeAccessor): void {
-		var resultingDecorations = changeAccessor.deltaDecorations(this._removeDecorations, this._addDecorations);
+		let resultingDecorations = changeAccessor.deltaDecorations(this._removeDecorations, this._addDecorations);
 		for (let i = 0, len = resultingDecorations.length; i < len; i++) {
 			this._addDecorationsCallbacks[i](resultingDecorations[i]);
 		}

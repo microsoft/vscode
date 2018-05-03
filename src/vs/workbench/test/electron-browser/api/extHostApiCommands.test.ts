@@ -71,14 +71,14 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			rpcProtocol = new TestRPCProtocol();
 			instantiationService.stub(IHeapService, {
 				_serviceBrand: undefined,
-				trackRecursive(args) {
+				trackRecursive(args: any) {
 					// nothing
 					return args;
 				}
 			});
 			instantiationService.stub(ICommandService, {
 				_serviceBrand: undefined,
-				executeCommand(id, args): any {
+				executeCommand(id: string, args: any): any {
 					if (!CommandsRegistry.getCommands()[id]) {
 						return TPromise.wrapError(new Error(id + ' NOT known'));
 					}

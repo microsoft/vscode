@@ -891,9 +891,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 				'<span class="vs-whitespace" style="width:20px">\u00b7\u00b7</span>',
 				'<span class="mtk2">He</span>',
 				'<span class="mtk3">llo\u00a0world!</span>',
-				'<span class="vs-whitespace" style="width:20px">\u00b7\u2192</span>',
+				'<span class="vs-whitespace" style="width:20px">\u00b7\uffeb</span>',
 				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\u2192\u00a0</span>',
-				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\u00b7\u2192</span>',
+				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\u00b7\uffeb</span>',
 				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
 				'</span>',
 			].join('')
@@ -917,9 +917,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 				'<span class="vs-whitespace" style="width:20px">\u00b7\u00b7</span>',
 				'<span class="mtk2">He</span>',
 				'<span class="mtk3">llo\u00a0world!</span>',
-				'<span class="vs-whitespace" style="width:20px">\u00b7\u2192</span>',
+				'<span class="vs-whitespace" style="width:20px">\u00b7\uffeb</span>',
 				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\u2192\u00a0</span>',
-				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\u00b7\u2192</span>',
+				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\u00b7\uffeb</span>',
 				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
 				'</span>',
 			].join('')
@@ -943,7 +943,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 				'<span class="vs-whitespace">\u00b7\u00b7</span>',
 				'<span class="mtk2">He</span>',
 				'<span class="mtk3">llo\u00a0world!</span>',
-				'<span class="vs-whitespace">\u00b7\u2192\u00b7\u00b7\u2192\u00a0\u00b7\u00b7\u00b7\u2192\u00b7\u00b7\u00b7\u00b7</span>',
+				'<span class="vs-whitespace">\u00b7\uffeb\u00b7\u00b7\u2192\u00a0\u00b7\u00b7\u00b7\uffeb\u00b7\u00b7\u00b7\u00b7</span>',
 				'</span>',
 			].join('')
 		);

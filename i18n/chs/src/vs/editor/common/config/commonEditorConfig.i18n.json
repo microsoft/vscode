@@ -29,7 +29,7 @@
 	"smoothScrolling": "控制编辑器是否在滚动时使用动画",
 	"minimap.enabled": "控制是否显示 minimap",
 	"minimap.side": "控制在哪一侧显示小地图。",
-	"minimap.showSlider": "控制是否自动隐藏迷你地图滑块。 ",
+	"minimap.showSlider": "控制是否自动隐藏小地图滑块。",
 	"minimap.renderCharacters": "呈现某行上的实际字符(与颜色块相反)",
 	"minimap.maxColumn": "限制最小映射的宽度，尽量多地呈现特定数量的列",
 	"find.seedSearchStringFromSelection": "控制是否将编辑器的选中内容作为搜索词填入到查找组件",
@@ -78,7 +78,7 @@
 	"overviewRulerLanes": "控制可在概述标尺同一位置显示的效果数量",
 	"overviewRulerBorder": "控制概述标尺周围是否要绘制边框。",
 	"cursorBlinking": "控制光标的动画样式。",
-	"mouseWheelZoom": "通过使用鼠标滚轮同时按住 Ctrl 可缩放编辑器的字体",
+	"mouseWheelZoom": "按住 Ctrl 键并滚动鼠标滚轮可缩放编辑器字体大小",
 	"cursorStyle": "控制光标样式，接受的值为 \"block\"、\"block-outline\"、\"line\"、\"line-thin\" 、\"underline\" 和 \"underline-thin\"",
 	"cursorWidth": "当 editor.cursorStyle 设置为 \"line\" 时控制光标的宽度。",
 	"fontLigatures": "启用字体连字",
@@ -112,7 +112,6 @@
 	"selectionClipboard": "控制是否支持 Linux 主剪贴板。",
 	"sideBySide": "控制 Diff 编辑器以并排或内联形式显示差异",
 	"ignoreTrimWhitespace": "控制差异编辑器是否将对前导空格或尾随空格的更改显示为差异",
-	"largeFileSize": "控制以字节为单位的文件大小阈值，大于此值时将应用特殊的优化规则",
-	"largeFileLineCount": "控制文件行数的阈值，大于此值时将应用特殊的优化规则",
+	"largeFileOptimizations": "对大型文件进行特殊处理，禁用某些内存密集型功能。",
 	"renderIndicators": "控制差异编辑器是否为已添加/删除的更改显示 +/- 指示符号"
 }

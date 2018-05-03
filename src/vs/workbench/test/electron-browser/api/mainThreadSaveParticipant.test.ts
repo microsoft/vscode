@@ -127,7 +127,7 @@ suite('MainThreadSaveParticipant', function () {
 			let lineContent = `${textContent}`;
 			model.textEditorModel.setValue(lineContent);
 			// apply edits and push to undo stack.
-			let textEdits = [{ identifier: null, range: new Range(1, 14, 1, 14), text: '.', forceMoveMarkers: false }];
+			let textEdits = [{ range: new Range(1, 14, 1, 14), text: '.', forceMoveMarkers: false }];
 			model.textEditorModel.pushEditOperations([new Selection(1, 14, 1, 14)], textEdits, () => { return [new Selection(1, 15, 1, 15)]; });
 			// undo
 			model.textEditorModel.undo();

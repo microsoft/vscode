@@ -210,6 +210,12 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'enableAllHovers' }, "Controls if the non debug hovers should be enabled while debugging. If true the hover providers will be called to provide a hover. Regular hovers will not be shown even if this setting is true."),
 			default: false
 		},
+		'debug.trace': {
+			enum: ['off', 'info', 'verbose', 'error'],
+			enumDescriptions: [nls.localize('off', "Do not produce diagnostic output"), nls.localize('info', "Show default diagnostic output"), nls.localize('verbose', "Produce detailed diagnostic output"), nls.localize('error', "Only produce error diagnostic output")],
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'trace' }, "Controls if the debug session should produce diagnostic output."),
+			default: 'off'
+		},
 		'launch': {
 			type: 'object',
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'launch' }, "Global debug launch configuration. Should be used as an alternative to 'launch.json' that is shared across workspaces"),

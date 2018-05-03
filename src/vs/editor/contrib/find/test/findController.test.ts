@@ -87,7 +87,7 @@ suite('FindController', () => {
 
 	if (platform.isMacintosh) {
 		serviceCollection.set(IClipboardService, <any>{
-			readFindText: _ => clipboardState,
+			readFindText: () => clipboardState,
 			writeFindText: (value: any) => { clipboardState = value; }
 		});
 	}

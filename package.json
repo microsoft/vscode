@@ -20,7 +20,9 @@
     "update-grammars": "node build/npm/update-all-grammars.js",
     "update-localization-extension": "node build/npm/update-localization-extension.js",
     "smoketest": "cd test/smoke && mocha",
-    "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit"
+    "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
+    "download-builtin-extensions": "node build/lib/builtInExtensions.js",
+    "check-monaco-editor-compilation": "tsc -p src/tsconfig.monaco.json --noEmit"
   },
   "dependencies": {
     "applicationinsights": "0.18.0",

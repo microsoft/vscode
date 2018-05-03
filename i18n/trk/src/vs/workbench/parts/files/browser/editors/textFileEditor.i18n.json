@@ -8,6 +8,8 @@
 	],
 	"textFileEditor": "Metin Dosyası Düzenleyicisi",
 	"createFile": "Dosya Oluştur",
+	"relaunchWithIncreasedMemoryLimit": "{0} MB ile Yeniden Başlat",
+	"configureMemoryLimit": "Bellek Sınırını Yapılandır",
 	"fileEditorWithInputAriaLabel": "{0}. Metin dosyası düzenleyici.",
 	"fileEditorAriaLabel": "Metin dosyası düzenleyici."
 }

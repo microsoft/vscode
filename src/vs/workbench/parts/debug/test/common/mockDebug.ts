@@ -176,8 +176,8 @@ export class MockSession implements ISession {
 		return emitter.event;
 	}
 
-	public get onDidExitAdapter(): Event<DebugEvent> {
-		const emitter = new Emitter<DebugEvent>();
+	public get onDidExitAdapter(): Event<{ sessionId: string }> {
+		const emitter = new Emitter<{ sessionId: string }>();
 		return emitter.event;
 	}
 

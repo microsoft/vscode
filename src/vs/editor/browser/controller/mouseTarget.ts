@@ -28,6 +28,7 @@ export interface IViewZoneData {
 
 export interface IMarginData {
 	isAfterLines: boolean;
+	glyphMarginLeft: number;
 	glyphMarginWidth: number;
 	lineNumbersWidth: number;
 	offsetX: number;
@@ -602,6 +603,7 @@ export class MouseTargetFactory {
 			let offset = Math.abs(request.pos.x - request.editorPos.x);
 			const detail: IMarginData = {
 				isAfterLines: res.isAfterLines,
+				glyphMarginLeft: ctx.layoutInfo.glyphMarginLeft,
 				glyphMarginWidth: ctx.layoutInfo.glyphMarginWidth,
 				lineNumbersWidth: ctx.layoutInfo.lineNumbersWidth,
 				offsetX: offset

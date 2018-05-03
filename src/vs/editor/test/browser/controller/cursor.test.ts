@@ -2485,6 +2485,45 @@ suite('Editor Controller - Cursor Configuration', () => {
 		model.dispose();
 	});
 
+	test('issue #15118: remove auto whitespace when pasting entire line', () => {
+		let model = createTextModel(
+			[
+				'    function f() {',
+				'        // I\'m gonna copy this line',
+				'        return 3;',
+				'    }',
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+
+			moveTo(cursor, 3, model.getLineMaxColumn(3));
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+
+			assert.equal(model.getValue(), [
+				'    function f() {',
+				'        // I\'m gonna copy this line',
+				'        return 3;',
+				'        ',
+				'    }',
+			].join('\n'));
+			assertCursor(cursor, new Position(4, model.getLineMaxColumn(4)));
+
+			cursorCommand(cursor, H.Paste, { text: '        // I\'m gonna copy this line\n', pasteOnNewLine: true });
+			assert.equal(model.getValue(), [
+				'    function f() {',
+				'        // I\'m gonna copy this line',
+				'        return 3;',
+				'        // I\'m gonna copy this line',
+				'',
+				'    }',
+			].join('\n'));
+			assertCursor(cursor, new Position(5, 1));
+		});
+
+		model.dispose();
+	});
+
 	test('UseTabStops is off', () => {
 		let model = createTextModel(
 			[

@@ -8,6 +8,7 @@
 	],
 	"vscode.extension.contributes.configuration.title": "Eine Zusammenfassung der Einstellungen. Diese Bezeichnung wird in der Einstellungsdatei als trennender Kommentar verwendet.",
 	"vscode.extension.contributes.configuration.properties": "Die Beschreibung der Konfigurationseigenschaften.",
+	"scope.application.description": "Anwendungsspezifische Konfiguration, die nur in den Benutzereinstellungen konfiguriert werden kann.",
 	"scope.window.description": "Fensterspezifische Konfiguration, die in den Benutzer- oder Arbeitsbereichseinstellungen konfiguriert werden kann.",
 	"scope.resource.description": "Ressourcenspezifische Konfiguration, die in den Benutzer-, Arbeitsbereichs- oder Ordnereinstellungen konfiguriert werden kann.",
 	"scope.description": "Bereich, in dem die Konfiguration gültig ist. Verfügbare Gültigkeitsbereiche sind \"window\" und \"resource\".",

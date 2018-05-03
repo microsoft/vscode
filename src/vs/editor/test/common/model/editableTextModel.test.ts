@@ -998,7 +998,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 			assertMirrorModels();
 
 		}, (model) => {
-			var isFirstTime = true;
+			let isFirstTime = true;
 			model.onDidChangeRawContent(() => {
 				if (!isFirstTime) {
 					return;
@@ -1026,7 +1026,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 			assertMirrorModels();
 
 		}, (model) => {
-			var isFirstTime = true;
+			let isFirstTime = true;
 			model.onDidChangeContent((e: IModelContentChangedEvent) => {
 				if (!isFirstTime) {
 					return;

@@ -517,7 +517,7 @@ export class PieceTreeBase {
 		return this._lineCnt;
 	}
 
-	public getLineContent(lineNumber): string {
+	public getLineContent(lineNumber: number): string {
 		if (this._lastVisitedLine.lineNumber === lineNumber) {
 			return this._lastVisitedLine.value;
 		}

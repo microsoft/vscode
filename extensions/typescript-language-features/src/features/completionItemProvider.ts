@@ -16,6 +16,7 @@ import * as typeConverters from '../utils/typeConverters';
 import * as nls from 'vscode-nls';
 import { applyCodeAction } from '../utils/codeAction';
 import { CommandManager, Command } from '../utils/commandManager';
+import FileConfigurationManager from './fileConfigurationManager';
 
 const localize = nls.loadMessageBundle();
 
@@ -248,6 +249,7 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
 		private readonly typingsStatus: TypingsStatus,
+		private readonly fileConfigurationManager: FileConfigurationManager,
 		commandManager: CommandManager
 	) {
 		commandManager.register(new ApplyCompletionCodeActionCommand(this.client));
@@ -281,6 +283,8 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 		if (!this.shouldTrigger(context, completionConfiguration, line, position)) {
 			return [];
 		}
+
+		await this.fileConfigurationManager.ensureConfigurationForDocument(document, token);
 
 		const args: Proto.CompletionsRequestArgs & { triggerCharacter?: string } = {
 			...typeConverters.Position.toFileLocationRequestArgs(file, position),

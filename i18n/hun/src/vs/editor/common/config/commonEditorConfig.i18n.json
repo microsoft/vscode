@@ -112,7 +112,6 @@
 	"selectionClipboard": "Meghatározza-e, hogy támogatva van-e az elsődleges vágólap Linux alatt",
 	"sideBySide": "Meghatározza, hogy a differenciaszerkesztő ablakban egymás mellett vagy a sorban jelenjenek meg az eltérések",
 	"ignoreTrimWhitespace": "Meghatározza, hogy a differenciaszerkesztő ablakban megjelenjenek-e a sor elején vagy végén a szóközökben talált különbségek",
-	"largeFileSize": "Meghatározza azt a fájlméretet, ami fölött speciális optimalizálási szabályok lépnek érvénybe.",
-	"largeFileLineCount": "Meghatározza azt a sorszámot, ami fölött speciális optimalizálási szabályok lépnek érvénybe. ",
+	"largeFileOptimizations": "Nagy fájlok megnyitása esetén néhány, sok memóriát használó funkció letiltása.",
 	"renderIndicators": "Meghatározza, hogy a differenciaszerkesztő ablakban megjelenjenek-e a +/- jelzők az hozzáadott/eltávolított változásoknál"
 }

@@ -327,6 +327,52 @@ export class ReindentLinesAction extends EditorAction {
 	}
 }
 
+export class ReindentSelectedLinesAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.reindentselectedlines',
+			label: nls.localize('editor.reindentselectedlines', "Reindent Selected Lines"),
+			alias: 'Reindent Selected Lines',
+			precondition: EditorContextKeys.writable
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		let model = editor.getModel();
+		if (!model) {
+			return;
+		}
+
+		let edits: IIdentifiedSingleEditOperation[] = [];
+
+		for (let selection of editor.getSelections()) {
+			let startLineNumber = selection.startLineNumber;
+			let endLineNumber = selection.endLineNumber;
+
+			if (startLineNumber !== endLineNumber && selection.endColumn === 1) {
+				endLineNumber--;
+			}
+
+			if (startLineNumber === 1) {
+				if (startLineNumber === endLineNumber) {
+					continue;
+				}
+			} else {
+				startLineNumber--;
+			}
+
+			let editOperations = getReindentEditOperations(model, startLineNumber, endLineNumber) || [];
+			edits.push(...editOperations);
+		}
+
+		if (edits.length > 0) {
+			editor.pushUndoStop();
+			editor.executeEdits(this.id, edits);
+			editor.pushUndoStop();
+		}
+	}
+}
+
 export class AutoIndentOnPasteCommand implements ICommand {
 
 	private _edits: TextEdit[];
@@ -350,7 +396,7 @@ export class AutoIndentOnPasteCommand implements ICommand {
 			builder.addEditOperation(Range.lift(edit.range), edit.text);
 		}
 
-		var selectionIsSet = false;
+		let selectionIsSet = false;
 		if (Array.isArray(this._edits) && this._edits.length === 1 && this._initialSelection.isEmpty()) {
 			if (this._edits[0].range.startColumn === this._initialSelection.endColumn &&
 				this._edits[0].range.startLineNumber === this._initialSelection.endLineNumber) {
@@ -649,3 +695,4 @@ registerEditorAction(IndentUsingTabs);
 registerEditorAction(IndentUsingSpaces);
 registerEditorAction(DetectIndentation);
 registerEditorAction(ReindentLinesAction);
+registerEditorAction(ReindentSelectedLinesAction);

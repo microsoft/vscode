@@ -66,7 +66,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 		/* tslint:disable */
 		new MainThreadDocumentsAndEditors(
 			SingleProxyRPCProtocol(new class extends mock<ExtHostDocumentsAndEditorsShape>() {
-				$acceptDocumentsAndEditorsDelta(delta) { deltas.push(delta); }
+				$acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta) { deltas.push(delta); }
 			}),
 			modelService,
 			textFileService,

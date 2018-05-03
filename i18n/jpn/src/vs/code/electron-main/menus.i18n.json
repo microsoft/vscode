@@ -146,7 +146,7 @@
 	"miConditionalBreakpoint": "条件付きブレークポイント(&&C)...",
 	"miColumnBreakpoint": "列のブレークポイント(&&O)",
 	"miFunctionBreakpoint": "関数のブレークポイント(&&F)...",
-	"miLogPoint": "ログ ポイント(&&L)...",
+	"miLogPoint": "ログポイント(&&L)",
 	"miNewBreakpoint": "新しいブレークポイント(&&N)",
 	"miEnableAllBreakpoints": "すべてのブレークポイントを有効にする",
 	"miDisableAllBreakpoints": "すべてのブレークポイントを無効にする(&&L)",

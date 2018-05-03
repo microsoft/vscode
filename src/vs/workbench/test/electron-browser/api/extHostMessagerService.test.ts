@@ -14,11 +14,11 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 
 const emptyDialogService = new class implements IDialogService {
 	_serviceBrand: 'dialogService';
-	show(severity, message, buttons): never {
+	show(): never {
 		throw new Error('not implemented');
 	}
 
-	confirm(...opts): never {
+	confirm(): never {
 		throw new Error('not implemented');
 	}
 };

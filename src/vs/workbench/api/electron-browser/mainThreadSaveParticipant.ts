@@ -16,7 +16,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
 import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import { getDocumentFormattingEdits, NoProviderError } from 'vs/editor/contrib/format/format';
-import { EditOperationsCommand } from 'vs/editor/contrib/format/formatCommand';
+import { FormattingEdit } from 'vs/editor/contrib/format/formattingEdit';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ExtHostContext, ExtHostDocumentSaveParticipantShape, IExtHostContext } from '../node/extHost.protocol';
@@ -239,7 +239,7 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 	}
 
 	private _editsWithEditor(editor: ICodeEditor, edits: ISingleEditOperation[]): void {
-		EditOperationsCommand.execute(editor, edits);
+		FormattingEdit.execute(editor, edits);
 	}
 
 	private _editWithModel(model: ITextModel, edits: ISingleEditOperation[]): void {

@@ -8,6 +8,8 @@
 	],
 	"strict.title": "Katı",
 	"strict.description": "Sadece güvenli içeriği yükle",
+	"insecureLocalContent.title": "Güvenli olmayan yerel içeriğe izin ver",
+	"insecureLocalContent.description": "localhost'tan http üzerinde sunulan içeriğin yüklenmesini etkinleştir",
 	"insecureContent.title": "Güvenli olmayan içeriğe izin ver",
 	"insecureContent.description": "Http üzerinden içerik yüklemeyi etkinleştir",
 	"disable.title": "Devre Dışı Bırak",

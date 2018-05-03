@@ -13,8 +13,8 @@ import { AccessibilitySupport } from 'vs/base/common/platform';
 suite('Common Editor Config', () => {
 	test('Zoom Level', () => {
 
-		//Zoom levels are defined to go between -9, 9 inclusive
-		var zoom = EditorZoom;
+		//Zoom levels are defined to go between -5, 20 inclusive
+		const zoom = EditorZoom;
 
 		zoom.setZoomLevel(0);
 		assert.equal(zoom.getZoomLevel(), 0);

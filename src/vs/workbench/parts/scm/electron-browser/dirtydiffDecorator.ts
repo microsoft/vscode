@@ -705,7 +705,7 @@ export class DirtyDiffController implements IEditorContribution {
 		}
 
 		const data = e.target.detail as IMarginData;
-		const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth;
+		const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth - data.glyphMarginLeft;
 
 		// TODO@joao TODO@alex TODO@martin this is such that we don't collide with folding
 		if (gutterOffsetX > 10) {

@@ -696,7 +696,7 @@ export class DebugService implements debug.IDebugService {
 				if (this.model.getProcesses().length === 0) {
 					this.removeReplExpressions();
 					this.allProcesses.clear();
-					this.model.getBreakpoints().forEach(bp => bp.verified = false);
+					this.model.unverifyBreakpoints();
 				}
 				this.launchJsonChanged = false;
 
@@ -762,8 +762,13 @@ export class DebugService implements debug.IDebugService {
 					// a no-folder workspace has no launch.config
 					config = <debug.IConfig>{};
 				}
+
 				if (noDebug) {
 					config.noDebug = true;
+				}
+				const trace = this.configurationService.getValue<debug.IDebugConfiguration>('debug').trace;
+				if (trace !== 'off') {
+					config.trace = trace;
 				}
 
 				return (type ? TPromise.as(null) : this.configurationManager.guessDebugger().then(a => type = a && a.type)).then(() =>
@@ -858,6 +863,9 @@ export class DebugService implements debug.IDebugService {
 					return this.showError(err.message, [debugAnywayAction, this.taskService.configureAction()]);
 				});
 			}, err => {
+				if (err && err.message) {
+					return this.showError(err.message);
+				}
 				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 					return this.showError(nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved on disk and that you have a debug extension installed for that file type."));
 				}

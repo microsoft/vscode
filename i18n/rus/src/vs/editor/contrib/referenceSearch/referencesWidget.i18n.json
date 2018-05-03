@@ -25,5 +25,6 @@
 	"peekViewEditorBackground": "Цвет фона быстрого редактора.",
 	"peekViewEditorGutterBackground": "Цвет фона поля в окне быстрого редактора.",
 	"peekViewResultsMatchHighlight": "Цвет выделения совпадений в списке результатов быстрого редактора.",
-	"peekViewEditorMatchHighlight": "Цвет выделения совпадений в быстром редакторе."
+	"peekViewEditorMatchHighlight": "Цвет выделения совпадений в быстром редакторе.",
+	"peekViewEditorMatchHighlightBorder": "Граница выделения совпадений в быстром редакторе."
 }

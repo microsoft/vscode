@@ -108,7 +108,8 @@ export class Application {
 			userDataDir: this.options.userDataDir,
 			extensionsPath: this.options.extensionsPath,
 			logger: this.options.logger,
-			extraArgs
+			verbose: this.options.verbose,
+			extraArgs,
 		});
 
 		this._workbench = new Workbench(this._code, this.keybindings, this.userDataPath);

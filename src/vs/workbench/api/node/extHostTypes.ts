@@ -1881,6 +1881,9 @@ export class FileSystemError extends Error {
 	static NoPermissions(messageOrUri?: string | URI): FileSystemError {
 		return new FileSystemError(messageOrUri, 'NoPermissions', FileSystemError.NoPermissions);
 	}
+	static Unavailable(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'Unavailable', FileSystemError.Unavailable);
+	}
 
 	constructor(uriOrMessage?: string | URI, code?: string, terminator?: Function) {
 		super(URI.isUri(uriOrMessage) ? uriOrMessage.toString(true) : uriOrMessage);
