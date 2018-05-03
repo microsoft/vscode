@@ -28,7 +28,7 @@ suite('editor2 tests', () => {
 		// always a root group
 		const rootGroup = part.groups[0];
 		assert.equal(part.groups.length, 1);
-		assert.ok(rootGroup.active);
+		assert.ok(part.activeGroup === rootGroup);
 
 		let mru = part.getGroups(true);
 		assert.equal(mru.length, 1);
@@ -36,7 +36,7 @@ suite('editor2 tests', () => {
 
 		const rightGroup = part.addGroup(rootGroup, Direction.RIGHT);
 		assert.equal(part.groups.length, 2);
-		assert.ok(rootGroup.active);
+		assert.ok(part.activeGroup === rootGroup);
 
 		mru = part.getGroups(true);
 		assert.equal(mru.length, 2);
@@ -46,7 +46,7 @@ suite('editor2 tests', () => {
 		assert.equal(activeGroupChangeCounter, 0);
 
 		part.activateGroup(rightGroup);
-		assert.ok(rightGroup.active);
+		assert.ok(part.activeGroup === rightGroup);
 		assert.equal(activeGroupChangeCounter, 1);
 
 		mru = part.getGroups(true);
@@ -56,7 +56,7 @@ suite('editor2 tests', () => {
 
 		const downGroup = part.addGroup(rightGroup, Direction.DOWN);
 		assert.equal(part.groups.length, 3);
-		assert.ok(rightGroup.active);
+		assert.ok(part.activeGroup === rightGroup);
 		assert.ok(!downGroup.activeControl);
 
 		mru = part.getGroups(true);
@@ -67,7 +67,7 @@ suite('editor2 tests', () => {
 
 		part.removeGroup(downGroup);
 		assert.equal(part.groups.length, 2);
-		assert.ok(rightGroup.active);
+		assert.ok(part.activeGroup === rightGroup);
 
 		mru = part.getGroups(true);
 		assert.equal(mru.length, 2);
@@ -76,7 +76,7 @@ suite('editor2 tests', () => {
 
 		part.removeGroup(rightGroup);
 		assert.equal(part.groups.length, 1);
-		assert.ok(rootGroup.active);
+		assert.ok(part.activeGroup === rootGroup);
 
 		mru = part.getGroups(true);
 		assert.equal(mru.length, 1);
@@ -84,7 +84,7 @@ suite('editor2 tests', () => {
 
 		part.removeGroup(rootGroup); // cannot remove root group
 		assert.equal(part.groups.length, 1);
-		assert.ok(rootGroup.active);
+		assert.ok(part.activeGroup === rootGroup);
 
 		activeGroupChangeListener.dispose();
 	});

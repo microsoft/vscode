@@ -59,7 +59,8 @@ export class NextTabsTitleControl extends NextTitleControl {
 	private scrollbar: ScrollableElement;
 
 	private activeTab: HTMLElement;
-	private editorLabels: ResourceLabel[] = [];
+	private tabLabelWidgets: ResourceLabel[] = [];
+	private tabLabels: IEditorInputLabel[] = [];
 	private tabDisposeables: IDisposable[] = [];
 
 	private dimension: Dimension;
@@ -232,39 +233,31 @@ export class NextTabsTitleControl extends NextTitleControl {
 	}
 
 	pinEditor(editor: IEditorInput): void {
-		this.redraw(); // TODO@grid optimize
+		this.withTab(editor, (tabContainer, tabLabelWidget, tabLabel) => this.redrawLabel(tabLabel, editor, tabContainer, tabLabelWidget));
 	}
 
-	setActive(isActive: boolean): void {
-		this.redraw(); // TODO@grid optimize
+	setActive(isGroupActive: boolean): void {
+		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel) => {
+			this.redrawGroupActive(isGroupActive, editor, tabContainer, tabLabelWidget);
+		});
+
+		this.updateEditorActionsToolbar();
 	}
 
 	updateEditorLabel(editor: IEditorInput): void {
 		this.redraw(true /* labels only */);
 	}
 
-	updateEditorDirty(editor: IEditorInput): void;
-	updateEditorDirty(editor: IEditorInput, tabContainer: HTMLElement): void;
-	updateEditorDirty(editor: IEditorInput, containerCandidate?: HTMLElement): void {
-		this.withTabContainer(editor, containerCandidate, tabContainer => {
-			if (editor.isDirty()) {
-				addClass(tabContainer, 'dirty');
-			} else {
-				removeClass(tabContainer, 'dirty');
-			}
-		});
+	updateEditorDirty(editor: IEditorInput): void {
+		this.withTab(editor, tabContainer => this.redrawEditorDirty(editor, tabContainer));
 	}
 
-	private withTabContainer(editor: IEditorInput, containerCandidate: HTMLElement, fn: (tabContainer: HTMLElement) => void): void {
-		let tabContainer = containerCandidate;
-		if (!tabContainer) {
-			const index = this.group.getIndexOfEditor(editor);
+	private withTab(editor: IEditorInput, fn: (tabContainer: HTMLElement, tabLabelWidget: ResourceLabel, tabLabel: IEditorInputLabel) => void): void {
+		const editorIndex = this.group.getIndexOfEditor(editor);
 
-			tabContainer = this.tabsContainer.children[index] as HTMLElement;
-		}
-
+		const tabContainer = this.tabsContainer.children[editorIndex] as HTMLElement;
 		if (tabContainer) {
-			fn(tabContainer);
+			fn(tabContainer, this.tabLabelWidgets[editorIndex], this.tabLabels[editorIndex]);
 		}
 	}
 
@@ -285,7 +278,8 @@ export class NextTabsTitleControl extends NextTitleControl {
 			clearNode(this.tabsContainer);
 
 			this.tabDisposeables = dispose(this.tabDisposeables);
-			this.editorLabels = [];
+			this.tabLabelWidgets = [];
+			this.tabLabels = [];
 
 			this.clearEditorActionsToolbar();
 		}
@@ -312,7 +306,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 		else {
 			for (let i = 0; i < tabsCount - tabsNeeded; i++) {
 				(this.tabsContainer.lastChild as HTMLElement).remove();
-				this.editorLabels.pop();
+				this.tabLabelWidgets.pop();
 				this.tabDisposeables.pop().dispose();
 			}
 		}
@@ -332,7 +326,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 
 		// Tab Editor Label
 		const editorLabel = this.instantiationService.createInstance(ResourceLabel, tabContainer, void 0);
-		this.editorLabels.push(editorLabel);
+		this.tabLabelWidgets.push(editorLabel);
 
 		// Tab Close
 		const tabCloseContainer = document.createElement('div');
@@ -549,30 +543,23 @@ export class NextTabsTitleControl extends NextTitleControl {
 	protected redraw(labelsOnly?: boolean): void {
 
 		// Compute labels and protect against duplicates
-		const editorsOfGroup = this.group.editors;
-		const labels = this.getTabLabels(editorsOfGroup);
+		this.tabLabels = this.getTabLabels(this.group.editors);
 
-		// Tab label and styles
-		editorsOfGroup.forEach((editor, index) => {
-			const tabContainer = this.tabsContainer.children[index] as HTMLElement;
-			if (!tabContainer) {
-				return; // could be a race condition between updating tabs and creating tabs
-			}
+		// For each tab
+		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel) => {
 
-			const label = labels[index];
-			const name = label.name;
-			const description = label.description || '';
-			const title = label.title || '';
+			// Redraw Label
+			this.redrawLabel(tabLabel, editor, tabContainer, tabLabelWidget);
 
-			// Container
-			tabContainer.setAttribute('aria-label', `${name}, tab`);
-			tabContainer.title = title;
-
+			// Redraw other Styles
 			if (!labelsOnly) {
+
+				// Borders
 				tabContainer.style.borderLeftColor = (index !== 0) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
-				tabContainer.style.borderRightColor = (index === editorsOfGroup.length - 1) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
+				tabContainer.style.borderRightColor = (index === this.group.count - 1) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
 				tabContainer.style.outlineColor = this.getColor(activeContrastBorder);
 
+				// Settings
 				const tabOptions = {} as IEditorTabOptions; // TODO@grid support tab options (this.editorGroupService.getTabOptions());
 
 				['off', 'left', 'right'].forEach(option => {
@@ -590,43 +577,26 @@ export class NextTabsTitleControl extends NextTitleControl {
 				} else {
 					removeClass(tabContainer, 'has-icon-theme');
 				}
-			}
 
-			// Label
-			const tabLabel = this.editorLabels[index];
-			tabLabel.setLabel({ name, description, resource: toResource(editor, { supportSideBySide: true }) }, { extraClasses: ['tab-label'], italic: !this.group.isPinned(editor) });
-
-			// Active state
-			if (!labelsOnly) {
-				if (this.group.isActive(editor)) {
+				// Active state (editor)
+				if (this.group.activeEditor === editor) {
 					addClass(tabContainer, 'active');
 					tabContainer.setAttribute('aria-selected', 'true');
 					tabContainer.style.backgroundColor = this.getColor(TAB_ACTIVE_BACKGROUND);
-					tabLabel.element.style.color = this.getColor(this.group.active ? TAB_ACTIVE_FOREGROUND : TAB_UNFOCUSED_ACTIVE_FOREGROUND);
-
-					// Use boxShadow for the active tab border because if we also have a editor group header
-					// color, the two colors would collide and the tab border never shows up.
-					// see https://github.com/Microsoft/vscode/issues/33111
-					const activeTabBorderColor = this.getColor(this.group.active ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
-					if (activeTabBorderColor) {
-						tabContainer.style.boxShadow = `${activeTabBorderColor} 0 -1px inset`;
-					} else {
-						tabContainer.style.boxShadow = null;
-					}
 
 					this.activeTab = tabContainer;
 				} else {
 					removeClass(tabContainer, 'active');
 					tabContainer.setAttribute('aria-selected', 'false');
 					tabContainer.style.backgroundColor = this.getColor(TAB_INACTIVE_BACKGROUND);
-					tabLabel.element.style.color = this.getColor(this.group.active ? TAB_INACTIVE_FOREGROUND : TAB_UNFOCUSED_INACTIVE_FOREGROUND);
 					tabContainer.style.boxShadow = null;
 				}
-			}
 
-			// Dirty State
-			if (!labelsOnly) {
-				this.updateEditorDirty(editor, tabContainer);
+				// Active state (group)
+				this.redrawGroupActive(this.groupsAccessor.activeGroup === this.group, editor, tabContainer, tabLabelWidget);
+
+				// Dirty State
+				this.redrawEditorDirty(editor, tabContainer);
 			}
 		});
 
@@ -637,6 +607,15 @@ export class NextTabsTitleControl extends NextTitleControl {
 
 		// Ensure the active tab is always revealed
 		this.layout(this.dimension);
+	}
+
+	private forEachTab(fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: ResourceLabel, tabLabel: IEditorInputLabel) => void): void {
+		this.group.editors.forEach((editor, index) => {
+			const tabContainer = this.tabsContainer.children[index] as HTMLElement;
+			if (tabContainer) {
+				fn(editor, index, tabContainer, this.tabLabelWidgets[index], this.tabLabels[index]);
+			}
+		});
 	}
 
 	private getTabLabels(editors: IEditorInput[]): IEditorInputLabel[] {
@@ -738,6 +717,45 @@ export class NextTabsTitleControl extends NextTitleControl {
 				return { verbosity: Verbosity.LONG, shortenDuplicates: false };
 			default:
 				return { verbosity: Verbosity.MEDIUM, shortenDuplicates: true };
+		}
+	}
+
+	private redrawLabel(label: IEditorInputLabel, editor: IEditorInput, tabContainer: HTMLElement, tabLabel: ResourceLabel): void {
+		const name = label.name;
+		const description = label.description || '';
+		const title = label.title || '';
+
+		// Container
+		tabContainer.setAttribute('aria-label', `${name}, tab`);
+		tabContainer.title = title;
+
+		// Label
+		tabLabel.setLabel({ name, description, resource: toResource(editor, { supportSideBySide: true }) }, { extraClasses: ['tab-label'], italic: !this.group.isPinned(editor) });
+	}
+
+	private redrawGroupActive(isGroupActive: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabel: ResourceLabel): void {
+		if (this.group.activeEditor === editor) {
+			tabLabel.element.style.color = this.getColor(isGroupActive ? TAB_ACTIVE_FOREGROUND : TAB_UNFOCUSED_ACTIVE_FOREGROUND);
+
+			// Use boxShadow for the active tab border because if we also have a editor group header
+			// color, the two colors would collide and the tab border never shows up.
+			// see https://github.com/Microsoft/vscode/issues/33111
+			const activeTabBorderColor = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
+			if (activeTabBorderColor) {
+				tabContainer.style.boxShadow = `${activeTabBorderColor} 0 -1px inset`;
+			} else {
+				tabContainer.style.boxShadow = null;
+			}
+		} else {
+			tabLabel.element.style.color = this.getColor(isGroupActive ? TAB_INACTIVE_FOREGROUND : TAB_UNFOCUSED_INACTIVE_FOREGROUND);
+		}
+	}
+
+	private redrawEditorDirty(editor: IEditorInput, tabContainer: HTMLElement): void {
+		if (editor.isDirty()) {
+			addClass(tabContainer, 'dirty');
+		} else {
+			removeClass(tabContainer, 'dirty');
 		}
 	}
 

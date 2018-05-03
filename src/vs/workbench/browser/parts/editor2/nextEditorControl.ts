@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Disposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { EditorInput, EditorOptions, GroupIdentifier } from 'vs/workbench/common/editor';
 import { Dimension, show, hide } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -108,7 +108,7 @@ export class NextEditorControl extends Disposable {
 		}
 
 		// Otherwise instantiate new
-		const control = descriptor.instantiate(this.instantiationService);
+		const control = this._register(descriptor.instantiate(this.instantiationService));
 		this.controls.push(control);
 
 		return control;
@@ -175,13 +175,5 @@ export class NextEditorControl extends Disposable {
 
 		// Forward to all editor controls
 		this.controls.forEach(editor => editor.shutdown());
-	}
-
-	dispose(): void {
-
-		// Forward to all editor controls
-		this.controls = dispose(this.controls);
-
-		super.dispose();
 	}
 }

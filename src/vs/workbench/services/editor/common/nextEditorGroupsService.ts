@@ -45,11 +45,6 @@ export interface INextEditorGroup {
 	readonly activeEditor: IEditorInput;
 
 	/**
-	 * An active group is the default location for new editors to open.
-	 */
-	readonly active: boolean;
-
-	/**
 	 * The number of opend editors in this group.
 	 */
 	readonly count: number;

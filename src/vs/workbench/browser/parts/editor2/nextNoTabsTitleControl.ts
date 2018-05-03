@@ -18,7 +18,6 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 	private titleContainer: HTMLElement;
 	private editorLabel: ResourceLabel;
 	private lastRenderedEditor: IEditorInput;
-	private isActive: boolean;
 
 	protected create(parent: HTMLElement): void {
 		this.titleContainer = parent;
@@ -90,11 +89,7 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 	}
 
 	setActive(isActive: boolean): void {
-		if (this.isActive !== isActive) {
-			this.isActive = isActive;
-
-			this.redraw();
-		}
+		this.redraw();
 	}
 
 	updateEditorLabel(editor: IEditorInput): void {
@@ -137,7 +132,7 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 		}
 
 		const isEditorPinned = this.group.isPinned(this.group.activeEditor);
-		const isGroupActive = this.group.active;
+		const isGroupActive = this.groupsAccessor.activeGroup === this.group;
 
 		// Dirty state
 		this.updateEditorDirty(editor);

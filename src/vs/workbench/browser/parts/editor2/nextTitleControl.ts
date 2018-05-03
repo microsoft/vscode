@@ -111,12 +111,12 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 	protected abstract redraw(): void;
 
 	protected createEditorActionsToolBar(container: HTMLElement): void {
-		this.editorActionsToolbar = new ToolBar(container, this.contextMenuService, {
+		this.editorActionsToolbar = this._register(new ToolBar(container, this.contextMenuService, {
 			actionItemProvider: action => this.actionItemProvider(action as Action),
 			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: localize('araLabelEditorActions', "Editor actions"),
 			getKeyBinding: action => this.getKeybinding(action)
-		});
+		}));
 
 		// Context
 		this.editorActionsToolbar.context = { groupId: this.group.id } as IEditorCommandsContext;
@@ -192,7 +192,7 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 	}
 
 	protected updateEditorActionsToolbar(): void {
-		const isActive = this.group.active;
+		const isGroupActive = this.groupsAccessor.activeGroup === this.group;
 
 		// Update Editor Actions Toolbar
 		let primaryEditorActions: IAction[] = [];
@@ -201,7 +201,7 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 		const editorActions = this.getEditorActions();
 
 		// Primary actions only for the active group
-		if (isActive) {
+		if (isGroupActive) {
 			primaryEditorActions = prepareActions(editorActions.primary);
 
 			primaryEditorActions.push(this.splitEditorGroupHorizontalAction);
@@ -312,22 +312,6 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 
 	layout(dimension: Dimension): void {
 		// Optionally implemented in subclasses
-	}
-
-	dispose(): void {
-		super.dispose();
-
-		// Actions
-		[
-			this.splitEditorGroupHorizontalAction,
-			this.splitEditorGroupVerticalAction,
-			this.closeOneEditorAction
-		].forEach((action) => {
-			action.dispose();
-		});
-
-		// Toolbar
-		this.editorActionsToolbar.dispose();
 	}
 
 	//#endregion

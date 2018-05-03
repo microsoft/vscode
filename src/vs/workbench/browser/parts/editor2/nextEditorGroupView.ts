@@ -90,8 +90,6 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	private group: EditorGroup;
 
-	private _active: boolean;
-
 	private _dimension: Dimension;
 	private scopedInstantiationService: IInstantiationService;
 
@@ -356,7 +354,6 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	}
 
 	setActive(isActive: boolean): void {
-		this._active = isActive;
 
 		// Update container
 		toggleClass(this.element, 'active', isActive);
@@ -392,10 +389,6 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	get activeEditor(): EditorInput {
 		return this.group.activeEditor;
-	}
-
-	get active(): boolean {
-		return this._active;
 	}
 
 	isPinned(editor: EditorInput): boolean {
@@ -596,7 +589,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		});
 	}
 
-	private doCloseEditor(editor: EditorInput, focusNext = this._active): void {
+	private doCloseEditor(editor: EditorInput, focusNext = this.groupsAccessor.activeGroup === this): void {
 
 		// Closing the active editor of the group is a bit more work
 		if (this.activeEditor && this.activeEditor.matches(editor)) {
@@ -609,7 +602,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		}
 	}
 
-	private doCloseActiveEditor(focusNext = this._active, fromError?: boolean): void {
+	private doCloseActiveEditor(focusNext = this.groupsAccessor.activeGroup === this, fromError?: boolean): void {
 
 		// Update model
 		this.group.closeEditor(this.activeEditor);
