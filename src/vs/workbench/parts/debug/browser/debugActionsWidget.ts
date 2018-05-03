@@ -31,7 +31,8 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { RunOnceScheduler } from 'vs/base/common/async';
 
-const DEBUG_ACTIONS_WIDGET_POSITION_KEY = 'debug.actionswidgetposition';
+const DEBUG_ACTIONS_WIDGET_POSITION_X_KEY = 'debug.actionswidgetpositionx';
+const DEBUG_ACTIONS_WIDGET_POSITION_Y_KEY = 'debug.actionswidgetpositiony';
 
 export const debugToolBarBackground = registerColor('debugToolBar.background', {
 	dark: '#333333',
@@ -55,6 +56,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 
 	private isVisible: boolean;
 	private isBuilt: boolean;
+	private titleBarOffset: number;
 
 	constructor(
 		@INotificationService private notificationService: INotificationService,
@@ -70,7 +72,8 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 	) {
 		super(themeService);
 
-		this.$el = $().div().addClass('debug-actions-widget').style('top', `${partService.getTitleBarOffset()}px`);
+		this.titleBarOffset = partService.getTitleBarOffset();
+		this.$el = $().div().addClass('debug-actions-widget').style('top', `${this.titleBarOffset}px`);
 		this.dragArea = $().div().addClass('drag-area');
 		this.$el.append(this.dragArea);
 
@@ -142,6 +145,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 				// double click on debug bar centers it again #8250
 				const widgetWidth = this.$el.getHTMLElement().clientWidth;
 				this.setXCoordinate(0.5 * window.innerWidth - 0.5 * widgetWidth);
+				this.setYCoordinate(this.titleBarOffset);
 				this.storePosition();
 			}
 		});
@@ -156,6 +160,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 				mouseMoveEvent.preventDefault();
 				// Reduce x by width of drag handle to reduce jarring #16604
 				this.setXCoordinate(mouseMoveEvent.posx - 14);
+				this.setYCoordinate(mouseMoveEvent.posy - 14);
 			}).once('mouseup', (e: MouseEvent) => {
 				this.storePosition();
 				this.dragArea.removeClass('dragged');
@@ -168,8 +173,10 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 	}
 
 	private storePosition(): void {
-		const position = parseFloat(this.$el.getComputedStyle().left) / window.innerWidth;
-		this.storageService.store(DEBUG_ACTIONS_WIDGET_POSITION_KEY, position, StorageScope.WORKSPACE);
+		const positionX = parseFloat(this.$el.getComputedStyle().left) / window.innerWidth;
+		const positionY = parseFloat(this.$el.getComputedStyle().top) / window.innerHeight;
+		this.storageService.store(DEBUG_ACTIONS_WIDGET_POSITION_X_KEY, positionX, StorageScope.WORKSPACE);
+		this.storageService.store(DEBUG_ACTIONS_WIDGET_POSITION_Y_KEY, positionY, StorageScope.WORKSPACE);
 	}
 
 	protected updateStyles(): void {
@@ -207,12 +214,26 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		}
 		const widgetWidth = this.$el.getHTMLElement().clientWidth;
 		if (x === undefined) {
-			const positionPercentage = this.storageService.get(DEBUG_ACTIONS_WIDGET_POSITION_KEY, StorageScope.WORKSPACE);
+			const positionPercentage = this.storageService.get(DEBUG_ACTIONS_WIDGET_POSITION_X_KEY, StorageScope.WORKSPACE);
 			x = positionPercentage !== undefined ? parseFloat(positionPercentage) * window.innerWidth : (0.5 * window.innerWidth - 0.5 * widgetWidth);
 		}
 
 		x = Math.max(0, Math.min(x, window.innerWidth - widgetWidth)); // do not allow the widget to overflow on the right
 		this.$el.style('left', `${x}px`);
+	}
+
+	private setYCoordinate(y?: number): void {
+		if (!this.isVisible) {
+			return;
+		}
+		const widgetHeight = this.$el.getHTMLElement().clientHeight;
+		if (y === undefined) {
+			const positionPercentage = this.storageService.get(DEBUG_ACTIONS_WIDGET_POSITION_Y_KEY, StorageScope.WORKSPACE);
+			y = positionPercentage !== undefined ? parseFloat(positionPercentage) * window.innerHeight : this.titleBarOffset;
+		}
+
+		y = Math.max(0, Math.min(y, window.innerHeight - widgetHeight)); // do not allow the widget to overflow on the bottom
+		this.$el.style('top', `${y}px`);
 	}
 
 	private onDidConfigurationChange(event: IConfigurationChangeEvent): void {
