@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import * as strings from 'vs/base/common/strings';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -31,6 +32,8 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 
 const $ = dom.$;
 const MAX_ELEMENTS_SHOWN = 18;
+
+const SPREAD_OPERATOR = '...';
 
 export class DebugHoverWidget implements IContentWidget {
 
@@ -149,11 +152,17 @@ export class DebugHoverWidget implements IContentWidget {
 
 		// First find the full expression under the cursor
 		while (result = expression.exec(lineContent)) {
+			let match = result[0];
 			let start = result.index + 1;
-			let end = start + result[0].length;
+			let end = start + match.length;
+
+			if (strings.startsWith(match, SPREAD_OPERATOR)) {
+				match = strings.ltrim(match, SPREAD_OPERATOR);
+				start += SPREAD_OPERATOR.length;
+			}
 
 			if (start <= range.startColumn && end >= range.endColumn) {
-				matchingExpression = result[0];
+				matchingExpression = match;
 				startOffset = start;
 				break;
 			}
