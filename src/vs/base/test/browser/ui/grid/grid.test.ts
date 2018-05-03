@@ -84,4 +84,37 @@ suite('Grid', function () {
 		assert.deepEqual(view1.size, [500, 600]);
 		assert.deepEqual(view2.size, [300, 600]);
 	});
+
+	test('simple layout', function () {
+		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		const grid = new Grid(container, view1);
+		grid.layout(800, 600);
+		assert.deepEqual(view1.size, [800, 600]);
+
+		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view1, Direction.Up, view2, 200);
+		assert.deepEqual(view1.size, [800, 400]);
+		assert.deepEqual(view2.size, [800, 200]);
+
+		const view3 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view1, Direction.Right, view3, 200);
+		assert.deepEqual(view1.size, [600, 400]);
+		assert.deepEqual(view2.size, [800, 200]);
+		assert.deepEqual(view3.size, [200, 400]);
+
+		const view4 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view2, Direction.Left, view4, 200);
+		assert.deepEqual(view1.size, [600, 400]);
+		assert.deepEqual(view2.size, [600, 200]);
+		assert.deepEqual(view3.size, [200, 400]);
+		assert.deepEqual(view4.size, [200, 200]);
+
+		const view5 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view1, Direction.Down, view5, 100);
+		assert.deepEqual(view1.size, [600, 300]);
+		assert.deepEqual(view2.size, [600, 200]);
+		assert.deepEqual(view3.size, [200, 400]);
+		assert.deepEqual(view4.size, [200, 200]);
+		assert.deepEqual(view5.size, [600, 100]);
+	});
 });
