@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/nextTitleControl';
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { prepareActions } from 'vs/workbench/browser/actions';
 import { IAction, Action, IRunEvent } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -63,7 +63,7 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 	private currentSecondaryEditorActionIds: string[] = [];
 	protected editorActionsToolbar: ToolBar;
 
-	private mapActionsToEditors: { [editorId: string]: IToolbarActions; };
+	private mapEditorToActions: Map<string, IToolbarActions> = new Map();
 
 	private resourceContext: ResourceContextKey;
 	private disposeOnEditorActions: IDisposable[] = [];
@@ -77,36 +77,28 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 		parent: HTMLElement,
 		protected groupsAccessor: IGroupsAccessor,
 		protected group: INextEditorGroup,
-		@IContextMenuService protected contextMenuService: IContextMenuService,
+		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IContextKeyService protected contextKeyService: IContextKeyService,
-		@IKeybindingService protected keybindingService: IKeybindingService,
-		@ITelemetryService protected telemetryService: ITelemetryService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@ITelemetryService private telemetryService: ITelemetryService,
 		@INotificationService private notificationService: INotificationService,
-		@IMenuService protected menuService: IMenuService,
+		@IMenuService private menuService: IMenuService,
 		@IQuickOpenService protected quickOpenService: IQuickOpenService,
-		@IThemeService protected themeService: IThemeService,
+		@IThemeService themeService: IThemeService,
 		@IExtensionService private extensionService: IExtensionService
 	) {
 		super(themeService);
 
-		this.mapActionsToEditors = Object.create(null);
-
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
-
 		this.contextMenu = this._register(this.menuService.createMenu(MenuId.EditorTitleContext, this.contextKeyService));
 
-		this.initActions(this.instantiationService);
+		this.closeOneEditorAction = this._register(this.instantiationService.createInstance(CloseOneEditorAction, CloseOneEditorAction.ID, CloseOneEditorAction.LABEL));
+		this.splitEditorGroupHorizontalAction = this._register(this.instantiationService.createInstance(SplitEditorGroupHorizontalAction, SplitEditorGroupHorizontalAction.ID, SplitEditorGroupHorizontalAction.LABEL));
+		this.splitEditorGroupVerticalAction = this._register(this.instantiationService.createInstance(SplitEditorGroupVerticalAction, SplitEditorGroupVerticalAction.ID, SplitEditorGroupVerticalAction.LABEL));
 
 		this.doCreate(parent);
-
 		this.registerListeners();
-	}
-
-	protected initActions(services: IInstantiationService): void {
-		this.closeOneEditorAction = services.createInstance(CloseOneEditorAction, CloseOneEditorAction.ID, CloseOneEditorAction.LABEL);
-		this.splitEditorGroupHorizontalAction = services.createInstance(SplitEditorGroupHorizontalAction, SplitEditorGroupHorizontalAction.ID, SplitEditorGroupHorizontalAction.LABEL);
-		this.splitEditorGroupVerticalAction = services.createInstance(SplitEditorGroupVerticalAction, SplitEditorGroupVerticalAction.ID, SplitEditorGroupVerticalAction.LABEL);
 	}
 
 	protected abstract doCreate(parent: HTMLElement): void;
@@ -127,7 +119,7 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 		this.editorActionsToolbar = new ToolBar(container, this.contextMenuService, {
 			actionItemProvider: action => this.actionItemProvider(action as Action),
 			orientation: ActionsOrientation.HORIZONTAL,
-			ariaLabel: nls.localize('araLabelEditorActions', "Editor actions"),
+			ariaLabel: localize('araLabelEditorActions', "Editor actions"),
 			getKeyBinding: action => this.getKeybinding(action)
 		});
 
@@ -182,10 +174,10 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 		if (activeControl instanceof BaseEditor) {
 
 			// Editor Control Actions
-			let editorActions = this.mapActionsToEditors[activeControl.getId()];
+			let editorActions = this.mapEditorToActions.get(activeControl.getId());
 			if (!editorActions) {
 				editorActions = { primary: activeControl.getActions(), secondary: activeControl.getSecondaryActions() };
-				this.mapActionsToEditors[activeControl.getId()] = editorActions;
+				this.mapEditorToActions.set(activeControl.getId(), editorActions);
 			}
 			primary.push(...editorActions.primary);
 			secondary.push(...editorActions.secondary);

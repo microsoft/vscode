@@ -6,14 +6,13 @@
 'use strict';
 
 import 'vs/css!./media/nextNoTabsTitleControl';
-import * as errors from 'vs/base/common/errors';
 import { toResource } from 'vs/workbench/common/editor';
-import * as DOM from 'vs/base/browser/dom';
 import { NextTitleControl } from 'vs/workbench/browser/parts/editor2/nextTitleControl';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { Verbosity } from 'vs/platform/editor/common/editor';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
+import { addDisposableListener, EventType, addClass, EventHelper, removeClass } from 'vs/base/browser/dom';
 
 export class NextNoTabsTitleControl extends NextTitleControl {
 	private titleContainer: HTMLElement;
@@ -26,39 +25,40 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 		Gesture.addTarget(this.titleContainer);
 
 		// Pin on double click
-		this._register(DOM.addDisposableListener(this.titleContainer, DOM.EventType.DBLCLICK, (e: MouseEvent) => this.onTitleDoubleClick(e)));
+		this._register(addDisposableListener(this.titleContainer, EventType.DBLCLICK, (e: MouseEvent) => this.onTitleDoubleClick(e)));
 
 		// Detect mouse click
-		this._register(DOM.addDisposableListener(this.titleContainer, DOM.EventType.CLICK, (e: MouseEvent) => this.onTitleClick(e)));
+		this._register(addDisposableListener(this.titleContainer, EventType.CLICK, (e: MouseEvent) => this.onTitleClick(e)));
 
 		// Detect touch
-		this._register(DOM.addDisposableListener(this.titleContainer, TouchEventType.Tap, (e: GestureEvent) => this.onTitleClick(e)));
+		this._register(addDisposableListener(this.titleContainer, TouchEventType.Tap, (e: GestureEvent) => this.onTitleClick(e)));
 
 		// Editor Label
-		this.editorLabel = this.instantiationService.createInstance(ResourceLabel, this.titleContainer, void 0);
-		this._register(this.editorLabel);
+		this.editorLabel = this._register(this.instantiationService.createInstance(ResourceLabel, this.titleContainer, void 0));
 		this._register(this.editorLabel.onClick(e => this.onTitleLabelClick(e)));
 
 		// Right Actions Container
 		const actionsContainer = document.createElement('div');
-		DOM.addClass(actionsContainer, 'title-actions');
+		addClass(actionsContainer, 'title-actions');
 		this.titleContainer.appendChild(actionsContainer);
 
 		// Editor actions toolbar
 		this.createEditorActionsToolBar(actionsContainer);
 
 		// Context Menu
-		this._register(DOM.addDisposableListener(this.titleContainer, DOM.EventType.CONTEXT_MENU, (e: Event) => this.onContextMenu(this.group.activeEditor, e, this.titleContainer)));
-		this._register(DOM.addDisposableListener(this.titleContainer, TouchEventType.Contextmenu, (e: Event) => this.onContextMenu(this.group.activeEditor, e, this.titleContainer)));
+		this._register(addDisposableListener(this.titleContainer, EventType.CONTEXT_MENU, (e: Event) => this.onContextMenu(this.group.activeEditor, e, this.titleContainer)));
+		this._register(addDisposableListener(this.titleContainer, TouchEventType.Contextmenu, (e: Event) => this.onContextMenu(this.group.activeEditor, e, this.titleContainer)));
 	}
 
 	private onTitleLabelClick(e: MouseEvent): void {
-		DOM.EventHelper.stop(e, false);
-		setTimeout(() => this.quickOpenService.show()); // delayed to let the onTitleClick() come first which can cause a focus change which can close quick open
+		EventHelper.stop(e, false);
+
+		// delayed to let the onTitleClick() come first which can cause a focus change which can close quick open
+		setTimeout(() => this.quickOpenService.show());
 	}
 
 	private onTitleDoubleClick(e: MouseEvent): void {
-		DOM.EventHelper.stop(e);
+		EventHelper.stop(e);
 
 		this.group.pinEditor();
 	}
@@ -67,7 +67,7 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 
 		// Close editor on middle mouse click
 		if (e instanceof MouseEvent && e.button === 1 /* Middle Button */) {
-			this.closeOneEditorAction.run({ groupId: this.group.id, editorIndex: this.group.getIndexOfEditor(this.group.activeEditor) }).done(null, errors.onUnexpectedError);
+			this.closeOneEditorAction.run({ groupId: this.group.id, editorIndex: this.group.getIndexOfEditor(this.group.activeEditor) });
 		}
 	}
 
@@ -77,7 +77,7 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 			this.editorLabel.clear();
 			this.clearEditorActionsToolbar();
 
-			return; // return early if we are being closed
+			return;
 		}
 
 		const isEditorPinned = this.group.isPinned(this.group.activeEditor);
@@ -85,9 +85,9 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 
 		// Dirty state
 		if (editor.isDirty()) {
-			DOM.addClass(this.titleContainer, 'dirty');
+			addClass(this.titleContainer, 'dirty');
 		} else {
-			DOM.removeClass(this.titleContainer, 'dirty');
+			removeClass(this.titleContainer, 'dirty');
 		}
 
 		// Editor Label

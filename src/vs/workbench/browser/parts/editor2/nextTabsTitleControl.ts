@@ -6,21 +6,17 @@
 'use strict';
 
 import 'vs/css!./media/nextTabsTitleControl';
-import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as errors from 'vs/base/common/errors';
-import * as DOM from 'vs/base/browser/dom';
 import { isMacintosh } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
-import { IEditorInput, Verbosity, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
+import { IEditorInput, Verbosity } from 'vs/platform/editor/common/editor';
 import { IEditorGroup, toResource, GroupIdentifier } from 'vs/workbench/common/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IWorkbenchEditorService, DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IEditorTabOptions } from 'vs/workbench/services/group/common/groupService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -34,7 +30,6 @@ import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecyc
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { getOrSet } from 'vs/base/common/map';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_BACKGROUND, WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { activeContrastBorder, contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
@@ -43,8 +38,11 @@ import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { INextEditorGroup } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
-import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { IGroupsAccessor } from 'vs/workbench/browser/parts/editor2/nextEditorGroupView';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { addClass, addDisposableListener, hasClass, EventType, EventHelper, removeClass, clearNode, Dimension, scheduleAtNextAnimationFrame, findParentWithClass } from 'vs/base/browser/dom';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { localize } from 'vs/nls';
 
 interface IEditorInputLabel {
 	name: string;
@@ -63,7 +61,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 	private scrollbar: ScrollableElement;
 	private tabDisposeables: IDisposable[];
 	private blockRevealActiveTab: boolean;
-	private dimension: DOM.Dimension;
+	private dimension: Dimension;
 	private layoutScheduled: IDisposable;
 	private transfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 
@@ -73,7 +71,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 		group: INextEditorGroup,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@INextEditorService private nextEditorService: INextEditorService,
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -89,44 +87,17 @@ export class NextTabsTitleControl extends NextTitleControl {
 		this.editorLabels = [];
 	}
 
-	protected initActions(services: IInstantiationService): void {
-		super.initActions(this.createScopedInstantiationService());
-	}
-
-	private createScopedInstantiationService(): IInstantiationService {
-		const delegatingEditorService = this.instantiationService.createInstance(DelegatingWorkbenchEditorService);
-
-		// We create a scoped instantiation service to override the behaviour when closing an inactive editor
-		// Specifically we want to move focus back to the editor when an inactive editor is closed from anywhere
-		// in the tabs title control (e.g. mouse middle click, context menu on tab). This is only needed for
-		// the inactive editors because closing the active one will always cause a tab switch that sets focus.
-		// We also want to block the tabs container to reveal the currently active tab because that makes it very
-		// hard to close multiple inactive tabs next to each other.
-		delegatingEditorService.setEditorCloseHandler((groupId, editor) => {
-			const group = this.groupsAccessor.getGroup(groupId);
-			if (group.active && group.activeEditor !== editor) {
-				group.focus();
-			}
-
-			this.blockRevealActiveTab = true;
-
-			return TPromise.as(void 0);
-		});
-
-		return this.instantiationService.createChild(new ServiceCollection([IWorkbenchEditorService, delegatingEditorService]));
-	}
-
 	protected doCreate(parent: HTMLElement): void {
 		this.titleContainer = parent;
 
 		// Tabs Container
 		this.tabsContainer = document.createElement('div');
 		this.tabsContainer.setAttribute('role', 'tablist');
-		DOM.addClass(this.tabsContainer, 'tabs-container');
+		addClass(this.tabsContainer, 'tabs-container');
 
 		// Forward scrolling inside the container to our custom scrollbar
-		this._register(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.SCROLL, e => {
-			if (DOM.hasClass(this.tabsContainer, 'scroll')) {
+		this._register(addDisposableListener(this.tabsContainer, EventType.SCROLL, e => {
+			if (hasClass(this.tabsContainer, 'scroll')) {
 				this.scrollbar.setScrollPosition({
 					scrollLeft: this.tabsContainer.scrollLeft // during DND the  container gets scrolled so we need to update the custom scrollbar
 				});
@@ -134,16 +105,16 @@ export class NextTabsTitleControl extends NextTitleControl {
 		}));
 
 		// New file when double clicking on tabs container (but not tabs)
-		this._register(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DBLCLICK, e => {
+		this._register(addDisposableListener(this.tabsContainer, EventType.DBLCLICK, e => {
 			const target = e.target;
 			if (target instanceof HTMLElement && target.className.indexOf('tabs-container') === 0) {
-				DOM.EventHelper.stop(e);
+				EventHelper.stop(e);
 
-				this.nextEditorService.openEditor({ options: { pinned: true, index: this.group.count /* always at the end */ } } as IUntitledResourceInput); // untitled are always pinned
+				this.group.openEditor(this.untitledEditorService.createOrGet(), { pinned: true /* untitled is always pinned */, index: this.group.count /* always at the end */ });
 			}
 		}));
 
-		this._register(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+		this._register(addDisposableListener(this.tabsContainer, EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			if (e.button === 1) {
 				e.preventDefault(); // required to prevent auto-scrolling (https://github.com/Microsoft/vscode/issues/16690)
 			}
@@ -165,7 +136,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 		this.titleContainer.appendChild(this.scrollbar.getDomNode());
 
 		// Drag over
-		this._register(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
+		this._register(addDisposableListener(this.tabsContainer, EventType.DRAG_OVER, (e: DragEvent) => {
 			const draggedEditor = this.transfer.hasData(DraggedEditorIdentifier.prototype) ? this.transfer.getData(DraggedEditorIdentifier.prototype)[0].identifier : void 0;
 
 			// update the dropEffect, otherwise it would look like a "move" operation. but only if we are
@@ -174,7 +145,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 				e.dataTransfer.dropEffect = 'copy';
 			}
 
-			DOM.addClass(this.tabsContainer, 'scroll'); // enable support to scroll while dragging
+			addClass(this.tabsContainer, 'scroll'); // enable support to scroll while dragging
 
 			const target = e.target;
 			if (target instanceof HTMLElement && target.className.indexOf('tabs-container') === 0) {
@@ -193,21 +164,21 @@ export class NextTabsTitleControl extends NextTitleControl {
 		}));
 
 		// Drag leave
-		this._register(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
+		this._register(addDisposableListener(this.tabsContainer, EventType.DRAG_LEAVE, (e: DragEvent) => {
 			this.updateDropFeedback(this.tabsContainer, false);
-			DOM.removeClass(this.tabsContainer, 'scroll');
+			removeClass(this.tabsContainer, 'scroll');
 		}));
 
 		// Drag end
-		this._register(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_END, (e: DragEvent) => {
+		this._register(addDisposableListener(this.tabsContainer, EventType.DRAG_END, (e: DragEvent) => {
 			this.updateDropFeedback(this.tabsContainer, false);
-			DOM.removeClass(this.tabsContainer, 'scroll');
+			removeClass(this.tabsContainer, 'scroll');
 		}));
 
 		// Drop onto tabs container
-		this._register(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DROP, (e: DragEvent) => {
+		this._register(addDisposableListener(this.tabsContainer, EventType.DROP, (e: DragEvent) => {
 			this.updateDropFeedback(this.tabsContainer, false);
-			DOM.removeClass(this.tabsContainer, 'scroll');
+			removeClass(this.tabsContainer, 'scroll');
 
 			const target = e.target;
 			if (target instanceof HTMLElement && target.className.indexOf('tabs-container') === 0) {
@@ -217,7 +188,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 
 		// Editor Toolbar Container
 		this.editorToolbarContainer = document.createElement('div');
-		DOM.addClass(this.editorToolbarContainer, 'editor-actions');
+		addClass(this.editorToolbarContainer, 'editor-actions');
 		this.titleContainer.appendChild(this.editorToolbarContainer);
 
 		// Editor Actions Toolbar
@@ -280,19 +251,19 @@ export class NextTabsTitleControl extends NextTitleControl {
 			const tabOptions = {} as IEditorTabOptions; // TODO@grid support tab options (this.editorGroupService.getTabOptions());
 
 			['off', 'left', 'right'].forEach(option => {
-				const domAction = tabOptions.tabCloseButton === option ? DOM.addClass : DOM.removeClass;
+				const domAction = tabOptions.tabCloseButton === option ? addClass : removeClass;
 				domAction(tabContainer, `close-button-${option}`);
 			});
 
 			['fit', 'shrink'].forEach(option => {
-				const domAction = tabOptions.tabSizing === option ? DOM.addClass : DOM.removeClass;
+				const domAction = tabOptions.tabSizing === option ? addClass : removeClass;
 				domAction(tabContainer, `sizing-${option}`);
 			});
 
 			if (tabOptions.showIcons && !!tabOptions.iconTheme) {
-				DOM.addClass(tabContainer, 'has-icon-theme');
+				addClass(tabContainer, 'has-icon-theme');
 			} else {
-				DOM.removeClass(tabContainer, 'has-icon-theme');
+				removeClass(tabContainer, 'has-icon-theme');
 			}
 
 			// Label
@@ -301,7 +272,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 
 			// Active state
 			if (isEditorActive) {
-				DOM.addClass(tabContainer, 'active');
+				addClass(tabContainer, 'active');
 				tabContainer.setAttribute('aria-selected', 'true');
 				tabContainer.style.backgroundColor = this.getColor(TAB_ACTIVE_BACKGROUND);
 				tabLabel.element.style.color = this.getColor(isGroupActive ? TAB_ACTIVE_FOREGROUND : TAB_UNFOCUSED_ACTIVE_FOREGROUND);
@@ -318,7 +289,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 
 				this.activeTab = tabContainer;
 			} else {
-				DOM.removeClass(tabContainer, 'active');
+				removeClass(tabContainer, 'active');
 				tabContainer.setAttribute('aria-selected', 'false');
 				tabContainer.style.backgroundColor = this.getColor(TAB_INACTIVE_BACKGROUND);
 				tabLabel.element.style.color = this.getColor(isGroupActive ? TAB_INACTIVE_FOREGROUND : TAB_UNFOCUSED_INACTIVE_FOREGROUND);
@@ -327,9 +298,9 @@ export class NextTabsTitleControl extends NextTitleControl {
 
 			// Dirty State
 			if (isEditorDirty) {
-				DOM.addClass(tabContainer, 'dirty');
+				addClass(tabContainer, 'dirty');
 			} else {
-				DOM.removeClass(tabContainer, 'dirty');
+				removeClass(tabContainer, 'dirty');
 			}
 		});
 
@@ -453,19 +424,19 @@ export class NextTabsTitleControl extends NextTitleControl {
 
 		// Handle Tabs
 		this.handleTabs(this.group.count);
-		DOM.removeClass(this.titleContainer, 'empty');
+		removeClass(this.titleContainer, 'empty');
 
 		// Update Tabs
 		this.doUpdate();
 	}
 
 	private clearTabs(): void {
-		DOM.clearNode(this.tabsContainer);
+		clearNode(this.tabsContainer);
 
 		this.tabDisposeables = dispose(this.tabDisposeables);
 		this.editorLabels = [];
 
-		DOM.addClass(this.titleContainer, 'empty');
+		addClass(this.titleContainer, 'empty');
 	}
 
 	private handleTabs(tabsNeeded: number): void {
@@ -501,7 +472,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 		tabContainer.draggable = true;
 		tabContainer.tabIndex = 0;
 		tabContainer.setAttribute('role', 'presentation'); // cannot use role "tab" here due to https://github.com/Microsoft/vscode/issues/8659
-		DOM.addClass(tabContainer, 'tab');
+		addClass(tabContainer, 'tab');
 
 		// Gesture Support
 		Gesture.addTarget(tabContainer);
@@ -512,14 +483,22 @@ export class NextTabsTitleControl extends NextTitleControl {
 
 		// Tab Close
 		const tabCloseContainer = document.createElement('div');
-		DOM.addClass(tabCloseContainer, 'tab-close');
+		addClass(tabCloseContainer, 'tab-close');
 		tabContainer.appendChild(tabCloseContainer);
 
 		const actionRunner = new TabActionRunner(() => this.group.id, index);
 		this.tabDisposeables.push(actionRunner);
 
-		const bar = new ActionBar(tabCloseContainer, { ariaLabel: nls.localize('araLabelTabActions', "Tab actions"), actionRunner });
+		const bar = new ActionBar(tabCloseContainer, { ariaLabel: localize('araLabelTabActions', "Tab actions"), actionRunner });
 		bar.push(this.closeOneEditorAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.closeOneEditorAction) });
+		bar.onDidBeforeRun(() => {
+
+			// When closing tabs through the tab close button, the user might want to 
+			// rapidly close tabs in sequence and as such revealing the active tab
+			// after each close would be annoying. As such we block the automated
+			// revealing of the active tab once after the close is triggered.
+			this.blockRevealActiveTab = true;
+		});
 
 		// Eventing
 		const disposable = this.hookTabListeners(tabContainer, index);
@@ -529,7 +508,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 		return tabContainer;
 	}
 
-	layout(dimension: DOM.Dimension): void {
+	layout(dimension: Dimension): void {
 		if (!this.activeTab || !dimension) {
 			return;
 		}
@@ -540,14 +519,14 @@ export class NextTabsTitleControl extends NextTitleControl {
 		// that can result in the browser doing a full page layout to validate them. To buffer
 		// this a little bit we try at least to schedule this work on the next animation frame.
 		if (!this.layoutScheduled) {
-			this.layoutScheduled = DOM.scheduleAtNextAnimationFrame(() => {
+			this.layoutScheduled = scheduleAtNextAnimationFrame(() => {
 				this.doLayout(this.dimension);
 				this.layoutScheduled = void 0;
 			});
 		}
 	}
 
-	private doLayout(dimension: DOM.Dimension): void {
+	private doLayout(dimension: Dimension): void {
 		const visibleContainerWidth = this.tabsContainer.offsetWidth;
 		const totalContainerWidth = this.tabsContainer.scrollWidth;
 
@@ -613,34 +592,34 @@ export class NextTabsTitleControl extends NextTitleControl {
 		};
 
 		const showContextMenu = (e: Event) => {
-			DOM.EventHelper.stop(e);
+			EventHelper.stop(e);
 
 			this.onContextMenu(this.group.getEditor(index), e, tab);
 		};
 
 		// Open on Click
-		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => handleClickOrTouch(e)));
+		disposables.push(addDisposableListener(tab, EventType.MOUSE_DOWN, (e: MouseEvent) => handleClickOrTouch(e)));
 
 		// Open on Touch
-		disposables.push(DOM.addDisposableListener(tab, TouchEventType.Tap, (e: GestureEvent) => handleClickOrTouch(e)));
+		disposables.push(addDisposableListener(tab, TouchEventType.Tap, (e: GestureEvent) => handleClickOrTouch(e)));
 
 		// Touch Scroll Support
-		disposables.push(DOM.addDisposableListener(tab, TouchEventType.Change, (e: GestureEvent) => {
+		disposables.push(addDisposableListener(tab, TouchEventType.Change, (e: GestureEvent) => {
 			this.scrollbar.setScrollPosition({ scrollLeft: this.scrollbar.getScrollPosition().scrollLeft - e.translationX });
 		}));
 
 		// Close on mouse middle click
-		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.MOUSE_UP, (e: MouseEvent) => {
-			DOM.EventHelper.stop(e);
+		disposables.push(addDisposableListener(tab, EventType.MOUSE_UP, (e: MouseEvent) => {
+			EventHelper.stop(e);
 			tab.blur();
 
 			if (e.button === 1 /* Middle Button*/ && !this.isTabActionBar((e.target || e.srcElement) as HTMLElement)) {
-				this.closeOneEditorAction.run({ groupId: this.group.id, editorIndex: index }).done(null, errors.onUnexpectedError);
+				this.closeOneEditorAction.run({ groupId: this.group.id, editorIndex: index }).done(null, onUnexpectedError);
 			}
 		}));
 
 		// Context menu on Shift+F10
-		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		disposables.push(addDisposableListener(tab, EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.shiftKey && event.keyCode === KeyCode.F10) {
 				showContextMenu(e);
@@ -648,12 +627,12 @@ export class NextTabsTitleControl extends NextTitleControl {
 		}));
 
 		// Context menu on touch context menu gesture
-		disposables.push(DOM.addDisposableListener(tab, TouchEventType.Contextmenu, (e: GestureEvent) => {
+		disposables.push(addDisposableListener(tab, TouchEventType.Contextmenu, (e: GestureEvent) => {
 			showContextMenu(e);
 		}));
 
 		// Keyboard accessibility
-		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
+		disposables.push(addDisposableListener(tab, EventType.KEY_UP, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			let handled = false;
 
@@ -685,7 +664,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 			}
 
 			if (handled) {
-				DOM.EventHelper.stop(e, true);
+				EventHelper.stop(e, true);
 			}
 
 			// moving in the tabs container can have an impact on scrolling position, so we need to update the custom scrollbar
@@ -695,21 +674,21 @@ export class NextTabsTitleControl extends NextTitleControl {
 		}));
 
 		// Pin on double click
-		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DBLCLICK, (e: MouseEvent) => {
-			DOM.EventHelper.stop(e);
+		disposables.push(addDisposableListener(tab, EventType.DBLCLICK, (e: MouseEvent) => {
+			EventHelper.stop(e);
 
 			this.group.pinEditor(this.group.getEditor(index));
 		}));
 
 		// Context menu
-		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.CONTEXT_MENU, (e: Event) => {
-			DOM.EventHelper.stop(e, true);
+		disposables.push(addDisposableListener(tab, EventType.CONTEXT_MENU, (e: Event) => {
+			EventHelper.stop(e, true);
 
 			this.onContextMenu(this.group.getEditor(index), e, tab);
 		}, true /* use capture to fix https://github.com/Microsoft/vscode/issues/19145 */));
 
 		// Drag start
-		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_START, (e: DragEvent) => {
+		disposables.push(addDisposableListener(tab, EventType.DRAG_START, (e: DragEvent) => {
 			const editor = this.group.getEditor(index);
 			this.transfer.setData([new DraggedEditorIdentifier({ editor, group: (<any>this.group /* TODO@grid should be GroupIdentifier or INextEditorGroup */).group })], DraggedEditorIdentifier.prototype);
 
@@ -722,8 +701,8 @@ export class NextTabsTitleControl extends NextTitleControl {
 			}
 
 			// Fixes https://github.com/Microsoft/vscode/issues/18733
-			DOM.addClass(tab, 'dragged');
-			DOM.scheduleAtNextAnimationFrame(() => DOM.removeClass(tab, 'dragged'));
+			addClass(tab, 'dragged');
+			scheduleAtNextAnimationFrame(() => removeClass(tab, 'dragged'));
 		}));
 
 		// We need to keep track of DRAG_ENTER and DRAG_LEAVE events because a tab is not just a div without children,
@@ -733,7 +712,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 		let counter = 0;
 
 		// Drag over
-		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_ENTER, (e: DragEvent) => {
+		disposables.push(addDisposableListener(tab, EventType.DRAG_ENTER, (e: DragEvent) => {
 			counter++;
 
 			// Find out if the currently dragged editor is this tab and in that
@@ -746,7 +725,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 				}
 			}
 
-			DOM.addClass(tab, 'dragged-over');
+			addClass(tab, 'dragged-over');
 
 			if (!draggedEditorIsTab) {
 				this.updateDropFeedback(tab, true, index);
@@ -754,27 +733,27 @@ export class NextTabsTitleControl extends NextTitleControl {
 		}));
 
 		// Drag leave
-		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
+		disposables.push(addDisposableListener(tab, EventType.DRAG_LEAVE, (e: DragEvent) => {
 			counter--;
 			if (counter === 0) {
-				DOM.removeClass(tab, 'dragged-over');
+				removeClass(tab, 'dragged-over');
 				this.updateDropFeedback(tab, false, index);
 			}
 		}));
 
 		// Drag end
-		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_END, (e: DragEvent) => {
+		disposables.push(addDisposableListener(tab, EventType.DRAG_END, (e: DragEvent) => {
 			counter = 0;
-			DOM.removeClass(tab, 'dragged-over');
+			removeClass(tab, 'dragged-over');
 			this.updateDropFeedback(tab, false, index);
 
 			this.transfer.clearData();
 		}));
 
 		// Drop
-		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DROP, (e: DragEvent) => {
+		disposables.push(addDisposableListener(tab, EventType.DROP, (e: DragEvent) => {
 			counter = 0;
-			DOM.removeClass(tab, 'dragged-over');
+			removeClass(tab, 'dragged-over');
 			this.updateDropFeedback(tab, false, index);
 
 			this.onDrop(e, index);
@@ -784,14 +763,14 @@ export class NextTabsTitleControl extends NextTitleControl {
 	}
 
 	private isTabActionBar(element: HTMLElement): boolean {
-		return !!DOM.findParentWithClass(element, 'monaco-action-bar', 'tab');
+		return !!findParentWithClass(element, 'monaco-action-bar', 'tab');
 	}
 
 	private onDrop(e: DragEvent, targetIndex: number): void {
-		DOM.EventHelper.stop(e, true);
+		EventHelper.stop(e, true);
 
 		this.updateDropFeedback(this.tabsContainer, false);
-		DOM.removeClass(this.tabsContainer, 'scroll');
+		removeClass(this.tabsContainer, 'scroll');
 
 		// Local DND
 		const draggedEditor = this.transfer.hasData(DraggedEditorIdentifier.prototype) ? this.transfer.getData(DraggedEditorIdentifier.prototype)[0].identifier : void 0;
