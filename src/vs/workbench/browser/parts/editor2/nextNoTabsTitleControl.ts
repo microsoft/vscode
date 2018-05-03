@@ -69,14 +69,6 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 		if (e instanceof MouseEvent && e.button === 1 /* Middle Button */) {
 			this.closeOneEditorAction.run({ groupId: this.group.id, editorIndex: this.group.indexOf(this.group.activeEditor) }).done(null, errors.onUnexpectedError);
 		}
-
-		// Focus editor group unless:
-		// - click on toolbar: should trigger actions within
-		// - mouse click: do not focus group if there are more than one as it otherwise makes group DND funky
-		// - touch: always focus
-		else if ((this.stacks.groups.length === 1 || !(e instanceof MouseEvent)) && !DOM.isAncestor(((e as GestureEvent).initialTarget || e.target || e.srcElement) as HTMLElement, this.editorActionsToolbar.getContainer())) {
-			this.groupController.focus();
-		}
 	}
 
 	protected doRefresh(): void {

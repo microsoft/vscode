@@ -128,6 +128,8 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		this.registerListeners();
 	}
 
+	//#region event handling
+
 	private registerListeners(): void {
 
 		// Model Events
@@ -253,6 +255,8 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 			this.titleAreaControl.updateEditorLabel(editor);
 		}
 	}
+
+	//#endregion
 
 	private doCreate(): void {
 
@@ -470,7 +474,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	private doCreateOrGetEditorControl(): NextEditorControl {
 		if (!this.editorControl) {
-			this.editorControl = this._register(this.doCreateOrGetScopedInstantiationService().createInstance(NextEditorControl, this.editorContainer, this.group));
+			this.editorControl = this._register(this.doCreateOrGetScopedInstantiationService().createInstance(NextEditorControl, this.editorContainer, this.group.id));
 			this.doLayoutEditorControl();
 		}
 

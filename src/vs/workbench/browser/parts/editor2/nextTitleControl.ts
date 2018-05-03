@@ -11,9 +11,8 @@ import { prepareActions } from 'vs/workbench/browser/actions';
 import { IAction, Action, IRunEvent } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { RunOnceScheduler } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
-import { IEditorStacksModel, IEditorIdentifier, EditorInput, toResource, IEditorCommandsContext, IEditorGroup, EditorOptions } from 'vs/workbench/common/editor';
+import { IEditorIdentifier, EditorInput, toResource, IEditorCommandsContext, EditorOptions, IEditorGroup } from 'vs/workbench/common/editor';
 import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -57,8 +56,6 @@ export interface INextTitleAreaControl extends IDisposable {
 
 export abstract class NextTitleControl extends Themable implements INextTitleAreaControl {
 
-	protected stacks: IEditorStacksModel;
-
 	protected closeOneEditorAction: CloseOneEditorAction;
 
 	private currentPrimaryEditorActionIds: string[] = [];
@@ -66,9 +63,6 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 	protected editorActionsToolbar: ToolBar;
 
 	private mapActionsToEditors: { [editorId: string]: IToolbarActions; };
-	private titleAreaUpdateScheduler: RunOnceScheduler;
-	private titleAreaToolbarUpdateScheduler: RunOnceScheduler;
-	private refreshScheduled: boolean;
 
 	private resourceContext: ResourceContextKey;
 	private disposeOnEditorActions: IDisposable[] = [];
@@ -97,12 +91,6 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 
 		this.mapActionsToEditors = Object.create(null);
 
-		this.titleAreaUpdateScheduler = new RunOnceScheduler(() => this.onSchedule(), 0);
-		this._register(this.titleAreaUpdateScheduler);
-
-		this.titleAreaToolbarUpdateScheduler = new RunOnceScheduler(() => this.updateEditorActionsToolbar(), 0);
-		this._register(this.titleAreaToolbarUpdateScheduler);
-
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 
 		this.contextMenu = this.menuService.createMenu(MenuId.EditorTitleContext, this.contextKeyService);
@@ -115,46 +103,12 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 		this.registerListeners();
 	}
 
+	protected abstract doCreate(parent: HTMLElement): void;
+
 	private registerListeners(): void {
 
 		// Update when extensions register so that e.g. actions are properly reflected in the toolbar
-		this._register(this.extensionService.onDidRegisterExtensions(() => this.doScheduleUpdate()));
-	}
-
-	protected abstract doCreate(parent: HTMLElement): void;
-
-	private onSchedule(): void {
-		if (this.refreshScheduled) {
-			this.doRefresh();
-		} else {
-			this.doUpdate();
-		}
-
-		this.refreshScheduled = false;
-	}
-
-	private doScheduleUpdate(instant?: boolean): void {
-		if (instant) {
-			this.titleAreaUpdateScheduler.cancel();
-			this.onSchedule();
-		} else {
-			this.titleAreaUpdateScheduler.schedule();
-		}
-
-		this.titleAreaToolbarUpdateScheduler.cancel(); // a title area update will always refresh the toolbar too
-	}
-
-	private doScheduleRefresh(instant?: boolean) {
-		this.refreshScheduled = true;
-
-		if (instant) {
-			this.titleAreaUpdateScheduler.cancel();
-			this.onSchedule();
-		} else {
-			this.titleAreaUpdateScheduler.schedule();
-		}
-
-		this.titleAreaToolbarUpdateScheduler.cancel(); // a title area update will always refresh the toolbar too
+		this._register(this.extensionService.onDidRegisterExtensions(() => this.doUpdate()));
 	}
 
 	protected get groupController(): INextEditorGroup {
@@ -203,7 +157,7 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 		}));
 	}
 
-	protected actionItemProvider(action: Action): IActionItem {
+	private actionItemProvider(action: Action): IActionItem {
 		const activeControl = this.groupController.activeControl;
 
 		// Check Active Editor
@@ -231,7 +185,7 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 
 		// Editor actions require the editor control to be there, so we retrieve it via service
 		const activeControl = this.groupController.activeControl;
-		if (activeControl instanceof BaseEditor && activeControl.input && typeof activeControl.position === 'number') {
+		if (activeControl instanceof BaseEditor) {
 
 			// Editor Control Actions
 			let editorActions = this.mapActionsToEditors[activeControl.getId()];
@@ -242,23 +196,13 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 			primary.push(...editorActions.primary);
 			secondary.push(...editorActions.secondary);
 
-			// MenuItems
-			// TODO This isn't very proper but needed as we have failed to
-			// use the correct context key service per editor only once. Don't
-			// take this code as sample of how to work with menus
+			// Contributed Actions
 			this.disposeOnEditorActions = dispose(this.disposeOnEditorActions);
 			const widget = activeControl.getControl();
 			const codeEditor = isCodeEditor(widget) && widget || isDiffEditor(widget) && widget.getModifiedEditor();
 			const scopedContextKeyService = codeEditor && codeEditor.invokeWithinContext(accessor => accessor.get(IContextKeyService)) || this.contextKeyService;
 			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService);
-			this.disposeOnEditorActions.push(titleBarMenu, titleBarMenu.onDidChange(_ => {
-				// schedule the update for the title area toolbar only if no other
-				// update to the title area is scheduled which will always also
-				// update the toolbar
-				if (!this.titleAreaUpdateScheduler.isScheduled()) {
-					this.titleAreaToolbarUpdateScheduler.schedule();
-				}
-			}));
+			this.disposeOnEditorActions.push(titleBarMenu, titleBarMenu.onDidChange(() => this.updateEditorActionsToolbar()));
 
 			fillInActions(titleBarMenu, { arg: this.resourceContext.get(), shouldForwardArgs: true }, { primary, secondary }, this.contextMenuService);
 		}
@@ -365,7 +309,7 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 	//#region IThemeable
 
 	protected updateStyles(): void {
-		this.doScheduleUpdate(true); // run a sync update when the theme changes to new styles
+		this.doUpdate(); // run an update when the theme changes due to potentially new styles
 	}
 
 	//#endregion
@@ -373,27 +317,27 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 	//#region INextTitleAreaControl
 
 	openEditor(editor: EditorInput, options?: EditorOptions): void {
-		this.doScheduleRefresh(true); // TODO@grid optimize if possible
+		this.doRefresh(); // TODO@grid optimize if possible
 	}
 
 	closeEditor(editor: EditorInput): void {
-		this.doScheduleRefresh(); // TODO@grid optimize if possible
+		this.doRefresh(); // TODO@grid optimize if possible
 	}
 
 	moveEditor(editor: EditorInput, targetIndex: number): void {
-		this.doScheduleUpdate(true); // TODO@grid optimize if possible
+		this.doUpdate(); // TODO@grid optimize if possible
 	}
 
 	pinEditor(editor: EditorInput): void {
-		this.doScheduleUpdate(true); // TODO@grid optimize if possible
+		this.doUpdate(); // TODO@grid optimize if possible
 	}
 
 	setActive(isActive: boolean): void {
-		this.doScheduleUpdate(true); // TODO@grid optimize if possible
+		this.doUpdate(); // TODO@grid optimize if possible
 	}
 
 	updateEditorLabel(editor: EditorInput): void {
-		this.doScheduleUpdate(); // TODO@grid optimize if possible
+		this.doUpdate(); // TODO@grid optimize if possible
 	}
 
 	layout(dimension: Dimension): void {

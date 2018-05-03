@@ -6,7 +6,7 @@
 'use strict';
 
 import { Disposable, dispose } from 'vs/base/common/lifecycle';
-import { EditorInput, EditorOptions, IEditorGroup } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, GroupIdentifier } from 'vs/workbench/common/editor';
 import { Dimension, show, hide } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorRegistry, Extensions as EditorExtensions, IEditorDescriptor } from 'vs/workbench/browser/editor';
@@ -30,7 +30,7 @@ export class NextEditorControl extends Disposable {
 
 	constructor(
 		private parent: HTMLElement,
-		private group: IEditorGroup,
+		private groupId: GroupIdentifier,
 		@IPartService private partService: IPartService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IProgressService progressService: IProgressService
@@ -75,7 +75,7 @@ export class NextEditorControl extends Disposable {
 		show(control.getContainer());
 
 		// Indicate to editor that it is now visible
-		control.setVisible(true, this.group.id /* TODO@grid use group id instead of position */);
+		control.setVisible(true, this.groupId /* TODO@grid use group id instead of position */);
 
 		// Layout
 		control.layout(this.dimension);
