@@ -60,14 +60,14 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 	private onTitleDoubleClick(e: MouseEvent): void {
 		DOM.EventHelper.stop(e);
 
-		this.groupController.pinEditor(this.group.activeEditor);
+		this.group.pinEditor();
 	}
 
 	private onTitleClick(e: MouseEvent | GestureEvent): void {
 
 		// Close editor on middle mouse click
 		if (e instanceof MouseEvent && e.button === 1 /* Middle Button */) {
-			this.closeOneEditorAction.run({ groupId: this.group.id, editorIndex: this.group.indexOf(this.group.activeEditor) }).done(null, errors.onUnexpectedError);
+			this.closeOneEditorAction.run({ groupId: this.group.id, editorIndex: this.group.getIndexOfEditor(this.group.activeEditor) }).done(null, errors.onUnexpectedError);
 		}
 	}
 
@@ -80,8 +80,8 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 			return; // return early if we are being closed
 		}
 
-		const isPinned = this.group.isPinned(this.group.activeEditor);
-		const isActive = this.groupController.isActive;
+		const isEditorPinned = this.group.isPinned(this.group.activeEditor);
+		const isGroupActive = this.group.active;
 
 		// Dirty state
 		if (editor.isDirty()) {
@@ -96,7 +96,7 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 
 		const labelFormat = 'default'; //TODO@grid support tab options (this.editorGroupService.getTabOptions().labelFormat);
 		let description: string;
-		if (labelFormat === 'default' && !isActive) {
+		if (labelFormat === 'default' && !isGroupActive) {
 			description = ''; // hide description when group is not active and style is 'default'
 		} else {
 			description = editor.getDescription(this.getVerbosity(labelFormat)) || '';
@@ -107,8 +107,8 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 			title = ''; // dont repeat what is already shown
 		}
 
-		this.editorLabel.setLabel({ name, description, resource }, { title, italic: !isPinned, extraClasses: ['title-label'] });
-		if (isActive) {
+		this.editorLabel.setLabel({ name, description, resource }, { title, italic: !isEditorPinned, extraClasses: ['title-label'] });
+		if (isGroupActive) {
 			this.editorLabel.element.style.color = this.getColor(TAB_ACTIVE_FOREGROUND);
 		} else {
 			this.editorLabel.element.style.color = this.getColor(TAB_UNFOCUSED_ACTIVE_FOREGROUND);

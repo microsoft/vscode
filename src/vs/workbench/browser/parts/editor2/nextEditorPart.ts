@@ -254,8 +254,15 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 
 	private doCreateGroupView(copyFromView?: NextEditorGroupView): NextEditorGroupView {
 
+		// Groups Accessor
+		const part = this;
+		const groupsAccessor: IGroupsAccessor = {
+			get groups() { return part.groups; },
+			get activeGroup() { return part.activeGroup; },
+			getGroup(identifier: GroupIdentifier) { return part.getGroup(identifier); }
+		};
+
 		// Create group view
-		const groupsAccessor: IGroupsAccessor = { getGroups: () => this.groups };
 		let groupView: NextEditorGroupView;
 		if (copyFromView) {
 			groupView = NextEditorGroupView.createCopy(copyFromView, groupsAccessor, this.instantiationService);

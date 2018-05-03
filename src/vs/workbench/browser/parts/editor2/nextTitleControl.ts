@@ -12,7 +12,7 @@ import { IAction, Action, IRunEvent } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import * as arrays from 'vs/base/common/arrays';
-import { IEditorIdentifier, EditorInput, toResource, IEditorCommandsContext, EditorOptions, IEditorGroup } from 'vs/workbench/common/editor';
+import { EditorInput, toResource, IEditorCommandsContext, EditorOptions } from 'vs/workbench/common/editor';
 import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -34,8 +34,9 @@ import { isDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension } from 'vs/base/browser/dom';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { INextEditorGroupsService, INextEditorGroup } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { INextEditorGroup } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
+import { IGroupsAccessor } from 'vs/workbench/browser/parts/editor2/nextEditorGroupView';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -74,10 +75,10 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 
 	constructor(
 		parent: HTMLElement,
-		protected group: IEditorGroup,
+		protected groupsAccessor: IGroupsAccessor,
+		protected group: INextEditorGroup,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
-		@INextEditorGroupsService protected nextEditorGroupsService: INextEditorGroupsService,
 		@IContextKeyService protected contextKeyService: IContextKeyService,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@ITelemetryService protected telemetryService: ITelemetryService,
@@ -93,14 +94,19 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 
-		this.contextMenu = this.menuService.createMenu(MenuId.EditorTitleContext, this.contextKeyService);
-		this._register(this.contextMenu);
+		this.contextMenu = this._register(this.menuService.createMenu(MenuId.EditorTitleContext, this.contextKeyService));
 
 		this.initActions(this.instantiationService);
 
 		this.doCreate(parent);
 
 		this.registerListeners();
+	}
+
+	protected initActions(services: IInstantiationService): void {
+		this.closeOneEditorAction = services.createInstance(CloseOneEditorAction, CloseOneEditorAction.ID, CloseOneEditorAction.LABEL);
+		this.splitEditorGroupHorizontalAction = services.createInstance(SplitEditorGroupHorizontalAction, SplitEditorGroupHorizontalAction.ID, SplitEditorGroupHorizontalAction.LABEL);
+		this.splitEditorGroupVerticalAction = services.createInstance(SplitEditorGroupVerticalAction, SplitEditorGroupVerticalAction.ID, SplitEditorGroupVerticalAction.LABEL);
 	}
 
 	protected abstract doCreate(parent: HTMLElement): void;
@@ -111,21 +117,11 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 		this._register(this.extensionService.onDidRegisterExtensions(() => this.doUpdate()));
 	}
 
-	protected get groupController(): INextEditorGroup {
-		return this.nextEditorGroupsService.getGroup(this.group.id);
-	}
-
 	protected doUpdate(): void {
 		this.doRefresh();
 	}
 
 	protected abstract doRefresh(): void;
-
-	protected initActions(services: IInstantiationService): void {
-		this.closeOneEditorAction = services.createInstance(CloseOneEditorAction, CloseOneEditorAction.ID, CloseOneEditorAction.LABEL);
-		this.splitEditorGroupHorizontalAction = services.createInstance(SplitEditorGroupHorizontalAction, SplitEditorGroupHorizontalAction.ID, SplitEditorGroupHorizontalAction.LABEL);
-		this.splitEditorGroupVerticalAction = services.createInstance(SplitEditorGroupVerticalAction, SplitEditorGroupVerticalAction.ID, SplitEditorGroupVerticalAction.LABEL);
-	}
 
 	protected createEditorActionsToolBar(container: HTMLElement): void {
 		this.editorActionsToolbar = new ToolBar(container, this.contextMenuService, {
@@ -158,7 +154,7 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 	}
 
 	private actionItemProvider(action: Action): IActionItem {
-		const activeControl = this.groupController.activeControl;
+		const activeControl = this.group.activeControl;
 
 		// Check Active Editor
 		let actionItem: IActionItem;
@@ -174,17 +170,15 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 		return actionItem;
 	}
 
-	protected getEditorActions(identifier: IEditorIdentifier): IToolbarActions {
+	private getEditorActions(): IToolbarActions {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 
-		const { group } = identifier;
-
 		// Update the resource context
-		this.resourceContext.set(group && toResource(group.activeEditor, { supportSideBySide: true }));
+		this.resourceContext.set(toResource(this.group.activeEditor, { supportSideBySide: true }));
 
 		// Editor actions require the editor control to be there, so we retrieve it via service
-		const activeControl = this.groupController.activeControl;
+		const activeControl = this.group.activeControl;
 		if (activeControl instanceof BaseEditor) {
 
 			// Editor Control Actions
@@ -211,14 +205,13 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 	}
 
 	protected updateEditorActionsToolbar(): void {
-		const editor = this.group.activeEditor;
-		const isActive = this.groupController.isActive;
+		const isActive = this.group.active;
 
 		// Update Editor Actions Toolbar
 		let primaryEditorActions: IAction[] = [];
 		let secondaryEditorActions: IAction[] = [];
 
-		const editorActions = this.getEditorActions({ group: this.group, editor });
+		const editorActions = this.getEditorActions();
 
 		// Primary actions only for the active group
 		if (isActive) {
@@ -283,7 +276,7 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => TPromise.as(actions),
-			getActionsContext: () => ({ groupId: this.group.id, editorIndex: this.group.indexOf(editor) } as IEditorCommandsContext),
+			getActionsContext: () => ({ groupId: this.group.id, editorIndex: this.group.getIndexOfEditor(editor) } as IEditorCommandsContext),
 			getKeyBinding: (action) => this.getKeybinding(action),
 			onHide: (cancel) => {
 
@@ -291,7 +284,7 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 				this.resourceContext.set(currentContext);
 
 				// restore focus to active group
-				this.nextEditorGroupsService.activeGroup.focus();
+				this.groupsAccessor.activeGroup.focus();
 			}
 		});
 	}

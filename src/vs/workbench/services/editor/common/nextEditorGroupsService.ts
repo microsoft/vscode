@@ -47,12 +47,27 @@ export interface INextEditorGroup {
 	/**
 	 * An active group is the default location for new editors to open.
 	 */
-	readonly isActive: boolean;
+	readonly active: boolean;
+
+	/**
+	 * The number of opend editors in this group.
+	 */
+	readonly count: number;
+
+	/**
+	 * All opened editors in the group. There can only be one editor active.
+	 */
+	readonly editors: IEditorInput[];
 
 	/**
 	 * Returns the editor at a specific index of the group.
 	 */
 	getEditor(index: number): IEditorInput;
+
+	/**
+	 * Returns the index of the editor in the group or -1 if not opened.
+	 */
+	getIndexOfEditor(editor: IEditorInput): number;
 
 	/**
 	 * Open an editor in this group. The returned promise is resolved when the
@@ -65,6 +80,16 @@ export interface INextEditorGroup {
 	 * but not actively visible.
 	 */
 	isOpened(editor: IEditorInput): boolean;
+
+	/**
+	 * Find out if the provided editor is pinned in the group.
+	 */
+	isPinned(editor: IEditorInput): boolean;
+
+	/**
+	 * Find out if the provided editor is active in the group.
+	 */
+	isActive(editor: IEditorInput): boolean;
 
 	/**
 	 * Move an editor from this group either within this group or to another group.
