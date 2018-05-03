@@ -2,20 +2,37 @@
 
 ## Run
 
+### Prerequisites
+* Pull latest from vscode
+* Run yarn install
+* Switch to US-International keyboard layout (due to #27841) if you are on any other layout.
+* Ensure you have Node > v6
+
+### Run from `master`
+
 ```
 # Dev
 yarn smoketest
 
 # Build
-yarn smoketest --build "path/to/code"
+yarn smoketest --build PATH_TO_BUILD
 ```
 
-Screenshots can be captured when tests fail. In order to get them, you need to use the argument `--screenshots SCREENSHOT_DIR`.
+### Run for a release
+
+You must always run the smoketest version which matches the release you are testing. So, if you want to run the smoketest for a release build (eg `release/1.22`), you need that version of the smoke tests too:
+
+```
+git checkout release/1.22
+cd test/smoke && yarn compile
+yarn smoketest --build PATH_TO_RELEASE_BUILD
+```
 
 ## Debug
 
 - `--verbose` logs all the low level driver calls made to Code;
-- `-f PATTERN` filters the tests to be run. You can also use pretty much any mocha argument.
+- `-f PATTERN` filters the tests to be run. You can also use pretty much any mocha argument;
+- `--screenshots SCREENSHOT_DIR` captures screenshots when tests fail.
 
 ## Develop
 
