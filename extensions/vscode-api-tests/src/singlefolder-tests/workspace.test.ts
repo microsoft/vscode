@@ -9,7 +9,7 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { createRandomFile, deleteFile, closeAllEditors, pathEquals } from '../utils';
 import { join, basename } from 'path';
-import * as fs from 'fs';
+// import * as fs from 'fs';
 
 suite('workspace-namespace', () => {
 
