@@ -1,8 +1,6 @@
 # VS Code Smoke Test
 
-## Run
-
-### Run from `master`
+### Run
 
 ```
 # Dev
@@ -22,13 +20,13 @@ cd test/smoke &&  yarn && yarn compile
 yarn smoketest --build PATH_TO_RELEASE_BUILD
 ```
 
-## Debug
+### Debug
 
 - `--verbose` logs all the low level driver calls made to Code;
 - `-f PATTERN` filters the tests to be run. You can also use pretty much any mocha argument;
 - `--screenshots SCREENSHOT_DIR` captures screenshots when tests fail.
 
-## Develop
+### Develop
 
 Start a watch task in `test/smoke`:
 
