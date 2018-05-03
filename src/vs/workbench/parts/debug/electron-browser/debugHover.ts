@@ -28,6 +28,7 @@ import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/comm
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { getExactExpressionRange } from 'vs/workbench/parts/debug/common/debugUtils';
 
 const $ = dom.$;
 const MAX_ELEMENTS_SHOWN = 18;
@@ -138,55 +139,12 @@ export class DebugHoverWidget implements IContentWidget {
 		return this.domNode;
 	}
 
-	private getExactExpressionRange(lineContent: string, range: Range): Range {
-		let matchingExpression: string = undefined;
-		let startOffset = 0;
-
-		// Some example supported expressions: myVar.prop, a.b.c.d, myVar?.prop, myVar->prop, MyClass::StaticProp, *myVar
-		// Match any character except a set of characters which often break interesting sub-expressions
-		let expression: RegExp = /([^()\[\]{}<>\s+\-/%~#^;=|,`!]|\->)+/g;
-		let result: RegExpExecArray = undefined;
-
-		// First find the full expression under the cursor
-		while (result = expression.exec(lineContent)) {
-			let start = result.index + 1;
-			let end = start + result[0].length;
-
-			if (start <= range.startColumn && end >= range.endColumn) {
-				matchingExpression = result[0];
-				startOffset = start;
-				break;
-			}
-		}
-
-		// If there are non-word characters after the cursor, we want to truncate the expression then.
-		// For example in expression 'a.b.c.d', if the focus was under 'b', 'a.b' would be evaluated.
-		if (matchingExpression) {
-			let subExpression: RegExp = /\w+/g;
-			let subExpressionResult: RegExpExecArray = undefined;
-			while (subExpressionResult = subExpression.exec(matchingExpression)) {
-				let subEnd = subExpressionResult.index + 1 + startOffset + subExpressionResult[0].length;
-				if (subEnd >= range.endColumn) {
-					break;
-				}
-			}
-
-			if (subExpressionResult) {
-				matchingExpression = matchingExpression.substring(0, subExpression.lastIndex);
-			}
-		}
-
-		return matchingExpression ?
-			new Range(range.startLineNumber, startOffset, range.endLineNumber, startOffset + matchingExpression.length - 1) :
-			new Range(range.startLineNumber, 0, range.endLineNumber, 0);
-	}
-
 	public showAt(range: Range, focus: boolean): TPromise<void> {
 		const pos = range.getStartPosition();
 
 		const process = this.debugService.getViewModel().focusedProcess;
 		const lineContent = this.editor.getModel().getLineContent(pos.lineNumber);
-		const expressionRange = this.getExactExpressionRange(lineContent, range);
+		const expressionRange = getExactExpressionRange(lineContent, range);
 		// use regex to extract the sub-expression #9821
 		const matchingExpression = lineContent.substring(expressionRange.startColumn - 1, expressionRange.endColumn);
 		if (!matchingExpression) {

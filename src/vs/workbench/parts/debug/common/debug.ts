@@ -730,19 +730,3 @@ export interface IDebugEditorContribution extends IEditorContribution {
 	closeBreakpointWidget(): void;
 	addLaunchConfiguration(): TPromise<any>;
 }
-
-// utils
-
-const _formatPIIRegexp = /{([^}]+)}/g;
-
-export function formatPII(value: string, excludePII: boolean, args: { [key: string]: string }): string {
-	return value.replace(_formatPIIRegexp, function (match, group) {
-		if (excludePII && group.length > 0 && group[0] !== '_') {
-			return match;
-		}
-
-		return args && args.hasOwnProperty(group) ?
-			args[group] :
-			match;
-	});
-}
