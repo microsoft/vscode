@@ -2,10 +2,6 @@
 
 ## Run
 
-### Pitfalls
-
-* Switch to US-International keyboard layout (due to #27841) if you are on any other layout.
-
 ### Run from `master`
 
 ```
