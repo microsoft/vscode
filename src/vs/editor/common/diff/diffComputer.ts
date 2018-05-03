@@ -38,7 +38,7 @@ class LineMarkerSequence implements ISequence {
 		return this._lines.length;
 	}
 
-	public getElementHash(i: number): string {
+	public getElementAtIndex(i: number): string {
 		return this._lines[i].substring(this._startColumns[i] - 1, this._endColumns[i] - 1);
 	}
 
@@ -75,7 +75,7 @@ class LineMarkerSequence implements ISequence {
 	}
 
 	public getCharSequence(startIndex: number, endIndex: number): CharSequence {
-		let chars: string[] = [];
+		let charCodes: number[] = [];
 		let lineNumbers: number[] = [];
 		let columns: number[] = [];
 		let len = 0;
@@ -83,34 +83,34 @@ class LineMarkerSequence implements ISequence {
 			const startColumn = this._startColumns[index];
 			const endColumn = this._endColumns[index];
 			for (let col = startColumn; col < endColumn; col++) {
-				chars[len] = this._lines[index].charAt(col - 1);
+				charCodes[len] = this._lines[index].charCodeAt(col - 1);
 				lineNumbers[len] = index + 1;
 				columns[len] = col;
 				len++;
 			}
 		}
-		return new CharSequence(chars, lineNumbers, columns);
+		return new CharSequence(charCodes, lineNumbers, columns);
 	}
 }
 
 class CharSequence implements ISequence {
 
-	private readonly _chars: string[];
+	private readonly _charCodes: number[];
 	private readonly _lineNumbers: number[];
 	private readonly _columns: number[];
 
-	constructor(chars: string[], lineNumbers: number[], columns: number[]) {
-		this._chars = chars;
+	constructor(charCodes: number[], lineNumbers: number[], columns: number[]) {
+		this._charCodes = charCodes;
 		this._lineNumbers = lineNumbers;
 		this._columns = columns;
 	}
 
 	public getLength(): number {
-		return this._chars.length;
+		return this._charCodes.length;
 	}
 
-	public getElementHash(i: number): string {
-		return this._chars[i];
+	public getElementAtIndex(i: number): number {
+		return this._charCodes[i];
 	}
 
 	public getStartLineNumber(i: number): number {
@@ -329,7 +329,7 @@ export class DiffComputer {
 
 	public computeDiff(): ILineChange[] {
 
-		if (this.original.getLength() === 1 && this.original.getElementHash(0).length === 0) {
+		if (this.original.getLength() === 1 && this.original.getElementAtIndex(0).length === 0) {
 			// empty original => fast path
 			return [{
 				originalStartLineNumber: 1,
@@ -349,7 +349,7 @@ export class DiffComputer {
 			}];
 		}
 
-		if (this.modified.getLength() === 1 && this.modified.getElementHash(0).length === 0) {
+		if (this.modified.getLength() === 1 && this.modified.getElementAtIndex(0).length === 0) {
 			// empty modified => fast path
 			return [{
 				originalStartLineNumber: 1,
