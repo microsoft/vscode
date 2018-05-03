@@ -11,15 +11,16 @@ import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/com
 import { Part } from 'vs/workbench/browser/part';
 import { Dimension, addClass, isAncestor } from 'vs/base/browser/dom';
 import { Event, Emitter, once } from 'vs/base/common/event';
-import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { INextEditorGroupsService, Direction, IAddGroupOptions } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { INextEditorGroupsService, Direction, CopyKind } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SplitGridView, Direction as GridViewDirection } from 'vs/base/browser/ui/grid/gridview';
 import { NextEditorGroupView, IGroupsAccessor } from 'vs/workbench/browser/parts/editor2/nextEditorGroupView';
-import { GroupIdentifier, EditorOptions } from 'vs/workbench/common/editor';
+import { GroupIdentifier, EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
-import { EDITOR_GROUP_BORDER } from 'vs/workbench/common/theme';
+import { EDITOR_GROUP_BORDER, EDITOR_GROUP_BACKGROUND } from 'vs/workbench/common/theme';
 import { distinct } from 'vs/base/common/arrays';
+import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 
 // TODO@grid provide DND support of groups/editors:
 // - editor: move/copy to existing group, move/copy to new split group (up, down, left, right)
@@ -49,7 +50,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 
 	private _activeGroup: NextEditorGroupView;
 	private groupViews: Map<GroupIdentifier, NextEditorGroupView> = new Map<GroupIdentifier, NextEditorGroupView>();
-	private mostRecentActive: GroupIdentifier[] = [];
+	private mostRecentActiveGroups: GroupIdentifier[] = [];
 
 	private gridContainer: HTMLElement;
 	private gridWidget: SplitGridView<NextEditorGroupView>;
@@ -79,7 +80,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 			return this.groups;
 		}
 
-		const mostRecentActive = this.mostRecentActive.map(groupId => this.getGroup(groupId));
+		const mostRecentActive = this.mostRecentActiveGroups.map(groupId => this.getGroup(groupId));
 
 		// there can be groups that got never active, even though they exist. in this case
 		// make sure to ust append them at the end so that all groups are returned properly
@@ -108,11 +109,9 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		return groupView;
 	}
 
-	addGroup(fromGroup: NextEditorGroupView | GroupIdentifier, direction: Direction, options: IAddGroupOptions = Object.create(null)): NextEditorGroupView {
-		const { copyGroup, copyEditor } = options;
-
+	addGroup(fromGroup: NextEditorGroupView | GroupIdentifier, direction: Direction, copy?: CopyKind): NextEditorGroupView {
 		const fromGroupView = this.asGroupView(fromGroup);
-		const newGroupView = this.doCreateGroupView(copyGroup ? fromGroupView : void 0);
+		const newGroupView = this.doCreateGroupView(copy ? fromGroupView : void 0);
 
 		// Add to grid widget
 		this.gridWidget.splitView(
@@ -124,12 +123,22 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 
 		// Check for options
 		const activeEditor = fromGroupView.activeEditor;
-		if ((copyGroup || copyEditor) && activeEditor) {
+		if (copy && activeEditor) {
+
+			// Copy over as much view state from active control as posisble
 			let options: EditorOptions;
-			if (copyGroup) {
-				options = EditorOptions.create({ pinned: fromGroupView.isPinned(activeEditor) }); // copy group preserves all pinned state
+			const activeCodeEditorControl = getCodeEditor(fromGroupView.activeControl);
+			if (activeCodeEditorControl) {
+				options = TextEditorOptions.fromEditor(activeCodeEditorControl);
 			} else {
-				options = EditorOptions.create({ pinned: true }); // copy of single editor is a sign of importance, so pin it
+				options = new EditorOptions();
+			}
+
+			// Set pinned state accordingly
+			if (copy === CopyKind.GROUP) {
+				options.pinned = fromGroupView.isPinned(activeEditor); // copy group preserves all pinned state
+			} else {
+				options.pinned = true; // copy of single editor is a sign of importance, so pin it
 			}
 
 			newGroupView.openEditor(activeEditor, options);
@@ -161,7 +170,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 
 		// Activate next group if the removed one was active
 		if (!this._activeGroup) {
-			const nextActiveGroup = this.asGroupView(this.mostRecentActive[0]);
+			const nextActiveGroup = this.asGroupView(this.mostRecentActiveGroups[0]);
 			this.activateGroup(nextActiveGroup);
 
 			// Restore focus if we had it previously
@@ -230,16 +239,16 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 	}
 
 	private doUpdateMostRecentActive(group: NextEditorGroupView, makeMostRecentlyActive?: boolean): void {
-		const index = this.mostRecentActive.indexOf(group.id);
+		const index = this.mostRecentActiveGroups.indexOf(group.id);
 
 		// Remove from MRU list
 		if (index !== -1) {
-			this.mostRecentActive.splice(index, 1);
+			this.mostRecentActiveGroups.splice(index, 1);
 		}
 
 		// Add to front as needed
 		if (makeMostRecentlyActive) {
-			this.mostRecentActive.unshift(group.id);
+			this.mostRecentActiveGroups.unshift(group.id);
 		}
 	}
 
@@ -282,7 +291,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 
 		// Part container
 		const container = this.getContainer();
-		container.style.backgroundColor = this.getColor(editorBackground);
+		container.style.backgroundColor = this.getColor(EDITOR_GROUP_BACKGROUND);
 	}
 
 	createContentArea(parent: HTMLElement): HTMLElement {

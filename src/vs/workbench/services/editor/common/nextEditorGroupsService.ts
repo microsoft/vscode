@@ -27,11 +27,26 @@ export interface IMoveEditorOptions {
 
 export interface INextEditorGroup {
 
+	/**
+	 * A unique identifier of this group that remains identical even if the
+	 * group is moved to different locations.
+	 */
 	readonly id: GroupIdentifier;
 
+	/**
+	 * The active control is the currently visible control of the group.
+	 */
 	readonly activeControl: IEditor;
+
+	/**
+	 * The active editor is the currently visible editor of the group
+	 * within the current active control.
+	 */
 	readonly activeEditor: IEditorInput;
 
+	/**
+	 * An active group is the default location for new editors to open.
+	 */
 	readonly isActive: boolean;
 
 	/**
@@ -77,26 +92,71 @@ export interface INextEditorGroup {
 	focus(): void;
 }
 
-export interface IAddGroupOptions {
-	copyGroup?: boolean;
-	copyEditor?: boolean;
+export enum CopyKind {
+
+	/**
+	 * Copies all editors of the group from where to add to the new group.
+	 */
+	GROUP = 1,
+
+	/**
+	 * Copies the currently active editor of the group from where to add to the new group.
+	 */
+	EDITOR = 2
 }
 
 export interface INextEditorGroupsService {
 
 	_serviceBrand: ServiceIdentifier<any>;
 
+	/**
+	 * An event for when the active editor group changes. The active editor
+	 * group is the default location for new editors to open.
+	 */
 	readonly onDidActiveGroupChange: Event<INextEditorGroup>;
 
+	/**
+	 * An active group is the default location for new editors to open.
+	 */
 	readonly activeGroup: INextEditorGroup;
+
+	/**
+	 * All groups that are currently visible in the editor area.
+	 */
 	readonly groups: INextEditorGroup[];
 
+	/**
+	 * Get all groups that are currently visible in the editor area optionally
+	 * sorted by being most recent active.
+	 */
 	getGroups(sortByMostRecentlyActive?: boolean): INextEditorGroup[];
+
+	/**
+	 * Allows to convert a group identifier to a group.
+	 */
 	getGroup(identifier: GroupIdentifier): INextEditorGroup;
 
+	/**
+	 * Move keyboard focus into the provided group.
+	 */
 	focusGroup(group: INextEditorGroup | GroupIdentifier): INextEditorGroup;
+
+	/**
+	 * Set a group as active. An active group is the default location for new editors to open.
+	 */
 	activateGroup(group: INextEditorGroup | GroupIdentifier): INextEditorGroup;
 
-	addGroup(fromGroup: INextEditorGroup | GroupIdentifier, direction: Direction, options?: IAddGroupOptions): INextEditorGroup;
+	/**
+	 * Add a new group to the editor area. A new group is added by splitting a provided one.
+	 *
+	 * @param fromGroup the group from which to split to add a new group
+	 * @param direction the direction of where to split to
+	 * @param copy optionally copy either the active editor open or all editors
+	 */
+	addGroup(fromGroup: INextEditorGroup | GroupIdentifier, direction: Direction, copy?: CopyKind): INextEditorGroup;
+
+	/**
+	 * Remove a group from the editor area.
+	 */
 	removeGroup(group: INextEditorGroup | GroupIdentifier): void;
 }

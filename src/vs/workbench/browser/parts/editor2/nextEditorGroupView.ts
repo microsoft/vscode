@@ -94,13 +94,13 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	private titleContainer: HTMLElement;
 	private titleAreaControl: INextTitleAreaControl;
 
+	private progressBar: ProgressBar;
+
 	private editorContainer: HTMLElement;
 	private editorControl: NextEditorControl;
 
 	private ignoreOpenEditorErrors: boolean;
 	private disposedEditorsWorker: RunOnceWorker<EditorInput>;
-
-	private progressBar: ProgressBar;
 
 	constructor(
 		private groupsAccessor: IGroupsAccessor,
@@ -161,7 +161,21 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		this._onWillCloseEditor.fire(event.editor);
 
 		// Handle event
-		this.handleEditorClosed(event.editor);
+		const editor = event.editor;
+		const editorsToClose = [editor];
+
+		// Include both sides of side by side editors when being closed and not opened multiple times
+		if (editor instanceof SideBySideEditorInput && !this.groupsAccessor.getGroups().some(groupView => groupView.group.contains(editor))) {
+			editorsToClose.push(editor.master, editor.details);
+		}
+
+		// Close the editor when it is no longer open in any group including diff editors
+		editorsToClose.forEach(editorToClose => {
+			const resource = editorToClose ? editorToClose.getResource() : void 0; // prefer resource to not close right-hand side editors of a diff editor
+			if (!this.groupsAccessor.getGroups().some(groupView => groupView.group.contains(resource || editorToClose))) {
+				editorToClose.close();
+			}
+		});
 
 		// After close
 		this._onDidCloseEditor.fire(event.editor);
@@ -177,23 +191,6 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 		// Update container
 		this.updateContainer();
-	}
-
-	private handleEditorClosed(editor: EditorInput): void {
-		const editorsToClose = [editor];
-
-		// Include both sides of side by side editors when being closed and not opened multiple times
-		if (editor instanceof SideBySideEditorInput && !this.groupsAccessor.getGroups().some(groupView => groupView.group.contains(editor))) {
-			editorsToClose.push(editor.master, editor.details);
-		}
-
-		// Close the editor when it is no longer open in any group including diff editors
-		editorsToClose.forEach(editorToClose => {
-			const resource = editorToClose ? editorToClose.getResource() : void 0; // prefer resource to not close right-hand side editors of a diff editor
-			if (!this.groupsAccessor.getGroups().some(groupView => groupView.group.contains(resource || editorToClose))) {
-				editorToClose.close();
-			}
-		});
 	}
 
 	private onDidEditorDispose(editor: EditorInput): void {
@@ -462,14 +459,6 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	//#endregion
 
-	//#region isOpen()
-
-	isOpened(editor: EditorInput): boolean {
-		return this.group.contains(editor);
-	}
-
-	//#endregion
-
 	//#region moveEditor()
 
 	moveEditor(editor: EditorInput, target: NextEditorGroupView, options?: IMoveEditorOptions): void {
@@ -674,6 +663,10 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	//#endregion
 
 	//#region other INextEditorGroup methods
+
+	isOpened(editor: EditorInput): boolean {
+		return this.group.contains(editor);
+	}
 
 	focus(): void {
 		if (this.activeControl) {
