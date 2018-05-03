@@ -23,7 +23,9 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { CLOSE_EDITOR_COMMAND_ID, NAVIGATE_IN_GROUP_ONE_PREFIX, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, NAVIGATE_IN_GROUP_THREE_PREFIX, NAVIGATE_IN_GROUP_TWO_PREFIX } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { INextEditorGroupsService, Direction as SplitDirection, INextEditorGroup, CopyKind } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 
+// TODo@grid this action should be removed in favour of the split vertical/horizontal actions
 export class SplitEditorAction extends Action {
 
 	public static readonly ID = 'workbench.action.splitEditor';
@@ -104,6 +106,64 @@ export class SplitEditorAction extends Action {
 		}
 
 		return TPromise.as(true);
+	}
+}
+
+export class BaseSplitEditorGroupAction extends Action {
+
+	constructor(
+		id: string,
+		label: string,
+		clazz: string,
+		private direction: SplitDirection,
+		private nextEditorGroupsService: INextEditorGroupsService
+	) {
+		super(id, label, clazz);
+	}
+
+	public run(context?: IEditorIdentifier): TPromise<any> {
+		let group: INextEditorGroup;
+		if (context && context.group) {
+			group = this.nextEditorGroupsService.getGroup(context.group.id);
+		}
+
+		if (!group) {
+			group = this.nextEditorGroupsService.activeGroup;
+		}
+
+		const copyKind = group.activeEditor instanceof EditorInput && group.activeEditor.supportsSplitEditor() ? CopyKind.EDITOR : void 0;
+
+		this.nextEditorGroupsService.addGroup(group, this.direction, copyKind);
+
+		return TPromise.as(true);
+	}
+}
+
+export class SplitEditorGroupVerticalAction extends BaseSplitEditorGroupAction {
+
+	public static readonly ID = 'workbench.action.splitEditorGroupVertical';
+	public static readonly LABEL = nls.localize('splitEditorGroupVertical', "Split Editor Group Vertically");
+
+	constructor(
+		id: string,
+		label: string,
+		@INextEditorGroupsService nextEditorGroupsService: INextEditorGroupsService
+	) {
+		super(id, label, 'split-editor-vertical-action', SplitDirection.DOWN, nextEditorGroupsService);
+	}
+}
+
+export class SplitEditorGroupHorizontalAction extends BaseSplitEditorGroupAction {
+
+	public static readonly ID = 'workbench.action.splitEditorGroupHorizontal';
+	public static readonly LABEL = nls.localize('splitEditorGroupHorizontal', "Split Editor Group Horizontally");
+
+	constructor(
+		id: string,
+		label: string,
+		@INextEditorGroupsService nextEditorGroupsService: INextEditorGroupsService
+	) {
+		super(id, label, 'split-editor-horizontal-action', SplitDirection.RIGHT, nextEditorGroupsService);
 	}
 }
 

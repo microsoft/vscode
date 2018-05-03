@@ -24,7 +24,7 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { SplitEditorAction, CloseOneEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { CloseOneEditorAction, SplitEditorGroupVerticalAction, SplitEditorGroupHorizontalAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IMenuService, MenuId, IMenu, ExecuteCommandAction } from 'vs/platform/actions/common/actions';
@@ -35,7 +35,7 @@ import { isDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension } from 'vs/base/browser/dom';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { INextEditorGroupsService, Direction, INextEditorGroup } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { INextEditorGroupsService, INextEditorGroup } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
 
 export interface IToolbarActions {
@@ -60,7 +60,6 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 	protected stacks: IEditorStacksModel;
 
 	protected closeOneEditorAction: CloseOneEditorAction;
-	protected splitEditorAction: SplitEditorAction;
 
 	private currentPrimaryEditorActionIds: string[] = [];
 	private currentSecondaryEditorActionIds: string[] = [];
@@ -73,6 +72,9 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 
 	private resourceContext: ResourceContextKey;
 	private disposeOnEditorActions: IDisposable[] = [];
+
+	private splitEditorGroupVerticalAction: SplitEditorGroupVerticalAction;
+	private splitEditorGroupHorizontalAction: SplitEditorGroupHorizontalAction;
 
 	private contextMenu: IMenu;
 
@@ -167,7 +169,8 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 
 	protected initActions(services: IInstantiationService): void {
 		this.closeOneEditorAction = services.createInstance(CloseOneEditorAction, CloseOneEditorAction.ID, CloseOneEditorAction.LABEL);
-		this.splitEditorAction = services.createInstance(SplitEditorAction, SplitEditorAction.ID, SplitEditorAction.LABEL);
+		this.splitEditorGroupHorizontalAction = services.createInstance(SplitEditorGroupHorizontalAction, SplitEditorGroupHorizontalAction.ID, SplitEditorGroupHorizontalAction.LABEL);
+		this.splitEditorGroupVerticalAction = services.createInstance(SplitEditorGroupVerticalAction, SplitEditorGroupVerticalAction.ID, SplitEditorGroupVerticalAction.LABEL);
 	}
 
 	protected createEditorActionsToolBar(container: HTMLElement): void {
@@ -276,22 +279,9 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 		// Primary actions only for the active group
 		if (isActive) {
 			primaryEditorActions = prepareActions(editorActions.primary);
-			if (editor instanceof EditorInput && editor.supportsSplitEditor()) {
-				// TODO@grid temporary actions to play with
-				// primaryEditorActions.push(this.splitEditorAction);
 
-				primaryEditorActions.push(new Action('split.right', 'Split Right', 'split-editor-right-action', true, () => {
-					this.nextEditorGroupsService.addGroup(this.nextEditorGroupsService.activeGroup, Direction.RIGHT, { copyEditor: true });
-
-					return TPromise.as(true);
-				}));
-
-				primaryEditorActions.push(new Action('split.down', 'Split Down', 'split-editor-down-action', true, () => {
-					this.nextEditorGroupsService.addGroup(this.nextEditorGroupsService.activeGroup, Direction.DOWN, { copyEditor: true });
-
-					return TPromise.as(true);
-				}));
-			}
+			primaryEditorActions.push(this.splitEditorGroupHorizontalAction);
+			primaryEditorActions.push(this.splitEditorGroupVerticalAction);
 		}
 
 		secondaryEditorActions = prepareActions(editorActions.secondary);
@@ -415,7 +405,8 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 
 		// Actions
 		[
-			this.splitEditorAction,
+			this.splitEditorGroupHorizontalAction,
+			this.splitEditorGroupVerticalAction,
 			this.closeOneEditorAction
 		].forEach((action) => {
 			action.dispose();
