@@ -96,6 +96,12 @@ export interface IProgressService2 {
  * A helper to show progress during a long running operation. If the operation
  * is started multiple times, only the last invocation will drive the progress.
  */
+export interface IOperation {
+	id: number;
+	isCurrent: () => boolean;
+	stop(): void;
+}
+
 export class LongRunningOperation {
 	private currentOperationId = 0;
 	private currentProgressRunner: IProgressRunner;
@@ -103,10 +109,9 @@ export class LongRunningOperation {
 
 	constructor(
 		private progressService: IProgressService
-	) {
-	}
+	) { }
 
-	start(progressDelay: number): number {
+	start(progressDelay: number): IOperation {
 
 		// Clear previous
 		if (this.currentProgressTimeout) {
@@ -121,10 +126,14 @@ export class LongRunningOperation {
 			}
 		}, progressDelay);
 
-		return newOperationId;
+		return {
+			id: newOperationId,
+			stop: () => this.stop(newOperationId),
+			isCurrent: () => this.currentOperationId === newOperationId
+		};
 	}
 
-	stop(operationId: number): void {
+	private stop(operationId: number): void {
 		if (this.currentOperationId === operationId) {
 			clearTimeout(this.currentProgressTimeout);
 
@@ -132,9 +141,5 @@ export class LongRunningOperation {
 				this.currentProgressRunner.done();
 			}
 		}
-	}
-
-	isCurrent(operationId): boolean {
-		return this.currentOperationId === operationId;
 	}
 }

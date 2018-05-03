@@ -50,10 +50,8 @@ export class NextEditorControl extends Disposable {
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editor);
 		const control = this.doShowEditorControl(descriptor, options);
 
-		const willEditorChange = (!control.input || !control.input.matches(editor) || (options && options.forceOpen));
-
 		// Set input
-		return this.doSetInput(control, editor, options).then((() => (({ control, editorChanged: willEditorChange } as IOpenEditorResult))));
+		return this.doSetInput(control, editor, options).then((editorChanged => (({ control, editorChanged } as IOpenEditorResult))));
 	}
 
 	private doShowEditorControl(descriptor: IEditorDescriptor, options: EditorOptions): BaseEditor {
@@ -116,29 +114,32 @@ export class NextEditorControl extends Disposable {
 		return control;
 	}
 
-	private doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions): Thenable<void> {
+	private doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions): Thenable<boolean> {
 
 		// Show progress while setting input after a certain timeout. If the workbench is opening
 		// be more relaxed about progress showing by increasing the delay a little bit to reduce flicker.
-		const operationId = this.editorOperation.start(this.partService.isCreated() ? 800 : 3200);
+		const operation = this.editorOperation.start(this.partService.isCreated() ? 800 : 3200);
 
 		// Call into editor control
+		const editorWillChange = (!control.input || !control.input.matches(editor) || (options && options.forceOpen));
 		return control.setInput(editor, options).then(() => {
 
 			// Operation done
-			this.editorOperation.stop(operationId);
+			operation.stop();
 
 			// Focus (unless prevented or another operation is running)
-			if (this.editorOperation.isCurrent(operationId)) {
+			if (operation.isCurrent()) {
 				const focus = !options || !options.preserveFocus;
 				if (focus) {
 					control.focus();
 				}
 			}
+
+			return editorWillChange;
 		}, e => {
 
 			// Operation done
-			this.editorOperation.stop(operationId);
+			operation.stop();
 
 			return TPromise.wrapError(e);
 		});
