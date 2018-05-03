@@ -541,7 +541,6 @@ export class TabsTitleControl extends TitleControl {
 		tabContainer.appendChild(tabCloseContainer);
 
 		const actionRunner = new TabActionRunner(() => this.context, index);
-		this.tabDisposeables.push(actionRunner);
 
 		const bar = new ActionBar(tabCloseContainer, { ariaLabel: nls.localize('araLabelTabActions', "Tab actions"), actionRunner });
 		bar.push(this.closeOneEditorAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.closeOneEditorAction) });
@@ -549,7 +548,7 @@ export class TabsTitleControl extends TitleControl {
 		// Eventing
 		const disposable = this.hookTabListeners(tabContainer, index);
 
-		this.tabDisposeables.push(combinedDisposable([disposable, bar, editorLabel]));
+		this.tabDisposeables.push(combinedDisposable([disposable, bar, actionRunner, editorLabel]));
 
 		return tabContainer;
 	}
