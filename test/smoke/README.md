@@ -1,6 +1,6 @@
 # VS Code Smoke Test
 
-## How to run
+## Run
 
 ```
 # Dev
@@ -12,11 +12,19 @@ yarn smoketest --build "path/to/code"
 
 Screenshots can be captured when tests fail. In order to get them, you need to use the argument `--screenshots SCREENSHOT_DIR`.
 
-## How to debug issues
+## Debug
 
-You can use a `--verbose` flag to log all the low level driver calls make to Code.
+- `--verbose` logs all the low level driver calls made to Code;
+- `-f PATTERN` filters the tests to be run. You can also use pretty much any mocha argument.
 
-You can also use any mocha argument. For example, use `-f Git` to filter all tests except the `Git` tests.
+## Develop
+
+Start a watch task in `test/smoke`:
+
+```
+cd test/smoke
+yarn watch
+```
 
 ## Pitfalls
 
