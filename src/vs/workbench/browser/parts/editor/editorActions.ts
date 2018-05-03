@@ -611,36 +611,37 @@ export class CloseOneEditorAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService
+		@INextEditorGroupsService private nextEditorGroupsService: INextEditorGroupsService
 	) {
 		super(id, label, 'close-editor-action');
 	}
 
 	public run(context?: IEditorCommandsContext): TPromise<any> {
-		const model = this.editorGroupService.getStacksModel();
+		let group: INextEditorGroup;
+		let editorIndex: number;
+		if (context) {
+			group = this.nextEditorGroupsService.getGroup(context.groupId);
 
-		const group = context ? model.getGroup(context.groupId) : null;
-		const position = group ? model.positionOfGroup(group) : null;
-
-		// Close Active Editor
-		if (typeof position !== 'number') {
-			const activeEditor = this.editorService.getActiveEditor();
-			if (activeEditor) {
-				return this.editorService.closeEditor(activeEditor.position, activeEditor.input);
+			if (group) {
+				editorIndex = context.editorIndex; // only allow editor at index if group is valid
 			}
 		}
 
-		// Close Specific Editor
-		const editor = group && context && typeof context.editorIndex === 'number' ? group.getEditor(context.editorIndex) : null;
-		if (editor) {
-			return this.editorService.closeEditor(position, editor);
+		if (!group) {
+			group = this.nextEditorGroupsService.activeGroup;
 		}
 
-		// Close First Editor at Position
-		const visibleEditors = this.editorService.getVisibleEditors();
-		if (visibleEditors[position]) {
-			return this.editorService.closeEditor(position, visibleEditors[position].input);
+		// Close specific editor in group
+		if (typeof editorIndex === 'number') {
+			const editorAtIndex = group.getEditor(editorIndex);
+			if (editorAtIndex) {
+				return group.closeEditor(editorAtIndex) as TPromise;
+			}
+		}
+
+		// Otherwise close active editor in group
+		if (group.activeEditor) {
+			return group.closeEditor(group.activeEditor) as TPromise;
 		}
 
 		return TPromise.as(false);

@@ -350,6 +350,10 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		return this._isActive;
 	}
 
+	getEditor(index: number): EditorInput {
+		return this.group.getEditor(index);
+	}
+
 	//#region openEditor()
 
 	openEditor(editor: EditorInput, options?: EditorOptions): Thenable<void> {

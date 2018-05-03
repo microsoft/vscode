@@ -50,6 +50,11 @@ export interface INextEditorGroup {
 	readonly isActive: boolean;
 
 	/**
+	 * Returns the editor at a specific index of the group.
+	 */
+	getEditor(index: number): IEditorInput;
+
+	/**
 	 * Open an editor in this group. The returned promise is resolved when the
 	 * editor has finished loading.
 	 */
