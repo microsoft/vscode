@@ -115,7 +115,18 @@ class WindowDriver implements IWindowDriver {
 
 	async isActiveElement(selector: string): TPromise<boolean> {
 		const element = document.querySelector(selector);
-		return element === document.activeElement;
+
+		if (element !== document.activeElement) {
+			const el = document.activeElement;
+			const tagName = el.tagName;
+			const id = el.id ? `#${el.id}` : '';
+			const classes = el.className.split(/\W+/g).map(c => c.trim()).filter(c => !!c).map(c => `.${c}`).join('');
+			const current = `${tagName}${id}${classes}`;
+
+			throw new Error(`Active element not found. Current active element is '${current}'`);
+		}
+
+		return true;
 	}
 
 	async getElements(selector: string, recursive: boolean): TPromise<IElement[]> {
