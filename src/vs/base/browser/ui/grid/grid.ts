@@ -7,9 +7,10 @@
 
 import 'vs/css!./gridview';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { tail2 as tail, equals } from 'vs/base/common/arrays';
 import { orthogonal, IView, GridView, GridBranchNode } from './gridview';
+import { domEvent } from 'vs/base/browser/event';
 
 export { Orientation } from './gridview';
 
@@ -72,18 +73,51 @@ function directionOrientation(direction: Direction): Orientation {
 	return direction === Direction.Up || direction === Direction.Down ? Orientation.VERTICAL : Orientation.HORIZONTAL;
 }
 
+export interface IGridDnd {
+
+}
+
+export interface IGridOptions {
+	dnd?: IGridDnd;
+}
+
+class DndController implements IDisposable {
+
+	private disposables: IDisposable[] = [];
+
+	constructor(container: HTMLElement, gridview: GridView) {
+		domEvent(container, 'dragover')(this.onDragOver, this, this.disposables);
+	}
+
+	private onDragOver(ev: DragEvent) {
+		// find target element
+		console.log('DRAG OVER');
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
+	}
+}
+
 export class Grid<T extends IView> implements IDisposable {
 
 	private gridview: GridView;
 	private views = new Map<T, HTMLElement>();
+	private disposables: IDisposable[] = [];
 
 	get orientation(): Orientation { return this.gridview.orientation; }
 	set orientation(orientation: Orientation) { this.gridview.orientation = orientation; }
 
-	constructor(container: HTMLElement, view: T) {
+	constructor(container: HTMLElement, view: T, options: IGridOptions = {}) {
 		this.gridview = new GridView(container);
+		this.disposables.push(this.gridview);
+
 		this.views.set(view, view.element);
 		this.gridview.addView(view, 0, [0]);
+
+		if (options.dnd) {
+			this.disposables.push(new DndController(container, this.gridview));
+		}
 	}
 
 	layout(width: number, height: number): void {
@@ -180,6 +214,6 @@ export class Grid<T extends IView> implements IDisposable {
 	}
 
 	dispose(): void {
-		this.gridview.dispose();
+		this.disposables = dispose(this.disposables);
 	}
 }

@@ -38,37 +38,37 @@
 				element.className = 'box';
 				element.style.backgroundColor = `hsl(${Math.round(Math.random() * 360)}, 72%, 72%)`;
 
-				element.addEventListener('dragover', ev => {
-					ev.preventDefault();
+				// element.addEventListener('dragover', ev => {
+				// 	ev.preventDefault();
 
-					if (draggingOver === view) {
-						return;
-					}
+				// 	if (draggingOver === view) {
+				// 		return;
+				// 	}
 
-					if (draggingOver) {
-						draggingOver.element.style.opacity = 1;
-					}
+				// 	if (draggingOver) {
+				// 		draggingOver.element.style.opacity = 1;
+				// 	}
 
-					if (dragging !== view) {
-						element.style.opacity = 0.5;
-					}
+				// 	if (dragging !== view) {
+				// 		element.style.opacity = 0.5;
+				// 	}
 
-					draggingOver = view;
-				});
+				// 	draggingOver = view;
+				// });
 
-				element.addEventListener('drop', ev => {
-					ev.preventDefault();
+				// element.addEventListener('drop', ev => {
+				// 	ev.preventDefault();
 
-					if (draggingOver) {
-						draggingOver.element.style.opacity = 1;
-					}
+				// 	if (draggingOver) {
+				// 		draggingOver.element.style.opacity = 1;
+				// 	}
 
-					if (!dragging) {
-						return;
-					}
+				// 	if (!dragging) {
+				// 		return;
+				// 	}
 
-					grid.swapViews(dragging, view);
-				});
+				// 	grid.swapViews(dragging, view);
+				// });
 
 				let label = document.createElement('div');
 				label.className = 'box-label';
@@ -106,7 +106,7 @@
 			// document.body.appendChild(box);
 
 			const view1 = createView();
-			const grid = new Grid(document.body, view1);
+			const grid = new Grid(document.body, view1, { dnd: {} });
 			const layout = () => grid.layout(document.body.clientWidth, document.body.clientHeight);
 			window.onresize = () => {
 				layout();
