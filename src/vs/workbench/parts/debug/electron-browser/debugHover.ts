@@ -28,7 +28,7 @@ import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/comm
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { getExactExpressionRange } from 'vs/workbench/parts/debug/common/debugUtils';
+import { getExactExpressionStartAndEnd } from 'vs/workbench/parts/debug/common/debugUtils';
 
 const $ = dom.$;
 const MAX_ELEMENTS_SHOWN = 18;
@@ -144,9 +144,9 @@ export class DebugHoverWidget implements IContentWidget {
 
 		const process = this.debugService.getViewModel().focusedProcess;
 		const lineContent = this.editor.getModel().getLineContent(pos.lineNumber);
-		const expressionRange = getExactExpressionRange(lineContent, range);
+		const { start, end } = getExactExpressionStartAndEnd(lineContent, range.startColumn, range.endColumn);
 		// use regex to extract the sub-expression #9821
-		const matchingExpression = lineContent.substring(expressionRange.startColumn - 1, expressionRange.endColumn);
+		const matchingExpression = lineContent.substring(start - 1, end);
 		if (!matchingExpression) {
 			return TPromise.as(this.hide());
 		}
@@ -156,7 +156,7 @@ export class DebugHoverWidget implements IContentWidget {
 			const result = new Expression(matchingExpression);
 			promise = result.evaluate(process, this.debugService.getViewModel().focusedStackFrame, 'hover').then(() => result);
 		} else {
-			promise = this.findExpressionInStackFrame(matchingExpression.split('.').map(word => word.trim()).filter(word => !!word), expressionRange);
+			promise = this.findExpressionInStackFrame(matchingExpression.split('.').map(word => word.trim()).filter(word => !!word));
 		}
 
 		return promise.then(expression => {
@@ -166,7 +166,7 @@ export class DebugHoverWidget implements IContentWidget {
 			}
 
 			this.highlightDecorations = this.editor.deltaDecorations(this.highlightDecorations, [{
-				range: new Range(pos.lineNumber, expressionRange.startColumn, pos.lineNumber, expressionRange.startColumn + matchingExpression.length),
+				range: new Range(pos.lineNumber, start, pos.lineNumber, start + matchingExpression.length),
 				options: DebugHoverWidget._HOVER_HIGHLIGHT_DECORATION_OPTIONS
 			}]);
 
@@ -198,7 +198,7 @@ export class DebugHoverWidget implements IContentWidget {
 		});
 	}
 
-	private findExpressionInStackFrame(namesToFind: string[], expressionRange: Range): TPromise<IExpression> {
+	private findExpressionInStackFrame(namesToFind: string[]): TPromise<IExpression> {
 		return this.debugService.getViewModel().focusedStackFrame.getScopes()
 			.then(scopes => scopes.filter(s => !s.expensive))
 			.then(scopes => TPromise.join(scopes.map(scope => this.doFindExpression(scope, namesToFind))))

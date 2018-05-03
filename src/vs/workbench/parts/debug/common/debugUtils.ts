@@ -19,7 +19,7 @@ export function formatPII(value: string, excludePII: boolean, args: { [key: stri
 	});
 }
 
-export function getExactExpressionRange(lineContent: string, range: Range): Range {
+export function getExactExpressionStartAndEnd(lineContent: string, looseStart: number, looseEnd: number): { start: number, end: number } {
 	let matchingExpression: string = undefined;
 	let startOffset = 0;
 
@@ -33,7 +33,7 @@ export function getExactExpressionRange(lineContent: string, range: Range): Rang
 		let start = result.index + 1;
 		let end = start + result[0].length;
 
-		if (start <= range.startColumn && end >= range.endColumn) {
+		if (start <= looseStart && end >= looseEnd) {
 			matchingExpression = result[0];
 			startOffset = start;
 			break;
@@ -47,7 +47,7 @@ export function getExactExpressionRange(lineContent: string, range: Range): Rang
 		let subExpressionResult: RegExpExecArray = undefined;
 		while (subExpressionResult = subExpression.exec(matchingExpression)) {
 			let subEnd = subExpressionResult.index + 1 + startOffset + subExpressionResult[0].length;
-			if (subEnd >= range.endColumn) {
+			if (subEnd >= looseEnd) {
 				break;
 			}
 		}
@@ -58,6 +58,6 @@ export function getExactExpressionRange(lineContent: string, range: Range): Rang
 	}
 
 	return matchingExpression ?
-		new Range(range.startLineNumber, startOffset, range.endLineNumber, startOffset + matchingExpression.length - 1) :
-		new Range(range.startLineNumber, 0, range.endLineNumber, 0);
+		{ start: startOffset, end: startOffset + matchingExpression.length - 1 } :
+		{ start: 0, end: 0 };
 }
