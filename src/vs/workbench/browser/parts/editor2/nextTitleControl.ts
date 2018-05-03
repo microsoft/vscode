@@ -43,20 +43,7 @@ export interface IToolbarActions {
 	secondary: IAction[];
 }
 
-export interface INextTitleAreaControl extends IDisposable {
-
-	openEditor(editor: IEditorInput): void;
-	closeEditor(editor: IEditorInput): void;
-	moveEditor(editor: IEditorInput, targetIndex: number): void;
-	setActive(isActive: boolean): void;
-	pinEditor(editor: IEditorInput): void;
-	updateEditorLabel(editor: IEditorInput): void;
-	updateEditorDirty(editor: IEditorInput): void;
-
-	layout(dimension: Dimension): void;
-}
-
-export abstract class NextTitleControl extends Themable implements INextTitleAreaControl {
+export abstract class NextTitleControl extends Themable {
 
 	protected closeOneEditorAction: CloseOneEditorAction;
 
@@ -300,7 +287,7 @@ export abstract class NextTitleControl extends Themable implements INextTitleAre
 
 	abstract closeEditor(editor: IEditorInput): void;
 
-	abstract moveEditor(editor: IEditorInput, targetIndex: number): void;
+	abstract moveEditor(editor: IEditorInput, fromIndex: number, targetIndex: number): void;
 
 	abstract pinEditor(editor: IEditorInput): void;
 

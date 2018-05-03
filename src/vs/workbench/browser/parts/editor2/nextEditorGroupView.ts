@@ -20,7 +20,6 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_BACKGROUND } from 'vs/workbench/common/theme';
 import { INextEditorGroup, IMoveEditorOptions } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
-import { INextTitleAreaControl } from 'vs/workbench/browser/parts/editor2/nextTitleControl';
 import { NextTabsTitleControl } from 'vs/workbench/browser/parts/editor2/nextTabsTitleControl';
 import { NextEditorControl } from 'vs/workbench/browser/parts/editor2/nextEditorControl';
 import { IView } from 'vs/base/browser/ui/grid/gridview';
@@ -38,6 +37,7 @@ import { RunOnceWorker } from 'vs/base/common/async';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
+import { NextTitleControl } from 'vs/workbench/browser/parts/editor2/nextTitleControl';
 
 export interface IGroupsAccessor {
 	readonly groups: NextEditorGroupView[];
@@ -94,7 +94,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	private scopedInstantiationService: IInstantiationService;
 
 	private titleContainer: HTMLElement;
-	private titleAreaControl: INextTitleAreaControl;
+	private titleAreaControl: NextTitleControl;
 
 	private progressBar: ProgressBar;
 
@@ -496,7 +496,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		return this.scopedInstantiationService;
 	}
 
-	private doCreateOrGetTitleControl(): INextTitleAreaControl {
+	private doCreateOrGetTitleControl(): NextTitleControl {
 		if (!this.titleAreaControl) {
 			this.titleAreaControl = this._register(this.doCreateOrGetScopedInstantiationService().createInstance(NextTabsTitleControl, this.titleContainer, this.groupsAccessor, this));
 			this.doLayoutTitleControl();
@@ -548,7 +548,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 		// Forward to title area
 		if (this.titleAreaControl) {
-			this.titleAreaControl.moveEditor(editor, moveToIndex);
+			this.titleAreaControl.moveEditor(editor, currentIndex, moveToIndex);
 			this.titleAreaControl.pinEditor(editor);
 		}
 	}

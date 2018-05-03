@@ -228,24 +228,51 @@ export class NextTabsTitleControl extends NextTitleControl {
 		this.recreate(); // TODO@grid optimize
 	}
 
-	moveEditor(editor: IEditorInput, targetIndex: number): void {
-		this.recreate(); // TODO@grid optimize
+	moveEditor(editor: IEditorInput, fromIndex: number, targetIndex: number): void {
+
+		// Swap the editor label
+		const editorLabel = this.tabLabels[fromIndex];
+		this.tabLabels.splice(fromIndex, 1);
+		this.tabLabels.splice(targetIndex, 0, editorLabel);
+
+		// As such we need to redraw each label
+		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel) => {
+			this.redrawLabel(editor, tabContainer, tabLabelWidget, tabLabel);
+			this.redrawEditorActive(this.groupsAccessor.activeGroup === this.group, editor, tabContainer, tabLabelWidget);
+		});
+
+		// Moving an editor requires a layout to keep the active editor visible
+		this.layout(this.dimension);
 	}
 
 	pinEditor(editor: IEditorInput): void {
-		this.withTab(editor, (tabContainer, tabLabelWidget, tabLabel) => this.redrawLabel(tabLabel, editor, tabContainer, tabLabelWidget));
+		this.withTab(editor, (tabContainer, tabLabelWidget, tabLabel) => this.redrawLabel(editor, tabContainer, tabLabelWidget, tabLabel));
 	}
 
 	setActive(isGroupActive: boolean): void {
+
+		// Activity has an impact on each tab
 		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel) => {
-			this.redrawGroupActive(isGroupActive, editor, tabContainer, tabLabelWidget);
+			this.redrawEditorActive(isGroupActive, editor, tabContainer, tabLabelWidget);
 		});
 
+		// Activity has an impact on the toolbar, so we need to update and layout
 		this.updateEditorActionsToolbar();
+		this.layout(this.dimension);
 	}
 
 	updateEditorLabel(editor: IEditorInput): void {
-		this.redraw(true /* labels only */);
+
+		// A change to a label requires to recompute all labels
+		this.computeTabLabels();
+
+		// As such we need to redraw each label
+		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel) => {
+			this.redrawLabel(editor, tabContainer, tabLabelWidget, tabLabel);
+		});
+
+		// A change to a label requires a layout to keep the active editor visible
+		this.layout(this.dimension);
 	}
 
 	updateEditorDirty(editor: IEditorInput): void {
@@ -268,6 +295,9 @@ export class NextTabsTitleControl extends NextTitleControl {
 
 			// Create tabs as needed
 			this.createTabs();
+
+			// Compute labels and protect against duplicates
+			this.computeTabLabels();
 
 			// Redraw tabs
 			this.redraw();
@@ -540,82 +570,8 @@ export class NextTabsTitleControl extends NextTitleControl {
 		return combinedDisposable(disposables);
 	}
 
-	protected redraw(labelsOnly?: boolean): void {
-
-		// Compute labels and protect against duplicates
+	private computeTabLabels(): void {
 		this.tabLabels = this.getTabLabels(this.group.editors);
-
-		// For each tab
-		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel) => {
-
-			// Redraw Label
-			this.redrawLabel(tabLabel, editor, tabContainer, tabLabelWidget);
-
-			// Redraw other Styles
-			if (!labelsOnly) {
-
-				// Borders
-				tabContainer.style.borderLeftColor = (index !== 0) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
-				tabContainer.style.borderRightColor = (index === this.group.count - 1) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
-				tabContainer.style.outlineColor = this.getColor(activeContrastBorder);
-
-				// Settings
-				const tabOptions = {} as IEditorTabOptions; // TODO@grid support tab options (this.editorGroupService.getTabOptions());
-
-				['off', 'left', 'right'].forEach(option => {
-					const domAction = tabOptions.tabCloseButton === option ? addClass : removeClass;
-					domAction(tabContainer, `close-button-${option}`);
-				});
-
-				['fit', 'shrink'].forEach(option => {
-					const domAction = tabOptions.tabSizing === option ? addClass : removeClass;
-					domAction(tabContainer, `sizing-${option}`);
-				});
-
-				if (tabOptions.showIcons && !!tabOptions.iconTheme) {
-					addClass(tabContainer, 'has-icon-theme');
-				} else {
-					removeClass(tabContainer, 'has-icon-theme');
-				}
-
-				// Active state (editor)
-				if (this.group.activeEditor === editor) {
-					addClass(tabContainer, 'active');
-					tabContainer.setAttribute('aria-selected', 'true');
-					tabContainer.style.backgroundColor = this.getColor(TAB_ACTIVE_BACKGROUND);
-
-					this.activeTab = tabContainer;
-				} else {
-					removeClass(tabContainer, 'active');
-					tabContainer.setAttribute('aria-selected', 'false');
-					tabContainer.style.backgroundColor = this.getColor(TAB_INACTIVE_BACKGROUND);
-					tabContainer.style.boxShadow = null;
-				}
-
-				// Active state (group)
-				this.redrawGroupActive(this.groupsAccessor.activeGroup === this.group, editor, tabContainer, tabLabelWidget);
-
-				// Dirty State
-				this.redrawEditorDirty(editor, tabContainer);
-			}
-		});
-
-		// Update Editor Actions Toolbar
-		if (!labelsOnly) {
-			this.updateEditorActionsToolbar();
-		}
-
-		// Ensure the active tab is always revealed
-		this.layout(this.dimension);
-	}
-
-	private forEachTab(fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: ResourceLabel, tabLabel: IEditorInputLabel) => void): void {
-		this.group.editors.forEach((editor, index) => {
-			const tabContainer = this.tabsContainer.children[index] as HTMLElement;
-			if (tabContainer) {
-				fn(editor, index, tabContainer, this.tabLabelWidgets[index], this.tabLabels[index]);
-			}
-		});
 	}
 
 	private getTabLabels(editors: IEditorInput[]): IEditorInputLabel[] {
@@ -720,22 +676,87 @@ export class NextTabsTitleControl extends NextTitleControl {
 		}
 	}
 
-	private redrawLabel(label: IEditorInputLabel, editor: IEditorInput, tabContainer: HTMLElement, tabLabel: ResourceLabel): void {
-		const name = label.name;
-		const description = label.description || '';
-		const title = label.title || '';
+	protected redraw(): void {
+
+		// For each tab
+		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel) => {
+			this.redrawTab(editor, index, tabContainer, tabLabelWidget, tabLabel);
+		});
+
+		// Update Editor Actions Toolbar
+		this.updateEditorActionsToolbar();
+
+		// Ensure the active tab is always revealed
+		this.layout(this.dimension);
+	}
+
+	private forEachTab(fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: ResourceLabel, tabLabel: IEditorInputLabel) => void): void {
+		this.group.editors.forEach((editor, index) => {
+			const tabContainer = this.tabsContainer.children[index] as HTMLElement;
+			if (tabContainer) {
+				fn(editor, index, tabContainer, this.tabLabelWidgets[index], this.tabLabels[index]);
+			}
+		});
+	}
+
+	private redrawTab(editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: ResourceLabel, tabLabel: IEditorInputLabel): void {
+
+		// Label
+		this.redrawLabel(editor, tabContainer, tabLabelWidget, tabLabel);
+
+		// Borders
+		tabContainer.style.borderLeftColor = (index !== 0) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
+		tabContainer.style.borderRightColor = (index === this.group.count - 1) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
+		tabContainer.style.outlineColor = this.getColor(activeContrastBorder);
+
+		// Settings
+		const tabOptions = {} as IEditorTabOptions; // TODO@grid support tab options (this.editorGroupService.getTabOptions());
+
+		['off', 'left', 'right'].forEach(option => {
+			const domAction = tabOptions.tabCloseButton === option ? addClass : removeClass;
+			domAction(tabContainer, `close-button-${option}`);
+		});
+
+		['fit', 'shrink'].forEach(option => {
+			const domAction = tabOptions.tabSizing === option ? addClass : removeClass;
+			domAction(tabContainer, `sizing-${option}`);
+		});
+
+		if (tabOptions.showIcons && !!tabOptions.iconTheme) {
+			addClass(tabContainer, 'has-icon-theme');
+		} else {
+			removeClass(tabContainer, 'has-icon-theme');
+		}
+
+		// Active state
+		this.redrawEditorActive(this.groupsAccessor.activeGroup === this.group, editor, tabContainer, tabLabelWidget);
+
+		// Dirty State
+		this.redrawEditorDirty(editor, tabContainer);
+	}
+
+	private redrawLabel(editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: ResourceLabel, tabLabel: IEditorInputLabel): void {
+		const name = tabLabel.name;
+		const description = tabLabel.description || '';
+		const title = tabLabel.title || '';
 
 		// Container
 		tabContainer.setAttribute('aria-label', `${name}, tab`);
 		tabContainer.title = title;
 
 		// Label
-		tabLabel.setLabel({ name, description, resource: toResource(editor, { supportSideBySide: true }) }, { extraClasses: ['tab-label'], italic: !this.group.isPinned(editor) });
+		tabLabelWidget.setLabel({ name, description, resource: toResource(editor, { supportSideBySide: true }) }, { extraClasses: ['tab-label'], italic: !this.group.isPinned(editor) });
 	}
 
-	private redrawGroupActive(isGroupActive: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabel: ResourceLabel): void {
+	private redrawEditorActive(isGroupActive: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: ResourceLabel): void {
 		if (this.group.activeEditor === editor) {
-			tabLabel.element.style.color = this.getColor(isGroupActive ? TAB_ACTIVE_FOREGROUND : TAB_UNFOCUSED_ACTIVE_FOREGROUND);
+			this.activeTab = tabContainer;
+
+			addClass(tabContainer, 'active');
+			tabContainer.setAttribute('aria-selected', 'true');
+			tabContainer.style.backgroundColor = this.getColor(TAB_ACTIVE_BACKGROUND);
+
+			tabLabelWidget.element.style.color = this.getColor(isGroupActive ? TAB_ACTIVE_FOREGROUND : TAB_UNFOCUSED_ACTIVE_FOREGROUND);
 
 			// Use boxShadow for the active tab border because if we also have a editor group header
 			// color, the two colors would collide and the tab border never shows up.
@@ -747,7 +768,12 @@ export class NextTabsTitleControl extends NextTitleControl {
 				tabContainer.style.boxShadow = null;
 			}
 		} else {
-			tabLabel.element.style.color = this.getColor(isGroupActive ? TAB_INACTIVE_FOREGROUND : TAB_UNFOCUSED_INACTIVE_FOREGROUND);
+			removeClass(tabContainer, 'active');
+			tabContainer.setAttribute('aria-selected', 'false');
+			tabContainer.style.backgroundColor = this.getColor(TAB_INACTIVE_BACKGROUND);
+			tabContainer.style.boxShadow = null;
+
+			tabLabelWidget.element.style.color = this.getColor(isGroupActive ? TAB_INACTIVE_FOREGROUND : TAB_UNFOCUSED_INACTIVE_FOREGROUND);
 		}
 	}
 
