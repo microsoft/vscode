@@ -284,7 +284,7 @@ export class VariablesRenderer implements IRenderer {
 					}
 				});
 			} else {
-				renderVariable(tree, variable, templateData, true);
+				renderVariable(variable, templateData, true);
 			}
 		}
 	}

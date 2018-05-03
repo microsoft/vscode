@@ -120,7 +120,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 			.then(coreLanguages => {
 				if (coreLanguages.some(c => c.toLowerCase() === language)) {
 					const extensionIdPrefix = language === 'zh-cn' ? 'zh-hans' : language === 'zh-tw' ? 'zh-hant' : language;
-					const extensionId = product.quality !== 'insider' ? `MS-CEINTL.vscode-insiders-language-pack-${extensionIdPrefix}` : `MS-CEINTL.vscode-language-pack-${extensionIdPrefix}`;
+					const extensionId = product.quality === 'insider' ? `MS-CEINTL.vscode-insiders-language-pack-${extensionIdPrefix}` : `MS-CEINTL.vscode-language-pack-${extensionIdPrefix}`;
 					return this.galleryService.query({ names: [extensionId], pageSize: 1 })
 						.then(result => result.total === 1 ? result.firstPage[0] : null);
 				}

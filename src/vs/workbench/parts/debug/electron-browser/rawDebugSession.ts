@@ -17,6 +17,7 @@ import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { StreamDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
+import { formatPII } from 'vs/workbench/parts/debug/common/debugUtils';
 
 
 export interface SessionExitedEvent extends debug.DebugEvent {
@@ -211,7 +212,7 @@ export class RawDebugSession implements debug.ISession {
 			const promise = this.internalSend<R>(command, args).then(response => response, (errorResponse: DebugProtocol.ErrorResponse) => {
 				const error = errorResponse && errorResponse.body ? errorResponse.body.error : null;
 				const errorMessage = errorResponse ? errorResponse.message : '';
-				const telemetryMessage = error ? debug.formatPII(error.format, true, error.variables) : errorMessage;
+				const telemetryMessage = error ? formatPII(error.format, true, error.variables) : errorMessage;
 				if (error && error.sendTelemetry) {
 					/* __GDPR__
 						"debugProtocolErrorResponse" : {
@@ -228,7 +229,7 @@ export class RawDebugSession implements debug.ISession {
 					}
 				}
 
-				const userMessage = error ? debug.formatPII(error.format, false, error.variables) : errorMessage;
+				const userMessage = error ? formatPII(error.format, false, error.variables) : errorMessage;
 				if (error && error.url) {
 					const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
 					return TPromise.wrapError<R>(errors.create(userMessage, {

@@ -364,7 +364,6 @@ export class NextTabsTitleControl extends NextTitleControl {
 		tabContainer.appendChild(tabCloseContainer);
 
 		const actionRunner = new TabActionRunner(() => this.group.id, index);
-		this.tabDisposeables.push(actionRunner);
 
 		const actionBar = new ActionBar(tabCloseContainer, { ariaLabel: localize('araLabelTabActions', "Tab actions"), actionRunner });
 		actionBar.push(this.closeOneEditorAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.closeOneEditorAction) });
@@ -373,7 +372,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 		// Eventing
 		const eventsDisposable = this.hookTabListeners(tabContainer, index);
 
-		this.tabDisposeables.push(combinedDisposable([eventsDisposable, actionBar, editorLabel]));
+		this.tabDisposeables.push(combinedDisposable([eventsDisposable, actionBar, actionRunner, editorLabel]));
 
 		return tabContainer;
 	}
@@ -849,10 +848,10 @@ export class NextTabsTitleControl extends NextTitleControl {
 
 	private blockRevealActiveTabOnce(): void {
 
-		// When closing tabs through the tab close button or gesture, the user 
-		// might want to rapidly close tabs in sequence and as such revealing 
-		// the active tab after each close would be annoying. As such we block 
-		// the automated revealing of the active tab once after the close is 
+		// When closing tabs through the tab close button or gesture, the user
+		// might want to rapidly close tabs in sequence and as such revealing
+		// the active tab after each close would be annoying. As such we block
+		// the automated revealing of the active tab once after the close is
 		// triggered.
 		this.blockRevealActiveTab = true;
 	}

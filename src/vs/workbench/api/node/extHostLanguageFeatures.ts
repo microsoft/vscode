@@ -887,7 +887,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 				$serialized: true,
 				language: selector.language,
 				scheme: this._transformScheme(selector.scheme),
-				pattern: selector.pattern
+				pattern: selector.pattern,
+				exclusive: selector.exclusive
 			};
 		}
 

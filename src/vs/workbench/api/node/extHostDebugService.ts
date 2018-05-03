@@ -17,7 +17,7 @@ import {
 import * as vscode from 'vscode';
 import { Disposable, Position, Location, SourceBreakpoint, FunctionBreakpoint } from 'vs/workbench/api/node/extHostTypes';
 import { generateUuid } from 'vs/base/common/uuid';
-import { DebugAdapter, convertToVSCPaths, convertToDAPaths } from 'vs/workbench/parts/debug/node/debugAdapter';
+import { DebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
@@ -28,6 +28,7 @@ import { VariableResolver } from 'vs/workbench/services/configurationResolver/no
 import { IConfigurationResolverService } from '../../services/configurationResolver/common/configurationResolver';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { ExtHostConfiguration } from './extHostConfiguration';
+import { convertToVSCPaths, convertToDAPaths } from 'vs/workbench/parts/debug/common/debugUtils';
 
 
 export class ExtHostDebugService implements ExtHostDebugServiceShape {
