@@ -11,7 +11,7 @@ import { EditorGroup, IEditorOpenOptions, EditorCloseEvent } from 'vs/workbench/
 import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, IEditorOpeningEvent, EditorOpeningEvent, TextEditorOptions } from 'vs/workbench/common/editor';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass, addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
+import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass, addDisposableListener, EventType, EventHelper, findParentWithClass } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
@@ -259,16 +259,27 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		// Container
 		addClasses(this.element, 'editor-group-container');
 
-		const focusTracker = this._register(trackFocus(this.element));
-		this._register(focusTracker.onDidFocus(() => {
-			this._onDidFocus.fire();
+		const containerFocusTracker = this._register(trackFocus(this.element));
+		this._register(containerFocusTracker.onDidFocus(() => {
+			if (this.isEmpty()) {
+				this._onDidFocus.fire(); // only when empty to prevent accident focus
+			}
 		}));
 
 		// Title container
 		this.titleContainer = document.createElement('div');
 		addClasses(this.titleContainer, 'title', 'tabs', 'show-file-icons'); // TODO@grid support tab/icon options
 		this.element.appendChild(this.titleContainer);
-		this._register(addDisposableListener(this.titleContainer, EventType.MOUSE_UP, e => {
+		this._register(addDisposableListener(this.titleContainer, EventType.MOUSE_UP, (e: MouseEvent) => {
+			if (e.button !== 0) {
+				return; // only left-mouse-click
+			}
+
+			const target = e.target as HTMLElement;
+			if (findParentWithClass(target, 'monaco-action-bar', this.titleContainer)) {
+				return; // not when clicking on actions
+			}
+
 			EventHelper.stop(e);
 			this.focus();
 		}));
@@ -282,6 +293,11 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		this.editorContainer = document.createElement('div');
 		addClass(this.editorContainer, 'editor-container');
 		this.element.appendChild(this.editorContainer);
+
+		const editorFocusTracker = this._register(trackFocus(this.editorContainer));
+		this._register(editorFocusTracker.onDidFocus(() => {
+			this._onDidFocus.fire();
+		}));
 
 		// Update styles
 		this.updateStyles();

@@ -246,10 +246,6 @@ export class NextTabsTitleControl extends NextTitleControl {
 		}
 	}
 
-	public allowDragging(element: HTMLElement): boolean {
-		return (element.className === 'tabs-container');
-	}
-
 	protected doUpdate(): void {
 
 		// Compute labels and protect against duplicates
