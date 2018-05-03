@@ -162,7 +162,7 @@
 		{
 			"type": "extensionHost",
 			"request": "launch",
-			"name": "VS Code Markdown Extension Tests",
+			"name": "Markdown Extension Tests",
 			"runtimeExecutable": "${execPath}",
 			"args": [
 				"${workspaceFolder}/extensions/markdown-language-features/test-fixtures",
@@ -171,6 +171,20 @@
 			],
 			"outFiles": [
 				"${workspaceFolder}/extensions/markdown-language-features/out/**/*.js"
+			]
+		},
+		{
+			"type": "extensionHost",
+			"request": "launch",
+			"name": "TypeScript Extension Tests",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"${workspaceFolder}/extensions/typescript-language-features/test-fixtures",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/typescript-language-features",
+				"--extensionTestsPath=${workspaceFolder}/extensions/typescript-language-features/out/test"
+			],
+			"outFiles": [
+				"${workspaceFolder}/extensions/typescript-language-features/out/**/*.js"
 			]
 		},
 		{

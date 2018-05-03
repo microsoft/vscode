@@ -42,15 +42,13 @@ export class ClearOutputAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@IOutputService private outputService: IOutputService,
-		@IPanelService private panelService: IPanelService
+		@IOutputService private outputService: IOutputService
 	) {
 		super(id, label, 'output-action clear-output');
 	}
 
 	public run(): TPromise<boolean> {
 		this.outputService.getActiveChannel().clear();
-		this.panelService.getActivePanel().focus();
 
 		return TPromise.as(true);
 	}

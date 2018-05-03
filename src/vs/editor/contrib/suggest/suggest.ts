@@ -210,13 +210,20 @@ registerDefaultLanguageCommand('_executeCompletionItemProvider', (model, positio
 		suggestions: []
 	};
 
+	let resolving: Thenable<any>[] = [];
+	let maxItemsToResolve = args['maxItemsToResolve'] || 0;
+
 	return provideSuggestionItems(model, position).then(items => {
-
-		for (const { container, suggestion } of items) {
-			result.incomplete = result.incomplete || container.incomplete;
-			result.suggestions.push(suggestion);
+		for (const item of items) {
+			if (resolving.length < maxItemsToResolve) {
+				resolving.push(item.resolve());
+			}
+			result.incomplete = result.incomplete || item.container.incomplete;
+			result.suggestions.push(item.suggestion);
 		}
-
+	}).then(() => {
+		return TPromise.join(resolving);
+	}).then(() => {
 		return result;
 	});
 });

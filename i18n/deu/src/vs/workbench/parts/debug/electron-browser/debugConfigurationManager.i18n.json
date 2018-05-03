@@ -35,7 +35,7 @@
 	"useUniqueNames": "Verwenden Sie eindeutige Konfigurationsnamen.",
 	"app.launch.json.compound.folder": "Name des Ordners, in dem sich der Verbund befindet.",
 	"app.launch.json.compounds.configurations": "Namen von Konfigurationen, die als Bestandteil dieses Verbunds gestartet werden.",
-	"debugNoType": "Der \"type\" des Debugadapters kann nicht ausgelassen werden und muss vom Typ \"string\" sein.",
+	"debugNoType": "Der Debugger \"type\" darf nicht ausgelassen werden und muss den Typ \"string\" aufweisen.",
 	"selectDebug": "Umgebung auswählen",
 	"DebugConfig.failed": "Die Datei \"launch.json\" kann nicht im Ordner \".vscode\" erstellt werden ({0}).",
 	"workspace": "Arbeitsbereich",

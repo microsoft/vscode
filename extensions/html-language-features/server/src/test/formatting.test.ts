@@ -17,10 +17,11 @@ import { format } from '../modes/formatting';
 suite('HTML Embedded Formatting', () => {
 
 	function assertFormat(value: string, expected: string, options?: any, formatOptions?: FormattingOptions, message?: string): void {
-		var languageModes = getLanguageModes({ css: true, javascript: true });
-		if (options) {
-			languageModes.getAllModes().forEach(m => m.configure!(options));
-		}
+		let workspace = {
+			settings: options,
+			folders: [{ name: 'foo', uri: 'test://foo' }]
+		};
+		var languageModes = getLanguageModes({ css: true, javascript: true }, workspace);
 
 		let rangeStartOffset = value.indexOf('|');
 		let rangeEndOffset;
@@ -111,4 +112,53 @@ suite('HTML Embedded Formatting', () => {
 		assertFormat('<script src="/js/main.js"> </script>', '<script src="/js/main.js"> </script>');
 	});
 
+	test('bug 48049', function (): any {
+		assertFormat(
+			[
+				'<html>',
+				'<head>',
+				'</head>',
+				'',
+				'<body>',
+				'',
+				'    <script>',
+				'        function f(x) {}',
+				'        f(function () {',
+				'        // ',
+				'',
+				'        console.log(" vsc crashes on formatting")',
+				'        });',
+				'    </script>',
+				'',
+				'',
+				'',
+				'        </body>',
+				'',
+				'</html>'
+			].join('\n'),
+			[
+				'<html>',
+				'',
+				'<head>',
+				'</head>',
+				'',
+				'<body>',
+				'',
+				'  <script>',
+				'    function f(x) {}',
+				'    f(function () {',
+				'      // ',
+				'',
+				'      console.log(" vsc crashes on formatting")',
+				'    });',
+				'  </script>',
+				'',
+				'',
+				'',
+				'</body>',
+				'',
+				'</html>'
+			].join('\n')
+		);
+	});
 });

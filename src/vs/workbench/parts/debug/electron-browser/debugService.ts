@@ -352,10 +352,10 @@ export class DebugService implements debug.IDebugService {
 
 			const outputSeverity = event.body.category === 'stderr' ? severity.Error : event.body.category === 'console' ? severity.Warning : severity.Info;
 			if (event.body.category === 'telemetry') {
-				// only log telemetry events from debug adapter if the adapter provided the telemetry key
+				// only log telemetry events from debug adapter if the debug extension provided the telemetry key
 				// and the user opted in telemetry
 				if (session.customTelemetryService && this.telemetryService.isOptedIn) {
-					// __GDPR__TODO__ We're sending events in the name of the debug adapter and we can not ensure that those are declared correctly.
+					// __GDPR__TODO__ We're sending events in the name of the debug extension and we can not ensure that those are declared correctly.
 					session.customTelemetryService.publicLog(event.body.output, event.body.data);
 				}
 
@@ -366,7 +366,7 @@ export class DebugService implements debug.IDebugService {
 			const waitFor = outputPromises.slice();
 			const source = event.body.source ? {
 				lineNumber: event.body.line,
-				column: event.body.column,
+				column: event.body.column ? event.body.column : 1,
 				source: process.getSource(event.body.source)
 			} : undefined;
 			if (event.body.variablesReference) {
@@ -599,11 +599,11 @@ export class DebugService implements debug.IDebugService {
 		return this.sendAllBreakpoints();
 	}
 
-	public addBreakpoints(uri: uri, rawBreakpoints: debug.IBreakpointData[]): TPromise<void> {
-		this.model.addBreakpoints(uri, rawBreakpoints);
+	public addBreakpoints(uri: uri, rawBreakpoints: debug.IBreakpointData[]): TPromise<debug.IBreakpoint[]> {
+		const breakpoints = this.model.addBreakpoints(uri, rawBreakpoints);
 		rawBreakpoints.forEach(rbp => aria.status(nls.localize('breakpointAdded', "Added breakpoint, line {0}, file {1}", rbp.lineNumber, uri.fsPath)));
 
-		return this.sendBreakpoints(uri);
+		return this.sendBreakpoints(uri).then(() => breakpoints);
 	}
 
 	public updateBreakpoints(uri: uri, data: { [id: string]: DebugProtocol.Breakpoint }, sendOnResourceSaved: boolean): void {
@@ -696,7 +696,7 @@ export class DebugService implements debug.IDebugService {
 				if (this.model.getProcesses().length === 0) {
 					this.removeReplExpressions();
 					this.allProcesses.clear();
-					this.model.getBreakpoints().forEach(bp => bp.verified = false);
+					this.model.unverifyBreakpoints();
 				}
 				this.launchJsonChanged = false;
 
@@ -762,23 +762,27 @@ export class DebugService implements debug.IDebugService {
 					// a no-folder workspace has no launch.config
 					config = <debug.IConfig>{};
 				}
+
 				if (noDebug) {
 					config.noDebug = true;
 				}
+				const trace = this.configurationService.getValue<debug.IDebugConfiguration>('debug').trace;
+				if (trace !== 'off') {
+					config.trace = trace;
+				}
 
-				return (type ? TPromise.as(null) : this.configurationManager.guessAdapter().then(a => type = a && a.type)).then(() =>
-					(type ? this.extensionService.activateByEvent(`onDebugResolve:${type}`) : TPromise.as(null)).then(() =>
-						this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config).then(config => {
-							// a falsy config indicates an aborted launch
-							if (config && config.type) {
-								return this.createProcess(launch, config, sessionId);
-							}
+				return (type ? TPromise.as(null) : this.configurationManager.guessDebugger().then(a => type = a && a.type)).then(() =>
+					this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config).then(config => {
+						// a falsy config indicates an aborted launch
+						if (config && config.type) {
+							return this.createProcess(launch, config, sessionId);
+						}
 
-							if (launch) {
-								return launch.openConfigFile(false, type).done(undefined, errors.onUnexpectedError);
-							}
-						})
-					)).then(() => undefined);
+						if (launch && type) {
+							return launch.openConfigFile(false, type).done(undefined, errors.onUnexpectedError);
+						}
+					})
+				).then(() => undefined);
 			})
 		))).then(() => wrapUpState(), err => {
 			wrapUpState();
@@ -786,15 +790,38 @@ export class DebugService implements debug.IDebugService {
 		});
 	}
 
+	private substituteVariables(launch: debug.ILaunch | undefined, config: debug.IConfig): TPromise<debug.IConfig> {
+		const dbg = this.configurationManager.getDebugger(config.type);
+		if (dbg) {
+			let folder: IWorkspaceFolder = undefined;
+			if (launch && launch.workspace) {
+				folder = launch.workspace;
+			} else {
+				const folders = this.contextService.getWorkspace().folders;
+				if (folders.length === 1) {
+					folder = folders[0];
+				}
+			}
+			return dbg.substituteVariables(folder, config).then(config => {
+				return config;
+			}, (err: Error) => {
+				this.showError(err.message);
+				return undefined;	// bail out
+			});
+		}
+		return TPromise.as(config);
+	}
+
 	private createProcess(launch: debug.ILaunch, config: debug.IConfig, sessionId: string): TPromise<void> {
 		return this.textFileService.saveAll().then(() =>
-			(launch ? launch.resolveConfiguration(config) : TPromise.as(config)).then(resolvedConfig => {
+			this.substituteVariables(launch, config).then(resolvedConfig => {
+
 				if (!resolvedConfig) {
 					// User canceled resolving of interactive variables, silently return
 					return undefined;
 				}
 
-				if (!this.configurationManager.getAdapter(resolvedConfig.type) || (config.request !== 'attach' && config.request !== 'launch')) {
+				if (!this.configurationManager.getDebugger(resolvedConfig.type) || (config.request !== 'attach' && config.request !== 'launch')) {
 					let message: string;
 					if (config.request !== 'attach' && config.request !== 'launch') {
 						message = config.request ? nls.localize('debugRequestNotSupported', "Attribute '{0}' has an unsupported value '{1}' in the chosen debug configuration.", 'request', config.request)
@@ -836,6 +863,9 @@ export class DebugService implements debug.IDebugService {
 					return this.showError(err.message, [debugAnywayAction, this.taskService.configureAction()]);
 				});
 			}, err => {
+				if (err && err.message) {
+					return this.showError(err.message);
+				}
 				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 					return this.showError(nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved on disk and that you have a debug extension installed for that file type."));
 				}
@@ -855,9 +885,9 @@ export class DebugService implements debug.IDebugService {
 			telemetryInfo['common.vscodesessionid'] = info.sessionId;
 			return telemetryInfo;
 		}).then(data => {
-			const adapter = this.configurationManager.getAdapter(configuration.type);
-			const { aiKey, type } = adapter;
-			const publisher = adapter.extensionDescription.publisher;
+			const dbg = this.configurationManager.getDebugger(configuration.type);
+			const { aiKey, type } = dbg;
+			const publisher = dbg.extensionDescription.publisher;
 			let client: TelemetryClient;
 
 			let customTelemetryService: TelemetryService;
@@ -882,7 +912,7 @@ export class DebugService implements debug.IDebugService {
 				customTelemetryService = new TelemetryService({ appender }, this.configurationService);
 			}
 
-			const session = this.instantiationService.createInstance(RawDebugSession, sessionId, configuration.debugServer, adapter, customTelemetryService, root);
+			const session = this.instantiationService.createInstance(RawDebugSession, sessionId, configuration.debugServer, dbg, customTelemetryService, root);
 			const process = this.model.addProcess(configuration, session);
 			this.allProcesses.set(process.getId(), process);
 
@@ -946,8 +976,8 @@ export class DebugService implements debug.IDebugService {
 					breakpointCount: this.model.getBreakpoints().length,
 					exceptionBreakpoints: this.model.getExceptionBreakpoints(),
 					watchExpressionsCount: this.model.getWatchExpressions().length,
-					extensionName: adapter.extensionDescription.id,
-					isBuiltin: adapter.extensionDescription.isBuiltin,
+					extensionName: dbg.extensionDescription.id,
+					isBuiltin: dbg.extensionDescription.isBuiltin,
 					launchJsonExists: root && !!this.configurationService.getValue<debug.IGlobalConfig>('launch', { resource: root.uri })
 				});
 			}).then(() => process, (error: Error | string) => {
@@ -1149,7 +1179,9 @@ export class DebugService implements debug.IDebugService {
 			process.inactive = true;
 			this._onDidEndProcess.fire(process);
 			if (process.configuration.postDebugTask) {
-				this.runTask(process.getId(), process.session.root, process.configuration.postDebugTask);
+				this.runTask(process.getId(), process.session.root, process.configuration.postDebugTask).done(undefined, err =>
+					this.notificationService.error(err)
+				);
 			}
 		}
 
@@ -1205,9 +1237,9 @@ export class DebugService implements debug.IDebugService {
 				return TPromise.as(null);
 			}
 
-			const breakpointsToSend = this.model.getBreakpoints().filter(bp => this.model.areBreakpointsActivated() && bp.enabled && bp.uri.toString() === modelUri.toString());
+			const breakpointsToSend = this.model.getEnabledBreakpointsForResource(modelUri);
 
-			const source = process.sources.get(modelUri.toString());
+			const source = process.getSourceForUri(modelUri);
 			let rawSource: DebugProtocol.Source;
 			if (source) {
 				rawSource = source.raw;
@@ -1303,11 +1335,11 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		fileChangesEvent.getUpdated().forEach(event => {
-			if (this.breakpointsToSendOnResourceSaved.has(event.resource.toString())) {
-				this.breakpointsToSendOnResourceSaved.delete(event.resource.toString());
+
+			if (this.breakpointsToSendOnResourceSaved.delete(event.resource.toString())) {
 				this.sendBreakpoints(event.resource, true).done(null, errors.onUnexpectedError);
 			}
-			if (event.resource.toString().indexOf('.vscode/launch.json') >= 0) {
+			if (strings.endsWith(event.resource.toString(), '.vscode/launch.json')) {
 				this.launchJsonChanged = true;
 			}
 		});

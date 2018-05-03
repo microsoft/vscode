@@ -35,7 +35,7 @@
 	"useUniqueNames": "Veuillez utiliser des noms de configuration uniques.",
 	"app.launch.json.compound.folder": "Nom du dossier dans lequel le composé se trouve.",
 	"app.launch.json.compounds.configurations": "Noms des configurations qui sont lancées dans le cadre de ce composé.",
-	"debugNoType": "Le 'type' de l'adaptateur de débogage ne peut pas être omis. Il doit s'agir du type 'string'.",
+	"debugNoType": "Le 'type' de débogueur ne peut pas être omis et doit être de type 'string'.",
 	"selectDebug": "Sélectionner l'environnement",
 	"DebugConfig.failed": "Impossible de créer le fichier 'launch.json' dans le dossier '.vscode' ({0}).",
 	"workspace": "espace de travail",

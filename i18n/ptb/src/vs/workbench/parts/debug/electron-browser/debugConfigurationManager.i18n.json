@@ -35,7 +35,7 @@
 	"useUniqueNames": "Por favor, use nomes únicos de configuração.",
 	"app.launch.json.compound.folder": "Nome da pasta em que o composto se encontra.",
 	"app.launch.json.compounds.configurations": "Nomes das configurações que serão iniciadas como parte deste composto.",
-	"debugNoType": "'type' do adaptador de depuração não pode ser omitido e deve ser do tipo 'string'.",
+	"debugNoType": "Depurador 'tipo' não pode ser omitido e deve ser do tipo 'string'.",
 	"selectDebug": "Selecione o ambiente",
 	"DebugConfig.failed": "Não é possível criar o arquivo 'launch.json' dentro da pasta '.vscode' ({0}).",
 	"workspace": "espaço de trabalho",

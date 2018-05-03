@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { IExtensionManagementService, IExtensionEnablementService, DidUninstallExtensionEvent, EnablementState, IExtensionContributions, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionEnablementService, DidUninstallExtensionEvent, EnablementState, IExtensionContributions, ILocalExtension, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { Emitter } from 'vs/base/common/event';
@@ -324,6 +324,20 @@ suite('ExtensionEnablementService Test', () => {
 	test('test canChangeEnablement return false for language packs', () => {
 		assert.equal(testObject.canChangeEnablement(aLocalExtension('pub.a', { localizations: [{ languageId: 'gr', translations: [{ id: 'vscode', path: 'path' }] }] })), false);
 	});
+
+	test('test canChangeEnablement return false when extensions are disabled in environment', () => {
+		instantiationService.stub(IEnvironmentService, { disableExtensions: true } as IEnvironmentService);
+		testObject = new TestExtensionEnablementService(instantiationService);
+		assert.equal(testObject.canChangeEnablement(aLocalExtension('pub.a')), false);
+	});
+
+	test('test canChangeEnablement return true for system extensions when extensions are disabled in environment', () => {
+		instantiationService.stub(IEnvironmentService, { disableExtensions: true } as IEnvironmentService);
+		testObject = new TestExtensionEnablementService(instantiationService);
+		const extension = aLocalExtension('pub.a');
+		extension.type = LocalExtensionType.System;
+		assert.equal(testObject.canChangeEnablement(extension), true);
+	});
 });
 
 function aLocalExtension(id: string, contributes?: IExtensionContributions): ILocalExtension {
@@ -334,6 +348,7 @@ function aLocalExtension(id: string, contributes?: IExtensionContributions): ILo
 			name,
 			publisher,
 			contributes
-		}
+		},
+		type: LocalExtensionType.User
 	});
 }

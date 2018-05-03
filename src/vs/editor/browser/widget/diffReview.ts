@@ -29,6 +29,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
+import { ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
 
 const DIFF_LINES_PADDING = 3;
 
@@ -583,9 +584,34 @@ export class DiffReview extends Disposable {
 
 		let cell = document.createElement('div');
 		cell.className = 'diff-review-cell diff-review-summary';
-		cell.appendChild(document.createTextNode(`${diffIndex + 1}/${this._diffs.length}: @@ -${minOriginalLine},${maxOriginalLine - minOriginalLine + 1} +${minModifiedLine},${maxModifiedLine - minModifiedLine + 1} @@`));
+		const originalChangedLinesCnt = maxOriginalLine - minOriginalLine + 1;
+		const modifiedChangedLinesCnt = maxModifiedLine - minModifiedLine + 1;
+		cell.appendChild(document.createTextNode(`${diffIndex + 1}/${this._diffs.length}: @@ -${minOriginalLine},${originalChangedLinesCnt} +${minModifiedLine},${modifiedChangedLinesCnt} @@`));
 		header.setAttribute('data-line', String(minModifiedLine));
-		header.setAttribute('aria-label', nls.localize('header', "Difference {0} of {1}: original {2}, {3} lines, modified {4}, {5} lines", (diffIndex + 1), this._diffs.length, minOriginalLine, maxOriginalLine - minOriginalLine + 1, minModifiedLine, maxModifiedLine - minModifiedLine + 1));
+
+		const getAriaLines = (lines: number) => {
+			if (lines === 0) {
+				return nls.localize('no_lines', "no lines");
+			} else if (lines === 1) {
+				return nls.localize('one_line', "1 line");
+			} else {
+				return nls.localize('more_lines', "{0} lines", lines);
+			}
+		};
+
+		const originalChangedLinesCntAria = getAriaLines(originalChangedLinesCnt);
+		const modifiedChangedLinesCntAria = getAriaLines(modifiedChangedLinesCnt);
+		header.setAttribute('aria-label', nls.localize({
+			key: 'header',
+			comment: [
+				'This is the ARIA label for a git diff header.',
+				'A git diff header looks like this: @@ -154,12 +159,39 @@.',
+				'That encodes that at original line 154 (which is now line 159), 12 lines were removed/changed with 39 lines.',
+				'Variables 0 and 1 refer to the diff index out of total number of diffs.',
+				'Variables 2 and 4 will be numbers (a line number).',
+				'Variables 3 and 5 will be "no lines", "1 line" or "X lines", localized separately.'
+			]
+		}, "Difference {0} of {1}: original {2}, {3}, modified {4}, {5}", (diffIndex + 1), this._diffs.length, minOriginalLine, originalChangedLinesCntAria, minModifiedLine, modifiedChangedLinesCntAria));
 		header.appendChild(cell);
 
 		// @@ -504,7 +517,7 @@
@@ -738,10 +764,13 @@ export class DiffReview extends Disposable {
 
 		const lineTokens = new LineTokens(tokens, lineContent);
 
+		const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, model.mightContainNonBasicASCII());
+		const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, model.mightContainRTL());
 		const r = renderViewLine(new RenderLineInput(
 			(config.fontInfo.isMonospace && !config.viewInfo.disableMonospaceOptimizations),
 			lineContent,
-			model.mightContainRTL(),
+			isBasicASCII,
+			containsRTL,
 			0,
 			lineTokens,
 			[],

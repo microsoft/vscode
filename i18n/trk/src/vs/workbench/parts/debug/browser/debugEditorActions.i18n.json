@@ -8,6 +8,7 @@
 	],
 	"toggleBreakpointAction": "Hata Ayıklama: Kesme Noktası Ekle/Kaldır",
 	"conditionalBreakpointEditorAction": "Hata Ayıklama: Koşullu Kesme Noktası Ekle...",
+	"logPointEditorAction": "Hata Ayıklama: Günlük Noktası Ekle...",
 	"runToCursor": "İmlece Kadar Çalıştır",
 	"debugEvaluate": "Hata Ayıklama: Değerlendir",
 	"debugAddToWatch": "Hata Ayıklama: İzlemeye Ekle",

@@ -10,8 +10,7 @@ import { Event, Emitter, filterEvent } from 'vs/base/common/event';
 import { ColorIdentifier, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND } from 'vs/workbench/common/theme';
-import { Dimension, Builder } from 'vs/base/browser/builder';
-import { append, $, trackFocus, toggleClass, EventType, isAncestor } from 'vs/base/browser/dom';
+import { append, $, trackFocus, toggleClass, EventType, isAncestor, Dimension, addDisposableListener } from 'vs/base/browser/dom';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { firstIndex } from 'vs/base/common/arrays';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
@@ -47,6 +46,9 @@ export abstract class ViewletPanel extends Panel {
 	private _onDidFocus = new Emitter<void>();
 	readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
+	private _onDidChangeTitleArea = new Emitter<void>();
+	readonly onDidChangeTitleArea: Event<void> = this._onDidChangeTitleArea.event;
+
 	protected actionRunner: IActionRunner;
 	protected toolbar: ToolBar;
 	private headerContainer: HTMLElement;
@@ -63,10 +65,10 @@ export abstract class ViewletPanel extends Panel {
 		this.actionRunner = options.actionRunner;
 	}
 
-	render(container: HTMLElement): void {
-		super.render(container);
+	render(): void {
+		super.render();
 
-		const focusTracker = trackFocus(container);
+		const focusTracker = trackFocus(this.element);
 		this.disposables.push(focusTracker);
 		this.disposables.push(focusTracker.onDidFocus(() => this._onDidFocus.fire()));
 	}
@@ -86,7 +88,7 @@ export abstract class ViewletPanel extends Panel {
 		});
 
 		this.disposables.push(this.toolbar);
-		this.updateActions();
+		this.setActions();
 
 		const onDidRelevantConfigurationChange = filterEvent(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ViewletPanel.AlwaysShowActionsConfig));
 		onDidRelevantConfigurationChange(this.updateActionsVisibility, this, this.disposables);
@@ -101,14 +103,19 @@ export abstract class ViewletPanel extends Panel {
 		this._onDidFocus.fire();
 	}
 
-	protected updateActions(): void {
+	private setActions(): void {
 		this.toolbar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
 		this.toolbar.context = this.getActionsContext();
 	}
 
-	protected updateActionsVisibility(): void {
+	private updateActionsVisibility(): void {
 		const shouldAlwaysShowActions = this.configurationService.getValue<boolean>('workbench.view.alwaysShowHeaderActions');
 		toggleClass(this.headerContainer, 'actions-always-visible', shouldAlwaysShowActions);
+	}
+
+	protected updateActions(): void {
+		this.setActions();
+		this._onDidChangeTitleArea.fire();
 	}
 
 	getActions(): IAction[] {
@@ -151,6 +158,10 @@ export class PanelViewlet extends Viewlet {
 		return this.panelview.onDidSashChange;
 	}
 
+	protected get panels(): ViewletPanel[] {
+		return this.panelItems.map(i => i.panel);
+	}
+
 	protected get length(): number {
 		return this.panelItems.length;
 	}
@@ -166,13 +177,12 @@ export class PanelViewlet extends Viewlet {
 		super(id, partService, telemetryService, themeService);
 	}
 
-	async create(parent: Builder): TPromise<void> {
+	async create(parent: HTMLElement): TPromise<void> {
 		super.create(parent);
 
-		const container = parent.getHTMLElement();
-		this.panelview = this._register(new PanelView(container, this.options));
+		this.panelview = this._register(new PanelView(parent, this.options));
 		this._register(this.panelview.onDidDrop(({ from, to }) => this.movePanel(from as ViewletPanel, to as ViewletPanel)));
-		this._register(parent.on(EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
+		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
 	}
 
 	private showContextMenu(event: StandardMouseEvent): void {
@@ -219,6 +229,14 @@ export class PanelViewlet extends Viewlet {
 		return [];
 	}
 
+	getActionItem(action: IAction): IActionItem {
+		if (this.isSingleView()) {
+			return this.panelItems[0].panel.getActionItem(action);
+		}
+
+		return super.getActionItem(action);
+	}
+
 	focus(): void {
 		super.focus();
 
@@ -245,9 +263,27 @@ export class PanelViewlet extends Viewlet {
 		return Math.max(...sizes);
 	}
 
-	addPanel(panel: ViewletPanel, size: number, index = this.panelItems.length - 1): void {
+	addPanels(panels: { panel: ViewletPanel, size: number, index?: number }[]): void {
+		const wasSingleView = this.isSingleView();
+
+		for (const { panel, size, index } of panels) {
+			this.addPanel(panel, size, index);
+		}
+
+		this.updateViewHeaders();
+		if (this.isSingleView() !== wasSingleView) {
+			this.updateTitleArea();
+		}
+	}
+
+	private addPanel(panel: ViewletPanel, size: number, index = this.panelItems.length - 1): void {
 		const disposables: IDisposable[] = [];
 		const onDidFocus = panel.onDidFocus(() => this.lastFocusedPanel = panel, null, disposables);
+		const onDidChangeTitleArea = panel.onDidChangeTitleArea(() => {
+			if (this.isSingleView()) {
+				this.updateTitleArea();
+			}
+		}, null, disposables);
 		const onDidChange = panel.onDidChange(() => {
 			if (panel === this.lastFocusedPanel && !panel.isExpanded()) {
 				this.lastFocusedPanel = undefined;
@@ -260,20 +296,25 @@ export class PanelViewlet extends Viewlet {
 			headerHighContrastBorder: index === 0 ? null : contrastBorder,
 			dropBackground: SIDE_BAR_DRAG_AND_DROP_BACKGROUND
 		}, panel);
-		const disposable = combinedDisposable([onDidFocus, panelStyler, onDidChange]);
+		const disposable = combinedDisposable([onDidFocus, onDidChangeTitleArea, panelStyler, onDidChange]);
 		const panelItem: IViewletPanelItem = { panel, disposable };
 
-		const wasSingleView = this.isSingleView();
 		this.panelItems.splice(index, 0, panelItem);
 		this.panelview.addPanel(panel, size, index);
+	}
+
+	removePanels(panels: ViewletPanel[]): void {
+		const wasSingleView = this.isSingleView();
+
+		panels.forEach(panel => this.removePanel(panel));
 
 		this.updateViewHeaders();
-		if (this.isSingleView() !== wasSingleView) {
+		if (wasSingleView !== this.isSingleView()) {
 			this.updateTitleArea();
 		}
 	}
 
-	removePanel(panel: ViewletPanel): void {
+	private removePanel(panel: ViewletPanel): void {
 		const index = firstIndex(this.panelItems, i => i.panel === panel);
 
 		if (index === -1) {
@@ -284,15 +325,10 @@ export class PanelViewlet extends Viewlet {
 			this.lastFocusedPanel = undefined;
 		}
 
-		const wasSingleView = this.isSingleView();
 		this.panelview.removePanel(panel);
 		const [panelItem] = this.panelItems.splice(index, 1);
 		panelItem.disposable.dispose();
 
-		this.updateViewHeaders();
-		if (wasSingleView !== this.isSingleView()) {
-			this.updateTitleArea();
-		}
 	}
 
 	movePanel(from: ViewletPanel, to: ViewletPanel): void {

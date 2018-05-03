@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import { getDocumentContext } from '../utils/documentContext';
 
-suite('Document Context', () => {
+suite('HTML Document Context', () => {
 
 	test('Context', function (): any {
 		const docURI = 'file:///users/test/folder/test.html';

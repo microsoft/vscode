@@ -704,10 +704,6 @@ export namespace CoreNavigationCommands {
 		public runCoreEditorCommand(cursors: ICursors, args: any): void {
 			const context = cursors.context;
 
-			if (context.config.readOnly) {
-				return;
-			}
-
 			let newState: CursorState;
 			if (args.wholeLine) {
 				newState = CursorMoveCommands.line(context, cursors.getPrimaryCursor(), false, args.position, args.viewPosition);
@@ -768,10 +764,6 @@ export namespace CoreNavigationCommands {
 
 		public runCoreEditorCommand(cursors: ICursors, args: any): void {
 			const context = cursors.context;
-
-			if (context.config.readOnly) {
-				return;
-			}
 
 			const lastAddedCursorIndex = cursors.getLastAddedCursorIndex();
 
@@ -1251,9 +1243,6 @@ export namespace CoreNavigationCommands {
 
 		public runCoreEditorCommand(cursors: ICursors, args: any): void {
 			const context = cursors.context;
-			if (context.config.readOnly) {
-				return;
-			}
 
 			const lastAddedCursorIndex = cursors.getLastAddedCursorIndex();
 
@@ -1312,12 +1301,6 @@ export namespace CoreNavigationCommands {
 		}
 
 		public runCoreEditorCommand(cursors: ICursors, args: any): void {
-			const context = cursors.context;
-
-			if (context.config.readOnly) {
-				return;
-			}
-
 			const lastAddedCursorIndex = cursors.getLastAddedCursorIndex();
 
 			let newStates = cursors.getAll().slice(0);

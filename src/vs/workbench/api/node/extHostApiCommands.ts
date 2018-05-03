@@ -6,34 +6,34 @@
 
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as Objects from 'vs/base/common/objects';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import * as types from 'vs/workbench/api/node/extHostTypes';
+import { IRawColorInfo } from 'vs/workbench/api/node/extHost.protocol';
+
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
-import { Position as EditorPosition, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { CustomCodeAction } from 'vs/workbench/api/node/extHostLanguageFeatures';
-import * as TaskSystem from 'vs/workbench/parts/tasks/common/tasks';
-import { ExtHostWorkspace } from './extHostWorkspace';
+import { ExtHostTask } from './extHostTask';
+import { ICommandsExecutor, PreviewHTMLAPICommand, OpenFolderAPICommand, DiffAPICommand, OpenAPICommand, RemoveFromRecentlyOpenedAPICommand } from './apiCommands';
 
 export class ExtHostApiCommands {
 
-	static register(commands: ExtHostCommands, workspace: ExtHostWorkspace) {
+	static register(commands: ExtHostCommands, workspace: ExtHostTask) {
 		return new ExtHostApiCommands(commands, workspace).registerCommands();
 	}
 
 	private _commands: ExtHostCommands;
-	private _workspace: ExtHostWorkspace;
+	private _tasks: ExtHostTask;
 	private _disposables: IDisposable[] = [];
 
-	private constructor(commands: ExtHostCommands, workspace: ExtHostWorkspace) {
+	private constructor(commands: ExtHostCommands, task: ExtHostTask) {
 		this._commands = commands;
-		this._workspace = workspace;
+		this._tasks = task;
 	}
 
 	registerCommands() {
@@ -105,7 +105,7 @@ export class ExtHostApiCommands {
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
 				{ name: 'position', description: 'Position in a text document', constraint: types.Position },
-				{ name: 'triggerCharacter', description: '(optional) Trigger signature help when the user types the character, like `,` or `(`', constraint: value => value === void 0 || typeof value === 'string' }
+				{ name: 'triggerCharacter', description: '(optional) Trigger signature help when the user types the character, like `,` or `(`', constraint: (value: any) => value === void 0 || typeof value === 'string' }
 			],
 			returns: 'A promise that resolves to SignatureHelp.'
 		});
@@ -121,7 +121,8 @@ export class ExtHostApiCommands {
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
 				{ name: 'position', description: 'Position in a text document', constraint: types.Position },
-				{ name: 'triggerCharacter', description: '(optional) Trigger completion when the user types the character, like `,` or `(`', constraint: value => value === void 0 || typeof value === 'string' }
+				{ name: 'triggerCharacter', description: '(optional) Trigger completion when the user types the character, like `,` or `(`', constraint: (value: any) => value === void 0 || typeof value === 'string' },
+				{ name: 'itemResolveCount', description: '(optional) Number of completions to resolve (too large numbers slow down completions)', constraint: (value: any) => value === void 0 || typeof value === 'number' }
 			],
 			returns: 'A promise that resolves to a CompletionList-instance.'
 		});
@@ -136,7 +137,8 @@ export class ExtHostApiCommands {
 		this._register('vscode.executeCodeLensProvider', this._executeCodeLensProvider, {
 			description: 'Execute CodeLens provider.',
 			args: [
-				{ name: 'uri', description: 'Uri of a text document', constraint: URI }
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+				{ name: 'itemResolveCount', description: '(optional) Number of lenses that should be resolved and returned. Will only retrun resolved lenses, will impact performance)', constraint: (value: any) => value === void 0 || typeof value === 'number' }
 			],
 			returns: 'A promise that resolves to an array of CodeLens-instances.'
 		});
@@ -179,99 +181,89 @@ export class ExtHostApiCommands {
 			args: [],
 			returns: 'An array of task handles'
 		});
+		this._register('vscode.executeDocumentColorProvider', this._executeDocumentColorProvider, {
+			description: 'Execute document color provider.',
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+			],
+			returns: 'A promise that resolves to an array of ColorInformation objects.'
+		});
+		this._register('vscode.executeColorPresentationProvider', this._executeColorPresentationProvider, {
+			description: 'Execute color presentation provider.',
+			args: [
+				{ name: 'color', description: 'The color to show and insert', constraint: types.Color },
+				{ name: 'context', description: 'Context object with uri and range' }
+			],
+			returns: 'A promise that resolves to an array of ColorPresentation objects.'
+		});
 
-		this._register('vscode.previewHtml', (uri: URI, position?: vscode.ViewColumn, label?: string, options?: any) => {
-			return this._commands.executeCommand('_workbench.previewHtml',
-				uri,
-				typeof position === 'number' && typeConverters.fromViewColumn(position),
-				label,
-				options);
-		}, {
-				description: `
-					Render the html of the resource in an editor view.
 
-					See [working with the html preview](https://code.visualstudio.com/docs/extensionAPI/vscode-api-commands#working-with-the-html-preview) for more information about the html preview's intergration with the editor and for best practices for extension authors.
+		// -----------------------------------------------------------------
+		// The following commands are registered on both sides separately.
+		//
+		// We are trying to maintain backwards compatibility for cases where
+		// API commands are encoded as markdown links, for example.
+		// -----------------------------------------------------------------
+
+		type ICommandHandler = (...args: any[]) => any;
+		const adjustHandler = (handler: (executor: ICommandsExecutor, ...args: any[]) => any): ICommandHandler => {
+			return (...args: any[]) => {
+				return handler(this._commands, ...args);
+			};
+		};
+
+		this._register(PreviewHTMLAPICommand.ID, adjustHandler(PreviewHTMLAPICommand.execute), {
+			description: `
+					Render the HTML of the resource in an editor view.
+
+					See [working with the HTML preview](https://code.visualstudio.com/docs/extensionAPI/vscode-api-commands#working-with-the-html-preview) for more information about the HTML preview's integration with the editor and for best practices for extension authors.
 				`,
-				args: [
-					{ name: 'uri', description: 'Uri of the resource to preview.', constraint: value => value instanceof URI || typeof value === 'string' },
-					{ name: 'column', description: '(optional) Column in which to preview.', constraint: value => typeof value === 'undefined' || (typeof value === 'number' && typeof types.ViewColumn[value] === 'string') },
-					{ name: 'label', description: '(optional) An human readable string that is used as title for the preview.', constraint: v => typeof v === 'string' || typeof v === 'undefined' },
-					{ name: 'options', description: '(optional) Options for controlling webview environment.', constraint: v => typeof v === 'object' || typeof v === 'undefined' }
-				]
-			});
+			args: [
+				{ name: 'uri', description: 'Uri of the resource to preview.', constraint: (value: any) => value instanceof URI || typeof value === 'string' },
+				{ name: 'column', description: '(optional) Column in which to preview.', constraint: (value: any) => typeof value === 'undefined' || (typeof value === 'number' && typeof types.ViewColumn[value] === 'string') },
+				{ name: 'label', description: '(optional) An human readable string that is used as title for the preview.', constraint: (v: any) => typeof v === 'string' || typeof v === 'undefined' },
+				{ name: 'options', description: '(optional) Options for controlling webview environment.', constraint: (v: any) => typeof v === 'object' || typeof v === 'undefined' }
+			]
+		});
 
-		this._register('vscode.openFolder', (uri?: URI, forceNewWindow?: boolean) => {
-			if (!uri) {
-				return this._commands.executeCommand('_files.pickFolderAndOpen', forceNewWindow);
-			}
+		this._register(OpenFolderAPICommand.ID, adjustHandler(OpenFolderAPICommand.execute), {
+			description: 'Open a folder or workspace in the current window or new window depending on the newWindow argument. Note that opening in the same window will shutdown the current extension host process and start a new one on the given folder/workspace unless the newWindow parameter is set to true.',
+			args: [
+				{ name: 'uri', description: '(optional) Uri of the folder or workspace file to open. If not provided, a native dialog will ask the user for the folder', constraint: (value: any) => value === void 0 || value instanceof URI },
+				{ name: 'newWindow', description: '(optional) Whether to open the folder/workspace in a new window or the same. Defaults to opening in the same window.', constraint: (value: any) => value === void 0 || typeof value === 'boolean' }
+			]
+		});
 
-			return this._commands.executeCommand('_files.windowOpen', [uri.fsPath], forceNewWindow);
-		}, {
-				description: 'Open a folder or workspace in the current window or new window depending on the newWindow argument. Note that opening in the same window will shutdown the current extension host process and start a new one on the given folder/workspace unless the newWindow parameter is set to true.',
-				args: [
-					{ name: 'uri', description: '(optional) Uri of the folder or workspace file to open. If not provided, a native dialog will ask the user for the folder', constraint: value => value === void 0 || value instanceof URI },
-					{ name: 'newWindow', description: '(optional) Whether to open the folder/workspace in a new window or the same. Defaults to opening in the same window.', constraint: value => value === void 0 || typeof value === 'boolean' }
-				]
-			});
+		this._register(DiffAPICommand.ID, adjustHandler(DiffAPICommand.execute), {
+			description: 'Opens the provided resources in the diff editor to compare their contents.',
+			args: [
+				{ name: 'left', description: 'Left-hand side resource of the diff editor', constraint: URI },
+				{ name: 'right', description: 'Right-hand side resource of the diff editor', constraint: URI },
+				{ name: 'title', description: '(optional) Human readable title for the diff editor', constraint: (v: any) => v === void 0 || typeof v === 'string' },
+				{ name: 'options', description: '(optional) Editor options, see vscode.TextDocumentShowOptions' }
+			]
+		});
 
-		this._register('vscode.diff', (left: URI, right: URI, label: string, options?: vscode.TextDocumentShowOptions) => {
-			return this._commands.executeCommand('_workbench.diff', [
-				left, right,
-				label,
-				undefined,
-				typeConverters.toTextEditorOptions(options),
-				options ? typeConverters.fromViewColumn(options.viewColumn) : undefined
-			]);
-		}, {
-				description: 'Opens the provided resources in the diff editor to compare their contents.',
-				args: [
-					{ name: 'left', description: 'Left-hand side resource of the diff editor', constraint: URI },
-					{ name: 'right', description: 'Right-hand side resource of the diff editor', constraint: URI },
-					{ name: 'title', description: '(optional) Human readable title for the diff editor', constraint: v => v === void 0 || typeof v === 'string' },
-					{ name: 'options', description: '(optional) Editor options, see vscode.TextDocumentShowOptions' }
-				]
-			});
+		this._register(OpenAPICommand.ID, adjustHandler(OpenAPICommand.execute), {
+			description: 'Opens the provided resource in the editor. Can be a text or binary file, or a http(s) url. If you need more control over the options for opening a text file, use vscode.window.showTextDocument instead.',
+			args: [
+				{ name: 'resource', description: 'Resource to open', constraint: URI },
+				{ name: 'columnOrOptions', description: '(optional) Either the column in which to open or editor options, see vscode.TextDocumentShowOptions', constraint: (v: any) => v === void 0 || typeof v === 'number' || typeof v === 'object' }
+			]
+		});
 
-		this._register('vscode.open', (resource: URI, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions) => {
-			let options: ITextEditorOptions;
-			let column: EditorPosition;
-
-			if (columnOrOptions) {
-				if (typeof columnOrOptions === 'number') {
-					column = typeConverters.fromViewColumn(columnOrOptions);
-				} else {
-					options = typeConverters.toTextEditorOptions(columnOrOptions);
-					column = typeConverters.fromViewColumn(columnOrOptions.viewColumn);
-				}
-			}
-
-			return this._commands.executeCommand('_workbench.open', [
-				resource,
-				options,
-				column
-			]);
-		}, {
-				description: 'Opens the provided resource in the editor. Can be a text or binary file, or a http(s) url. If you need more control over the options for opening a text file, use vscode.window.showTextDocument instead.',
-				args: [
-					{ name: 'resource', description: 'Resource to open', constraint: URI },
-					{ name: 'columnOrOptions', description: '(optional) Either the column in which to open or editor options, see vscode.TextDocumentShowOptions', constraint: v => v === void 0 || typeof v === 'number' || typeof v === 'object' }
-				]
-			});
-
-		this._register('vscode.removeFromRecentlyOpened', (path: string) => {
-			return this._commands.executeCommand('_workbench.removeFromRecentlyOpened', path);
-		}, {
-				description: 'Removes an entry with the given path from the recently opened list.',
-				args: [
-					{ name: 'path', description: 'Path to remove from recently opened.', constraint: value => typeof value === 'string' }
-				]
-			});
+		this._register(RemoveFromRecentlyOpenedAPICommand.ID, adjustHandler(RemoveFromRecentlyOpenedAPICommand.execute), {
+			description: 'Removes an entry with the given path from the recently opened list.',
+			args: [
+				{ name: 'path', description: 'Path to remove from recently opened.', constraint: (value: any) => typeof value === 'string' }
+			]
+		});
 	}
 
 	// --- command impl
 
 	private _register(id: string, handler: (...args: any[]) => any, description?: ICommandHandlerDescription): void {
-		let disposable = this._commands.registerCommand(id, handler, this, description);
+		let disposable = this._commands.registerCommand(false, id, handler, this, description);
 		this._disposables.push(disposable);
 	}
 
@@ -378,11 +370,12 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeCompletionItemProvider(resource: URI, position: types.Position, triggerCharacter: string): Thenable<types.CompletionList> {
+	private _executeCompletionItemProvider(resource: URI, position: types.Position, triggerCharacter: string, maxItemsToResolve: number): Thenable<types.CompletionList> {
 		const args = {
 			resource,
 			position: position && typeConverters.fromPosition(position),
-			triggerCharacter
+			triggerCharacter,
+			maxItemsToResolve
 		};
 		return this._commands.executeCommand<modes.ISuggestResult>('_executeCompletionItemProvider', args).then(result => {
 			if (result) {
@@ -390,6 +383,32 @@ export class ExtHostApiCommands {
 				return new types.CompletionList(items, result.incomplete);
 			}
 			return undefined;
+		});
+	}
+
+	private _executeDocumentColorProvider(resource: URI): Thenable<types.ColorInformation[]> {
+		const args = {
+			resource
+		};
+		return this._commands.executeCommand<IRawColorInfo[]>('_executeDocumentColorProvider', args).then(result => {
+			if (result) {
+				return result.map(ci => ({ range: typeConverters.toRange(ci.range), color: typeConverters.Color.to(ci.color) }));
+			}
+			return [];
+		});
+	}
+
+	private _executeColorPresentationProvider(color: types.Color, context: { uri: URI, range: types.Range }): Thenable<types.ColorPresentation[]> {
+		const args = {
+			resource: context.uri,
+			color: typeConverters.Color.from(color),
+			range: typeConverters.fromRange(context.range),
+		};
+		return this._commands.executeCommand<modes.IColorPresentation[]>('_executeColorPresentationProvider', args).then(result => {
+			if (result) {
+				return result.map(typeConverters.ColorPresentation.to);
+			}
+			return [];
 		});
 	}
 
@@ -430,8 +449,8 @@ export class ExtHostApiCommands {
 			}));
 	}
 
-	private _executeCodeLensProvider(resource: URI): Thenable<vscode.CodeLens[]> {
-		const args = { resource };
+	private _executeCodeLensProvider(resource: URI, itemResolveCount: number): Thenable<vscode.CodeLens[]> {
+		const args = { resource, itemResolveCount };
 		return this._commands.executeCommand<modes.ICodeLensSymbol[]>('_executeCodeLensProvider', args)
 			.then(tryMapWith(item => {
 				return new types.CodeLens(
@@ -476,29 +495,8 @@ export class ExtHostApiCommands {
 			.then(tryMapWith(typeConverters.DocumentLink.to));
 	}
 
-	private _executeTaskProvider(): Thenable<vscode.TaskItem[]> {
-		return this._commands.executeCommand<TaskSystem.TaskItemTransfer[]>('_executeTaskProvider').then<vscode.TaskItem[]>((values) => {
-			let workspace = this._workspace;
-			return values.map(handle => {
-				let definition: vscode.TaskDefinition = Objects.assign(Object.create(null), handle.definition);
-				delete definition._key;
-				let uri = URI.revive(handle.workspaceFolderUri);
-				return new class {
-					get id(): string {
-						return handle.id;
-					}
-					get label(): string {
-						return handle.label;
-					}
-					get definition(): vscode.TaskDefinition {
-						return definition;
-					}
-					get workspaceFolder(): vscode.WorkspaceFolder {
-						return uri ? workspace.resolveWorkspaceFolder(uri) : undefined;
-					}
-				};
-			});
-		});
+	private _executeTaskProvider(): Thenable<vscode.Task[]> {
+		return this._tasks.fetchTasks();
 	}
 }
 

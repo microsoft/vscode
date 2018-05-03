@@ -492,7 +492,7 @@ export class ExtensionScanner {
 	/**
 	 * Read the extension defined in `absoluteFolderPath`
 	 */
-	private static scanExtension(version: string, log: ILog, absoluteFolderPath: string, isBuiltin: boolean, nlsConfig: NlsConfiguration): TPromise<IExtensionDescription> {
+	public static scanExtension(version: string, log: ILog, absoluteFolderPath: string, isBuiltin: boolean, nlsConfig: NlsConfiguration): TPromise<IExtensionDescription> {
 		absoluteFolderPath = normalize(absoluteFolderPath);
 
 		let parser = new ExtensionManifestParser(version, log, absoluteFolderPath, isBuiltin);

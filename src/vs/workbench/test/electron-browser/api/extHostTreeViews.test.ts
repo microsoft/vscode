@@ -75,8 +75,8 @@ suite('ExtHostTreeView', function () {
 		testObject = new ExtHostTreeViews(target, new ExtHostCommands(rpcProtocol, new ExtHostHeapService(), new NullLogService()));
 		onDidChangeTreeNode = new Emitter<{ key: string }>();
 		onDidChangeTreeNodeWithId = new Emitter<{ key: string }>();
-		testObject.registerTreeDataProvider('testNodeTreeProvider', aNodeTreeDataProvider(), (fn) => fn);
-		testObject.registerTreeDataProvider('testNodeWithIdTreeProvider', aNodeWithIdTreeDataProvider(), (fn) => fn);
+		testObject.createTreeView('testNodeTreeProvider', { treeDataProvider: aNodeTreeDataProvider() });
+		testObject.createTreeView('testNodeWithIdTreeProvider', { treeDataProvider: aNodeWithIdTreeDataProvider() });
 
 		testObject.$getChildren('testNodeTreeProvider').then(elements => {
 			for (const element of elements) {
@@ -405,14 +405,14 @@ suite('ExtHostTreeView', function () {
 	});
 
 	test('reveal will throw an error if getParent is not implemented', () => {
-		const treeView = testObject.registerTreeDataProvider('treeDataProvider', aNodeTreeDataProvider(), (fn) => fn);
+		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aNodeTreeDataProvider() });
 		return treeView.reveal({ key: 'a' })
 			.then(() => assert.fail('Reveal should throw an error as getParent is not implemented'), () => null);
 	});
 
 	test('reveal will return empty array for root element', () => {
 		const revealTarget = sinon.spy(target, '$reveal');
-		const treeView = testObject.registerTreeDataProvider('treeDataProvider', aCompleteNodeTreeDataProvider(), (fn) => fn);
+		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() });
 		return treeView.reveal({ key: 'a' })
 			.then(() => {
 				assert.ok(revealTarget.calledOnce);
@@ -423,9 +423,9 @@ suite('ExtHostTreeView', function () {
 			});
 	});
 
-	test('reveal will return parents array for an element', () => {
+	test('reveal will return parents array for an element when hierarchy is not loaded', () => {
 		const revealTarget = sinon.spy(target, '$reveal');
-		const treeView = testObject.registerTreeDataProvider('treeDataProvider', aCompleteNodeTreeDataProvider(), (fn) => fn);
+		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() });
 		return treeView.reveal({ key: 'aa' })
 			.then(() => {
 				assert.ok(revealTarget.calledOnce);
@@ -434,6 +434,21 @@ suite('ExtHostTreeView', function () {
 				assert.deepEqual([{ handle: '0/0:a', label: 'a', collapsibleState: TreeItemCollapsibleState.Collapsed }], (<Array<any>>revealTarget.args[0][2]).map(arg => removeUnsetKeys(arg)));
 				assert.equal(void 0, revealTarget.args[0][3]);
 			});
+	});
+
+	test('reveal will return parents array for an element when hierarchy is loaded', () => {
+		const revealTarget = sinon.spy(target, '$reveal');
+		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() });
+		return testObject.$getChildren('treeDataProvider')
+			.then(() => testObject.$getChildren('treeDataProvider', '0/0:a'))
+			.then(() => treeView.reveal({ key: 'aa' })
+				.then(() => {
+					assert.ok(revealTarget.calledOnce);
+					assert.deepEqual('treeDataProvider', revealTarget.args[0][0]);
+					assert.deepEqual({ handle: '0/0:a/0:aa', label: 'aa', collapsibleState: TreeItemCollapsibleState.None, parentHandle: '0/0:a' }, removeUnsetKeys(revealTarget.args[0][1]));
+					assert.deepEqual([{ handle: '0/0:a', label: 'a', collapsibleState: TreeItemCollapsibleState.Collapsed }], (<Array<any>>revealTarget.args[0][2]).map(arg => removeUnsetKeys(arg)));
+					assert.equal(void 0, revealTarget.args[0][3]);
+				}));
 	});
 
 	test('reveal will return parents array for deeper element with no selection', () => {
@@ -445,7 +460,7 @@ suite('ExtHostTreeView', function () {
 			}
 		};
 		const revealTarget = sinon.spy(target, '$reveal');
-		const treeView = testObject.registerTreeDataProvider('treeDataProvider', aCompleteNodeTreeDataProvider(), (fn) => fn);
+		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() });
 		return treeView.reveal({ key: 'bac' }, { select: false })
 			.then(() => {
 				assert.ok(revealTarget.calledOnce);

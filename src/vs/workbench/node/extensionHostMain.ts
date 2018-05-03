@@ -17,26 +17,24 @@ import { QueryType, ISearchQuery } from 'vs/platform/search/common/search';
 import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
 import { IInitData, IEnvironment, IWorkspaceData, MainContext } from 'vs/workbench/api/node/extHost.protocol';
 import * as errors from 'vs/base/common/errors';
-import * as watchdog from 'native-watchdog';
 import * as glob from 'vs/base/common/glob';
 import { ExtensionActivatedByEvent } from 'vs/workbench/api/node/extHostExtensionActivator';
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 import URI from 'vs/base/common/uri';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 
-// const nativeExit = process.exit.bind(process);
+const nativeExit = process.exit.bind(process);
 function patchProcess(allowExit: boolean) {
-	process.exit = function (code) {
+	process.exit = function (code?: number) {
 		if (allowExit) {
 			exit(code);
 		} else {
 			const err = new Error('An extension called process.exit() and this was prevented.');
 			console.warn(err.stack);
 		}
-	};
+	} as (code?: number) => never;
 
 	process.crash = function () {
 		const err = new Error('An extension called process.crash() and this was prevented.');
@@ -44,13 +42,19 @@ function patchProcess(allowExit: boolean) {
 	};
 }
 export function exit(code?: number) {
-	//nativeExit(code);
-
 	// TODO@electron
 	// See https://github.com/Microsoft/vscode/issues/32990
 	// calling process.exit() does not exit the process when the process is being debugged
 	// It waits for the debugger to disconnect, but in our version, the debugger does not
 	// receive an event that the process desires to exit such that it can disconnect.
+
+	let watchdog: { exit: (exitCode: number) => void; } = null;
+	try {
+		watchdog = require.__$__nodeRequire('native-watchdog');
+	} catch (err) {
+		nativeExit(code);
+		return;
+	}
 
 	// Do exactly what node.js would have done, minus the wait for the debugger part
 
@@ -89,8 +93,7 @@ export class ExtensionHostMain {
 
 		// services
 		const rpcProtocol = new RPCProtocol(protocol);
-		const environmentService = new EnvironmentService(initData.args, initData.execPath);
-		this._extHostLogService = new ExtHostLogService(initData.windowId, initData.logLevel, environmentService);
+		this._extHostLogService = new ExtHostLogService(initData.windowId, initData.logLevel, initData.logsPath);
 		this.disposables.push(this._extHostLogService);
 		const extHostWorkspace = new ExtHostWorkspace(rpcProtocol, initData.workspace, this._extHostLogService);
 
@@ -98,7 +101,7 @@ export class ExtensionHostMain {
 		this._extHostLogService.trace('initData', initData);
 
 		this._extHostConfiguration = new ExtHostConfiguration(rpcProtocol.getProxy(MainContext.MainThreadConfiguration), extHostWorkspace, initData.configuration);
-		this._extensionService = new ExtHostExtensionService(initData, rpcProtocol, extHostWorkspace, this._extHostConfiguration, this._extHostLogService, environmentService);
+		this._extensionService = new ExtHostExtensionService(initData, rpcProtocol, extHostWorkspace, this._extHostConfiguration, this._extHostLogService);
 
 		// error forwarding and stack trace scanning
 		Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)

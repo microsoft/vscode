@@ -17,6 +17,7 @@ import { Askpass } from './askpass';
 import { toDisposable, filterEvent, eventToPromise } from './util';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { API, createApi } from './api';
+import { GitProtocolHandler } from './protocolHandler';
 
 let telemetryReporter: TelemetryReporter;
 
@@ -24,6 +25,8 @@ async function init(context: ExtensionContext, outputChannel: OutputChannel, dis
 	const pathHint = workspace.getConfiguration('git').get<string>('path');
 	const info = await findGit(pathHint, path => outputChannel.appendLine(localize('looking', "Looking for git in: {0}", path)));
 	const askpass = new Askpass();
+	disposables.push(askpass);
+
 	const env = await askpass.getEnv();
 	const git = new Git({ gitPath: info.path, version: info.version, env });
 	const model = new Model(git, context.globalState, outputChannel);
@@ -51,7 +54,8 @@ async function init(context: ExtensionContext, outputChannel: OutputChannel, dis
 	disposables.push(
 		new CommandCenter(git, model, outputChannel, telemetryReporter),
 		new GitContentProvider(model),
-		new GitDecorations(model)
+		new GitDecorations(model),
+		new GitProtocolHandler()
 	);
 
 	await checkGitVersion(info);

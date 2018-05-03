@@ -29,7 +29,7 @@
 	"inputPlaceholderForeground": "Yer tutucu metin için girdi kutusu ön plan rengi.",
 	"inputValidationInfoBackground": "Bilgi önem derecesi için girdi doğrulama arka plan rengi.",
 	"inputValidationInfoBorder": "Bilgi önem derecesi için girdi doğrulama kenarlık rengi.",
-	"inputValidationWarningBackground": "Bilgi uyarısı için girdi doğrulama arka plan rengi.",
+	"inputValidationWarningBackground": "Uyarı önem derecesi için girdi doğrulama arka plan rengi.",
 	"inputValidationWarningBorder": "Uyarı önem derecesi için girdi doğrulama kenarlık rengi.",
 	"inputValidationErrorBackground": "Hata önem derecesi için girdi doğrulama arka plan rengi.",
 	"inputValidationErrorBorder": "Hata önem derecesi için girdi doğrulama kenarlık rengi.",
@@ -93,6 +93,6 @@
 	"overviewRulerCurrentContentForeground": "Satır içi birleştirme çakışmalarında \"mevcut olan\" için genel bakış cetveli ön planı.",
 	"overviewRulerIncomingContentForeground": "Satır içi birleştirme çakışmalarında gelen genel bakış cetveli ön planı.",
 	"overviewRulerCommonContentForeground": "Satır içi birleştirme çakışmalarında ortak ata genel bakış cetveli ön planı.",
-	"overviewRulerFindMatchForeground": "Bulunan eşler için genel bakış cetvelinin işaretleyici rengi.",
-	"overviewRulerSelectionHighlightForeground": "Seçim vurguları için genel bakış cetvelinin işaretleyici rengi."
+	"overviewRulerFindMatchForeground": "Bulunan eşler için genel bakış cetvelinin işaretleyici rengi. Altta yer alan süslemeleri gizlememek için renk opak olmamalıdır.",
+	"overviewRulerSelectionHighlightForeground": "Seçim vurguları için genel bakış cetvelinin işaretleyici rengi. Altta yer alan süslemeleri gizlememek için renk opak olmamalıdır."
 }

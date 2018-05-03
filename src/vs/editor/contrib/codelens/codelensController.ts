@@ -19,6 +19,7 @@ import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOption
 import { CodeLens, CodeLensHelper } from 'vs/editor/contrib/codelens/codelensWidget';
 import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
 
 export class CodeLensContribution implements editorCommon.IEditorContribution {
 
@@ -170,11 +171,13 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		this._localToDispose.push({
 			dispose: () => {
 				if (this._editor.getModel()) {
+					const scrollState = StableEditorScrollState.capture(this._editor);
 					this._editor.changeDecorations((changeAccessor) => {
 						this._editor.changeViewZones((accessor) => {
 							this._disposeAllLenses(changeAccessor, accessor);
 						});
 					});
+					scrollState.restore(this._editor);
 				} else {
 					// No accessors available
 					this._disposeAllLenses(null, null);
@@ -218,8 +221,8 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			}
 		}
 
-		const centeredRange = this._editor.getCenteredRangeInViewport();
-		const shouldRestoreCenteredRange = centeredRange && (groups.length !== this._lenses.length && this._editor.getScrollTop() !== 0);
+		const scrollState = StableEditorScrollState.capture(this._editor);
+
 		this._editor.changeDecorations((changeAccessor) => {
 			this._editor.changeViewZones((accessor) => {
 
@@ -259,9 +262,8 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 				helper.commit(changeAccessor);
 			});
 		});
-		if (shouldRestoreCenteredRange) {
-			this._editor.revealRangeInCenter(centeredRange, editorCommon.ScrollType.Immediate);
-		}
+
+		scrollState.restore(this._editor);
 	}
 
 	private _onViewportChanged(): void {
@@ -293,11 +295,15 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 			const resolvedSymbols = new Array<ICodeLensSymbol>(request.length);
 			const promises = request.map((request, i) => {
-				return asWinJsPromise((token) => {
-					return request.provider.resolveCodeLens(model, request.symbol, token);
-				}).then(symbol => {
-					resolvedSymbols[i] = symbol;
-				});
+				if (typeof request.provider.resolveCodeLens === 'function') {
+					return asWinJsPromise((token) => {
+						return request.provider.resolveCodeLens(model, request.symbol, token);
+					}).then(symbol => {
+						resolvedSymbols[i] = symbol;
+					});
+				}
+				resolvedSymbols[i] = request.symbol;
+				return TPromise.as(void 0);
 			});
 
 			return TPromise.join(promises).then(() => {

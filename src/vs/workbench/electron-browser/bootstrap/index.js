@@ -28,7 +28,7 @@ process.lazyEnv = new Promise(function (resolve) {
 		assign(process.env, shellEnv);
 		resolve(process.env);
 	});
-	ipc.send('vscode:fetchShellEnv', remote.getCurrentWindow().id);
+	ipc.send('vscode:fetchShellEnv');
 });
 
 Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)

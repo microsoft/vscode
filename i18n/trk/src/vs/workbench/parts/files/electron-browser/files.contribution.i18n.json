@@ -37,6 +37,7 @@
 	"defaultLanguage": "Yeni dosyalara atanan varsayılan dil modu.",
 	"editorConfigurationTitle": "Düzenleyici",
 	"formatOnSave": "Dosyayı kaydederken biçimlendir. Bir biçimlendirici mevcut olmalıdır, dosya otomatik olarak kaydedilmemelidir, ve düzenleyici kapanmıyor olmalıdır.",
+	"formatOnSaveTimeout": "Dosyayı kaydederken biçimlendirme zaman aşımı. formatOnSave komutlarında kullanılacak milisaniye cinsinden zaman limiti. Belirtilen zaman aşımından daha uzun süren komutlar iptal edilecektir.",
 	"explorerConfigurationTitle": "Dosya Gezgini",
 	"openEditorsVisible": "Açık Düzenleyiciler bölmesinde gösterilen düzenleyici sayısı.",
 	"autoReveal": "Gezginin dosyaları açarken, onları otomatik olarak ortaya çıkartmasını ve seçmesini denetler.",

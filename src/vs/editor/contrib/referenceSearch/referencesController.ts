@@ -16,7 +16,6 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ReferencesModel } from './referencesModel';
 import { ReferenceWidget, LayoutData } from './referencesWidget';
 import { Range } from 'vs/editor/common/core/range';
@@ -34,7 +33,7 @@ export interface RequestOptions {
 	onGoto?: (reference: Location) => TPromise<any>;
 }
 
-export class ReferencesController implements editorCommon.IEditorContribution {
+export abstract class ReferencesController implements editorCommon.IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.referencesController';
 
@@ -52,6 +51,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 	}
 
 	public constructor(
+		private _defaultTreeKeyboardSupport: boolean,
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -103,7 +103,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		}));
 		const storageKey = 'peekViewLayout';
 		const data = <LayoutData>JSON.parse(this._storageService.get(storageKey, undefined, '{}'));
-		this._widget = new ReferenceWidget(this._editor, data, this._textModelResolverService, this._contextService, this._themeService, this._instantiationService, this._environmentService);
+		this._widget = new ReferenceWidget(this._editor, this._defaultTreeKeyboardSupport, data, this._textModelResolverService, this._contextService, this._themeService, this._instantiationService, this._environmentService);
 		this._widget.setTitle(nls.localize('labelLoading', "Loading..."));
 		this._widget.show(range);
 		this._disposables.push(this._widget.onDidClose(() => {
@@ -155,16 +155,17 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 
 			// show widget
 			return this._widget.setModel(this._model).then(() => {
+				if (this._widget) { // might have been closed
+					// set title
+					this._widget.setMetaTitle(options.getMetaTitle(this._model));
 
-				// set title
-				this._widget.setMetaTitle(options.getMetaTitle(this._model));
-
-				// set 'best' selection
-				let uri = this._editor.getModel().uri;
-				let pos = new Position(range.startLineNumber, range.startColumn);
-				let selection = this._model.nearestReference(uri, pos);
-				if (selection) {
-					return this._widget.setSelection(selection);
+					// set 'best' selection
+					let uri = this._editor.getModel().uri;
+					let pos = new Position(range.startLineNumber, range.startColumn);
+					let selection = this._model.nearestReference(uri, pos);
+					if (selection) {
+						return this._widget.setSelection(selection);
+					}
 				}
 				return undefined;
 			});
@@ -175,13 +176,15 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 	}
 
 	public async goToNextOrPreviousReference(fwd: boolean) {
-		let source = this._model.nearestReference(this._editor.getModel().uri, this._widget.position);
-		let target = this._model.nextOrPreviousReference(source, fwd);
-		let editorFocus = this._editor.isFocused();
-		await this._widget.setSelection(target);
-		await this._gotoReference(target);
-		if (editorFocus) {
-			this._editor.focus();
+		if (this._model) { // can be called while still resolving...
+			let source = this._model.nearestReference(this._editor.getModel().uri, this._widget.position);
+			let target = this._model.nextOrPreviousReference(source, fwd);
+			let editorFocus = this._editor.isFocused();
+			await this._widget.setSelection(target);
+			await this._gotoReference(target);
+			if (editorFocus) {
+				this._editor.focus();
+			}
 		}
 	}
 
@@ -246,5 +249,3 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		}
 	}
 }
-
-registerEditorContribution(ReferencesController);

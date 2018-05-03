@@ -636,7 +636,7 @@ export class TreeView extends HeightMap {
 		return this.onHiddenScrollTop === null;
 	}
 
-	public layout(height?: number): void {
+	public layout(height?: number, width?: number): void {
 		if (!this.isTreeVisible()) {
 			return;
 		}
@@ -645,7 +645,7 @@ export class TreeView extends HeightMap {
 		this.scrollHeight = this.getContentHeight();
 
 		if (this.horizontalScrolling) {
-			this.viewWidth = DOM.getContentWidth(this.wrapper);
+			this.viewWidth = width || DOM.getContentWidth(this.wrapper);
 		}
 	}
 
@@ -1674,6 +1674,11 @@ export class TreeView extends HeightMap {
 			this.domNode.parentNode.removeChild(this.domNode);
 		}
 		this.domNode = null;
+
+		if (this.items) {
+			Object.keys(this.items).forEach(key => this.items[key].removeFromDOM());
+			this.items = null;
+		}
 
 		if (this.context.cache) {
 			this.context.cache.dispose();

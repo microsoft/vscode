@@ -18,6 +18,7 @@ import * as objects from 'vs/base/common/objects';
 import * as arrays from 'vs/base/common/arrays';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
+import * as normalization from 'vs/base/common/normalization';
 import * as types from 'vs/base/common/types';
 import * as glob from 'vs/base/common/glob';
 import { IProgress, IUncachedSearchStats } from 'vs/platform/search/common/search';
@@ -255,7 +256,7 @@ export class FileWalker {
 			}
 
 			// Mac: uses NFD unicode form on disk, but we want NFC
-			const normalized = leftover + (isMac ? strings.normalizeNFC(stdout) : stdout);
+			const normalized = leftover + (isMac ? normalization.normalizeNFC(stdout) : stdout);
 			const relativeFiles = normalized.split(useRipgrep ? '\n' : '\n./');
 			if (!useRipgrep && first && normalized.length >= 2) {
 				first = false;

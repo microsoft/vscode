@@ -34,6 +34,7 @@
 	flex: 1;
 	padding-left: 20px;
 	overflow: hidden;
+	user-select: text;
 }
 
 .extension-editor > .header > .details > .title {
@@ -77,6 +78,7 @@
 	margin-left: 10px;
 	padding: 0px 4px;
 	border-radius: 4px;
+	user-select: none;
 }
 
 .extension-editor > .header > .details > .subtitle {

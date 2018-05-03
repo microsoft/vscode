@@ -38,7 +38,8 @@
 			"port": 6045,
 			"protocol": "inspector",
 			"sourceMaps": true,
-			"outFiles": ["${workspaceFolder}/server/out/**/*.js"]
+			"outFiles": ["${workspaceFolder}/server/out/**/*.js"],
+			"restart": true
 		}
 	]
 }

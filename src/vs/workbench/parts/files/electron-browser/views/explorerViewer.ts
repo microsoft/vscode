@@ -8,6 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import * as DOM from 'vs/base/browser/dom';
+import * as path from 'path';
 import URI from 'vs/base/common/uri';
 import { once } from 'vs/base/common/functional';
 import * as paths from 'vs/base/common/paths';
@@ -23,12 +24,11 @@ import { IDisposable, dispose, empty as EmptyDisposable } from 'vs/base/common/l
 import { IFilesConfiguration, SortOrder } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationError, FileOperationResult, IFileService, FileKind } from 'vs/platform/files/common/files';
-import { ResourceMap } from 'vs/base/common/map';
-import { DuplicateFileAction, ImportFileAction, IEditableData, IFileViewletState, FileCopiedContext } from 'vs/workbench/parts/files/electron-browser/fileActions';
+import { DuplicateFileAction, AddFilesAction, IEditableData, IFileViewletState, FileCopiedContext } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { IDataSource, ITree, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
 import { DesktopDragAndDropData, ExternalElementsDragAndDropData } from 'vs/base/parts/tree/browser/treeDnd';
 import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
-import { FileStat, NewStatPlaceholder, Model } from 'vs/workbench/parts/files/common/explorerModel';
+import { ExplorerItem, NewStatPlaceholder, Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { DragMouseEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -49,7 +49,6 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { extractResources, SimpleFileResourceDragAndDrop, CodeDataTransfers, fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
-import { relative } from 'path';
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { DataTransfers } from 'vs/base/browser/dnd';
@@ -67,7 +66,7 @@ export class FileDataSource implements IDataSource {
 		@IPartService private partService: IPartService
 	) { }
 
-	public getId(tree: ITree, stat: FileStat | Model): string {
+	public getId(tree: ITree, stat: ExplorerItem | Model): string {
 		if (stat instanceof Model) {
 			return 'model';
 		}
@@ -75,18 +74,18 @@ export class FileDataSource implements IDataSource {
 		return `${stat.root.resource.toString()}:${stat.getId()}`;
 	}
 
-	public hasChildren(tree: ITree, stat: FileStat | Model): boolean {
-		return stat instanceof Model || (stat instanceof FileStat && stat.isDirectory);
+	public hasChildren(tree: ITree, stat: ExplorerItem | Model): boolean {
+		return stat instanceof Model || (stat instanceof ExplorerItem && (stat.isDirectory || stat.isRoot));
 	}
 
-	public getChildren(tree: ITree, stat: FileStat | Model): TPromise<FileStat[]> {
+	public getChildren(tree: ITree, stat: ExplorerItem | Model): TPromise<ExplorerItem[]> {
 		if (stat instanceof Model) {
 			return TPromise.as(stat.roots);
 		}
 
 		// Return early if stat is already resolved
 		if (stat.isDirectoryResolved) {
-			return TPromise.as(stat.children);
+			return TPromise.as(stat.getChildrenArray());
 		}
 
 		// Resolve children and add to fileStat for future lookup
@@ -96,19 +95,22 @@ export class FileDataSource implements IDataSource {
 			const promise = this.fileService.resolveFile(stat.resource, { resolveSingleChildDescendants: true }).then(dirStat => {
 
 				// Convert to view model
-				const modelDirStat = FileStat.create(dirStat, stat.root);
+				const modelDirStat = ExplorerItem.create(dirStat, stat.root);
 
 				// Add children to folder
-				for (let i = 0; i < modelDirStat.children.length; i++) {
-					stat.addChild(modelDirStat.children[i]);
+				const children = modelDirStat.getChildrenArray();
+				if (children) {
+					children.forEach(child => {
+						stat.addChild(child);
+					});
 				}
 
 				stat.isDirectoryResolved = true;
 
-				return stat.children;
+				return stat.getChildrenArray();
 			}, (e: any) => {
 				// Do not show error for roots since we already use an explorer decoration to notify user
-				if (!(stat instanceof FileStat && stat.isRoot)) {
+				if (!(stat instanceof ExplorerItem && stat.isRoot)) {
 					this.notificationService.error(e);
 				}
 
@@ -121,7 +123,7 @@ export class FileDataSource implements IDataSource {
 		}
 	}
 
-	public getParent(tree: ITree, stat: FileStat | Model): TPromise<FileStat> {
+	public getParent(tree: ITree, stat: ExplorerItem | Model): TPromise<ExplorerItem> {
 		if (!stat) {
 			return TPromise.as(null); // can be null if nothing selected in the tree
 		}
@@ -132,7 +134,7 @@ export class FileDataSource implements IDataSource {
 		}
 
 		// Return if parent already resolved
-		if (stat instanceof FileStat && stat.parent) {
+		if (stat instanceof ExplorerItem && stat.parent) {
 			return TPromise.as(stat.parent);
 		}
 
@@ -144,24 +146,24 @@ export class FileDataSource implements IDataSource {
 }
 
 export class FileViewletState implements IFileViewletState {
-	private editableStats: ResourceMap<IEditableData>;
+	private editableStats: Map<ExplorerItem, IEditableData>;
 
 	constructor() {
-		this.editableStats = new ResourceMap<IEditableData>();
+		this.editableStats = new Map<ExplorerItem, IEditableData>();
 	}
 
-	public getEditableData(stat: FileStat): IEditableData {
-		return this.editableStats.get(stat.resource);
+	public getEditableData(stat: ExplorerItem): IEditableData {
+		return this.editableStats.get(stat);
 	}
 
-	public setEditable(stat: FileStat, editableData: IEditableData): void {
+	public setEditable(stat: ExplorerItem, editableData: IEditableData): void {
 		if (editableData) {
-			this.editableStats.set(stat.resource, editableData);
+			this.editableStats.set(stat, editableData);
 		}
 	}
 
-	public clearEditable(stat: FileStat): void {
-		this.editableStats.delete(stat.resource);
+	public clearEditable(stat: ExplorerItem): void {
+		this.editableStats.delete(stat);
 	}
 }
 
@@ -226,6 +228,7 @@ export class FileRenderer implements IRenderer {
 	}
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: IFileTemplateData): void {
+		templateData.elementDisposable.dispose();
 		templateData.label.dispose();
 	}
 
@@ -236,7 +239,7 @@ export class FileRenderer implements IRenderer {
 		return { elementDisposable, label, container };
 	}
 
-	public renderElement(tree: ITree, stat: FileStat, templateId: string, templateData: IFileTemplateData): void {
+	public renderElement(tree: ITree, stat: ExplorerItem, templateId: string, templateData: IFileTemplateData): void {
 		templateData.elementDisposable.dispose();
 
 		const editableData: IEditableData = this.state.getEditableData(stat);
@@ -265,7 +268,7 @@ export class FileRenderer implements IRenderer {
 		}
 	}
 
-	private renderInputBox(container: HTMLElement, tree: ITree, stat: FileStat, editableData: IEditableData): void {
+	private renderInputBox(container: HTMLElement, tree: ITree, stat: ExplorerItem, editableData: IEditableData): void {
 
 		// Use a file label only for the icon next to the input box
 		const label = this.instantiationService.createInstance(FileLabel, container, void 0);
@@ -297,6 +300,7 @@ export class FileRenderer implements IRenderer {
 
 		const done = once((commit: boolean, blur: boolean) => {
 			tree.clearHighlight();
+			label.element.style.display = 'none';
 
 			if (commit && inputBox.value) {
 				editableData.action.run({ value: inputBox.value });
@@ -323,12 +327,12 @@ export class FileRenderer implements IRenderer {
 				}
 			}),
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_UP, (e: IKeyboardEvent) => {
-				const initialRelPath: string = relative(stat.root.resource.fsPath, stat.parent.resource.fsPath);
+				const initialRelPath: string = path.relative(stat.root.resource.path, stat.parent.resource.path);
 				let projectFolderName: string = '';
 				if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-					projectFolderName = paths.basename(stat.root.resource.fsPath);	// show root folder name in multi-folder project
+					projectFolderName = paths.basename(stat.root.resource.path);	// show root folder name in multi-folder project
 				}
-				this.displayCurrentPath(inputBox, initialRelPath, fileKind, projectFolderName);
+				this.displayCurrentPath(inputBox, initialRelPath, projectFolderName, editableData.action.id);
 			}),
 			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
 				done(inputBox.isInputValid(), true);
@@ -338,19 +342,38 @@ export class FileRenderer implements IRenderer {
 		];
 	}
 
-	private displayCurrentPath(inputBox: InputBox, initialRelPath: string, fileKind: FileKind, projectFolderName: string = '') {
+	private displayCurrentPath(inputBox: InputBox, initialRelPath: string, projectFolderName: string = '', actionID: string) {
 		if (inputBox.validate()) {
 			const value = inputBox.value;
-			if (value && value.search(/[\\/]/) !== -1) {	// only show if there's a slash
-				let newPath = paths.normalize(paths.join(initialRelPath, value), true);
-				newPath = rtrim(newPath, paths.nativeSep);
-				const fileType: string = FileKind[fileKind].toLowerCase();
+			if (value && /.[\\/]./.test(value)) {	// only show if there's at least one slash enclosed in the string
+				let displayPath = path.normalize(path.join(projectFolderName, initialRelPath, value));
+				displayPath = rtrim(displayPath, paths.nativeSep);
+
+				const indexLastSlash: number = displayPath.lastIndexOf(paths.nativeSep);
+				const name: string = displayPath.substring(indexLastSlash + 1);
+				const leadingPathPart: string = displayPath.substring(0, indexLastSlash);
+
+				let msg: string;
+				switch (actionID) {
+					case 'workbench.files.action.createFileFromExplorer':
+						msg = nls.localize('createFileFromExplorerInfoMessage', "Create file **{0}** in **{1}**", name, leadingPathPart);
+						break;
+					case 'workbench.files.action.renameFile':
+						msg = nls.localize('renameFileFromExplorerInfoMessage', "Move and rename to **{0}**", displayPath);
+						break;
+					case 'workbench.files.action.createFolderFromExplorer':	// fallthrough
+					default:
+						msg = nls.localize('createFolderFromExplorerInfoMessage', "Create folder **{0}** in **{1}**", name, leadingPathPart);
+				}
 
 				inputBox.showMessage({
 					type: MessageType.INFO,
-					content: nls.localize('constructedPath', "Create {0} in **{1}**", fileType, newPath),
+					content: msg,
 					formatContent: true
 				});
+			}
+			else {	// fixes #46744: inputbox hides again if all slashes are removed
+				inputBox.hideMessage();
 			}
 		}
 	}
@@ -359,7 +382,7 @@ export class FileRenderer implements IRenderer {
 // Explorer Accessibility Provider
 export class FileAccessibilityProvider implements IAccessibilityProvider {
 
-	public getAriaLabel(tree: ITree, stat: FileStat): string {
+	public getAriaLabel(tree: ITree, stat: ExplorerItem): string {
 		return nls.localize('filesExplorerViewerAriaLabel', "{0}, Files Explorer", stat.name);
 	}
 }
@@ -369,7 +392,7 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 	private fileCopiedContextKey: IContextKey<boolean>;
 	private contributedContextMenu: IMenu;
 	private toDispose: IDisposable[];
-	private previousSelectionRangeStop: FileStat;
+	private previousSelectionRangeStop: ExplorerItem;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -386,7 +409,7 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 		this.toDispose = [];
 	}
 
-	public onLeftClick(tree: WorkbenchTree, stat: FileStat | Model, event: IMouseEvent, origin: string = 'mouse'): boolean {
+	public onLeftClick(tree: WorkbenchTree, stat: ExplorerItem | Model, event: IMouseEvent, origin: string = 'mouse'): boolean {
 		const payload = { origin: origin };
 		const isDoubleClick = (origin === 'mouse' && event.detail === 2);
 
@@ -478,7 +501,7 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 		return true;
 	}
 
-	public onContextMenu(tree: WorkbenchTree, stat: FileStat | Model, event: ContextMenuEvent): boolean {
+	public onContextMenu(tree: WorkbenchTree, stat: ExplorerItem | Model, event: ContextMenuEvent): boolean {
 		if (event.target && event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
 			return false;
 		}
@@ -502,7 +525,7 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 			getAnchor: () => anchor,
 			getActions: () => {
 				const actions: IAction[] = [];
-				fillInActions(this.contributedContextMenu, { arg: stat instanceof FileStat ? stat.resource : {}, shouldForwardArgs: true }, actions, this.contextMenuService);
+				fillInActions(this.contributedContextMenu, { arg: stat instanceof ExplorerItem ? stat.resource : {}, shouldForwardArgs: true }, actions, this.contextMenuService);
 				return TPromise.as(actions);
 			},
 			onHide: (wasCancelled?: boolean) => {
@@ -511,14 +534,14 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 				}
 			},
 			getActionsContext: () => selection && selection.indexOf(stat) >= 0
-				? selection.map((fs: FileStat) => fs.resource)
-				: stat instanceof FileStat ? [stat.resource] : []
+				? selection.map((fs: ExplorerItem) => fs.resource)
+				: stat instanceof ExplorerItem ? [stat.resource] : []
 		});
 
 		return true;
 	}
 
-	public openEditor(stat: FileStat, options: { preserveFocus: boolean; sideBySide: boolean; pinned: boolean; }): void {
+	public openEditor(stat: ExplorerItem, options: { preserveFocus: boolean; sideBySide: boolean; pinned: boolean; }): void {
 		if (stat && !stat.isDirectory) {
 			/* __GDPR__
 				"workbenchActionExecuted" : {
@@ -561,7 +584,7 @@ export class FileSorter implements ISorter {
 		this.sortOrder = this.configurationService.getValue('explorer.sortOrder') || 'default';
 	}
 
-	public compare(tree: ITree, statA: FileStat, statB: FileStat): number {
+	public compare(tree: ITree, statA: ExplorerItem, statB: ExplorerItem): number {
 
 		// Do not sort roots
 		if (statA.isRoot) {
@@ -683,25 +706,27 @@ export class FileFilter implements IFilter {
 		return needsRefresh;
 	}
 
-	public isVisible(tree: ITree, stat: FileStat): boolean {
+	public isVisible(tree: ITree, stat: ExplorerItem): boolean {
 		return this.doIsVisible(stat);
 	}
 
-	private doIsVisible(stat: FileStat): boolean {
+	private doIsVisible(stat: ExplorerItem): boolean {
 		if (stat instanceof NewStatPlaceholder || stat.isRoot) {
 			return true; // always visible
 		}
 
 		// Workaround for O(N^2) complexity (https://github.com/Microsoft/vscode/issues/9962)
-		let siblings = stat.parent && stat.parent.children && stat.parent.children;
-		if (siblings && siblings.length > FileFilter.MAX_SIBLINGS_FILTER_THRESHOLD) {
-			siblings = void 0;
+		let siblingsFn: () => string[];
+		let siblingCount = stat.parent && stat.parent.getChildrenCount();
+		if (siblingCount && siblingCount > FileFilter.MAX_SIBLINGS_FILTER_THRESHOLD) {
+			siblingsFn = () => void 0;
+		} else {
+			siblingsFn = () => stat.parent ? stat.parent.getChildrenNames() : void 0;
 		}
 
 		// Hide those that match Hidden Patterns
-		const siblingsFn = () => siblings && siblings.map(c => c.name);
 		const expression = this.hiddenExpressionPerRoot.get(stat.root.resource.toString()) || Object.create(null);
-		if (glob.match(expression, paths.normalize(relative(stat.root.resource.fsPath, stat.resource.fsPath), true), siblingsFn)) {
+		if (glob.match(expression, paths.normalize(path.relative(stat.root.resource.path, stat.resource.path), true), siblingsFn)) {
 			return false; // hidden through pattern
 		}
 
@@ -742,7 +767,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		this.registerListeners();
 	}
 
-	private statToResource(stat: FileStat): URI {
+	private statToResource(stat: ExplorerItem): URI {
 		if (stat.isDirectory) {
 			return URI.from({ scheme: 'folder', path: stat.resource.path }); // indicates that we are dragging a folder
 		}
@@ -759,7 +784,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 	}
 
 	public onDragStart(tree: ITree, data: IDragAndDropData, originalEvent: DragMouseEvent): void {
-		const sources: FileStat[] = data.getData();
+		const sources: ExplorerItem[] = data.getData();
 		if (sources && sources.length) {
 
 			// When dragging folders, make sure to collapse them to free up some space
@@ -781,7 +806,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		}
 	}
 
-	public onDragOver(tree: ITree, data: IDragAndDropData, target: FileStat | Model, originalEvent: DragMouseEvent): IDragOverReaction {
+	public onDragOver(tree: ITree, data: IDragAndDropData, target: ExplorerItem | Model, originalEvent: DragMouseEvent): IDragOverReaction {
 		if (!this.dropEnabled) {
 			return DRAG_OVER_REJECT;
 		}
@@ -809,7 +834,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 		// In-Explorer DND
 		else {
-			const sources: FileStat[] = data.getData();
+			const sources: ExplorerItem[] = data.getData();
 			if (target instanceof Model) {
 				if (sources[0].isRoot) {
 					return DRAG_OVER_ACCEPT_BUBBLE_DOWN(false);
@@ -827,7 +852,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 					return true; // NewStatPlaceholders can not be moved
 				}
 
-				if (source.isRoot && target instanceof FileStat && !target.isRoot) {
+				if (source.isRoot && target instanceof ExplorerItem && !target.isRoot) {
 					return true; // Root folder can not be moved to a non root file stat.
 				}
 
@@ -868,7 +893,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		return DRAG_OVER_REJECT;
 	}
 
-	public drop(tree: ITree, data: IDragAndDropData, target: FileStat | Model, originalEvent: DragMouseEvent): void {
+	public drop(tree: ITree, data: IDragAndDropData, target: ExplorerItem | Model, originalEvent: DragMouseEvent): void {
 		let promise: TPromise<void> = TPromise.as(null);
 
 		// Desktop DND (Import file)
@@ -884,7 +909,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		promise.done(null, errors.onUnexpectedError);
 	}
 
-	private handleExternalDrop(tree: ITree, data: DesktopDragAndDropData, target: FileStat | Model, originalEvent: DragMouseEvent): TPromise<void> {
+	private handleExternalDrop(tree: ITree, data: DesktopDragAndDropData, target: ExplorerItem | Model, originalEvent: DragMouseEvent): TPromise<void> {
 		const droppedResources = extractResources(originalEvent.browserEvent as DragEvent, true);
 
 		// Check for dropped external files to be folders
@@ -917,18 +942,18 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			}
 
 			// Handle dropped files (only support FileStat as target)
-			else if (target instanceof FileStat) {
-				const importAction = this.instantiationService.createInstance(ImportFileAction, tree, target, null);
+			else if (target instanceof ExplorerItem) {
+				const addFilesAction = this.instantiationService.createInstance(AddFilesAction, tree, target, null);
 
-				return importAction.run(droppedResources.map(res => res.resource));
+				return addFilesAction.run(droppedResources.map(res => res.resource));
 			}
 
 			return void 0;
 		});
 	}
 
-	private handleExplorerDrop(tree: ITree, data: IDragAndDropData, target: FileStat | Model, originalEvent: DragMouseEvent): TPromise<void> {
-		const sources: FileStat[] = resources.distinctParents(data.getData(), s => s.resource);
+	private handleExplorerDrop(tree: ITree, data: IDragAndDropData, target: ExplorerItem | Model, originalEvent: DragMouseEvent): TPromise<void> {
+		const sources: ExplorerItem[] = resources.distinctParents(data.getData(), s => s.resource);
 		const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
 
 		let confirmPromise: TPromise<IConfirmationResult>;
@@ -970,7 +995,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		});
 	}
 
-	private doHandleRootDrop(roots: FileStat[], target: FileStat | Model): TPromise<void> {
+	private doHandleRootDrop(roots: ExplorerItem[], target: ExplorerItem | Model): TPromise<void> {
 		if (roots.length === 0) {
 			return TPromise.as(undefined);
 		}
@@ -984,7 +1009,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			const data = {
 				uri: folders[index].uri
 			};
-			if (target instanceof FileStat && folders[index].uri.toString() === target.resource.toString()) {
+			if (target instanceof ExplorerItem && folders[index].uri.toString() === target.resource.toString()) {
 				targetIndex = workspaceCreationData.length;
 			}
 
@@ -1002,7 +1027,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		return this.workspaceEditingService.updateFolders(0, workspaceCreationData.length, workspaceCreationData);
 	}
 
-	private doHandleExplorerDrop(tree: ITree, source: FileStat, target: FileStat | Model, isCopy: boolean): TPromise<void> {
+	private doHandleExplorerDrop(tree: ITree, source: ExplorerItem, target: ExplorerItem | Model, isCopy: boolean): TPromise<void> {
 		return tree.expand(target).then(() => {
 			// Reuse duplicate action if user copies
 			if (isCopy) {
@@ -1021,7 +1046,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 				return TPromise.join(dirtyMoved.map(d => this.backupFileService.discardResourceBackup(d)));
 			};
-			if (!(target instanceof FileStat)) {
+			if (!(target instanceof ExplorerItem)) {
 				return TPromise.as(void 0);
 			}
 

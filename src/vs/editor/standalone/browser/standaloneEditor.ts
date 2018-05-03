@@ -38,6 +38,7 @@ import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { ITextModel, OverviewRulerLane, EndOfLinePreference, DefaultEndOfLine, EndOfLineSequence, TrackedRangeStickiness, TextModelResolvedOptions, FindMatch } from 'vs/editor/common/model';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: HTMLElement, override: IEditorOverrideServices, callback: (services: DynamicStandaloneServices) => T): T {
 	let services = new DynamicStandaloneServices(domElement, override);
@@ -89,7 +90,9 @@ export function create(domElement: HTMLElement, options?: IEditorConstructionOpt
 			services.get(IContextKeyService),
 			services.get(IKeybindingService),
 			services.get(IContextViewService),
-			services.get(IStandaloneThemeService)
+			services.get(IStandaloneThemeService),
+			services.get(INotificationService),
+			services.get(IConfigurationService),
 		);
 	});
 }
@@ -123,7 +126,8 @@ export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorC
 			services.get(IEditorWorkerService),
 			services.get(ICodeEditorService),
 			services.get(IStandaloneThemeService),
-			services.get(INotificationService)
+			services.get(INotificationService),
+			services.get(IConfigurationService),
 		);
 	});
 }

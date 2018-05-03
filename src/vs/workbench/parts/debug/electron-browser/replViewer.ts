@@ -107,11 +107,16 @@ export class ReplExpressionsRenderer implements IRenderer {
 			return 2 * ReplExpressionsRenderer.LINE_HEIGHT_PX;
 		}
 
-		return this.getHeightForString(element.value) + (element instanceof Expression ? this.getHeightForString(element.name) : 0);
+		let availableWidth = this.width;
+		if (element instanceof SimpleReplElement && element.sourceData) {
+			availableWidth -= `${element.sourceData.source.name}:${element.sourceData.lineNumber}`.length * this.characterWidth;
+		}
+
+		return this.getHeightForString(element.value, availableWidth) + (element instanceof Expression ? this.getHeightForString(element.name, availableWidth) : 0);
 	}
 
-	private getHeightForString(s: string): number {
-		if (!s || !s.length || !this.width || this.width <= 0 || !this.characterWidth || this.characterWidth <= 0) {
+	private getHeightForString(s: string, availableWidth: number): number {
+		if (!s || !s.length || !availableWidth || availableWidth <= 0 || !this.characterWidth || this.characterWidth <= 0) {
 			return ReplExpressionsRenderer.LINE_HEIGHT_PX;
 		}
 
@@ -126,7 +131,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 				lineLength += isFullWidthCharacter(line.charCodeAt(i)) ? 2 : 1;
 			}
 
-			return lineCount + Math.floor(lineLength * this.characterWidth / this.width);
+			return lineCount + Math.floor(lineLength * this.characterWidth / availableWidth);
 		}, lines.length);
 
 		return ReplExpressionsRenderer.LINE_HEIGHT_PX * numLines;

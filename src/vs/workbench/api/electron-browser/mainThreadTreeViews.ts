@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
-import { ITreeViewDataProvider, ITreeItem, ICustomViewsService } from 'vs/workbench/common/views';
+import { ITreeViewDataProvider, ITreeItem, IViewsService } from 'vs/workbench/common/views';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { distinct } from 'vs/base/common/arrays';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -21,7 +21,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@ICustomViewsService private viewsService: ICustomViewsService,
+		@IViewsService private viewsService: IViewsService,
 		@INotificationService private notificationService: INotificationService
 	) {
 		super();
@@ -31,7 +31,12 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 	$registerTreeViewDataProvider(treeViewId: string): void {
 		const dataProvider = this._register(new TreeViewDataProvider(treeViewId, this._proxy, this.notificationService));
 		this._dataProviders.set(treeViewId, dataProvider);
-		this.viewsService.getTreeViewer(treeViewId).dataProvider = dataProvider;
+		const treeViewer = this.viewsService.getTreeViewer(treeViewId);
+		if (treeViewer) {
+			treeViewer.dataProvider = dataProvider;
+		} else {
+			this.notificationService.error('No view is registered with id: ' + treeViewId);
+		}
 	}
 
 	$reveal(treeViewId: string, item: ITreeItem, parentChain: ITreeItem[], options?: { select?: boolean }): TPromise<void> {

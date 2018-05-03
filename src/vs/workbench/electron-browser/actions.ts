@@ -352,11 +352,10 @@ export class ShowStartupPerformance extends Action {
 			(<any>console).groupEnd();
 
 			(<any>console).group('Raw Startup Timers (CSV)');
-			let value = `Name\tStart\tDuration\n`;
-			const entries = getEntries('measure');
-			let offset = entries[0].startTime;
+			let value = `Name\tStart\n`;
+			let entries = getEntries('mark').slice(0).sort((a, b) => a.startTime - b.startTime);
 			for (const entry of entries) {
-				value += `${entry.name}\t${entry.startTime - offset}\t${entry.duration}\n`;
+				value += `${entry.name}\t${entry.startTime}\n`;
 			}
 			console.log(value);
 			(<any>console).groupEnd();
@@ -867,6 +866,24 @@ export class OpenIssueReporterAction extends Action {
 
 	public run(): TPromise<boolean> {
 		return this.issueService.openReporter()
+			.then(() => true);
+	}
+}
+
+export class OpenProcessExplorer extends Action {
+	public static readonly ID = 'workbench.action.openProcessExplorer';
+	public static readonly LABEL = nls.localize('openProcessExplorer', "Open Process Explorer");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchIssueService private issueService: IWorkbenchIssueService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<boolean> {
+		return this.issueService.openProcessExplorer()
 			.then(() => true);
 	}
 }

@@ -96,11 +96,11 @@ suite('Notifications', () => {
 		assert.equal(called, 1);
 
 		called = 0;
-		item1.onDidDispose(() => {
+		item1.onDidClose(() => {
 			called++;
 		});
 
-		item1.dispose();
+		item1.close();
 		assert.equal(called, 1);
 
 		// Error with Action
@@ -157,11 +157,11 @@ suite('Notifications', () => {
 		assert.equal(model.notifications.length, 3);
 
 		let called = 0;
-		item1Handle.onDidDispose(() => {
+		item1Handle.onDidClose(() => {
 			called++;
 		});
 
-		item1Handle.dispose();
+		item1Handle.close();
 		assert.equal(called, 1);
 		assert.equal(model.notifications.length, 2);
 		assert.equal(lastEvent.item.severity, item1.severity);
@@ -176,7 +176,7 @@ suite('Notifications', () => {
 		assert.equal(lastEvent.index, 0);
 		assert.equal(lastEvent.kind, NotificationChangeType.ADD);
 
-		item2Handle.dispose();
+		item2Handle.close();
 		assert.equal(model.notifications.length, 1);
 		assert.equal(lastEvent.item.severity, item2Duplicate.severity);
 		assert.equal(lastEvent.item.message.value, item2Duplicate.message);

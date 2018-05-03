@@ -26,10 +26,6 @@ export class TestQuickOpenService implements IQuickOpenService {
 		return TPromise.as(null);
 	}
 
-	input(options?: any, token?: any): Promise {
-		return TPromise.as(null);
-	}
-
 	accept(): void {
 	}
 

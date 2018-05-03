@@ -59,25 +59,46 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { Schemas } from 'vs/base/common/network';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { Themable } from 'vs/workbench/common/theme';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
-// TODO@Sandeep layer breaker
-// tslint:disable-next-line:import-patterns
-import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
+class SideBySideEditorEncodingSupport implements IEncodingSupport {
+	constructor(private master: IEncodingSupport, private details: IEncodingSupport) { }
 
-function toEditorWithEncodingSupport(input: IEditorInput): IEncodingSupport {
-	if (input instanceof SideBySideEditorInput) {
-		input = input.master;
+	public getEncoding(): string {
+		return this.master.getEncoding(); // always report from modified (right hand) side
 	}
 
+	public setEncoding(encoding: string, mode: EncodingMode): void {
+		[this.master, this.details].forEach(s => s.setEncoding(encoding, mode));
+	}
+}
+
+function toEditorWithEncodingSupport(input: IEditorInput): IEncodingSupport {
+
+	// Untitled Editor
 	if (input instanceof UntitledEditorInput) {
 		return input;
 	}
 
+	// Side by Side (diff) Editor
+	if (input instanceof SideBySideEditorInput) {
+		const masterEncodingSupport = toEditorWithEncodingSupport(input.master);
+		const detailsEncodingSupport = toEditorWithEncodingSupport(input.details);
+
+		if (masterEncodingSupport && detailsEncodingSupport) {
+			return new SideBySideEditorEncodingSupport(masterEncodingSupport, detailsEncodingSupport);
+		}
+
+		return masterEncodingSupport;
+	}
+
+	// File or Resource Editor
 	let encodingSupport = input as IFileEditorInput;
 	if (types.areFunctions(encodingSupport.setEncoding, encodingSupport.getEncoding)) {
 		return encodingSupport;
 	}
 
+	// Unsupported for any other editor
 	return null;
 }
 
@@ -311,7 +332,7 @@ export class EditorStatus implements IStatusbarItem {
 		hide(this.selectionElement);
 
 		this.indentationElement = append(this.element, $('a.editor-status-indentation'));
-		this.indentationElement.title = nls.localize('indentation', "Indentation");
+		this.indentationElement.title = nls.localize('selectIndentation', "Select Indentation");
 		this.indentationElement.onclick = () => this.onIndentationClick();
 		hide(this.indentationElement);
 

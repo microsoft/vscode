@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
 import { Command } from '../commandManager';
 import { MarkdownPreviewManager } from '../features/previewManager';
 
@@ -14,7 +13,7 @@ export class ToggleLockCommand implements Command {
 		private readonly previewManager: MarkdownPreviewManager
 	) { }
 
-	public execute(previewUri?: vscode.Uri) {
-		this.previewManager.toggleLock(previewUri);
+	public execute() {
+		this.previewManager.toggleLock();
 	}
 }

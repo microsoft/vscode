@@ -98,12 +98,6 @@ define([], function () {
 		}
 	}
 
-	function time(name) {
-		let from = `${name}/start`;
-		mark(from);
-		return { stop() { measure(name, from); } };
-	}
-
 	function measure(name, from, to) {
 
 		let startTime;
@@ -139,7 +133,6 @@ define([], function () {
 	var exports = {
 		mark: mark,
 		measure: measure,
-		time: time,
 		getEntries: getEntries,
 		getEntry: getEntry,
 		getDuration: getDuration,

@@ -33,6 +33,7 @@ export interface IPickOpenEntry {
 	run?: (context: IEntryRunContext) => void;
 	action?: IAction;
 	payload?: any;
+	picked?: boolean;
 }
 
 export interface IPickOpenItem {
@@ -84,6 +85,11 @@ export interface IPickOptions {
 	 * a context key to set when this picker is active
 	 */
 	contextKey?: string;
+
+	/**
+	 * an optional flag to make this picker multi-select (honoured by extension API)
+	 */
+	canSelectMany?: boolean;
 }
 
 export interface IInputOptions {
@@ -158,11 +164,6 @@ export interface IQuickOpenService {
 	 * Allows to navigate from the outside in an opened picker.
 	 */
 	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration): void;
-
-	/**
-	 * Opens the quick open box for user input and returns a promise with the user typed value if any.
-	 */
-	input(options?: IInputOptions, token?: CancellationToken): TPromise<string>;
 
 	/**
 	 * Accepts the selected value in quick open if visible.

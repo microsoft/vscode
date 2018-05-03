@@ -16,6 +16,11 @@
 	"errorInvalidWorkspaceTarget": "Não é possível gravar as configurações do espaço de trabalho porque {0} não oferece suporte para o escopo de espaço de trabalho em um espaço de trabalho de múltiplas pastas.",
 	"errorInvalidFolderTarget": "Não é possível gravar as configurações da pasta porque nenhum recurso é fornecido.",
 	"errorNoWorkspaceOpened": "Não é possível gravar {0} porque nenhum espaço de trabalho está aberto. Por favor, abra um espaço de trabalho primeiro e tente novamente.",
+	"errorInvalidTaskConfiguration": "Não é possível escrever no arquivo de configuração de tarefas. Por favor, abra o arquivo para corrigir erros/avisos e tente novamente.",
+	"errorInvalidLaunchConfiguration": "Não é possível escrever no arquivo de configuração de lançamento. Por favor, abra o arquivo para corrigir erros/avisos e tente novamente.",
+	"errorInvalidConfiguration": "Não é possível escrever nas configurações do usuário. Por favor, abra as configurações do usuário para corrigir erros/avisos e tente novamente.",
+	"errorInvalidConfigurationWorkspace": "Não é possível escrever nas configurações do espaço de trabalho. Por favor, abra as configurações do espaço de trabalho para corrigir erros/avisos no arquivo e tente novamente.",
+	"errorInvalidConfigurationFolder": "Não é possível escrever nas configurações de pasta. Por favor, abra as configurações da pasta '{0}' para corrigir erros/avisos e tente novamente.",
 	"userTarget": "Configurações de Usuário",
 	"workspaceTarget": "Configurações de Espaço de Trabalho",
 	"folderTarget": "Configurações de pasta"

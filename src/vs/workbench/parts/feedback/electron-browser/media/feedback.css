@@ -100,23 +100,6 @@
 	text-align: right;
 }
 
-.monaco-shell .feedback-form .send {
-	padding: .5em 1.5em;
-	font-size: 1.1em;
-	margin: 0;
-	box-sizing:			border-box;
-	transition: width 200ms ease-out;
-}
-
-.monaco-shell .feedback-form .send.in-progress {
-	width: 22%;
-}
-
-.monaco-shell .feedback-form .send.success,
-.monaco-shell .feedback-form .send.error {
-	width: 20%;
-}
-
 .monaco-shell .feedback-form .sentiment {
 	height: 32px;
 	width: 32px;
@@ -165,19 +148,14 @@
 }
 
 .monaco-shell .feedback-form .form-buttons .send {
-	color: white;
-	border: none;
-	cursor: pointer;
+	width: auto;
 	background-image: url('twitter.svg');
-	background-color: #007ACC;
-	background-position: left;
+	background-position: 12px center;
 	background-size: 20px;
 	background-repeat: no-repeat;
-	padding-left: 30px;
-	padding-right: 12px;
-	border: 4px solid #007ACC;
-	border-radius: 4px;
+	padding: 8px 12px 8px 38px;
 	margin-left: auto;
+	transition: width 200ms ease-out;
 }
 
 .monaco-shell .feedback-form .form-buttons .send.in-progress,

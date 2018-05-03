@@ -5,41 +5,33 @@
 'use strict';
 
 import { getLanguageModelCache } from '../languageModelCache';
-import { LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions, HTMLFormatConfiguration, ICompletionParticipant } from 'vscode-html-languageservice';
-import { TextDocument, Position, Range } from 'vscode-languageserver-types';
-import { LanguageMode, Settings } from './languageModes';
+import { LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions, HTMLFormatConfiguration } from 'vscode-html-languageservice';
+import { TextDocument, Position, Range, CompletionItem } from 'vscode-languageserver-types';
+import { LanguageMode, Workspace } from './languageModes';
 
-import { FoldingRange } from '../protocol/foldingProvider.proposed';
-import { getHTMLFoldingRegions } from './htmlFolding';
+import { FoldingRange } from 'vscode-languageserver-protocol-foldingprovider';
+import { getPathCompletionParticipant } from './pathCompletion';
 
-export function getHTMLMode(htmlLanguageService: HTMLLanguageService): LanguageMode {
-	let globalSettings: Settings = {};
+export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace: Workspace): LanguageMode {
 	let htmlDocuments = getLanguageModelCache<HTMLDocument>(10, 60, document => htmlLanguageService.parseHTMLDocument(document));
-	let completionParticipants: ICompletionParticipant[] = [];
 	return {
 		getId() {
 			return 'html';
 		},
-		configure(options: any) {
-			globalSettings = options;
-		},
-		doComplete(document: TextDocument, position: Position, settings: Settings = globalSettings, registeredCompletionParticipants?: ICompletionParticipant[]) {
-			if (registeredCompletionParticipants) {
-				completionParticipants = registeredCompletionParticipants;
-			}
+		doComplete(document: TextDocument, position: Position, settings = workspace.settings) {
 			let options = settings && settings.html && settings.html.suggest;
 			let doAutoComplete = settings && settings.html && settings.html.autoClosingTags;
 			if (doAutoComplete) {
 				options.hideAutoCompleteProposals = true;
 			}
+			let pathCompletionProposals: CompletionItem[] = [];
+			let participants = [getPathCompletionParticipant(document, workspace.folders, pathCompletionProposals)];
+			htmlLanguageService.setCompletionParticipants(participants);
 
 			const htmlDocument = htmlDocuments.get(document);
-			htmlLanguageService.setCompletionParticipants(completionParticipants);
-
-			return htmlLanguageService.doComplete(document, position, htmlDocument, options);
-		},
-		setCompletionParticipants(registeredCompletionParticipants: any[]) {
-			completionParticipants = registeredCompletionParticipants;
+			let completionList = htmlLanguageService.doComplete(document, position, htmlDocument, options);
+			completionList.items.push(...pathCompletionProposals);
+			return completionList;
 		},
 		doHover(document: TextDocument, position: Position) {
 			return htmlLanguageService.doHover(document, position, htmlDocuments.get(document));
@@ -53,7 +45,7 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService): LanguageM
 		findDocumentSymbols(document: TextDocument) {
 			return htmlLanguageService.findDocumentSymbols(document, htmlDocuments.get(document));
 		},
-		format(document: TextDocument, range: Range, formatParams: FormattingOptions, settings: Settings = globalSettings) {
+		format(document: TextDocument, range: Range, formatParams: FormattingOptions, settings = workspace.settings) {
 			let formatSettings: HTMLFormatConfiguration = settings && settings.html && settings.html.format;
 			if (formatSettings) {
 				formatSettings = merge(formatSettings, {});
@@ -69,9 +61,9 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService): LanguageM
 			return htmlLanguageService.format(document, range, formatSettings);
 		},
 		getFoldingRanges(document: TextDocument, range: Range): FoldingRange[] {
-			return getHTMLFoldingRegions(htmlLanguageService, document, range);
+			let ranges = htmlLanguageService.getFoldingRanges(document);
+			return ranges.filter(r => r.startLine >= range.start.line && r.endLine < range.end.line);
 		},
-
 		doAutoClose(document: TextDocument, position: Position) {
 			let offset = document.offsetAt(position);
 			let text = document.getText();

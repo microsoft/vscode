@@ -45,6 +45,7 @@
 	"PatternTypeSchema.description": "問題模式或所提供或預先定義之問題模式的名稱。如有指定基底，即可發出。",
 	"ProblemMatcherSchema.base": "要使用之基底問題比對器的名稱。",
 	"ProblemMatcherSchema.owner": "Code 內的問題擁有者。如果指定基底，則可以省略。如果省略且未指定基底，預設為 [外部]。",
+	"ProblemMatcherSchema.source": "可供人們閱讀的診斷描述來源，例如 'typescript' 或 'super lint'。",
 	"ProblemMatcherSchema.severity": "擷取項目問題的預設嚴重性。如果模式未定義嚴重性的符合群組，就會加以使用。",
 	"ProblemMatcherSchema.applyTo": "控制文字文件上所回報的問題僅會套用至開啟的文件、關閉的文件或所有文件。",
 	"ProblemMatcherSchema.fileLocation": "定義問題模式中所回報檔案名稱的解譯方式。",

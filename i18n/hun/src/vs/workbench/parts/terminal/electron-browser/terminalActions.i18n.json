@@ -21,6 +21,7 @@
 	"workbench.action.terminal.newWorkspacePlaceholder": "Az aktuális munkakönyvtár kiválasztása az új terminálhoz",
 	"workbench.action.terminal.newInActiveWorkspace": "Új integrált terminál létrehozása (az aktív munkaterületen)",
 	"workbench.action.terminal.split": "Terminál kettéosztása",
+	"workbench.action.terminal.splitInActiveWorkspace": "Terminál kettéosztása (az aktív munkaterületen)",
 	"workbench.action.terminal.focusPreviousPane": "Váltás az előző panelra",
 	"workbench.action.terminal.focusNextPane": "Ugrás a következő panelra",
 	"workbench.action.terminal.resizePaneLeft": "Méret növelése balra",
@@ -43,6 +44,7 @@
 	"workbench.action.terminal.scrollUpPage": "G9rgetés felfelé (oldalanként)",
 	"workbench.action.terminal.scrollToTop": "Görgetés a tetejére",
 	"workbench.action.terminal.clear": "Törlés",
+	"workbench.action.terminal.clearSelection": "Kijelölés megszüntetése",
 	"workbench.action.terminal.allowWorkspaceShell": "Munkaterületspecifikus shellkonfiguráció engedélyezése",
 	"workbench.action.terminal.disallowWorkspaceShell": "Munkaterületspecifikus shellkonfiguráció letiltása",
 	"workbench.action.terminal.rename": "Átnevezés",
@@ -51,5 +53,9 @@
 	"workbench.action.terminal.hideFindWidget": "Keresőmodul elrejtése",
 	"nextTerminalFindTerm": "Következő keresési kifejezés megjelenítése",
 	"previousTerminalFindTerm": "Előző keresési kifejezés megjelenítése",
-	"quickOpenTerm": "Aktív terminál váltása"
+	"quickOpenTerm": "Aktív terminál váltása",
+	"workbench.action.terminal.scrollToPreviousCommand": "Görgetés az előző parancshoz",
+	"workbench.action.terminal.scrollToNextCommand": "Görgetés a következő parancshoz",
+	"workbench.action.terminal.selectToPreviousCommand": "Előző parancs kiválasztása",
+	"workbench.action.terminal.selectToNextCommand": "Következő parancs kiválasztása"
 }

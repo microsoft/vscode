@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { $ } from 'vs/base/browser/builder';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
@@ -22,6 +21,8 @@ export interface IOptions {
 	width?: number;
 	validation?: IInputValidator;
 	ariaLabel?: string;
+	history?: string[];
+	historyLimit?: number;
 }
 
 export class PatternInputWidget extends Widget {
@@ -48,7 +49,7 @@ export class PatternInputWidget extends Widget {
 
 	constructor(parent: HTMLElement, private contextViewProvider: IContextViewProvider, protected themeService: IThemeService, options: IOptions = Object.create(null)) {
 		super();
-		this.history = new HistoryNavigator<string>();
+		this.history = new HistoryNavigator<string>(options.history || [], options.historyLimit);
 		this.onOptionChange = null;
 		this.width = options.width || 100;
 		this.placeholder = options.placeholder || '';
@@ -73,7 +74,7 @@ export class PatternInputWidget extends Widget {
 		switch (eventType) {
 			case 'keydown':
 			case 'keyup':
-				$(this.inputBox.inputElement).on(eventType, handler);
+				this._register(dom.addDisposableListener(this.inputBox.inputElement, eventType, handler));
 				break;
 			case PatternInputWidget.OPTION_CHANGE:
 				this.onOptionChange = handler;
@@ -124,8 +125,8 @@ export class PatternInputWidget extends Widget {
 		return this.history.getHistory();
 	}
 
-	public setHistory(history: string[]) {
-		this.history = new HistoryNavigator<string>(history);
+	public clearHistory(): void {
+		this.history.clear();
 	}
 
 	public onSearchSubmit(): void {
@@ -158,7 +159,7 @@ export class PatternInputWidget extends Widget {
 	private render(): void {
 		this.domNode = document.createElement('div');
 		this.domNode.style.width = this.width + 'px';
-		$(this.domNode).addClass('monaco-findInput');
+		dom.addClass(this.domNode, 'monaco-findInput');
 
 		this.inputBox = new InputBox(this.domNode, this.contextViewProvider, {
 			placeholder: this.placeholder || '',

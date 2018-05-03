@@ -40,12 +40,16 @@
 .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
 	text-transform: uppercase;
 	font-size: 11px;
-	margin-left: 33px;
 	margin-right: 5px;
 	cursor: pointer;
 	display: flex;
 	overflow: hidden;
 	text-overflow: ellipsis;
+}
+
+.default-preferences-editor-container > .preferences-header-container > .default-preferences-header,
+.preferences-editor .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
+	margin-left: 33px;
 }
 
 .settings-tabs-widget > .monaco-action-bar .action-item .action-label {

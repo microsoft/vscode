@@ -70,7 +70,12 @@ function autoFixSettingsJSON(willSaveEvent: vscode.TextDocumentWillSaveEvent): v
 		onError(error: ParseErrorCode, offset: number, length: number): void {
 			if (error === ParseErrorCode.CommaExpected && lastEndOfSomething > -1) {
 				const fixPosition = document.positionAt(lastEndOfSomething);
-				edit.insert(document.uri, fixPosition, ',');
+
+				// Don't insert a comma immediately before a : or ' :'
+				const colonRange = document.getWordRangeAtPosition(fixPosition, / *:/);
+				if (!colonRange) {
+					edit.insert(document.uri, fixPosition, ',');
+				}
 			}
 		}
 	});

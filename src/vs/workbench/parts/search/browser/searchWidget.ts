@@ -12,7 +12,7 @@ import { Action } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { FindInput, IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';
 import { InputBox, IMessage } from 'vs/base/browser/ui/inputbox/inputBox';
-import { Button } from 'vs/base/browser/ui/button/button';
+import { Button, IButtonOptions } from 'vs/base/browser/ui/button/button';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -25,9 +25,8 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { isSearchViewFocused, appendKeyBindingLabel } from 'vs/workbench/parts/search/browser/searchActions';
 import { HistoryNavigator } from 'vs/base/common/history';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
-import { attachInputBoxStyler, attachFindInputBoxStyler, attachButtonStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachFindInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/findModel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -40,6 +39,7 @@ export interface ISearchWidgetOptions {
 	isCaseSensitive?: boolean;
 	isWholeWords?: boolean;
 	history?: string[];
+	historyLimit?: number;
 }
 
 class ReplaceAllAction extends Action {
@@ -128,7 +128,7 @@ export class SearchWidget extends Widget {
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
-		this.searchHistory = new HistoryNavigator<string>(options.history);
+		this.searchHistory = new HistoryNavigator<string>(options.history, options.historyLimit);
 		this.replaceActive = Constants.ReplaceActiveKey.bindTo(this.keyBindingService);
 		this.searchInputBoxFocused = Constants.SearchInputBoxFocusedKey.bindTo(this.keyBindingService);
 		this.replaceInputBoxFocused = Constants.ReplaceInputBoxFocusedKey.bindTo(this.keyBindingService);
@@ -180,6 +180,10 @@ export class SearchWidget extends Widget {
 		return this.searchHistory.getHistory();
 	}
 
+	public clearHistory(): void {
+		this.searchHistory.clear();
+	}
+
 	public showNextSearchTerm() {
 		let next = this.searchHistory.next();
 		if (next) {
@@ -217,11 +221,13 @@ export class SearchWidget extends Widget {
 	}
 
 	private renderToggleReplaceButton(parent: HTMLElement): void {
-		this.toggleReplaceButton = this._register(new Button(parent));
-		attachButtonStyler(this.toggleReplaceButton, this.themeService, {
-			buttonBackground: SIDE_BAR_BACKGROUND,
-			buttonHoverBackground: SIDE_BAR_BACKGROUND
-		});
+		const opts: IButtonOptions = {
+			buttonBackground: null,
+			buttonBorder: null,
+			buttonForeground: null,
+			buttonHoverBackground: null
+		};
+		this.toggleReplaceButton = this._register(new Button(parent, opts));
 		this.toggleReplaceButton.icon = 'toggle-replace-button collapse';
 		// TODO@joh need to dispose this listener eventually
 		this.toggleReplaceButton.onDidClick(() => this.onToggleReplaceButton());

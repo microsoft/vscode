@@ -30,7 +30,7 @@ export class PackageJSONContribution implements IJSONContribution {
 	private knownScopes = ['@types', '@angular'];
 
 	public getDocumentSelector(): DocumentSelector {
-		return [{ language: 'json', pattern: '**/package.json' }];
+		return [{ language: 'json', scheme: '*', pattern: '**/package.json' }];
 	}
 
 	public constructor(private xhr: XHRRequest) {

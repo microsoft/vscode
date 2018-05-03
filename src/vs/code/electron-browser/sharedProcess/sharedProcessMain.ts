@@ -30,10 +30,9 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, ActiveWindowManager } from 'vs/platform/windows/common/windows';
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { ipcRenderer } from 'electron';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createSharedProcessContributions } from 'vs/code/electron-browser/sharedProcess/contrib/contributions';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
@@ -56,28 +55,6 @@ interface ISharedProcessInitData {
 	sharedIPCHandle: string;
 	args: ParsedArgs;
 	logLevel: LogLevel;
-}
-
-class ActiveWindowManager implements IDisposable {
-	private disposables: IDisposable[] = [];
-	private _activeWindowId: number;
-
-	constructor(@IWindowsService windowsService: IWindowsService) {
-		windowsService.onWindowOpen(this.setActiveWindow, this, this.disposables);
-		windowsService.onWindowFocus(this.setActiveWindow, this, this.disposables);
-	}
-
-	private setActiveWindow(windowId: number) {
-		this._activeWindowId = windowId;
-	}
-
-	public get activeClientId(): string {
-		return `window:${this._activeWindowId}`;
-	}
-
-	public dispose() {
-		this.disposables = dispose(this.disposables);
-	}
 }
 
 const eventPrefix = 'monacoworkbench';

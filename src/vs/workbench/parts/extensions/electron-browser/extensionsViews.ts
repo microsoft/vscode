@@ -145,7 +145,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			case 'name': options = assign(options, { sortBy: SortBy.Title }); break;
 		}
 
-		if (ExtensionsListView.isBuiltInExtensionsQuery(value)) {
+		if (/@builtin/i.test(value)) {
 			const showThemesOnly = /@builtin:themes/i.test(value);
 			if (showThemesOnly) {
 				value = value.replace(/@builtin:themes/g, '');
@@ -153,6 +153,10 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			const showBasicsOnly = /@builtin:basics/i.test(value);
 			if (showBasicsOnly) {
 				value = value.replace(/@builtin:basics/g, '');
+			}
+			const showFeaturesOnly = /@builtin:features/i.test(value);
+			if (showFeaturesOnly) {
+				value = value.replace(/@builtin:features/g, '');
 			}
 
 			value = value.replace(/@builtin/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
@@ -175,19 +179,22 @@ export class ExtensionsListView extends ViewsViewletPanel {
 					return e.local.manifest
 						&& e.local.manifest.contributes
 						&& Array.isArray(e.local.manifest.contributes.languages)
-						&& e.local.manifest.contributes.languages.length;
+						&& e.local.manifest.contributes.languages.length
+						&& e.local.identifier.id !== 'git';
 				});
 				return new PagedModel(this.sortExtensions(basics, options));
 			}
+			if (showFeaturesOnly) {
+				const others = result.filter(e => {
+					return e.local.manifest
+						&& e.local.manifest.contributes
+						&& (!Array.isArray(e.local.manifest.contributes.languages) || e.local.identifier.id === 'git')
+						&& !Array.isArray(e.local.manifest.contributes.themes);
+				});
+				return new PagedModel(this.sortExtensions(others, options));
+			}
 
-			const others = result.filter(e => {
-				return e.local.manifest
-					&& e.local.manifest.contributes
-					&& !Array.isArray(e.local.manifest.contributes.languages)
-					&& !Array.isArray(e.local.manifest.contributes.themes);
-			});
-
-			return new PagedModel(this.sortExtensions(others, options));
+			return new PagedModel(this.sortExtensions(result, options));
 		}
 
 		if (!value || ExtensionsListView.isInstalledExtensionsQuery(value)) {
@@ -197,12 +204,12 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			let result = await this.extensionsWorkbenchService.queryLocal();
 
 			result = result
-				.filter(e => e.type === LocalExtensionType.User && e.name.toLowerCase().indexOf(value) > -1);
+				.filter(e => e.type === LocalExtensionType.User && (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1));
 
 			return new PagedModel(this.sortExtensions(result, options));
 		}
 
-		const idMatch = /@id:([a-z0-9][a-z0-9\-]*\.[a-z0-9][a-z0-9\-]*)/.exec(value);
+		const idMatch = /@id:(([a-z0-9A-Z][a-z0-9\-A-Z]*)\.([a-z0-9A-Z][a-z0-9\-A-Z]*))/.exec(value);
 
 		if (idMatch) {
 			const name = idMatch[1];
@@ -217,7 +224,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			const local = await this.extensionsWorkbenchService.queryLocal();
 			const result = local
 				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
-				.filter(extension => extension.outdated && extension.name.toLowerCase().indexOf(value) > -1);
+				.filter(extension => extension.outdated && (extension.name.toLowerCase().indexOf(value) > -1 || extension.displayName.toLowerCase().indexOf(value) > -1));
 
 			return new PagedModel(this.sortExtensions(result, options));
 		}
@@ -230,7 +237,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 
 			const result = local
 				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
-				.filter(e => runningExtensions.every(r => !areSameExtensions(r, e)) && e.name.toLowerCase().indexOf(value) > -1);
+				.filter(e => runningExtensions.every(r => !areSameExtensions(r, e)) && (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1));
 
 			return new PagedModel(this.sortExtensions(result, options));
 		}
@@ -244,7 +251,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
 				.filter(e => e.type === LocalExtensionType.User &&
 					(e.enablementState === EnablementState.Enabled || e.enablementState === EnablementState.WorkspaceEnabled) &&
-					e.name.toLowerCase().indexOf(value) > -1
+					(e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
 				);
 
 			return new PagedModel(this.sortExtensions(result, options));
@@ -514,7 +521,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 	}
 
 	static isBuiltInExtensionsQuery(query: string): boolean {
-		return /@builtin/i.test(query);
+		return /^\s*@builtin\s*$/i.test(query);
 	}
 
 	static isInstalledExtensionsQuery(query: string): boolean {
@@ -552,7 +559,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 
 export class InstalledExtensionsView extends ExtensionsListView {
 
-	public static isInsalledExtensionsQuery(query: string): boolean {
+	public static isInstalledExtensionsQuery(query: string): boolean {
 		return ExtensionsListView.isInstalledExtensionsQuery(query)
 			|| ExtensionsListView.isOutdatedExtensionsQuery(query)
 			|| ExtensionsListView.isDisabledExtensionsQuery(query)
@@ -560,7 +567,7 @@ export class InstalledExtensionsView extends ExtensionsListView {
 	}
 
 	async show(query: string): TPromise<IPagedModel<IExtension>> {
-		if (InstalledExtensionsView.isInsalledExtensionsQuery(query)) {
+		if (InstalledExtensionsView.isInstalledExtensionsQuery(query)) {
 			return super.show(query);
 		}
 		let searchInstalledQuery = '@installed';
@@ -572,36 +579,22 @@ export class InstalledExtensionsView extends ExtensionsListView {
 export class BuiltInExtensionsView extends ExtensionsListView {
 
 	async show(query: string): TPromise<IPagedModel<IExtension>> {
-		if (!ExtensionsListView.isBuiltInExtensionsQuery(query)) {
-			return super.show(query);
-		}
-		let searchBuiltInQuery = '@builtin';
-		searchBuiltInQuery = query ? searchBuiltInQuery + ' ' + query : searchBuiltInQuery;
-		return super.show(searchBuiltInQuery);
+		return super.show(query.replace('@builtin', '@builtin:features'));
 	}
+
 }
 
 export class BuiltInThemesExtensionsView extends ExtensionsListView {
 
 	async show(query: string): TPromise<IPagedModel<IExtension>> {
-		if (!ExtensionsListView.isBuiltInExtensionsQuery(query)) {
-			return super.show(query);
-		}
-		let searchBuiltInQuery = '@builtin:themes';
-		searchBuiltInQuery = query ? searchBuiltInQuery + ' ' + query : searchBuiltInQuery;
-		return super.show(searchBuiltInQuery);
+		return super.show(query.replace('@builtin', '@builtin:themes'));
 	}
 }
 
 export class BuiltInBasicsExtensionsView extends ExtensionsListView {
 
 	async show(query: string): TPromise<IPagedModel<IExtension>> {
-		if (!ExtensionsListView.isBuiltInExtensionsQuery(query)) {
-			return super.show(query);
-		}
-		let searchBuiltInQuery = '@builtin:basics';
-		searchBuiltInQuery = query ? searchBuiltInQuery + ' ' + query : searchBuiltInQuery;
-		return super.show(searchBuiltInQuery);
+		return super.show(query.replace('@builtin', '@builtin:basics'));
 	}
 }
 

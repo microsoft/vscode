@@ -7,9 +7,9 @@
 
 import { compareAnything } from 'vs/base/common/comparers';
 import { matchesPrefix, IMatch, createMatches, matchesCamelCase, isUpper } from 'vs/base/common/filters';
-import { isEqual, nativeSep } from 'vs/base/common/paths';
-import { isWindows } from 'vs/base/common/platform';
-import { stripWildcards } from 'vs/base/common/strings';
+import { nativeSep } from 'vs/base/common/paths';
+import { isWindows, isLinux } from 'vs/base/common/platform';
+import { stripWildcards, equalsIgnoreCase } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
 
 export type Score = [number /* score */, number[] /* match positions */];
@@ -356,7 +356,7 @@ export function scoreItem<T>(item: T, query: IPreparedQuery, fuzzy: boolean, acc
 function doScoreItem(label: string, description: string, path: string, query: IPreparedQuery, fuzzy: boolean): IItemScore {
 
 	// 1.) treat identity matches on full path highest
-	if (path && isEqual(query.original, path, true)) {
+	if (path && isLinux ? query.original === path : equalsIgnoreCase(query.original, path)) {
 		return { score: PATH_IDENTITY_SCORE, labelMatch: [{ start: 0, end: label.length }], descriptionMatch: description ? [{ start: 0, end: description.length }] : void 0 };
 	}
 

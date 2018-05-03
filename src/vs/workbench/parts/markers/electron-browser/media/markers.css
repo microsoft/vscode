@@ -4,11 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-action-bar .action-item.markers-panel-action-filter {
-	max-width: 400px;
-	min-width: 150px;
-	flex: 1;
 	cursor: default;
 	margin: 4px 10px 0 0;
+	min-width: 150px;
+	max-width: 500px;
+}
+
+.monaco-action-bar .action-item.markers-panel-action-filter {
+	flex: 0.7;
+}
+
+.monaco-action-bar .action-item.markers-panel-action-filter.small {
+	flex: 0.5;
 }
 
 .monaco-action-bar .action-item.markers-panel-action-filter .monaco-inputbox {
@@ -20,6 +27,37 @@
 	border: 1px solid #ddd;
 }
 
+.markers-panel-action-filter > .markers-panel-filter-controls {
+	position: absolute;
+	top: 0px;
+	right: 4px;
+	display: flex;
+}
+
+.markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-badge {
+	margin: 4px 0px;
+	padding: 0px 8px;
+	border-radius: 2px;
+}
+
+.markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-badge.hidden,
+.markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-badge.small {
+	display: none;
+}
+
+.markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude {
+	margin: 3px 0 0 3px;
+}
+
+.vs .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude {
+	background: url('excludeSettings.svg') center center no-repeat;
+}
+
+.vs-dark .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude,
+.hc-black .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude {
+	background: url('excludeSettings-dark.svg') center center no-repeat;
+}
+
 .markers-panel .markers-panel-container {
 	height: 100%;
 }
@@ -29,16 +67,14 @@
 	padding-left: 20px;
 }
 
-.markers-panel .markers-panel-container .message-box-container span:focus {
-	outline: none;
+.markers-panel .markers-panel-container .message-box-container .messageAction {
+	margin-left: 4px;
+	cursor: pointer;
+	text-decoration: underline;
 }
 
 .markers-panel  .markers-panel-container .hidden {
 	display: none;
-}
-
-.markers-panel .markers-panel-container .tree-container {
-	height: 100%;
 }
 
 .markers-panel .markers-panel-container .tree-container.hidden,
@@ -69,6 +105,10 @@
 	margin-right: 5px;
 	text-overflow:  ellipsis;
 	overflow: hidden;
+}
+
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-source {
+	margin-right: 5px;
 }
 
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-source:before {

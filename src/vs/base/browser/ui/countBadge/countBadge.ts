@@ -13,6 +13,7 @@ import { mixin } from 'vs/base/common/objects';
 
 export interface ICountBadgeOptions extends ICountBadgetyles {
 	count?: number;
+	countFormat?: string;
 	titleFormat?: string;
 }
 
@@ -31,6 +32,7 @@ export class CountBadge {
 
 	private element: HTMLElement;
 	private count: number;
+	private countFormat: string;
 	private titleFormat: string;
 
 	private badgeBackground: Color;
@@ -48,6 +50,7 @@ export class CountBadge {
 		this.badgeBorder = this.options.badgeBorder;
 
 		this.element = append(container, $('.monaco-count-badge'));
+		this.countFormat = this.options.countFormat || '{0}';
 		this.titleFormat = this.options.titleFormat || '';
 		this.setCount(this.options.count || 0);
 	}
@@ -57,13 +60,18 @@ export class CountBadge {
 		this.render();
 	}
 
+	setCountFormat(countFormat: string) {
+		this.countFormat = countFormat;
+		this.render();
+	}
+
 	setTitleFormat(titleFormat: string) {
 		this.titleFormat = titleFormat;
 		this.render();
 	}
 
 	private render() {
-		this.element.textContent = '' + this.count;
+		this.element.textContent = format(this.countFormat, this.count);
 		this.element.title = format(this.titleFormat, this.count);
 
 		this.applyStyles();

@@ -10,11 +10,13 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainContext, IExtHostContext, MainThreadDecorationsShape, ExtHostDecorationsShape, DecorationData, DecorationRequest } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IDecorationsService, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { values } from 'vs/base/common/collections';
 
 class DecorationRequestsQueue {
 
 	private _idPool = 0;
-	private _requests: DecorationRequest[] = [];
+	private _requests: { [id: number]: DecorationRequest } = Object.create(null);
 	private _resolver: { [id: number]: Function } = Object.create(null);
 
 	private _timer: number;
@@ -25,12 +27,15 @@ class DecorationRequestsQueue {
 		//
 	}
 
-	enqueue(handle: number, uri: URI): Thenable<DecorationData> {
-		return new Promise((resolve, reject) => {
-			const id = ++this._idPool;
-			this._requests.push({ id, handle, uri });
+	enqueue(handle: number, uri: URI): TPromise<DecorationData> {
+		const id = ++this._idPool;
+		return new TPromise((resolve, reject) => {
+			this._requests[id] = { id, handle, uri };
 			this._resolver[id] = resolve;
 			this._processQueue();
+		}, () => {
+			delete this._requests[id];
+			delete this._resolver[id];
 		});
 	}
 
@@ -43,7 +48,7 @@ class DecorationRequestsQueue {
 			// make request
 			const requests = this._requests;
 			const resolver = this._resolver;
-			this._proxy.$provideDecorations(requests).then(data => {
+			this._proxy.$provideDecorations(values(requests)).then(data => {
 				for (const id in resolver) {
 					resolver[id](data[id]);
 				}

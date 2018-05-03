@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, PromptOption, INotificationActions } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice } from 'vs/platform/notification/common/notification';
 import { INotificationsModel, NotificationsModel } from 'vs/workbench/common/notifications';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -65,61 +65,49 @@ export class NotificationService implements INotificationService {
 		return this.model.notify(notification);
 	}
 
-	public prompt(severity: Severity, message: string, choices: PromptOption[]): TPromise<number> {
+	public prompt(severity: Severity, message: string, choices: IPromptChoice[], onCancel?: () => void): INotificationHandle {
 		let handle: INotificationHandle;
+		let choiceClicked = false;
 
-		const promise = new TPromise<number>(c => {
+		// Convert choices into primary/secondary actions
+		const actions: INotificationActions = { primary: [], secondary: [] };
+		choices.forEach((choice, index) => {
+			const action = new Action(`workbench.dialog.choice.${index}`, choice.label, null, true, () => {
+				choiceClicked = true;
 
-			// Complete promise with index of action that was picked
-			const callback = (index: number, closeNotification: boolean) => () => {
-				c(index);
+				// Pass to runner
+				choice.run();
 
-				if (closeNotification) {
-					handle.dispose();
+				// Close notification unless we are told to keep open
+				if (!choice.keepOpen) {
+					handle.close();
 				}
 
 				return TPromise.as(void 0);
-			};
-
-			// Convert choices into primary/secondary actions
-			const actions: INotificationActions = {
-				primary: [],
-				secondary: []
-			};
-
-			choices.forEach((choice, index) => {
-				let isPrimary = true;
-				let label: string;
-				let closeNotification = false;
-
-				if (typeof choice === 'string') {
-					label = choice;
-				} else {
-					isPrimary = false;
-					label = choice.label;
-					closeNotification = !choice.keepOpen;
-				}
-
-				const action = new Action(`workbench.dialog.choice.${index}`, label, null, true, callback(index, closeNotification));
-				if (isPrimary) {
-					actions.primary.push(action);
-				} else {
-					actions.secondary.push(action);
-				}
 			});
 
-			// Show notification with actions
-			handle = this.notify({ severity, message, actions });
+			if (!choice.isSecondary) {
+				actions.primary.push(action);
+			} else {
+				actions.secondary.push(action);
+			}
+		});
 
-			// Cancel promise and cleanup when notification gets disposed
-			once(handle.onDidDispose)(() => {
-				dispose(...actions.primary, ...actions.secondary);
-				promise.cancel();
-			});
+		// Show notification with actions
+		handle = this.notify({ severity, message, actions });
 
-		}, () => handle.dispose());
+		once(handle.onDidClose)(() => {
 
-		return promise;
+			// Cleanup when notification gets disposed
+			dispose(...actions.primary, ...actions.secondary);
+
+			// Indicate cancellation to the outside if no action was executed
+			if (!choiceClicked && typeof onCancel === 'function') {
+				onCancel();
+			}
+		});
+
+		return handle;
 	}
 
 	public dispose(): void {

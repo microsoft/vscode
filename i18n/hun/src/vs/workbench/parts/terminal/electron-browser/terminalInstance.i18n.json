@@ -12,5 +12,6 @@
 	"terminal.integrated.copySelection.noSelection": "A terminálban nincs semmi kijelölve a másoláshoz",
 	"terminal.integrated.exitedWithCode": "A terminálfolyamat a következő kilépési kóddal állt le: {0}",
 	"terminal.integrated.waitOnExit": "A folytatáshoz nyomjon meg egy billentyűt...",
-	"terminal.integrated.launchFailed": "A(z) '{0}{1}' terminálfolyamat-parancsot nem sikerült elindítani (kilépési kód: {2})"
+	"terminal.integrated.launchFailed": "A(z) '{0}{1}' terminálfolyamat-parancsot nem sikerült elindítani (kilépési kód: {2})",
+	"terminal.integrated.launchFailedExtHost": "A terminálfolyamat nem tudott elindulni (kilépési kód: {0})"
 }

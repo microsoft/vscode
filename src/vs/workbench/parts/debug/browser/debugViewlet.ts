@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/debugViewlet';
 import * as nls from 'vs/nls';
-import { Builder } from 'vs/base/browser/builder';
 import { Action, IAction } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -27,6 +26,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { memoize } from 'vs/base/common/decorators';
 
 export class DebugViewlet extends PersistentViewsViewlet {
 
@@ -56,11 +56,10 @@ export class DebugViewlet extends PersistentViewsViewlet {
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateTitleArea()));
 	}
 
-	async create(parent: Builder): TPromise<void> {
+	async create(parent: HTMLElement): TPromise<void> {
 		await super.create(parent);
 
-		const el = parent.getHTMLElement();
-		DOM.addClass(el, 'debug-viewlet');
+		DOM.addClass(parent, 'debug-viewlet');
 	}
 
 	public focus(): void {
@@ -71,12 +70,17 @@ export class DebugViewlet extends PersistentViewsViewlet {
 		}
 	}
 
+	@memoize
+	private get actions(): IAction[] {
+		return [
+			this._register(this.instantiationService.createInstance(StartAction, StartAction.ID, StartAction.LABEL)),
+			this._register(this.instantiationService.createInstance(ConfigureAction, ConfigureAction.ID, ConfigureAction.LABEL)),
+			this._register(this.instantiationService.createInstance(ToggleReplAction, ToggleReplAction.ID, ToggleReplAction.LABEL))
+		];
+	}
+
 	public getActions(): IAction[] {
-		const actions = [];
-		actions.push(this.instantiationService.createInstance(StartAction, StartAction.ID, StartAction.LABEL));
-		actions.push(this.instantiationService.createInstance(ConfigureAction, ConfigureAction.ID, ConfigureAction.LABEL));
-		actions.push(this._register(this.instantiationService.createInstance(ToggleReplAction, ToggleReplAction.ID, ToggleReplAction.LABEL)));
-		return actions;
+		return this.actions;
 	}
 
 	public getSecondaryActions(): IAction[] {
@@ -111,22 +115,26 @@ export class DebugViewlet extends PersistentViewsViewlet {
 		}
 	}
 
-	addPanel(panel: ViewsViewletPanel, size: number, index?: number): void {
-		super.addPanel(panel, size, index);
+	addPanels(panels: { panel: ViewsViewletPanel, size: number, index?: number }[]): void {
+		super.addPanels(panels);
 
-		// attach event listener to
-		if (panel.id === BREAKPOINTS_VIEW_ID) {
-			this.breakpointView = panel;
-			this.updateBreakpointsMaxSize();
-		} else {
-			this.panelListeners.set(panel.id, panel.onDidChange(() => this.updateBreakpointsMaxSize()));
+		for (const { panel } of panels) {
+			// attach event listener to
+			if (panel.id === BREAKPOINTS_VIEW_ID) {
+				this.breakpointView = panel;
+				this.updateBreakpointsMaxSize();
+			} else {
+				this.panelListeners.set(panel.id, panel.onDidChange(() => this.updateBreakpointsMaxSize()));
+			}
 		}
 	}
 
-	removePanel(panel: ViewsViewletPanel): void {
-		super.removePanel(panel);
-		dispose(this.panelListeners.get(panel.id));
-		this.panelListeners.delete(panel.id);
+	removePanels(panels: ViewsViewletPanel[]): void {
+		super.removePanels(panels);
+		for (const panel of panels) {
+			dispose(this.panelListeners.get(panel.id));
+			this.panelListeners.delete(panel.id);
+		}
 	}
 
 	private updateBreakpointsMaxSize(): void {

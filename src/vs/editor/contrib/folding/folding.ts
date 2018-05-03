@@ -2,10 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-/// <amd-dependency path="vs/css!./folding" />
 
 'use strict';
 
+import 'vs/css!./folding';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
@@ -28,7 +28,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { IndentRangeProvider } from 'vs/editor/contrib/folding/indentRangeProvider';
 import { IPosition } from 'vs/editor/common/core/position';
-import { FoldingProviderRegistry, FoldingRangeType } from 'vs/editor/common/modes';
+import { FoldingRangeProviderRegistry, FoldingRangeKind } from 'vs/editor/common/modes';
 import { SyntaxRangeProvider } from './syntaxRangeProvider';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
@@ -50,6 +50,7 @@ export class FoldingController implements IEditorContribution {
 	private editor: ICodeEditor;
 	private _isEnabled: boolean;
 	private _autoHideFoldingControls: boolean;
+	private _useFoldingProviders: boolean;
 
 	private foldingDecorationProvider: FoldingDecorationProvider;
 
@@ -72,6 +73,7 @@ export class FoldingController implements IEditorContribution {
 		this.editor = editor;
 		this._isEnabled = this.editor.getConfiguration().contribInfo.folding;
 		this._autoHideFoldingControls = this.editor.getConfiguration().contribInfo.showFoldingControls === 'mouseover';
+		this._useFoldingProviders = this.editor.getConfiguration().contribInfo.foldingStrategy !== 'indentation';
 
 		this.globalToDispose = [];
 		this.localToDispose = [];
@@ -80,7 +82,7 @@ export class FoldingController implements IEditorContribution {
 		this.foldingDecorationProvider.autoHideFoldingControls = this._autoHideFoldingControls;
 
 		this.globalToDispose.push(this.editor.onDidChangeModel(() => this.onModelChanged()));
-		this.globalToDispose.push(FoldingProviderRegistry.onDidChange(() => this.onModelChanged()));
+		this.globalToDispose.push(FoldingRangeProviderRegistry.onDidChange(() => this.onFoldingStrategyChanged()));
 
 		this.globalToDispose.push(this.editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
 			if (e.contribInfo) {
@@ -94,6 +96,11 @@ export class FoldingController implements IEditorContribution {
 				if (oldShowFoldingControls !== this._autoHideFoldingControls) {
 					this.foldingDecorationProvider.autoHideFoldingControls = this._autoHideFoldingControls;
 					this.onModelContentChanged();
+				}
+				let oldUseFoldingProviders = this._useFoldingProviders;
+				this._useFoldingProviders = this.editor.getConfiguration().contribInfo.foldingStrategy !== 'indentation';
+				if (oldUseFoldingProviders !== this._useFoldingProviders) {
+					this.onFoldingStrategyChanged();
 				}
 			}
 		}));
@@ -190,11 +197,16 @@ export class FoldingController implements IEditorContribution {
 		this.onModelContentChanged();
 	}
 
+	private onFoldingStrategyChanged() {
+		this.rangeProvider = null;
+		this.onModelContentChanged();
+	}
+
 	private getRangeProvider(): RangeProvider {
 		if (!this.rangeProvider) {
-			let foldingProviders = FoldingProviderRegistry.ordered(this.foldingModel.textModel);
-			if (foldingProviders.length) {
-				this.rangeProvider = new SyntaxRangeProvider(foldingProviders);
+			if (this._useFoldingProviders) {
+				let foldingProviders = FoldingRangeProviderRegistry.ordered(this.foldingModel.textModel);
+				this.rangeProvider = foldingProviders.length ? new SyntaxRangeProvider(foldingProviders) : new IndentRangeProvider();
 			} else {
 				this.rangeProvider = new IndentRangeProvider();
 			}
@@ -286,7 +298,7 @@ export class FoldingController implements IEditorContribution {
 		switch (e.target.type) {
 			case MouseTargetType.GUTTER_LINE_DECORATIONS:
 				const data = e.target.detail as IMarginData;
-				const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth;
+				const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth - data.glyphMarginLeft;
 
 				// TODO@joao TODO@alex TODO@martin this is such that we don't collide with dirty diff
 				if (gutterOffsetX <= 10) {
@@ -572,7 +584,7 @@ class FoldAllBlockCommentsAction extends FoldingAction<void> {
 
 	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
 		if (foldingModel.regions.hasTypes()) {
-			setCollapseStateForType(foldingModel, FoldingRangeType.Comment, true);
+			setCollapseStateForType(foldingModel, FoldingRangeKind.Comment.value, true);
 		} else {
 			let comments = LanguageConfigurationRegistry.getComments(editor.getModel().getLanguageIdentifier().id);
 			if (comments && comments.blockCommentStartToken) {
@@ -600,7 +612,7 @@ class FoldAllRegionsAction extends FoldingAction<void> {
 
 	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
 		if (foldingModel.regions.hasTypes()) {
-			setCollapseStateForType(foldingModel, FoldingRangeType.Region, true);
+			setCollapseStateForType(foldingModel, FoldingRangeKind.Region.value, true);
 		} else {
 			let foldingRules = LanguageConfigurationRegistry.getFoldingRules(editor.getModel().getLanguageIdentifier().id);
 			if (foldingRules && foldingRules.markers && foldingRules.markers.start) {
@@ -628,7 +640,7 @@ class UnfoldAllRegionsAction extends FoldingAction<void> {
 
 	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
 		if (foldingModel.regions.hasTypes()) {
-			setCollapseStateForType(foldingModel, FoldingRangeType.Region, false);
+			setCollapseStateForType(foldingModel, FoldingRangeKind.Region.value, false);
 		} else {
 			let foldingRules = LanguageConfigurationRegistry.getFoldingRules(editor.getModel().getLanguageIdentifier().id);
 			if (foldingRules && foldingRules.markers && foldingRules.markers.start) {

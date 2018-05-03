@@ -29,7 +29,7 @@ export class BowerJSONContribution implements IJSONContribution {
 	}
 
 	public getDocumentSelector(): DocumentSelector {
-		return [{ language: 'json', pattern: '**/bower.json' }, { language: 'json', pattern: '**/.bower.json' }];
+		return [{ language: 'json', scheme: '*', pattern: '**/bower.json' }, { language: 'json', scheme: '*', pattern: '**/.bower.json' }];
 	}
 
 	public collectDefaultSuggestions(_resource: string, collector: ISuggestionsCollector): Thenable<any> {

@@ -1,4 +1,8 @@
-<!-- Do you have a question? Please ask it on https://stackoverflow.com/questions/tagged/vscode. -->
+<!--
+Do you have a question? Please ask it on https://stackoverflow.com/questions/tagged/vscode.
+
+For bug reports, please fill in the details below. For feature requests, please describe the desired feature.
+-->
 
 <!-- Use Help > Report Issue to prefill these. -->
 - VSCode Version:

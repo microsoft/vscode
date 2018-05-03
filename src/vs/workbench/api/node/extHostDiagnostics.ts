@@ -229,6 +229,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 				}
 			}
 		}
+		Object.freeze(uris);
 		return { uris };
 	}
 

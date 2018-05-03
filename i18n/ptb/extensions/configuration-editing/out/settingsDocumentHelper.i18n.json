@@ -13,7 +13,7 @@
 	"rootPath": "caminho do arquivo da área de trabalho (por exemplo, /Usuarios/Desenvolvimento/minhaAreadeTrabalho)",
 	"folderName": "nome do diretório da área de trabalho onde arquivo está localizado (por exemplo, myFolder)",
 	"folderPath": "caminho do arquivo no diretório da área de trabalho onde o arquivo está localizado (por exemplo, /Users/Development/myFolder)",
-	"appName": "e.g. VS Code",
+	"appName": "por exemplo VS Code",
 	"dirty": "Um indicador de alteração se o editor ativo foi alterado",
 	"separator": "um separador condicional (' - ') que somente é mostrado quando envolvido por variáveis com valores",
 	"assocLabelFile": "Arquivos com Extensão",

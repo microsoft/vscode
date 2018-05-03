@@ -12,7 +12,7 @@
 	},
 	"main": "./out/extension",
 	"categories": [
-		"Languages"
+		"Programming Languages"
 	],
 	"activationEvents": [
 		"onLanguage:markdown",
@@ -22,7 +22,8 @@
 		"onCommand:markdown.showPreviewToSide",
 		"onCommand:markdown.showLockedPreviewToSide",
 		"onCommand:markdown.showSource",
-		"onCommand:markdown.showPreviewSecuritySelector"
+		"onCommand:markdown.showPreviewSecuritySelector",
+		"onView:markdown.preview"
 	],
 	"contributes": {
 		"commands": [
@@ -108,6 +109,13 @@
 				}
 			],
 			"explorer/context": [
+				{
+					"command": "markdown.showPreview",
+					"when": "resourceLangId == markdown",
+					"group": "navigation"
+				}
+			],
+			"editor/title/context": [
 				{
 					"command": "markdown.showPreview",
 					"when": "resourceLangId == markdown",
@@ -277,17 +285,17 @@
 		]
 	},
 	"scripts": {
-		"compile": "gulp compile-extension:markdown && npm run build-preview",
-		"watch": "npm run build-preview && gulp watch-extension:markdown",
+		"compile": "gulp compile-extension:markdown-language-features && npm run build-preview",
+		"watch": "npm run build-preview && gulp watch-extension:markdown-language-features",
 		"vscode:prepublish": "npm run build-ext && npm run build-preview",
-		"build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown ./tsconfig.json",
+		"build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown-language-features ./tsconfig.json",
 		"build-preview": "webpack --mode development"
 	},
 	"dependencies": {
 		"highlight.js": "9.5.0",
 		"markdown-it": "^8.4.0",
 		"markdown-it-named-headers": "0.0.4",
-		"vscode-extension-telemetry": "0.0.15",
+		"vscode-extension-telemetry": "0.0.17",
 		"vscode-nls": "^3.2.1"
 	},
 	"devDependencies": {

@@ -191,11 +191,12 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- quick fix
 
-	$registerQuickFixSupport(handle: number, selector: ISerializedDocumentFilter[]): void {
+	$registerQuickFixSupport(handle: number, selector: ISerializedDocumentFilter[], providedCodeActionKinds?: string[]): void {
 		this._registrations[handle] = modes.CodeActionProviderRegistry.register(toLanguageSelector(selector), <modes.CodeActionProvider>{
 			provideCodeActions: (model: ITextModel, range: EditorRange, context: modes.CodeActionContext, token: CancellationToken): Thenable<modes.CodeAction[]> => {
 				return this._heapService.trackRecursive(wireCancellationToken(token, this._proxy.$provideCodeActions(handle, model.uri, range, context))).then(MainThreadLanguageFeatures._reviveCodeActionDto);
-			}
+			},
+			providedCodeActionKinds
 		});
 	}
 
@@ -257,7 +258,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				return wireCancellationToken(token, this._proxy.$provideRenameEdits(handle, model.uri, position, newName)).then(reviveWorkspaceEditDto);
 			},
 			resolveRenameLocation: supportResolveLocation
-				? (model: ITextModel, position: EditorPosition, token: CancellationToken): Thenable<modes.RenameContext> => wireCancellationToken(token, this._proxy.$resolveRenameLocation(handle, model.uri, position))
+				? (model: ITextModel, position: EditorPosition, token: CancellationToken): Thenable<modes.RenameLocation> => wireCancellationToken(token, this._proxy.$resolveRenameLocation(handle, model.uri, position))
 				: undefined
 		});
 	}
@@ -348,9 +349,9 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- folding
 
-	$registerFoldingProvider(handle: number, selector: ISerializedDocumentFilter[]): void {
+	$registerFoldingRangeProvider(handle: number, selector: ISerializedDocumentFilter[]): void {
 		const proxy = this._proxy;
-		this._registrations[handle] = modes.FoldingProviderRegistry.register(toLanguageSelector(selector), <modes.FoldingProvider>{
+		this._registrations[handle] = modes.FoldingRangeProviderRegistry.register(toLanguageSelector(selector), <modes.FoldingRangeProvider>{
 			provideFoldingRanges: (model, context, token) => {
 				return wireCancellationToken(token, proxy.$provideFoldingRanges(handle, model.uri, context));
 			}

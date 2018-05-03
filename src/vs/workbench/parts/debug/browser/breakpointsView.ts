@@ -107,6 +107,13 @@ export class BreakpointsView extends ViewsViewletPanel {
 		this.list.splice(0, this.list.length, this.elements);
 	}
 
+	public focus(): void {
+		if (this.list) {
+			this.list.domFocus();
+		}
+		super.focus();
+	}
+
 	protected layoutBody(size: number): void {
 		if (this.list) {
 			this.list.layout(size);
@@ -117,8 +124,9 @@ export class BreakpointsView extends ViewsViewletPanel {
 		const actions: IAction[] = [];
 		const element = e.element;
 
+		const breakpointType = element instanceof Breakpoint && element.logMessage ? nls.localize('logPoint', "Logpoint") : nls.localize('breakpoint', "Breakpoint");
 		if (element instanceof Breakpoint || element instanceof FunctionBreakpoint) {
-			actions.push(new Action('workbench.action.debug.openEditorAndEditBreakpoint', nls.localize('editConditionalBreakpoint', "Edit Breakpoint..."), undefined, true, () => {
+			actions.push(new Action('workbench.action.debug.openEditorAndEditBreakpoint', nls.localize('editBreakpoint', "Edit {0}...", breakpointType), undefined, true, () => {
 				if (element instanceof Breakpoint) {
 					return openBreakpointSource(element, false, false, this.debugService, this.editorService).then(editor => {
 						const codeEditor = editor.getControl();
@@ -135,8 +143,7 @@ export class BreakpointsView extends ViewsViewletPanel {
 			actions.push(new Separator());
 		}
 
-		actions.push(new RemoveBreakpointAction(RemoveBreakpointAction.ID, RemoveBreakpointAction.LABEL, this.debugService, this.keybindingService));
-
+		actions.push(new RemoveBreakpointAction(RemoveBreakpointAction.ID, nls.localize('removeBreakpoint', "Remove {0}", breakpointType), this.debugService, this.keybindingService));
 
 		if (this.debugService.getModel().getBreakpoints().length + this.debugService.getModel().getFunctionBreakpoints().length > 1) {
 			actions.push(new RemoveAllBreakpointsAction(RemoveAllBreakpointsAction.ID, RemoveAllBreakpointsAction.LABEL, this.debugService, this.keybindingService));
@@ -196,7 +203,7 @@ export class BreakpointsView extends ViewsViewletPanel {
 
 	private get elements(): IEnablement[] {
 		const model = this.debugService.getModel();
-		const elements = (<IEnablement[]>model.getExceptionBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getBreakpoints());
+		const elements = (<ReadonlyArray<IEnablement>>model.getExceptionBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getBreakpoints());
 
 		return elements;
 	}
@@ -584,10 +591,10 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 	}
 
 	if (breakpoint.logMessage) {
-		if (process && breakpoint.condition && !process.session.capabilities.supportsLogPoints) {
+		if (process && !process.session.capabilities.supportsLogPoints) {
 			return {
 				className: 'debug-breakpoint-unsupported',
-				message: nls.localize('logBreakpointUnsupported', "Log points not supported by this debug type"),
+				message: nls.localize('logBreakpointUnsupported', "Logpoints not supported by this debug type"),
 			};
 		}
 

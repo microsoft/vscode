@@ -6,7 +6,6 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import * as DOM from 'vs/base/browser/dom';
-import { $, Dimension, Builder } from 'vs/base/browser/builder';
 import { Scope } from 'vs/workbench/common/memento';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
@@ -24,7 +23,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IContextKeyService, IContextKeyChangeEvent } from 'vs/platform/contextkey/common/contextkey';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { PanelViewlet, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
-import { IPanelOptions } from 'vs/base/browser/ui/splitview/panelview';
+import { IPanelOptions, DefaultPanelDndController } from 'vs/base/browser/ui/splitview/panelview';
 import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
@@ -137,9 +136,9 @@ export abstract class TreeViewsViewletPanel extends ViewsViewletPanel {
 		}
 
 		if (isVisible) {
-			$(tree.getHTMLElement()).show();
+			DOM.show(tree.getHTMLElement());
 		} else {
-			$(tree.getHTMLElement()).hide(); // make sure the tree goes out of the tabindex world by hiding it
+			DOM.hide(tree.getHTMLElement()); // make sure the tree goes out of the tabindex world by hiding it
 		}
 
 		if (isVisible) {
@@ -190,7 +189,7 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 	private readonly viewsContextKeys: Set<string> = new Set<string>();
 	private viewsViewletPanels: ViewsViewletPanel[] = [];
 	private didLayout = false;
-	private dimension: Dimension;
+	private dimension: DOM.Dimension;
 	protected viewsStates: Map<string, IViewState> = new Map<string, IViewState>();
 	private areExtensionsReady: boolean = false;
 
@@ -210,12 +209,12 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IExtensionService protected extensionService: IExtensionService
 	) {
-		super(id, { showHeaderInTitleWhenSingleView, dnd: true }, partService, contextMenuService, telemetryService, themeService);
+		super(id, { showHeaderInTitleWhenSingleView, dnd: new DefaultPanelDndController() }, partService, contextMenuService, telemetryService, themeService);
 
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 	}
 
-	async create(parent: Builder): TPromise<void> {
+	async create(parent: HTMLElement): TPromise<void> {
 		await super.create(parent);
 
 		this._register(this.onDidSashChange(() => this.snapshotViewsStates()));
@@ -276,7 +275,7 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 		}
 	}
 
-	layout(dimension: Dimension): void {
+	layout(dimension: DOM.Dimension): void {
 		super.layout(dimension);
 		this.dimension = dimension;
 		if (this.didLayout) {
@@ -371,18 +370,19 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 			this.snapshotViewsStates();
 
 			if (toRemove.length) {
-				for (const viewDescriptor of toRemove) {
-					let view = this.getView(viewDescriptor.id);
-					this.removePanel(view);
-					this.viewsViewletPanels.splice(this.viewsViewletPanels.indexOf(view), 1);
-					view.dispose();
+				const panelsToRemove: ViewsViewletPanel[] = toRemove.map(viewDescriptor => this.getView(viewDescriptor.id));
+				this.removePanels(panelsToRemove);
+				for (const panel of panelsToRemove) {
+					this.viewsViewletPanels.splice(this.viewsViewletPanels.indexOf(panel), 1);
+					panel.dispose();
 				}
 			}
 
+			const panelsToAdd: { panel: ViewsViewletPanel, size: number, index: number }[] = [];
 			for (const viewDescriptor of toAdd) {
 				let viewState = this.viewsStates.get(viewDescriptor.id);
 				let index = visible.indexOf(viewDescriptor);
-				const view = this.createView(viewDescriptor,
+				const panel = this.createView(viewDescriptor,
 					{
 						id: viewDescriptor.id,
 						name: viewDescriptor.name,
@@ -390,11 +390,17 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 						expanded: !(viewState ? viewState.collapsed : viewDescriptor.collapsed),
 						viewletSettings: this.viewletSettings
 					});
-				toCreate.push(view);
+				panel.render();
+				toCreate.push(panel);
 
 				const size = (viewState && viewState.size) || 200;
-				this.addPanel(view, size, index);
-				this.viewsViewletPanels.splice(index, 0, view);
+				panelsToAdd.push({ panel, size, index });
+			}
+
+			this.addPanels(panelsToAdd);
+
+			for (const { panel, index } of panelsToAdd) {
+				this.viewsViewletPanels.splice(index, 0, panel);
 			}
 
 			return TPromise.join(toCreate.map(view => view.create()))
@@ -545,19 +551,17 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 			return false;
 		}
 
-		if (ViewLocation.getContributedViewLocation(this.location.id)) {
-			let visibleViewsCount = 0;
-			if (this.areExtensionsReady) {
-				visibleViewsCount = this.getViewDescriptorsFromRegistry().reduce((visibleViewsCount, v) => visibleViewsCount + (this.canBeVisible(v) ? 1 : 0), 0);
-			} else {
+		if (ViewLocation.get(this.location.id)) {
+			if (!this.areExtensionsReady) {
+				let visibleViewsCount = 0;
 				// Check in cache so that view do not jump. See #29609
 				this.viewsStates.forEach((viewState, id) => {
 					if (!viewState.isHidden) {
 						visibleViewsCount++;
 					}
 				});
+				return visibleViewsCount === 1;
 			}
-			return visibleViewsCount === 1;
 		}
 
 		return super.isSingleView();
@@ -583,7 +587,7 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 	}
 
 	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewsViewletPanel {
-		return this.instantiationService.createInstance(viewDescriptor.ctor, options);
+		return this.instantiationService.createInstance(viewDescriptor.ctor, options) as ViewsViewletPanel;
 	}
 
 	protected get views(): ViewsViewletPanel[] {
@@ -644,7 +648,7 @@ export class PersistentViewsViewlet extends ViewsViewlet {
 		this._register(this.onDidChangeViewVisibilityState(id => this.onViewVisibilityChanged(id)));
 	}
 
-	create(parent: Builder): TPromise<void> {
+	create(parent: HTMLElement): TPromise<void> {
 		this.loadViewsStates();
 		return super.create(parent);
 	}

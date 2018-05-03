@@ -7,14 +7,14 @@
 
 import 'vs/css!./sash';
 import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
-import { Builder, $, Dimension } from 'vs/base/browser/builder';
+import { Builder, $ } from 'vs/base/browser/builder';
 import { isIPad } from 'vs/base/browser/browser';
 import { isMacintosh } from 'vs/base/common/platform';
 import * as types from 'vs/base/common/types';
-import * as DOM from 'vs/base/browser/dom';
 import { EventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Event, Emitter } from 'vs/base/common/event';
+import { getElementsByTagName, EventHelper, EventType as DOMEventType, createStyleSheet, addDisposableListener, Dimension } from 'vs/base/browser/dom';
 
 export interface ISashLayoutProvider { }
 
@@ -63,15 +63,14 @@ export class Sash {
 	private _onDidEnd = new Emitter<void>();
 
 	constructor(container: HTMLElement, layoutProvider: ISashLayoutProvider, options: ISashOptions = {}) {
-
 		this.$e = $('.monaco-sash').appendTo(container);
 
 		if (isMacintosh) {
 			this.$e.addClass('mac');
 		}
 
-		this.$e.on(DOM.EventType.MOUSE_DOWN, (e) => { this.onMouseDown(e as MouseEvent); });
-		this.$e.on(DOM.EventType.DBLCLICK, (e) => this._onDidReset.fire());
+		this.$e.on(DOMEventType.MOUSE_DOWN, (e) => { this.onMouseDown(e as MouseEvent); });
+		this.$e.on(DOMEventType.DBLCLICK, (e) => this._onDidReset.fire());
 		Gesture.addTarget(this.$e.getHTMLElement());
 		this.$e.on(EventType.Start, (e) => { this.onTouchStart(e as GestureEvent); });
 
@@ -127,13 +126,13 @@ export class Sash {
 	}
 
 	private onMouseDown(e: MouseEvent): void {
-		DOM.EventHelper.stop(e, false);
+		EventHelper.stop(e, false);
 
 		if (this.isDisabled) {
 			return;
 		}
 
-		const iframes = $(DOM.getElementsByTagName('iframe'));
+		const iframes = $(getElementsByTagName('iframe'));
 		if (iframes) {
 			iframes.style('pointer-events', 'none'); // disable mouse events on iframes as long as we drag the sash
 		}
@@ -157,7 +156,7 @@ export class Sash {
 		const $window = $(window);
 
 		// fix https://github.com/Microsoft/vscode/issues/21675
-		const globalStyle = DOM.createStyleSheet(this.$e.getHTMLElement());
+		const globalStyle = createStyleSheet(this.$e.getHTMLElement());
 		if (this.orientation === Orientation.HORIZONTAL) {
 			globalStyle.innerHTML = `* { cursor: ${isMacintosh ? 'row-resize' : 'ns-resize'}; }`;
 		} else {
@@ -165,7 +164,7 @@ export class Sash {
 		}
 
 		$window.on('mousemove', (e) => {
-			DOM.EventHelper.stop(e, false);
+			EventHelper.stop(e, false);
 			const mouseMoveEvent = new StandardMouseEvent(e as MouseEvent);
 
 			const event: ISashEvent = {
@@ -178,7 +177,7 @@ export class Sash {
 
 			this._onDidChange.fire(event);
 		}).once('mouseup', (e) => {
-			DOM.EventHelper.stop(e, false);
+			EventHelper.stop(e, false);
 
 			this.$e.getHTMLElement().removeChild(globalStyle);
 
@@ -187,7 +186,7 @@ export class Sash {
 
 			$window.off('mousemove');
 
-			const iframes = $(DOM.getElementsByTagName('iframe'));
+			const iframes = $(getElementsByTagName('iframe'));
 			if (iframes) {
 				iframes.style('pointer-events', 'auto');
 			}
@@ -195,7 +194,7 @@ export class Sash {
 	}
 
 	private onTouchStart(event: GestureEvent): void {
-		DOM.EventHelper.stop(event);
+		EventHelper.stop(event);
 
 		const listeners: IDisposable[] = [];
 
@@ -212,7 +211,7 @@ export class Sash {
 			altKey
 		});
 
-		listeners.push(DOM.addDisposableListener(this.$e.getHTMLElement(), EventType.Change, (event: GestureEvent) => {
+		listeners.push(addDisposableListener(this.$e.getHTMLElement(), EventType.Change, (event: GestureEvent) => {
 			if (types.isNumber(event.pageX) && types.isNumber(event.pageY)) {
 				this._onDidChange.fire({
 					startX: startX,
@@ -224,7 +223,7 @@ export class Sash {
 			}
 		}));
 
-		listeners.push(DOM.addDisposableListener(this.$e.getHTMLElement(), EventType.End, (event: GestureEvent) => {
+		listeners.push(addDisposableListener(this.$e.getHTMLElement(), EventType.End, (event: GestureEvent) => {
 			this._onDidEnd.fire();
 			dispose(listeners);
 		}));
@@ -301,7 +300,6 @@ export class Sash {
  * Triggers onPositionChange event when the position is changed
  */
 export class VSash extends Disposable implements IVerticalSashLayoutProvider {
-
 	private sash: Sash;
 	private ratio: number;
 	private startPosition: number;
@@ -313,6 +311,7 @@ export class VSash extends Disposable implements IVerticalSashLayoutProvider {
 
 	constructor(container: HTMLElement, private minWidth: number) {
 		super();
+
 		this.ratio = 0.5;
 		this.sash = new Sash(container, this);
 

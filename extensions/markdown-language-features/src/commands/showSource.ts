@@ -14,15 +14,9 @@ export class ShowSourceCommand implements Command {
 		private readonly previewManager: MarkdownPreviewManager
 	) { }
 
-
-	public execute(docUri?: vscode.Uri) {
-		if (!docUri) {
-			return vscode.commands.executeCommand('workbench.action.navigateBack');
-		}
-
-		const resource = this.previewManager.getResourceForPreview(docUri);
-		if (resource) {
-			return vscode.workspace.openTextDocument(resource)
+	public execute() {
+		if (this.previewManager.activePreviewResource) {
+			return vscode.workspace.openTextDocument(this.previewManager.activePreviewResource)
 				.then(document => vscode.window.showTextDocument(document));
 		}
 		return undefined;

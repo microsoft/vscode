@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService, shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
 import { ITextModel } from 'vs/editor/common/model';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -24,6 +24,7 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { isCodeEditor, isDiffEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import URI from 'vs/base/common/uri';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 
 namespace mapset {
 
@@ -192,7 +193,7 @@ class MainThreadDocumentAndEditorStateComputer {
 	}
 
 	private _updateStateOnModelAdd(model: ITextModel): void {
-		if (model.isTooLargeForHavingARichMode()) {
+		if (!shouldSynchronizeModel(model)) {
 			// ignore
 			return;
 		}
@@ -222,7 +223,7 @@ class MainThreadDocumentAndEditorStateComputer {
 		// models: ignore too large models
 		const models = new Set<ITextModel>();
 		for (const model of this._modelService.getModels()) {
-			if (!model.isTooLargeForHavingARichMode()) {
+			if (shouldSynchronizeModel(model)) {
 				models.add(model);
 			}
 		}
@@ -233,8 +234,11 @@ class MainThreadDocumentAndEditorStateComputer {
 		let activeEditor: string = null;
 
 		for (const editor of this._codeEditorService.listCodeEditors()) {
+			if (editor.isSimpleWidget) {
+				continue;
+			}
 			const model = editor.getModel();
-			if (model && !model.isTooLargeForHavingARichMode()
+			if (model && shouldSynchronizeModel(model)
 				&& !model.isDisposed() // model disposed
 				&& Boolean(this._modelService.getModel(model.uri)) // model disposing, the flag didn't flip yet but the model service already removed it
 			) {
@@ -307,14 +311,16 @@ export class MainThreadDocumentsAndEditors {
 		@IFileService fileService: IFileService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
-		@IEditorGroupService editorGroupService: IEditorGroupService
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IBulkEditService bulkEditService: IBulkEditService,
+
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentsAndEditors);
 
 		const mainThreadDocuments = new MainThreadDocuments(this, extHostContext, this._modelService, modeService, this._textFileService, fileService, textModelResolverService, untitledEditorService);
 		extHostContext.set(MainContext.MainThreadDocuments, mainThreadDocuments);
 
-		const mainThreadTextEditors = new MainThreadTextEditors(this, extHostContext, codeEditorService, this._workbenchEditorService, editorGroupService, textModelResolverService, fileService, this._modelService);
+		const mainThreadTextEditors = new MainThreadTextEditors(this, extHostContext, codeEditorService, bulkEditService, this._workbenchEditorService, editorGroupService);
 		extHostContext.set(MainContext.MainThreadTextEditors, mainThreadTextEditors);
 
 		// It is expected that the ctor of the state computer calls our `_onDelta`.

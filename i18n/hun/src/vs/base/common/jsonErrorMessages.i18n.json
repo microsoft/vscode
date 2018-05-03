@@ -9,10 +9,10 @@
 	"error.invalidSymbol": "Érvénytelen szimbólum",
 	"error.invalidNumberFormat": "Érvénytelen számformátum.",
 	"error.propertyNameExpected": "Hiányzó tulajdonságnév",
-	"error.valueExpected": "Hiányzó érték.",
-	"error.colonExpected": "Hiányzó kettőspont.",
+	"error.valueExpected": "Hiányzó érték",
+	"error.colonExpected": "Hiányzó kettőspont",
 	"error.commaExpected": "Hiányzó vessző",
 	"error.closeBraceExpected": "Hiányzó záró kapcsos zárójel",
 	"error.closeBracketExpected": "Hiányzó záró szögletes zárójel",
-	"error.endOfFileExpected": "Itt fájlvége jelnek kellene szerepelnie."
+	"error.endOfFileExpected": "Hiányzó fájlvégjel"
 }

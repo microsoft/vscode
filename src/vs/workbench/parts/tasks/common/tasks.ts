@@ -4,16 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI, { UriComponents } from 'vs/base/common/uri';
 import * as Types from 'vs/base/common/types';
 import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import * as Objects from 'vs/base/common/objects';
+import { UriComponents } from 'vs/base/common/uri';
 
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ProblemMatcher } from 'vs/workbench/parts/tasks/common/problemMatcher';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { generateUuid } from '../../../../base/common/uuid';
-
 
 export enum ShellQuoting {
 	/**
@@ -34,6 +32,9 @@ export enum ShellQuoting {
 
 export namespace ShellQuoting {
 	export function from(this: void, value: string): ShellQuoting {
+		if (!value) {
+			return ShellQuoting.Strong;
+		}
 		switch (value.toLowerCase()) {
 			case 'escape':
 				return ShellQuoting.Escape;
@@ -442,20 +443,18 @@ export namespace CustomTask {
 		return candidate && candidate.type === 'custom';
 	}
 	export function getDefinition(task: CustomTask): TaskIdentifier {
-		if (task.command === void 0) {
-			return undefined;
-		}
-		if (task.command.runtime === RuntimeType.Shell) {
-			return {
-				_key: generateUuid(),
-				type: 'shell'
-			};
+		let type: string;
+		if (task.command !== void 0) {
+			type = task.command.runtime === RuntimeType.Shell ? 'shell' : 'process';
 		} else {
-			return {
-				_key: generateUuid(),
-				type: 'process'
-			};
+			type = '$composite';
 		}
+		let result: TaskIdentifier = {
+			type,
+			_key: task._id,
+			id: task._id
+		};
+		return result;
 	}
 }
 
@@ -598,8 +597,8 @@ export namespace Task {
 		}
 	}
 
-	export function matches(task: Task, alias: string): boolean {
-		return alias === task._label || alias === task.identifier;
+	export function matches(task: Task, alias: string, compareId: boolean = false): boolean {
+		return alias === task._label || alias === task.identifier || (compareId && alias === task._id);
 	}
 
 	export function getQualifiedLabel(task: Task): string {
@@ -610,13 +609,29 @@ export namespace Task {
 			return task._label;
 		}
 	}
+
+	export function getTaskDefinition(task: Task): TaskIdentifier {
+		if (ContributedTask.is(task)) {
+			return task.defines;
+		} else if (CustomTask.is(task)) {
+			return CustomTask.getDefinition(task);
+		} else {
+			return undefined;
+		}
+	}
+
+	export function getTaskExecution(task: Task): TaskExecution {
+		let result: TaskExecution = {
+			id: task._id,
+			task: task
+		};
+		return result;
+	}
 }
 
-export interface TaskItemTransfer {
+export interface TaskExecution {
 	id: string;
-	label: string;
-	definition: TaskIdentifier;
-	workspaceFolderUri: URI;
+	task: Task;
 }
 
 export enum ExecutionEngine {
@@ -679,10 +694,12 @@ export class TaskSorter {
 }
 
 export enum TaskEventKind {
+	Start = 'start',
 	Active = 'active',
 	Inactive = 'inactive',
-	Terminated = 'terminated',
 	Changed = 'changed',
+	Terminated = 'terminated',
+	End = 'end'
 }
 
 
@@ -701,7 +718,7 @@ export interface TaskEvent {
 }
 
 export namespace TaskEvent {
-	export function create(kind: TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated, task: Task);
+	export function create(kind: TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated | TaskEventKind.Start | TaskEventKind.End, task: Task);
 	export function create(kind: TaskEventKind.Changed);
 	export function create(kind: TaskEventKind, task?: Task): TaskEvent {
 		if (task) {

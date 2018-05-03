@@ -131,6 +131,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/parts/url",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/parts/watermark",
 			"project": "vscode-workbench"
 		},
@@ -144,6 +148,10 @@
 		},
 		{
 			"name": "vs/workbench/services/actions",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/bulkEdit",
 			"project": "vscode-workbench"
 		},
 		{
@@ -209,6 +217,10 @@
 		{
 			"name": "vs/workbench/services/decorations",
 			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/preferences",
+			"project": "vscode-preferences"
 		}
 	]
 }

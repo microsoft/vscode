@@ -9,5 +9,6 @@
 	"output": "출력",
 	"logViewer": "로그 표시기",
 	"viewCategory": "보기",
-	"clearOutput.label": "출력 내용 지우기"
+	"clearOutput.label": "출력 내용 지우기",
+	"openActiveLogOutputFile": "보기: 활성 로그 출력 파일 열기"
 }

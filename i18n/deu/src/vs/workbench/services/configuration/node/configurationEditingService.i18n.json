@@ -11,6 +11,7 @@
 	"open": "Einstellungen öffnen",
 	"saveAndRetry": "Speichern und wiederholen",
 	"errorUnknownKey": "In {0} kann nicht geschrieben werden, weil {1} keine registrierte Konfiguration ist.",
+	"errorInvalidWorkspaceConfigurationApplication": "{0} kann nicht in die Arbeitsbereichseinstellungen geschrieben werden. Diese Einstellung kann nur in den Benutzereinstellungen geschrieben werden.",
 	"errorInvalidFolderConfiguration": "In die Ordnereinstellungen kann nicht geschrieben werden, weil {0} den Gültigkeitsbereich für Ordnerressourcen nicht unterstützt.",
 	"errorInvalidUserTarget": "In die Benutzereinstellungen kann nicht geschrieben werden, weil {0} den globalen Gültigkeitsbereich nicht unterstützt.",
 	"errorInvalidWorkspaceTarget": "In die Arbeitsbereichseinstellungen kann nicht geschrieben werden, da {0} den Arbeitsbereichsumfang in einem Arbeitsbereich mit mehreren Ordnern nicht unterstützt.",

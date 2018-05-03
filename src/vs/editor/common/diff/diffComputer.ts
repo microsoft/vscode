@@ -284,7 +284,7 @@ class LineChange implements ILineChange {
 			const originalCharSequence = originalLineSequence.getCharSequence(diffChange.originalStart, diffChange.originalStart + diffChange.originalLength - 1);
 			const modifiedCharSequence = modifiedLineSequence.getCharSequence(diffChange.modifiedStart, diffChange.modifiedStart + diffChange.modifiedLength - 1);
 
-			let rawChanges = computeDiff(originalCharSequence, modifiedCharSequence, continueProcessingPredicate, false);
+			let rawChanges = computeDiff(originalCharSequence, modifiedCharSequence, continueProcessingPredicate, true);
 
 			if (shouldPostProcessCharChanges) {
 				rawChanges = postProcessCharChanges(rawChanges);

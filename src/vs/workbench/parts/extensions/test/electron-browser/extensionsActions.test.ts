@@ -33,6 +33,7 @@ import { TestContextService, TestWindowService } from 'vs/workbench/test/workben
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { URLService } from 'vs/platform/url/common/urlService';
 
 suite('ExtensionsActions Test', () => {
 
@@ -51,7 +52,6 @@ suite('ExtensionsActions Test', () => {
 		didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
 
 		instantiationService = new TestInstantiationService();
-		instantiationService.stub(IURLService, { onOpenURL: new Emitter().event });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(ILogService, NullLogService);
 		instantiationService.stub(IWindowService, TestWindowService);
@@ -71,6 +71,7 @@ suite('ExtensionsActions Test', () => {
 
 		instantiationService.stub(IExtensionTipsService, ExtensionTipsService);
 		instantiationService.stub(IExtensionTipsService, 'getKeymapRecommendations', () => []);
+		instantiationService.stub(IURLService, URLService);
 	});
 
 	setup(() => {

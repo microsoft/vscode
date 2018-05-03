@@ -19,7 +19,6 @@ export interface IDomEvent {
 	(element: EventHandler, type: 'MSGotPointerCapture', useCapture?: boolean): _Event<MSPointerEvent>;
 	(element: EventHandler, type: 'MSInertiaStart', useCapture?: boolean): _Event<MSGestureEvent>;
 	(element: EventHandler, type: 'MSLostPointerCapture', useCapture?: boolean): _Event<MSPointerEvent>;
-	(element: EventHandler, type: 'MSManipulationStateChanged', useCapture?: boolean): _Event<MSManipulationEvent>;
 	(element: EventHandler, type: 'MSPointerCancel', useCapture?: boolean): _Event<MSPointerEvent>;
 	(element: EventHandler, type: 'MSPointerDown', useCapture?: boolean): _Event<MSPointerEvent>;
 	(element: EventHandler, type: 'MSPointerEnter', useCapture?: boolean): _Event<MSPointerEvent>;

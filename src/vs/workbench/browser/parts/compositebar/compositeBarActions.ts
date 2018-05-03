@@ -193,7 +193,7 @@ export class ActivityActionItem extends BaseActionItem {
 			this.$label.text(this.getAction().label);
 		}
 
-		this.$badge = this.builder.clone().div({ 'class': 'badge' }, (badge: Builder) => {
+		this.$badge = this.builder.clone().div({ 'class': 'badge' }, badge => {
 			this.$badgeContent = badge.div({ 'class': 'badge-content' });
 		});
 

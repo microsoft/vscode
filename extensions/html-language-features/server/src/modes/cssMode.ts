@@ -5,14 +5,13 @@
 'use strict';
 
 import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache';
-import { TextDocument, Position, Range } from 'vscode-languageserver-types';
-import { getCSSLanguageService, Stylesheet, ICompletionParticipant } from 'vscode-css-languageservice';
-import { LanguageMode, Settings } from './languageModes';
+import { TextDocument, Position, Range, CompletionList } from 'vscode-languageserver-types';
+import { getCSSLanguageService, Stylesheet, FoldingRange } from 'vscode-css-languageservice';
+import { LanguageMode, Workspace } from './languageModes';
 import { HTMLDocumentRegions, CSS_STYLE_RULE } from './embeddedSupport';
 import { Color } from 'vscode-languageserver';
-import { extractAbbreviation } from 'vscode-emmet-helper';
 
-export function getCSSMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>): LanguageMode {
+export function getCSSMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>, workspace: Workspace): LanguageMode {
 	let cssLanguageService = getCSSLanguageService();
 	let embeddedCSSDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.get(document).getEmbeddedDocument('css'));
 	let cssStylesheets = getLanguageModelCache<Stylesheet>(10, 60, document => cssLanguageService.parseStylesheet(document));
@@ -21,37 +20,14 @@ export function getCSSMode(documentRegions: LanguageModelCache<HTMLDocumentRegio
 		getId() {
 			return 'css';
 		},
-		configure(options: any) {
-			cssLanguageService.configure(options && options.css);
-		},
-		doValidation(document: TextDocument, settings?: Settings) {
+		doValidation(document: TextDocument, settings = workspace.settings) {
 			let embedded = embeddedCSSDocuments.get(document);
 			return cssLanguageService.doValidation(embedded, cssStylesheets.get(embedded), settings && settings.css);
 		},
-		doComplete(document: TextDocument, position: Position, settings?: Settings, registeredCompletionParticipants?: ICompletionParticipant[]) {
+		doComplete(document: TextDocument, position: Position, settings = workspace.settings) {
 			let embedded = embeddedCSSDocuments.get(document);
 			const stylesheet = cssStylesheets.get(embedded);
-
-			if (registeredCompletionParticipants) {
-				const nonEmmetCompletionParticipants = [];
-				// Css Emmet completions in html files are provided no matter where the cursor is inside the embedded css document
-				// Mimic the same here, until we solve the issue of css language service not able to parse complete embedded documents when there are errors
-				for (let i = 0; i < registeredCompletionParticipants.length; i++) {
-					if (typeof (<any>registeredCompletionParticipants[i]).getId === 'function' && (<any>registeredCompletionParticipants[i]).getId() === 'emmet') {
-						const extractedResults = extractAbbreviation(document, position, { lookAhead: false, syntax: 'css' });
-						if (extractedResults && extractedResults.abbreviation) {
-							registeredCompletionParticipants[i].onCssProperty({ propertyName: extractedResults.abbreviation, range: extractedResults.abbreviationRange });
-						}
-					} else {
-						nonEmmetCompletionParticipants.push(registeredCompletionParticipants[i]);
-					}
-				}
-				cssLanguageService.setCompletionParticipants(nonEmmetCompletionParticipants);
-			}
-			return cssLanguageService.doComplete(embedded, position, stylesheet);
-		},
-		setCompletionParticipants(registeredCompletionParticipants: ICompletionParticipant[]) {
-			cssLanguageService.setCompletionParticipants(registeredCompletionParticipants);
+			return cssLanguageService.doComplete(embedded, position, stylesheet) || CompletionList.create();
 		},
 		doHover(document: TextDocument, position: Position) {
 			let embedded = embeddedCSSDocuments.get(document);
@@ -80,6 +56,11 @@ export function getCSSMode(documentRegions: LanguageModelCache<HTMLDocumentRegio
 		getColorPresentations(document: TextDocument, color: Color, range: Range) {
 			let embedded = embeddedCSSDocuments.get(document);
 			return cssLanguageService.getColorPresentations(embedded, cssStylesheets.get(embedded), color, range);
+		},
+		getFoldingRanges(document: TextDocument, range: Range): FoldingRange[] {
+			let embedded = embeddedCSSDocuments.get(document);
+			let ranges = cssLanguageService.getFoldingRanges(embedded, {});
+			return ranges.filter(r => r.startLine >= range.start.line && r.endLine < range.end.line);
 		},
 		onDocumentRemoved(document: TextDocument) {
 			embeddedCSSDocuments.onDocumentRemoved(document);

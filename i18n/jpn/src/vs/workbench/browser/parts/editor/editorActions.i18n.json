@@ -17,6 +17,7 @@
 	"focusNextGroup": "次のグループにフォーカス",
 	"openToSide": "横に並べて開く",
 	"closeEditor": "エディターを閉じる",
+	"closeOneEditor": "閉じる",
 	"revertAndCloseActiveEditor": "元に戻してエディターを閉じる",
 	"closeEditorsToTheLeft": "左側のエディターを閉じる",
 	"closeAllEditors": "すべてのエディターを閉じる",

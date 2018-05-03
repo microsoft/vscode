@@ -30,7 +30,6 @@ export class SearchViewLocationUpdater implements IWorkbenchContribution {
 		configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('search.location')) {
 				updateSearchViewLocation();
-
 			}
 		});
 

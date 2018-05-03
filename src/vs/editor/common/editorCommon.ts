@@ -150,12 +150,16 @@ export interface ILineChange extends IChange {
 /**
  * @internal
  */
-export interface IConfiguration {
+export interface IConfiguration extends IDisposable {
 	onDidChange(listener: (e: editorOptions.IConfigurationChangedEvent) => void): IDisposable;
 
 	readonly editor: editorOptions.InternalEditorOptions;
 
 	setMaxLineNumber(maxLineNumber: number): void;
+	updateOptions(newOptions: editorOptions.IEditorOptions): void;
+	getRawOptions(): editorOptions.IEditorOptions;
+	observeReferenceElement(dimension?: IDimension): void;
+	setIsDominatedByLongLines(isDominatedByLongLines: boolean): void;
 }
 
 // --- view
@@ -199,9 +203,13 @@ export interface ICursorState {
  * A (serializable) state of the view.
  */
 export interface IViewState {
-	scrollTop: number;
-	scrollTopWithoutViewZones: number;
+	/** written by previous versions */
+	scrollTop?: number;
+	/** written by previous versions */
+	scrollTopWithoutViewZones?: number;
 	scrollLeft: number;
+	firstPosition: IPosition;
+	firstPositionDeltaTop: number;
 }
 /**
  * A (serializable) state of the code editor.
@@ -505,6 +513,7 @@ export interface IThemeDecorationRenderOptions {
 	textDecoration?: string;
 	cursor?: string;
 	color?: string | ThemeColor;
+	opacity?: number;
 	letterSpacing?: string;
 
 	gutterIconPath?: string | UriComponents;

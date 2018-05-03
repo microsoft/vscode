@@ -20,10 +20,10 @@ export interface ISplitViewOptions {
 }
 
 export interface IView {
+	readonly element: HTMLElement;
 	readonly minimumSize: number;
 	readonly maximumSize: number;
 	readonly onDidChange: Event<number | undefined>;
-	render(container: HTMLElement, orientation: Orientation): void;
 	layout(size: number, orientation: Orientation): void;
 }
 
@@ -169,7 +169,7 @@ export class SplitView implements IDisposable {
 			this.sashItems.splice(index - 1, 0, sashItem);
 		}
 
-		view.render(container, this.orientation);
+		container.appendChild(view.element);
 		this.relayout(index);
 		this.state = State.Idle;
 	}

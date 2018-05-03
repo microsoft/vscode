@@ -35,7 +35,7 @@
 	"useUniqueNames": "Lütfen benzersiz yapılandırma adları kullanın.",
 	"app.launch.json.compound.folder": "Bileşiğin bulunduğu klasörün adı.",
 	"app.launch.json.compounds.configurations": "Bu bileşiğin parçası olarak başlatılacak yapılandırmaların adları.",
-	"debugNoType": "Hata ayıklama bağdaştırıcısının 'type' ögesi atlanabilir veya 'dize' türünde olmalıdır.",
+	"debugNoType": "Hata ayıklayıcının 'type' ögesi atlanamaz ve 'dize' türünde olmalıdır.",
 	"selectDebug": "Ortam Seçin",
 	"DebugConfig.failed": " '.vscode' klasörü içinde 'launch.json' dosyası oluşturulamıyor ({0}).",
 	"workspace": "çalışma alanı",

@@ -22,7 +22,7 @@ var rootDir = path.join(__dirname, '../../src');
 var options = require('../../src/tsconfig.json').compilerOptions;
 options.verbose = false;
 options.sourceMap = true;
-if (process.env['VSCODE_NO_SOURCEMAP']) {
+if (process.env['VSCODE_NO_SOURCEMAP']) { // To be used by developers in a hurry
     options.sourceMap = false;
 }
 options.rootDir = rootDir;

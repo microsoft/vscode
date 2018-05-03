@@ -345,14 +345,20 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	}
 
 	public getGlobalBufferTerm(): string {
-		if (this._editor.getConfiguration().contribInfo.find.globalFindClipboard && this._clipboardService) {
+		if (this._editor.getConfiguration().contribInfo.find.globalFindClipboard
+			&& this._clipboardService
+			&& !this._editor.getModel().isTooLargeForSyncing()
+		) {
 			return this._clipboardService.readFindText();
 		}
 		return '';
 	}
 
 	public setGlobalBufferTerm(text: string) {
-		if (this._editor.getConfiguration().contribInfo.find.globalFindClipboard && this._clipboardService) {
+		if (this._editor.getConfiguration().contribInfo.find.globalFindClipboard
+			&& this._clipboardService
+			&& !this._editor.getModel().isTooLargeForSyncing()
+		) {
 			this._clipboardService.writeFindText(text);
 		}
 	}
@@ -440,8 +446,8 @@ export class StartFindWithSelectionAction extends EditorAction {
 	constructor() {
 		super({
 			id: FIND_IDS.StartFindWithSelection,
-			label: nls.localize('startFindAction', "Find"),
-			alias: 'Find',
+			label: nls.localize('startFindWithSelectionAction', "Find With Selection"),
+			alias: 'Find With Selection',
 			precondition: null,
 			kbOpts: {
 				kbExpr: null,

@@ -14,5 +14,9 @@
 	"config.npm.exclude": "Configure padrões glob para pastas que devem ser excluídos da detecção automática de script.",
 	"npm.parseError": "Deteção de tarefa NPM: falha ao analisar o arquivo {0}",
 	"taskdef.script": "O script npm para personalizar.",
-	"taskdef.path": "O caminho para a pasta do arquivo package.json que fornece o script. Pode ser omitido."
+	"taskdef.path": "O caminho para a pasta do arquivo package.json que fornece o script. Pode ser omitido.",
+	"command.refresh": "Atualizar",
+	"command.run": "Executar",
+	"command.debug": "Depurar",
+	"command.openScript": "Abrir"
 }

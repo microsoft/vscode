@@ -37,7 +37,6 @@ import { toLocalISOString } from 'vs/base/common/date';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILogService } from 'vs/platform/log/common/log';
 import { binarySearch } from 'vs/base/common/arrays';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Schemas } from 'vs/base/common/network';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -437,7 +436,6 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IWindowService windowService: IWindowService,
-		@ITelemetryService private telemetryService: ITelemetryService,
 		@ILogService private logService: ILogService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
@@ -472,7 +470,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	}
 
 	provideTextContent(resource: URI): TPromise<ITextModel> {
-		const channel = <OutputChannel>this.getChannel(resource.fsPath);
+		const channel = <OutputChannel>this.getChannel(resource.path);
 		if (channel) {
 			return channel.loadModel();
 		}
@@ -576,8 +574,8 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		try {
 			return this.instantiationService.createInstance(OutputChannelBackedByFile, { id, label: channelData ? channelData.label : '' }, this.outputDir, uri);
 		} catch (e) {
+			// Do not crash if spdlog rotating logger cannot be loaded (workaround for https://github.com/Microsoft/vscode/issues/47883)
 			this.logService.error(e);
-			this.telemetryService.publicLog('output.used.bufferedChannel');
 			return this.instantiationService.createInstance(BufferredOutputChannel, { id, label: channelData ? channelData.label : '' });
 		}
 	}
@@ -648,8 +646,7 @@ export class LogContentProvider {
 		return channel;
 	}
 }
-
-// Remove this channel when there are no issues using Output channel backed by file
+// Remove this channel when https://github.com/Microsoft/vscode/issues/47883 is fixed
 class BufferredOutputChannel extends Disposable implements OutputChannel {
 
 	readonly id: string;

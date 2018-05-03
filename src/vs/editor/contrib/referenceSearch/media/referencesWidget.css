@@ -9,11 +9,6 @@
 	border-bottom-width: 1px;
 }
 
-.monaco-editor .zone-widget .zone-widget-container.reference-zone-widget.results-loaded {
-	-webkit-transition: height 100ms ease-in;
-	transition: height 100ms ease-in;
-}
-
 .monaco-editor .reference-zone-widget .inline {
 	display: inline-block;
 	vertical-align: top;

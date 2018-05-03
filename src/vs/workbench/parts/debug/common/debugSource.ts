@@ -15,6 +15,20 @@ import { Schemas } from 'vs/base/common/network';
 
 const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
 
+/**
+ * Debug URI format
+ *
+ * a debug URI represents a Source object and the debug session where the Source comes from.
+ *
+ *       debug:arbitrary_path?session=123e4567-e89b-12d3-a456-426655440000&ref=1016
+ *       \___/ \____________/ \__________________________________________/ \______/
+ *         |          |                             |                          |
+ *      scheme   source.path                    session id            source.reference
+ *
+ * the arbitrary_path and the session id are encoded with 'encodeURIComponent'
+ *
+ */
+
 export class Source {
 
 	public readonly uri: uri;
@@ -30,8 +44,9 @@ export class Source {
 			this.uri = uri.parse(`${DEBUG_SCHEME}:${encodeURIComponent(path)}?session=${encodeURIComponent(sessionId)}&ref=${this.raw.sourceReference}`);
 		} else {
 			if (paths.isAbsolute(path)) {
-				this.uri = uri.file(path); // path should better be absolute!
+				this.uri = uri.file(path);
 			} else {
+				// assume that path is a URI
 				this.uri = uri.parse(path);
 			}
 		}
