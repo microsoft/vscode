@@ -2,11 +2,9 @@
 
 ## Run
 
-### Prerequisites
-* Pull latest from vscode
-* Run yarn install
+### Pitfalls
+
 * Switch to US-International keyboard layout (due to #27841) if you are on any other layout.
-* Ensure you have Node > v6
 
 ### Run from `master`
 
@@ -24,7 +22,7 @@ You must always run the smoketest version which matches the release you are test
 
 ```
 git checkout release/1.22
-cd test/smoke && yarn compile
+cd test/smoke &&  yarn && yarn compile
 yarn smoketest --build PATH_TO_RELEASE_BUILD
 ```
 
