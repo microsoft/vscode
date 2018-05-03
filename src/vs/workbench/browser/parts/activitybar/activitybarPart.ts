@@ -7,11 +7,9 @@
 
 import 'vs/css!./media/activitybarpart';
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { illegalArgument } from 'vs/base/common/errors';
 import { $ } from 'vs/base/browser/builder';
-import { Action } from 'vs/base/common/actions';
-import { ActionsOrientation, ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { GlobalActivityExtensions, IGlobalActivityRegistry } from 'vs/workbench/common/activity';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Part } from 'vs/workbench/browser/part';
@@ -20,9 +18,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IPartService, Parts, Position as SideBarPosition } from 'vs/workbench/services/part/common/partService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/toggleActivityBarVisibility';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
@@ -56,7 +52,6 @@ export class ActivitybarPart extends Part {
 	constructor(
 		id: string,
 		@IViewletService private viewletService: IViewletService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
 		@IThemeService themeService: IThemeService
@@ -69,11 +64,12 @@ export class ActivitybarPart extends Part {
 			icon: true,
 			storageId: ActivitybarPart.PINNED_VIEWLETS,
 			orientation: ActionsOrientation.VERTICAL,
-			composites: this.viewletService.getViewlets(),
+			composites: this.viewletService.getViewlets().filter(v => this.canShow(v)),
 			openComposite: (compositeId: string) => this.viewletService.openViewlet(compositeId, true),
 			getActivityAction: (compositeId: string) => this.instantiationService.createInstance(ViewletActivityAction, this.viewletService.getViewlet(compositeId)),
 			getCompositePinnedAction: (compositeId: string) => new ToggleCompositePinnedAction(this.viewletService.getViewlet(compositeId), this.compositeBar),
 			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(ToggleViewletAction, this.viewletService.getViewlet(compositeId)),
+			getContextMenuActions: () => [this.instantiationService.createInstance(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, nls.localize('hideActivitBar', "Hide Activity Bar"))],
 			getDefaultCompositeId: () => this.viewletService.getDefaultViewletId(),
 			hidePart: () => this.partService.setSideBarHidden(true),
 			colors: ActivitybarPart.COLORS,
@@ -95,7 +91,6 @@ export class ActivitybarPart extends Part {
 
 		// Deactivate viewlet action on close
 		this.toUnbind.push(this.viewletService.onDidViewletClose(viewlet => this.compositeBar.deactivateComposite(viewlet.getId())));
-		this.toUnbind.push(this.compositeBar.onDidContextMenu(e => this.showContextMenu(e)));
 		this.toUnbind.push(this.viewletService.onDidViewletEnablementChange(({ id, enabled }) => {
 			if (enabled) {
 				this.compositeBar.addComposite(this.viewletService.getViewlet(id), true);
@@ -158,22 +153,6 @@ export class ActivitybarPart extends Part {
 		container.style('border-left-width', borderColor && !isPositionLeft ? '1px' : null);
 		container.style('border-left-style', borderColor && !isPositionLeft ? 'solid' : null);
 		container.style('border-left-color', !isPositionLeft ? borderColor : null);
-	}
-
-	private showContextMenu(e: MouseEvent): void {
-		const event = new StandardMouseEvent(e);
-
-		const actions: Action[] = this.viewletService.getViewlets()
-			.filter(viewlet => this.canShow(viewlet))
-			.map(viewlet => this.instantiationService.createInstance(ToggleCompositePinnedAction, viewlet, this.compositeBar));
-		actions.push(new Separator());
-		actions.push(this.instantiationService.createInstance(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, nls.localize('hideActivitBar', "Hide Activity Bar")));
-
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => { return { x: event.posx, y: event.posy }; },
-			getActions: () => TPromise.as(actions),
-			onHide: () => dispose(actions)
-		});
 	}
 
 	private createGlobalActivityActionBar(container: HTMLElement): void {

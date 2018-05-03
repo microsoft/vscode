@@ -6,18 +6,20 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { Action } from 'vs/base/common/actions';
+import { Action, IAction } from 'vs/base/common/actions';
 import { illegalArgument } from 'vs/base/common/errors';
 import * as arrays from 'vs/base/common/arrays';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ActionBar, IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Event, Emitter } from 'vs/base/common/event';
+import { ActionBar, IActionItem, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CompositeActionItem, CompositeOverflowActivityAction, ICompositeActivity, CompositeOverflowActivityActionItem, ActivityAction, ICompositeBar, ICompositeBarColors } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Dimension, $, addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { Widget } from 'vs/base/browser/ui/widget';
 
 export interface ICompositeBarOptions {
 	icon: boolean;
@@ -29,6 +31,7 @@ export interface ICompositeBarOptions {
 	getActivityAction: (compositeId: string) => ActivityAction;
 	getCompositePinnedAction: (compositeId: string) => Action;
 	getOnCompositeClickAction: (compositeId: string) => Action;
+	getContextMenuActions: () => Action[];
 	openComposite: (compositeId: string) => TPromise<any>;
 	getDefaultCompositeId: () => string;
 	hidePart: () => TPromise<any>;
@@ -39,12 +42,9 @@ interface CompositeState {
 	pinned: boolean;
 }
 
-export class CompositeBar implements ICompositeBar {
-
-	private readonly _onDidContextMenu: Emitter<MouseEvent>;
+export class CompositeBar extends Widget implements ICompositeBar {
 
 	private dimension: Dimension;
-	private toDispose: IDisposable[];
 
 	private compositeSwitcherBar: ActionBar;
 	private compositeOverflowAction: CompositeOverflowActivityAction;
@@ -64,23 +64,19 @@ export class CompositeBar implements ICompositeBar {
 		private options: ICompositeBarOptions,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService,
+		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
-		this.toDispose = [];
+		super();
 		this.compositeIdToActionItems = Object.create(null);
 		this.compositeIdToActions = Object.create(null);
 		this.compositeIdToActivityStack = Object.create(null);
 		this.compositeSizeInBar = new Map<string, number>();
 
-		this._onDidContextMenu = new Emitter<MouseEvent>();
 		this.initialCompositesStates = this.loadCompositesStates();
 		this.pinnedComposites = this.initialCompositesStates
 			.filter(c => c.pinned)
 			.map(c => c.id)
 			.filter(id => this.options.composites.some(c => c.id === id));
-	}
-
-	public get onDidContextMenu(): Event<MouseEvent> {
-		return this._onDidContextMenu.event;
 	}
 
 	public addComposite(compositeData: { id: string; name: string, order: number }, activate: boolean): void {
@@ -216,22 +212,18 @@ export class CompositeBar implements ICompositeBar {
 
 	public create(parent: HTMLElement): HTMLElement {
 		const actionBarDiv = parent.appendChild($('.composite-bar'));
-		this.compositeSwitcherBar = new ActionBar(actionBarDiv, {
+		this.compositeSwitcherBar = this._register(new ActionBar(actionBarDiv, {
 			actionItemProvider: (action: Action) => action instanceof CompositeOverflowActivityAction ? this.compositeOverflowActionItem : this.compositeIdToActionItems[action.id],
 			orientation: this.options.orientation,
 			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher"),
 			animated: false,
-		});
-		this.toDispose.push(this.compositeSwitcherBar);
-
-		// Contextmenu for composites
-		this.toDispose.push(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => {
-			EventHelper.stop(e, true);
-			this._onDidContextMenu.fire(e);
 		}));
 
+		// Contextmenu for composites
+		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, e => this.showContextMenu(e)));
+
 		// Allow to drop at the end to move composites to the end
-		this.toDispose.push(addDisposableListener(parent, EventType.DROP, (e: DragEvent) => {
+		this._register(addDisposableListener(parent, EventType.DROP, (e: DragEvent) => {
 			const draggedCompositeId = CompositeActionItem.getDraggedCompositeId();
 			if (draggedCompositeId) {
 				EventHelper.stop(e, true);
@@ -249,6 +241,38 @@ export class CompositeBar implements ICompositeBar {
 
 	public getAction(compositeId): ActivityAction {
 		return this.compositeIdToActions[compositeId];
+	}
+
+	private showContextMenu(e: MouseEvent): void {
+		EventHelper.stop(e, true);
+		const event = new StandardMouseEvent(e);
+		this.options.composites.sort((c1, c2) => c1.order < c2.order ? -1 : 1);
+		const actions: IAction[] = this.options.composites
+			.map(({ id, name }) => (<IAction>{
+				id,
+				label: name,
+				checked: this.isPinned(id),
+				enabled: true,
+				run: () => this.togglePin(id)
+			}));
+		const otherActions = this.options.getContextMenuActions();
+		if (otherActions.length) {
+			actions.push(new Separator());
+			actions.push(...otherActions);
+		}
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => { return { x: event.posx, y: event.posy }; },
+			getActions: () => TPromise.as(actions),
+			onHide: () => dispose(actions)
+		});
+	}
+
+	private togglePin(id: string): void {
+		if (this.isPinned(id)) {
+			this.unpin(id);
+		} else {
+			this.pin(id);
+		}
 	}
 
 	private updateCompositeSwitcher(): void {
@@ -553,9 +577,5 @@ export class CompositeBar implements ICompositeBar {
 
 	public shutdown(): void {
 		this.saveCompositesStates();
-	}
-
-	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
 	}
 }

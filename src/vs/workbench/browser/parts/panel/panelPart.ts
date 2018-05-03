@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/panelpart';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IAction, Action } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { $ } from 'vs/base/browser/builder';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -20,17 +20,17 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ClosePanelAction, TogglePanelPositionAction, PanelActivityAction, ToggleMaximizedPanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
+import { ClosePanelAction, TogglePanelPositionAction, PanelActivityAction, ToggleMaximizedPanelAction, TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { activeContrastBorder, focusBorder, contrastBorder, editorBackground, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar } from 'vs/workbench/browser/parts/compositebar/compositeBar';
 import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension } from 'vs/base/browser/dom';
+import { localize } from 'vs/nls';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
@@ -83,6 +83,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			getActivityAction: (compositeId: string) => this.instantiationService.createInstance(PanelActivityAction, this.getPanel(compositeId)),
 			getCompositePinnedAction: (compositeId: string) => new ToggleCompositePinnedAction(this.getPanel(compositeId), this.compositeBar),
 			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(PanelActivityAction, this.getPanel(compositeId)),
+			getContextMenuActions: () => [this.instantiationService.createInstance(TogglePanelAction, TogglePanelAction.ID, localize('hidePanel', "Hide Panel"))],
 			getDefaultCompositeId: () => Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId(),
 			hidePart: () => this.partService.setPanelHidden(true),
 			overflowActionSize: 44,
@@ -108,7 +109,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			// Need to relayout composite bar since different panels have different action bar width
 			this.layoutCompositeBar();
 		}));
-		this.toUnbind.push(this.compositeBar.onDidContextMenu(e => this.showContextMenu(e)));
 
 		// Deactivate panel action on close
 		this.toUnbind.push(this.onDidPanelClose(panel => this.compositeBar.deactivateComposite(panel.getId())));
@@ -158,17 +158,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	private getPanel(panelId: string): IPanelIdentifier {
 		return this.getPanels().filter(p => p.id === panelId).pop();
-	}
-
-	private showContextMenu(e: MouseEvent): void {
-		const event = new StandardMouseEvent(e);
-		const actions: Action[] = this.getPanels().map(panel => this.instantiationService.createInstance(ToggleCompositePinnedAction, panel, this.compositeBar));
-
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => { return { x: event.posx, y: event.posy }; },
-			getActions: () => TPromise.as(actions),
-			onHide: () => dispose(actions)
-		});
 	}
 
 	public getPanels(): PanelDescriptor[] {
