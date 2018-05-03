@@ -6,17 +6,17 @@
 import { addClass, addDisposableListener } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { nativeSep } from 'vs/base/common/paths';
+import { getMediaMime, guessMimeTypes } from 'vs/base/common/mime';
+import { nativeSep, extname } from 'vs/base/common/paths';
 import { startsWith } from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService } from 'vs/platform/files/common/files';
 import { editorBackground, editorForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { DARK, ITheme, IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { WebviewFindWidget } from './webviewFindWidget';
-import { IFileService } from 'vs/platform/files/common/files';
-import { guessMimeTypes, getMediaMime } from '../../../../base/common/mime';
 
 export interface WebviewOptions {
 	readonly allowScripts?: boolean;
@@ -454,7 +454,7 @@ function registerFileProtocol(
 		for (const root of getRoots()) {
 			if (startsWith(normalizedPath.fsPath, root.fsPath + nativeSep)) {
 				fileService.resolveContent(normalizedPath, { encoding: 'binary' }).then(contents => {
-					const mime = getMediaMime(normalizedPath.fsPath) || guessMimeTypes(normalizedPath.fsPath)[0];
+					const mime = getMimeType(normalizedPath);
 					callback({
 						data: Buffer.from(contents.value, contents.encoding),
 						mimeType: mime
@@ -472,4 +472,13 @@ function registerFileProtocol(
 			console.error('Failed to register protocol ' + protocol);
 		}
 	});
+}
+
+const webviewMimeTypes = {
+	'.svg': 'image/svg+xml'
+};
+
+function getMimeType(normalizedPath: URI) {
+	const ext = extname(normalizedPath.fsPath).toLowerCase();
+	return webviewMimeTypes[ext] || getMediaMime(normalizedPath.fsPath) || guessMimeTypes(normalizedPath.fsPath)[0];
 }
