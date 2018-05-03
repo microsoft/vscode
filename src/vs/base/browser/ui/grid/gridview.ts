@@ -318,6 +318,15 @@ export class GridView implements IGrid, IDisposable {
 		this.element.appendChild(this.root.element);
 	}
 
+	layout(width: number, height: number): void {
+		const [size, orthogonalSize] = this.root.orientation === Orientation.VERTICAL
+			? [width, height]
+			: [height, width];
+
+		this.root.layout(size);
+		this.root.orthogonalLayout(orthogonalSize);
+	}
+
 	addView(view: IView, size: number, location: number[]): void {
 		const [rest, index] = tail(location);
 		const [pathToParent, parent] = this.getNode(rest);
@@ -385,15 +394,6 @@ export class GridView implements IGrid, IDisposable {
 		}
 
 		return node.view;
-	}
-
-	layout(width: number, height: number): void {
-		const [size, orthogonalSize] = this.root.orientation === Orientation.VERTICAL
-			? [width, height]
-			: [height, width];
-
-		this.root.layout(size);
-		this.root.orthogonalLayout(orthogonalSize);
 	}
 
 	swapViews(from: number[], to: number[]): void {
