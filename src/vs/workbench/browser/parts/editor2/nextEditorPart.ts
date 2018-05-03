@@ -114,7 +114,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		const newGroupView = this.doCreateGroupView(copy ? fromGroupView : void 0);
 
 		// Add to grid widget
-		this.gridWidget.splitView(
+		this.gridWidget.addView(
 			fromGroupView,
 			this.toGridViewDirection(direction),
 			newGroupView,

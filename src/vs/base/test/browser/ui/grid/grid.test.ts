@@ -68,7 +68,7 @@ suite('Grid', function () {
 		assert.deepEqual(view1.size, [800, 600]);
 
 		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.splitView(view1, Direction.Up, view2, 200);
+		grid.addView(view1, Direction.Up, view2, 200);
 		assert.deepEqual(view1.size, [800, 400]);
 		assert.deepEqual(view2.size, [800, 200]);
 	});
@@ -80,7 +80,7 @@ suite('Grid', function () {
 		assert.deepEqual(view1.size, [800, 600]);
 
 		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.splitView(view1, Direction.Right, view2, 300);
+		grid.addView(view1, Direction.Right, view2, 300);
 		assert.deepEqual(view1.size, [500, 600]);
 		assert.deepEqual(view2.size, [300, 600]);
 	});

@@ -85,7 +85,7 @@ export class Grid<T extends IView> implements IDisposable {
 		this._addView(view, 0, [0]);
 	}
 
-	splitView(view: T, direction: Direction, newView: T, size: number): void {
+	addView(referenceView: T, direction: Direction, newView: T, size: number): void {
 		if (this.views.has(newView)) {
 			throw new Error('Can\'t add same view twice');
 		}
@@ -96,7 +96,7 @@ export class Grid<T extends IView> implements IDisposable {
 			this.orientation = orientation;
 		}
 
-		const referenceLocation = this.getViewLocation(view);
+		const referenceLocation = this.getViewLocation(referenceView);
 		const location = getRelativeLocation(this.gridview.orientation, referenceLocation, direction);
 
 		this._addView(newView, size, location);
