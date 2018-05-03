@@ -437,31 +437,31 @@ suite('QueryBuilder', () => {
 			cases.forEach(testIncludesDataItem);
 		});
 
-		// test('includes with tilde', () => {
-		// 	const userHome = TestEnvironmentService.userHome;
-		// 	const cases: [string, ISearchPathsResult][] = [
-		// 		[
-		// 			'~/foo/bar',
-		// 			<ISearchPathsResult>{
-		// 				searchPaths: [{ searchPath: getUri(userHome, '/foo/bar') }]
-		// 			}
-		// 		],
-		// 		[
-		// 			'~/foo/bar, a',
-		// 			<ISearchPathsResult>{
-		// 				searchPaths: [{ searchPath: getUri(userHome, '/foo/bar') }],
-		// 				pattern: patternsToIExpression(...globalGlob('a'))
-		// 			}
-		// 		],
-		// 		[
-		// 			fixPath('/foo/~/bar'),
-		// 			<ISearchPathsResult>{
-		// 				searchPaths: [{ searchPath: getUri('/foo/~/bar') }]
-		// 			}
-		// 		],
-		// 	];
-		// 	cases.forEach(testIncludesDataItem);
-		// });
+		test('includes with tilde', () => {
+			const userHome = TestEnvironmentService.userHome;
+			const cases: [string, ISearchPathsResult][] = [
+				[
+					'~/foo/bar',
+					<ISearchPathsResult>{
+						searchPaths: [{ searchPath: getUri(userHome, '/foo/bar') }]
+					}
+				],
+				[
+					'~/foo/bar, a',
+					<ISearchPathsResult>{
+						searchPaths: [{ searchPath: getUri(userHome, '/foo/bar') }],
+						pattern: patternsToIExpression(...globalGlob('a'))
+					}
+				],
+				[
+					fixPath('/foo/~/bar'),
+					<ISearchPathsResult>{
+						searchPaths: [{ searchPath: getUri('/foo/~/bar') }]
+					}
+				],
+			];
+			cases.forEach(testIncludesDataItem);
+		});
 
 		test('relative includes w/single root folder', () => {
 			const cases: [string, ISearchPathsResult][] = [
@@ -856,16 +856,11 @@ function getUri(...slashPathParts: string[]): uri {
 }
 
 function fixPath(...slashPathParts: string[]): string {
-	const pathParts = arrays.flatten(slashPathParts.map(part => part.split('/')));
-	if (process.platform === 'win32') {
-		if (slashPathParts.length === 1 && slashPathParts[0].match(/^c:/)) {
-			return slashPathParts[0];
-		} else {
-			return paths.join('c:', ...pathParts);
-		}
-	} else {
-		return paths.join(...pathParts);
+	if (process.platform === 'win32' && slashPathParts.length && !slashPathParts[0].match(/^c:/i)) {
+		slashPathParts.unshift('c:');
 	}
+
+	return paths.join(...slashPathParts);
 }
 
 function normalizeExpression(expression: IExpression): IExpression {
