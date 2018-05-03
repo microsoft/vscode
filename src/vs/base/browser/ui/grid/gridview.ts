@@ -39,6 +39,7 @@ TODO:
 - create grid wrapper which automatically sizes the new views
 - create DND
 - implement serialization/deserialization util
+- getSize should return width/height
 */
 
 export function orthogonal(orientation: Orientation): Orientation {
