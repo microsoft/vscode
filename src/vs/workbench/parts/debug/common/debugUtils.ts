@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from 'vs/editor/common/core/range';
-
 const _formatPIIRegexp = /{([^}]+)}/g;
 
 export function formatPII(value: string, excludePII: boolean, args: { [key: string]: string }): string {
