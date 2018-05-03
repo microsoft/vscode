@@ -11,87 +11,51 @@ import { ICharChange, ILineChange } from 'vs/editor/common/editorCommon';
 const MAXIMUM_RUN_TIME = 5000; // 5 seconds
 const MINIMUM_MATCHING_CHARACTER_LENGTH = 3;
 
-interface IMarker {
-	lineNumber: number;
-	column: number;
-	offset: number;
-}
-
 function computeDiff(originalSequence: ISequence, modifiedSequence: ISequence, continueProcessingPredicate: () => boolean, pretty: boolean): IDiffChange[] {
 	const diffAlgo = new LcsDiff(originalSequence, modifiedSequence, continueProcessingPredicate);
 	return diffAlgo.ComputeDiff(pretty);
 }
 
-class MarkerSequence implements ISequence {
+class LineMarkerSequence implements ISequence {
 
-	public buffer: string;
-	public startMarkers: IMarker[];
-	public endMarkers: IMarker[];
+	private readonly _lines: string[];
+	private readonly _startColumns: number[];
+	private readonly _endColumns: number[];
 
-	constructor(buffer: string, startMarkers: IMarker[], endMarkers: IMarker[]) {
-		this.buffer = buffer;
-		this.startMarkers = startMarkers;
-		this.endMarkers = endMarkers;
+	constructor(lines: string[]) {
+		let startColumns: number[] = [];
+		let endColumns: number[] = [];
+		for (let i = 0, length = lines.length; i < length; i++) {
+			startColumns[i] = LineMarkerSequence._getFirstNonBlankColumn(lines[i], 1);
+			endColumns[i] = LineMarkerSequence._getLastNonBlankColumn(lines[i], 1);
+		}
+		this._lines = lines;
+		this._startColumns = startColumns;
+		this._endColumns = endColumns;
 	}
 
 	public getLength(): number {
-		return this.startMarkers.length;
+		return this._lines.length;
 	}
 
 	public getElementHash(i: number): string {
-		return this.buffer.substring(this.startMarkers[i].offset, this.endMarkers[i].offset);
+		return this._lines[i].substring(this._startColumns[i] - 1, this._endColumns[i] - 1);
 	}
 
 	public getStartLineNumber(i: number): number {
-		if (i === this.startMarkers.length) {
-			// This is the special case where a change happened after the last marker
-			return this.startMarkers[i - 1].lineNumber + 1;
-		}
-		return this.startMarkers[i].lineNumber;
+		return i + 1;
 	}
 
 	public getStartColumn(i: number): number {
-		return this.startMarkers[i].column;
+		return this._startColumns[i];
 	}
 
 	public getEndLineNumber(i: number): number {
-		return this.endMarkers[i].lineNumber;
+		return i + 1;
 	}
 
 	public getEndColumn(i: number): number {
-		return this.endMarkers[i].column;
-	}
-
-}
-
-class LineMarkerSequence extends MarkerSequence {
-
-	constructor(lines: string[]) {
-		let buffer = '';
-		let startMarkers: IMarker[] = [];
-		let endMarkers: IMarker[] = [];
-
-		for (let pos = 0, i = 0, length = lines.length; i < length; i++) {
-			buffer += lines[i];
-			const startColumn = LineMarkerSequence._getFirstNonBlankColumn(lines[i], 1);
-			const endColumn = LineMarkerSequence._getLastNonBlankColumn(lines[i], 1);
-
-			startMarkers.push({
-				offset: pos + startColumn - 1,
-				lineNumber: i + 1,
-				column: startColumn
-			});
-
-			endMarkers.push({
-				offset: pos + endColumn - 1,
-				lineNumber: i + 1,
-				column: endColumn
-			});
-
-			pos += lines[i].length;
-		}
-
-		super(buffer, startMarkers, endMarkers);
+		return this._endColumns[i];
 	}
 
 	public static _getFirstNonBlankColumn(txt: string, defaultValue: number): number {
@@ -110,26 +74,59 @@ class LineMarkerSequence extends MarkerSequence {
 		return r + 2;
 	}
 
-	public getCharSequence(startIndex: number, endIndex: number): MarkerSequence {
-		let startMarkers: IMarker[] = [];
-		let endMarkers: IMarker[] = [];
+	public getCharSequence(startIndex: number, endIndex: number): CharSequence {
+		let chars: string[] = [];
+		let lineNumbers: number[] = [];
+		let columns: number[] = [];
+		let len = 0;
 		for (let index = startIndex; index <= endIndex; index++) {
-			const startMarker = this.startMarkers[index];
-			const endMarker = this.endMarkers[index];
-			for (let i = startMarker.offset; i < endMarker.offset; i++) {
-				startMarkers.push({
-					offset: i,
-					lineNumber: startMarker.lineNumber,
-					column: startMarker.column + (i - startMarker.offset)
-				});
-				endMarkers.push({
-					offset: i + 1,
-					lineNumber: startMarker.lineNumber,
-					column: startMarker.column + (i - startMarker.offset) + 1
-				});
+			const startColumn = this._startColumns[index];
+			const endColumn = this._endColumns[index];
+			for (let col = startColumn; col < endColumn; col++) {
+				chars[len] = this._lines[index].charAt(col - 1);
+				lineNumbers[len] = index + 1;
+				columns[len] = col;
+				len++;
 			}
 		}
-		return new MarkerSequence(this.buffer, startMarkers, endMarkers);
+		return new CharSequence(chars, lineNumbers, columns);
+	}
+}
+
+class CharSequence implements ISequence {
+
+	private readonly _chars: string[];
+	private readonly _lineNumbers: number[];
+	private readonly _columns: number[];
+
+	constructor(chars: string[], lineNumbers: number[], columns: number[]) {
+		this._chars = chars;
+		this._lineNumbers = lineNumbers;
+		this._columns = columns;
+	}
+
+	public getLength(): number {
+		return this._chars.length;
+	}
+
+	public getElementHash(i: number): string {
+		return this._chars[i];
+	}
+
+	public getStartLineNumber(i: number): number {
+		return this._lineNumbers[i];
+	}
+
+	public getStartColumn(i: number): number {
+		return this._columns[i];
+	}
+
+	public getEndLineNumber(i: number): number {
+		return this._lineNumbers[i];
+	}
+
+	public getEndColumn(i: number): number {
+		return this._columns[i] + 1;
 	}
 }
 
@@ -165,7 +162,7 @@ class CharChange implements ICharChange {
 		this.modifiedEndColumn = modifiedEndColumn;
 	}
 
-	public static createFromDiffChange(diffChange: IDiffChange, originalCharSequence: MarkerSequence, modifiedCharSequence: MarkerSequence): CharChange {
+	public static createFromDiffChange(diffChange: IDiffChange, originalCharSequence: CharSequence, modifiedCharSequence: CharSequence): CharChange {
 		let originalStartLineNumber: number;
 		let originalStartColumn: number;
 		let originalEndLineNumber: number;
