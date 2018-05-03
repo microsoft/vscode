@@ -32,7 +32,9 @@ TODO:
 		help when removing a view to know which next view to set active. The definition
 		of the next view could be to a) check on the same dimension first (left/up) and
 		then go one dimension up.
+
 - create grid wrapper which automatically sizes the new views
+- create DND
 - implement serialization/deserialization util
 */
 

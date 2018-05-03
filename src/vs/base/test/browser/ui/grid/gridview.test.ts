@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
-import { GridView, IView, GridNode, GridBranchNode, getRelativeLocation, Direction } from 'vs/base/browser/ui/grid/gridview';
+import { GridView, IView, GridNode, GridBranchNode, getRelativeLocation, Direction, GridWidget } from 'vs/base/browser/ui/grid/gridview';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 
 class TestView implements IView {
@@ -36,6 +36,8 @@ class TestView implements IView {
 
 	private _height = 0;
 	get height(): number { return this._height; }
+
+	get size(): [number, number] { return [this.width, this.height]; }
 
 	private _onDidLayout = new Emitter<{ width: number; height: number; }>();
 	readonly onDidLayout = this._onDidLayout.event;
@@ -210,5 +212,52 @@ suite('Gridview', function () {
 		assert.deepEqual(nodesToArrays(gridview.getViews()), [view1, [view5, [view8, view7], [view4, view3], view2], view6]);
 
 		gridview.dispose();
+	});
+});
+
+suite('GridWidget', function () {
+	let container: HTMLElement;
+
+	setup(function () {
+		container = document.createElement('div');
+		container.style.position = 'absolute';
+		container.style.width = `${800}px`;
+		container.style.height = `${600}px`;
+	});
+
+	teardown(function () {
+		container = null;
+	});
+
+	test('empty', function () {
+		const view1 = new TestView(100, Number.MAX_VALUE, 100, Number.MAX_VALUE);
+		const gridview = new GridWidget(container, view1);
+		gridview.layout(800, 600);
+
+		assert.deepEqual(view1.size, [800, 600]);
+	});
+
+	test('two views vertically', function () {
+		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		const grid = new GridWidget(container, view1);
+		grid.layout(800, 600);
+		assert.deepEqual(view1.size, [800, 600]);
+
+		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.splitView(view1, Direction.Up, view2, 200);
+		assert.deepEqual(view1.size, [800, 400]);
+		assert.deepEqual(view2.size, [800, 200]);
+	});
+
+	test('two views horizontally', function () {
+		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		const grid = new GridWidget(container, view1);
+		grid.layout(800, 600);
+		assert.deepEqual(view1.size, [800, 600]);
+
+		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.splitView(view1, Direction.Right, view2, 300);
+		assert.deepEqual(view1.size, [500, 600]);
+		assert.deepEqual(view2.size, [300, 600]);
 	});
 });
