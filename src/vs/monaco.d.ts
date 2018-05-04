@@ -4862,6 +4862,10 @@ declare namespace monaco.languages {
 		 */
 		name: string;
 		/**
+		 * The detail of this symbol.
+		 */
+		detail?: string;
+		/**
 		 * The name of the symbol containing this symbol.
 		 */
 		containerName?: string;
@@ -4873,6 +4877,11 @@ declare namespace monaco.languages {
 		 * The location of this symbol.
 		 */
 		location: Location;
+		/**
+		 * The defining range of this symbol.
+		 */
+		definingRange: IRange;
+		children?: SymbolInformation[];
 	}
 
 	/**

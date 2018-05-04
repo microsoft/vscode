@@ -278,7 +278,7 @@ export class ExtHostApiCommands {
 			const result: types.SymbolInformation[] = [];
 			if (Array.isArray(value)) {
 				for (let tuple of value) {
-					result.push(...tuple[1].map(typeConverters.toSymbolInformation));
+					result.push(...tuple[1].map(typeConverters.SymbolInformation.to));
 				}
 			}
 			return result;
@@ -418,7 +418,7 @@ export class ExtHostApiCommands {
 		};
 		return this._commands.executeCommand<modes.IOutline>('_executeDocumentSymbolProvider', args).then(value => {
 			if (value && Array.isArray(value.entries)) {
-				return value.entries.map(typeConverters.toSymbolInformation);
+				return value.entries.map(typeConverters.SymbolInformation.to);
 			}
 			return undefined;
 		});

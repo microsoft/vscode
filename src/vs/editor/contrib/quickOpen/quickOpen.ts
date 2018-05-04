@@ -17,15 +17,13 @@ import { asWinJsPromise } from 'vs/base/common/async';
 
 export function getDocumentSymbols(model: ITextModel): TPromise<IOutline> {
 
-	let entries: SymbolInformation[] = [];
+	let roots: SymbolInformation[] = [];
 
 	let promises = DocumentSymbolProviderRegistry.all(model).map(support => {
 
-		return asWinJsPromise((token) => {
-			return support.provideDocumentSymbols(model, token);
-		}).then(result => {
+		return asWinJsPromise(token => support.provideDocumentSymbols(model, token)).then(result => {
 			if (Array.isArray(result)) {
-				entries.push(...result);
+				roots.push(...result);
 			}
 		}, err => {
 			onUnexpectedExternalError(err);
@@ -34,7 +32,7 @@ export function getDocumentSymbols(model: ITextModel): TPromise<IOutline> {
 
 	return TPromise.join(promises).then(() => {
 		let flatEntries: SymbolInformation[] = [];
-		flatten(flatEntries, entries, '');
+		flatten(flatEntries, roots, '');
 		flatEntries.sort(compareEntriesUsingStart);
 
 		return {
@@ -51,10 +49,16 @@ function flatten(bucket: SymbolInformation[], entries: SymbolInformation[], over
 	for (let entry of entries) {
 		bucket.push({
 			kind: entry.kind,
-			location: entry.location,
 			name: entry.name,
-			containerName: entry.containerName || overrideContainerLabel
+			detail: entry.detail,
+			containerName: entry.containerName || overrideContainerLabel,
+			location: entry.location,
+			definingRange: entry.definingRange,
+			children: undefined, // we flatten it...
 		});
+		if (entry.children) {
+			flatten(bucket, entry.children, entry.name);
+		}
 	}
 }
 

@@ -333,24 +333,53 @@ export namespace SymbolKind {
 	}
 }
 
-export function fromSymbolInformation(info: vscode.SymbolInformation): modes.SymbolInformation {
-	return <modes.SymbolInformation>{
-		name: info.name,
-		kind: SymbolKind.from(info.kind),
-		containerName: info.containerName,
-		location: location.from(info.location)
-	};
+export namespace SymbolInformation {
+	export function from(info: vscode.SymbolInformation): modes.SymbolInformation {
+		return <modes.SymbolInformation>{
+			name: info.name,
+			kind: SymbolKind.from(info.kind),
+			containerName: info.containerName,
+			location: location.from(info.location)
+		};
+	}
+	export function to(info: modes.SymbolInformation): types.SymbolInformation {
+		return new types.SymbolInformation(
+			info.name,
+			SymbolKind.to(info.kind),
+			info.containerName,
+			location.to(info.location)
+		);
+	}
 }
 
-export function toSymbolInformation(bearing: modes.SymbolInformation): types.SymbolInformation {
-	return new types.SymbolInformation(
-		bearing.name,
-		SymbolKind.to(bearing.kind),
-		bearing.containerName,
-		location.to(bearing.location)
-	);
+export namespace HierarchicalSymbolInformation {
+	export function from(info: vscode.HierarchicalSymbolInformation): modes.SymbolInformation {
+		let result: modes.SymbolInformation = {
+			name: info.name,
+			detail: info.detail,
+			location: location.from(info.location),
+			definingRange: fromRange(info.range),
+			kind: SymbolKind.from(info.kind)
+		};
+		if (info.children) {
+			result.children = info.children.map(from);
+		}
+		return result;
+	}
+	export function to(info: modes.SymbolInformation): types.HierarchicalSymbolInformation {
+		let result = new types.HierarchicalSymbolInformation(
+			info.name,
+			SymbolKind.to(info.kind),
+			info.detail,
+			location.to(info.location),
+			toRange(info.definingRange)
+		);
+		if (info.children) {
+			result.children = info.children.map(to);
+		}
+		return result;
+	}
 }
-
 
 export const location = {
 	from(value: vscode.Location): modes.Location {
