@@ -200,7 +200,7 @@ class HoverAdapter {
 				value.range = new Range(pos, pos);
 			}
 
-			return typeConvert.fromHover(value);
+			return typeConvert.Hover.from(value);
 		});
 	}
 }

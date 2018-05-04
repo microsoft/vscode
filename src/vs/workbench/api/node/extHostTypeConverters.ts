@@ -404,15 +404,17 @@ export const location = {
 	}
 };
 
-export function fromHover(hover: vscode.Hover): modes.Hover {
-	return <modes.Hover>{
-		range: Range.from(hover.range),
-		contents: MarkdownString.fromMany(hover.contents)
-	};
-}
+export namespace Hover {
+	export function from(hover: vscode.Hover): modes.Hover {
+		return <modes.Hover>{
+			range: Range.from(hover.range),
+			contents: MarkdownString.fromMany(hover.contents)
+		};
+	}
 
-export function toHover(info: modes.Hover): types.Hover {
-	return new types.Hover(info.contents.map(MarkdownString.to), Range.to(info.range));
+	export function to(info: modes.Hover): types.Hover {
+		return new types.Hover(info.contents.map(MarkdownString.to), Range.to(info.range));
+	}
 }
 
 export function toDocumentHighlight(occurrence: modes.DocumentHighlight): types.DocumentHighlight {

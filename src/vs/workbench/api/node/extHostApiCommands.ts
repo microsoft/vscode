@@ -318,7 +318,7 @@ export class ExtHostApiCommands {
 			position: position && typeConverters.Position.from(position)
 		};
 		return this._commands.executeCommand<modes.Hover[]>('_executeHoverProvider', args)
-			.then(tryMapWith(typeConverters.toHover));
+			.then(tryMapWith(typeConverters.Hover.to));
 	}
 
 	private _executeDocumentHighlights(resource: URI, position: types.Position): Thenable<types.DocumentHighlight[]> {
