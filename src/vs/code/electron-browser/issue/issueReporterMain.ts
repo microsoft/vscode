@@ -318,14 +318,27 @@ export class IssueReporter extends Disposable {
 			label.addEventListener('click', (e) => {
 				e.stopPropagation();
 
-				// Stop propgagation not working as expected in this case https://bugs.chromium.org/p/chromium/issues/detail?id=809801
-				// preventDefault does prevent outer details tag from toggling, so use that and manually toggle the checkbox
-				e.preventDefault();
 				const containingDiv = (<HTMLLabelElement>e.target).parentElement;
 				const checkbox = <HTMLInputElement>containingDiv.firstElementChild;
 				if (checkbox) {
-					checkbox.checked = !checkbox.checked;
 					this.issueReporterModel.update({ [checkbox.id]: !this.issueReporterModel.getData()[checkbox.id] });
+				}
+			});
+		}
+
+		const showInfoElements = document.getElementsByClassName('showInfo');
+		for (let i = 0; i < showInfoElements.length; i++) {
+			const showInfo = showInfoElements.item(i);
+			showInfo.addEventListener('click', (e) => {
+				const label = (<HTMLDivElement>e.target);
+				const containingElement = label.parentElement.parentElement;
+				const info = containingElement.lastElementChild;
+				if (info.classList.contains('hidden')) {
+					show(info);
+					label.textContent = localize('hide', "hide");
+				} else {
+					hide(info);
+					label.textContent = localize('show', "show");
 				}
 			});
 		}
