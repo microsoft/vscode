@@ -288,7 +288,7 @@ export class ExtHostApiCommands {
 	private _executeDefinitionProvider(resource: URI, position: types.Position): Thenable<types.Location[]> {
 		const args = {
 			resource,
-			position: position && typeConverters.fromPosition(position)
+			position: position && typeConverters.Position.from(position)
 		};
 		return this._commands.executeCommand<modes.Location[]>('_executeDefinitionProvider', args)
 			.then(tryMapWith(typeConverters.location.to));
@@ -297,7 +297,7 @@ export class ExtHostApiCommands {
 	private _executeTypeDefinitionProvider(resource: URI, position: types.Position): Thenable<types.Location[]> {
 		const args = {
 			resource,
-			position: position && typeConverters.fromPosition(position)
+			position: position && typeConverters.Position.from(position)
 		};
 		return this._commands.executeCommand<modes.Location[]>('_executeTypeDefinitionProvider', args)
 			.then(tryMapWith(typeConverters.location.to));
@@ -306,7 +306,7 @@ export class ExtHostApiCommands {
 	private _executeImplementationProvider(resource: URI, position: types.Position): Thenable<types.Location[]> {
 		const args = {
 			resource,
-			position: position && typeConverters.fromPosition(position)
+			position: position && typeConverters.Position.from(position)
 		};
 		return this._commands.executeCommand<modes.Location[]>('_executeImplementationProvider', args)
 			.then(tryMapWith(typeConverters.location.to));
@@ -315,7 +315,7 @@ export class ExtHostApiCommands {
 	private _executeHoverProvider(resource: URI, position: types.Position): Thenable<types.Hover[]> {
 		const args = {
 			resource,
-			position: position && typeConverters.fromPosition(position)
+			position: position && typeConverters.Position.from(position)
 		};
 		return this._commands.executeCommand<modes.Hover[]>('_executeHoverProvider', args)
 			.then(tryMapWith(typeConverters.toHover));
@@ -324,7 +324,7 @@ export class ExtHostApiCommands {
 	private _executeDocumentHighlights(resource: URI, position: types.Position): Thenable<types.DocumentHighlight[]> {
 		const args = {
 			resource,
-			position: position && typeConverters.fromPosition(position)
+			position: position && typeConverters.Position.from(position)
 		};
 		return this._commands.executeCommand<modes.DocumentHighlight[]>('_executeDocumentHighlights', args)
 			.then(tryMapWith(typeConverters.toDocumentHighlight));
@@ -333,7 +333,7 @@ export class ExtHostApiCommands {
 	private _executeReferenceProvider(resource: URI, position: types.Position): Thenable<types.Location[]> {
 		const args = {
 			resource,
-			position: position && typeConverters.fromPosition(position)
+			position: position && typeConverters.Position.from(position)
 		};
 		return this._commands.executeCommand<modes.Location[]>('_executeReferenceProvider', args)
 			.then(tryMapWith(typeConverters.location.to));
@@ -342,7 +342,7 @@ export class ExtHostApiCommands {
 	private _executeDocumentRenameProvider(resource: URI, position: types.Position, newName: string): Thenable<types.WorkspaceEdit> {
 		const args = {
 			resource,
-			position: position && typeConverters.fromPosition(position),
+			position: position && typeConverters.Position.from(position),
 			newName
 		};
 		return this._commands.executeCommand<modes.WorkspaceEdit>('_executeDocumentRenameProvider', args).then(value => {
@@ -359,7 +359,7 @@ export class ExtHostApiCommands {
 	private _executeSignatureHelpProvider(resource: URI, position: types.Position, triggerCharacter: string): Thenable<types.SignatureHelp> {
 		const args = {
 			resource,
-			position: position && typeConverters.fromPosition(position),
+			position: position && typeConverters.Position.from(position),
 			triggerCharacter
 		};
 		return this._commands.executeCommand<modes.SignatureHelp>('_executeSignatureHelpProvider', args).then(value => {
@@ -373,7 +373,7 @@ export class ExtHostApiCommands {
 	private _executeCompletionItemProvider(resource: URI, position: types.Position, triggerCharacter: string, maxItemsToResolve: number): Thenable<types.CompletionList> {
 		const args = {
 			resource,
-			position: position && typeConverters.fromPosition(position),
+			position: position && typeConverters.Position.from(position),
 			triggerCharacter,
 			maxItemsToResolve
 		};
@@ -482,7 +482,7 @@ export class ExtHostApiCommands {
 	private _executeFormatOnTypeProvider(resource: URI, position: types.Position, ch: string, options: vscode.FormattingOptions): Thenable<vscode.TextEdit[]> {
 		const args = {
 			resource,
-			position: typeConverters.fromPosition(position),
+			position: typeConverters.Position.from(position),
 			ch,
 			options
 		};

@@ -116,7 +116,7 @@ class DefinitionAdapter {
 
 	provideDefinition(resource: URI, position: IPosition): TPromise<modes.Definition> {
 		let doc = this._documents.getDocumentData(resource).document;
-		let pos = typeConvert.toPosition(position);
+		let pos = typeConvert.Position.to(position);
 		return asWinJsPromise(token => this._provider.provideDefinition(doc, pos, token)).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(typeConvert.location.from);
@@ -139,7 +139,7 @@ class ImplementationAdapter {
 
 	provideImplementation(resource: URI, position: IPosition): TPromise<modes.Definition> {
 		let doc = this._documents.getDocumentData(resource).document;
-		let pos = typeConvert.toPosition(position);
+		let pos = typeConvert.Position.to(position);
 		return asWinJsPromise(token => this._provider.provideImplementation(doc, pos, token)).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(typeConvert.location.from);
@@ -162,7 +162,7 @@ class TypeDefinitionAdapter {
 
 	provideTypeDefinition(resource: URI, position: IPosition): TPromise<modes.Definition> {
 		const doc = this._documents.getDocumentData(resource).document;
-		const pos = typeConvert.toPosition(position);
+		const pos = typeConvert.Position.to(position);
 		return asWinJsPromise(token => this._provider.provideTypeDefinition(doc, pos, token)).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(typeConvert.location.from);
@@ -187,7 +187,7 @@ class HoverAdapter {
 	public provideHover(resource: URI, position: IPosition): TPromise<modes.Hover> {
 
 		let doc = this._documents.getDocumentData(resource).document;
-		let pos = typeConvert.toPosition(position);
+		let pos = typeConvert.Position.to(position);
 
 		return asWinJsPromise(token => this._provider.provideHover(doc, pos, token)).then(value => {
 			if (!value || isFalsyOrEmpty(value.contents)) {
@@ -218,7 +218,7 @@ class DocumentHighlightAdapter {
 	provideDocumentHighlights(resource: URI, position: IPosition): TPromise<modes.DocumentHighlight[]> {
 
 		let doc = this._documents.getDocumentData(resource).document;
-		let pos = typeConvert.toPosition(position);
+		let pos = typeConvert.Position.to(position);
 
 		return asWinJsPromise(token => this._provider.provideDocumentHighlights(doc, pos, token)).then(value => {
 			if (Array.isArray(value)) {
@@ -248,7 +248,7 @@ class ReferenceAdapter {
 
 	provideReferences(resource: URI, position: IPosition, context: modes.ReferenceContext): TPromise<modes.Location[]> {
 		let doc = this._documents.getDocumentData(resource).document;
-		let pos = typeConvert.toPosition(position);
+		let pos = typeConvert.Position.to(position);
 
 		return asWinJsPromise(token => this._provider.provideReferences(doc, pos, context, token)).then(value => {
 			if (Array.isArray(value)) {
@@ -389,7 +389,7 @@ class OnTypeFormattingAdapter {
 	provideOnTypeFormattingEdits(resource: URI, position: IPosition, ch: string, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]> {
 
 		const { document } = this._documents.getDocumentData(resource);
-		const pos = typeConvert.toPosition(position);
+		const pos = typeConvert.Position.to(position);
 
 		return asWinJsPromise(token => this._provider.provideOnTypeFormattingEdits(document, pos, ch, <any>options, token)).then(value => {
 			if (Array.isArray(value)) {
@@ -479,7 +479,7 @@ class RenameAdapter {
 	provideRenameEdits(resource: URI, position: IPosition, newName: string): TPromise<modes.WorkspaceEdit> {
 
 		let doc = this._documents.getDocumentData(resource).document;
-		let pos = typeConvert.toPosition(position);
+		let pos = typeConvert.Position.to(position);
 
 		return asWinJsPromise(token => this._provider.provideRenameEdits(doc, pos, newName, token)).then(value => {
 			if (!value) {
@@ -510,7 +510,7 @@ class RenameAdapter {
 		}
 
 		let doc = this._documents.getDocumentData(resource).document;
-		let pos = typeConvert.toPosition(position);
+		let pos = typeConvert.Position.to(position);
 
 		return asWinJsPromise(token => this._provider.prepareRename(doc, pos, token)).then(rangeOrLocation => {
 
@@ -560,7 +560,7 @@ class SuggestAdapter {
 	provideCompletionItems(resource: URI, position: IPosition, context: modes.SuggestContext): TPromise<SuggestResultDto> {
 
 		const doc = this._documents.getDocumentData(resource).document;
-		const pos = typeConvert.toPosition(position);
+		const pos = typeConvert.Position.to(position);
 
 		return asWinJsPromise<vscode.CompletionItem[] | vscode.CompletionList>(token => {
 			return this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.from(context));
@@ -623,7 +623,7 @@ class SuggestAdapter {
 			}
 
 			const doc = this._documents.getDocumentData(resource).document;
-			const pos = typeConvert.toPosition(position);
+			const pos = typeConvert.Position.to(position);
 			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) as Range || new Range(pos, pos)).with({ end: pos });
 			const newSuggestion = this._convertCompletionItem(resolvedItem, pos, wordRangeBeforePos, _id, _parentId);
 			if (newSuggestion) {
@@ -714,7 +714,7 @@ class SignatureHelpAdapter {
 	provideSignatureHelp(resource: URI, position: IPosition): TPromise<modes.SignatureHelp> {
 
 		const doc = this._documents.getDocumentData(resource).document;
-		const pos = typeConvert.toPosition(position);
+		const pos = typeConvert.Position.to(position);
 
 		return asWinJsPromise(token => this._provider.provideSignatureHelp(doc, pos, token)).then(value => {
 			if (value) {

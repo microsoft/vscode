@@ -553,7 +553,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 			ranges = this._selections.map(TypeConverters.Range.from);
 
 		} else if (where instanceof Position) {
-			const { lineNumber, column } = TypeConverters.fromPosition(where);
+			const { lineNumber, column } = TypeConverters.Position.from(where);
 			ranges = [{ startLineNumber: lineNumber, startColumn: column, endLineNumber: lineNumber, endColumn: column }];
 
 		} else if (where instanceof Range) {
@@ -564,7 +564,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 				if (posOrRange instanceof Range) {
 					ranges.push(TypeConverters.Range.from(posOrRange));
 				} else {
-					const { lineNumber, column } = TypeConverters.fromPosition(posOrRange);
+					const { lineNumber, column } = TypeConverters.Position.from(posOrRange);
 					ranges.push({ startLineNumber: lineNumber, startColumn: column, endLineNumber: lineNumber, endColumn: column });
 				}
 			}

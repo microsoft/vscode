@@ -79,12 +79,13 @@ export namespace Range {
 	}
 }
 
-export function toPosition(position: IPosition): types.Position {
-	return new types.Position(position.lineNumber - 1, position.column - 1);
-}
-
-export function fromPosition(position: types.Position): IPosition {
-	return { lineNumber: position.line + 1, column: position.character + 1 };
+export namespace Position {
+	export function to(position: IPosition): types.Position {
+		return new types.Position(position.lineNumber - 1, position.column - 1);
+	}
+	export function from(position: types.Position): IPosition {
+		return { lineNumber: position.line + 1, column: position.character + 1 };
+	}
 }
 
 export function fromDiagnostic(value: vscode.Diagnostic): IMarkerData {
