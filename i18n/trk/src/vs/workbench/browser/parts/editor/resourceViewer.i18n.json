@@ -11,7 +11,11 @@
 	"sizeMB": "{0}MB",
 	"sizeGB": "{0}GB",
 	"sizeTB": "{0}TB",
+	"largeImageError": "Görüntü çok büyük olduğu için düzenleyicide görüntülenemiyor ({0}).",
 	"resourceOpenExternalButton": "Harici program kullanarak resmi aç",
+	"nativeFileTooLargeError": "Dosya çok büyük olduğu için düzenleyicide görüntülenemiyor ({0}).",
+	"nativeBinaryError": "Dosya ikili olduğu veya desteklenmeyen bir metin kodlaması kullandığı için düzenleyicide görüntülenemiyor.",
+	"openAsText": "Yine de açmak ister misiniz?",
 	"zoom.action.fit.label": "Resmin Tamamı",
 	"imgMeta": "{0}x{1} {2}"
 }

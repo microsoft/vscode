@@ -6,12 +6,14 @@
 import { addClass, addDisposableListener } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { nativeSep } from 'vs/base/common/paths';
+import { getMediaMime, guessMimeTypes } from 'vs/base/common/mime';
+import { nativeSep, extname } from 'vs/base/common/paths';
 import { startsWith } from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService } from 'vs/platform/files/common/files';
 import { editorBackground, editorForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { DARK, ITheme, IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { WebviewFindWidget } from './webviewFindWidget';
@@ -33,15 +35,17 @@ export class WebviewElement {
 	private _webviewFindWidget: WebviewFindWidget;
 	private _findStarted: boolean = false;
 	private _contents: string = '';
+	private _state: string | undefined = undefined;
 
 	constructor(
 		private readonly _styleElement: Element,
-		private readonly _themeService: IThemeService,
-		private readonly _environmentService: IEnvironmentService,
-		private readonly _contextViewService: IContextViewService,
 		private readonly _contextKey: IContextKey<boolean>,
 		private readonly _findInputContextKey: IContextKey<boolean>,
-		private _options: WebviewOptions
+		private _options: WebviewOptions,
+		@IThemeService private readonly _themeService: IThemeService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		this._webview = document.createElement('webview');
 		this._webview.setAttribute('partition', this._options.allowSvgs ? 'webview' : `webview${Date.now()}`);
@@ -158,6 +162,15 @@ export class WebviewElement {
 							this._onDidScroll.fire({ scrollYPercentage: event.args[0] });
 						}
 						return;
+
+					case 'do-reload':
+						this.reload();
+						return;
+
+					case 'do-update-state':
+						this._state = event.args[0];
+						this._onDidUpdateState.fire(this._state);
+						return;
 				}
 			}),
 			addDisposableListener(this._webview, 'focus', () => {
@@ -169,7 +182,10 @@ export class WebviewElement {
 				if (this._contextKey) {
 					this._contextKey.reset();
 				}
-			})
+			}),
+			addDisposableListener(this._webview, 'devtools-opened', () => {
+				this._send('devtools-opened');
+			}),
 		);
 
 		this._webviewFindWidget = new WebviewFindWidget(this._contextViewService, this);
@@ -213,6 +229,9 @@ export class WebviewElement {
 	private readonly _onDidScroll = new Emitter<{ scrollYPercentage: number }>();
 	public readonly onDidScroll: Event<{ scrollYPercentage: number }> = this._onDidScroll.event;
 
+	private readonly _onDidUpdateState = new Emitter<string | undefined>();
+	public readonly onDidUpdateState: Event<string | undefined> = this._onDidUpdateState.event;
+
 	private readonly _onMessage = new Emitter<any>();
 	public readonly onMessage: Event<any> = this._onMessage.event;
 
@@ -226,6 +245,10 @@ export class WebviewElement {
 		this._send('initial-scroll-position', value);
 	}
 
+	public set state(value: string | undefined) {
+		this._state = value;
+	}
+
 	public set options(value: WebviewOptions) {
 		this._options = value;
 	}
@@ -234,7 +257,8 @@ export class WebviewElement {
 		this._contents = value;
 		this._send('content', {
 			contents: value,
-			options: this._options
+			options: this._options,
+			state: this._state
 		});
 	}
 
@@ -322,11 +346,11 @@ export class WebviewElement {
 
 		const appRootUri = URI.file(this._environmentService.appRoot);
 
-		registerFileProtocol(contents, 'vscode-core-resource', () => [
+		registerFileProtocol(contents, 'vscode-core-resource', this._fileService, () => [
 			appRootUri
 		]);
 
-		registerFileProtocol(contents, 'vscode-resource', () =>
+		registerFileProtocol(contents, 'vscode-resource', this._fileService, () =>
 			(this._options.localResourceRoots || [])
 		);
 	}
@@ -421,14 +445,23 @@ namespace ApiThemeClassName {
 function registerFileProtocol(
 	contents: Electron.WebContents,
 	protocol: string,
+	fileService: IFileService,
 	getRoots: () => ReadonlyArray<URI>
 ) {
-	contents.session.protocol.registerFileProtocol(protocol, (request, callback: any) => {
+	contents.session.protocol.registerBufferProtocol(protocol, (request, callback: any) => {
 		const requestPath = URI.parse(request.url).path;
-		const normalizedPath = URI.file(requestPath).fsPath;
+		const normalizedPath = URI.file(requestPath);
 		for (const root of getRoots()) {
-			if (startsWith(normalizedPath, root.fsPath + nativeSep)) {
-				callback({ path: normalizedPath });
+			if (startsWith(normalizedPath.fsPath, root.fsPath + nativeSep)) {
+				fileService.resolveContent(normalizedPath, { encoding: 'binary' }).then(contents => {
+					const mime = getMimeType(normalizedPath);
+					callback({
+						data: Buffer.from(contents.value, contents.encoding),
+						mimeType: mime
+					});
+				}, () => {
+					callback({ error: -1 /* FAILED: https://cs.chromium.org/chromium/src/net/base/net_error_list.h */ });
+				});
 				return;
 			}
 		}
@@ -439,4 +472,13 @@ function registerFileProtocol(
 			console.error('Failed to register protocol ' + protocol);
 		}
 	});
+}
+
+const webviewMimeTypes = {
+	'.svg': 'image/svg+xml'
+};
+
+function getMimeType(normalizedPath: URI) {
+	const ext = extname(normalizedPath.fsPath).toLowerCase();
+	return webviewMimeTypes[ext] || getMediaMime(normalizedPath.fsPath) || guessMimeTypes(normalizedPath.fsPath)[0];
 }

@@ -107,12 +107,11 @@
 	"colorDecorators": "エディターでインライン カラー デコレーターと色の選択を表示する必要があるかどうかを制御します。",
 	"codeActions": "コード アクション (lightbulb) を有効にする",
 	"codeActionsOnSave.organizeImports": "保存時にインポートの整理を実行しますか?",
-	"codeActionsOnSave": "保存時に実行されるコード アクションの種類。",
+	"codeActionsOnSave": "保存時に実行されるコードアクションの種類。",
 	"codeActionsOnSaveTimeout": "保存時に実行されるコード アクションのタイムアウト値。",
 	"selectionClipboard": "Linux の PRIMARY クリップボードをサポートするかどうかを制御します。",
 	"sideBySide": "差分エディターが差分を横に並べて表示するか、行内に表示するかを制御します",
 	"ignoreTrimWhitespace": "差分エディターが、先頭または末尾の空白の変更を差分として表示するかどうかを制御します。",
-	"largeFileSize": "特別な最適化ルールが適用されるバイト単位でファイルサイズのしきい値を制御します",
-	"largeFileLineCount": "特別な最適化ルールが適用される行数の観点からファイルサイズのしきい値を制御します",
+	"largeFileOptimizations": "大きなファイルでメモリが集中する特定の機能を無効にするための特別な処理。",
 	"renderIndicators": "差分エディターが追加/削除された変更に +/- インジケーターを示すかどうかを制御します"
 }

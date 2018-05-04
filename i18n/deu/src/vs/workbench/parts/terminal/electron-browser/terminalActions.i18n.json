@@ -20,7 +20,8 @@
 	"workbench.action.terminal.new.short": "Neues Terminal",
 	"workbench.action.terminal.newWorkspacePlaceholder": "Aktuelles Arbeitsverzeichnis für neues Terminal auswählen",
 	"workbench.action.terminal.newInActiveWorkspace": "Neues integriertes Terminal erstellen (in aktivem Arbeitsbereich)",
-	"workbench.action.terminal.split": "Details zu Sucheinstellungen",
+	"workbench.action.terminal.split": "Terminal verdoppeln",
+	"workbench.action.terminal.splitInActiveWorkspace": "Terminal teilen (in aktivem Arbeitsbereich)",
 	"workbench.action.terminal.focusPreviousPane": "Fokus in vorherigem Bereich",
 	"workbench.action.terminal.focusNextPane": "Fokus in nächstem Bereich",
 	"workbench.action.terminal.resizePaneLeft": "Größe des linken Bereichs ändern",
@@ -43,6 +44,7 @@
 	"workbench.action.terminal.scrollUpPage": "Nach oben scrollen (Seite)",
 	"workbench.action.terminal.scrollToTop": "Bildlauf nach oben",
 	"workbench.action.terminal.clear": "Löschen",
+	"workbench.action.terminal.clearSelection": "Auswahl löschen",
 	"workbench.action.terminal.allowWorkspaceShell": "Shell-Konfiguration des Arbeitsbereichs zulassen",
 	"workbench.action.terminal.disallowWorkspaceShell": "Verbiete Workspace Shell Konfiguration",
 	"workbench.action.terminal.rename": "Umbenennen",
@@ -52,6 +54,8 @@
 	"nextTerminalFindTerm": "Nächsten Suchbegriff anzeigen",
 	"previousTerminalFindTerm": "Vorherigen Suchbegriff anzeigen",
 	"quickOpenTerm": "Aktives Terminal wechseln",
+	"workbench.action.terminal.scrollToPreviousCommand": "Zu vorherigem Befehl scrollen",
+	"workbench.action.terminal.scrollToNextCommand": "Zu nächstem Befehl scrollen",
 	"workbench.action.terminal.selectToPreviousCommand": "Auswählen bis zu vorherigem Befehl",
 	"workbench.action.terminal.selectToNextCommand": "Auswählen bis zu nächstem Befehl"
 }

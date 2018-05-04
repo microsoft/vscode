@@ -14,5 +14,6 @@
 	"editor.action.refactor.noneMessage": "沒有可用的重構",
 	"source.label": "來源動作...",
 	"editor.action.source.noneMessage": "沒有可用的來源動作",
-	"organizeImports.label": "組織匯入"
+	"organizeImports.label": "組織匯入",
+	"editor.action.organize.noneMessage": "沒有任何可用的組織匯入動作"
 }

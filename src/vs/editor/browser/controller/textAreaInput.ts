@@ -126,7 +126,8 @@ export class TextAreaInput extends Disposable {
 		this._nextCommand = ReadFromTextArea.Type;
 
 		this._register(dom.addStandardDisposableListener(textArea.domNode, 'keydown', (e: IKeyboardEvent) => {
-			if (this._isDoingComposition && e.keyCode === KeyCode.KEY_IN_COMPOSITION) {
+			if (this._isDoingComposition &&
+				(e.keyCode === KeyCode.KEY_IN_COMPOSITION || e.keyCode === KeyCode.Backspace)) {
 				// Stop propagation for keyDown events if the IME is processing key input
 				e.stopPropagation();
 			}
@@ -501,7 +502,7 @@ export class TextAreaInput extends Disposable {
 		}
 
 		let copyHTML: string = null;
-		if (!browser.isEdgeOrIE && (copyPlainText.length < 65536 || CopyOptions.forceCopyWithSyntaxHighlighting)) {
+		if (browser.hasClipboardSupport() && (copyPlainText.length < 65536 || CopyOptions.forceCopyWithSyntaxHighlighting)) {
 			copyHTML = this._host.getHTMLToCopy();
 		}
 		ClipboardEventUtils.setTextData(e, copyPlainText, copyHTML);

@@ -21,6 +21,7 @@
 	"disconnectDebug": "Trennen",
 	"continueDebug": "Weiter",
 	"pauseDebug": "Anhalten",
+	"terminateThread": "Thread beenden",
 	"restartFrame": "Frame neu starten",
 	"removeBreakpoint": "Haltepunkt entfernen",
 	"removeAllBreakpoints": "Alle Haltepunkte entfernen",

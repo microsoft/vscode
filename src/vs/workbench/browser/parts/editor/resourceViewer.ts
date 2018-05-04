@@ -9,7 +9,6 @@ import 'vs/css!./media/resourceviewer';
 import * as nls from 'vs/nls';
 import * as mimes from 'vs/base/common/mime';
 import URI from 'vs/base/common/uri';
-import * as paths from 'vs/base/common/paths';
 import { Builder, $ } from 'vs/base/browser/builder';
 import * as DOM from 'vs/base/browser/dom';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -27,60 +26,6 @@ import { Action } from 'vs/base/common/actions';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { memoize } from 'vs/base/common/decorators';
 import * as platform from 'vs/base/common/platform';
-
-interface MapExtToMediaMimes {
-	[index: string]: string;
-}
-
-// Known media mimes that we can handle
-const mapExtToMediaMimes: MapExtToMediaMimes = {
-	'.bmp': 'image/bmp',
-	'.gif': 'image/gif',
-	'.jpg': 'image/jpg',
-	'.jpeg': 'image/jpg',
-	'.jpe': 'image/jpg',
-	'.png': 'image/png',
-	'.tiff': 'image/tiff',
-	'.tif': 'image/tiff',
-	'.ico': 'image/x-icon',
-	'.tga': 'image/x-tga',
-	'.psd': 'image/vnd.adobe.photoshop',
-	'.webp': 'image/webp',
-	'.mid': 'audio/midi',
-	'.midi': 'audio/midi',
-	'.mp4a': 'audio/mp4',
-	'.mpga': 'audio/mpeg',
-	'.mp2': 'audio/mpeg',
-	'.mp2a': 'audio/mpeg',
-	'.mp3': 'audio/mpeg',
-	'.m2a': 'audio/mpeg',
-	'.m3a': 'audio/mpeg',
-	'.oga': 'audio/ogg',
-	'.ogg': 'audio/ogg',
-	'.spx': 'audio/ogg',
-	'.aac': 'audio/x-aac',
-	'.wav': 'audio/x-wav',
-	'.wma': 'audio/x-ms-wma',
-	'.mp4': 'video/mp4',
-	'.mp4v': 'video/mp4',
-	'.mpg4': 'video/mp4',
-	'.mpeg': 'video/mpeg',
-	'.mpg': 'video/mpeg',
-	'.mpe': 'video/mpeg',
-	'.m1v': 'video/mpeg',
-	'.m2v': 'video/mpeg',
-	'.ogv': 'video/ogg',
-	'.qt': 'video/quicktime',
-	'.mov': 'video/quicktime',
-	'.webm': 'video/webm',
-	'.mkv': 'video/x-matroska',
-	'.mk3d': 'video/x-matroska',
-	'.mks': 'video/x-matroska',
-	'.wmv': 'video/x-ms-wmv',
-	'.flv': 'video/x-flv',
-	'.avi': 'video/x-msvideo',
-	'.movie': 'video/x-sgi-movie'
-};
 
 export interface IResourceDescriptor {
 	resource: URI;
@@ -168,10 +113,7 @@ export class ResourceViewer {
 	private static getMime(descriptor: IResourceDescriptor): string {
 		let mime = descriptor.mime;
 		if (!mime && descriptor.resource.scheme !== Schemas.data) {
-			const ext = paths.extname(descriptor.resource.toString());
-			if (ext) {
-				mime = mapExtToMediaMimes[ext.toLowerCase()];
-			}
+			mime = mimes.getMediaMime(descriptor.resource.toString());
 		}
 
 		return mime || mimes.MIME_BINARY;

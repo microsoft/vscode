@@ -23,6 +23,7 @@ export interface IModelLoadOrCreateOptions {
 	modeId?: string;
 	initialValue?: string;
 	encoding?: string;
+	useResourcePath?: boolean;
 }
 
 export interface IUntitledEditorService {
@@ -193,16 +194,17 @@ export class UntitledEditorService implements IUntitledEditorService {
 	}
 
 	public loadOrCreate(options: IModelLoadOrCreateOptions = Object.create(null)): TPromise<UntitledEditorModel> {
-		return this.createOrGet(options.resource, options.modeId, options.initialValue, options.encoding).resolve();
+		return this.createOrGet(options.resource, options.modeId, options.initialValue, options.encoding, options.useResourcePath).resolve();
 	}
 
-	public createOrGet(resource?: URI, modeId?: string, initialValue?: string, encoding?: string): UntitledEditorInput {
+	public createOrGet(resource?: URI, modeId?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath: boolean = false): UntitledEditorInput {
 
-		// Massage resource if it comes with a file:// scheme
-		let hasAssociatedFilePath = false;
 		if (resource) {
-			hasAssociatedFilePath = (resource.scheme === Schemas.file);
-			resource = resource.with({ scheme: Schemas.untitled }); // ensure we have the right scheme
+			// Massage resource if it comes with a file:// scheme
+			if (resource.scheme === Schemas.file) {
+				hasAssociatedFilePath = true;
+				resource = resource.with({ scheme: Schemas.untitled }); // ensure we have the right scheme
+			}
 
 			if (hasAssociatedFilePath) {
 				this.mapResourceToAssociatedFilePath.set(resource, true); // remember for future lookups

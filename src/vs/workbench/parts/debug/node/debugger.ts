@@ -19,14 +19,14 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 
 export class Debugger {
 
-	private _mergedExtensionDescriptions: IExtensionDescription[];
+	private mergedExtensionDescriptions: IExtensionDescription[];
 
 	constructor(private configurationManager: IConfigurationManager, private debuggerContribution: IDebuggerContribution, public extensionDescription: IExtensionDescription,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService,
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
 	) {
-		this._mergedExtensionDescriptions = [extensionDescription];
+		this.mergedExtensionDescriptions = [extensionDescription];
 	}
 
 	public hasConfigurationProvider = false;
@@ -37,7 +37,7 @@ export class Debugger {
 			if (debugConfigs.extensionHostDebugAdapter) {
 				return this.configurationManager.createDebugAdapter(this.type, adapterExecutable);
 			} else {
-				return new DebugAdapter(this.type, adapterExecutable, this._mergedExtensionDescriptions, outputService);
+				return new DebugAdapter(this.type, adapterExecutable, this.mergedExtensionDescriptions, outputService);
 			}
 		});
 	}
@@ -118,7 +118,7 @@ export class Debugger {
 	public merge(secondRawAdapter: IDebuggerContribution, extensionDescription: IExtensionDescription): void {
 
 		// remember all ext descriptions that are the source of this debugger
-		this._mergedExtensionDescriptions.push(extensionDescription);
+		this.mergedExtensionDescriptions.push(extensionDescription);
 
 		// Give priority to built in debug adapters
 		if (extensionDescription.isBuiltin) {

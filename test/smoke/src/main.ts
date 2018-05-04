@@ -257,7 +257,8 @@ function createApp(quality: Quality): Application {
 		extensionsPath,
 		workspaceFilePath,
 		waitTime: parseInt(opts['wait-time'] || '0') || 20,
-		logger: new MultiLogger(loggers)
+		logger: new MultiLogger(loggers),
+		verbose: opts.verbose
 	});
 }
 

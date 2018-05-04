@@ -488,4 +488,12 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region Joh -> exclusive document filters
+
+	export interface DocumentFilter {
+		exclusive?: boolean;
+	}
+
+	//#endregion
 }

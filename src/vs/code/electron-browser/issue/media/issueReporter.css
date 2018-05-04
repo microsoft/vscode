@@ -21,7 +21,7 @@ th {
 	text-align: inherit;
 }
 td {
-	padding: .75rem;
+	padding: .25rem;
 	vertical-align: top;
 }
 
@@ -111,6 +111,10 @@ body {
 	display: none;
 }
 
+.block {
+	font-size: 12px;
+}
+
 .block .block-info {
 	width: 100%;
 	font-family: 'Menlo', 'Courier New', 'Courier', monospace;
@@ -184,40 +188,17 @@ textarea {
 	margin-top: 1em;
 }
 
-.system-info {
-	margin-bottom: 1.25em;
-}
-
 select, input, textarea {
 	border: 1px solid transparent;
 	margin-top: 10px;
 }
 
-summary {
-	border: 1px solid transparent;
-	padding: 0 10px;
-	margin-bottom: 5px;
-	cursor: pointer;
-}
 
 .validation-error {
 	font-size: 12px;
 	margin-top: 1em;
 }
 
-.include-data {
-	display: inline-block;
-}
-
-.include-data > .caption {
-	display: inline-block;
-	font-size: 12px;
-	cursor: pointer;
-}
-
-.sendData {
-	margin-left: 1em;
-}
 
 input[type="checkbox"] {
 	width: auto;

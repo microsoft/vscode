@@ -10,7 +10,7 @@
 	"problems.view.toggle.label": "切换问题 (错误、警告、信息) 视图",
 	"problems.view.focus.label": "聚焦于问题 (错误、警告、信息) 视图",
 	"problems.panel.configuration.title": "问题预览",
-	"problems.panel.configuration.autoreveal": "控制问题预览是否应在打开文件时自动显示它们。",
+	"problems.panel.configuration.autoreveal": "控制在打开文件时是否在问题视图中对其进行定位。",
 	"markers.panel.title.problems": "问题",
 	"markers.panel.aria.label.problems.tree": "按文件分组的问题",
 	"markers.panel.no.problems.build": "目前尚未在工作区检测到问题。",

@@ -62,7 +62,8 @@ const options: minimist.Opts = {
 		'skip-add-to-recently-opened',
 		'status',
 		'file-write',
-		'file-chmod'
+		'file-chmod',
+		'driver-verbose'
 	],
 	alias: {
 		add: 'a',

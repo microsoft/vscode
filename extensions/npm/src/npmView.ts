@@ -90,8 +90,15 @@ class NpmScript extends TreeItem {
 	}
 }
 
+class NoScripts extends TreeItem {
+	constructor() {
+		super(localize('noScripts', 'No scripts found'), TreeItemCollapsibleState.None);
+		this.contextValue = 'noscripts';
+	}
+}
+
 export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
-	private taskTree: Folder[] | PackageJSON[] | null = null;
+	private taskTree: Folder[] | PackageJSON[] | NoScripts[] | null = null;
 	private extensionContext: ExtensionContext;
 	private _onDidChangeTreeData: EventEmitter<TreeItem | null> = new EventEmitter<TreeItem | null>();
 	readonly onDidChangeTreeData: Event<TreeItem | null> = this._onDidChangeTreeData.event;
@@ -263,6 +270,9 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		if (element instanceof NpmScript) {
 			return element.package;
 		}
+		if (element instanceof NoScripts) {
+			return null;
+		}
 		return null;
 	}
 
@@ -271,6 +281,9 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 			let tasks = await workspace.fetchTasks({ type: 'npm' });
 			if (tasks) {
 				this.taskTree = this.buildTaskTree(tasks);
+				if (this.taskTree.length === 0) {
+					this.taskTree = [new NoScripts()];
+				}
 			}
 		}
 		if (element instanceof Folder) {
@@ -282,6 +295,9 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		if (element instanceof NpmScript) {
 			return [];
 		}
+		if (element instanceof NoScripts) {
+			return [];
+		}
 		if (!element) {
 			if (this.taskTree) {
 				return this.taskTree;
@@ -290,7 +306,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		return [];
 	}
 
-	private buildTaskTree(tasks: Task[]): Folder[] | PackageJSON[] {
+	private buildTaskTree(tasks: Task[]): Folder[] | PackageJSON[] | NoScripts[] {
 		let folders: Map<String, Folder> = new Map();
 		let packages: Map<String, PackageJSON> = new Map();
 

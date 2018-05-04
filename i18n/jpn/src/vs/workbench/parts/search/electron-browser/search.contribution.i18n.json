@@ -10,6 +10,7 @@
 	"copyMatchLabel": "コピー",
 	"copyPathLabel": "パスのコピー",
 	"copyAllLabel": "すべてコピー",
+	"clearSearchHistoryLabel": "検索履歴のクリア",
 	"toggleSearchViewPositionLabel": "検索ビュー位置の切り替え",
 	"findInFolder": "フォルダー内を検索...",
 	"findInWorkspace": "ワークスペース内を検索...",

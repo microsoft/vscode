@@ -10,7 +10,7 @@ import { Position } from 'vs/editor/common/core/position';
 
 suite('Editor Core - Range', () => {
 	test('empty range', () => {
-		var s = new Range(1, 1, 1, 1);
+		let s = new Range(1, 1, 1, 1);
 		assert.equal(s.startLineNumber, 1);
 		assert.equal(s.startColumn, 1);
 		assert.equal(s.endLineNumber, 1);
@@ -19,7 +19,7 @@ suite('Editor Core - Range', () => {
 	});
 
 	test('swap start and stop same line', () => {
-		var s = new Range(1, 2, 1, 1);
+		let s = new Range(1, 2, 1, 1);
 		assert.equal(s.startLineNumber, 1);
 		assert.equal(s.startColumn, 1);
 		assert.equal(s.endLineNumber, 1);
@@ -28,7 +28,7 @@ suite('Editor Core - Range', () => {
 	});
 
 	test('swap start and stop', () => {
-		var s = new Range(2, 1, 1, 2);
+		let s = new Range(2, 1, 1, 2);
 		assert.equal(s.startLineNumber, 1);
 		assert.equal(s.startColumn, 2);
 		assert.equal(s.endLineNumber, 2);
@@ -37,7 +37,7 @@ suite('Editor Core - Range', () => {
 	});
 
 	test('no swap same line', () => {
-		var s = new Range(1, 1, 1, 2);
+		let s = new Range(1, 1, 1, 2);
 		assert.equal(s.startLineNumber, 1);
 		assert.equal(s.startColumn, 1);
 		assert.equal(s.endLineNumber, 1);
@@ -46,7 +46,7 @@ suite('Editor Core - Range', () => {
 	});
 
 	test('no swap', () => {
-		var s = new Range(1, 1, 2, 1);
+		let s = new Range(1, 1, 2, 1);
 		assert.equal(s.startLineNumber, 1);
 		assert.equal(s.startColumn, 1);
 		assert.equal(s.endLineNumber, 2);
@@ -55,7 +55,7 @@ suite('Editor Core - Range', () => {
 	});
 
 	test('compareRangesUsingEnds', () => {
-		var a, b;
+		let a: Range, b: Range;
 
 		a = new Range(1, 1, 1, 3);
 		b = new Range(1, 2, 1, 4);

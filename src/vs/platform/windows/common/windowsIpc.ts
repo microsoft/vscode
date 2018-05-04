@@ -8,7 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, buffer } from 'vs/base/common/event';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
-import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, CrashReporterStartOptions, IMessageBoxResult, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions } from 'vs/platform/windows/common/windows';
+import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, CrashReporterStartOptions, IMessageBoxResult, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions, IDevToolsOptions } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
@@ -93,7 +93,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'showSaveDialog': return this.service.showSaveDialog(arg[0], arg[1]);
 			case 'showOpenDialog': return this.service.showOpenDialog(arg[0], arg[1]);
 			case 'reloadWindow': return this.service.reloadWindow(arg[0], arg[1]);
-			case 'openDevTools': return this.service.openDevTools(arg);
+			case 'openDevTools': return this.service.openDevTools(arg[0], arg[1]);
 			case 'toggleDevTools': return this.service.toggleDevTools(arg);
 			case 'closeWorkspace': return this.service.closeWorkspace(arg);
 			case 'createAndEnterWorkspace': {
@@ -197,8 +197,8 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('reloadWindow', [windowId, args]);
 	}
 
-	openDevTools(windowId: number): TPromise<void> {
-		return this.channel.call('openDevTools', windowId);
+	openDevTools(windowId: number, options?: IDevToolsOptions): TPromise<void> {
+		return this.channel.call('openDevTools', [windowId, options]);
 	}
 
 	toggleDevTools(windowId: number): TPromise<void> {

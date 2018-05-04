@@ -9,15 +9,14 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { Position } from 'vs/platform/editor/common/editor';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInput';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { BaseWebviewEditor, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from './baseWebviewEditor';
 import { WebviewElement } from './webviewElement';
 
@@ -39,9 +38,8 @@ export class WebviewEditor extends BaseWebviewEditor {
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IPartService private readonly _partService: IPartService,
-		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super(WebviewEditor.ID, telemetryService, themeService, _contextKeyService);
 	}
@@ -201,11 +199,8 @@ export class WebviewEditor extends BaseWebviewEditor {
 			this.findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
 		}
 
-		this._webview = new WebviewElement(
+		this._webview = this._instantiationService.createInstance(WebviewElement,
 			this._partService.getContainer(Parts.EDITOR_PART),
-			this.themeService,
-			this._environmentService,
-			this._contextViewService,
 			this.contextKey,
 			this.findInputFocusContextKey,
 			{
@@ -218,6 +213,8 @@ export class WebviewEditor extends BaseWebviewEditor {
 		if (input.options.tryRestoreScrollPosition) {
 			this._webview.initialScrollProgress = input.scrollYPercentage;
 		}
+
+		this._webview.state = input.webviewState;
 
 		this.content.setAttribute('aria-flowto', this.webviewContent.id);
 

@@ -31,6 +31,8 @@
 	"selectProblemMatcher": "Selezionare il tipo di errori e di avvisi per cui analizzare l'output dell'attività",
 	"customizeParseErrors": "La configurazione dell'attività corrente presenta errori. Per favore correggere gli errori prima di personalizzazione un'attività.",
 	"moreThanOneBuildTask": "tasks.json contiene molte attività di compilazione. È in corso l'esecuzione della prima.\n",
+	"TaskSystem.activeSame.background": "L'attività '{0}' è già attiva e in modalità background.",
+	"TaskSystem.activeSame.noBackground": "L'attività '{0}' è già attiva.",
 	"terminateTask": "Termina attività",
 	"restartTask": "Riavvia attività",
 	"TaskSystem.active": "Al momento c'è già un'attività in esecuzione. Terminarla prima di eseguirne un'altra.",

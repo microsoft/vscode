@@ -20,7 +20,7 @@ import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorMo
 import { IEditorControl, Position } from 'vs/platform/editor/common/editor';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { CodeEditor } from 'vs/editor/browser/codeEditor';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import {
 	IPreferencesSearchService,
@@ -33,7 +33,7 @@ import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/se
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { SearchWidget, SettingsTargetsWidget, SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ContextKeyExpr, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { registerEditorContribution, Command, IEditorContributionCtor } from 'vs/editor/browser/editorExtensions';
+import { registerEditorContribution, Command, IEditorContributionCtor, EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -782,7 +782,7 @@ class SideBySidePreferencesWidget extends Widget {
 		this.defaultPreferencesEditor = this._register(this.instantiationService.createInstance(DefaultPreferencesEditor));
 		this.defaultPreferencesEditor.create(this.defaultPreferencesEditorContainer);
 		this.defaultPreferencesEditor.setVisible(true);
-		(<CodeEditor>this.defaultPreferencesEditor.getControl()).onDidFocusEditor(() => this.lastFocusedEditor = this.defaultPreferencesEditor);
+		(<CodeEditorWidget>this.defaultPreferencesEditor.getControl()).onDidFocusEditor(() => this.lastFocusedEditor = this.defaultPreferencesEditor);
 
 		this.editablePreferencesEditorContainer = DOM.append(parentElement, DOM.$('.editable-preferences-editor-container'));
 		this.editablePreferencesEditorContainer.style.position = 'absolute';
@@ -879,7 +879,7 @@ class SideBySidePreferencesWidget extends Widget {
 		this.editablePreferencesEditor = editor;
 		this.editablePreferencesEditor.create(this.editablePreferencesEditorContainer);
 		this.editablePreferencesEditor.setVisible(true);
-		(<CodeEditor>this.editablePreferencesEditor.getControl()).onDidFocusEditor(() => this.lastFocusedEditor = this.editablePreferencesEditor);
+		(<CodeEditorWidget>this.editablePreferencesEditor.getControl()).onDidFocusEditor(() => this.lastFocusedEditor = this.editablePreferencesEditor);
 		this.lastFocusedEditor = this.editablePreferencesEditor;
 
 		return editor;
@@ -887,7 +887,7 @@ class SideBySidePreferencesWidget extends Widget {
 
 	private updateInput(editor: BaseEditor, input: EditorInput, editorContributionId: string, associatedPreferencesModelUri: URI, options: EditorOptions): TPromise<IPreferencesRenderer<ISetting>> {
 		return editor.setInput(input, options)
-			.then(() => (<CodeEditor>editor.getControl()).getContribution<ISettingsEditorContribution>(editorContributionId).updatePreferencesRenderer(associatedPreferencesModelUri));
+			.then(() => (<CodeEditorWidget>editor.getControl()).getContribution<ISettingsEditorContribution>(editorContributionId).updatePreferencesRenderer(associatedPreferencesModelUri));
 	}
 
 	private createSash(parentElement: HTMLElement): void {
@@ -965,8 +965,15 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService);
 	}
 
+	private static _getContributions(): IEditorContributionCtor[] {
+		let skipContributions = [FoldingController.prototype, SelectionHighlighter.prototype, FindController.prototype];
+		let contributions = EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.prototype) === -1);
+		contributions.push(DefaultSettingsEditorContribution);
+		return contributions;
+	}
+
 	public createEditorControl(parent: HTMLElement, configuration: IEditorOptions): editorCommon.IEditor {
-		const editor = this.instantiationService.createInstance(DefaultPreferencesCodeEditor, parent, configuration);
+		const editor = this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, { contributions: DefaultPreferencesEditor._getContributions() });
 
 		// Inform user about editor being readonly if user starts type
 		this.toUnbind.push(editor.onDidType(() => this.showReadonlyHint(editor)));
@@ -1028,18 +1035,6 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 	protected getAriaLabel(): string {
 		return nls.localize('preferencesAriaLabel', "Default preferences. Readonly text editor.");
 	}
-}
-
-class DefaultPreferencesCodeEditor extends CodeEditor {
-
-	protected _getContributions(): IEditorContributionCtor[] {
-		let contributions = super._getContributions();
-		let skipContributions = [FoldingController.prototype, SelectionHighlighter.prototype, FindController.prototype];
-		contributions = contributions.filter(c => skipContributions.indexOf(c.prototype) === -1);
-		contributions.push(DefaultSettingsEditorContribution);
-		return contributions;
-	}
-
 }
 
 interface ISettingsEditorContribution extends editorCommon.IEditorContribution {

@@ -21,7 +21,7 @@ export interface IWebviewEditorService {
 	createWebview(
 		viewType: string,
 		title: string,
-		column: Position,
+		showOptions: { viewColumn: Position, preserveFocus: boolean },
 		options: WebviewInputOptions,
 		extensionFolderPath: string,
 		events: WebviewEvents
@@ -37,7 +37,8 @@ export interface IWebviewEditorService {
 
 	revealWebview(
 		webview: WebviewEditorInput,
-		column: Position | null
+		column: Position | null,
+		preserveFocus: boolean
 	): void;
 
 	registerReviver(
@@ -86,24 +87,25 @@ export class WebviewEditorService implements IWebviewEditorService {
 	createWebview(
 		viewType: string,
 		title: string,
-		column: Position,
+		showOptions: { viewColumn: Position, preserveFocus: boolean },
 		options: vscode.WebviewOptions,
 		extensionFolderPath: string,
 		events: WebviewEvents
 	): WebviewEditorInput {
 		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, viewType, title, options, {}, events, extensionFolderPath, undefined);
-		this._editorService.openEditor(webviewInput, { pinned: true }, column);
+		this._editorService.openEditor(webviewInput, { pinned: true, preserveFocus: showOptions.preserveFocus }, showOptions.viewColumn);
 		return webviewInput;
 	}
 
 	revealWebview(
 		webview: WebviewEditorInput,
-		column: Position | null
+		column: Position | null,
+		preserveFocus: boolean
 	): void {
 		if (!column || webview.position === column) {
-			this._editorService.openEditor(webview, { preserveFocus: false }, column || webview.position);
+			this._editorService.openEditor(webview, { preserveFocus }, column || webview.position);
 		} else {
-			this._editorGroupService.moveEditor(webview, webview.position, column, { preserveFocus: false });
+			this._editorGroupService.moveEditor(webview, webview.position, column, { preserveFocus });
 		}
 	}
 

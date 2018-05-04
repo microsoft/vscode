@@ -14,19 +14,19 @@ import { TestTheme, TestThemeService } from 'vs/platform/theme/test/common/testT
 const themeServiceMock = new TestThemeService();
 
 suite('Decoration Render Options', () => {
-	var options: IDecorationRenderOptions = {
+	let options: IDecorationRenderOptions = {
 		gutterIconPath: URI.parse('https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png'),
 		gutterIconSize: 'contain',
 		backgroundColor: 'red',
 		borderColor: 'yellow'
 	};
 	test('register and resolve decoration type', () => {
-		var s = new CodeEditorServiceImpl(themeServiceMock);
+		let s = new CodeEditorServiceImpl(themeServiceMock);
 		s.registerDecorationType('example', options);
 		assert.notEqual(s.resolveDecorationOptions('example', false), undefined);
 	});
 	test('remove decoration type', () => {
-		var s = new CodeEditorServiceImpl(themeServiceMock);
+		let s = new CodeEditorServiceImpl(themeServiceMock);
 		s.registerDecorationType('example', options);
 		assert.notEqual(s.resolveDecorationOptions('example', false), undefined);
 		s.removeDecorationType('example');
@@ -41,10 +41,10 @@ suite('Decoration Render Options', () => {
 	}
 
 	test('css properties', () => {
-		var styleSheet = dom.createStyleSheet();
-		var s = new CodeEditorServiceImpl(themeServiceMock, styleSheet);
+		let styleSheet = dom.createStyleSheet();
+		let s = new CodeEditorServiceImpl(themeServiceMock, styleSheet);
 		s.registerDecorationType('example', options);
-		var sheet = readStyleSheet(styleSheet);
+		let sheet = readStyleSheet(styleSheet);
 		assert(
 			sheet.indexOf('background: url(\'https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png\') center center no-repeat;') > 0
 			|| sheet.indexOf('background: url("https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png") center center / contain no-repeat;') > 0
@@ -54,19 +54,19 @@ suite('Decoration Render Options', () => {
 	});
 
 	test('theme color', () => {
-		var options: IDecorationRenderOptions = {
+		let options: IDecorationRenderOptions = {
 			backgroundColor: { id: 'editorBackground' },
 			borderColor: { id: 'editorBorder' },
 		};
-		var colors: { [key: string]: string } = {
+		let colors: { [key: string]: string } = {
 			editorBackground: '#FF0000'
 		};
 
-		var styleSheet = dom.createStyleSheet();
+		let styleSheet = dom.createStyleSheet();
 		let themeService = new TestThemeService(new TestTheme(colors));
-		var s = new CodeEditorServiceImpl(themeService, styleSheet);
+		let s = new CodeEditorServiceImpl(themeService, styleSheet);
 		s.registerDecorationType('example', options);
-		var sheet = readStyleSheet(styleSheet);
+		let sheet = readStyleSheet(styleSheet);
 		assert.equal(sheet, '.monaco-editor .ced-example-0 { background-color: rgb(255, 0, 0); border-color: transparent; box-sizing: border-box; }');
 
 		colors = {
@@ -84,7 +84,7 @@ suite('Decoration Render Options', () => {
 	});
 
 	test('theme overrides', () => {
-		var options: IDecorationRenderOptions = {
+		let options: IDecorationRenderOptions = {
 			color: { id: 'editorBackground' },
 			light: {
 				color: '#FF00FF'
@@ -96,16 +96,16 @@ suite('Decoration Render Options', () => {
 				}
 			}
 		};
-		var colors: { [key: string]: string } = {
+		let colors: { [key: string]: string } = {
 			editorBackground: '#FF0000',
 			infoForeground: '#444444'
 		};
 
-		var styleSheet = dom.createStyleSheet();
+		let styleSheet = dom.createStyleSheet();
 		let themeService = new TestThemeService(new TestTheme(colors));
-		var s = new CodeEditorServiceImpl(themeService, styleSheet);
+		let s = new CodeEditorServiceImpl(themeService, styleSheet);
 		s.registerDecorationType('example', options);
-		var sheet = readStyleSheet(styleSheet);
+		let sheet = readStyleSheet(styleSheet);
 		let expected =
 			'.vs-dark.monaco-editor .ced-example-4::after, .hc-black.monaco-editor .ced-example-4::after { color: rgb(68, 68, 68) !important; }\n' +
 			'.vs-dark.monaco-editor .ced-example-1, .hc-black.monaco-editor .ced-example-1 { color: rgb(0, 0, 0) !important; }\n' +
@@ -119,12 +119,12 @@ suite('Decoration Render Options', () => {
 	});
 
 	test('css properties, gutterIconPaths', () => {
-		var styleSheet = dom.createStyleSheet();
+		let styleSheet = dom.createStyleSheet();
 
 		// unix file path (used as string)
-		var s = new CodeEditorServiceImpl(themeServiceMock, styleSheet);
+		let s = new CodeEditorServiceImpl(themeServiceMock, styleSheet);
 		s.registerDecorationType('example', { gutterIconPath: '/Users/foo/bar.png' });
-		var sheet = readStyleSheet(styleSheet);//.innerHTML || styleSheet.sheet.toString();
+		let sheet = readStyleSheet(styleSheet);//.innerHTML || styleSheet.sheet.toString();
 		assert(
 			sheet.indexOf('background: url(\'file:///Users/foo/bar.png\') center center no-repeat;') > 0
 			|| sheet.indexOf('background: url("file:///Users/foo/bar.png") center center no-repeat;') > 0

@@ -14,6 +14,7 @@ import { normalize } from 'vs/base/common/paths';
 import { IWorkspaceFolderData } from 'vs/platform/workspace/common/workspace';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { IMainContext } from 'vs/workbench/api/node/extHost.protocol';
 
 suite('ExtHostWorkspace', function () {
 
@@ -176,7 +177,7 @@ suite('ExtHostWorkspace', function () {
 		let ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [] }, new NullLogService());
 
 		let finished = false;
-		const finish = (error?) => {
+		const finish = (error?: any) => {
 			if (!finished) {
 				finished = true;
 				done(error);
@@ -274,14 +275,14 @@ suite('ExtHostWorkspace', function () {
 
 	test('updateWorkspaceFolders - valid arguments', function (done) {
 		let finished = false;
-		const finish = (error?) => {
+		const finish = (error?: any) => {
 			if (!finished) {
 				finished = true;
 				done(error);
 			}
 		};
 
-		const protocol = {
+		const protocol: IMainContext = {
 			getProxy: () => { return undefined; },
 			set: undefined,
 			assertRegistered: undefined
@@ -513,7 +514,7 @@ suite('ExtHostWorkspace', function () {
 
 	test('Multiroot change event is immutable', function (done) {
 		let finished = false;
-		const finish = (error?) => {
+		const finish = (error?: any) => {
 			if (!finished) {
 				finished = true;
 				done(error);

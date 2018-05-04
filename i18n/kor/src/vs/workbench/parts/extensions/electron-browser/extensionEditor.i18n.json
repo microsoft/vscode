@@ -36,6 +36,8 @@
 	"view location": "위치",
 	"localizations": "지역화({0})",
 	"localizations language id": "언어 ID",
+	"localizations language name": "언어 이름",
+	"localizations localized language name": "언어 이름(지역화됨)",
 	"colorThemes": "색 테마({0})",
 	"iconThemes": "아이콘 테마({0})",
 	"colors": "색({0})",

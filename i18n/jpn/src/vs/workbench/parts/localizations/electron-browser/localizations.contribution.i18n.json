@@ -10,6 +10,7 @@
 	"yes": "はい",
 	"no": "いいえ",
 	"neverAgain": "今後は表示しない",
+	"install language pack": "近い将来、VS Codeはマーケットプレイスの拡張機能のみをサポートします。現在構成されている言語を使い続けるためには、拡張機能 '{0}' をインストールしてください。",
 	"install": "インストール",
 	"more information": "詳細情報...",
 	"JsonSchema.locale": "使用する UI 言語。",

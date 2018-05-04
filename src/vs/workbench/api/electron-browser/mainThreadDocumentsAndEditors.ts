@@ -24,6 +24,7 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { isCodeEditor, isDiffEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import URI from 'vs/base/common/uri';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 
 namespace mapset {
 
@@ -310,14 +311,16 @@ export class MainThreadDocumentsAndEditors {
 		@IFileService fileService: IFileService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
-		@IEditorGroupService editorGroupService: IEditorGroupService
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IBulkEditService bulkEditService: IBulkEditService,
+
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentsAndEditors);
 
 		const mainThreadDocuments = new MainThreadDocuments(this, extHostContext, this._modelService, modeService, this._textFileService, fileService, textModelResolverService, untitledEditorService);
 		extHostContext.set(MainContext.MainThreadDocuments, mainThreadDocuments);
 
-		const mainThreadTextEditors = new MainThreadTextEditors(this, extHostContext, codeEditorService, this._workbenchEditorService, editorGroupService, textModelResolverService, fileService, this._modelService);
+		const mainThreadTextEditors = new MainThreadTextEditors(this, extHostContext, codeEditorService, bulkEditService, this._workbenchEditorService, editorGroupService);
 		extHostContext.set(MainContext.MainThreadTextEditors, mainThreadTextEditors);
 
 		// It is expected that the ctor of the state computer calls our `_onDelta`.

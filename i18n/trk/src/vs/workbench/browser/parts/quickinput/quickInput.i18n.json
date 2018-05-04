@@ -8,5 +8,6 @@
 	],
 	"inputModeEntryDescription": "{0} (Onaylamak için 'Enter' veya iptal etmek için 'Escape' tuşuna basın)",
 	"inputModeEntry": "Girdinizi onaylamak için 'Enter' veya iptal etmek için 'Escape' tuşuna basın",
+	"quickInput.countSelected": "{0} Seçili",
 	"ok": "Tamam"
 }

@@ -592,7 +592,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				}));
 	}
 
-	private createInlineValueDecorationsInsideRange(expressions: IExpression[], range: Range): IDecorationOptions[] {
+	private createInlineValueDecorationsInsideRange(expressions: ReadonlyArray<IExpression>, range: Range): IDecorationOptions[] {
 		const nameValueMap = new Map<string, string>();
 		for (let expr of expressions) {
 			nameValueMap.set(expr.name, expr.value);

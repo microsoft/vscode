@@ -10,7 +10,7 @@ import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from '../utils/typeConverters';
-import FormattingOptionsManager from './formattingConfigurationManager';
+import FormattingOptionsManager from './fileConfigurationManager';
 import { CommandManager, Command } from '../utils/commandManager';
 
 class ApplyRefactoringCommand implements Command {
@@ -29,7 +29,7 @@ class ApplyRefactoringCommand implements Command {
 		action: string,
 		range: vscode.Range
 	): Promise<boolean> {
-		await this.formattingOptionsManager.ensureFormatOptionsForDocument(document, undefined);
+		await this.formattingOptionsManager.ensureConfigurationForDocument(document, undefined);
 
 		const args: Proto.GetEditsForRefactorRequestArgs = {
 			...typeConverters.Range.toFileRangeRequestArgs(file, range),

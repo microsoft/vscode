@@ -105,7 +105,7 @@ export class ExtHostApiCommands {
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
 				{ name: 'position', description: 'Position in a text document', constraint: types.Position },
-				{ name: 'triggerCharacter', description: '(optional) Trigger signature help when the user types the character, like `,` or `(`', constraint: value => value === void 0 || typeof value === 'string' }
+				{ name: 'triggerCharacter', description: '(optional) Trigger signature help when the user types the character, like `,` or `(`', constraint: (value: any) => value === void 0 || typeof value === 'string' }
 			],
 			returns: 'A promise that resolves to SignatureHelp.'
 		});
@@ -121,8 +121,8 @@ export class ExtHostApiCommands {
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
 				{ name: 'position', description: 'Position in a text document', constraint: types.Position },
-				{ name: 'triggerCharacter', description: '(optional) Trigger completion when the user types the character, like `,` or `(`', constraint: value => value === void 0 || typeof value === 'string' },
-				{ name: 'itemResolveCount', description: '(optional) Number of completions to resolve (too large numbers slow down completions)', constraint: value => value === void 0 || typeof value === 'number' }
+				{ name: 'triggerCharacter', description: '(optional) Trigger completion when the user types the character, like `,` or `(`', constraint: (value: any) => value === void 0 || typeof value === 'string' },
+				{ name: 'itemResolveCount', description: '(optional) Number of completions to resolve (too large numbers slow down completions)', constraint: (value: any) => value === void 0 || typeof value === 'number' }
 			],
 			returns: 'A promise that resolves to a CompletionList-instance.'
 		});
@@ -138,7 +138,7 @@ export class ExtHostApiCommands {
 			description: 'Execute CodeLens provider.',
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-				{ name: 'itemResolveCount', description: '(optional) Number of lenses that should be resolved and returned. Will only retrun resolved lenses, will impact performance)', constraint: value => value === void 0 || typeof value === 'number' }
+				{ name: 'itemResolveCount', description: '(optional) Number of lenses that should be resolved and returned. Will only retrun resolved lenses, will impact performance)', constraint: (value: any) => value === void 0 || typeof value === 'number' }
 			],
 			returns: 'A promise that resolves to an array of CodeLens-instances.'
 		});
@@ -219,18 +219,18 @@ export class ExtHostApiCommands {
 					See [working with the HTML preview](https://code.visualstudio.com/docs/extensionAPI/vscode-api-commands#working-with-the-html-preview) for more information about the HTML preview's integration with the editor and for best practices for extension authors.
 				`,
 			args: [
-				{ name: 'uri', description: 'Uri of the resource to preview.', constraint: value => value instanceof URI || typeof value === 'string' },
-				{ name: 'column', description: '(optional) Column in which to preview.', constraint: value => typeof value === 'undefined' || (typeof value === 'number' && typeof types.ViewColumn[value] === 'string') },
-				{ name: 'label', description: '(optional) An human readable string that is used as title for the preview.', constraint: v => typeof v === 'string' || typeof v === 'undefined' },
-				{ name: 'options', description: '(optional) Options for controlling webview environment.', constraint: v => typeof v === 'object' || typeof v === 'undefined' }
+				{ name: 'uri', description: 'Uri of the resource to preview.', constraint: (value: any) => value instanceof URI || typeof value === 'string' },
+				{ name: 'column', description: '(optional) Column in which to preview.', constraint: (value: any) => typeof value === 'undefined' || (typeof value === 'number' && typeof types.ViewColumn[value] === 'string') },
+				{ name: 'label', description: '(optional) An human readable string that is used as title for the preview.', constraint: (v: any) => typeof v === 'string' || typeof v === 'undefined' },
+				{ name: 'options', description: '(optional) Options for controlling webview environment.', constraint: (v: any) => typeof v === 'object' || typeof v === 'undefined' }
 			]
 		});
 
 		this._register(OpenFolderAPICommand.ID, adjustHandler(OpenFolderAPICommand.execute), {
 			description: 'Open a folder or workspace in the current window or new window depending on the newWindow argument. Note that opening in the same window will shutdown the current extension host process and start a new one on the given folder/workspace unless the newWindow parameter is set to true.',
 			args: [
-				{ name: 'uri', description: '(optional) Uri of the folder or workspace file to open. If not provided, a native dialog will ask the user for the folder', constraint: value => value === void 0 || value instanceof URI },
-				{ name: 'newWindow', description: '(optional) Whether to open the folder/workspace in a new window or the same. Defaults to opening in the same window.', constraint: value => value === void 0 || typeof value === 'boolean' }
+				{ name: 'uri', description: '(optional) Uri of the folder or workspace file to open. If not provided, a native dialog will ask the user for the folder', constraint: (value: any) => value === void 0 || value instanceof URI },
+				{ name: 'newWindow', description: '(optional) Whether to open the folder/workspace in a new window or the same. Defaults to opening in the same window.', constraint: (value: any) => value === void 0 || typeof value === 'boolean' }
 			]
 		});
 
@@ -239,7 +239,7 @@ export class ExtHostApiCommands {
 			args: [
 				{ name: 'left', description: 'Left-hand side resource of the diff editor', constraint: URI },
 				{ name: 'right', description: 'Right-hand side resource of the diff editor', constraint: URI },
-				{ name: 'title', description: '(optional) Human readable title for the diff editor', constraint: v => v === void 0 || typeof v === 'string' },
+				{ name: 'title', description: '(optional) Human readable title for the diff editor', constraint: (v: any) => v === void 0 || typeof v === 'string' },
 				{ name: 'options', description: '(optional) Editor options, see vscode.TextDocumentShowOptions' }
 			]
 		});
@@ -248,14 +248,14 @@ export class ExtHostApiCommands {
 			description: 'Opens the provided resource in the editor. Can be a text or binary file, or a http(s) url. If you need more control over the options for opening a text file, use vscode.window.showTextDocument instead.',
 			args: [
 				{ name: 'resource', description: 'Resource to open', constraint: URI },
-				{ name: 'columnOrOptions', description: '(optional) Either the column in which to open or editor options, see vscode.TextDocumentShowOptions', constraint: v => v === void 0 || typeof v === 'number' || typeof v === 'object' }
+				{ name: 'columnOrOptions', description: '(optional) Either the column in which to open or editor options, see vscode.TextDocumentShowOptions', constraint: (v: any) => v === void 0 || typeof v === 'number' || typeof v === 'object' }
 			]
 		});
 
 		this._register(RemoveFromRecentlyOpenedAPICommand.ID, adjustHandler(RemoveFromRecentlyOpenedAPICommand.execute), {
 			description: 'Removes an entry with the given path from the recently opened list.',
 			args: [
-				{ name: 'path', description: 'Path to remove from recently opened.', constraint: value => typeof value === 'string' }
+				{ name: 'path', description: 'Path to remove from recently opened.', constraint: (value: any) => typeof value === 'string' }
 			]
 		});
 	}

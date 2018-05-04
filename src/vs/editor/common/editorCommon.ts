@@ -150,12 +150,16 @@ export interface ILineChange extends IChange {
 /**
  * @internal
  */
-export interface IConfiguration {
+export interface IConfiguration extends IDisposable {
 	onDidChange(listener: (e: editorOptions.IConfigurationChangedEvent) => void): IDisposable;
 
 	readonly editor: editorOptions.InternalEditorOptions;
 
 	setMaxLineNumber(maxLineNumber: number): void;
+	updateOptions(newOptions: editorOptions.IEditorOptions): void;
+	getRawOptions(): editorOptions.IEditorOptions;
+	observeReferenceElement(dimension?: IDimension): void;
+	setIsDominatedByLongLines(isDominatedByLongLines: boolean): void;
 }
 
 // --- view

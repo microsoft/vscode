@@ -436,9 +436,9 @@ class FunctionBreakpointsRenderer implements IRenderer<FunctionBreakpoint, IBase
 		data.breakpoint.title = functionBreakpoint.name;
 
 		// Mark function breakpoints as disabled if deactivated or if debug type does not support them #9099
-		const process = this.debugService.getViewModel().focusedProcess;
-		dom.toggleClass(data.breakpoint, 'disalbed', (process && !process.session.capabilities.supportsFunctionBreakpoints) || !this.debugService.getModel().areBreakpointsActivated());
-		if (process && !process.session.capabilities.supportsFunctionBreakpoints) {
+		const session = this.debugService.getViewModel().focusedSession;
+		dom.toggleClass(data.breakpoint, 'disalbed', (session && !session.raw.capabilities.supportsFunctionBreakpoints) || !this.debugService.getModel().areBreakpointsActivated());
+		if (session && !session.raw.capabilities.supportsFunctionBreakpoints) {
 			data.breakpoint.title = nls.localize('functionBreakpointsNotSupported', "Function breakpoints are not supported by this debug type");
 		}
 	}
@@ -569,9 +569,9 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 		};
 	}
 
-	const process = debugService.getViewModel().focusedProcess;
+	const session = debugService.getViewModel().focusedSession;
 	if (breakpoint instanceof FunctionBreakpoint) {
-		if (process && !process.session.capabilities.supportsFunctionBreakpoints) {
+		if (session && !session.raw.capabilities.supportsFunctionBreakpoints) {
 			return {
 				className: 'debug-function-breakpoint-unverified',
 				message: nls.localize('functionBreakpointUnsupported', "Function breakpoints not supported by this debug type"),
@@ -591,7 +591,7 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 	}
 
 	if (breakpoint.logMessage) {
-		if (process && breakpoint.condition && !process.session.capabilities.supportsLogPoints) {
+		if (session && !session.raw.capabilities.supportsLogPoints) {
 			return {
 				className: 'debug-breakpoint-unsupported',
 				message: nls.localize('logBreakpointUnsupported', "Logpoints not supported by this debug type"),
@@ -605,13 +605,13 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 	}
 
 	if (breakpoint.condition || breakpoint.hitCondition) {
-		if (process && breakpoint.condition && !process.session.capabilities.supportsConditionalBreakpoints) {
+		if (session && breakpoint.condition && !session.raw.capabilities.supportsConditionalBreakpoints) {
 			return {
 				className: 'debug-breakpoint-unsupported',
 				message: nls.localize('conditionalBreakpointUnsupported', "Conditional breakpoints not supported by this debug type"),
 			};
 		}
-		if (process && breakpoint.hitCondition && !process.session.capabilities.supportsHitConditionalBreakpoints) {
+		if (session && breakpoint.hitCondition && !session.raw.capabilities.supportsHitConditionalBreakpoints) {
 			return {
 				className: 'debug-breakpoint-unsupported',
 				message: nls.localize('hitBreakpointUnsupported', "Hit conditional breakpoints not supported by this debug type"),

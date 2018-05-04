@@ -82,7 +82,7 @@ export class ExtensionHostProfiler {
 		let distilledIds: ProfileSegmentId[] = [];
 
 		let currSegmentTime = 0;
-		let currSegmentId = void 0;
+		let currSegmentId: string = void 0;
 		for (let i = 0; i < samples.length; i++) {
 			let id = samples[i];
 			let segmentId = idsToSegmentId.get(id);

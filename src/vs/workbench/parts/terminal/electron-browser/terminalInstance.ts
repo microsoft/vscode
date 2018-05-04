@@ -155,7 +155,7 @@ export class TerminalInstance implements ITerminalInstance {
 			return;
 		}
 
-		const computedStyle = window.getComputedStyle(this._container);
+		const computedStyle = window.getComputedStyle(this._container.parentElement);
 		const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
 		const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
 		this._evaluateColsAndRows(width, height);
@@ -541,7 +541,7 @@ export class TerminalInstance implements ITerminalInstance {
 				// for ensuring that terminals that are created in the background by an extension will
 				// correctly get correct character measurements in order to render to the screen (see
 				// #34554).
-				const computedStyle = window.getComputedStyle(this._container);
+				const computedStyle = window.getComputedStyle(this._container.parentElement);
 				const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
 				const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
 				this.layout(new dom.Dimension(width, height));

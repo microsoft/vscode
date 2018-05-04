@@ -3,28 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace as Workspace, FormattingOptions, TextDocument, CancellationToken, window, Disposable, workspace } from 'vscode';
+import { workspace as Workspace, FormattingOptions, TextDocument, CancellationToken, window, Disposable, workspace, WorkspaceConfiguration } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as languageIds from '../utils/languageModeIds';
 
-namespace FormattingConfiguration {
-	export function equals(a: Proto.FormatCodeSettings, b: Proto.FormatCodeSettings): boolean {
-		let keys = Object.keys(a);
-		for (let i = 0; i < keys.length; i++) {
-			let key = keys[i];
-			if ((a as any)[key] !== (b as any)[key]) {
-				return false;
-			}
+function objsAreEqual<T>(a: T, b: T): boolean {
+	let keys = Object.keys(a);
+	for (let i = 0; i < keys.length; i++) {
+		let key = keys[i];
+		if ((a as any)[key] !== (b as any)[key]) {
+			return false;
 		}
-		return true;
 	}
+	return true;
 }
 
-export default class FormattingConfigurationManager {
+interface FileConfiguration {
+	formatOptions: Proto.FormatCodeSettings;
+	preferences: Proto.UserPreferences;
+}
+
+function areFileConfigurationsEqual(a: FileConfiguration, b: FileConfiguration): boolean {
+	return (
+		objsAreEqual(a.formatOptions, b.formatOptions)
+		&& objsAreEqual(a.preferences, b.preferences)
+	);
+}
+
+export default class FileConfigurationManager {
 	private onDidCloseTextDocumentSub: Disposable | undefined;
-	private formatOptions: { [key: string]: Proto.FormatCodeSettings | undefined; } = Object.create(null);
+	private formatOptions: { [key: string]: FileConfiguration | undefined } = Object.create(null);
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient
@@ -46,7 +56,7 @@ export default class FormattingConfigurationManager {
 		}
 	}
 
-	public async ensureFormatOptionsForDocument(
+	public async ensureConfigurationForDocument(
 		document: TextDocument,
 		token: CancellationToken | undefined
 	): Promise<void> {
@@ -56,11 +66,11 @@ export default class FormattingConfigurationManager {
 				tabSize: editor.options.tabSize,
 				insertSpaces: editor.options.insertSpaces
 			} as FormattingOptions;
-			return this.ensureFormatOptions(document, formattingOptions, token);
+			return this.ensureConfigurationOptions(document, formattingOptions, token);
 		}
 	}
 
-	public async ensureFormatOptions(
+	public async ensureConfigurationOptions(
 		document: TextDocument,
 		options: FormattingOptions,
 		token: CancellationToken | undefined
@@ -72,22 +82,33 @@ export default class FormattingConfigurationManager {
 
 		const key = document.uri.toString();
 		const cachedOptions = this.formatOptions[key];
-		const formatOptions = this.getFormatOptions(document, options);
+		const currentOptions = this.getFileOptions(document, options);
 
-		if (cachedOptions && FormattingConfiguration.equals(cachedOptions, formatOptions)) {
+		if (cachedOptions && areFileConfigurationsEqual(cachedOptions, currentOptions)) {
 			return;
 		}
 
-		const args: Proto.ConfigureRequestArguments = {
-			file: file,
-			formatOptions: formatOptions
-		};
+		const args = {
+			file,
+			...currentOptions
+		} as Proto.ConfigureRequestArguments;
 		await this.client.execute('configure', args, token);
-		this.formatOptions[key] = formatOptions;
+		this.formatOptions[key] = currentOptions;
 	}
 
 	public reset() {
 		this.formatOptions = Object.create(null);
+	}
+
+
+	private getFileOptions(
+		document: TextDocument,
+		options: FormattingOptions
+	): FileConfiguration {
+		return {
+			formatOptions: this.getFormatOptions(document, options),
+			preferences: this.getPreferences(document)
+		};
 	}
 
 	private getFormatOptions(
@@ -95,10 +116,9 @@ export default class FormattingConfigurationManager {
 		options: FormattingOptions
 	): Proto.FormatCodeSettings {
 		const config = workspace.getConfiguration(
-			document.languageId === languageIds.typescript || document.languageId === languageIds.typescriptreact
-				? 'typescript.format'
-				: 'javascript.format',
+			isTypeScriptDocument(document) ? 'typescript.format' : 'javascript.format',
 			document.uri);
+
 		return {
 			tabSize: options.tabSize,
 			indentSize: options.tabSize,
@@ -122,4 +142,39 @@ export default class FormattingConfigurationManager {
 			placeOpenBraceOnNewLineForControlBlocks: config.get<boolean>('placeOpenBraceOnNewLineForControlBlocks'),
 		};
 	}
+
+	private getPreferences(document: TextDocument): Proto.UserPreferences {
+		if (!this.client.apiVersion.has290Features()) {
+			return {};
+		}
+
+		const config = workspace.getConfiguration(
+			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
+			document.uri);
+
+		return {
+			quotePreference: getQuoteStylePreference(config),
+			importModuleSpecifierPreference: getImportModuleSpecifierPreference(config)
+		};
+	}
+}
+
+function getQuoteStylePreference(config: WorkspaceConfiguration) {
+	switch (config.get<string>('quoteStyle')) {
+		case 'single': return 'single';
+		case 'double': return 'double';
+		default: return undefined;
+	}
+}
+
+function getImportModuleSpecifierPreference(config: WorkspaceConfiguration) {
+	switch (config.get<string>('importModuleSpecifier')) {
+		case 'relative': return 'relative';
+		case 'non-relative': return 'non-relative';
+		default: return undefined;
+	}
+}
+
+function isTypeScriptDocument(document: TextDocument) {
+	return document.languageId === languageIds.typescript || document.languageId === languageIds.typescriptreact;
 }

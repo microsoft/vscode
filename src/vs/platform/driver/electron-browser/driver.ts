@@ -12,6 +12,7 @@ import { IPCClient } from 'vs/base/parts/ipc/common/ipc';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { getTopLeftOffset, getClientArea } from 'vs/base/browser/dom';
 import * as electron from 'electron';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 function serializeElement(element: Element, recursive: boolean): IElement {
 	const attributes = Object.create(null);
@@ -40,7 +41,9 @@ function serializeElement(element: Element, recursive: boolean): IElement {
 
 class WindowDriver implements IWindowDriver {
 
-	constructor() { }
+	constructor(
+		@IWindowService private windowService: IWindowService
+	) { }
 
 	async click(selector: string, xoffset?: number, yoffset?: number): TPromise<void> {
 		return this._click(selector, 1, xoffset, yoffset);
@@ -106,28 +109,24 @@ class WindowDriver implements IWindowDriver {
 		inputElement.dispatchEvent(event);
 	}
 
-	async paste(selector: string, text: string): TPromise<void> {
-		const element = document.querySelector(selector);
-
-		if (!element) {
-			throw new Error('Element not found');
-		}
-
-		const inputElement = element as HTMLInputElement;
-		const clipboardData = new DataTransfer();
-		clipboardData.setData('text/plain', text);
-		const event = new ClipboardEvent('paste', { clipboardData } as any);
-
-		inputElement.dispatchEvent(event);
-	}
-
 	async getTitle(): TPromise<string> {
 		return document.title;
 	}
 
 	async isActiveElement(selector: string): TPromise<boolean> {
 		const element = document.querySelector(selector);
-		return element === document.activeElement;
+
+		if (element !== document.activeElement) {
+			const el = document.activeElement;
+			const tagName = el.tagName;
+			const id = el.id ? `#${el.id}` : '';
+			const classes = el.className.split(/\W+/g).map(c => c.trim()).filter(c => !!c).map(c => `.${c}`).join('');
+			const current = `${tagName}${id}${classes}`;
+
+			throw new Error(`Active element not found. Current active element is '${current}'`);
+		}
+
+		return true;
 	}
 
 	async getElements(selector: string, recursive: boolean): TPromise<IElement[]> {
@@ -183,6 +182,26 @@ class WindowDriver implements IWindowDriver {
 
 		return lines;
 	}
+
+	async writeInTerminal(selector: string, text: string): TPromise<void> {
+		const element = document.querySelector(selector);
+
+		if (!element) {
+			throw new Error('Element not found');
+		}
+
+		const xterm = (element as any).xterm;
+
+		if (!xterm) {
+			throw new Error('Xterm not found');
+		}
+
+		xterm.send(text);
+	}
+
+	async openDevTools(): TPromise<void> {
+		await this.windowService.openDevTools({ mode: 'detach' });
+	}
 }
 
 export async function registerWindowDriver(
@@ -197,7 +216,11 @@ export async function registerWindowDriver(
 	const windowDriverRegistryChannel = client.getChannel('windowDriverRegistry');
 	const windowDriverRegistry = new WindowDriverRegistryChannelClient(windowDriverRegistryChannel);
 
-	await windowDriverRegistry.registerWindowDriver(windowId);
+	const options = await windowDriverRegistry.registerWindowDriver(windowId);
+
+	if (options.verbose) {
+		windowDriver.openDevTools();
+	}
 
 	const disposable = toDisposable(() => windowDriverRegistry.reloadWindowDriver(windowId));
 	return combinedDisposable([disposable, client]);

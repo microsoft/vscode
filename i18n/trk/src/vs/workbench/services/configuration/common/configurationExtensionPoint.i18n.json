@@ -8,6 +8,7 @@
 	],
 	"vscode.extension.contributes.configuration.title": "Ayarların bir özeti. Bu etiket ayar dosyasında ayırıcı yorum olarak kullanılacaktır.",
 	"vscode.extension.contributes.configuration.properties": "Yapılandırma özelliklerinin açıklaması.",
+	"scope.application.description": "Sadece kullanıcı ayarlarında yapılandırılabilen, uygulamaya özel yapılandırma.",
 	"scope.window.description": "Kullanıcı veya çalışma alanında yapılandırılabilen Windows'a özel yapılandırma.",
 	"scope.resource.description": "Kullanıcı veya çalışma alanında yapılandırılabilen kaynağa özel yapılandırma.",
 	"scope.description": "Yapılandırmanın uygulanabilir olduğu kapsam. Mevcut kapsamlar 'window' ve 'resource'tır.",

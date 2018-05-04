@@ -17,6 +17,7 @@ import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { StreamDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
+import { formatPII } from 'vs/workbench/parts/debug/common/debugUtils';
 
 
 export interface SessionExitedEvent extends debug.DebugEvent {
@@ -63,15 +64,13 @@ export class SocketDebugAdapter extends StreamDebugAdapter {
 	}
 }
 
-export class RawDebugSession implements debug.ISession {
+export class RawDebugSession implements debug.IRawSession {
 
 	private debugAdapter: debug.IDebugAdapter;
 
 	public emittedStopped: boolean;
 	public readyForBreakpoints: boolean;
 
-	//private serverProcess: cp.ChildProcess;
-	//private socket: net.Socket = null;
 	private cachedInitServerP: TPromise<void>;
 	private startTime: number;
 	public disconnected: boolean;
@@ -83,7 +82,8 @@ export class RawDebugSession implements debug.ISession {
 	private readonly _onDidStop: Emitter<DebugProtocol.StoppedEvent>;
 	private readonly _onDidContinued: Emitter<DebugProtocol.ContinuedEvent>;
 	private readonly _onDidTerminateDebugee: Emitter<SessionTerminatedEvent>;
-	private readonly _onDidExitAdapter: Emitter<SessionExitedEvent>;
+	private readonly _onDidExitDebugee: Emitter<DebugProtocol.ExitedEvent>;
+	private readonly _onDidExitAdapter: Emitter<{ sessionId: string }>;
 	private readonly _onDidThread: Emitter<DebugProtocol.ThreadEvent>;
 	private readonly _onDidOutput: Emitter<DebugProtocol.OutputEvent>;
 	private readonly _onDidBreakpoint: Emitter<DebugProtocol.BreakpointEvent>;
@@ -109,7 +109,8 @@ export class RawDebugSession implements debug.ISession {
 		this._onDidStop = new Emitter<DebugProtocol.StoppedEvent>();
 		this._onDidContinued = new Emitter<DebugProtocol.ContinuedEvent>();
 		this._onDidTerminateDebugee = new Emitter<SessionTerminatedEvent>();
-		this._onDidExitAdapter = new Emitter<SessionExitedEvent>();
+		this._onDidExitDebugee = new Emitter<DebugProtocol.ExitedEvent>();
+		this._onDidExitAdapter = new Emitter<{ sessionId: string }>();
 		this._onDidThread = new Emitter<DebugProtocol.ThreadEvent>();
 		this._onDidOutput = new Emitter<DebugProtocol.OutputEvent>();
 		this._onDidBreakpoint = new Emitter<DebugProtocol.BreakpointEvent>();
@@ -137,7 +138,11 @@ export class RawDebugSession implements debug.ISession {
 		return this._onDidTerminateDebugee.event;
 	}
 
-	public get onDidExitAdapter(): Event<SessionExitedEvent> {
+	public get onDidExitDebugee(): Event<DebugProtocol.ExitedEvent> {
+		return this._onDidExitDebugee.event;
+	}
+
+	public get onDidExitAdapter(): Event<{ sessionId: string }> {
 		return this._onDidExitAdapter.event;
 	}
 
@@ -189,10 +194,10 @@ export class RawDebugSession implements debug.ISession {
 
 			this.debugAdapter = debugAdapter;
 
-			this.debugAdapter.onError(err => this.onDapServerError(err));
+			this.debugAdapter.onError(err => this.onDebugAdapterError(err));
 			this.debugAdapter.onEvent(event => this.onDapEvent(event));
 			this.debugAdapter.onRequest(request => this.dispatchRequest(request));
-			this.debugAdapter.onExit(code => this.onServerExit());
+			this.debugAdapter.onExit(code => this.onDebugAdapterExit());
 
 			return this.debugAdapter.startSession();
 		});
@@ -207,7 +212,7 @@ export class RawDebugSession implements debug.ISession {
 			const promise = this.internalSend<R>(command, args).then(response => response, (errorResponse: DebugProtocol.ErrorResponse) => {
 				const error = errorResponse && errorResponse.body ? errorResponse.body.error : null;
 				const errorMessage = errorResponse ? errorResponse.message : '';
-				const telemetryMessage = error ? debug.formatPII(error.format, true, error.variables) : errorMessage;
+				const telemetryMessage = error ? formatPII(error.format, true, error.variables) : errorMessage;
 				if (error && error.sendTelemetry) {
 					/* __GDPR__
 						"debugProtocolErrorResponse" : {
@@ -224,7 +229,7 @@ export class RawDebugSession implements debug.ISession {
 					}
 				}
 
-				const userMessage = error ? debug.formatPII(error.format, false, error.variables) : errorMessage;
+				const userMessage = error ? formatPII(error.format, false, error.variables) : errorMessage;
 				if (error && error.url) {
 					const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
 					return TPromise.wrapError<R>(errors.create(userMessage, {
@@ -283,7 +288,7 @@ export class RawDebugSession implements debug.ISession {
 		} else if (event.event === 'terminated') {
 			this._onDidTerminateDebugee.fire(<SessionTerminatedEvent>event);
 		} else if (event.event === 'exit') {
-			this._onDidExitAdapter.fire(<SessionExitedEvent>event);
+			this._onDidExitDebugee.fire(<SessionExitedEvent>event);
 		} else {
 			this._onDidCustomEvent.fire(event);
 		}
@@ -517,8 +522,8 @@ export class RawDebugSession implements debug.ISession {
 			this.cachedInitServerP = null;
 		}
 
-		this.onDapEvent({ event: 'exit', type: 'event', seq: 0 });
-		if (/* !this.serverProcess */ this.debugAdapter instanceof SocketDebugAdapter) {
+		this._onDidExitAdapter.fire({ sessionId: this.getId() });
+		if (this.debugAdapter instanceof SocketDebugAdapter) {
 			return TPromise.as(null);
 		}
 
@@ -527,19 +532,18 @@ export class RawDebugSession implements debug.ISession {
 		return this.debugAdapter.stopSession();
 	}
 
-	private onDapServerError(err: Error): void {
+	private onDebugAdapterError(err: Error): void {
 		this.notificationService.error(err.message || err.toString());
 		this.stopServer().done(null, errors.onUnexpectedError);
 	}
 
-	private onServerExit(): void {
-		//this.serverProcess = null;
+	private onDebugAdapterExit(): void {
 		this.debugAdapter = null;
 		this.cachedInitServerP = null;
 		if (!this.disconnected) {
 			this.notificationService.error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly"));
 		}
-		this.onDapEvent({ event: 'exit', type: 'event', seq: 0 });
+		this._onDidExitAdapter.fire({ sessionId: this.getId() });
 	}
 
 	public dispose(): void {

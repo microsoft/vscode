@@ -166,11 +166,6 @@ export interface IQuickOpenService {
 	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration): void;
 
 	/**
-	 * Opens the quick open box for user input and returns a promise with the user typed value if any.
-	 */
-	input(options?: IInputOptions, token?: CancellationToken): TPromise<string>;
-
-	/**
 	 * Accepts the selected value in quick open if visible.
 	 */
 	accept(): void;

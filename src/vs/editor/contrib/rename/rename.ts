@@ -9,18 +9,14 @@ import * as nls from 'vs/nls';
 import { illegalArgument } from 'vs/base/common/errors';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IFileService } from 'vs/platform/files/common/files';
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand, registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { BulkEdit } from 'vs/editor/browser/services/bulkEdit';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import RenameInputField from './renameInputField';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { WorkspaceEdit, RenameProviderRegistry, RenameProvider, RenameLocation } from 'vs/editor/common/modes';
@@ -31,6 +27,7 @@ import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IBulkEditService } from '../../browser/services/bulkEditService';
 
 class RenameSkeleton {
 
@@ -111,11 +108,10 @@ class RenameController implements IEditorContribution {
 	constructor(
 		private editor: ICodeEditor,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@ITextModelService private readonly _textModelResolverService: ITextModelService,
+		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@IProgressService private readonly _progressService: IProgressService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
-		@optional(IFileService) private _fileService: IFileService
 	) {
 		this._renameInputField = new RenameInputField(editor, themeService);
 		this._renameInputVisible = CONTEXT_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
@@ -168,7 +164,6 @@ class RenameController implements IEditorContribution {
 
 			this.editor.focus();
 
-			const edit = new BulkEdit(this.editor, null, this._textModelResolverService, this._fileService);
 			const state = new EditorState(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection | CodeEditorStateFlag.Scroll);
 
 			const renameOperation = skeleton.provideRenameEdits(newNameOrFocusFlag, 0, [], Range.lift(loc.range).getStartPosition()).then(result => {
@@ -180,14 +175,15 @@ class RenameController implements IEditorContribution {
 					}
 					return undefined;
 				}
-				edit.add(result.edits);
 
-				return edit.perform().then(selection => {
-					if (selection) {
-						this.editor.setSelection(selection);
+				return this._bulkEditService.apply(result, { editor: this.editor }).then(result => {
+					if (result.selection) {
+						this.editor.setSelection(result.selection);
 					}
 					// alert
-					alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", loc.text, newNameOrFocusFlag, edit.ariaMessage()));
+					if (result.ariaSummary) {
+						alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", loc.text, newNameOrFocusFlag, result.ariaSummary));
+					}
 				});
 
 			}, err => {

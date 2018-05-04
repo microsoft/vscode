@@ -146,7 +146,6 @@
 	"miConditionalBreakpoint": "Ponto de Parada &&Condicional...",
 	"miColumnBreakpoint": "Ponto de Parada de C&&oluna",
 	"miFunctionBreakpoint": "Ponto de Parada de &&Função...",
-	"miLogPoint": "Ponto de &&Log...",
 	"miNewBreakpoint": "&&Novo Ponto de Parada",
 	"miEnableAllBreakpoints": "Habilitar Todos os Pontos de Parada",
 	"miDisableAllBreakpoints": "Desabilitar T&&odos os Pontos de Parada",

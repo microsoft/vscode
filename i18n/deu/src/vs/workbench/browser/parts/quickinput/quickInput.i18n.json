@@ -8,5 +8,6 @@
 	],
 	"inputModeEntryDescription": "{0} (Drücken Sie die EINGABETASTE zur Bestätigung oder ESC, um den Vorgang abzubrechen.)",
 	"inputModeEntry": "Drücken Sie die EINGABETASTE, um Ihre Eingabe zu bestätigen, oder ESC, um den Vorgang abzubrechen.",
+	"quickInput.countSelected": "{0} ausgewählt",
 	"ok": "OK"
 }

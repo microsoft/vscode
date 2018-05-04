@@ -258,6 +258,7 @@ export interface ISerializedDocumentFilter {
 	language?: string;
 	scheme?: string;
 	pattern?: vscode.GlobPattern;
+	exclusive?: boolean;
 }
 
 export interface MainThreadLanguageFeaturesShape extends IDisposable {
@@ -354,9 +355,9 @@ export interface MainThreadTelemetryShape extends IDisposable {
 export type WebviewPanelHandle = string;
 
 export interface MainThreadWebviewsShape extends IDisposable {
-	$createWebviewPanel(handle: WebviewPanelHandle, viewType: string, title: string, column: EditorPosition, options: vscode.WebviewPanelOptions & vscode.WebviewOptions, extensionFolderPath: string): void;
+	$createWebviewPanel(handle: WebviewPanelHandle, viewType: string, title: string, viewOptions: { viewColumn: EditorPosition, preserveFocus: boolean }, options: vscode.WebviewPanelOptions & vscode.WebviewOptions, extensionFolderPath: string): void;
 	$disposeWebview(handle: WebviewPanelHandle): void;
-	$reveal(handle: WebviewPanelHandle, column: EditorPosition | undefined): void;
+	$reveal(handle: WebviewPanelHandle, viewColumn: EditorPosition | null, preserveFocus: boolean): void;
 	$setTitle(handle: WebviewPanelHandle, value: string): void;
 	$setHtml(handle: WebviewPanelHandle, value: string): void;
 	$postMessage(handle: WebviewPanelHandle, value: any): Thenable<boolean>;
@@ -403,7 +404,7 @@ export interface MainThreadFileSystemShape extends IDisposable {
 export interface MainThreadSearchShape extends IDisposable {
 	$registerSearchProvider(handle: number, scheme: string): void;
 	$unregisterProvider(handle: number): void;
-	$handleFindMatch(handle: number, session, data: UriComponents | [UriComponents, ILineMatch]): void;
+	$handleFindMatch(handle: number, session: number, data: UriComponents | [UriComponents, ILineMatch]): void;
 }
 
 export interface MainThreadTaskShape extends IDisposable {
@@ -478,10 +479,10 @@ export interface MainThreadSCMShape extends IDisposable {
 export type DebugSessionUUID = string;
 
 export interface MainThreadDebugServiceShape extends IDisposable {
-	$registerDebugTypes(debugTypes: string[]);
-	$acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage);
-	$acceptDAError(handle: number, name: string, message: string, stack: string);
-	$acceptDAExit(handle: number, code: number, signal: string);
+	$registerDebugTypes(debugTypes: string[]): void;
+	$acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): void;
+	$acceptDAError(handle: number, name: string, message: string, stack: string): void;
+	$acceptDAExit(handle: number, code: number, signal: string): void;
 	$registerDebugConfigurationProvider(type: string, hasProvideMethod: boolean, hasResolveMethod: boolean, hasDebugAdapterExecutable: boolean, handle: number): TPromise<any>;
 	$unregisterDebugConfigurationProvider(handle: number): TPromise<any>;
 	$startDebugging(folder: UriComponents | undefined, nameOrConfig: string | vscode.DebugConfiguration): TPromise<boolean>;
@@ -756,7 +757,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptTerminalClosed(id: number): void;
 	$acceptTerminalOpened(id: number, name: string): void;
 	$acceptTerminalProcessId(id: number, processId: number): void;
-	$acceptTerminalProcessData(id: number, data: string);
+	$acceptTerminalProcessData(id: number, data: string): void;
 	$createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, cols: number, rows: number): void;
 	$acceptProcessInput(id: number, data: string): void;
 	$acceptProcessResize(id: number, cols: number, rows: number): void;
@@ -852,7 +853,7 @@ export interface ExtHostWindowShape {
 }
 
 export interface ExtHostLogServiceShape {
-	$setLevel(level: LogLevel);
+	$setLevel(level: LogLevel): void;
 }
 
 export interface ExtHostProgressShape {

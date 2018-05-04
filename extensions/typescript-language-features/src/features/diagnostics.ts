@@ -44,13 +44,13 @@ export class DiagnosticsManager {
 	private _enableSuggestions: boolean = true;
 
 	constructor(
-		language: string
+		owner: string
 	) {
 		for (const kind of allDiagnosticKinds) {
 			this._diagnostics.set(kind, new DiagnosticSet());
 		}
 
-		this._currentDiagnostics = vscode.languages.createDiagnosticCollection(language);
+		this._currentDiagnostics = vscode.languages.createDiagnosticCollection(owner);
 	}
 
 	public dispose() {

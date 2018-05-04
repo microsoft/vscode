@@ -12,9 +12,9 @@
   "engines": {
     "vscode": "*"
   },
-	"categories": [
-		"Programming Languages"
-	],
+  "categories": [
+    "Programming Languages"
+  ],
   "dependencies": {
     "semver": "4.3.6",
     "vscode-extension-telemetry": "0.0.17",
@@ -22,7 +22,8 @@
   },
   "devDependencies": {
     "@types/node": "8.0.33",
-    "@types/semver": "5.4.0"
+    "@types/semver": "5.4.0",
+    "vscode": "^1.1.10"
   },
   "scripts": {
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript ./tsconfig.json"
@@ -424,6 +425,50 @@
           "type": "boolean",
           "default": true,
           "description": "%typescript.suggestionActions.enabled%",
+          "scope": "window"
+        },
+        "javascript.preferences.quoteStyle": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "single",
+            "double"
+          ],
+          "default": "auto",
+          "description": "%typescript.preferences.quoteStyle%",
+          "scope": "window"
+        },
+        "typescript.preferences.quoteStyle": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "single",
+            "double"
+          ],
+          "default": "auto",
+          "description": "%typescript.preferences.quoteStyle%",
+          "scope": "window"
+        },
+        "javascript.preferences.importModuleSpecifier": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "relative",
+            "non-relative"
+          ],
+          "default": "auto",
+          "description": "%typescript.preferences.importModuleSpecifier%",
+          "scope": "window"
+        },
+        "typescript.preferences.importModuleSpecifier": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "relative",
+            "non-relative"
+          ],
+          "default": "auto",
+          "description": "%typescript.preferences.importModuleSpecifier%",
           "scope": "window"
         }
       }

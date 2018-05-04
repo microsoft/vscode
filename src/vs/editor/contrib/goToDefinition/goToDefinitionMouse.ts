@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./goToDeclarationMouse';
+import 'vs/css!./goToDefinitionMouse';
 import * as nls from 'vs/nls';
 import { Throttler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -17,14 +17,14 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Location, DefinitionProviderRegistry } from 'vs/editor/common/modes';
 import { ICodeEditor, IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { getDefinitionsAtPosition } from './goToDeclaration';
+import { getDefinitionsAtPosition } from './goToDefinition';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
-import { DefinitionAction, DefinitionActionConfig } from './goToDeclarationCommands';
-import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'vs/editor/contrib/goToDeclaration/clickLinkGesture';
+import { DefinitionAction, DefinitionActionConfig } from './goToDefinitionCommands';
+import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'vs/editor/contrib/goToDefinition/clickLinkGesture';
 import { IWordAtPosition, IModelDeltaDecoration } from 'vs/editor/common/model';
 
 class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorContribution {

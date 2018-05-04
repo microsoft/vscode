@@ -114,7 +114,7 @@
 .debug-viewlet .monaco-tree .monaco-tree-row.selected .line-number,
 .debug-viewlet .monaco-list .monaco-list-row.selected .line-number,
 .debug-viewlet .monaco-tree .monaco-tree-row.selected .thread > .state > .label,
-.debug-viewlet .monaco-tree .monaco-tree-row.selected .process > .state > .label {
+.debug-viewlet .monaco-tree .monaco-tree-row.selected .session > .state > .label {
 	background-color: #ffffff;
 	color: #666;
 }
@@ -177,12 +177,12 @@
 }
 
 .debug-viewlet .debug-call-stack .thread,
-.debug-viewlet .debug-call-stack .process {
+.debug-viewlet .debug-call-stack .session {
 	display: flex;
 }
 
 .debug-viewlet .debug-call-stack .thread > .state,
-.debug-viewlet .debug-call-stack .process > .state {
+.debug-viewlet .debug-call-stack .session > .state {
 	flex: 1;
 	text-align: right;
 	overflow: hidden;
@@ -192,7 +192,7 @@
 }
 
 .debug-viewlet .debug-call-stack .thread > .state > .label,
-.debug-viewlet .debug-call-stack .process > .state > .label {
+.debug-viewlet .debug-call-stack .session > .state > .label {
 	background: rgba(136, 136, 136, 0.3);
 	border-radius: 2px;
 	font-size: 0.8em;

@@ -9,7 +9,6 @@
 	// @ts-ignore
 	const ipcRenderer = require('electron').ipcRenderer;
 
-
 	const registerVscodeResourceScheme = (function () {
 		let hasRegistered = false;
 		return () => {
@@ -35,31 +34,35 @@
 	var loadTimeout;
 	var pendingMessages = [];
 	var enableWrappedPostMessage = false;
+	let isInDevelopmentMode = false;
 
 	const initData = {
 		initialScrollProgress: undefined
 	};
 
-	function styleBody(body) {
+	/**
+	 * @param {HTMLElement} body
+	 */
+	const styleBody = (body) => {
 		if (!body) {
 			return;
 		}
 		body.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast');
 		body.classList.add(initData.activeTheme);
-	}
+	};
 
-	function getActiveFrame() {
+	const getActiveFrame = () => {
 		return /** @type {HTMLIFrameElement} */ (document.getElementById('active-frame'));
-	}
+	};
 
-	function getPendingFrame() {
+	const getPendingFrame = () => {
 		return /** @type {HTMLIFrameElement} */ (document.getElementById('pending-frame'));
-	}
+	};
 
 	/**
 	 * @param {MouseEvent} event
 	 */
-	function handleInnerClick(event) {
+	const handleInnerClick = (event) => {
 		if (!event || !event.view || !event.view.document) {
 			return;
 		}
@@ -84,20 +87,14 @@
 			}
 			node = node.parentNode;
 		}
-	}
+	};
 
-	function onMessage(message) {
-		if (enableWrappedPostMessage) {
-			// Modern webview. Forward wrapped message
-			ipcRenderer.sendToHost('onmessage', message.data);
-		} else {
-			// Old school webview. Forward exact message
-			ipcRenderer.sendToHost(message.data.command, message.data.data);
-		}
-	}
+	const onMessage = (message) => {
+		ipcRenderer.sendToHost(message.data.command, message.data.data);
+	};
 
 	var isHandlingScroll = false;
-	function handleInnerScroll(event) {
+	const handleInnerScroll = (event) => {
 		if (isHandlingScroll) {
 			return;
 		}
@@ -108,7 +105,7 @@
 		}
 
 		isHandlingScroll = true;
-		window.requestAnimationFrame(function () {
+		window.requestAnimationFrame(() => {
 			try {
 				ipcRenderer.sendToHost('did-scroll', progress);
 			} catch (e) {
@@ -116,14 +113,14 @@
 			}
 			isHandlingScroll = false;
 		});
-	}
+	};
 
-	document.addEventListener('DOMContentLoaded', function () {
-		ipcRenderer.on('baseUrl', function (event, value) {
+	document.addEventListener('DOMContentLoaded', () => {
+		ipcRenderer.on('baseUrl', (event, value) => {
 			initData.baseUrl = value;
 		});
 
-		ipcRenderer.on('styles', function (event, variables, activeTheme) {
+		ipcRenderer.on('styles', (event, variables, activeTheme) => {
 			initData.styles = variables;
 			initData.activeTheme = activeTheme;
 
@@ -136,13 +133,13 @@
 			styleBody(body[0]);
 
 			// iframe
-			Object.keys(variables).forEach(function (variable) {
+			Object.keys(variables).forEach((variable) => {
 				target.contentDocument.documentElement.style.setProperty(`--${variable}`, variables[variable]);
 			});
 		});
 
 		// propagate focus
-		ipcRenderer.on('focus', function () {
+		ipcRenderer.on('focus', () => {
 			const target = getActiveFrame();
 			if (target) {
 				target.contentWindow.focus();
@@ -150,7 +147,7 @@
 		});
 
 		// update iframe-contents
-		ipcRenderer.on('content', function (_event, data) {
+		ipcRenderer.on('content', (_event, data) => {
 			const options = data.options;
 			enableWrappedPostMessage = options && options.enableWrappedPostMessage;
 
@@ -182,6 +179,8 @@
 						const originalPostMessage = window.parent.postMessage.bind(window.parent);
 						let acquired = false;
 
+						let state = ${data.state ? `JSON.parse(${JSON.stringify(data.state)})` : undefined};
+
 						return () => {
 							if (acquired) {
 								throw new Error('An instance of the VS Code API has already been acquired');
@@ -189,7 +188,13 @@
 							acquired = true;
 							return Object.freeze({
 								postMessage: function(msg) {
-									return originalPostMessage(msg, '*');
+									return originalPostMessage({ command: 'onmessage', data: msg }, '*');
+								},
+								setState: function(state) {
+									return originalPostMessage({ command: 'do-update-state', data: JSON.stringify(state) }, '*');
+								},
+								getState: function() {
+									return state;
 								}
 							});
 						};
@@ -210,7 +215,7 @@
 			const defaultStyles = newDocument.createElement('style');
 			defaultStyles.id = '_defaultStyles';
 
-			const vars = Object.keys(initData.styles || {}).map(function (variable) {
+			const vars = Object.keys(initData.styles || {}).map(variable => {
 				return `--${variable}: ${initData.styles[variable]};`;
 			});
 			defaultStyles.innerHTML = `
@@ -291,7 +296,7 @@
 			var setInitialScrollPosition;
 			if (firstLoad) {
 				firstLoad = false;
-				setInitialScrollPosition = function (body) {
+				setInitialScrollPosition = (body) => {
 					if (!isNaN(initData.initialScrollProgress)) {
 						if (body.scrollTop === 0) {
 							body.scrollTop = body.clientHeight * initData.initialScrollProgress;
@@ -300,7 +305,7 @@
 				};
 			} else {
 				const scrollY = frame && frame.contentDocument && frame.contentDocument.body ? frame.contentDocument.body.scrollTop : 0;
-				setInitialScrollPosition = function (body) {
+				setInitialScrollPosition = (body) => {
 					if (body.scrollTop === 0) {
 						body.scrollTop = scrollY;
 					}
@@ -324,12 +329,18 @@
 
 			// write new content onto iframe
 			newFrame.contentDocument.open('text/html', 'replace');
-			newFrame.contentWindow.onbeforeunload = function () {
+			newFrame.contentWindow.onbeforeunload = () => {
+				if (isInDevelopmentMode) { // Allow reloads while developing a webview
+					ipcRenderer.sendToHost('do-reload');
+					return false;
+				}
+
+				// Block navigation when not in development mode
 				console.log('prevented webview navigation');
 				return false;
 			};
 
-			var onLoad = function (contentDocument, contentWindow) {
+			var onLoad = (contentDocument, contentWindow) => {
 				if (contentDocument.body) {
 					// Workaround for https://github.com/Microsoft/vscode/issues/12865
 					// check new scrollTop and reset if neccessary
@@ -349,7 +360,7 @@
 					newFrame.style.visibility = 'visible';
 					contentWindow.addEventListener('scroll', handleInnerScroll);
 
-					pendingMessages.forEach(function (data) {
+					pendingMessages.forEach((data) => {
 						contentWindow.postMessage(data, '*');
 					});
 					pendingMessages = [];
@@ -358,7 +369,7 @@
 
 			clearTimeout(loadTimeout);
 			loadTimeout = undefined;
-			loadTimeout = setTimeout(function () {
+			loadTimeout = setTimeout(() => {
 				clearTimeout(loadTimeout);
 				loadTimeout = undefined;
 				onLoad(newFrame.contentDocument, newFrame.contentWindow);
@@ -382,7 +393,7 @@
 		});
 
 		// Forward message to the embedded iframe
-		ipcRenderer.on('message', function (event, data) {
+		ipcRenderer.on('message', (event, data) => {
 			const pending = getPendingFrame();
 			if (pending) {
 				pendingMessages.push(data);
@@ -394,8 +405,12 @@
 			}
 		});
 
-		ipcRenderer.on('initial-scroll-position', function (event, progress) {
+		ipcRenderer.on('initial-scroll-position', (event, progress) => {
 			initData.initialScrollProgress = progress;
+		});
+
+		ipcRenderer.on('devtools-opened', () => {
+			isInDevelopmentMode = true;
 		});
 
 		// Forward messages from the embedded iframe

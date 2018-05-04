@@ -12,5 +12,6 @@
 	"terminal.integrated.copySelection.noSelection": "終端機沒有任何選取項目可以複製",
 	"terminal.integrated.exitedWithCode": "終端機處理序已終止，結束代碼為: {0}",
 	"terminal.integrated.waitOnExit": "按任意鍵關閉終端機",
-	"terminal.integrated.launchFailed": "無法啟動終端機處理序命令 '{0}{1}' (結束代碼: {2})"
+	"terminal.integrated.launchFailed": "無法啟動終端機處理序命令 '{0}{1}' (結束代碼: {2})",
+	"terminal.integrated.launchFailedExtHost": "終端機處理序無法啟動 (結束代碼: {0})"
 }

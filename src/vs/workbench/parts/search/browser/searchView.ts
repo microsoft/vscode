@@ -41,7 +41,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { PatternInputWidget, ExcludePatternInputWidget } from 'vs/workbench/parts/search/browser/patternInputWidget';
-import { SearchRenderer, SearchDataSource, SearchSorter, SearchAccessibilityProvider, SearchFilter, SearchTreeController } from 'vs/workbench/parts/search/browser/searchResultsView';
+import { SearchRenderer, SearchDataSource, SearchAccessibilityProvider, SearchFilter, SearchTreeController, SearchSorter } from 'vs/workbench/parts/search/browser/searchResultsView';
 import { SearchWidget, ISearchWidgetOptions } from 'vs/workbench/parts/search/browser/searchWidget';
 import { RefreshAction, CollapseDeepestExpandedLevelAction, ClearSearchResultsAction, CancelSearchAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';

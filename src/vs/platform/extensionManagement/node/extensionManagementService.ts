@@ -876,6 +876,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+				"recommendationReason": { "retiredFromVersion": "1.23.0", "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"${include}": [
 					"${GalleryExtensionTelemetryData}"
 				]

@@ -171,12 +171,7 @@ connection.onDidChangeConfiguration((change) => {
 		let enableFormatter = globalSettings && globalSettings.html && globalSettings.html.format && globalSettings.html.format.enable;
 		if (enableFormatter) {
 			if (!formatterRegistration) {
-				let documentSelector: DocumentSelector = [
-					{ language: 'html', scheme: 'file' },
-					{ language: 'html', scheme: 'untitled' },
-					{ language: 'handlebars', scheme: 'file' },
-					{ language: 'handlebars', scheme: 'untitled' }
-				]; // don't register razor, the formatter does more harm than good
+				let documentSelector: DocumentSelector = [{ language: 'html' }, { language: 'handlebars' }]; // don't register razor, the formatter does more harm than good
 				formatterRegistration = connection.client.register(DocumentRangeFormattingRequest.type, { documentSelector });
 			}
 		} else if (formatterRegistration) {

@@ -28,11 +28,11 @@ abstract class CommentLineAction extends EditorAction {
 			return;
 		}
 
-		var commands: ICommand[] = [];
-		var selections = editor.getSelections();
-		var opts = model.getOptions();
+		let commands: ICommand[] = [];
+		let selections = editor.getSelections();
+		let opts = model.getOptions();
 
-		for (var i = 0; i < selections.length; i++) {
+		for (let i = 0; i < selections.length; i++) {
 			commands.push(new LineCommentCommand(selections[i], opts.tabSize, this._type));
 		}
 
@@ -105,10 +105,10 @@ class BlockCommentAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		var commands: ICommand[] = [];
-		var selections = editor.getSelections();
+		let commands: ICommand[] = [];
+		let selections = editor.getSelections();
 
-		for (var i = 0; i < selections.length; i++) {
+		for (let i = 0; i < selections.length; i++) {
 			commands.push(new BlockCommentCommand(selections[i]));
 		}
 

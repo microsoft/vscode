@@ -11,7 +11,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
 import product from 'vs/platform/node/product';
-import { IWindowsService, OpenContext, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult } from 'vs/platform/windows/common/windows';
+import { IWindowsService, OpenContext, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IDevToolsOptions } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { shell, crashReporter, app, Menu, clipboard } from 'electron';
 import { Event, fromNodeEventEmitter, mapEvent, filterEvent, anyEvent } from 'vs/base/common/event';
@@ -112,12 +112,12 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		return TPromise.as(null);
 	}
 
-	openDevTools(windowId: number): TPromise<void> {
+	openDevTools(windowId: number, options?: IDevToolsOptions): TPromise<void> {
 		this.logService.trace('windowsService#openDevTools', windowId);
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
 		if (codeWindow) {
-			codeWindow.win.webContents.openDevTools();
+			codeWindow.win.webContents.openDevTools(options);
 		}
 
 		return TPromise.as(null);
