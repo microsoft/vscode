@@ -431,14 +431,16 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 			pinned: editor.isDirty() || (options && options.pinned) || (options && typeof options.index === 'number'), // TODO@grid respect editor.previewEditors setting
 			active: this.group.count === 0 || !options || !options.inactive
 		};
+
+		const currentActiveEditor = this.activeEditor;
 		this.group.openEditor(editor, openEditorOptions);
 
 		// Forward to title control
 		this.doCreateOrGetTitleControl().openEditor(editor);
 
-		// Forward to editor control if the editor should become active
+		// Forward to editor control if the active editor changed
 		let openEditorPromise: Thenable<void>;
-		if (openEditorOptions.active) {
+		if (currentActiveEditor !== this.activeEditor) {
 			openEditorPromise = this.doCreateOrGetEditorControl().openEditor(editor, options).then(result => {
 
 				// Editor change event
