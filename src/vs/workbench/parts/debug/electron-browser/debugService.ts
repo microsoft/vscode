@@ -17,7 +17,6 @@ import * as errors from 'vs/base/common/errors';
 import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { Client as TelemetryClient } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -26,8 +25,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { RawDebugSession } from 'vs/workbench/parts/debug/electron-browser/rawDebugSession';
@@ -878,46 +875,12 @@ export class DebugService implements debug.IDebugService {
 		configuration.__sessionId = sessionId;
 		this.inDebugMode.set(true);
 
-		return this.telemetryService.getTelemetryInfo().then(info => {
-			const telemetryInfo: { [key: string]: string } = Object.create(null);
-			telemetryInfo['common.vscodemachineid'] = info.machineId;
-			telemetryInfo['common.vscodesessionid'] = info.sessionId;
-			return telemetryInfo;
-		}).then(data => {
-			const dbg = this.configurationManager.getDebugger(configuration.type);
-			const { aiKey, type } = dbg;
-			const publisher = dbg.extensionDescription.publisher;
-			let client: TelemetryClient;
-
-			let customTelemetryService: TelemetryService;
-			if (aiKey) {
-				client = new TelemetryClient(
-					uri.parse(require.toUrl('bootstrap')).fsPath,
-					{
-						serverName: 'Debug Telemetry',
-						timeout: 1000 * 60 * 5,
-						args: [`${publisher}.${type}`, JSON.stringify(data), aiKey],
-						env: {
-							ELECTRON_RUN_AS_NODE: 1,
-							PIPE_LOGGING: 'true',
-							AMD_ENTRYPOINT: 'vs/workbench/parts/debug/node/telemetryApp'
-						}
-					}
-				);
-
-				const channel = client.getChannel('telemetryAppender');
-				const appender = new TelemetryAppenderClient(channel);
-
-				customTelemetryService = new TelemetryService({ appender }, this.configurationService);
-			}
+		const dbg = this.configurationManager.getDebugger(configuration.type);
+		return dbg.getCustomTelemetryService().then(customTelemetryService => {
 
 			const raw = this.instantiationService.createInstance(RawDebugSession, sessionId, configuration.debugServer, dbg, customTelemetryService, root);
 			const session = this.model.addSession(configuration, raw);
 			this.allSessions.set(session.getId(), session);
-
-			if (client) {
-				this.toDisposeOnSessionEnd.get(raw.getId()).push(client);
-			}
 			this.registerSessionListeners(session, raw);
 
 			return raw.initialize({
