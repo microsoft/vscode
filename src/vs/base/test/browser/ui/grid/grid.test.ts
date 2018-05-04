@@ -179,12 +179,11 @@ suite('SerializableGrid', function () {
 		container = null;
 	});
 
-	test('empty', function () {
+	test('serialize empty', function () {
 		const view1 = new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
 		const grid = new SerializableGrid(container, view1);
-		const result = grid.serialize();
 
-		assert.deepEqual(result, {
+		assert.deepEqual(grid.serialize(), {
 			orientation: 0,
 			root: {
 				type: 'branch',
@@ -200,21 +199,49 @@ suite('SerializableGrid', function () {
 		});
 	});
 
-	// test('simple layout', function () {
-	// 	const view1 = new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-	// 	const grid = new SerializableGrid(container, view1);
-	// 	grid.layout(800, 600);
+	test('serialize simple layout', function () {
+		const view1 = new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		const grid = new SerializableGrid(container, view1);
 
-	// 	const view2 = new TestSerializableView('view2', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-	// 	grid.addView(view2, 200, view1, Direction.Up);
+		const view2 = new TestSerializableView('view2', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view2, 200, view1, Direction.Up);
 
-	// 	const view3 = new TestSerializableView('view3', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-	// 	grid.addView(view3, 200, view1, Direction.Right);
+		const view3 = new TestSerializableView('view3', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view3, 200, view1, Direction.Right);
 
-	// 	const view4 = new TestSerializableView('view4', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-	// 	grid.addView(view4, 200, view2, Direction.Left);
+		const view4 = new TestSerializableView('view4', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view4, 200, view2, Direction.Left);
 
-	// 	const view5 = new TestSerializableView('view5', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-	// 	grid.addView(view5, 100, view1, Direction.Down);
-	// });
+		const view5 = new TestSerializableView('view5', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view5, 100, view1, Direction.Down);
+
+		assert.deepEqual(grid.serialize(), {
+			orientation: 0,
+			root: {
+				type: 'branch',
+				data: [
+					{
+						type: 'branch',
+						data: [
+							{ type: 'leaf', data: { name: 'view4' } },
+							{ type: 'leaf', data: { name: 'view2' } }
+						]
+					},
+					{
+						type: 'branch',
+						data: [
+							{
+								type: 'branch',
+								data: [
+									{ type: 'leaf', data: { name: 'view1' } },
+									{ type: 'leaf', data: { name: 'view5' } }
+								]
+							},
+							{ type: 'leaf', data: { name: 'view3' } }
+						]
+					}
+				]
+			}
+		});
+	});
 });
