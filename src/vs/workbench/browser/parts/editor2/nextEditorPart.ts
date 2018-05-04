@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/nextEditorpart';
-import 'vs/workbench/browser/parts/editor2/editor2.contribution';
+import 'vs/workbench/browser/parts/editor/editor.contribution';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
 import { Dimension, addClass, isAncestor } from 'vs/base/browser/dom';

@@ -84,8 +84,6 @@
 	background: url('close-inverse.svg') center center no-repeat;
 }
 
-/** TODO@grid revisit the split editor action (vertical-layout/horizontal-layout does not exist anymore) */
-
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .split-editor-horizontal-action {
 	background: url('split-editor-horizontal.svg') center center no-repeat;
 }

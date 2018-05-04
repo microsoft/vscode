@@ -41,7 +41,7 @@ export class GridOpenEditorsAction extends Action {
 
 	run(): TPromise<any> {
 		const inputs = [
-			join(process.cwd(), 'src/vs/workbench/browser/parts/editor2/editor2.contribution.ts'),
+			join(process.cwd(), 'src/vs/workbench/browser/parts/editor/editor.contribution.ts'),
 			join(process.cwd(), 'src/vs/workbench/browser/parts/editor2/nextEditorActions.ts'),
 			join(process.cwd(), 'src/vs/workbench/browser/parts/editor2/nextEditorGroupView.ts'),
 			join(process.cwd(), 'src/vs/workbench/browser/parts/editor2/nextEditorPart.ts'),
