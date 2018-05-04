@@ -27,15 +27,12 @@ export interface IView {
 
 /*
 TODO:
-- NEW: 	add a color to show a border where the sash is, similar to how other
-		widgets have a color (e.g. Button, with applyStyles). Challenge is that this
-		color has to be applied via JS and not CSS to not apply it to all views
-- NEW:  provide a method to find a neighbour view from a given view. this would
-		help when removing a view to know which next view to set active. The definition
-		of the next view could be to a) check on the same dimension first (left/up) and
-		then go one dimension up.
-
-- create grid wrapper which automatically sizes the new views
+	- NEW: 	add a color to show a border where the sash is, similar to how other
+			widgets have a color (e.g. Button, with applyStyles). Challenge is that this
+			color has to be applied via JS and not CSS to not apply it to all views
+			NOT CSS
+	- create grid wrapper which automatically sizes the new views
+	- deserialize should keep view proportions
 */
 
 export function orthogonal(orientation: Orientation): Orientation {
