@@ -13,6 +13,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { GridOpenEditorsAction, GridCloseActiveEditorAction, GridRemoveActiveGroupAction, NextEditorContribution, GridOpenOneEditorAction } from 'vs/workbench/browser/parts/editor2/nextEditorActions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { SplitEditorGroupHorizontalAction, SplitEditorGroupVerticalAction } from 'vs/workbench/browser/parts/editor/editorActions';
 
 // Register Next Editor Actions
 const category = localize('grid', "Grid");
@@ -21,6 +22,8 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(GridOpenEditorsAction,
 registry.registerWorkbenchAction(new SyncActionDescriptor(GridCloseActiveEditorAction, GridCloseActiveEditorAction.ID, GridCloseActiveEditorAction.LABEL), 'Grid: Close Active Editor', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(GridRemoveActiveGroupAction, GridRemoveActiveGroupAction.ID, GridRemoveActiveGroupAction.LABEL), 'Grid: Remove Active Group', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(GridOpenOneEditorAction, GridOpenOneEditorAction.ID, GridOpenOneEditorAction.LABEL), 'Grid: Open One Editor', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorGroupHorizontalAction, SplitEditorGroupHorizontalAction.ID, SplitEditorGroupHorizontalAction.LABEL), 'Grid: Split Horizontal', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorGroupVerticalAction, SplitEditorGroupVerticalAction.ID, SplitEditorGroupVerticalAction.LABEL), 'Grid: Split Vertical', category);
 
 // Register Workbench Contribution
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NextEditorContribution, LifecyclePhase.Running);
