@@ -117,35 +117,6 @@ suite('Grid', function () {
 		assert.deepEqual(view4.size, [200, 200]);
 		assert.deepEqual(view5.size, [600, 100]);
 	});
-
-	test('moveView', function () {
-		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new Grid(container, view1);
-		grid.layout(800, 600);
-
-		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view2, 200, view1, Direction.Up);
-
-		const view3 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view3, 200, view1, Direction.Right);
-
-		const view4 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view4, 200, view2, Direction.Left);
-
-		const view5 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view5, 100, view1, Direction.Down);
-
-		assert.deepEqual(nodesToArrays(grid.getViews()), [[view4, view2], [[view1, view5], view3]]);
-
-		grid.moveView(view1, 100, view4, Direction.Left);
-
-		assert.deepEqual(nodesToArrays(grid.getViews()), [[view1, view4, view2], [view5, view3]]);
-		assert.deepEqual(view1.size, [100, 200]);
-		assert.deepEqual(view2.size, [500, 200]);
-		assert.deepEqual(view3.size, [200, 400]);
-		assert.deepEqual(view4.size, [200, 200]);
-		assert.deepEqual(view5.size, [600, 400]);
-	});
 });
 
 class TestSerializableView extends TestView implements ISerializableView {

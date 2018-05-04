@@ -142,33 +142,6 @@ export class Grid<T extends IView> implements IDisposable {
 		this.views.delete(view);
 	}
 
-	moveView(view: T, size: number, referenceView: T, direction: Direction): void {
-		if (!this.views.has(view)) {
-			throw new Error('View not found');
-		}
-
-		const fromLocation = this.getViewLocation(view);
-		const [fromRest, fromIndex] = tail(fromLocation);
-
-		const referenceLocation = this.getViewLocation(referenceView);
-		const toLocation = getRelativeLocation(this.gridview.orientation, referenceLocation, direction);
-
-		if (fromLocation.length <= toLocation.length) {
-			const toRest = toLocation.slice(0, fromRest.length);
-
-			if (equals(fromRest, toRest)) {
-				const index = fromRest.length;
-
-				if (fromIndex <= toLocation[index]) {
-					toLocation[index] -= 1;
-				}
-			}
-		}
-
-		this.gridview.removeView(fromLocation);
-		this.gridview.addView(view, size, toLocation);
-	}
-
 	swapViews(from: T, to: T): void {
 		const fromLocation = this.getViewLocation(from);
 		const toLocation = this.getViewLocation(to);
