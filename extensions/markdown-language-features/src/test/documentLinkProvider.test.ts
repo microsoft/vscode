@@ -77,6 +77,14 @@ suite('markdown.DocumentLinkProvider', () => {
 			assert.strictEqual(links.length, 1);
 			const [link] = links;
 			assertRangeEqual(link.range, new vscode.Range(0, 6, 0, 31));
+
+		}
+		{
+			// #49011
+			const links = getLinksForFile('[A link](http://ThisUrlhasParens/A_link(in_parens))');
+			assert.strictEqual(links.length, 1);
+			const [link] = links;
+			assertRangeEqual(link.range, new vscode.Range(0, 9, 0, 50));
 		}
 	});
 
