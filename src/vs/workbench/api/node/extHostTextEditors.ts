@@ -61,12 +61,12 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 		let options: ITextDocumentShowOptions;
 		if (typeof columnOrOptions === 'number') {
 			options = {
-				position: TypeConverters.fromViewColumn(columnOrOptions),
+				position: TypeConverters.ViewColumn.from(columnOrOptions),
 				preserveFocus
 			};
 		} else if (typeof columnOrOptions === 'object') {
 			options = {
-				position: TypeConverters.fromViewColumn(columnOrOptions.viewColumn),
+				position: TypeConverters.ViewColumn.from(columnOrOptions.viewColumn),
 				preserveFocus: columnOrOptions.preserveFocus,
 				selection: typeof columnOrOptions.selection === 'object' ? TypeConverters.Range.from(columnOrOptions.selection) : undefined,
 				pinned: typeof columnOrOptions.preview === 'boolean' ? !columnOrOptions.preview : undefined
@@ -159,7 +159,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 	$acceptEditorPositionData(data: ITextEditorPositionData): void {
 		for (let id in data) {
 			let textEditor = this._extHostDocumentsAndEditors.getEditor(id);
-			let viewColumn = TypeConverters.toViewColumn(data[id]);
+			let viewColumn = TypeConverters.ViewColumn.to(data[id]);
 			if (textEditor.viewColumn !== viewColumn) {
 				textEditor._acceptViewColumn(viewColumn);
 				this._onDidChangeTextEditorViewColumn.fire({ textEditor, viewColumn });

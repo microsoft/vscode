@@ -98,7 +98,7 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 					data.selections.map(typeConverters.Selection.to),
 					data.options,
 					data.visibleRanges.map(typeConverters.Range.to),
-					typeConverters.toViewColumn(data.editorPosition)
+					typeConverters.ViewColumn.to(data.editorPosition)
 				);
 				this._editors.set(data.id, editor);
 			}

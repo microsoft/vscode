@@ -345,7 +345,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 	}
 
 	@deprecated('TextEditor.show') show(column: vscode.ViewColumn) {
-		this._proxy.$tryShowEditor(this._id, TypeConverters.fromViewColumn(column));
+		this._proxy.$tryShowEditor(this._id, TypeConverters.ViewColumn.from(column));
 	}
 
 	@deprecated('TextEditor.hide') hide() {

@@ -144,33 +144,34 @@ export namespace DiagnosticSeverity {
 	}
 }
 
-
-export function fromViewColumn(column?: vscode.ViewColumn): EditorPosition {
-	let editorColumn = EditorPosition.ONE;
-	if (typeof column !== 'number') {
-		// stick with ONE
-	} else if (column === <number>types.ViewColumn.Two) {
-		editorColumn = EditorPosition.TWO;
-	} else if (column === <number>types.ViewColumn.Three) {
-		editorColumn = EditorPosition.THREE;
-	} else if (column === <number>types.ViewColumn.Active) {
-		editorColumn = undefined;
+export namespace ViewColumn {
+	export function from(column?: vscode.ViewColumn): EditorPosition {
+		let editorColumn = EditorPosition.ONE;
+		if (typeof column !== 'number') {
+			// stick with ONE
+		} else if (column === <number>types.ViewColumn.Two) {
+			editorColumn = EditorPosition.TWO;
+		} else if (column === <number>types.ViewColumn.Three) {
+			editorColumn = EditorPosition.THREE;
+		} else if (column === <number>types.ViewColumn.Active) {
+			editorColumn = undefined;
+		}
+		return editorColumn;
 	}
-	return editorColumn;
-}
 
-export function toViewColumn(position?: EditorPosition): vscode.ViewColumn {
-	if (typeof position !== 'number') {
+	export function to(position?: EditorPosition): vscode.ViewColumn {
+		if (typeof position !== 'number') {
+			return undefined;
+		}
+		if (position === EditorPosition.ONE) {
+			return <number>types.ViewColumn.One;
+		} else if (position === EditorPosition.TWO) {
+			return <number>types.ViewColumn.Two;
+		} else if (position === EditorPosition.THREE) {
+			return <number>types.ViewColumn.Three;
+		}
 		return undefined;
 	}
-	if (position === EditorPosition.ONE) {
-		return <number>types.ViewColumn.One;
-	} else if (position === EditorPosition.TWO) {
-		return <number>types.ViewColumn.Two;
-	} else if (position === EditorPosition.THREE) {
-		return <number>types.ViewColumn.Three;
-	}
-	return undefined;
 }
 
 function isDecorationOptions(something: any): something is vscode.DecorationOptions {
