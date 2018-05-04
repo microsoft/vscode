@@ -13,12 +13,13 @@ import { orthogonal, IView, GridView } from './gridview';
 
 export { Orientation } from './gridview';
 
-export class GridLeafNode<T extends IView> {
-	constructor(readonly view: T) { }
+export interface GridLeafNode<T extends IView> {
+	readonly view: T;
+	readonly size: number;
 }
 
-export class GridBranchNode<T extends IView> {
-	constructor(readonly children: GridNode<T>[]) { }
+export interface GridBranchNode<T extends IView> {
+	readonly children: GridNode<T>[];
 }
 
 export type GridNode<T extends IView> = GridLeafNode<T> | GridBranchNode<T>;
@@ -94,6 +95,9 @@ export class Grid<T extends IView> implements IDisposable {
 
 	get orientation(): Orientation { return this.gridview.orientation; }
 	set orientation(orientation: Orientation) { this.gridview.orientation = orientation; }
+
+	get width(): number { return this.gridview.width; }
+	get height(): number { return this.gridview.height; }
 
 	constructor(container: HTMLElement, view: T) {
 		this.gridview = new GridView(container);
@@ -195,7 +199,7 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 		if (isGridBranchNode(node)) {
 			return { type: 'branch', data: node.children.map(c => SerializableGrid.serializeNode(c)) };
 		} else {
-			return { type: 'leaf', data: node.view.toJSON() };
+			return { type: 'leaf', data: node.view.toJSON(), size: node.size };
 		}
 	}
 
@@ -212,9 +216,20 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 				throw new Error('Invalid JSON: \'data\' property of branch must be an array.');
 			}
 
-			return new GridBranchNode<T>((data as any[]).map(c => SerializableGrid.deserializeNode(c, deserializer)));
+			const nodes = data as any[];
+			const children = nodes.map(c => SerializableGrid.deserializeNode(c, deserializer));
+
+			return { children };
+
 		} else if (type === 'leaf') {
-			return new GridLeafNode<T>(deserializer.fromJSON(data));
+			if (typeof json.size !== 'number') {
+				throw new Error('Invalid JSON: \'size\' property of leaf must be a number.');
+			}
+
+			const view = deserializer.fromJSON(data) as T;
+			const size = json.size as number;
+
+			return { view, size };
 		}
 
 		throw new Error('Invalid JSON: \'type\' property must be either \'branch\' or \'leaf\'.');
@@ -254,21 +269,23 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 		}
 
 		const direction = orientation === Orientation.VERTICAL ? Direction.Down : Direction.Right;
-		const firstViews = node.children.map(c => SerializableGrid.getFirstLeaf(c).view);
+		const firstLeaves = node.children.map(c => SerializableGrid.getFirstLeaf(c));
 
-		for (const view of firstViews.slice(1)) {
-			this.addView(view, 100, referenceView, direction);
+		for (const leaf of firstLeaves.slice(1)) {
+			this.addView(leaf.view, leaf.size, referenceView, direction);
 		}
 
 		for (let i = 0; i < node.children.length; i++) {
-			this.populate(firstViews[i], orthogonal(orientation), node.children[i]);
+			this.populate(firstLeaves[i].view, orthogonal(orientation), node.children[i]);
 		}
 	}
 
 	serialize(): any {
 		return {
 			root: SerializableGrid.serializeNode(this.getViews()),
-			orientation: this.orientation
+			orientation: this.orientation,
+			width: this.width,
+			height: this.height
 		};
 	}
 }

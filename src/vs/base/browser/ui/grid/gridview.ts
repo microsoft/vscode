@@ -41,6 +41,7 @@ export function orthogonal(orientation: Orientation): Orientation {
 
 export interface GridLeafNode {
 	readonly view: IView;
+	readonly size: number;
 }
 
 export interface GridBranchNode {
@@ -300,6 +301,14 @@ export class GridView implements IDisposable {
 		oldRoot.dispose();
 	}
 
+	get width(): number {
+		return this.orientation === Orientation.HORIZONTAL ? this.root.size : this.root.orthogonalSize;
+	}
+
+	get height(): number {
+		return this.orientation === Orientation.HORIZONTAL ? this.root.orthogonalSize : this.root.size;
+	}
+
 	constructor(container: HTMLElement) {
 		this.element = append(container, $('.monaco-grid-view'));
 		this.root = new BranchNode(Orientation.VERTICAL);
@@ -307,10 +316,7 @@ export class GridView implements IDisposable {
 	}
 
 	layout(width: number, height: number): void {
-		const [size, orthogonalSize] = this.root.orientation === Orientation.VERTICAL
-			? [width, height]
-			: [height, width];
-
+		const [size, orthogonalSize] = this.root.orientation === Orientation.HORIZONTAL ? [height, width] : [width, height];
 		this.root.layout(size);
 		this.root.orthogonalLayout(orthogonalSize);
 	}
@@ -456,7 +462,7 @@ export class GridView implements IDisposable {
 		if (node instanceof BranchNode) {
 			return { children: node.children.map(c => this._getViews(c)) };
 		} else {
-			return { view: node.view };
+			return { view: node.view, size: node.size };
 		}
 	}
 

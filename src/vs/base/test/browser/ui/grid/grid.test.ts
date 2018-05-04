@@ -168,17 +168,21 @@ suite('SerializableGrid', function () {
 	test('serialize empty', function () {
 		const view1 = new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
 		const grid = new SerializableGrid(container, view1);
+		grid.layout(800, 600);
 
 		assert.deepEqual(grid.serialize(), {
 			orientation: 0,
+			width: 800,
+			height: 600,
 			root: {
 				type: 'branch',
 				data: [
 					{
 						type: 'leaf',
 						data: {
-							name: 'view1'
-						}
+							name: 'view1',
+						},
+						size: 600
 					}
 				]
 			}
@@ -188,6 +192,7 @@ suite('SerializableGrid', function () {
 	test('serialize simple layout', function () {
 		const view1 = new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
 		const grid = new SerializableGrid(container, view1);
+		grid.layout(800, 600);
 
 		const view2 = new TestSerializableView('view2', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
 		grid.addView(view2, 200, view1, Direction.Up);
@@ -203,14 +208,16 @@ suite('SerializableGrid', function () {
 
 		assert.deepEqual(grid.serialize(), {
 			orientation: 0,
+			width: 800,
+			height: 600,
 			root: {
 				type: 'branch',
 				data: [
 					{
 						type: 'branch',
 						data: [
-							{ type: 'leaf', data: { name: 'view4' } },
-							{ type: 'leaf', data: { name: 'view2' } }
+							{ type: 'leaf', data: { name: 'view4' }, size: 200 },
+							{ type: 'leaf', data: { name: 'view2' }, size: 600 }
 						]
 					},
 					{
@@ -219,11 +226,11 @@ suite('SerializableGrid', function () {
 							{
 								type: 'branch',
 								data: [
-									{ type: 'leaf', data: { name: 'view1' } },
-									{ type: 'leaf', data: { name: 'view5' } }
+									{ type: 'leaf', data: { name: 'view1' }, size: 300 },
+									{ type: 'leaf', data: { name: 'view5' }, size: 100 }
 								]
 							},
-							{ type: 'leaf', data: { name: 'view3' } }
+							{ type: 'leaf', data: { name: 'view3' }, size: 200 }
 						]
 					}
 				]
