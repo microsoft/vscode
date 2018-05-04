@@ -133,28 +133,28 @@ suite('window namespace tests', () => {
 		}
 	});
 
-	// test('issue #25801 - default column when opening a file', async () => {
-	// 	const [docA, docB, docC] = await Promise.all([
-	// 		workspace.openTextDocument(await createRandomFile()),
-	// 		workspace.openTextDocument(await createRandomFile()),
-	// 		workspace.openTextDocument(await createRandomFile())
-	// 	]);
+	test('issue #25801 - default column when opening a file', async () => {
+		const [docA, docB, docC] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile())
+		]);
 
-	// 	await window.showTextDocument(docA, ViewColumn.One);
-	// 	await window.showTextDocument(docB, ViewColumn.Two);
+		await window.showTextDocument(docA, ViewColumn.One);
+		await window.showTextDocument(docB, ViewColumn.Two);
 
-	// 	assert.ok(window.activeTextEditor);
-	// 	assert.ok(window.activeTextEditor!.document === docB);
-	// 	assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Two);
+		assert.ok(window.activeTextEditor);
+		assert.ok(window.activeTextEditor!.document === docB);
+		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Two);
 
-	// 	const editor = await window.showTextDocument(docC);
-	// 	assert.ok(
-	// 		window.activeTextEditor === editor,
-	// 		`wanted fileName:${editor.document.fileName}/viewColumn:${editor.viewColumn} but got fileName:${window.activeTextEditor!.document.fileName}/viewColumn:${window.activeTextEditor!.viewColumn}. a:${docA.fileName}, b:${docB.fileName}, c:${docC.fileName}`
-	// 	);
-	// 	assert.ok(window.activeTextEditor!.document === docC);
-	// 	assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.One);
-	// });
+		const editor = await window.showTextDocument(docC);
+		assert.ok(
+			window.activeTextEditor === editor,
+			`wanted fileName:${editor.document.fileName}/viewColumn:${editor.viewColumn} but got fileName:${window.activeTextEditor!.document.fileName}/viewColumn:${window.activeTextEditor!.viewColumn}. a:${docA.fileName}, b:${docB.fileName}, c:${docC.fileName}`
+		);
+		assert.ok(window.activeTextEditor!.document === docC);
+		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.One);
+	});
 
 	test('issue #27408 - showTextDocument & vscode.diff always default to ViewColumn.One', async () => {
 		const [docA, docB, docC] = await Promise.all([
