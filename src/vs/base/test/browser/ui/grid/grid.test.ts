@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Direction, Grid, getRelativeLocation, Orientation, SerializableGrid, ISerializableView, IViewDeserializer, isGridBranchNode, GridNode } from 'vs/base/browser/ui/grid/grid';
-import { TestView, nodesToArrays } from './util';
+import { TestView } from './util';
 
 suite('Grid', function () {
 	let container: HTMLElement;
@@ -116,35 +116,6 @@ suite('Grid', function () {
 		assert.deepEqual(view3.size, [200, 400]);
 		assert.deepEqual(view4.size, [200, 200]);
 		assert.deepEqual(view5.size, [600, 100]);
-	});
-
-	test('moveView', function () {
-		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new Grid(container, view1);
-		grid.layout(800, 600);
-
-		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view2, 200, view1, Direction.Up);
-
-		const view3 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view3, 200, view1, Direction.Right);
-
-		const view4 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view4, 200, view2, Direction.Left);
-
-		const view5 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view5, 100, view1, Direction.Down);
-
-		assert.deepEqual(nodesToArrays(grid.getViews()), [[view4, view2], [[view1, view5], view3]]);
-
-		grid.moveView(view1, 100, view4, Direction.Left);
-
-		assert.deepEqual(nodesToArrays(grid.getViews()), [[view1, view4, view2], [view5, view3]]);
-		assert.deepEqual(view1.size, [100, 200]);
-		assert.deepEqual(view2.size, [500, 200]);
-		assert.deepEqual(view3.size, [200, 400]);
-		assert.deepEqual(view4.size, [200, 200]);
-		assert.deepEqual(view5.size, [600, 400]);
 	});
 });
 
@@ -274,6 +245,31 @@ suite('SerializableGrid', function () {
 	});
 
 	test('deserialize simple layout', function () {
+		const view1 = new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		const grid = new SerializableGrid(container, view1);
+
+		const view2 = new TestSerializableView('view2', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view2, 200, view1, Direction.Up);
+
+		const view3 = new TestSerializableView('view3', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view3, 200, view1, Direction.Right);
+
+		const view4 = new TestSerializableView('view4', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view4, 200, view2, Direction.Left);
+
+		const view5 = new TestSerializableView('view5', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view5, 100, view1, Direction.Down);
+
+		const json = grid.serialize();
+		grid.dispose();
+
+		const deserializer = new TestViewDeserializer();
+		const grid2 = SerializableGrid.deserialize(container, json, deserializer);
+
+		assert.deepEqual(nodesToNames(grid2.getViews()), [['view4', 'view2'], [['view1', 'view5'], 'view3']]);
+	});
+
+	test('deserialize should restore sizes', function () {
 		const view1 = new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
 		const grid = new SerializableGrid(container, view1);
 

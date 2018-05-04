@@ -8,7 +8,7 @@
 import 'vs/css!./gridview';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { tail2 as tail, equals } from 'vs/base/common/arrays';
+import { tail2 as tail } from 'vs/base/common/arrays';
 import { orthogonal, IView, GridView } from './gridview';
 
 export { Orientation } from './gridview';
@@ -140,33 +140,6 @@ export class Grid<T extends IView> implements IDisposable {
 		const location = this.getViewLocation(view);
 		this.gridview.removeView(location);
 		this.views.delete(view);
-	}
-
-	moveView(view: T, size: number, referenceView: T, direction: Direction): void {
-		if (!this.views.has(view)) {
-			throw new Error('View not found');
-		}
-
-		const fromLocation = this.getViewLocation(view);
-		const [fromRest, fromIndex] = tail(fromLocation);
-
-		const referenceLocation = this.getViewLocation(referenceView);
-		const toLocation = getRelativeLocation(this.gridview.orientation, referenceLocation, direction);
-
-		if (fromLocation.length <= toLocation.length) {
-			const toRest = toLocation.slice(0, fromRest.length);
-
-			if (equals(fromRest, toRest)) {
-				const index = fromRest.length;
-
-				if (fromIndex <= toLocation[index]) {
-					toLocation[index] -= 1;
-				}
-			}
-		}
-
-		this.gridview.removeView(fromLocation);
-		this.gridview.addView(view, size, toLocation);
 	}
 
 	swapViews(from: T, to: T): void {
