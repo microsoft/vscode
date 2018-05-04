@@ -262,6 +262,12 @@ export const editorFindMatchHighlightBorder = registerColor('editor.findMatchHig
 export const editorFindRangeHighlightBorder = registerColor('editor.findRangeHighlightBorder', { dark: null, light: null, hc: transparent(activeContrastBorder, 0.4) }, nls.localize('findRangeHighlightBorder', "Border color of the range limiting the search. The color must not be opaque to not hide underlying decorations."), true);
 
 /**
+ * Editor Find Widget
+ */
+
+export const findWidgetResizeBorderBackground = registerColor('editor.findWidgetResizeBorder', { light: null, dark: null, hc: null }, nls.localize('findWidgetResizeBorder', "Border color of the resize bar of find widget."));
+
+/**
  * Editor hover
  */
 export const editorHoverHighlight = registerColor('editor.hoverHighlightBackground', { light: '#ADD6FF26', dark: '#264f7840', hc: '#ADD6FF26' }, nls.localize('hoverHighlight', 'Highlight below the word for which a hover is shown. The color must not be opaque to not hide underlying decorations.'), true);
