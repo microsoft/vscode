@@ -416,9 +416,16 @@ export namespace Hover {
 		return new types.Hover(info.contents.map(MarkdownString.to), Range.to(info.range));
 	}
 }
-
-export function toDocumentHighlight(occurrence: modes.DocumentHighlight): types.DocumentHighlight {
-	return new types.DocumentHighlight(Range.to(occurrence.range), occurrence.kind);
+export namespace DocumentHighlight {
+	export function from(documentHighlight: vscode.DocumentHighlight): modes.DocumentHighlight {
+		return {
+			range: Range.from(documentHighlight.range),
+			kind: documentHighlight.kind
+		};
+	}
+	export function to(occurrence: modes.DocumentHighlight): types.DocumentHighlight {
+		return new types.DocumentHighlight(Range.to(occurrence.range), occurrence.kind);
+	}
 }
 
 export namespace CompletionTriggerKind {

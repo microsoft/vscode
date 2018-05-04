@@ -222,17 +222,10 @@ class DocumentHighlightAdapter {
 
 		return asWinJsPromise(token => this._provider.provideDocumentHighlights(doc, pos, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(DocumentHighlightAdapter._convertDocumentHighlight);
+				return value.map(typeConvert.DocumentHighlight.from);
 			}
 			return undefined;
 		});
-	}
-
-	private static _convertDocumentHighlight(documentHighlight: vscode.DocumentHighlight): modes.DocumentHighlight {
-		return {
-			range: typeConvert.Range.from(documentHighlight.range),
-			kind: documentHighlight.kind
-		};
 	}
 }
 

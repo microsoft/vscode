@@ -327,7 +327,7 @@ export class ExtHostApiCommands {
 			position: position && typeConverters.Position.from(position)
 		};
 		return this._commands.executeCommand<modes.DocumentHighlight[]>('_executeDocumentHighlights', args)
-			.then(tryMapWith(typeConverters.toDocumentHighlight));
+			.then(tryMapWith(typeConverters.DocumentHighlight.to));
 	}
 
 	private _executeReferenceProvider(resource: URI, position: types.Position): Thenable<types.Location[]> {
