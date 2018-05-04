@@ -149,14 +149,23 @@ export default class FileConfigurationManager {
 		}
 
 		const config = workspace.getConfiguration(
+			isTypeScriptDocument(document) ? 'typescript' : 'javascript',
+			document.uri);
+
+		const preferences = config.workspace.getConfiguration(
 			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
 			document.uri);
 
 		return {
-			quotePreference: getQuoteStylePreference(config),
-			importModuleSpecifierPreference: getImportModuleSpecifierPreference(config)
+			quotePreference: getQuoteStylePreference(preferences),
+			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferences),
+			disableSuggestions: disableSuggestionsPreference(config),
 		};
 	}
+}
+
+function disableSuggestionsPreference(config: WorkspaceConfiguration) {
+	return !config.get<boolean>('suggestionActions.enabled');
 }
 
 function getQuoteStylePreference(config: WorkspaceConfiguration) {
