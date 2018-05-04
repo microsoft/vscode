@@ -9,10 +9,24 @@ import 'vs/css!./gridview';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { tail2 as tail, equals } from 'vs/base/common/arrays';
-import { orthogonal, IView, GridView, GridBranchNode } from './gridview';
+import { orthogonal, IView, GridView } from './gridview';
 import { domEvent } from 'vs/base/browser/event';
 
 export { Orientation } from './gridview';
+
+export class GridLeafNode<T extends IView> {
+	constructor(readonly view: T) { }
+}
+
+export class GridBranchNode<T extends IView> {
+	constructor(readonly children: GridNode<T>[]) { }
+}
+
+export type GridNode<T extends IView> = GridLeafNode<T> | GridBranchNode<T>;
+
+export function isGridBranchNode<T extends IView>(node: GridNode<T>): node is GridBranchNode<T> {
+	return !!(node as any).children;
+}
 
 export function getRelativeLocation(rootOrientation: Orientation, location: number[], direction: Direction): number[] {
 	const orientation = location.length % 2 === 0
@@ -112,8 +126,7 @@ export class Grid<T extends IView> implements IDisposable {
 		this.gridview = new GridView(container);
 		this.disposables.push(this.gridview);
 
-		this.views.set(view, view.element);
-		this.gridview.addView(view, 0, [0]);
+		this._addView(view, 0, [0]);
 
 		if (options.dnd) {
 			this.disposables.push(new DndController(container, this.gridview));
@@ -138,6 +151,10 @@ export class Grid<T extends IView> implements IDisposable {
 		const referenceLocation = this.getViewLocation(referenceView);
 		const location = getRelativeLocation(this.gridview.orientation, referenceLocation, direction);
 
+		this._addView(newView, size, location);
+	}
+
+	protected _addView(newView: T, size: number, location): void {
 		this.views.set(newView, newView.element);
 		this.gridview.addView(newView, size, location);
 	}
@@ -199,8 +216,8 @@ export class Grid<T extends IView> implements IDisposable {
 		return this.gridview.getViewSize(location);
 	}
 
-	getViews(): GridBranchNode {
-		return this.gridview.getViews();
+	getViews(): GridBranchNode<T> {
+		return this.gridview.getViews() as GridBranchNode<T>;
 	}
 
 	private getViewLocation(view: T): number[] {
@@ -215,5 +232,103 @@ export class Grid<T extends IView> implements IDisposable {
 
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
+	}
+}
+
+export interface ISerializableView extends IView {
+	toJSON(): any;
+}
+
+export interface IViewDeserializer<T extends ISerializableView> {
+	fromJSON(json: any): T;
+}
+
+/**
+ * TODO: view sizes?
+ */
+export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
+
+	private static serializeNode<T extends ISerializableView>(node: GridNode<T>): any {
+		if (isGridBranchNode(node)) {
+			return { type: 'branch', data: node.children.map(c => SerializableGrid.serializeNode(c)) };
+		} else {
+			return { type: 'leaf', data: node.view.toJSON() };
+		}
+	}
+
+	private static deserializeNode<T extends ISerializableView>(json: any, deserializer: IViewDeserializer<T>): GridNode<T> {
+		if (!json || typeof json !== 'object') {
+			throw new Error('Invalid JSON');
+		}
+
+		const type = json.type;
+		const data = json.data;
+
+		if (type === 'branch') {
+			if (!Array.isArray(data)) {
+				throw new Error('Invalid JSON: \'data\' property of branch must be an array.');
+			}
+
+			return new GridBranchNode<T>((data as any[]).map(c => SerializableGrid.deserializeNode(c, deserializer)));
+		} else if (type === 'leaf') {
+			return new GridLeafNode<T>(deserializer.fromJSON(data));
+		}
+
+		throw new Error('Invalid JSON: \'type\' property must be either \'branch\' or \'leaf\'.');
+	}
+
+	private static getFirstLeaf<T extends IView>(node: GridNode<T>): GridLeafNode<T> | undefined {
+		if (!isGridBranchNode(node)) {
+			return node;
+		}
+
+		return SerializableGrid.getFirstLeaf(node.children[0]);
+	}
+
+	static deserialize<T extends ISerializableView>(container: HTMLElement, json: any, deserializer: IViewDeserializer<T>, options: IGridOptions = {}): SerializableGrid<T> {
+		if (typeof json.orientation !== 'number') {
+			throw new Error('Invalid JSON: \'orientation\' property must be a number.');
+		}
+
+		const orientation = json.orientation as Orientation;
+		const root = SerializableGrid.deserializeNode(json.root, deserializer);
+		const firstLeaf = SerializableGrid.getFirstLeaf(root);
+
+		if (!firstLeaf) {
+			throw new Error('Invalid serialized state, first leaf not found');
+		}
+
+		const result = new SerializableGrid<T>(container, firstLeaf.view, options);
+		result.orientation = orientation;
+		result.populate(firstLeaf.view, orientation, root);
+
+		return result;
+	}
+
+	private populate(referenceView: T, orientation: Orientation, node: GridNode<T>): void {
+		if (!isGridBranchNode(node)) {
+			return;
+		}
+
+		const direction = orientation === Orientation.VERTICAL ? Direction.Down : Direction.Right;
+		let isFirstChild = true;
+
+		for (const child of node.children) {
+			if (!isFirstChild) {
+				const firstLeaf = SerializableGrid.getFirstLeaf(node);
+				this.addView(firstLeaf.view, 100, referenceView, direction);
+				referenceView = firstLeaf.view;
+			}
+
+			isFirstChild = false;
+			this.populate(referenceView, orthogonal(orientation), child);
+		}
+	}
+
+	serialize(): any {
+		return {
+			root: SerializableGrid.serializeNode(this.getViews()),
+			orientation: this.orientation
+		};
 	}
 }

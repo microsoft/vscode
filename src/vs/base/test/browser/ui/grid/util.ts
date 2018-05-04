@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IView, GridNode, GridBranchNode, } from 'vs/base/browser/ui/grid/gridview';
+import { IView, GridNode, isGridBranchNode, } from 'vs/base/browser/ui/grid/gridview';
 
 export class TestView implements IView {
 
@@ -73,7 +73,7 @@ export class TestView implements IView {
 }
 
 export function nodesToArrays(node: GridNode): any {
-	if (node instanceof GridBranchNode) {
+	if (isGridBranchNode(node)) {
 		return node.children.map(nodesToArrays);
 	} else {
 		return node.view;

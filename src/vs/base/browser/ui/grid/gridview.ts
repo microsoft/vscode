@@ -27,7 +27,6 @@ export interface IView {
 
 /*
 TODO:
-- fix splitview issue: it can't be used before layout was called
 - NEW: 	add a color to show a border where the sash is, similar to how other
 		widgets have a color (e.g. Button, with applyStyles). Challenge is that this
 		color has to be applied via JS and not CSS to not apply it to all views
@@ -46,15 +45,19 @@ export function orthogonal(orientation: Orientation): Orientation {
 	return orientation === Orientation.VERTICAL ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 }
 
-export class GridLeafNode {
-	constructor(readonly view: IView) { }
+export interface GridLeafNode {
+	readonly view: IView;
 }
 
-export class GridBranchNode {
-	constructor(readonly children: GridNode[]) { }
+export interface GridBranchNode {
+	readonly children: GridNode[];
 }
 
 export type GridNode = GridLeafNode | GridBranchNode;
+
+export function isGridBranchNode(node: GridNode): node is GridBranchNode {
+	return !!(node as any).children;
+}
 
 class BranchNode implements ISplitView, IDisposable {
 
@@ -458,9 +461,9 @@ export class GridView implements IDisposable {
 
 	private _getViews(node: Node): GridNode {
 		if (node instanceof BranchNode) {
-			return new GridBranchNode(node.children.map(c => this._getViews(c)));
+			return { children: node.children.map(c => this._getViews(c)) };
 		} else {
-			return new GridLeafNode(node.view);
+			return { view: node.view };
 		}
 	}
 
