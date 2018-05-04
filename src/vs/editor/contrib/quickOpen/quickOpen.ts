@@ -44,7 +44,7 @@ export function getDocumentSymbols(model: ITextModel): TPromise<IOutline> {
 }
 
 function compareEntriesUsingStart(a: SymbolInformation, b: SymbolInformation): number {
-	return Range.compareRangesUsingStarts(Range.lift(a.location.range), Range.lift(b.location.range));
+	return Range.compareRangesUsingStarts(a.location.range, b.location.range);
 }
 
 function flatten(bucket: SymbolInformation[], entries: SymbolInformation[], overrideContainerLabel: string): void {
