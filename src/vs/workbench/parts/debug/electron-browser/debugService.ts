@@ -28,7 +28,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { RawDebugSession } from 'vs/workbench/parts/debug/electron-browser/rawDebugSession';
-import { Model, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression, RawObjectReplElement, ExpressionContainer, Session } from 'vs/workbench/parts/debug/common/debugModel';
+import { Model, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression, RawObjectReplElement, ExpressionContainer, Session, Thread } from 'vs/workbench/parts/debug/common/debugModel';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import * as debugactions from 'vs/workbench/parts/debug/browser/debugActions';
 import { ConfigurationManager } from 'vs/workbench/parts/debug/electron-browser/debugConfigurationManager';
@@ -151,11 +151,22 @@ export class DebugService implements debug.IDebugService {
 		const raw = <RawDebugSession>session.raw;
 
 		if (broadcast.channel === EXTENSION_ATTACH_BROADCAST_CHANNEL) {
-			this.onRawSessionEnd(raw);
+			const initialAttach = session.configuration.request === 'launch';
 
 			session.configuration.request = 'attach';
 			session.configuration.port = broadcast.payload.port;
-			this.doCreateSession(session.raw.root, session.configuration, session.getId());
+			// Do not end process on initial attach (since the request is still 'launch')
+			if (initialAttach) {
+				const root = raw.root;
+				lifecycle.dispose(this.toDisposeOnSessionEnd[raw.getId()]);
+				this.initializeRawSession(root, session.configuration, session.getId(), <Session>session).then(session => {
+					(<RawDebugSession>session.raw).attach(session.configuration);
+				});
+			} else {
+				this.onRawSessionEnd(raw);
+				this.doCreateSession(session.raw.root, session.configuration, session.getId());
+			}
+
 			return;
 		}
 
@@ -266,7 +277,7 @@ export class DebugService implements debug.IDebugService {
 		return stackFrameToFocus.openInEditor(this.editorService, true);
 	}
 
-	private registerSessionListeners(session: Session, raw: RawDebugSession): void {
+	private registerSessionListeners(session: debug.ISession, raw: RawDebugSession): void {
 		this.toDisposeOnSessionEnd.get(raw.getId()).push(raw);
 
 		this.toDisposeOnSessionEnd.get(raw.getId()).push(raw.onDidInitialize(event => {
@@ -294,7 +305,7 @@ export class DebugService implements debug.IDebugService {
 				if (thread) {
 					// Call fetch call stack twice, the first only return the top stack frame.
 					// Second retrieves the rest of the call stack. For performance reasons #25605
-					this.model.fetchCallStack(thread).then(() => {
+					this.model.fetchCallStack(<Thread>thread).then(() => {
 						return !event.body.preserveFocusHint ? this.tryToAutoFocusStackFrame(thread) : undefined;
 					});
 				}
@@ -871,16 +882,17 @@ export class DebugService implements debug.IDebugService {
 		);
 	}
 
-	private doCreateSession(root: IWorkspaceFolder, configuration: debug.IConfig, sessionId: string): TPromise<debug.ISession> {
-		configuration.__sessionId = sessionId;
-		this.inDebugMode.set(true);
-
+	private initializeRawSession(root: IWorkspaceFolder, configuration: debug.IConfig, sessionId: string, session?: Session): TPromise<Session> {
 		const dbg = this.configurationManager.getDebugger(configuration.type);
 		return dbg.getCustomTelemetryService().then(customTelemetryService => {
 
 			const raw = this.instantiationService.createInstance(RawDebugSession, sessionId, configuration.debugServer, dbg, customTelemetryService, root);
-			const session = this.model.addSession(configuration, raw);
-			this.allSessions.set(session.getId(), session);
+			if (!session) {
+				session = this.model.addSession(configuration, raw);
+				this.allSessions.set(session.getId(), session);
+			} else {
+				session.raw = raw;
+			}
 			this.registerSessionListeners(session, raw);
 
 			return raw.initialize({
@@ -896,84 +908,96 @@ export class DebugService implements debug.IDebugService {
 				locale: platform.locale
 			}).then((result: DebugProtocol.InitializeResponse) => {
 				this.model.setExceptionBreakpoints(raw.capabilities.exceptionBreakpointFilters);
-				return configuration.request === 'attach' ? raw.attach(configuration) : raw.launch(configuration);
-			}).then((result: DebugProtocol.Response) => {
-				if (raw.disconnected) {
-					return TPromise.as(null);
-				}
-				this.focusStackFrame(undefined, undefined, session);
-				this._onDidNewSession.fire(session);
-
-				const internalConsoleOptions = configuration.internalConsoleOptions || this.configurationService.getValue<debug.IDebugConfiguration>('debug').internalConsoleOptions;
-				if (internalConsoleOptions === 'openOnSessionStart' || (this.firstSessionStart && internalConsoleOptions === 'openOnFirstSessionStart')) {
-					this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
-				}
-
-				const openDebugOptions = this.configurationService.getValue<debug.IDebugConfiguration>('debug').openDebug;
-				// Open debug viewlet based on the visibility of the side bar and openDebug setting
-				if (openDebugOptions === 'openOnSessionStart' || (openDebugOptions === 'openOnFirstSessionStart' && this.firstSessionStart)) {
-					this.viewletService.openViewlet(debug.VIEWLET_ID);
-				}
-				this.firstSessionStart = false;
-
-				this.debugType.set(configuration.type);
-				if (this.model.getSessions().length > 1) {
-					this.viewModel.setMultiSessionView(true);
-				}
-				this.updateStateAndEmit(raw.getId(), debug.State.Running);
-
-				/* __GDPR__
-					"debugSessionStart" : {
-						"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"breakpointCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"exceptionBreakpoints": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"watchExpressionsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"extensionName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-						"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true},
-						"launchJsonExists": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-					}
-				*/
-				return this.telemetryService.publicLog('debugSessionStart', {
-					type: configuration.type,
-					breakpointCount: this.model.getBreakpoints().length,
-					exceptionBreakpoints: this.model.getExceptionBreakpoints(),
-					watchExpressionsCount: this.model.getWatchExpressions().length,
-					extensionName: dbg.extensionDescription.id,
-					isBuiltin: dbg.extensionDescription.isBuiltin,
-					launchJsonExists: root && !!this.configurationService.getValue<debug.IGlobalConfig>('launch', { resource: root.uri })
-				});
-			}).then(() => session, (error: Error | string) => {
-				if (errors.isPromiseCanceledError(error)) {
-					// Do not show 'canceled' error messages to the user #7906
-					return TPromise.as(null);
-				}
-
-				const errorMessage = error instanceof Error ? error.message : error;
-				/* __GDPR__
-					"debugMisconfiguration" : {
-						"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"error": { "classification": "CallstackOrException", "purpose": "FeatureInsight" }
-					}
-				*/
-				this.telemetryService.publicLog('debugMisconfiguration', { type: configuration ? configuration.type : undefined, error: errorMessage });
-				this.updateStateAndEmit(raw.getId(), debug.State.Inactive);
-				if (!raw.disconnected) {
-					raw.disconnect().done(null, errors.onUnexpectedError);
-				} else if (session) {
-					this.model.removeSession(session.getId());
-				}
-
-				// Show the repl if some error got logged there #5870
-				if (this.model.getReplElements().length > 0) {
-					this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
-				}
-				if (this.model.getReplElements().length === 0) {
-					this.inDebugMode.reset();
-				}
-
-				this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []);
-				return undefined;
+				return session;
 			});
+		});
+	}
+
+	private doCreateSession(root: IWorkspaceFolder, configuration: debug.IConfig, sessionId: string): TPromise<debug.ISession> {
+		configuration.__sessionId = sessionId;
+		this.inDebugMode.set(true);
+
+		const dbg = this.configurationManager.getDebugger(configuration.type);
+		return this.initializeRawSession(root, configuration, sessionId).then(session => {
+			const raw = <RawDebugSession>session.raw;
+			return (configuration.request === 'attach' ? raw.attach(configuration) : raw.launch(configuration))
+				.then((result: DebugProtocol.Response) => {
+					if (raw.disconnected) {
+						return TPromise.as(null);
+					}
+					this.focusStackFrame(undefined, undefined, session);
+					this._onDidNewSession.fire(session);
+
+					const internalConsoleOptions = configuration.internalConsoleOptions || this.configurationService.getValue<debug.IDebugConfiguration>('debug').internalConsoleOptions;
+					if (internalConsoleOptions === 'openOnSessionStart' || (this.firstSessionStart && internalConsoleOptions === 'openOnFirstSessionStart')) {
+						this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
+					}
+
+					const openDebugOptions = this.configurationService.getValue<debug.IDebugConfiguration>('debug').openDebug;
+					// Open debug viewlet based on the visibility of the side bar and openDebug setting
+					if (openDebugOptions === 'openOnSessionStart' || (openDebugOptions === 'openOnFirstSessionStart' && this.firstSessionStart)) {
+						this.viewletService.openViewlet(debug.VIEWLET_ID);
+					}
+					this.firstSessionStart = false;
+
+					this.debugType.set(configuration.type);
+					if (this.model.getSessions().length > 1) {
+						this.viewModel.setMultiSessionView(true);
+					}
+					this.updateStateAndEmit(raw.getId(), debug.State.Running);
+
+					/* __GDPR__
+						"debugSessionStart" : {
+							"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"breakpointCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+							"exceptionBreakpoints": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"watchExpressionsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+							"extensionName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+							"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true},
+							"launchJsonExists": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+						}
+					*/
+					return this.telemetryService.publicLog('debugSessionStart', {
+						type: configuration.type,
+						breakpointCount: this.model.getBreakpoints().length,
+						exceptionBreakpoints: this.model.getExceptionBreakpoints(),
+						watchExpressionsCount: this.model.getWatchExpressions().length,
+						extensionName: dbg.extensionDescription.id,
+						isBuiltin: dbg.extensionDescription.isBuiltin,
+						launchJsonExists: root && !!this.configurationService.getValue<debug.IGlobalConfig>('launch', { resource: root.uri })
+					});
+				}).then(() => session, (error: Error | string) => {
+					if (errors.isPromiseCanceledError(error)) {
+						// Do not show 'canceled' error messages to the user #7906
+						return TPromise.as(null);
+					}
+
+					const errorMessage = error instanceof Error ? error.message : error;
+					/* __GDPR__
+						"debugMisconfiguration" : {
+							"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"error": { "classification": "CallstackOrException", "purpose": "FeatureInsight" }
+						}
+					*/
+					this.telemetryService.publicLog('debugMisconfiguration', { type: configuration ? configuration.type : undefined, error: errorMessage });
+					this.updateStateAndEmit(raw.getId(), debug.State.Inactive);
+					if (!raw.disconnected) {
+						raw.disconnect().done(null, errors.onUnexpectedError);
+					} else if (session) {
+						this.model.removeSession(session.getId());
+					}
+
+					// Show the repl if some error got logged there #5870
+					if (this.model.getReplElements().length > 0) {
+						this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
+					}
+					if (this.model.getReplElements().length === 0) {
+						this.inDebugMode.reset();
+					}
+
+					this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []);
+					return undefined;
+				});
 		});
 	}
 
@@ -1147,7 +1171,7 @@ export class DebugService implements debug.IDebugService {
 			}
 		}
 
-		this.toDisposeOnSessionEnd.set(raw.getId(), lifecycle.dispose(this.toDisposeOnSessionEnd.get(raw.getId())));
+		lifecycle.dispose(this.toDisposeOnSessionEnd.get(raw.getId()));
 		const focusedSession = this.viewModel.focusedSession;
 		if (focusedSession && focusedSession.getId() === raw.getId()) {
 			this.focusStackFrame(null);

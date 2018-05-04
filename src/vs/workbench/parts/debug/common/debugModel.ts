@@ -547,8 +547,12 @@ export class Session implements ISession {
 		this._session.onDidInitialize(() => this.inactive = false);
 	}
 
-	public get raw(): IRawSession {
+	public get raw(): IRawSession & ITreeElement {
 		return this._session;
+	}
+
+	public set raw(value: IRawSession & ITreeElement) {
+		this._session = value;
 	}
 
 	public getName(includeRoot: boolean): string {
