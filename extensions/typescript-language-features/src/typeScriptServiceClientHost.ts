@@ -85,7 +85,7 @@ export default class TypeScriptServiceClientHost {
 		this.ataProgressReporter = new AtaProgressReporter(this.client);
 
 		for (const description of descriptions) {
-			const manager = new LanguageProvider(this.client, description, this.commandManager, this.typingsStatus);
+			const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus);
 			this.languages.push(manager);
 			this.disposables.push(manager);
 			this.languagePerId.set(description.id, manager);
@@ -111,7 +111,7 @@ export default class TypeScriptServiceClientHost {
 					diagnosticOwner: 'typescript',
 					isExternal: true
 				};
-				const manager = new LanguageProvider(this.client, description, this.commandManager, this.typingsStatus);
+				const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus);
 				this.languages.push(manager);
 				this.disposables.push(manager);
 				this.languagePerId.set(description.id, manager);

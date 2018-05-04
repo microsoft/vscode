@@ -15,6 +15,7 @@ import { DiagnosticsManager } from './diagnostics';
 import BufferSyncSupport from './bufferSyncSupport';
 
 import * as nls from 'vscode-nls';
+import TelemetryReporter from '../utils/telemetry';
 const localize = nls.loadMessageBundle();
 
 class ApplyCodeActionCommand implements Command {
@@ -22,13 +23,24 @@ class ApplyCodeActionCommand implements Command {
 	public readonly id = ApplyCodeActionCommand.ID;
 
 	constructor(
-		private readonly client: ITypeScriptServiceClient
+		private readonly client: ITypeScriptServiceClient,
+		private readonly telemetryReporter: TelemetryReporter,
 	) { }
 
 	public async execute(
-		actions: Proto.CodeAction
+		action: Proto.CodeFixAction
 	): Promise<boolean> {
-		return applyCodeActionCommands(this.client, actions);
+		if (action.fixName) {
+			/* __GDPR__
+				"quickFix.execute" : {
+					"fixName" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+				}
+			*/
+			this.telemetryReporter.logTelemetry('quickFix.execute', {
+				fixName: action.fixName
+			});
+		}
+		return applyCodeActionCommands(this.client, action);
 	}
 }
 
@@ -38,7 +50,8 @@ class ApplyFixAllCodeAction implements Command {
 	public readonly id = ApplyFixAllCodeAction.ID;
 
 	constructor(
-		private readonly client: ITypeScriptServiceClient
+		private readonly client: ITypeScriptServiceClient,
+		private readonly telemetryReporter: TelemetryReporter,
 	) { }
 
 	public async execute(
@@ -47,6 +60,17 @@ class ApplyFixAllCodeAction implements Command {
 	): Promise<void> {
 		if (!tsAction.fixId) {
 			return;
+		}
+
+		if (tsAction.fixName) {
+			/* __GDPR__
+				"quickFix.execute" : {
+					"fixName" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+				}
+			*/
+			this.telemetryReporter.logTelemetry('quickFixAll.execute', {
+				fixName: tsAction.fixName
+			});
 		}
 
 		const args: Proto.GetCombinedCodeFixRequestArgs = {
@@ -134,11 +158,11 @@ export default class TypeScriptQuickFixProvider implements vscode.CodeActionProv
 		private readonly formattingConfigurationManager: FileConfigurationManager,
 		commandManager: CommandManager,
 		private readonly diagnosticsManager: DiagnosticsManager,
-		private readonly bufferSyncSupport: BufferSyncSupport
-
+		private readonly bufferSyncSupport: BufferSyncSupport,
+		telemetryReporter: TelemetryReporter
 	) {
-		commandManager.register(new ApplyCodeActionCommand(client));
-		commandManager.register(new ApplyFixAllCodeAction(client));
+		commandManager.register(new ApplyCodeActionCommand(client, telemetryReporter));
+		commandManager.register(new ApplyFixAllCodeAction(client, telemetryReporter));
 
 		this.supportedCodeActionProvider = new SupportedCodeActionProvider(client);
 	}
