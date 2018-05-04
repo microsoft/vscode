@@ -311,7 +311,7 @@ class CodeActionAdapter {
 					result.push({
 						title: candidate.title,
 						command: candidate.command && this._commands.toInternal(candidate.command),
-						diagnostics: candidate.diagnostics && candidate.diagnostics.map(typeConvert.fromDiagnostic),
+						diagnostics: candidate.diagnostics && candidate.diagnostics.map(typeConvert.Diagnostic.from),
 						edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit),
 						kind: candidate.kind && candidate.kind.value
 					});

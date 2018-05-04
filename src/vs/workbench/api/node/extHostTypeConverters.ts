@@ -88,55 +88,60 @@ export namespace Position {
 	}
 }
 
-export function fromDiagnostic(value: vscode.Diagnostic): IMarkerData {
-	return {
-		...Range.from(value.range),
-		message: value.message,
-		source: value.source,
-		code: String(value.code),
-		severity: fromDiagnosticSeverity(value.severity),
-		relatedInformation: value.relatedInformation && value.relatedInformation.map(fromDiagnosticRelatedInformation)
-	};
-}
-
-export function fromDiagnosticRelatedInformation(value: types.DiagnosticRelatedInformation): IRelatedInformation {
-	return {
-		...Range.from(value.location.range),
-		message: value.message,
-		resource: value.location.uri
-	};
-}
-
-export function toDiagnosticRelatedInformation(value: IRelatedInformation): types.DiagnosticRelatedInformation {
-	return new types.DiagnosticRelatedInformation(new types.Location(value.resource, Range.to(value)), value.message);
-}
-
-export function fromDiagnosticSeverity(value: number): MarkerSeverity {
-	switch (value) {
-		case types.DiagnosticSeverity.Error:
-			return MarkerSeverity.Error;
-		case types.DiagnosticSeverity.Warning:
-			return MarkerSeverity.Warning;
-		case types.DiagnosticSeverity.Information:
-			return MarkerSeverity.Info;
-		case types.DiagnosticSeverity.Hint:
-			return MarkerSeverity.Hint;
+export namespace Diagnostic {
+	export function from(value: vscode.Diagnostic): IMarkerData {
+		return {
+			...Range.from(value.range),
+			message: value.message,
+			source: value.source,
+			code: String(value.code),
+			severity: DiagnosticSeverity.from(value.severity),
+			relatedInformation: value.relatedInformation && value.relatedInformation.map(DiagnosticRelatedInformation.from)
+		};
 	}
-	return MarkerSeverity.Error;
 }
 
-export function toDiagnosticSeverty(value: MarkerSeverity): types.DiagnosticSeverity {
-	switch (value) {
-		case MarkerSeverity.Info:
-			return types.DiagnosticSeverity.Information;
-		case MarkerSeverity.Warning:
-			return types.DiagnosticSeverity.Warning;
-		case MarkerSeverity.Error:
-			return types.DiagnosticSeverity.Error;
-		case MarkerSeverity.Hint:
-			return types.DiagnosticSeverity.Hint;
+export namespace DiagnosticRelatedInformation {
+	export function from(value: types.DiagnosticRelatedInformation): IRelatedInformation {
+		return {
+			...Range.from(value.location.range),
+			message: value.message,
+			resource: value.location.uri
+		};
 	}
-	return types.DiagnosticSeverity.Error;
+	export function to(value: IRelatedInformation): types.DiagnosticRelatedInformation {
+		return new types.DiagnosticRelatedInformation(new types.Location(value.resource, Range.to(value)), value.message);
+	}
+}
+export namespace DiagnosticSeverity {
+
+	export function from(value: number): MarkerSeverity {
+		switch (value) {
+			case types.DiagnosticSeverity.Error:
+				return MarkerSeverity.Error;
+			case types.DiagnosticSeverity.Warning:
+				return MarkerSeverity.Warning;
+			case types.DiagnosticSeverity.Information:
+				return MarkerSeverity.Info;
+			case types.DiagnosticSeverity.Hint:
+				return MarkerSeverity.Hint;
+		}
+		return MarkerSeverity.Error;
+	}
+
+	export function to(value: MarkerSeverity): types.DiagnosticSeverity {
+		switch (value) {
+			case MarkerSeverity.Info:
+				return types.DiagnosticSeverity.Information;
+			case MarkerSeverity.Warning:
+				return types.DiagnosticSeverity.Warning;
+			case MarkerSeverity.Error:
+				return types.DiagnosticSeverity.Error;
+			case MarkerSeverity.Hint:
+				return types.DiagnosticSeverity.Hint;
+		}
+		return types.DiagnosticSeverity.Error;
+	}
 }
 
 
