@@ -129,7 +129,7 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 		}
 	}
 
-	protected redraw(): void {
+	private redraw(): void {
 		const editor = this.group.activeEditor;
 		this.lastRenderedEditor = editor;
 
@@ -138,42 +138,43 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 			removeClass(this.titleContainer, 'dirty');
 			this.editorLabel.clear();
 			this.clearEditorActionsToolbar();
-
-			return;
 		}
 
-		const isEditorPinned = this.group.isPinned(this.group.activeEditor);
-		const isGroupActive = this.accessor.activeGroup === this.group;
+		// Otherwise render it
+		else {
+			const isEditorPinned = this.group.isPinned(this.group.activeEditor);
+			const isGroupActive = this.accessor.activeGroup === this.group;
 
-		// Dirty state
-		this.updateEditorDirty(editor);
+			// Dirty state
+			this.updateEditorDirty(editor);
 
-		// Editor Label
-		const resource = toResource(editor, { supportSideBySide: true });
-		const name = editor.getName() || '';
+			// Editor Label
+			const resource = toResource(editor, { supportSideBySide: true });
+			const name = editor.getName() || '';
 
-		const { labelFormat } = this.accessor.partOptions;
-		let description: string;
-		if (labelFormat === 'default' && !isGroupActive) {
-			description = ''; // hide description when group is not active and style is 'default'
-		} else {
-			description = editor.getDescription(this.getVerbosity(labelFormat)) || '';
+			const { labelFormat } = this.accessor.partOptions;
+			let description: string;
+			if (labelFormat === 'default' && !isGroupActive) {
+				description = ''; // hide description when group is not active and style is 'default'
+			} else {
+				description = editor.getDescription(this.getVerbosity(labelFormat)) || '';
+			}
+
+			let title = editor.getTitle(Verbosity.LONG);
+			if (description === title) {
+				title = ''; // dont repeat what is already shown
+			}
+
+			this.editorLabel.setLabel({ name, description, resource }, { title, italic: !isEditorPinned, extraClasses: ['title-label'] });
+			if (isGroupActive) {
+				this.editorLabel.element.style.color = this.getColor(TAB_ACTIVE_FOREGROUND);
+			} else {
+				this.editorLabel.element.style.color = this.getColor(TAB_UNFOCUSED_ACTIVE_FOREGROUND);
+			}
+
+			// Update Editor Actions Toolbar
+			this.updateEditorActionsToolbar();
 		}
-
-		let title = editor.getTitle(Verbosity.LONG);
-		if (description === title) {
-			title = ''; // dont repeat what is already shown
-		}
-
-		this.editorLabel.setLabel({ name, description, resource }, { title, italic: !isEditorPinned, extraClasses: ['title-label'] });
-		if (isGroupActive) {
-			this.editorLabel.element.style.color = this.getColor(TAB_ACTIVE_FOREGROUND);
-		} else {
-			this.editorLabel.element.style.color = this.getColor(TAB_UNFOCUSED_ACTIVE_FOREGROUND);
-		}
-
-		// Update Editor Actions Toolbar
-		this.updateEditorActionsToolbar();
 	}
 
 	private getVerbosity(style: string): Verbosity {

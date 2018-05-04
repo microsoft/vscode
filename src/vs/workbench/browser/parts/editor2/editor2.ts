@@ -35,7 +35,7 @@ export function impactsEditorPartOptions(event: IConfigurationChangeEvent): bool
 }
 
 export function getEditorPartOptions(config: IWorkbenchEditorConfiguration): INextEditorPartOptions {
-	let options: INextEditorPartOptions = assign(Object.create(null), DEFAULT_EDITOR_PART_OPTIONS);
+	const options: INextEditorPartOptions = assign(Object.create(null), DEFAULT_EDITOR_PART_OPTIONS);
 
 	if (!config || !config.workbench) {
 		return options;
@@ -46,7 +46,7 @@ export function getEditorPartOptions(config: IWorkbenchEditorConfiguration): INe
 	}
 
 	if (config.workbench.editor) {
-		options = assign(options, config.workbench.editor);
+		assign(options, config.workbench.editor);
 	}
 
 	return options;

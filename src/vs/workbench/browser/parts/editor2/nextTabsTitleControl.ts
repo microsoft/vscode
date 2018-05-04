@@ -678,7 +678,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 		}
 	}
 
-	protected redraw(): void {
+	private redraw(): void {
 
 		// For each tab
 		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel) => {
@@ -751,6 +751,8 @@ export class NextTabsTitleControl extends NextTitleControl {
 	}
 
 	private redrawEditorActive(isGroupActive: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: ResourceLabel): void {
+
+		// Tab is active
 		if (this.group.activeEditor === editor) {
 
 			// Container
@@ -770,7 +772,10 @@ export class NextTabsTitleControl extends NextTitleControl {
 
 			// Label
 			tabLabelWidget.element.style.color = this.getColor(isGroupActive ? TAB_ACTIVE_FOREGROUND : TAB_UNFOCUSED_ACTIVE_FOREGROUND);
-		} else {
+		}
+
+		// Tab is inactive
+		else {
 
 			// Containr
 			removeClass(tabContainer, 'active');

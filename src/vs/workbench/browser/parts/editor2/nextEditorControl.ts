@@ -102,7 +102,7 @@ export class NextEditorControl extends Disposable {
 	private doInstantiateEditorControl(descriptor: IEditorDescriptor): BaseEditor {
 
 		// Return early if already instantiated
-		const existingControl = this.controls.filter(e => descriptor.describes(e))[0];
+		const existingControl = this.controls.filter(control => descriptor.describes(control))[0];
 		if (existingControl) {
 			return existingControl;
 		}

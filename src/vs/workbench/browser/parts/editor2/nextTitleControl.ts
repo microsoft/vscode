@@ -95,8 +95,6 @@ export abstract class NextTitleControl extends Themable {
 
 	protected abstract create(parent: HTMLElement): void;
 
-	protected abstract redraw(): void;
-
 	protected createEditorActionsToolBar(container: HTMLElement): void {
 		this.editorActionsToolbar = this._register(new ToolBar(container, this.contextMenuService, {
 			actionItemProvider: action => this.actionItemProvider(action as Action),
