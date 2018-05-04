@@ -38,10 +38,10 @@ import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { INextEditorGroup } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
-import { IGroupsAccessor } from 'vs/workbench/browser/parts/editor2/nextEditorGroupView';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { addClass, addDisposableListener, hasClass, EventType, EventHelper, removeClass, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
+import { IGroupsAccessor } from 'vs/workbench/browser/parts/editor2/editor2';
 
 interface IEditorInputLabel {
 	name: string;

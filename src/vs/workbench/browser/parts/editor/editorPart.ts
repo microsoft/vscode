@@ -1409,7 +1409,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			this.onGroupFocusChanged();
 
 			// Update title area sync to avoid some flickering with actions
-			this.editorGroupsControl.updateTitleAreas(); // TODO@grid this only updates the editor group actions toolbar sync
+			this.editorGroupsControl.updateTitleAreas();
 		}
 	}
 

@@ -36,7 +36,7 @@ import { Dimension } from 'vs/base/browser/dom';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { INextEditorGroup } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
-import { IGroupsAccessor } from 'vs/workbench/browser/parts/editor2/nextEditorGroupView';
+import { IGroupsAccessor } from 'vs/workbench/browser/parts/editor2/editor2';
 
 export interface IToolbarActions {
 	primary: IAction[];

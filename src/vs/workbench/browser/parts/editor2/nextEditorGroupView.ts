@@ -19,10 +19,9 @@ import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_BACKGROUND } from 'vs/workbench/common/theme';
-import { INextEditorGroup, IMoveEditorOptions } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { IMoveEditorOptions } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { NextTabsTitleControl } from 'vs/workbench/browser/parts/editor2/nextTabsTitleControl';
 import { NextEditorControl } from 'vs/workbench/browser/parts/editor2/nextEditorControl';
-import { IView } from 'vs/base/browser/ui/grid/gridview';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ProgressService } from 'vs/workbench/services/progress/browser/progressService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -38,26 +37,20 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { NextTitleControl } from 'vs/workbench/browser/parts/editor2/nextTitleControl';
+import { IGroupsAccessor, INextEditorGroupView } from 'vs/workbench/browser/parts/editor2/editor2';
 
-export interface IGroupsAccessor {
-	readonly groups: NextEditorGroupView[];
-	readonly activeGroup: NextEditorGroupView;
-
-	getGroup(identifier: GroupIdentifier): NextEditorGroupView;
-}
-
-export class NextEditorGroupView extends Themable implements IView, INextEditorGroup {
+export class NextEditorGroupView extends Themable implements INextEditorGroupView {
 
 	private static readonly EDITOR_TITLE_HEIGHT = 35;
 	private static readonly ENABLE_PREVIEW_SETTING = 'workbench.editor.enablePreview';
 
 	//#region factory
 
-	static createNew(groupsAccessor: IGroupsAccessor, instantiationService: IInstantiationService): NextEditorGroupView {
+	static createNew(groupsAccessor: IGroupsAccessor, instantiationService: IInstantiationService): INextEditorGroupView {
 		return instantiationService.createInstance(NextEditorGroupView, groupsAccessor, null);
 	}
 
-	static createCopy(copyFrom: NextEditorGroupView, groupsAccessor: IGroupsAccessor, instantiationService: IInstantiationService): NextEditorGroupView {
+	static createCopy(copyFrom: INextEditorGroupView, groupsAccessor: IGroupsAccessor, instantiationService: IInstantiationService): INextEditorGroupView {
 		return instantiationService.createInstance(NextEditorGroupView, groupsAccessor, copyFrom);
 	}
 
@@ -88,7 +81,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	//#endregion
 
-	private group: EditorGroup;
+	private _group: EditorGroup;
 
 	private _dimension: Dimension;
 	private scopedInstantiationService: IInstantiationService;
@@ -106,7 +99,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	constructor(
 		private groupsAccessor: IGroupsAccessor,
-		copyFromView: NextEditorGroupView,
+		copyFromView: INextEditorGroupView,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
@@ -118,11 +111,11 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		super(themeService);
 
 		if (copyFromView) {
-			this.group = this._register(copyFromView.group.clone());
+			this._group = this._register(copyFromView.group.clone());
 		} else {
-			this.group = this._register(instantiationService.createInstance(EditorGroup, ''));
+			this._group = this._register(instantiationService.createInstance(EditorGroup, ''));
 		}
-		this.group.label = `Group <${this.group.id}>`; // TODO@grid find a way to have a proper label
+		this._group.label = `Group <${this._group.id}>`; // TODO@grid find a way to have a proper label
 
 		this.disposedEditorsWorker = this._register(new RunOnceWorker(editors => this.handleDisposedEditors(editors), 0));
 
@@ -135,11 +128,11 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	private registerListeners(): void {
 
 		// Model Events
-		this._register(this.group.onDidEditorOpen(editor => this.onDidEditorOpen(editor)));
-		this._register(this.group.onDidEditorClose(editor => this.onDidEditorClose(editor)));
-		this._register(this.group.onDidEditorDispose(editor => this.onDidEditorDispose(editor)));
-		this._register(this.group.onDidEditorBecomeDirty(editor => this.onDidEditorBecomeDirty(editor)));
-		this._register(this.group.onDidEditorLabelChange(editor => this.onDidEditorLabelChange(editor)));
+		this._register(this._group.onDidEditorOpen(editor => this.onDidEditorOpen(editor)));
+		this._register(this._group.onDidEditorClose(editor => this.onDidEditorClose(editor)));
+		this._register(this._group.onDidEditorDispose(editor => this.onDidEditorDispose(editor)));
+		this._register(this._group.onDidEditorBecomeDirty(editor => this.onDidEditorBecomeDirty(editor)));
+		this._register(this._group.onDidEditorLabelChange(editor => this.onDidEditorLabelChange(editor)));
 
 		// Configuration Changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onDidChangeConfiguration(e)));
@@ -211,9 +204,9 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		let activeEditor: EditorInput;
 		const inactiveEditors: EditorInput[] = [];
 		editors.forEach(editor => {
-			if (this.group.isActive(editor)) {
+			if (this._group.isActive(editor)) {
 				activeEditor = editor;
-			} else if (this.group.contains(editor)) {
+			} else if (this._group.contains(editor)) {
 				inactiveEditors.push(editor);
 			}
 		});
@@ -232,7 +225,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		// Pin preview editor once user disables preview
 		if (event.affectsConfiguration(NextEditorGroupView.ENABLE_PREVIEW_SETTING)) {
 			if (!this.configurationService.getValue<string>(NextEditorGroupView.ENABLE_PREVIEW_SETTING)) {
-				this.pinEditor(this.group.previewEditor);
+				this.pinEditor(this._group.previewEditor);
 			}
 		}
 
@@ -349,6 +342,10 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		}
 	}
 
+	get group(): EditorGroup {
+		return this._group;
+	}
+
 	get dimension(): Dimension {
 		return this._dimension;
 	}
@@ -366,21 +363,21 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	}
 
 	isEmpty(): boolean {
-		return this.group.count === 0;
+		return this._group.count === 0;
 	}
 
 	//#region INextEditorGroup
 
 	get id(): GroupIdentifier {
-		return this.group.id;
+		return this._group.id;
 	}
 
 	get editors(): EditorInput[] {
-		return this.group.getEditors();
+		return this._group.getEditors();
 	}
 
 	get count(): number {
-		return this.group.count;
+		return this._group.count;
 	}
 
 	get activeControl(): BaseEditor {
@@ -388,23 +385,23 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	}
 
 	get activeEditor(): EditorInput {
-		return this.group.activeEditor;
+		return this._group.activeEditor;
 	}
 
 	isPinned(editor: EditorInput): boolean {
-		return this.group.isPinned(editor);
+		return this._group.isPinned(editor);
 	}
 
 	isActive(editor: EditorInput): boolean {
-		return this.group.isActive(editor);
+		return this._group.isActive(editor);
 	}
 
 	getEditor(index: number): EditorInput {
-		return this.group.getEditor(index);
+		return this._group.getEditor(index);
 	}
 
 	getIndexOfEditor(editor: EditorInput): number {
-		return this.group.indexOf(editor);
+		return this._group.indexOf(editor);
 	}
 
 	//#region openEditor()
@@ -412,7 +409,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	openEditor(editor: EditorInput, options?: EditorOptions): Thenable<void> {
 
 		// Editor opening event allows for prevention
-		const event = new EditorOpeningEvent(editor, options, this.group.id); // TODO@grid position => group ID
+		const event = new EditorOpeningEvent(editor, options, this._group.id); // TODO@grid position => group ID
 		this._onWillOpenEditor.fire(event);
 		const prevented = event.isPrevented();
 		if (prevented) {
@@ -428,12 +425,11 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		// Update model
 		const openEditorOptions: IEditorOpenOptions = {
 			index: options ? options.index : void 0,
-			pinned: editor.isDirty() || (options && options.pinned) || (options && typeof options.index === 'number'), // TODO@grid respect editor.previewEditors setting
-			active: this.group.count === 0 || !options || !options.inactive
+			active: this._group.count === 0 || !options || !options.inactive
 		};
 
 		const currentActiveEditor = this.activeEditor;
-		this.group.openEditor(editor, openEditorOptions);
+		this._group.openEditor(editor, openEditorOptions);
 
 		// Forward to title control
 		this.doCreateOrGetTitleControl().openEditor(editor);
@@ -509,7 +505,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	private doCreateOrGetEditorControl(): NextEditorControl {
 		if (!this.editorControl) {
-			this.editorControl = this._register(this.doCreateOrGetScopedInstantiationService().createInstance(NextEditorControl, this.editorContainer, this.group.id));
+			this.editorControl = this._register(this.doCreateOrGetScopedInstantiationService().createInstance(NextEditorControl, this.editorContainer, this._group.id));
 			this.doLayoutEditorControl();
 		}
 
@@ -520,7 +516,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 
 	//#region moveEditor()
 
-	moveEditor(editor: EditorInput, target: NextEditorGroupView, options?: IMoveEditorOptions): void {
+	moveEditor(editor: EditorInput, target: INextEditorGroupView, options?: IMoveEditorOptions): void {
 
 		// Move within same group
 		if (this === target) {
@@ -539,14 +535,14 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 			return; // do nothing if we move into same group without index
 		}
 
-		const currentIndex = this.group.indexOf(editor);
+		const currentIndex = this._group.indexOf(editor);
 		if (currentIndex === moveToIndex) {
 			return; // do nothing if editor is already at the given index
 		}
 
 		// Update model
-		this.group.moveEditor(editor, moveToIndex);
-		this.group.pin(editor);
+		this._group.moveEditor(editor, moveToIndex);
+		this._group.pin(editor);
 
 		// Forward to title area
 		if (this.titleAreaControl) {
@@ -555,7 +551,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		}
 	}
 
-	private doMoveEditorAcrossGroups(editor: EditorInput, target: NextEditorGroupView, moveOptions: IMoveEditorOptions = Object.create(null)): void {
+	private doMoveEditorAcrossGroups(editor: EditorInput, target: INextEditorGroupView, moveOptions: IMoveEditorOptions = Object.create(null)): void {
 		let options: EditorOptions;
 
 		// When moving an editor, try to preserve as much view state as possible by checking
@@ -607,7 +603,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	private doCloseActiveEditor(focusNext = this.groupsAccessor.activeGroup === this, fromError?: boolean): void {
 
 		// Update model
-		const index = this.group.closeEditor(this.activeEditor);
+		const index = this._group.closeEditor(this.activeEditor);
 
 		// Forward to title control
 		if (this.titleAreaControl) {
@@ -615,7 +611,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		}
 
 		// Open next active if possible
-		const nextActiveEditor = this.group.activeEditor;
+		const nextActiveEditor = this._group.activeEditor;
 		if (nextActiveEditor) {
 
 			// When closing an editor due to an error we can end up in a loop where we continue closing
@@ -646,7 +642,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	private doCloseInactiveEditor(editor: EditorInput): void {
 
 		// Update model
-		const index = this.group.closeEditor(editor);
+		const index = this._group.closeEditor(editor);
 
 		// Forward to title control
 		if (this.titleAreaControl) {
@@ -724,7 +720,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	//#region other INextEditorGroup methods
 
 	isOpened(editor: EditorInput): boolean {
-		return this.group.contains(editor);
+		return this._group.contains(editor);
 	}
 
 	focus(): void {
@@ -736,10 +732,10 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	}
 
 	pinEditor(editor: EditorInput = this.activeEditor): void {
-		if (editor && !this.group.isPinned(editor)) {
+		if (editor && !this._group.isPinned(editor)) {
 
 			// Update model
-			this.group.pin(editor);
+			this._group.pin(editor);
 
 			// Forward to title control
 			if (this.titleAreaControl) {

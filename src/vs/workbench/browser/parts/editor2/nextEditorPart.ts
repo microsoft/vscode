@@ -15,12 +15,13 @@ import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { INextEditorGroupsService, Direction, CopyKind } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Grid, Direction as GridViewDirection } from 'vs/base/browser/ui/grid/grid';
-import { NextEditorGroupView, IGroupsAccessor } from 'vs/workbench/browser/parts/editor2/nextEditorGroupView';
 import { GroupIdentifier, EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER, EDITOR_GROUP_BACKGROUND } from 'vs/workbench/common/theme';
 import { distinct } from 'vs/base/common/arrays';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
+import { IGroupsAccessor, INextEditorGroupView } from 'vs/workbench/browser/parts/editor2/editor2';
+import { NextEditorGroupView } from 'vs/workbench/browser/parts/editor2/nextEditorGroupView';
 
 // TODO@grid provide DND support of groups/editors:
 // - editor: move/copy to existing group, move/copy to new split group (up, down, left, right)
@@ -41,19 +42,19 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 	private _onDidLayout: Emitter<Dimension> = this._register(new Emitter<Dimension>());
 	get onDidLayout(): Event<Dimension> { return this._onDidLayout.event; }
 
-	private _onDidActiveGroupChange: Emitter<NextEditorGroupView> = this._register(new Emitter<NextEditorGroupView>());
-	get onDidActiveGroupChange(): Event<NextEditorGroupView> { return this._onDidActiveGroupChange.event; }
+	private _onDidActiveGroupChange: Emitter<INextEditorGroupView> = this._register(new Emitter<INextEditorGroupView>());
+	get onDidActiveGroupChange(): Event<INextEditorGroupView> { return this._onDidActiveGroupChange.event; }
 
 	//#endregion
 
 	private dimension: Dimension;
 
-	private _activeGroup: NextEditorGroupView;
-	private groupViews: Map<GroupIdentifier, NextEditorGroupView> = new Map<GroupIdentifier, NextEditorGroupView>();
+	private _activeGroup: INextEditorGroupView;
+	private groupViews: Map<GroupIdentifier, INextEditorGroupView> = new Map<GroupIdentifier, INextEditorGroupView>();
 	private mostRecentActiveGroups: GroupIdentifier[] = [];
 
 	private gridContainer: HTMLElement;
-	private gridWidget: Grid<NextEditorGroupView>;
+	private gridWidget: Grid<INextEditorGroupView>;
 
 	constructor(
 		id: string,
@@ -67,15 +68,15 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 
 	//#region INextEditorGroupsService
 
-	get activeGroup(): NextEditorGroupView {
+	get activeGroup(): INextEditorGroupView {
 		return this._activeGroup;
 	}
 
-	get groups(): NextEditorGroupView[] {
+	get groups(): INextEditorGroupView[] {
 		return values(this.groupViews);
 	}
 
-	getGroups(sortByMostRecentlyActive?: boolean): NextEditorGroupView[] {
+	getGroups(sortByMostRecentlyActive?: boolean): INextEditorGroupView[] {
 		if (!sortByMostRecentlyActive) {
 			return this.groups;
 		}
@@ -87,11 +88,11 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		return distinct([...mostRecentActive, ...this.groups]);
 	}
 
-	getGroup(identifier: GroupIdentifier): NextEditorGroupView {
+	getGroup(identifier: GroupIdentifier): INextEditorGroupView {
 		return this.groupViews.get(identifier);
 	}
 
-	activateGroup(group: NextEditorGroupView | GroupIdentifier): NextEditorGroupView {
+	activateGroup(group: INextEditorGroupView | GroupIdentifier): INextEditorGroupView {
 		const groupView = this.asGroupView(group);
 		if (groupView) {
 			this.doSetGroupActive(groupView);
@@ -100,7 +101,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		return groupView;
 	}
 
-	focusGroup(group: NextEditorGroupView | GroupIdentifier): NextEditorGroupView {
+	focusGroup(group: INextEditorGroupView | GroupIdentifier): INextEditorGroupView {
 		const groupView = this.asGroupView(group);
 		if (groupView) {
 			groupView.focus();
@@ -109,7 +110,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		return groupView;
 	}
 
-	addGroup(fromGroup: NextEditorGroupView | GroupIdentifier, direction: Direction, copy?: CopyKind): NextEditorGroupView {
+	addGroup(fromGroup: INextEditorGroupView | GroupIdentifier, direction: Direction, copy?: CopyKind): INextEditorGroupView {
 		const fromGroupView = this.asGroupView(fromGroup);
 		const newGroupView = this.doCreateGroupView(copy ? fromGroupView : void 0);
 
@@ -147,7 +148,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		return newGroupView;
 	}
 
-	removeGroup(group: NextEditorGroupView | GroupIdentifier): void {
+	removeGroup(group: INextEditorGroupView | GroupIdentifier): void {
 		const groupView = this.asGroupView(group);
 		if (
 			!groupView ||
@@ -189,7 +190,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		}
 	}
 
-	private asGroupView(group: NextEditorGroupView | GroupIdentifier): NextEditorGroupView {
+	private asGroupView(group: INextEditorGroupView | GroupIdentifier): INextEditorGroupView {
 		if (typeof group === 'number') {
 			return this.getGroup(group);
 		}
@@ -211,7 +212,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		this.doSetGroupActive(initialGroup);
 	}
 
-	private doSetGroupActive(group: NextEditorGroupView): void {
+	private doSetGroupActive(group: INextEditorGroupView): void {
 		if (this._activeGroup === group) {
 			return; // return if this is already the active group
 		}
@@ -238,7 +239,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		// TODO@grid if the group is minimized, it should now restore to be maximized
 	}
 
-	private doUpdateMostRecentActive(group: NextEditorGroupView, makeMostRecentlyActive?: boolean): void {
+	private doUpdateMostRecentActive(group: INextEditorGroupView, makeMostRecentlyActive?: boolean): void {
 		const index = this.mostRecentActiveGroups.indexOf(group.id);
 
 		// Remove from MRU list
@@ -252,7 +253,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		}
 	}
 
-	private doCreateGroupView(copyFromView?: NextEditorGroupView): NextEditorGroupView {
+	private doCreateGroupView(copyFromView?: INextEditorGroupView): INextEditorGroupView {
 
 		// Groups Accessor
 		const part = this;
@@ -263,7 +264,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 		};
 
 		// Create group view
-		let groupView: NextEditorGroupView;
+		let groupView: INextEditorGroupView;
 		if (copyFromView) {
 			groupView = NextEditorGroupView.createCopy(copyFromView, groupsAccessor, this.instantiationService);
 		} else {
