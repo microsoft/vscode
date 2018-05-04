@@ -258,6 +258,14 @@ export class RemoteFileService extends FileService {
 	// --- stat
 
 	private _withProvider(resource: URI): TPromise<IFileSystemProvider> {
+
+		if (!posix.isAbsolute(resource.path)) {
+			throw new FileOperationError(
+				localize('invalidPath', "The path of resource '{0}' must be absolute", resource.toString(true)),
+				FileOperationResult.FILE_INVALID_PATH
+			);
+		}
+
 		return TPromise.join([
 			this._extensionService.activateByEvent('onFileSystem:' + resource.scheme),
 			this._extensionService.activateByEvent('onFileSystemAccess:' + resource.scheme) // todo@remote -> remove
