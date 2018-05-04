@@ -111,11 +111,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _onDidLayoutChange: Emitter<editorOptions.EditorLayoutInfo> = this._register(new Emitter<editorOptions.EditorLayoutInfo>());
 	public readonly onDidLayoutChange: Event<editorOptions.EditorLayoutInfo> = this._onDidLayoutChange.event;
 
-	protected _editorTextFocus: BooleanEventEmitter = this._register(new BooleanEventEmitter());
+	private _editorTextFocus: BooleanEventEmitter = this._register(new BooleanEventEmitter());
 	public readonly onDidFocusEditorText: Event<void> = this._editorTextFocus.onDidChangeToTrue;
 	public readonly onDidBlurEditorText: Event<void> = this._editorTextFocus.onDidChangeToFalse;
 
-	protected _editorFocus: BooleanEventEmitter = this._register(new BooleanEventEmitter());
+	private _editorFocus: BooleanEventEmitter = this._register(new BooleanEventEmitter());
 	public readonly onDidFocusEditor: Event<void> = this._editorFocus.onDidChangeToTrue;
 	public readonly onDidBlurEditor: Event<void> = this._editorFocus.onDidChangeToFalse;
 
@@ -408,7 +408,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this.viewModel.viewLayout.getWhitespaces();
 	}
 
-	protected _getVerticalOffsetForPosition(modelLineNumber: number, modelColumn: number): number {
+	private _getVerticalOffsetForPosition(modelLineNumber: number, modelColumn: number): number {
 		let modelPosition = this.model.validatePosition({
 			lineNumber: modelLineNumber,
 			column: modelColumn
@@ -1440,7 +1440,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 	}
 
-	protected _detachModel(): ITextModel {
+	private _detachModel(): ITextModel {
 		let removeDomNode: HTMLElement = null;
 
 		if (this._view) {
