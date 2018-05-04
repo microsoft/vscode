@@ -123,7 +123,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 			textEditor._acceptOptions(data.options);
 		}
 		if (data.selections) {
-			const selections = data.selections.selections.map(TypeConverters.toSelection);
+			const selections = data.selections.selections.map(TypeConverters.Selection.to);
 			textEditor._acceptSelections(selections);
 		}
 		if (data.visibleRanges) {
@@ -140,7 +140,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 		}
 		if (data.selections) {
 			const kind = TextEditorSelectionChangeKind.fromValue(data.selections.source);
-			const selections = data.selections.selections.map(TypeConverters.toSelection);
+			const selections = data.selections.selections.map(TypeConverters.Selection.to);
 			this._onDidChangeTextEditorSelection.fire({
 				textEditor,
 				selections,

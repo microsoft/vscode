@@ -474,7 +474,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 	}
 
 	private _trySetSelection(): TPromise<vscode.TextEditor> {
-		let selection = this._selections.map(TypeConverters.fromSelection);
+		let selection = this._selections.map(TypeConverters.Selection.from);
 		return this._runOnProxy(() => this._proxy.$trySetSelections(this._id, selection));
 	}
 

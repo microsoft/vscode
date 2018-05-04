@@ -36,22 +36,24 @@ export interface SelectionLike extends RangeLike {
 	anchor: PositionLike;
 	active: PositionLike;
 }
+export namespace Selection {
 
-export function toSelection(selection: ISelection): types.Selection {
-	let { selectionStartLineNumber, selectionStartColumn, positionLineNumber, positionColumn } = selection;
-	let start = new types.Position(selectionStartLineNumber - 1, selectionStartColumn - 1);
-	let end = new types.Position(positionLineNumber - 1, positionColumn - 1);
-	return new types.Selection(start, end);
-}
+	export function to(selection: ISelection): types.Selection {
+		let { selectionStartLineNumber, selectionStartColumn, positionLineNumber, positionColumn } = selection;
+		let start = new types.Position(selectionStartLineNumber - 1, selectionStartColumn - 1);
+		let end = new types.Position(positionLineNumber - 1, positionColumn - 1);
+		return new types.Selection(start, end);
+	}
 
-export function fromSelection(selection: SelectionLike): ISelection {
-	let { anchor, active } = selection;
-	return {
-		selectionStartLineNumber: anchor.line + 1,
-		selectionStartColumn: anchor.character + 1,
-		positionLineNumber: active.line + 1,
-		positionColumn: active.character + 1
-	};
+	export function from(selection: SelectionLike): ISelection {
+		let { anchor, active } = selection;
+		return {
+			selectionStartLineNumber: anchor.line + 1,
+			selectionStartColumn: anchor.character + 1,
+			positionLineNumber: active.line + 1,
+			positionColumn: active.character + 1
+		};
+	}
 }
 
 export function fromRange(range: RangeLike): IRange {
