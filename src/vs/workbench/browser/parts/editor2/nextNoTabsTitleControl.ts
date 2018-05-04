@@ -76,7 +76,7 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 		this.ifActiveEditorChanged(() => this.redraw());
 	}
 
-	closeEditor(editor: IEditorInput): void {
+	closeEditor(editor: IEditorInput, index: number): void {
 		this.ifActiveEditorChanged(() => this.redraw());
 	}
 

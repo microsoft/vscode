@@ -213,7 +213,7 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 		editors.forEach(editor => {
 			if (this.group.isActive(editor)) {
 				activeEditor = editor;
-			} else {
+			} else if (this.group.contains(editor)) {
 				inactiveEditors.push(editor);
 			}
 		});
@@ -605,11 +605,11 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	private doCloseActiveEditor(focusNext = this.groupsAccessor.activeGroup === this, fromError?: boolean): void {
 
 		// Update model
-		this.group.closeEditor(this.activeEditor);
+		const index = this.group.closeEditor(this.activeEditor);
 
 		// Forward to title control
 		if (this.titleAreaControl) {
-			this.titleAreaControl.closeEditor(this.activeEditor);
+			this.titleAreaControl.closeEditor(this.activeEditor, index);
 		}
 
 		// Open next active if possible
@@ -644,11 +644,11 @@ export class NextEditorGroupView extends Themable implements IView, INextEditorG
 	private doCloseInactiveEditor(editor: EditorInput): void {
 
 		// Update model
-		this.group.closeEditor(editor);
+		const index = this.group.closeEditor(editor);
 
 		// Forward to title control
 		if (this.titleAreaControl) {
-			this.titleAreaControl.closeEditor(editor); // TODO@grid avoid calling this for many editors to avoid perf issues
+			this.titleAreaControl.closeEditor(editor, index); // TODO@grid avoid calling this for many editors to avoid perf issues
 		}
 	}
 

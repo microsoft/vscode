@@ -316,12 +316,16 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 		}
 	}
 
-	closeEditor(editor: EditorInput, openNext = true): void {
+	closeEditor(editor: EditorInput, openNext = true): number {
 		const event = this.doCloseEditor(editor, openNext, false);
 
 		if (event) {
 			this._onDidEditorClose.fire(event);
+
+			return event.index;
 		}
+
+		return void 0;
 	}
 
 	private doCloseEditor(editor: EditorInput, openNext: boolean, replaced: boolean): EditorCloseEvent {

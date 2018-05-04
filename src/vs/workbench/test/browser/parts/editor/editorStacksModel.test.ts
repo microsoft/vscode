@@ -499,7 +499,8 @@ suite('Editor Stacks Model', () => {
 		assert.equal(events.opened[0], input1);
 		assert.equal(events.activated[0], input1);
 
-		group.closeEditor(input1);
+		let index = group.closeEditor(input1);
+		assert.equal(index, 0);
 		assert.equal(group.count, 0);
 		assert.equal(group.getEditors(true).length, 0);
 		assert.equal(group.activeEditor, void 0);
@@ -530,7 +531,8 @@ suite('Editor Stacks Model', () => {
 		assert.equal(events.closed[1].index, 0);
 		assert.equal(events.closed[1].replaced, false);
 
-		group.closeEditor(input2);
+		index = group.closeEditor(input2);
+		assert.ok(typeof index !== 'number');
 		assert.equal(group.count, 0);
 		assert.equal(group.getEditors(true).length, 0);
 		assert.equal(group.activeEditor, void 0);
@@ -1701,8 +1703,9 @@ suite('Editor Stacks Model', () => {
 		group1.openEditor(input3, { pinned: true, active: true });
 		group1.openEditor(input4, { pinned: true, active: true });
 
-		group1.closeEditor(input3);
+		const index = group1.closeEditor(input3);
 
+		assert.equal(index, 2);
 		assert.equal(events.editorClosed.length, 1);
 		assert.equal(events.editorClosed[0].editor, input3);
 

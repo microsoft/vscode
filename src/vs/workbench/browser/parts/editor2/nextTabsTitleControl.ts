@@ -40,7 +40,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { INextEditorGroup } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { IGroupsAccessor } from 'vs/workbench/browser/parts/editor2/nextEditorGroupView';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { addClass, addDisposableListener, hasClass, EventType, EventHelper, removeClass, clearNode, Dimension, scheduleAtNextAnimationFrame, findParentWithClass } from 'vs/base/browser/dom';
+import { addClass, addDisposableListener, hasClass, EventType, EventHelper, removeClass, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 
 interface IEditorInputLabel {
@@ -58,7 +58,6 @@ export class NextTabsTitleControl extends NextTitleControl {
 	private editorToolbarContainer: HTMLElement;
 	private scrollbar: ScrollableElement;
 
-	private activeTab: HTMLElement;
 	private tabLabelWidgets: ResourceLabel[] = [];
 	private tabLabels: IEditorInputLabel[] = [];
 	private tabDisposeables: IDisposable[] = [];
@@ -197,35 +196,51 @@ export class NextTabsTitleControl extends NextTitleControl {
 		this.createEditorActionsToolBar(this.editorToolbarContainer);
 	}
 
-	private updateDropFeedback(element: HTMLElement, isDND: boolean, index?: number): void {
-		const isTab = (typeof index === 'number');
-		const isActiveTab = isTab && this.group.isActive(this.group.getEditor(index));
-
-		// Background
-		const noDNDBackgroundColor = isTab ? this.getColor(isActiveTab ? TAB_ACTIVE_BACKGROUND : TAB_INACTIVE_BACKGROUND) : null;
-		element.style.backgroundColor = isDND ? this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND) : noDNDBackgroundColor;
-
-		// Outline
-		const activeContrastBorderColor = this.getColor(activeContrastBorder);
-		if (activeContrastBorderColor && isDND) {
-			element.style.outlineWidth = '2px';
-			element.style.outlineStyle = 'dashed';
-			element.style.outlineColor = activeContrastBorderColor;
-			element.style.outlineOffset = isTab ? '-5px' : '-3px';
-		} else {
-			element.style.outlineWidth = null;
-			element.style.outlineStyle = null;
-			element.style.outlineColor = activeContrastBorderColor;
-			element.style.outlineOffset = null;
-		}
-	}
-
 	openEditor(editor: IEditorInput): void {
-		this.recreate(); // TODO@grid optimize
+
+		// Create tab as needed
+		if (this.tabsContainer.children.length < this.group.count) {
+			this.tabsContainer.appendChild(this.createTab(this.group.count - 1));
+		}
+
+		// An add of a tab requires to recompute all labels
+		this.computeTabLabels();
+
+		// Redraw all tabs
+		this.redraw();
 	}
 
-	closeEditor(editor: IEditorInput): void {
-		this.recreate(); // TODO@grid optimize
+	closeEditor(editor: IEditorInput, index: number): void {
+
+		// There are tabs to show
+		if (this.group.activeEditor) {
+
+			// Remove one tab from container (must be the last to keep indexes in order!)
+			(this.tabsContainer.lastChild as HTMLElement).remove();
+
+			// Remove associated tab label
+			this.tabLabelWidgets.pop();
+
+			// Dispose associated tab disposeables
+			this.tabDisposeables.pop().dispose();
+
+			// A removal of a label requires to recompute all labels
+			this.computeTabLabels();
+
+			// Redraw all tabs
+			this.redraw();
+		}
+
+		// No tabs to show
+		else {
+			clearNode(this.tabsContainer);
+
+			this.tabDisposeables = dispose(this.tabDisposeables);
+			this.tabLabelWidgets = [];
+			this.tabLabels = [];
+
+			this.clearEditorActionsToolbar();
+		}
 	}
 
 	moveEditor(editor: IEditorInput, fromIndex: number, targetIndex: number): void {
@@ -235,10 +250,9 @@ export class NextTabsTitleControl extends NextTitleControl {
 		this.tabLabels.splice(fromIndex, 1);
 		this.tabLabels.splice(targetIndex, 0, editorLabel);
 
-		// As such we need to redraw each label
+		// As such we need to redraw each tab
 		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel) => {
-			this.redrawLabel(editor, tabContainer, tabLabelWidget, tabLabel);
-			this.redrawEditorActive(this.groupsAccessor.activeGroup === this.group, editor, tabContainer, tabLabelWidget);
+			this.redrawTab(editor, index, tabContainer, tabLabelWidget, tabLabel);
 		});
 
 		// Moving an editor requires a layout to keep the active editor visible
@@ -285,60 +299,6 @@ export class NextTabsTitleControl extends NextTitleControl {
 		const tabContainer = this.tabsContainer.children[editorIndex] as HTMLElement;
 		if (tabContainer) {
 			fn(tabContainer, this.tabLabelWidgets[editorIndex], this.tabLabels[editorIndex]);
-		}
-	}
-
-	private recreate(): void {
-
-		// There are tabs to show
-		if (this.group.activeEditor) {
-
-			// Create tabs as needed
-			this.createTabs();
-
-			// Compute labels and protect against duplicates
-			this.computeTabLabels();
-
-			// Redraw tabs
-			this.redraw();
-		}
-
-		// No tabs to show
-		else {
-			clearNode(this.tabsContainer);
-
-			this.tabDisposeables = dispose(this.tabDisposeables);
-			this.tabLabelWidgets = [];
-			this.tabLabels = [];
-
-			this.clearEditorActionsToolbar();
-		}
-	}
-
-	private createTabs(): void {
-		const tabs = this.tabsContainer.children;
-		const tabsCount = tabs.length;
-		const tabsNeeded = this.group.count;
-
-		// Nothing to do if count did not change
-		if (tabsCount === tabsNeeded) {
-			return;
-		}
-
-		// We need more tabs: create new ones
-		if (tabsCount < tabsNeeded) {
-			for (let i = tabsCount; i < tabsNeeded; i++) {
-				this.tabsContainer.appendChild(this.createTab(i));
-			}
-		}
-
-		// We need less tabs: delete the ones we do not need
-		else {
-			for (let i = 0; i < tabsCount - tabsNeeded; i++) {
-				(this.tabsContainer.lastChild as HTMLElement).remove();
-				this.tabLabelWidgets.pop();
-				this.tabDisposeables.pop().dispose();
-			}
 		}
 	}
 
@@ -569,16 +529,35 @@ export class NextTabsTitleControl extends NextTitleControl {
 		return combinedDisposable(disposables);
 	}
 
-	private computeTabLabels(): void {
-		this.tabLabels = this.getTabLabels(this.group.editors);
+	private updateDropFeedback(element: HTMLElement, isDND: boolean, index?: number): void {
+		const isTab = (typeof index === 'number');
+		const isActiveTab = isTab && this.group.isActive(this.group.getEditor(index));
+
+		// Background
+		const noDNDBackgroundColor = isTab ? this.getColor(isActiveTab ? TAB_ACTIVE_BACKGROUND : TAB_INACTIVE_BACKGROUND) : null;
+		element.style.backgroundColor = isDND ? this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND) : noDNDBackgroundColor;
+
+		// Outline
+		const activeContrastBorderColor = this.getColor(activeContrastBorder);
+		if (activeContrastBorderColor && isDND) {
+			element.style.outlineWidth = '2px';
+			element.style.outlineStyle = 'dashed';
+			element.style.outlineColor = activeContrastBorderColor;
+			element.style.outlineOffset = isTab ? '-5px' : '-3px';
+		} else {
+			element.style.outlineWidth = null;
+			element.style.outlineStyle = null;
+			element.style.outlineColor = activeContrastBorderColor;
+			element.style.outlineOffset = null;
+		}
 	}
 
-	private getTabLabels(editors: IEditorInput[]): IEditorInputLabel[] {
+	private computeTabLabels(): void {
 		const labelFormat = 'default'; // TODO@grid support tab options (this.editorGroupService.getTabOptions().labelFormat);
 		const { verbosity, shortenDuplicates } = this.getLabelConfigFlags(labelFormat);
 
 		// Build labels and descriptions for each editor
-		const labels = editors.map(editor => ({
+		const labels = this.group.editors.map(editor => ({
 			editor,
 			name: editor.getName(),
 			description: editor.getDescription(verbosity),
@@ -590,7 +569,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 			this.shortenTabLabels(labels);
 		}
 
-		return labels;
+		this.tabLabels = labels;
 	}
 
 	private shortenTabLabels(labels: AugmentedLabel[]): void {
@@ -749,29 +728,33 @@ export class NextTabsTitleControl extends NextTitleControl {
 
 	private redrawEditorActive(isGroupActive: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: ResourceLabel): void {
 		if (this.group.activeEditor === editor) {
-			this.activeTab = tabContainer;
 
+			// Container
 			addClass(tabContainer, 'active');
 			tabContainer.setAttribute('aria-selected', 'true');
 			tabContainer.style.backgroundColor = this.getColor(TAB_ACTIVE_BACKGROUND);
 
-			tabLabelWidget.element.style.color = this.getColor(isGroupActive ? TAB_ACTIVE_FOREGROUND : TAB_UNFOCUSED_ACTIVE_FOREGROUND);
-
-			// Use boxShadow for the active tab border because if we also have a editor group header
-			// color, the two colors would collide and the tab border never shows up.
-			// see https://github.com/Microsoft/vscode/issues/33111
 			const activeTabBorderColor = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
 			if (activeTabBorderColor) {
+				// Use boxShadow for the active tab border because if we also have a editor group header
+				// color, the two colors would collide and the tab border never shows up.
+				// see https://github.com/Microsoft/vscode/issues/33111
 				tabContainer.style.boxShadow = `${activeTabBorderColor} 0 -1px inset`;
 			} else {
 				tabContainer.style.boxShadow = null;
 			}
+
+			// Label
+			tabLabelWidget.element.style.color = this.getColor(isGroupActive ? TAB_ACTIVE_FOREGROUND : TAB_UNFOCUSED_ACTIVE_FOREGROUND);
 		} else {
+
+			// Containr
 			removeClass(tabContainer, 'active');
 			tabContainer.setAttribute('aria-selected', 'false');
 			tabContainer.style.backgroundColor = this.getColor(TAB_INACTIVE_BACKGROUND);
 			tabContainer.style.boxShadow = null;
 
+			// Label
 			tabLabelWidget.element.style.color = this.getColor(isGroupActive ? TAB_INACTIVE_FOREGROUND : TAB_UNFOCUSED_INACTIVE_FOREGROUND);
 		}
 	}
@@ -785,7 +768,8 @@ export class NextTabsTitleControl extends NextTitleControl {
 	}
 
 	layout(dimension: Dimension): void {
-		if (!this.activeTab || !dimension) {
+		const activeTab = this.getTab(this.group.activeEditor);
+		if (!activeTab || !dimension) {
 			return;
 		}
 
@@ -803,6 +787,11 @@ export class NextTabsTitleControl extends NextTitleControl {
 	}
 
 	private doLayout(dimension: Dimension): void {
+		const activeTab = this.getTab(this.group.activeEditor);
+		if (!activeTab) {
+			return;
+		}
+
 		const visibleContainerWidth = this.tabsContainer.offsetWidth;
 		const totalContainerWidth = this.tabsContainer.scrollWidth;
 
@@ -810,8 +799,8 @@ export class NextTabsTitleControl extends NextTitleControl {
 		let activeTabWidth: number;
 
 		if (!this.blockRevealActiveTab) {
-			activeTabPosX = this.activeTab.offsetLeft;
-			activeTabWidth = this.activeTab.offsetWidth;
+			activeTabPosX = activeTab.offsetLeft;
+			activeTabWidth = activeTab.offsetWidth;
 		}
 
 		// Update scrollbar
@@ -844,6 +833,15 @@ export class NextTabsTitleControl extends NextTitleControl {
 				scrollLeft: activeTabPosX
 			});
 		}
+	}
+
+	private getTab(editor: IEditorInput): HTMLElement {
+		const editorIndex = this.group.getIndexOfEditor(editor);
+		if (editorIndex >= 0) {
+			return this.tabsContainer.children[editorIndex] as HTMLElement;
+		}
+
+		return void 0;
 	}
 
 	private blockRevealActiveTabOnce(): void {
