@@ -433,7 +433,7 @@ function resourcesToClipboard(resources: URI[], clipboardService: IClipboardServ
 }
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: EditorContextKeys.editorTextFocus.toNegated(),
+	when: EditorContextKeys.focus.toNegated(),
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C,
 	win: {
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_C
