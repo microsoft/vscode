@@ -107,4 +107,54 @@ suite('Gridview', function () {
 
 		gridview.dispose();
 	});
+
+	test('simple layout', function () {
+		const grid = new GridView(container);
+		grid.layout(800, 600);
+
+		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view1, 200, [0]);
+		assert.deepEqual(view1.size, [800, 600]);
+		assert.deepEqual(grid.getViewSize([0]), { width: 800, height: 600 });
+
+		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view2, 200, [0]);
+		assert.deepEqual(view1.size, [800, 400]);
+		assert.deepEqual(grid.getViewSize([1]), { width: 800, height: 400 });
+		assert.deepEqual(view2.size, [800, 200]);
+		assert.deepEqual(grid.getViewSize([0]), { width: 800, height: 200 });
+
+		const view3 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view3, 200, [1, 1]);
+		assert.deepEqual(view1.size, [600, 400]);
+		assert.deepEqual(grid.getViewSize([1, 0]), { width: 600, height: 400 });
+		assert.deepEqual(view2.size, [800, 200]);
+		assert.deepEqual(grid.getViewSize([0]), { width: 800, height: 200 });
+		assert.deepEqual(view3.size, [200, 400]);
+		assert.deepEqual(grid.getViewSize([1, 1]), { width: 200, height: 400 });
+
+		const view4 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view4, 200, [0, 0]);
+		assert.deepEqual(view1.size, [600, 400]);
+		assert.deepEqual(grid.getViewSize([1, 0]), { width: 600, height: 400 });
+		assert.deepEqual(view2.size, [600, 200]);
+		assert.deepEqual(grid.getViewSize([0, 1]), { width: 600, height: 200 });
+		assert.deepEqual(view3.size, [200, 400]);
+		assert.deepEqual(grid.getViewSize([1, 1]), { width: 200, height: 400 });
+		assert.deepEqual(view4.size, [200, 200]);
+		assert.deepEqual(grid.getViewSize([0, 0]), { width: 200, height: 200 });
+
+		const view5 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view5, 100, [1, 0, 1]);
+		assert.deepEqual(view1.size, [600, 300]);
+		assert.deepEqual(grid.getViewSize([1, 0, 0]), { width: 600, height: 300 });
+		assert.deepEqual(view2.size, [600, 200]);
+		assert.deepEqual(grid.getViewSize([0, 1]), { width: 600, height: 200 });
+		assert.deepEqual(view3.size, [200, 400]);
+		assert.deepEqual(grid.getViewSize([1, 1]), { width: 200, height: 400 });
+		assert.deepEqual(view4.size, [200, 200]);
+		assert.deepEqual(grid.getViewSize([0, 0]), { width: 200, height: 200 });
+		assert.deepEqual(view5.size, [600, 100]);
+		assert.deepEqual(grid.getViewSize([1, 0, 1]), { width: 600, height: 100 });
+	});
 });

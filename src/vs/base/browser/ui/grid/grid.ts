@@ -180,7 +180,7 @@ export class Grid<T extends IView> implements IDisposable {
 		return this.gridview.resizeView(location, size);
 	}
 
-	getViewSize(view: T): number {
+	getViewSize(view: T): { width: number; height: number; } {
 		const location = this.getViewLocation(view);
 		return this.gridview.getViewSize(location);
 	}

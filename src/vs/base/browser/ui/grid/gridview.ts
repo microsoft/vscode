@@ -36,7 +36,6 @@ TODO:
 		then go one dimension up.
 
 - create grid wrapper which automatically sizes the new views
-- getSize should return width/height
 */
 
 export function orthogonal(orientation: Orientation): Orientation {
@@ -204,11 +203,11 @@ class LeafNode implements ISplitView, IDisposable {
 		this._orthogonalSize = orthogonalSize;
 	}
 
-	private get width(): number {
+	get width(): number {
 		return this.orientation === Orientation.HORIZONTAL ? this.orthogonalSize : this.size;
 	}
 
-	private get height(): number {
+	get height(): number {
 		return this.orientation === Orientation.HORIZONTAL ? this.size : this.orthogonalSize;
 	}
 
@@ -389,7 +388,6 @@ export class GridView implements IDisposable {
 	}
 
 	swapViews(from: number[], to: number[]): void {
-		const fromSize = this.getViewSize(from);
 		const [fromRest, fromIndex] = tail(from);
 		const [, fromParent] = this.getNode(fromRest);
 
@@ -397,13 +395,13 @@ export class GridView implements IDisposable {
 			throw new Error('Invalid from location');
 		}
 
+		const fromSize = fromParent.getChildSize(fromIndex);
 		const fromNode = fromParent.children[fromIndex];
 
 		if (!(fromNode instanceof LeafNode)) {
 			throw new Error('Invalid from location');
 		}
 
-		const toSize = this.getViewSize(to);
 		const [toRest, toIndex] = tail(to);
 		const [, toParent] = this.getNode(toRest);
 
@@ -411,6 +409,7 @@ export class GridView implements IDisposable {
 			throw new Error('Invalid to location');
 		}
 
+		const toSize = toParent.getChildSize(toIndex);
 		const toNode = toParent.children[toIndex];
 
 		if (!(toNode instanceof LeafNode)) {
@@ -442,15 +441,14 @@ export class GridView implements IDisposable {
 		parent.resizeChild(index, size);
 	}
 
-	getViewSize(location: number[]): number {
-		const [rest, index] = tail(location);
-		const [, parent] = this.getNode(rest);
+	getViewSize(location: number[]): { width: number; height: number; } {
+		const [, node] = this.getNode(location);
 
-		if (!(parent instanceof BranchNode)) {
+		if (!(node instanceof LeafNode)) {
 			throw new Error('Invalid location');
 		}
 
-		return parent.getChildSize(index);
+		return { width: node.width, height: node.height };
 	}
 
 	getViews(): GridBranchNode {
