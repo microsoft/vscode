@@ -311,17 +311,14 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 		}
 
 		const direction = orientation === Orientation.VERTICAL ? Direction.Down : Direction.Right;
-		let isFirstChild = true;
+		const firstViews = node.children.map(c => SerializableGrid.getFirstLeaf(c).view);
 
-		for (const child of node.children) {
-			if (!isFirstChild) {
-				const firstLeaf = SerializableGrid.getFirstLeaf(node);
-				this.addView(firstLeaf.view, 100, referenceView, direction);
-				referenceView = firstLeaf.view;
-			}
+		for (const view of firstViews.slice(1)) {
+			this.addView(view, 100, referenceView, direction);
+		}
 
-			isFirstChild = false;
-			this.populate(referenceView, orthogonal(orientation), child);
+		for (let i = 0; i < node.children.length; i++) {
+			this.populate(firstViews[i], orthogonal(orientation), node.children[i]);
 		}
 	}
 
