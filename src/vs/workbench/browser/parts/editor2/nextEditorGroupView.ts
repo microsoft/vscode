@@ -26,14 +26,13 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ProgressService } from 'vs/workbench/services/progress/browser/progressService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { localize } from 'vs/nls';
-import { onUnexpectedError, isPromiseCanceledError, isErrorWithActions, IErrorWithActions } from 'vs/base/common/errors';
+import { isPromiseCanceledError, isErrorWithActions, IErrorWithActions } from 'vs/base/common/errors';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { dispose } from 'vs/base/common/lifecycle';
 import { Severity, INotificationService, INotificationActions } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RunOnceWorker } from 'vs/base/common/async';
-import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { NextTitleControl } from 'vs/workbench/browser/parts/editor2/nextTitleControl';
@@ -43,7 +42,8 @@ import { NextNoTabsTitleControl } from './nextNoTabsTitleControl';
 export class NextEditorGroupView extends Themable implements INextEditorGroupView {
 
 	private static readonly EDITOR_TITLE_HEIGHT = 35;
-	private static readonly ENABLE_PREVIEW_SETTING = 'workbench.editor.enablePreview';
+	private static readonly EDITOR_MIN_WIDTH = 170;
+	private static readonly EDITOR_MIN_HEIGHT = 70;
 
 	//#region factory
 
@@ -106,8 +106,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		@IThemeService themeService: IThemeService,
 		@IPartService private partService: IPartService,
 		@INotificationService private notificationService: INotificationService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		super(themeService);
 
@@ -134,9 +133,6 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		this._register(this._group.onDidEditorDispose(editor => this.onDidEditorDispose(editor)));
 		this._register(this._group.onDidEditorBecomeDirty(editor => this.onDidEditorBecomeDirty(editor)));
 		this._register(this._group.onDidEditorLabelChange(editor => this.onDidEditorLabelChange(editor)));
-
-		// Configuration Changes
-		this._register(this.configurationService.onDidChangeConfiguration(e => this.onDidChangeConfiguration(e)));
 
 		// Option Changes
 		this._register(this.accessor.onDidEditorPartOptionsChange(e => this.onDidEditorPartOptionsChange(e)));
@@ -224,16 +220,6 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		}
 	}
 
-	private onDidChangeConfiguration(event: IConfigurationChangeEvent): void {
-
-		// Pin preview editor once user disables preview
-		if (event.affectsConfiguration(NextEditorGroupView.ENABLE_PREVIEW_SETTING)) {
-			if (!this.configurationService.getValue<string>(NextEditorGroupView.ENABLE_PREVIEW_SETTING)) {
-				this.pinEditor(this._group.previewEditor);
-			}
-		}
-	}
-
 	private onDidEditorPartOptionsChange(event: INextEditorPartOptionsChangeEvent): void {
 
 		// Title container
@@ -251,9 +237,9 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 				clearNode(this.titleContainer);
 
 				// Recreate new and open editor
-				const titleAreaControl = this.doCreateOrGetTitleControl();
+				this.createTitleAreaControl();
 				if (this.group.activeEditor) {
-					titleAreaControl.openEditor(this.group.activeEditor);
+					this.titleAreaControl.openEditor(this.group.activeEditor);
 				}
 			}
 
@@ -265,6 +251,11 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 		// Styles
 		this.updateStyles();
+
+		// Pin preview editor once user disables preview
+		if (event.oldPartOptions.enablePreview && !event.newPartOptions.enablePreview) {
+			this.pinEditor(this._group.previewEditor);
+		}
 	}
 
 	private onDidEditorBecomeDirty(editor: EditorInput): void {
@@ -383,6 +374,43 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		toggleClass(this.titleContainer, 'show-file-icons', this.accessor.partOptions.showIcons);
 	}
 
+	private createScopedInstantiationService(): void {
+		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
+			[IContextKeyService, this._register(this.contextKeyService.createScoped(this.element))],
+			[IProgressService, new ProgressService(this.progressBar)]
+		));
+	}
+
+	private createTitleAreaControl(): NextTitleControl {
+		if (!this.scopedInstantiationService) {
+			this.createScopedInstantiationService();
+		}
+
+		if (this.accessor.partOptions.showTabs) {
+			this.titleAreaControl = this.scopedInstantiationService.createInstance(NextTabsTitleControl, this.titleContainer, this.accessor, this);
+		} else {
+			this.titleAreaControl = this.scopedInstantiationService.createInstance(NextNoTabsTitleControl, this.titleContainer, this.accessor, this);
+		}
+
+		this.doLayoutTitleControl();
+
+		return this.titleAreaControl;
+	}
+
+	private createEditorControl(): NextEditorControl {
+		if (!this.scopedInstantiationService) {
+			this.createScopedInstantiationService();
+		}
+
+		this.editorControl = this._register(this.scopedInstantiationService.createInstance(NextEditorControl, this.editorContainer, this._group.id));
+
+		this.doLayoutEditorControl();
+
+		return this.editorControl;
+	}
+
+	//region INextEditorGroupView
+
 	get group(): EditorGroup {
 		return this._group;
 	}
@@ -407,7 +435,11 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		return this._group.count === 0;
 	}
 
+	//#endregion
+
 	//#region INextEditorGroup
+
+	//#region basics()
 
 	get id(): GroupIdentifier {
 		return this._group.id;
@@ -445,6 +477,33 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		return this._group.indexOf(editor);
 	}
 
+	isOpened(editor: EditorInput): boolean {
+		return this._group.contains(editor);
+	}
+
+	focus(): void {
+		if (this.activeControl) {
+			this.activeControl.focus();
+		} else {
+			this.element.focus();
+		}
+	}
+
+	pinEditor(editor: EditorInput = this.activeEditor): void {
+		if (editor && !this._group.isPinned(editor)) {
+
+			// Update model
+			this._group.pin(editor);
+
+			// Forward to title control
+			if (this.titleAreaControl) {
+				this.titleAreaControl.pinEditor(editor);
+			}
+		}
+	}
+
+	//#endregion
+
 	//#region openEditor()
 
 	openEditor(editor: EditorInput, options?: EditorOptions): Thenable<void> {
@@ -480,13 +539,15 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		// Update model
 		this._group.openEditor(editor, openEditorOptions);
 
-		// Forward to title control
-		this.doCreateOrGetTitleControl().openEditor(editor);
+		// Forward to title control (create lazily)
+		const titleAreaControl = this.titleAreaControl || this.createTitleAreaControl();
+		titleAreaControl.openEditor(editor);
 
-		// Forward to editor control if the active editor changed
+		// Forward to editor control if the active editor changed (create lazily)
 		let openEditorPromise: Thenable<void>;
 		if (openEditorOptions.active) {
-			openEditorPromise = this.doCreateOrGetEditorControl().openEditor(editor, options).then(result => {
+			const editorControl = this.editorControl || this.createEditorControl();
+			openEditorPromise = editorControl.openEditor(editor, options).then(result => {
 
 				// Editor change event
 				if (result.editorChanged) {
@@ -528,46 +589,9 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 		// Recover by closing the active editor (if the input is still the active one)
 		if (this.activeEditor === editor) {
-			this.doCloseActiveEditor(!(options && options.preserveFocus) /* still preserve focus as needed */, true /* from error */);
+			const focusNext = !options || !options.preserveFocus;
+			this.doCloseActiveEditor(focusNext, true /* from error */);
 		}
-	}
-
-	private doCreateOrGetScopedInstantiationService(): IInstantiationService {
-		if (!this.scopedInstantiationService) {
-			this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
-				[IContextKeyService, this._register(this.contextKeyService.createScoped(this.element))],
-				[IProgressService, new ProgressService(this.progressBar)]
-			));
-		}
-
-		return this.scopedInstantiationService;
-	}
-
-	private doCreateOrGetTitleControl(): NextTitleControl {
-		if (!this.titleAreaControl) {
-			const instantiator = this.doCreateOrGetScopedInstantiationService();
-
-			if (this.accessor.partOptions.showTabs) {
-				this.titleAreaControl = instantiator.createInstance(NextTabsTitleControl, this.titleContainer, this.accessor, this);
-			} else {
-				this.titleAreaControl = instantiator.createInstance(NextNoTabsTitleControl, this.titleContainer, this.accessor, this);
-			}
-
-			this.doLayoutTitleControl();
-		}
-
-		return this.titleAreaControl;
-	}
-
-	private doCreateOrGetEditorControl(): NextEditorControl {
-		if (!this.editorControl) {
-			const instantiator = this.doCreateOrGetScopedInstantiationService();
-			this.editorControl = this._register(instantiator.createInstance(NextEditorControl, this.editorContainer, this._group.id));
-
-			this.doLayoutEditorControl();
-		}
-
-		return this.editorControl;
 	}
 
 	//#endregion
@@ -625,7 +649,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		target.openEditor(editor, options);
 
 		// ...and a close afterwards
-		this.doCloseEditor(editor, false /* do not activate next one behind if any */);
+		this.doCloseEditor(editor, false /* do not focus next one behind if any */);
 	}
 
 	//#endregion
@@ -648,7 +672,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	private doCloseEditor(editor: EditorInput, focusNext = this.accessor.activeGroup === this): void {
 
 		// Closing the active editor of the group is a bit more work
-		if (this.activeEditor && this.activeEditor.matches(editor)) {
+		if (this.group.isActive(editor)) {
 			this.doCloseActiveEditor(focusNext);
 		}
 
@@ -681,11 +705,8 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 				this.ignoreOpenEditorErrors = true;
 			}
 
-			this.openEditor(nextActiveEditor, !focusNext ? EditorOptions.create({ preserveFocus: true }) : null).then(() => {
-				this.ignoreOpenEditorErrors = false;
-			}, error => {
-				onUnexpectedError(error);
-
+			const options = !focusNext ? EditorOptions.create({ preserveFocus: true }) : void 0;
+			this.openEditor(nextActiveEditor, options).then(() => {
 				this.ignoreOpenEditorErrors = false;
 			});
 		} else {
@@ -775,35 +796,6 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	//#endregion
 
-	//#region other INextEditorGroup methods
-
-	isOpened(editor: EditorInput): boolean {
-		return this._group.contains(editor);
-	}
-
-	focus(): void {
-		if (this.activeControl) {
-			this.activeControl.focus();
-		} else {
-			this.element.focus();
-		}
-	}
-
-	pinEditor(editor: EditorInput = this.activeEditor): void {
-		if (editor && !this._group.isPinned(editor)) {
-
-			// Update model
-			this._group.pin(editor);
-
-			// Forward to title control
-			if (this.titleAreaControl) {
-				this.titleAreaControl.pinEditor(editor);
-			}
-		}
-	}
-
-	//#endregion
-
 	//#endregion
 
 	//#region Themable
@@ -832,12 +824,12 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	readonly element: HTMLElement = document.createElement('div');
 
-	readonly minimumWidth = 170;
-	readonly minimumHeight = 70;
+	readonly minimumWidth = NextEditorGroupView.EDITOR_MIN_WIDTH;
+	readonly minimumHeight = NextEditorGroupView.EDITOR_MIN_HEIGHT;
 	readonly maximumWidth = Number.POSITIVE_INFINITY;
 	readonly maximumHeight = Number.POSITIVE_INFINITY;
 
-	get onDidChange() { return Event.None; }
+	get onDidChange() { return Event.None; } // only needed if minimum sizes ever change
 
 	layout(width: number, height: number): void {
 		this._dimension = new Dimension(width, height);

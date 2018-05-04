@@ -154,22 +154,9 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		// Open Editor if we Copy
 		const activeEditor = fromGroupView.activeEditor;
 		if (copy && activeEditor) {
-
-			// Copy over as much view state from active control as posisble
-			let options: EditorOptions;
 			const activeCodeEditorControl = getCodeEditor(fromGroupView.activeControl);
-			if (activeCodeEditorControl) {
-				options = TextEditorOptions.fromEditor(activeCodeEditorControl);
-			} else {
-				options = new EditorOptions();
-			}
-
-			// Set pinned state accordingly
-			if (copy === CopyKind.GROUP) {
-				options.pinned = fromGroupView.isPinned(activeEditor); // copy group preserves all pinned state
-			} else {
-				options.pinned = true; // copy of single editor is a sign of importance, so pin it
-			}
+			const options = activeCodeEditorControl ? TextEditorOptions.fromEditor(activeCodeEditorControl) : new EditorOptions();
+			options.pinned = (copy === CopyKind.GROUP) ? fromGroupView.isPinned(activeEditor) : true;
 
 			newGroupView.openEditor(activeEditor, options);
 		}
