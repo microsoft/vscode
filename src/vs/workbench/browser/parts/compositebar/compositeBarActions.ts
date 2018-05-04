@@ -445,6 +445,9 @@ export class CompositeActionItem extends ActivityActionItem {
 	public render(container: HTMLElement): void {
 		super.render(container);
 
+		this._updateChecked();
+		this._updateEnabled();
+
 		this.$container.on('contextmenu', e => {
 			dom.EventHelper.stop(e, true);
 
