@@ -46,6 +46,7 @@ export interface GridLeafNode {
 
 export interface GridBranchNode {
 	readonly children: GridNode[];
+	readonly size: number;
 }
 
 export type GridNode = GridLeafNode | GridBranchNode;
@@ -460,7 +461,7 @@ export class GridView implements IDisposable {
 
 	private _getViews(node: Node): GridNode {
 		if (node instanceof BranchNode) {
-			return { children: node.children.map(c => this._getViews(c)) };
+			return { children: node.children.map(c => this._getViews(c)), size: node.orthogonalSize };
 		} else {
 			return { view: node.view, size: node.size };
 		}
