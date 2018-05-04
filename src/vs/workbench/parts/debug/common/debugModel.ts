@@ -874,21 +874,28 @@ export class Model implements IModel {
 		return thread.fetchCallStack();
 	}
 
-	public getBreakpoints(): IBreakpoint[] {
-		return this.breakpoints;
-	}
+	public getBreakpoints(filter?: { uri?: uri, lineNumber?: number, column?: number, enabledOnly?: boolean }): IBreakpoint[] {
+		if (filter) {
+			const uriStr = filter.uri ? filter.uri.toString() : undefined;
+			return this.breakpoints.filter(bp => {
+				if (uriStr && bp.uri.toString() !== uriStr) {
+					return false;
+				}
+				if (filter.lineNumber && bp.lineNumber !== filter.lineNumber) {
+					return false;
+				}
+				if (filter.column && bp.column !== filter.column) {
+					return false;
+				}
+				if (filter.enabledOnly && (!this.breakpointsActivated || !bp.enabled)) {
+					return false;
+				}
 
-	public getBreakpointsForResource(resource: uri): IBreakpoint[] {
-		const uriString = resource.toString();
-		return this.breakpoints.filter(bp => bp.uri.toString() === uriString);
-	}
-
-	public getEnabledBreakpointsForResource(resource: uri): IBreakpoint[] {
-		if (this.breakpointsActivated) {
-			const uriString = resource.toString();
-			return this.breakpoints.filter(bp => bp.uri.toString() === uriString && bp.enabled);
+				return true;
+			});
 		}
-		return [];
+
+		return this.breakpoints;
 	}
 
 	public getFunctionBreakpoints(): IFunctionBreakpoint[] {

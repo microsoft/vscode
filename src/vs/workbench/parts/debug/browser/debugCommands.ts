@@ -56,12 +56,13 @@ export function registerCommands(): void {
 			const control = <ICodeEditor>editor.getControl();
 
 			if (control) {
-				const position = control.getPosition();
-				const modelUri = control.getModel().uri;
-				const bp = debugService.getModel().getBreakpoints()
-					.filter(bp => bp.lineNumber === position.lineNumber, bp => bp.column === position.column && bp.uri.toString() === modelUri.toString()).pop();
-				if (bp) {
-					debugService.enableOrDisableBreakpoints(!bp.enabled, bp).done(null, errors.onUnexpectedError);
+				const model = control.getModel();
+				if (model) {
+					const position = control.getPosition();
+					const bps = debugService.getModel().getBreakpoints({ uri: model.uri, lineNumber: position.lineNumber });
+					if (bps.length) {
+						debugService.enableOrDisableBreakpoints(!bps[0].enabled, bps[0]).done(null, errors.onUnexpectedError);
+					}
 				}
 			}
 		}
@@ -210,8 +211,8 @@ export function registerCommands(): void {
 			if (control) {
 				const position = control.getPosition();
 				const modelUri = control.getModel().uri;
-				const bp = debugService.getModel().getBreakpoints()
-					.filter(bp => bp.lineNumber === position.lineNumber && (bp.column === position.column || !bp.column && position.column <= 1) && bp.uri.toString() === modelUri.toString()).pop();
+				const bp = debugService.getModel().getBreakpoints({ lineNumber: position.lineNumber, uri: modelUri })
+					.filter(bp => (bp.column === position.column || !bp.column && position.column <= 1)).pop();
 
 				if (bp) {
 					return TPromise.as(null);

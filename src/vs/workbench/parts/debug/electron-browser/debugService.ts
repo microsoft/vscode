@@ -1141,7 +1141,7 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	private onRawSessionEnd(raw: RawDebugSession): void {
-		const bpsExist = this.model.getBreakpoints().length > 0;
+		const breakpoints = this.model.getBreakpoints();
 		const session = this.model.getSessions().filter(p => p.getId() === raw.getId()).pop();
 		/* __GDPR__
 			"debugSessionStop" : {
@@ -1154,9 +1154,9 @@ export class DebugService implements debug.IDebugService {
 		*/
 		this.telemetryService.publicLog('debugSessionStop', {
 			type: session && session.configuration.type,
-			success: raw.emittedStopped || !bpsExist,
+			success: raw.emittedStopped || breakpoints.length === 0,
 			sessionLengthInSeconds: raw.getLengthInSeconds(),
-			breakpointCount: this.model.getBreakpoints().length,
+			breakpointCount: breakpoints.length,
 			watchExpressionsCount: this.model.getWatchExpressions().length
 		});
 
@@ -1181,7 +1181,7 @@ export class DebugService implements debug.IDebugService {
 		if (this.model.getSessions().length === 0) {
 			// set breakpoints back to unverified since the session ended.
 			const data: { [id: string]: { line: number, verified: boolean, column: number, endLine: number, endColumn: number } } = {};
-			this.model.getBreakpoints().forEach(bp => {
+			breakpoints.forEach(bp => {
 				data[bp.getId()] = { line: bp.lineNumber, verified: false, column: bp.column, endLine: bp.endLineNumber, endColumn: bp.endColumn };
 			});
 			this.model.updateBreakpoints(data);
@@ -1223,7 +1223,7 @@ export class DebugService implements debug.IDebugService {
 				return TPromise.as(null);
 			}
 
-			const breakpointsToSend = this.model.getEnabledBreakpointsForResource(modelUri);
+			const breakpointsToSend = this.model.getBreakpoints({ uri: modelUri, enabledOnly: true });
 
 			const source = session.getSourceForUri(modelUri);
 			let rawSource: DebugProtocol.Source;
