@@ -141,7 +141,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 	addGroup(fromGroup: INextEditorGroupView | GroupIdentifier, direction: Direction, copy?: CopyKind): INextEditorGroupView {
 		const fromGroupView = this.asGroupView(fromGroup);
-		const newGroupView = this.doCreateGroupView(copy ? fromGroupView : void 0);
+		const newGroupView = this.doCreateGroupView(copy === CopyKind.GROUP ? fromGroupView : void 0);
 
 		// Add to grid widget
 		this.gridWidget.addView(
@@ -151,7 +151,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 			this.toGridViewDirection(direction),
 		);
 
-		// Check for options
+		// Open Editor if we Copy
 		const activeEditor = fromGroupView.activeEditor;
 		if (copy && activeEditor) {
 
