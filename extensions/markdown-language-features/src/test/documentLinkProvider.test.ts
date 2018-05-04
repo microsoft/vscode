@@ -65,6 +65,14 @@ suite('markdown.DocumentLinkProvider', () => {
 		}
 	});
 
+	test('Should detect links with title', () => {
+		const links = getLinksForFile('a [b](https://example.com "abc") c');
+		assert.strictEqual(links.length, 1);
+		const [link] = links;
+		assertRangeEqual(link.range, new vscode.Range(0, 6, 0, 25));
+	});
+
+
 	test('Should handle links with balanced parens', () => {
 		{
 			const links = getLinksForFile('a [b](https://example.com/a()c) c');
