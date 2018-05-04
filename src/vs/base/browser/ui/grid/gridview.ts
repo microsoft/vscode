@@ -36,8 +36,6 @@ TODO:
 		then go one dimension up.
 
 - create grid wrapper which automatically sizes the new views
-- create DND
-- implement serialization/deserialization util
 - getSize should return width/height
 */
 
