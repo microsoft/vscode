@@ -463,14 +463,21 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	private doOpenEditor(editor: EditorInput, options?: EditorOptions): Thenable<void> {
 
-		// Update model
+		// Determine options
 		const openEditorOptions: IEditorOpenOptions = {
 			index: options ? options.index : void 0,
 			pinned: !this.accessor.partOptions.enablePreview || editor.isDirty() || (options && options.pinned) || (options && typeof options.index === 'number'),
 			active: this._group.count === 0 || !options || !options.inactive
 		};
 
-		const currentActiveEditor = this.activeEditor;
+		if (!openEditorOptions.active && !openEditorOptions.pinned && this._group.isPreview(this._group.activeEditor)) {
+			// Special case: we are to open an editor inactive and not pinned, but the current active
+			// editor is also not pinned, which means it will get replaced with this one. As such,
+			// the editor can only be active.
+			openEditorOptions.active = true;
+		}
+
+		// Update model
 		this._group.openEditor(editor, openEditorOptions);
 
 		// Forward to title control
@@ -478,7 +485,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 		// Forward to editor control if the active editor changed
 		let openEditorPromise: Thenable<void>;
-		if (currentActiveEditor !== this.activeEditor) {
+		if (openEditorOptions.active) {
 			openEditorPromise = this.doCreateOrGetEditorControl().openEditor(editor, options).then(result => {
 
 				// Editor change event
