@@ -11,14 +11,14 @@ import { EditorGroup, IEditorOpenOptions, EditorCloseEvent } from 'vs/workbench/
 import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, IEditorOpeningEvent, EditorOpeningEvent, TextEditorOptions } from 'vs/workbench/common/editor';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass, addDisposableListener, EventType, EventHelper, findParentWithClass } from 'vs/base/browser/dom';
+import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
-import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_BACKGROUND } from 'vs/workbench/common/theme';
+import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND } from 'vs/workbench/common/theme';
 import { IMoveEditorOptions } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { NextTabsTitleControl } from 'vs/workbench/browser/parts/editor2/nextTabsTitleControl';
 import { NextEditorControl } from 'vs/workbench/browser/parts/editor2/nextEditorControl';
@@ -37,7 +37,8 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { NextTitleControl } from 'vs/workbench/browser/parts/editor2/nextTitleControl';
-import { IGroupsAccessor, INextEditorGroupView } from 'vs/workbench/browser/parts/editor2/editor2';
+import { INextEditorGroupsAccessor, INextEditorGroupView, INextEditorPartOptionsChangeEvent } from 'vs/workbench/browser/parts/editor2/editor2';
+import { NextNoTabsTitleControl } from './nextNoTabsTitleControl';
 
 export class NextEditorGroupView extends Themable implements INextEditorGroupView {
 
@@ -46,12 +47,12 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	//#region factory
 
-	static createNew(groupsAccessor: IGroupsAccessor, instantiationService: IInstantiationService): INextEditorGroupView {
-		return instantiationService.createInstance(NextEditorGroupView, groupsAccessor, null);
+	static createNew(accessor: INextEditorGroupsAccessor, instantiationService: IInstantiationService): INextEditorGroupView {
+		return instantiationService.createInstance(NextEditorGroupView, accessor, null);
 	}
 
-	static createCopy(copyFrom: INextEditorGroupView, groupsAccessor: IGroupsAccessor, instantiationService: IInstantiationService): INextEditorGroupView {
-		return instantiationService.createInstance(NextEditorGroupView, groupsAccessor, copyFrom);
+	static createCopy(copyFrom: INextEditorGroupView, accessor: INextEditorGroupsAccessor, instantiationService: IInstantiationService): INextEditorGroupView {
+		return instantiationService.createInstance(NextEditorGroupView, accessor, copyFrom);
 	}
 
 	//#endregion
@@ -98,7 +99,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	private disposedEditorsWorker: RunOnceWorker<EditorInput>;
 
 	constructor(
-		private groupsAccessor: IGroupsAccessor,
+		private accessor: INextEditorGroupsAccessor,
 		copyFromView: INextEditorGroupView,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
@@ -136,6 +137,9 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 		// Configuration Changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onDidChangeConfiguration(e)));
+
+		// Option Changes
+		this._register(this.accessor.onDidEditorPartOptionsChange(e => this.onDidEditorPartOptionsChange(e)));
 	}
 
 	private onDidEditorOpen(editor: EditorInput): void {
@@ -162,14 +166,14 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		const editorsToClose = [editor];
 
 		// Include both sides of side by side editors when being closed and not opened multiple times
-		if (editor instanceof SideBySideEditorInput && !this.groupsAccessor.groups.some(groupView => groupView.group.contains(editor))) {
+		if (editor instanceof SideBySideEditorInput && !this.accessor.groups.some(groupView => groupView.group.contains(editor))) {
 			editorsToClose.push(editor.master, editor.details);
 		}
 
 		// Close the editor when it is no longer open in any group including diff editors
 		editorsToClose.forEach(editorToClose => {
 			const resource = editorToClose ? editorToClose.getResource() : void 0; // prefer resource to not close right-hand side editors of a diff editor
-			if (!this.groupsAccessor.groups.some(groupView => groupView.group.contains(resource || editorToClose))) {
+			if (!this.accessor.groups.some(groupView => groupView.group.contains(resource || editorToClose))) {
 				editorToClose.close();
 			}
 		});
@@ -228,8 +232,39 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 				this.pinEditor(this._group.previewEditor);
 			}
 		}
+	}
 
-		// TODO@grid handle title area related settings (tabs, etc, see EditorGroupsControl#updateTabOptions())
+	private onDidEditorPartOptionsChange(event: INextEditorPartOptionsChangeEvent): void {
+
+		// Title container
+		this.updateTitleContainer();
+
+		// Title control
+		if (this.titleAreaControl) {
+
+			// Switch between showing tabs <=> not showing tabs
+			if (event.oldPartOptions.showTabs !== event.newPartOptions.showTabs) {
+
+				// Clear old
+				this.titleAreaControl.dispose();
+				this.titleAreaControl = void 0;
+				clearNode(this.titleContainer);
+
+				// Recreate new and open editor
+				const titleAreaControl = this.doCreateOrGetTitleControl();
+				if (this.group.activeEditor) {
+					titleAreaControl.openEditor(this.group.activeEditor);
+				}
+			}
+
+			// Just update title control
+			else {
+				this.titleAreaControl.updateOptions(event.oldPartOptions, event.newPartOptions);
+			}
+		}
+
+		// Styles
+		this.updateStyles();
 	}
 
 	private onDidEditorBecomeDirty(editor: EditorInput): void {
@@ -260,7 +295,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 		// Title container
 		this.titleContainer = document.createElement('div');
-		addClasses(this.titleContainer, 'title', 'tabs', 'show-file-icons'); // TODO@grid support tab/icon options
+		addClass(this.titleContainer, 'title');
 		this.element.appendChild(this.titleContainer);
 
 		// Progress bar
@@ -276,7 +311,8 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		// Update styles
 		this.updateStyles();
 
-		// Update container
+		// Update containers
+		this.updateTitleContainer();
 		this.updateContainer();
 
 		// Track Focus
@@ -340,6 +376,11 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 			this.element.removeAttribute('tabIndex');
 			this.element.removeAttribute('aria-label');
 		}
+	}
+
+	private updateTitleContainer(): void {
+		toggleClass(this.titleContainer, 'tabs', this.accessor.partOptions.showTabs);
+		toggleClass(this.titleContainer, 'show-file-icons', this.accessor.partOptions.showIcons);
 	}
 
 	get group(): EditorGroup {
@@ -425,6 +466,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		// Update model
 		const openEditorOptions: IEditorOpenOptions = {
 			index: options ? options.index : void 0,
+			pinned: !this.accessor.partOptions.enablePreview || editor.isDirty() || (options && options.pinned) || (options && typeof options.index === 'number'),
 			active: this._group.count === 0 || !options || !options.inactive
 		};
 
@@ -496,7 +538,14 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	private doCreateOrGetTitleControl(): NextTitleControl {
 		if (!this.titleAreaControl) {
-			this.titleAreaControl = this._register(this.doCreateOrGetScopedInstantiationService().createInstance(NextTabsTitleControl, this.titleContainer, this.groupsAccessor, this));
+			const instantiator = this.doCreateOrGetScopedInstantiationService();
+
+			if (this.accessor.partOptions.showTabs) {
+				this.titleAreaControl = instantiator.createInstance(NextTabsTitleControl, this.titleContainer, this.accessor, this);
+			} else {
+				this.titleAreaControl = instantiator.createInstance(NextNoTabsTitleControl, this.titleContainer, this.accessor, this);
+			}
+
 			this.doLayoutTitleControl();
 		}
 
@@ -505,7 +554,9 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	private doCreateOrGetEditorControl(): NextEditorControl {
 		if (!this.editorControl) {
-			this.editorControl = this._register(this.doCreateOrGetScopedInstantiationService().createInstance(NextEditorControl, this.editorContainer, this._group.id));
+			const instantiator = this.doCreateOrGetScopedInstantiationService();
+			this.editorControl = this._register(instantiator.createInstance(NextEditorControl, this.editorContainer, this._group.id));
+
 			this.doLayoutEditorControl();
 		}
 
@@ -587,7 +638,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		});
 	}
 
-	private doCloseEditor(editor: EditorInput, focusNext = this.groupsAccessor.activeGroup === this): void {
+	private doCloseEditor(editor: EditorInput, focusNext = this.accessor.activeGroup === this): void {
 
 		// Closing the active editor of the group is a bit more work
 		if (this.activeEditor && this.activeEditor.matches(editor)) {
@@ -600,7 +651,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		}
 	}
 
-	private doCloseActiveEditor(focusNext = this.groupsAccessor.activeGroup === this, fromError?: boolean): void {
+	private doCloseActiveEditor(focusNext = this.accessor.activeGroup === this, fromError?: boolean): void {
 
 		// Update model
 		const index = this._group.closeEditor(this.activeEditor);
@@ -673,7 +724,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 		// Return if editor is opened in other group and we are OK with it
 		if (ignoreIfOpenedInOtherGroup) {
-			const containedInOtherGroup = this.groupsAccessor.groups.some(groupView => groupView !== this && groupView.group.contains(editor, true /* support side by side */));
+			const containedInOtherGroup = this.accessor.groups.some(groupView => groupView !== this && groupView.group.contains(editor, true /* support side by side */));
 			if (containedInOtherGroup) {
 				return TPromise.as(false); // no veto
 			}
@@ -756,12 +807,13 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		this.element.style.backgroundColor = this.getColor(EDITOR_GROUP_BACKGROUND);
 		this.element.style.outlineColor = this.getColor(focusBorder);
 
-		// Title control (TODO@grid respect tab options)
+		// Title control
+		const { showTabs } = this.accessor.partOptions;
 		const borderColor = this.getColor(EDITOR_GROUP_HEADER_TABS_BORDER) || this.getColor(contrastBorder);
-		this.titleContainer.style.backgroundColor = this.getColor(EDITOR_GROUP_HEADER_TABS_BACKGROUND);
-		this.titleContainer.style.borderBottomWidth = borderColor ? '1px' : null;
-		this.titleContainer.style.borderBottomStyle = borderColor ? 'solid' : null;
-		this.titleContainer.style.borderBottomColor = borderColor;
+		this.titleContainer.style.backgroundColor = this.getColor(showTabs ? EDITOR_GROUP_HEADER_TABS_BACKGROUND : EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND);
+		this.titleContainer.style.borderBottomWidth = (borderColor && showTabs) ? '1px' : null;
+		this.titleContainer.style.borderBottomStyle = (borderColor && showTabs) ? 'solid' : null;
+		this.titleContainer.style.borderBottomColor = showTabs ? borderColor : null;
 
 		// Editor container
 		this.editorContainer.style.backgroundColor = this.getColor(editorBackground);
@@ -810,6 +862,10 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	dispose(): void {
 		this._onWillDispose.fire();
+
+		if (this.titleAreaControl) {
+			this.titleAreaControl.dispose();
+		}
 
 		super.dispose();
 	}

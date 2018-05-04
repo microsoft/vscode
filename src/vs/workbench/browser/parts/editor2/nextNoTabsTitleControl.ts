@@ -13,6 +13,7 @@ import { Verbosity, IEditorInput } from 'vs/platform/editor/common/editor';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { addDisposableListener, EventType, addClass, EventHelper, removeClass } from 'vs/base/browser/dom';
+import { INextEditorPartOptions } from 'vs/workbench/browser/parts/editor2/editor2';
 
 export class NextNoTabsTitleControl extends NextTitleControl {
 	private titleContainer: HTMLElement;
@@ -106,6 +107,16 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 		});
 	}
 
+	updateOptions(oldOptions: INextEditorPartOptions, newOptions: INextEditorPartOptions): void {
+		if (oldOptions.labelFormat !== newOptions.labelFormat) {
+			this.redraw();
+		}
+	}
+
+	updateStyles(): void {
+		this.redraw();
+	}
+
 	private ifActiveEditorChanged(fn: () => void): void {
 		if (this.lastRenderedEditor !== this.group.activeEditor) {
 			fn(); // only run if active editor changed
@@ -132,7 +143,7 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 		}
 
 		const isEditorPinned = this.group.isPinned(this.group.activeEditor);
-		const isGroupActive = this.groupsAccessor.activeGroup === this.group;
+		const isGroupActive = this.accessor.activeGroup === this.group;
 
 		// Dirty state
 		this.updateEditorDirty(editor);
@@ -141,7 +152,7 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 		const resource = toResource(editor, { supportSideBySide: true });
 		const name = editor.getName() || '';
 
-		const labelFormat = 'default'; //TODO@grid support tab options (this.editorGroupService.getTabOptions().labelFormat);
+		const { labelFormat } = this.accessor.partOptions;
 		let description: string;
 		if (labelFormat === 'default' && !isGroupActive) {
 			description = ''; // hide description when group is not active and style is 'default'

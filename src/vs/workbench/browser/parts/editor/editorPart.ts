@@ -78,92 +78,13 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	//#endregion
 
-	//#region TODO@grid tab options and event
-
-	private onConfigurationUpdated(event: IConfigurationChangeEvent): void {
-
-		// from ctor():
-		// const config = configurationService.getValue<IWorkbenchEditorConfiguration>();
-		// if (config && config.workbench && config.workbench.editor) {
-		// 	const editorConfig = config.workbench.editor;
-
-		// 	this.tabOptions = {
-		// 		previewEditors: editorConfig.enablePreview,
-		// 		showIcons: editorConfig.showIcons,
-		// 		showTabs: editorConfig.showTabs,
-		// 		tabCloseButton: editorConfig.tabCloseButton,
-		// 		tabSizing: editorConfig.tabSizing,
-		// 		labelFormat: editorConfig.labelFormat,
-		// 		iconTheme: config.workbench.iconTheme
-		// 	};
-
-		// 	this.revealIfOpen = editorConfig.revealIfOpen;
-		// } else {
-		// 	this.tabOptions = {
-		// 		previewEditors: true,
-		// 		showIcons: false,
-		// 		showTabs: true,
-		// 		tabCloseButton: 'right',
-		// 		tabSizing: 'fit',
-		// 		labelFormat: 'default',
-		// 		iconTheme: 'vs-seti'
-		// 	};
-
-		// 	this.revealIfOpen = false;
-		// }
-
-		if (event.affectsConfiguration('workbench.editor') || event.affectsConfiguration('workbench.iconTheme')) {
-			const configuration = this.configurationService.getValue<IWorkbenchEditorConfiguration>();
-			if (configuration && configuration.workbench && configuration.workbench.editor) {
-				const editorConfig = configuration.workbench.editor;
-
-				//#region handled
-
-				// Pin all preview editors of the user chose to disable preview
-				const newPreviewEditors = editorConfig.enablePreview;
-				if (this.tabOptions.previewEditors !== newPreviewEditors && !newPreviewEditors) {
-					this.stacks.groups.forEach(group => {
-						if (group.previewEditor) {
-							this.pinEditor(group, group.previewEditor);
-						}
-					});
-				}
-
-				this.revealIfOpen = editorConfig.revealIfOpen;
-
-				//#endregion
-
-				const oldTabOptions = objects.deepClone(this.tabOptions);
-				this.tabOptions = {
-					previewEditors: newPreviewEditors,
-					showIcons: editorConfig.showIcons,
-					tabCloseButton: editorConfig.tabCloseButton,
-					tabSizing: editorConfig.tabSizing,
-					showTabs: this.forceHideTabs ? false : editorConfig.showTabs,
-					labelFormat: editorConfig.labelFormat,
-					iconTheme: configuration.workbench.iconTheme
-				};
-
-				if (!this.doNotFireTabOptionsChanged && !objects.equals(oldTabOptions, this.tabOptions)) {
-					this._onTabOptionsChanged.fire(this.tabOptions);
-				}
-			}
-		}
-	}
+	//#region TODO@grid hideTabs()
 
 	public hideTabs(forceHide: boolean): void {
 		this.forceHideTabs = forceHide;
 		const config = this.configurationService.getValue<IWorkbenchEditorConfiguration>();
 		this.tabOptions.showTabs = forceHide ? false : config && config.workbench && config.workbench.editor && config.workbench.editor.showTabs;
 		this._onTabOptionsChanged.fire(this.tabOptions);
-	}
-
-	public get onTabOptionsChanged(): Event<IEditorTabOptions> {
-		return this._onTabOptionsChanged.event;
-	}
-
-	public getTabOptions(): IEditorTabOptions {
-		return this.tabOptions;
 	}
 
 	//#endregion
@@ -762,7 +683,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private stacks: EditorStacksModel;
 	private tabOptions: IEditorTabOptions;
 	private forceHideTabs: boolean;
-	private doNotFireTabOptionsChanged: boolean;
 	private revealIfOpen: boolean;
 	private ignoreOpenEditorErrors: boolean;
 	private textCompareEditorVisible: IContextKey<boolean>;
@@ -849,6 +769,50 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		this.initStyles();
 		this.registerListeners();
+	}
+
+	private onConfigurationUpdated(event: IConfigurationChangeEvent): void {
+		if (event.affectsConfiguration('workbench.editor') || event.affectsConfiguration('workbench.iconTheme')) {
+			const configuration = this.configurationService.getValue<IWorkbenchEditorConfiguration>();
+			if (configuration && configuration.workbench && configuration.workbench.editor) {
+				const editorConfig = configuration.workbench.editor;
+
+				// Pin all preview editors of the user chose to disable preview
+				const newPreviewEditors = editorConfig.enablePreview;
+				if (this.tabOptions.previewEditors !== newPreviewEditors && !newPreviewEditors) {
+					this.stacks.groups.forEach(group => {
+						if (group.previewEditor) {
+							this.pinEditor(group, group.previewEditor);
+						}
+					});
+				}
+
+				this.revealIfOpen = editorConfig.revealIfOpen;
+
+				const oldTabOptions = objects.deepClone(this.tabOptions);
+				this.tabOptions = {
+					previewEditors: newPreviewEditors,
+					showIcons: editorConfig.showIcons,
+					tabCloseButton: editorConfig.tabCloseButton,
+					tabSizing: editorConfig.tabSizing,
+					showTabs: this.forceHideTabs ? false : editorConfig.showTabs,
+					labelFormat: editorConfig.labelFormat,
+					iconTheme: configuration.workbench.iconTheme
+				};
+
+				if (!objects.equals(oldTabOptions, this.tabOptions)) {
+					this._onTabOptionsChanged.fire(this.tabOptions);
+				}
+			}
+		}
+	}
+
+	public get onTabOptionsChanged(): Event<IEditorTabOptions> {
+		return this._onTabOptionsChanged.event;
+	}
+
+	public getTabOptions(): IEditorTabOptions {
+		return this.tabOptions;
 	}
 
 	public moveEditor(input: EditorInput, from: EditorGroup, to: EditorGroup, moveOptions?: IMoveOptions): void;

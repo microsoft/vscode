@@ -821,21 +821,23 @@ export const OPEN_POSITIONING_CONFIG = 'workbench.editor.openPositioning';
 
 export interface IWorkbenchEditorConfiguration {
 	workbench: {
-		editor: {
-			showTabs: boolean;
-			tabCloseButton: 'left' | 'right' | 'off';
-			tabSizing: 'fit' | 'shrink';
-			showIcons: boolean;
-			enablePreview: boolean;
-			enablePreviewFromQuickOpen: boolean;
-			closeOnFileDelete: boolean;
-			openPositioning: 'left' | 'right' | 'first' | 'last';
-			revealIfOpen: boolean;
-			swipeToNavigate: boolean,
-			labelFormat: 'default' | 'short' | 'medium' | 'long';
-		},
+		editor: IWorkbenchEditorPartConfiguration,
 		iconTheme: string;
 	};
+}
+
+export interface IWorkbenchEditorPartConfiguration {
+	showTabs?: boolean;
+	tabCloseButton?: 'left' | 'right' | 'off';
+	tabSizing?: 'fit' | 'shrink';
+	showIcons?: boolean;
+	enablePreview?: boolean;
+	enablePreviewFromQuickOpen?: boolean;
+	closeOnFileDelete?: boolean;
+	openPositioning?: 'left' | 'right' | 'first' | 'last';
+	revealIfOpen?: boolean;
+	swipeToNavigate?: boolean;
+	labelFormat?: 'default' | 'short' | 'medium' | 'long';
 }
 
 export const ActiveEditorMovePositioning = {

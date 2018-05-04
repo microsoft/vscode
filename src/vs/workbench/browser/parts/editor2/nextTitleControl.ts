@@ -36,7 +36,7 @@ import { Dimension } from 'vs/base/browser/dom';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { INextEditorGroup } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
-import { IGroupsAccessor } from 'vs/workbench/browser/parts/editor2/editor2';
+import { INextEditorGroupsAccessor, INextEditorPartOptions } from 'vs/workbench/browser/parts/editor2/editor2';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -63,7 +63,7 @@ export abstract class NextTitleControl extends Themable {
 
 	constructor(
 		parent: HTMLElement,
-		protected groupsAccessor: IGroupsAccessor,
+		protected accessor: INextEditorGroupsAccessor,
 		protected group: INextEditorGroup,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
@@ -179,7 +179,7 @@ export abstract class NextTitleControl extends Themable {
 	}
 
 	protected updateEditorActionsToolbar(): void {
-		const isGroupActive = this.groupsAccessor.activeGroup === this.group;
+		const isGroupActive = this.accessor.activeGroup === this.group;
 
 		// Update Editor Actions Toolbar
 		let primaryEditorActions: IAction[] = [];
@@ -197,10 +197,10 @@ export abstract class NextTitleControl extends Themable {
 
 		secondaryEditorActions = prepareActions(editorActions.secondary);
 
-		const tabOptions = { showTabs: true }; // TODO@grid support real options (this.editorGroupService.getTabOptions();)
+		const { showTabs } = this.accessor.partOptions;
 
 		const primaryEditorActionIds = primaryEditorActions.map(a => a.id);
-		if (!tabOptions.showTabs) {
+		if (!showTabs) {
 			primaryEditorActionIds.push(this.closeOneEditorAction.id); // always show "Close" when tabs are disabled
 		}
 
@@ -213,7 +213,7 @@ export abstract class NextTitleControl extends Themable {
 		) {
 			this.editorActionsToolbar.setActions(primaryEditorActions, secondaryEditorActions)();
 
-			if (!tabOptions.showTabs) {
+			if (!showTabs) {
 				this.editorActionsToolbar.addPrimaryAction(this.closeOneEditorAction)();
 			}
 
@@ -258,7 +258,7 @@ export abstract class NextTitleControl extends Themable {
 				this.resourceContext.set(currentContext);
 
 				// restore focus to active group
-				this.groupsAccessor.activeGroup.focus();
+				this.accessor.activeGroup.focus();
 			}
 		});
 	}
@@ -272,14 +272,6 @@ export abstract class NextTitleControl extends Themable {
 
 		return keybinding ? keybinding.getLabel() : void 0;
 	}
-
-	//#region IThemeable
-
-	protected updateStyles(): void {
-		this.redraw();
-	}
-
-	//#endregion
 
 	//#region INextTitleAreaControl
 
@@ -297,8 +289,18 @@ export abstract class NextTitleControl extends Themable {
 
 	abstract updateEditorDirty(editor: IEditorInput): void;
 
+	abstract updateOptions(oldOptions: INextEditorPartOptions, newOptions: INextEditorPartOptions): void;
+
+	abstract updateStyles(): void;
+
 	layout(dimension: Dimension): void {
 		// Optionally implemented in subclasses
+	}
+
+	dispose(): void {
+		this.disposeOnEditorActions = dispose(this.disposeOnEditorActions);
+
+		super.dispose();
 	}
 
 	//#endregion

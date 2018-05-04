@@ -18,7 +18,6 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IEditorTabOptions } from 'vs/workbench/services/group/common/groupService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -41,7 +40,7 @@ import { INextEditorGroup } from 'vs/workbench/services/editor/common/nextEditor
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { addClass, addDisposableListener, hasClass, EventType, EventHelper, removeClass, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { IGroupsAccessor } from 'vs/workbench/browser/parts/editor2/editor2';
+import { INextEditorGroupsAccessor, INextEditorPartOptions } from 'vs/workbench/browser/parts/editor2/editor2';
 
 interface IEditorInputLabel {
 	name: string;
@@ -70,7 +69,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 
 	constructor(
 		parent: HTMLElement,
-		groupsAccessor: IGroupsAccessor,
+		accessor: INextEditorGroupsAccessor,
 		group: INextEditorGroup,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -84,7 +83,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 		@IThemeService themeService: IThemeService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(parent, groupsAccessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickOpenService, themeService, extensionService);
+		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickOpenService, themeService, extensionService);
 	}
 
 	protected create(parent: HTMLElement): void {
@@ -198,9 +197,9 @@ export class NextTabsTitleControl extends NextTitleControl {
 
 	openEditor(editor: IEditorInput): void {
 
-		// Create tab as needed
-		if (this.tabsContainer.children.length < this.group.count) {
-			this.tabsContainer.appendChild(this.createTab(this.group.count - 1));
+		// Create tabs as needed
+		for (let i = this.tabsContainer.children.length; i < this.group.count; i++) {
+			this.tabsContainer.appendChild(this.createTab(i));
 		}
 
 		// An add of a tab requires to recompute all labels
@@ -215,14 +214,16 @@ export class NextTabsTitleControl extends NextTitleControl {
 		// There are tabs to show
 		if (this.group.activeEditor) {
 
-			// Remove one tab from container (must be the last to keep indexes in order!)
-			(this.tabsContainer.lastChild as HTMLElement).remove();
+			// Remove tabs that got closed
+			while (this.tabsContainer.children.length > this.group.count) {
 
-			// Remove associated tab label
-			this.tabLabelWidgets.pop();
+				// Remove one tab from container (must be the last to keep indexes in order!)
+				(this.tabsContainer.lastChild as HTMLElement).remove();
 
-			// Dispose associated tab disposeables
-			this.tabDisposeables.pop().dispose();
+				// Remove associated tab label and widget
+				this.tabLabelWidgets.pop();
+				this.tabDisposeables.pop().dispose();
+			}
 
 			// A removal of a label requires to recompute all labels
 			this.computeTabLabels();
@@ -291,6 +292,29 @@ export class NextTabsTitleControl extends NextTitleControl {
 
 	updateEditorDirty(editor: IEditorInput): void {
 		this.withTab(editor, tabContainer => this.redrawEditorDirty(editor, tabContainer));
+	}
+
+	updateOptions(oldOptions: INextEditorPartOptions, newOptions: INextEditorPartOptions): void {
+
+		// A change to a label format options requires to recompute all labels
+		if (oldOptions.labelFormat !== newOptions.labelFormat) {
+			this.computeTabLabels();
+		}
+
+		// Apply new options if something of interest changed
+		if (
+			oldOptions.labelFormat !== newOptions.labelFormat ||
+			oldOptions.tabCloseButton !== newOptions.tabCloseButton ||
+			oldOptions.tabSizing !== newOptions.tabSizing ||
+			oldOptions.showIcons !== newOptions.showIcons ||
+			oldOptions.iconTheme !== newOptions.iconTheme
+		) {
+			this.redraw();
+		}
+	}
+
+	updateStyles(): void {
+		this.redraw();
 	}
 
 	private withTab(editor: IEditorInput, fn: (tabContainer: HTMLElement, tabLabelWidget: ResourceLabel, tabLabel: IEditorInputLabel) => void): void {
@@ -553,7 +577,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 	}
 
 	private computeTabLabels(): void {
-		const labelFormat = 'default'; // TODO@grid support tab options (this.editorGroupService.getTabOptions().labelFormat);
+		const { labelFormat } = this.accessor.partOptions;
 		const { verbosity, shortenDuplicates } = this.getLabelConfigFlags(labelFormat);
 
 		// Build labels and descriptions for each editor
@@ -688,26 +712,26 @@ export class NextTabsTitleControl extends NextTitleControl {
 		tabContainer.style.outlineColor = this.getColor(activeContrastBorder);
 
 		// Settings
-		const tabOptions = {} as IEditorTabOptions; // TODO@grid support tab options (this.editorGroupService.getTabOptions());
+		const options = this.accessor.partOptions;
 
 		['off', 'left', 'right'].forEach(option => {
-			const domAction = tabOptions.tabCloseButton === option ? addClass : removeClass;
+			const domAction = options.tabCloseButton === option ? addClass : removeClass;
 			domAction(tabContainer, `close-button-${option}`);
 		});
 
 		['fit', 'shrink'].forEach(option => {
-			const domAction = tabOptions.tabSizing === option ? addClass : removeClass;
+			const domAction = options.tabSizing === option ? addClass : removeClass;
 			domAction(tabContainer, `sizing-${option}`);
 		});
 
-		if (tabOptions.showIcons && !!tabOptions.iconTheme) {
+		if (options.showIcons && !!options.iconTheme) {
 			addClass(tabContainer, 'has-icon-theme');
 		} else {
 			removeClass(tabContainer, 'has-icon-theme');
 		}
 
 		// Active state
-		this.redrawEditorActive(this.groupsAccessor.activeGroup === this.group, editor, tabContainer, tabLabelWidget);
+		this.redrawEditorActive(this.accessor.activeGroup === this.group, editor, tabContainer, tabLabelWidget);
 
 		// Dirty State
 		this.redrawEditorDirty(editor, tabContainer);
@@ -877,7 +901,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 
 			// Move editor to target position and index
 			if (this.isMoveOperation(e, draggedEditor.group)) {
-				const sourceGroup = this.groupsAccessor.getGroup(draggedEditor.group.id) as INextEditorGroup;
+				const sourceGroup = this.accessor.getGroup(draggedEditor.group.id) as INextEditorGroup;
 				sourceGroup.moveEditor(draggedEditor.editor, this.group, { index: targetIndex });
 			}
 

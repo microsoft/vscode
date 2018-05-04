@@ -15,13 +15,14 @@ import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { INextEditorGroupsService, Direction, CopyKind } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Grid, Direction as GridViewDirection } from 'vs/base/browser/ui/grid/grid';
-import { GroupIdentifier, EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
+import { GroupIdentifier, EditorOptions, TextEditorOptions, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER, EDITOR_GROUP_BACKGROUND } from 'vs/workbench/common/theme';
 import { distinct } from 'vs/base/common/arrays';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
-import { IGroupsAccessor, INextEditorGroupView } from 'vs/workbench/browser/parts/editor2/editor2';
+import { INextEditorGroupsAccessor, INextEditorGroupView, INextEditorPartOptions, getEditorPartOptions, impactsEditorPartOptions, INextEditorPartOptionsChangeEvent } from 'vs/workbench/browser/parts/editor2/editor2';
 import { NextEditorGroupView } from 'vs/workbench/browser/parts/editor2/nextEditorGroupView';
+import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 
 // TODO@grid provide DND support of groups/editors:
 // - editor: move/copy to existing group, move/copy to new split group (up, down, left, right)
@@ -33,7 +34,7 @@ import { NextEditorGroupView } from 'vs/workbench/browser/parts/editor2/nextEdit
 
 // TODO@grid enable minimized/maximized groups in one dimension
 
-export class NextEditorPart extends Part implements INextEditorGroupsService {
+export class NextEditorPart extends Part implements INextEditorGroupsService, INextEditorGroupsAccessor {
 
 	_serviceBrand: any;
 
@@ -48,6 +49,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 	//#endregion
 
 	private dimension: Dimension;
+	private _partOptions: INextEditorPartOptions;
 
 	private _activeGroup: INextEditorGroupView;
 	private groupViews: Map<GroupIdentifier, INextEditorGroupView> = new Map<GroupIdentifier, INextEditorGroupView>();
@@ -59,12 +61,39 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 	constructor(
 		id: string,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
+		this._partOptions = getEditorPartOptions(this.configurationService.getValue<IWorkbenchEditorConfiguration>());
+
 		this.doCreateGridView();
+		this.registerListeners();
 	}
+
+	//#region INextEditorAccessor
+
+	private _onDidEditorPartOptionsChange: Emitter<INextEditorPartOptionsChangeEvent> = this._register(new Emitter<INextEditorPartOptionsChangeEvent>());
+	get onDidEditorPartOptionsChange(): Event<INextEditorPartOptionsChangeEvent> { return this._onDidEditorPartOptionsChange.event; }
+
+	private registerListeners(): void {
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
+	}
+
+	private onConfigurationUpdated(event: IConfigurationChangeEvent): void {
+		if (impactsEditorPartOptions(event)) {
+			const oldPartOptions = this._partOptions;
+			this._partOptions = getEditorPartOptions(this.configurationService.getValue<IWorkbenchEditorConfiguration>());
+			this._onDidEditorPartOptionsChange.fire({ oldPartOptions, newPartOptions: this._partOptions });
+		}
+	}
+
+	get partOptions(): INextEditorPartOptions {
+		return this._partOptions;
+	}
+
+	//#endregion
 
 	//#region INextEditorGroupsService
 
@@ -255,20 +284,12 @@ export class NextEditorPart extends Part implements INextEditorGroupsService {
 
 	private doCreateGroupView(copyFromView?: INextEditorGroupView): INextEditorGroupView {
 
-		// Groups Accessor
-		const part = this;
-		const groupsAccessor: IGroupsAccessor = {
-			get groups() { return part.groups; },
-			get activeGroup() { return part.activeGroup; },
-			getGroup(identifier: GroupIdentifier) { return part.getGroup(identifier); }
-		};
-
 		// Create group view
 		let groupView: INextEditorGroupView;
 		if (copyFromView) {
-			groupView = NextEditorGroupView.createCopy(copyFromView, groupsAccessor, this.instantiationService);
+			groupView = NextEditorGroupView.createCopy(copyFromView, this, this.instantiationService);
 		} else {
-			groupView = NextEditorGroupView.createNew(groupsAccessor, this.instantiationService);
+			groupView = NextEditorGroupView.createNew(this, this.instantiationService);
 		}
 
 		// Keep in map
