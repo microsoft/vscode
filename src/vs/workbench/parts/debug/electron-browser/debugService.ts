@@ -54,6 +54,7 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import product from 'vs/platform/node/product';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -105,7 +106,8 @@ export class DebugService implements debug.IDebugService {
 		@IMarkerService private markerService: IMarkerService,
 		@ITaskService private taskService: ITaskService,
 		@IFileService private fileService: IFileService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@ILogService private logService: ILogService
 	) {
 		this.toDispose = [];
 		this.toDisposeOnSessionEnd = new Map<string, lifecycle.IDisposable[]>();
@@ -773,10 +775,10 @@ export class DebugService implements debug.IDebugService {
 				if (noDebug) {
 					config.noDebug = true;
 				}
-				const trace = this.configurationService.getValue<debug.IDebugConfiguration>('debug').trace;
-				if (trace !== 'off') {
-					config.trace = trace;
+				if (!config.logLevel) {
+					config.logLevel = LogLevel[this.logService.getLevel()].toLowerCase();
 				}
+				console.log(config);
 
 				return (type ? TPromise.as(null) : this.configurationManager.guessDebugger().then(a => type = a && a.type)).then(() =>
 					this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config).then(config => {
