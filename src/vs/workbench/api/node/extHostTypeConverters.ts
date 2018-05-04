@@ -55,26 +55,28 @@ export namespace Selection {
 		};
 	}
 }
+export namespace Range {
 
-export function fromRange(range: RangeLike): IRange {
-	if (!range) {
-		return undefined;
+	export function from(range: RangeLike): IRange {
+		if (!range) {
+			return undefined;
+		}
+		let { start, end } = range;
+		return {
+			startLineNumber: start.line + 1,
+			startColumn: start.character + 1,
+			endLineNumber: end.line + 1,
+			endColumn: end.character + 1
+		};
 	}
-	let { start, end } = range;
-	return {
-		startLineNumber: start.line + 1,
-		startColumn: start.character + 1,
-		endLineNumber: end.line + 1,
-		endColumn: end.character + 1
-	};
-}
 
-export function toRange(range: IRange): types.Range {
-	if (!range) {
-		return undefined;
+	export function to(range: IRange): types.Range {
+		if (!range) {
+			return undefined;
+		}
+		let { startLineNumber, startColumn, endLineNumber, endColumn } = range;
+		return new types.Range(startLineNumber - 1, startColumn - 1, endLineNumber - 1, endColumn - 1);
 	}
-	let { startLineNumber, startColumn, endLineNumber, endColumn } = range;
-	return new types.Range(startLineNumber - 1, startColumn - 1, endLineNumber - 1, endColumn - 1);
 }
 
 export function toPosition(position: IPosition): types.Position {
@@ -87,7 +89,7 @@ export function fromPosition(position: types.Position): IPosition {
 
 export function fromDiagnostic(value: vscode.Diagnostic): IMarkerData {
 	return {
-		...fromRange(value.range),
+		...Range.from(value.range),
 		message: value.message,
 		source: value.source,
 		code: String(value.code),
@@ -98,14 +100,14 @@ export function fromDiagnostic(value: vscode.Diagnostic): IMarkerData {
 
 export function fromDiagnosticRelatedInformation(value: types.DiagnosticRelatedInformation): IRelatedInformation {
 	return {
-		...fromRange(value.location.range),
+		...Range.from(value.location.range),
 		message: value.message,
 		resource: value.location.uri
 	};
 }
 
 export function toDiagnosticRelatedInformation(value: IRelatedInformation): types.DiagnosticRelatedInformation {
-	return new types.DiagnosticRelatedInformation(new types.Location(value.resource, toRange(value)), value.message);
+	return new types.DiagnosticRelatedInformation(new types.Location(value.resource, Range.to(value)), value.message);
 }
 
 export function fromDiagnosticSeverity(value: number): MarkerSeverity {
@@ -223,7 +225,7 @@ export function fromRangeOrRangeWithMessage(ranges: vscode.Range[] | vscode.Deco
 	if (isDecorationOptionsArr(ranges)) {
 		return ranges.map(r => {
 			return {
-				range: fromRange(r.range),
+				range: Range.from(r.range),
 				hoverMessage: Array.isArray(r.hoverMessage) ? MarkdownString.fromMany(r.hoverMessage) : r.hoverMessage && MarkdownString.from(r.hoverMessage),
 				renderOptions: <any> /* URI vs Uri */r.renderOptions
 			};
@@ -231,7 +233,7 @@ export function fromRangeOrRangeWithMessage(ranges: vscode.Range[] | vscode.Deco
 	} else {
 		return ranges.map((r): IDecorationOptions => {
 			return {
-				range: fromRange(r)
+				range: Range.from(r)
 			};
 		});
 	}
@@ -243,11 +245,11 @@ export const TextEdit = {
 		return <modes.TextEdit>{
 			text: edit.newText,
 			eol: EndOfLine.from(edit.newEol),
-			range: fromRange(edit.range)
+			range: Range.from(edit.range)
 		};
 	},
 	to(edit: modes.TextEdit): types.TextEdit {
-		let result = new types.TextEdit(toRange(edit.range), edit.text);
+		let result = new types.TextEdit(Range.to(edit.range), edit.text);
 		result.newEol = EndOfLine.to(edit.eol);
 		return result;
 	}
@@ -360,7 +362,7 @@ export namespace HierarchicalSymbolInformation {
 			name: info.name,
 			detail: info.detail,
 			location: location.from(info.location),
-			definingRange: fromRange(info.range),
+			definingRange: Range.from(info.range),
 			kind: SymbolKind.from(info.kind)
 		};
 		if (info.children) {
@@ -374,7 +376,7 @@ export namespace HierarchicalSymbolInformation {
 			SymbolKind.to(info.kind),
 			info.detail,
 			location.to(info.location),
-			toRange(info.definingRange)
+			Range.to(info.definingRange)
 		);
 		if (info.children) {
 			result.children = info.children.map(to);
@@ -386,28 +388,28 @@ export namespace HierarchicalSymbolInformation {
 export const location = {
 	from(value: vscode.Location): modes.Location {
 		return {
-			range: value.range && fromRange(value.range),
+			range: value.range && Range.from(value.range),
 			uri: value.uri
 		};
 	},
 	to(value: modes.Location): types.Location {
-		return new types.Location(value.uri, toRange(value.range));
+		return new types.Location(value.uri, Range.to(value.range));
 	}
 };
 
 export function fromHover(hover: vscode.Hover): modes.Hover {
 	return <modes.Hover>{
-		range: fromRange(hover.range),
+		range: Range.from(hover.range),
 		contents: MarkdownString.fromMany(hover.contents)
 	};
 }
 
 export function toHover(info: modes.Hover): types.Hover {
-	return new types.Hover(info.contents.map(MarkdownString.to), toRange(info.range));
+	return new types.Hover(info.contents.map(MarkdownString.to), Range.to(info.range));
 }
 
 export function toDocumentHighlight(occurrence: modes.DocumentHighlight): types.DocumentHighlight {
-	return new types.DocumentHighlight(toRange(occurrence.range), occurrence.kind);
+	return new types.DocumentHighlight(Range.to(occurrence.range), occurrence.kind);
 }
 
 export namespace CompletionTriggerKind {
@@ -566,13 +568,13 @@ export namespace DocumentLink {
 
 	export function from(link: vscode.DocumentLink): modes.ILink {
 		return {
-			range: fromRange(link.range),
+			range: Range.from(link.range),
 			url: link.target && link.target.toString()
 		};
 	}
 
 	export function to(link: modes.ILink): vscode.DocumentLink {
-		return new types.DocumentLink(toRange(link.range), link.url && URI.parse(link.url));
+		return new types.DocumentLink(Range.to(link.range), link.url && URI.parse(link.url));
 	}
 }
 
@@ -685,7 +687,7 @@ export function toTextEditorOptions(options?: vscode.TextDocumentShowOptions): I
 		return {
 			pinned: typeof options.preview === 'boolean' ? !options.preview : undefined,
 			preserveFocus: options.preserveFocus,
-			selection: typeof options.selection === 'object' ? fromRange(options.selection) : undefined
+			selection: typeof options.selection === 'object' ? Range.from(options.selection) : undefined
 		} as ITextEditorOptions;
 	}
 

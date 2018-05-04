@@ -392,7 +392,7 @@ export class ExtHostApiCommands {
 		};
 		return this._commands.executeCommand<IRawColorInfo[]>('_executeDocumentColorProvider', args).then(result => {
 			if (result) {
-				return result.map(ci => ({ range: typeConverters.toRange(ci.range), color: typeConverters.Color.to(ci.color) }));
+				return result.map(ci => ({ range: typeConverters.Range.to(ci.range), color: typeConverters.Color.to(ci.color) }));
 			}
 			return [];
 		});
@@ -402,7 +402,7 @@ export class ExtHostApiCommands {
 		const args = {
 			resource: context.uri,
 			color: typeConverters.Color.from(color),
-			range: typeConverters.fromRange(context.range),
+			range: typeConverters.Range.from(context.range),
 		};
 		return this._commands.executeCommand<modes.IColorPresentation[]>('_executeColorPresentationProvider', args).then(result => {
 			if (result) {
@@ -427,7 +427,7 @@ export class ExtHostApiCommands {
 	private _executeCodeActionProvider(resource: URI, range: types.Range): Thenable<(vscode.CodeAction | vscode.Command)[]> {
 		const args = {
 			resource,
-			range: typeConverters.fromRange(range)
+			range: typeConverters.Range.from(range)
 		};
 		return this._commands.executeCommand<CustomCodeAction[]>('_executeCodeActionProvider', args)
 			.then(tryMapWith(codeAction => {
@@ -454,7 +454,7 @@ export class ExtHostApiCommands {
 		return this._commands.executeCommand<modes.ICodeLensSymbol[]>('_executeCodeLensProvider', args)
 			.then(tryMapWith(item => {
 				return new types.CodeLens(
-					typeConverters.toRange(item.range),
+					typeConverters.Range.to(item.range),
 					this._commands.converter.fromInternal(item.command));
 			}));
 
@@ -466,17 +466,17 @@ export class ExtHostApiCommands {
 			options
 		};
 		return this._commands.executeCommand<ISingleEditOperation[]>('_executeFormatDocumentProvider', args)
-			.then(tryMapWith(edit => new types.TextEdit(typeConverters.toRange(edit.range), edit.text)));
+			.then(tryMapWith(edit => new types.TextEdit(typeConverters.Range.to(edit.range), edit.text)));
 	}
 
 	private _executeFormatRangeProvider(resource: URI, range: types.Range, options: vscode.FormattingOptions): Thenable<vscode.TextEdit[]> {
 		const args = {
 			resource,
-			range: typeConverters.fromRange(range),
+			range: typeConverters.Range.from(range),
 			options
 		};
 		return this._commands.executeCommand<ISingleEditOperation[]>('_executeFormatRangeProvider', args)
-			.then(tryMapWith(edit => new types.TextEdit(typeConverters.toRange(edit.range), edit.text)));
+			.then(tryMapWith(edit => new types.TextEdit(typeConverters.Range.to(edit.range), edit.text)));
 	}
 
 	private _executeFormatOnTypeProvider(resource: URI, position: types.Position, ch: string, options: vscode.FormattingOptions): Thenable<vscode.TextEdit[]> {
@@ -487,7 +487,7 @@ export class ExtHostApiCommands {
 			options
 		};
 		return this._commands.executeCommand<ISingleEditOperation[]>('_executeFormatOnTypeProvider', args)
-			.then(tryMapWith(edit => new types.TextEdit(typeConverters.toRange(edit.range), edit.text)));
+			.then(tryMapWith(edit => new types.TextEdit(typeConverters.Range.to(edit.range), edit.text)));
 	}
 
 	private _executeDocumentLinkProvider(resource: URI): Thenable<vscode.DocumentLink[]> {

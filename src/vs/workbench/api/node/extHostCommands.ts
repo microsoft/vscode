@@ -95,7 +95,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 					return extHostTypeConverter.fromPosition(value);
 				}
 				if (value instanceof extHostTypes.Range) {
-					return extHostTypeConverter.fromRange(value);
+					return extHostTypeConverter.Range.from(value);
 				}
 				if (value instanceof extHostTypes.Location) {
 					return extHostTypeConverter.location.from(value);

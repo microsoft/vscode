@@ -74,7 +74,7 @@ class CodeLensAdapter {
 				return lenses.map(lens => {
 					const id = this._heapService.keep(lens);
 					return ObjectIdentifier.mixin({
-						range: typeConvert.fromRange(lens.range),
+						range: typeConvert.Range.from(lens.range),
 						command: this._commands.toInternal(lens.command)
 					}, id);
 				});
@@ -230,7 +230,7 @@ class DocumentHighlightAdapter {
 
 	private static _convertDocumentHighlight(documentHighlight: vscode.DocumentHighlight): modes.DocumentHighlight {
 		return {
-			range: typeConvert.fromRange(documentHighlight.range),
+			range: typeConvert.Range.from(documentHighlight.range),
 			kind: documentHighlight.kind
 		};
 	}
@@ -275,7 +275,7 @@ class CodeActionAdapter {
 	provideCodeActions(resource: URI, range: IRange, context: modes.CodeActionContext): TPromise<CodeActionDto[]> {
 
 		const doc = this._documents.getDocumentData(resource).document;
-		const ran = <vscode.Range>typeConvert.toRange(range);
+		const ran = <vscode.Range>typeConvert.Range.to(range);
 		const allDiagnostics: vscode.Diagnostic[] = [];
 
 		for (const diagnostic of this._diagnostics.getDiagnostics(resource)) {
@@ -363,7 +363,7 @@ class RangeFormattingAdapter {
 	provideDocumentRangeFormattingEdits(resource: URI, range: IRange, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]> {
 
 		const { document } = this._documents.getDocumentData(resource);
-		const ran = typeConvert.toRange(range);
+		const ran = typeConvert.Range.to(range);
 
 		return asWinJsPromise(token => this._provider.provideDocumentRangeFormattingEdits(document, ran, <any>options, token)).then(value => {
 			if (Array.isArray(value)) {
@@ -533,7 +533,7 @@ class RenameAdapter {
 				console.warn('INVALID rename location: range must contain position');
 				return undefined;
 			}
-			return { range: typeConvert.fromRange(range), text };
+			return { range: typeConvert.Range.from(range), text };
 		});
 	}
 }
@@ -792,7 +792,7 @@ class ColorProviderAdapter {
 			const colorInfos: IRawColorInfo[] = colors.map(ci => {
 				return {
 					color: typeConvert.Color.from(ci.color),
-					range: typeConvert.fromRange(ci.range)
+					range: typeConvert.Range.from(ci.range)
 				};
 			});
 
@@ -802,7 +802,7 @@ class ColorProviderAdapter {
 
 	provideColorPresentations(resource: URI, raw: IRawColorInfo): TPromise<modes.IColorPresentation[]> {
 		const document = this._documents.getDocumentData(resource).document;
-		const range = typeConvert.toRange(raw.range);
+		const range = typeConvert.Range.to(raw.range);
 		const color = typeConvert.Color.to(raw.color);
 		return asWinJsPromise(token => this._provider.provideColorPresentations(color, { document, range }, token)).then(value => {
 			return value.map(typeConvert.ColorPresentation.from);

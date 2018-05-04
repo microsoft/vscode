@@ -467,7 +467,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 		this._runOnProxy(
 			() => this._proxy.$tryRevealRange(
 				this._id,
-				TypeConverters.fromRange(range),
+				TypeConverters.Range.from(range),
 				(revealType || TextEditorRevealType.Default)
 			)
 		);
@@ -530,7 +530,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 		// prepare data for serialization
 		let edits: ISingleEditOperation[] = editData.edits.map((edit) => {
 			return {
-				range: TypeConverters.fromRange(edit.range),
+				range: TypeConverters.Range.from(edit.range),
 				text: edit.text,
 				forceMoveMarkers: edit.forceMoveMarkers
 			};
@@ -550,19 +550,19 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 		let ranges: IRange[];
 
 		if (!where || (Array.isArray(where) && where.length === 0)) {
-			ranges = this._selections.map(TypeConverters.fromRange);
+			ranges = this._selections.map(TypeConverters.Range.from);
 
 		} else if (where instanceof Position) {
 			const { lineNumber, column } = TypeConverters.fromPosition(where);
 			ranges = [{ startLineNumber: lineNumber, startColumn: column, endLineNumber: lineNumber, endColumn: column }];
 
 		} else if (where instanceof Range) {
-			ranges = [TypeConverters.fromRange(where)];
+			ranges = [TypeConverters.Range.from(where)];
 		} else {
 			ranges = [];
 			for (const posOrRange of where) {
 				if (posOrRange instanceof Range) {
-					ranges.push(TypeConverters.fromRange(posOrRange));
+					ranges.push(TypeConverters.Range.from(posOrRange));
 				} else {
 					const { lineNumber, column } = TypeConverters.fromPosition(posOrRange);
 					ranges.push({ startLineNumber: lineNumber, startColumn: column, endLineNumber: lineNumber, endColumn: column });

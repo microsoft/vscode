@@ -68,7 +68,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 			options = {
 				position: TypeConverters.fromViewColumn(columnOrOptions.viewColumn),
 				preserveFocus: columnOrOptions.preserveFocus,
-				selection: typeof columnOrOptions.selection === 'object' ? TypeConverters.fromRange(columnOrOptions.selection) : undefined,
+				selection: typeof columnOrOptions.selection === 'object' ? TypeConverters.Range.from(columnOrOptions.selection) : undefined,
 				pinned: typeof columnOrOptions.preview === 'boolean' ? !columnOrOptions.preview : undefined
 			};
 		} else {
@@ -127,7 +127,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 			textEditor._acceptSelections(selections);
 		}
 		if (data.visibleRanges) {
-			const visibleRanges = data.visibleRanges.map(TypeConverters.toRange);
+			const visibleRanges = data.visibleRanges.map(TypeConverters.Range.to);
 			textEditor._acceptVisibleRanges(visibleRanges);
 		}
 
@@ -148,7 +148,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 			});
 		}
 		if (data.visibleRanges) {
-			const visibleRanges = data.visibleRanges.map(TypeConverters.toRange);
+			const visibleRanges = data.visibleRanges.map(TypeConverters.Range.to);
 			this._onDidChangeTextEditorVisibleRanges.fire({
 				textEditor,
 				visibleRanges
