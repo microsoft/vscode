@@ -1989,6 +1989,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		const output = renderViewLine(new RenderLineInput(
 			(config.fontInfo.isMonospace && !config.viewInfo.disableMonospaceOptimizations),
 			lineContent,
+			false,
 			isBasicASCII,
 			containsRTL,
 			0,

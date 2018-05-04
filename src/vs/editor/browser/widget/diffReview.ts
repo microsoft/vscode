@@ -769,6 +769,7 @@ export class DiffReview extends Disposable {
 		const r = renderViewLine(new RenderLineInput(
 			(config.fontInfo.isMonospace && !config.viewInfo.disableMonospaceOptimizations),
 			lineContent,
+			false,
 			isBasicASCII,
 			containsRTL,
 			0,
