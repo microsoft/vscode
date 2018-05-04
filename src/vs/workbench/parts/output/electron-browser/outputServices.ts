@@ -539,7 +539,15 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			if (!channel.scrollLock) {
 				const panel = this.panelService.getActivePanel();
 				if (panel && panel.getId() === OUTPUT_PANEL_ID && this.isChannelShown(channel)) {
-					(<OutputPanel>panel).revealLastLine();
+					let outputPanel = <OutputPanel>panel;
+
+					// Smart Scroll:
+					// Only scroll if the cursor is currently on the last line of the output panel. This allows
+					// users to click on the output panel to stop scrolling when they see something of interest.
+					// To resume, they should scroll to the end of the output panel again.
+					if (outputPanel.isPrimaryCursorOnLastLine()) {
+						outputPanel.revealLastLine();
+					}
 				}
 			}
 		}, channelDisposables);
@@ -588,7 +596,9 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 					if (!preserveFocus) {
 						this._outputPanel.focus();
 					}
-				});
+				})
+				// Activate smart scroll when switching back to the output panel
+				.then(() => this._outputPanel.setPrimaryCursorToLastLine());
 		}
 		return TPromise.as(null);
 	}
