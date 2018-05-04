@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Direction, Grid, getRelativeLocation, Orientation, SerializableGrid, ISerializableView } from 'vs/base/browser/ui/grid/grid';
+import { Direction, Grid, getRelativeLocation, Orientation, SerializableGrid, ISerializableView, IViewDeserializer, isGridBranchNode, GridNode } from 'vs/base/browser/ui/grid/grid';
 import { TestView, nodesToArrays } from './util';
 
 suite('Grid', function () {
@@ -165,6 +165,21 @@ class TestSerializableView extends TestView implements ISerializableView {
 	}
 }
 
+class TestViewDeserializer implements IViewDeserializer<TestSerializableView> {
+
+	fromJSON(json: any): TestSerializableView {
+		return new TestSerializableView(json.name, 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+	}
+}
+
+function nodesToNames(node: GridNode<TestSerializableView>): any {
+	if (isGridBranchNode(node)) {
+		return node.children.map(nodesToNames);
+	} else {
+		return node.view.name;
+	}
+}
+
 suite('SerializableGrid', function () {
 	let container: HTMLElement;
 
@@ -243,5 +258,17 @@ suite('SerializableGrid', function () {
 				]
 			}
 		});
+	});
+
+	test('deserialize empty', function () {
+		const view1 = new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		const grid = new SerializableGrid(container, view1);
+		const json = grid.serialize();
+		grid.dispose();
+
+		const deserializer = new TestViewDeserializer();
+		const grid2 = SerializableGrid.deserialize(container, json, deserializer);
+
+		assert.deepEqual(nodesToNames(grid2.getViews()), ['view1']);
 	});
 });
