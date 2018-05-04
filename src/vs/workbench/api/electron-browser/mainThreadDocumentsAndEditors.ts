@@ -244,7 +244,7 @@ class MainThreadDocumentAndEditorStateComputer {
 			) {
 				const apiEditor = new TextEditorSnapshot(editor);
 				editors.set(apiEditor.id, apiEditor);
-				if (editor.isFocused()) {
+				if (editor.hasTextFocus()) {
 					activeEditor = apiEditor.id;
 				}
 			}

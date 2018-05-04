@@ -481,7 +481,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		}
 
 		this.editorBlurTimeout = TPromise.timeout(150).then(() => {
-			if (!this.editor.isFocused()) {
+			if (!this.editor.hasTextFocus()) {
 				this.setState(State.Hidden);
 			}
 		});

@@ -155,7 +155,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				this._updateToggleSelectionFindButton();
 			}
 		}));
-		this._register(this._codeEditor.onDidFocusEditor(() => {
+		this._register(this._codeEditor.onDidFocusEditorWidget(() => {
 			if (this._isVisible) {
 				let globalBufferTerm = this._controller.getGlobalBufferTerm();
 				if (globalBufferTerm && globalBufferTerm !== this._state.searchString) {
