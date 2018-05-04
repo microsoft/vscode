@@ -45,7 +45,11 @@
     "commands": [
       {
         "command": "npm.runScript",
-        "title": "%command.run%"
+        "title": "%command.run%",
+        "icon": {
+          "light": "resources/light/continue.svg",
+          "dark": "resources/dark/continue.svg"
+        }
       },
       {
         "command": "npm.debugScript",
@@ -87,6 +91,11 @@
           "command": "npm.runScript",
           "when": "view == npm && viewItem == script",
           "group": "navigation@2"
+        },
+        {
+        "command": "npm.runScript",
+					"when": "view == npm && viewItem == script",
+					"group": "inline"
         },
         {
           "command": "npm.debugScript",
