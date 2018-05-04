@@ -59,7 +59,7 @@ export class DiffAPICommand {
 			left, right,
 			label,
 			undefined,
-			typeConverters.toTextEditorOptions(options),
+			typeConverters.TextEditorOptions.from(options),
 			options ? typeConverters.ViewColumn.from(options.viewColumn) : undefined
 		]);
 	}
@@ -76,7 +76,7 @@ export class OpenAPICommand {
 			if (typeof columnOrOptions === 'number') {
 				column = typeConverters.ViewColumn.from(columnOrOptions);
 			} else {
-				options = typeConverters.toTextEditorOptions(columnOrOptions);
+				options = typeConverters.TextEditorOptions.from(columnOrOptions);
 				column = typeConverters.ViewColumn.from(columnOrOptions.viewColumn);
 			}
 		}

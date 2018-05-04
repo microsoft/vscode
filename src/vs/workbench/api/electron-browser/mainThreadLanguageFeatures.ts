@@ -20,7 +20,7 @@ import { LanguageConfiguration, IndentationRule, OnEnterRule } from 'vs/editor/c
 import { IHeapService } from './mainThreadHeapService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import { toLanguageSelector } from 'vs/workbench/api/node/extHostTypeConverters';
+import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import URI from 'vs/base/common/uri';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
@@ -97,7 +97,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- outline
 
 	$registerOutlineSupport(handle: number, selector: ISerializedDocumentFilter[]): void {
-		this._registrations[handle] = modes.DocumentSymbolProviderRegistry.register(toLanguageSelector(selector), <modes.DocumentSymbolProvider>{
+		this._registrations[handle] = modes.DocumentSymbolProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.DocumentSymbolProvider>{
 			provideDocumentSymbols: (model: ITextModel, token: CancellationToken): Thenable<modes.SymbolInformation[]> => {
 				return wireCancellationToken(token, this._proxy.$provideDocumentSymbols(handle, model.uri)).then(MainThreadLanguageFeatures._reviveSymbolInformationDto);
 			}
@@ -123,7 +123,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			provider.onDidChange = emitter.event;
 		}
 
-		this._registrations[handle] = modes.CodeLensProviderRegistry.register(toLanguageSelector(selector), provider);
+		this._registrations[handle] = modes.CodeLensProviderRegistry.register(typeConverters.LanguageSelector.from(selector), provider);
 	}
 
 	$emitCodeLensEvent(eventHandle: number, event?: any): void {
@@ -136,7 +136,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- declaration
 
 	$registerDeclaractionSupport(handle: number, selector: ISerializedDocumentFilter[]): void {
-		this._registrations[handle] = modes.DefinitionProviderRegistry.register(toLanguageSelector(selector), <modes.DefinitionProvider>{
+		this._registrations[handle] = modes.DefinitionProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.DefinitionProvider>{
 			provideDefinition: (model, position, token): Thenable<modes.Definition> => {
 				return wireCancellationToken(token, this._proxy.$provideDefinition(handle, model.uri, position)).then(MainThreadLanguageFeatures._reviveLocationDto);
 			}
@@ -144,7 +144,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	}
 
 	$registerImplementationSupport(handle: number, selector: ISerializedDocumentFilter[]): void {
-		this._registrations[handle] = modes.ImplementationProviderRegistry.register(toLanguageSelector(selector), <modes.ImplementationProvider>{
+		this._registrations[handle] = modes.ImplementationProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.ImplementationProvider>{
 			provideImplementation: (model, position, token): Thenable<modes.Definition> => {
 				return wireCancellationToken(token, this._proxy.$provideImplementation(handle, model.uri, position)).then(MainThreadLanguageFeatures._reviveLocationDto);
 			}
@@ -152,7 +152,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	}
 
 	$registerTypeDefinitionSupport(handle: number, selector: ISerializedDocumentFilter[]): void {
-		this._registrations[handle] = modes.TypeDefinitionProviderRegistry.register(toLanguageSelector(selector), <modes.TypeDefinitionProvider>{
+		this._registrations[handle] = modes.TypeDefinitionProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.TypeDefinitionProvider>{
 			provideTypeDefinition: (model, position, token): Thenable<modes.Definition> => {
 				return wireCancellationToken(token, this._proxy.$provideTypeDefinition(handle, model.uri, position)).then(MainThreadLanguageFeatures._reviveLocationDto);
 			}
@@ -162,7 +162,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- extra info
 
 	$registerHoverProvider(handle: number, selector: ISerializedDocumentFilter[]): void {
-		this._registrations[handle] = modes.HoverProviderRegistry.register(toLanguageSelector(selector), <modes.HoverProvider>{
+		this._registrations[handle] = modes.HoverProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.HoverProvider>{
 			provideHover: (model: ITextModel, position: EditorPosition, token: CancellationToken): Thenable<modes.Hover> => {
 				return wireCancellationToken(token, this._proxy.$provideHover(handle, model.uri, position));
 			}
@@ -172,7 +172,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- occurrences
 
 	$registerDocumentHighlightProvider(handle: number, selector: ISerializedDocumentFilter[]): void {
-		this._registrations[handle] = modes.DocumentHighlightProviderRegistry.register(toLanguageSelector(selector), <modes.DocumentHighlightProvider>{
+		this._registrations[handle] = modes.DocumentHighlightProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.DocumentHighlightProvider>{
 			provideDocumentHighlights: (model: ITextModel, position: EditorPosition, token: CancellationToken): Thenable<modes.DocumentHighlight[]> => {
 				return wireCancellationToken(token, this._proxy.$provideDocumentHighlights(handle, model.uri, position));
 			}
@@ -182,7 +182,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- references
 
 	$registerReferenceSupport(handle: number, selector: ISerializedDocumentFilter[]): void {
-		this._registrations[handle] = modes.ReferenceProviderRegistry.register(toLanguageSelector(selector), <modes.ReferenceProvider>{
+		this._registrations[handle] = modes.ReferenceProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.ReferenceProvider>{
 			provideReferences: (model: ITextModel, position: EditorPosition, context: modes.ReferenceContext, token: CancellationToken): Thenable<modes.Location[]> => {
 				return wireCancellationToken(token, this._proxy.$provideReferences(handle, model.uri, position, context)).then(MainThreadLanguageFeatures._reviveLocationDto);
 			}
@@ -192,7 +192,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- quick fix
 
 	$registerQuickFixSupport(handle: number, selector: ISerializedDocumentFilter[], providedCodeActionKinds?: string[]): void {
-		this._registrations[handle] = modes.CodeActionProviderRegistry.register(toLanguageSelector(selector), <modes.CodeActionProvider>{
+		this._registrations[handle] = modes.CodeActionProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.CodeActionProvider>{
 			provideCodeActions: (model: ITextModel, range: EditorRange, context: modes.CodeActionContext, token: CancellationToken): Thenable<modes.CodeAction[]> => {
 				return this._heapService.trackRecursive(wireCancellationToken(token, this._proxy.$provideCodeActions(handle, model.uri, range, context))).then(MainThreadLanguageFeatures._reviveCodeActionDto);
 			},
@@ -203,7 +203,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- formatting
 
 	$registerDocumentFormattingSupport(handle: number, selector: ISerializedDocumentFilter[]): void {
-		this._registrations[handle] = modes.DocumentFormattingEditProviderRegistry.register(toLanguageSelector(selector), <modes.DocumentFormattingEditProvider>{
+		this._registrations[handle] = modes.DocumentFormattingEditProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.DocumentFormattingEditProvider>{
 			provideDocumentFormattingEdits: (model: ITextModel, options: modes.FormattingOptions, token: CancellationToken): Thenable<ISingleEditOperation[]> => {
 				return wireCancellationToken(token, this._proxy.$provideDocumentFormattingEdits(handle, model.uri, options));
 			}
@@ -211,7 +211,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	}
 
 	$registerRangeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[]): void {
-		this._registrations[handle] = modes.DocumentRangeFormattingEditProviderRegistry.register(toLanguageSelector(selector), <modes.DocumentRangeFormattingEditProvider>{
+		this._registrations[handle] = modes.DocumentRangeFormattingEditProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.DocumentRangeFormattingEditProvider>{
 			provideDocumentRangeFormattingEdits: (model: ITextModel, range: EditorRange, options: modes.FormattingOptions, token: CancellationToken): Thenable<ISingleEditOperation[]> => {
 				return wireCancellationToken(token, this._proxy.$provideDocumentRangeFormattingEdits(handle, model.uri, range, options));
 			}
@@ -219,7 +219,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	}
 
 	$registerOnTypeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], autoFormatTriggerCharacters: string[]): void {
-		this._registrations[handle] = modes.OnTypeFormattingEditProviderRegistry.register(toLanguageSelector(selector), <modes.OnTypeFormattingEditProvider>{
+		this._registrations[handle] = modes.OnTypeFormattingEditProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.OnTypeFormattingEditProvider>{
 
 			autoFormatTriggerCharacters,
 
@@ -253,7 +253,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	$registerRenameSupport(handle: number, selector: ISerializedDocumentFilter[], supportResolveLocation: boolean): void {
 
-		this._registrations[handle] = modes.RenameProviderRegistry.register(toLanguageSelector(selector), <modes.RenameProvider>{
+		this._registrations[handle] = modes.RenameProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.RenameProvider>{
 			provideRenameEdits: (model: ITextModel, position: EditorPosition, newName: string, token: CancellationToken): Thenable<modes.WorkspaceEdit> => {
 				return wireCancellationToken(token, this._proxy.$provideRenameEdits(handle, model.uri, position, newName)).then(reviveWorkspaceEditDto);
 			},
@@ -266,7 +266,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- suggest
 
 	$registerSuggestSupport(handle: number, selector: ISerializedDocumentFilter[], triggerCharacters: string[], supportsResolveDetails: boolean): void {
-		this._registrations[handle] = modes.SuggestRegistry.register(toLanguageSelector(selector), <modes.ISuggestSupport>{
+		this._registrations[handle] = modes.SuggestRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.ISuggestSupport>{
 			triggerCharacters,
 			provideCompletionItems: (model: ITextModel, position: EditorPosition, context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
 				return wireCancellationToken(token, this._proxy.$provideCompletionItems(handle, model.uri, position, context)).then(result => {
@@ -289,7 +289,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- parameter hints
 
 	$registerSignatureHelpProvider(handle: number, selector: ISerializedDocumentFilter[], triggerCharacter: string[]): void {
-		this._registrations[handle] = modes.SignatureHelpProviderRegistry.register(toLanguageSelector(selector), <modes.SignatureHelpProvider>{
+		this._registrations[handle] = modes.SignatureHelpProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.SignatureHelpProvider>{
 
 			signatureHelpTriggerCharacters: triggerCharacter,
 
@@ -303,7 +303,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- links
 
 	$registerDocumentLinkProvider(handle: number, selector: ISerializedDocumentFilter[]): void {
-		this._registrations[handle] = modes.LinkProviderRegistry.register(toLanguageSelector(selector), <modes.LinkProvider>{
+		this._registrations[handle] = modes.LinkProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.LinkProvider>{
 			provideLinks: (model, token) => {
 				return this._heapService.trackRecursive(wireCancellationToken(token, this._proxy.$provideDocumentLinks(handle, model.uri)));
 			},
@@ -317,7 +317,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	$registerDocumentColorProvider(handle: number, selector: ISerializedDocumentFilter[]): void {
 		const proxy = this._proxy;
-		this._registrations[handle] = modes.ColorProviderRegistry.register(toLanguageSelector(selector), <modes.DocumentColorProvider>{
+		this._registrations[handle] = modes.ColorProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.DocumentColorProvider>{
 			provideDocumentColors: (model, token) => {
 				return wireCancellationToken(token, proxy.$provideDocumentColors(handle, model.uri))
 					.then(documentColors => {
@@ -351,7 +351,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	$registerFoldingRangeProvider(handle: number, selector: ISerializedDocumentFilter[]): void {
 		const proxy = this._proxy;
-		this._registrations[handle] = modes.FoldingRangeProviderRegistry.register(toLanguageSelector(selector), <modes.FoldingRangeProvider>{
+		this._registrations[handle] = modes.FoldingRangeProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.FoldingRangeProvider>{
 			provideFoldingRanges: (model, context, token) => {
 				return wireCancellationToken(token, proxy.$provideFoldingRanges(handle, model.uri, context));
 			}

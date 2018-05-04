@@ -18,7 +18,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import { IRelativePattern } from 'vs/base/common/glob';
-import { LanguageSelector, LanguageFilter } from 'vs/editor/common/modes/languageSelector';
+import * as languageSelector from 'vs/editor/common/modes/languageSelector';
 import { WorkspaceEditDto, ResourceTextEditDto } from 'vs/workbench/api/node/extHost.protocol';
 import { MarkerSeverity, IRelatedInformation, IMarkerData } from 'vs/platform/markers/common/markers';
 
@@ -698,57 +698,58 @@ export namespace FoldingRangeKind {
 	}
 }
 
-export function toTextEditorOptions(options?: vscode.TextDocumentShowOptions): ITextEditorOptions {
-	if (options) {
-		return {
-			pinned: typeof options.preview === 'boolean' ? !options.preview : undefined,
-			preserveFocus: options.preserveFocus,
-			selection: typeof options.selection === 'object' ? Range.from(options.selection) : undefined
-		} as ITextEditorOptions;
+export namespace TextEditorOptions {
+
+	export function from(options?: vscode.TextDocumentShowOptions): ITextEditorOptions {
+		if (options) {
+			return {
+				pinned: typeof options.preview === 'boolean' ? !options.preview : undefined,
+				preserveFocus: options.preserveFocus,
+				selection: typeof options.selection === 'object' ? Range.from(options.selection) : undefined
+			} as ITextEditorOptions;
+		}
+
+		return undefined;
 	}
 
-	return undefined;
 }
 
-export function toGlobPattern(pattern: vscode.GlobPattern): string | IRelativePattern {
-	if (typeof pattern === 'string') {
-		return pattern;
+export namespace GlobPattern {
+
+	export function from(pattern: vscode.GlobPattern): string | IRelativePattern {
+		if (typeof pattern === 'string') {
+			return pattern;
+		}
+
+		if (isRelativePattern(pattern)) {
+			return new types.RelativePattern(pattern.base, pattern.pattern);
+		}
+
+		return pattern; // preserve `undefined` and `null`
 	}
 
-	if (isRelativePattern(pattern)) {
-		return new types.RelativePattern(pattern.base, pattern.pattern);
+	function isRelativePattern(obj: any): obj is vscode.RelativePattern {
+		const rp = obj as vscode.RelativePattern;
+		return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string';
 	}
-
-	return pattern; // preserve `undefined` and `null`
 }
 
-function isRelativePattern(obj: any): obj is vscode.RelativePattern {
-	const rp = obj as vscode.RelativePattern;
+export namespace LanguageSelector {
 
-	return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string';
-}
-
-export function toLanguageSelector(selector: vscode.DocumentSelector): LanguageSelector {
-	if (Array.isArray(selector)) {
-		return selector.map(sel => doToLanguageSelector(sel));
+	export function from(selector: vscode.DocumentSelector): languageSelector.LanguageSelector {
+		if (!selector) {
+			return undefined;
+		} else if (Array.isArray(selector)) {
+			return <languageSelector.LanguageSelector>selector.map(from);
+		} else if (typeof selector === 'string') {
+			return selector;
+		} else {
+			return <languageSelector.LanguageFilter>{
+				language: selector.language,
+				scheme: selector.scheme,
+				pattern: GlobPattern.from(selector.pattern),
+				exclusive: selector.exclusive
+			};
+		}
 	}
-
-	return doToLanguageSelector(selector);
-}
-
-function doToLanguageSelector(selector: string | vscode.DocumentFilter): string | LanguageFilter {
-	if (typeof selector === 'string') {
-		return selector;
-	}
-
-	if (selector) {
-		return {
-			language: selector.language,
-			scheme: selector.scheme,
-			pattern: toGlobPattern(selector.pattern),
-			exclusive: selector.exclusive
-		};
-	}
-
-	return undefined;
 }
