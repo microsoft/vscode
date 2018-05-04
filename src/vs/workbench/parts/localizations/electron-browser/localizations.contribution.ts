@@ -25,7 +25,6 @@ import { join } from 'vs/base/common/paths';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IStorageService, } from 'vs/platform/storage/common/storage';
 import { TPromise } from 'vs/base/common/winjs.base';
-import product from 'vs/platform/node/product';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewlet } from 'vs/workbench/parts/extensions/common/extensions';
 
