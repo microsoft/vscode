@@ -15,7 +15,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecoration } from 'vs/editor/common/model';
+import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecoration, OverviewRulerLane } from 'vs/editor/common/model';
 import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -44,7 +44,12 @@ declare var ResizeObserver: any;
 
 const REVIEW_DECORATION = ModelDecorationOptions.register({
 	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-	glyphMarginClassName: 'review'
+	glyphMarginClassName: 'review',
+	overviewRuler: {
+		color: 'rgba(255, 100, 100, 0.5)',
+		darkColor: 'rgba(255, 100, 100, 0.5)',
+		position: OverviewRulerLane.Full
+	}
 });
 
 const COMMENTING_RANGE_DECORATION = ModelDecorationOptions.register({
@@ -164,7 +169,13 @@ export class ReviewZoneWidget extends ZoneWidget {
 	public reveal() {
 		if (this._isCollapsed) {
 			this._isCollapsed = false;
-			this.show({ lineNumber: this._commentThread.range.startLineNumber, column: 1 }, 2);
+
+			if (this._decorationIDs && this._decorationIDs.length) {
+				let range = this.editor.getModel().getDecorationRange(this._decorationIDs[0]);
+				this.show(range, 2);
+			} else {
+				this.show({ lineNumber: this._commentThread.range.startLineNumber, column: 1 }, 2);
+			}
 		}
 	}
 
@@ -339,7 +350,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 					$(this._secondaryHeading).safeInnerHtml(secondaryHeading);
 				}
 			};
-			button.textContent = this._replyCommand.title;
+			button.textContent = this.commentThread.reply.title;
 		}
 
 		this._resizeObserver = new ResizeObserver(entries => {
