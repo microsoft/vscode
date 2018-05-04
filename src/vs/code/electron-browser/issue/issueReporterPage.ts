@@ -126,6 +126,4 @@ export default (): string => `
 			</div>
 		</div>
 	</div>
-
-	<button id="github-submit-btn" disabled>${escape(localize('loadingData', "Loading data..."))}</button>
 </div>`;
