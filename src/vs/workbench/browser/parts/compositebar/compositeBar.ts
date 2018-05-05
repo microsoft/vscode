@@ -9,11 +9,11 @@ import * as nls from 'vs/nls';
 import { Action, IAction } from 'vs/base/common/actions';
 import { illegalArgument } from 'vs/base/common/errors';
 import * as arrays from 'vs/base/common/arrays';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ActionBar, IActionItem, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CompositeActionItem, CompositeOverflowActivityAction, ICompositeActivity, CompositeOverflowActivityActionItem, ActivityAction, ICompositeBar, ICompositeBarColors } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Dimension, $, addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
@@ -37,11 +37,6 @@ export interface ICompositeBarOptions {
 	hidePart: () => TPromise<any>;
 }
 
-interface CompositeState {
-	id: string;
-	pinned: boolean;
-}
-
 export class CompositeBar extends Widget implements ICompositeBar {
 
 	private dimension: Dimension;
@@ -50,15 +45,10 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	private compositeOverflowAction: CompositeOverflowActivityAction;
 	private compositeOverflowActionItem: CompositeOverflowActivityActionItem;
 
-	private compositeIdToActions: { [compositeId: string]: ActivityAction; };
-	private compositeIdToActionItems: { [compositeId: string]: IActionItem; };
-	private compositeIdToActivityStack: { [compositeId: string]: ICompositeActivity[]; };
+	private model: CompositeBarModel;
+	private storedState: ISerializedCompositeBarItem[];
+	private visibleComposites: string[];
 	private compositeSizeInBar: Map<string, number>;
-
-	private initialCompositesStates: CompositeState[];
-	private pinnedComposites: string[];
-	private activeCompositeId: string;
-	private activeUnpinnedCompositeId: string;
 
 	constructor(
 		private options: ICompositeBarOptions,
@@ -67,145 +57,16 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
 		super();
-		this.compositeIdToActionItems = Object.create(null);
-		this.compositeIdToActions = Object.create(null);
-		this.compositeIdToActivityStack = Object.create(null);
+		this.model = new CompositeBarModel(options);
+		this.storedState = this.loadCompositeItemsFromStorage();
+		this.visibleComposites = [];
 		this.compositeSizeInBar = new Map<string, number>();
 
-		this.initialCompositesStates = this.loadCompositesStates();
-		this.pinnedComposites = this.initialCompositesStates
-			.filter(c => c.pinned)
-			.map(c => c.id)
-			.filter(id => this.options.composites.some(c => c.id === id));
-	}
-
-	public addComposite(compositeData: { id: string; name: string, order: number }, activate: boolean): void {
-		if (this.options.composites.filter(c => c.id === compositeData.id).length) {
-			return;
-		}
-		this.options.composites.push(compositeData);
-
-		const compositeState = this.initialCompositesStates.filter(c => c.id === compositeData.id)[0];
-		if (!compositeState /* new composites are pinned by default */ || compositeState.pinned) {
-			let index;
-			if (compositeState) {
-				index = this.initialCompositesStates.indexOf(compositeState);
-			} else {
-				index = 0;
-				while (index < this.options.composites.length && this.options.composites[index].order < compositeData.order) {
-					index++;
-				}
-			}
-			this.pin(compositeData.id, true, index, activate);
-		}
-	}
-
-	public removeComposite(id: string): void {
-		if (this.options.composites.filter(c => c.id === id).length === 0) {
-			return;
-		}
-
-		this.options.composites = this.options.composites.filter(c => c.id !== id);
-		this.unpin(id);
-		this.pullComposite(id);
-		// Only at the end deactivate composite so the unpin and pull properly finish
-		this.deactivateComposite(id);
-	}
-
-	public activateComposite(id: string): void {
-		if (this.compositeIdToActions[id]) {
-			if (this.compositeIdToActions[this.activeCompositeId]) {
-				this.compositeIdToActions[this.activeCompositeId].deactivate();
-			}
-			this.compositeIdToActions[id].activate();
-		}
-		this.activeCompositeId = id;
-
-		const activeUnpinnedCompositeShouldClose = this.activeUnpinnedCompositeId && this.activeUnpinnedCompositeId !== id;
-		const activeUnpinnedCompositeShouldShow = !this.pinnedComposites.some(pid => pid === id);
-		if (activeUnpinnedCompositeShouldShow || activeUnpinnedCompositeShouldClose) {
-			this.updateCompositeSwitcher();
-		}
-	}
-
-	public deactivateComposite(id: string): void {
-		if (this.compositeIdToActions[id]) {
-			this.compositeIdToActions[id].deactivate();
-		}
-		if (this.activeCompositeId === id) {
-			this.activeCompositeId = undefined;
-		}
-		if (this.activeUnpinnedCompositeId === id) {
-			this.updateCompositeSwitcher();
-			this.activeUnpinnedCompositeId = undefined;
-		}
-	}
-
-	public showActivity(compositeId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {
-		if (!badge) {
-			throw illegalArgument('badge');
-		}
-
-		if (typeof priority !== 'number') {
-			priority = 0;
-		}
-
-		const activity: ICompositeActivity = { badge, clazz, priority };
-		const stack = this.compositeIdToActivityStack[compositeId] || (this.compositeIdToActivityStack[compositeId] = []);
-
-		for (let i = 0; i <= stack.length; i++) {
-			if (i === stack.length) {
-				stack.push(activity);
-				break;
-			} else if (stack[i].priority <= priority) {
-				stack.splice(i, 0, activity);
-				break;
-			}
-		}
-
-		this.updateActivity(compositeId);
-
-		return {
-			dispose: () => {
-				const stack = this.compositeIdToActivityStack[compositeId];
-				if (!stack) {
-					return;
-				}
-
-				const idx = stack.indexOf(activity);
-				if (idx < 0) {
-					return;
-				}
-
-				stack.splice(idx, 1);
-				if (stack.length === 0) {
-					delete this.compositeIdToActivityStack[compositeId];
-				}
-
-				this.updateActivity(compositeId);
-			}
-		};
-	}
-
-	private updateActivity(compositeId: string) {
-		const action = this.compositeIdToActions[compositeId];
-		if (!action) {
-			return;
-		}
-
-		const stack = this.compositeIdToActivityStack[compositeId];
-
-		// reset
-		if (!stack || !stack.length) {
-			action.setBadge(undefined);
-		}
-
-		// update
-		else {
-			const [{ badge, clazz }] = stack;
-			action.setBadge(badge);
-			if (clazz) {
-				action.class = clazz;
+		let index = 0;
+		for (const state of this.storedState) {
+			const composite = this.options.composites.filter(c => c.id === state.id)[0];
+			if (composite) {
+				this.model.add(composite.id, composite.name, composite.order, state.pinned, index++);
 			}
 		}
 	}
@@ -213,7 +74,13 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	public create(parent: HTMLElement): HTMLElement {
 		const actionBarDiv = parent.appendChild($('.composite-bar'));
 		this.compositeSwitcherBar = this._register(new ActionBar(actionBarDiv, {
-			actionItemProvider: (action: Action) => action instanceof CompositeOverflowActivityAction ? this.compositeOverflowActionItem : this.compositeIdToActionItems[action.id],
+			actionItemProvider: (action: Action) => {
+				if (action instanceof CompositeOverflowActivityAction) {
+					return this.compositeOverflowActionItem;
+				}
+				const item = this.model.findItem(action.id);
+				return item && this.instantiationService.createInstance(CompositeActionItem, action, item.pinnedAction, this.options.colors, this.options.icon, this);
+			},
 			orientation: this.options.orientation,
 			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher"),
 			animated: false,
@@ -229,9 +96,9 @@ export class CompositeBar extends Widget implements ICompositeBar {
 				EventHelper.stop(e, true);
 				CompositeActionItem.clearDraggedComposite();
 
-				const targetId = this.pinnedComposites[this.pinnedComposites.length - 1];
-				if (targetId !== draggedCompositeId) {
-					this.move(draggedCompositeId, this.pinnedComposites[this.pinnedComposites.length - 1]);
+				const targetItem = this.model.items[this.model.items.length - 1];
+				if (targetItem && targetItem.id !== draggedCompositeId) {
+					this.move(draggedCompositeId, targetItem.id);
 				}
 			}
 		}));
@@ -239,40 +106,161 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		return actionBarDiv;
 	}
 
-	public getAction(compositeId): ActivityAction {
-		return this.compositeIdToActions[compositeId];
-	}
-
-	private showContextMenu(e: MouseEvent): void {
-		EventHelper.stop(e, true);
-		const event = new StandardMouseEvent(e);
-		this.options.composites.sort((c1, c2) => c1.order < c2.order ? -1 : 1);
-		const actions: IAction[] = this.options.composites
-			.map(({ id, name }) => (<IAction>{
-				id,
-				label: name,
-				checked: this.isPinned(id),
-				enabled: true,
-				run: () => this.togglePin(id)
-			}));
-		const otherActions = this.options.getContextMenuActions();
-		if (otherActions.length) {
-			actions.push(new Separator());
-			actions.push(...otherActions);
+	public layout(dimension: Dimension): void {
+		this.dimension = dimension;
+		if (dimension.height === 0 || dimension.width === 0) {
+			// Do not layout if not visible. Otherwise the size measurment would be computed wrongly
+			return;
 		}
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => { return { x: event.posx, y: event.posy }; },
-			getActions: () => TPromise.as(actions),
-			onHide: () => dispose(actions)
-		});
+
+		if (this.compositeSizeInBar.size === 0) {
+			// Compute size of each composite by getting the size from the css renderer
+			// Size is later used for overflow computation
+			this.compositeSwitcherBar.clear();
+			this.compositeSwitcherBar.push(this.model.items.map(item => item.activityAction));
+			this.model.items.map((c, index) => this.compositeSizeInBar.set(c.id, this.options.orientation === ActionsOrientation.VERTICAL
+				? this.compositeSwitcherBar.getHeight(index)
+				: this.compositeSwitcherBar.getWidth(index)
+			));
+			this.compositeSwitcherBar.clear();
+		}
+		this.updateCompositeSwitcher();
 	}
 
-	private togglePin(id: string): void {
+	public addComposite({ id, name, order }: { id: string; name: string, order: number }, open: boolean): void {
+		const state = this.storedState.filter(s => s.id === id)[0];
+		const pinned = state ? state.pinned : true;
+		const index = state ? this.storedState.indexOf(state) : void 0;
+
+		// Add to the model
+		if (this.model.add(id, name, order, pinned, index)) {
+			if (open) {
+				this.pin(id, true);
+			} else {
+				this.updateCompositeSwitcher();
+			}
+		}
+	}
+
+	public removeComposite(id: string): void {
+
+		// If it pinned, unpin it first
 		if (this.isPinned(id)) {
 			this.unpin(id);
-		} else {
-			this.pin(id);
 		}
+
+		// Remove from the model
+		if (this.model.remove(id)) {
+			this.updateCompositeSwitcher();
+		}
+	}
+
+	public activateComposite(id: string): void {
+		const previousActiveItem = this.model.activeItem;
+		if (this.model.activate(id)) {
+			// Update if either current or previous active items are not pinned
+			if (!this.model.activeItem.pinned || (previousActiveItem && !previousActiveItem.pinned)) {
+				this.updateCompositeSwitcher();
+			}
+		}
+	}
+
+	public deactivateComposite(id: string): void {
+		const previousActiveItem = this.model.activeItem;
+		if (this.model.deactivate()) {
+			if (previousActiveItem && !previousActiveItem.pinned) {
+				this.updateCompositeSwitcher();
+			}
+		}
+	}
+
+	public showActivity(compositeId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {
+		if (!badge) {
+			throw illegalArgument('badge');
+		}
+
+		if (typeof priority !== 'number') {
+			priority = 0;
+		}
+
+		const activity: ICompositeActivity = { badge, clazz, priority };
+		this.model.addActivity(compositeId, activity);
+		return toDisposable(() => this.model.removeActivity(compositeId, activity));
+	}
+
+	public pin(compositeId: string, open?: boolean): void {
+		if (this.model.setPinned(compositeId, true)) {
+			this.updateCompositeSwitcher();
+			// Persist
+			this.saveCompositeItems();
+
+			if (open) {
+				this.options.openComposite(compositeId)
+					.done(() => this.activateComposite(compositeId)); // Activate after opening
+			}
+		}
+	}
+
+	public unpin(compositeId: string): void {
+		if (this.model.setPinned(compositeId, false)) {
+
+			this.updateCompositeSwitcher();
+			// Persist
+			this.saveCompositeItems();
+
+			const defaultCompositeId = this.options.getDefaultCompositeId();
+
+			// Case: composite is not the active one or the active one is a different one
+			// Solv: we do nothing
+			if (!this.model.activeItem || this.model.activeItem.id !== compositeId) {
+				return;
+			}
+
+			// Deactivate itself
+			this.deactivateComposite(compositeId);
+
+			// Case: composite is not the default composite and default composite is still showing
+			// Solv: we open the default composite
+			if (defaultCompositeId !== compositeId && this.isPinned(defaultCompositeId)) {
+				this.options.openComposite(defaultCompositeId);
+			}
+
+			// Case: we closed the last visible composite
+			// Solv: we hide the part
+			else if (this.visibleComposites.length === 1) {
+				this.options.hidePart();
+			}
+
+			// Case: we closed the default composite
+			// Solv: we open the next visible composite from top
+			else {
+				this.options.openComposite(this.visibleComposites.filter(cid => cid !== compositeId)[0]);
+			}
+
+		}
+
+	}
+
+	public isPinned(compositeId: string): boolean {
+		const item = this.model.findItem(compositeId);
+		return item && item.pinned;
+	}
+
+	public move(compositeId: string, toCompositeId: string): void {
+		this.model.move(compositeId, toCompositeId);
+
+		// timeout helps to prevent artifacts from showing up
+		setTimeout(() => {
+			this.updateCompositeSwitcher();
+			// Persist
+			this.saveCompositeItems();
+		}, 0);
+
+	}
+
+	public getAction(compositeId): ActivityAction {
+		const item = this.model.findItem(compositeId);
+		return item && item.activityAction;
 	}
 
 	private updateCompositeSwitcher(): void {
@@ -280,15 +268,10 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			return; // We have not been rendered yet so there is nothing to update.
 		}
 
-		let compositesToShow = this.pinnedComposites.slice(0); // never modify original array
-
-		// Always show the active composite even if it is marked to be hidden
-		if (this.activeCompositeId && !compositesToShow.some(id => id === this.activeCompositeId)) {
-			this.activeUnpinnedCompositeId = this.activeCompositeId;
-			compositesToShow = compositesToShow.concat(this.activeUnpinnedCompositeId);
-		} else {
-			this.activeUnpinnedCompositeId = void 0;
-		}
+		let compositesToShow = this.model.items.filter(item =>
+			item.pinned
+			|| (this.model.activeItem && this.model.activeItem.id === item.id) /* Show the active composite even if it is not pinned */
+		).map(item => item.id);
 
 		// Ensure we are not showing more composites than we have height for
 		let overflows = false;
@@ -312,19 +295,20 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		if (size > limit) {
 			size -= this.compositeSizeInBar.get(compositesToShow.pop());
 		}
+
 		// We always try show the active composite
-		if (this.activeCompositeId && compositesToShow.length && compositesToShow.indexOf(this.activeCompositeId) === -1) {
+		if (this.model.activeItem && compositesToShow.every(compositeId => compositeId !== this.model.activeItem.id)) {
 			const removedComposite = compositesToShow.pop();
-			size = size - this.compositeSizeInBar.get(removedComposite) + this.compositeSizeInBar.get(this.activeCompositeId);
-			compositesToShow.push(this.activeCompositeId);
+			size = size - this.compositeSizeInBar.get(removedComposite) + this.compositeSizeInBar.get(this.model.activeItem.id);
+			compositesToShow.push(this.model.activeItem.id);
 		}
+
 		// The active composite might have bigger size than the removed composite, check for overflow again
 		if (size > limit) {
 			compositesToShow.length ? compositesToShow.splice(compositesToShow.length - 2, 1) : compositesToShow.pop();
 		}
 
-		const visibleComposites = Object.keys(this.compositeIdToActions);
-		const visibleCompositesChange = !arrays.equals(compositesToShow, visibleComposites);
+		const visibleCompositesChange = !arrays.equals(compositesToShow, this.visibleComposites);
 
 		// Pull out overflow action if there is a composite change so that we can add it to the end later
 		if (this.compositeOverflowAction && visibleCompositesChange) {
@@ -337,37 +321,35 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			this.compositeOverflowActionItem = null;
 		}
 
-		// Pull out composites that overflow, got hidden or changed position
-		visibleComposites.forEach((compositeId, index) => {
-			if (compositesToShow.indexOf(compositeId) !== index) {
-				this.pullComposite(compositeId);
+		// Pull out composites that overflow or got hidden
+		const compositesToRemove: number[] = [];
+		this.visibleComposites.forEach((compositeId, index) => {
+			if (compositesToShow.indexOf(compositeId) === -1) {
+				compositesToRemove.push(index);
 			}
 		});
+		compositesToRemove.reverse().forEach(index => {
+			const actionItem = this.compositeSwitcherBar.items[index];
+			this.compositeSwitcherBar.pull(index);
+			actionItem.dispose();
+			this.visibleComposites.splice(index, 1);
+		});
 
-		// Built actions for composites to show
-		const newCompositesToShow = compositesToShow
-			.filter(compositeId => !this.compositeIdToActions[compositeId])
-			.map(compositeId => this.toAction(compositeId));
-
-		// Update when we have new composites to show
-		if (newCompositesToShow.length) {
-
-			// Add to composite switcher
-			this.compositeSwitcherBar.push(newCompositesToShow, { label: true, icon: this.options.icon });
-
-			// Make sure to activate the active one
-			if (this.activeCompositeId) {
-				const activeCompositeEntry = this.compositeIdToActions[this.activeCompositeId];
-				if (activeCompositeEntry) {
-					activeCompositeEntry.activate();
+		// Update the positions of the composites
+		compositesToShow.forEach((compositeId, newIndex) => {
+			const currentIndex = this.visibleComposites.indexOf(compositeId);
+			if (newIndex !== currentIndex) {
+				if (currentIndex !== -1) {
+					const actionItem = this.compositeSwitcherBar.items[currentIndex];
+					this.compositeSwitcherBar.pull(currentIndex);
+					actionItem.dispose();
+					this.visibleComposites.splice(currentIndex, 1);
 				}
-			}
 
-			// Make sure to restore activity
-			Object.keys(this.compositeIdToActions).forEach(compositeId => {
-				this.updateActivity(compositeId);
-			});
-		}
+				this.compositeSwitcherBar.push(this.model.findItem(compositeId).activityAction, { label: true, icon: this.options.icon, index: newIndex });
+				this.visibleComposites.splice(newIndex, 0, compositeId);
+			}
+		});
 
 		// Add overflow action as needed
 		if ((visibleCompositesChange && overflows) || this.compositeSwitcherBar.length() === 0) {
@@ -376,8 +358,8 @@ export class CompositeBar extends Widget implements ICompositeBar {
 				CompositeOverflowActivityActionItem,
 				this.compositeOverflowAction,
 				() => this.getOverflowingComposites(),
-				() => this.activeCompositeId,
-				(compositeId: string) => this.compositeIdToActivityStack[compositeId] && this.compositeIdToActivityStack[compositeId][0].badge,
+				() => this.model.activeItem ? this.model.activeItem.id : void 0,
+				(compositeId: string) => { const item = this.model.findItem(compositeId); return item && item.activity[0].badge; },
 				this.options.getOnCompositeClickAction,
 				this.options.colors
 			);
@@ -387,195 +369,266 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	}
 
 	private getOverflowingComposites(): { id: string, name: string }[] {
-		let overflowingIds = this.pinnedComposites;
-		if (this.activeUnpinnedCompositeId) {
-			overflowingIds = overflowingIds.concat(this.activeUnpinnedCompositeId);
-		}
-		const visibleComposites = Object.keys(this.compositeIdToActions);
+		let overflowingIds = this.model.items.filter(item => item.pinned).map(item => item.id);
 
-		overflowingIds = overflowingIds.filter(compositeId => visibleComposites.indexOf(compositeId) === -1);
-		return this.options.composites.filter(c => overflowingIds.indexOf(c.id) !== -1);
+		// Show the active composite even if it is not pinned
+		if (this.model.activeItem && !this.model.activeItem.pinned) {
+			overflowingIds.push(this.model.activeItem.id);
+		}
+
+		overflowingIds = overflowingIds.filter(compositeId => this.visibleComposites.indexOf(compositeId) === -1);
+		return this.model.items.filter(c => overflowingIds.indexOf(c.id) !== -1);
 	}
 
-	private getVisibleComposites(): string[] {
-		return Object.keys(this.compositeIdToActions);
-	}
-
-	private pullComposite(compositeId: string): void {
-		const index = Object.keys(this.compositeIdToActions).indexOf(compositeId);
-		if (index >= 0) {
-			this.compositeSwitcherBar.pull(index);
-
-			const action = this.compositeIdToActions[compositeId];
-			action.dispose();
-			delete this.compositeIdToActions[compositeId];
-
-			const actionItem = this.compositeIdToActionItems[action.id];
-			actionItem.dispose();
-			delete this.compositeIdToActionItems[action.id];
+	private showContextMenu(e: MouseEvent): void {
+		EventHelper.stop(e, true);
+		const event = new StandardMouseEvent(e);
+		const actions: IAction[] = this.model.items
+			.map(({ id, name }) => (<IAction>{
+				id,
+				label: name,
+				checked: this.isPinned(id),
+				enabled: true,
+				run: () => {
+					if (this.isPinned(id)) {
+						this.unpin(id);
+					} else {
+						this.pin(id, true);
+					}
+				}
+			}));
+		const otherActions = this.options.getContextMenuActions();
+		if (otherActions.length) {
+			actions.push(new Separator());
+			actions.push(...otherActions);
 		}
-	}
-
-	private toAction(compositeId: string): ActivityAction {
-		if (this.compositeIdToActions[compositeId]) {
-			return this.compositeIdToActions[compositeId];
-		}
-
-		const compositeActivityAction = this.options.getActivityAction(compositeId);
-		const pinnedAction = this.options.getCompositePinnedAction(compositeId);
-		this.compositeIdToActionItems[compositeId] = this.instantiationService.createInstance(CompositeActionItem, compositeActivityAction, pinnedAction, this.options.colors, this.options.icon, this);
-		this.compositeIdToActions[compositeId] = compositeActivityAction;
-
-		return compositeActivityAction;
-	}
-
-	public unpin(compositeId: string): void {
-		if (!this.isPinned(compositeId)) {
-			return;
-		}
-
-		const defaultCompositeId = this.options.getDefaultCompositeId();
-		const visibleComposites = this.getVisibleComposites();
-
-		let unpinPromise: TPromise<any>;
-
-		// remove from pinned
-		const index = this.pinnedComposites.indexOf(compositeId);
-		this.pinnedComposites.splice(index, 1);
-
-		// Case: composite is not the active one or the active one is a different one
-		// Solv: we do nothing
-		if (!this.activeCompositeId || this.activeCompositeId !== compositeId) {
-			unpinPromise = TPromise.as(null);
-		}
-
-		// Case: composite is not the default composite and default composite is still showing
-		// Solv: we open the default composite
-		else if (defaultCompositeId !== compositeId && this.isPinned(defaultCompositeId)) {
-			unpinPromise = this.options.openComposite(defaultCompositeId);
-		}
-
-		// Case: we closed the last visible composite
-		// Solv: we hide the part
-		else if (visibleComposites.length === 1) {
-			unpinPromise = this.options.hidePart();
-		}
-
-		// Case: we closed the default composite
-		// Solv: we open the next visible composite from top
-		else {
-			unpinPromise = this.options.openComposite(visibleComposites.filter(cid => cid !== compositeId)[0]);
-		}
-
-		unpinPromise.then(() => {
-			this.updateCompositeSwitcher();
-		});
-
-		// Persist
-		this.saveCompositesStates();
-	}
-
-	public isPinned(compositeId: string): boolean {
-		return this.pinnedComposites.indexOf(compositeId) >= 0;
-	}
-
-	public pin(compositeId: string, update = true, index = this.pinnedComposites.length, activate: boolean = true): void {
-		if (this.isPinned(compositeId)) {
-			return;
-		}
-
-		const activatePromise = activate ? this.options.openComposite(compositeId) : TPromise.as(null);
-		activatePromise.then(() => {
-			this.pinnedComposites.splice(index, 0, compositeId);
-			this.pinnedComposites = arrays.distinct(this.pinnedComposites);
-
-			if (update) {
-				this.updateCompositeSwitcher();
-			}
-
-			// Persist
-			this.saveCompositesStates();
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => { return { x: event.posx, y: event.posy }; },
+			getActions: () => TPromise.as(actions),
 		});
 	}
 
-	public move(compositeId: string, toCompositeId: string): void {
-		// Make sure both composites are known to this composite bar
-		if (this.options.composites.filter(c => c.id === compositeId || c.id === toCompositeId).length !== 2) {
-			return;
-		}
-		// Make sure a moved composite gets pinned
-		if (!this.isPinned(compositeId)) {
-			this.pin(compositeId, false /* defer update, we take care of it */);
-		}
-
-		const fromIndex = this.pinnedComposites.indexOf(compositeId);
-		const toIndex = this.pinnedComposites.indexOf(toCompositeId);
-
-		this.pinnedComposites.splice(fromIndex, 1);
-		this.pinnedComposites.splice(toIndex, 0, compositeId);
-
-		// Clear composites that are impacted by the move
-		const visibleComposites = Object.keys(this.compositeIdToActions);
-		for (let i = Math.min(fromIndex, toIndex); i < visibleComposites.length; i++) {
-			this.pullComposite(visibleComposites[i]);
-		}
-
-		// timeout helps to prevent artifacts from showing up
-		setTimeout(() => {
-			this.updateCompositeSwitcher();
-		}, 0);
-
-		// Persist
-		this.saveCompositesStates();
-	}
-
-	public layout(dimension: Dimension): void {
-		this.dimension = dimension;
-		if (dimension.height === 0 || dimension.width === 0) {
-			// Do not layout if not visible. Otherwise the size measurment would be computed wrongly
-			return;
-		}
-
-		if (this.compositeSizeInBar.size === 0) {
-			// Compute size of each composite by getting the size from the css renderer
-			// Size is later used for overflow computation
-			this.compositeSwitcherBar.clear();
-			this.compositeSwitcherBar.push(this.options.composites.map(c => this.options.getActivityAction(c.id)));
-			this.options.composites.map((c, index) => this.compositeSizeInBar.set(c.id, this.options.orientation === ActionsOrientation.VERTICAL
-				? this.compositeSwitcherBar.getHeight(index)
-				: this.compositeSwitcherBar.getWidth(index)
-			));
-			this.compositeSwitcherBar.clear();
-		}
-		this.updateCompositeSwitcher();
-	}
-
-	private loadCompositesStates(): CompositeState[] {
-		const storedStates = <Array<string | CompositeState>>JSON.parse(this.storageService.get(this.options.storageId, StorageScope.GLOBAL, '[]'));
+	private loadCompositeItemsFromStorage(): ISerializedCompositeBarItem[] {
+		const storedStates = <Array<string | ISerializedCompositeBarItem>>JSON.parse(this.storageService.get(this.options.storageId, StorageScope.GLOBAL, '[]'));
 		const isOldData = storedStates && storedStates.length && typeof storedStates[0] === 'string';
-		const compositeStates = <CompositeState[]>storedStates.map(c =>
+		const compositeStates = <ISerializedCompositeBarItem[]>storedStates.map(c =>
 			typeof c === 'string' /* migration from pinned states to composites states */ ? { id: c, pinned: true } : c);
 
 		if (!isOldData) { /* Add new composites only if it is new data */
 			const newComposites = this.options.composites.filter(c => compositeStates.every(s => s.id !== c.id));
 			newComposites.sort((c1, c2) => c1.order < c2.order ? -1 : 1);
-			newComposites.forEach(c => compositeStates.push({ id: c.id, pinned: true /* new composites are pinned by default */ }));
+			newComposites.forEach(c => compositeStates.push({ id: c.id, pinned: true, order: c.order /* new composites are pinned by default */ }));
 		}
 
 		return compositeStates;
 	}
 
-	private saveCompositesStates(): void {
-		const toSave = this.pinnedComposites.map(id => (<CompositeState>{ id, pinned: true }));
-		for (const composite of this.options.composites) {
-			if (this.pinnedComposites.indexOf(composite.id) === -1) { // Unpinned composites
-				toSave.push({ id: composite.id, pinned: false });
-			}
-		}
-		this.storageService.store(this.options.storageId, JSON.stringify(toSave), StorageScope.GLOBAL);
+	private saveCompositeItems(): void {
+		this.storedState = this.model.toJSON();
+		this.storageService.store(this.options.storageId, JSON.stringify(this.storedState), StorageScope.GLOBAL);
 	}
 
 	public shutdown(): void {
-		this.saveCompositesStates();
+		this.saveCompositeItems();
+	}
+}
+
+interface ISerializedCompositeBarItem {
+	id: string;
+	pinned: boolean;
+	order: number;
+}
+
+interface ICompositeBarItem extends ISerializedCompositeBarItem, IDisposable {
+	name: string;
+	activityAction: ActivityAction;
+	pinnedAction: Action;
+	activity: ICompositeActivity[];
+}
+
+class CompositeBarModel {
+
+	readonly items: ICompositeBarItem[] = [];
+	activeItem: ICompositeBarItem;
+
+	constructor(private options: ICompositeBarOptions) { }
+
+	private createCompositeBarItem(id: string, name: string, order: number, pinned: boolean): ICompositeBarItem {
+		const options = this.options;
+		let activityAction, pinnedAction;
+		const dispose = () => {
+			if (activityAction) {
+				activityAction.dispose();
+			}
+			if (pinnedAction) {
+				pinnedAction.dispose();
+			}
+		};
+		return {
+			id, name, pinned, order,
+			get activityAction() {
+				if (!activityAction) {
+					activityAction = options.getActivityAction(id);
+				}
+				return activityAction;
+			},
+			get pinnedAction() {
+				if (!pinnedAction) {
+					pinnedAction = options.getCompositePinnedAction(id);
+				}
+				return pinnedAction;
+			},
+			activity: [], dispose
+		};
+	}
+
+	add(id: string, name: string, order: number, pinned: boolean, index: number): boolean {
+		const item = this.findItem(id);
+		if (item) {
+			item.order = order;
+			item.name = name;
+			return false;
+		} else {
+			if (index === void 0) {
+				index = 0;
+				while (index < this.items.length && this.items[index].order < order) {
+					index++;
+				}
+			}
+			this.items.splice(index, 0, this.createCompositeBarItem(id, name, order, pinned));
+			return true;
+		}
+	}
+
+	remove(id: string): boolean {
+		for (let index = 0; index < this.items.length; index++) {
+			if (this.items[index].id === id) {
+				const item = this.items.splice(index, 1)[0];
+				item.dispose();
+				return true;
+			}
+		}
+		return false;
+	}
+
+	move(compositeId: string, toCompositeId: string): boolean {
+
+		const fromIndex = this.findIndex(compositeId);
+		const toIndex = this.findIndex(toCompositeId);
+
+		// Make sure both items are known to the model
+		if (fromIndex === -1 || toIndex === -1) {
+			return false;
+		}
+
+		const sourceItem = this.items.splice(fromIndex, 1)[0];
+		this.items.splice(toIndex, 0, sourceItem);
+
+		// Make sure a moved composite gets pinned
+		sourceItem.pinned = true;
+
+		return true;
+	}
+
+	setPinned(id: string, pinned: boolean): boolean {
+		for (let index = 0; index < this.items.length; index++) {
+			const item = this.items[index];
+			if (item.id === id) {
+				if (item.pinned !== pinned) {
+					item.pinned = pinned;
+					return true;
+				}
+				return false;
+			}
+		}
+		return false;
+	}
+
+	addActivity(id: string, activity: ICompositeActivity): boolean {
+		const item = this.findItem(id);
+		if (item) {
+			const stack = item.activity;
+			for (let i = 0; i <= stack.length; i++) {
+				if (i === stack.length) {
+					stack.push(activity);
+					break;
+				} else if (stack[i].priority <= activity.priority) {
+					stack.splice(i, 0, activity);
+					break;
+				}
+			}
+			this.updateActivity(id);
+			return true;
+		}
+		return false;
+	}
+
+	removeActivity(id: string, activity: ICompositeActivity): boolean {
+		const item = this.findItem(id);
+		if (item) {
+			const index = item.activity.indexOf(activity);
+			if (index !== -1) {
+				item.activity.splice(index, 1);
+				this.updateActivity(id);
+				return true;
+			}
+		}
+		return false;
+	}
+
+	updateActivity(id: string): void {
+		const item = this.findItem(id);
+		if (item) {
+			if (item.activity.length) {
+				const [{ badge, clazz }] = item.activity;
+				item.activityAction.setBadge(badge, clazz);
+			}
+			else {
+				item.activityAction.setBadge(undefined);
+			}
+		}
+	}
+
+	activate(id: string): boolean {
+		if (!this.activeItem || this.activeItem.id !== id) {
+			if (this.activeItem) {
+				this.deactivate();
+			}
+			for (let index = 0; index < this.items.length; index++) {
+				const item = this.items[index];
+				if (item.id === id) {
+					this.activeItem = item;
+					this.activeItem.activityAction.activate();
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	deactivate(): boolean {
+		if (this.activeItem) {
+			this.activeItem.activityAction.deactivate();
+			this.activeItem = void 0;
+			return true;
+		}
+		return false;
+	}
+
+	findItem(id: string): ICompositeBarItem {
+		return this.items.filter(item => item.id === id)[0];
+	}
+
+	findIndex(id: string): number {
+		for (let index = 0; index < this.items.length; index++) {
+			if (this.items[index].id === id) {
+				return index;
+			}
+		}
+		return -1;
+	}
+
+	toJSON(): ISerializedCompositeBarItem[] {
+		return this.items.map(({ id, pinned, order }) => ({ id, pinned, order }));
 	}
 }

@@ -182,6 +182,11 @@ export class ActivitybarPart extends Part {
 			const canShow = this.canShow(viewlet);
 			if (canShow) {
 				this.compositeBar.addComposite(viewlet, false);
+				const activeViewlet = this.viewletService.getActiveViewlet();
+				if (activeViewlet && activeViewlet.getId() === viewlet.id) {
+					this.compositeBar.pin(viewlet.id);
+					this.compositeBar.activateComposite(viewlet.id);
+				}
 			} else {
 				this.compositeBar.removeComposite(viewlet.id);
 			}
