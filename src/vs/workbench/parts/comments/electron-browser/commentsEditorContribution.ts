@@ -88,12 +88,12 @@ export class CommentNode {
 	}
 	constructor(public comment: modes.Comment, ) {
 		this._domNode = $('div.review-comment').getHTMLElement();
-		let avatar = $('span.float-left').appendTo(this._domNode).getHTMLElement();
+		let avatar = $('div.avatar-container').appendTo(this._domNode).getHTMLElement();
 		let img = <HTMLImageElement>$('img.avatar').appendTo(avatar).getHTMLElement();
 		img.src = comment.gravatar;
 		let commentDetailsContainer = $('.review-comment-contents').appendTo(this._domNode).getHTMLElement();
 
-		let header = $('h4').appendTo(commentDetailsContainer).getHTMLElement();
+		let header = $('div').appendTo(commentDetailsContainer).getHTMLElement();
 		let author = $('strong.author').appendTo(header).getHTMLElement();
 		author.innerText = comment.userName;
 		this._body = $('comment-body').appendTo(commentDetailsContainer).getHTMLElement();

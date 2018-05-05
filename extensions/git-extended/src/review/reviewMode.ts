@@ -169,7 +169,7 @@ export class ReviewMode implements vscode.DecorationProvider {
 
 		this._reply = {
 			command: this._prNumber + '-post',
-			title: 'Add single comment'
+			title: 'Add comment'
 		};
 
 		this._onDidChangeDecorations.fire();

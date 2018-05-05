@@ -26,14 +26,14 @@
 .monaco-editor .review-widget .body .review-comment {
 	margin-left: 20px;
 	padding: 8px 16px 8px 0px;
+	display: flex;
 }
 
-.monaco-editor .review-widget .body .review-comment .float-left {
-	float: left;
+.monaco-editor .review-widget .body .review-comment .avatar-container {
 	margin-top: 4px !important;
 }
 
-.monaco-editor .review-widget .body .review-comment .float-left img.avatar {
+.monaco-editor .review-widget .body .review-comment .avatar-container img.avatar {
 	height: 28px;
 	width: 28px;
 	display: inline-block;
@@ -45,7 +45,7 @@
 }
 
 .monaco-editor .review-widget .body .review-comment .review-comment-contents {
-	margin-left: 44px;
+	margin-left: 20px;
 }
 
 .monaco-editor .review-widget .body pre {
@@ -104,8 +104,8 @@
 }
 
 .monaco-editor .review-widget .body .comment-form {
-	margin-left: 20px;
-	padding: 8px 16px 8px 0px;
+	margin: 0 20px;
+	padding: 8px 0;
 }
 
 .monaco-editor .review-widget .body .comment-form.expand .review-thread-reply-button {
@@ -115,6 +115,7 @@
 .monaco-editor .review-widget .body .comment-form.expand textarea,
 .monaco-editor .review-widget .body .comment-form.expand .form-actions {
 	display: block;
+	box-sizing: border-box;
 }
 
 .monaco-editor .review-widget .body .comment-form .review-thread-reply-button {
