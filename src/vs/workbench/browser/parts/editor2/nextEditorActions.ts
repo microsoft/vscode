@@ -52,22 +52,20 @@ export class GridOpenEditorsAction extends Action {
 			return this.legacyEditorService.createInput({ resource: URI.file(input) }) as EditorInput;
 		});
 
-		setTimeout(() => {
-			const firstGroup = this.nextEditorGroupsService.activeGroup;
-			firstGroup.openEditor(inputs[0], { pinned: true });
-			firstGroup.openEditor(inputs[1], { inactive: true, pinned: true });
-			firstGroup.openEditor(inputs[2], { inactive: true, pinned: true });
+		const firstGroup = this.nextEditorGroupsService.activeGroup;
+		firstGroup.openEditor(inputs[0], { pinned: true });
+		firstGroup.openEditor(inputs[1], { inactive: true, pinned: true });
+		firstGroup.openEditor(inputs[2], { inactive: true, pinned: true });
 
-			const secondGroup = this.nextEditorGroupsService.addGroup(firstGroup, Direction.DOWN);
-			secondGroup.openEditor(inputs[3], { pinned: true, preserveFocus: true });
-			secondGroup.openEditor(inputs[4], { inactive: true, pinned: true });
+		const secondGroup = this.nextEditorGroupsService.addGroup(firstGroup, Direction.DOWN);
+		secondGroup.openEditor(inputs[3], { pinned: true, preserveFocus: true });
+		secondGroup.openEditor(inputs[4], { inactive: true, pinned: true });
 
-			const thirdGroup = this.nextEditorGroupsService.addGroup(secondGroup, Direction.RIGHT);
-			thirdGroup.openEditor(inputs[5], { pinned: true, preserveFocus: true });
-			thirdGroup.openEditor(inputs[6], { inactive: true, pinned: true });
+		const thirdGroup = this.nextEditorGroupsService.addGroup(secondGroup, Direction.RIGHT);
+		thirdGroup.openEditor(inputs[5], { pinned: true, preserveFocus: true });
+		thirdGroup.openEditor(inputs[6], { inactive: true, pinned: true });
 
-			this.nextEditorGroupsService.addGroup(firstGroup, Direction.RIGHT); // play with empty group
-		}, 0);
+		this.nextEditorGroupsService.addGroup(firstGroup, Direction.RIGHT); // play with empty group
 
 		return TPromise.as(void 0);
 	}

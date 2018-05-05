@@ -22,7 +22,7 @@ import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { range } from 'vs/base/common/arrays';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
-import { InEditorZenModeContext, NoEditorsVisibleContext } from 'vs/workbench/common/editor';
+import { InEditorZenModeContext, NoEditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
 
 // --- List Commands
 
@@ -504,7 +504,7 @@ export function registerCommands(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'workbench.action.closeWindow', // close the window when the last editor is closed by reusing the same keybinding
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: NoEditorsVisibleContext,
+		when: ContextKeyExpr.and(NoEditorsVisibleContext, SingleEditorGroupsContext),
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
 		handler: accessor => {
 			const windowService = accessor.get(IWindowService);

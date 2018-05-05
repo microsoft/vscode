@@ -24,6 +24,7 @@ export const NoEditorsVisibleContext: ContextKeyExpr = EditorsVisibleContext.toN
 export const TextCompareEditorVisibleContext = new RawContextKey<boolean>('textCompareEditorVisible', false);
 export const ActiveEditorGroupEmptyContext = new RawContextKey<boolean>('activeEditorGroupEmpty', false);
 export const MultipleEditorGroupsContext = new RawContextKey<boolean>('multipleEditorGroups', false);
+export const SingleEditorGroupsContext = MultipleEditorGroupsContext.toNegated();
 export const InEditorZenModeContext = new RawContextKey<boolean>('inZenMode', false);
 
 export enum ConfirmResult {
