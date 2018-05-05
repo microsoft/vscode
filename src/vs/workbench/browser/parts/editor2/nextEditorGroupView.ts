@@ -11,7 +11,7 @@ import { EditorGroup, IEditorOpenOptions, EditorCloseEvent } from 'vs/workbench/
 import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, IEditorOpeningEvent, EditorOpeningEvent, TextEditorOptions } from 'vs/workbench/common/editor';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode } from 'vs/base/browser/dom';
+import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
@@ -698,16 +698,18 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	}
 
 	private doCloseActiveEditor(focusNext = this.accessor.activeGroup === this, fromError?: boolean): void {
+		const editorToClose = this.activeEditor;
+		const editorHasFocus = isAncestor(document.activeElement, this.element);
 
 		// Update model
-		const index = this._group.closeEditor(this.activeEditor);
+		const index = this._group.closeEditor(editorToClose);
 
 		// Forward to title control
 		if (this.titleAreaControl) {
-			this.titleAreaControl.closeEditor(this.activeEditor, index);
+			this.titleAreaControl.closeEditor(editorToClose, index);
 		}
 
-		// Open next active if possible
+		// Open next active if there are more to show
 		const nextActiveEditor = this._group.activeEditor;
 		if (nextActiveEditor) {
 
@@ -724,7 +726,20 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 			this.openEditor(nextActiveEditor, options).then(() => {
 				this.ignoreOpenEditorErrors = false;
 			});
-		} else {
+		}
+
+		// Otherwise clear from editor control and send event
+		else {
+
+			// Forward to editor control
+			if (this.editorControl) {
+				this.editorControl.closeEditor(editorToClose);
+			}
+
+			// Restore focus to group container as needed
+			if (editorHasFocus) {
+				this.focus();
+			}
 
 			// Editor Change Event
 			this._onDidActiveEditorChange.fire();

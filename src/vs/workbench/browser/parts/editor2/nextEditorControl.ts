@@ -163,6 +163,12 @@ export class NextEditorControl extends Disposable {
 		this._activeControl = null;
 	}
 
+	closeEditor(editor: EditorInput): void {
+		if (this._activeControl && editor.matches(this._activeControl.input)) {
+			this.doHideActiveEditorControl();
+		}
+	}
+
 	layout(dimension: Dimension): void {
 		this.dimension = dimension;
 
