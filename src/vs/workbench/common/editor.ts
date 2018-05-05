@@ -13,13 +13,18 @@ import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IEditor, IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position, Verbosity, IEditor as IBaseEditor, IRevertOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITextModel } from 'vs/editor/common/model';
 import { Schemas } from 'vs/base/common/network';
 import { LRUCache } from 'vs/base/common/map';
 
-export const TextCompareEditorVisible = new RawContextKey<boolean>('textCompareEditorVisible', false);
+export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
+export const NoEditorsVisibleContext: ContextKeyExpr = EditorsVisibleContext.toNegated();
+export const TextCompareEditorVisibleContext = new RawContextKey<boolean>('textCompareEditorVisible', false);
+export const ActiveEditorGroupEmptyContext = new RawContextKey<boolean>('activeEditorGroupEmpty', false);
+export const MultipleEditorGroupsContext = new RawContextKey<boolean>('multipleEditorGroups', false);
+export const InEditorZenModeContext = new RawContextKey<boolean>('inZenMode', false);
 
 export enum ConfirmResult {
 	SAVE,

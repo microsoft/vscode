@@ -50,6 +50,9 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 	private _onDidAddGroup: Emitter<INextEditorGroupView> = this._register(new Emitter<INextEditorGroupView>());
 	get onDidAddGroup(): Event<INextEditorGroupView> { return this._onDidAddGroup.event; }
 
+	private _onDidRemoveGroup: Emitter<INextEditorGroupView> = this._register(new Emitter<INextEditorGroupView>());
+	get onDidRemoveGroup(): Event<INextEditorGroupView> { return this._onDidRemoveGroup.event; }
+
 	//#endregion
 
 	private dimension: Dimension;
@@ -133,6 +136,10 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 	get groups(): INextEditorGroupView[] {
 		return values(this.groupViews);
+	}
+
+	get count(): number {
+		return this.groupViews.size;
 	}
 
 	getGroups(sortByMostRecentlyActive?: boolean): INextEditorGroupView[] {
@@ -227,6 +234,9 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 		// Update container
 		this.updateContainer();
+
+		// Event
+		this._onDidRemoveGroup.fire(groupView);
 	}
 
 	private toGridViewDirection(direction: Direction): GridViewDirection {

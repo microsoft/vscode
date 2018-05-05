@@ -23,6 +23,10 @@
 	outline-offset: -2px;
 }
 
+.monaco-workbench > .part.editor > .content.empty .editor-group-container.empty.active {
+	outline-width: 0; /* no outline when editor part is empty */
+}
+
 .monaco-workbench > .part.editor > .content .editor-group-container > .title {
 	height: 35px;
 	display: flex;

@@ -10,7 +10,6 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { NoEditorsVisibleContext, InZenModeContext } from 'vs/workbench/electron-browser/workbench';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import * as errors from 'vs/base/common/errors';
@@ -23,6 +22,7 @@ import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { range } from 'vs/base/common/arrays';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
+import { InEditorZenModeContext, NoEditorsVisibleContext } from 'vs/workbench/common/editor';
 
 // --- List Commands
 
@@ -519,7 +519,7 @@ export function registerCommands(): void {
 			const partService = accessor.get(IPartService);
 			partService.toggleZenMode();
 		},
-		when: InZenModeContext,
+		when: InEditorZenModeContext,
 		primary: KeyChord(KeyCode.Escape, KeyCode.Escape)
 	});
 

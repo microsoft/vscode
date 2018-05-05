@@ -23,7 +23,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { Position as EditorPosition, IResourceDiffInput, IUntitledResourceInput, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IEditorInputFactoryRegistry, Extensions as EditorExtensions, TextCompareEditorVisible, TEXT_DIFF_EDITOR_ID } from 'vs/workbench/common/editor';
+import { IEditorInputFactoryRegistry, Extensions as EditorExtensions, TextCompareEditorVisibleContext, TEXT_DIFF_EDITOR_ID, EditorsVisibleContext, InEditorZenModeContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext } from 'vs/workbench/common/editor';
 import { HistoryService } from 'vs/workbench/services/history/electron-browser/history';
 import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
@@ -49,7 +49,7 @@ import { JSONEditingService } from 'vs/workbench/services/configuration/node/jso
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IKeybindingEditingService, KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
-import { ContextKeyExpr, RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IActivityService } from 'vs/workbench/services/activity/common/activity';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewletService } from 'vs/workbench/services/viewlet/browser/viewletService';
@@ -113,11 +113,6 @@ import { NextEditorPart } from 'vs/workbench/browser/parts/editor2/nextEditorPar
 import { INextEditorGroupsService } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { NextEditorService } from 'vs/workbench/services/editor/browser/nextEditorService';
 import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/platform/url/electron-browser/inactiveExtensionUrlHandler';
-
-export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
-export const InZenModeContext = new RawContextKey<boolean>('inZenMode', false);
-export const SidebarVisibleContext = new RawContextKey<boolean>('sidebarVisible', false);
-export const NoEditorsVisibleContext: ContextKeyExpr = EditorsVisibleContext.toNegated();
 
 interface WorkbenchParams {
 	configuration: IWindowConfiguration;
@@ -195,9 +190,10 @@ export class Workbench extends Disposable implements IPartService {
 	private workbenchCreated: boolean;
 	private workbenchShutdown: boolean;
 
+	private nextEditorService: INextEditorService;
+	private nextEditorGroupsService: INextEditorGroupsService;
 	private legacyEditorService: IWorkbenchEditorService;
 	private legacyEditorGroupService: IEditorGroupService;
-	private nextEditorService: INextEditorService;
 	private viewletService: IViewletService;
 	private contextKeyService: IContextKeyService;
 	private keybindingService: IKeybindingService;
@@ -230,8 +226,6 @@ export class Workbench extends Disposable implements IPartService {
 	private hasFilesToCreateOpenOrDiff: boolean;
 
 	private inZenMode: IContextKey<boolean>;
-	private editorsVisibleContext: IContextKey<boolean>;
-	private textCompareEditorVisible: IContextKey<boolean>;
 	private sideBarVisibleContext: IContextKey<boolean>;
 
 	private closeEmptyWindowScheduler: RunOnceScheduler = new RunOnceScheduler(() => this.onAllEditorsClosed(), 50);
@@ -306,21 +300,44 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	private handleContextKeys(): void {
-		this.editorsVisibleContext = EditorsVisibleContext.bindTo(this.contextKeyService);
-		this.textCompareEditorVisible = TextCompareEditorVisible.bindTo(this.contextKeyService);
-		this.inZenMode = InZenModeContext.bindTo(this.contextKeyService);
-		this.sideBarVisibleContext = SidebarVisibleContext.bindTo(this.contextKeyService);
+		this.inZenMode = InEditorZenModeContext.bindTo(this.contextKeyService);
 
-		this._register(this.nextEditorService.onDidVisibleEditorsChange(() => {
+		const sidebarVisibleContextRaw = new RawContextKey<boolean>('sidebarVisible', false);
+		this.sideBarVisibleContext = sidebarVisibleContextRaw.bindTo(this.contextKeyService);
+
+		const editorsVisibleContext = EditorsVisibleContext.bindTo(this.contextKeyService);
+		const textCompareEditorVisible = TextCompareEditorVisibleContext.bindTo(this.contextKeyService);
+		const activeEditorGroupEmpty = ActiveEditorGroupEmptyContext.bindTo(this.contextKeyService);
+		const multipleEditorGroups = MultipleEditorGroupsContext.bindTo(this.contextKeyService);
+
+		const updateEditorContextKeys = () => {
 			const visibleEditors = this.nextEditorService.visibleControls;
-			this.textCompareEditorVisible.set(visibleEditors.some(e => e && e.isVisible() && e.getId() === TEXT_DIFF_EDITOR_ID));
 
-			if (visibleEditors.length === 0) {
-				this.editorsVisibleContext.reset();
+			textCompareEditorVisible.set(visibleEditors.some(control => control.getId() === TEXT_DIFF_EDITOR_ID));
+
+			if (visibleEditors.length > 0) {
+				editorsVisibleContext.set(true);
 			} else {
-				this.editorsVisibleContext.set(true);
+				editorsVisibleContext.reset();
 			}
-		}));
+
+			if (!this.nextEditorService.activeEditor) {
+				activeEditorGroupEmpty.set(true);
+			} else {
+				activeEditorGroupEmpty.reset();
+			}
+
+			if (this.nextEditorGroupsService.count > 1) {
+				multipleEditorGroups.set(true);
+			} else {
+				multipleEditorGroups.reset();
+			}
+		};
+
+		this._register(this.nextEditorService.onDidActiveEditorChange(() => updateEditorContextKeys()));
+		this._register(this.nextEditorService.onDidVisibleEditorsChange(() => updateEditorContextKeys()));
+		this._register(this.nextEditorGroupsService.onDidAddGroup(() => updateEditorContextKeys()));
+		this._register(this.nextEditorGroupsService.onDidRemoveGroup(() => updateEditorContextKeys()));
 
 		const inputFocused = InputFocusedContext.bindTo(this.contextKeyService);
 		this._register(DOM.addDisposableListener(window, 'focusin', () => {
@@ -715,6 +732,7 @@ export class Workbench extends Disposable implements IPartService {
 		// Editor service (next editor part)
 		this.editorPart = this.instantiationService.createInstance(NextEditorPart, Identifiers.EDITOR_PART /*, !this.hasFilesToCreateOpenOrDiff*/);
 		this._register(toDisposable(() => this.editorPart.shutdown()));
+		this.nextEditorGroupsService = this.editorPart;
 		serviceCollection.set(INextEditorGroupsService, this.editorPart);
 		this.nextEditorService = this.instantiationService.createInstance(NextEditorService);
 		serviceCollection.set(INextEditorService, this.nextEditorService);

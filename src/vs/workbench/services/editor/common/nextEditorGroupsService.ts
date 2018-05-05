@@ -156,6 +156,11 @@ export interface INextEditorGroupsService {
 	readonly onDidAddGroup: Event<INextEditorGroup>;
 
 	/**
+	 * An event for when a group was removed.
+	 */
+	readonly onDidRemoveGroup: Event<INextEditorGroup>;
+
+	/**
 	 * An active group is the default location for new editors to open.
 	 */
 	readonly activeGroup: INextEditorGroup;
@@ -164,6 +169,11 @@ export interface INextEditorGroupsService {
 	 * All groups that are currently visible in the editor area.
 	 */
 	readonly groups: INextEditorGroup[];
+
+	/**
+	 * The number of editor groups that are currently opened.
+	 */
+	readonly count: number;
 
 	/**
 	 * Get all groups that are currently visible in the editor area optionally

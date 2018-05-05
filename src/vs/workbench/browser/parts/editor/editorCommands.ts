@@ -8,7 +8,7 @@ import * as types from 'vs/base/common/types';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands, TextCompareEditorVisible, EditorInput, IEditorIdentifier, IEditorCommandsContext } from 'vs/workbench/common/editor';
+import { ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands, TextCompareEditorVisibleContext, EditorInput, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditor, Position, POSITIONS, Direction, IEditorInput } from 'vs/platform/editor/common/editor';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -22,11 +22,14 @@ import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { distinct } from 'vs/base/common/arrays';
+import { INextEditorGroupsService } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
 export const CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID = 'workbench.action.closeEditorsToTheRight';
 export const CLOSE_EDITOR_COMMAND_ID = 'workbench.action.closeActiveEditor';
+export const CLOSE_EDITOR_GROUP_COMMAND_ID = 'workbench.action.closeActiveEditorGroup';
 export const CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeOtherEditors';
 export const KEEP_EDITOR_COMMAND_ID = 'workbench.action.keepEditor';
 export const SHOW_EDITORS_IN_GROUP = 'workbench.action.showEditorsInGroup';
@@ -162,7 +165,7 @@ function registerDiffEditorCommands(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'workbench.action.compareEditor.nextChange',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: TextCompareEditorVisible,
+		when: TextCompareEditorVisibleContext,
 		primary: null,
 		handler: accessor => navigateInDiffEditor(accessor, true)
 	});
@@ -170,7 +173,7 @@ function registerDiffEditorCommands(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'workbench.action.compareEditor.previousChange',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: TextCompareEditorVisible,
+		when: TextCompareEditorVisibleContext,
 		primary: null,
 		handler: accessor => navigateInDiffEditor(accessor, false)
 	});
@@ -327,6 +330,7 @@ function registerEditorCommands() {
 		handler: (accessor, resource: URI | object, context: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
+			const nextEditorGroupService = accessor.get(INextEditorGroupsService);
 
 			const contexts = getMultiSelectedEditorContexts(context, accessor.get(IListService));
 			const groupIds = distinct(contexts.map(context => context.groupId));
@@ -353,10 +357,7 @@ function registerEditorCommands() {
 			});
 
 			if (editorsToClose.size === 0) {
-				const activeEditor = editorService.getActiveEditor();
-				if (activeEditor) {
-					return editorService.closeEditor(activeEditor.position, activeEditor.input);
-				}
+				return nextEditorGroupService.activeGroup.closeEditor();
 			}
 
 			return editorService.closeEditors({
@@ -364,6 +365,20 @@ function registerEditorCommands() {
 				positionTwo: editorsToClose.get(Position.TWO),
 				positionThree: editorsToClose.get(Position.THREE)
 			});
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: CLOSE_EDITOR_GROUP_COMMAND_ID,
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: ContextKeyExpr.and(ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext),
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
+		win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] },
+		handler: (accessor, resource: URI | object, context: IEditorCommandsContext) => {
+			const nextEditorGroupService = accessor.get(INextEditorGroupsService);
+
+			// TODO@grid handle more cases from the related CLOSE_EDITOR_COMMAND_ID and also revisit command ID
+			nextEditorGroupService.removeGroup(nextEditorGroupService.activeGroup);
 		}
 	});
 

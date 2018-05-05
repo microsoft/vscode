@@ -20,7 +20,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Scope as MementoScope } from 'vs/workbench/common/memento';
 import { Part } from 'vs/workbench/browser/part';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorInput, EditorOptions, ConfirmResult, IWorkbenchEditorConfiguration, TextEditorOptions, SideBySideEditorInput, TextCompareEditorVisible, TEXT_DIFF_EDITOR_ID, EditorOpeningEvent, IEditorOpeningEvent } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, ConfirmResult, IWorkbenchEditorConfiguration, TextEditorOptions, SideBySideEditorInput, TextCompareEditorVisibleContext, TEXT_DIFF_EDITOR_ID, EditorOpeningEvent, IEditorOpeningEvent } from 'vs/workbench/common/editor';
 import { EditorGroupsControl, Rochade, IEditorGroupsControl, ProgressState } from 'vs/workbench/browser/parts/editor/editorGroupsControl';
 import { ScopedProgressService } from 'vs/workbench/services/progress/browser/progressService';
 import { IEditorGroupService, GroupOrientation, GroupArrangement, IEditorTabOptions, IMoveOptions } from 'vs/workbench/services/group/common/groupService';
@@ -703,7 +703,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		this.stacks = this.instantiationService.createInstance(EditorStacksModel, restoreFromStorage);
 
-		this.textCompareEditorVisible = TextCompareEditorVisible.bindTo(contextKeyService);
+		this.textCompareEditorVisible = TextCompareEditorVisibleContext.bindTo(contextKeyService);
 
 		const config = configurationService.getValue<IWorkbenchEditorConfiguration>();
 		if (config && config.workbench && config.workbench.editor) {

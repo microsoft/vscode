@@ -551,10 +551,6 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		// Update model
 		this._group.openEditor(editor, openEditorOptions);
 
-		// Forward to title control (create lazily)
-		const titleAreaControl = this.titleAreaControl || this.createTitleAreaControl();
-		titleAreaControl.openEditor(editor);
-
 		// Forward to editor control if the active editor changed (create lazily)
 		let openEditorPromise: Thenable<void>;
 		if (openEditorOptions.active) {
@@ -573,6 +569,10 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		} else {
 			openEditorPromise = TPromise.as(void 0);
 		}
+
+		// Forward to title control after editor control because some actions depend on it (create lazily)
+		const titleAreaControl = this.titleAreaControl || this.createTitleAreaControl();
+		titleAreaControl.openEditor(editor);
 
 		return openEditorPromise;
 	}
@@ -669,6 +669,9 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	//#region closeEditor()
 
 	closeEditor(editor: EditorInput = this.activeEditor): Thenable<void> {
+		if (!editor) {
+			return TPromise.as(void 0);
+		}
 
 		// Check for dirty and veto
 		return this.handleDirty([editor], true /* ignore if opened in other group */).then(veto => {
