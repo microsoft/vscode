@@ -88,7 +88,7 @@ export class GridOpenOneEditorAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		const path = join(process.cwd(), 'src/vs/workbench/browser/parts/editor2/editor2.contribution.ts');
+		const path = join(process.cwd(), 'src/vs/workbench/browser/parts/editor/editor.contribution.ts');
 		this.nextEditorGroupsService.activeGroup.openEditor(this.legacyEditorService.createInput({ resource: URI.file(path) }) as EditorInput);
 
 		return TPromise.as(void 0);

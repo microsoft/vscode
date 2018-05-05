@@ -16,9 +16,9 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
-import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND } from 'vs/workbench/common/theme';
+import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND } from 'vs/workbench/common/theme';
 import { IMoveEditorOptions } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { NextTabsTitleControl } from 'vs/workbench/browser/parts/editor2/nextTabsTitleControl';
 import { NextEditorControl } from 'vs/workbench/browser/parts/editor2/nextEditorControl';
@@ -38,6 +38,8 @@ import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch
 import { NextTitleControl } from 'vs/workbench/browser/parts/editor2/nextTitleControl';
 import { INextEditorGroupsAccessor, INextEditorGroupView, INextEditorPartOptionsChangeEvent } from 'vs/workbench/browser/parts/editor2/editor2';
 import { NextNoTabsTitleControl } from './nextNoTabsTitleControl';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { join } from 'vs/base/common/paths';
 
 export class NextEditorGroupView extends Themable implements INextEditorGroupView {
 
@@ -106,7 +108,8 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		@IThemeService themeService: IThemeService,
 		@IPartService private partService: IPartService,
 		@INotificationService private notificationService: INotificationService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
 	) {
 		super(themeService);
 
@@ -283,6 +286,15 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 		// Container
 		addClasses(this.element, 'editor-group-container');
+
+		// Open new file via doubleclick on container
+		this._register(addDisposableListener(this.element, EventType.DBLCLICK, e => {
+			if (e.target === this.element) {
+				EventHelper.stop(e);
+
+				this.openEditor(this.untitledEditorService.createOrGet(), EditorOptions.create({ pinned: true }));
+			}
+		}));
 
 		// Title container
 		this.titleContainer = document.createElement('div');
@@ -803,7 +815,6 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	protected updateStyles(): void {
 
 		// Container
-		this.element.style.backgroundColor = this.getColor(EDITOR_GROUP_BACKGROUND);
 		this.element.style.outlineColor = this.getColor(focusBorder);
 
 		// Title control
@@ -869,3 +880,14 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		super.dispose();
 	}
 }
+
+registerThemingParticipant((theme, collector, environment) => {
+
+	// Letterpress
+	const letterpress = `resources/letterpress${theme.type === 'dark' ? '-dark' : theme.type === 'hc' ? '-hc' : ''}.svg`;
+	collector.addRule(`
+		.monaco-workbench > .part.editor > .content .editor-group-container.empty {
+			background-image: url('${join(environment.appRoot, letterpress)}')
+		}
+	`);
+});

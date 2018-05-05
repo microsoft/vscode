@@ -5,25 +5,24 @@
 
 'use strict';
 
-import 'vs/css!./media/nextEditorpart';
 import 'vs/workbench/browser/parts/editor/editor.contribution';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
-import { Dimension, addClass, isAncestor } from 'vs/base/browser/dom';
+import { Dimension, isAncestor, toggleClass, addClass } from 'vs/base/browser/dom';
 import { Event, Emitter, once } from 'vs/base/common/event';
-import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { INextEditorGroupsService, Direction, CopyKind } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Grid, Direction as GridViewDirection } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, EditorOptions, TextEditorOptions, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
-import { EDITOR_GROUP_BORDER, EDITOR_GROUP_BACKGROUND } from 'vs/workbench/common/theme';
+import { EDITOR_GROUP_BORDER } from 'vs/workbench/common/theme';
 import { distinct } from 'vs/base/common/arrays';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { INextEditorGroupsAccessor, INextEditorGroupView, INextEditorPartOptions, getEditorPartOptions, impactsEditorPartOptions, INextEditorPartOptionsChangeEvent } from 'vs/workbench/browser/parts/editor2/editor2';
 import { NextEditorGroupView } from 'vs/workbench/browser/parts/editor2/nextEditorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 
 // TODO@grid provide DND support of groups/editors:
@@ -192,6 +191,9 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 			newGroupView.openEditor(activeEditor, options);
 		}
 
+		// Update container
+		this.updateContainer();
+
 		return newGroupView;
 	}
 
@@ -222,6 +224,9 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		// Remove from grid widget & dispose
 		this.gridWidget.removeView(groupView);
 		groupView.dispose();
+
+		// Update container
+		this.updateContainer();
 	}
 
 	private toGridViewDirection(direction: Direction): GridViewDirection {
@@ -253,6 +258,13 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 		// Set group active
 		this.doSetGroupActive(initialGroup);
+
+		// Update container
+		this.updateContainer();
+	}
+
+	private updateContainer(): void {
+		toggleClass(this.gridContainer, 'empty', this.groupViews.size === 1 && this.activeGroup.isEmpty());
 	}
 
 	private doSetGroupActive(group: INextEditorGroupView): void {
@@ -308,13 +320,19 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		this.groupViews.set(groupView.id, groupView);
 
 		// Track focus
-		const focusListener = groupView.onDidFocus(() => {
+		let groupDisposables: IDisposable[] = [];
+		groupDisposables.push(groupView.onDidFocus(() => {
 			this.doSetGroupActive(groupView);
-		});
+		}));
+
+		// Track editor change
+		groupDisposables.push(groupView.onDidActiveEditorChange(() => {
+			this.updateContainer();
+		}));
 
 		// Track dispose
 		once(groupView.onWillDispose)(() => {
-			focusListener.dispose();
+			groupDisposables = dispose(groupDisposables);
 			this.groupViews.delete(groupView.id);
 			this.doUpdateMostRecentActive(groupView);
 		});
@@ -335,7 +353,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 		// Part container
 		const container = this.getContainer();
-		container.style.backgroundColor = this.getColor(EDITOR_GROUP_BACKGROUND);
+		container.style.backgroundColor = this.getColor(editorBackground);
 	}
 
 	createContentArea(parent: HTMLElement): HTMLElement {

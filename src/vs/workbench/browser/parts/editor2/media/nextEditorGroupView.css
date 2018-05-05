@@ -7,6 +7,16 @@
 	height: 100%;
 }
 
+.monaco-workbench > .part.editor > .content .editor-group-container.empty  {
+	background-repeat: no-repeat;
+	background-position: 50% 50%;
+	background-size: 15%;
+}
+
+.monaco-workbench > .part.editor > .content.empty .editor-group-container.empty  {
+	background-size: 260px 260px; /* larger for empty editor part */
+}
+
 .monaco-workbench > .part.editor > .content .editor-group-container.empty.active {
 	outline-width: 1px;
 	outline-style: solid;
