@@ -150,7 +150,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 			});
 			let reply = {
 				command: 'diff-' + element.prItem.number + '-post',
-				title: 'Add single comment'
+				title: 'Add comment'
 			};
 
 			const _onDidChangeCommentThreads = new vscode.EventEmitter<vscode.CommentThreadChangedEvent>();

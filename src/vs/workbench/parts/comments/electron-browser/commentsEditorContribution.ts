@@ -36,6 +36,8 @@ import { ZoneWidget, IOptions } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { ReviewModel } from 'vs/workbench/parts/comments/common/reviewModel';
 import { ICommentService } from '../../../services/comments/electron-browser/commentService';
 import { CommentThreadCollapsibleState } from '../../../api/node/extHostTypes';
+import { Button } from 'vs/base/browser/ui/button/button';
+import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 
 export const ctxReviewPanelVisible = new RawContextKey<boolean>('reviewPanelVisible', false);
 export const ID = 'editor.contrib.review';
@@ -334,8 +336,10 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 			const formActions = $('.form-actions').appendTo(commentForm).getHTMLElement();
 
-			const button = $('button').appendTo(formActions).getHTMLElement();
-			button.onclick = async () => {
+			const button = new Button(formActions);
+			attachButtonStyler(button, this.themeService);
+			button.label = this.commentThread.reply.title;
+			button.onDidClick(async () => {
 				let newComment = await this.commandService.executeCommand(this._replyCommand.id, this.editor.getModel().uri, {
 					start: { line: lineNumber, column: 1 },
 					end: { line: lineNumber, column: 1 }
@@ -349,8 +353,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 					let secondaryHeading = this._commentThread.comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
 					$(this._secondaryHeading).safeInnerHtml(secondaryHeading);
 				}
-			};
-			button.textContent = this.commentThread.reply.title;
+			});
 		}
 
 		this._resizeObserver = new ResizeObserver(entries => {
