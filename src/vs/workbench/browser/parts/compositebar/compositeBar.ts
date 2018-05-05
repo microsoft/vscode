@@ -130,7 +130,20 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	public addComposite({ id, name, order }: { id: string; name: string, order: number }, open: boolean): void {
 		const state = this.storedState.filter(s => s.id === id)[0];
 		const pinned = state ? state.pinned : true;
-		const index = state ? this.storedState.indexOf(state) : void 0;
+		let index = this.model.items.length;
+
+		if (state) {
+			// Find the index by looking its previous item
+			index = 0;
+			for (let i = this.storedState.indexOf(state) - 1; i >= 0; i--) {
+				const previousItemId = this.storedState[i].id;
+				const previousItemIndex = this.model.findIndex(previousItemId);
+				if (previousItemIndex !== -1) {
+					index = previousItemIndex + 1;
+					break;
+				}
+			}
+		}
 
 		// Add to the model
 		if (this.model.add(id, name, order, pinned, index)) {
