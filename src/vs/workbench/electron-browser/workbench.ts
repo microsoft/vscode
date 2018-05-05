@@ -23,7 +23,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { Position as EditorPosition, IResourceDiffInput, IUntitledResourceInput, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IEditorInputFactoryRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
+import { IEditorInputFactoryRegistry, Extensions as EditorExtensions, TextCompareEditorVisible, TEXT_DIFF_EDITOR_ID } from 'vs/workbench/common/editor';
 import { HistoryService } from 'vs/workbench/services/history/electron-browser/history';
 import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
@@ -175,16 +175,11 @@ export class Workbench implements IPartService {
 	private static readonly centeredEditorLayoutActiveStorageKey = 'workbench.centerededitorlayout.active';
 	private static readonly panelPositionStorageKey = 'workbench.panel.location';
 	private static readonly defaultPanelPositionStorageKey = 'workbench.panel.defaultLocation';
-
 	private static readonly sidebarPositionConfigurationKey = 'workbench.sideBar.location';
 	private static readonly statusbarVisibleConfigurationKey = 'workbench.statusBar.visible';
 	private static readonly activityBarVisibleConfigurationKey = 'workbench.activityBar.visible';
-
 	private static readonly closeWhenEmptyConfigurationKey = 'window.closeWhenEmpty';
-
 	private static readonly fontAliasingConfigurationKey = 'workbench.fontAliasing';
-
-	private readonly _onTitleBarVisibilityChange: Emitter<void>;
 
 	public _serviceBrand: any;
 
@@ -225,6 +220,8 @@ export class Workbench implements IPartService {
 	private editorBackgroundDelayer: Delayer<any>;
 	private closeEmptyWindowScheduler: RunOnceScheduler;
 	private editorsVisibleContext: IContextKey<boolean>;
+	private _onTitleBarVisibilityChange: Emitter<void>;
+	private textCompareEditorVisible: IContextKey<boolean>;
 	private inZenMode: IContextKey<boolean>;
 	private sideBarVisibleContext: IContextKey<boolean>;
 	private hasFilesToCreateOpenOrDiff: boolean;
@@ -300,6 +297,7 @@ export class Workbench implements IPartService {
 
 		// Contexts
 		this.editorsVisibleContext = EditorsVisibleContext.bindTo(this.contextKeyService);
+		this.textCompareEditorVisible = TextCompareEditorVisible.bindTo(this.contextKeyService);
 		this.inZenMode = InZenModeContext.bindTo(this.contextKeyService);
 		this.sideBarVisibleContext = SidebarVisibleContext.bindTo(this.contextKeyService);
 
@@ -337,6 +335,132 @@ export class Workbench implements IPartService {
 
 		// Restore Parts
 		return this.restoreParts();
+	}
+
+	private registerListeners(): void {
+
+		// Listen to editor changes
+		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+
+		// Listen to editor closing (if we run with --wait)
+		const filesToWait = this.workbenchParams.configuration.filesToWait;
+		if (filesToWait) {
+			const resourcesToWaitFor = filesToWait.paths.map(p => URI.file(p.filePath));
+			const waitMarkerFile = URI.file(filesToWait.waitMarkerFilePath);
+			const listenerDispose = this.editorGroupService.getStacksModel().onEditorClosed(() => this.onEditorClosed(listenerDispose, resourcesToWaitFor, waitMarkerFile));
+
+			this.toUnbind.push(listenerDispose);
+		}
+
+		// Configuration changes
+		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(() => this.onDidUpdateConfiguration()));
+
+		// Fullscreen changes
+		this.toUnbind.push(browser.onDidChangeFullscreen(() => this.onFullscreenChanged()));
+	}
+
+	private onFullscreenChanged(): void {
+		if (!this.isCreated) {
+			return; // we need to be ready
+		}
+
+		// Apply as CSS class
+		const isFullscreen = browser.isFullscreen();
+		if (isFullscreen) {
+			this.workbench.addClass('fullscreen');
+		} else {
+			this.workbench.removeClass('fullscreen');
+			if (this.zenMode.transitionedToFullScreen && this.zenMode.active) {
+				this.toggleZenMode();
+			}
+		}
+
+		// Changing fullscreen state of the window has an impact on custom title bar visibility, so we need to update
+		const hasCustomTitle = this.getCustomTitleBarStyle() === 'custom';
+		if (hasCustomTitle) {
+			this._onTitleBarVisibilityChange.fire();
+			this.layout(); // handle title bar when fullscreen changes
+		}
+	}
+
+	private onEditorClosed(listenerDispose: IDisposable, resourcesToWaitFor: URI[], waitMarkerFile: URI): void {
+
+		// In wait mode, listen to changes to the editors and wait until the files
+		// are closed that the user wants to wait for. When this happens we delete
+		// the wait marker file to signal to the outside that editing is done.
+		const stacks = this.editorGroupService.getStacksModel();
+		if (resourcesToWaitFor.every(r => !stacks.isOpen(r))) {
+			listenerDispose.dispose();
+			this.fileService.del(waitMarkerFile).done(null, errors.onUnexpectedError);
+		}
+	}
+
+	private onEditorsChanged(): void {
+		const visibleEditors = this.editorService.getVisibleEditors();
+
+		// Close when empty: check if we should close the window based on the setting
+		// Overruled by: window has a workspace opened or this window is for extension development
+		// or setting is disabled. Also enabled when running with --wait from the command line.
+		if (visibleEditors.length === 0 && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && !this.environmentService.isExtensionDevelopment) {
+			const closeWhenEmpty = this.configurationService.getValue<boolean>(Workbench.closeWhenEmptyConfigurationKey);
+			if (closeWhenEmpty || this.environmentService.args.wait) {
+				this.closeEmptyWindowScheduler.schedule();
+			}
+		}
+
+		// Update text compare editor context key
+		this.textCompareEditorVisible.set(visibleEditors.some(e => e && e.isVisible() && e.getId() === TEXT_DIFF_EDITOR_ID));
+
+		// We update the editorpart class to indicate if an editor is opened or not
+		// through a delay to accomodate for fast editor switching
+		this.handleEditorBackground();
+	}
+
+	private handleEditorBackground(): void {
+		const visibleEditors = this.editorService.getVisibleEditors().length;
+
+		const editorContainer = this.editorPart.getContainer();
+		if (visibleEditors === 0) {
+			this.editorsVisibleContext.reset();
+			this.editorBackgroundDelayer.trigger(() => DOM.addClass(editorContainer, 'empty2')); // TODO@grid reenable (find "empty2") and move this into editorPart.ts!
+		} else {
+			this.editorsVisibleContext.set(true);
+			this.editorBackgroundDelayer.trigger(() => DOM.removeClass(editorContainer, 'empty2'));
+		}
+	}
+
+	private onAllEditorsClosed(): void {
+		const visibleEditors = this.editorService.getVisibleEditors().length;
+		if (visibleEditors === 0) {
+			this.windowService.closeWindow();
+		}
+	}
+
+	private onDidUpdateConfiguration(skipLayout?: boolean): void {
+		const newSidebarPositionValue = this.configurationService.getValue<string>(Workbench.sidebarPositionConfigurationKey);
+		const newSidebarPosition = (newSidebarPositionValue === 'right') ? Position.RIGHT : Position.LEFT;
+		if (newSidebarPosition !== this.getSideBarPosition()) {
+			this.setSideBarPosition(newSidebarPosition);
+		}
+
+		this.setPanelPositionFromStorageOrConfig();
+
+		const fontAliasing = this.configurationService.getValue<FontAliasingOption>(Workbench.fontAliasingConfigurationKey);
+		if (fontAliasing !== this.fontAliasing) {
+			this.setFontAliasing(fontAliasing);
+		}
+
+		if (!this.zenMode.active) {
+			const newStatusbarHiddenValue = !this.configurationService.getValue<boolean>(Workbench.statusbarVisibleConfigurationKey);
+			if (newStatusbarHiddenValue !== this.statusBarHidden) {
+				this.setStatusBarHidden(newStatusbarHiddenValue, skipLayout);
+			}
+
+			const newActivityBarHiddenValue = !this.configurationService.getValue<boolean>(Workbench.activityBarVisibleConfigurationKey);
+			if (newActivityBarHiddenValue !== this.activityBarHidden) {
+				this.setActivityBarHidden(newActivityBarHiddenValue, skipLayout);
+			}
+		}
 	}
 
 	private createWorkbench(): void {
@@ -430,6 +554,19 @@ export class Workbench implements IPartService {
 		};
 
 		return TPromise.join(restorePromises).then(() => onRestored(), error => onRestored(error));
+	}
+
+	private shouldRestoreLastOpenedViewlet(): boolean {
+		if (!this.environmentService.isBuilt) {
+			return true; // always restore sidebar when we are in development mode
+		}
+
+		const restore = this.storageService.getBoolean(Workbench.sidebarRestoreStorageKey, StorageScope.WORKSPACE);
+		if (restore) {
+			this.storageService.remove(Workbench.sidebarRestoreStorageKey, StorageScope.WORKSPACE); // only support once
+		}
+
+		return restore;
 	}
 
 	private createGlobalActions(): void {
@@ -1021,162 +1158,9 @@ export class Workbench implements IPartService {
 		}
 	}
 
-	public dispose(reason = ShutdownReason.QUIT): void {
-
-		// Restore sidebar if we are being shutdown as a matter of a reload
-		if (reason === ShutdownReason.RELOAD) {
-			this.storageService.store(Workbench.sidebarRestoreStorageKey, 'true', StorageScope.WORKSPACE);
-		}
-
-		// Preserve zen mode only on reload. Real quit gets out of zen mode so novice users do not get stuck in zen mode.
-		const zenConfig = this.configurationService.getValue<IZenModeSettings>('zenMode');
-		const restoreZenMode = this.zenMode.active && (zenConfig.restore || reason === ShutdownReason.RELOAD);
-		if (restoreZenMode) {
-			this.storageService.store(Workbench.zenModeActiveStorageKey, true, StorageScope.WORKSPACE);
-		} else {
-			if (this.zenMode.active) {
-				this.toggleZenMode(true);
-			}
-			this.storageService.remove(Workbench.zenModeActiveStorageKey, StorageScope.WORKSPACE);
-		}
-
-		// Dispose bindings
-		this.toUnbind = dispose(this.toUnbind);
-
-		// Pass shutdown on to each participant
-		this.workbenchShutdown = true;
-	}
-
-	/**
-	 * Asks the workbench and all its UI components inside to lay out according to
-	 * the containers dimension the workbench is living in.
-	 */
 	public layout(options?: ILayoutOptions): void {
 		if (this.isStarted()) {
 			this.workbenchLayout.layout(options);
-		}
-	}
-
-	private registerListeners(): void {
-
-		// Listen to editor changes
-		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
-
-		// Listen to editor closing (if we run with --wait)
-		const filesToWait = this.workbenchParams.configuration.filesToWait;
-		if (filesToWait) {
-			const resourcesToWaitFor = filesToWait.paths.map(p => URI.file(p.filePath));
-			const waitMarkerFile = URI.file(filesToWait.waitMarkerFilePath);
-			const listenerDispose = this.editorGroupService.getStacksModel().onEditorClosed(() => this.onEditorClosed(listenerDispose, resourcesToWaitFor, waitMarkerFile));
-
-			this.toUnbind.push(listenerDispose);
-		}
-
-		// Configuration changes
-		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(() => this.onDidUpdateConfiguration()));
-
-		// Fullscreen changes
-		this.toUnbind.push(browser.onDidChangeFullscreen(() => this.onFullscreenChanged()));
-	}
-
-	private onFullscreenChanged(): void {
-		if (!this.isCreated) {
-			return; // we need to be ready
-		}
-
-		// Apply as CSS class
-		const isFullscreen = browser.isFullscreen();
-		if (isFullscreen) {
-			this.addClass('fullscreen');
-		} else {
-			this.removeClass('fullscreen');
-			if (this.zenMode.transitionedToFullScreen && this.zenMode.active) {
-				this.toggleZenMode();
-			}
-		}
-
-		// Changing fullscreen state of the window has an impact on custom title bar visibility, so we need to update
-		const hasCustomTitle = this.getCustomTitleBarStyle() === 'custom';
-		if (hasCustomTitle) {
-			this._onTitleBarVisibilityChange.fire();
-			this.layout(); // handle title bar when fullscreen changes
-		}
-	}
-
-	private onEditorClosed(listenerDispose: IDisposable, resourcesToWaitFor: URI[], waitMarkerFile: URI): void {
-
-		// In wait mode, listen to changes to the editors and wait until the files
-		// are closed that the user wants to wait for. When this happens we delete
-		// the wait marker file to signal to the outside that editing is done.
-		const stacks = this.editorGroupService.getStacksModel();
-		if (resourcesToWaitFor.every(r => !stacks.isOpen(r))) {
-			listenerDispose.dispose();
-			this.fileService.del(waitMarkerFile).done(null, errors.onUnexpectedError);
-		}
-	}
-
-	private onEditorsChanged(): void {
-		const visibleEditors = this.editorService.getVisibleEditors().length;
-
-		// Close when empty: check if we should close the window based on the setting
-		// Overruled by: window has a workspace opened or this window is for extension development
-		// or setting is disabled. Also enabled when running with --wait from the command line.
-		if (visibleEditors === 0 && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && !this.environmentService.isExtensionDevelopment) {
-			const closeWhenEmpty = this.configurationService.getValue<boolean>(Workbench.closeWhenEmptyConfigurationKey);
-			if (closeWhenEmpty || this.environmentService.args.wait) {
-				this.closeEmptyWindowScheduler.schedule();
-			}
-		}
-
-		// We update the editorpart class to indicate if an editor is opened or not
-		// through a delay to accomodate for fast editor switching
-		this.handleEditorBackground();
-	}
-
-	private handleEditorBackground(): void {
-		const visibleEditors = this.editorService.getVisibleEditors().length;
-
-		const editorContainer = this.editorPart.getContainer();
-		if (visibleEditors === 0) {
-			this.editorsVisibleContext.reset();
-			this.editorBackgroundDelayer.trigger(() => DOM.addClass(editorContainer, 'empty2')); // TODO@grid reenable (find "empty2") and move this into editorPart.ts!
-		} else {
-			this.editorsVisibleContext.set(true);
-			this.editorBackgroundDelayer.trigger(() => DOM.removeClass(editorContainer, 'empty2'));
-		}
-	}
-
-	private onAllEditorsClosed(): void {
-		const visibleEditors = this.editorService.getVisibleEditors().length;
-		if (visibleEditors === 0) {
-			this.windowService.closeWindow();
-		}
-	}
-
-	private onDidUpdateConfiguration(skipLayout?: boolean): void {
-		const newSidebarPositionValue = this.configurationService.getValue<string>(Workbench.sidebarPositionConfigurationKey);
-		const newSidebarPosition = (newSidebarPositionValue === 'right') ? Position.RIGHT : Position.LEFT;
-		if (newSidebarPosition !== this.getSideBarPosition()) {
-			this.setSideBarPosition(newSidebarPosition);
-		}
-
-		this.setPanelPositionFromStorageOrConfig();
-
-		const fontAliasing = this.configurationService.getValue<FontAliasingOption>(Workbench.fontAliasingConfigurationKey);
-		if (fontAliasing !== this.fontAliasing) {
-			this.setFontAliasing(fontAliasing);
-		}
-
-		if (!this.zenMode.active) {
-			const newStatusbarHiddenValue = !this.configurationService.getValue<boolean>(Workbench.statusbarVisibleConfigurationKey);
-			if (newStatusbarHiddenValue !== this.statusBarHidden) {
-				this.setStatusBarHidden(newStatusbarHiddenValue, skipLayout);
-			}
-
-			const newActivityBarHiddenValue = !this.configurationService.getValue<boolean>(Workbench.activityBarVisibleConfigurationKey);
-			if (newActivityBarHiddenValue !== this.activityBarHidden) {
-				this.setActivityBarHidden(newActivityBarHiddenValue, skipLayout);
-			}
 		}
 	}
 
@@ -1341,18 +1325,6 @@ export class Workbench implements IPartService {
 		return this.instantiationService;
 	}
 
-	public addClass(clazz: string): void {
-		if (this.workbench) {
-			this.workbench.addClass(clazz);
-		}
-	}
-
-	public removeClass(clazz: string): void {
-		if (this.workbench) {
-			this.workbench.removeClass(clazz);
-		}
-	}
-
 	public getWorkbenchElementId(): string {
 		return Identifiers.WORKBENCH_CONTAINER;
 	}
@@ -1434,8 +1406,6 @@ export class Workbench implements IPartService {
 		}
 	}
 
-	// Resize requested part along the main axis
-	// layout will do all the math for us and adjusts the other Parts
 	public resizePart(part: Parts, sizeChange: number): void {
 		switch (part) {
 			case Parts.SIDEBAR_PART:
@@ -1448,17 +1418,29 @@ export class Workbench implements IPartService {
 		}
 	}
 
+	public dispose(reason = ShutdownReason.QUIT): void {
 
-	private shouldRestoreLastOpenedViewlet(): boolean {
-		if (!this.environmentService.isBuilt) {
-			return true; // always restore sidebar when we are in development mode
+		// Restore sidebar if we are being shutdown as a matter of a reload
+		if (reason === ShutdownReason.RELOAD) {
+			this.storageService.store(Workbench.sidebarRestoreStorageKey, 'true', StorageScope.WORKSPACE);
 		}
 
-		const restore = this.storageService.getBoolean(Workbench.sidebarRestoreStorageKey, StorageScope.WORKSPACE);
-		if (restore) {
-			this.storageService.remove(Workbench.sidebarRestoreStorageKey, StorageScope.WORKSPACE); // only support once
+		// Preserve zen mode only on reload. Real quit gets out of zen mode so novice users do not get stuck in zen mode.
+		const zenConfig = this.configurationService.getValue<IZenModeSettings>('zenMode');
+		const restoreZenMode = this.zenMode.active && (zenConfig.restore || reason === ShutdownReason.RELOAD);
+		if (restoreZenMode) {
+			this.storageService.store(Workbench.zenModeActiveStorageKey, true, StorageScope.WORKSPACE);
+		} else {
+			if (this.zenMode.active) {
+				this.toggleZenMode(true);
+			}
+			this.storageService.remove(Workbench.zenModeActiveStorageKey, StorageScope.WORKSPACE);
 		}
 
-		return restore;
+		// Dispose bindings
+		this.toUnbind = dispose(this.toUnbind);
+
+		// Pass shutdown on to each participant
+		this.workbenchShutdown = true;
 	}
 }

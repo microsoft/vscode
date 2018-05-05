@@ -101,16 +101,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	//#endregion
 
-	//#region TODO@grid context key when diff editor is visible (do this from editor service?)
-
-	private updateTextCompareEditorVisible(): void {
-		// this method was called whenever an editor got visible or hidden
-		// this.textCompareEditorVisible = TextCompareEditorVisible.bindTo(contextKeyService);
-		this.textCompareEditorVisible.set(this.visibleEditors.some(e => e && e.isVisible() && e.getId() === TEXT_DIFF_EDITOR_ID));
-	}
-
-	//#endregion
-
 	//#region TODO@grid closeEditors()
 
 	public closeEditors(positions?: Position[]): TPromise<void>;
@@ -1130,6 +1120,12 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.editorGroupsControl.layout(position);
 
 		return editor;
+	}
+
+	private updateTextCompareEditorVisible(): void {
+		// this method was called whenever an editor got visible or hidden
+		// this.textCompareEditorVisible = TextCompareEditorVisible.bindTo(contextKeyService);
+		this.textCompareEditorVisible.set(this.visibleEditors.some(e => e && e.isVisible() && e.getId() === TEXT_DIFF_EDITOR_ID));
 	}
 
 	private doHideEditor(editor: BaseEditor, position: Position, layoutAndRochade: boolean): void {
