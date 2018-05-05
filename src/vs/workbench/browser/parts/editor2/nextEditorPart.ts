@@ -205,27 +205,23 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 			return;
 		}
 
-		const hasFocus = isAncestor(document.activeElement, groupView.element);
+		const groupHasFocus = isAncestor(document.activeElement, groupView.element);
+
+		// Activate next group if the removed one was active
+		if (this._activeGroup === groupView) {
+			const mostRecentlyActiveGroups = this.getGroups(true);
+			const nextActiveGroup = mostRecentlyActiveGroups[1]; // [0] will be the current group we are about to dispose
+			this.activateGroup(nextActiveGroup);
+
+			// Restore focus if we had it previously
+			if (groupHasFocus) {
+				nextActiveGroup.focus();
+			}
+		}
 
 		// Remove from grid widget & dispose
 		this.gridWidget.removeView(groupView);
 		groupView.dispose();
-
-		// Remove as active group if it was
-		if (this._activeGroup === groupView) {
-			this._activeGroup = void 0;
-		}
-
-		// Activate next group if the removed one was active
-		if (!this._activeGroup) {
-			const nextActiveGroup = this.asGroupView(this.mostRecentActiveGroups[0]);
-			this.activateGroup(nextActiveGroup);
-
-			// Restore focus if we had it previously
-			if (hasFocus) {
-				nextActiveGroup.focus();
-			}
-		}
 	}
 
 	private toGridViewDirection(direction: Direction): GridViewDirection {
