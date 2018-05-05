@@ -18,7 +18,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
 import { getPathLabel } from 'vs/base/common/labels';
-import { once } from 'vs/base/common/event';
+import { Event, once, Emitter } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/paths';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -27,14 +27,23 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { INextEditorGroupsService, INextEditorGroup, Direction } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { INextEditorService, IResourceEditor, SIDE_BY_SIDE, SIDE_BY_SIDE_VALUE } from 'vs/workbench/services/editor/common/nextEditorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { coalesce } from 'vs/base/common/arrays';
 
 type ICachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
 
-export class NextEditorService implements INextEditorService {
+export class NextEditorService extends Disposable implements INextEditorService {
 
 	_serviceBrand: any;
 
 	private static CACHE: ResourceMap<ICachedEditorInput> = new ResourceMap<ICachedEditorInput>();
+
+	//#region events
+
+	private _onDidActiveEditorChange: Emitter<void> = this._register(new Emitter<void>());
+	get onDidActiveEditorChange(): Event<void> { return this._onDidActiveEditorChange.event; }
+
+	//#endregion
 
 	private fileInputFactory: IFileInputFactory;
 
@@ -47,8 +56,52 @@ export class NextEditorService implements INextEditorService {
 		@IFileService private fileService: IFileService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
+		super();
+
 		this.fileInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getFileInputFactory();
+
+		// Listen to changes for each initial group we already have
+		this.nextEditorGroupsService.groups.forEach(group => this.onDidAddGroup(group));
+
+		this.registerListeners();
 	}
+
+	private registerListeners(): void {
+		this.nextEditorGroupsService.onDidActiveGroupChange(group => this.onDidActiveGroupChange(group));
+		this.nextEditorGroupsService.onDidAddGroup(group => this.onDidAddGroup(group));
+	}
+
+	private onDidActiveGroupChange(group: INextEditorGroup): void {
+		this._onDidActiveEditorChange.fire();
+	}
+
+	private onDidAddGroup(group: INextEditorGroup): void {
+		const groupDisposeables: IDisposable[] = [];
+
+		groupDisposeables.push(group.onDidActiveEditorChange(() => {
+			if (group === this.nextEditorGroupsService.activeGroup) {
+				this._onDidActiveEditorChange.fire();
+			}
+		}));
+
+		once(group.onWillDispose)(() => {
+			dispose(groupDisposeables);
+		});
+	}
+
+	get activeControl(): IEditor {
+		return this.nextEditorGroupsService.activeGroup.activeControl;
+	}
+
+	get activeEditor(): IEditorInput {
+		return this.nextEditorGroupsService.activeGroup.activeEditor;
+	}
+
+	get visibleControls(): IEditor[] {
+		return coalesce(this.nextEditorGroupsService.groups.map(group => group.activeControl));
+	}
+
+	//#region openEditor()
 
 	openEditor(editor: IEditorInput, options?: IEditorOptions, group?: GroupIdentifier | SIDE_BY_SIDE): Thenable<IEditor>;
 	openEditor(editor: IResourceEditor, group?: GroupIdentifier | SIDE_BY_SIDE): Thenable<IEditor>;
@@ -138,6 +191,10 @@ export class NextEditorService implements INextEditorService {
 
 		return EditorOptions.create(options);
 	}
+
+	//#endregion
+
+	//#region createInput()
 
 	createInput(input: IEditorInput | IResourceEditor): EditorInput {
 
@@ -244,4 +301,6 @@ export class NextEditorService implements INextEditorService {
 		// Otherwise: for diff labels prefer to see the path as part of the label
 		return getPathLabel(res.fsPath, context, environment);
 	}
+
+	//#endregion
 }

@@ -8,6 +8,7 @@
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInput, IResourceInput, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditor, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
+import { Event } from 'vs/base/common/event';
 
 export const INextEditorService = createDecorator<INextEditorService>('nextEditorService');
 
@@ -16,14 +17,29 @@ export type IResourceEditor = IResourceInput | IUntitledResourceInput | IResourc
 export const SIDE_BY_SIDE_VALUE = -1;
 export type SIDE_BY_SIDE = typeof SIDE_BY_SIDE_VALUE;
 
-// TODO@grid this should provide convinience methods on top of INextEditorGroupsService to make the 99%
-// case of opening editors as simple as possible
-// Candidates:
-// - getVisibleEditors (text only?)
 export interface INextEditorService {
 	_serviceBrand: ServiceIdentifier<any>;
 
-	// TODO@grid think about a better return type, is the IEditor needed always? Should it be ITextEditor?
+	/**
+	 * Emitted when the current active editor changes.
+	 */
+	readonly onDidActiveEditorChange: Event<void>;
+
+	/**
+	 * The currently active editor control if any.
+	 */
+	readonly activeControl: IEditor;
+
+	/**
+	 * The currently active editor if any.
+	 */
+	readonly activeEditor: IEditorInput;
+
+	/**
+	 * All controls that are currently visible across all editor groups.
+	 */
+	readonly visibleControls: IEditor[];
+
 	openEditor(editor: IEditorInput, options?: IEditorOptions, group?: GroupIdentifier | SIDE_BY_SIDE): Thenable<IEditor>;
 	openEditor(editor: IResourceEditor, group?: GroupIdentifier | SIDE_BY_SIDE): Thenable<IEditor>;
 

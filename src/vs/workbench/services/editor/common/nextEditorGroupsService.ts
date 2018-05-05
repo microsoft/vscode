@@ -55,6 +55,16 @@ export interface INextEditorGroup {
 	readonly editors: IEditorInput[];
 
 	/**
+	 * Emitted when this group is being disposed.
+	 */
+	readonly onWillDispose: Event<void>;
+
+	/**
+	 * Emitted when the active editor of this group changed.
+	 */
+	readonly onDidActiveEditorChange: Event<void>;
+
+	/**
 	 * Returns the editor at a specific index of the group.
 	 */
 	getEditor(index: number): IEditorInput;
@@ -139,6 +149,11 @@ export interface INextEditorGroupsService {
 	 * group is the default location for new editors to open.
 	 */
 	readonly onDidActiveGroupChange: Event<INextEditorGroup>;
+
+	/**
+	 * An event for when a new group was added.
+	 */
+	readonly onDidAddGroup: Event<INextEditorGroup>;
 
 	/**
 	 * An active group is the default location for new editors to open.

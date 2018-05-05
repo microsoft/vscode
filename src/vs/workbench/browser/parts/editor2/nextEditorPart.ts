@@ -46,6 +46,9 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 	private _onDidActiveGroupChange: Emitter<INextEditorGroupView> = this._register(new Emitter<INextEditorGroupView>());
 	get onDidActiveGroupChange(): Event<INextEditorGroupView> { return this._onDidActiveGroupChange.event; }
 
+	private _onDidAddGroup: Emitter<INextEditorGroupView> = this._register(new Emitter<INextEditorGroupView>());
+	get onDidAddGroup(): Event<INextEditorGroupView> { return this._onDidAddGroup.event; }
+
 	//#endregion
 
 	private dimension: Dimension;
@@ -250,8 +253,6 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		// Event
 		this._onDidActiveGroupChange.fire(group);
 
-		// TODO@grid if this part emits a active editor change event, it also needs to fire now
-
 		// TODO@grid if the group is minimized, it should now restore to be maximized
 	}
 
@@ -293,6 +294,9 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 			this.groupViews.delete(groupView.id);
 			this.doUpdateMostRecentActive(groupView);
 		});
+
+		// Event
+		this._onDidAddGroup.fire(groupView);
 
 		// TODO@grid if the view gets minimized, the previous active group should become active
 

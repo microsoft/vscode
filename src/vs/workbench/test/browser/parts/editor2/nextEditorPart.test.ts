@@ -25,6 +25,11 @@ suite('editor2 tests', () => {
 			activeGroupChangeCounter++;
 		});
 
+		let groupAddedCounter = 0;
+		const activeGroupAddedListener = part.onDidAddGroup(() => {
+			groupAddedCounter++;
+		});
+
 		// always a root group
 		const rootGroup = part.groups[0];
 		assert.equal(part.groups.length, 1);
@@ -35,6 +40,7 @@ suite('editor2 tests', () => {
 		assert.equal(mru[0], rootGroup);
 
 		const rightGroup = part.addGroup(rootGroup, Direction.RIGHT);
+		assert.equal(groupAddedCounter, 1);
 		assert.equal(part.groups.length, 2);
 		assert.ok(part.activeGroup === rootGroup);
 
@@ -55,6 +61,11 @@ suite('editor2 tests', () => {
 		assert.equal(mru[1], rootGroup);
 
 		const downGroup = part.addGroup(rightGroup, Direction.DOWN);
+		let didDispose = false;
+		downGroup.onWillDispose(() => {
+			didDispose = true;
+		});
+		assert.equal(groupAddedCounter, 2);
 		assert.equal(part.groups.length, 3);
 		assert.ok(part.activeGroup === rightGroup);
 		assert.ok(!downGroup.activeControl);
@@ -66,6 +77,7 @@ suite('editor2 tests', () => {
 		assert.equal(mru[2], downGroup);
 
 		part.removeGroup(downGroup);
+		assert.equal(didDispose, true);
 		assert.equal(part.groups.length, 2);
 		assert.ok(part.activeGroup === rightGroup);
 
@@ -87,5 +99,6 @@ suite('editor2 tests', () => {
 		assert.ok(part.activeGroup === rootGroup);
 
 		activeGroupChangeListener.dispose();
+		activeGroupAddedListener.dispose();
 	});
 });
