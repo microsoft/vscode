@@ -78,17 +78,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	//#endregion
 
-	//#region TODO@grid hideTabs()
-
-	public hideTabs(forceHide: boolean): void {
-		this.forceHideTabs = forceHide;
-		const config = this.configurationService.getValue<IWorkbenchEditorConfiguration>();
-		this.tabOptions.showTabs = forceHide ? false : config && config.workbench && config.workbench.editor && config.workbench.editor.showTabs;
-		this._onTabOptionsChanged.fire(this.tabOptions);
-	}
-
-	//#endregion
-
 	//#region TODO@grid watermark (do this from the outside? what about background color for empt root view?)
 
 	private initStyles(): void {
@@ -759,6 +748,13 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		this.initStyles();
 		this.registerListeners();
+	}
+
+	public hideTabs(forceHide: boolean): void {
+		this.forceHideTabs = forceHide;
+		const config = this.configurationService.getValue<IWorkbenchEditorConfiguration>();
+		this.tabOptions.showTabs = forceHide ? false : config && config.workbench && config.workbench.editor && config.workbench.editor.showTabs;
+		this._onTabOptionsChanged.fire(this.tabOptions);
 	}
 
 	private onConfigurationUpdated(event: IConfigurationChangeEvent): void {

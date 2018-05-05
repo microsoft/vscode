@@ -43,6 +43,9 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	private _onDidActiveEditorChange: Emitter<void> = this._register(new Emitter<void>());
 	get onDidActiveEditorChange(): Event<void> { return this._onDidActiveEditorChange.event; }
 
+	private _onDidVisibleEditorsChange: Emitter<void> = this._register(new Emitter<void>());
+	get onDidVisibleEditorsChange(): Event<void> { return this._onDidVisibleEditorsChange.event; }
+
 	//#endregion
 
 	private fileInputFactory: IFileInputFactory;
@@ -82,6 +85,8 @@ export class NextEditorService extends Disposable implements INextEditorService 
 			if (group === this.nextEditorGroupsService.activeGroup) {
 				this._onDidActiveEditorChange.fire();
 			}
+
+			this._onDidVisibleEditorsChange.fire();
 		}));
 
 		once(group.onWillDispose)(() => {
@@ -99,6 +104,10 @@ export class NextEditorService extends Disposable implements INextEditorService 
 
 	get visibleControls(): IEditor[] {
 		return coalesce(this.nextEditorGroupsService.groups.map(group => group.activeControl));
+	}
+
+	get visibleEditors(): IEditorInput[] {
+		return coalesce(this.nextEditorGroupsService.groups.map(group => group.activeEditor));
 	}
 
 	//#region openEditor()

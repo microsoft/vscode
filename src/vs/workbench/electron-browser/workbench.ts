@@ -190,8 +190,9 @@ export class Workbench implements IPartService {
 	private workbench: Builder;
 	private workbenchStarted: boolean;
 	private workbenchCreated: boolean;
-	private editorService: IWorkbenchEditorService;
-	private editorGroupService: IEditorGroupService;
+	private legacyEditorService: IWorkbenchEditorService;
+	private legacyEditorGroupService: IEditorGroupService;
+	private nextEditorService: INextEditorService;
 	private workbenchShutdown: boolean;
 	private viewletService: IViewletService;
 	private contextKeyService: IContextKeyService;
@@ -231,6 +232,7 @@ export class Workbench implements IPartService {
 		active: boolean;
 		transitionedToFullScreen: boolean;
 		transitionedToCenteredEditorLayout: boolean;
+		transitionDisposeables: IDisposable[];
 		wasSideBarVisible: boolean;
 		wasPanelVisible: boolean;
 	};
@@ -339,15 +341,15 @@ export class Workbench implements IPartService {
 
 	private registerListeners(): void {
 
-		// Listen to editor changes
-		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+		// Listen to visible editor changes
+		this.toUnbind.push(this.nextEditorService.onDidVisibleEditorsChange(() => this.onDidVisibleEditorsChange()));
 
 		// Listen to editor closing (if we run with --wait)
 		const filesToWait = this.workbenchParams.configuration.filesToWait;
 		if (filesToWait) {
 			const resourcesToWaitFor = filesToWait.paths.map(p => URI.file(p.filePath));
 			const waitMarkerFile = URI.file(filesToWait.waitMarkerFilePath);
-			const listenerDispose = this.editorGroupService.getStacksModel().onEditorClosed(() => this.onEditorClosed(listenerDispose, resourcesToWaitFor, waitMarkerFile));
+			const listenerDispose = this.legacyEditorGroupService.getStacksModel().onEditorClosed(() => this.onEditorClosed(listenerDispose, resourcesToWaitFor, waitMarkerFile));
 
 			this.toUnbind.push(listenerDispose);
 		}
@@ -388,15 +390,15 @@ export class Workbench implements IPartService {
 		// In wait mode, listen to changes to the editors and wait until the files
 		// are closed that the user wants to wait for. When this happens we delete
 		// the wait marker file to signal to the outside that editing is done.
-		const stacks = this.editorGroupService.getStacksModel();
+		const stacks = this.legacyEditorGroupService.getStacksModel();
 		if (resourcesToWaitFor.every(r => !stacks.isOpen(r))) {
 			listenerDispose.dispose();
 			this.fileService.del(waitMarkerFile).done(null, errors.onUnexpectedError);
 		}
 	}
 
-	private onEditorsChanged(): void {
-		const visibleEditors = this.editorService.getVisibleEditors();
+	private onDidVisibleEditorsChange(): void {
+		const visibleEditors = this.nextEditorService.visibleControls;
 
 		// Close when empty: check if we should close the window based on the setting
 		// Overruled by: window has a workspace opened or this window is for extension development
@@ -417,20 +419,18 @@ export class Workbench implements IPartService {
 	}
 
 	private handleEditorBackground(): void {
-		const visibleEditors = this.editorService.getVisibleEditors().length;
-
 		const editorContainer = this.editorPart.getContainer();
-		if (visibleEditors === 0) {
+		if (this.nextEditorService.visibleControls.length === 0) {
 			this.editorsVisibleContext.reset();
-			this.editorBackgroundDelayer.trigger(() => DOM.addClass(editorContainer, 'empty2')); // TODO@grid reenable (find "empty2") and move this into editorPart.ts!
+			this.editorBackgroundDelayer.trigger(() => DOM.addClass(editorContainer, 'empty')); // TODO@grid reenable
 		} else {
 			this.editorsVisibleContext.set(true);
-			this.editorBackgroundDelayer.trigger(() => DOM.removeClass(editorContainer, 'empty2'));
+			this.editorBackgroundDelayer.trigger(() => DOM.removeClass(editorContainer, 'empty'));
 		}
 	}
 
 	private onAllEditorsClosed(): void {
-		const visibleEditors = this.editorService.getVisibleEditors().length;
+		const visibleEditors = this.nextEditorService.visibleControls.length;
 		if (visibleEditors === 0) {
 			this.windowService.closeWindow();
 		}
@@ -480,7 +480,7 @@ export class Workbench implements IPartService {
 		restorePromises.push(this.resolveEditorsToOpen().then(inputs => {
 			let editorOpenPromise: TPromise<IEditor[]>;
 			if (inputs.length) {
-				editorOpenPromise = this.editorService.openEditors(inputs.map(input => { return { input, position: EditorPosition.ONE }; }));
+				editorOpenPromise = this.legacyEditorService.openEditors(inputs.map(input => { return { input, position: EditorPosition.ONE }; }));
 			} else {
 				editorOpenPromise = this.noOpEditorPart.restoreEditors();
 			}
@@ -735,13 +735,14 @@ export class Workbench implements IPartService {
 		this.editorPart = this.instantiationService.createInstance(NextEditorPart, Identifiers.EDITOR_PART /*, !this.hasFilesToCreateOpenOrDiff*/);
 		this.toUnbind.push(toDisposable(() => this.editorPart.shutdown()));
 		serviceCollection.set(INextEditorGroupsService, this.editorPart);
-		serviceCollection.set(INextEditorService, new SyncDescriptor(NextEditorService));
+		this.nextEditorService = this.instantiationService.createInstance(NextEditorService);
+		serviceCollection.set(INextEditorService, this.nextEditorService);
 
 		// Legacy Editor Services
 		this.noOpEditorPart = new NoOpEditorPart(this.instantiationService);
-		this.editorService = this.instantiationService.createInstance(WorkbenchEditorService, this.noOpEditorPart);
-		this.editorGroupService = this.noOpEditorPart;
-		serviceCollection.set(IWorkbenchEditorService, this.editorService);
+		this.legacyEditorService = this.instantiationService.createInstance(WorkbenchEditorService, this.noOpEditorPart);
+		this.legacyEditorGroupService = this.noOpEditorPart;
+		serviceCollection.set(IWorkbenchEditorService, this.legacyEditorService);
 		serviceCollection.set(IEditorGroupService, this.noOpEditorPart);
 
 		// Title bar
@@ -849,7 +850,8 @@ export class Workbench implements IPartService {
 			transitionedToFullScreen: false,
 			transitionedToCenteredEditorLayout: false,
 			wasSideBarVisible: false,
-			wasPanelVisible: false
+			wasPanelVisible: false,
+			transitionDisposeables: []
 		};
 
 		// Centered Editor Layout
@@ -1004,7 +1006,7 @@ export class Workbench implements IPartService {
 		let promise = TPromise.wrap<any>(null);
 		if (hidden && this.sidebarPart.getActiveViewlet()) {
 			promise = this.sidebarPart.hideActiveViewlet().then(() => {
-				const activeEditor = this.editorService.getActiveEditor();
+				const activeEditor = this.nextEditorService.activeControl;
 				const activePanel = this.panelPart.getActivePanel();
 
 				// Pass Focus to Editor or Panel if Sidebar is now hidden
@@ -1057,7 +1059,7 @@ export class Workbench implements IPartService {
 			promise = this.panelPart.hideActivePanel().then(() => {
 
 				// Pass Focus to Editor if Panel part is now hidden
-				const editor = this.editorService.getActiveEditor();
+				const editor = this.nextEditorService.activeControl;
 				if (editor) {
 					editor.focus();
 				}
@@ -1331,17 +1333,22 @@ export class Workbench implements IPartService {
 
 	public toggleZenMode(skipLayout?: boolean): void {
 		this.zenMode.active = !this.zenMode.active;
+		this.zenMode.transitionDisposeables = dispose(this.zenMode.transitionDisposeables);
 
 		// Check if zen mode transitioned to full screen and if now we are out of zen mode
 		// -> we need to go out of full screen (same goes for the centered editor layout)
 		let toggleFullScreen = false;
+
+		// Zen Mode Active
 		if (this.zenMode.active) {
 			const config = this.configurationService.getValue<IZenModeSettings>('zenMode');
+
 			toggleFullScreen = !browser.isFullscreen() && config.fullScreen;
 			this.zenMode.transitionedToFullScreen = toggleFullScreen;
 			this.zenMode.transitionedToCenteredEditorLayout = !this.isEditorLayoutCentered() && config.centerLayout;
 			this.zenMode.wasSideBarVisible = this.isVisible(Parts.SIDEBAR_PART);
 			this.zenMode.wasPanelVisible = this.isVisible(Parts.PANEL_PART);
+
 			this.setPanelHidden(true, true).done(void 0, errors.onUnexpectedError);
 			this.setSideBarHidden(true, true).done(void 0, errors.onUnexpectedError);
 
@@ -1353,28 +1360,33 @@ export class Workbench implements IPartService {
 				this.setStatusBarHidden(true, true);
 			}
 
-			if (config.hideTabs) {
-				this.noOpEditorPart.hideTabs(true);
+			if (config.hideTabs && this.editorPart.partOptions.showTabs) {
+				this.zenMode.transitionDisposeables.push(this.editorPart.enforcePartOptions({ showTabs: false }));
 			}
 
 			if (config.centerLayout) {
 				this.centerEditorLayout(true, true);
 			}
-		} else {
+		}
+
+		// Zen Mode Inactive
+		else {
 			if (this.zenMode.wasPanelVisible) {
 				this.setPanelHidden(false, true).done(void 0, errors.onUnexpectedError);
 			}
+
 			if (this.zenMode.wasSideBarVisible) {
 				this.setSideBarHidden(false, true).done(void 0, errors.onUnexpectedError);
 			}
+
 			if (this.zenMode.transitionedToCenteredEditorLayout) {
 				this.centerEditorLayout(false, true);
 			}
 
 			// Status bar and activity bar visibility come from settings -> update their visibility.
 			this.onDidUpdateConfiguration(true);
-			this.noOpEditorPart.hideTabs(false);
-			const activeEditor = this.editorService.getActiveEditor();
+
+			const activeEditor = this.nextEditorService.activeControl;
 			if (activeEditor) {
 				activeEditor.focus();
 			}

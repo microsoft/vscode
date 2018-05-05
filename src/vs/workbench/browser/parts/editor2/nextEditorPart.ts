@@ -23,6 +23,8 @@ import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { INextEditorGroupsAccessor, INextEditorGroupView, INextEditorPartOptions, getEditorPartOptions, impactsEditorPartOptions, INextEditorPartOptionsChangeEvent } from 'vs/workbench/browser/parts/editor2/editor2';
 import { NextEditorGroupView } from 'vs/workbench/browser/parts/editor2/nextEditorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { assign } from 'vs/base/common/objects';
 
 // TODO@grid provide DND support of groups/editors:
 // - editor: move/copy to existing group, move/copy to new split group (up, down, left, right)
@@ -75,7 +77,9 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		this.registerListeners();
 	}
 
-	//#region INextEditorAccessor
+	//#region IEditorPartOptions
+
+	private enforcedPartOptions: INextEditorPartOptions[] = [];
 
 	private _onDidEditorPartOptionsChange: Emitter<INextEditorPartOptionsChangeEvent> = this._register(new Emitter<INextEditorPartOptionsChangeEvent>());
 	get onDidEditorPartOptionsChange(): Event<INextEditorPartOptionsChangeEvent> { return this._onDidEditorPartOptionsChange.event; }
@@ -86,14 +90,38 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 	private onConfigurationUpdated(event: IConfigurationChangeEvent): void {
 		if (impactsEditorPartOptions(event)) {
-			const oldPartOptions = this._partOptions;
-			this._partOptions = getEditorPartOptions(this.configurationService.getValue<IWorkbenchEditorConfiguration>());
-			this._onDidEditorPartOptionsChange.fire({ oldPartOptions, newPartOptions: this._partOptions });
+			this.handleChangedPartOptions();
 		}
+	}
+
+	private handleChangedPartOptions(): void {
+		const oldPartOptions = this._partOptions;
+
+		const newPartOptions = getEditorPartOptions(this.configurationService.getValue<IWorkbenchEditorConfiguration>());
+
+		this.enforcedPartOptions.forEach(enforcedPartOptions => {
+			assign(newPartOptions, enforcedPartOptions); // check for overrides
+		});
+
+		this._partOptions = newPartOptions;
+
+		this._onDidEditorPartOptionsChange.fire({ oldPartOptions, newPartOptions });
 	}
 
 	get partOptions(): INextEditorPartOptions {
 		return this._partOptions;
+	}
+
+	enforcePartOptions(options: INextEditorPartOptions): IDisposable {
+		this.enforcedPartOptions.push(options);
+		this.handleChangedPartOptions();
+
+		return {
+			dispose: () => {
+				this.enforcedPartOptions.splice(this.enforcedPartOptions.indexOf(options), 1);
+				this.handleChangedPartOptions();
+			}
+		};
 	}
 
 	//#endregion
