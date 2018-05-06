@@ -55,10 +55,16 @@ export const TAB_BORDER = registerColor('tab.border', {
 }, nls.localize('tabBorder', "Border to separate tabs from each other. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 export const TAB_ACTIVE_BORDER = registerColor('tab.activeBorder', {
-	dark: '#BD9A0F',
-	light: '#F09942',
+	dark: null,
+	light: null,
 	hc: null
 }, nls.localize('tabActiveBorder', "Border to highlight active tabs. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+export const TAB_ACTIVE_BORDER_TOP = registerColor('tab.activeBorderTop', {
+	dark: null,
+	light: null,
+	hc: null
+}, nls.localize('tabActiveBorderTop', "Border to highlight the top of active tabs. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 export const TAB_UNFOCUSED_ACTIVE_BORDER = registerColor('tab.unfocusedActiveBorder', {
 	dark: transparent(TAB_ACTIVE_BORDER, 0.5),
