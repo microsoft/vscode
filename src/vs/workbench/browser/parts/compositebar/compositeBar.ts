@@ -394,7 +394,10 @@ export class CompositeBar extends Widget implements ICompositeBar {
 				this.compositeOverflowAction,
 				() => this.getOverflowingComposites(),
 				() => this.model.activeItem ? this.model.activeItem.id : void 0,
-				(compositeId: string) => { const item = this.model.findItem(compositeId); return item && item.activity[0].badge; },
+				(compositeId: string) => {
+					const item = this.model.findItem(compositeId);
+					return item && item.activity[0] && item.activity[0].badge;
+				},
 				this.options.getOnCompositeClickAction,
 				this.options.colors
 			);
@@ -491,16 +494,8 @@ class CompositeBarModel {
 	private createCompositeBarItem(id: string, name: string, order: number, pinned: boolean): ICompositeBarItem {
 		const options = this.options;
 		let activityAction, pinnedAction;
-		const dispose = () => {
-			if (activityAction) {
-				activityAction.dispose();
-			}
-			if (pinnedAction) {
-				pinnedAction.dispose();
-			}
-		};
 		return {
-			id, name, pinned, order,
+			id, name, pinned, order, activity: [],
 			get activityAction() {
 				if (!activityAction) {
 					activityAction = options.getActivityAction(id);
@@ -513,7 +508,14 @@ class CompositeBarModel {
 				}
 				return pinnedAction;
 			},
-			activity: [], dispose
+			dispose: () => {
+				if (activityAction) {
+					activityAction.dispose();
+				}
+				if (pinnedAction) {
+					pinnedAction.dispose();
+				}
+			}
 		};
 	}
 
