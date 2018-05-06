@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise, ValueCallback } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Event, Emitter } from 'vs/base/common/event';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -26,9 +25,7 @@ export class ViewletService implements IViewletService {
 	private sidebarPart: SidebarPart;
 	private viewletRegistry: ViewletRegistry;
 
-	private extensionViewlets: ViewletDescriptor[];
 	private extensionViewletsLoaded: TPromise<void>;
-	private extensionViewletsLoadedPromiseComplete: ValueCallback;
 	private activeViewletContextKey: IContextKey<string>;
 	private _onDidViewletEnable = new Emitter<{ id: string, enabled: boolean }>();
 	private disposables: IDisposable[] = [];
@@ -40,7 +37,6 @@ export class ViewletService implements IViewletService {
 
 	constructor(
 		sidebarPart: SidebarPart,
-		@IExtensionService private extensionService: IExtensionService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this.sidebarPart = sidebarPart;
@@ -50,8 +46,6 @@ export class ViewletService implements IViewletService {
 
 		this.onDidViewletOpen(this._onDidViewletOpen, this, this.disposables);
 		this.onDidViewletClose(this._onDidViewletClose, this, this.disposables);
-
-		this.loadExtensionViewlets();
 	}
 
 	private _onDidViewletOpen(viewlet: IViewlet): void {
@@ -64,25 +58,6 @@ export class ViewletService implements IViewletService {
 		if (this.activeViewletContextKey.get() === id) {
 			this.activeViewletContextKey.set('');
 		}
-	}
-
-	private loadExtensionViewlets(): void {
-		this.extensionViewlets = [];
-
-		this.extensionViewletsLoaded = new TPromise<void>(c => {
-			this.extensionViewletsLoadedPromiseComplete = c;
-		});
-
-		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
-			const viewlets = this.viewletRegistry.getViewlets();
-			viewlets.forEach(v => {
-				if (!!v.extensionId) {
-					this.extensionViewlets.push(v);
-				}
-			});
-
-			this.extensionViewletsLoadedPromiseComplete(void 0);
-		});
 	}
 
 	public setViewletEnablement(id: string, enabled: boolean): void {
@@ -118,15 +93,12 @@ export class ViewletService implements IViewletService {
 	}
 
 	public getViewlets(): ViewletDescriptor[] {
-		const builtInViewlets = this.getBuiltInViewlets();
-		const viewlets = builtInViewlets.concat(this.extensionViewlets);
-
-		return viewlets.filter(v => v.enabled);
+		return this.getBuiltInViewlets()
+			.filter(v => v.enabled);
 	}
 
 	private getBuiltInViewlets(): ViewletDescriptor[] {
 		return this.viewletRegistry.getViewlets()
-			.filter(viewlet => !viewlet.extensionId)
 			.sort((v1, v2) => v1.order - v2.order);
 	}
 
