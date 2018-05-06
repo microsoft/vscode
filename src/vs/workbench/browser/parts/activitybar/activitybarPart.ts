@@ -48,6 +48,7 @@ export class ActivitybarPart extends Part {
 	private globalActivityIdToActions: { [globalActivityId: string]: GlobalActivityAction; };
 
 	private compositeBar: CompositeBar;
+	private compositeActions: { [compositeId: string]: { activityAction: ViewletActivityAction, pinnedAction: ToggleCompositePinnedAction } };
 
 	constructor(
 		id: string,
@@ -60,14 +61,15 @@ export class ActivitybarPart extends Part {
 
 		this.globalActivityIdToActions = Object.create(null);
 
+		this.compositeActions = Object.create(null);
 		this.compositeBar = this.instantiationService.createInstance(CompositeBar, {
 			icon: true,
 			storageId: ActivitybarPart.PINNED_VIEWLETS,
 			orientation: ActionsOrientation.VERTICAL,
 			composites: this.viewletService.getViewlets().filter(v => this.canShow(v)),
 			openComposite: (compositeId: string) => this.viewletService.openViewlet(compositeId, true),
-			getActivityAction: (compositeId: string) => this.instantiationService.createInstance(ViewletActivityAction, this.viewletService.getViewlet(compositeId)),
-			getCompositePinnedAction: (compositeId: string) => new ToggleCompositePinnedAction(this.viewletService.getViewlet(compositeId), this.compositeBar),
+			getActivityAction: (compositeId: string) => this.getCompositeActions(compositeId).activityAction,
+			getCompositePinnedAction: (compositeId: string) => this.getCompositeActions(compositeId).pinnedAction,
 			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(ToggleViewletAction, this.viewletService.getViewlet(compositeId)),
 			getContextMenuActions: () => [this.instantiationService.createInstance(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, nls.localize('hideActivitBar', "Hide Activity Bar"))],
 			getDefaultCompositeId: () => this.viewletService.getDefaultViewletId(),
@@ -96,7 +98,7 @@ export class ActivitybarPart extends Part {
 			if (enabled) {
 				this.compositeBar.addComposite(this.viewletService.getViewlet(id), true);
 			} else {
-				this.compositeBar.removeComposite(id);
+				this.removeComposite(id);
 			}
 		}));
 	}
@@ -177,6 +179,18 @@ export class ActivitybarPart extends Part {
 		});
 	}
 
+	private getCompositeActions(compositeId: string): { activityAction: ViewletActivityAction, pinnedAction: ToggleCompositePinnedAction } {
+		let compositeActions = this.compositeActions[compositeId];
+		if (!compositeActions) {
+			compositeActions = {
+				activityAction: this.instantiationService.createInstance(ViewletActivityAction, this.viewletService.getViewlet(compositeId)),
+				pinnedAction: new ToggleCompositePinnedAction(this.viewletService.getViewlet(compositeId), this.compositeBar)
+			};
+			this.compositeActions[compositeId] = compositeActions;
+		}
+		return compositeActions;
+	}
+
 	private updateCompositebar(): void {
 		const viewlets = this.viewletService.getViewlets();
 		for (const viewlet of viewlets) {
@@ -189,8 +203,18 @@ export class ActivitybarPart extends Part {
 					this.compositeBar.activateComposite(viewlet.id);
 				}
 			} else {
-				this.compositeBar.removeComposite(viewlet.id);
+				this.removeComposite(viewlet.id);
 			}
+		}
+	}
+
+	private removeComposite(compositeId: string): void {
+		this.compositeBar.removeComposite(compositeId);
+		const compositeActions = this.compositeActions[compositeId];
+		if (compositeActions) {
+			compositeActions.activityAction.dispose();
+			compositeActions.pinnedAction.dispose();
+			delete this.compositeActions[compositeId];
 		}
 	}
 

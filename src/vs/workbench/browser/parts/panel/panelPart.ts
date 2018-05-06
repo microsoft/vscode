@@ -42,6 +42,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	private blockOpeningPanel: boolean;
 	private compositeBar: CompositeBar;
+	private compositeActions: { [compositeId: string]: { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction } };
 	private dimension: Dimension;
 
 	constructor(
@@ -74,14 +75,15 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			{ hasTitle: true }
 		);
 
+		this.compositeActions = Object.create(null);
 		this.compositeBar = this.instantiationService.createInstance(CompositeBar, {
 			icon: false,
 			storageId: PanelPart.PINNED_PANELS,
 			orientation: ActionsOrientation.HORIZONTAL,
 			composites: this.getPanels(),
 			openComposite: (compositeId: string) => this.openPanel(compositeId, true),
-			getActivityAction: (compositeId: string) => this.instantiationService.createInstance(PanelActivityAction, this.getPanel(compositeId)),
-			getCompositePinnedAction: (compositeId: string) => new ToggleCompositePinnedAction(this.getPanel(compositeId), this.compositeBar),
+			getActivityAction: (compositeId: string) => this.getCompositeActions(compositeId).activityAction,
+			getCompositePinnedAction: (compositeId: string) => this.getCompositeActions(compositeId).pinnedAction,
 			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(PanelActivityAction, this.getPanel(compositeId)),
 			getContextMenuActions: () => [this.instantiationService.createInstance(TogglePanelAction, TogglePanelAction.ID, localize('hidePanel', "Hide Panel"))],
 			getDefaultCompositeId: () => Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId(),
@@ -178,7 +180,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 					this.compositeBar.activateComposite(descriptor.id);
 				});
 			} else {
-				this.compositeBar.removeComposite(id);
+				this.removeComposite(id);
 			}
 		}
 	}
@@ -250,6 +252,28 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 				availableWidth = Math.max(PanelPart.MIN_COMPOSITE_BAR_WIDTH, availableWidth - this.getToolbarWidth());
 			}
 			this.compositeBar.layout(new Dimension(availableWidth, this.dimension.height));
+		}
+	}
+
+	private getCompositeActions(compositeId: string): { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction } {
+		let compositeActions = this.compositeActions[compositeId];
+		if (!compositeActions) {
+			compositeActions = {
+				activityAction: this.instantiationService.createInstance(PanelActivityAction, this.getPanel(compositeId)),
+				pinnedAction: new ToggleCompositePinnedAction(this.getPanel(compositeId), this.compositeBar)
+			};
+			this.compositeActions[compositeId] = compositeActions;
+		}
+		return compositeActions;
+	}
+
+	private removeComposite(compositeId: string): void {
+		this.compositeBar.removeComposite(compositeId);
+		const compositeActions = this.compositeActions[compositeId];
+		if (compositeActions) {
+			compositeActions.activityAction.dispose();
+			compositeActions.pinnedAction.dispose();
+			delete this.compositeActions[compositeId];
 		}
 	}
 

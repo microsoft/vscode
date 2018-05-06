@@ -478,7 +478,7 @@ interface ISerializedCompositeBarItem {
 	order: number;
 }
 
-interface ICompositeBarItem extends ISerializedCompositeBarItem, IDisposable {
+interface ICompositeBarItem extends ISerializedCompositeBarItem {
 	name: string;
 	activityAction: ActivityAction;
 	pinnedAction: Action;
@@ -494,28 +494,13 @@ class CompositeBarModel {
 
 	private createCompositeBarItem(id: string, name: string, order: number, pinned: boolean): ICompositeBarItem {
 		const options = this.options;
-		let activityAction, pinnedAction;
 		return {
 			id, name, pinned, order, activity: [],
 			get activityAction() {
-				if (!activityAction) {
-					activityAction = options.getActivityAction(id);
-				}
-				return activityAction;
+				return options.getActivityAction(id);
 			},
 			get pinnedAction() {
-				if (!pinnedAction) {
-					pinnedAction = options.getCompositePinnedAction(id);
-				}
-				return pinnedAction;
-			},
-			dispose: () => {
-				if (activityAction) {
-					activityAction.dispose();
-				}
-				if (pinnedAction) {
-					pinnedAction.dispose();
-				}
+				return options.getCompositePinnedAction(id);
 			}
 		};
 	}
@@ -541,8 +526,7 @@ class CompositeBarModel {
 	remove(id: string): boolean {
 		for (let index = 0; index < this.items.length; index++) {
 			if (this.items[index].id === id) {
-				const item = this.items.splice(index, 1)[0];
-				item.dispose();
+				this.items.splice(index, 1);
 				return true;
 			}
 		}
