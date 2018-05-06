@@ -80,7 +80,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			icon: false,
 			storageId: PanelPart.PINNED_PANELS,
 			orientation: ActionsOrientation.HORIZONTAL,
-			composites: this.getPanels(),
 			openComposite: (compositeId: string) => this.openPanel(compositeId, true),
 			getActivityAction: (compositeId: string) => this.getCompositeActions(compositeId).activityAction,
 			getCompositePinnedAction: (compositeId: string) => this.getCompositeActions(compositeId).pinnedAction,
@@ -98,6 +97,9 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			}
 		});
 		this.toUnbind.push(this.compositeBar);
+		for (const panel of this.getPanels()) {
+			this.compositeBar.addComposite(panel, false);
+		}
 
 		this.registerListeners();
 	}

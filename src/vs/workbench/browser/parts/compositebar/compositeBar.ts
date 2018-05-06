@@ -25,7 +25,6 @@ export interface ICompositeBarOptions {
 	icon: boolean;
 	storageId: string;
 	orientation: ActionsOrientation;
-	composites: { id: string, name: string, order: number }[];
 	colors: ICompositeBarColors;
 	compositeSize: number;
 	overflowActionSize: number;
@@ -62,14 +61,6 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		this.storedState = this.loadCompositeItemsFromStorage();
 		this.visibleComposites = [];
 		this.compositeSizeInBar = new Map<string, number>();
-
-		let index = 0;
-		for (const state of this.storedState) {
-			const composite = this.options.composites.filter(c => c.id === state.id)[0];
-			if (composite) {
-				this.addToModel(composite.id, composite.name, composite.order, state.pinned, index++);
-			}
-		}
 	}
 
 	public create(parent: HTMLElement): HTMLElement {
@@ -449,16 +440,8 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 	private loadCompositeItemsFromStorage(): ISerializedCompositeBarItem[] {
 		const storedStates = <Array<string | ISerializedCompositeBarItem>>JSON.parse(this.storageService.get(this.options.storageId, StorageScope.GLOBAL, '[]'));
-		const isOldData = storedStates && storedStates.length && typeof storedStates[0] === 'string';
 		const compositeStates = <ISerializedCompositeBarItem[]>storedStates.map(c =>
 			typeof c === 'string' /* migration from pinned states to composites states */ ? { id: c, pinned: true } : c);
-
-		if (!isOldData) { /* Add new composites only if it is new data */
-			const newComposites = this.options.composites.filter(c => compositeStates.every(s => s.id !== c.id));
-			newComposites.sort((c1, c2) => c1.order < c2.order ? -1 : 1);
-			newComposites.forEach(c => compositeStates.push({ id: c.id, pinned: true, order: c.order /* new composites are pinned by default */ }));
-		}
-
 		return compositeStates;
 	}
 
