@@ -22,7 +22,7 @@ import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { distinct } from 'vs/base/common/arrays';
-import { INextEditorGroupsService } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';

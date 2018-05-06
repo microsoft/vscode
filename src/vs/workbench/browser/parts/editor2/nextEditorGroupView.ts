@@ -19,7 +19,7 @@ import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND } from 'vs/workbench/common/theme';
-import { IMoveEditorOptions } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { IMoveEditorOptions } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { NextTabsTitleControl } from 'vs/workbench/browser/parts/editor2/nextTabsTitleControl';
 import { NextEditorControl } from 'vs/workbench/browser/parts/editor2/nextEditorControl';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -129,13 +129,13 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 		this.disposedEditorsWorker = this._register(new RunOnceWorker(editors => this.handleDisposedEditors(editors), 0));
 
-		this.doCreate();
-		this.registerListeners();
+		this.create();
+		this.showInitialEditors(from);
 
-		this.restoreEditors(from);
+		this.registerListeners();
 	}
 
-	private doCreate(): void {
+	private create(): void {
 
 		// Container
 		addClasses(this.element, 'editor-group-container');
@@ -265,6 +265,34 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		} else {
 			this.titleAreaControl = this.scopedInstantiationService.createInstance(NextNoTabsTitleControl, this.titleContainer, this.accessor, this);
 		}
+	}
+
+	private showInitialEditors(from: INextEditorGroupView | ISerializedEditorGroup): void {
+		if (this.group.count === 0) {
+			return; // nothing to show
+		}
+
+		// Determine editor options
+		let options: EditorOptions;
+		if (from instanceof NextEditorGroupView) {
+			const fromEditorControl = getCodeEditor(from.activeControl);
+			if (fromEditorControl) {
+				options = TextEditorOptions.fromEditor(fromEditorControl); // if we copy from another group, ensure to copy its active editor viewstate
+			}
+		} else {
+			options = new EditorOptions();
+		}
+
+		const activeEditor = this.group.activeEditor;
+		options.pinned = this.group.isPinned(activeEditor);	// preserve pinned state
+		options.preserveFocus = true;						// handle focus after editor is opened
+
+		// Restore in editor
+		this.doShowEditor(activeEditor, true, options).then(() => {
+			if (this.accessor.activeGroup === this) {
+				this.focus();
+			}
+		});
 	}
 
 	//#region event handling
@@ -409,38 +437,6 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	//#endregion
 
-	private restoreEditors(from: INextEditorGroupView | ISerializedEditorGroup): void {
-		if (this.group.count === 0) {
-			return; // nothing to restore
-		}
-
-		const activeEditor = this.group.activeEditor;
-
-		// Restore in title
-		this.titleAreaControl.openEditor(activeEditor);
-
-		// Determine editor options
-		let options: EditorOptions;
-		if (from instanceof NextEditorGroupView) {
-			const fromEditorControl = getCodeEditor(from.activeControl);
-			if (fromEditorControl) {
-				options = TextEditorOptions.fromEditor(fromEditorControl); // if we copy from another group, ensure to copy its active editor viewstate
-			}
-		} else {
-			options = new EditorOptions();
-		}
-
-		options.pinned = this.group.isPinned(activeEditor);	// preserve pinned state
-		options.preserveFocus = true;						// handle focus after editor is opened
-
-		// Restore in editor
-		this.editorControl.openEditor(activeEditor, options).then(() => {
-			if (this.accessor.activeGroup === this) {
-				this.focus();
-			}
-		});
-	}
-
 	//region INextEditorGroupView
 
 	get group(): EditorGroup {
@@ -571,9 +567,15 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		// Update model
 		this._group.openEditor(editor, openEditorOptions);
 
-		// Forward to editor control if the active editor changed (create lazily)
+		// Show editor
+		return this.doShowEditor(editor, openEditorOptions.active, options);
+	}
+
+	private doShowEditor(editor: EditorInput, active: boolean, options?: EditorOptions): Thenable<void> {
+
+		// Show in editor control if the active editor changed
 		let openEditorPromise: Thenable<void>;
-		if (openEditorOptions.active) {
+		if (active) {
 			openEditorPromise = this.editorControl.openEditor(editor, options).then(result => {
 
 				// Editor change event
@@ -589,7 +591,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 			openEditorPromise = TPromise.as(void 0);
 		}
 
-		// Forward to title control after editor control because some actions depend on it (create lazily)
+		// Show in title control after editor control because some actions depend on it
 		this.titleAreaControl.openEditor(editor);
 
 		return openEditorPromise;
@@ -672,6 +674,8 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		} else {
 			options = EditorOptions.create(moveOptions);
 		}
+
+		options.pinned = true; // always pin moved editor
 
 		// A move to another group is an open first...
 		target.openEditor(editor, options);

@@ -7,7 +7,7 @@
 
 import { GroupIdentifier, IWorkbenchEditorConfiguration, IWorkbenchEditorPartConfiguration } from 'vs/workbench/common/editor';
 import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
-import { INextEditorGroup } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Dimension } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';

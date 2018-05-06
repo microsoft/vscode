@@ -9,7 +9,7 @@ import URI from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { INextEditorGroupsService, GroupDirection } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { INextEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { join } from 'vs/base/common/paths';

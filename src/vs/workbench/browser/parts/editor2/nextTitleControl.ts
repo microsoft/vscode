@@ -34,7 +34,7 @@ import { isDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension } from 'vs/base/browser/dom';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { INextEditorGroup } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { INextEditorGroupsAccessor, INextEditorPartOptions } from 'vs/workbench/browser/parts/editor2/editor2';
 

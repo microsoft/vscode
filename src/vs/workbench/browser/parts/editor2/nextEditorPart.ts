@@ -11,7 +11,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { Dimension, isAncestor, toggleClass, addClass } from 'vs/base/browser/dom';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { INextEditorGroupsService, GroupDirection } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { INextEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Direction, SerializableGrid } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
@@ -108,7 +108,6 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 	private handleChangedPartOptions(): void {
 		const oldPartOptions = this._partOptions;
-
 		const newPartOptions = getEditorPartOptions(this.configurationService.getValue<IWorkbenchEditorConfiguration>());
 
 		this.enforcedPartOptions.forEach(enforcedPartOptions => {
@@ -282,6 +281,15 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		}
 	}
 
+	private toGridViewDirection(direction: GroupDirection): Direction {
+		switch (direction) {
+			case GroupDirection.UP: return Direction.Up;
+			case GroupDirection.DOWN: return Direction.Down;
+			case GroupDirection.LEFT: return Direction.Left;
+			case GroupDirection.RIGHT: return Direction.Right;
+		}
+	}
+
 	removeGroup(group: INextEditorGroupView | GroupIdentifier): void {
 		const groupView = this.asGroupView(group);
 		if (
@@ -316,15 +324,6 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 		// Event
 		this._onDidRemoveGroup.fire(groupView);
-	}
-
-	private toGridViewDirection(direction: GroupDirection): Direction {
-		switch (direction) {
-			case GroupDirection.UP: return Direction.Up;
-			case GroupDirection.DOWN: return Direction.Down;
-			case GroupDirection.LEFT: return Direction.Left;
-			case GroupDirection.RIGHT: return Direction.Right;
-		}
 	}
 
 	private asGroupView(group: INextEditorGroupView | GroupIdentifier): INextEditorGroupView {
@@ -365,6 +364,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		const uiState = this.memento[NextEditorPart.NEXT_EDITOR_PART_UI_STATE_STORAGE_KEY] as INextEditorPartUIState;
 		if (uiState && uiState.serializedGrid) {
 			this.mostRecentActiveGroups = uiState.mostRecentActiveGroups;
+
 			this.gridWidget = this._register(SerializableGrid.deserialize(container, uiState.serializedGrid, {
 				fromJSON: (serializedEditorGroup: ISerializedEditorGroup) => {
 					const groupView = this.doCreateGroupView(serializedEditorGroup);
@@ -377,7 +377,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 			}));
 
 			// Ensure last active group has focus
-			this.activeGroup.focus();
+			this._activeGroup.focus();
 		}
 
 		// Grid Widget (no previous UI state)
@@ -394,7 +394,11 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 	}
 
 	private updateContainer(): void {
-		toggleClass(this.container, 'empty', this.groupViews.size === 1 && this.activeGroup.isEmpty());
+		toggleClass(this.container, 'empty', this.isEmpty());
+	}
+
+	private isEmpty(): boolean {
+		return this.groupViews.size === 1 && this._activeGroup.isEmpty();
 	}
 
 	layout(dimension: Dimension): Dimension[] {
@@ -420,7 +424,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 			mostRecentActiveGroups: this.mostRecentActiveGroups
 		};
 
-		if (this.count === 1 && this.activeGroup.isEmpty()) {
+		if (this.isEmpty()) {
 			delete this.memento[NextEditorPart.NEXT_EDITOR_PART_UI_STATE_STORAGE_KEY];
 		} else {
 			this.memento[NextEditorPart.NEXT_EDITOR_PART_UI_STATE_STORAGE_KEY] = uiState;

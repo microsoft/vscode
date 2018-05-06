@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import { NextEditorPart } from 'vs/workbench/browser/parts/editor2/nextEditorPart';
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
-import { GroupDirection } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { GroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { Dimension } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INextEditorPartOptions } from 'vs/workbench/browser/parts/editor2/editor2';

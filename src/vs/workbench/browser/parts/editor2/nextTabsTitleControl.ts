@@ -36,7 +36,7 @@ import { ResourcesDropHandler, fillResourceDataTransfers, LocalSelectionTransfer
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { INextEditorGroup } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { addClass, addDisposableListener, hasClass, EventType, EventHelper, removeClass, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';

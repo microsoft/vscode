@@ -55,12 +55,12 @@ export interface INextEditorService {
 	/**
 	 * All controls that are currently visible across all editor groups.
 	 */
-	readonly visibleControls: IEditor[];
+	readonly visibleControls: ReadonlyArray<IEditor>;
 
 	/**
 	 * All editors that are currently visible across all editor groups.
 	 */
-	readonly visibleEditors: IEditorInput[];
+	readonly visibleEditors: ReadonlyArray<IEditorInput>;
 
 	/**
 	 * Open an editor in an editor group.

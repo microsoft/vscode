@@ -25,6 +25,77 @@ export interface IMoveEditorOptions {
 	preserveFocus?: boolean;
 }
 
+export interface INextEditorGroupsService {
+
+	_serviceBrand: ServiceIdentifier<any>;
+
+	/**
+	 * An event for when the active editor group changes. The active editor
+	 * group is the default location for new editors to open.
+	 */
+	readonly onDidActiveGroupChange: Event<INextEditorGroup>;
+
+	/**
+	 * An event for when a new group was added.
+	 */
+	readonly onDidAddGroup: Event<INextEditorGroup>;
+
+	/**
+	 * An event for when a group was removed.
+	 */
+	readonly onDidRemoveGroup: Event<INextEditorGroup>;
+
+	/**
+	 * An active group is the default location for new editors to open.
+	 */
+	readonly activeGroup: INextEditorGroup;
+
+	/**
+	 * All groups that are currently visible in the editor area.
+	 */
+	readonly groups: ReadonlyArray<INextEditorGroup>;
+
+	/**
+	 * The number of editor groups that are currently opened.
+	 */
+	readonly count: number;
+
+	/**
+	 * Get all groups that are currently visible in the editor area optionally
+	 * sorted by being most recent active.
+	 */
+	getGroups(sortByMostRecentlyActive?: boolean): ReadonlyArray<INextEditorGroup>;
+
+	/**
+	 * Allows to convert a group identifier to a group.
+	 */
+	getGroup(identifier: GroupIdentifier): INextEditorGroup;
+
+	/**
+	 * Move keyboard focus into the provided group.
+	 */
+	focusGroup(group: INextEditorGroup | GroupIdentifier): INextEditorGroup;
+
+	/**
+	 * Set a group as active. An active group is the default location for new editors to open.
+	 */
+	activateGroup(group: INextEditorGroup | GroupIdentifier): INextEditorGroup;
+
+	/**
+	 * Add a new group to the editor area. A new group is added by splitting a provided one.
+	 *
+	 * @param fromGroup the group from which to split to add a new group
+	 * @param direction the direction of where to split to
+	 * @param copyGroup optionally copy the editors of the group to add from
+	 */
+	addGroup(fromGroup: INextEditorGroup | GroupIdentifier, direction: GroupDirection, copyGroup?: boolean): INextEditorGroup;
+
+	/**
+	 * Remove a group from the editor area.
+	 */
+	removeGroup(group: INextEditorGroup | GroupIdentifier): void;
+}
+
 export interface INextEditorGroup {
 
 	/**
@@ -52,7 +123,7 @@ export interface INextEditorGroup {
 	/**
 	 * All opened editors in the group. There can only be one editor active.
 	 */
-	readonly editors: IEditorInput[];
+	readonly editors: ReadonlyArray<IEditorInput>;
 
 	/**
 	 * Emitted when this group is being disposed.
@@ -136,75 +207,4 @@ export interface INextEditorGroup {
 	 * Invoke a function in the context of the services of this group.
 	 */
 	invokeWithinContext<T>(fn: (accessor: ServicesAccessor) => T): T;
-}
-
-export interface INextEditorGroupsService {
-
-	_serviceBrand: ServiceIdentifier<any>;
-
-	/**
-	 * An event for when the active editor group changes. The active editor
-	 * group is the default location for new editors to open.
-	 */
-	readonly onDidActiveGroupChange: Event<INextEditorGroup>;
-
-	/**
-	 * An event for when a new group was added.
-	 */
-	readonly onDidAddGroup: Event<INextEditorGroup>;
-
-	/**
-	 * An event for when a group was removed.
-	 */
-	readonly onDidRemoveGroup: Event<INextEditorGroup>;
-
-	/**
-	 * An active group is the default location for new editors to open.
-	 */
-	readonly activeGroup: INextEditorGroup;
-
-	/**
-	 * All groups that are currently visible in the editor area.
-	 */
-	readonly groups: INextEditorGroup[];
-
-	/**
-	 * The number of editor groups that are currently opened.
-	 */
-	readonly count: number;
-
-	/**
-	 * Get all groups that are currently visible in the editor area optionally
-	 * sorted by being most recent active.
-	 */
-	getGroups(sortByMostRecentlyActive?: boolean): INextEditorGroup[];
-
-	/**
-	 * Allows to convert a group identifier to a group.
-	 */
-	getGroup(identifier: GroupIdentifier): INextEditorGroup;
-
-	/**
-	 * Move keyboard focus into the provided group.
-	 */
-	focusGroup(group: INextEditorGroup | GroupIdentifier): INextEditorGroup;
-
-	/**
-	 * Set a group as active. An active group is the default location for new editors to open.
-	 */
-	activateGroup(group: INextEditorGroup | GroupIdentifier): INextEditorGroup;
-
-	/**
-	 * Add a new group to the editor area. A new group is added by splitting a provided one.
-	 *
-	 * @param fromGroup the group from which to split to add a new group
-	 * @param direction the direction of where to split to
-	 * @param copyGroup optionally copy the editors of the group to add from
-	 */
-	addGroup(fromGroup: INextEditorGroup | GroupIdentifier, direction: GroupDirection, copyGroup?: boolean): INextEditorGroup;
-
-	/**
-	 * Remove a group from the editor area.
-	 */
-	removeGroup(group: INextEditorGroup | GroupIdentifier): void;
 }
