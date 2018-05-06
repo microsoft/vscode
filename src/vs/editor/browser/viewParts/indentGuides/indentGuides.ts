@@ -22,6 +22,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 	private _spaceWidth: number;
 	private _renderResult: string[];
 	private _enabled: boolean;
+	private _activeIndentEnabled: boolean;
 
 	constructor(context: ViewContext) {
 		super();
@@ -30,6 +31,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
 		this._enabled = this._context.configuration.editor.viewInfo.renderIndentGuides;
+		this._activeIndentEnabled = this._context.configuration.editor.viewInfo.highlightActiveIndentGuide;
 		this._renderResult = null;
 
 		this._context.addEventHandler(this);
@@ -53,6 +55,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		}
 		if (e.viewInfo) {
 			this._enabled = this._context.configuration.editor.viewInfo.renderIndentGuides;
+			this._activeIndentEnabled = this._context.configuration.editor.viewInfo.highlightActiveIndentGuide;
 		}
 		return true;
 	}
@@ -123,7 +126,8 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 
 		let output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
-			const containsActiveIndentGuide = (activeIndentStartLineNumber <= lineNumber && lineNumber <= activeIndentEndLineNumber);
+			const containsActiveIndentGuide =
+				this._activeIndentEnabled && (activeIndentStartLineNumber <= lineNumber && lineNumber <= activeIndentEndLineNumber);
 			const lineIndex = lineNumber - visibleStartLineNumber;
 			const indent = indents[lineIndex];
 
