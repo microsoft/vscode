@@ -11,6 +11,7 @@ import { MoveOperations } from 'vs/editor/common/controller/cursorMoveOperations
 import { WordOperations } from 'vs/editor/common/controller/cursorWordOperations';
 import * as types from 'vs/base/common/types';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { Selection } from 'vs/editor/common/core/selection';
 
 export class CursorMoveCommands {
 
@@ -21,6 +22,12 @@ export class CursorMoveCommands {
 			result[resultLen++] = new CursorState(cursor.modelState, cursor.viewState);
 			result[resultLen++] = CursorState.fromViewState(MoveOperations.translateDown(context.config, context.viewModel, cursor.viewState));
 		}
+		return result;
+	}
+
+	public static addCursorSelect(context: CursorContext, selections: Selection[]): CursorState[] {
+		let result: CursorState[] = [];
+		result = CursorState.fromModelSelections(selections);
 		return result;
 	}
 

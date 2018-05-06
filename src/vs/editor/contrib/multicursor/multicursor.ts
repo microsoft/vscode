@@ -47,16 +47,27 @@ export class InsertCursorAbove extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 		const cursors = editor._getCursors();
 		const context = cursors.context;
+		const model = editor.getModel();
 
 		if (context.config.readOnly) {
 			return;
 		}
 
+		let selects = editor.getSelections();
+
+		if (selects[0].startLineNumber === 1) {
+			return;
+		}
+
+		let additionalLine = editor.getModel().findPreviousMatch(model.getLineContent(selects[0].selectionStartLineNumber - 1), editor.getPosition(), false, true, null, false).range;
+
+		selects.unshift(new Selection(additionalLine.startLineNumber, selects[selects.length - 1].startColumn, additionalLine.endLineNumber, selects[selects.length - 1].startColumn));
+
 		context.model.pushStackElement();
 		cursors.setStates(
 			args.source,
 			CursorChangeReason.Explicit,
-			CursorMoveCommands.addCursorUp(context, cursors.getAll())
+			CursorMoveCommands.addCursorSelect(context, selects)
 		);
 		cursors.reveal(true, RevealTarget.TopMost, ScrollType.Smooth);
 	}
@@ -83,16 +94,27 @@ export class InsertCursorBelow extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 		const cursors = editor._getCursors();
 		const context = cursors.context;
+		const model = editor.getModel();
 
 		if (context.config.readOnly) {
 			return;
 		}
 
+		let selects = editor.getSelections();
+
+		if (selects[selects.length - 1].startLineNumber >= model.getLineCount()) {
+			return;
+		}
+
+		let additionalLine = editor.getModel().findNextMatch(model.getLineContent(selects[selects.length - 1].selectionStartLineNumber + 1), editor.getPosition(), false, true, null, false).range;
+
+		selects.push(new Selection(additionalLine.startLineNumber, selects[0].startColumn, additionalLine.endLineNumber, selects[0].startColumn));
+
 		context.model.pushStackElement();
 		cursors.setStates(
 			args.source,
 			CursorChangeReason.Explicit,
-			CursorMoveCommands.addCursorDown(context, cursors.getAll())
+			CursorMoveCommands.addCursorSelect(context, selects)
 		);
 		cursors.reveal(true, RevealTarget.BottomMost, ScrollType.Smooth);
 	}
