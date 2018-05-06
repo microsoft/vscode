@@ -58,7 +58,7 @@ export const TAB_ACTIVE_BORDER = registerColor('tab.activeBorder', {
 	dark: null,
 	light: null,
 	hc: null
-}, nls.localize('tabActiveBorder', "Border to highlight active tabs. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+}, nls.localize('tabActiveBorder', "Border to highlight the bottom of active tabs. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 export const TAB_ACTIVE_BORDER_TOP = registerColor('tab.activeBorderTop', {
 	dark: null,
