@@ -553,7 +553,7 @@ export interface IEditorOptions {
 	 */
 	renderIndentGuides?: boolean;
 	/**
-	 * Enable highlighting of the active of indent guide.
+	 * Enable highlighting of the active indent guide.
 	 * Defaults to true.
 	 */
 	highlightActiveIndentGuide?: boolean;
