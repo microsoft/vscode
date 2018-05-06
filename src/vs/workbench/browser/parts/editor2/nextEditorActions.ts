@@ -12,18 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { INextEditorGroupsService, GroupDirection } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorInput } from 'vs/workbench/common/editor';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { join } from 'vs/base/common/paths';
-
-export class NextEditorContribution implements IWorkbenchContribution {
-
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService
-	) {
-		instantiationService.createInstance(GridOpenEditorsAction, GridOpenEditorsAction.ID, GridOpenEditorsAction.LABEL).run();
-	}
-}
 
 export class GridOpenEditorsAction extends Action {
 

@@ -42,9 +42,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { isMacintosh } from 'vs/base/common/platform';
 import { GroupOnePicker, GroupTwoPicker, GroupThreePicker, AllEditorsPicker } from 'vs/workbench/browser/parts/editor/editorPicker';
 import { Schemas } from 'vs/base/common/network';
-import { GridOpenEditorsAction, GridCloseActiveEditorAction, GridRemoveActiveGroupAction, GridOpenOneEditorAction, NextEditorContribution } from 'vs/workbench/browser/parts/editor2/nextEditorActions';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { GridOpenEditorsAction, GridCloseActiveEditorAction, GridRemoveActiveGroupAction, GridOpenOneEditorAction } from 'vs/workbench/browser/parts/editor2/nextEditorActions';
 
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -447,5 +445,3 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(GridRemoveActiveGroupA
 registry.registerWorkbenchAction(new SyncActionDescriptor(GridOpenOneEditorAction, GridOpenOneEditorAction.ID, GridOpenOneEditorAction.LABEL), 'Grid: Open One Editor', gridCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorGroupHorizontalAction, SplitEditorGroupHorizontalAction.ID, SplitEditorGroupHorizontalAction.LABEL), 'Grid: Split Horizontal', gridCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorGroupVerticalAction, SplitEditorGroupVerticalAction.ID, SplitEditorGroupVerticalAction.LABEL), 'Grid: Split Vertical', gridCategory);
-
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NextEditorContribution, LifecyclePhase.Running);

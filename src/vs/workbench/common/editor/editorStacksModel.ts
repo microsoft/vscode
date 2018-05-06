@@ -38,10 +38,17 @@ export interface ISerializedEditorInput {
 }
 
 export interface ISerializedEditorGroup {
+	id: number;
 	label: string;
 	editors: ISerializedEditorInput[];
 	mru: number[];
 	preview: number;
+}
+
+export function isSerializedEditorGroup(obj?: any): obj is ISerializedEditorGroup {
+	const group = obj as ISerializedEditorGroup;
+
+	return obj && typeof obj === 'object' && Array.isArray(group.editors) && Array.isArray(group.mru);
 }
 
 export class EditorGroup extends Disposable implements IEditorGroup {
@@ -82,9 +89,9 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 	private _id: GroupIdentifier;
 	private _label: string;
 
-	private editors: EditorInput[];
-	private mru: EditorInput[];
-	private mapResourceToEditorCount: ResourceMap<number>;
+	private editors: EditorInput[] = [];
+	private mru: EditorInput[] = [];
+	private mapResourceToEditorCount: ResourceMap<number> = new ResourceMap<number>();
 
 	private preview: EditorInput; // editor in preview state
 	private active: EditorInput;  // editor in active state
@@ -92,25 +99,20 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 	private editorOpenPositioning: 'left' | 'right' | 'first' | 'last';
 
 	constructor(
-		arg1: string | ISerializedEditorGroup,
+		labelOrSerializedGroup: string | ISerializedEditorGroup,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
 
-		this._id = EditorGroup.IDS++;
-
-		this.editors = [];
-		this.mru = [];
-		this.mapResourceToEditorCount = new ResourceMap<number>();
-		this.onConfigurationUpdated();
-
-		if (typeof arg1 === 'object') {
-			this.deserialize(arg1);
+		if (isSerializedEditorGroup(labelOrSerializedGroup)) {
+			this.deserialize(labelOrSerializedGroup);
 		} else {
-			this._label = arg1;
+			this._id = EditorGroup.IDS++;
+			this._label = labelOrSerializedGroup;
 		}
 
+		this.onConfigurationUpdated();
 		this.registerListeners();
 	}
 
@@ -640,6 +642,7 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 		const serializableMru = this.mru.map(e => this.indexOf(e, serializableEditors)).filter(i => i >= 0);
 
 		return {
+			id: this.id,
 			label: this.label,
 			editors: serializedEditors,
 			mru: serializableMru,
@@ -649,6 +652,14 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 
 	private deserialize(data: ISerializedEditorGroup): void {
 		const registry = Registry.as<IEditorInputFactoryRegistry>(Extensions.EditorInputFactories);
+
+		if (typeof data.id === 'number') {
+			this._id = data.id;
+
+			EditorGroup.IDS = Math.max(data.id + 1, EditorGroup.IDS); // make sure our ID generator is always larger
+		} else {
+			this._id = EditorGroup.IDS++; // backwards compatibility
+		}
 
 		this._label = data.label;
 		this.editors = data.editors.map(e => {

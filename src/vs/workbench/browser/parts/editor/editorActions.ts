@@ -23,7 +23,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { CLOSE_EDITOR_COMMAND_ID, NAVIGATE_IN_GROUP_ONE_PREFIX, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, NAVIGATE_IN_GROUP_THREE_PREFIX, NAVIGATE_IN_GROUP_TWO_PREFIX } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { INextEditorGroupsService, GroupDirection as SplitDirection, INextEditorGroup, CopyKind } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { INextEditorGroupsService, GroupDirection as SplitDirection, INextEditorGroup } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 
 // TODo@grid this action should be removed in favour of the split vertical/horizontal actions
 export class SplitEditorAction extends Action {
@@ -131,9 +131,29 @@ export class BaseSplitEditorGroupAction extends Action {
 			group = this.nextEditorGroupsService.activeGroup;
 		}
 
-		const copyKind = group.activeEditor instanceof EditorInput && group.activeEditor.supportsSplitEditor() ? CopyKind.EDITOR : void 0;
+		const activeEditor = group.activeEditor;
+		if (!activeEditor) {
+			return TPromise.as(false);
+		}
 
-		this.nextEditorGroupsService.addGroup(group, this.direction, copyKind);
+		if (activeEditor instanceof EditorInput && !activeEditor.supportsSplitEditor()) {
+			return TPromise.as(false);
+		}
+
+		// Add group
+		const newGroup = this.nextEditorGroupsService.addGroup(group, this.direction);
+
+		// Open editor
+		let options: EditorOptions;
+		const codeEditor = getCodeEditor(group.activeControl);
+		if (codeEditor) {
+			options = TextEditorOptions.fromEditor(codeEditor);
+		} else {
+			options = new EditorOptions();
+		}
+		options.pinned = true;
+
+		newGroup.openEditor(activeEditor, options);
 
 		return TPromise.as(true);
 	}

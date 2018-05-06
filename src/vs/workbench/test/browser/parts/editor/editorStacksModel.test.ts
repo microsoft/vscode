@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { EditorStacksModel, EditorGroup, EditorCloseEvent } from 'vs/workbench/common/editor/editorStacksModel';
+import { EditorStacksModel, EditorGroup, EditorCloseEvent, ISerializedEditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
 import { Extensions as EditorExtensions, IEditorInputFactoryRegistry, EditorInput, IFileEditorInput, IEditorIdentifier, IEditorGroup, IStacksModelChangeEvent, IEditorInputFactory, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import { TestStorageService, TestLifecycleService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
@@ -24,7 +24,7 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { TPromise } from 'vs/base/common/winjs.base';
 
-function create(): EditorStacksModel {
+function inst(): IInstantiationService {
 	let inst = new TestInstantiationService();
 	inst.stub(IStorageService, new TestStorageService());
 	inst.stub(ILifecycleService, new TestLifecycleService());
@@ -35,8 +35,15 @@ function create(): EditorStacksModel {
 	config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
 	inst.stub(IConfigurationService, config);
 
+	return inst;
+}
 
-	return inst.createInstance(EditorStacksModel, true);
+function create(): EditorStacksModel {
+	return inst().createInstance(EditorStacksModel, true);
+}
+
+function createGroup(serialized: ISerializedEditorGroup): EditorGroup {
+	return inst().createInstance(EditorGroup, serialized);
 }
 
 interface ModelEvents {
@@ -2013,6 +2020,7 @@ suite('Editor Stacks Model', () => {
 		group.openEditor(input3, { pinned: false, active: true });
 
 		const clone = group.clone();
+		assert.notEqual(group.id, clone.id);
 		assert.equal(clone.count, 3);
 		assert.equal(clone.isPinned(input1), true);
 		assert.equal(clone.isPinned(input2), true);
@@ -2035,5 +2043,27 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group1.contains(input2), true);
 		assert.equal(group1.contains(diffInput), false);
 		assert.equal(group1.contains(diffInput, true), true);
+	});
+
+	test('Stack - group serialization', function () {
+		const model = create();
+		const group = model.openGroup('group');
+
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
+
+		// Pinned and Active
+		group.openEditor(input1, { pinned: true, active: true });
+		group.openEditor(input2, { pinned: true, active: true });
+		group.openEditor(input3, { pinned: false, active: true });
+
+		const deserialized = createGroup(group.serialize());
+		assert.equal(group.id, deserialized.id);
+		assert.equal(deserialized.count, 3);
+		assert.equal(deserialized.isPinned(input1), true);
+		assert.equal(deserialized.isPinned(input2), true);
+		assert.equal(deserialized.isPinned(input3), false);
+		assert.equal(deserialized.isActive(input3), true);
 	});
 });

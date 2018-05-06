@@ -138,19 +138,6 @@ export interface INextEditorGroup {
 	invokeWithinContext<T>(fn: (accessor: ServicesAccessor) => T): T;
 }
 
-export enum CopyKind {
-
-	/**
-	 * Copies all editors of the group from where to add to the new group.
-	 */
-	GROUP = 1,
-
-	/**
-	 * Copies the currently active editor of the group from where to add to the new group.
-	 */
-	EDITOR = 2
-}
-
 export interface INextEditorGroupsService {
 
 	_serviceBrand: ServiceIdentifier<any>;
@@ -212,9 +199,9 @@ export interface INextEditorGroupsService {
 	 *
 	 * @param fromGroup the group from which to split to add a new group
 	 * @param direction the direction of where to split to
-	 * @param copy optionally copy either the active editor open or all editors
+	 * @param copyGroup optionally copy the editors of the group to add from
 	 */
-	addGroup(fromGroup: INextEditorGroup | GroupIdentifier, direction: GroupDirection, copy?: CopyKind): INextEditorGroup;
+	addGroup(fromGroup: INextEditorGroup | GroupIdentifier, direction: GroupDirection, copyGroup?: boolean): INextEditorGroup;
 
 	/**
 	 * Remove a group from the editor area.

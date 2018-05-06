@@ -611,8 +611,9 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Empty workbench
 		else if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && this.openUntitledFile()) {
-			if (this.noOpEditorPart.hasEditorsToRestore()) {
-				return TPromise.as([]); // do not open any empty untitled file if we have editors to restore
+			const isEmpty = this.nextEditorGroupsService.count === 1 && this.nextEditorGroupsService.activeGroup.count === 0;
+			if (!isEmpty) {
+				return TPromise.as([]); // do not open any empty untitled file if we restored editors from previous session
 			}
 
 			return this.backupFileService.hasBackups().then(hasBackups => {

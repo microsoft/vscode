@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/nextEditorGroupView';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { EditorGroup, IEditorOpenOptions, EditorCloseEvent } from 'vs/workbench/common/editor/editorStacksModel';
+import { EditorGroup, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
 import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, IEditorOpeningEvent, EditorOpeningEvent, TextEditorOptions } from 'vs/workbench/common/editor';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -51,6 +51,10 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	static createNew(accessor: INextEditorGroupsAccessor, instantiationService: IInstantiationService): INextEditorGroupView {
 		return instantiationService.createInstance(NextEditorGroupView, accessor, null);
+	}
+
+	static createFromSerialized(serialized: ISerializedEditorGroup, accessor: INextEditorGroupsAccessor, instantiationService: IInstantiationService): INextEditorGroupView {
+		return instantiationService.createInstance(NextEditorGroupView, accessor, serialized);
 	}
 
 	static createCopy(copyFrom: INextEditorGroupView, accessor: INextEditorGroupsAccessor, instantiationService: IInstantiationService): INextEditorGroupView {
@@ -102,7 +106,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	constructor(
 		private accessor: INextEditorGroupsAccessor,
-		copyFromView: INextEditorGroupView,
+		from: INextEditorGroupView | ISerializedEditorGroup,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
@@ -113,17 +117,154 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	) {
 		super(themeService);
 
-		if (copyFromView) {
-			this._group = this._register(copyFromView.group.clone());
+		if (from instanceof NextEditorGroupView) {
+			this._group = this._register(from.group.clone());
+		} else if (isSerializedEditorGroup(from)) {
+			this._group = this._register(instantiationService.createInstance(EditorGroup, from));
 		} else {
 			this._group = this._register(instantiationService.createInstance(EditorGroup, ''));
 		}
+
 		this._group.label = `Group <${this._group.id}>`; // TODO@grid find a way to have a proper label
 
 		this.disposedEditorsWorker = this._register(new RunOnceWorker(editors => this.handleDisposedEditors(editors), 0));
 
 		this.doCreate();
 		this.registerListeners();
+
+		this.restoreEditors(from);
+	}
+
+	private doCreate(): void {
+
+		// Container
+		addClasses(this.element, 'editor-group-container');
+
+		// Open new file via doubleclick on container
+		this._register(addDisposableListener(this.element, EventType.DBLCLICK, e => {
+			if (e.target === this.element) {
+				EventHelper.stop(e);
+
+				this.openEditor(this.untitledEditorService.createOrGet(), EditorOptions.create({ pinned: true }));
+			}
+		}));
+
+		// Progress bar
+		this.progressBar = this._register(new ProgressBar(this.element));
+		this._register(attachProgressBarStyler(this.progressBar, this.themeService));
+		this.progressBar.hide();
+
+		// Scoped instantiator
+		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
+			[IContextKeyService, this._register(this.contextKeyService.createScoped(this.element))],
+			[IProgressService, new ProgressService(this.progressBar)]
+		));
+
+		// Title container
+		this.titleContainer = document.createElement('div');
+		addClass(this.titleContainer, 'title');
+		this.element.appendChild(this.titleContainer);
+
+		// Title control
+		this.createTitleAreaControl();
+
+		// Editor container
+		this.editorContainer = document.createElement('div');
+		addClass(this.editorContainer, 'editor-container');
+		this.element.appendChild(this.editorContainer);
+
+		// Editor control
+		this.editorControl = this._register(this.scopedInstantiationService.createInstance(NextEditorControl, this.editorContainer, this._group.id));
+
+		// Update styles
+		this.updateStyles();
+
+		// Update containers
+		this.updateTitleContainer();
+		this.updateContainer();
+
+		// Track Focus
+		this.doTrackFocus();
+	}
+
+	private doTrackFocus(): void {
+
+		// Container
+		const containerFocusTracker = this._register(trackFocus(this.element));
+		this._register(containerFocusTracker.onDidFocus(() => {
+			if (this.isEmpty()) {
+				this._onDidFocus.fire(); // only when empty to prevent accident focus
+			}
+		}));
+
+		// Title Container
+		const handleTitleClickOrTouch = (e: MouseEvent | GestureEvent): void => {
+			let target: HTMLElement;
+			if (e instanceof MouseEvent) {
+				if (e.button !== 0) {
+					return void 0; // only for left mouse click
+				}
+
+				target = e.target as HTMLElement;
+			} else {
+				target = (e as GestureEvent).initialTarget as HTMLElement;
+			}
+
+			if (findParentWithClass(target, 'monaco-action-bar', this.titleContainer)) {
+				return; // not when clicking on actions
+			}
+
+			EventHelper.stop(e);
+
+			this.focus();
+		};
+
+		this._register(addDisposableListener(this.titleContainer, EventType.MOUSE_UP, e => handleTitleClickOrTouch(e)));
+		this._register(addDisposableListener(this.titleContainer, TouchEventType.Tap, e => handleTitleClickOrTouch(e)));
+
+		// Editor Container
+		const editorFocusTracker = this._register(trackFocus(this.editorContainer));
+		this._register(editorFocusTracker.onDidFocus(() => {
+			this._onDidFocus.fire();
+		}));
+	}
+
+	private updateContainer(): void {
+
+		// Empty Container: allow to focus
+		if (this.isEmpty()) {
+			addClass(this.element, 'empty');
+			this.element.tabIndex = 0;
+			this.element.setAttribute('aria-label', localize('emptyEditorGroup', "Empty Editor Group"));
+		}
+
+		// Non-Empty Container: revert empty container attributes
+		else {
+			removeClass(this.element, 'empty');
+			this.element.removeAttribute('tabIndex');
+			this.element.removeAttribute('aria-label');
+		}
+	}
+
+	private updateTitleContainer(): void {
+		toggleClass(this.titleContainer, 'tabs', this.accessor.partOptions.showTabs);
+		toggleClass(this.titleContainer, 'show-file-icons', this.accessor.partOptions.showIcons);
+	}
+
+	private createTitleAreaControl(): void {
+
+		// Clear old if existing
+		if (this.titleAreaControl) {
+			this.titleAreaControl.dispose();
+			clearNode(this.titleContainer);
+		}
+
+		// Create new based on options
+		if (this.accessor.partOptions.showTabs) {
+			this.titleAreaControl = this.scopedInstantiationService.createInstance(NextTabsTitleControl, this.titleContainer, this.accessor, this);
+		} else {
+			this.titleAreaControl = this.scopedInstantiationService.createInstance(NextNoTabsTitleControl, this.titleContainer, this.accessor, this);
+		}
 	}
 
 	//#region event handling
@@ -228,28 +369,18 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		// Title container
 		this.updateTitleContainer();
 
-		// Title control
-		if (this.titleAreaControl) {
+		// Title control Switch between showing tabs <=> not showing tabs
+		if (event.oldPartOptions.showTabs !== event.newPartOptions.showTabs) {
+			this.createTitleAreaControl();
 
-			// Switch between showing tabs <=> not showing tabs
-			if (event.oldPartOptions.showTabs !== event.newPartOptions.showTabs) {
-
-				// Clear old
-				this.titleAreaControl.dispose();
-				this.titleAreaControl = void 0;
-				clearNode(this.titleContainer);
-
-				// Recreate new and open editor
-				this.createTitleAreaControl();
-				if (this.group.activeEditor) {
-					this.titleAreaControl.openEditor(this.group.activeEditor);
-				}
+			if (this.group.activeEditor) {
+				this.titleAreaControl.openEditor(this.group.activeEditor);
 			}
+		}
 
-			// Just update title control
-			else {
-				this.titleAreaControl.updateOptions(event.oldPartOptions, event.newPartOptions);
-			}
+		// Just update title control
+		else {
+			this.titleAreaControl.updateOptions(event.oldPartOptions, event.newPartOptions);
 		}
 
 		// Styles
@@ -267,158 +398,47 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		this.pinEditor(editor);
 
 		// Forward to title control
-		if (this.titleAreaControl) {
-			this.titleAreaControl.updateEditorDirty(editor);
-		}
+		this.titleAreaControl.updateEditorDirty(editor);
 	}
 
 	private onDidEditorLabelChange(editor: EditorInput): void {
 
 		// Forward to title control
-		if (this.titleAreaControl) {
-			this.titleAreaControl.updateEditorLabel(editor);
-		}
+		this.titleAreaControl.updateEditorLabel(editor);
 	}
 
 	//#endregion
 
-	private doCreate(): void {
-
-		// Container
-		addClasses(this.element, 'editor-group-container');
-
-		// Open new file via doubleclick on container
-		this._register(addDisposableListener(this.element, EventType.DBLCLICK, e => {
-			if (e.target === this.element) {
-				EventHelper.stop(e);
-
-				this.openEditor(this.untitledEditorService.createOrGet(), EditorOptions.create({ pinned: true }));
-			}
-		}));
-
-		// Title container
-		this.titleContainer = document.createElement('div');
-		addClass(this.titleContainer, 'title');
-		this.element.appendChild(this.titleContainer);
-
-		// Progress bar
-		this.progressBar = this._register(new ProgressBar(this.element));
-		this._register(attachProgressBarStyler(this.progressBar, this.themeService));
-		this.progressBar.hide();
-
-		// Editor container
-		this.editorContainer = document.createElement('div');
-		addClass(this.editorContainer, 'editor-container');
-		this.element.appendChild(this.editorContainer);
-
-		// Update styles
-		this.updateStyles();
-
-		// Update containers
-		this.updateTitleContainer();
-		this.updateContainer();
-
-		// Track Focus
-		this.doTrackFocus();
-	}
-
-	private doTrackFocus(): void {
-
-		// Container
-		const containerFocusTracker = this._register(trackFocus(this.element));
-		this._register(containerFocusTracker.onDidFocus(() => {
-			if (this.isEmpty()) {
-				this._onDidFocus.fire(); // only when empty to prevent accident focus
-			}
-		}));
-
-		// Title Container
-		const handleTitleClickOrTouch = (e: MouseEvent | GestureEvent): void => {
-			let target: HTMLElement;
-			if (e instanceof MouseEvent) {
-				if (e.button !== 0) {
-					return void 0; // only for left mouse click
-				}
-
-				target = e.target as HTMLElement;
-			} else {
-				target = (e as GestureEvent).initialTarget as HTMLElement;
-			}
-
-			if (findParentWithClass(target, 'monaco-action-bar', this.titleContainer)) {
-				return; // not when clicking on actions
-			}
-
-			EventHelper.stop(e);
-
-			this.focus();
-		};
-
-		this._register(addDisposableListener(this.titleContainer, EventType.MOUSE_UP, e => handleTitleClickOrTouch(e)));
-		this._register(addDisposableListener(this.titleContainer, TouchEventType.Tap, e => handleTitleClickOrTouch(e)));
-
-		// Editor Container
-		const editorFocusTracker = this._register(trackFocus(this.editorContainer));
-		this._register(editorFocusTracker.onDidFocus(() => {
-			this._onDidFocus.fire();
-		}));
-	}
-
-	private updateContainer(): void {
-
-		// Empty Container: allow to focus
-		if (this.isEmpty()) {
-			addClass(this.element, 'empty');
-			this.element.tabIndex = 0;
-			this.element.setAttribute('aria-label', localize('emptyEditorGroup', "Empty Editor Group"));
+	private restoreEditors(from: INextEditorGroupView | ISerializedEditorGroup): void {
+		if (this.group.count === 0) {
+			return; // nothing to restore
 		}
 
-		// Non-Empty Container: revert empty container attributes
-		else {
-			removeClass(this.element, 'empty');
-			this.element.removeAttribute('tabIndex');
-			this.element.removeAttribute('aria-label');
-		}
-	}
+		const activeEditor = this.group.activeEditor;
 
-	private updateTitleContainer(): void {
-		toggleClass(this.titleContainer, 'tabs', this.accessor.partOptions.showTabs);
-		toggleClass(this.titleContainer, 'show-file-icons', this.accessor.partOptions.showIcons);
-	}
+		// Restore in title
+		this.titleAreaControl.openEditor(activeEditor);
 
-	private createScopedInstantiationService(): void {
-		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
-			[IContextKeyService, this._register(this.contextKeyService.createScoped(this.element))],
-			[IProgressService, new ProgressService(this.progressBar)]
-		));
-	}
-
-	private createTitleAreaControl(): NextTitleControl {
-		if (!this.scopedInstantiationService) {
-			this.createScopedInstantiationService();
-		}
-
-		if (this.accessor.partOptions.showTabs) {
-			this.titleAreaControl = this.scopedInstantiationService.createInstance(NextTabsTitleControl, this.titleContainer, this.accessor, this);
+		// Determine editor options
+		let options: EditorOptions;
+		if (from instanceof NextEditorGroupView) {
+			const fromEditorControl = getCodeEditor(from.activeControl);
+			if (fromEditorControl) {
+				options = TextEditorOptions.fromEditor(fromEditorControl); // if we copy from another group, ensure to copy its active editor viewstate
+			}
 		} else {
-			this.titleAreaControl = this.scopedInstantiationService.createInstance(NextNoTabsTitleControl, this.titleContainer, this.accessor, this);
+			options = new EditorOptions();
 		}
 
-		this.doLayoutTitleControl();
+		options.pinned = this.group.isPinned(activeEditor);	// preserve pinned state
+		options.preserveFocus = true;						// handle focus after editor is opened
 
-		return this.titleAreaControl;
-	}
-
-	private createEditorControl(): NextEditorControl {
-		if (!this.scopedInstantiationService) {
-			this.createScopedInstantiationService();
-		}
-
-		this.editorControl = this._register(this.scopedInstantiationService.createInstance(NextEditorControl, this.editorContainer, this._group.id));
-
-		this.doLayoutEditorControl();
-
-		return this.editorControl;
+		// Restore in editor
+		this.editorControl.openEditor(activeEditor, options).then(() => {
+			if (this.accessor.activeGroup === this) {
+				this.focus();
+			}
+		});
 	}
 
 	//region INextEditorGroupView
@@ -438,9 +458,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		toggleClass(this.element, 'inactive', !isActive);
 
 		// Update title control
-		if (this.titleAreaControl) {
-			this.titleAreaControl.setActive(isActive);
-		}
+		this.titleAreaControl.setActive(isActive);
 	}
 
 	isEmpty(): boolean {
@@ -508,17 +526,11 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 			this._group.pin(editor);
 
 			// Forward to title control
-			if (this.titleAreaControl) {
-				this.titleAreaControl.pinEditor(editor);
-			}
+			this.titleAreaControl.pinEditor(editor);
 		}
 	}
 
 	invokeWithinContext<T>(fn: (accessor: ServicesAccessor) => T): T {
-		if (!this.scopedInstantiationService) {
-			this.createScopedInstantiationService();
-		}
-
 		return this.scopedInstantiationService.invokeFunction(fn);
 	}
 
@@ -562,8 +574,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		// Forward to editor control if the active editor changed (create lazily)
 		let openEditorPromise: Thenable<void>;
 		if (openEditorOptions.active) {
-			const editorControl = this.editorControl || this.createEditorControl();
-			openEditorPromise = editorControl.openEditor(editor, options).then(result => {
+			openEditorPromise = this.editorControl.openEditor(editor, options).then(result => {
 
 				// Editor change event
 				if (result.editorChanged) {
@@ -579,8 +590,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		}
 
 		// Forward to title control after editor control because some actions depend on it (create lazily)
-		const titleAreaControl = this.titleAreaControl || this.createTitleAreaControl();
-		titleAreaControl.openEditor(editor);
+		this.titleAreaControl.openEditor(editor);
 
 		return openEditorPromise;
 	}
@@ -647,10 +657,8 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		this._group.pin(editor);
 
 		// Forward to title area
-		if (this.titleAreaControl) {
-			this.titleAreaControl.moveEditor(editor, currentIndex, moveToIndex);
-			this.titleAreaControl.pinEditor(editor);
-		}
+		this.titleAreaControl.moveEditor(editor, currentIndex, moveToIndex);
+		this.titleAreaControl.pinEditor(editor);
 	}
 
 	private doMoveEditorAcrossGroups(editor: EditorInput, target: INextEditorGroupView, moveOptions: IMoveEditorOptions = Object.create(null)): void {
@@ -713,9 +721,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		const index = this._group.closeEditor(editorToClose);
 
 		// Forward to title control
-		if (this.titleAreaControl) {
-			this.titleAreaControl.closeEditor(editorToClose, index);
-		}
+		this.titleAreaControl.closeEditor(editorToClose, index);
 
 		// Open next active if there are more to show
 		const nextActiveEditor = this._group.activeEditor;
@@ -740,9 +746,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		else {
 
 			// Forward to editor control
-			if (this.editorControl) {
-				this.editorControl.closeEditor(editorToClose);
-			}
+			this.editorControl.closeEditor(editorToClose);
 
 			// Restore focus to group container as needed
 			if (editorHasFocus) {
@@ -762,9 +766,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		const index = this._group.closeEditor(editor);
 
 		// Forward to title control
-		if (this.titleAreaControl) {
-			this.titleAreaControl.closeEditor(editor, index); // TODO@grid avoid calling this for many editors to avoid perf issues
-		}
+		this.titleAreaControl.closeEditor(editor, index); // TODO@grid avoid calling this for many editors to avoid perf issues
 	}
 
 	private handleDirty(editors: EditorInput[], ignoreIfOpenedInOtherGroup?: boolean): Thenable<boolean /* veto */> {
@@ -857,7 +859,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	//#endregion
 
-	//#region IView
+	//#region ISerializableView
 
 	readonly element: HTMLElement = document.createElement('div');
 
@@ -872,36 +874,24 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		this._dimension = new Dimension(width, height);
 
 		// Forward to controls
-		this.doLayoutTitleControl();
-		this.doLayoutEditorControl();
+		this.titleAreaControl.layout(new Dimension(this._dimension.width, NextEditorGroupView.EDITOR_TITLE_HEIGHT));
+		this.editorControl.layout(new Dimension(this._dimension.width, this._dimension.height - NextEditorGroupView.EDITOR_TITLE_HEIGHT));
 	}
 
-	private doLayoutTitleControl(): void {
-		if (this.titleAreaControl) {
-			this.titleAreaControl.layout(new Dimension(this._dimension.width, NextEditorGroupView.EDITOR_TITLE_HEIGHT));
-		}
-	}
-
-	private doLayoutEditorControl(): void {
-		if (this.editorControl) {
-			this.editorControl.layout(new Dimension(this._dimension.width, this._dimension.height - NextEditorGroupView.EDITOR_TITLE_HEIGHT));
-		}
+	toJSON(): ISerializedEditorGroup {
+		return this._group.serialize();
 	}
 
 	//#endregion
 
 	shutdown(): void {
-		if (this.editorControl) {
-			this.editorControl.shutdown();
-		}
+		this.editorControl.shutdown();
 	}
 
 	dispose(): void {
 		this._onWillDispose.fire();
 
-		if (this.titleAreaControl) {
-			this.titleAreaControl.dispose();
-		}
+		this.titleAreaControl.dispose();
 
 		super.dispose();
 	}

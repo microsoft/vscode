@@ -8,12 +8,12 @@
 import { GroupIdentifier, IWorkbenchEditorConfiguration, IWorkbenchEditorPartConfiguration } from 'vs/workbench/common/editor';
 import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
 import { INextEditorGroup } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
-import { IView } from 'vs/base/browser/ui/grid/gridview';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Dimension } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
+import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
 
 export interface INextEditorPartOptions extends IWorkbenchEditorPartConfiguration {
 	iconTheme?: string;
@@ -67,7 +67,7 @@ export interface INextEditorGroupsAccessor {
 	getGroup(identifier: GroupIdentifier): INextEditorGroupView;
 }
 
-export interface INextEditorGroupView extends IDisposable, IView, INextEditorGroup {
+export interface INextEditorGroupView extends IDisposable, ISerializableView, INextEditorGroup {
 	readonly group: EditorGroup;
 	readonly dimension: Dimension;
 

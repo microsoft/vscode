@@ -103,7 +103,9 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	}
 
 	get activeControl(): IEditor {
-		return this.nextEditorGroupsService.activeGroup.activeControl;
+		const activeGroup = this.nextEditorGroupsService.activeGroup;
+
+		return activeGroup ? activeGroup.activeControl : void 0;
 	}
 
 	get activeTextEditorControl(): ICodeEditor {
@@ -119,7 +121,9 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	}
 
 	get activeEditor(): IEditorInput {
-		return this.nextEditorGroupsService.activeGroup.activeEditor;
+		const activeGroup = this.nextEditorGroupsService.activeGroup;
+
+		return activeGroup ? activeGroup.activeEditor : void 0;
 	}
 
 	get visibleControls(): IEditor[] {
@@ -254,7 +258,12 @@ export class NextEditorService extends Disposable implements INextEditorService 
 			return activeTextEditorControl.invokeWithinContext(fn);
 		}
 
-		return this.nextEditorGroupsService.activeGroup.invokeWithinContext(fn);
+		const activeGroup = this.nextEditorGroupsService.activeGroup;
+		if (activeGroup) {
+			return activeGroup.invokeWithinContext(fn);
+		}
+
+		return this.instantiationService.invokeFunction(fn);
 	}
 
 	//#endregion

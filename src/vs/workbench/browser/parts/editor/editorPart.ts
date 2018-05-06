@@ -459,7 +459,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	//#endregion
 
-	//#region TODO@grid openEditors() / restoreEditors()
+	//#region TODO@grid openEditors()
 
 	public openEditors(editors: { input: EditorInput, position?: Position, options?: EditorOptions }[]): TPromise<IEditor[]>;
 	public openEditors(editors: { input: EditorInput, options?: EditorOptions }[], sideBySide?: boolean): TPromise<IEditor[]>;
@@ -476,34 +476,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		const ratio = this.editorGroupsControl.getRatio();
 
 		return this.doOpenEditors(editors, activePosition, ratio, sideBySide);
-	}
-
-	public hasEditorsToRestore(): boolean {
-		return this.stacks.groups.some(g => g.count > 0);
-	}
-
-	public restoreEditors(): TPromise<IEditor[]> {
-		const editors = this.stacks.groups.map((group, index) => {
-			return {
-				input: group.activeEditor,
-				position: index,
-				options: group.isPinned(group.activeEditor) ? EditorOptions.create({ pinned: true }) : void 0
-			};
-		});
-
-		if (!editors.length) {
-			return TPromise.as<IEditor[]>([]);
-		}
-
-		let activePosition: Position;
-		if (this.stacks.groups.length) {
-			activePosition = this.stacks.positionOfGroup(this.stacks.activeGroup);
-		}
-
-		const editorState: IEditorPartUIState = this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
-
-		// Open editors (throttle editor change events)
-		return this._onEditorsChanged.throttle(this.doOpenEditors(editors, activePosition, editorState && editorState.ratio));
 	}
 
 	private doOpenEditors(editors: { input: EditorInput, position?: Position, options?: EditorOptions }[], activePosition?: number, ratio?: number[], sideBySide?: boolean): TPromise<IEditor[]> {
@@ -977,6 +949,34 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	private onEditorGroupOpenedOrClosed(): void {
 		this.updateStyles();
+	}
+
+	public hasEditorsToRestore(): boolean {
+		return this.stacks.groups.some(g => g.count > 0);
+	}
+
+	public restoreEditors(): TPromise<IEditor[]> {
+		const editors = this.stacks.groups.map((group, index) => {
+			return {
+				input: group.activeEditor,
+				position: index,
+				options: group.isPinned(group.activeEditor) ? EditorOptions.create({ pinned: true }) : void 0
+			};
+		});
+
+		if (!editors.length) {
+			return TPromise.as<IEditor[]>([]);
+		}
+
+		let activePosition: Position;
+		if (this.stacks.groups.length) {
+			activePosition = this.stacks.positionOfGroup(this.stacks.activeGroup);
+		}
+
+		const editorState: IEditorPartUIState = this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
+
+		// Open editors (throttle editor change events)
+		return this._onEditorsChanged.throttle(this.doOpenEditors(editors, activePosition, editorState && editorState.ratio));
 	}
 
 	public openEditor(input: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<IEditor>;

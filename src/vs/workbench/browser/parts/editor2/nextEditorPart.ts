@@ -11,19 +11,21 @@ import { Part } from 'vs/workbench/browser/part';
 import { Dimension, isAncestor, toggleClass, addClass } from 'vs/base/browser/dom';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { INextEditorGroupsService, GroupDirection, CopyKind } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { INextEditorGroupsService, GroupDirection } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Grid, Direction } from 'vs/base/browser/ui/grid/grid';
-import { GroupIdentifier, EditorOptions, TextEditorOptions, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+import { Direction, SerializableGrid } from 'vs/base/browser/ui/grid/grid';
+import { GroupIdentifier, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER } from 'vs/workbench/common/theme';
 import { distinct } from 'vs/base/common/arrays';
-import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { INextEditorGroupsAccessor, INextEditorGroupView, INextEditorPartOptions, getEditorPartOptions, impactsEditorPartOptions, INextEditorPartOptionsChangeEvent } from 'vs/workbench/browser/parts/editor2/editor2';
 import { NextEditorGroupView } from 'vs/workbench/browser/parts/editor2/nextEditorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { Scope } from 'vs/workbench/common/memento';
+import { ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
 
 // TODO@grid provide DND support of groups/editors:
 // - editor: move/copy to existing group, move/copy to new split group (up, down, left, right)
@@ -33,9 +35,17 @@ import { assign } from 'vs/base/common/objects';
 
 // TODO@grid enable minimized/maximized groups in one dimension
 
+interface INextEditorPartUIState {
+	serializedGrid: object;
+	activeGroup: GroupIdentifier;
+	mostRecentActiveGroups: GroupIdentifier[];
+}
+
 export class NextEditorPart extends Part implements INextEditorGroupsService, INextEditorGroupsAccessor {
 
 	_serviceBrand: any;
+
+	private static readonly NEXT_EDITOR_PART_UI_STATE_STORAGE_KEY = 'nexteditorpart.uiState';
 
 	//#region Events
 
@@ -53,6 +63,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 	//#endregion
 
+	private memento: object;
 	private dimension: Dimension;
 	private _partOptions: INextEditorPartOptions;
 
@@ -60,20 +71,21 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 	private groupViews: Map<GroupIdentifier, INextEditorGroupView> = new Map<GroupIdentifier, INextEditorGroupView>();
 	private mostRecentActiveGroups: GroupIdentifier[] = [];
 
-	private gridContainer: HTMLElement;
-	private gridWidget: Grid<INextEditorGroupView>;
+	private container: HTMLElement;
+	private gridWidget: SerializableGrid<INextEditorGroupView>;
 
 	constructor(
 		id: string,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IStorageService private storageService: IStorageService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
 		this._partOptions = getEditorPartOptions(this.configurationService.getValue<IWorkbenchEditorConfiguration>());
+		this.memento = this.getMemento(this.storageService, Scope.WORKSPACE);
 
-		this.doCreateGridView();
 		this.registerListeners();
 	}
 
@@ -116,12 +128,10 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		this.enforcedPartOptions.push(options);
 		this.handleChangedPartOptions();
 
-		return {
-			dispose: () => {
-				this.enforcedPartOptions.splice(this.enforcedPartOptions.indexOf(options), 1);
-				this.handleChangedPartOptions();
-			}
-		};
+		return toDisposable(() => {
+			this.enforcedPartOptions.splice(this.enforcedPartOptions.indexOf(options), 1);
+			this.handleChangedPartOptions();
+		});
 	}
 
 	//#endregion
@@ -174,9 +184,9 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		return groupView;
 	}
 
-	addGroup(fromGroup: INextEditorGroupView | GroupIdentifier, direction: GroupDirection, copy?: CopyKind): INextEditorGroupView {
+	addGroup(fromGroup: INextEditorGroupView | GroupIdentifier, direction: GroupDirection, copy?: boolean): INextEditorGroupView {
 		const fromGroupView = this.asGroupView(fromGroup);
-		const newGroupView = this.doCreateGroupView(copy === CopyKind.GROUP ? fromGroupView : void 0);
+		const newGroupView = this.doCreateGroupView(copy ? fromGroupView : void 0);
 
 		// Add to grid widget
 		this.gridWidget.addView(
@@ -186,20 +196,90 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 			this.toGridViewDirection(direction),
 		);
 
-		// Open Editor if we Copy
-		const activeEditor = fromGroupView.activeEditor;
-		if (copy && activeEditor) {
-			const activeCodeEditorControl = getCodeEditor(fromGroupView.activeControl);
-			const options = activeCodeEditorControl ? TextEditorOptions.fromEditor(activeCodeEditorControl) : new EditorOptions();
-			options.pinned = (copy === CopyKind.GROUP) ? fromGroupView.isPinned(activeEditor) : true;
-
-			newGroupView.openEditor(activeEditor, options);
-		}
-
 		// Update container
 		this.updateContainer();
 
 		return newGroupView;
+	}
+
+	private doCreateGroupView(from?: INextEditorGroupView | ISerializedEditorGroup): INextEditorGroupView {
+
+		// Create group view
+		let groupView: INextEditorGroupView;
+		if (from instanceof NextEditorGroupView) {
+			groupView = NextEditorGroupView.createCopy(from, this, this.instantiationService);
+		} else if (isSerializedEditorGroup(from)) {
+			groupView = NextEditorGroupView.createFromSerialized(from, this, this.instantiationService);
+		} else {
+			groupView = NextEditorGroupView.createNew(this, this.instantiationService);
+		}
+
+		// Keep in map
+		this.groupViews.set(groupView.id, groupView);
+
+		// Track focus
+		let groupDisposables: IDisposable[] = [];
+		groupDisposables.push(groupView.onDidFocus(() => {
+			this.doSetGroupActive(groupView);
+		}));
+
+		// Track editor change
+		groupDisposables.push(groupView.onDidActiveEditorChange(() => {
+			this.updateContainer();
+		}));
+
+		// Track dispose
+		once(groupView.onWillDispose)(() => {
+			groupDisposables = dispose(groupDisposables);
+			this.groupViews.delete(groupView.id);
+			this.doUpdateMostRecentActive(groupView);
+		});
+
+		// Event
+		this._onDidAddGroup.fire(groupView);
+
+		// TODO@grid if the view gets minimized, the previous active group should become active
+
+		return groupView;
+	}
+
+	private doSetGroupActive(group: INextEditorGroupView): void {
+		if (this._activeGroup === group) {
+			return; // return if this is already the active group
+		}
+
+		const previousActiveGroup = this._activeGroup;
+		this._activeGroup = group;
+
+		// Update list of most recently active groups
+		this.doUpdateMostRecentActive(group, true);
+
+		// Mark previous one as inactive
+		if (previousActiveGroup) {
+			previousActiveGroup.setActive(false);
+		}
+
+		// Mark group as new active
+		group.setActive(true);
+
+		// Event
+		this._onDidActiveGroupChange.fire(group);
+
+		// TODO@grid if the group is minimized, it should now restore to be maximized
+	}
+
+	private doUpdateMostRecentActive(group: INextEditorGroupView, makeMostRecentlyActive?: boolean): void {
+		const index = this.mostRecentActiveGroups.indexOf(group.id);
+
+		// Remove from MRU list
+		if (index !== -1) {
+			this.mostRecentActiveGroups.splice(index, 1);
+		}
+
+		// Add to front as needed
+		if (makeMostRecentlyActive) {
+			this.mostRecentActiveGroups.unshift(group.id);
+		}
 	}
 
 	removeGroup(group: INextEditorGroupView | GroupIdentifier): void {
@@ -255,105 +335,6 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		return group;
 	}
 
-	private doCreateGridView(): void {
-
-		// Container
-		this.gridContainer = document.createElement('div');
-		addClass(this.gridContainer, 'content');
-
-		// Grid widget
-		const initialGroup = this.doCreateGroupView();
-		this.gridWidget = this._register(new Grid(this.gridContainer, initialGroup)); // TODO@grid restore UI state
-
-		// Set group active
-		this.doSetGroupActive(initialGroup);
-
-		// Update container
-		this.updateContainer();
-	}
-
-	private updateContainer(): void {
-		toggleClass(this.gridContainer, 'empty', this.groupViews.size === 1 && this.activeGroup.isEmpty());
-	}
-
-	private doSetGroupActive(group: INextEditorGroupView): void {
-		if (this._activeGroup === group) {
-			return; // return if this is already the active group
-		}
-
-		const previousActiveGroup = this._activeGroup;
-		this._activeGroup = group;
-
-		// Update list of most recently active groups
-		this.doUpdateMostRecentActive(group, true);
-
-		// Mark previous one as inactive
-		if (previousActiveGroup) {
-			previousActiveGroup.setActive(false);
-		}
-
-		// Mark group as new active
-		group.setActive(true);
-
-		// Event
-		this._onDidActiveGroupChange.fire(group);
-
-		// TODO@grid if the group is minimized, it should now restore to be maximized
-	}
-
-	private doUpdateMostRecentActive(group: INextEditorGroupView, makeMostRecentlyActive?: boolean): void {
-		const index = this.mostRecentActiveGroups.indexOf(group.id);
-
-		// Remove from MRU list
-		if (index !== -1) {
-			this.mostRecentActiveGroups.splice(index, 1);
-		}
-
-		// Add to front as needed
-		if (makeMostRecentlyActive) {
-			this.mostRecentActiveGroups.unshift(group.id);
-		}
-	}
-
-	private doCreateGroupView(copyFromView?: INextEditorGroupView): INextEditorGroupView {
-
-		// Create group view
-		let groupView: INextEditorGroupView;
-		if (copyFromView) {
-			groupView = NextEditorGroupView.createCopy(copyFromView, this, this.instantiationService);
-		} else {
-			groupView = NextEditorGroupView.createNew(this, this.instantiationService);
-		}
-
-		// Keep in map
-		this.groupViews.set(groupView.id, groupView);
-
-		// Track focus
-		let groupDisposables: IDisposable[] = [];
-		groupDisposables.push(groupView.onDidFocus(() => {
-			this.doSetGroupActive(groupView);
-		}));
-
-		// Track editor change
-		groupDisposables.push(groupView.onDidActiveEditorChange(() => {
-			this.updateContainer();
-		}));
-
-		// Track dispose
-		once(groupView.onWillDispose)(() => {
-			groupDisposables = dispose(groupDisposables);
-			this.groupViews.delete(groupView.id);
-			this.doUpdateMostRecentActive(groupView);
-		});
-
-		// Event
-		this._onDidAddGroup.fire(groupView);
-
-		// TODO@grid if the view gets minimized, the previous active group should become active
-
-		return groupView;
-	}
-
 	//#endregion
 
 	//#region Part
@@ -366,12 +347,54 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 	}
 
 	createContentArea(parent: HTMLElement): HTMLElement {
-		const contentArea = this.gridContainer;
 
-		// Connect parent to viewer
-		parent.appendChild(contentArea);
+		// Container
+		this.container = document.createElement('div');
+		addClass(this.container, 'content');
+		parent.appendChild(this.container);
 
-		return contentArea;
+		// Grid control
+		this.doCreateGridControl(this.container);
+
+		return this.container;
+	}
+
+	private doCreateGridControl(container: HTMLElement): void {
+
+		// Grid Widget (restored from previous UI state)
+		const uiState = this.memento[NextEditorPart.NEXT_EDITOR_PART_UI_STATE_STORAGE_KEY] as INextEditorPartUIState;
+		if (uiState && uiState.serializedGrid) {
+			this.mostRecentActiveGroups = uiState.mostRecentActiveGroups;
+			this.gridWidget = this._register(SerializableGrid.deserialize(container, uiState.serializedGrid, {
+				fromJSON: (serializedEditorGroup: ISerializedEditorGroup) => {
+					const groupView = this.doCreateGroupView(serializedEditorGroup);
+					if (groupView.id === uiState.activeGroup) {
+						this.doSetGroupActive(groupView);
+					}
+
+					return groupView;
+				}
+			}));
+
+			// Ensure last active group has focus
+			this.activeGroup.focus();
+		}
+
+		// Grid Widget (no previous UI state)
+		else {
+			const initialGroup = this.doCreateGroupView();
+			this.gridWidget = this._register(new SerializableGrid(container, initialGroup));
+
+			// Ensure a group is active
+			this.doSetGroupActive(initialGroup);
+		}
+
+		// Update container
+		this.updateContainer();
+	}
+
+	private updateContainer(): void {
+		toggleClass(this.container, 'empty', this.groupViews.size === 1 && this.activeGroup.isEmpty());
 	}
 
 	layout(dimension: Dimension): Dimension[] {
@@ -390,7 +413,18 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 	shutdown(): void {
 
-		// TODO@grid persist some UI state in the memento (note: a group can turn empty if none of the inputs can be serialized!)
+		// Persist grid UI state
+		const uiState: INextEditorPartUIState = {
+			serializedGrid: this.gridWidget.serialize(),
+			activeGroup: this._activeGroup.id,
+			mostRecentActiveGroups: this.mostRecentActiveGroups
+		};
+
+		if (this.count === 1 && this.activeGroup.isEmpty()) {
+			delete this.memento[NextEditorPart.NEXT_EDITOR_PART_UI_STATE_STORAGE_KEY];
+		} else {
+			this.memento[NextEditorPart.NEXT_EDITOR_PART_UI_STATE_STORAGE_KEY] = uiState;
+		}
 
 		// Forward to all groups
 		this.groupViews.forEach(group => group.shutdown());
