@@ -11,15 +11,22 @@ import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestSe
 import { Direction } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { Dimension } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { INextEditorPartOptions } from 'vs/workbench/browser/parts/editor2/editor2';
 
-suite('editor2 tests', () => {
+suite('Next editor2 part tests', () => {
 
-	test('Groups basics', function () {
+	function createPart(): NextEditorPart {
 		const instantiationService = workbenchInstantiationService();
 
 		const part = instantiationService.createInstance(NextEditorPart, 'id');
 		part.create(document.createElement('div'));
 		part.layout(new Dimension(400, 300));
+
+		return part;
+	}
+
+	test('Editor groups basics', function () {
+		const part = createPart();
 
 		let activeGroupChangeCounter = 0;
 		const activeGroupChangeListener = part.onDidActiveGroupChange(() => {
@@ -27,13 +34,20 @@ suite('editor2 tests', () => {
 		});
 
 		let groupAddedCounter = 0;
-		const activeGroupAddedListener = part.onDidAddGroup(() => {
+		const groupAddedListener = part.onDidAddGroup(() => {
 			groupAddedCounter++;
+		});
+
+		let groupRemovedCounter = 0;
+		const groupRemovedListener = part.onDidRemoveGroup(() => {
+			groupRemovedCounter++;
 		});
 
 		// always a root group
 		const rootGroup = part.groups[0];
 		assert.equal(part.groups.length, 1);
+		assert.equal(part.count, 1);
+		assert.equal(rootGroup, part.getGroup(rootGroup.id));
 		assert.ok(part.activeGroup === rootGroup);
 
 		let mru = part.getGroups(true);
@@ -41,8 +55,10 @@ suite('editor2 tests', () => {
 		assert.equal(mru[0], rootGroup);
 
 		const rightGroup = part.addGroup(rootGroup, Direction.RIGHT);
+		assert.equal(rightGroup, part.getGroup(rightGroup.id));
 		assert.equal(groupAddedCounter, 1);
 		assert.equal(part.groups.length, 2);
+		assert.equal(part.count, 2);
 		assert.ok(part.activeGroup === rootGroup);
 
 		mru = part.getGroups(true);
@@ -78,7 +94,9 @@ suite('editor2 tests', () => {
 		assert.equal(mru[2], downGroup);
 
 		part.removeGroup(downGroup);
+		assert.ok(!part.getGroup(downGroup.id));
 		assert.equal(didDispose, true);
+		assert.equal(groupRemovedCounter, 1);
 		assert.equal(part.groups.length, 2);
 		assert.ok(part.activeGroup === rightGroup);
 
@@ -102,6 +120,7 @@ suite('editor2 tests', () => {
 		assert.ok(rightGroupInstantiator !== rootGroupInstantiator);
 
 		part.removeGroup(rightGroup);
+		assert.equal(groupRemovedCounter, 2);
 		assert.equal(part.groups.length, 1);
 		assert.ok(part.activeGroup === rootGroup);
 
@@ -111,9 +130,30 @@ suite('editor2 tests', () => {
 
 		part.removeGroup(rootGroup); // cannot remove root group
 		assert.equal(part.groups.length, 1);
+		assert.equal(groupRemovedCounter, 2);
 		assert.ok(part.activeGroup === rootGroup);
 
 		activeGroupChangeListener.dispose();
-		activeGroupAddedListener.dispose();
+		groupAddedListener.dispose();
+		groupRemovedListener.dispose();
+	});
+
+	test('Editor part options', function () {
+		const part = createPart();
+
+		let oldOptions: INextEditorPartOptions;
+		let newOptions: INextEditorPartOptions;
+		part.onDidEditorPartOptionsChange(event => {
+			oldOptions = event.oldPartOptions;
+			newOptions = event.newPartOptions;
+		});
+
+		const currentOptions = part.partOptions;
+		assert.ok(currentOptions);
+
+		part.enforcePartOptions({ showTabs: false });
+		assert.equal(part.partOptions.showTabs, false);
+		assert.equal(newOptions.showTabs, false);
+		assert.equal(oldOptions, currentOptions);
 	});
 });
