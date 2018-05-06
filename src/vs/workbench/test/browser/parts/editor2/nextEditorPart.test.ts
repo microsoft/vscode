@@ -12,8 +12,74 @@ import { GroupDirection } from 'vs/workbench/services/editor/common/nextEditorGr
 import { Dimension } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INextEditorPartOptions } from 'vs/workbench/browser/parts/editor2/editor2';
+import { EditorInput, IFileEditorInput, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorOptions } from 'vs/workbench/common/editor';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IEditorModel } from 'vs/platform/editor/common/editor';
+import URI from 'vs/base/common/uri';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IEditorRegistry, Extensions, EditorDescriptor } from 'vs/workbench/browser/editor';
+import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+
+export class TestFileEditor extends BaseEditor {
+
+	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyTestFileEditor', NullTelemetryService, new TestThemeService()); }
+
+	getId(): string { return 'myTestFileEditor'; }
+	layout(): void { }
+	createEditor(): any { }
+}
+
+export class TestFileEditorInput extends EditorInput implements IFileEditorInput {
+
+	constructor(private resource: URI) { super(); }
+
+	getTypeId() { return 'testFileEditorInput'; }
+	resolve(): TPromise<IEditorModel> { return null; }
+	matches(other: TestFileEditorInput): boolean { return other && this.resource.toString() === other.resource.toString() && other instanceof TestFileEditorInput; }
+	setEncoding(encoding: string) { }
+	getEncoding(): string { return null; }
+	setPreferredEncoding(encoding: string) { }
+	getResource(): URI { return this.resource; }
+	setForceOpenAsBinary(): void { }
+}
 
 suite('Next editor2 part tests', () => {
+
+	function registerTestFileEditorInput(): void {
+
+		interface ISerializedTestFileEditorInput {
+			resource: string;
+		}
+
+		class TestFileEditorInputFactory implements IEditorInputFactory {
+
+			constructor() { }
+
+			serialize(editorInput: EditorInput): string {
+				const testEditorInput = <TestFileEditorInput>editorInput;
+				const testInput: ISerializedTestFileEditorInput = {
+					resource: testEditorInput.getResource().toString()
+				};
+
+				return JSON.stringify(testInput);
+			}
+
+			deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
+				const testInput: ISerializedTestFileEditorInput = JSON.parse(serializedEditorInput);
+
+				return new TestFileEditorInput(URI.parse(testInput.resource));
+			}
+		}
+
+		(Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories)).registerEditorInputFactory('testFileEditorInput', TestFileEditorInputFactory);
+		(Registry.as<IEditorRegistry>(Extensions.Editors)).registerEditor(new EditorDescriptor(TestFileEditor, 'MyTestFileEditor', 'My Test File Editor'), new SyncDescriptor(TestFileEditorInput));
+	}
+
+	registerTestFileEditorInput();
 
 	function createPart(): NextEditorPart {
 		const instantiationService = workbenchInstantiationService();
@@ -25,7 +91,7 @@ suite('Next editor2 part tests', () => {
 		return part;
 	}
 
-	test('Editor groups basics', function () {
+	test('Editor part groups basics', function () {
 		const part = createPart();
 
 		let activeGroupChangeCounter = 0;
@@ -159,5 +225,50 @@ suite('Next editor2 part tests', () => {
 		assert.equal(oldOptions, currentOptions);
 
 		part.dispose();
+	});
+
+	test('Editor part editor basics', function () {
+		const part = createPart();
+		const group = part.activeGroup;
+
+		let activeEditorChangeCounter = 0;
+		const activeEditorChangeListener = group.onDidActiveEditorChange(() => {
+			activeEditorChangeCounter++;
+		});
+
+		let editorCloseCounter = 0;
+		const editorCloseListener = group.onDidCloseEditor(() => {
+			editorCloseCounter++;
+		});
+
+		const input = new TestFileEditorInput(URI.file('foo/bar'));
+		const inputInactive = new TestFileEditorInput(URI.file('foo/bar/inactive'));
+
+		return group.openEditor(input, EditorOptions.create({ pinned: true })).then(() => {
+			return group.openEditor(inputInactive, EditorOptions.create({ inactive: true })).then(() => {
+				assert.equal(group.count, 2);
+				assert.equal(activeEditorChangeCounter, 1);
+
+				assert.equal(group.activeEditor, input);
+				assert.ok(group.activeControl instanceof TestFileEditor);
+				assert.equal(group.editors.length, 2);
+
+				return group.openEditor(inputInactive).then(() => {
+					assert.equal(activeEditorChangeCounter, 2);
+					assert.equal(group.activeEditor, inputInactive);
+
+					return group.closeEditor(inputInactive).then(() => {
+						assert.equal(activeEditorChangeCounter, 3);
+						assert.equal(editorCloseCounter, 1);
+
+						assert.equal(group.activeEditor, input);
+
+						activeEditorChangeListener.dispose();
+						editorCloseListener.dispose();
+						part.dispose();
+					});
+				});
+			});
+		});
 	});
 });
