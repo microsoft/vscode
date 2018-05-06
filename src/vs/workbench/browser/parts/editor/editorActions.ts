@@ -23,7 +23,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { CLOSE_EDITOR_COMMAND_ID, NAVIGATE_IN_GROUP_ONE_PREFIX, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, NAVIGATE_IN_GROUP_THREE_PREFIX, NAVIGATE_IN_GROUP_TWO_PREFIX } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { INextEditorGroupsService, Direction as SplitDirection, INextEditorGroup, CopyKind } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { INextEditorGroupsService, GroupDirection as SplitDirection, INextEditorGroup, CopyKind } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 
 // TODo@grid this action should be removed in favour of the split vertical/horizontal actions
 export class SplitEditorAction extends Action {

@@ -12,7 +12,7 @@ import { IEditorInput, IEditor, IEditorOptions } from 'vs/platform/editor/common
 
 export const INextEditorGroupsService = createDecorator<INextEditorGroupsService>('nextEditorGroupsService');
 
-export enum Direction {
+export enum GroupDirection {
 	UP,
 	DOWN,
 	LEFT,
@@ -214,7 +214,7 @@ export interface INextEditorGroupsService {
 	 * @param direction the direction of where to split to
 	 * @param copy optionally copy either the active editor open or all editors
 	 */
-	addGroup(fromGroup: INextEditorGroup | GroupIdentifier, direction: Direction, copy?: CopyKind): INextEditorGroup;
+	addGroup(fromGroup: INextEditorGroup | GroupIdentifier, direction: GroupDirection, copy?: CopyKind): INextEditorGroup;
 
 	/**
 	 * Remove a group from the editor area.

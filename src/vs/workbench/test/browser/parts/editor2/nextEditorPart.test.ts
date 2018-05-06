@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import { NextEditorPart } from 'vs/workbench/browser/parts/editor2/nextEditorPart';
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
-import { Direction } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { GroupDirection } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { Dimension } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INextEditorPartOptions } from 'vs/workbench/browser/parts/editor2/editor2';
@@ -54,7 +54,7 @@ suite('Next editor2 part tests', () => {
 		assert.equal(mru.length, 1);
 		assert.equal(mru[0], rootGroup);
 
-		const rightGroup = part.addGroup(rootGroup, Direction.RIGHT);
+		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
 		assert.equal(rightGroup, part.getGroup(rightGroup.id));
 		assert.equal(groupAddedCounter, 1);
 		assert.equal(part.groups.length, 2);
@@ -77,7 +77,7 @@ suite('Next editor2 part tests', () => {
 		assert.equal(mru[0], rightGroup);
 		assert.equal(mru[1], rootGroup);
 
-		const downGroup = part.addGroup(rightGroup, Direction.DOWN);
+		const downGroup = part.addGroup(rightGroup, GroupDirection.DOWN);
 		let didDispose = false;
 		downGroup.onWillDispose(() => {
 			didDispose = true;

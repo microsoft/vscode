@@ -9,7 +9,7 @@ import URI from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { INextEditorGroupsService, Direction } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { INextEditorGroupsService, GroupDirection } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -57,15 +57,15 @@ export class GridOpenEditorsAction extends Action {
 		firstGroup.openEditor(inputs[1], { inactive: true, pinned: true });
 		firstGroup.openEditor(inputs[2], { inactive: true, pinned: true });
 
-		const secondGroup = this.nextEditorGroupsService.addGroup(firstGroup, Direction.DOWN);
+		const secondGroup = this.nextEditorGroupsService.addGroup(firstGroup, GroupDirection.DOWN);
 		secondGroup.openEditor(inputs[3], { pinned: true, preserveFocus: true });
 		secondGroup.openEditor(inputs[4], { inactive: true, pinned: true });
 
-		const thirdGroup = this.nextEditorGroupsService.addGroup(secondGroup, Direction.RIGHT);
+		const thirdGroup = this.nextEditorGroupsService.addGroup(secondGroup, GroupDirection.RIGHT);
 		thirdGroup.openEditor(inputs[5], { pinned: true, preserveFocus: true });
 		thirdGroup.openEditor(inputs[6], { inactive: true, pinned: true });
 
-		this.nextEditorGroupsService.addGroup(firstGroup, Direction.RIGHT); // play with empty group
+		this.nextEditorGroupsService.addGroup(firstGroup, GroupDirection.RIGHT); // play with empty group
 
 		return TPromise.as(void 0);
 	}

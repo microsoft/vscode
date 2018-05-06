@@ -110,7 +110,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { NextEditorPart } from 'vs/workbench/browser/parts/editor2/nextEditorPart';
-import { INextEditorGroupsService, Direction } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { INextEditorGroupsService, GroupDirection } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { NextEditorService } from 'vs/workbench/services/editor/browser/nextEditorService';
 import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/platform/url/electron-browser/inactiveExtensionUrlHandler';
 
@@ -1414,8 +1414,8 @@ export class Workbench extends Disposable implements IPartService {
 		if (active) {
 			if (this.nextEditorGroupsService.count === 1) {
 				const activeGroup = this.nextEditorGroupsService.activeGroup;
-				this.nextEditorGroupsService.addGroup(activeGroup, Direction.LEFT);
-				this.nextEditorGroupsService.addGroup(activeGroup, Direction.RIGHT);
+				this.nextEditorGroupsService.addGroup(activeGroup, GroupDirection.LEFT);
+				this.nextEditorGroupsService.addGroup(activeGroup, GroupDirection.RIGHT);
 			}
 		}
 

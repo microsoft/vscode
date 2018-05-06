@@ -24,7 +24,7 @@ import { basename } from 'vs/base/common/paths';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { INextEditorGroupsService, INextEditorGroup, Direction } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { INextEditorGroupsService, INextEditorGroup, GroupDirection } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { INextEditorService, IResourceEditor, SIDE_BY_SIDE, SIDE_BY_SIDE_VALUE } from 'vs/workbench/services/editor/common/nextEditorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -165,7 +165,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 
 		// Group: Side by Side
 		if (group === SIDE_BY_SIDE_VALUE) {
-			targetGroup = this.nextEditorGroupsService.addGroup(this.nextEditorGroupsService.activeGroup, Direction.RIGHT);
+			targetGroup = this.nextEditorGroupsService.addGroup(this.nextEditorGroupsService.activeGroup, GroupDirection.RIGHT);
 		}
 
 		// Group: Specific Group

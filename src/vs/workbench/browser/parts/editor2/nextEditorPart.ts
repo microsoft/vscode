@@ -11,9 +11,9 @@ import { Part } from 'vs/workbench/browser/part';
 import { Dimension, isAncestor, toggleClass, addClass } from 'vs/base/browser/dom';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { INextEditorGroupsService, Direction, CopyKind } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { INextEditorGroupsService, GroupDirection, CopyKind } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Grid, Direction as GridViewDirection } from 'vs/base/browser/ui/grid/grid';
+import { Grid, Direction } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, EditorOptions, TextEditorOptions, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER } from 'vs/workbench/common/theme';
@@ -174,14 +174,14 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		return groupView;
 	}
 
-	addGroup(fromGroup: INextEditorGroupView | GroupIdentifier, direction: Direction, copy?: CopyKind): INextEditorGroupView {
+	addGroup(fromGroup: INextEditorGroupView | GroupIdentifier, direction: GroupDirection, copy?: CopyKind): INextEditorGroupView {
 		const fromGroupView = this.asGroupView(fromGroup);
 		const newGroupView = this.doCreateGroupView(copy === CopyKind.GROUP ? fromGroupView : void 0);
 
 		// Add to grid widget
 		this.gridWidget.addView(
 			newGroupView,
-			direction === Direction.DOWN ? fromGroupView.dimension.height / 2 : fromGroupView.dimension.width / 2 /* TODO@grid what size? */,
+			direction === GroupDirection.DOWN ? fromGroupView.dimension.height / 2 : fromGroupView.dimension.width / 2 /* TODO@grid what size? */,
 			fromGroupView,
 			this.toGridViewDirection(direction),
 		);
@@ -238,12 +238,12 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		this._onDidRemoveGroup.fire(groupView);
 	}
 
-	private toGridViewDirection(direction: Direction): GridViewDirection {
+	private toGridViewDirection(direction: GroupDirection): Direction {
 		switch (direction) {
-			case Direction.UP: return GridViewDirection.Up;
-			case Direction.DOWN: return GridViewDirection.Down;
-			case Direction.LEFT: return GridViewDirection.Left;
-			case Direction.RIGHT: return GridViewDirection.Right;
+			case GroupDirection.UP: return Direction.Up;
+			case GroupDirection.DOWN: return Direction.Down;
+			case GroupDirection.LEFT: return Direction.Left;
+			case GroupDirection.RIGHT: return Direction.Right;
 		}
 	}
 
