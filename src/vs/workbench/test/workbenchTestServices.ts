@@ -56,15 +56,20 @@ import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderW
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IPosition, Position as EditorPosition } from 'vs/editor/common/core/position';
-import { ICommandAction } from 'vs/platform/actions/common/actions';
+import { ICommandAction, IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
+import { IExtensionService, ProfileSession, IExtensionsStatus, ExtensionPointContribution, IExtensionDescription } from '../services/extensions/common/extensions';
+import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { IKeybindingService } from '../../platform/keybinding/common/keybinding';
+import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -259,6 +264,10 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(INotificationService, new TestNotificationService());
 	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 	instantiationService.stub(IWindowService, new TestWindowService());
+	instantiationService.stub(IMenuService, new TestMenuService());
+	instantiationService.stub(IKeybindingService, new MockKeybindingService());
+	instantiationService.stub(IDecorationsService, new TestDecorationsService());
+	instantiationService.stub(IExtensionService, new TestExtensionService());
 	instantiationService.stub(IWindowsService, new TestWindowsService());
 	instantiationService.stub(ITextFileService, <ITextFileService>instantiationService.createInstance(TestTextFileService));
 	instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
@@ -267,6 +276,42 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IHashService, new TestHashService());
 
 	return instantiationService;
+}
+
+export class TestDecorationsService implements IDecorationsService {
+	_serviceBrand: any;
+	onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = Event.None;
+	registerDecorationsProvider(provider: IDecorationsProvider): IDisposable { return toDisposable(); }
+	getDecoration(uri: URI, includeChildren: boolean, overwrite?: IDecorationData): IDecoration { return void 0; }
+}
+
+export class TestExtensionService implements IExtensionService {
+	_serviceBrand: any;
+	onDidRegisterExtensions: Event<void> = Event.None;
+	onDidChangeExtensionsStatus: Event<string[]> = Event.None;
+	activateByEvent(activationEvent: string): Promise<void> { return TPromise.as(void 0); }
+	whenInstalledExtensionsRegistered(): Promise<boolean> { return TPromise.as(true); }
+	getExtensions(): Promise<IExtensionDescription[]> { return TPromise.as([]); }
+	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> { return TPromise.as(Object.create(null)); }
+	getExtensionsStatus(): { [id: string]: IExtensionsStatus; } { return Object.create(null); }
+	canProfileExtensionHost(): boolean { return false; }
+	startExtensionHostProfile(): Promise<ProfileSession> { return TPromise.as(Object.create(null)); }
+	restartExtensionHost(): void { }
+	startExtensionHost(): void { }
+	stopExtensionHost(): void { }
+}
+
+export class TestMenuService implements IMenuService {
+
+	public _serviceBrand: any;
+
+	createMenu(id: MenuId, scopedKeybindingService: IContextKeyService): IMenu {
+		return {
+			onDidChange: Event.None,
+			dispose: () => void 0,
+			getActions: () => []
+		};
+	}
 }
 
 export class TestHistoryService implements IHistoryService {

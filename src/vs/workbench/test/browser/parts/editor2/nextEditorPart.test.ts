@@ -136,6 +136,8 @@ suite('Next editor2 part tests', () => {
 		activeGroupChangeListener.dispose();
 		groupAddedListener.dispose();
 		groupRemovedListener.dispose();
+
+		part.dispose();
 	});
 
 	test('Editor part options', function () {
@@ -155,5 +157,7 @@ suite('Next editor2 part tests', () => {
 		assert.equal(part.partOptions.showTabs, false);
 		assert.equal(newOptions.showTabs, false);
 		assert.equal(oldOptions, currentOptions);
+
+		part.dispose();
 	});
 });
