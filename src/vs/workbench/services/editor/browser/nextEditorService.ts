@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInput, IResourceInput, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditor, ITextEditorOptions, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { GroupIdentifier, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
@@ -29,6 +29,7 @@ import { INextEditorService, IResourceEditor, SIDE_BY_SIDE, SIDE_BY_SIDE_VALUE }
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
+import { isCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 type ICachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
 
@@ -96,6 +97,18 @@ export class NextEditorService extends Disposable implements INextEditorService 
 
 	get activeControl(): IEditor {
 		return this.nextEditorGroupsService.activeGroup.activeControl;
+	}
+
+	get activeTextEditorControl(): ICodeEditor {
+		const activeControl = this.activeControl;
+		if (activeControl) {
+			const activeControlWidget = activeControl.getControl();
+			if (isCodeEditor(activeControlWidget)) {
+				return activeControlWidget;
+			}
+		}
+
+		return void 0;
 	}
 
 	get activeEditor(): IEditorInput {
@@ -199,6 +212,19 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		}
 
 		return EditorOptions.create(options);
+	}
+
+	//#endregion
+
+	//#region invokeWithinEditorContext()
+
+	invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T {
+		const activeTextEditorControl = this.activeTextEditorControl;
+		if (activeTextEditorControl) {
+			return activeTextEditorControl.invokeWithinContext(fn);
+		}
+
+		return this.nextEditorGroupsService.activeGroup.invokeWithinContext(fn);
 	}
 
 	//#endregion

@@ -10,6 +10,7 @@ import { NextEditorPart } from 'vs/workbench/browser/parts/editor2/nextEditorPar
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import { Direction } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { Dimension } from 'vs/base/browser/dom';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 suite('editor2 tests', () => {
 
@@ -85,6 +86,20 @@ suite('editor2 tests', () => {
 		assert.equal(mru.length, 2);
 		assert.equal(mru[0], rightGroup);
 		assert.equal(mru[1], rootGroup);
+
+		let rightGroupInstantiator: IInstantiationService;
+		part.activeGroup.invokeWithinContext(accessor => {
+			rightGroupInstantiator = accessor.get(IInstantiationService);
+		});
+
+		let rootGroupInstantiator: IInstantiationService;
+		rootGroup.invokeWithinContext(accessor => {
+			rootGroupInstantiator = accessor.get(IInstantiationService);
+		});
+
+		assert.ok(rightGroupInstantiator);
+		assert.ok(rootGroupInstantiator);
+		assert.ok(rightGroupInstantiator !== rootGroupInstantiator);
 
 		part.removeGroup(rightGroup);
 		assert.equal(part.groups.length, 1);

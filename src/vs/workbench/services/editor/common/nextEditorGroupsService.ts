@@ -6,7 +6,7 @@
 'use strict';
 
 import { Event } from 'vs/base/common/event';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { IEditorInput, IEditor, IEditorOptions } from 'vs/platform/editor/common/editor';
 
@@ -125,6 +125,11 @@ export interface INextEditorGroup {
 	 * Move keyboard focus into the group.
 	 */
 	focus(): void;
+
+	/**
+	 * Invoke a function in the context of the services of this group.
+	 */
+	invokeWithinContext<T>(fn: (accessor: ServicesAccessor) => T): T;
 }
 
 export enum CopyKind {

@@ -5,10 +5,11 @@
 
 'use strict';
 
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInput, IResourceInput, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditor, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
+import { IEditor as ICodeEditor } from 'vs/editor/common/editorCommon';
 
 export const INextEditorService = createDecorator<INextEditorService>('nextEditorService');
 
@@ -34,6 +35,12 @@ export interface INextEditorService {
 	 * The currently active editor control if any.
 	 */
 	readonly activeControl: IEditor;
+
+	/**
+	 * The currently active text editor control if there is a control active
+	 * and it is an instance of the code text editor.
+	 */
+	readonly activeTextEditorControl: ICodeEditor;
 
 	/**
 	 * The currently active editor if any.
@@ -70,6 +77,11 @@ export interface INextEditorService {
 	 * of the currently active group.
 	 */
 	openEditor(editor: IResourceEditor, group?: GroupIdentifier | SIDE_BY_SIDE): Thenable<IEditor>;
+
+	/**
+	 * Invoke a function in the context of the services of the active editor.
+	 */
+	invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T;
 
 	/**
 	 * Converts a lightweight input to a workbench editor input.

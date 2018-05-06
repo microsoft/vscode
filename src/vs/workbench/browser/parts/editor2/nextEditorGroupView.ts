@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorGroup, IEditorOpenOptions, EditorCloseEvent } from 'vs/workbench/common/editor/editorStacksModel';
 import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, IEditorOpeningEvent, EditorOpeningEvent, TextEditorOptions } from 'vs/workbench/common/editor';
 import { Event, Emitter, once } from 'vs/base/common/event';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -512,6 +512,14 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 				this.titleAreaControl.pinEditor(editor);
 			}
 		}
+	}
+
+	invokeWithinContext<T>(fn: (accessor: ServicesAccessor) => T): T {
+		if (!this.scopedInstantiationService) {
+			this.createScopedInstantiationService();
+		}
+
+		return this.scopedInstantiationService.invokeFunction(fn);
 	}
 
 	//#endregion

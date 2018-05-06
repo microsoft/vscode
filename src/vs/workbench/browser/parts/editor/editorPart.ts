@@ -613,24 +613,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	//#endregion
 
-	//#region TODO@grid invokeWithinEditorContext()
-
-	public invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T {
-		const activeEditor = this.getActiveEditor();
-		if (activeEditor) {
-			const activeEditorControl = activeEditor.getControl();
-			if (isCodeEditor(activeEditorControl)) {
-				return activeEditorControl.invokeWithinContext(fn);
-			}
-
-			return this.editorGroupsControl.getInstantiationService(activeEditor.position).invokeFunction(fn);
-		}
-
-		return this.instantiationService.invokeFunction(fn);
-	}
-
-	//#endregion
-
 	//#region Handled or Adopted or Obsolete
 
 	public _serviceBrand: any;
@@ -736,6 +718,20 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		this.initStyles();
 		this.registerListeners();
+	}
+
+	public invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T {
+		const activeEditor = this.getActiveEditor();
+		if (activeEditor) {
+			const activeEditorControl = activeEditor.getControl();
+			if (isCodeEditor(activeEditorControl)) {
+				return activeEditorControl.invokeWithinContext(fn);
+			}
+
+			return this.editorGroupsControl.getInstantiationService(activeEditor.position).invokeFunction(fn);
+		}
+
+		return this.instantiationService.invokeFunction(fn);
 	}
 
 	private initStyles(): void {
