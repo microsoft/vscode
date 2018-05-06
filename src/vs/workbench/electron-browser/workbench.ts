@@ -193,7 +193,6 @@ export class Workbench extends Disposable implements IPartService {
 	private nextEditorService: INextEditorService;
 	private nextEditorGroupsService: INextEditorGroupsService;
 	private legacyEditorService: IWorkbenchEditorService;
-	private legacyEditorGroupService: IEditorGroupService;
 	private viewletService: IViewletService;
 	private contextKeyService: IContextKeyService;
 	private keybindingService: IKeybindingService;
@@ -367,7 +366,7 @@ export class Workbench extends Disposable implements IPartService {
 		if (filesToWait) {
 			const resourcesToWaitFor = filesToWait.paths.map(p => URI.file(p.filePath));
 			const waitMarkerFile = URI.file(filesToWait.waitMarkerFilePath);
-			const listenerDispose = this.legacyEditorGroupService.getStacksModel().onEditorClosed(() => this.onEditorClosed(listenerDispose, resourcesToWaitFor, waitMarkerFile));
+			const listenerDispose = this.nextEditorService.onDidCloseEditor(() => this.onEditorClosed(listenerDispose, resourcesToWaitFor, waitMarkerFile));
 
 			this._register(listenerDispose);
 		}
@@ -408,8 +407,7 @@ export class Workbench extends Disposable implements IPartService {
 		// In wait mode, listen to changes to the editors and wait until the files
 		// are closed that the user wants to wait for. When this happens we delete
 		// the wait marker file to signal to the outside that editing is done.
-		const stacks = this.legacyEditorGroupService.getStacksModel();
-		if (resourcesToWaitFor.every(r => !stacks.isOpen(r))) {
+		if (resourcesToWaitFor.every(resource => !this.nextEditorService.isOpen({ resource }))) {
 			listenerDispose.dispose();
 			this.fileService.del(waitMarkerFile).done(null, errors.onUnexpectedError);
 		}
@@ -740,7 +738,6 @@ export class Workbench extends Disposable implements IPartService {
 		// Legacy Editor Services
 		this.noOpEditorPart = new NoOpEditorPart(this.instantiationService);
 		this.legacyEditorService = this.instantiationService.createInstance(WorkbenchEditorService, this.noOpEditorPart);
-		this.legacyEditorGroupService = this.noOpEditorPart;
 		serviceCollection.set(IWorkbenchEditorService, this.legacyEditorService);
 		serviceCollection.set(IEditorGroupService, this.noOpEditorPart);
 

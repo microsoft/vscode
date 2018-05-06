@@ -32,6 +32,11 @@ export interface INextEditorService {
 	readonly onDidVisibleEditorsChange: Event<void>;
 
 	/**
+	 * Emitted when an editor is closed.
+	 */
+	readonly onDidCloseEditor: Event<IEditorInput>;
+
+	/**
 	 * The currently active editor control if any.
 	 */
 	readonly activeControl: IEditor;
@@ -77,6 +82,13 @@ export interface INextEditorService {
 	 * of the currently active group.
 	 */
 	openEditor(editor: IResourceEditor, group?: GroupIdentifier | SIDE_BY_SIDE): Thenable<IEditor>;
+
+	/**
+	 * Find out if the provided editor (or resource of an editor) is opened in any group.
+	 *
+	 * Note: An editor can be opened but not actively visible.
+	 */
+	isOpen(editor: IEditorInput | IResourceInput | IUntitledResourceInput): boolean;
 
 	/**
 	 * Invoke a function in the context of the services of the active editor.

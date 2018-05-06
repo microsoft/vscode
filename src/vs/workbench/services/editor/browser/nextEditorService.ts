@@ -47,6 +47,9 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	private _onDidVisibleEditorsChange: Emitter<void> = this._register(new Emitter<void>());
 	get onDidVisibleEditorsChange(): Event<void> { return this._onDidVisibleEditorsChange.event; }
 
+	private _onDidCloseEditor: Emitter<IEditorInput> = this._register(new Emitter<IEditorInput>());
+	get onDidCloseEditor(): Event<IEditorInput> { return this._onDidCloseEditor.event; }
+
 	//#endregion
 
 	private fileInputFactory: IFileInputFactory;
@@ -88,6 +91,10 @@ export class NextEditorService extends Disposable implements INextEditorService 
 			}
 
 			this._onDidVisibleEditorsChange.fire();
+		}));
+
+		groupDisposeables.push(group.onDidCloseEditor(editor => {
+			this._onDidCloseEditor.fire(editor);
 		}));
 
 		once(group.onWillDispose)(() => {
@@ -212,6 +219,29 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		}
 
 		return EditorOptions.create(options);
+	}
+
+	//#endregion
+
+	//#region isOpen()
+
+	isOpen(editor: IEditorInput | IResourceInput | IUntitledResourceInput): boolean {
+		return this.nextEditorGroupsService.groups.some(group => {
+			if (editor instanceof EditorInput) {
+				return group.isOpened(editor);
+			}
+
+			const resourceInput = editor as IResourceInput | IUntitledResourceInput;
+			if (!resourceInput.resource) {
+				return false;
+			}
+
+			return group.editors.some(editorInGroup => {
+				const resource = editorInGroup.getResource();
+
+				return resource && resource.toString() === resourceInput.resource.toString();
+			});
+		});
 	}
 
 	//#endregion

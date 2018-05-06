@@ -65,6 +65,11 @@ export interface INextEditorGroup {
 	readonly onDidActiveEditorChange: Event<void>;
 
 	/**
+	 * Emitted when an editor of this group is closed.
+	 */
+	readonly onDidCloseEditor: Event<IEditorInput>;
+
+	/**
 	 * Returns the editor at a specific index of the group.
 	 */
 	getEditor(index: number): IEditorInput;
@@ -81,8 +86,9 @@ export interface INextEditorGroup {
 	openEditor(editor: IEditorInput, options?: IEditorOptions): Thenable<void>;
 
 	/**
-	 * Find out if the provided editor is opened in the group. An editor can be opened
-	 * but not actively visible.
+	 * Find out if the provided editor is opened in the group.
+	 *
+	 * Note: An editor can be opened but not actively visible.
 	 */
 	isOpened(editor: IEditorInput): boolean;
 
