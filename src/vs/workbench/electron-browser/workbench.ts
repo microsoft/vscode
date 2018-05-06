@@ -110,7 +110,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { NextEditorPart } from 'vs/workbench/browser/parts/editor2/nextEditorPart';
-import { INextEditorGroupsService } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
+import { INextEditorGroupsService, Direction } from 'vs/workbench/services/editor/common/nextEditorGroupsService';
 import { NextEditorService } from 'vs/workbench/services/editor/browser/nextEditorService';
 import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/platform/url/electron-browser/inactiveExtensionUrlHandler';
 
@@ -1402,9 +1402,33 @@ export class Workbench extends Disposable implements IPartService {
 		return this.centeredEditorLayoutActive;
 	}
 
+	// TODO@grid support centered editor layout using empty groups or not? functionality missing:
+	// - proper initial sizing (left and right empty group sizes are not the same)
+	// - resize sashes left and right in sync
+	// - IEditorInput.supportsCenteredEditorLayout() no longer supported
 	centerEditorLayout(active: boolean, skipLayout?: boolean): void {
 		this.centeredEditorLayoutActive = active;
 		this.storageService.store(Workbench.centeredEditorLayoutActiveStorageKey, this.centeredEditorLayoutActive, StorageScope.GLOBAL);
+
+		// Enter Centered Editor Layout
+		if (active) {
+			if (this.nextEditorGroupsService.count === 1) {
+				const activeGroup = this.nextEditorGroupsService.activeGroup;
+				this.nextEditorGroupsService.addGroup(activeGroup, Direction.LEFT);
+				this.nextEditorGroupsService.addGroup(activeGroup, Direction.RIGHT);
+			}
+		}
+
+		// Leave Centered Editor Layout
+		else {
+			if (this.nextEditorGroupsService.count === 3) {
+				this.nextEditorGroupsService.groups.forEach(group => {
+					if (group.count === 0) {
+						this.nextEditorGroupsService.removeGroup(group);
+					}
+				});
+			}
+		}
 
 		if (!skipLayout) {
 			this.layout();
