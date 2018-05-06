@@ -27,6 +27,7 @@ export interface ICompositeBarOptions {
 	orientation: ActionsOrientation;
 	composites: { id: string, name: string, order: number }[];
 	colors: ICompositeBarColors;
+	compositeSize: number;
 	overflowActionSize: number;
 	getActivityAction: (compositeId: string) => ActivityAction;
 	getCompositePinnedAction: (compositeId: string) => Action;
@@ -66,7 +67,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		for (const state of this.storedState) {
 			const composite = this.options.composites.filter(c => c.id === state.id)[0];
 			if (composite) {
-				this.model.add(composite.id, composite.name, composite.order, state.pinned, index++);
+				this.addToModel(composite.id, composite.name, composite.order, state.pinned, index++);
 			}
 		}
 	}
@@ -116,14 +117,9 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		if (this.compositeSizeInBar.size === 0) {
 			// Compute size of each composite by getting the size from the css renderer
 			// Size is later used for overflow computation
-			this.compositeSwitcherBar.clear();
-			this.compositeSwitcherBar.push(this.model.items.map(item => item.activityAction));
-			this.model.items.map((c, index) => this.compositeSizeInBar.set(c.id, this.options.orientation === ActionsOrientation.VERTICAL
-				? this.compositeSwitcherBar.getHeight(index)
-				: this.compositeSwitcherBar.getWidth(index)
-			));
-			this.compositeSwitcherBar.clear();
+			this.computeSizes(this.model.items);
 		}
+
 		this.updateCompositeSwitcher();
 	}
 
@@ -146,7 +142,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		}
 
 		// Add to the model
-		if (this.model.add(id, name, order, pinned, index)) {
+		if (this.addToModel(id, name, order, pinned, index)) {
 			if (open) {
 				this.pin(id, true);
 			} else {
@@ -274,6 +270,32 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	public getAction(compositeId): ActivityAction {
 		const item = this.model.findItem(compositeId);
 		return item && item.activityAction;
+	}
+
+	private addToModel(id: string, name: string, order: number, pinned: boolean, index: number): boolean {
+		if (this.model.add(id, name, order, pinned, index)) {
+			this.computeSizes([this.model.findItem(id)]);
+			return true;
+		}
+		return false;
+	}
+
+	private computeSizes(items: ICompositeBarItem[]): void {
+		const size = this.options.compositeSize;
+		if (size) {
+			items.forEach(composite => this.compositeSizeInBar.set(composite.id, size));
+		} else {
+			if (this.dimension && this.dimension.height !== 0 && this.dimension.width !== 0) {
+				// Compute sizes only if visible. Otherwise the size measurment would be computed wrongly.
+				const currentItemsLength = this.compositeSwitcherBar.items.length;
+				this.compositeSwitcherBar.push(items.map(composite => composite.activityAction));
+				items.map((composite, index) => this.compositeSizeInBar.set(composite.id, this.options.orientation === ActionsOrientation.VERTICAL
+					? this.compositeSwitcherBar.getHeight(currentItemsLength + index)
+					: this.compositeSwitcherBar.getWidth(currentItemsLength + index)
+				));
+				items.forEach(() => this.compositeSwitcherBar.pull(this.compositeSwitcherBar.items.length - 1));
+			}
+		}
 	}
 
 	private updateCompositeSwitcher(): void {

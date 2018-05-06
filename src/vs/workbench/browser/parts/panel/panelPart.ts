@@ -86,6 +86,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			getContextMenuActions: () => [this.instantiationService.createInstance(TogglePanelAction, TogglePanelAction.ID, localize('hidePanel', "Hide Panel"))],
 			getDefaultCompositeId: () => Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId(),
 			hidePart: () => this.partService.setPanelHidden(true),
+			compositeSize: 0,
 			overflowActionSize: 44,
 			colors: {
 				backgroundColor: PANEL_BACKGROUND,
