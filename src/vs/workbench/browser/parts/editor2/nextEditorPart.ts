@@ -221,16 +221,17 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 			const mostRecentlyActiveGroups = this.getGroups(true);
 			const nextActiveGroup = mostRecentlyActiveGroups[1]; // [0] will be the current group we are about to dispose
 			this.activateGroup(nextActiveGroup);
-
-			// Restore focus if we had it previously
-			if (groupHasFocus) {
-				nextActiveGroup.focus();
-			}
 		}
 
 		// Remove from grid widget & dispose
 		this.gridWidget.removeView(groupView);
 		groupView.dispose();
+
+		// Restore focus if we had it previously (we run this after gridWidget.removeView() is called
+		// because removing a view can mean to reparent it and thus focus would be removed otherwise)
+		if (groupHasFocus) {
+			this._activeGroup.focus();
+		}
 
 		// Update container
 		this.updateContainer();
