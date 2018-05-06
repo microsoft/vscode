@@ -174,7 +174,7 @@ class ModelMarkerHandler {
 				hoverMessage.appendMarkdown('\n');
 				for (const { message, resource, startLineNumber, startColumn } of relatedInformation) {
 					hoverMessage.appendMarkdown(
-						`* [${basename(resource.path)}(${startLineNumber}, ${startColumn})](${resource.toString(false)}#${startLineNumber},${startColumn}): \`${message}\` \n`
+						`* [${basename(resource.path)}(${startLineNumber}, ${startColumn})](${resource.toString(false)}#${startLineNumber},${startColumn}): ${message} \n`
 					);
 				}
 				hoverMessage.appendMarkdown('\n');
