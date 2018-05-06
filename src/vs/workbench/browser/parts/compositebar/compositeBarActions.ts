@@ -567,11 +567,13 @@ export class CompositeActionItem extends ActivityActionItem {
 
 	protected _updateClass(): void {
 		if (this.cssClass) {
-			this.$badge.removeClass(this.cssClass);
+			this.$label.removeClass(this.cssClass);
 		}
 
 		this.cssClass = this.getAction().class;
-		this.$badge.addClass(this.cssClass);
+		if (this.cssClass) {
+			this.$label.addClass(this.cssClass);
+		}
 	}
 
 	protected _updateChecked(): void {
