@@ -65,6 +65,9 @@ function indexInParent(element: HTMLElement): number {
 }
 
 /**
+ * Find the grid location of a specific DOM element by traversing the parent
+ * chain and finding each child index on the way.
+ *
  * This will break as soon as DOM structures of the Splitview or Gridview change.
  */
 function getGridLocation(element: HTMLElement): number[] {
@@ -190,10 +193,12 @@ export interface IViewDeserializer<T extends ISerializableView> {
 	fromJSON(json: any): T;
 }
 
-/**
- * TODO:
- * 	view sizes should be serialized too
- */
+interface InitialLayoutContext<T extends ISerializableView> {
+	width: number;
+	height: number;
+	root: GridBranchNode<T>;
+}
+
 export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 
 	private static serializeNode<T extends ISerializableView>(node: GridNode<T>): any {
@@ -250,9 +255,12 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 	static deserialize<T extends ISerializableView>(container: HTMLElement, json: any, deserializer: IViewDeserializer<T>): SerializableGrid<T> {
 		if (typeof json.orientation !== 'number') {
 			throw new Error('Invalid JSON: \'orientation\' property must be a number.');
+		} else if (typeof json.width !== 'number') {
+			throw new Error('Invalid JSON: \'width\' property must be a number.');
+		} else if (typeof json.height !== 'number') {
+			throw new Error('Invalid JSON: \'height\' property must be a number.');
 		}
 
-		const orientation = json.orientation as Orientation;
 		const root = SerializableGrid.deserializeNode(json.root, deserializer) as GridBranchNode<T>;
 		const firstLeaf = SerializableGrid.getFirstLeaf(root);
 
@@ -260,15 +268,23 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 			throw new Error('Invalid serialized state, first leaf not found');
 		}
 
+		const orientation = json.orientation as Orientation;
+		const width = json.width as number;
+		const height = json.height as number;
+
 		const result = new SerializableGrid<T>(container, firstLeaf.view);
 		result.orientation = orientation;
-		result.populate(firstLeaf.view, orientation, root);
-		result.deserializedRoot = root;
+		result.restoreViews(firstLeaf.view, orientation, root);
+		result.initialLayoutContext = { width, height, root };
 
 		return result;
 	}
 
-	private deserializedRoot: GridBranchNode<T> | undefined;
+	/**
+	 * Useful information in order to proportionally restore view sizes
+	 * upon the very first layout call.
+	 */
+	private initialLayoutContext: InitialLayoutContext<T> | undefined;
 
 	serialize(): any {
 		return {
@@ -282,25 +298,19 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 	layout(width: number, height: number): void {
 		super.layout(width, height);
 
-		if (this.deserializedRoot) {
-			this.restoreViewSize([], this.deserializedRoot);
-			this.deserializedRoot = undefined;
+		if (this.initialLayoutContext) {
+			const widthScale = width / this.initialLayoutContext.width;
+			const heightScale = height / this.initialLayoutContext.height;
+
+			this.restoreViewsSize([], this.initialLayoutContext.root, this.orientation, widthScale, heightScale);
+			this.initialLayoutContext = undefined;
 		}
 	}
 
-	private restoreViewSize(location: number[], node: GridNode<T>): void {
-		if (location.length > 0) {
-			this.gridview.resizeView(location, node.size);
-		}
-
-		if (isGridBranchNode(node)) {
-			for (let i = 0; i < node.children.length; i++) {
-				this.restoreViewSize([...location, i], node.children[i]);
-			}
-		}
-	}
-
-	private populate(referenceView: T, orientation: Orientation, node: GridNode<T>): void {
+	/**
+	 * Recursively restores views which were just deserialized.
+	 */
+	private restoreViews(referenceView: T, orientation: Orientation, node: GridNode<T>): void {
 		if (!isGridBranchNode(node)) {
 			return;
 		}
@@ -313,7 +323,30 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 		}
 
 		for (let i = 0; i < node.children.length; i++) {
-			this.populate(firstLeaves[i].view, orthogonal(orientation), node.children[i]);
+			this.restoreViews(firstLeaves[i].view, orthogonal(orientation), node.children[i]);
+		}
+	}
+
+	/**
+	 * Recursively restores view sizes.
+	 * This should be called only after the very first layout call.
+	 */
+	private restoreViewsSize(location: number[], node: GridNode<T>, orientation: Orientation, widthScale: number, heightScale: number): void {
+		if (!isGridBranchNode(node)) {
+			return;
+		}
+
+		const scale = orientation === Orientation.VERTICAL ? heightScale : widthScale;
+
+		for (let i = 0; i < node.children.length; i++) {
+			const child = node.children[i];
+			const childLocation = [...location, i];
+
+			if (i < node.children.length - 1) {
+				this.gridview.resizeView(childLocation, Math.floor(child.size * scale));
+			}
+
+			this.restoreViewsSize(childLocation, child, orthogonal(orientation), widthScale, heightScale);
 		}
 	}
 }

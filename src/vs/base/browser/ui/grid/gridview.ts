@@ -32,7 +32,6 @@ TODO:
 			color has to be applied via JS and not CSS to not apply it to all views
 			NOT CSS
 	- create grid wrapper which automatically sizes the new views
-	- deserialize should keep view proportions
 */
 
 export function orthogonal(orientation: Orientation): Orientation {
