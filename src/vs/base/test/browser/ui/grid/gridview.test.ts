@@ -23,7 +23,7 @@ suite('Gridview', function () {
 
 	test('empty gridview is empty', function () {
 		const gridview = new GridView(container);
-		assert.deepEqual(gridview.getViews(), { children: [] });
+		assert.deepEqual(gridview.getViews(), { children: [], size: 0 });
 		gridview.dispose();
 	});
 
