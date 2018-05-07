@@ -34,6 +34,8 @@ function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposab
 		watcher.onDidCreate((_e) => flushCache());
 		context.subscriptions.push(watcher);
 
+		vscode.workspace.onDidChangeConfiguration(flushCache);
+
 		let provider: vscode.TaskProvider = {
 			provideTasks: async () => {
 				if (!cachedTasks) {

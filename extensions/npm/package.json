@@ -151,7 +151,13 @@
           "default": false,
           "scope": "resource",
           "description": "%config.npm.enableScriptExplorer%"
-        }
+        },
+        "npm.showPrePostScripts": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource",
+					"description": "%config.npm.showPrePostScripts%"
+				}
       }
     },
     "jsonValidation": [
