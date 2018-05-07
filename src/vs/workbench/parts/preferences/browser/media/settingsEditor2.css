@@ -187,12 +187,16 @@
 
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-value > .setting-reset-button.monaco-button {
 	display: inline-block;
-	background: url("action-remove-dark.svg") center center no-repeat;
+	background: url("clean.svg") center center no-repeat;
 	width: 16px;
 	height: 16px;
 	margin: auto;
 	margin-left: 3px;
 	visibility: hidden;
+}
+
+.vs-dark .settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-value > .setting-reset-button.monaco-button {
+	background: url("clean-dark.svg") center center no-repeat;
 }
 
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row.is-configured .setting-item-value > .setting-reset-button.monaco-button {
