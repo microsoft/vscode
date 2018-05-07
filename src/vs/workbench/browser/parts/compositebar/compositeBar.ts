@@ -414,11 +414,11 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		EventHelper.stop(e, true);
 		const event = new StandardMouseEvent(e);
 		const actions: IAction[] = this.model.items
-			.map(({ id, name }) => (<IAction>{
+			.map(({ id, name, activityAction }) => (<IAction>{
 				id,
 				label: name,
 				checked: this.isPinned(id),
-				enabled: true,
+				enabled: activityAction.enabled,
 				run: () => {
 					if (this.isPinned(id)) {
 						this.unpin(id);
