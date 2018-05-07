@@ -9,7 +9,7 @@ import 'vs/css!./gridview';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { tail2 as tail } from 'vs/base/common/arrays';
-import { orthogonal, IView, GridView, Sizing } from './gridview';
+import { orthogonal, IView, GridView, Sizing as GridViewSizing } from './gridview';
 
 export { Orientation } from './gridview';
 
@@ -91,7 +91,7 @@ function directionOrientation(direction: Direction): Orientation {
 	return direction === Direction.Up || direction === Direction.Down ? Orientation.VERTICAL : Orientation.HORIZONTAL;
 }
 
-export enum AddViewSizing {
+export enum Sizing {
 	Distribute = 'distribute',
 	Split = 'split'
 }
@@ -119,7 +119,7 @@ export class Grid<T extends IView> implements IDisposable {
 		this.gridview.layout(width, height);
 	}
 
-	addView(newView: T, size: number | AddViewSizing, referenceView: T, direction: Direction): void {
+	addView(newView: T, size: number | Sizing, referenceView: T, direction: Direction): void {
 		if (this.views.has(newView)) {
 			throw new Error('Can\'t add same view twice');
 		}
@@ -133,13 +133,13 @@ export class Grid<T extends IView> implements IDisposable {
 		const referenceLocation = this.getViewLocation(referenceView);
 		const location = getRelativeLocation(this.gridview.orientation, referenceLocation, direction);
 
-		let viewSize: number | Sizing;
+		let viewSize: number | GridViewSizing;
 
-		if (size === AddViewSizing.Split) {
+		if (size === Sizing.Split) {
 			const { width, height } = this.gridview.getViewSize(referenceLocation);
 			viewSize = orientation === Orientation.VERTICAL ? Math.floor(height / 2) : Math.floor(width / 2);
-		} else if (size === AddViewSizing.Distribute) {
-			viewSize = Sizing.Distribute;
+		} else if (size === Sizing.Distribute) {
+			viewSize = GridViewSizing.Distribute;
 		} else {
 			viewSize = size;
 		}
@@ -147,7 +147,7 @@ export class Grid<T extends IView> implements IDisposable {
 		this._addView(newView, viewSize, location);
 	}
 
-	protected _addView(newView: T, size: number | Sizing, location): void {
+	protected _addView(newView: T, size: number | GridViewSizing, location): void {
 		this.views.set(newView, newView.element);
 		this.gridview.addView(newView, size, location);
 	}
@@ -162,7 +162,7 @@ export class Grid<T extends IView> implements IDisposable {
 		}
 
 		const location = this.getViewLocation(view);
-		this.gridview.removeView(location, sizing);
+		this.gridview.removeView(location, sizing === Sizing.Distribute ? GridViewSizing.Distribute : undefined);
 		this.views.delete(view);
 	}
 

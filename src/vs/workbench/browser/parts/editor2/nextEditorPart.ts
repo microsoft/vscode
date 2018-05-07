@@ -13,7 +13,7 @@ import { Event, Emitter, once } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { INextEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Direction, SerializableGrid, AddViewSizing } from 'vs/base/browser/ui/grid/grid';
+import { Direction, SerializableGrid, Sizing } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER } from 'vs/workbench/common/theme';
@@ -31,7 +31,6 @@ import { always } from 'vs/base/common/async';
 import { GroupOrientation } from 'vs/workbench/services/group/common/groupService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { Sizing } from 'vs/base/browser/ui/grid/gridview';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 // TODO@grid provide DND support of groups/editors:
@@ -212,7 +211,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		// Add to grid widget
 		this.gridWidget.addView(
 			newGroupView,
-			AddViewSizing.Distribute,
+			Sizing.Distribute,
 			locationView,
 			this.toGridViewDirection(direction),
 		);
@@ -359,7 +358,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 		// Move is a remove + add
 		this.gridWidget.removeView(groupView, Sizing.Distribute);
-		this.gridWidget.addView(groupView, AddViewSizing.Distribute, locationView, this.toGridViewDirection(direction));
+		this.gridWidget.addView(groupView, Sizing.Distribute, locationView, this.toGridViewDirection(direction));
 
 		// Restore focus if we had it previously (we run this after gridWidget.removeView() is called
 		// because removing a view can mean to reparent it and thus focus would be removed otherwise)
@@ -533,7 +532,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 				this.gridWidget.addView(
 					newGroupView,
-					AddViewSizing.Distribute,
+					Sizing.Distribute,
 					locationView,
 					this.toGridViewDirection(direction),
 				);
