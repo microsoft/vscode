@@ -78,6 +78,11 @@ function pushToEnd<T>(arr: T[], value: T): T[] {
 	return result;
 }
 
+export enum Sizing {
+	None = 'none',
+	Distribute = 'distribute'
+}
+
 export class SplitView implements IDisposable {
 
 	private orientation: Orientation;
@@ -112,7 +117,7 @@ export class SplitView implements IDisposable {
 		this.el.appendChild(this.viewContainer);
 	}
 
-	addView(view: IView, size: number, index = this.viewItems.length): void {
+	addView(view: IView, size: number | Sizing, index = this.viewItems.length): void {
 		if (this.state !== State.Idle) {
 			throw new Error('Cant modify splitview');
 		}
@@ -141,8 +146,8 @@ export class SplitView implements IDisposable {
 			item.view.layout(item.size, this.orientation);
 		};
 
-		size = Math.round(size);
-		const item: IViewItem = { view, container, size, layout, disposable };
+		const viewSize = typeof size === 'number' ? Math.round(size) : view.minimumSize;
+		const item: IViewItem = { view, container, size: viewSize, layout, disposable };
 		this.viewItems.splice(index, 0, item);
 
 		// Add sash
@@ -172,9 +177,17 @@ export class SplitView implements IDisposable {
 		container.appendChild(view.element);
 		this.relayout(index);
 		this.state = State.Idle;
+
+		if (size === Sizing.Distribute) {
+			const size = Math.floor(this.size / this.viewItems.length);
+
+			for (let i = 0; i < this.viewItems.length - 1; i++) {
+				this.resizeView(i, size);
+			}
+		}
 	}
 
-	removeView(index: number): IView {
+	removeView(index: number, sizing?: Sizing): IView {
 		if (this.state !== State.Idle) {
 			throw new Error('Cant modify splitview');
 		}
@@ -198,6 +211,14 @@ export class SplitView implements IDisposable {
 
 		this.relayout();
 		this.state = State.Idle;
+
+		if (sizing === Sizing.Distribute) {
+			const size = Math.floor(this.size / this.viewItems.length);
+
+			for (let i = 0; i < this.viewItems.length - 1; i++) {
+				this.resizeView(i, size);
+			}
+		}
 
 		return viewItem.view;
 	}

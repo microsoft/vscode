@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
-import { SplitView, IView, Orientation } from 'vs/base/browser/ui/splitview/splitview';
+import { SplitView, IView, Orientation, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 import { Sash } from 'vs/base/browser/ui/sash/sash';
 
 class TestView implements IView {
@@ -336,6 +336,31 @@ suite('Splitview', () => {
 		assert.equal((viewContainers.item(1) as HTMLElement).style.height, `${986 - 66}px`, 'first view container is 66px');
 
 		splitview.dispose();
+		view2.dispose();
+		view1.dispose();
+	});
+
+	test('automatic size distribution', () => {
+		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
+		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
+		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
+		const splitview = new SplitView(container);
+		splitview.layout(200);
+
+		splitview.addView(view1, Sizing.Distribute);
+		assert.equal(view1.size, 200);
+
+		splitview.addView(view2, 50);
+		assert.deepEqual([view1.size, view2.size], [150, 50]);
+
+		splitview.addView(view3, Sizing.Distribute);
+		assert.deepEqual([view1.size, view2.size, view3.size], [66, 66, 68]);
+
+		splitview.removeView(1, Sizing.Distribute);
+		assert.deepEqual([view1.size, view3.size], [100, 100]);
+
+		splitview.dispose();
+		view3.dispose();
 		view2.dispose();
 		view1.dispose();
 	});
