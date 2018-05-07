@@ -10,7 +10,6 @@ import * as nls from 'vs/nls';
 import { prepareActions } from 'vs/workbench/browser/actions';
 import { IAction, Action, IRunEvent } from 'vs/base/common/actions';
 import * as errors from 'vs/base/common/errors';
-import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -36,8 +35,8 @@ import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Themable } from 'vs/workbench/common/theme';
 import { isDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Dimension } from 'vs/base/browser/builder';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { Dimension, findParentWithClass } from 'vs/base/browser/dom';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -211,7 +210,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 	}
 
 	public allowDragging(element: HTMLElement): boolean {
-		return !DOM.findParentWithClass(element, 'monaco-action-bar', 'one-editor-silo');
+		return !findParentWithClass(element, 'monaco-action-bar', 'one-editor-silo');
 	}
 
 	protected initActions(services: IInstantiationService): void {

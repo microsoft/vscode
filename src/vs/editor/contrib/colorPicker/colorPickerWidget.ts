@@ -13,7 +13,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
 import { Color, RGBA, HSVA } from 'vs/base/common/color';
 import { editorHoverBackground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
 
 const $ = dom.$;
 
@@ -23,7 +23,7 @@ export class ColorPickerHeader extends Disposable {
 	private pickedColorNode: HTMLElement;
 	private backgroundColor: Color;
 
-	constructor(container: HTMLElement, private model: ColorPickerModel) {
+	constructor(container: HTMLElement, private model: ColorPickerModel, themeService: IThemeService) {
 		super();
 
 		this.domNode = $('.colorpicker-header');
@@ -34,6 +34,7 @@ export class ColorPickerHeader extends Disposable {
 		const colorBox = dom.append(this.domNode, $('.original-color'));
 		colorBox.style.backgroundColor = Color.Format.CSS.format(this.model.originalColor);
 
+		this.backgroundColor = themeService.getTheme().getColor(editorHoverBackground) || Color.white;
 		this._register(registerThemingParticipant((theme, collector) => {
 			this.backgroundColor = theme.getColor(editorHoverBackground) || Color.white;
 		}));
@@ -332,7 +333,7 @@ export class ColorPickerWidget extends Widget {
 
 	body: ColorPickerBody;
 
-	constructor(container: Node, private model: ColorPickerModel, private pixelRatio: number) {
+	constructor(container: Node, private model: ColorPickerModel, private pixelRatio: number, themeService: IThemeService) {
 		super();
 
 		this._register(onDidChangeZoomLevel(() => this.layout()));
@@ -340,7 +341,7 @@ export class ColorPickerWidget extends Widget {
 		const element = $('.colorpicker-widget');
 		container.appendChild(element);
 
-		const header = new ColorPickerHeader(element, this.model);
+		const header = new ColorPickerHeader(element, this.model, themeService);
 		this.body = new ColorPickerBody(element, this.model, this.pixelRatio);
 
 		this._register(header);

@@ -16,6 +16,7 @@
 	"editorIndentGuides": "Cor das guias de indentação do editor.",
 	"editorLineNumbers": "Cor dos números de linha do editor.",
 	"editorActiveLineNumber": "Cor dos números de linhas do editor",
+	"deprecatedEditorActiveLineNumber": "Identificação foi descontinuado. Use 'editorLineNumber.activeForeground'  em vez disso.",
 	"editorRuler": "Cor das réguas do editor.",
 	"editorCodeLensForeground": "Cor do primeiro plano das lentes de código do editor",
 	"editorBracketMatchBackground": "Cor de fundo atrás do colchetes correspondentes",
@@ -28,7 +29,9 @@
 	"warningBorder": "Cor da borda das linhas onduladas de aviso no editor.",
 	"infoForeground": "Cor do primeiro plano das linhas de informação no editor.",
 	"infoBorder": "Cor da borda das linhas de informação no editor.",
-	"overviewRulerRangeHighlight": "Visão geral da cor do marcador da régua para intervalos de destaques.",
+	"hintForeground": "Cor de primeiro plano de linhas onduladas de dica no editor.",
+	"hintBorder": "Cor da borda de linhas onduladas de dica no editor.",
+	"overviewRulerRangeHighlight": "Visão geral da cor do marcador da régua para destaques do intervalo. A cor não deve ser opaca para não esconder decorações subjacentes.",
 	"overviewRuleError": "Visão geral da cor do marcador da régua para erros.",
 	"overviewRuleWarning": "Visão geral da cor do marcador da régua para avisos.",
 	"overviewRuleInfo": "Visão geral da cor do marcador da régua para informações."

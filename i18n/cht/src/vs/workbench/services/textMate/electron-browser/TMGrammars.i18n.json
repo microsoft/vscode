@@ -11,5 +11,6 @@
 	"vscode.extension.contributes.grammars.scopeName": "tmLanguage 檔案所使用的 textmate 範圍名稱。",
 	"vscode.extension.contributes.grammars.path": "tmLanguage 檔案的路徑。此路徑是擴充功能資料夾的相對路徑，而且一般會以 './syntaxes/' 開頭。",
 	"vscode.extension.contributes.grammars.embeddedLanguages": "如果此文法包含內嵌語言，即為範圍名稱到語言識別碼的對應。",
+	"vscode.extension.contributes.grammars.tokenTypes": "範圍名稱到象徵類型的對應。",
 	"vscode.extension.contributes.grammars.injectTo": "要插入此文法的語言範圍名稱清單。"
 }

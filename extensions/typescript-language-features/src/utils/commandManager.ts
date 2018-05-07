@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 
 export interface Command {
-	readonly id: string;
+	readonly id: string | string[];
 
 	execute(...args: any[]): void;
 }
@@ -22,7 +22,9 @@ export class CommandManager {
 	}
 
 	public register<T extends Command>(command: T): T {
-		this.registerCommand(command.id, command.execute, command);
+		for (const id of Array.isArray(command.id) ? command.id : [command.id]) {
+			this.registerCommand(id, command.execute, command);
+		}
 		return command;
 	}
 

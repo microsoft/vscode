@@ -1046,7 +1046,10 @@ function createI18nFile(originalFilePath, messages) {
         var key = _a[_i];
         result[key] = messages[key];
     }
-    var content = JSON.stringify(result, null, '\t').replace(/\r\n/g, '\n');
+    var content = JSON.stringify(result, null, '\t');
+    if (process.platform === 'win32') {
+        content = content.replace(/\n/g, '\r\n');
+    }
     return new File({
         path: path.join(originalFilePath + '.i18n.json'),
         contents: Buffer.from(content, 'utf8')
@@ -1080,7 +1083,7 @@ function prepareI18nPackFiles(externalExtensions, resultingTranslationPaths, pse
                         extPack = extensionsPacks[resource] = { version: i18nPackVersion, contents: {} };
                     }
                     var externalId = externalExtensions[resource];
-                    if (!externalId) {
+                    if (!externalId) { // internal extension: remove 'extensions/extensionId/' segnent
                         var secondSlash = path.indexOf('/', firstSlash + 1);
                         extPack.contents[path.substr(secondSlash + 1)] = file.messages;
                     }

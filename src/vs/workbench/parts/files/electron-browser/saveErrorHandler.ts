@@ -102,7 +102,7 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 	private onFileSavedOrReverted(resource: URI): void {
 		const messageHandle = this.messages.get(resource);
 		if (messageHandle) {
-			messageHandle.dispose();
+			messageHandle.close();
 			this.messages.delete(resource);
 		}
 	}
@@ -179,7 +179,7 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 
 		// Show message and keep function to hide in case the file gets saved/reverted
 		const handle = this.notificationService.notify({ severity: Severity.Error, message, actions });
-		once(handle.onDidDispose)(() => dispose(...actions.primary, ...actions.secondary));
+		once(handle.onDidClose)(() => dispose(...actions.primary, ...actions.secondary));
 		this.messages.set(model.getResource(), handle);
 	}
 
@@ -193,7 +193,7 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 const pendingResolveSaveConflictMessages: INotificationHandle[] = [];
 function clearPendingResolveSaveConflictMessages(): void {
 	while (pendingResolveSaveConflictMessages.length > 0) {
-		pendingResolveSaveConflictMessages.pop().dispose();
+		pendingResolveSaveConflictMessages.pop().close();
 	}
 }
 
@@ -265,7 +265,7 @@ class ResolveSaveConflictAction extends Action {
 				actions.secondary.push(this.instantiationService.createInstance(DoNotShowResolveConflictLearnMoreAction));
 
 				const handle = this.notificationService.notify({ severity: Severity.Info, message: conflictEditorHelp, actions });
-				once(handle.onDidDispose)(() => dispose(...actions.primary, ...actions.secondary));
+				once(handle.onDidClose)(() => dispose(...actions.primary, ...actions.secondary));
 				pendingResolveSaveConflictMessages.push(handle);
 			});
 		}

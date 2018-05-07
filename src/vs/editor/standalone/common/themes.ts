@@ -7,7 +7,7 @@
 
 import { IStandaloneThemeData } from 'vs/editor/standalone/common/standaloneThemeService';
 import { editorBackground, editorForeground, editorSelectionHighlight, editorInactiveSelection } from 'vs/platform/theme/common/colorRegistry';
-import { editorIndentGuides } from 'vs/editor/common/view/editorColorRegistry';
+import { editorIndentGuides, editorActiveIndentGuides } from 'vs/editor/common/view/editorColorRegistry';
 
 /* -------------------------------- Begin vs theme -------------------------------- */
 export const vs: IStandaloneThemeData = {
@@ -74,6 +74,7 @@ export const vs: IStandaloneThemeData = {
 		[editorForeground]: '#000000',
 		[editorInactiveSelection]: '#E5EBF1',
 		[editorIndentGuides]: '#D3D3D3',
+		[editorActiveIndentGuides]: '#939393',
 		[editorSelectionHighlight]: '#ADD6FF4D'
 	}
 };
@@ -144,6 +145,7 @@ export const vs_dark: IStandaloneThemeData = {
 		[editorForeground]: '#D4D4D4',
 		[editorInactiveSelection]: '#3A3D41',
 		[editorIndentGuides]: '#404040',
+		[editorActiveIndentGuides]: '#707070',
 		[editorSelectionHighlight]: '#ADD6FF26'
 	}
 };
@@ -205,6 +207,7 @@ export const hc_black: IStandaloneThemeData = {
 		[editorBackground]: '#000000',
 		[editorForeground]: '#FFFFFF',
 		[editorIndentGuides]: '#FFFFFF',
+		[editorActiveIndentGuides]: '#FFFFFF',
 	}
 };
 /* -------------------------------- End hc-black theme -------------------------------- */

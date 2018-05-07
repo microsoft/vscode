@@ -85,7 +85,7 @@ export default class TypeScriptServiceClientHost {
 		this.ataProgressReporter = new AtaProgressReporter(this.client);
 
 		for (const description of descriptions) {
-			const manager = new LanguageProvider(this.client, description, this.commandManager, this.typingsStatus);
+			const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus);
 			this.languages.push(manager);
 			this.disposables.push(manager);
 			this.languagePerId.set(description.id, manager);
@@ -108,9 +108,10 @@ export default class TypeScriptServiceClientHost {
 					id: 'typescript-plugins',
 					modeIds: Array.from(languages.values()),
 					diagnosticSource: 'ts-plugins',
+					diagnosticOwner: 'typescript',
 					isExternal: true
 				};
-				const manager = new LanguageProvider(this.client, description, this.commandManager, this.typingsStatus);
+				const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus);
 				this.languages.push(manager);
 				this.disposables.push(manager);
 				this.languagePerId.set(description.id, manager);
@@ -255,7 +256,10 @@ export default class TypeScriptServiceClientHost {
 	}
 
 	private getDiagnosticSeverity(diagnostic: Proto.Diagnostic): DiagnosticSeverity {
-		if (this.reportStyleCheckAsWarnings && this.isStyleCheckDiagnostic(diagnostic.code)) {
+		if (this.reportStyleCheckAsWarnings
+			&& this.isStyleCheckDiagnostic(diagnostic.code)
+			&& diagnostic.category === PConst.DiagnosticCategory.error
+		) {
 			return DiagnosticSeverity.Warning;
 		}
 

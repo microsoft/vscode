@@ -19,6 +19,24 @@ export default (): string => `
 			</select>
 		</div>
 
+		<div class="input-group" id="problem-source">
+			<label class="inline-label" for="issue-source">${escape(localize('issueSourceLabel', "File on"))}</label>
+			<select id="issue-source" class="inline-form-control">
+				<option value="false">${escape(localize('vscode', "Visual Studio Code"))}</option>
+				<option value="true">${escape(localize('extension', "An Extension"))}</option>
+			</select>
+			<div id="problem-source-help-text" class="instructions">${escape(localize('disableExtensionsLabelText', "Try to reproduce the problem after {0}. If the problem only reproduces when extensions are active, it is likely an issue with an extension."))
+		.replace('{0}', `<span tabIndex=0 role="button" id="disableExtensions" class="workbenchCommand">${escape(localize('disableExtensions', "disabling all extensions and reloading the window"))}</span>`)}
+			</div>
+
+			<div id="extension-selection">
+				<label class="inline-label" for="extension-selector">${escape(localize('chooseExtension', "Extension"))} <span class="required-input">*</span></label>
+				<select id="extension-selector" class="inline-form-control">
+					<!-- To be dynamically filled -->
+				</select>
+			</div>
+		</div>
+
 		<div class="input-group">
 			<label class="inline-label" for="issue-title">${escape(localize('issueTitleLabel', "Title"))} <span class="required-input">*</span></label>
 			<input id="issue-title" type="text" class="inline-form-control" placeholder="${escape(localize('issueTitleRequired', "Please enter a title."))}" required>
@@ -27,111 +45,7 @@ export default (): string => `
 				<!-- To be dynamically filled -->
 			</small>
 		</div>
-	</div>
 
-	<div class="system-info" id="block-container">
-		<div class="block block-system">
-			<details>
-				<summary>${escape(localize('systemInfo', "My System Info"))}
-					<div class="include-data">
-						<input class="sendData" type="checkbox" id="includeSystemInfo" checked/>
-						<label class="caption" for="includeSystemInfo">${escape(localize('sendData', "Send my data"))}</label>
-					</div>
-				</summary>
-				<div class="block-info">
-					<!-- To be dynamically filled -->
-				</div>
-			</details>
-		</div>
-		<div class="block block-process">
-			<details>
-				<summary>${escape(localize('processes', "Currently Running Processes"))}
-					<div class="include-data">
-						<input class="sendData"  type="checkbox" id="includeProcessInfo" checked/>
-						<label class="caption" for="includeProcessInfo">${escape(localize('sendData', "Send my data"))}</label>
-					</div>
-				</summary>
-				<pre class="block-info">
-					<!-- To be dynamically filled -->
-				</pre>
-			</details>
-		</div>
-		<div class="block block-workspace">
-			<details>
-				<summary>${escape(localize('workspaceStats', "My Workspace Stats"))}
-					<div class="include-data">
-						<input class="sendData"  type="checkbox" id="includeWorkspaceInfo" checked/>
-						<label class="caption" for="includeWorkspaceInfo">${escape(localize('sendData', "Send my data"))}</label>
-					</div>
-				</summary>
-				<pre class="block-info">
-					<code>
-						<!-- To be dynamically filled -->
-					</code>
-				</pre>
-			</details>
-		</div>
-		<div class="block block-extensions">
-			<details>
-				<summary>${escape(localize('extensions', "My Extensions"))}
-					<div class="include-data">
-						<input class="sendData"  type="checkbox" id="includeExtensions" checked/>
-						<label class="caption" for="includeExtensions">${escape(localize('sendData', "Send my data"))}</label>
-					</div>
-				</summary>
-				<div class="block-info">
-					<!-- To be dynamically filled -->
-				</div>
-			</details>
-		</div>
-		<div class="block block-searchedExtensions">
-			<details>
-				<summary>${escape(localize('searchedExtensions', "Searched Extensions"))}
-					<div class="include-data">
-						<input class="sendData"  type="checkbox" id="includeSearchedExtensions" checked/>
-						<label class="caption" for="includeSearchedExtensions">${escape(localize('sendData', "Send my data"))}</label>
-					</div>
-				</summary>
-				<div class="block-info">
-					<!-- To be dynamically filled -->
-				</div>
-			</details>
-		</div>
-		<div class="block block-settingsSearchResults">
-			<details>
-				<summary>${escape(localize('settingsSearchDetails', "Settings Search Details"))}
-					<div class="include-data">
-						<input class="sendData"  type="checkbox" id="includeSettingsSearchDetails" checked/>
-						<label class="caption" for="includeSettingsSearchDetails">${escape(localize('sendData', "Send my data"))}</label>
-					</div>
-				</summary>
-				<div class="block-info">
-					<!-- To be dynamically filled -->
-				</div>
-			</details>
-		</div>
-	</div>
-
-	<div class="section" id="disabledExtensions">
-		<div class="extensions-form">
-			<label>${escape(localize('tryDisablingExtensions', "Is the problem reproducible when extensions are disabled?"))}</label>
-			<div class="form-buttons">
-				<div class="choice">
-					<input type="radio" id="reproducesWithoutExtensions" value=true name="reprosWithoutExtensions" />
-					<label for="reproducesWithoutExtensions">${escape(localize('yes', "Yes"))}</label>
-				</div>
-				<div class="choice">
-					<input type="radio" id="reproducesWithExtensions" value=false name="reprosWithoutExtensions" checked/>
-					<label for="reproducesWithExtensions">${escape(localize('no', "No"))}</label>
-				</div>
-			</div>
-		</div>
-		<div class="instructions">${escape(localize('disableExtensionsLabelText', "Try to reproduce the problem after {0}."))
-		.replace('{0}', `<span tabIndex=0 role="button" id="disableExtensions" class="workbenchCommand">${escape(localize('disableExtensions', "disabling all extensions and reloading the window"))}</span>`)}
-		</div>
-		<div class="instructions">${escape(localize('showRunningExtensionsLabelText', "If you suspect it's an extension issue, {0} to report the issue on the extension."))
-		.replace('{0}', `<span tabIndex=0 role="button"id="showRunning" class="workbenchCommand">${escape(localize('showRunningExtensions', "view all running extensions"))}</span>`)}
-		</div>
 	</div>
 
 	<div class="input-group description-section">
@@ -146,5 +60,70 @@ export default (): string => `
 		</div>
 	</div>
 
-	<button id="github-submit-btn" disabled>${escape(localize('loadingData', "Loading data..."))}</button>
+	<div class="system-info" id="block-container">
+		<div class="block block-system">
+			<input class="sendData" type="checkbox" id="includeSystemInfo" checked/>
+			<label class="caption" for="includeSystemInfo">${escape(localize({
+		key: 'sendSystemInfo',
+		comment: ['{0} is either "show" or "hide" and is a button to toggle the visibililty of the system information']
+	}, "Send my system information ({0})")).replace('{0}', `<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>`)}</label>
+			<div class="block-info hidden">
+				<!-- To be dynamically filled -->
+			</div>
+		</div>
+		<div class="block block-process">
+			<input class="sendData" type="checkbox" id="includeProcessInfo" checked/>
+			<label class="caption" for="includeProcessInfo">${escape(localize({
+		key: 'sendProcessInfo',
+		comment: ['{0} is either "show" or "hide" and is a button to toggle the visibililty of the process info']
+	}, "Send my currently running processes ({0})")).replace('{0}', `<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>`)}</label>
+			<pre class="block-info hidden">
+				<code>
+				<!-- To be dynamically filled -->
+				</code>
+			</pre>
+		</div>
+		<div class="block block-workspace">
+			<input class="sendData" type="checkbox" id="includeWorkspaceInfo" checked/>
+			<label class="caption" for="includeWorkspaceInfo">${escape(localize({
+		key: 'sendWorkspaceInfo',
+		comment: ['{0} is either "show" or "hide" and is a button to toggle the visibililty of the workspace information']
+	}, "Send my workspace metadata ({0})")).replace('{0}', `<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>`)}</label>
+			<pre id="systemInfo" class="block-info hidden">
+				<code>
+				<!-- To be dynamically filled -->
+				</code>
+			</pre>
+		</div>
+		<div class="block block-extensions">
+			<input class="sendData" type="checkbox" id="includeExtensions" checked/>
+			<label class="caption" for="includeExtensions">${escape(localize({
+		key: 'sendExtensions',
+		comment: ['{0} is either "show" or "hide" and is a button to toggle the visibililty of the enabled extensions list']
+	}, "Send my enabled extensions ({0})")).replace('{0}', `<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>`)}</label>
+			<div id="systemInfo" class="block-info hidden">
+				<!-- To be dynamically filled -->
+			</div>
+		</div>
+		<div class="block block-searchedExtensions">
+			<input class="sendData" type="checkbox" id="includeSearchedExtensions" checked/>
+			<label class="caption" for="includeSearchedExtensions">${escape(localize({
+		key: 'sendSearchedExtensions',
+		comment: ['{0} is either "show" or "hide" and is a button to toggle the visibililty of the searched extensions']
+	}, "Send searched extensions ({0})")).replace('{0}', `<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>`)}</label>
+			<div class="block-info hidden">
+				<!-- To be dynamically filled -->
+			</div>
+		</div>
+		<div class="block block-settingsSearchResults">
+			<input class="sendData" type="checkbox" id="includeSettingsSearchDetails" checked/>
+			<label class="caption" for="includeSettingsSearchDetails">${escape(localize({
+		key: 'sendSettingsSearchDetails',
+		comment: ['{0} is either "show" or "hide" and is a button to toggle the visibililty of the search details']
+	}, "Send settings search details ({0})")).replace('{0}', `<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>`)}</label>
+			<div class="block-info hidden">
+				<!-- To be dynamically filled -->
+			</div>
+		</div>
+	</div>
 </div>`;

@@ -16,6 +16,7 @@ import * as typeConverters from '../utils/typeConverters';
 import * as nls from 'vscode-nls';
 import { applyCodeAction } from '../utils/codeAction';
 import { CommandManager, Command } from '../utils/commandManager';
+import FileConfigurationManager from './fileConfigurationManager';
 
 const localize = nls.loadMessageBundle();
 
@@ -242,9 +243,13 @@ namespace CompletionConfiguration {
 }
 
 export default class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider {
+
+	public static readonly triggerCharacters = ['.', '"', '\'', '/', '@', '<'];
+
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
 		private readonly typingsStatus: TypingsStatus,
+		private readonly fileConfigurationManager: FileConfigurationManager,
 		commandManager: CommandManager
 	) {
 		commandManager.register(new ApplyCompletionCodeActionCommand(this.client));
@@ -279,10 +284,13 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 			return [];
 		}
 
+		await this.fileConfigurationManager.ensureConfigurationForDocument(document, token);
+
 		const args: Proto.CompletionsRequestArgs = {
 			...typeConverters.Position.toFileLocationRequestArgs(file, position),
 			includeExternalModuleExports: completionConfiguration.autoImportSuggestions,
-			includeInsertTextCompletions: true
+			includeInsertTextCompletions: true,
+			triggerCharacter: context.triggerCharacter ? (context.triggerCharacter === '.' ? undefined : context.triggerCharacter) : undefined
 		};
 
 		let msg: Proto.CompletionEntry[] | undefined = undefined;
@@ -437,7 +445,7 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 		line: vscode.TextLine,
 		position: vscode.Position
 	): boolean {
-		if (context.triggerCharacter === '"' || context.triggerCharacter === '\'') {
+		if ((context.triggerCharacter === '"' || context.triggerCharacter === '\'') && !this.client.apiVersion.has290Features()) {
 			if (!config.quickSuggestionsForPaths) {
 				return false;
 			}
@@ -467,6 +475,10 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 			if (!pre.match(/^\s*\*[ ]?@/) && !pre.match(/\/\*\*+[ ]?@/)) {
 				return false;
 			}
+		}
+
+		if (context.triggerCharacter === '<') {
+			return this.client.apiVersion.has290Features();
 		}
 
 		return true;
@@ -519,7 +531,15 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 
 		const snippet = new vscode.SnippetString();
 		const methodName = detail.displayParts.find(part => part.kind === 'methodName');
-		snippet.appendText((methodName && methodName.text) || item.label || item.insertText as string);
+		if (item.insertText) {
+			if (typeof item.insertText === 'string') {
+				snippet.appendText(item.insertText);
+			} else {
+				return item.insertText;
+			}
+		} else {
+			snippet.appendText((methodName && methodName.text) || item.label);
+		}
 		snippet.appendText('(');
 
 		let parenCount = 0;

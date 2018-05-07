@@ -9,9 +9,7 @@ import 'vs/css!./media/quickopen';
 import { TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
-import { Dimension, withElementById } from 'vs/base/browser/builder';
 import * as strings from 'vs/base/common/strings';
-import * as DOM from 'vs/base/browser/dom';
 import URI from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
@@ -37,7 +35,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry, CLOSE_ON_FOCUS_LOST_CONFIG } from 'vs/workbench/browser/quickopen';
 import * as errors from 'vs/base/common/errors';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IPickOpenEntry, IFilePickOpenEntry, IInputOptions, IQuickOpenService, IPickOptions, IShowOptions, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
+import { IPickOpenEntry, IFilePickOpenEntry, IQuickOpenService, IPickOptions, IShowOptions, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -57,6 +55,7 @@ import { IMatch } from 'vs/base/common/filters';
 import { Schemas } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { Dimension, addClass } from 'vs/base/browser/dom';
 
 const HELP_PREFIX = '?';
 
@@ -164,86 +163,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		}
 	}
 
-	public input(options: IInputOptions = {}, token: CancellationToken = CancellationToken.None): TPromise<string> {
-		if (this.pickOpenWidget && this.pickOpenWidget.isVisible()) {
-			this.pickOpenWidget.hide(HideReason.CANCELED);
-		}
-
-		const defaultMessage = options.prompt
-			? nls.localize('inputModeEntryDescription', "{0} (Press 'Enter' to confirm or 'Escape' to cancel)", options.prompt)
-			: nls.localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
-
-		let currentPick = defaultMessage;
-		let currentValidation: TPromise<boolean>;
-		let currentDecoration: Severity;
-		let lastValue: string;
-
-		const init = (resolve: (value: IPickOpenEntry | TPromise<IPickOpenEntry>) => any, reject: (value: any) => any) => {
-
-			// open quick pick with just one choice. we will recurse whenever
-			// the validation/success message changes
-			this.doPick(TPromise.as([{ label: currentPick, tooltip: currentPick /* make sure message/validation can be read through the hover */ }]), {
-				ignoreFocusLost: options.ignoreFocusLost,
-				autoFocus: { autoFocusFirstEntry: true },
-				password: options.password,
-				placeHolder: options.placeHolder,
-				value: lastValue === void 0 ? options.value : lastValue,
-				valueSelection: options.valueSelection,
-				inputDecoration: currentDecoration,
-				onDidType: (value) => {
-					if (lastValue !== value) {
-
-						lastValue = value;
-
-						if (options.validateInput) {
-							if (currentValidation) {
-								currentValidation.cancel();
-							}
-
-							currentValidation = TPromise.timeout(100).then(() => {
-								return options.validateInput(value).then(message => {
-									currentDecoration = !!message ? Severity.Error : void 0;
-									const newPick = message || defaultMessage;
-									if (newPick !== currentPick) {
-										options.valueSelection = null;
-										currentPick = newPick;
-										resolve(new TPromise<any>(init));
-									}
-
-									return !message;
-								});
-							}, err => {
-								// ignore
-								return null;
-							});
-						}
-					}
-				}
-			}, token).then(resolve, reject);
-		};
-
-		return new TPromise(init).then(item => {
-
-			if (!currentValidation) {
-				if (options.validateInput) {
-					currentValidation = options
-						.validateInput(lastValue === void 0 ? options.value : lastValue)
-						.then(message => !message);
-				} else {
-					currentValidation = TPromise.as(true);
-				}
-			}
-
-			return currentValidation.then(valid => {
-				if (valid && item) {
-					return lastValue === void 0 ? (options.value || '') : lastValue;
-				}
-
-				return void 0;
-			});
-		});
-	}
-
 	public pick(picks: TPromise<string[]>, options?: IPickOptions, token?: CancellationToken): TPromise<string>;
 	public pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options?: IPickOptions, token?: CancellationToken): TPromise<string>;
 	public pick(picks: string[], options?: IPickOptions, token?: CancellationToken): TPromise<string>;
@@ -302,7 +221,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		// Create upon first open
 		if (!this.pickOpenWidget) {
 			this.pickOpenWidget = new QuickOpenWidget(
-				withElementById(this.partService.getWorkbenchElementId()).getHTMLElement(),
+				document.getElementById(this.partService.getWorkbenchElementId()),
 				{
 					onOk: () => { /* ignore, handle later */ },
 					onCancel: () => { /* ignore, handle later */ },
@@ -318,7 +237,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			this.toUnbind.push(attachQuickOpenStyler(this.pickOpenWidget, this.themeService, { background: SIDE_BAR_BACKGROUND, foreground: SIDE_BAR_FOREGROUND }));
 
 			const pickOpenContainer = this.pickOpenWidget.create();
-			DOM.addClass(pickOpenContainer, 'show-file-icons');
+			addClass(pickOpenContainer, 'show-file-icons');
 			this.positionQuickOpenWidget();
 		}
 
@@ -374,7 +293,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				picksPromiseDone = true;
 
 				// Reset Progress
-				this.pickOpenWidget.getProgressBar().stop().getContainer().hide();
+				this.pickOpenWidget.getProgressBar().stop().hide();
 
 				// Model
 				const model = new QuickOpenModel([], new PickOpenActionProvider());
@@ -487,7 +406,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			// Progress if task takes a long time
 			TPromise.timeout(800).then(() => {
 				if (!picksPromiseDone && this.currentPickerToken === currentPickerToken) {
-					this.pickOpenWidget.getProgressBar().infinite().getContainer().show();
+					this.pickOpenWidget.getProgressBar().infinite().show();
 				}
 			});
 
@@ -557,7 +476,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		// Create upon first open
 		if (!this.quickOpenWidget) {
 			this.quickOpenWidget = new QuickOpenWidget(
-				withElementById(this.partService.getWorkbenchElementId()).getHTMLElement(),
+				document.getElementById(this.partService.getWorkbenchElementId()),
 				{
 					onOk: () => { /* ignore */ },
 					onCancel: () => { /* ignore */ },
@@ -574,7 +493,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			this.toUnbind.push(attachQuickOpenStyler(this.quickOpenWidget, this.themeService, { background: SIDE_BAR_BACKGROUND, foreground: SIDE_BAR_FOREGROUND }));
 
 			const quickOpenContainer = this.quickOpenWidget.create();
-			DOM.addClass(quickOpenContainer, 'show-file-icons');
+			addClass(quickOpenContainer, 'show-file-icons');
 			this.positionQuickOpenWidget();
 		}
 
@@ -623,11 +542,11 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		const titlebarOffset = this.partService.getTitleBarOffset();
 
 		if (this.quickOpenWidget) {
-			this.quickOpenWidget.getElement().style('top', `${titlebarOffset}px`);
+			this.quickOpenWidget.getElement().style.top = `${titlebarOffset}px`;
 		}
 
 		if (this.pickOpenWidget) {
-			this.pickOpenWidget.getElement().style('top', `${titlebarOffset}px`);
+			this.pickOpenWidget.getElement().style.top = `${titlebarOffset}px`;
 		}
 	}
 
@@ -742,7 +661,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 		// Reset Progress
 		if (!instantProgress) {
-			this.quickOpenWidget.getProgressBar().stop().getContainer().hide();
+			this.quickOpenWidget.getProgressBar().stop().hide();
 		}
 
 		// Reset Extra Class
@@ -784,7 +703,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		// Progress if task takes a long time
 		TPromise.timeout(instantProgress ? 0 : 800).then(() => {
 			if (!resultPromiseDone && currentResultToken === this.currentResultToken) {
-				this.quickOpenWidget.getProgressBar().infinite().getContainer().show();
+				this.quickOpenWidget.getProgressBar().infinite().show();
 			}
 		});
 
@@ -793,7 +712,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			resultPromiseDone = true;
 
 			if (currentResultToken === this.currentResultToken) {
-				this.quickOpenWidget.getProgressBar().getContainer().hide();
+				this.quickOpenWidget.getProgressBar().hide();
 			}
 		}, (error: any) => {
 			resultPromiseDone = true;

@@ -174,6 +174,18 @@ suite('Files - FileEditorInput', () => {
 		});
 	});
 
+	test('resolve handles too large files', function () {
+		const input = instantiationService.createInstance(FileEditorInput, toResource(this, '/foo/bar/updatefile.js'), void 0);
+
+		accessor.textFileService.setResolveTextContentErrorOnce(new FileOperationError('error', FileOperationResult.FILE_TOO_LARGE));
+
+		return input.resolve(true).then(resolved => {
+			assert.ok(resolved);
+
+			resolved.dispose();
+		});
+	});
+
 	test('disposes model when not open anymore', function () {
 		const resource = toResource(this, '/path/index.txt');
 

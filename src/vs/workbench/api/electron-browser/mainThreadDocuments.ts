@@ -220,11 +220,18 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		return this._fileService.resolveFile(asFileUri).then(stats => {
 			// don't create a new file ontop of an existing file
 			return TPromise.wrapError<boolean>(new Error('file already exists on disk'));
-		}, err => this._doCreateUntitled(asFileUri).then(resource => !!resource));
+		}, err => {
+			return this._doCreateUntitled(uri).then(resource => !!resource);
+		});
 	}
 
 	private _doCreateUntitled(resource?: URI, modeId?: string, initialValue?: string): TPromise<URI> {
-		return this._untitledEditorService.loadOrCreate({ resource, modeId, initialValue }).then(model => {
+		return this._untitledEditorService.loadOrCreate({
+			resource,
+			modeId,
+			initialValue,
+			useResourcePath: Boolean(resource && resource.path)
+		}).then(model => {
 			const resource = model.getResource();
 
 			if (!this._modelIsSynced[resource.toString()]) {

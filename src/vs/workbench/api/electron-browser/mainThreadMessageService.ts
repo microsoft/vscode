@@ -92,7 +92,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 			// if promise has not been resolved yet, now is the time to ensure a return value
 			// otherwise if already resolved it means the user clicked one of the buttons
-			once(messageHandle.onDidDispose)(() => {
+			once(messageHandle.onDidClose)(() => {
 				dispose(...primaryActions, ...secondaryActions);
 				resolve(undefined);
 			});

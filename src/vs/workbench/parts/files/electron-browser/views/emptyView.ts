@@ -56,7 +56,7 @@ export class EmptyView extends ViewsViewletPanel {
 
 		let section = $('div.section').appendTo(container);
 
-		this.button = new Button(section);
+		this.button = new Button(section.getHTMLElement());
 		attachButtonStyler(this.button, this.themeService);
 
 		this.disposables.push(this.button.onDidClick(() => {

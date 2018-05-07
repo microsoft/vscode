@@ -14,6 +14,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/suggest';
 import { ISuggestion } from 'vs/editor/common/modes';
 import { Selection } from 'vs/editor/common/core/selection';
+import { Range } from 'vs/editor/common/core/range';
 import { Choice } from 'vs/editor/contrib/snippet/snippetParser';
 import { repeat } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -202,6 +203,13 @@ export class SnippetController2 implements IEditorContribution {
 	next(): void {
 		this._session.next();
 		this._updateState();
+	}
+
+	getSessionEnclosingRange(): Range {
+		if (this._session) {
+			return this._session.getEnclosingRange();
+		}
+		return undefined;
 	}
 }
 

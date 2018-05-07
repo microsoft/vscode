@@ -43,6 +43,7 @@
 	"workbench.action.terminal.scrollUpPage": "Yukarı Kaydır (Sayfa)",
 	"workbench.action.terminal.scrollToTop": "En Üste Kaydır",
 	"workbench.action.terminal.clear": "Temizle",
+	"workbench.action.terminal.clearSelection": "Seçimi Temizle",
 	"workbench.action.terminal.allowWorkspaceShell": "Çalışma Alanı Kabuk Yapılandırmasına İzin Ver",
 	"workbench.action.terminal.disallowWorkspaceShell": "Çalışma Alanı Kabuk Yapılandırmasına İzin Verme",
 	"workbench.action.terminal.rename": "Yeniden Adlandır",
@@ -51,5 +52,9 @@
 	"workbench.action.terminal.hideFindWidget": "Bulma Aracını Gizle",
 	"nextTerminalFindTerm": "Sonraki Arama Terimini Göster",
 	"previousTerminalFindTerm": "Önceki Arama Terimini Göster",
-	"quickOpenTerm": "Aktif Terminali Değiştir"
+	"quickOpenTerm": "Aktif Terminali Değiştir",
+	"workbench.action.terminal.scrollToPreviousCommand": "Önceki Komuta Kadar Kaydır",
+	"workbench.action.terminal.scrollToNextCommand": "Sonraki Komuta Kadar Kaydır",
+	"workbench.action.terminal.selectToPreviousCommand": "Önceki Komuta Kadar Seç",
+	"workbench.action.terminal.selectToNextCommand": "Sonraki Komuta Kadar Seç"
 }

@@ -8,9 +8,7 @@
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { illegalArgument } from 'vs/base/common/errors';
-import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
-import { Dimension } from 'vs/base/browser/builder';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -19,6 +17,7 @@ import { ActionBar, IActionItem, ActionsOrientation } from 'vs/base/browser/ui/a
 import { Event, Emitter } from 'vs/base/common/event';
 import { CompositeActionItem, CompositeOverflowActivityAction, ICompositeActivity, CompositeOverflowActivityActionItem, ActivityAction, ICompositeBar, ICompositeBarColors } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { Dimension, $, addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
 
 export interface ICompositeBarOptions {
 	icon: boolean;
@@ -33,6 +32,11 @@ export interface ICompositeBarOptions {
 	openComposite: (compositeId: string) => TPromise<any>;
 	getDefaultCompositeId: () => string;
 	hidePart: () => TPromise<any>;
+}
+
+interface CompositeState {
+	id: string;
+	pinned: boolean;
 }
 
 export class CompositeBar implements ICompositeBar {
@@ -51,6 +55,7 @@ export class CompositeBar implements ICompositeBar {
 	private compositeIdToActivityStack: { [compositeId: string]: ICompositeActivity[]; };
 	private compositeSizeInBar: Map<string, number>;
 
+	private initialCompositesStates: CompositeState[];
 	private pinnedComposites: string[];
 	private activeCompositeId: string;
 	private activeUnpinnedCompositeId: string;
@@ -67,30 +72,36 @@ export class CompositeBar implements ICompositeBar {
 		this.compositeSizeInBar = new Map<string, number>();
 
 		this._onDidContextMenu = new Emitter<MouseEvent>();
-
-		const pinnedComposites = JSON.parse(this.storageService.get(this.options.storageId, StorageScope.GLOBAL, null)) as string[];
-		if (pinnedComposites) {
-			const compositeIds = this.options.composites.map(c => c.id);
-			this.pinnedComposites = pinnedComposites.filter(pcid => compositeIds.indexOf(pcid) >= 0);
-		} else {
-			this.pinnedComposites = this.options.composites.map(c => c.id);
-		}
+		this.initialCompositesStates = this.loadCompositesStates();
+		this.pinnedComposites = this.initialCompositesStates
+			.filter(c => c.pinned)
+			.map(c => c.id)
+			.filter(id => this.options.composites.some(c => c.id === id));
 	}
 
 	public get onDidContextMenu(): Event<MouseEvent> {
 		return this._onDidContextMenu.event;
 	}
 
-	public addComposite(compositeData: { id: string; name: string, order: number }): void {
+	public addComposite(compositeData: { id: string; name: string, order: number }, activate: boolean): void {
 		if (this.options.composites.filter(c => c.id === compositeData.id).length) {
 			return;
 		}
-		let i = 0;
-		while (i < this.options.composites.length && this.options.composites[i].order < compositeData.order) {
-			i++;
-		}
 		this.options.composites.push(compositeData);
-		this.pin(compositeData.id, true, i);
+
+		const compositeState = this.initialCompositesStates.filter(c => c.id === compositeData.id)[0];
+		if (!compositeState /* new composites are pinned by default */ || compositeState.pinned) {
+			let index;
+			if (compositeState) {
+				index = this.initialCompositesStates.indexOf(compositeState);
+			} else {
+				index = 0;
+				while (index < this.options.composites.length && this.options.composites[index].order < compositeData.order) {
+					index++;
+				}
+			}
+			this.pin(compositeData.id, true, index, activate);
+		}
 	}
 
 	public removeComposite(id: string): void {
@@ -101,6 +112,8 @@ export class CompositeBar implements ICompositeBar {
 		this.options.composites = this.options.composites.filter(c => c.id !== id);
 		this.unpin(id);
 		this.pullComposite(id);
+		// Only at the end deactivate composite so the unpin and pull properly finish
+		this.deactivateComposite(id);
 	}
 
 	public activateComposite(id: string): void {
@@ -122,6 +135,13 @@ export class CompositeBar implements ICompositeBar {
 	public deactivateComposite(id: string): void {
 		if (this.compositeIdToActions[id]) {
 			this.compositeIdToActions[id].deactivate();
+		}
+		if (this.activeCompositeId === id) {
+			this.activeCompositeId = undefined;
+		}
+		if (this.activeUnpinnedCompositeId === id) {
+			this.updateCompositeSwitcher();
+			this.activeUnpinnedCompositeId = undefined;
 		}
 	}
 
@@ -195,7 +215,7 @@ export class CompositeBar implements ICompositeBar {
 	}
 
 	public create(parent: HTMLElement): HTMLElement {
-		const actionBarDiv = parent.appendChild(dom.$('.composite-bar'));
+		const actionBarDiv = parent.appendChild($('.composite-bar'));
 		this.compositeSwitcherBar = new ActionBar(actionBarDiv, {
 			actionItemProvider: (action: Action) => action instanceof CompositeOverflowActivityAction ? this.compositeOverflowActionItem : this.compositeIdToActionItems[action.id],
 			orientation: this.options.orientation,
@@ -205,16 +225,16 @@ export class CompositeBar implements ICompositeBar {
 		this.toDispose.push(this.compositeSwitcherBar);
 
 		// Contextmenu for composites
-		this.toDispose.push(dom.addDisposableListener(parent, dom.EventType.CONTEXT_MENU, (e: MouseEvent) => {
-			dom.EventHelper.stop(e, true);
+		this.toDispose.push(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => {
+			EventHelper.stop(e, true);
 			this._onDidContextMenu.fire(e);
 		}));
 
 		// Allow to drop at the end to move composites to the end
-		this.toDispose.push(dom.addDisposableListener(parent, dom.EventType.DROP, (e: DragEvent) => {
+		this.toDispose.push(addDisposableListener(parent, EventType.DROP, (e: DragEvent) => {
 			const draggedCompositeId = CompositeActionItem.getDraggedCompositeId();
 			if (draggedCompositeId) {
-				dom.EventHelper.stop(e, true);
+				EventHelper.stop(e, true);
 				CompositeActionItem.clearDraggedComposite();
 
 				const targetId = this.pinnedComposites[this.pinnedComposites.length - 1];
@@ -428,19 +448,20 @@ export class CompositeBar implements ICompositeBar {
 		});
 
 		// Persist
-		this.savePinnedComposites();
+		this.saveCompositesStates();
 	}
 
 	public isPinned(compositeId: string): boolean {
 		return this.pinnedComposites.indexOf(compositeId) >= 0;
 	}
 
-	public pin(compositeId: string, update = true, index = this.pinnedComposites.length): void {
+	public pin(compositeId: string, update = true, index = this.pinnedComposites.length, activate: boolean = true): void {
 		if (this.isPinned(compositeId)) {
 			return;
 		}
 
-		this.options.openComposite(compositeId).then(() => {
+		const activatePromise = activate ? this.options.openComposite(compositeId) : TPromise.as(null);
+		activatePromise.then(() => {
 			this.pinnedComposites.splice(index, 0, compositeId);
 			this.pinnedComposites = arrays.distinct(this.pinnedComposites);
 
@@ -449,7 +470,7 @@ export class CompositeBar implements ICompositeBar {
 			}
 
 			// Persist
-			this.savePinnedComposites();
+			this.saveCompositesStates();
 		});
 	}
 
@@ -481,7 +502,7 @@ export class CompositeBar implements ICompositeBar {
 		}, 0);
 
 		// Persist
-		this.savePinnedComposites();
+		this.saveCompositesStates();
 	}
 
 	public layout(dimension: Dimension): void {
@@ -505,8 +526,33 @@ export class CompositeBar implements ICompositeBar {
 		this.updateCompositeSwitcher();
 	}
 
-	private savePinnedComposites(): void {
-		this.storageService.store(this.options.storageId, JSON.stringify(this.pinnedComposites), StorageScope.GLOBAL);
+	private loadCompositesStates(): CompositeState[] {
+		const storedStates = <Array<string | CompositeState>>JSON.parse(this.storageService.get(this.options.storageId, StorageScope.GLOBAL, '[]'));
+		const isOldData = storedStates && storedStates.length && typeof storedStates[0] === 'string';
+		const compositeStates = <CompositeState[]>storedStates.map(c =>
+			typeof c === 'string' /* migration from pinned states to composites states */ ? { id: c, pinned: true } : c);
+
+		if (!isOldData) { /* Add new composites only if it is new data */
+			const newComposites = this.options.composites.filter(c => compositeStates.every(s => s.id !== c.id));
+			newComposites.sort((c1, c2) => c1.order < c2.order ? -1 : 1);
+			newComposites.forEach(c => compositeStates.push({ id: c.id, pinned: true /* new composites are pinned by default */ }));
+		}
+
+		return compositeStates;
+	}
+
+	private saveCompositesStates(): void {
+		const toSave = this.pinnedComposites.map(id => (<CompositeState>{ id, pinned: true }));
+		for (const composite of this.options.composites) {
+			if (this.pinnedComposites.indexOf(composite.id) === -1) { // Unpinned composites
+				toSave.push({ id: composite.id, pinned: false });
+			}
+		}
+		this.storageService.store(this.options.storageId, JSON.stringify(toSave), StorageScope.GLOBAL);
+	}
+
+	public shutdown(): void {
+		this.saveCompositesStates();
 	}
 
 	public dispose(): void {

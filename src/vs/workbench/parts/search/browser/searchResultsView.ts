@@ -12,10 +12,9 @@ import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel } from 'vs/workbench/browser/labels';
-import { ITree, IDataSource, ISorter, IAccessibilityProvider, IFilter, IRenderer } from 'vs/base/parts/tree/browser/tree';
-import { Match, SearchResult, FileMatch, FileMatchOrMatch, SearchModel, FolderMatch } from 'vs/workbench/parts/search/common/searchModel';
+import { ITree, IDataSource, IAccessibilityProvider, IFilter, IRenderer, ContextMenuEvent, ISorter } from 'vs/base/parts/tree/browser/tree';
+import { Match, SearchResult, FileMatch, FileMatchOrMatch, SearchModel, FolderMatch, searchMatchComparer, RenderableMatch } from 'vs/workbench/parts/search/common/searchModel';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { Range } from 'vs/editor/common/core/range';
 import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
 import { RemoveAction, ReplaceAllAction, ReplaceAction, ReplaceAllInFolderAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -23,6 +22,11 @@ import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getPathLabel } from 'vs/base/common/labels';
 import { FileKind } from 'vs/platform/files/common/files';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
+import { WorkbenchTreeController, WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 
 export class SearchDataSource implements IDataSource {
 
@@ -107,21 +111,8 @@ export class SearchDataSource implements IDataSource {
 }
 
 export class SearchSorter implements ISorter {
-
-	public compare(tree: ITree, elementA: FileMatchOrMatch, elementB: FileMatchOrMatch): number {
-		if (elementA instanceof FolderMatch && elementB instanceof FolderMatch) {
-			return elementA.index() - elementB.index();
-		}
-
-		if (elementA instanceof FileMatch && elementB instanceof FileMatch) {
-			return elementA.resource().fsPath.localeCompare(elementB.resource().fsPath) || elementA.name().localeCompare(elementB.name());
-		}
-
-		if (elementA instanceof Match && elementB instanceof Match) {
-			return Range.compareRangesUsingStarts(elementA.range(), elementB.range());
-		}
-
-		return undefined;
+	public compare(tree: ITree, elementA: RenderableMatch, elementB: RenderableMatch): number {
+		return searchMatchComparer(elementA, elementB);
 	}
 }
 
@@ -339,10 +330,12 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 			const replace = searchModel.isReplaceActive() && !!searchModel.replaceString;
 			const matchString = match.getMatchString();
 			const range = match.range();
+			const matchText = match.text().substr(0, range.endColumn + 150);
 			if (replace) {
-				return nls.localize('replacePreviewResultAria', "Replace term {0} with {1} at column position {2} in line with text {3}", matchString, match.replaceString, range.startColumn + 1, match.text());
+				return nls.localize('replacePreviewResultAria', "Replace term {0} with {1} at column position {2} in line with text {3}", matchString, match.replaceString, range.startColumn + 1, matchText);
 			}
-			return nls.localize('searchResultAria', "Found term {0} at column position {1} in line with text {2}", matchString, range.startColumn + 1, match.text());
+
+			return nls.localize('searchResultAria', "Found term {0} at column position {1} in line with text {2}", matchString, range.startColumn + 1, matchText);
 		}
 		return undefined;
 	}
@@ -352,5 +345,40 @@ export class SearchFilter implements IFilter {
 
 	public isVisible(tree: ITree, element: any): boolean {
 		return !(element instanceof FileMatch || element instanceof FolderMatch) || element.matches().length > 0;
+	}
+}
+
+export class SearchTreeController extends WorkbenchTreeController {
+	private contextMenu: IMenu;
+
+	constructor(
+		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IMenuService private menuService: IMenuService,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		super({}, configurationService);
+	}
+
+	public onContextMenu(tree: WorkbenchTree, element: any, event: ContextMenuEvent): boolean {
+		if (!this.contextMenu) {
+			this.contextMenu = this.menuService.createMenu(MenuId.SearchContext, tree.contextKeyService);
+		}
+
+		tree.setFocus(element, { preventOpenOnFocus: true });
+
+		const anchor = { x: event.posx, y: event.posy };
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+
+			getActions: () => {
+				const actions: IAction[] = [];
+				fillInActions(this.contextMenu, { shouldForwardArgs: true }, actions, this.contextMenuService);
+				return TPromise.as(actions);
+			},
+
+			getActionsContext: () => element
+		});
+
+		return true;
 	}
 }

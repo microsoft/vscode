@@ -261,7 +261,7 @@ export class ReferencesModel implements IDisposable {
 		let childCount = parent.children.length;
 		let groupCount = parent.parent.groups.length;
 
-		if (groupCount === 1 || next && idx + 1 < childCount || !next && idx > 1) {
+		if (groupCount === 1 || next && idx + 1 < childCount || !next && idx > 0) {
 			// cycling within one file
 			if (next) {
 				idx = (idx + 1) % childCount;

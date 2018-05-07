@@ -14,7 +14,7 @@ import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { INotificationService, PromptOption } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 interface IStorageData {
 	dontShowPrompt: boolean;
@@ -82,26 +82,24 @@ export class IntegrityServiceImpl implements IIntegrityService {
 	private _prompt(): void {
 		const storedData = this._storage.get();
 		if (storedData && storedData.dontShowPrompt && storedData.commit === product.commit) {
-			// Do not prompt
-			return;
+			return; // Do not prompt
 		}
 
-		const choices: PromptOption[] = [nls.localize('integrity.moreInformation', "More Information"), { label: nls.localize('integrity.dontShowAgain', "Don't Show Again") }];
-
-		this.notificationService.prompt(Severity.Warning, nls.localize('integrity.prompt', "Your {0} installation appears to be corrupt. Please reinstall.", product.nameShort), choices).then(choice => {
-			switch (choice) {
-				case 0 /* More Information */:
-					const uri = URI.parse(product.checksumFailMoreInfoUrl);
-					window.open(uri.toString(true));
-					break;
-				case 1 /* Do not show again */:
-					this._storage.set({
-						dontShowPrompt: true,
-						commit: product.commit
-					});
-					break;
-			}
-		});
+		this.notificationService.prompt(
+			Severity.Warning,
+			nls.localize('integrity.prompt', "Your {0} installation appears to be corrupt. Please reinstall.", product.nameShort),
+			[
+				{
+					label: nls.localize('integrity.moreInformation', "More Information"),
+					run: () => window.open(URI.parse(product.checksumFailMoreInfoUrl).toString(true))
+				},
+				{
+					label: nls.localize('integrity.dontShowAgain', "Don't Show Again"),
+					isSecondary: true,
+					run: () => this._storage.set({ dontShowPrompt: true, commit: product.commit })
+				}
+			]
+		);
 	}
 
 	public isPure(): Thenable<IntegrityTestResult> {

@@ -116,7 +116,7 @@ class SimpleWorkerProtocol {
 		} catch (e) {
 			// nothing
 		}
-		if (!message.vsWorker) {
+		if (!message || !message.vsWorker) {
 			return;
 		}
 		if (this._workerId !== -1 && message.vsWorker !== this._workerId) {
@@ -290,6 +290,7 @@ export class SimpleWorkerClient<T> extends Disposable {
 
 export interface IRequestHandler {
 	_requestHandlerBrand: any;
+	[prop: string]: any;
 }
 
 /**

@@ -18,16 +18,11 @@ th {
 	vertical-align: bottom;
 	border-bottom: 2px solid #e9ecef;
 	padding: .75rem;
-	border-top: 1px solid #e9ecef;
 	text-align: inherit;
 }
-tr:nth-of-type(even) {
-	background-color: rgba(0,0,0,.05);
-}
 td {
-	padding: .75rem;
+	padding: .25rem;
 	vertical-align: top;
-	border-top: 1px solid #e9ecef;
 }
 
 .block-settingsSearchResults-details {
@@ -39,7 +34,7 @@ td {
 }
 
 .section {
-	margin-bottom: 1.5em;
+	margin-bottom: .5em;
 }
 
 /**
@@ -53,7 +48,6 @@ input[type="text"], textarea {
 	line-height: 1.5;
 	color: #495057;
 	background-color: #fff;
-	border-radius: .25rem;
 	border: 1px solid #ced4da;
 }
 
@@ -65,19 +59,12 @@ textarea {
 /**
  * Button
  */
-button {
-	display: inline-block;
-	font-weight: 400;
-	line-height: 1.25;
-	text-align: center;
-	white-space: nowrap;
-	vertical-align: middle;
-	user-select: none;
-	padding: .5rem 1rem;
-	font-size: 1rem;
-	border-radius: .25rem;
-	background: none;
-	border: 1px solid transparent;
+
+.monaco-text-button {
+	display: block;
+	width: auto;
+	padding: 4px 10px;
+	align-self: flex-end;
 }
 
 select {
@@ -116,6 +103,10 @@ body {
 	display: none;
 }
 
+.block {
+	font-size: 12px;
+}
+
 .block .block-info {
 	width: 100%;
 	font-family: 'Menlo', 'Courier New', 'Courier', monospace;
@@ -128,14 +119,6 @@ pre {
 }
 pre code {
 	font-family: 'Menlo', 'Courier New', 'Courier', monospace;
-}
-
-button:hover:enabled {
-	cursor: pointer;
-}
-
-button:disabled {
-	cursor: auto;
 }
 
 #issue-reporter {
@@ -185,28 +168,8 @@ textarea {
 	margin-bottom: 1em;
 }
 
-.extensions-form {
-	display: flex;
-}
-
-.extensions-form > .form-buttons {
-	display: flex;
-	margin-left: 20px;
-}
-
-.extensions-form > .form-buttons > .choice {
-	display: flex;
-	align-items: center;
-	margin-right: 20px;
-}
-
-.extensions-form > .form-buttons > .choice > label, .extensions-form  > .form-buttons > .choice > input {
-	cursor: pointer;
-	margin-top: 0;
-}
-
-.system-info {
-	margin-bottom: 1.25em;
+#extension-selection {
+	margin-top: 1em;
 }
 
 select, input, textarea {
@@ -214,31 +177,12 @@ select, input, textarea {
 	margin-top: 10px;
 }
 
-summary {
-	border: 1px solid transparent;
-	padding: 0 10px;
-	margin-bottom: 5px;
-	cursor: pointer;
-}
 
 .validation-error {
 	font-size: 12px;
 	margin-top: 1em;
 }
 
-.include-data {
-	display: inline-block;
-}
-
-.include-data > .caption {
-	display: inline-block;
-	font-size: 12px;
-	cursor: pointer;
-}
-
-.sendData {
-	margin-left: 1em;
-}
 
 input[type="checkbox"] {
 	width: auto;
@@ -297,11 +241,6 @@ a {
 	color: #be1100;
 }
 
-button {
-	background-color: #007ACC;
-	color: #fff;
-}
-
 .section .input-group .validation-error {
 	margin-left: 13%;
 }
@@ -323,17 +262,17 @@ button {
 }
 
 #similar-issues {
-	margin-left: 12%;
+	margin-left: 13%;
 	display: block;
 }
 
 @media (max-width: 950px) {
 	.section .inline-label {
-		width: 12%;
+		width: 13%;
 	}
 
 	.section .inline-form-control  {
-		width: calc(88% - 5px);
+		width: calc(87% - 5px);
 	}
 }
 
@@ -342,7 +281,7 @@ button {
 		display: none !important;
 	}
 
-	.inline-form-control {
+	.section .inline-form-control {
 		width: 100%;
 	}
 
@@ -366,7 +305,7 @@ button {
 .issues-container {
 	margin-left: 1.5em;
 	margin-top: .5em;
-	height: 92px;
+	max-height: 92px;
 	overflow-y: auto;
 }
 

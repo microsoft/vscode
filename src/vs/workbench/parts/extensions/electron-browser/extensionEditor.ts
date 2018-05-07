@@ -17,7 +17,6 @@ import Cache from 'vs/base/common/cache';
 import { Action } from 'vs/base/common/actions';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { Builder } from 'vs/base/browser/builder';
 import { domEvent } from 'vs/base/browser/event';
 import { append, $, addClass, removeClass, finalHandler, join, toggleClass } from 'vs/base/browser/dom';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -33,7 +32,7 @@ import { RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/extensions
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, ReloadAction, MaliciousStatusLabelAction, DisabledStatusLabelAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
-import { Webview } from 'vs/workbench/parts/html/electron-browser/webview';
+import { WebviewElement } from 'vs/workbench/parts/webview/electron-browser/webviewElement';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -43,14 +42,12 @@ import { Position } from 'vs/platform/editor/common/editor';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Command, ICommandOptions } from 'vs/editor/browser/editorExtensions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Color } from 'vs/base/common/color';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { assign } from 'vs/base/common/objects';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
@@ -178,7 +175,8 @@ export class ExtensionEditor extends BaseEditor {
 	private contentDisposables: IDisposable[] = [];
 	private transientDisposables: IDisposable[] = [];
 	private disposables: IDisposable[];
-	private activeWebview: Webview;
+	private activeWebview: WebviewElement;
+	private editorLoadComplete: boolean = false;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -190,11 +188,8 @@ export class ExtensionEditor extends BaseEditor {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IPartService private readonly partService: IPartService,
-		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
-
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService);
 		this.disposables = [];
@@ -206,10 +201,8 @@ export class ExtensionEditor extends BaseEditor {
 		this.findInputFocusContextKey = KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED.bindTo(this.contextKeyService);
 	}
 
-	createEditor(parent: Builder): void {
-		const container = parent.getHTMLElement();
-
-		const root = append(container, $('.extension-editor'));
+	createEditor(parent: HTMLElement): void {
+		const root = append(parent, $('.extension-editor'));
 		this.header = append(root, $('.header'));
 
 		this.icon = append(this.header, $<HTMLImageElement>('img.icon', { draggable: false }));
@@ -271,6 +264,7 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	setInput(input: ExtensionsInput, options: EditorOptions): TPromise<void> {
+		this.editorLoadComplete = false;
 		const extension = input.extension;
 
 		this.transientDisposables = dispose(this.transientDisposables);
@@ -382,6 +376,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.navbar.push(NavbarSection.Changelog, localize('changelog', "Changelog"));
 		this.navbar.push(NavbarSection.Dependencies, localize('dependencies', "Dependencies"));
 
+		this.editorLoadComplete = true;
 		return super.setInput(input, options);
 	}
 
@@ -409,6 +404,18 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private onNavbarChange(extension: IExtension, id: string): void {
+		if (this.editorLoadComplete) {
+			/* __GDPR__
+				"extensionEditor:navbarChange" : {
+					"navItem": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"${include}": [
+						"${GalleryExtensionTelemetryData}"
+					]
+				}
+			*/
+			this.telemetryService.publicLog('extensionEditor:navbarChange', assign(extension.telemetryData, { navItem: id }));
+		}
+
 		this.contentDisposables = dispose(this.contentDisposables);
 		this.content.innerHTML = '';
 		this.activeWebview = null;
@@ -428,7 +435,7 @@ export class ExtensionEditor extends BaseEditor {
 			.then<void>(body => {
 				const allowedBadgeProviders = this.extensionsWorkbenchService.allowedBadgeProviders;
 				const webViewOptions = allowedBadgeProviders.length > 0 ? { allowScripts: false, allowSvgs: false, svgWhiteList: allowedBadgeProviders } : {};
-				this.activeWebview = new Webview(this.partService.getContainer(Parts.EDITOR_PART), this.themeService, this.environmentService, this.contextViewService, this.contextKey, this.findInputFocusContextKey, webViewOptions);
+				this.activeWebview = this.instantiationService.createInstance(WebviewElement, this.partService.getContainer(Parts.EDITOR_PART), this.contextKey, this.findInputFocusContextKey, webViewOptions);
 				this.activeWebview.mountTo(this.content);
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, this.activeWebview);
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
@@ -642,7 +649,7 @@ export class ExtensionEditor extends BaseEditor {
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', null, localize('localizations', "Localizations ({0})", localizations.length)),
 			$('table', null,
-				$('tr', null, $('th', null, localize('localizations language id', "Language Id")), $('th', null, localize('localizations language name', "Langauge Name")), $('th', null, localize('localizations localized language name', "Langauge Name (Localized)"))),
+				$('tr', null, $('th', null, localize('localizations language id', "Language Id")), $('th', null, localize('localizations language name', "Language Name")), $('th', null, localize('localizations localized language name', "Language Name (Localized)"))),
 				...localizations.map(localization => $('tr', null, $('td', null, localization.languageId), $('td', null, localization.languageName), $('td', null, localization.languageNameLocalized)))
 			)
 		);

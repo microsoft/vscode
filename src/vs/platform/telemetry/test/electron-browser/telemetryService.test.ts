@@ -50,6 +50,10 @@ class ErrorTestingSettings {
 	public noSuchFilePrefix: string;
 	public noSuchFileMessage: string;
 	public stack: string[];
+	public randomUserFile: string = 'a/path/that/doe_snt/con-tain/code/names.js';
+	public anonymizedRandomUserFile: string = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+	public nodeModulePathToRetain: string = 'node_modules/path/that/shouldbe/retained/names.js:14:15854';
+	public nodeModuleAsarPathToRetain: string = 'node_modules.asar/path/that/shouldbe/retained/names.js:14:12354';
 
 	constructor() {
 		this.personalInfo = 'DANGEROUS/PATH';
@@ -64,20 +68,20 @@ class ErrorTestingSettings {
 		this.noSuchFilePrefix = 'ENOENT: no such file or directory';
 		this.noSuchFileMessage = this.noSuchFilePrefix + ' \'' + this.personalInfo + '\'';
 
-		this.stack = ['at e._modelEvents (a/path/that/doesnt/contain/code/names.js:11:7309)',
-			'    at t.AllWorkers (a/path/that/doesnt/contain/code/names.js:6:8844)',
-			'    at e.(anonymous function) [as _modelEvents] (a/path/that/doesnt/contain/code/names.js:5:29552)',
-			'    at Function.<anonymous> (a/path/that/doesnt/contain/code/names.js:6:8272)',
-			'    at e.dispatch (a/path/that/doesnt/contain/code/names.js:5:26931)',
-			'    at e.request (a/path/that/doesnt/contain/code/names.js:14:1745)',
-			'    at t._handleMessage (another/path/that/doesnt/contain/code/names.js:14:17447)',
-			'    at t._onmessage (another/path/that/doesnt/contain/code/names.js:14:16976)',
-			'    at t.onmessage (another/path/that/doesnt/contain/code/names.js:14:15854)',
-			'    at DedicatedWorkerGlobalScope.self.onmessage',
-			this.dangerousPathWithImportantInfo,
-			this.dangerousPathWithoutImportantInfo,
-			this.missingModelMessage,
-			this.noSuchFileMessage];
+		this.stack = [`at e._modelEvents (${this.randomUserFile}:11:7309)`,
+		`    at t.AllWorkers (${this.randomUserFile}:6:8844)`,
+		`    at e.(anonymous function) [as _modelEvents] (${this.randomUserFile}:5:29552)`,
+		`    at Function.<anonymous> (${this.randomUserFile}:6:8272)`,
+		`    at e.dispatch (${this.randomUserFile}:5:26931)`,
+		`    at e.request (/${this.nodeModuleAsarPathToRetain})`,
+		`    at t._handleMessage (${this.nodeModuleAsarPathToRetain})`,
+		`    at t._onmessage (/${this.nodeModulePathToRetain})`,
+		`    at t.onmessage (${this.nodeModulePathToRetain})`,
+			`    at DedicatedWorkerGlobalScope.self.onmessage`,
+		this.dangerousPathWithImportantInfo,
+		this.dangerousPathWithoutImportantInfo,
+		this.missingModelMessage,
+		this.noSuchFileMessage];
 	}
 }
 
@@ -224,7 +228,7 @@ suite('TelemetryService', () => {
 			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 			assert.equal(testAppender.getEventsCount(), 1);
 			assert.equal(testAppender.events[0].eventName, 'UnhandledError');
-			assert.equal(testAppender.events[0].data.message, 'This is a test.');
+			assert.equal(testAppender.events[0].data.msg, 'This is a test.');
 
 			errorTelemetry.dispose();
 			service.dispose();
@@ -254,7 +258,7 @@ suite('TelemetryService', () => {
 	//
 	// 			assert.equal(testAppender.getEventsCount(), 1);
 	// 			assert.equal(testAppender.events[0].eventName, 'UnhandledError');
-	// 			assert.equal(testAppender.events[0].data.message,  'This should get logged');
+	// 			assert.equal(testAppender.events[0].data.msg,  'This should get logged');
 	//
 	// 			service.dispose();
 	// 		} finally {
@@ -279,11 +283,33 @@ suite('TelemetryService', () => {
 
 		assert.equal(testAppender.getEventsCount(), 1);
 		assert.equal(testAppender.events[0].eventName, 'UnhandledError');
-		assert.equal(testAppender.events[0].data.message, 'Error Message');
-		assert.equal(testAppender.events[0].data.filename, 'file.js');
+		assert.equal(testAppender.events[0].data.msg, 'Error Message');
+		assert.equal(testAppender.events[0].data.file, 'file.js');
 		assert.equal(testAppender.events[0].data.line, 2);
 		assert.equal(testAppender.events[0].data.column, 42);
-		assert.equal(testAppender.events[0].data.error.message, 'test');
+		assert.equal(testAppender.events[0].data.uncaught_error_msg, 'test');
+
+		errorTelemetry.dispose();
+		service.dispose();
+	}));
+
+	test('Error Telemetry removes PII from filename with spaces', sinon.test(function (this: any) {
+		let errorStub = sinon.stub();
+		window.onerror = errorStub;
+		let settings = new ErrorTestingSettings();
+		let testAppender = new TestTelemetryAppender();
+		let service = new TelemetryService({ appender: testAppender }, undefined);
+		const errorTelemetry = new ErrorTelemetry(service);
+
+		let personInfoWithSpaces = settings.personalInfo.slice(0, 2) + ' ' + settings.personalInfo.slice(2);
+		let dangerousFilenameError: any = new Error('dangerousFilename');
+		dangerousFilenameError.stack = settings.stack;
+		(<any>window.onerror)('dangerousFilename', settings.dangerousPathWithImportantInfo.replace(settings.personalInfo, personInfoWithSpaces) + '/test.js', 2, 42, dangerousFilenameError);
+		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
+
+		assert.equal(errorStub.callCount, 1);
+		assert.equal(testAppender.events[0].data.file.indexOf(settings.dangerousPathWithImportantInfo.replace(settings.personalInfo, personInfoWithSpaces)), -1);
+		assert.equal(testAppender.events[0].data.file, settings.importantInfo + '/test.js');
 
 		errorTelemetry.dispose();
 		service.dispose();
@@ -303,7 +329,7 @@ suite('TelemetryService', () => {
 		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 		assert.equal(errorStub.callCount, 1);
-		assert.equal(testAppender.events[0].data.filename.indexOf(settings.dangerousPathWithImportantInfo), -1);
+		assert.equal(testAppender.events[0].data.file.indexOf(settings.dangerousPathWithImportantInfo), -1);
 
 		dangerousFilenameError = new Error('dangerousFilename');
 		dangerousFilenameError.stack = settings.stack;
@@ -311,8 +337,8 @@ suite('TelemetryService', () => {
 		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 		assert.equal(errorStub.callCount, 2);
-		assert.equal(testAppender.events[0].data.filename.indexOf(settings.dangerousPathWithImportantInfo), -1);
-		assert.equal(testAppender.events[0].data.filename, settings.importantInfo + '/test.js');
+		assert.equal(testAppender.events[0].data.file.indexOf(settings.dangerousPathWithImportantInfo), -1);
+		assert.equal(testAppender.events[0].data.file, settings.importantInfo + '/test.js');
 
 		errorTelemetry.dispose();
 		service.dispose();
@@ -332,13 +358,13 @@ suite('TelemetryService', () => {
 			Errors.onUnexpectedError(dangerousPathWithoutImportantInfoError);
 			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
-			assert.equal(testAppender.events[0].data.message.indexOf(settings.personalInfo), -1);
-			assert.equal(testAppender.events[0].data.message.indexOf(settings.filePrefix), -1);
+			assert.equal(testAppender.events[0].data.msg.indexOf(settings.personalInfo), -1);
+			assert.equal(testAppender.events[0].data.msg.indexOf(settings.filePrefix), -1);
 
-			assert.equal(testAppender.events[0].data.stack.indexOf(settings.personalInfo), -1);
-			assert.equal(testAppender.events[0].data.stack.indexOf(settings.filePrefix), -1);
-			assert.notEqual(testAppender.events[0].data.stack.indexOf(settings.stack[4]), -1);
-			assert.equal(testAppender.events[0].data.stack.split('\n').length, settings.stack.length);
+			assert.equal(testAppender.events[0].data.callstack.indexOf(settings.personalInfo), -1);
+			assert.equal(testAppender.events[0].data.callstack.indexOf(settings.filePrefix), -1);
+			assert.notEqual(testAppender.events[0].data.callstack.indexOf(settings.stack[4].replace(settings.randomUserFile, settings.anonymizedRandomUserFile)), -1);
+			assert.equal(testAppender.events[0].data.callstack.split('\n').length, settings.stack.length);
 
 			errorTelemetry.dispose();
 			service.dispose();
@@ -363,12 +389,12 @@ suite('TelemetryService', () => {
 
 		assert.equal(errorStub.callCount, 1);
 		// Test that no file information remains, esp. personal info
-		assert.equal(testAppender.events[0].data.message.indexOf(settings.personalInfo), -1);
-		assert.equal(testAppender.events[0].data.message.indexOf(settings.filePrefix), -1);
-		assert.equal(testAppender.events[0].data.stack.indexOf(settings.personalInfo), -1);
-		assert.equal(testAppender.events[0].data.stack.indexOf(settings.filePrefix), -1);
-		assert.notEqual(testAppender.events[0].data.stack.indexOf(settings.stack[4]), -1);
-		assert.equal(testAppender.events[0].data.stack.split('\n').length, settings.stack.length);
+		assert.equal(testAppender.events[0].data.msg.indexOf(settings.personalInfo), -1);
+		assert.equal(testAppender.events[0].data.msg.indexOf(settings.filePrefix), -1);
+		assert.equal(testAppender.events[0].data.callstack.indexOf(settings.personalInfo), -1);
+		assert.equal(testAppender.events[0].data.callstack.indexOf(settings.filePrefix), -1);
+		assert.notEqual(testAppender.events[0].data.callstack.indexOf(settings.stack[4].replace(settings.randomUserFile, settings.anonymizedRandomUserFile)), -1);
+		assert.equal(testAppender.events[0].data.callstack.split('\n').length, settings.stack.length);
 
 		errorTelemetry.dispose();
 		service.dispose();
@@ -392,14 +418,14 @@ suite('TelemetryService', () => {
 			Errors.onUnexpectedError(dangerousPathWithImportantInfoError);
 			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
-			assert.notEqual(testAppender.events[0].data.message.indexOf(settings.importantInfo), -1);
-			assert.equal(testAppender.events[0].data.message.indexOf(settings.personalInfo), -1);
-			assert.equal(testAppender.events[0].data.message.indexOf(settings.filePrefix), -1);
-			assert.notEqual(testAppender.events[0].data.stack.indexOf(settings.importantInfo), -1);
-			assert.equal(testAppender.events[0].data.stack.indexOf(settings.personalInfo), -1);
-			assert.equal(testAppender.events[0].data.stack.indexOf(settings.filePrefix), -1);
-			assert.notEqual(testAppender.events[0].data.stack.indexOf(settings.stack[4]), -1);
-			assert.equal(testAppender.events[0].data.stack.split('\n').length, settings.stack.length);
+			assert.notEqual(testAppender.events[0].data.msg.indexOf(settings.importantInfo), -1);
+			assert.equal(testAppender.events[0].data.msg.indexOf(settings.personalInfo), -1);
+			assert.equal(testAppender.events[0].data.msg.indexOf(settings.filePrefix), -1);
+			assert.notEqual(testAppender.events[0].data.callstack.indexOf(settings.importantInfo), -1);
+			assert.equal(testAppender.events[0].data.callstack.indexOf(settings.personalInfo), -1);
+			assert.equal(testAppender.events[0].data.callstack.indexOf(settings.filePrefix), -1);
+			assert.notEqual(testAppender.events[0].data.callstack.indexOf(settings.stack[4].replace(settings.randomUserFile, settings.anonymizedRandomUserFile)), -1);
+			assert.equal(testAppender.events[0].data.callstack.split('\n').length, settings.stack.length);
 
 			errorTelemetry.dispose();
 			service.dispose();
@@ -424,18 +450,74 @@ suite('TelemetryService', () => {
 
 		assert.equal(errorStub.callCount, 1);
 		// Test that important information remains but personal info does not
-		assert.notEqual(testAppender.events[0].data.message.indexOf(settings.importantInfo), -1);
-		assert.equal(testAppender.events[0].data.message.indexOf(settings.personalInfo), -1);
-		assert.equal(testAppender.events[0].data.message.indexOf(settings.filePrefix), -1);
-		assert.notEqual(testAppender.events[0].data.stack.indexOf(settings.importantInfo), -1);
-		assert.equal(testAppender.events[0].data.stack.indexOf(settings.personalInfo), -1);
-		assert.equal(testAppender.events[0].data.stack.indexOf(settings.filePrefix), -1);
-		assert.notEqual(testAppender.events[0].data.stack.indexOf(settings.stack[4]), -1);
-		assert.equal(testAppender.events[0].data.stack.split('\n').length, settings.stack.length);
+		assert.notEqual(testAppender.events[0].data.msg.indexOf(settings.importantInfo), -1);
+		assert.equal(testAppender.events[0].data.msg.indexOf(settings.personalInfo), -1);
+		assert.equal(testAppender.events[0].data.msg.indexOf(settings.filePrefix), -1);
+		assert.notEqual(testAppender.events[0].data.callstack.indexOf(settings.importantInfo), -1);
+		assert.equal(testAppender.events[0].data.callstack.indexOf(settings.personalInfo), -1);
+		assert.equal(testAppender.events[0].data.callstack.indexOf(settings.filePrefix), -1);
+		assert.notEqual(testAppender.events[0].data.callstack.indexOf(settings.stack[4].replace(settings.randomUserFile, settings.anonymizedRandomUserFile)), -1);
+		assert.equal(testAppender.events[0].data.callstack.split('\n').length, settings.stack.length);
 
 		errorTelemetry.dispose();
 		service.dispose();
 	}));
+
+	test('Unexpected Error Telemetry removes PII but preserves Code file path with node modules', sinon.test(function (this: any) {
+
+		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
+		Errors.setUnexpectedErrorHandler(() => { });
+
+		try {
+			let settings = new ErrorTestingSettings();
+			let testAppender = new TestTelemetryAppender();
+			let service = new TelemetryService({ appender: testAppender }, undefined);
+			const errorTelemetry = new ErrorTelemetry(service);
+
+			let dangerousPathWithImportantInfoError: any = new Error(settings.dangerousPathWithImportantInfo);
+			dangerousPathWithImportantInfoError.stack = settings.stack;
+
+
+			Errors.onUnexpectedError(dangerousPathWithImportantInfoError);
+			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
+
+			assert.notEqual(testAppender.events[0].data.callstack.indexOf('(' + settings.nodeModuleAsarPathToRetain), -1);
+			assert.notEqual(testAppender.events[0].data.callstack.indexOf('(' + settings.nodeModulePathToRetain), -1);
+			assert.notEqual(testAppender.events[0].data.callstack.indexOf('(/' + settings.nodeModuleAsarPathToRetain), -1);
+			assert.notEqual(testAppender.events[0].data.callstack.indexOf('(/' + settings.nodeModulePathToRetain), -1);
+
+			errorTelemetry.dispose();
+			service.dispose();
+		}
+		finally {
+			Errors.setUnexpectedErrorHandler(origErrorHandler);
+		}
+	}));
+
+	test('Uncaught Error Telemetry removes PII but preserves Code file path', sinon.test(function (this: any) {
+		let errorStub = sinon.stub();
+		window.onerror = errorStub;
+		let settings = new ErrorTestingSettings();
+		let testAppender = new TestTelemetryAppender();
+		let service = new TelemetryService({ appender: testAppender }, undefined);
+		const errorTelemetry = new ErrorTelemetry(service);
+
+		let dangerousPathWithImportantInfoError: any = new Error('dangerousPathWithImportantInfo');
+		dangerousPathWithImportantInfoError.stack = settings.stack;
+		(<any>window.onerror)(settings.dangerousPathWithImportantInfo, 'test.js', 2, 42, dangerousPathWithImportantInfoError);
+		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
+
+		assert.equal(errorStub.callCount, 1);
+
+		assert.notEqual(testAppender.events[0].data.callstack.indexOf('(' + settings.nodeModuleAsarPathToRetain), -1);
+		assert.notEqual(testAppender.events[0].data.callstack.indexOf('(' + settings.nodeModulePathToRetain), -1);
+		assert.notEqual(testAppender.events[0].data.callstack.indexOf('(/' + settings.nodeModuleAsarPathToRetain), -1);
+		assert.notEqual(testAppender.events[0].data.callstack.indexOf('(/' + settings.nodeModulePathToRetain), -1);
+
+		errorTelemetry.dispose();
+		service.dispose();
+	}));
+
 
 	test('Unexpected Error Telemetry removes PII but preserves Code file path when PIIPath is configured', sinon.test(function (this: any) {
 
@@ -455,14 +537,14 @@ suite('TelemetryService', () => {
 			Errors.onUnexpectedError(dangerousPathWithImportantInfoError);
 			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
-			assert.notEqual(testAppender.events[0].data.message.indexOf(settings.importantInfo), -1);
-			assert.equal(testAppender.events[0].data.message.indexOf(settings.personalInfo), -1);
-			assert.equal(testAppender.events[0].data.message.indexOf(settings.filePrefix), -1);
-			assert.notEqual(testAppender.events[0].data.stack.indexOf(settings.importantInfo), -1);
-			assert.equal(testAppender.events[0].data.stack.indexOf(settings.personalInfo), -1);
-			assert.equal(testAppender.events[0].data.stack.indexOf(settings.filePrefix), -1);
-			assert.notEqual(testAppender.events[0].data.stack.indexOf(settings.stack[4]), -1);
-			assert.equal(testAppender.events[0].data.stack.split('\n').length, settings.stack.length);
+			assert.notEqual(testAppender.events[0].data.msg.indexOf(settings.importantInfo), -1);
+			assert.equal(testAppender.events[0].data.msg.indexOf(settings.personalInfo), -1);
+			assert.equal(testAppender.events[0].data.msg.indexOf(settings.filePrefix), -1);
+			assert.notEqual(testAppender.events[0].data.callstack.indexOf(settings.importantInfo), -1);
+			assert.equal(testAppender.events[0].data.callstack.indexOf(settings.personalInfo), -1);
+			assert.equal(testAppender.events[0].data.callstack.indexOf(settings.filePrefix), -1);
+			assert.notEqual(testAppender.events[0].data.callstack.indexOf(settings.stack[4].replace(settings.randomUserFile, settings.anonymizedRandomUserFile)), -1);
+			assert.equal(testAppender.events[0].data.callstack.split('\n').length, settings.stack.length);
 
 			errorTelemetry.dispose();
 			service.dispose();
@@ -487,14 +569,14 @@ suite('TelemetryService', () => {
 
 		assert.equal(errorStub.callCount, 1);
 		// Test that important information remains but personal info does not
-		assert.notEqual(testAppender.events[0].data.message.indexOf(settings.importantInfo), -1);
-		assert.equal(testAppender.events[0].data.message.indexOf(settings.personalInfo), -1);
-		assert.equal(testAppender.events[0].data.message.indexOf(settings.filePrefix), -1);
-		assert.notEqual(testAppender.events[0].data.stack.indexOf(settings.importantInfo), -1);
-		assert.equal(testAppender.events[0].data.stack.indexOf(settings.personalInfo), -1);
-		assert.equal(testAppender.events[0].data.stack.indexOf(settings.filePrefix), -1);
-		assert.notEqual(testAppender.events[0].data.stack.indexOf(settings.stack[4]), -1);
-		assert.equal(testAppender.events[0].data.stack.split('\n').length, settings.stack.length);
+		assert.notEqual(testAppender.events[0].data.msg.indexOf(settings.importantInfo), -1);
+		assert.equal(testAppender.events[0].data.msg.indexOf(settings.personalInfo), -1);
+		assert.equal(testAppender.events[0].data.msg.indexOf(settings.filePrefix), -1);
+		assert.notEqual(testAppender.events[0].data.callstack.indexOf(settings.importantInfo), -1);
+		assert.equal(testAppender.events[0].data.callstack.indexOf(settings.personalInfo), -1);
+		assert.equal(testAppender.events[0].data.callstack.indexOf(settings.filePrefix), -1);
+		assert.notEqual(testAppender.events[0].data.callstack.indexOf(settings.stack[4].replace(settings.randomUserFile, settings.anonymizedRandomUserFile)), -1);
+		assert.equal(testAppender.events[0].data.callstack.split('\n').length, settings.stack.length);
 
 		errorTelemetry.dispose();
 		service.dispose();
@@ -519,14 +601,14 @@ suite('TelemetryService', () => {
 			Errors.onUnexpectedError(missingModelError);
 			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
-			assert.notEqual(testAppender.events[0].data.message.indexOf(settings.missingModelPrefix), -1);
-			assert.equal(testAppender.events[0].data.message.indexOf(settings.personalInfo), -1);
-			assert.equal(testAppender.events[0].data.message.indexOf(settings.filePrefix), -1);
-			assert.notEqual(testAppender.events[0].data.stack.indexOf(settings.missingModelPrefix), -1);
-			assert.equal(testAppender.events[0].data.stack.indexOf(settings.personalInfo), -1);
-			assert.equal(testAppender.events[0].data.stack.indexOf(settings.filePrefix), -1);
-			assert.notEqual(testAppender.events[0].data.stack.indexOf(settings.stack[4]), -1);
-			assert.equal(testAppender.events[0].data.stack.split('\n').length, settings.stack.length);
+			assert.notEqual(testAppender.events[0].data.msg.indexOf(settings.missingModelPrefix), -1);
+			assert.equal(testAppender.events[0].data.msg.indexOf(settings.personalInfo), -1);
+			assert.equal(testAppender.events[0].data.msg.indexOf(settings.filePrefix), -1);
+			assert.notEqual(testAppender.events[0].data.callstack.indexOf(settings.missingModelPrefix), -1);
+			assert.equal(testAppender.events[0].data.callstack.indexOf(settings.personalInfo), -1);
+			assert.equal(testAppender.events[0].data.callstack.indexOf(settings.filePrefix), -1);
+			assert.notEqual(testAppender.events[0].data.callstack.indexOf(settings.stack[4].replace(settings.randomUserFile, settings.anonymizedRandomUserFile)), -1);
+			assert.equal(testAppender.events[0].data.callstack.split('\n').length, settings.stack.length);
 
 			errorTelemetry.dispose();
 			service.dispose();
@@ -551,14 +633,14 @@ suite('TelemetryService', () => {
 		assert.equal(errorStub.callCount, 1);
 		// Test that no file information remains, but this particular
 		// error message does (Received model events for missing model)
-		assert.notEqual(testAppender.events[0].data.message.indexOf(settings.missingModelPrefix), -1);
-		assert.equal(testAppender.events[0].data.message.indexOf(settings.personalInfo), -1);
-		assert.equal(testAppender.events[0].data.message.indexOf(settings.filePrefix), -1);
-		assert.notEqual(testAppender.events[0].data.stack.indexOf(settings.missingModelPrefix), -1);
-		assert.equal(testAppender.events[0].data.stack.indexOf(settings.personalInfo), -1);
-		assert.equal(testAppender.events[0].data.stack.indexOf(settings.filePrefix), -1);
-		assert.notEqual(testAppender.events[0].data.stack.indexOf(settings.stack[4]), -1);
-		assert.equal(testAppender.events[0].data.stack.split('\n').length, settings.stack.length);
+		assert.notEqual(testAppender.events[0].data.msg.indexOf(settings.missingModelPrefix), -1);
+		assert.equal(testAppender.events[0].data.msg.indexOf(settings.personalInfo), -1);
+		assert.equal(testAppender.events[0].data.msg.indexOf(settings.filePrefix), -1);
+		assert.notEqual(testAppender.events[0].data.callstack.indexOf(settings.missingModelPrefix), -1);
+		assert.equal(testAppender.events[0].data.callstack.indexOf(settings.personalInfo), -1);
+		assert.equal(testAppender.events[0].data.callstack.indexOf(settings.filePrefix), -1);
+		assert.notEqual(testAppender.events[0].data.callstack.indexOf(settings.stack[4].replace(settings.randomUserFile, settings.anonymizedRandomUserFile)), -1);
+		assert.equal(testAppender.events[0].data.callstack.split('\n').length, settings.stack.length);
 
 		errorTelemetry.dispose();
 		service.dispose();
@@ -583,14 +665,14 @@ suite('TelemetryService', () => {
 			Errors.onUnexpectedError(noSuchFileError);
 			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
-			assert.notEqual(testAppender.events[0].data.message.indexOf(settings.noSuchFilePrefix), -1);
-			assert.equal(testAppender.events[0].data.message.indexOf(settings.personalInfo), -1);
-			assert.equal(testAppender.events[0].data.message.indexOf(settings.filePrefix), -1);
-			assert.notEqual(testAppender.events[0].data.stack.indexOf(settings.noSuchFilePrefix), -1);
-			assert.equal(testAppender.events[0].data.stack.indexOf(settings.personalInfo), -1);
-			assert.equal(testAppender.events[0].data.stack.indexOf(settings.filePrefix), -1);
-			assert.notEqual(testAppender.events[0].data.stack.indexOf(settings.stack[4]), -1);
-			assert.equal(testAppender.events[0].data.stack.split('\n').length, settings.stack.length);
+			assert.notEqual(testAppender.events[0].data.msg.indexOf(settings.noSuchFilePrefix), -1);
+			assert.equal(testAppender.events[0].data.msg.indexOf(settings.personalInfo), -1);
+			assert.equal(testAppender.events[0].data.msg.indexOf(settings.filePrefix), -1);
+			assert.notEqual(testAppender.events[0].data.callstack.indexOf(settings.noSuchFilePrefix), -1);
+			assert.equal(testAppender.events[0].data.callstack.indexOf(settings.personalInfo), -1);
+			assert.equal(testAppender.events[0].data.callstack.indexOf(settings.filePrefix), -1);
+			assert.notEqual(testAppender.events[0].data.callstack.indexOf(settings.stack[4].replace(settings.randomUserFile, settings.anonymizedRandomUserFile)), -1);
+			assert.equal(testAppender.events[0].data.callstack.split('\n').length, settings.stack.length);
 
 			errorTelemetry.dispose();
 			service.dispose();
@@ -620,14 +702,14 @@ suite('TelemetryService', () => {
 			// Test that no file information remains, but this particular
 			// error message does (ENOENT: no such file or directory)
 			Errors.onUnexpectedError(noSuchFileError);
-			assert.notEqual(testAppender.events[0].data.message.indexOf(settings.noSuchFilePrefix), -1);
-			assert.equal(testAppender.events[0].data.message.indexOf(settings.personalInfo), -1);
-			assert.equal(testAppender.events[0].data.message.indexOf(settings.filePrefix), -1);
-			assert.notEqual(testAppender.events[0].data.stack.indexOf(settings.noSuchFilePrefix), -1);
-			assert.equal(testAppender.events[0].data.stack.indexOf(settings.personalInfo), -1);
-			assert.equal(testAppender.events[0].data.stack.indexOf(settings.filePrefix), -1);
-			assert.notEqual(testAppender.events[0].data.stack.indexOf(settings.stack[4]), -1);
-			assert.equal(testAppender.events[0].data.stack.split('\n').length, settings.stack.length);
+			assert.notEqual(testAppender.events[0].data.msg.indexOf(settings.noSuchFilePrefix), -1);
+			assert.equal(testAppender.events[0].data.msg.indexOf(settings.personalInfo), -1);
+			assert.equal(testAppender.events[0].data.msg.indexOf(settings.filePrefix), -1);
+			assert.notEqual(testAppender.events[0].data.callstack.indexOf(settings.noSuchFilePrefix), -1);
+			assert.equal(testAppender.events[0].data.callstack.indexOf(settings.personalInfo), -1);
+			assert.equal(testAppender.events[0].data.callstack.indexOf(settings.filePrefix), -1);
+			assert.notEqual(testAppender.events[0].data.callstack.indexOf(settings.stack[4].replace(settings.randomUserFile, settings.anonymizedRandomUserFile)), -1);
+			assert.equal(testAppender.events[0].data.callstack.split('\n').length, settings.stack.length);
 
 			errorTelemetry.dispose();
 			service.dispose();

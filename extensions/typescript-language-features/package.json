@@ -12,14 +12,18 @@
   "engines": {
     "vscode": "*"
   },
+  "categories": [
+    "Programming Languages"
+  ],
   "dependencies": {
     "semver": "4.3.6",
-    "vscode-extension-telemetry": "0.0.15",
+    "vscode-extension-telemetry": "0.0.17",
     "vscode-nls": "^3.2.1"
   },
   "devDependencies": {
     "@types/node": "8.0.33",
-    "@types/semver": "5.4.0"
+    "@types/semver": "5.4.0",
+    "vscode": "^1.1.10"
   },
   "scripts": {
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript ./tsconfig.json"
@@ -36,7 +40,6 @@
     "onCommand:javascript.goToProjectConfig",
     "onCommand:typescript.goToProjectConfig",
     "onCommand:typescript.openTsServerLog",
-    "onCommand:typescript.organizeImports",
     "onCommand:workbench.action.tasks.runTask"
   ],
   "main": "./out/extension",
@@ -68,8 +71,7 @@
           ],
           "default": null,
           "description": "%typescript.npm%",
-          "isExecutable": true,
-          "scope": "window"
+          "scope": "application"
         },
         "typescript.check.npmIsInstalled": {
           "type": "boolean",
@@ -115,8 +117,7 @@
           },
           "default": [],
           "description": "%typescript.tsserver.pluginPaths%",
-          "scope": "window",
-          "isExecutable": true
+          "scope": "application"
         },
         "typescript.tsserver.trace": {
           "type": "string",
@@ -413,6 +414,62 @@
           "type": "boolean",
           "default": false,
           "description": "%typescript.experimental.syntaxFolding%"
+        },
+        "javascript.suggestionActions.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%javascript.suggestionActions.enabled%",
+          "scope": "window"
+        },
+        "typescript.suggestionActions.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.suggestionActions.enabled%",
+          "scope": "window"
+        },
+        "javascript.preferences.quoteStyle": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "single",
+            "double"
+          ],
+          "default": "auto",
+          "description": "%typescript.preferences.quoteStyle%",
+          "scope": "window"
+        },
+        "typescript.preferences.quoteStyle": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "single",
+            "double"
+          ],
+          "default": "auto",
+          "description": "%typescript.preferences.quoteStyle%",
+          "scope": "window"
+        },
+        "javascript.preferences.importModuleSpecifier": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "relative",
+            "non-relative"
+          ],
+          "default": "auto",
+          "description": "%typescript.preferences.importModuleSpecifier%",
+          "scope": "window"
+        },
+        "typescript.preferences.importModuleSpecifier": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "relative",
+            "non-relative"
+          ],
+          "default": "auto",
+          "description": "%typescript.preferences.importModuleSpecifier%",
+          "scope": "window"
         }
       }
     },
@@ -451,18 +508,6 @@
         "command": "typescript.restartTsServer",
         "title": "%typescript.restartTsServer%",
         "category": "TypeScript"
-      },
-      {
-        "command": "typescript.organizeImports",
-        "title": "%typescript.organizeImports%",
-        "category": "TypeScript"
-      }
-    ],
-    "keybindings": [
-      {
-        "command": "typescript.organizeImports",
-        "key": "shift+alt+o",
-        "when": "typescript.isManagedFile && typescript.canOrganizeImports"
       }
     ],
     "menus": {
@@ -510,10 +555,6 @@
         {
           "command": "typescript.restartTsServer",
           "when": "typescript.isManagedFile"
-        },
-        {
-          "command": "typescript.organizeImports",
-          "when": "typescript.isManagedFile && typescript.canOrganizeImports"
         }
       ]
     },
@@ -545,12 +586,13 @@
     "problemPatterns": [
       {
         "name": "tsc",
-        "regexp": "^([^\\s].*)\\((\\d+|\\d+,\\d+|\\d+,\\d+,\\d+,\\d+)\\):\\s+(error|warning|info)\\s+(TS\\d+)\\s*:\\s*(.*)$",
+        "regexp": "^([^\\s].*)[\\(:](\\d+)[,:](\\d+)(?:\\):\\s+|\\s+-\\s+)(error|warning|info)\\s+(TS\\d+)\\s*:\\s*(.*)$",
         "file": 1,
-        "location": 2,
-        "severity": 3,
-        "code": 4,
-        "message": 5
+        "line": 2,
+        "column": 3,
+        "severity": 4,
+        "code": 5,
+        "message": 6
       }
     ],
     "problemMatchers": [
@@ -580,10 +622,10 @@
         "background": {
           "activeOnStart": true,
           "beginsPattern": {
-            "regexp": "^\\s*(?:message TS6032:|\\d{1,2}:\\d{1,2}:\\d{1,2}(?: AM| PM)? -) File change detected\\. Starting incremental compilation\\.\\.\\."
+            "regexp": "^\\s*(?:message TS6032:|\\[?\\d{1,2}:\\d{1,2}:\\d{1,2}(?: AM| PM| a\\.m\\.| p\\.m\\.)?(?:\\]| -)) File change detected\\. Starting incremental compilation\\.\\.\\."
           },
           "endsPattern": {
-            "regexp": "^\\s*(?:message TS6042:|\\d{1,2}:\\d{1,2}:\\d{1,2}(?: AM| PM)? -) Compilation complete\\. Watching for file changes\\."
+            "regexp": "^\\s*(?:message TS6042:|\\[?\\d{1,2}:\\d{1,2}:\\d{1,2}(?: AM| PM| a\\.m\\.| p\\.m\\.)?(?:\\]| -)) Compilation complete\\. Watching for file changes\\."
           }
         }
       }

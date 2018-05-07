@@ -12,7 +12,6 @@
 	"previousSearchExcludePattern": "Afficher le précédent Exclude Pattern de recherche",
 	"nextSearchTerm": "Afficher le terme de recherche suivant",
 	"previousSearchTerm": "Afficher le terme de recherche précédent",
-	"showSearchViewlet": "Afficher la zone de recherche",
 	"findInFiles": "Chercher dans les fichiers",
 	"replaceInFiles": "Remplacer dans les fichiers",
 	"RefreshAction.label": "Actualiser",

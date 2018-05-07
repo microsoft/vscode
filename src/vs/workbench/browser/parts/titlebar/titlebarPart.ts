@@ -8,8 +8,7 @@
 import * as path from 'path';
 import 'vs/css!./media/titlebarpart';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Builder, $, Dimension } from 'vs/base/browser/builder';
-import * as DOM from 'vs/base/browser/dom';
+import { Builder, $ } from 'vs/base/browser/builder';
 import * as paths from 'vs/base/common/paths';
 import { Part } from 'vs/workbench/browser/part';
 import { ITitleService, ITitleProperties } from 'vs/workbench/services/title/common/titleService';
@@ -36,6 +35,7 @@ import URI from 'vs/base/common/uri';
 import { Color } from 'vs/base/common/color';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { trim } from 'vs/base/common/strings';
+import { addDisposableListener, EventType, EventHelper, Dimension } from 'vs/base/browser/dom';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -88,8 +88,8 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => this.onBlur()));
-		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.FOCUS, () => this.onFocus()));
+		this.toUnbind.push(addDisposableListener(window, EventType.BLUR, () => this.onBlur()));
+		this.toUnbind.push(addDisposableListener(window, EventType.FOCUS, () => this.onFocus()));
 		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChanged(e)));
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 		this.toUnbind.push(this.contextService.onDidChangeWorkspaceFolders(() => this.setTitle(this.getWindowTitle())));
@@ -228,7 +228,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		});
 	}
 
-	public createContentArea(parent: Builder): Builder {
+	public createContentArea(parent: HTMLElement): HTMLElement {
 		const SVGNS = 'http://www.w3.org/2000/svg';
 		this.titleContainer = $(parent);
 
@@ -236,8 +236,8 @@ export class TitlebarPart extends Part implements ITitleService {
 			$(this.titleContainer).img({
 				class: 'window-appicon',
 				src: path.join(this.environmentService.appRoot, 'resources/linux/code.png')
-			}).on(DOM.EventType.DBLCLICK, (e) => {
-				DOM.EventHelper.stop(e, true);
+			}).on(EventType.DBLCLICK, (e) => {
+				EventHelper.stop(e, true);
 				this.windowService.closeWindow().then(null, errors.onUnexpectedError);
 			});
 		}
@@ -249,16 +249,16 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 
 		// Maximize/Restore on doubleclick
-		this.titleContainer.on(DOM.EventType.DBLCLICK, (e) => {
-			DOM.EventHelper.stop(e);
+		this.titleContainer.on(EventType.DBLCLICK, (e) => {
+			EventHelper.stop(e);
 
 			this.onTitleDoubleclick();
 		});
 
 		// Context menu on title
-		this.title.on([DOM.EventType.CONTEXT_MENU, DOM.EventType.MOUSE_DOWN], (e: MouseEvent) => {
-			if (e.type === DOM.EventType.CONTEXT_MENU || e.metaKey) {
-				DOM.EventHelper.stop(e);
+		this.title.on([EventType.CONTEXT_MENU, EventType.MOUSE_DOWN], (e: MouseEvent) => {
+			if (e.type === EventType.CONTEXT_MENU || e.metaKey) {
+				EventHelper.stop(e);
 
 				this.onContextMenu(e);
 			}
@@ -278,7 +278,7 @@ export class TitlebarPart extends Part implements ITitleService {
 				const svg = $svg('svg', { x: 0, y: 0, viewBox: '0 0 10 1' });
 				svg.appendChild($svg('rect', { fill: 'currentColor', width: 10, height: 1 }));
 				builder.getHTMLElement().appendChild(svg);
-			}).on(DOM.EventType.CLICK, () => {
+			}).on(EventType.CLICK, () => {
 				this.windowService.minimizeWindow().then(null, errors.onUnexpectedError);
 			});
 
@@ -295,7 +295,7 @@ export class TitlebarPart extends Part implements ITitleService {
 				svgm.appendChild(mask);
 				svgm.appendChild($svg('path', { fill: 'currentColor', d: 'M 2 0 L 10 0 L 10 8 L 8 8 L 8 10 L 0 10 L 0 2 L 2 2 L 2 0 z', mask: 'url(#Mask)' }));
 				builder.getHTMLElement().appendChild(svgm);
-			}).on(DOM.EventType.CLICK, () => {
+			}).on(EventType.CLICK, () => {
 				this.windowService.isMaximized().then((maximized) => {
 					if (maximized) {
 						return this.windowService.unmaximizeWindow();
@@ -309,7 +309,7 @@ export class TitlebarPart extends Part implements ITitleService {
 				const svg = $svg('svg', { x: '0', y: '0', viewBox: '0 0 10 10' });
 				svg.appendChild($svg('polygon', { fill: 'currentColor', points: '10,1 9,0 5,4 1,0 0,1 4,5 0,9 1,10 5,6 9,10 10,9 6,5' }));
 				builder.getHTMLElement().appendChild(svg);
-			}).on(DOM.EventType.CLICK, () => {
+			}).on(EventType.CLICK, () => {
 				this.windowService.closeWindow().then(null, errors.onUnexpectedError);
 			});
 
@@ -319,7 +319,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		// Since the title area is used to drag the window, we do not want to steal focus from the
 		// currently active element. So we restore focus after a timeout back to where it was.
-		this.titleContainer.on([DOM.EventType.MOUSE_DOWN], () => {
+		this.titleContainer.on([EventType.MOUSE_DOWN], () => {
 			const active = document.activeElement;
 			setTimeout(() => {
 				if (active instanceof HTMLElement) {
@@ -332,7 +332,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		(document.documentElement.style as any).webkitAppRegion = '';
 		document.documentElement.style.height = '';
 
-		return this.titleContainer;
+		return this.titleContainer.getHTMLElement();
 	}
 
 	private onDidChangeMaximized(maximized: boolean) {
@@ -346,15 +346,14 @@ export class TitlebarPart extends Part implements ITitleService {
 		super.updateStyles();
 
 		// Part container
-		const container = this.getContainer();
-		if (container) {
+		if (this.titleContainer) {
 			const bgColor = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND);
-			container.style('color', this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_FOREGROUND : TITLE_BAR_ACTIVE_FOREGROUND));
-			container.style('background-color', bgColor);
-			container.getHTMLElement().classList.toggle('light', Color.fromHex(bgColor).isLighter());
+			this.titleContainer.style('color', this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_FOREGROUND : TITLE_BAR_ACTIVE_FOREGROUND));
+			this.titleContainer.style('background-color', bgColor);
+			this.titleContainer.getHTMLElement().classList.toggle('light', Color.fromHex(bgColor).isLighter());
 
 			const titleBorder = this.getColor(TITLE_BAR_BORDER);
-			container.style('border-bottom', titleBorder ? `1px solid ${titleBorder}` : null);
+			this.titleContainer.style('border-bottom', titleBorder ? `1px solid ${titleBorder}` : null);
 		}
 	}
 

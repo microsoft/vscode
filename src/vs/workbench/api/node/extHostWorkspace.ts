@@ -362,7 +362,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		if (token) {
 			token.onCancellationRequested(() => this._proxy.$cancelSearch(requestId));
 		}
-		return result.then(data => data.map(URI.revive));
+		return result.then(data => Array.isArray(data) ? data.map(URI.revive) : []);
 	}
 
 	saveAll(includeUntitled?: boolean): Thenable<boolean> {

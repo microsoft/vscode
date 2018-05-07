@@ -9,5 +9,6 @@
 	"toggleOutput": "Alternar salida",
 	"clearOutput": "Borrar salida",
 	"toggleOutputScrollLock": "Alternar Bloq Despl salida",
-	"switchToOutput.label": "Cambiar a salida"
+	"switchToOutput.label": "Cambiar a salida",
+	"openInLogViewer": "Abrir archivo de registro"
 }

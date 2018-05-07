@@ -91,6 +91,13 @@ const keys: Key[] = [
 		label: localize('welcomeOverlay.commandPalette', "Find and run all commands"),
 		command: ShowAllCommandsAction.ID
 	},
+	{
+		id: 'notifications',
+		arrow: '&cudarrr;',
+		arrowLast: true,
+		label: localize('welcomeOverlay.notifications', "Show notifications"),
+		command: 'notifications.showList'
+	}
 ];
 
 const OVERLAY_VISIBLE = new RawContextKey<boolean>('interfaceOverviewVisible', false);

@@ -17,29 +17,31 @@ import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspac
 
 import {
 	ContributedTask, ExtensionTaskSourceTransfer, TaskIdentifier, TaskExecution, Task, TaskEvent, TaskEventKind,
-	PresentationOptions, CommandOptions, CommandConfiguration, RuntimeType, CustomTask, TaskScope, TaskSource, TaskSourceKind, ExtensionTaskSource
+	PresentationOptions, CommandOptions, CommandConfiguration, RuntimeType, CustomTask, TaskScope, TaskSource, TaskSourceKind, ExtensionTaskSource, RevealKind, PanelKind
 } from 'vs/workbench/parts/tasks/common/tasks';
-import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
+import { ITaskService, TaskFilter } from 'vs/workbench/parts/tasks/common/taskService';
 
 
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext, IExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
 import {
 	TaskDefinitionDTO, TaskExecutionDTO, ProcessExecutionOptionsDTO, TaskPresentationOptionsDTO,
-	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO
+	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO
 } from 'vs/workbench/api/shared/tasks';
 
-export { TaskDTO, TaskHandleDTO, TaskExecutionDTO };
+export { TaskDTO, TaskHandleDTO, TaskExecutionDTO, TaskFilterDTO };
 
 namespace TaskExecutionDTO {
 	export function from(value: TaskExecution): TaskExecutionDTO {
 		return {
 			id: value.id,
+			task: TaskDTO.from(value.task)
 		};
 	}
 	export function to(value: TaskExecutionDTO, workspace: IWorkspaceContextService): TaskExecution {
 		return {
 			id: value.id,
+			task: TaskDTO.to(value.task, workspace)
 		};
 	}
 }
@@ -283,9 +285,6 @@ namespace TaskDTO {
 				}
 			}
 		}
-		if (!result.execution) {
-			return undefined;
-		}
 		return result;
 	}
 
@@ -303,6 +302,8 @@ namespace TaskDTO {
 			return undefined;
 		}
 		command.presentation = TaskPresentationOptionsDTO.to(task.presentationOptions);
+		command.presentation = Objects.assign(command.presentation || {}, { echo: true, reveal: RevealKind.Always, focus: false, panel: PanelKind.Shared });
+
 		let source = TaskSourceDTO.to(task.source, workspace);
 
 		let label = nls.localize('task.label', '{0}: {1}', source.label, task.name);
@@ -323,6 +324,15 @@ namespace TaskDTO {
 			hasDefinedMatchers: task.hasDefinedMatchers
 		};
 		return result;
+	}
+}
+
+namespace TaskFilterDTO {
+	export function from(value: TaskFilter): TaskFilterDTO {
+		return value;
+	}
+	export function to(value: TaskFilterDTO): TaskFilter {
+		return value;
 	}
 }
 
@@ -383,8 +393,8 @@ export class MainThreadTask implements MainThreadTaskShape {
 		return TPromise.wrap<void>(undefined);
 	}
 
-	public $executeTaskProvider(): TPromise<TaskDTO[]> {
-		return this._taskService.tasks().then((tasks) => {
+	public $fetchTasks(filter?: TaskFilterDTO): TPromise<TaskDTO[]> {
+		return this._taskService.tasks(TaskFilterDTO.to(filter)).then((tasks) => {
 			let result: TaskDTO[] = [];
 			for (let task of tasks) {
 				let item = TaskDTO.from(task);
@@ -403,7 +413,8 @@ export class MainThreadTask implements MainThreadTaskShape {
 				this._taskService.getTask(workspaceFolder, value.id, true).then((task: Task) => {
 					this._taskService.run(task);
 					let result: TaskExecutionDTO = {
-						id: value.id
+						id: value.id,
+						task: TaskDTO.from(task)
 					};
 					resolve(result);
 				}, (error) => {
@@ -413,19 +424,19 @@ export class MainThreadTask implements MainThreadTaskShape {
 				let task = TaskDTO.to(value, this._workspaceContextServer);
 				this._taskService.run(task);
 				let result: TaskExecutionDTO = {
-					id: task._id
+					id: task._id,
+					task: TaskDTO.from(task)
 				};
 				resolve(result);
 			}
 		});
 	}
 
-	public $terminateTask(value: TaskExecutionDTO): TPromise<void> {
-		let execution: TaskExecution = TaskExecutionDTO.to(value, this._workspaceContextServer);
+	public $terminateTask(id: string): TPromise<void> {
 		return new TPromise<void>((resolve, reject) => {
 			this._taskService.getActiveTasks().then((tasks) => {
 				for (let task of tasks) {
-					if (execution.id === task._id) {
+					if (id === task._id) {
 						this._taskService.terminate(task).then((value) => {
 							resolve(undefined);
 						}, (error) => {

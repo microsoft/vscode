@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SpectronApplication } from '../../spectron/application';
 import { Viewlet } from '../workbench/viewlet';
+import { Commands } from '../workbench/workbench';
+import { Code, findElement } from '../../vscode/code';
+import { Editors } from '../editor/editors';
+import { Editor } from '../editor/editor';
+import { IElement } from '../../vscode/driver';
 
 const VIEWLET = 'div[id="workbench.view.debug"]';
 const DEBUG_VIEW = `${VIEWLET} .debug-view-content`;
 const CONFIGURE = `div[id="workbench.parts.sidebar"] .actions-container .configure`;
-const START = `.icon[title="Start Debugging"]`;
 const STOP = `.debug-actions-widget .debug-action.stop`;
 const STEP_OVER = `.debug-actions-widget .debug-action.step-over`;
 const STEP_IN = `.debug-actions-widget .debug-action.step-into`;
@@ -22,150 +25,118 @@ const DEBUG_STATUS_BAR = `.statusbar.debugging`;
 const NOT_DEBUG_STATUS_BAR = `.statusbar:not(debugging)`;
 const TOOLBAR_HIDDEN = `.debug-actions-widget.monaco-builder-hidden`;
 const STACK_FRAME = `${VIEWLET} .monaco-tree-row .stack-frame`;
+const SPECIFIC_STACK_FRAME = filename => `${STACK_FRAME} .file[title$="${filename}"]`;
 const VARIABLE = `${VIEWLET} .debug-variables .monaco-tree-row .expression`;
-const CONSOLE_OUTPUT = `.repl .output.expression`;
+const CONSOLE_OUTPUT = `.repl .output.expression .value`;
 const CONSOLE_INPUT_OUTPUT = `.repl .input-output-pair .output.expression .value`;
 
 const REPL_FOCUSED = '.repl-input-wrapper .monaco-editor textarea';
 
 export interface IStackFrame {
-	id: string;
 	name: string;
 	lineNumber: number;
 }
 
+function toStackFrame(element: IElement): IStackFrame {
+	const name = findElement(element, e => /\bfile-name\b/.test(e.className))!;
+	const line = findElement(element, e => /\bline-number\b/.test(e.className))!;
+	const lineNumber = line.textContent ? parseInt(line.textContent.split(':').shift() || '0') : 0;
+
+	return {
+		name: name.textContent || '',
+		lineNumber
+	};
+}
+
 export class Debug extends Viewlet {
 
-	constructor(spectron: SpectronApplication) {
-		super(spectron);
+	constructor(code: Code, private commands: Commands, private editors: Editors, private editor: Editor) {
+		super(code);
 	}
 
 	async openDebugViewlet(): Promise<any> {
-		await this.spectron.runCommand('workbench.view.debug');
-		await this.spectron.client.waitForElement(DEBUG_VIEW);
+		await this.commands.runCommand('workbench.view.debug');
+		await this.code.waitForElement(DEBUG_VIEW);
 	}
 
 	async configure(): Promise<any> {
-		await this.spectron.client.waitAndClick(CONFIGURE);
-		await this.spectron.workbench.waitForEditorFocus('launch.json');
+		await this.code.waitAndClick(CONFIGURE);
+		await this.editors.waitForEditorFocus('launch.json');
 	}
 
 	async setBreakpointOnLine(lineNumber: number): Promise<any> {
-		await this.spectron.client.waitForElement(`${GLYPH_AREA}(${lineNumber})`);
-		await this.spectron.client.leftClick(`${GLYPH_AREA}(${lineNumber})`, 5, 5);
-		await this.spectron.client.waitForElement(BREAKPOINT_GLYPH);
+		await this.code.waitForElement(`${GLYPH_AREA}(${lineNumber})`);
+		await this.code.waitAndClick(`${GLYPH_AREA}(${lineNumber})`, 5, 5);
+		await this.code.waitForElement(BREAKPOINT_GLYPH);
 	}
 
 	async startDebugging(): Promise<number> {
-		await this.spectron.client.waitAndClick(START);
-		await this.spectron.client.waitForElement(PAUSE);
-		await this.spectron.client.waitForElement(DEBUG_STATUS_BAR);
+		await this.commands.runCommand('workbench.action.debug.start');
+		await this.code.waitForElement(PAUSE);
+		await this.code.waitForElement(DEBUG_STATUS_BAR);
 		const portPrefix = 'Port: ';
-		await this.spectron.client.waitFor(async () => {
-			const output = await this.getConsoleOutput();
-			return output.join('');
-		}, text => !!text && text.indexOf(portPrefix) >= 0);
-		const output = await this.getConsoleOutput();
-		const lastOutput = output.pop();
+
+		const output = await this.waitForOutput(output => output.some(line => line.indexOf(portPrefix) >= 0));
+		const lastOutput = output.filter(line => line.indexOf(portPrefix) >= 0)[0];
 
 		return lastOutput ? parseInt(lastOutput.substr(portPrefix.length)) : 3000;
 	}
 
 	async stepOver(): Promise<any> {
-		await this.spectron.client.waitAndClick(STEP_OVER);
+		await this.code.waitAndClick(STEP_OVER);
 	}
 
 	async stepIn(): Promise<any> {
-		await this.spectron.client.waitAndClick(STEP_IN);
+		await this.code.waitAndClick(STEP_IN);
 	}
 
 	async stepOut(): Promise<any> {
-		await this.spectron.client.waitAndClick(STEP_OUT);
+		await this.code.waitAndClick(STEP_OUT);
 	}
 
 	async continue(): Promise<any> {
-		await this.spectron.client.waitAndClick(CONTINUE);
+		await this.code.waitAndClick(CONTINUE);
 		await this.waitForStackFrameLength(0);
 	}
 
 	async stopDebugging(): Promise<any> {
-		await this.spectron.client.waitAndClick(STOP);
-		await this.spectron.client.waitForElement(TOOLBAR_HIDDEN);
-		await this.spectron.client.waitForElement(NOT_DEBUG_STATUS_BAR);
+		await this.code.waitAndClick(STOP);
+		await this.code.waitForElement(TOOLBAR_HIDDEN);
+		await this.code.waitForElement(NOT_DEBUG_STATUS_BAR);
 	}
 
 	async waitForStackFrame(func: (stackFrame: IStackFrame) => boolean, message: string): Promise<IStackFrame> {
-		return await this.spectron.client.waitFor(async () => {
-			const stackFrames = await this.getStackFrames();
-			return stackFrames.filter(func)[0];
-		}, void 0, `Waiting for Stack Frame: ${message}`);
+		const elements = await this.code.waitForElements(STACK_FRAME, true, elements => elements.some(e => func(toStackFrame(e))));
+		return elements.map(toStackFrame).filter(s => func(s))[0];
 	}
 
 	async waitForStackFrameLength(length: number): Promise<any> {
-		return await this.spectron.client.waitFor(() => this.getStackFrames(), stackFrames => stackFrames.length === length);
+		await this.code.waitForElements(STACK_FRAME, false, result => result.length === length);
 	}
 
 	async focusStackFrame(name: string, message: string): Promise<any> {
-		const stackFrame = await this.waitForStackFrame(sf => sf.name === name, message);
-		await this.spectron.client.spectron.client.elementIdClick(stackFrame.id);
-		await this.spectron.workbench.waitForTab(name);
+		await this.code.waitAndClick(SPECIFIC_STACK_FRAME(name));
+		await this.editors.waitForTab(name);
 	}
 
 	async waitForReplCommand(text: string, accept: (result: string) => boolean): Promise<void> {
-		await this.spectron.workbench.quickopen.runCommand('Debug: Focus Debug Console');
-		await this.spectron.client.waitForActiveElement(REPL_FOCUSED);
-		await this.spectron.client.setValue(REPL_FOCUSED, text);
+		await this.commands.runCommand('Debug: Focus Debug Console');
+		await this.code.waitForActiveElement(REPL_FOCUSED);
+		await this.code.waitForSetValue(REPL_FOCUSED, text);
 
 		// Wait for the keys to be picked up by the editor model such that repl evalutes what just got typed
-		await this.spectron.workbench.editor.waitForEditorContents('debug:input', s => s.indexOf(text) >= 0);
-		await this.spectron.client.keys(['Enter', 'NULL']);
-		await this.spectron.client.waitForElement(CONSOLE_INPUT_OUTPUT);
-		await this.spectron.client.waitFor(async () => {
-			const result = await this.getConsoleOutput();
-			return result[result.length - 1] || '';
-		}, accept);
+		await this.editor.waitForEditorContents('debug:input', s => s.indexOf(text) >= 0);
+		await this.code.dispatchKeybinding('enter');
+		await this.code.waitForElement(CONSOLE_INPUT_OUTPUT);
+		await this.waitForOutput(output => accept(output[output.length - 1] || ''));
 	}
 
-	async getLocalVariableCount(): Promise<number> {
-		return await this.spectron.webclient.selectorExecute(VARIABLE, div => (Array.isArray(div) ? div : [div]).length);
+	async waitForVariableCount(count: number): Promise<void> {
+		await this.code.waitForElements(VARIABLE, false, els => els.length === count);
 	}
 
-	async getStackFramesLength(): Promise<number> {
-		const stackFrames = await this.getStackFrames();
-		return stackFrames.length;
-	}
-
-	private async getStackFrames(): Promise<IStackFrame[]> {
-		const result = await this.spectron.webclient.selectorExecute(STACK_FRAME,
-			div => (Array.isArray(div) ? div : [div]).map(element => {
-				const name = element.querySelector('.file-name') as HTMLElement;
-				const line = element.querySelector('.line-number') as HTMLElement;
-				const lineNumber = line.textContent ? parseInt(line.textContent.split(':').shift() || '0') : 0;
-
-				return {
-					name: name.textContent,
-					lineNumber,
-					element
-				};
-			})
-		);
-
-		if (!Array.isArray(result)) {
-			return [];
-		}
-
-		return result
-			.map(({ name, lineNumber, element }) => ({ name, lineNumber, id: element.ELEMENT }));
-	}
-
-	private async getConsoleOutput(): Promise<string[]> {
-		const result = await this.spectron.webclient.selectorExecute(CONSOLE_OUTPUT,
-			div => (Array.isArray(div) ? div : [div]).map(element => {
-				const value = element.querySelector('.value') as HTMLElement;
-				return value && value.textContent;
-			}).filter(line => !!line)
-		);
-
-		return result;
+	private async waitForOutput(fn: (output: string[]) => boolean): Promise<string[]> {
+		const elements = await this.code.waitForElements(CONSOLE_OUTPUT, false, elements => fn(elements.map(e => e.textContent)));
+		return elements.map(e => e.textContent);
 	}
 }

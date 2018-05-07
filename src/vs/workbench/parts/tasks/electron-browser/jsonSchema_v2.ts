@@ -156,6 +156,7 @@ const command: IJSONSchema = {
 		},
 		{
 			type: 'object',
+			required: ['value', 'quoting'],
 			properties: {
 				value: {
 					type: 'string',
@@ -188,6 +189,7 @@ const args: IJSONSchema = {
 			},
 			{
 				type: 'object',
+				required: ['value', 'quoting'],
 				properties: {
 					value: {
 						type: 'string',

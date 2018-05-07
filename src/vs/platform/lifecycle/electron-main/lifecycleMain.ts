@@ -14,7 +14,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { ReadyState } from 'vs/platform/windows/common/windows';
 import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
 
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
 
@@ -389,6 +389,19 @@ export class LifecycleService implements ILifecycleService {
 		app.once('quit', () => {
 			if (!vetoed) {
 				this.stateService.setItem(LifecycleService.QUIT_FROM_RESTART_MARKER, true);
+
+				// Windows: we are about to restart and as such we need to restore the original
+				// current working directory we had on startup to get the exact same startup
+				// behaviour. As such, we briefly change back to the VSCODE_CWD and then when
+				// Code starts it will set it back to the installation directory again.
+				try {
+					if (isWindows) {
+						process.chdir(process.env['VSCODE_CWD']);
+					}
+				} catch (err) {
+					this.logService.error(err);
+				}
+
 				app.relaunch({ args });
 			}
 		});

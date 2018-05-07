@@ -8,6 +8,7 @@
 	],
 	"toggleBreakpointAction": "Déboguer : activer/désactiver un point d'arrêt",
 	"conditionalBreakpointEditorAction": "Déboguer : ajouter un point d'arrêt conditionnel...",
+	"logPointEditorAction": "Débogage : Ajouter un point de journalisation...",
 	"runToCursor": "Exécuter jusqu'au curseur",
 	"debugEvaluate": "Déboguer : évaluer",
 	"debugAddToWatch": "Déboguer : ajouter à la fenêtre Espion",

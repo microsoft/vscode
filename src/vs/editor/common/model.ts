@@ -81,7 +81,12 @@ export interface IModelDecorationOptions {
 	 * Always render the decoration (even when the range it encompasses is collapsed).
 	 * @internal
 	 */
-	readonly showIfCollapsed?: boolean;
+	showIfCollapsed?: boolean;
+	/**
+	 * Specifies the stack order of a decoration.
+	 * A decoration with greater stack order is always in front of a decoration with a lower stack order.
+	 */
+	zIndex?: number;
 	/**
 	 * If set, render this decoration in the overview ruler.
 	 */
@@ -104,6 +109,10 @@ export interface IModelDecorationOptions {
 	 * to have a background color decoration.
 	 */
 	inlineClassName?: string;
+	/**
+	 * If there is an `inlineClassName` which affects letter spacing.
+	 */
+	inlineClassNameAffectsLetterSpacing?: boolean;
 	/**
 	 * If set, the decoration will be rendered before the text with this CSS class name.
 	 */
@@ -391,6 +400,7 @@ export interface ITextModelCreationOptions {
 	trimAutoWhitespace: boolean;
 	defaultEOL: DefaultEndOfLine;
 	isForSimpleWidget: boolean;
+	largeFileOptimizations: boolean;
 }
 
 export interface ITextModelUpdateOptions {
@@ -433,6 +443,15 @@ export enum TrackedRangeStickiness {
 	NeverGrowsWhenTypingAtEdges = 1,
 	GrowsOnlyWhenTypingBefore = 2,
 	GrowsOnlyWhenTypingAfter = 3,
+}
+
+/**
+ * @internal
+ */
+export interface IActiveIndentGuideInfo {
+	startLineNumber: number;
+	endLineNumber: number;
+	indent: number;
 }
 
 /**
@@ -561,6 +580,10 @@ export interface ITextModel {
 	 */
 	getLineContent(lineNumber: number): string;
 
+	/**
+	 * Get the text length for a certain line.
+	 */
+	getLineLength(lineNumber: number): number;
 
 	/**
 	 * Get the text for all lines.
@@ -572,11 +595,6 @@ export interface ITextModel {
 	 * @return EOL char sequence (e.g.: '\n' or '\r\n').
 	 */
 	getEOL(): string;
-
-	/**
-	 * Change the end of line sequence used in the text buffer.
-	 */
-	setEOL(eol: EndOfLineSequence): void;
 
 	/**
 	 * Get the minimum legal column for line at `lineNumber`
@@ -656,11 +674,11 @@ export interface ITextModel {
 	tokenizeViewport(startLineNumber: number, endLineNumber: number): void;
 
 	/**
-	 * Only basic mode supports allowed on this model because it is simply too large.
-	 * (tokenization is allowed and other basic supports)
+	 * This model is so large that it would not be a good idea to sync it over
+	 * to web workers or other places.
 	 * @internal
 	 */
-	isTooLargeForHavingARichMode(): boolean;
+	isTooLargeForSyncing(): boolean;
 
 	/**
 	 * The file is so large, that even tokenization is disabled.
@@ -845,6 +863,11 @@ export interface ITextModel {
 	/**
 	 * @internal
 	 */
+	getActiveIndentGuide(lineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo;
+
+	/**
+	 * @internal
+	 */
 	getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[];
 
 	/**
@@ -981,12 +1004,24 @@ export interface ITextModel {
 	pushEditOperations(beforeCursorState: Selection[], editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): Selection[];
 
 	/**
+	 * Change the end of line sequence. This is the preferred way of
+	 * changing the eol sequence. This will land on the undo stack.
+	 */
+	pushEOL(eol: EndOfLineSequence): void;
+
+	/**
 	 * Edit the model without adding the edits to the undo stack.
 	 * This can have dire consequences on the undo stack! See @pushEditOperations for the preferred way.
 	 * @param operations The edit operations.
 	 * @return The inverse edit operations, that, when applied, will bring the model back to the previous state.
 	 */
 	applyEdits(operations: IIdentifiedSingleEditOperation[]): IIdentifiedSingleEditOperation[];
+
+	/**
+	 * Change the end of line sequence without recording in the undo stack.
+	 * This can have dire consequences on the undo stack! See @pushEOL for the preferred way.
+	 */
+	setEOL(eol: EndOfLineSequence): void;
 
 	/**
 	 * Undo edit operations until the first previous stop point created by `pushStackElement`.
@@ -1002,6 +1037,13 @@ export interface ITextModel {
 	 */
 	redo(): Selection[];
 
+	/**
+	 * @deprecated Please use `onDidChangeContent` instead.
+	 * An event emitted when the contents of the model have changed.
+	 * @internal
+	 * @event
+	 */
+	onDidChangeRawContentFast(listener: (e: ModelRawContentChangedEvent) => void): IDisposable;
 	/**
 	 * @deprecated Please use `onDidChangeContent` instead.
 	 * An event emitted when the contents of the model have changed.
@@ -1067,6 +1109,12 @@ export interface ITextModel {
 	 * @internal
 	 */
 	isAttachedToEditor(): boolean;
+
+	/**
+	 * Returns the count of editors this model is attached to.
+	 * @internal
+	 */
+	getAttachedEditorCount(): number;
 }
 
 /**
@@ -1134,6 +1182,5 @@ export class ApplyEditsResult {
  */
 export interface IInternalModelContentChange extends IModelContentChange {
 	range: Range;
-	rangeOffset: number;
 	forceMoveMarkers: boolean;
 }

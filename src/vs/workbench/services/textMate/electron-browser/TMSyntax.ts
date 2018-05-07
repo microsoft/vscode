@@ -349,9 +349,10 @@ export class TextMateService implements ITextMateService {
 			return TPromise.wrapError<ICreateGrammarResult>(new Error(nls.localize('no-tm-grammar', "No TM Grammar registered for this language.")));
 		}
 		let embeddedLanguages = this._resolveEmbeddedLanguages(languageRegistration.embeddedLanguages);
-		let injectedEmbeddedLanguages = this._injectedEmbeddedLanguages[scopeName];
-		if (injectedEmbeddedLanguages) {
-			for (const injected of injectedEmbeddedLanguages.map(this._resolveEmbeddedLanguages.bind(this))) {
+		let rawInjectedEmbeddedLanguages = this._injectedEmbeddedLanguages[scopeName];
+		if (rawInjectedEmbeddedLanguages) {
+			let injectedEmbeddedLanguages: IEmbeddedLanguagesMap2[] = rawInjectedEmbeddedLanguages.map(this._resolveEmbeddedLanguages.bind(this));
+			for (const injected of injectedEmbeddedLanguages) {
 				for (const scope of Object.keys(injected)) {
 					embeddedLanguages[scope] = injected[scope];
 				}

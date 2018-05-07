@@ -33,7 +33,7 @@ import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServ
 import {
 	SimpleConfigurationService, SimpleResourceConfigurationService, SimpleMenuService,
 	SimpleProgressService, StandaloneCommandService, StandaloneKeybindingService, SimpleNotificationService,
-	StandaloneTelemetryService, SimpleWorkspaceContextService, SimpleDialogService
+	StandaloneTelemetryService, SimpleWorkspaceContextService, SimpleDialogService, SimpleBulkEditService
 } from 'vs/editor/standalone/browser/simpleServices';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IMenuService } from 'vs/platform/actions/common/actions';
@@ -42,6 +42,8 @@ import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standal
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IListService, ListService } from 'vs/platform/list/browser/listService';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 
 export interface IEditorContextViewService extends IContextViewService {
 	dispose(): void;
@@ -180,6 +182,8 @@ export class DynamicStandaloneServices extends Disposable {
 
 		let contextKeyService = ensure(IContextKeyService, () => this._register(new ContextKeyService(configurationService)));
 
+		ensure(IListService, () => new ListService(contextKeyService));
+
 		let commandService = ensure(ICommandService, () => new StandaloneCommandService(this._instantiationService));
 
 		ensure(IKeybindingService, () => this._register(new StandaloneKeybindingService(contextKeyService, commandService, telemetryService, notificationService, domElement)));
@@ -189,6 +193,8 @@ export class DynamicStandaloneServices extends Disposable {
 		ensure(IContextMenuService, () => this._register(new ContextMenuService(domElement, telemetryService, notificationService, contextViewService)));
 
 		ensure(IMenuService, () => new SimpleMenuService(commandService));
+
+		ensure(IBulkEditService, () => new SimpleBulkEditService(StaticServices.modelService.get(IModelService)));
 	}
 
 	public get<T>(serviceId: ServiceIdentifier<T>): T {

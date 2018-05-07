@@ -71,14 +71,14 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			rpcProtocol = new TestRPCProtocol();
 			instantiationService.stub(IHeapService, {
 				_serviceBrand: undefined,
-				trackRecursive(args) {
+				trackRecursive(args: any) {
 					// nothing
 					return args;
 				}
 			});
 			instantiationService.stub(ICommandService, {
 				_serviceBrand: undefined,
-				executeCommand(id, args): any {
+				executeCommand(id: string, args: any): any {
 					if (!CommandsRegistry.getCommands()[id]) {
 						return TPromise.wrapError(new Error(id + ' NOT known'));
 					}
@@ -129,7 +129,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		const diagnostics = new ExtHostDiagnostics(rpcProtocol);
 		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(rpcProtocol, extHostDocuments, commands, heapService, diagnostics);
+		extHost = new ExtHostLanguageFeatures(rpcProtocol, null, extHostDocuments, commands, heapService, diagnostics);
 		rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
 		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, rpcProtocol));
@@ -422,6 +422,39 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		});
 	});
 
+	test('Suggest, resolve completion items', async function () {
+
+		let resolveCount = 0;
+
+		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
+			provideCompletionItems(): any {
+				let a = new types.CompletionItem('item1');
+				let b = new types.CompletionItem('item2');
+				let c = new types.CompletionItem('item3');
+				let d = new types.CompletionItem('item4');
+				return new types.CompletionList([a, b, c, d], false);
+			},
+			resolveCompletionItem(item) {
+				resolveCount += 1;
+				return item;
+			}
+		}, []));
+
+		await rpcProtocol.sync();
+
+		let list = await commands.executeCommand<vscode.CompletionList>(
+			'vscode.executeCompletionItemProvider',
+			model.uri,
+			new types.Position(0, 4),
+			undefined,
+			2 // maxItemsToResolve
+		);
+
+		assert.ok(list instanceof types.CompletionList);
+		assert.equal(resolveCount, 2);
+
+	});
+
 	// --- quickfix
 
 	test('QuickFix, back and forth', function () {
@@ -501,6 +534,40 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		});
 	});
 
+	test('CodeLens, resolve', async function () {
+
+		let resolveCount = 0;
+
+		disposables.push(extHost.registerCodeLensProvider(defaultSelector, <vscode.CodeLensProvider>{
+			provideCodeLenses(): any {
+				return [
+					new types.CodeLens(new types.Range(0, 0, 1, 1)),
+					new types.CodeLens(new types.Range(0, 0, 1, 1)),
+					new types.CodeLens(new types.Range(0, 0, 1, 1)),
+					new types.CodeLens(new types.Range(0, 0, 1, 1), { title: 'Already resolved', command: 'fff' })
+				];
+			},
+			resolveCodeLens(codeLens: types.CodeLens) {
+				codeLens.command = { title: resolveCount.toString(), command: 'resolved' };
+				resolveCount += 1;
+				return codeLens;
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		let value = await commands.executeCommand<vscode.CodeLens[]>('vscode.executeCodeLensProvider', model.uri, 2);
+
+		assert.equal(value.length, 3); // the resolve argument defines the number of results being returned
+		assert.equal(resolveCount, 2);
+
+		resolveCount = 0;
+		value = await commands.executeCommand<vscode.CodeLens[]>('vscode.executeCodeLensProvider', model.uri);
+
+		assert.equal(value.length, 4);
+		assert.equal(resolveCount, 0);
+	});
+
 	test('Links, back and forth', function () {
 
 		disposables.push(extHost.registerDocumentLinkProvider(defaultSelector, <vscode.DocumentLinkProvider>{
@@ -519,6 +586,57 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				assert.equal(first.range.start.character, 0);
 				assert.equal(first.range.end.line, 0);
 				assert.equal(first.range.end.character, 20);
+			});
+		});
+	});
+
+
+	test('Color provider', function () {
+
+		disposables.push(extHost.registerColorProvider(defaultSelector, <vscode.DocumentColorProvider>{
+			provideDocumentColors(): vscode.ColorInformation[] {
+				return [new types.ColorInformation(new types.Range(0, 0, 0, 20), new types.Color(0.1, 0.2, 0.3, 0.4))];
+			},
+			provideColorPresentations(color: vscode.Color, context: { range: vscode.Range, document: vscode.TextDocument }): vscode.ColorPresentation[] {
+				const cp = new types.ColorPresentation('#ABC');
+				cp.textEdit = types.TextEdit.replace(new types.Range(1, 0, 1, 20), '#ABC');
+				cp.additionalTextEdits = [types.TextEdit.insert(new types.Position(2, 20), '*')];
+				return [cp];
+			}
+		}));
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<vscode.ColorInformation[]>('vscode.executeDocumentColorProvider', model.uri).then(value => {
+				assert.equal(value.length, 1);
+				let [first] = value;
+
+				assert.equal(first.color.red, 0.1);
+				assert.equal(first.color.green, 0.2);
+				assert.equal(first.color.blue, 0.3);
+				assert.equal(first.color.alpha, 0.4);
+				assert.equal(first.range.start.line, 0);
+				assert.equal(first.range.start.character, 0);
+				assert.equal(first.range.end.line, 0);
+				assert.equal(first.range.end.character, 20);
+			});
+		}).then(() => {
+			const color = new types.Color(0.5, 0.6, 0.7, 0.8);
+			const range = new types.Range(0, 0, 0, 20);
+			return commands.executeCommand<vscode.ColorPresentation[]>('vscode.executeColorPresentationProvider', color, { uri: model.uri, range }).then(value => {
+				assert.equal(value.length, 1);
+				let [first] = value;
+
+				assert.equal(first.label, '#ABC');
+				assert.equal(first.textEdit.newText, '#ABC');
+				assert.equal(first.textEdit.range.start.line, 1);
+				assert.equal(first.textEdit.range.start.character, 0);
+				assert.equal(first.textEdit.range.end.line, 1);
+				assert.equal(first.textEdit.range.end.character, 20);
+				assert.equal(first.additionalTextEdits.length, 1);
+				assert.equal(first.additionalTextEdits[0].range.start.line, 2);
+				assert.equal(first.additionalTextEdits[0].range.start.character, 20);
+				assert.equal(first.additionalTextEdits[0].range.end.line, 2);
+				assert.equal(first.additionalTextEdits[0].range.end.character, 20);
 			});
 		});
 	});

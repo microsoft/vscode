@@ -26,5 +26,6 @@
 	"always": "Sempre mostrar depurar na barra de status",
 	"onFirstSessionStart": "Mostrar depurar na barra de status somente após a depuração ser iniciada pela primeira vez",
 	"showInStatusBar": "Controla quando a barra de status de depuração deve ser visível",
+	"openDebug": "Controla se a visualização de depuração deve ser aberta no início da sessão de depuração.",
 	"launch": "Configuração global do lançamento do depurador. Deve ser usado como uma alternativa para o arquivo 'launch.json' que é compartilhado entre os espaços de trabalho"
 }

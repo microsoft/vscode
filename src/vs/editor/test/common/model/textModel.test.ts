@@ -8,22 +8,19 @@ import * as assert from 'assert';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
-import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { UTF8_BOM_CHARACTER } from 'vs/base/common/strings';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: number, expectedInsertSpaces: boolean, expectedTabSize: number, text: string[], msg?: string): void {
-	var m = TextModel.createFromString(
+	let m = createTextModel(
 		text.join('\n'),
 		{
-			isForSimpleWidget: false,
 			tabSize: defaultTabSize,
 			insertSpaces: defaultInsertSpaces,
-			detectIndentation: true,
-			defaultEOL: DefaultEndOfLine.LF,
-			trimAutoWhitespace: true
+			detectIndentation: true
 		}
 	);
-	var r = m.getOptions();
+	let r = m.getOptions();
 	m.dispose();
 
 	assert.equal(r.insertSpaces, expectedInsertSpaces, msg);
@@ -154,7 +151,7 @@ suite('Editor Model - TextModel', () => {
 
 	test('getValueLengthInRange', () => {
 
-		var m = TextModel.createFromString('My First Line\r\nMy Second Line\r\nMy Third Line');
+		let m = TextModel.createFromString('My First Line\r\nMy Second Line\r\nMy Third Line');
 		assert.equal(m.getValueLengthInRange(new Range(1, 1, 1, 1)), ''.length);
 		assert.equal(m.getValueLengthInRange(new Range(1, 1, 1, 2)), 'M'.length);
 		assert.equal(m.getValueLengthInRange(new Range(1, 2, 1, 3)), 'y'.length);
@@ -511,7 +508,7 @@ suite('Editor Model - TextModel', () => {
 			'        x',
 			'        x',
 		], '6x4, 2x5, 4x8');
-		assertGuess(true, 4, [
+		assertGuess(true, undefined, [
 			'x',
 			' x',
 			' x',
@@ -532,6 +529,25 @@ suite('Editor Model - TextModel', () => {
 			'\tx',
 			'\t    x'
 		], 'mixed whitespace 2');
+	});
+
+	test('issue #44991: Wrong indentation size auto-detection', () => {
+		assertGuess(true, 4, [
+			'a = 10             # 0 space indent',
+			'b = 5              # 0 space indent',
+			'if a > 10:         # 0 space indent',
+			'    a += 1         # 4 space indent      delta 4 spaces',
+			'    if b > 5:      # 4 space indent',
+			'        b += 1     # 8 space indent      delta 4 spaces',
+			'        b += 1     # 8 space indent',
+			'        b += 1     # 8 space indent',
+			'# comment line 1   # 0 space indent      delta 8 spaces',
+			'# comment line 2   # 0 space indent',
+			'# comment line 3   # 0 space indent',
+			'        b += 1     # 8 space indent      delta 8 spaces',
+			'        b += 1     # 8 space indent',
+			'        b += 1     # 8 space indent',
+		]);
 	});
 
 	test('validatePosition', () => {
@@ -677,7 +693,7 @@ suite('Editor Model - TextModel', () => {
 
 	test('modifyPosition', () => {
 
-		var m = TextModel.createFromString('line one\nline two');
+		let m = TextModel.createFromString('line one\nline two');
 		assert.deepEqual(m.modifyPosition(new Position(1, 1), 0), new Position(1, 1));
 		assert.deepEqual(m.modifyPosition(new Position(0, 0), 0), new Position(1, 1));
 		assert.deepEqual(m.modifyPosition(new Position(30, 1), 0), new Position(2, 9));
@@ -706,14 +722,9 @@ suite('Editor Model - TextModel', () => {
 	});
 
 	test('normalizeIndentation 1', () => {
-		let model = TextModel.createFromString('',
+		let model = createTextModel('',
 			{
-				isForSimpleWidget: false,
-				detectIndentation: false,
-				tabSize: 4,
-				insertSpaces: false,
-				trimAutoWhitespace: true,
-				defaultEOL: DefaultEndOfLine.LF
+				insertSpaces: false
 			}
 		);
 
@@ -743,16 +754,7 @@ suite('Editor Model - TextModel', () => {
 	});
 
 	test('normalizeIndentation 2', () => {
-		let model = TextModel.createFromString('',
-			{
-				isForSimpleWidget: false,
-				detectIndentation: false,
-				tabSize: 4,
-				insertSpaces: true,
-				trimAutoWhitespace: true,
-				defaultEOL: DefaultEndOfLine.LF
-			}
-		);
+		let model = createTextModel('');
 
 		assert.equal(model.normalizeIndentation('\ta'), '    a');
 		assert.equal(model.normalizeIndentation('    a'), '    a');

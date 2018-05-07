@@ -7,39 +7,49 @@
 
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
-import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Dimension, Builder, $ } from 'vs/base/browser/builder';
-import { EditorModel, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { Builder, $ } from 'vs/base/browser/builder';
+import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { ResourceViewerContext, ResourceViewer } from 'vs/workbench/browser/parts/editor/resourceViewer';
+import URI from 'vs/base/common/uri';
+import { Dimension } from 'vs/base/browser/dom';
+
+export interface IOpenCallbacks {
+	openInternal: (input: EditorInput, options: EditorOptions) => void;
+	openExternal: (uri: URI) => void;
+}
 
 /*
  * This class is only intended to be subclassed and not instantiated.
  */
 export abstract class BaseBinaryResourceEditor extends BaseEditor {
-	private readonly _onMetadataChanged: Emitter<void>;
-	private metadata: string;
 
+	private readonly _onMetadataChanged: Emitter<void>;
+
+	private callbacks: IOpenCallbacks;
+	private metadata: string;
 	private binaryContainer: Builder;
 	private scrollbar: DomScrollableElement;
 	private resourceViewerContext: ResourceViewerContext;
 
 	constructor(
 		id: string,
+		callbacks: IOpenCallbacks,
 		telemetryService: ITelemetryService,
-		themeService: IThemeService,
-		private windowsService: IWindowsService
+		themeService: IThemeService
 	) {
 		super(id, telemetryService, themeService);
 
 		this._onMetadataChanged = new Emitter<void>();
+		this.toUnbind.push(this._onMetadataChanged);
+
+		this.callbacks = callbacks;
 	}
 
 	public get onMetadataChanged(): Event<void> {
@@ -50,7 +60,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		return this.input ? this.input.getName() : nls.localize('binaryEditor', "Binary Viewer");
 	}
 
-	protected createEditor(parent: Builder): void {
+	protected createEditor(parent: HTMLElement): void {
 
 		// Container for Binary
 		const binaryContainerElement = document.createElement('div');
@@ -61,7 +71,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
 		// Custom Scrollbars
 		this.scrollbar = new DomScrollableElement(binaryContainerElement, { horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Auto });
-		parent.getHTMLElement().appendChild(this.scrollbar.getDomNode());
+		parent.appendChild(this.scrollbar.getDomNode());
 	}
 
 	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
@@ -74,10 +84,10 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
 		// Otherwise set input and resolve
 		return super.setInput(input, options).then(() => {
-			return input.resolve(true).then((resolvedModel: EditorModel) => {
+			return input.resolve(true).then(model => {
 
 				// Assert Model instance
-				if (!(resolvedModel instanceof BinaryEditorModel)) {
+				if (!(model instanceof BinaryEditorModel)) {
 					return TPromise.wrapError<void>(new Error('Unable to open file as binary'));
 				}
 
@@ -87,21 +97,14 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 				}
 
 				// Render Input
-				const model = <BinaryEditorModel>resolvedModel;
 				this.resourceViewerContext = ResourceViewer.show(
 					{ name: model.getName(), resource: model.getResource(), size: model.getSize(), etag: model.getETag(), mime: model.getMime() },
-					this.binaryContainer,
+					this.binaryContainer.getHTMLElement(),
 					this.scrollbar,
-					(resource: URI) => {
-						this.windowsService.openExternal(resource.toString()).then(didOpen => {
-							if (!didOpen) {
-								return this.windowsService.showItemInFolder(resource.fsPath);
-							}
-
-							return void 0;
-						});
-					},
-					(meta) => this.handleMetadataChanged(meta));
+					resource => this.callbacks.openInternal(input, options),
+					resource => this.callbacks.openExternal(resource),
+					meta => this.handleMetadataChanged(meta)
+				);
 
 				return TPromise.as<void>(null);
 			});
@@ -115,6 +118,10 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
 	public getMetadata(): string {
 		return this.metadata;
+	}
+
+	public supportsCenteredLayout(): boolean {
+		return false;
 	}
 
 	public clearInput(): void {

@@ -29,7 +29,6 @@
 	"inputPlaceholderForeground": "Cor de primeiro plano da caixa de entrada para o texto de espaço reservado.",
 	"inputValidationInfoBackground": "Cor de fundo de validação de entrada para a severidade de informações.",
 	"inputValidationInfoBorder": "Cor da borda de validação de entrada para a severidade de informações.",
-	"inputValidationWarningBackground": "Cor de fundo de validação de entrada para avisos.",
 	"inputValidationWarningBorder": "Cor da borda de validação para a severidade de avisos.",
 	"inputValidationErrorBackground": "Cor de fundo de validação de entrada para a severidade do erro.",
 	"inputValidationErrorBorder": "Cor da borda de validação de entrada para a severidade do erro.",
@@ -71,10 +70,8 @@
 	"editorSelectionHighlightBorder": "Cor da borda para regiões com o mesmo conteúdo da seleção.",
 	"editorFindMatch": "Cor da correspondência de pesquisa atual.",
 	"findMatchHighlight": "Cor dos outros termos que correspondem ao da pesquisa. A cor não deve ser opaca para não esconder as decorações subjacentes.",
-	"findRangeHighlight": "Cor do intervalo limitando a pesquisa. A cor não deve ser opaca para não esconder decorações subjacentes.",
 	"editorFindMatchBorder": "Cor da borda da correspondência de pesquisa atual.",
 	"findMatchHighlightBorder": "Cor da borda dos outros resultados de pesquisa.",
-	"findRangeHighlightBorder": "Cor da borda do intervalo limitando a pesquisa. A cor não deve ser opaca para não esconder decorações subjacentes.",
 	"hoverHighlight": "Destaque abaixo da palavra para qual um flutuador é mostrado. A cor não deve ser opaca para não esconder decorações subjacentes.",
 	"hoverBackground": "Cor de fundo para o item flutuante do editor",
 	"hoverBorder": "Cor da borda para o item flutuante do editor.",
@@ -88,11 +85,10 @@
 	"mergeIncomingHeaderBackground": "Fundo do cabeçalho entrante em conflitos de merge inline. A cor não deve ser opaca para não esconder decorações subjacentes.",
 	"mergeIncomingContentBackground": "Fundo do conteúdo entrante em conflitos de merge inline. A cor não deve ser opaca para não esconder decorações subjacentes.",
 	"mergeCommonHeaderBackground": "Fundo comum do cabeçalho antepassado em conflitos de merge inline. A cor não deve ser opaca para não esconder decorações subjacentes.",
-	"mergeCommonContentBackground": "Fundo comum do conteúdo antepassado em conflitos de merge inline. A cor não deve ser opaca para não esconder decorações subjacentes.",
 	"mergeBorder": "Cor da borda dos cabeçalhos e separadores estão em conflito de mesclagem em linha.",
 	"overviewRulerCurrentContentForeground": "Cor de fundo de régua de visuaização atual em conflito de mesclagem em linha.",
 	"overviewRulerIncomingContentForeground": "Cor de fundo de régua de visuaização de entrada em conflito de mesclagem em linha.",
 	"overviewRulerCommonContentForeground": "Ancestral comum da cor da régua de visão geral para conflitos de mesclagem inline.",
-	"overviewRulerFindMatchForeground": "Visão geral da cor do marcador da régua para buscas correspondentes.",
-	"overviewRulerSelectionHighlightForeground": "Visão geral da cor do marcador da régua para a seleção de destaques"
+	"overviewRulerFindMatchForeground": "Visão geral da cor do marcador da régua para correspondências de localização. A cor não deve ser opaca para não esconder decorações subjacentes.",
+	"overviewRulerSelectionHighlightForeground": "Visão geral da cor do marcador da régua para destaques de seleção. A cor não deve ser opaca para não esconder decorações subjacentes."
 }

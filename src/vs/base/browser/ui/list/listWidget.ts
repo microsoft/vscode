@@ -142,7 +142,7 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 		const end = start + deleteCount;
 		const indexes = [
 			...this.indexes.filter(i => i < start),
-			...elements.reduce((r, hasTrait, i) => hasTrait ? [...r, i + start] : r, []),
+			...elements.map((hasTrait, i) => hasTrait ? i + start : -1).filter(i => i !== -1),
 			...this.indexes.filter(i => i >= end).map(i => i + diff)
 		];
 
@@ -388,7 +388,7 @@ const DefaultMultipleSelectionContoller = {
 	isSelectionRangeChangeEvent
 };
 
-const DefaultOpenController = {
+const DefaultOpenController: IOpenController = {
 	shouldOpen: (event: UIEvent) => {
 		if (event instanceof MouseEvent) {
 			return !isMouseRightClick(event);
@@ -396,7 +396,7 @@ const DefaultOpenController = {
 
 		return true;
 	}
-} as IOpenController;
+};
 
 class MouseController<T> implements IDisposable {
 

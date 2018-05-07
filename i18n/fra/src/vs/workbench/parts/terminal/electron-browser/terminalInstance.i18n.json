@@ -12,5 +12,6 @@
 	"terminal.integrated.copySelection.noSelection": "Le terminal n'a aucune sélection à copier",
 	"terminal.integrated.exitedWithCode": "Le processus du terminal s'est achevé avec le code de sortie {0}",
 	"terminal.integrated.waitOnExit": "Appuyez sur une touche pour fermer le terminal",
-	"terminal.integrated.launchFailed": "Échec du lancement de la commande de traitement du terminal '{0}{1}' (code de sortie : {2})"
+	"terminal.integrated.launchFailed": "Échec du lancement de la commande de traitement du terminal '{0}{1}' (code de sortie : {2})",
+	"terminal.integrated.launchFailedExtHost": "Impossible de démarrer le processus du terminal (code de sortie : {0})"
 }

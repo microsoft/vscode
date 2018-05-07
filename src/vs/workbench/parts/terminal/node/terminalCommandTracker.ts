@@ -16,6 +16,11 @@ enum Boundary {
 	Bottom
 }
 
+export enum ScrollPosition {
+	Top,
+	Middle
+}
+
 export class TerminalCommandTracker implements ITerminalCommandTracker {
 	private _currentMarker: IMarker | Boundary = Boundary.Bottom;
 	private _selectionStart: IMarker | Boundary | null = null;
@@ -43,7 +48,7 @@ export class TerminalCommandTracker implements ITerminalCommandTracker {
 		}
 	}
 
-	public focusPreviousCommand(retainSelection: boolean = false): void {
+	public scrollToPreviousCommand(scrollPosition: ScrollPosition = ScrollPosition.Top, retainSelection: boolean = false): void {
 		if (!retainSelection) {
 			this._selectionStart = null;
 		}
@@ -64,10 +69,10 @@ export class TerminalCommandTracker implements ITerminalCommandTracker {
 		}
 
 		this._currentMarker = this._xterm.markers[markerIndex];
-		this._xterm.scrollToLine(this._currentMarker.line);
+		this._scrollToMarker(this._currentMarker, scrollPosition);
 	}
 
-	public focusNextCommand(retainSelection: boolean = false): void {
+	public scrollToNextCommand(scrollPosition: ScrollPosition = ScrollPosition.Top, retainSelection: boolean = false): void {
 		if (!retainSelection) {
 			this._selectionStart = null;
 		}
@@ -88,14 +93,22 @@ export class TerminalCommandTracker implements ITerminalCommandTracker {
 		}
 
 		this._currentMarker = this._xterm.markers[markerIndex];
-		this._xterm.scrollToLine(this._currentMarker.line);
+		this._scrollToMarker(this._currentMarker, scrollPosition);
+	}
+
+	private _scrollToMarker(marker: IMarker, position: ScrollPosition): void {
+		let line = marker.line;
+		if (position === ScrollPosition.Middle) {
+			line = Math.max(line - this._xterm.rows / 2, 0);
+		}
+		this._xterm.scrollToLine(line);
 	}
 
 	public selectToPreviousCommand(): void {
 		if (this._selectionStart === null) {
 			this._selectionStart = this._currentMarker;
 		}
-		this.focusPreviousCommand(true);
+		this.scrollToPreviousCommand(ScrollPosition.Middle, true);
 		this._selectLines(this._currentMarker, this._selectionStart);
 	}
 
@@ -103,8 +116,7 @@ export class TerminalCommandTracker implements ITerminalCommandTracker {
 		if (this._selectionStart === null) {
 			this._selectionStart = this._currentMarker;
 		}
-		this.focusNextCommand(true);
-		// if (!this._currentMarker
+		this.scrollToNextCommand(ScrollPosition.Middle, true);
 		this._selectLines(this._currentMarker, this._selectionStart);
 	}
 

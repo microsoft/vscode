@@ -11,7 +11,7 @@ import { IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
 import { CoreNavigationCommands, CoreEditorCommand } from 'vs/editor/browser/controller/coreCommands';
-import { Configuration } from 'vs/editor/browser/config/configuration';
+import { IConfiguration } from 'vs/editor/common/editorCommon';
 
 export interface ExecCoreEditorCommandFunc {
 	(editorCommand: CoreEditorCommand, args: any): void;
@@ -31,6 +31,9 @@ export interface IMouseDispatchData {
 	ctrlKey: boolean;
 	metaKey: boolean;
 	shiftKey: boolean;
+
+	leftButton: boolean;
+	middleButton: boolean;
 }
 
 export interface ICommandDelegate {
@@ -44,14 +47,14 @@ export interface ICommandDelegate {
 
 export class ViewController {
 
-	private readonly configuration: Configuration;
+	private readonly configuration: IConfiguration;
 	private readonly viewModel: IViewModel;
 	private readonly _execCoreEditorCommandFunc: ExecCoreEditorCommandFunc;
 	private readonly outgoingEvents: ViewOutgoingEvents;
 	private readonly commandDelegate: ICommandDelegate;
 
 	constructor(
-		configuration: Configuration,
+		configuration: IConfiguration,
 		viewModel: IViewModel,
 		execCommandFunc: ExecCoreEditorCommandFunc,
 		outgoingEvents: ViewOutgoingEvents,
@@ -133,7 +136,13 @@ export class ViewController {
 	}
 
 	public dispatchMouse(data: IMouseDispatchData): void {
-		if (data.startedOnLineNumbers) {
+		if (data.middleButton) {
+			if (data.inSelectionMode) {
+				this.columnSelect(data.position, data.mouseColumn);
+			} else {
+				this.moveTo(data.position);
+			}
+		} else if (data.startedOnLineNumbers) {
 			// If the dragging started on the gutter, then have operations work on the entire line
 			if (this._hasMulticursorModifier(data)) {
 				if (data.inSelectionMode) {

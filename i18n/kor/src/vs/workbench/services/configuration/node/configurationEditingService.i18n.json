@@ -11,6 +11,7 @@
 	"open": "설정 열기",
 	"saveAndRetry": "저장 및 다시 시도",
 	"errorUnknownKey": "{1}은(는) 등록된 구성이 아니므로 {0}에 쓸 수 없습니다.",
+	"errorInvalidWorkspaceConfigurationApplication": "{0}을(를) [작업 영역] 설정에 쓸 수 없습니다. 이 설정은 [사용자] 설정에만 쓸 수 있습니다.",
 	"errorInvalidFolderConfiguration": "{0}이(가) 폴더 리소스 범위를 지원하지 않으므로 폴더 설정에 쓸 수 없습니다.",
 	"errorInvalidUserTarget": "{0}이(가) 글로벌 범위를 지원하지 않으므로 사용자 설정에 쓸 수 없습니다.",
 	"errorInvalidWorkspaceTarget": "{0}이(가) 여러 폴더 작업 영역에서 작업 영역 범위를 지원하지 않으므로 작업 영역 설정에 쓸 수 없습니다.",

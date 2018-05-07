@@ -119,6 +119,20 @@ suite('window namespace tests', () => {
 		});
 	});
 
+	test('active editor not always correct... #49125', async function () {
+		const [docA, docB] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+		]);
+		for (let c = 0; c < 4; c++) {
+			let editorA = await window.showTextDocument(docA, ViewColumn.One);
+			assert(window.activeTextEditor === editorA);
+
+			let editorB = await window.showTextDocument(docB, ViewColumn.Two);
+			assert(window.activeTextEditor === editorB);
+		}
+	});
+
 	test('issue #25801 - default column when opening a file', async () => {
 		const [docA, docB, docC] = await Promise.all([
 			workspace.openTextDocument(await createRandomFile()),
@@ -133,7 +147,11 @@ suite('window namespace tests', () => {
 		assert.ok(window.activeTextEditor!.document === docB);
 		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Two);
 
-		await window.showTextDocument(docC);
+		const editor = await window.showTextDocument(docC);
+		assert.ok(
+			window.activeTextEditor === editor,
+			`wanted fileName:${editor.document.fileName}/viewColumn:${editor.viewColumn} but got fileName:${window.activeTextEditor!.document.fileName}/viewColumn:${window.activeTextEditor!.viewColumn}. a:${docA.fileName}, b:${docB.fileName}, c:${docC.fileName}`
+		);
 		assert.ok(window.activeTextEditor!.document === docC);
 		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.One);
 	});
@@ -369,12 +387,21 @@ suite('window namespace tests', () => {
 				}
 				return null;
 			}
-		}).then(value => {
-			assert.equal(value, undefined);
 		});
 
-		const exec = commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-		return Promise.all([result, exec]);
+		const accept = commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		return Promise.race([
+			result.then(() => assert.ok(false)),
+			accept.then(() => assert.ok(false), err => assert.ok(err))
+				.then(() => new Promise(resolve => setTimeout(resolve, 10)))
+		])
+			.then(() => {
+				const close = commands.executeCommand('workbench.action.closeQuickOpen');
+				return Promise.all([result, close])
+					.then(([value]) => {
+						assert.equal(value, undefined);
+					});
+			});
 	});
 
 

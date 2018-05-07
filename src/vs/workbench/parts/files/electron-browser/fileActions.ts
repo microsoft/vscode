@@ -13,6 +13,7 @@ import { sequence, ITask, always } from 'vs/base/common/async';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
 import URI from 'vs/base/common/uri';
+import { posix } from 'path';
 import * as errors from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as strings from 'vs/base/common/strings';
@@ -103,11 +104,12 @@ export class BaseErrorReportingAction extends Action {
 	}
 
 	protected onErrorWithRetry(error: any, retry: () => TPromise<any>): void {
-		this._notificationService.prompt(Severity.Error, toErrorMessage(error, false), [nls.localize('retry', "Retry")]).then(choice => {
-			if (choice === 0) {
-				retry();
-			}
-		});
+		this._notificationService.prompt(Severity.Error, toErrorMessage(error, false),
+			[{
+				label: nls.localize('retry', "Retry"),
+				run: () => retry()
+			}]
+		);
 	}
 }
 
@@ -158,7 +160,15 @@ class TriggerRenameFileAction extends BaseFileAction {
 		this._updateEnablement();
 	}
 
-	public validateFileName(parent: ExplorerItem, name: string): string {
+	public validateFileName(name: string): string {
+		const names: string[] = name.split(/[\\/]/).filter(part => !!part);
+		if (names.length > 1) {	// error only occurs on multi-path
+			const comparer = isLinux ? strings.compare : strings.compareIgnoreCase;
+			if (comparer(names[0], this.element.name) === 0) {
+				return nls.localize('renameWhenSourcePathIsParentOfTargetError', "Please use the 'New Folder' or 'New File' command to add children to an existing folder");
+			}
+		}
+
 		return this.renameAction.validateFileName(this.element.parent, name);
 	}
 
@@ -180,7 +190,7 @@ class TriggerRenameFileAction extends BaseFileAction {
 		viewletState.setEditable(stat, {
 			action: this.renameAction,
 			validator: (value) => {
-				const message = this.validateFileName(this.element.parent, value);
+				const message = this.validateFileName(value);
 
 				if (!message) {
 					return null;
@@ -380,6 +390,10 @@ export class BaseNewAction extends BaseFileAction {
 
 		if (!folder) {
 			return TPromise.wrapError(new Error('Invalid parent folder to create.'));
+		}
+		if (!!folder.getChild(NewStatPlaceholder.NAME)) {
+			// Do not allow to creatae a new file/folder while in the process of creating a new file/folder #47606
+			return TPromise.as(new Error('Parent folder is already in the process of creating a file'));
 		}
 
 		return this.tree.reveal(folder, 0.5).then(() => {
@@ -631,9 +645,8 @@ class BaseDeleteFileAction extends BaseFileAction {
 
 			// Confirm for moving to trash
 			else if (this.useTrash) {
-				const message = distinctElements.length > 1 ? getConfirmMessage(nls.localize('confirmMoveTrashMessageMultiple', "Are you sure you want to delete the following {0} files?", distinctElements.length), distinctElements.map(e => e.resource))
-					: distinctElements[0].isDirectory ? nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", distinctElements[0].name)
-						: nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", distinctElements[0].name);
+				const message = this.getMoveToTrashMessage(distinctElements);
+
 				confirmDeletePromise = this.dialogService.confirm({
 					message,
 					detail: isWindows ? nls.localize('undoBin', "You can restore from the Recycle Bin.") : nls.localize('undoTrash', "You can restore from the Trash."),
@@ -647,9 +660,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 
 			// Confirm for deleting permanently
 			else {
-				const message = distinctElements.length > 1 ? getConfirmMessage(nls.localize('confirmDeleteMessageMultiple', "Are you sure you want to permanently delete the following {0} files?", distinctElements.length), distinctElements.map(e => e.resource))
-					: distinctElements[0].isDirectory ? nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", distinctElements[0].name)
-						: nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", distinctElements[0].name);
+				const message = this.getDeleteMessage(distinctElements);
 				confirmDeletePromise = this.dialogService.confirm({
 					message,
 					detail: nls.localize('irreversible', "This action is irreversible!"),
@@ -722,10 +733,57 @@ class BaseDeleteFileAction extends BaseFileAction {
 			});
 		});
 	}
+
+	private getMoveToTrashMessage(distinctElements: ExplorerItem[]): string {
+		if (this.containsBothDirectoryAndFile(distinctElements)) {
+			return getConfirmMessage(nls.localize('confirmMoveTrashMessageFilesAndDirectories', "Are you sure you want to delete the following {0} files/directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
+		}
+
+		if (distinctElements.length > 1) {
+			if (distinctElements[0].isDirectory) {
+				return getConfirmMessage(nls.localize('confirmMoveTrashMessageMultipleDirectories', "Are you sure you want to delete the following {0} directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
+			}
+
+			return getConfirmMessage(nls.localize('confirmMoveTrashMessageMultiple', "Are you sure you want to delete the following {0} files?", distinctElements.length), distinctElements.map(e => e.resource));
+		}
+
+		if (distinctElements[0].isDirectory) {
+			return nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", distinctElements[0].name);
+		}
+
+		return nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", distinctElements[0].name);
+	}
+
+	private getDeleteMessage(distinctElements: ExplorerItem[]): string {
+		if (this.containsBothDirectoryAndFile(distinctElements)) {
+			return getConfirmMessage(nls.localize('confirmDeleteMessageFilesAndDirectories', "Are you sure you want to permanently delete the following {0} files/directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
+		}
+
+		if (distinctElements.length > 1) {
+			if (distinctElements[0].isDirectory) {
+				return getConfirmMessage(nls.localize('confirmDeleteMessageMultipleDirectories', "Are you sure you want to permanently delete the following {0} directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
+			}
+
+			return getConfirmMessage(nls.localize('confirmDeleteMessageMultiple', "Are you sure you want to permanently delete the following {0} files?", distinctElements.length), distinctElements.map(e => e.resource));
+		}
+
+		if (distinctElements[0].isDirectory) {
+			return nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", distinctElements[0].name);
+		}
+
+		return nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", distinctElements[0].name);
+	}
+
+	private containsBothDirectoryAndFile(distinctElements: ExplorerItem[]): boolean {
+		const directories = distinctElements.filter(element => element.isDirectory);
+		const files = distinctElements.filter(element => !element.isDirectory);
+
+		return directories.length > 0 && files.length > 0;
+	}
 }
 
-/* Import File */
-export class ImportFileAction extends BaseFileAction {
+/* Add File */
+export class AddFilesAction extends BaseFileAction {
 
 	private tree: ITree;
 
@@ -739,7 +797,7 @@ export class ImportFileAction extends BaseFileAction {
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super('workbench.files.action.importFile', nls.localize('importFiles', "Import Files"), fileService, notificationService, textFileService);
+		super('workbench.files.action.addFile', nls.localize('addFiles', "Add Files"), fileService, notificationService, textFileService);
 
 		this.tree = tree;
 		this.element = element;
@@ -752,10 +810,10 @@ export class ImportFileAction extends BaseFileAction {
 	}
 
 	public run(resources: URI[]): TPromise<any> {
-		const importPromise = TPromise.as(null).then(() => {
+		const addPromise = TPromise.as(null).then(() => {
 			if (resources && resources.length > 0) {
 
-				// Find parent for import
+				// Find parent to add to
 				let targetElement: ExplorerItem;
 				if (this.element) {
 					targetElement = this.element;
@@ -796,15 +854,15 @@ export class ImportFileAction extends BaseFileAction {
 							return void 0;
 						}
 
-						// Run import in sequence
-						const importPromisesFactory: ITask<TPromise<void>>[] = [];
+						// Run add in sequence
+						const addPromisesFactory: ITask<TPromise<void>>[] = [];
 						resources.forEach(resource => {
-							importPromisesFactory.push(() => {
+							addPromisesFactory.push(() => {
 								const sourceFile = resource;
 								const targetFile = targetElement.resource.with({ path: paths.join(targetElement.resource.path, paths.basename(sourceFile.path)) });
 
 								// if the target exists and is dirty, make sure to revert it. otherwise the dirty contents
-								// of the target file would replace the contents of the imported file. since we already
+								// of the target file would replace the contents of the added file. since we already
 								// confirmed the overwrite before, this is OK.
 								let revertPromise = TPromise.wrap(null);
 								if (this.textFileService.isDirty(targetFile)) {
@@ -812,18 +870,19 @@ export class ImportFileAction extends BaseFileAction {
 								}
 
 								return revertPromise.then(() => {
-									return this.fileService.importFile(sourceFile, targetElement.resource).then(res => {
+									const target = targetElement.resource.with({ path: posix.join(targetElement.resource.path, posix.basename(sourceFile.path)) });
+									return this.fileService.copyFile(sourceFile, target, true).then(stat => {
 
-										// if we only import one file, just open it directly
+										// if we only add one file, just open it directly
 										if (resources.length === 1) {
-											this.editorService.openEditor({ resource: res.stat.resource, options: { pinned: true } }).done(null, errors.onUnexpectedError);
+											this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } }).done(null, errors.onUnexpectedError);
 										}
 									}, error => this.onError(error));
 								});
 							});
 						});
 
-						return sequence(importPromisesFactory);
+						return sequence(addPromisesFactory);
 					});
 				});
 			}
@@ -831,7 +890,7 @@ export class ImportFileAction extends BaseFileAction {
 			return void 0;
 		});
 
-		return importPromise.then(() => {
+		return addPromise.then(() => {
 			this.tree.clearHighlight();
 		}, (error: any) => {
 			this.onError(error);
@@ -1352,25 +1411,22 @@ export function validateFileName(parent: ExplorerItem, name: string, allowOverwr
 		return nls.localize('emptyFileNameError', "A file or folder name must be provided.");
 	}
 
+	// Relative paths only
+	if (name[0] === '/' || name[0] === '\\') {
+		return nls.localize('fileNameStartsWithSlashError', "A file or folder name cannot start with a slash.");
+	}
+
 	const names: string[] = name.split(/[\\/]/).filter(part => !!part);
+	const analyzedPath = analyzePath(parent, names);
 
 	// Do not allow to overwrite existing file
-	if (!allowOverwriting) {
-		let p = parent;
-		const alreadyExisting = names.every((folderName) => {
-			let { exists, child } = alreadyExists(p, folderName);
+	if (!allowOverwriting && analyzedPath.fullPathAlreadyExists) {
+		return nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name);
+	}
 
-			if (!exists) {
-				return false;
-			} else {
-				p = child;
-				return true;
-			}
-		});
-
-		if (alreadyExisting) {
-			return nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name);
-		}
+	// A file must always be a leaf
+	if (analyzedPath.lastExistingPathSegment.isFile) {
+		return nls.localize('fileUsedAsFolderError', "**{0}** is a file and cannot have any descendants.", analyzedPath.lastExistingPathSegment.name);
 	}
 
 	// Invalid File name
@@ -1388,6 +1444,24 @@ export function validateFileName(parent: ExplorerItem, name: string, allowOverwr
 
 	return null;
 }
+
+function analyzePath(parent: ExplorerItem, pathNames: string[]): { fullPathAlreadyExists: boolean; lastExistingPathSegment: { isFile: boolean; name: string; } } {
+	let lastExistingPathSegment = { isFile: false, name: '' };
+
+	for (const name of pathNames) {
+		const { exists, child } = alreadyExists(parent, name);
+
+		if (exists) {
+			lastExistingPathSegment = { isFile: !child.isDirectory, name };
+			parent = child;
+		} else {
+			return { fullPathAlreadyExists: false, lastExistingPathSegment };
+		}
+	}
+
+	return { fullPathAlreadyExists: true, lastExistingPathSegment };
+}
+
 
 function alreadyExists(parent: ExplorerItem, name: string): { exists: boolean, child: ExplorerItem | undefined } {
 	let duplicateChild: ExplorerItem;
@@ -1413,13 +1487,12 @@ export function getWellFormedFileName(filename: string): string {
 		return filename;
 	}
 
-	// Trim whitespaces
-	filename = strings.trim(strings.trim(filename, ' '), '\t');
+	// Trim tabs
+	filename = strings.trim(filename, '\t');
 
-	// Remove trailing dots
+	// Remove trailing dots, slashes, and spaces
 	filename = strings.rtrim(filename, '.');
-
-	// Remove trailing slashes
+	filename = strings.rtrim(filename, ' ');
 	filename = strings.rtrim(filename, '/');
 	filename = strings.rtrim(filename, '\\');
 

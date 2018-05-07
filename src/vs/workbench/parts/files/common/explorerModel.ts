@@ -17,7 +17,7 @@ import { IEditorGroup, toResource, IEditorIdentifier } from 'vs/workbench/common
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { getPathLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
-import { startsWith, beginsWithIgnoreCase } from 'vs/base/common/strings';
+import { startsWith, startsWithIgnoreCase, rtrim } from 'vs/base/common/strings';
 
 export class Model {
 
@@ -77,7 +77,7 @@ export class ExplorerItem {
 	public etag: string;
 	private _isDirectory: boolean;
 	private _isSymbolicLink: boolean;
-	private children: { [name: string]: ExplorerItem };
+	private children: Map<string, ExplorerItem>;
 	public parent: ExplorerItem;
 
 	public isDirectoryResolved: boolean;
@@ -109,7 +109,7 @@ export class ExplorerItem {
 		if (value !== this._isDirectory) {
 			this._isDirectory = value;
 			if (this._isDirectory) {
-				this.children = Object.create(null);
+				this.children = new Map<string, ExplorerItem>();
 			} else {
 				this.children = undefined;
 			}
@@ -177,6 +177,7 @@ export class ExplorerItem {
 		local.isDirectory = disk.isDirectory;
 		local.mtime = disk.mtime;
 		local.isDirectoryResolved = disk.isDirectoryResolved;
+		local._isSymbolicLink = disk.isSymbolicLink;
 
 		// Merge Children if resolved
 		if (mergingDirectories && disk.isDirectoryResolved) {
@@ -184,18 +185,16 @@ export class ExplorerItem {
 			// Map resource => stat
 			const oldLocalChildren = new ResourceMap<ExplorerItem>();
 			if (local.children) {
-				for (let name in local.children) {
-					const child = local.children[name];
+				local.children.forEach(child => {
 					oldLocalChildren.set(child.resource, child);
-				}
+				});
 			}
 
 			// Clear current children
-			local.children = Object.create(null);
+			local.children = new Map<string, ExplorerItem>();
 
 			// Merge received children
-			for (let name in disk.children) {
-				const diskChild = disk.children[name];
+			disk.children.forEach(diskChild => {
 				const formerLocalChild = oldLocalChildren.get(diskChild.resource);
 				// Existing child: merge
 				if (formerLocalChild) {
@@ -209,7 +208,7 @@ export class ExplorerItem {
 					diskChild.parent = local;
 					local.addChild(diskChild);
 				}
-			}
+			});
 		}
 	}
 
@@ -217,12 +216,15 @@ export class ExplorerItem {
 	 * Adds a child element to this folder.
 	 */
 	public addChild(child: ExplorerItem): void {
+		if (!this.children) {
+			this.isDirectory = true;
+		}
 
 		// Inherit some parent properties to child
 		child.parent = this;
 		child.updateResource(false);
 
-		this.children[this.getPlatformAwareName(child.name)] = child;
+		this.children.set(this.getPlatformAwareName(child.name), child);
 	}
 
 	public getChild(name: string): ExplorerItem {
@@ -230,7 +232,7 @@ export class ExplorerItem {
 			return undefined;
 		}
 
-		return this.children[this.getPlatformAwareName(name)];
+		return this.children.get(this.getPlatformAwareName(name));
 	}
 
 	/**
@@ -241,7 +243,20 @@ export class ExplorerItem {
 			return undefined;
 		}
 
-		return Object.keys(this.children).map(name => this.children[name]);
+		const items: ExplorerItem[] = [];
+		this.children.forEach(child => {
+			items.push(child);
+		});
+
+		return items;
+	}
+
+	public getChildrenCount(): number {
+		if (!this.children) {
+			return 0;
+		}
+
+		return this.children.size;
 	}
 
 	public getChildrenNames(): string[] {
@@ -249,18 +264,23 @@ export class ExplorerItem {
 			return [];
 		}
 
-		return Object.keys(this.children);
+		const names: string[] = [];
+		this.children.forEach(child => {
+			names.push(child.name);
+		});
+
+		return names;
 	}
 
 	/**
 	 * Removes a child element from this folder.
 	 */
 	public removeChild(child: ExplorerItem): void {
-		delete this.children[this.getPlatformAwareName(child.name)];
+		this.children.delete(this.getPlatformAwareName(child.name));
 	}
 
 	private getPlatformAwareName(name: string): string {
-		return isLinux ? name : name.toLowerCase();
+		return (isLinux || !name) ? name : name.toLowerCase();
 	}
 
 	/**
@@ -288,9 +308,9 @@ export class ExplorerItem {
 
 		if (recursive) {
 			if (this.isDirectory && this.children) {
-				for (let name in this.children) {
-					this.children[name].updateResource(true);
-				}
+				this.children.forEach(child => {
+					child.updateResource(true);
+				});
 			}
 		}
 	}
@@ -316,16 +336,16 @@ export class ExplorerItem {
 	public find(resource: URI): ExplorerItem {
 		// Return if path found
 		if (resource && this.resource.scheme === resource.scheme && this.resource.authority === resource.authority &&
-			(isLinux ? startsWith(resource.path, this.resource.path) : beginsWithIgnoreCase(resource.path, this.resource.path))
+			(isLinux ? startsWith(resource.path, this.resource.path) : startsWithIgnoreCase(resource.path, this.resource.path))
 		) {
-			return this.findByPath(resource.path, this.resource.path.length);
+			return this.findByPath(rtrim(resource.path, paths.sep), this.resource.path.length);
 		}
 
 		return null; //Unable to find
 	}
 
 	private findByPath(path: string, index: number): ExplorerItem {
-		if (paths.isEqual(this.resource.path, path, !isLinux)) {
+		if (paths.isEqual(rtrim(this.resource.path, paths.sep), path, !isLinux)) {
 			return this;
 		}
 
@@ -343,7 +363,7 @@ export class ExplorerItem {
 			// The name to search is between two separators
 			const name = path.substring(index, indexOfNextSep);
 
-			const child = this.children[this.getPlatformAwareName(name)];
+			const child = this.children.get(this.getPlatformAwareName(name));
 
 			if (child) {
 				// We found a child with the given name, search inside it
@@ -358,13 +378,14 @@ export class ExplorerItem {
 /* A helper that can be used to show a placeholder when creating a new stat */
 export class NewStatPlaceholder extends ExplorerItem {
 
+	public static NAME = '';
 	private static ID = 0;
 
 	private id: number;
 	private directoryPlaceholder: boolean;
 
 	constructor(isDirectory: boolean, root: ExplorerItem) {
-		super(URI.file(''), root, false, false, '');
+		super(URI.file(''), root, false, false, NewStatPlaceholder.NAME);
 
 		this.id = NewStatPlaceholder.ID++;
 		this.isDirectoryResolved = isDirectory;

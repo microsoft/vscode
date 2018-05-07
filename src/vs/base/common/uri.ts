@@ -50,12 +50,32 @@ function _validateUri(ret: URI): void {
 	}
 }
 
+// implements a bit of https://tools.ietf.org/html/rfc3986#section-5
+function _referenceResolution(scheme: string, path: string): string {
+
+	// the slash-character is our 'default base' as we don't
+	// support constructing URIs relative to other URIs. This
+	// also means that we alter and potentially break paths.
+	// see https://tools.ietf.org/html/rfc3986#section-5.1.4
+	switch (scheme) {
+		case 'https':
+		case 'http':
+		case 'file':
+			if (!path) {
+				path = _slash;
+			} else if (path[0] !== _slash) {
+				path = _slash + path;
+			}
+			break;
+	}
+	return path;
+}
+
 const _empty = '';
 const _slash = '/';
 const _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
 const _driveLetterPath = /^\/[a-zA-Z]:/;
 const _upperCaseDrive = /^(\/)?([A-Z]:)/;
-const _driveLetter = /^[a-zA-Z]:/;
 
 /**
  * Uniform Resource Identifier (URI) http://tools.ietf.org/html/rfc3986.
@@ -143,9 +163,10 @@ export default class URI implements UriComponents {
 		} else {
 			this.scheme = schemeOrData || _empty;
 			this.authority = authority || _empty;
-			this.path = path || _empty;
+			this.path = _referenceResolution(this.scheme, path || _empty);
 			this.query = query || _empty;
 			this.fragment = fragment || _empty;
+
 			_validateUri(this);
 		}
 	}
@@ -247,18 +268,6 @@ export default class URI implements UriComponents {
 				authority = path.substring(2, idx);
 				path = path.substring(idx) || _slash;
 			}
-		}
-
-		// Ensure that path starts with a slash
-		// or that it is at least a slash
-		if (_driveLetter.test(path)) {
-			path = _slash + path;
-
-		} else if (path[0] !== _slash) {
-			// tricky -> makes invalid paths
-			// but otherwise we have to stop
-			// allowing relative paths...
-			path = _slash + path;
 		}
 
 		return new _URI('file', authority, path, _empty, _empty);
@@ -377,7 +386,7 @@ class _URI extends URI {
 function _makeFsPath(uri: URI): string {
 
 	let value: string;
-	if (uri.authority && uri.path && uri.scheme === 'file') {
+	if (uri.authority && uri.path.length > 1 && uri.scheme === 'file') {
 		// unc path: file://shares/c$/far/boo
 		value = `//${uri.authority}${uri.path}`;
 	} else if (_driveLetterPath.test(uri.path)) {

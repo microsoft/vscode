@@ -27,7 +27,8 @@ export interface ILexerMin {
 	ignoreCase: boolean;
 	usesEmbedded: boolean;
 	defaultToken: string;
-	stateNames: Object;
+	stateNames: { [stateName: string]: any; };
+	[attr: string]: any;
 }
 
 export interface ILexer extends ILexerMin {
@@ -36,7 +37,7 @@ export interface ILexer extends ILexerMin {
 	ignoreCase: boolean;
 	tokenPostfix: string;
 
-	tokenizer: IRule[][];
+	tokenizer: { [stateName: string]: IRule[]; };
 	brackets: IBracket[];
 }
 
@@ -148,9 +149,9 @@ export function throwError(lexer: ILexerMin, msg: string) {
  *
  * See documentation for more info
  */
-export function substituteMatches(lexer: ILexerMin, str: string, id: string, matches: string[], state: string) {
-	var re = /\$((\$)|(#)|(\d\d?)|[sS](\d\d?)|@(\w+))/g;
-	var stateMatches: string[] = null;
+export function substituteMatches(lexer: ILexerMin, str: string, id: string, matches: string[], state: string): string {
+	const re = /\$((\$)|(#)|(\d\d?)|[sS](\d\d?)|@(\w+))/g;
+	let stateMatches: string[] = null;
 	return str.replace(re, function (full, sub?, dollar?, hash?, n?, s?, attr?, ofs?, total?) {
 		if (!empty(dollar)) {
 			return '$'; // $$
@@ -180,12 +181,12 @@ export function substituteMatches(lexer: ILexerMin, str: string, id: string, mat
  */
 export function findRules(lexer: ILexer, state: string): IRule[] {
 	while (state && state.length > 0) {
-		var rules = lexer.tokenizer[state];
+		const rules = lexer.tokenizer[state];
 		if (rules) {
 			return rules;
 		}
 
-		var idx = state.lastIndexOf('.');
+		const idx = state.lastIndexOf('.');
 		if (idx < 0) {
 			state = null; // no further parent
 		} else {
@@ -202,12 +203,12 @@ export function findRules(lexer: ILexer, state: string): IRule[] {
  */
 export function stateExists(lexer: ILexerMin, state: string): boolean {
 	while (state && state.length > 0) {
-		var exist = lexer.stateNames[state];
+		const exist = lexer.stateNames[state];
 		if (exist) {
 			return true;
 		}
 
-		var idx = state.lastIndexOf('.');
+		const idx = state.lastIndexOf('.');
 		if (idx < 0) {
 			state = null; // no further parent
 		} else {

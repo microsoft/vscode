@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
+import { Event, latch, anyEvent } from 'vs/base/common/event';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -92,6 +92,10 @@ export interface OpenDialogOptions {
 	message?: string;
 }
 
+export interface IDevToolsOptions {
+	mode: 'right' | 'bottom' | 'undocked' | 'detach';
+}
+
 export interface IWindowsService {
 
 	_serviceBrand: any;
@@ -112,7 +116,7 @@ export interface IWindowsService {
 	showOpenDialog(windowId: number, options: OpenDialogOptions): TPromise<string[]>;
 
 	reloadWindow(windowId: number, args?: ParsedArgs): TPromise<void>;
-	openDevTools(windowId: number): TPromise<void>;
+	openDevTools(windowId: number, options?: IDevToolsOptions): TPromise<void>;
 	toggleDevTools(windowId: number): TPromise<void>;
 	closeWorkspace(windowId: number): TPromise<void>;
 	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult>;
@@ -189,7 +193,7 @@ export interface IWindowService {
 	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	reloadWindow(args?: ParsedArgs): TPromise<void>;
-	openDevTools(): TPromise<void>;
+	openDevTools(options?: IDevToolsOptions): TPromise<void>;
 	toggleDevTools(): TPromise<void>;
 	closeWorkspace(): TPromise<void>;
 	updateTouchBar(items: ICommandAction[][]): TPromise<void>;
@@ -234,6 +238,7 @@ export interface IWindowSettings {
 	enableMenuBarMnemonics: boolean;
 	closeWhenEmpty: boolean;
 	smoothScrollingWorkaround: boolean;
+	clickThroughInactive: boolean;
 }
 
 export enum OpenContext {
@@ -351,8 +356,8 @@ export class ActiveWindowManager implements IDisposable {
 	private _activeWindowId: number;
 
 	constructor(@IWindowsService windowsService: IWindowsService) {
-		windowsService.onWindowOpen(this.setActiveWindow, this, this.disposables);
-		windowsService.onWindowFocus(this.setActiveWindow, this, this.disposables);
+		const onActiveWindowChange = latch(anyEvent(windowsService.onWindowOpen, windowsService.onWindowFocus));
+		onActiveWindowChange(this.setActiveWindow, this, this.disposables);
 	}
 
 	private setActiveWindow(windowId: number) {

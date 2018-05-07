@@ -7,13 +7,11 @@
 import * as Types from 'vs/base/common/types';
 import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import * as Objects from 'vs/base/common/objects';
-import { generateUuid } from 'vs/base/common/uuid';
 import { UriComponents } from 'vs/base/common/uri';
 
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ProblemMatcher } from 'vs/workbench/parts/tasks/common/problemMatcher';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-
 
 export enum ShellQuoting {
 	/**
@@ -34,6 +32,9 @@ export enum ShellQuoting {
 
 export namespace ShellQuoting {
 	export function from(this: void, value: string): ShellQuoting {
+		if (!value) {
+			return ShellQuoting.Strong;
+		}
 		switch (value.toLowerCase()) {
 			case 'escape':
 				return ShellQuoting.Escape;
@@ -442,20 +443,18 @@ export namespace CustomTask {
 		return candidate && candidate.type === 'custom';
 	}
 	export function getDefinition(task: CustomTask): TaskIdentifier {
-		if (task.command === void 0) {
-			return undefined;
-		}
-		if (task.command.runtime === RuntimeType.Shell) {
-			return {
-				_key: generateUuid(),
-				type: 'shell'
-			};
+		let type: string;
+		if (task.command !== void 0) {
+			type = task.command.runtime === RuntimeType.Shell ? 'shell' : 'process';
 		} else {
-			return {
-				_key: generateUuid(),
-				type: 'process'
-			};
+			type = '$composite';
 		}
+		let result: TaskIdentifier = {
+			type,
+			_key: task._id,
+			id: task._id
+		};
+		return result;
 	}
 }
 
@@ -611,29 +610,10 @@ export namespace Task {
 		}
 	}
 
-	export function getTaskItem(task: Task): TaskItem {
-		let folder: IWorkspaceFolder = Task.getWorkspaceFolder(task);
-		let definition: TaskIdentifier;
-		if (ContributedTask.is(task)) {
-			definition = task.defines;
-		} else if (CustomTask.is(task) && task.command !== void 0) {
-			definition = CustomTask.getDefinition(task);
-		} else {
-			return undefined;
-		}
-		let result: TaskItem = {
-			id: task._id,
-			label: task._label,
-			definition: definition,
-			workspaceFolder: folder
-		};
-		return result;
-	}
-
 	export function getTaskDefinition(task: Task): TaskIdentifier {
 		if (ContributedTask.is(task)) {
 			return task.defines;
-		} else if (CustomTask.is(task) && task.command !== void 0) {
+		} else if (CustomTask.is(task)) {
 			return CustomTask.getDefinition(task);
 		} else {
 			return undefined;
@@ -642,21 +622,16 @@ export namespace Task {
 
 	export function getTaskExecution(task: Task): TaskExecution {
 		let result: TaskExecution = {
-			id: task._id
+			id: task._id,
+			task: task
 		};
 		return result;
 	}
 }
 
-export interface TaskItem {
-	id: string;
-	label: string;
-	definition: TaskIdentifier;
-	workspaceFolder: IWorkspaceFolder;
-}
-
 export interface TaskExecution {
 	id: string;
+	task: Task;
 }
 
 export enum ExecutionEngine {

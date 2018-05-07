@@ -327,6 +327,52 @@ export class ReindentLinesAction extends EditorAction {
 	}
 }
 
+export class ReindentSelectedLinesAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.reindentselectedlines',
+			label: nls.localize('editor.reindentselectedlines', "Reindent Selected Lines"),
+			alias: 'Reindent Selected Lines',
+			precondition: EditorContextKeys.writable
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		let model = editor.getModel();
+		if (!model) {
+			return;
+		}
+
+		let edits: IIdentifiedSingleEditOperation[] = [];
+
+		for (let selection of editor.getSelections()) {
+			let startLineNumber = selection.startLineNumber;
+			let endLineNumber = selection.endLineNumber;
+
+			if (startLineNumber !== endLineNumber && selection.endColumn === 1) {
+				endLineNumber--;
+			}
+
+			if (startLineNumber === 1) {
+				if (startLineNumber === endLineNumber) {
+					continue;
+				}
+			} else {
+				startLineNumber--;
+			}
+
+			let editOperations = getReindentEditOperations(model, startLineNumber, endLineNumber) || [];
+			edits.push(...editOperations);
+		}
+
+		if (edits.length > 0) {
+			editor.pushUndoStop();
+			editor.executeEdits(this.id, edits);
+			editor.pushUndoStop();
+		}
+	}
+}
+
 export class AutoIndentOnPasteCommand implements ICommand {
 
 	private _edits: TextEdit[];
@@ -350,7 +396,7 @@ export class AutoIndentOnPasteCommand implements ICommand {
 			builder.addEditOperation(Range.lift(edit.range), edit.text);
 		}
 
-		var selectionIsSet = false;
+		let selectionIsSet = false;
 		if (Array.isArray(this._edits) && this._edits.length === 1 && this._initialSelection.isEmpty()) {
 			if (this._edits[0].range.startColumn === this._initialSelection.endColumn &&
 				this._edits[0].range.startLineNumber === this._initialSelection.endLineNumber) {
@@ -586,18 +632,27 @@ function getIndentationEditOperations(model: ITextModel, builder: IEditOperation
 		spaces += ' ';
 	}
 
-	const content = model.getLinesContent();
-	for (let i = 0; i < content.length; i++) {
-		let lastIndentationColumn = model.getLineFirstNonWhitespaceColumn(i + 1);
+	let spacesRegExp = new RegExp(spaces, 'gi');
+
+	for (let lineNumber = 1, lineCount = model.getLineCount(); lineNumber <= lineCount; lineNumber++) {
+		let lastIndentationColumn = model.getLineFirstNonWhitespaceColumn(lineNumber);
 		if (lastIndentationColumn === 0) {
-			lastIndentationColumn = model.getLineMaxColumn(i + 1);
+			lastIndentationColumn = model.getLineMaxColumn(lineNumber);
 		}
 
-		const text = (tabsToSpaces ? content[i].substr(0, lastIndentationColumn).replace(/\t/ig, spaces) :
-			content[i].substr(0, lastIndentationColumn).replace(new RegExp(spaces, 'gi'), '\t')) +
-			content[i].substr(lastIndentationColumn);
+		if (lastIndentationColumn === 1) {
+			continue;
+		}
 
-		builder.addEditOperation(new Range(i + 1, 1, i + 1, model.getLineMaxColumn(i + 1)), text);
+		const originalIndentationRange = new Range(lineNumber, 1, lineNumber, lastIndentationColumn);
+		const originalIndentation = model.getValueInRange(originalIndentationRange);
+		const newIndentation = (
+			tabsToSpaces
+				? originalIndentation.replace(/\t/ig, spaces)
+				: originalIndentation.replace(spacesRegExp, '\t')
+		);
+
+		builder.addEditOperation(originalIndentationRange, newIndentation);
 	}
 }
 
@@ -640,3 +695,4 @@ registerEditorAction(IndentUsingTabs);
 registerEditorAction(IndentUsingSpaces);
 registerEditorAction(DetectIndentation);
 registerEditorAction(ReindentLinesAction);
+registerEditorAction(ReindentSelectedLinesAction);

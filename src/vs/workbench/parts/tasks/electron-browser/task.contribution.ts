@@ -7,6 +7,7 @@
 import 'vs/css!./media/task.contribution';
 
 import * as nls from 'vs/nls';
+import * as semver from 'semver';
 
 import { QuickOpenHandler } from 'vs/workbench/parts/tasks/browser/taskQuickOpen';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -17,8 +18,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { Action } from 'vs/base/common/actions';
 import * as Dom from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Event, Emitter, once } from 'vs/base/common/event';
-import * as Builder from 'vs/base/browser/builder';
+import { Event, Emitter } from 'vs/base/common/event';
 import * as Types from 'vs/base/common/types';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { TerminateResponseCode } from 'vs/base/common/processes';
@@ -74,9 +74,9 @@ import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, T
 import {
 	Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskEvent,
 	TaskEventKind, TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
-	TaskIdentifier, TaskSorter, TaskItem
+	TaskIdentifier, TaskSorter
 } from 'vs/workbench/parts/tasks/common/tasks';
-import { ITaskService, ITaskProvider, RunOptions, CustomizationProperties } from 'vs/workbench/parts/tasks/common/taskService';
+import { ITaskService, ITaskProvider, RunOptions, CustomizationProperties, TaskFilter } from 'vs/workbench/parts/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
 import * as TaskConfig from '../node/taskConfiguration';
@@ -88,7 +88,6 @@ import { QuickOpenActionContributor } from '../browser/quickOpen';
 import { Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
-let $ = Builder.$;
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
 
 namespace ConfigureTaskAction {
@@ -146,6 +145,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 		const infoTitle = n => nls.localize('totalInfos', "{0} Infos", n);
 
 		Dom.addClass(element, 'task-statusbar-item');
+		element.title = nls.localize('problems', "Problems");
 
 		Dom.addClass(label, 'task-statusbar-item-label');
 		element.appendChild(label);
@@ -174,17 +174,16 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 		Dom.addClass(infoIcon, 'mask-icon');
 		label.appendChild(infoIcon);
 		this.icons.push(infoIcon);
-		$(infoIcon).hide();
+		Dom.hide(infoIcon);
 
 		Dom.addClass(info, 'task-statusbar-item-label-counter');
 		label.appendChild(info);
-		$(info).hide();
+		Dom.hide(info);
 
 		Dom.addClass(building, 'task-statusbar-item-building');
 		element.appendChild(building);
 		building.innerHTML = nls.localize('building', 'Building...');
-		$(building).hide();
-
+		Dom.hide(building);
 
 		callOnDispose.push(Dom.addDisposableListener(label, 'click', (e: MouseEvent) => {
 			const panel = this.panelService.getActivePanel();
@@ -205,11 +204,11 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 			if (stats.infos > 0) {
 				info.innerHTML = packNumber(stats.infos);
 				info.title = infoIcon.title = infoTitle(stats.infos);
-				$(info).show();
-				$(infoIcon).show();
+				Dom.show(info);
+				Dom.show(infoIcon);
 			} else {
-				$(info).hide();
-				$(infoIcon).hide();
+				Dom.hide(info);
+				Dom.hide(infoIcon);
 			}
 		};
 
@@ -225,7 +224,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 				case TaskEventKind.Active:
 					this.activeCount++;
 					if (this.activeCount === 1) {
-						$(building).show();
+						Dom.show(building);
 					}
 					break;
 				case TaskEventKind.Inactive:
@@ -234,13 +233,13 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 					if (this.activeCount > 0) {
 						this.activeCount--;
 						if (this.activeCount === 0) {
-							$(building).hide();
+							Dom.hide(building);
 						}
 					}
 					break;
 				case TaskEventKind.Terminated:
 					if (this.activeCount !== 0) {
-						$(building).hide();
+						Dom.hide(building);
 						this.activeCount = 0;
 					}
 					break;
@@ -298,7 +297,7 @@ class TaskStatusBarItem extends Themable implements IStatusbarItem {
 		let label = new OcticonLabel(labelElement);
 		label.title = nls.localize('runningTasks', "Show Running Tasks");
 
-		$(element).hide();
+		Dom.hide(element);
 
 		callOnDispose.push(Dom.addDisposableListener(labelElement, 'click', (e: MouseEvent) => {
 			(this.taskService as TaskService).runShowTasks();
@@ -307,10 +306,10 @@ class TaskStatusBarItem extends Themable implements IStatusbarItem {
 		let updateStatus = (): void => {
 			this.taskService.getActiveTasks().then(tasks => {
 				if (tasks.length === 0) {
-					$(element).hide();
+					Dom.hide(element);
 				} else {
 					label.text = `$(tools) ${tasks.length}`;
-					$(element).show();
+					Dom.show(element);
 				}
 			});
 		};
@@ -497,14 +496,17 @@ class TaskService implements ITaskService {
 			let folderSetup = this.computeWorkspaceFolderSetup();
 			if (this.executionEngine !== folderSetup[2]) {
 				if (this._taskSystem && this._taskSystem.getActiveTasks().length > 0) {
-					this.notificationService.prompt(Severity.Info, nls.localize(
-						'TaskSystem.noHotSwap',
-						'Changing the task execution engine with an active task running requires to reload the Window'
-					), [nls.localize('reloadWindow', "Reload Window")]).then(choice => {
-						if (choice === 0) {
-							this._windowService.reloadWindow();
-						}
-					});
+					this.notificationService.prompt(
+						Severity.Info,
+						nls.localize(
+							'TaskSystem.noHotSwap',
+							'Changing the task execution engine with an active task running requires to reload the Window'
+						),
+						[{
+							label: nls.localize('reloadWindow', "Reload Window"),
+							run: () => this._windowService.reloadWindow()
+						}]
+					);
 					return;
 				} else {
 					this.disposeTaskSystemListeners();
@@ -578,19 +580,6 @@ class TaskService implements ITaskService {
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.showTasks', () => {
 			this.runShowTasks();
-		});
-
-		CommandsRegistry.registerCommand('_executeTaskProvider', (accessor, args) => {
-			return this.tasks().then((tasks) => {
-				let result: TaskItem[] = [];
-				for (let task of tasks) {
-					let item = Task.getTaskItem(task);
-					if (item) {
-						result.push(item);
-					}
-				}
-				return result;
-			});
 		});
 	}
 
@@ -693,8 +682,28 @@ class TaskService implements ITaskService {
 		});
 	}
 
-	public tasks(): TPromise<Task[]> {
-		return this.getGroupedTasks().then(result => result.all());
+	public tasks(filter?: TaskFilter): TPromise<Task[]> {
+		let range = filter && filter.version ? filter.version : undefined;
+		let engine = this.executionEngine;
+
+		if (range && ((semver.satisfies('0.1.0', range) && engine === ExecutionEngine.Terminal) || (semver.satisfies('2.0.0', range) && engine === ExecutionEngine.Process))) {
+			return TPromise.as<Task[]>([]);
+		}
+		return this.getGroupedTasks().then((map) => {
+			if (!filter || !filter.type) {
+				return map.all();
+			}
+			let result: Task[] = [];
+			map.forEach((tasks) => {
+				for (let task of tasks) {
+					let definition = Task.getTaskDefinition(task);
+					if (definition && definition.type === filter.type) {
+						result.push(task);
+					}
+				}
+			});
+			return result;
+		});
 	}
 
 	public createSorter(): TaskSorter {
@@ -1166,11 +1175,22 @@ class TaskService implements ITaskService {
 				if (executeResult.kind === TaskExecuteKind.Active) {
 					let active = executeResult.active;
 					if (active.same) {
+						let message;
 						if (active.background) {
-							this.notificationService.info(nls.localize('TaskSystem.activeSame.background', 'The task \'{0}\' is already active and in background mode. To terminate it use \'Terminate Task...\' from the Tasks menu.', Task.getQualifiedLabel(task)));
+							message = nls.localize('TaskSystem.activeSame.background', 'The task \'{0}\' is already active and in background mode.', Task.getQualifiedLabel(task));
 						} else {
-							this.notificationService.info(nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active. To terminate it use \'Terminate Task...\' from the Tasks menu.', Task.getQualifiedLabel(task)));
+							message = nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active.', Task.getQualifiedLabel(task));
 						}
+						this.notificationService.prompt(Severity.Info, message,
+							[{
+								label: nls.localize('terminateTask', "Terminate Task"),
+								run: () => this.terminate(task)
+							},
+							{
+								label: nls.localize('restartTask', "Restart Task"),
+								run: () => this.restart(task)
+							}]
+						);
 					} else {
 						throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is already a task running. Terminate it first before executing another task.'), TaskErrors.RunningTask);
 					}
@@ -1617,15 +1637,6 @@ class TaskService implements ITaskService {
 		};
 	}
 
-	private configureBuildTask(): Action {
-		let run = () => { this.runConfigureTasks(); return TPromise.as(undefined); };
-		return new class extends Action {
-			constructor() {
-				super(ConfigureTaskAction.ID, ConfigureTaskAction.TEXT, undefined, true, run);
-			}
-		};
-	}
-
 	public beforeShutdown(): boolean | TPromise<boolean> {
 		if (!this._taskSystem) {
 			return false;
@@ -1685,15 +1696,6 @@ class TaskService implements ITaskService {
 		});
 	}
 
-	private getConfigureAction(code: TaskErrors): Action {
-		switch (code) {
-			case TaskErrors.NoBuildTask:
-				return this.configureBuildTask();
-			default:
-				return this.configureAction();
-		}
-	}
-
 	private handleError(err: any): void {
 		let showOutput = true;
 		if (err instanceof TaskError) {
@@ -1701,14 +1703,16 @@ class TaskService implements ITaskService {
 			let needsConfig = buildError.code === TaskErrors.NotConfigured || buildError.code === TaskErrors.NoBuildTask || buildError.code === TaskErrors.NoTestTask;
 			let needsTerminate = buildError.code === TaskErrors.RunningTask;
 			if (needsConfig || needsTerminate) {
-				let action: Action = needsConfig
-					? this.getConfigureAction(buildError.code)
-					: new Action(
-						'workbench.action.tasks.terminate',
-						nls.localize('TerminateAction.label', "Terminate Task"),
-						undefined, true, () => { this.runTerminateCommand(); return TPromise.wrap<void>(undefined); });
-				let handle = this.notificationService.notify({ severity: buildError.severity, message: buildError.message, actions: { primary: [action] } });
-				once(handle.onDidDispose)(() => action.dispose());
+				this.notificationService.prompt(buildError.severity, buildError.message, [{
+					label: needsConfig ? ConfigureTaskAction.TEXT : nls.localize('TerminateAction.label', "Terminate Task"),
+					run: () => {
+						if (needsConfig) {
+							this.runConfigureTasks();
+						} else {
+							this.runTerminateCommand();
+						}
+					}
+				}]);
 			} else {
 				this.notificationService.notify({ severity: buildError.severity, message: buildError.message });
 			}
@@ -1849,24 +1853,18 @@ class TaskService implements ITaskService {
 			return TPromise.as(undefined);
 		}
 
-		const action = new Action('dontShowAgain', nls.localize('TaskService.notAgain', 'Don\'t Show Again'), null, true, (notification: IDisposable) => {
-			this.storageService.store(TaskService.IgnoreTask010DonotShowAgain_key, true, StorageScope.WORKSPACE);
-			this.__showIgnoreMessage = false;
-
-			// Hide notification
-			notification.dispose();
-
-			return TPromise.as(true);
-		});
-
-		const handle = this.notificationService.notify({
-			severity: Severity.Info,
-			message: nls.localize('TaskService.ignoredFolder', 'The following workspace folders are ignored since they use task version 0.1.0: {0}', this.ignoredWorkspaceFolders.map(f => f.name).join(', ')),
-			actions: {
-				secondary: [action]
-			}
-		});
-		once(handle.onDidDispose)(() => action.dispose());
+		this.notificationService.prompt(
+			Severity.Info,
+			nls.localize('TaskService.ignoredFolder', 'The following workspace folders are ignored since they use task version 0.1.0: {0}', this.ignoredWorkspaceFolders.map(f => f.name).join(', ')),
+			[{
+				label: nls.localize('TaskService.notAgain', 'Don\'t Show Again'),
+				isSecondary: true,
+				run: () => {
+					this.storageService.store(TaskService.IgnoreTask010DonotShowAgain_key, true, StorageScope.WORKSPACE);
+					this.__showIgnoreMessage = false;
+				}
+			}]
+		);
 
 		return TPromise.as(undefined);
 	}

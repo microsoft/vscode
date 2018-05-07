@@ -5,11 +5,11 @@
 'use strict';
 
 import * as assert from 'assert';
-import { ISuggestion, ISuggestResult, ISuggestSupport, SuggestionType } from 'vs/editor/common/modes';
-import { ISuggestionItem, getSuggestionComparator } from 'vs/editor/contrib/suggest/suggest';
-import { CompletionModel } from 'vs/editor/contrib/suggest/completionModel';
-import { IPosition } from 'vs/editor/common/core/position';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { IPosition } from 'vs/editor/common/core/position';
+import { ISuggestResult, ISuggestSupport, ISuggestion, SuggestionType } from 'vs/editor/common/modes';
+import { CompletionModel } from 'vs/editor/contrib/suggest/completionModel';
+import { ISuggestionItem, getSuggestionComparator } from 'vs/editor/contrib/suggest/suggest';
 
 export function createSuggestItem(label: string, overwriteBefore: number, type: SuggestionType = 'property', incomplete: boolean = false, position: IPosition = { lineNumber: 1, column: 1 }): ISuggestionItem {
 
@@ -77,7 +77,7 @@ suite('CompletionModel', function () {
 
 	test('complete/incomplete', function () {
 
-		assert.equal(model.incomplete, false);
+		assert.equal(model.incomplete.size, 0);
 
 		let incompleteModel = new CompletionModel([
 			createSuggestItem('foo', 3, undefined, true),
@@ -86,7 +86,7 @@ suite('CompletionModel', function () {
 				leadingLineContent: 'foo',
 				characterCountDelta: 0
 			});
-		assert.equal(incompleteModel.incomplete, true);
+		assert.equal(incompleteModel.incomplete.size, 1);
 	});
 
 	test('replaceIncomplete', function () {
@@ -95,13 +95,14 @@ suite('CompletionModel', function () {
 		const incompleteItem = createSuggestItem('foofoo', 1, undefined, true, { lineNumber: 1, column: 2 });
 
 		const model = new CompletionModel([completeItem, incompleteItem], 2, { leadingLineContent: 'f', characterCountDelta: 0 });
-		assert.equal(model.incomplete, true);
+		assert.equal(model.incomplete.size, 1);
 		assert.equal(model.items.length, 2);
 
-		const { complete, incomplete } = model.resolveIncompleteInfo();
+		const { incomplete } = model;
+		const complete = model.adopt(incomplete);
 
-		assert.equal(incomplete.length, 1);
-		assert.ok(incomplete[0] === incompleteItem.support);
+		assert.equal(incomplete.size, 1);
+		assert.ok(incomplete.has(incompleteItem.support));
 		assert.equal(complete.length, 1);
 		assert.ok(complete[0] === completeItem);
 	});

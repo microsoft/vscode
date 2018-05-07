@@ -20,7 +20,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as TPath from 'vs/base/common/paths';
 
-import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ProblemMatcher, ProblemMatcherRegistry /*, ProblemPattern, getResource */ } from 'vs/workbench/parts/tasks/common/problemMatcher';
@@ -62,18 +62,24 @@ export class TerminalTaskSystem implements ITaskSystem {
 		'powershell': {
 			escape: {
 				escapeChar: '`',
-				charsToEscape: ` ()`
+				charsToEscape: ' "\'()'
 			},
 			strong: '\'',
 			weak: '"'
 		},
 		'bash': {
-			escape: '\\',
+			escape: {
+				escapeChar: '\\',
+				charsToEscape: ' "\''
+			},
 			strong: '\'',
 			weak: '"'
 		},
 		'zsh': {
-			escape: '\\',
+			escape: {
+				escapeChar: '\\',
+				charsToEscape: ' "\''
+			},
 			strong: '\'',
 			weak: '"'
 		}
@@ -269,6 +275,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private executeCommand(task: CustomTask | ContributedTask, trigger: string): TPromise<ITaskSummary> {
 		let terminal: ITerminalInstance = undefined;
 		let executedCommand: string = undefined;
+		let error: TaskError = undefined;
 		let promise: TPromise<ITaskSummary> = undefined;
 		if (task.isBackground) {
 			promise = new TPromise<ITaskSummary>((resolve, reject) => {
@@ -283,11 +290,21 @@ export class TerminalTaskSystem implements ITaskSystem {
 					} else if (event.kind === ProblemCollectorEventKind.BackgroundProcessingEnds) {
 						eventCounter--;
 						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Inactive, task));
+						if (eventCounter === 0) {
+							let reveal = task.command.presentation.reveal;
+							if (reveal === RevealKind.Silent && watchingProblemMatcher.numberOfMatches > 0 && watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error) {
+								this.terminalService.setActiveInstance(terminal);
+								this.terminalService.showPanel(false);
+							}
+						}
 					}
 				}));
 				watchingProblemMatcher.aboutToStart();
 				let delayer: Async.Delayer<any> = undefined;
-				[terminal, executedCommand] = this.createTerminal(task);
+				[terminal, executedCommand, error] = this.createTerminal(task);
+				if (error || !terminal) {
+					return;
+				}
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
 				const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
 				const onData = terminal.onLineData((line) => {
@@ -314,6 +331,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 							this.idleTaskTerminals.set(key, terminal.id.toString(), Touch.AsOld);
 							break;
 					}
+					let reveal = task.command.presentation.reveal;
+					if (reveal === RevealKind.Silent && (exitCode !== 0 || watchingProblemMatcher.numberOfMatches > 0 && watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error)) {
+						this.terminalService.setActiveInstance(terminal);
+						this.terminalService.showPanel(false);
+					}
 					watchingProblemMatcher.done();
 					watchingProblemMatcher.dispose();
 					registeredLinkMatchers.forEach(handle => terminal.deregisterLinkMatcher(handle));
@@ -324,18 +346,16 @@ export class TerminalTaskSystem implements ITaskSystem {
 						this._onDidStateChange.fire(event);
 					}
 					eventCounter = 0;
-					let reveal = task.command.presentation.reveal;
-					if (exitCode && exitCode === 1 && watchingProblemMatcher.numberOfMatches === 0 && reveal !== RevealKind.Never) {
-						this.terminalService.setActiveInstance(terminal);
-						this.terminalService.showPanel(false);
-					}
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
 					resolve({ exitCode });
 				});
 			});
 		} else {
 			promise = new TPromise<ITaskSummary>((resolve, reject) => {
-				[terminal, executedCommand] = this.createTerminal(task);
+				[terminal, executedCommand, error] = this.createTerminal(task);
+				if (error || !terminal) {
+					return;
+				}
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
 				let problemMatchers = this.resolveMatchers(task, task.problemMatchers);
@@ -358,24 +378,28 @@ export class TerminalTaskSystem implements ITaskSystem {
 							this.idleTaskTerminals.set(key, terminal.id.toString(), Touch.AsOld);
 							break;
 					}
+					let reveal = task.command.presentation.reveal;
+					if (reveal === RevealKind.Silent && (exitCode !== 0 || startStopProblemMatcher.numberOfMatches > 0 && startStopProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error)) {
+						this.terminalService.setActiveInstance(terminal);
+						this.terminalService.showPanel(false);
+					}
 					startStopProblemMatcher.done();
 					startStopProblemMatcher.dispose();
 					registeredLinkMatchers.forEach(handle => terminal.deregisterLinkMatcher(handle));
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Inactive, task));
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
-					// See https://github.com/Microsoft/vscode/issues/31965
-					if (exitCode === 0 && startStopProblemMatcher.numberOfMatches > 0) {
-						exitCode = 1;
-					}
 					resolve({ exitCode });
 				});
 			});
 		}
+		if (error) {
+			return TPromise.wrapError<ITaskSummary>(new Error(error.message));
+		}
 		if (!terminal) {
 			return TPromise.wrapError<ITaskSummary>(new Error(`Failed to create terminal for task ${task._label}`));
 		}
-		this.terminalService.setActiveInstance(terminal);
 		if (task.command.presentation.reveal === RevealKind.Always || (task.command.presentation.reveal === RevealKind.Silent && task.problemMatchers.length === 0)) {
+			this.terminalService.setActiveInstance(terminal);
 			this.terminalService.showPanel(task.command.presentation.focus);
 		}
 		this.activeTasks[Task.getMapKey(task)] = { terminal, task, promise };
@@ -424,7 +448,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		});
 	}
 
-	private createTerminal(task: CustomTask | ContributedTask): [ITerminalInstance, string] {
+	private createTerminal(task: CustomTask | ContributedTask): [ITerminalInstance, string, TaskError | undefined] {
 		let options = this.resolveOptions(task, task.command.options);
 		let { command, args } = this.resolveCommandAndArgs(task);
 		let commandExecutable = CommandString.value(command);
@@ -442,9 +466,6 @@ export class TerminalTaskSystem implements ITaskSystem {
 		let shellLaunchConfig: IShellLaunchConfig = undefined;
 		let isShellCommand = task.command.runtime === RuntimeType.Shell;
 		if (isShellCommand) {
-			if (Platform.isWindows && ((options.cwd && TPath.isUNC(options.cwd)) || (!options.cwd && TPath.isUNC(process.cwd())))) {
-				throw new TaskError(Severity.Error, nls.localize('TerminalTaskSystem', 'Can\'t execute a shell command on an UNC drive.'), TaskErrors.UnknownError);
-			}
 			shellLaunchConfig = { name: terminalName, executable: null, args: null, waitOnExit };
 			let shellSpecified: boolean = false;
 			let shellOptions: ShellConfiguration = task.command.options && task.command.options.shell;
@@ -466,6 +487,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 			if (Platform.isWindows) {
 				windowsShellArgs = true;
 				let basename = path.basename(shellLaunchConfig.executable).toLowerCase();
+				if (basename === 'cmd.exe' && ((options.cwd && TPath.isUNC(options.cwd)) || (!options.cwd && TPath.isUNC(process.cwd())))) {
+					return [undefined, undefined, new TaskError(Severity.Error, nls.localize('TerminalTaskSystem', 'Can\'t execute a shell command on an UNC drive using cmd.exe.'), TaskErrors.UnknownError)];
+				}
 				if (basename === 'powershell.exe' || basename === 'pwsh.exe') {
 					if (!shellSpecified) {
 						toAdd.push('-Command');
@@ -503,7 +527,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			let cwd = options && options.cwd ? options.cwd : process.cwd();
 			// On Windows executed process must be described absolute. Since we allowed command without an
 			// absolute path (e.g. "command": "node") we need to find the executable in the CWD or PATH.
-			let executable = Platform.isWindows && !isShellCommand ? this.findExecutable(commandExecutable, cwd) : commandExecutable;
+			let executable = Platform.isWindows && !isShellCommand ? this.findExecutable(commandExecutable, cwd, options) : commandExecutable;
 
 			// When we have a process task there is no need to quote arguments. So we go ahead and take the string value.
 			shellLaunchConfig = {
@@ -562,10 +586,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 		if (terminalToReuse) {
 			terminalToReuse.terminal.reuseTerminal(shellLaunchConfig);
-			return [terminalToReuse.terminal, commandExecutable];
+			return [terminalToReuse.terminal, commandExecutable, undefined];
 		}
 
-		const result = this.terminalService.createInstance(shellLaunchConfig);
+		const result = this.terminalService.createTerminal(shellLaunchConfig);
 		const terminalKey = result.id.toString();
 		result.onDisposed((terminal) => {
 			let terminalData = this.terminals[terminalKey];
@@ -576,7 +600,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			}
 		});
 		this.terminals[terminalKey] = { terminal: result, lastTask: taskKey };
-		return [result, commandExecutable];
+		return [result, commandExecutable, undefined];
 	}
 
 	private buildShellCommandLine(shellExecutable: string, shellOptions: ShellConfiguration, command: CommandString, args: CommandString[]): string {
@@ -682,23 +706,39 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return { command, args };
 	}
 
-	private findExecutable(command: string, cwd: string): string {
+	private findExecutable(command: string, cwd: string, options: CommandOptions): string {
 		// If we have an absolute path then we take it.
 		if (path.isAbsolute(command)) {
 			return command;
 		}
 		let dir = path.dirname(command);
 		if (dir !== '.') {
-			// We have a directory. Make the path absolute
-			// to the current working directory
+			// We have a directory and the directory is relative (see above). Make the path absolute
+			// to the current working directory.
+			return path.join(cwd, command);
+		}
+		let paths: string[] = undefined;
+		// The options can override the PATH. So consider that PATH if present.
+		if (options && options.env) {
+			// Path can be named in many different ways and for the execution it doesn't matter
+			for (let key of Object.keys(options.env)) {
+				if (key.toLowerCase() === 'path') {
+					if (Types.isString(options.env[key])) {
+						paths = options.env[key].split(path.delimiter);
+					}
+					break;
+				}
+			}
+		}
+		if (paths === void 0 && Types.isString(process.env.PATH)) {
+			paths = process.env.PATH.split(path.delimiter);
+		}
+		// No PATH environment. Make path absolute to the cwd.
+		if (paths === void 0 || paths.length === 0) {
 			return path.join(cwd, command);
 		}
 		// We have a simple file name. We get the path variable from the env
 		// and try to find the executable on the path.
-		if (!process.env.PATH) {
-			return command;
-		}
-		let paths: string[] = (process.env.PATH as string).split(path.delimiter);
 		for (let pathEntry of paths) {
 			// The path entry is absolute.
 			let fullPath: string;

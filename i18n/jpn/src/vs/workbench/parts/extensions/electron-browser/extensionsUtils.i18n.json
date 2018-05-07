@@ -8,7 +8,5 @@
 	],
 	"disableOtherKeymapsConfirmation": "キーバインド間の競合を回避するために、他のキーマップ ({0}) を無効にしますか?",
 	"yes": "はい",
-	"no": "いいえ",
-	"betterMergeDisabled": "拡張機能 Better Merge は現在ビルトインです。インストール済みの拡張機能は無効化され、アンインストールできます。",
-	"uninstall": "アンインストール"
+	"no": "いいえ"
 }

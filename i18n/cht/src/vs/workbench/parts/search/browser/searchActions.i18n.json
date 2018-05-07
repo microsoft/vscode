@@ -12,7 +12,6 @@
 	"previousSearchExcludePattern": "顯示上一個搜尋排除模式",
 	"nextSearchTerm": "顯示下一個搜尋字詞",
 	"previousSearchTerm": "顯示上一個搜尋字詞",
-	"showSearchViewlet": "顯示搜尋",
 	"findInFiles": "在檔案中尋找",
 	"replaceInFiles": "檔案中取代",
 	"RefreshAction.label": "重新整理",

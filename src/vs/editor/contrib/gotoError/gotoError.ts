@@ -17,7 +17,6 @@ import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, IActionOptions, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -26,6 +25,7 @@ import { compare } from 'vs/base/common/strings';
 import { binarySearch } from 'vs/base/common/arrays';
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 class MarkerModel {
 
@@ -233,11 +233,18 @@ class MarkerController implements editorCommon.IEditorContribution {
 		this._model = new MarkerModel(this._editor, markers);
 		this._markerService.onMarkerChanged(this._onMarkerChanged, this, this._disposeOnClose);
 
-		this._widget = new MarkerNavigationWidget(this._editor, this._themeService, this._editorService);
+		this._widget = new MarkerNavigationWidget(this._editor, this._themeService);
 		this._widgetVisible.set(true);
 
 		this._disposeOnClose.push(this._model);
 		this._disposeOnClose.push(this._widget);
+		this._disposeOnClose.push(this._widget.onDidSelectRelatedInformation(related => {
+			this._editorService.openEditor({
+				resource: related.resource,
+				options: { pinned: true, revealIfOpened: true, selection: Range.lift(related).collapseToStart() }
+			}).then(undefined, onUnexpectedError);
+			this.closeMarkersNavigation(false);
+		}));
 		this._disposeOnClose.push(this._editor.onDidChangeModel(() => this._cleanUp()));
 
 		this._disposeOnClose.push(this._model.onCurrentMarkerChanged(marker => {
@@ -261,9 +268,11 @@ class MarkerController implements editorCommon.IEditorContribution {
 		return this._model;
 	}
 
-	public closeMarkersNavigation(): void {
+	public closeMarkersNavigation(focusEditor: boolean = true): void {
 		this._cleanUp();
-		this._editor.focus();
+		if (focusEditor) {
+			this._editor.focus();
+		}
 	}
 
 	private _onMarkerChanged(changedResources: URI[]): void {
@@ -276,7 +285,7 @@ class MarkerController implements editorCommon.IEditorContribution {
 	private _getMarkers(): IMarker[] {
 		return this._markerService.read({
 			resource: this._editor.getModel().uri,
-			severities: MarkerSeverity.Error | MarkerSeverity.Warning
+			severities: MarkerSeverity.Error | MarkerSeverity.Warning | MarkerSeverity.Info
 		});
 	}
 }
@@ -306,7 +315,7 @@ class MarkerNavigationAction extends EditorAction {
 		}
 
 		// try with the next/prev file
-		let markers = markerService.read({ severities: MarkerSeverity.Error | MarkerSeverity.Warning }).sort(MarkerNavigationAction.compareMarker);
+		let markers = markerService.read({ severities: MarkerSeverity.Error | MarkerSeverity.Warning | MarkerSeverity.Info }).sort(MarkerNavigationAction.compareMarker);
 		if (markers.length === 0) {
 			return undefined;
 		}

@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Node, HtmlNode, Rule, Property } from 'EmmetNode';
-import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode } from './util';
+import { Node, HtmlNode, Rule, Property, Stylesheet } from 'EmmetNode';
+import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode, parsePartialStylesheet, isStyleAttribute, getEmbeddedCssNodeIfAny } from './util';
 
 const trimRegex = /[\u00a0]*[\d|#|\-|\*|\u2022]+\.?/;
 const hexColorRegex = /^#\d+$/;
-
+const allowedMimeTypesInScriptTag = ['text/html', 'text/plain', 'text/x-template', 'text/template'];
 const inlineElements = ['a', 'abbr', 'acronym', 'applet', 'b', 'basefont', 'bdo',
 	'big', 'br', 'button', 'cite', 'code', 'del', 'dfn', 'em', 'font', 'i',
 	'iframe', 'img', 'input', 'ins', 'kbd', 'label', 'map', 'object', 'q',
@@ -61,12 +61,24 @@ function doWrapping(individualLines: boolean, args: any) {
 		return;
 	}
 
+	const selections = editor.selections.sort((a: vscode.Selection, b: vscode.Selection) => { return a.start.compareTo(b.start); });
+	let disableLivePreview = false;
+	for (let i = 1; i < selections.length; i++) {
+		if (selections[i].start.line === selections[i - 1].start.line
+			|| selections[i].end.line === selections[i - 1].start.line
+			|| selections[i].start.line === selections[i - 1].end.line
+			|| selections[i].end.line === selections[i - 1].end.line) {
+			disableLivePreview = true; // Disable Live Preview due to https://github.com/Microsoft/vscode/issues/49138
+			break;
+		}
+	}
+
 	let inPreview = false;
 	let currentValue = '';
 	const helper = getEmmetHelper();
 
 	// Fetch general information for the succesive expansions. i.e. the ranges to replace and its contents
-	let rangesToReplace: PreviewRangesWithContent[] = editor.selections.sort((a: vscode.Selection, b: vscode.Selection) => { return a.start.compareTo(b.start); }).map(selection => {
+	let rangesToReplace: PreviewRangesWithContent[] = selections.map(selection => {
 		let rangeToReplace: vscode.Range = selection.isReversed ? new vscode.Range(selection.active, selection.anchor) : selection;
 		if (!rangeToReplace.isSingleLine && rangeToReplace.end.character === 0) {
 			const previousLine = rangeToReplace.end.line - 1;
@@ -191,6 +203,9 @@ function doWrapping(individualLines: boolean, args: any) {
 	}
 
 	function inputChanged(value: string): string {
+		if (disableLivePreview) {
+			return '';
+		}
 		if (value !== currentValue) {
 			currentValue = value;
 			makeChanges(value, false).then((out) => {
@@ -227,8 +242,13 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 	}
 
 	const editor = vscode.window.activeTextEditor;
-
-	let rootNode = parseDocument(editor.document, false);
+	let rootNode: Node | undefined;
+	let usePartialParsing = vscode.workspace.getConfiguration('emmet')['optimizeStylesheetParsing'] === true;
+	if (editor.selections.length === 1 && isStyleSheet(editor.document.languageId) && usePartialParsing && editor.document.lineCount > 1000) {
+		rootNode = parsePartialStylesheet(editor.document, editor.selection.isReversed ? editor.selection.anchor : editor.selection.active);
+	} else {
+		rootNode = parseDocument(editor.document, false);
+	}
 
 	// When tabbed on a non empty selection, do not treat it as an emmet abbreviation, and fallback to tab instead
 	if (vscode.workspace.getConfiguration('emmet')['triggerExpansionOnTab'] === true && editor.selections.find(x => !x.isEmpty)) {
@@ -289,9 +309,24 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 		if (!helper.isAbbreviationValid(syntax, abbreviation)) {
 			return;
 		}
-
 		let currentNode = getNode(rootNode, position, true);
-		if (!isValidLocationForEmmetAbbreviation(editor.document, currentNode, syntax, position, rangeToReplace)) {
+		let validateLocation = true;
+		let syntaxToUse = syntax;
+
+		if (editor.document.languageId === 'html') {
+			if (isStyleAttribute(currentNode, position)) {
+				syntaxToUse = 'css';
+				validateLocation = false;
+			} else {
+				const embeddedCssNode = getEmbeddedCssNodeIfAny(editor.document, currentNode, position);
+				if (embeddedCssNode) {
+					currentNode = getNode(embeddedCssNode, position, true);
+					syntaxToUse = 'css';
+				}
+			}
+		}
+
+		if (validateLocation && !isValidLocationForEmmetAbbreviation(editor.document, rootNode, currentNode, syntaxToUse, position, rangeToReplace)) {
 			return;
 		}
 
@@ -301,7 +336,7 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 			allAbbreviationsSame = false;
 		}
 
-		abbreviationList.push({ syntax, abbreviation, rangeToReplace, filter });
+		abbreviationList.push({ syntax: syntaxToUse, abbreviation, rangeToReplace, filter });
 	});
 
 	return expandAbbreviationInRange(editor, abbreviationList, allAbbreviationsSame).then(success => {
@@ -321,13 +356,18 @@ function fallbackTab(): Thenable<boolean | undefined> {
  * Checks if given position is a valid location to expand emmet abbreviation.
  * Works only on html and css/less/scss syntax
  * @param document current Text Document
- * @param currentNode parsed node at given position
+ * @param rootNode parsed document
+ * @param currentNode current node in the parsed document
  * @param syntax syntax of the abbreviation
  * @param position position to validate
  * @param abbreviationRange The range of the abbreviation for which given position is being validated
  */
-export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocument, currentNode: Node | null, syntax: string, position: vscode.Position, abbreviationRange: vscode.Range): boolean {
+export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocument, rootNode: Node | undefined, currentNode: Node | null, syntax: string, position: vscode.Position, abbreviationRange: vscode.Range): boolean {
 	if (isStyleSheet(syntax)) {
+		const stylesheet = <Stylesheet>rootNode;
+		if (stylesheet && (stylesheet.comments || []).some(x => position.isAfterOrEqual(x.start) && position.isBeforeOrEqual(x.end))) {
+			return false;
+		}
 		// Continue validation only if the file was parse-able and the currentNode has been found
 		if (!currentNode) {
 			return true;
@@ -398,6 +438,12 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 	let start = new vscode.Position(0, 0);
 
 	if (currentHtmlNode) {
+		if (currentHtmlNode.name === 'script') {
+			return (currentHtmlNode.attributes
+				&& currentHtmlNode.attributes.some(x => x.name.toString() === 'type'
+					&& allowedMimeTypesInScriptTag.indexOf(x.value.toString()) > -1));
+		}
+
 		const innerRange = getInnerRange(currentHtmlNode);
 
 		// Fix for https://github.com/Microsoft/vscode/issues/28829

@@ -7,7 +7,6 @@ import 'vs/css!./media/output';
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action, IAction } from 'vs/base/common/actions';
-import { Builder } from 'vs/base/browser/builder';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -121,9 +120,9 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		super.clearInput();
 	}
 
-	protected createEditor(parent: Builder): void {
+	protected createEditor(parent: HTMLElement): void {
 		// First create the scoped instantation service and only then construct the editor using the scoped service
-		const scopedContextKeyService = this.contextKeyService.createScoped(parent.getHTMLElement());
+		const scopedContextKeyService = this.contextKeyService.createScoped(parent);
 		this.toUnbind.push(scopedContextKeyService);
 		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
 		super.createEditor(parent);

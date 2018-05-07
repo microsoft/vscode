@@ -11,6 +11,7 @@ import { localize } from 'vs/nls';
 import { ParsedArgs } from '../common/environment';
 import { isWindows } from 'vs/base/common/platform';
 import product from 'vs/platform/node/product';
+import { MIN_MAX_MEMORY_SIZE_MB } from 'vs/platform/files/common/files';
 
 const options: minimist.Opts = {
 	string: [
@@ -29,7 +30,8 @@ const options: minimist.Opts = {
 		'enable-proposed-api',
 		'export-default-configuration',
 		'install-source',
-		'upload-logs'
+		'upload-logs',
+		'driver'
 	],
 	boolean: [
 		'help',
@@ -61,7 +63,8 @@ const options: minimist.Opts = {
 		'skip-add-to-recently-opened',
 		'status',
 		'file-write',
-		'file-chmod'
+		'file-chmod',
+		'driver-verbose'
 	],
 	alias: {
 		add: 'a',
@@ -86,6 +89,10 @@ const options: minimist.Opts = {
 function validate(args: ParsedArgs): ParsedArgs {
 	if (args.goto) {
 		args._.forEach(arg => assert(/^(\w:)?[^:]+(:\d*){0,2}$/.test(arg), localize('gotoValidation', "Arguments in `--goto` mode should be in the format of `FILE(:LINE(:CHARACTER))`.")));
+	}
+
+	if (args['max-memory']) {
+		assert(args['max-memory'] >= MIN_MAX_MEMORY_SIZE_MB, `The max-memory argument cannot be specified lower than ${MIN_MAX_MEMORY_SIZE_MB} MB.`);
 	}
 
 	return args;
@@ -153,7 +160,7 @@ const extensionsHelp: { [name: string]: string; } = {
 	'--show-versions': localize('showVersions', "Show versions of installed extensions, when using --list-extension."),
 	'--install-extension (<extension-id> | <extension-vsix-path>)': localize('installExtension', "Installs an extension."),
 	'--uninstall-extension (<extension-id> | <extension-vsix-path>)': localize('uninstallExtension', "Uninstalls an extension."),
-	'--enable-proposed-api <extension-id>': localize('experimentalApis', "Enables proposed api features for an extension.")
+	'--enable-proposed-api <extension-id>': localize('experimentalApis', "Enables proposed API features for an extension.")
 };
 
 const troubleshootingHelp: { [name: string]: string; } = {
@@ -163,8 +170,8 @@ const troubleshootingHelp: { [name: string]: string; } = {
 	'-p, --performance': localize('performance', "Start with the 'Developer: Startup Performance' command enabled."),
 	'--prof-startup': localize('prof-startup', "Run CPU profiler during startup"),
 	'--disable-extensions': localize('disableExtensions', "Disable all installed extensions."),
-	'--inspect-extensions': localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection uri."),
-	'--inspect-brk-extensions': localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection uri."),
+	'--inspect-extensions': localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection URI."),
+	'--inspect-brk-extensions': localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection URI."),
 	'--disable-gpu': localize('disableGPU', "Disable GPU hardware acceleration."),
 	'--upload-logs': localize('uploadLogs', "Uploads logs from current session to a secure endpoint."),
 	'--max-memory': localize('maxMemory', "Max memory size for a window (in Mbytes).")

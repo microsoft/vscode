@@ -19,8 +19,11 @@ class TestView implements IView {
 	get maximumSize(): number { return this._maximumSize; }
 	set maximumSize(size: number) { this._maximumSize = size; this._onDidChange.fire(); }
 
-	private _onDidRender = new Emitter<{ container: HTMLElement; orientation: Orientation }>();
-	readonly onDidRender = this._onDidRender.event;
+	private _element: HTMLElement = document.createElement('div');
+	get element(): HTMLElement { this._onDidGetElement.fire(); return this._element; }
+
+	private _onDidGetElement = new Emitter<void>();
+	readonly onDidGetElement = this._onDidGetElement.event;
 
 	private _size = 0;
 	get size(): number { return this._size; }
@@ -37,10 +40,6 @@ class TestView implements IView {
 		assert(_minimumSize <= _maximumSize, 'splitview view minimum size must be <= maximum size');
 	}
 
-	render(container: HTMLElement, orientation: Orientation): void {
-		this._onDidRender.fire({ container, orientation });
-	}
-
 	layout(size: number, orientation: Orientation): void {
 		this._size = size;
 		this._onDidLayout.fire({ size, orientation });
@@ -52,7 +51,7 @@ class TestView implements IView {
 
 	dispose(): void {
 		this._onDidChange.dispose();
-		this._onDidRender.dispose();
+		this._onDidGetElement.dispose();
 		this._onDidLayout.dispose();
 		this._onDidFocus.dispose();
 	}
@@ -136,7 +135,7 @@ suite('Splitview', () => {
 		const layoutDisposable = view.onDidLayout(() => didLayout = true);
 
 		let didRender = false;
-		const renderDisposable = view.onDidRender(() => didRender = true);
+		const renderDisposable = view.onDidGetElement(() => didRender = true);
 
 		splitview.addView(view, 20);
 
@@ -322,7 +321,7 @@ suite('Splitview', () => {
 		splitview.addView(view1, 142, 0);
 		assert.equal(view1.size, 986, 'first view is stretched');
 
-		view2.onDidRender(() => {
+		view2.onDidGetElement(() => {
 			assert.throws(() => splitview.resizeView(1, 922));
 			assert.throws(() => splitview.resizeView(1, 922));
 		});

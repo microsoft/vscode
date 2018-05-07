@@ -12,9 +12,9 @@
 		"onLanguage:php"
 	],
 	"main": "./out/phpMain",
-	"dependencies": {
-		"vscode-nls": "^3.2.1"
-	},
+	"categories": [
+		"Programming Languages"
+	],
 	"contributes": {
 		"configuration": {
 			"title": "%configuration.title%",
@@ -75,6 +75,9 @@
 	"scripts": {
 		"compile": "gulp compile-extension:php",
 		"watch": "gulp watch-extension:php"
+	},
+	"dependencies": {
+		"vscode-nls": "^3.2.1"
 	},
 	"devDependencies": {
 		"@types/node": "7.0.43"

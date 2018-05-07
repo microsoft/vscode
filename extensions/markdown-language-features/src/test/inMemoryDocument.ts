@@ -15,13 +15,17 @@ export class InMemoryDocument implements vscode.TextDocument {
 		this._lines = this._contents.split(/\n/g);
 	}
 
-	fileName: string = '';
+
 	isUntitled: boolean = false;
 	languageId: string = '';
 	version: number = 1;
 	isDirty: boolean = false;
 	isClosed: boolean = false;
 	eol: vscode.EndOfLine = vscode.EndOfLine.LF;
+
+	get fileName(): string {
+		return this.uri.fsPath;
+	}
 
 	get lineCount(): number {
 		return this._lines.length;
@@ -40,8 +44,12 @@ export class InMemoryDocument implements vscode.TextDocument {
 	offsetAt(_position: vscode.Position): never {
 		throw new Error('Method not implemented.');
 	}
-	positionAt(_offset: number): never {
-		throw new Error('Method not implemented.');
+	positionAt(offset: number): vscode.Position {
+		const before = this._contents.slice(0, offset);
+		const newLines = before.match(/\n/g);
+		const line = newLines ? newLines.length : 0;
+		const preCharacters = before.match(/(\n|^).*$/g);
+		return new vscode.Position(line, preCharacters ? preCharacters[0].length : 0);
 	}
 	getText(_range?: vscode.Range | undefined): string {
 		return this._contents;

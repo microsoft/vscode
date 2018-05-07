@@ -16,7 +16,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
 import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import { getDocumentFormattingEdits, NoProviderError } from 'vs/editor/contrib/format/format';
-import { EditOperationsCommand } from 'vs/editor/contrib/format/formatCommand';
+import { FormattingEdit } from 'vs/editor/contrib/format/formattingEdit';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ExtHostContext, ExtHostDocumentSaveParticipantShape, IExtHostContext } from '../node/extHost.protocol';
@@ -29,6 +29,14 @@ import { localize } from 'vs/nls';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
+import { CodeAction } from 'vs/editor/common/modes';
+import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
+import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
+import { ICodeActionsOnSaveOptions } from 'vs/editor/common/config/editorOptions';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 
 export interface ISaveParticipantParticipant extends ISaveParticipant {
 	// progressMessage: string;
@@ -50,7 +58,7 @@ class TrimWhitespaceParticipant implements ISaveParticipantParticipant {
 	}
 
 	private doTrimTrailingWhitespace(model: ITextModel, isAutoSaved: boolean): void {
-		let prevSelection: Selection[] = [new Selection(1, 1, 1, 1)];
+		let prevSelection: Selection[] = [];
 		const cursors: Position[] = [];
 
 		let editor = findEditor(model, this.codeEditorService);
@@ -60,6 +68,12 @@ class TrimWhitespaceParticipant implements ISaveParticipantParticipant {
 			prevSelection = editor.getSelections();
 			if (isAutoSaved) {
 				cursors.push(...prevSelection.map(s => new Position(s.positionLineNumber, s.positionColumn)));
+				const snippetsRange = SnippetController2.get(editor).getSessionEnclosingRange();
+				if (snippetsRange) {
+					for (let lineNumber = snippetsRange.startLineNumber; lineNumber <= snippetsRange.endLineNumber; lineNumber++) {
+						cursors.push(new Position(lineNumber, model.getLineMaxColumn(lineNumber)));
+					}
+				}
 			}
 		}
 
@@ -78,7 +92,7 @@ function findEditor(model: ITextModel, codeEditorService: ICodeEditorService): I
 	if (model.isAttachedToEditor()) {
 		for (const editor of codeEditorService.listCodeEditors()) {
 			if (editor.getModel() === model) {
-				if (editor.isFocused()) {
+				if (editor.hasTextFocus()) {
 					return editor; // favour focused editor if there are multiple
 				}
 
@@ -114,7 +128,7 @@ export class FinalNewLineParticipant implements ISaveParticipantParticipant {
 			return;
 		}
 
-		let prevSelection: Selection[] = [new Selection(1, 1, 1, 1)];
+		let prevSelection: Selection[] = [];
 		const editor = findEditor(model, this.codeEditorService);
 		if (editor) {
 			prevSelection = editor.getSelections();
@@ -151,7 +165,7 @@ export class TrimFinalNewLinesParticipant implements ISaveParticipantParticipant
 			return;
 		}
 
-		let prevSelection: Selection[] = [new Selection(1, 1, 1, 1)];
+		let prevSelection: Selection[] = [];
 		const editor = findEditor(model, this.codeEditorService);
 		if (editor) {
 			prevSelection = editor.getSelections();
@@ -166,7 +180,7 @@ export class TrimFinalNewLinesParticipant implements ISaveParticipantParticipant
 			currentLineIsEmptyOrWhitespace = strings.lastNonWhitespaceIndex(currentLine) === -1;
 		}
 
-		const deletionRange = new Range(currentLineNumber + 1, 1, lineCount + 1, 1);
+		const deletionRange = model.validateRange(new Range(currentLineNumber + 1, 1, lineCount + 1, 1));
 		if (!deletionRange.isEmpty()) {
 			model.pushEditOperations(prevSelection, [EditOperation.delete(deletionRange)], edits => prevSelection);
 		}
@@ -225,7 +239,7 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 	}
 
 	private _editsWithEditor(editor: ICodeEditor, edits: ISingleEditOperation[]): void {
-		EditOperationsCommand.execute(editor, edits, false);
+		FormattingEdit.execute(editor, edits);
 	}
 
 	private _editWithModel(model: ITextModel, edits: ISingleEditOperation[]): void {
@@ -249,6 +263,58 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 			range: Range.lift(range),
 			forceMoveMarkers: true
 		};
+	}
+}
+
+class CodeActionOnParticipant implements ISaveParticipant {
+
+	constructor(
+		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
+		@ICommandService private readonly _commandService: ICommandService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
+	) { }
+
+	async participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): Promise<void> {
+		if (env.reason === SaveReason.AUTO) {
+			return undefined;
+		}
+
+		const model = editorModel.textEditorModel;
+		const editor = findEditor(model, this._codeEditorService);
+		if (!editor) {
+			return undefined;
+		}
+
+		const settingsOverrides = { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() };
+		const setting = this._configurationService.getValue<ICodeActionsOnSaveOptions>('editor.codeActionsOnSave', settingsOverrides);
+		if (!setting) {
+			return undefined;
+		}
+
+		const codeActionsOnSave = Object.keys(setting).filter(x => setting[x]).map(x => new CodeActionKind(x));
+		if (!codeActionsOnSave.length) {
+			return undefined;
+		}
+
+		const timeout = this._configurationService.getValue<number>('editor.codeActionsOnSaveTimeout', settingsOverrides);
+
+		return new Promise<CodeAction[]>((resolve, reject) => {
+			setTimeout(() => reject(localize('codeActionsOnSave.didTimeout', "Aborted codeActionsOnSave after {0}ms", timeout)), timeout);
+			this.getActionsToRun(model, codeActionsOnSave).then(resolve);
+		}).then(actionsToRun => this.applyCodeActions(actionsToRun, editor));
+	}
+
+	private async applyCodeActions(actionsToRun: CodeAction[], editor: ICodeEditor) {
+		for (const action of actionsToRun) {
+			await applyCodeAction(action, this._bulkEditService, this._commandService, editor);
+		}
+	}
+
+	private async getActionsToRun(model: ITextModel, codeActionsOnSave: CodeActionKind[]) {
+		const actions = await getCodeActions(model, model.getFullModelRange(), { kind: CodeActionKind.Source, includeSourceActions: true });
+		const actionsToRun = actions.filter(returnedAction => returnedAction.kind && codeActionsOnSave.some(onSaveKind => onSaveKind.contains(returnedAction.kind)));
+		return actionsToRun;
 	}
 }
 
@@ -296,6 +362,7 @@ export class SaveParticipant implements ISaveParticipant {
 	) {
 		this._saveParticipants = [
 			instantiationService.createInstance(TrimWhitespaceParticipant),
+			instantiationService.createInstance(CodeActionOnParticipant),
 			instantiationService.createInstance(FormatOnSaveParticipant),
 			instantiationService.createInstance(FinalNewLineParticipant),
 			instantiationService.createInstance(TrimFinalNewLinesParticipant),

@@ -233,7 +233,7 @@ export class ModelLinesTokens {
 		}
 	}
 
-	private _setIsInvalid(lineIndex: number, invalid: boolean): void {
+	_setIsInvalid(lineIndex: number, invalid: boolean): void {
 		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
 			this._tokens[lineIndex]._invalid = invalid;
 		}
@@ -278,7 +278,7 @@ export class ModelLinesTokens {
 		target._lineTokens = tokens.buffer;
 	}
 
-	private _setState(lineIndex: number, state: IState): void {
+	_setState(lineIndex: number, state: IState): void {
 		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
 			this._tokens[lineIndex]._state = state;
 		} else {

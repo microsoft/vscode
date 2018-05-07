@@ -9,5 +9,6 @@
 	"toggleOutput": "Attiva/Disattiva output",
 	"clearOutput": "Cancella output",
 	"toggleOutputScrollLock": "Attiva/Disattiva blocco scorrimento per output",
-	"switchToOutput.label": "Passa all'output"
+	"switchToOutput.label": "Passa all'output",
+	"openInLogViewer": "Apri file di log"
 }

@@ -18,6 +18,16 @@ interface Entry<T> {
 	_time: number;
 }
 
+function isExclusive(selector: LanguageSelector): boolean {
+	if (typeof selector === 'string') {
+		return false;
+	} else if (Array.isArray(selector)) {
+		return selector.every(isExclusive);
+	} else {
+		return selector.exclusive;
+	}
+}
+
 export default class LanguageFeatureRegistry<T> {
 
 	private _clock: number = 0;
@@ -142,6 +152,16 @@ export default class LanguageFeatureRegistry<T> {
 
 		for (let entry of this._entries) {
 			entry._score = score(entry.selector, model.uri, model.getLanguageIdentifier().language, shouldSynchronizeModel(model));
+
+			if (isExclusive(entry.selector) && entry._score > 0) {
+				// support for one exclusive selector that overwrites
+				// any other selector
+				for (let entry of this._entries) {
+					entry._score = 0;
+				}
+				entry._score = 1000;
+				break;
+			}
 		}
 
 		// needs sorting

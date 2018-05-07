@@ -18,6 +18,6 @@
 	"label.replaceAllButton": "全部替换",
 	"label.toggleReplaceButton": "切换替换模式",
 	"title.matchesCountLimit": "仅高亮了前 {0} 个结果，但所有查找操作均针对全文。",
-	"label.matchesLocation": "第 {0} 个(共 {1} 个)",
+	"label.matchesLocation": "{0} / {1}",
 	"label.noResults": "无结果"
 }
