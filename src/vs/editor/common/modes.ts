@@ -353,7 +353,6 @@ export interface CodeAction {
  */
 export interface CodeActionContext {
 	only?: string;
-	selection?: Selection;
 }
 
 /**
@@ -365,7 +364,7 @@ export interface CodeActionProvider {
 	/**
 	 * Provide commands for the given document and range.
 	 */
-	provideCodeActions(model: model.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): CodeAction[] | Thenable<CodeAction[]>;
+	provideCodeActions(model: model.ITextModel, range: Range | Selection, context: CodeActionContext, token: CancellationToken): CodeAction[] | Thenable<CodeAction[]>;
 
 	/**
 	 * Optional list of of CodeActionKinds that this provider returns.

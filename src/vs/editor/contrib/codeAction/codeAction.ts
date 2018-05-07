@@ -16,14 +16,13 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { CodeActionFilter, CodeActionKind } from './codeActionTrigger';
 import { Selection } from 'vs/editor/common/core/selection';
 
-export function getCodeActions(model: ITextModel, range: Range, selection: Selection | undefined, filter?: CodeActionFilter): TPromise<CodeAction[]> {
+export function getCodeActions(model: ITextModel, rangeOrSelection: Range | Selection, filter?: CodeActionFilter): TPromise<CodeAction[]> {
 	const codeActionContext: CodeActionContext = {
 		only: filter && filter.kind ? filter.kind.value : undefined,
-		selection: selection
 	};
 
 	const promises = CodeActionProviderRegistry.all(model).map(support => {
-		return asWinJsPromise(token => support.provideCodeActions(model, range, codeActionContext, token)).then(providedCodeActions => {
+		return asWinJsPromise(token => support.provideCodeActions(model, rangeOrSelection, codeActionContext, token)).then(providedCodeActions => {
 			if (!Array.isArray(providedCodeActions)) {
 				return [];
 			}

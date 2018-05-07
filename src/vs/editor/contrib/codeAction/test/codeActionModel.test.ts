@@ -6,14 +6,12 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { CodeActionOracle } from 'vs/editor/contrib/codeAction/codeActionModel';
 import { CodeActionProviderRegistry, LanguageIdentifier } from 'vs/editor/common/modes';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Range, IRange } from 'vs/editor/common/core/range';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
 
@@ -97,59 +95,6 @@ suite('CodeAction', () => {
 		});
 	});
 
-	test('Oracle -> marker wins over selection', () => {
-
-		let range: Range;
-		let providedSelection: Selection;
-		let reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
-			provideCodeActions(doc, _range, context) {
-				range = _range;
-				providedSelection = context.selection;
-				return [];
-			}
-		});
-
-		markerService.changeOne('fake', uri, [{
-			startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6,
-			message: 'error',
-			severity: 1,
-			code: '',
-			source: ''
-		}]);
-
-		let fixes: TPromise<any>[] = [];
-		let oracle = new CodeActionOracle(editor, markerService, e => {
-			fixes.push(e.actions);
-		}, 10);
-
-
-		let selection = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 13 };
-		editor.setSelection(selection);
-
-		return TPromise.join<any>([TPromise.timeout(20)].concat(fixes)).then(_ => {
-
-			// -> marker wins
-			assert.deepEqual(range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6 });
-
-			// but make sure context has original selection
-			assertSelectionEqual(providedSelection, selection);
-
-			// 'auto' triggered, non-empty selection BUT within a marker
-			selection = { startLineNumber: 1, startColumn: 2, endLineNumber: 1, endColumn: 4 };
-			editor.setSelection(selection);
-
-			return TPromise.join([TPromise.timeout(20)].concat(fixes)).then(_ => {
-				reg.dispose();
-				oracle.dispose();
-
-				// assert marker
-				assert.deepEqual(range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6 });
-
-				assertSelectionEqual(providedSelection, selection);
-			});
-		});
-	});
-
 	test('Lightbulb is in the wrong place, #29933', async function () {
 		let reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
 			provideCodeActions(doc, _range) {
@@ -172,7 +117,11 @@ suite('CodeAction', () => {
 
 			let oracle = new CodeActionOracle(editor, markerService, e => {
 				assert.equal(e.trigger.type, 'auto');
-				assert.deepEqual(e.range, { startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 4 });
+				const selection = <Selection>e.rangeOrSelection;
+				assert.deepEqual(selection.selectionStartLineNumber, 1);
+				assert.deepEqual(selection.selectionStartColumn, 1);
+				assert.deepEqual(selection.endLineNumber, 4);
+				assert.deepEqual(selection.endColumn, 1);
 				assert.deepEqual(e.position, { lineNumber: 3, column: 1 });
 
 				oracle.dispose();
@@ -203,10 +152,3 @@ suite('CodeAction', () => {
 	});
 
 });
-
-function assertSelectionEqual(selection: Selection, expectedRange: IRange) {
-	assert.strictEqual(selection.startLineNumber, expectedRange.startLineNumber);
-	assert.strictEqual(selection.startColumn, expectedRange.startColumn);
-	assert.strictEqual(selection.endLineNumber, expectedRange.endLineNumber);
-	assert.strictEqual(selection.endColumn, expectedRange.endColumn);
-}
