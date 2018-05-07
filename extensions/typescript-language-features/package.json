@@ -419,13 +419,13 @@
           "type": "boolean",
           "default": true,
           "description": "%javascript.suggestionActions.enabled%",
-          "scope": "window"
+          "scope": "resource"
         },
         "typescript.suggestionActions.enabled": {
           "type": "boolean",
           "default": true,
           "description": "%typescript.suggestionActions.enabled%",
-          "scope": "window"
+          "scope": "resource"
         },
         "javascript.preferences.quoteStyle": {
           "type": "string",
