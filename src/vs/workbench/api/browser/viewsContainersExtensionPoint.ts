@@ -173,7 +173,8 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 				id,
 				descriptor.title,
 				cssClass,
-				order
+				order,
+				descriptor.icon
 			);
 
 			viewletRegistry.registerViewlet(viewletDescriptor);
