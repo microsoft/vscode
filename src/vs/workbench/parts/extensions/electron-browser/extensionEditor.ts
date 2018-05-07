@@ -42,14 +42,12 @@ import { Position } from 'vs/platform/editor/common/editor';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Command, ICommandOptions } from 'vs/editor/browser/editorExtensions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Color } from 'vs/base/common/color';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { assign } from 'vs/base/common/objects';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
@@ -190,11 +188,8 @@ export class ExtensionEditor extends BaseEditor {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IPartService private readonly partService: IPartService,
-		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
-
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService);
 		this.disposables = [];
@@ -440,7 +435,7 @@ export class ExtensionEditor extends BaseEditor {
 			.then<void>(body => {
 				const allowedBadgeProviders = this.extensionsWorkbenchService.allowedBadgeProviders;
 				const webViewOptions = allowedBadgeProviders.length > 0 ? { allowScripts: false, allowSvgs: false, svgWhiteList: allowedBadgeProviders } : {};
-				this.activeWebview = new WebviewElement(this.partService.getContainer(Parts.EDITOR_PART), this.themeService, this.environmentService, this.contextViewService, this.contextKey, this.findInputFocusContextKey, webViewOptions);
+				this.activeWebview = this.instantiationService.createInstance(WebviewElement, this.partService.getContainer(Parts.EDITOR_PART), this.contextKey, this.findInputFocusContextKey, webViewOptions);
 				this.activeWebview.mountTo(this.content);
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, this.activeWebview);
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));

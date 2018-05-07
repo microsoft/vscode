@@ -681,7 +681,7 @@ class PreferencesRenderersController extends Disposable {
 		/* __GDPR__
 			"defaultSettingsActions.copySetting" : {
 				"userConfigurationKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"query" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"query" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
 				"nlpIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"groupId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"displayIdx" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -782,7 +782,7 @@ class SideBySidePreferencesWidget extends Widget {
 		this.defaultPreferencesEditor = this._register(this.instantiationService.createInstance(DefaultPreferencesEditor));
 		this.defaultPreferencesEditor.create(this.defaultPreferencesEditorContainer);
 		this.defaultPreferencesEditor.setVisible(true);
-		(<CodeEditorWidget>this.defaultPreferencesEditor.getControl()).onDidFocusEditor(() => this.lastFocusedEditor = this.defaultPreferencesEditor);
+		(<CodeEditorWidget>this.defaultPreferencesEditor.getControl()).onDidFocusEditorWidget(() => this.lastFocusedEditor = this.defaultPreferencesEditor);
 
 		this.editablePreferencesEditorContainer = DOM.append(parentElement, DOM.$('.editable-preferences-editor-container'));
 		this.editablePreferencesEditorContainer.style.position = 'absolute';
@@ -879,7 +879,7 @@ class SideBySidePreferencesWidget extends Widget {
 		this.editablePreferencesEditor = editor;
 		this.editablePreferencesEditor.create(this.editablePreferencesEditorContainer);
 		this.editablePreferencesEditor.setVisible(true);
-		(<CodeEditorWidget>this.editablePreferencesEditor.getControl()).onDidFocusEditor(() => this.lastFocusedEditor = this.editablePreferencesEditor);
+		(<CodeEditorWidget>this.editablePreferencesEditor.getControl()).onDidFocusEditorWidget(() => this.lastFocusedEditor = this.editablePreferencesEditor);
 		this.lastFocusedEditor = this.editablePreferencesEditor;
 
 		return editor;

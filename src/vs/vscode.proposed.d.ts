@@ -476,11 +476,12 @@ declare module 'vscode' {
 	export class HierarchicalSymbolInformation {
 		name: string;
 		kind: SymbolKind;
+		detail: string;
 		location: Location;
 		range: Range;
 		children: HierarchicalSymbolInformation[];
 
-		constructor(name: string, kind: SymbolKind, location: Location, range: Range);
+		constructor(name: string, detail: string, kind: SymbolKind, location: Location, range: Range);
 	}
 
 	export interface DocumentSymbolProvider {

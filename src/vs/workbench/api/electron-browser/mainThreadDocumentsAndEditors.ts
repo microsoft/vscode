@@ -178,8 +178,8 @@ class MainThreadDocumentAndEditorStateComputer {
 
 	private _onDidAddEditor(e: ICodeEditor): void {
 		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidChangeModel(() => this._updateState()));
-		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidFocusEditor(() => this._updateState()));
-		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidBlurEditor(() => this._updateState()));
+		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidFocusEditorText(() => this._updateState()));
+		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidBlurEditorText(() => this._updateState()));
 		this._updateState();
 	}
 
@@ -244,7 +244,7 @@ class MainThreadDocumentAndEditorStateComputer {
 			) {
 				const apiEditor = new TextEditorSnapshot(editor);
 				editors.set(apiEditor.id, apiEditor);
-				if (editor.isFocused()) {
+				if (editor.hasTextFocus()) {
 					activeEditor = apiEditor.id;
 				}
 			}

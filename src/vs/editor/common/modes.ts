@@ -648,6 +648,10 @@ export interface SymbolInformation {
 	 */
 	name: string;
 	/**
+	 * The detail of this symbol.
+	 */
+	detail?: string;
+	/**
 	 * The name of the symbol containing this symbol.
 	 */
 	containerName?: string;
@@ -659,6 +663,12 @@ export interface SymbolInformation {
 	 * The location of this symbol.
 	 */
 	location: Location;
+	/**
+	 * The defining range of this symbol.
+	 */
+	definingRange: IRange;
+
+	children?: SymbolInformation[];
 }
 /**
  * The document symbol provider interface defines the contract between extensions and

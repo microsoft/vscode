@@ -111,13 +111,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _onDidLayoutChange: Emitter<editorOptions.EditorLayoutInfo> = this._register(new Emitter<editorOptions.EditorLayoutInfo>());
 	public readonly onDidLayoutChange: Event<editorOptions.EditorLayoutInfo> = this._onDidLayoutChange.event;
 
-	protected _editorTextFocus: BooleanEventEmitter = this._register(new BooleanEventEmitter());
+	private _editorTextFocus: BooleanEventEmitter = this._register(new BooleanEventEmitter());
 	public readonly onDidFocusEditorText: Event<void> = this._editorTextFocus.onDidChangeToTrue;
 	public readonly onDidBlurEditorText: Event<void> = this._editorTextFocus.onDidChangeToFalse;
 
-	protected _editorFocus: BooleanEventEmitter = this._register(new BooleanEventEmitter());
-	public readonly onDidFocusEditor: Event<void> = this._editorFocus.onDidChangeToTrue;
-	public readonly onDidBlurEditor: Event<void> = this._editorFocus.onDidChangeToFalse;
+	private _editorWidgetFocus: BooleanEventEmitter = this._register(new BooleanEventEmitter());
+	public readonly onDidFocusEditorWidget: Event<void> = this._editorWidgetFocus.onDidChangeToTrue;
+	public readonly onDidBlurEditorWidget: Event<void> = this._editorWidgetFocus.onDidChangeToFalse;
 
 	private readonly _onWillType: Emitter<string> = this._register(new Emitter<string>());
 	public readonly onWillType = this._onWillType.event;
@@ -246,7 +246,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		this._focusTracker = new CodeEditorWidgetFocusTracker(domElement);
 		this._focusTracker.onChange(() => {
-			this._editorFocus.setValue(this._focusTracker.hasFocus());
+			this._editorWidgetFocus.setValue(this._focusTracker.hasFocus());
 		});
 
 		this.contentWidgets = {};
@@ -408,7 +408,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this.viewModel.viewLayout.getWhitespaces();
 	}
 
-	protected _getVerticalOffsetForPosition(modelLineNumber: number, modelColumn: number): number {
+	private _getVerticalOffsetForPosition(modelLineNumber: number, modelColumn: number): number {
 		let modelPosition = this.model.validatePosition({
 			lineNumber: modelLineNumber,
 			column: modelColumn
@@ -1109,7 +1109,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._view.focus();
 	}
 
-	public isFocused(): boolean {
+	public hasTextFocus(): boolean {
 		return this.hasView && this._view.isFocused();
 	}
 
@@ -1418,7 +1418,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		viewEventBus.onDidGainFocus = () => {
 			this._editorTextFocus.setValue(true);
 			// In IE, the focus is not synchronous, so we give it a little help
-			this._editorFocus.setValue(true);
+			this._editorWidgetFocus.setValue(true);
 		};
 
 		viewEventBus.onDidScroll = (e) => this._onDidScrollChange.fire(e);
@@ -1440,7 +1440,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 	}
 
-	protected _detachModel(): ITextModel {
+	private _detachModel(): ITextModel {
 		let removeDomNode: HTMLElement = null;
 
 		if (this._view) {
@@ -1563,8 +1563,8 @@ class EditorContextKeysManager extends Disposable {
 
 		this._register(this._editor.onDidChangeConfiguration(() => this._updateFromConfig()));
 		this._register(this._editor.onDidChangeCursorSelection(() => this._updateFromSelection()));
-		this._register(this._editor.onDidFocusEditor(() => this._updateFromFocus()));
-		this._register(this._editor.onDidBlurEditor(() => this._updateFromFocus()));
+		this._register(this._editor.onDidFocusEditorWidget(() => this._updateFromFocus()));
+		this._register(this._editor.onDidBlurEditorWidget(() => this._updateFromFocus()));
 		this._register(this._editor.onDidFocusEditorText(() => this._updateFromFocus()));
 		this._register(this._editor.onDidBlurEditorText(() => this._updateFromFocus()));
 
@@ -1593,8 +1593,8 @@ class EditorContextKeysManager extends Disposable {
 
 	private _updateFromFocus(): void {
 		this._editorFocus.set(this._editor.hasWidgetFocus() && !this._editor.isSimpleWidget);
-		this._editorTextFocus.set(this._editor.isFocused() && !this._editor.isSimpleWidget);
-		this._textInputFocus.set(this._editor.isFocused());
+		this._editorTextFocus.set(this._editor.hasTextFocus() && !this._editor.isSimpleWidget);
+		this._textInputFocus.set(this._editor.hasTextFocus());
 	}
 }
 

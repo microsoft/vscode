@@ -5,8 +5,10 @@
 
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { Client as TelemetryClient } from 'vs/base/parts/ipc/node/ipc.cp';
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
+import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IConfig, IDebuggerContribution, IAdapterExecutable, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IConfigurationManager, IDebugAdapter, IDebugConfiguration, ITerminalSettings } from 'vs/workbench/parts/debug/common/debug';
@@ -16,6 +18,10 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { DebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
+import uri from 'vs/base/common/uri';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { memoize } from 'vs/base/common/decorators';
 
 export class Debugger {
 
@@ -25,6 +31,7 @@ export class Debugger {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService,
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
+		@ITelemetryService private telemetryService: ITelemetryService,
 	) {
 		this.mergedExtensionDescriptions = [extensionDescription];
 	}
@@ -89,10 +96,6 @@ export class Debugger {
 		const config = this.configurationService.getValue<ITerminalSettings>('terminal');
 		const type = debugConfigs.extensionHostDebugAdapter ? this.type : '*';
 		return this.configurationManager.runInTerminal(type, args, config);
-	}
-
-	public get aiKey(): string {
-		return this.debuggerContribution.aiKey;
 	}
 
 	public get label(): string {
@@ -160,6 +163,39 @@ export class Debugger {
 		}
 
 		return TPromise.as(content);
+	}
+
+	@memoize
+	public getCustomTelemetryService(): TPromise<TelemetryService> {
+		if (!this.debuggerContribution.aiKey) {
+			return TPromise.as(undefined);
+		}
+
+		return this.telemetryService.getTelemetryInfo().then(info => {
+			const telemetryInfo: { [key: string]: string } = Object.create(null);
+			telemetryInfo['common.vscodemachineid'] = info.machineId;
+			telemetryInfo['common.vscodesessionid'] = info.sessionId;
+			return telemetryInfo;
+		}).then(data => {
+			const client = new TelemetryClient(
+				uri.parse(require.toUrl('bootstrap')).fsPath,
+				{
+					serverName: 'Debug Telemetry',
+					timeout: 1000 * 60 * 5,
+					args: [`${this.extensionDescription.publisher}.${this.type}`, JSON.stringify(data), this.debuggerContribution.aiKey],
+					env: {
+						ELECTRON_RUN_AS_NODE: 1,
+						PIPE_LOGGING: 'true',
+						AMD_ENTRYPOINT: 'vs/workbench/parts/debug/node/telemetryApp'
+					}
+				}
+			);
+
+			const channel = client.getChannel('telemetryAppender');
+			const appender = new TelemetryAppenderClient(channel);
+
+			return new TelemetryService({ appender }, this.configurationService);
+		});
 	}
 
 	public getSchemaAttributes(): IJSONSchema[] {

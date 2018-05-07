@@ -90,21 +90,16 @@ export class QuickKillTerminalAction extends Action {
 	constructor(
 		id: string, label: string,
 		private terminalEntry: TerminalEntry,
-		@ITerminalService private terminalService: ITerminalService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
 		super(id, label, 'terminal-action kill');
 	}
 
 	public run(event?: any): TPromise<any> {
-		const terminalIndex = parseInt(this.terminalEntry.getLabel().split(':')[0]) - 1;
-		const terminal = this.terminalService.getInstanceFromIndex(terminalIndex);
-		if (terminal) {
-			terminal.dispose();
+		const instance = this.terminalEntry.instance;
+		if (instance) {
+			instance.dispose();
 		}
-		// if (this.terminalService.terminalInstances.length > 0 && this.terminalService.activeTerminalInstanceIndex !== terminalIndex) {
-		// 	this.terminalService.setActiveInstanceByIndex(Math.min(terminalIndex, this.terminalService.terminalInstances.length - 1));
-		// }
 		return TPromise.timeout(50).then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null));
 	}
 }
@@ -905,8 +900,8 @@ export class RenameTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(terminal?: TerminalEntry): TPromise<any> {
-		const terminalInstance = terminal ? this.terminalService.getInstanceFromIndex(parseInt(terminal.getLabel().split(':')[0], 10) - 1) : this.terminalService.getActiveInstance();
+	public run(entry?: TerminalEntry): TPromise<any> {
+		const terminalInstance = entry ? entry.instance : this.terminalService.getActiveInstance();
 		if (!terminalInstance) {
 			return TPromise.as(void 0);
 		}

@@ -16,8 +16,8 @@ import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/acti
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDebugConfiguration, IDebugService, State } from 'vs/workbench/parts/debug/common/debug';
-import { AbstractDebugAction, PauseAction, ContinueAction, StepBackAction, ReverseContinueAction, StopAction, DisconnectAction, StepOverAction, StepIntoAction, StepOutAction, RestartAction, FocusProcessAction } from 'vs/workbench/parts/debug/browser/debugActions';
-import { FocusProcessActionItem } from 'vs/workbench/parts/debug/browser/debugActionItems';
+import { AbstractDebugAction, PauseAction, ContinueAction, StepBackAction, ReverseContinueAction, StopAction, DisconnectAction, StepOverAction, StepIntoAction, StepOutAction, RestartAction, FocusSessionAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { FocusSessionActionItem } from 'vs/workbench/parts/debug/browser/debugActionItems';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -81,8 +81,8 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		this.actionBar = new ActionBar(actionBarContainter.getHTMLElement(), {
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionItemProvider: (action: IAction) => {
-				if (action.id === FocusProcessAction.ID) {
-					return new FocusProcessActionItem(action, this.debugService, this.themeService, contextViewService);
+				if (action.id === FocusSessionAction.ID) {
+					return new FocusSessionActionItem(action, this.debugService, this.themeService, contextViewService);
 				}
 
 				return null;
@@ -115,7 +115,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 
 	private registerListeners(): void {
 		this.toUnbind.push(this.debugService.onDidChangeState(() => this.updateScheduler.schedule()));
-		this.toUnbind.push(this.debugService.getViewModel().onDidFocusProcess(() => this.updateScheduler.schedule()));
+		this.toUnbind.push(this.debugService.getViewModel().onDidFocusSession(() => this.updateScheduler.schedule()));
 		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.onDidConfigurationChange(e)));
 		this.toUnbind.push(this.actionBar.actionRunner.onDidRun((e: IRunEvent) => {
 			// check for error
@@ -253,15 +253,15 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 			this.allActions.push(new RestartAction(RestartAction.ID, RestartAction.LABEL, this.debugService, this.keybindingService));
 			this.allActions.push(new StepBackAction(StepBackAction.ID, StepBackAction.LABEL, this.debugService, this.keybindingService));
 			this.allActions.push(new ReverseContinueAction(ReverseContinueAction.ID, ReverseContinueAction.LABEL, this.debugService, this.keybindingService));
-			this.allActions.push(new FocusProcessAction(FocusProcessAction.ID, FocusProcessAction.LABEL, this.debugService, this.keybindingService, this.editorService));
+			this.allActions.push(new FocusSessionAction(FocusSessionAction.ID, FocusSessionAction.LABEL, this.debugService, this.keybindingService, this.editorService));
 			this.allActions.forEach(a => {
 				this.toUnbind.push(a);
 			});
 		}
 
 		const state = this.debugService.state;
-		const process = this.debugService.getViewModel().focusedProcess;
-		const attached = process && process.configuration.request === 'attach' && process.configuration.type && !strings.equalsIgnoreCase(process.configuration.type, 'extensionHost');
+		const session = this.debugService.getViewModel().focusedSession;
+		const attached = session && session.configuration.request === 'attach' && session.configuration.type && !strings.equalsIgnoreCase(session.configuration.type, 'extensionHost');
 
 		return this.allActions.filter(a => {
 			if (a.id === ContinueAction.ID) {
@@ -271,10 +271,10 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 				return state === State.Running;
 			}
 			if (a.id === StepBackAction.ID) {
-				return process && process.session.capabilities.supportsStepBack;
+				return session && session.raw.capabilities.supportsStepBack;
 			}
 			if (a.id === ReverseContinueAction.ID) {
-				return process && process.session.capabilities.supportsStepBack;
+				return session && session.raw.capabilities.supportsStepBack;
 			}
 			if (a.id === DisconnectAction.ID) {
 				return attached;
@@ -282,8 +282,8 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 			if (a.id === StopAction.ID) {
 				return !attached;
 			}
-			if (a.id === FocusProcessAction.ID) {
-				return this.debugService.getViewModel().isMultiProcessView();
+			if (a.id === FocusSessionAction.ID) {
+				return this.debugService.getViewModel().isMultiSessionView();
 			}
 
 			return true;

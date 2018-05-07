@@ -11,9 +11,9 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IDebugService, State, IProcess, IThread, IEnablement, IBreakpoint, IStackFrame, REPL_ID, ProcessState }
+import { IDebugService, State, ISession, IThread, IEnablement, IBreakpoint, IStackFrame, REPL_ID, SessionState }
 	from 'vs/workbench/parts/debug/common/debug';
-import { Variable, Expression, Thread, Breakpoint, Process } from 'vs/workbench/parts/debug/common/debugModel';
+import { Variable, Expression, Thread, Breakpoint, Session } from 'vs/workbench/parts/debug/common/debugModel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -154,20 +154,20 @@ export class StartAction extends AbstractDebugAction {
 	}
 
 	public static isEnabled(debugService: IDebugService, contextService: IWorkspaceContextService, configName: string) {
-		const processes = debugService.getModel().getProcesses();
+		const sessions = debugService.getModel().getSessions();
 		const launch = debugService.getConfigurationManager().selectedConfiguration.launch;
 
 		if (debugService.state === State.Initializing) {
 			return false;
 		}
-		if (contextService && contextService.getWorkbenchState() === WorkbenchState.EMPTY && processes.length > 0) {
+		if (contextService && contextService.getWorkbenchState() === WorkbenchState.EMPTY && sessions.length > 0) {
 			return false;
 		}
-		if (processes.some(p => p.getName(false) === configName && (!launch || !launch.workspace || !p.session.root || p.session.root.uri.toString() === launch.workspace.uri.toString()))) {
+		if (sessions.some(p => p.getName(false) === configName && (!launch || !launch.workspace || !p.raw.root || p.raw.root.uri.toString() === launch.workspace.uri.toString()))) {
 			return false;
 		}
 		const compound = launch && launch.getCompound(configName);
-		if (compound && compound.configurations && processes.some(p => compound.configurations.indexOf(p.getName(false)) !== -1)) {
+		if (compound && compound.configurations && sessions.some(p => compound.configurations.indexOf(p.getName(false)) !== -1)) {
 			return false;
 		}
 
@@ -224,31 +224,31 @@ export class RestartAction extends AbstractDebugAction {
 		@IHistoryService historyService?: IHistoryService
 	) {
 		super(id, label, 'debug-action restart', debugService, keybindingService, 70);
-		this.setLabel(this.debugService.getViewModel().focusedProcess);
-		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => this.setLabel(this.debugService.getViewModel().focusedProcess)));
+		this.setLabel(this.debugService.getViewModel().focusedSession);
+		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => this.setLabel(this.debugService.getViewModel().focusedSession)));
 
 		if (contextService !== undefined && historyService !== undefined) {
 			this.startAction = new StartAction(id, label, debugService, keybindingService, contextService, historyService);
 		}
 	}
 
-	private setLabel(process: IProcess): void {
-		this.updateLabel(process && process.state === ProcessState.ATTACH ? RestartAction.RECONNECT_LABEL : RestartAction.LABEL);
+	private setLabel(session: ISession): void {
+		this.updateLabel(session && session.state === SessionState.ATTACH ? RestartAction.RECONNECT_LABEL : RestartAction.LABEL);
 	}
 
-	public run(process: IProcess): TPromise<any> {
-		if (!(process instanceof Process)) {
-			process = this.debugService.getViewModel().focusedProcess;
+	public run(session: ISession): TPromise<any> {
+		if (!(session instanceof Session)) {
+			session = this.debugService.getViewModel().focusedSession;
 		}
 
-		if (!process) {
+		if (!session) {
 			return this.startAction.run();
 		}
 
-		if (this.debugService.getModel().getProcesses().length <= 1) {
+		if (this.debugService.getModel().getSessions().length <= 1) {
 			this.debugService.removeReplExpressions();
 		}
-		return this.debugService.restartProcess(process);
+		return this.debugService.restartSession(session);
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -331,12 +331,12 @@ export class StopAction extends AbstractDebugAction {
 		super(id, label, 'debug-action stop', debugService, keybindingService, 80);
 	}
 
-	public run(process: IProcess): TPromise<any> {
-		if (!(process instanceof Process)) {
-			process = this.debugService.getViewModel().focusedProcess;
+	public run(session: ISession): TPromise<any> {
+		if (!(session instanceof Session)) {
+			session = this.debugService.getViewModel().focusedSession;
 		}
 
-		return this.debugService.stopProcess(process);
+		return this.debugService.stopSession(session);
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -353,8 +353,8 @@ export class DisconnectAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		const process = this.debugService.getViewModel().focusedProcess;
-		return this.debugService.stopProcess(process);
+		const session = this.debugService.getViewModel().focusedSession;
+		return this.debugService.stopSession(session);
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -594,8 +594,8 @@ export class SetValueAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(state: State): boolean {
-		const process = this.debugService.getViewModel().focusedProcess;
-		return super.isEnabled(state) && state === State.Stopped && process && process.session.capabilities.supportsSetVariable;
+		const session = this.debugService.getViewModel().focusedSession;
+		return super.isEnabled(state) && state === State.Stopped && session && session.raw.capabilities.supportsSetVariable;
 	}
 }
 
@@ -763,9 +763,9 @@ export class FocusReplAction extends Action {
 	}
 }
 
-export class FocusProcessAction extends AbstractDebugAction {
+export class FocusSessionAction extends AbstractDebugAction {
 	static readonly ID = 'workbench.action.debug.focusProcess';
-	static LABEL = nls.localize('focusProcess', "Focus Process");
+	static LABEL = nls.localize('focusSession', "Focus Session");
 
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,
@@ -775,10 +775,10 @@ export class FocusProcessAction extends AbstractDebugAction {
 		super(id, label, null, debugService, keybindingService, 100);
 	}
 
-	public run(processName: string): TPromise<any> {
+	public run(sessionName: string): TPromise<any> {
 		const isMultiRoot = this.debugService.getConfigurationManager().getLaunches().length > 1;
-		const process = this.debugService.getModel().getProcesses().filter(p => p.getName(isMultiRoot) === processName).pop();
-		this.debugService.focusStackFrame(undefined, undefined, process, true);
+		const session = this.debugService.getModel().getSessions().filter(p => p.getName(isMultiRoot) === sessionName).pop();
+		this.debugService.focusStackFrame(undefined, undefined, session, true);
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 		if (stackFrame) {
 			return stackFrame.openInEditor(this.editorService, true);
@@ -806,9 +806,9 @@ export class StepBackAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(state: State): boolean {
-		const process = this.debugService.getViewModel().focusedProcess;
+		const session = this.debugService.getViewModel().focusedSession;
 		return super.isEnabled(state) && state === State.Stopped &&
-			process && process.session.capabilities.supportsStepBack;
+			session && session.raw.capabilities.supportsStepBack;
 	}
 }
 
@@ -829,9 +829,9 @@ export class ReverseContinueAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(state: State): boolean {
-		const process = this.debugService.getViewModel().focusedProcess;
+		const session = this.debugService.getViewModel().focusedSession;
 		return super.isEnabled(state) && state === State.Stopped &&
-			process && process.session.capabilities.supportsStepBack;
+			session && session.raw.capabilities.supportsStepBack;
 	}
 }
 

@@ -136,7 +136,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 			document: data.document,
 			contentChanges: events.changes.map((change) => {
 				return {
-					range: TypeConverters.toRange(change.range),
+					range: TypeConverters.Range.to(change.range),
 					rangeOffset: change.rangeOffset,
 					rangeLength: change.rangeLength,
 					text: change.text

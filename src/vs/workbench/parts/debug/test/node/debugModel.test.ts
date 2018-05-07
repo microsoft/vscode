@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import uri from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
-import { SimpleReplElement, Model, Process, Expression, RawObjectReplElement, StackFrame, Thread } from 'vs/workbench/parts/debug/common/debugModel';
+import { SimpleReplElement, Model, Session, Expression, RawObjectReplElement, StackFrame, Thread } from 'vs/workbench/parts/debug/common/debugModel';
 import * as sinon from 'sinon';
 import { MockSession } from 'vs/workbench/parts/debug/test/common/mockDebug';
 
@@ -70,7 +70,7 @@ suite('Debug - Model', () => {
 		model.setEnablement(bp, true);
 		assert.equal(bp.enabled, true);
 
-		model.removeBreakpoints(model.getBreakpoints().filter(bp => bp.uri.toString() === modelUri1.toString()));
+		model.removeBreakpoints(model.getBreakpoints({ uri: modelUri1 }));
 		assert.equal(model.getBreakpoints().length, 3);
 
 		model.unverifyBreakpoints();
@@ -116,8 +116,8 @@ suite('Debug - Model', () => {
 		const threadId = 1;
 		const threadName = 'firstThread';
 
-		model.addProcess({ name: 'mockProcess', type: 'node', request: 'launch' }, rawSession);
-		assert.equal(model.getProcesses().length, 1);
+		model.addSession({ name: 'mockSession', type: 'node', request: 'launch' }, rawSession);
+		assert.equal(model.getSessions().length, 1);
 		model.rawUpdate({
 			sessionId: rawSession.getId(),
 			threadId: threadId,
@@ -126,15 +126,15 @@ suite('Debug - Model', () => {
 				name: threadName
 			}
 		});
-		const process = model.getProcesses().filter(p => p.getId() === rawSession.getId()).pop();
+		const session = model.getSessions().filter(p => p.getId() === rawSession.getId()).pop();
 
-		assert.equal(process.getThread(threadId).name, threadName);
+		assert.equal(session.getThread(threadId).name, threadName);
 
-		model.clearThreads(process.getId(), true);
-		assert.equal(process.getThread(threadId), null);
-		assert.equal(model.getProcesses().length, 1);
-		model.removeProcess(process.getId());
-		assert.equal(model.getProcesses().length, 0);
+		model.clearThreads(session.getId(), true);
+		assert.equal(session.getThread(threadId), null);
+		assert.equal(model.getSessions().length, 1);
+		model.removeSession(session.getId());
+		assert.equal(model.getSessions().length, 0);
 	});
 
 	test('threads multiple wtih allThreadsStopped', () => {
@@ -147,7 +147,7 @@ suite('Debug - Model', () => {
 		const stoppedReason = 'breakpoint';
 
 		// Add the threads
-		model.addProcess({ name: 'mockProcess', type: 'node', request: 'launch' }, rawSession);
+		model.addSession({ name: 'mockSession', type: 'node', request: 'launch' }, rawSession);
 		model.rawUpdate({
 			sessionId: rawSession.getId(),
 			threadId: threadId1,
@@ -176,13 +176,13 @@ suite('Debug - Model', () => {
 				allThreadsStopped: true
 			},
 		});
-		const process = model.getProcesses().filter(p => p.getId() === rawSession.getId()).pop();
+		const session = model.getSessions().filter(p => p.getId() === rawSession.getId()).pop();
 
-		const thread1 = process.getThread(threadId1);
-		const thread2 = process.getThread(threadId2);
+		const thread1 = session.getThread(threadId1);
+		const thread2 = session.getThread(threadId2);
 
 		// at the beginning, callstacks are obtainable but not available
-		assert.equal(process.getAllThreads().length, 2);
+		assert.equal(session.getAllThreads().length, 2);
 		assert.equal(thread1.name, threadName1);
 		assert.equal(thread1.stopped, true);
 		assert.equal(thread1.getCallStack().length, 0);
@@ -223,10 +223,10 @@ suite('Debug - Model', () => {
 		assert.equal(thread2.stopped, true);
 		assert.equal(thread2.getCallStack().length, 0);
 
-		model.clearThreads(process.getId(), true);
-		assert.equal(process.getThread(threadId1), null);
-		assert.equal(process.getThread(threadId2), null);
-		assert.equal(process.getAllThreads().length, 0);
+		model.clearThreads(session.getId(), true);
+		assert.equal(session.getThread(threadId1), null);
+		assert.equal(session.getThread(threadId2), null);
+		assert.equal(session.getAllThreads().length, 0);
 	});
 
 	test('threads mutltiple without allThreadsStopped', () => {
@@ -237,7 +237,7 @@ suite('Debug - Model', () => {
 		const runningThreadId = 2;
 		const runningThreadName = 'runningThread';
 		const stoppedReason = 'breakpoint';
-		model.addProcess({ name: 'mockProcess', type: 'node', request: 'launch' }, rawSession);
+		model.addSession({ name: 'mockSession', type: 'node', request: 'launch' }, rawSession);
 		// Add the threads
 		model.rawUpdate({
 			sessionId: rawSession.getId(),
@@ -267,16 +267,16 @@ suite('Debug - Model', () => {
 				allThreadsStopped: false
 			}
 		});
-		const process = model.getProcesses().filter(p => p.getId() === rawSession.getId()).pop();
+		const session = model.getSessions().filter(p => p.getId() === rawSession.getId()).pop();
 
-		const stoppedThread = process.getThread(stoppedThreadId);
-		const runningThread = process.getThread(runningThreadId);
+		const stoppedThread = session.getThread(stoppedThreadId);
+		const runningThread = session.getThread(runningThreadId);
 
 		// the callstack for the stopped thread is obtainable but not available
 		// the callstack for the running thread is not obtainable nor available
 		assert.equal(stoppedThread.name, stoppedThreadName);
 		assert.equal(stoppedThread.stopped, true);
-		assert.equal(process.getAllThreads().length, 2);
+		assert.equal(session.getAllThreads().length, 2);
 		assert.equal(stoppedThread.getCallStack().length, 0);
 		assert.equal(stoppedThread.stoppedDetails.reason, stoppedReason);
 		assert.equal(runningThread.name, runningThreadName);
@@ -305,10 +305,10 @@ suite('Debug - Model', () => {
 		assert.equal(stoppedThread.stopped, true);
 		assert.equal(stoppedThread.getCallStack().length, 0);
 
-		model.clearThreads(process.getId(), true);
-		assert.equal(process.getThread(stoppedThreadId), null);
-		assert.equal(process.getThread(runningThreadId), null);
-		assert.equal(process.getAllThreads().length, 0);
+		model.clearThreads(session.getId(), true);
+		assert.equal(session.getThread(stoppedThreadId), null);
+		assert.equal(session.getThread(runningThreadId), null);
+		assert.equal(session.getAllThreads().length, 0);
 	});
 
 	// Expressions
@@ -324,21 +324,18 @@ suite('Debug - Model', () => {
 
 	test('watch expressions', () => {
 		assert.equal(model.getWatchExpressions().length, 0);
-		const process = new Process({ name: 'mockProcess', type: 'node', request: 'launch' }, rawSession);
-		const thread = new Thread(process, 'mockthread', 1);
-		const stackFrame = new StackFrame(thread, 1, null, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: undefined, endColumn: undefined }, 0);
-		model.addWatchExpression(process, stackFrame, 'console');
-		model.addWatchExpression(process, stackFrame, 'console');
+		model.addWatchExpression('console');
+		model.addWatchExpression('console');
 		let watchExpressions = model.getWatchExpressions();
 		assertWatchExpressions(watchExpressions, 'console');
 
-		model.renameWatchExpression(process, stackFrame, watchExpressions[0].getId(), 'new_name');
-		model.renameWatchExpression(process, stackFrame, watchExpressions[1].getId(), 'new_name');
+		model.renameWatchExpression(watchExpressions[0].getId(), 'new_name');
+		model.renameWatchExpression(watchExpressions[1].getId(), 'new_name');
 		assertWatchExpressions(model.getWatchExpressions(), 'new_name');
 
 		assertWatchExpressions(model.getWatchExpressions(), 'new_name');
 
-		model.addWatchExpression(process, stackFrame, 'mockExpression');
+		model.addWatchExpression('mockExpression');
 		model.moveWatchExpression(model.getWatchExpressions()[2].getId(), 1);
 		watchExpressions = model.getWatchExpressions();
 		assert.equal(watchExpressions[0].name, 'new_name');
@@ -351,12 +348,12 @@ suite('Debug - Model', () => {
 
 	test('repl expressions', () => {
 		assert.equal(model.getReplElements().length, 0);
-		const process = new Process({ name: 'mockProcess', type: 'node', request: 'launch' }, rawSession);
-		const thread = new Thread(process, 'mockthread', 1);
+		const session = new Session({ name: 'mockSession', type: 'node', request: 'launch' }, rawSession);
+		const thread = new Thread(session, 'mockthread', 1);
 		const stackFrame = new StackFrame(thread, 1, null, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
-		model.addReplExpression(process, stackFrame, 'myVariable').done();
-		model.addReplExpression(process, stackFrame, 'myVariable').done();
-		model.addReplExpression(process, stackFrame, 'myVariable').done();
+		model.addReplExpression(session, stackFrame, 'myVariable').done();
+		model.addReplExpression(session, stackFrame, 'myVariable').done();
+		model.addReplExpression(session, stackFrame, 'myVariable').done();
 
 		assert.equal(model.getReplElements().length, 3);
 		model.getReplElements().forEach(re => {

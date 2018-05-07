@@ -36,9 +36,9 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDebugService);
 		this._toDispose = [];
-		this._toDispose.push(debugService.onDidNewProcess(proc => this._proxy.$acceptDebugSessionStarted(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.getName(false))));
-		this._toDispose.push(debugService.onDidEndProcess(proc => this._proxy.$acceptDebugSessionTerminated(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.getName(false))));
-		this._toDispose.push(debugService.getViewModel().onDidFocusProcess(proc => {
+		this._toDispose.push(debugService.onDidNewSession(proc => this._proxy.$acceptDebugSessionStarted(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.getName(false))));
+		this._toDispose.push(debugService.onDidEndSession(proc => this._proxy.$acceptDebugSessionTerminated(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.getName(false))));
+		this._toDispose.push(debugService.getViewModel().onDidFocusSession(proc => {
 			if (proc) {
 				this._proxy.$acceptDebugSessionActiveChanged(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.getName(false));
 			} else {
@@ -48,7 +48,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 		this._toDispose.push(debugService.onDidCustomEvent(event => {
 			if (event && event.sessionId) {
-				const process = this.debugService.getModel().getProcesses().filter(p => p.getId() === event.sessionId).pop();
+				const process = this.debugService.getModel().getSessions().filter(p => p.getId() === event.sessionId).pop();
 				if (process) {
 					this._proxy.$acceptDebugSessionCustomEvent(event.sessionId, process.configuration.type, process.configuration.name, event);
 				}
@@ -218,9 +218,9 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	}
 
 	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: any): TPromise<any> {
-		const process = this.debugService.getModel().getProcesses().filter(p => p.getId() === sessionId).pop();
+		const process = this.debugService.getModel().getSessions().filter(p => p.getId() === sessionId).pop();
 		if (process) {
-			return process.session.custom(request, args).then(response => {
+			return process.raw.custom(request, args).then(response => {
 				if (response && response.success) {
 					return response.body;
 				} else {

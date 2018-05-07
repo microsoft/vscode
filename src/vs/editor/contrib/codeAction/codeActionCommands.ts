@@ -253,7 +253,10 @@ export class RefactorAction extends EditorAction {
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_R
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R,
+				mac: {
+					primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_R
+				}
 			},
 			menuOpts: {
 				group: '1_modification',

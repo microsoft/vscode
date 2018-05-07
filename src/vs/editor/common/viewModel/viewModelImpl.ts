@@ -508,6 +508,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			lineData.minColumn,
 			lineData.maxColumn,
 			lineData.content,
+			lineData.continuesWithWrappedLine,
 			mightContainRTL,
 			mightContainNonBasicASCII,
 			lineData.tokens,

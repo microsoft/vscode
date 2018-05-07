@@ -185,8 +185,8 @@ export class Repl extends Panel implements IPrivateReplService {
 				const text = this.replInput.getModel().getLineContent(position.lineNumber);
 				const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
 				const frameId = focusedStackFrame ? focusedStackFrame.frameId : undefined;
-				const focusedProcess = this.debugService.getViewModel().focusedProcess;
-				const completions = focusedProcess ? focusedProcess.completions(frameId, text, position, overwriteBefore) : TPromise.as([]);
+				const focusedSession = this.debugService.getViewModel().focusedSession;
+				const completions = focusedSession ? focusedSession.completions(frameId, text, position, overwriteBefore) : TPromise.as([]);
 				return wireCancellationToken(token, completions.then(suggestions => ({
 					suggestions
 				})));

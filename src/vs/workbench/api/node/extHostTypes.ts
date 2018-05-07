@@ -879,11 +879,12 @@ export class SymbolInformation {
 export class HierarchicalSymbolInformation {
 	name: string;
 	location: Location;
+	detail: string;
 	kind: SymbolKind;
 	range: Range;
 	children: HierarchicalSymbolInformation[];
 
-	constructor(name: string, kind: SymbolKind, location: Location, range: Range) {
+	constructor(name: string, kind: SymbolKind, detail: string, location: Location, range: Range) {
 		this.name = name;
 		this.kind = kind;
 		this.location = location;
