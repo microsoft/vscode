@@ -195,6 +195,14 @@ export class NextTabsTitleControl extends NextTitleControl {
 		this.createEditorActionsToolBar(this.editorToolbarContainer);
 	}
 
+	protected updateEditorActionsToolbar(): void {
+		super.updateEditorActionsToolbar();
+
+		// Changing the actions in the toolbar can have an impact on the size of the
+		// tab container, so we need to layout the tabs to make sure the active is visible
+		this.layout(this.dimension);
+	}
+
 	openEditor(editor: IEditorInput): void {
 
 		// Create tabs as needed
