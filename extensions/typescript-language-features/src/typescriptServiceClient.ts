@@ -804,6 +804,13 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 
 	private dispatchEvent(event: Proto.Event) {
 		switch (event.event) {
+			case 'requestCompleted':
+				const p = this.callbacks.fetch((event as Proto.RequestCompletedEvent).body.request_seq);
+				if (p) {
+					p.c(undefined);
+				}
+				break;
+
 			case 'syntaxDiag':
 			case 'semanticDiag':
 			case 'suggestionDiag':
