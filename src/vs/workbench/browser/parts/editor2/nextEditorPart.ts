@@ -29,7 +29,8 @@ import { ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/co
 import { TValueCallback, TPromise } from 'vs/base/common/winjs.base';
 import { always } from 'vs/base/common/async';
 import { GroupOrientation } from 'vs/workbench/services/group/common/groupService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 // TODO@grid provide DND support of groups/editors:
 // - editor: move/copy to existing group, move/copy to new split group (up, down, left, right)
@@ -88,7 +89,8 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IStorageService private storageService: IStorageService,
-		@INotificationService private notificationService: INotificationService
+		@INotificationService private notificationService: INotificationService,
+		@IWindowService private windowService: IWindowService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
@@ -384,6 +386,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 			} catch (error) { // TODO@grid remove this safe guard once the grid is stable
 				if (this.gridWidget) {
 					this.gridWidget.dispose();
+					this.gridWidget = void 0;
 				}
 
 				clearNode(container);
@@ -392,8 +395,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 				this._activeGroup = void 0;
 				this.mostRecentActiveGroups = [];
 
-				console.error(error);
-				this.notificationService.error(`Grid: ${error}`);
+				this.gridError(error);
 			}
 		}
 
@@ -528,13 +530,23 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		return this.groupViews.size === 1 && this._activeGroup.isEmpty();
 	}
 
+	// TODO@grid this should be removed once the gridwidget is stable
+	private gridError(error: Error): void {
+		console.error(error);
+		this.notificationService.prompt(Severity.Error, `Grid Issue: ${error}. Please report this error stack with reproducible steps.`, [{ label: 'Open DevTools', run: () => this.windowService.openDevTools() }]);
+	}
+
 	layout(dimension: Dimension): Dimension[] {
 		const sizes = super.layout(dimension);
 
 		this.dimension = sizes[1];
 
 		// Layout Grid
-		this.gridWidget.layout(this.dimension.width, this.dimension.height);
+		try {
+			this.gridWidget.layout(this.dimension.width, this.dimension.height);
+		} catch (error) {
+			this.gridError(error);
+		}
 
 		// Event
 		this._onDidLayout.fire(dimension);
