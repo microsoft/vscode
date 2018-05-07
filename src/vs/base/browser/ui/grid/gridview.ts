@@ -32,6 +32,7 @@ TODO:
 			widgets have a color (e.g. Button, with applyStyles). Challenge is that this
 			color has to be applied via JS and not CSS to not apply it to all views
 			NOT CSS
+	- remove and addView should have same type for Sizing
 */
 
 export function orthogonal(orientation: Orientation): Orientation {
