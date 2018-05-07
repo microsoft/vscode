@@ -55,6 +55,7 @@ suite('Debug - Debugger', () => {
 		extensionFolderPath: extensionFolderPath,
 		extensionLocation: URI.file(extensionFolderPath),
 		isBuiltin: false,
+		isUnderDevelopment: false,
 		engines: null,
 		contributes: {
 			'debuggers': [
@@ -71,6 +72,7 @@ suite('Debug - Debugger', () => {
 		extensionFolderPath: '/e1/b/c/',
 		extensionLocation: URI.file('/e1/b/c/'),
 		isBuiltin: false,
+		isUnderDevelopment: false,
 		engines: null,
 		contributes: {
 			'debuggers': [
@@ -93,6 +95,7 @@ suite('Debug - Debugger', () => {
 		extensionFolderPath: '/e2/b/c/',
 		extensionLocation: URI.file('/e2/b/c/'),
 		isBuiltin: false,
+		isUnderDevelopment: false,
 		engines: null,
 		contributes: {
 			'debuggers': [

@@ -757,7 +757,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				notificationService,
 				environmentService,
 				BUILTIN_MANIFEST_CACHE_FILE,
-				new ExtensionScannerInput(version, commit, locale, devMode, getSystemExtensionsRoot(), true, translations),
+				new ExtensionScannerInput(version, commit, locale, devMode, getSystemExtensionsRoot(), true, false, translations),
 				log
 			);
 
@@ -772,7 +772,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				const controlFile = pfs.readFile(controlFilePath, 'utf8')
 					.then<IBuiltInExtensionControl>(raw => JSON.parse(raw), () => ({} as any));
 
-				const input = new ExtensionScannerInput(version, commit, locale, devMode, getExtraDevSystemExtensionsRoot(), true, translations);
+				const input = new ExtensionScannerInput(version, commit, locale, devMode, getExtraDevSystemExtensionsRoot(), true, false, translations);
 				const extraBuiltinExtensions = TPromise.join([builtInExtensions, controlFile])
 					.then(([builtInExtensions, control]) => new ExtraBuiltInExtensionResolver(builtInExtensions, control))
 					.then(resolver => ExtensionScanner.scanExtensions(input, log, resolver));
@@ -811,7 +811,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 						notificationService,
 						environmentService,
 						USER_MANIFEST_CACHE_FILE,
-						new ExtensionScannerInput(version, commit, locale, devMode, environmentService.extensionsPath, false, translations),
+						new ExtensionScannerInput(version, commit, locale, devMode, environmentService.extensionsPath, false, false, translations),
 						log
 					)
 			);
@@ -820,7 +820,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			const developedExtensions = (
 				environmentService.isExtensionDevelopment
 					? ExtensionScanner.scanOneOrMultipleExtensions(
-						new ExtensionScannerInput(version, commit, locale, devMode, environmentService.extensionDevelopmentPath, false, translations), log
+						new ExtensionScannerInput(version, commit, locale, devMode, environmentService.extensionDevelopmentPath, false, true, translations), log
 					)
 					: TPromise.as([])
 			);

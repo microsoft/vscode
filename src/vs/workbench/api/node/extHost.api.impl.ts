@@ -790,6 +790,7 @@ const nullExtensionDescription: IExtensionDescription = {
 	extensionFolderPath: undefined,
 	extensionLocation: undefined,
 	isBuiltin: false,
+	isUnderDevelopment: false,
 	main: undefined,
 	version: undefined
 };
