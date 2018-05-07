@@ -54,7 +54,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 			};
 		});
 
-		if (options.canSelectMany) {
+		if (options.canPickMany) {
 			return asWinJsPromise(token => this._quickInputService.pick(this._contents, options, token)).then(items => {
 				if (items) {
 					return items.map(item => item.handle);
