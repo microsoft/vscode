@@ -461,7 +461,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		const uiState = this.memento[NextEditorPart.NEXT_EDITOR_PART_UI_STATE_STORAGE_KEY] as INextEditorPartUIState;
 
 		// Migration from previous UI state ()
-		if (false /* TODO@grid enable once GridWidget can add views without previous layout */ && this.migrateLegacyState(container)) {
+		if (this.migrateLegacyState(container)) {
 			// TODO@ben remove after a while
 		}
 
