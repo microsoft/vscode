@@ -41,7 +41,7 @@ export class CodeActionOracle {
 
 	trigger(trigger: CodeActionTrigger) {
 		const selection = this._editor.getSelection();
-		return this._createEventAndSignalChange(trigger, selection, this._getRangeOfMarker(selection));
+		return this._createEventAndSignalChange(trigger, selection);
 	}
 
 	private _onMarkerChanges(resources: URI[]): void {
@@ -68,30 +68,19 @@ export class CodeActionOracle {
 		return undefined;
 	}
 
-	private _createEventAndSignalChange(trigger: CodeActionTrigger, selection: Selection, markerRange: Range | undefined): TPromise<CodeAction[] | undefined> {
-		if (!selection) {
-			// cancel
-			this._signalChange({
-				trigger,
-				rangeOrSelection: undefined,
-				position: undefined,
-				actions: undefined,
-			});
-			return TPromise.as(undefined);
-		} else {
-			// actual
-			const model = this._editor.getModel();
-			const position = markerRange ? markerRange.getStartPosition() : selection.getStartPosition();
-			const actions = getCodeActions(model, selection, trigger && trigger.filter);
+	private _createEventAndSignalChange(trigger: CodeActionTrigger, selection: Selection): TPromise<CodeAction[] | undefined> {
+		const model = this._editor.getModel();
+		const markerRange = this._getRangeOfMarker(selection);
+		const position = markerRange ? markerRange.getStartPosition() : selection.getStartPosition();
+		const actions = getCodeActions(model, selection, trigger && trigger.filter);
 
-			this._signalChange({
-				trigger,
-				rangeOrSelection: selection,
-				position,
-				actions
-			});
-			return actions;
-		}
+		this._signalChange({
+			trigger,
+			rangeOrSelection: selection,
+			position,
+			actions
+		});
+		return actions;
 	}
 }
 
