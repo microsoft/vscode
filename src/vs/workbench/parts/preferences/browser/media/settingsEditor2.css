@@ -195,7 +195,7 @@
 	visibility: hidden;
 }
 
-.settings-editor > .settings-body > .settings-list-container .monaco-list-row.is-configured:hover .setting-item-value > .setting-reset-button.monaco-button {
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row.is-configured .setting-item-value > .setting-reset-button.monaco-button {
 	visibility: visible;
 }
 

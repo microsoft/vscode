@@ -30,7 +30,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
-import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
@@ -748,10 +748,7 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 		const idx = entry.enum.indexOf(entry.value);
 		const selectBox = new SelectBox(entry.enum, idx, this.contextViewService);
 		template.toDispose.push(selectBox);
-		template.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService, {
-			selectBackground: entry.isConfigured ? configuredItemBackground : undefined,
-			selectForeground: entry.isConfigured ? configuredItemForeground : undefined
-		}));
+		template.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService));
 		selectBox.render(template.valueElement);
 
 		template.toDispose.push(
@@ -760,10 +757,7 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 
 	private renderText(entry: ISettingItemEntry, template: ISettingItemTemplate, onChange: (value: string) => void): void {
 		const inputBox = new InputBox(template.valueElement, this.contextViewService);
-		template.toDispose.push(attachInputBoxStyler(inputBox, this.themeService, {
-			inputBackground: entry.isConfigured ? configuredItemBackground : undefined,
-			inputForeground: entry.isConfigured ? configuredItemForeground : undefined
-		}));
+		template.toDispose.push(attachInputBoxStyler(inputBox, this.themeService));
 		template.toDispose.push(inputBox);
 		inputBox.value = entry.value;
 
@@ -854,13 +848,6 @@ function settingKeyToLabel(key: string): string {
 		.replace(/^[a-z]/g, match => match.toUpperCase()) // foo => Foo
 		.replace(/ [a-z]/g, match => match.toUpperCase()); // Foo bar => Foo Bar
 }
-
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-	const configuredItemBackgroundColor = theme.getColor(configuredItemBackground);
-	if (configuredItemBackgroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .monaco-list-row.is-configured .setting-value-checkbox::after { background-color: ${configuredItemBackgroundColor}; }`);
-	}
-});
 
 class SearchResultModel {
 	private rawSearchResults: ISearchResult[];
