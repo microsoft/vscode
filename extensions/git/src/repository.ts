@@ -811,12 +811,17 @@ export class Repository implements Disposable {
 	}
 
 	async show(ref: string, filePath: string): Promise<string> {
-		return this.run(Operation.Show, () => {
-			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
+		return this.run(Operation.Show, async () => {
+			let relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
 			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
 			const defaultEncoding = configFiles.get<string>('encoding');
 			const autoGuessEncoding = configFiles.get<boolean>('autoGuessEncoding');
 
+			if (ref === '') {
+				ref = 'HEAD';
+			}
+
+			relativePath = await this.repository.relativePathToGitRelativePath(ref, relativePath);
 			return this.repository.bufferString(`${ref}:${relativePath}`, defaultEncoding, autoGuessEncoding);
 		});
 	}
