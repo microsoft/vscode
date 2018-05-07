@@ -14,6 +14,7 @@ import { ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions } f
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const ActiveViewletContextId = 'activeViewlet';
 export const ActiveViewletContext = new RawContextKey<string>(ActiveViewletContextId, '');
@@ -25,7 +26,6 @@ export class ViewletService implements IViewletService {
 	private sidebarPart: SidebarPart;
 	private viewletRegistry: ViewletRegistry;
 
-	private extensionViewletsLoaded: TPromise<void>;
 	private activeViewletContextKey: IContextKey<string>;
 	private _onDidViewletEnable = new Emitter<{ id: string, enabled: boolean }>();
 	private disposables: IDisposable[] = [];
@@ -37,7 +37,8 @@ export class ViewletService implements IViewletService {
 
 	constructor(
 		sidebarPart: SidebarPart,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IExtensionService private extensionService: IExtensionService
 	) {
 		this.sidebarPart = sidebarPart;
 		this.viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
@@ -69,23 +70,11 @@ export class ViewletService implements IViewletService {
 	}
 
 	public openViewlet(id: string, focus?: boolean): TPromise<IViewlet> {
-
-		// Built in viewlets do not need to wait for extensions to be loaded
-		const builtInViewletIds = this.getBuiltInViewlets().map(v => v.id);
-		const isBuiltInViewlet = builtInViewletIds.indexOf(id) !== -1;
-		if (isBuiltInViewlet) {
+		if (this.getViewlet(id)) {
 			return this.sidebarPart.openViewlet(id, focus);
 		}
-
-		// Extension viewlets need to be loaded first which can take time
-		return this.extensionViewletsLoaded.then(() => {
-			if (this.viewletRegistry.getViewlet(id)) {
-				return this.sidebarPart.openViewlet(id, focus);
-			}
-
-			// Fallback to default viewlet if extension viewlet is still not found (e.g. uninstalled)
-			return this.sidebarPart.openViewlet(this.getDefaultViewletId(), focus);
-		});
+		return this.extensionService.whenInstalledExtensionsRegistered()
+			.then(() => this.sidebarPart.openViewlet(id, focus));
 	}
 
 	public getActiveViewlet(): IViewlet {
