@@ -628,6 +628,10 @@ declare namespace monaco {
 		 */
 		static areIntersectingOrTouching(a: IRange, b: IRange): boolean;
 		/**
+		 * Test if the two ranges are intersecting. If the ranges are touching it returns true.
+		 */
+		static areIntersecting(a: IRange, b: IRange): boolean;
+		/**
 		 * A function that compares ranges, useful for sorting ranges
 		 * It will first compare ranges on the startPosition and then on the endPosition
 		 */
