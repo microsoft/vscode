@@ -31,6 +31,7 @@ namespace schema {
 			case 'editor/title': return MenuId.EditorTitle;
 			case 'editor/context': return MenuId.EditorContext;
 			case 'explorer/context': return MenuId.ExplorerContext;
+			case 'explorer/openEditors/context': return MenuId.OpenEditorsContext;
 			case 'editor/title/context': return MenuId.EditorTitleContext;
 			case 'debug/callstack/context': return MenuId.DebugCallStackContext;
 			case 'scm/title': return MenuId.SCMTitle;
@@ -121,6 +122,11 @@ namespace schema {
 			},
 			'explorer/context': {
 				description: localize('menus.explorerContext', "The file explorer context menu"),
+				type: 'array',
+				items: menuItem
+			},
+			'explorer/openEditors/context': {
+				description: localize('menus.openEditorsContext', "The explorer open editors context menu"),
 				type: 'array',
 				items: menuItem
 			},

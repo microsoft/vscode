@@ -115,6 +115,13 @@
 					"group": "navigation"
 				}
 			],
+			"explorer/openEditors/context": [
+				{
+					"command": "markdown.showPreview",
+					"when": "resourceLangId == markdown",
+					"group": "navigation"
+				}
+			],
 			"editor/title/context": [
 				{
 					"command": "markdown.showPreview",
