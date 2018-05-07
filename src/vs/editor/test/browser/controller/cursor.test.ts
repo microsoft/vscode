@@ -1214,6 +1214,25 @@ suite('Editor Controller - Regression tests', () => {
 		model.dispose();
 	});
 
+	test('issue #23539: Setting model EOL isn\'t undoable', () => {
+		usingCursor({
+			text: [
+				'Hello',
+				'world'
+			]
+		}, (model, cursor) => {
+			assertCursor(cursor, new Position(1, 1));
+			model.setEOL(EndOfLineSequence.LF);
+			assert.equal(model.getValue(), 'Hello\nworld');
+
+			model.pushEOL(EndOfLineSequence.CRLF);
+			assert.equal(model.getValue(), 'Hello\r\nworld');
+
+			cursorCommand(cursor, H.Undo);
+			assert.equal(model.getValue(), 'Hello\nworld');
+		});
+	});
+
 	test('issue #47733: Undo mangles unicode characters', () => {
 		const languageId = new LanguageIdentifier('myMode', 3);
 		class MyMode extends MockMode {

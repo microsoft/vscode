@@ -310,7 +310,7 @@ export interface IViewModel extends ITreeElement {
 
 export interface IModel extends ITreeElement {
 	getSessions(): ReadonlyArray<ISession>;
-	getBreakpoints(): ReadonlyArray<IBreakpoint>;
+	getBreakpoints(filter?: { uri?: uri, lineNumber?: number, column?: number }): ReadonlyArray<IBreakpoint>;
 	areBreakpointsActivated(): boolean;
 	getFunctionBreakpoints(): ReadonlyArray<IFunctionBreakpoint>;
 	getExceptionBreakpoints(): ReadonlyArray<IExceptionBreakpoint>;
@@ -353,7 +353,6 @@ export interface IDebugConfiguration {
 	internalConsoleOptions: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
 	extensionHostDebugAdapter: boolean;
 	enableAllHovers: boolean;
-	trace: string;
 }
 
 export interface IGlobalConfig {
@@ -368,7 +367,7 @@ export interface IEnvConfig {
 	postDebugTask?: string;
 	debugServer?: number;
 	noDebug?: boolean;
-	trace?: string;
+	logLevel?: string;
 }
 
 export interface IConfig extends IEnvConfig {

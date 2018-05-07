@@ -286,11 +286,11 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 
 		await this.fileConfigurationManager.ensureConfigurationForDocument(document, token);
 
-		const args: Proto.CompletionsRequestArgs & { triggerCharacter?: string } = {
+		const args: Proto.CompletionsRequestArgs = {
 			...typeConverters.Position.toFileLocationRequestArgs(file, position),
 			includeExternalModuleExports: completionConfiguration.autoImportSuggestions,
 			includeInsertTextCompletions: true,
-			triggerCharacter: context.triggerCharacter
+			triggerCharacter: context.triggerCharacter ? (context.triggerCharacter === '.' ? undefined : context.triggerCharacter) : undefined
 		};
 
 		let msg: Proto.CompletionEntry[] | undefined = undefined;

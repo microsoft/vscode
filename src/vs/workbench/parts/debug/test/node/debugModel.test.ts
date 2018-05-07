@@ -70,7 +70,7 @@ suite('Debug - Model', () => {
 		model.setEnablement(bp, true);
 		assert.equal(bp.enabled, true);
 
-		model.removeBreakpoints(model.getBreakpoints().filter(bp => bp.uri.toString() === modelUri1.toString()));
+		model.removeBreakpoints(model.getBreakpoints({ uri: modelUri1 }));
 		assert.equal(model.getBreakpoints().length, 3);
 
 		model.unverifyBreakpoints();

@@ -23,23 +23,20 @@ export class Search extends Viewlet {
 	}
 
 	async searchFor(text: string): Promise<void> {
-		await this.code.waitAndClick(INPUT);
-		await this.code.waitForActiveElement(INPUT);
+		await this.waitForInputFocus(INPUT);
 		await this.code.waitForSetValue(INPUT, text);
 		await this.submitSearch();
 	}
 
 	async submitSearch(): Promise<void> {
-		await this.code.waitAndClick(INPUT);
-		await this.code.waitForActiveElement(INPUT);
+		await this.waitForInputFocus(INPUT);
 
 		await this.code.dispatchKeybinding('enter');
 		await this.code.waitForElement(`${VIEWLET} .messages[aria-hidden="false"]`);
 	}
 
 	async setFilesToIncludeText(text: string): Promise<void> {
-		await this.code.waitAndClick(INCLUDE_INPUT);
-		await this.code.waitForActiveElement(INCLUDE_INPUT);
+		await this.waitForInputFocus(INCLUDE_INPUT);
 		await this.code.waitForSetValue(INCLUDE_INPUT, text || '');
 	}
 
@@ -75,5 +72,23 @@ export class Search extends Viewlet {
 
 	async waitForResultText(text: string): Promise<void> {
 		await this.code.waitForTextContent(`${VIEWLET} .messages[aria-hidden="false"] .message>p`, text);
+	}
+
+	private async waitForInputFocus(selector: string): Promise<void> {
+		let retries = 0;
+
+		// other parts of code might steal focus away from input boxes :(
+		while (retries < 5) {
+			await this.code.waitAndClick(INPUT);
+
+			try {
+				await this.code.waitForActiveElement(INPUT, 10);
+				break;
+			} catch (err) {
+				if (++retries > 5) {
+					throw err;
+				}
+			}
+		}
 	}
 }

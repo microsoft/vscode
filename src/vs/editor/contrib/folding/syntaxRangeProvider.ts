@@ -42,14 +42,12 @@ export class SyntaxRangeProvider implements RangeProvider {
 }
 
 function collectSyntaxRanges(providers: FoldingRangeProvider[], model: ITextModel, cancellationToken: CancellationToken): Thenable<IFoldingRangeData[] | null> {
-	let promises = providers.map(provider => toThenable(provider.provideFoldingRanges(model, foldingContext, cancellationToken)));
-	return TPromise.join(promises).then(results => {
-		let rangeData: IFoldingRangeData[] = null;
-		if (cancellationToken.isCancellationRequested) {
-			return null;
-		}
-		for (let i = 0; i < results.length; i++) {
-			let ranges = results[i];
+	let rangeData: IFoldingRangeData[] = null;
+	let promises = providers.map((provider, i) => {
+		return toThenable(provider.provideFoldingRanges(model, foldingContext, cancellationToken)).then(ranges => {
+			if (cancellationToken.isCancellationRequested) {
+				return;
+			}
 			if (Array.isArray(ranges)) {
 				if (!Array.isArray(rangeData)) {
 					rangeData = [];
@@ -61,10 +59,11 @@ function collectSyntaxRanges(providers: FoldingRangeProvider[], model: ITextMode
 					}
 				}
 			}
-		}
+		}, onUnexpectedExternalError);
+	});
+	return TPromise.join(promises).then(_ => {
 		return rangeData;
-
-	}, onUnexpectedExternalError);
+	});
 }
 
 export class RangesCollector {

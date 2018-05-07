@@ -94,7 +94,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.toggleExceptionWidget();
 	}
 
-	private getContextMenuActions(breakpoints: IBreakpoint[], uri: uri, lineNumber: number): TPromise<(IAction | ContextSubMenu)[]> {
+	private getContextMenuActions(breakpoints: ReadonlyArray<IBreakpoint>, uri: uri, lineNumber: number): TPromise<(IAction | ContextSubMenu)[]> {
 		const actions: (IAction | ContextSubMenu)[] = [];
 		if (breakpoints.length === 1) {
 			const breakpointType = breakpoints[0].logMessage ? nls.localize('logPoint', "Logpoint") : nls.localize('breakpoint', "Breakpoint");
@@ -115,7 +115,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				() => this.debugService.enableOrDisableBreakpoints(!breakpoints[0].enabled, breakpoints[0])
 			));
 		} else if (breakpoints.length > 1) {
-			const sorted = breakpoints.sort((first, second) => first.column - second.column);
+			const sorted = breakpoints.slice().sort((first, second) => first.column - second.column);
 			actions.push(new ContextSubMenu(nls.localize('removeBreakpoints', "Remove Breakpoints"), sorted.map(bp => new Action(
 				'removeColumnBreakpoint',
 				bp.column ? nls.localize('removeBreakpointOnColumn', "Remove Breakpoint on Column {0}", bp.column) : nls.localize('removeLineBreakpoint', "Remove Line Breakpoint"),
@@ -184,7 +184,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				}
 
 				const anchor = { x: e.event.posx, y: e.event.posy };
-				const breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.uri.toString() === uri.toString());
+				const breakpoints = this.debugService.getModel().getBreakpoints({ lineNumber, uri });
 
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => anchor,
@@ -192,8 +192,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 					getActionsContext: () => breakpoints.length ? breakpoints[0] : undefined
 				});
 			} else {
-				const breakpoints = this.debugService.getModel().getBreakpoints()
-					.filter(bp => bp.uri.toString() === uri.toString() && bp.lineNumber === lineNumber);
+				const breakpoints = this.debugService.getModel().getBreakpoints({ uri, lineNumber });
 
 				if (breakpoints.length) {
 					if (breakpoints.some(bp => !!bp.condition || !!bp.logMessage || !!bp.hitCondition)) {

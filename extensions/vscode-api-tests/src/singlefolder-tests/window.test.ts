@@ -119,6 +119,20 @@ suite('window namespace tests', () => {
 		});
 	});
 
+	test('active editor not always correct... #49125', async function () {
+		const [docA, docB] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+		]);
+		for (let c = 0; c < 4; c++) {
+			let editorA = await window.showTextDocument(docA, ViewColumn.One);
+			assert(window.activeTextEditor === editorA);
+
+			let editorB = await window.showTextDocument(docB, ViewColumn.Two);
+			assert(window.activeTextEditor === editorB);
+		}
+	});
+
 	test('issue #25801 - default column when opening a file', async () => {
 		const [docA, docB, docC] = await Promise.all([
 			workspace.openTextDocument(await createRandomFile()),

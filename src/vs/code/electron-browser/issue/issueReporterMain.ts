@@ -41,6 +41,8 @@ import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log
 import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { normalizeGitHubIssuesUrl } from 'vs/code/electron-browser/issue/issueReporterUtil';
+import { Button } from 'vs/base/browser/ui/button/button';
+import { Color } from 'vs/base/common/color';
 
 const MAX_URL_LENGTH = platform.isWindows ? 2081 : 5400;
 
@@ -72,6 +74,8 @@ export class IssueReporter extends Disposable {
 	private receivedPerformanceInfo = false;
 	private shouldQueueSearch = false;
 
+	private previewButton: Button;
+
 	constructor(configuration: IssueReporterConfiguration) {
 		super();
 
@@ -84,6 +88,12 @@ export class IssueReporter extends Disposable {
 				os: `${os.type()} ${os.arch()} ${os.release()}`
 			},
 			extensionsDisabled: this.environmentService.disableExtensions,
+		});
+
+		this.previewButton = new Button(document.getElementById('issue-reporter'), {
+			buttonBackground: Color.fromHex(configuration.data.styles.buttonBackground),
+			buttonForeground: Color.fromHex(configuration.data.styles.buttonForeground),
+			buttonHoverBackground: Color.fromHex(configuration.data.styles.buttonHoverBackground)
 		});
 
 		ipcRenderer.on('issuePerformanceInfoResponse', (event, info) => {
@@ -169,18 +179,6 @@ export class IssueReporter extends Disposable {
 
 		if (styles.textLinkColor) {
 			content.push(`a, .workbenchCommand { color: ${styles.textLinkColor}; }`);
-		}
-
-		if (styles.buttonBackground) {
-			content.push(`button { background-color: ${styles.buttonBackground}; }`);
-		}
-
-		if (styles.buttonForeground) {
-			content.push(`button { color: ${styles.buttonForeground}; }`);
-		}
-
-		if (styles.buttonHoverBackground) {
-			content.push(`#github-submit-btn:hover:enabled, #github-submit-btn:focus:enabled { background-color: ${styles.buttonHoverBackground}; }`);
 		}
 
 		if (styles.textLinkColor) {
@@ -385,7 +383,7 @@ export class IssueReporter extends Disposable {
 			}
 		});
 
-		this.addEventListener('github-submit-btn', 'click', () => this.createIssue());
+		this.previewButton.onDidClick(() => this.createIssue());
 
 		this.addEventListener('disableExtensions', 'click', () => {
 			ipcRenderer.send('workbenchCommand', 'workbench.action.reloadWindowWithExtensionsDisabled');
@@ -421,13 +419,12 @@ export class IssueReporter extends Disposable {
 	}
 
 	private updatePreviewButtonState() {
-		const submitButton = <HTMLButtonElement>document.getElementById('github-submit-btn');
 		if (this.isPreviewEnabled()) {
-			submitButton.disabled = false;
-			submitButton.textContent = localize('previewOnGitHub', "Preview on GitHub");
+			this.previewButton.label = localize('previewOnGitHub', "Preview on GitHub");
+			this.previewButton.enabled = true;
 		} else {
-			submitButton.disabled = true;
-			submitButton.textContent = localize('loadingData', "Loading data...");
+			this.previewButton.enabled = false;
+			this.previewButton.label = localize('loadingData', "Loading data...");
 		}
 	}
 

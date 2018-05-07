@@ -891,7 +891,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		let editorControl = this.editorService.getActiveEditor().getControl();
 		if (isDiffEditor(editorControl)) {
-			if (editorControl.getOriginalEditor().isFocused()) {
+			if (editorControl.getOriginalEditor().hasTextFocus()) {
 				editorControl = editorControl.getOriginalEditor();
 			} else {
 				editorControl = editorControl.getModifiedEditor();

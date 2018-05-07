@@ -49,7 +49,7 @@
     "vscode-nsfw": "1.0.17",
     "vscode-ripgrep": "^0.8.1",
     "vscode-textmate": "^3.3.3",
-    "vscode-xterm": "3.4.0-beta3",
+    "vscode-xterm": "3.5.0-beta1",
     "yauzl": "^2.9.1"
   },
   "devDependencies": {

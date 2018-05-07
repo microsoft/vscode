@@ -156,7 +156,7 @@ export class MultiCursorSession {
 		//  - focus is not in the editor (i.e. it is in the find widget)
 		//  - and the search widget is visible
 		//  - and the search string is non-empty
-		if (!editor.isFocused() && findState.isRevealed && findState.searchString.length > 0) {
+		if (!editor.hasTextFocus() && findState.isRevealed && findState.searchString.length > 0) {
 			// Find widget owns what is searched for
 			return new MultiCursorSession(editor, findController, false, findState.searchString, findState.wholeWord, findState.matchCase, null);
 		}

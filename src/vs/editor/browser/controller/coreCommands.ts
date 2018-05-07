@@ -1651,7 +1651,7 @@ class EditorOrNativeTextInputCommand extends Command {
 
 		let focusedEditor = findFocusedEditor(accessor);
 		// Only if editor text focus (i.e. not if editor has widget focus).
-		if (focusedEditor && focusedEditor.isFocused()) {
+		if (focusedEditor && focusedEditor.hasTextFocus()) {
 			return this._runEditorHandler(focusedEditor, args);
 		}
 

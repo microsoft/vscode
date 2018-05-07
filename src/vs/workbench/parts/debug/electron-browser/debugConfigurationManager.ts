@@ -64,7 +64,6 @@ export class ConfigurationManager implements IConfigurationManager {
 		@IStorageService private storageService: IStorageService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IExtensionService private extensionService: IExtensionService,
-		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService
 	) {
 		this.providers = [];
 		this.debuggers = [];
@@ -187,7 +186,7 @@ export class ConfigurationManager implements IConfigurationManager {
 					if (duplicate) {
 						duplicate.merge(rawAdapter, extension.description);
 					} else {
-						this.debuggers.push(new Debugger(this, rawAdapter, extension.description, this.configurationService, this.commandService, this.configurationResolverService));
+						this.debuggers.push(this.instantiationService.createInstance(Debugger, this, rawAdapter, extension.description));
 					}
 				});
 			});

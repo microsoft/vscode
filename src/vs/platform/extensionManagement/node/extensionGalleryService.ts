@@ -304,7 +304,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 		/* __GDPR__FRAGMENT__
 			"GalleryExtensionTelemetryData2" : {
 				"index" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"searchText": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"searchText": { "classification": "CustomerContent", "purpose": "FeatureInsight" },
 				"querySource": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/

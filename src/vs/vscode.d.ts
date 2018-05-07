@@ -3395,15 +3395,21 @@ declare module 'vscode' {
 		provideColorPresentations(color: Color, context: { document: TextDocument, range: Range }, token: CancellationToken): ProviderResult<ColorPresentation[]>;
 	}
 
+	/**
+	 * A line based folding range. To be valid, start and end line must a zero or larger and smaller than the number of lines in the document.
+	 * Invalid ranges will be ignored.
+	 */
 	export class FoldingRange {
 
 		/**
 		 * The zero-based start line of the range to fold. The folded area starts after the line's last character.
+		 * To be valid, the end must be zero or larger and smaller than the number of lines in the document.
 		 */
 		start: number;
 
 		/**
 		 * The zero-based end line of the range to fold. The folded area ends with the line's last character.
+		 * To be valid, the end must be zero or larger and smaller than the number of lines in the document.
 		 */
 		end: number;
 
@@ -3425,6 +3431,9 @@ declare module 'vscode' {
 		constructor(start: number, end: number, kind?: FoldingRangeKind);
 	}
 
+	/**
+	 * An enumeration of all folding range kinds. The kind is used to categorize folding ranges.
+	 */
 	export enum FoldingRangeKind {
 		/**
 		 * Kind for folding range representing a comment.

@@ -172,7 +172,7 @@ function getOuterEditorFromDiffEditor(accessor: ServicesAccessor): ICodeEditor {
 	const diffEditors = accessor.get(ICodeEditorService).listDiffEditors();
 
 	for (const diffEditor of diffEditors) {
-		if (diffEditor.isFocused() && diffEditor instanceof EmbeddedDiffEditorWidget) {
+		if (diffEditor.hasTextFocus() && diffEditor instanceof EmbeddedDiffEditorWidget) {
 			return diffEditor.getParentEditor();
 		}
 	}

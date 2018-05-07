@@ -89,7 +89,7 @@ export interface IPickOptions {
 	/**
 	 * an optional flag to make this picker multi-select (honoured by extension API)
 	 */
-	canSelectMany?: boolean;
+	canPickMany?: boolean;
 }
 
 export interface IInputOptions {

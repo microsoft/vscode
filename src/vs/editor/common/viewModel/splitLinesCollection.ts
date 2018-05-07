@@ -884,6 +884,7 @@ class VisibleIdentitySplitLine implements ISplitLine {
 		let lineContent = lineTokens.getLineContent();
 		return new ViewLineData(
 			lineContent,
+			false,
 			1,
 			lineContent.length + 1,
 			lineTokens.inflate()
@@ -1087,6 +1088,8 @@ export class SplitLine implements ISplitLine {
 		let minColumn = (outputLineIndex > 0 ? this.wrappedIndentLength + 1 : 1);
 		let maxColumn = lineContent.length + 1;
 
+		let continuesWithWrappedLine = (outputLineIndex + 1 < this.getViewLineCount());
+
 		let deltaStartIndex = 0;
 		if (outputLineIndex > 0) {
 			deltaStartIndex = this.wrappedIndentLength;
@@ -1095,6 +1098,7 @@ export class SplitLine implements ISplitLine {
 
 		return new ViewLineData(
 			lineContent,
+			continuesWithWrappedLine,
 			minColumn,
 			maxColumn,
 			lineTokens.sliceAndInflate(startOffset, endOffset, deltaStartIndex)
@@ -1318,6 +1322,7 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 		let lineContent = lineTokens.getLineContent();
 		return new ViewLineData(
 			lineContent,
+			false,
 			1,
 			lineContent.length + 1,
 			lineTokens.inflate()

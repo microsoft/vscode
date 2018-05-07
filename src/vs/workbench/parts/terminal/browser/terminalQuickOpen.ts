@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenModel, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
-import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
 import { ContributableActionProvider } from 'vs/workbench/browser/actions';
 import { stripWildcards } from 'vs/base/common/strings';
 import { matchesFuzzy } from 'vs/base/common/filters';
@@ -17,6 +17,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 export class TerminalEntry extends QuickOpenEntry {
 
 	constructor(
+		public instance: ITerminalInstance,
 		private label: string,
 		private terminalService: ITerminalService
 	) {
@@ -108,11 +109,10 @@ export class TerminalPickerHandler extends QuickOpenHandler {
 	}
 
 	private getTerminals(): TerminalEntry[] {
-		const terminals = this.terminalService.getTabLabels();
-		const terminalEntries = terminals.map(terminal => {
-			return new TerminalEntry(terminal, this.terminalService);
-		});
-		return terminalEntries;
+		const labels = this.terminalService.getTabLabels();
+		return this.terminalService.terminalTabs.map(((tab, i) => {
+			return new TerminalEntry(tab.activeInstance, labels[i], this.terminalService);
+		}));
 	}
 
 	public getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {

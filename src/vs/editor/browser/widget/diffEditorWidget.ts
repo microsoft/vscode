@@ -749,8 +749,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this.modifiedEditor.focus();
 	}
 
-	public isFocused(): boolean {
-		return this.originalEditor.isFocused() || this.modifiedEditor.isFocused();
+	public hasTextFocus(): boolean {
+		return this.originalEditor.hasTextFocus() || this.modifiedEditor.hasTextFocus();
 	}
 
 	public onVisible(): void {
@@ -1989,6 +1989,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		const output = renderViewLine(new RenderLineInput(
 			(config.fontInfo.isMonospace && !config.viewInfo.disableMonospaceOptimizations),
 			lineContent,
+			false,
 			isBasicASCII,
 			containsRTL,
 			0,
