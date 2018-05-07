@@ -436,7 +436,7 @@
           ],
           "default": "auto",
           "description": "%typescript.preferences.quoteStyle%",
-          "scope": "window"
+          "scope": "resource"
         },
         "typescript.preferences.quoteStyle": {
           "type": "string",
@@ -447,7 +447,7 @@
           ],
           "default": "auto",
           "description": "%typescript.preferences.quoteStyle%",
-          "scope": "window"
+          "scope": "resource"
         },
         "javascript.preferences.importModuleSpecifier": {
           "type": "string",
@@ -458,7 +458,7 @@
           ],
           "default": "auto",
           "description": "%typescript.preferences.importModuleSpecifier%",
-          "scope": "window"
+          "scope": "resource"
         },
         "typescript.preferences.importModuleSpecifier": {
           "type": "string",
@@ -469,7 +469,7 @@
           ],
           "default": "auto",
           "description": "%typescript.preferences.importModuleSpecifier%",
-          "scope": "window"
+          "scope": "resource"
         }
       }
     },
