@@ -57,7 +57,7 @@ export class ActivitybarPart extends Part {
 	private globalActivityIdToActions: { [globalActivityId: string]: GlobalActivityAction; };
 
 	private placeholderComposites: IPlaceholderComposite[] = [];
-	private extensionsRegistered: boolean = false;
+	private extensionsRegistrationCompleted: boolean = false;
 	private compositeBar: CompositeBar;
 	private compositeActions: { [compositeId: string]: { activityAction: ViewletActivityAction, pinnedAction: ToggleCompositePinnedAction } };
 
@@ -100,7 +100,7 @@ export class ActivitybarPart extends Part {
 	}
 
 	private onDidRegisterExtensions(): void {
-		this.extensionsRegistered = true;
+		this.extensionsRegistrationCompleted = true;
 		this.removeNotExistingPlaceholderComposites();
 		this.updateCompositebar();
 	}
@@ -214,7 +214,7 @@ export class ActivitybarPart extends Part {
 				const placeHolderComposite = this.placeholderComposites.filter(c => c.id === compositeId)[0];
 				compositeActions = {
 					activityAction: this.instantiationService.createInstance(PlaceHolderViewletActivityAction, compositeId, placeHolderComposite.iconUrl),
-					pinnedAction: new PlaceHolderToggleCompositePinnedAction(compositeId, placeHolderComposite.iconUrl, this.compositeBar)
+					pinnedAction: new PlaceHolderToggleCompositePinnedAction(compositeId, this.compositeBar)
 				};
 			}
 			this.compositeActions[compositeId] = compositeActions;
@@ -225,8 +225,18 @@ export class ActivitybarPart extends Part {
 	private updateCompositebar(): void {
 		const viewlets = this.viewletService.getViewlets();
 		for (const viewlet of viewlets) {
-			if (!this.extensionsRegistered || this.canShow(viewlet)) {
+			const hasPlaceholder = this.placeholderComposites.some(c => c.id === viewlet.id);
+
+			// Add the composite if it has views registered or
+			// If it was existing before and the extensions registration is not yet completed.
+			if (this.hasRegisteredViews(viewlet)
+				|| (hasPlaceholder && !this.extensionsRegistrationCompleted)
+			) {
 				this.compositeBar.addComposite(viewlet, false);
+				// Pin it by default if it is new => it does not has a placeholder
+				if (!hasPlaceholder) {
+					this.compositeBar.pin(viewlet.id);
+				}
 				this.enableCompositeActions(viewlet);
 				const activeViewlet = this.viewletService.getActiveViewlet();
 				if (activeViewlet && activeViewlet.getId() === viewlet.id) {
@@ -277,7 +287,7 @@ export class ActivitybarPart extends Part {
 		}
 	}
 
-	private canShow(viewlet: ViewletDescriptor): boolean {
+	private hasRegisteredViews(viewlet: ViewletDescriptor): boolean {
 		const viewLocation = ViewLocation.get(viewlet.id);
 		if (viewLocation) {
 			return ViewsRegistry.getViews(viewLocation).length > 0;
@@ -313,7 +323,7 @@ export class ActivitybarPart extends Part {
 	}
 
 	public shutdown(): void {
-		const state = this.viewletService.getViewlets().filter(viewlet => !!viewlet.iconUrl && this.canShow(viewlet)).map(viewlet => ({ id: viewlet.id, iconUrl: viewlet.iconUrl }));
+		const state = this.viewletService.getViewlets().filter(viewlet => this.hasRegisteredViews(viewlet)).map(viewlet => ({ id: viewlet.id, iconUrl: viewlet.iconUrl }));
 		this.storageService.store(ActivitybarPart.PLACEHOLDER_VIEWLETS, JSON.stringify(state), StorageScope.GLOBAL);
 		this.compositeBar.shutdown();
 		super.shutdown();
@@ -360,7 +370,7 @@ class PlaceHolderViewletActivityAction extends ViewletActivityAction {
 class PlaceHolderToggleCompositePinnedAction extends ToggleCompositePinnedAction {
 
 	constructor(
-		id: string, iconUrl: string, compositeBar: ICompositeBar
+		id: string, compositeBar: ICompositeBar
 	) {
 		super({ id, name: id, cssClass: void 0 }, compositeBar);
 		this.enabled = false;
