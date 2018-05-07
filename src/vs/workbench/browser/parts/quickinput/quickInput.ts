@@ -367,7 +367,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 	}
 
 	private close(ok?: true | Thenable<never>, focusLost?: boolean) {
-		if (this.container.style.display === 'none') {
+		if (!this.container || this.container.style.display === 'none') {
 			return TPromise.as(undefined);
 		}
 		if (this.controller) {
