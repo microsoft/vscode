@@ -91,7 +91,7 @@ suite('Next editor2 part tests', () => {
 		return part;
 	}
 
-	test('Editor part groups basics', function () {
+	test('groups basics', function () {
 		const part = createPart();
 
 		let activeGroupChangeCounter = 0;
@@ -206,7 +206,16 @@ suite('Next editor2 part tests', () => {
 		part.dispose();
 	});
 
-	test('Editor part options', function () {
+	test('whenRestored', function () {
+		const part = createPart();
+
+		return part.whenRestored.then(() => {
+			assert.ok(true);
+			part.dispose();
+		});
+	});
+
+	test('options', function () {
 		const part = createPart();
 
 		let oldOptions: INextEditorPartOptions;
@@ -227,7 +236,7 @@ suite('Next editor2 part tests', () => {
 		part.dispose();
 	});
 
-	test('Editor part editor basics', function () {
+	test('editor basics', function () {
 		const part = createPart();
 		const group = part.activeGroup;
 

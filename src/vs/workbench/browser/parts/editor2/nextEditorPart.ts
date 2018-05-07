@@ -8,7 +8,7 @@
 import 'vs/workbench/browser/parts/editor/editor.contribution';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
-import { Dimension, isAncestor, toggleClass, addClass } from 'vs/base/browser/dom';
+import { Dimension, isAncestor, toggleClass, addClass, clearNode } from 'vs/base/browser/dom';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { INextEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
@@ -23,11 +23,13 @@ import { NextEditorGroupView } from 'vs/workbench/browser/parts/editor2/nextEdit
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Scope } from 'vs/workbench/common/memento';
 import { ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
 import { TValueCallback, TPromise } from 'vs/base/common/winjs.base';
 import { always } from 'vs/base/common/async';
+import { GroupOrientation } from 'vs/workbench/services/group/common/groupService';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 // TODO@grid provide DND support of groups/editors:
 // - editor: move/copy to existing group, move/copy to new split group (up, down, left, right)
@@ -85,7 +87,8 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@INotificationService private notificationService: INotificationService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
@@ -374,9 +377,52 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 	private doCreateGridControl(container: HTMLElement): void {
 
-		// Grid Widget (restored from previous UI state unless prevented)
+		// Grid Widget (with previous UI state)
+		if (this.restorePreviousState) {
+			try {
+				this.doCreateGridControlWithPreviousState(container);
+			} catch (error) { // TODO@grid remove this safe guard once the grid is stable
+				if (this.gridWidget) {
+					this.gridWidget.dispose();
+				}
+
+				clearNode(container);
+				this.groupViews.forEach(group => group.dispose());
+				this.groupViews.clear();
+				this._activeGroup = void 0;
+				this.mostRecentActiveGroups = [];
+
+				console.error(error);
+				this.notificationService.error(`Grid: ${error}`);
+			}
+		}
+
+		// Grid Widget (no previous UI state or failed to restore)
+		if (!this.gridWidget) {
+			const initialGroup = this.doCreateGroupView();
+			this.gridWidget = this._register(new SerializableGrid(container, initialGroup));
+
+			// Ensure a group is active
+			this.doSetGroupActive(initialGroup);
+		}
+
+		// Signal restored
+		always(TPromise.join(this.groups.map(group => group.whenRestored)), () => this.whenRestoredComplete(void 0));
+
+		// Update container
+		this.updateContainer();
+	}
+
+	private doCreateGridControlWithPreviousState(container: HTMLElement): void {
 		const uiState = this.memento[NextEditorPart.NEXT_EDITOR_PART_UI_STATE_STORAGE_KEY] as INextEditorPartUIState;
-		if (this.restorePreviousState && uiState && uiState.serializedGrid) {
+
+		// Migration from previous UI state ()
+		if (false /* TODO@grid enable once GridWidget can add views without previous layout */ && this.migrateLegacyState(container)) {
+			// TODO@ben remove after a while
+		}
+
+		// Grid Widget (restored from previous UI state unless prevented)
+		else if (uiState && uiState.serializedGrid) {
 
 			// MRU
 			this.mostRecentActiveGroups = uiState.mostRecentActiveGroups;
@@ -396,21 +442,82 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 			// Ensure last active group has focus
 			this._activeGroup.focus();
 		}
+	}
 
-		// Grid Widget (no previous UI state)
-		else {
-			const initialGroup = this.doCreateGroupView();
-			this.gridWidget = this._register(new SerializableGrid(container, initialGroup));
+	private migrateLegacyState(container: HTMLElement): boolean {
+		const LEGACY_EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.uiState';
+		const LEGACY_STACKS_MODEL_STORAGE_KEY = 'editorStacks.model';
 
-			// Ensure a group is active
-			this.doSetGroupActive(initialGroup);
+		interface ILegacyEditorPartUIState {
+			ratio: number[];
+			groupOrientation: GroupOrientation;
 		}
 
-		// Signal restored
-		always(TPromise.join(this.groups.map(group => group.whenRestored)), () => this.whenRestoredComplete(void 0));
+		interface ISerializedLegacyEditorStacksModel {
+			groups: ISerializedEditorGroup[];
+			active: number;
+		}
 
-		// Update container
-		this.updateContainer();
+		let legacyUIState: ISerializedLegacyEditorStacksModel;
+		const legacyUIStateRaw = this.storageService.get(LEGACY_STACKS_MODEL_STORAGE_KEY, StorageScope.WORKSPACE);
+		if (legacyUIStateRaw) {
+			try {
+				legacyUIState = JSON.parse(legacyUIStateRaw);
+			} catch (error) { /* ignore */ }
+		}
+
+		if (legacyUIState) {
+			this.storageService.remove(LEGACY_STACKS_MODEL_STORAGE_KEY, StorageScope.WORKSPACE);
+		}
+
+		const legacyPartState = this.memento[LEGACY_EDITOR_PART_UI_STATE_STORAGE_KEY] as ILegacyEditorPartUIState;
+		if (legacyPartState) {
+			delete this.memento[LEGACY_EDITOR_PART_UI_STATE_STORAGE_KEY];
+		}
+
+		if (legacyUIState && Array.isArray(legacyUIState.groups) && legacyUIState.groups.length > 0) {
+			const splitHorizontally = legacyPartState && legacyPartState.groupOrientation === 'horizontal';
+
+			const positionOneGroup = legacyUIState.groups[0];
+			const positionOneGroupView = this.doCreateGroupView(positionOneGroup);
+			this.gridWidget = this._register(new SerializableGrid(container, positionOneGroupView));
+			this.doSetGroupActive(positionOneGroupView);
+
+			const createGridView = (fromGroupView: INextEditorGroupView, group: ISerializedEditorGroup, direction: GroupDirection) => {
+				const newGroupView = this.doCreateGroupView(group);
+
+				this.gridWidget.addView(
+					newGroupView,
+					direction === GroupDirection.DOWN ? fromGroupView.dimension.height / 2 : fromGroupView.dimension.width / 2 /* TODO@grid what size? */,
+					fromGroupView,
+					this.toGridViewDirection(direction),
+				);
+
+				return newGroupView;
+			};
+
+			const positionTwoGroup = legacyUIState.groups[1];
+			let positionTwoGroupView: INextEditorGroupView;
+			if (positionTwoGroup) {
+				positionTwoGroupView = createGridView(positionOneGroupView, positionTwoGroup, splitHorizontally ? GroupDirection.DOWN : GroupDirection.RIGHT);
+			}
+
+			const positionThreeGroup = legacyUIState.groups[2];
+			let positionThreeGroupView: INextEditorGroupView;
+			if (positionThreeGroup) {
+				positionThreeGroupView = createGridView(positionTwoGroupView, positionTwoGroup, splitHorizontally ? GroupDirection.DOWN : GroupDirection.RIGHT);
+			}
+
+			if (legacyUIState.active === 1) {
+				this.doSetGroupActive(positionTwoGroupView);
+			} else if (legacyUIState.active === 2) {
+				this.doSetGroupActive(positionThreeGroupView);
+			}
+
+			return true;
+		}
+
+		return false;
 	}
 
 	private updateContainer(): void {

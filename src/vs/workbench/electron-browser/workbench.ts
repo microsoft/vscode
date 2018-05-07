@@ -205,7 +205,6 @@ export class Workbench extends Disposable implements IPartService {
 	private activitybarPart: ActivitybarPart;
 	private sidebarPart: SidebarPart;
 	private panelPart: PanelPart;
-	private noOpEditorPart: NoOpEditorPart; // TODO@grid adopt methods in next editor part
 	private editorPart: NextEditorPart;
 	private statusbarPart: StatusbarPart;
 	private quickOpen: QuickOpenController;
@@ -389,9 +388,9 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(INextEditorService, this.nextEditorService);
 
 		// TODO@grid Remove Legacy Editor Services
-		this.noOpEditorPart = new NoOpEditorPart(this.instantiationService);
-		serviceCollection.set(IWorkbenchEditorService, this.instantiationService.createInstance(WorkbenchEditorService, this.noOpEditorPart));
-		serviceCollection.set(IEditorGroupService, this.noOpEditorPart);
+		const noOpEditorPart = new NoOpEditorPart(this.instantiationService);
+		serviceCollection.set(IWorkbenchEditorService, this.instantiationService.createInstance(WorkbenchEditorService, noOpEditorPart));
+		serviceCollection.set(IEditorGroupService, noOpEditorPart);
 
 		// Title bar
 		this.titlebarPart = this.instantiationService.createInstance(TitlebarPart, Identifiers.TITLEBAR_PART);
