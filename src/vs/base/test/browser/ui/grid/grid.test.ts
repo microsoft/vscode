@@ -383,7 +383,7 @@ suite('SerializableGrid', function () {
 
 		assert.deepEqual(view1Copy.size, [50, 50]);
 		assert.deepEqual(view2Copy.size, [50, 50]);
-		assert.deepEqual(view3Copy.size, [50, 50]);
+		assert.deepEqual(view3Copy.size, [50, 100]);
 		assert.deepEqual(view4Copy.size, [50, 50]);
 		assert.deepEqual(view5Copy.size, [50, 50]);
 

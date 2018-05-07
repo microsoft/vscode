@@ -193,4 +193,42 @@ suite('Gridview', function () {
 		assert.deepEqual(view4.size, [400, 300]);
 		assert.deepEqual(view5.size, [400, 150]);
 	});
+
+	test('addviews before layout call 1', function () {
+		const grid = new GridView(container);
+
+		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view1, 200, [0]);
+
+		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view2, 200, [0]);
+
+		const view3 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view3, 200, [1, 1]);
+
+		grid.layout(800, 600);
+
+		assert.deepEqual(view1.size, [50, 550]);
+		assert.deepEqual(view2.size, [800, 50]);
+		assert.deepEqual(view3.size, [750, 550]);
+	});
+
+	test('addviews before layout call 2', function () {
+		const grid = new GridView(container);
+
+		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view1, 200, [0]);
+
+		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view2, 200, [0]);
+
+		const view3 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view3, 200, [0, 0]);
+
+		grid.layout(800, 600);
+
+		assert.deepEqual(view1.size, [800, 550]);
+		assert.deepEqual(view2.size, [750, 50]);
+		assert.deepEqual(view3.size, [50, 50]);
+	});
 });

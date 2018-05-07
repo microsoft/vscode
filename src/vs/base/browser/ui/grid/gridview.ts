@@ -28,12 +28,10 @@ export interface IView {
 
 /*
 TODO:
-	- cant use spltiview before first layout
 	- NEW: 	add a color to show a border where the sash is, similar to how other
 			widgets have a color (e.g. Button, with applyStyles). Challenge is that this
 			color has to be applied via JS and not CSS to not apply it to all views
 			NOT CSS
-	- create grid wrapper which automatically sizes the new views
 */
 
 export function orthogonal(orientation: Orientation): Orientation {
@@ -69,7 +67,7 @@ class BranchNode implements ISplitView, IDisposable {
 	get orthogonalSize(): number { return this._orthogonalSize; }
 
 	get minimumSize(): number {
-		return Math.max(...this.children.map(c => c.minimumOrthogonalSize));
+		return this.children.length === 0 ? 0 : Math.max(...this.children.map(c => c.minimumOrthogonalSize));
 	}
 
 	get maximumSize(): number {
@@ -77,11 +75,11 @@ class BranchNode implements ISplitView, IDisposable {
 	}
 
 	get minimumOrthogonalSize(): number {
-		return this.children.reduce((r, c) => r + c.minimumSize, 0);
+		return this.children.length === 0 ? 0 : this.children.reduce((r, c) => r + c.minimumSize, 0);
 	}
 
 	get maximumOrthogonalSize(): number {
-		return this.children.reduce((r, c) => r + c.maximumSize, 0);
+		return this.children.length === 0 ? Number.POSITIVE_INFINITY : this.children.reduce((r, c) => r + c.maximumSize, 0);
 	}
 
 	private _onDidChange: Emitter<number | undefined>;
@@ -175,6 +173,7 @@ class BranchNode implements ISplitView, IDisposable {
 		const onDidChildrenChange = anyEvent(...this.children.map(c => c.onDidChange));
 		this.onDidChangeDisposable.dispose();
 		this.onDidChangeDisposable = onDidChildrenChange(this._onDidChange.fire, this._onDidChange);
+		this._onDidChange.fire();
 	}
 
 	dispose(): void {

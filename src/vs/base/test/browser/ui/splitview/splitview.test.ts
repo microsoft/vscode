@@ -364,4 +364,23 @@ suite('Splitview', () => {
 		view2.dispose();
 		view1.dispose();
 	});
+
+	test('add views before layout', () => {
+		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
+		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
+		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
+		const splitview = new SplitView(container);
+
+		splitview.addView(view1, 100);
+		splitview.addView(view2, 75);
+		splitview.addView(view3, 25);
+
+		splitview.layout(200);
+		assert.deepEqual([view1.size, view2.size, view3.size], [20, 20, 160]);
+
+		splitview.dispose();
+		view3.dispose();
+		view2.dispose();
+		view1.dispose();
+	});
 });
