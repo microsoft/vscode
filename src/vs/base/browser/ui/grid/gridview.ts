@@ -260,7 +260,7 @@ function flipNode(node: Node, size: number, orthogonalSize: number): Node {
 			const child = node.children[i];
 			const childSize = child instanceof BranchNode ? child.orthogonalSize : child.size;
 
-			let newSize = Math.round((size * childSize) / node.size);
+			let newSize = node.size === 0 ? 0 : Math.round((size * childSize) / node.size);
 			totalSize += newSize;
 
 			// The last view to add should adjust to rounding errors
