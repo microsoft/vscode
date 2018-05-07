@@ -177,10 +177,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			descriptor.enabled = enabled;
 			if (enabled) {
 				this.compositeBar.addComposite(descriptor, true);
-				this.openPanel(descriptor.id, true).done(() => {
-					this.compositeBar.pin(descriptor.id);
-					this.compositeBar.activateComposite(descriptor.id);
-				});
 			} else {
 				this.removeComposite(id);
 			}
