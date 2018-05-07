@@ -119,8 +119,6 @@ export class ExtensionHostProcessManager extends Disposable {
 	 * A map of already activated events to speed things up if the same activation event is triggered multiple times.
 	 */
 	private readonly _extensionHostProcessFinishedActivateEvents: { [activationEvent: string]: boolean; };
-	private readonly _extensionHostProcessActivationTimes: { [id: string]: ActivationTimes; };
-	private readonly _extensionHostExtensionRuntimeErrors: { [id: string]: Error[]; };
 	private _extensionHostProcessRPCProtocol: RPCProtocol;
 	private readonly _extensionHostProcessCustomers: IDisposable[];
 	private readonly _extensionHostProcessWorker: ExtensionHostProcessWorker;
@@ -137,8 +135,6 @@ export class ExtensionHostProcessManager extends Disposable {
 	) {
 		super();
 		this._extensionHostProcessFinishedActivateEvents = Object.create(null);
-		this._extensionHostProcessActivationTimes = Object.create(null);
-		this._extensionHostExtensionRuntimeErrors = Object.create(null);
 		this._extensionHostProcessRPCProtocol = null;
 		this._extensionHostProcessCustomers = [];
 		this._extensionHostProcessProxy = null;
@@ -177,18 +173,6 @@ export class ExtensionHostProcessManager extends Disposable {
 		}
 
 		super.dispose();
-	}
-
-	public getActivatedExtensionIds(): string[] {
-		return Object.keys(this._extensionHostProcessActivationTimes);
-	}
-
-	public getActivationTimes(): { [id: string]: ActivationTimes; } {
-		return this._extensionHostProcessActivationTimes;
-	}
-
-	public getRuntimeErrors(): { [id: string]: Error[]; } {
-		return this._extensionHostExtensionRuntimeErrors;
 	}
 
 	public canProfileExtensionHost(): boolean {
@@ -248,17 +232,6 @@ export class ExtensionHostProcessManager extends Disposable {
 		}
 		throw new Error('Extension host not running or no inspect port available');
 	}
-
-	public onExtensionActivated(extensionId: string, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void {
-		this._extensionHostProcessActivationTimes[extensionId] = new ActivationTimes(startup, codeLoadingTime, activateCallTime, activateResolvedTime, activationEvent);
-	}
-
-	public onExtensionRuntimeError(extensionId: string, err: Error): void {
-		if (!this._extensionHostExtensionRuntimeErrors[extensionId]) {
-			this._extensionHostExtensionRuntimeErrors[extensionId] = [];
-		}
-		this._extensionHostExtensionRuntimeErrors[extensionId].push(err);
-	}
 }
 
 export class ExtensionService extends Disposable implements IExtensionService {
@@ -276,7 +249,9 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	public readonly onDidChangeExtensionsStatus: Event<string[]> = this._onDidChangeExtensionsStatus.event;
 
 	// --- Members used per extension host process
-	private _extensionHostProcessManager: ExtensionHostProcessManager;
+	private _extensionHostProcessManagers: ExtensionHostProcessManager[];
+	private _extensionHostProcessActivationTimes: { [id: string]: ActivationTimes; };
+	private _extensionHostExtensionRuntimeErrors: { [id: string]: Error[]; };
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -298,7 +273,10 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 		this._onDidRegisterExtensions = new Emitter<void>();
 
-		this._extensionHostProcessManager = null;
+		this._extensionHostProcessManagers = [];
+		this._extensionHostProcessActivationTimes = Object.create(null);
+		this._extensionHostExtensionRuntimeErrors = Object.create(null);
+
 		this.startDelayed(lifecycleService);
 
 		if (this._environmentService.disableExtensions) {
@@ -357,13 +335,14 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	private _stopExtensionHostProcess(): void {
-		let previouslyActivatedExtensionIds: string[] = [];
+		const previouslyActivatedExtensionIds = Object.keys(this._extensionHostProcessActivationTimes);
 
-		if (this._extensionHostProcessManager) {
-			previouslyActivatedExtensionIds = this._extensionHostProcessManager.getActivatedExtensionIds();
-			this._extensionHostProcessManager.dispose();
-			this._extensionHostProcessManager = null;
+		for (let i = 0; i < this._extensionHostProcessManagers.length; i++) {
+			this._extensionHostProcessManagers[i].dispose();
 		}
+		this._extensionHostProcessManagers = [];
+		this._extensionHostProcessActivationTimes = Object.create(null);
+		this._extensionHostExtensionRuntimeErrors = Object.create(null);
 
 		if (previouslyActivatedExtensionIds.length > 0) {
 			this._onDidChangeExtensionsStatus.fire(previouslyActivatedExtensionIds);
@@ -373,9 +352,10 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	private _startExtensionHostProcess(initialActivationEvents: string[]): void {
 		this._stopExtensionHostProcess();
 
-		const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, this);
-		this._extensionHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, extHostProcessWorker, initialActivationEvents);
-		this._extensionHostProcessManager.onDidCrash(([code, signal]) => this._onExtensionHostCrashed(code, signal));
+		const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, this.getExtensions());
+		const extHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, extHostProcessWorker, initialActivationEvents);
+		extHostProcessManager.onDidCrash(([code, signal]) => this._onExtensionHostCrashed(code, signal));
+		this._extensionHostProcessManagers.push(extHostProcessManager);
 	}
 
 	private _onExtensionHostCrashed(code: number, signal: string): void {
@@ -425,10 +405,9 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	private _activateByEvent(activationEvent: string): TPromise<void> {
-		if (this._extensionHostProcessManager) {
-			return this._extensionHostProcessManager.activateByEvent(activationEvent);
-		}
-		return NO_OP_VOID_PROMISE;
+		return TPromise.join(
+			this._extensionHostProcessManagers.map(extHostManager => extHostManager.activateByEvent(activationEvent))
+		).then(() => { });
 	}
 
 	public whenInstalledExtensionsRegistered(): TPromise<boolean> {
@@ -459,9 +438,6 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	public getExtensionsStatus(): { [id: string]: IExtensionsStatus; } {
-		const activationTimes = this._extensionHostProcessManager ? this._extensionHostProcessManager.getActivationTimes() : {};
-		const runtimeErrors = this._extensionHostProcessManager ? this._extensionHostProcessManager.getRuntimeErrors() : {};
-
 		let result: { [id: string]: IExtensionsStatus; } = Object.create(null);
 		if (this._registry) {
 			const extensions = this._registry.getAllExtensionDescriptions();
@@ -470,8 +446,8 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				const id = extension.id;
 				result[id] = {
 					messages: this._extensionsMessages[id],
-					activationTimes: activationTimes[id],
-					runtimeErrors: runtimeErrors[id],
+					activationTimes: this._extensionHostProcessActivationTimes[id],
+					runtimeErrors: this._extensionHostExtensionRuntimeErrors[id],
 				};
 			}
 		}
@@ -479,15 +455,21 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	public canProfileExtensionHost(): boolean {
-		if (this._extensionHostProcessManager) {
-			return this._extensionHostProcessManager.canProfileExtensionHost();
+		for (let i = 0, len = this._extensionHostProcessManagers.length; i < len; i++) {
+			const extHostProcessManager = this._extensionHostProcessManagers[i];
+			if (extHostProcessManager.canProfileExtensionHost()) {
+				return true;
+			}
 		}
 		return false;
 	}
 
 	public startExtensionHostProfile(): TPromise<ProfileSession> {
-		if (this._extensionHostProcessManager) {
-			return this._extensionHostProcessManager.startExtensionHostProfile();
+		for (let i = 0, len = this._extensionHostProcessManagers.length; i < len; i++) {
+			const extHostProcessManager = this._extensionHostProcessManagers[i];
+			if (extHostProcessManager.canProfileExtensionHost()) {
+				return extHostProcessManager.startExtensionHostProfile();
+			}
 		}
 		throw new Error('Extension host not running or no inspect port available');
 	}
@@ -902,12 +884,15 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	public _onExtensionActivated(extensionId: string, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void {
-		this._extensionHostProcessManager.onExtensionActivated(extensionId, startup, codeLoadingTime, activateCallTime, activateResolvedTime, activationEvent);
+		this._extensionHostProcessActivationTimes[extensionId] = new ActivationTimes(startup, codeLoadingTime, activateCallTime, activateResolvedTime, activationEvent);
 		this._onDidChangeExtensionsStatus.fire([extensionId]);
 	}
 
 	public _onExtensionRuntimeError(extensionId: string, err: Error): void {
-		this._extensionHostProcessManager.onExtensionRuntimeError(extensionId, err);
+		if (!this._extensionHostExtensionRuntimeErrors[extensionId]) {
+			this._extensionHostExtensionRuntimeErrors[extensionId] = [];
+		}
+		this._extensionHostExtensionRuntimeErrors[extensionId].push(err);
 		this._onDidChangeExtensionsStatus.fire([extensionId]);
 	}
 
