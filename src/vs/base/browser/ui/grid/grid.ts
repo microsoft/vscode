@@ -9,7 +9,7 @@ import 'vs/css!./gridview';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { tail2 as tail } from 'vs/base/common/arrays';
-import { orthogonal, IView, GridView } from './gridview';
+import { orthogonal, IView, GridView, Sizing } from './gridview';
 
 export { Orientation } from './gridview';
 
@@ -91,6 +91,11 @@ function directionOrientation(direction: Direction): Orientation {
 	return direction === Direction.Up || direction === Direction.Down ? Orientation.VERTICAL : Orientation.HORIZONTAL;
 }
 
+export enum AddViewSizing {
+	Distribute = 'distribute',
+	Split = 'split'
+}
+
 export class Grid<T extends IView> implements IDisposable {
 
 	protected gridview: GridView;
@@ -114,7 +119,7 @@ export class Grid<T extends IView> implements IDisposable {
 		this.gridview.layout(width, height);
 	}
 
-	addView(newView: T, size: number, referenceView: T, direction: Direction): void {
+	addView(newView: T, size: number | AddViewSizing, referenceView: T, direction: Direction): void {
 		if (this.views.has(newView)) {
 			throw new Error('Can\'t add same view twice');
 		}
@@ -128,15 +133,26 @@ export class Grid<T extends IView> implements IDisposable {
 		const referenceLocation = this.getViewLocation(referenceView);
 		const location = getRelativeLocation(this.gridview.orientation, referenceLocation, direction);
 
-		this._addView(newView, size, location);
+		let viewSize: number | Sizing;
+
+		if (size === AddViewSizing.Split) {
+			const { width, height } = this.gridview.getViewSize(referenceLocation);
+			viewSize = orientation === Orientation.VERTICAL ? Math.floor(height / 2) : Math.floor(width / 2);
+		} else if (size === AddViewSizing.Distribute) {
+			viewSize = Sizing.Distribute;
+		} else {
+			viewSize = size;
+		}
+
+		this._addView(newView, viewSize, location);
 	}
 
-	protected _addView(newView: T, size: number, location): void {
+	protected _addView(newView: T, size: number | Sizing, location): void {
 		this.views.set(newView, newView.element);
 		this.gridview.addView(newView, size, location);
 	}
 
-	removeView(view: T): void {
+	removeView(view: T, sizing?: Sizing): void {
 		if (this.views.size === 1) {
 			throw new Error('Can\'t remove last view');
 		}
@@ -146,7 +162,7 @@ export class Grid<T extends IView> implements IDisposable {
 		}
 
 		const location = this.getViewLocation(view);
-		this.gridview.removeView(location);
+		this.gridview.removeView(location, sizing);
 		this.views.delete(view);
 	}
 

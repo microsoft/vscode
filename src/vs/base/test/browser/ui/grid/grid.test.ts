@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Direction, Grid, getRelativeLocation, Orientation, SerializableGrid, ISerializableView, IViewDeserializer, isGridBranchNode, GridNode } from 'vs/base/browser/ui/grid/grid';
+import { Direction, Grid, getRelativeLocation, Orientation, SerializableGrid, ISerializableView, IViewDeserializer, isGridBranchNode, GridNode, AddViewSizing } from 'vs/base/browser/ui/grid/grid';
 import { TestView, nodesToArrays } from './util';
 
 suite('Grid', function () {
@@ -116,6 +116,90 @@ suite('Grid', function () {
 		assert.deepEqual(view3.size, [200, 400]);
 		assert.deepEqual(view4.size, [200, 200]);
 		assert.deepEqual(view5.size, [600, 100]);
+	});
+
+	test('another simple layout with automatic size distribution', function () {
+		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		const grid = new Grid(container, view1);
+		grid.layout(800, 600);
+		assert.deepEqual(view1.size, [800, 600]);
+
+		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view2, AddViewSizing.Distribute, view1, Direction.Left);
+		assert.deepEqual(view1.size, [400, 600]);
+		assert.deepEqual(view2.size, [400, 600]);
+
+		const view3 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view3, AddViewSizing.Distribute, view1, Direction.Right);
+		assert.deepEqual(view1.size, [266, 600]);
+		assert.deepEqual(view2.size, [266, 600]);
+		assert.deepEqual(view3.size, [268, 600]);
+
+		const view4 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view4, AddViewSizing.Distribute, view2, Direction.Down);
+		assert.deepEqual(view1.size, [266, 600]);
+		assert.deepEqual(view2.size, [266, 300]);
+		assert.deepEqual(view3.size, [268, 600]);
+		assert.deepEqual(view4.size, [266, 300]);
+
+		const view5 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view5, AddViewSizing.Distribute, view3, Direction.Up);
+		assert.deepEqual(view1.size, [266, 600]);
+		assert.deepEqual(view2.size, [266, 300]);
+		assert.deepEqual(view3.size, [268, 300]);
+		assert.deepEqual(view4.size, [266, 300]);
+		assert.deepEqual(view5.size, [268, 300]);
+
+		const view6 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view6, AddViewSizing.Distribute, view3, Direction.Down);
+		assert.deepEqual(view1.size, [266, 600]);
+		assert.deepEqual(view2.size, [266, 300]);
+		assert.deepEqual(view3.size, [268, 200]);
+		assert.deepEqual(view4.size, [266, 300]);
+		assert.deepEqual(view5.size, [268, 200]);
+		assert.deepEqual(view6.size, [268, 200]);
+	});
+
+	test('another simple layout with split size distribution', function () {
+		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		const grid = new Grid(container, view1);
+		grid.layout(800, 600);
+		assert.deepEqual(view1.size, [800, 600]);
+
+		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view2, AddViewSizing.Split, view1, Direction.Left);
+		assert.deepEqual(view1.size, [400, 600]);
+		assert.deepEqual(view2.size, [400, 600]);
+
+		const view3 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view3, AddViewSizing.Split, view1, Direction.Right);
+		assert.deepEqual(view1.size, [200, 600]);
+		assert.deepEqual(view2.size, [400, 600]);
+		assert.deepEqual(view3.size, [200, 600]);
+
+		const view4 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view4, AddViewSizing.Split, view2, Direction.Down);
+		assert.deepEqual(view1.size, [200, 600]);
+		assert.deepEqual(view2.size, [400, 300]);
+		assert.deepEqual(view3.size, [200, 600]);
+		assert.deepEqual(view4.size, [400, 300]);
+
+		const view5 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view5, AddViewSizing.Split, view3, Direction.Up);
+		assert.deepEqual(view1.size, [200, 600]);
+		assert.deepEqual(view2.size, [400, 300]);
+		assert.deepEqual(view3.size, [200, 300]);
+		assert.deepEqual(view4.size, [400, 300]);
+		assert.deepEqual(view5.size, [200, 300]);
+
+		const view6 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view6, AddViewSizing.Split, view3, Direction.Down);
+		assert.deepEqual(view1.size, [200, 600]);
+		assert.deepEqual(view2.size, [400, 300]);
+		assert.deepEqual(view3.size, [200, 150]);
+		assert.deepEqual(view4.size, [400, 300]);
+		assert.deepEqual(view5.size, [200, 300]);
+		assert.deepEqual(view6.size, [200, 150]);
 	});
 });
 

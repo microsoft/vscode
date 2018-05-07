@@ -334,7 +334,7 @@ export class GridView implements IDisposable {
 		} else {
 			const [, grandParent] = tail(pathToParent);
 			const [, parentIndex] = tail(rest);
-			grandParent.removeChild(parentIndex, typeof size === 'number' ? undefined : size);
+			grandParent.removeChild(parentIndex);
 
 			const newParent = new BranchNode(parent.orientation, parent.size, parent.orthogonalSize);
 			grandParent.addChild(newParent, parent.size, parentIndex);
