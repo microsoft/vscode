@@ -132,10 +132,6 @@ export class BaseSplitEditorGroupAction extends Action {
 		}
 
 		const activeEditor = group.activeEditor;
-		if (!activeEditor) {
-			return TPromise.as(false);
-		}
-
 		if (activeEditor instanceof EditorInput && !activeEditor.supportsSplitEditor()) {
 			return TPromise.as(false);
 		}
@@ -144,16 +140,18 @@ export class BaseSplitEditorGroupAction extends Action {
 		const newGroup = this.nextEditorGroupsService.addGroup(group, this.direction);
 
 		// Open editor
-		let options: EditorOptions;
-		const codeEditor = getCodeEditor(group.activeControl);
-		if (codeEditor) {
-			options = TextEditorOptions.fromEditor(codeEditor);
-		} else {
-			options = new EditorOptions();
-		}
-		options.pinned = true;
+		if (activeEditor) {
+			let options: EditorOptions;
+			const codeEditor = getCodeEditor(group.activeControl);
+			if (codeEditor) {
+				options = TextEditorOptions.fromEditor(codeEditor);
+			} else {
+				options = new EditorOptions();
+			}
+			options.pinned = true;
 
-		newGroup.openEditor(activeEditor, options);
+			newGroup.openEditor(activeEditor, options);
+		}
 
 		return TPromise.as(true);
 	}
