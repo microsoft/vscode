@@ -37,15 +37,15 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 
 const $ = dom.$;
 
-type InputParameters = SelectManyParameters | TextInputParameters;
+type InputParameters = PickManyParameters | TextInputParameters;
 
 export interface BaseInputParameters {
-	readonly type: 'selectMany' | 'textInput';
+	readonly type: 'pickMany' | 'textInput';
 	readonly ignoreFocusLost?: boolean;
 }
 
-export interface SelectManyParameters<T extends IPickOpenEntry = IPickOpenEntry> extends BaseInputParameters {
-	readonly type: 'selectMany';
+export interface PickManyParameters<T extends IPickOpenEntry = IPickOpenEntry> extends BaseInputParameters {
+	readonly type: 'pickMany';
 	readonly picks: TPromise<T[]>;
 	readonly matchOnDescription?: boolean;
 	readonly matchOnDetail?: boolean;
@@ -77,7 +77,7 @@ interface InputController<R> {
 	readonly resolve: (ok?: true | Thenable<never>) => void | TPromise<void>;
 }
 
-class SelectManyController<T extends IPickOpenEntry> implements InputController<T[]> {
+class PickManyController<T extends IPickOpenEntry> implements InputController<T[]> {
 	public showUI = { checkAll: true, inputBox: true, count: true, ok: true, checkboxList: true };
 	public result: TPromise<T[]>;
 	public ready: TPromise<void>;
@@ -85,7 +85,7 @@ class SelectManyController<T extends IPickOpenEntry> implements InputController<
 	public progress: (value: T) => void;
 	private closed = false;
 
-	constructor(ui: QuickInputUI, parameters: SelectManyParameters<T>) {
+	constructor(ui: QuickInputUI, parameters: PickManyParameters<T>) {
 		this.result = new TPromise<T[]>((resolve, reject, progress) => {
 			this.resolve = ok => resolve(ok === true ? <T[]>ui.checkboxList.getCheckedElements() : ok);
 			this.progress = progress;
@@ -315,7 +315,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 				.map(e => e[0])
 				.filter(e => !!e)
 				.latch()
-				.on(e => this.controller instanceof SelectManyController && this.controller.progress(e)) // TODO
+				.on(e => this.controller instanceof PickManyController && this.controller.progress(e)) // TODO
 		);
 
 		this.toUnbind.push(dom.addDisposableListener(this.container, 'focusout', (e: FocusEvent) => {
@@ -367,7 +367,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 	}
 
 	private close(ok?: true | Thenable<never>, focusLost?: boolean) {
-		if (this.container.style.display === 'none') {
+		if (!this.container || this.container.style.display === 'none') {
 			return TPromise.as(undefined);
 		}
 		if (this.controller) {
@@ -400,7 +400,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 	pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options: IPickOptions = {}, token?: CancellationToken): TPromise<T[]> {
 		return this.show({
-			type: 'selectMany',
+			type: 'pickMany',
 			picks,
 			placeHolder: options.placeHolder,
 			matchOnDescription: options.matchOnDescription,
@@ -422,7 +422,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		}, token);
 	}
 
-	show<T extends IPickOpenEntry>(parameters: SelectManyParameters<T>, token?: CancellationToken): TPromise<T[]>;
+	show<T extends IPickOpenEntry>(parameters: PickManyParameters<T>, token?: CancellationToken): TPromise<T[]>;
 	show(parameters: TextInputParameters, token?: CancellationToken): TPromise<string>;
 	show<R>(parameters: InputParameters, token: CancellationToken = CancellationToken.None): TPromise<R> {
 		this.create();
@@ -438,7 +438,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.progressBar.stop();
 		this.ready = false;
 
-		this.controller = parameters.type === 'selectMany' ? new SelectManyController(this.ui, parameters) : new TextInputController(this.ui, parameters);
+		this.controller = parameters.type === 'pickMany' ? new PickManyController(this.ui, parameters) : new TextInputController(this.ui, parameters);
 		this.ui.checkAll.style.display = this.controller.showUI.checkAll ? null : 'none';
 		this.filterContainer.style.display = this.controller.showUI.inputBox ? null : 'none';
 		this.ui.inputBox.showDecoration(Severity.Ignore);

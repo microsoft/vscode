@@ -32,7 +32,7 @@
 	flex-grow: 1;
 }
 
-.quick-input-widget[data-type=selectMany] .quick-input-box {
+.quick-input-widget[data-type=pickMany] .quick-input-box {
 	margin-left: 5px;
 }
 
