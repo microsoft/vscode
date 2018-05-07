@@ -465,4 +465,37 @@ suite('SerializableGrid', function () {
 		assert.deepEqual(view4Copy.size, [100, 266]);
 		assert.deepEqual(view5Copy.size, [300, 134]);
 	});
+
+	test('deserialize 4 view layout with scaling', function () {
+		const view1 = new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		const grid = new SerializableGrid(container, view1);
+		grid.layout(800, 600);
+
+		const view2 = new TestSerializableView('view2', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view2, Sizing.Split, view1, Direction.Down);
+
+		const view3 = new TestSerializableView('view3', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view3, Sizing.Split, view2, Direction.Down);
+
+		const view4 = new TestSerializableView('view4', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view4, Sizing.Split, view3, Direction.Right);
+
+		const json = grid.serialize();
+		grid.dispose();
+
+		const deserializer = new TestViewDeserializer();
+		const grid2 = SerializableGrid.deserialize(container, json, deserializer);
+
+		const view1Copy = deserializer.getView('view1');
+		const view2Copy = deserializer.getView('view2');
+		const view3Copy = deserializer.getView('view3');
+		const view4Copy = deserializer.getView('view4');
+
+		grid2.layout(800, 600);
+
+		assert.deepEqual(view1Copy.size, [800, 300]);
+		assert.deepEqual(view2Copy.size, [800, 150]);
+		assert.deepEqual(view3Copy.size, [400, 150]);
+		assert.deepEqual(view4Copy.size, [400, 150]);
+	});
 });

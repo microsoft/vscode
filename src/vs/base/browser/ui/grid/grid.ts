@@ -334,8 +334,9 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 		const direction = orientation === Orientation.VERTICAL ? Direction.Down : Direction.Right;
 		const firstLeaves = node.children.map(c => SerializableGrid.getFirstLeaf(c));
 
-		for (const leaf of firstLeaves.slice(1)) {
-			this.addView(leaf.view, leaf.size, referenceView, direction);
+		for (let i = 1; i < firstLeaves.length; i++) {
+			this.addView(firstLeaves[i].view, firstLeaves[i].size, referenceView, direction);
+			referenceView = firstLeaves[i].view;
 		}
 
 		for (let i = 0; i < node.children.length; i++) {
