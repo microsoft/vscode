@@ -248,15 +248,14 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	}
 
 	public move(compositeId: string, toCompositeId: string): void {
-		this.model.move(compositeId, toCompositeId);
-
-		// timeout helps to prevent artifacts from showing up
-		setTimeout(() => {
-			this.updateCompositeSwitcher();
-			// Persist
-			this.saveCompositeItems();
-		}, 0);
-
+		if (this.model.move(compositeId, toCompositeId)) {
+			// timeout helps to prevent artifacts from showing up
+			setTimeout(() => {
+				this.updateCompositeSwitcher();
+				// Persist
+				this.saveCompositeItems();
+			}, 0);
+		}
 	}
 
 	public getAction(compositeId): ActivityAction {
