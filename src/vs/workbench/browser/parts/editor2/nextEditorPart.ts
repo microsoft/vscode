@@ -32,6 +32,7 @@ import { GroupOrientation } from 'vs/workbench/services/group/common/groupServic
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { Sizing } from 'vs/base/browser/ui/grid/gridview';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 // TODO@grid provide DND support of groups/editors:
 // - editor: move/copy to existing group, move/copy to new split group (up, down, left, right)
@@ -91,7 +92,8 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IStorageService private storageService: IStorageService,
 		@INotificationService private notificationService: INotificationService,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private windowService: IWindowService,
+		@ILifecycleService private lifecycleService: ILifecycleService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
@@ -534,7 +536,10 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 	// TODO@grid this should be removed once the gridwidget is stable
 	private gridError(error: Error): void {
 		console.error(error);
-		this.notificationService.prompt(Severity.Error, `Grid Issue: ${error}. Please report this error stack with reproducible steps.`, [{ label: 'Open DevTools', run: () => this.windowService.openDevTools() }]);
+
+		this.lifecycleService.when(LifecyclePhase.Running).then(() => {
+			this.notificationService.prompt(Severity.Error, `Grid Issue: ${error}. Please report this error stack with reproducible steps.`, [{ label: 'Open DevTools', run: () => this.windowService.openDevTools() }]);
+		});
 	}
 
 	layout(dimension: Dimension): Dimension[] {
