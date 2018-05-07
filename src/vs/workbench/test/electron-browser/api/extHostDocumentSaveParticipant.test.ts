@@ -34,6 +34,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		enableProposedApi: false,
 		engines: undefined,
 		extensionFolderPath: undefined,
+		extensionLocation: undefined,
 		isBuiltin: false,
 		version: undefined
 	};

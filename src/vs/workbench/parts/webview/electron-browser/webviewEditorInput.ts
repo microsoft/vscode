@@ -34,7 +34,7 @@ export class WebviewEditorInput extends EditorInput {
 
 	private _revived: boolean = false;
 
-	public readonly extensionFolderPath: URI | undefined;
+	public readonly extensionLocation: URI | undefined;
 
 	constructor(
 		public readonly viewType: string,
@@ -42,7 +42,7 @@ export class WebviewEditorInput extends EditorInput {
 		options: WebviewInputOptions,
 		state: any,
 		events: WebviewEvents,
-		extensionFolderPath: string | undefined,
+		extensionLocation: URI | undefined,
 		public readonly reviver: WebviewReviver | undefined,
 		@IPartService private readonly _partService: IPartService,
 	) {
@@ -51,10 +51,7 @@ export class WebviewEditorInput extends EditorInput {
 		this._options = options;
 		this._events = events;
 		this._state = state;
-
-		if (extensionFolderPath) {
-			this.extensionFolderPath = URI.file(extensionFolderPath);
-		}
+		this.extensionLocation = extensionLocation;
 	}
 
 	public getTypeId(): string {

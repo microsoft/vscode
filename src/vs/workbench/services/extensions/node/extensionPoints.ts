@@ -17,6 +17,7 @@ import * as semver from 'semver';
 import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { groupByExtension, getGalleryExtensionId, getLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import URI from 'vs/base/common/uri';
 
 const MANIFEST_FILE = 'package.json';
 
@@ -306,6 +307,7 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 			publisher: string;
 			isBuiltin: boolean;
 			extensionFolderPath: string;
+			extensionLocation: URI;
 			engines: {
 				vscode: string;
 			};
@@ -337,6 +339,7 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 		}
 
 		extensionDescription.extensionFolderPath = this._absoluteFolderPath;
+		extensionDescription.extensionLocation = URI.file(this._absoluteFolderPath);
 
 		return extensionDescription;
 	}
