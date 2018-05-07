@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { GridView, IView } from 'vs/base/browser/ui/grid/gridview';
+import { GridView, IView, Sizing } from 'vs/base/browser/ui/grid/gridview';
 import { nodesToArrays, TestView } from './util';
 
 suite('Gridview', function () {
@@ -156,5 +156,41 @@ suite('Gridview', function () {
 		assert.deepEqual(grid.getViewSize([0, 0]), { width: 200, height: 200 });
 		assert.deepEqual(view5.size, [600, 100]);
 		assert.deepEqual(grid.getViewSize([1, 0, 1]), { width: 600, height: 100 });
+	});
+
+	test('simple layout with automatic size distribution', function () {
+		const grid = new GridView(container);
+		grid.layout(800, 600);
+
+		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view1, Sizing.Distribute, [0]);
+		assert.deepEqual(view1.size, [800, 600]);
+		assert.deepEqual(grid.getViewSize([0]), { width: 800, height: 600 });
+
+		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view2, Sizing.Distribute, [0]);
+		assert.deepEqual(view1.size, [800, 300]);
+		assert.deepEqual(view2.size, [800, 300]);
+
+		const view3 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view3, Sizing.Distribute, [1, 1]);
+		assert.deepEqual(view1.size, [400, 300]);
+		assert.deepEqual(view2.size, [800, 300]);
+		assert.deepEqual(view3.size, [400, 300]);
+
+		const view4 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view4, Sizing.Distribute, [0, 0]);
+		assert.deepEqual(view1.size, [400, 300]);
+		assert.deepEqual(view2.size, [400, 300]);
+		assert.deepEqual(view3.size, [400, 300]);
+		assert.deepEqual(view4.size, [400, 300]);
+
+		const view5 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view5, Sizing.Distribute, [1, 0, 1]);
+		assert.deepEqual(view1.size, [400, 150]);
+		assert.deepEqual(view2.size, [400, 300]);
+		assert.deepEqual(view3.size, [400, 300]);
+		assert.deepEqual(view4.size, [400, 300]);
+		assert.deepEqual(view5.size, [400, 150]);
 	});
 });

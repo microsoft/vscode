@@ -79,7 +79,6 @@ function pushToEnd<T>(arr: T[], value: T): T[] {
 }
 
 export enum Sizing {
-	None = 'none',
 	Distribute = 'distribute'
 }
 

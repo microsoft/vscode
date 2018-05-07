@@ -8,11 +8,12 @@
 import 'vs/css!./gridview';
 import { Event, anyEvent, Emitter, mapEvent } from 'vs/base/common/event';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
-import { SplitView, IView as ISplitView } from 'vs/base/browser/ui/splitview/splitview';
+import { SplitView, IView as ISplitView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 import { empty as EmptyDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { $, append } from 'vs/base/browser/dom';
 import { tail2 as tail } from 'vs/base/common/arrays';
 
+export { Sizing } from 'vs/base/browser/ui/splitview/splitview';
 export { Orientation } from 'vs/base/browser/ui/sash/sash';
 
 export interface IView {
@@ -27,6 +28,7 @@ export interface IView {
 
 /*
 TODO:
+	- cant use spltiview before first layout
 	- NEW: 	add a color to show a border where the sash is, similar to how other
 			widgets have a color (e.g. Button, with applyStyles). Challenge is that this
 			color has to be applied via JS and not CSS to not apply it to all views
@@ -116,7 +118,7 @@ class BranchNode implements ISplitView, IDisposable {
 		this.splitview.layout(size);
 	}
 
-	addChild(node: Node, size: number, index: number): void {
+	addChild(node: Node, size: number | Sizing, index: number): void {
 		if (index < 0 || index > this.children.length) {
 			throw new Error('Invalid index');
 		}
@@ -126,12 +128,12 @@ class BranchNode implements ISplitView, IDisposable {
 		this.onDidChildrenChange();
 	}
 
-	removeChild(index: number): void {
+	removeChild(index: number, sizing?: Sizing): void {
 		if (index < 0 || index >= this.children.length) {
 			throw new Error('Invalid index');
 		}
 
-		this.splitview.removeView(index);
+		this.splitview.removeView(index, sizing);
 		this.children.splice(index, 1);
 		this.onDidChildrenChange();
 	}
@@ -321,7 +323,7 @@ export class GridView implements IDisposable {
 		this.root.orthogonalLayout(orthogonalSize);
 	}
 
-	addView(view: IView, size: number, location: number[]): void {
+	addView(view: IView, size: number | Sizing, location: number[]): void {
 		const [rest, index] = tail(location);
 		const [pathToParent, parent] = this.getNode(rest);
 
@@ -332,7 +334,7 @@ export class GridView implements IDisposable {
 		} else {
 			const [, grandParent] = tail(pathToParent);
 			const [, parentIndex] = tail(rest);
-			grandParent.removeChild(parentIndex);
+			grandParent.removeChild(parentIndex, typeof size === 'number' ? undefined : size);
 
 			const newParent = new BranchNode(parent.orientation, parent.size, parent.orthogonalSize);
 			grandParent.addChild(newParent, parent.size, parentIndex);
@@ -346,7 +348,7 @@ export class GridView implements IDisposable {
 		}
 	}
 
-	removeView(location: number[]): IView {
+	removeView(location: number[], sizing?: Sizing): IView {
 		const [rest, index] = tail(location);
 		const [pathToParent, parent] = this.getNode(rest);
 
@@ -360,7 +362,7 @@ export class GridView implements IDisposable {
 			throw new Error('Invalid location');
 		}
 
-		parent.removeChild(index);
+		parent.removeChild(index, sizing);
 
 		if (parent.children.length === 0) {
 			throw new Error('Invalid grid state');
@@ -375,7 +377,7 @@ export class GridView implements IDisposable {
 
 		const sibling = parent.children[0];
 		parent.removeChild(0);
-		grandParent.removeChild(parentIndex);
+		grandParent.removeChild(parentIndex, sizing);
 
 		if (sibling instanceof BranchNode) {
 			for (let i = 0; i < sibling.children.length; i++) {
