@@ -1240,7 +1240,6 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	// TODO@grid support centered editor layout using empty groups or not? functionality missing:
-	// - proper initial sizing (left and right empty group sizes are not the same)
 	// - resize sashes left and right in sync
 	// - IEditorInput.supportsCenteredEditorLayout() no longer supported
 	centerEditorLayout(active: boolean, skipLayout?: boolean): void {

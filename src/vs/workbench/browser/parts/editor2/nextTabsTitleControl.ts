@@ -911,16 +911,16 @@ export class NextTabsTitleControl extends NextTitleControl {
 		// Local DND
 		const draggedEditor = this.transfer.hasData(DraggedEditorIdentifier.prototype) ? this.transfer.getData(DraggedEditorIdentifier.prototype)[0].identifier : void 0;
 		if (draggedEditor) {
+			const sourceGroup = this.accessor.getGroup(draggedEditor.group.id) as INextEditorGroup;
 
 			// Move editor to target position and index
 			if (this.isMoveOperation(e, draggedEditor.group)) {
-				const sourceGroup = this.accessor.getGroup(draggedEditor.group.id) as INextEditorGroup;
 				sourceGroup.moveEditor(draggedEditor.editor, this.group, { index: targetIndex });
 			}
 
-			// Copy: just open editor at target index
+			// Copy editor to target position and index
 			else {
-				this.group.openEditor(draggedEditor.editor, { pinned: true, index: targetIndex });
+				sourceGroup.copyEditor(draggedEditor.editor, this.group, { index: targetIndex });
 			}
 
 			this.transfer.clearData();

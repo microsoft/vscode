@@ -19,7 +19,7 @@ import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND } from 'vs/workbench/common/theme';
-import { IMoveEditorOptions } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { IMoveEditorOptions, ICopyEditorOptions } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { NextTabsTitleControl } from 'vs/workbench/browser/parts/editor2/nextTabsTitleControl';
 import { NextEditorControl } from 'vs/workbench/browser/parts/editor2/nextEditorControl';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -647,7 +647,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 		// Move across groups
 		else {
-			this.doMoveEditorAcrossGroups(editor, target, options);
+			this.doMoveOrCopyEditorAcrossGroups(editor, target, options);
 		}
 	}
 
@@ -671,7 +671,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		this.titleAreaControl.pinEditor(editor);
 	}
 
-	private doMoveEditorAcrossGroups(editor: EditorInput, target: INextEditorGroupView, moveOptions: IMoveEditorOptions = Object.create(null)): void {
+	private doMoveOrCopyEditorAcrossGroups(editor: EditorInput, target: INextEditorGroupView, moveOptions: IMoveEditorOptions = Object.create(null), keepCopy?: boolean): void {
 		let options: EditorOptions;
 
 		// When moving an editor, try to preserve as much view state as possible by checking
@@ -688,8 +688,28 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		// A move to another group is an open first...
 		target.openEditor(editor, options);
 
-		// ...and a close afterwards
-		this.doCloseEditor(editor, false /* do not focus next one behind if any */);
+		// ...and a close afterwards (unless we copy)
+		if (!keepCopy) {
+			this.doCloseEditor(editor, false /* do not focus next one behind if any */);
+		}
+	}
+
+	//#endregion
+
+	//#region copyEditor()
+
+	copyEditor(editor: EditorInput, target: INextEditorGroupView, options?: ICopyEditorOptions): void {
+
+		// Move within same group because we do not support to show the same editor
+		// multiple times in the same group
+		if (this === target) {
+			this.doMoveEditorInsideGroup(editor, options);
+		}
+
+		// Copy across groups
+		else {
+			this.doMoveOrCopyEditorAcrossGroups(editor, target, options, true);
+		}
 	}
 
 	//#endregion
