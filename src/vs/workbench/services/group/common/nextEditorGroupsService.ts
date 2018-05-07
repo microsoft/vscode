@@ -7,7 +7,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { GroupIdentifier } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IEditorOpeningEvent } from 'vs/workbench/common/editor';
 import { IEditorInput, IEditor, IEditorOptions } from 'vs/platform/editor/common/editor';
 
 export const INextEditorGroupsService = createDecorator<INextEditorGroupsService>('nextEditorGroupsService');
@@ -165,6 +165,17 @@ export interface INextEditorGroup {
 	 * Emitted when an editor of this group is closed.
 	 */
 	readonly onDidCloseEditor: Event<IEditorInput>;
+
+	/**
+	 * Emitted when an editor is about to open. This can be prevented from
+	 * the provided event.
+	 */
+	readonly onWillOpenEditor: Event<IEditorOpeningEvent>;
+
+	/**
+	 * Emitted when an editor failed to open.
+	 */
+	readonly onDidOpenEditorFail: Event<IEditorInput>;
 
 	/**
 	 * Returns the editor at a specific index of the group.

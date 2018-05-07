@@ -7,7 +7,7 @@
 
 import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInput, IResourceInput, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditor, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { GroupIdentifier } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IEditorOpeningEvent } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
 import { IEditor as ICodeEditor } from 'vs/editor/common/editorCommon';
 
@@ -40,6 +40,17 @@ export interface INextEditorService {
 	 * Emitted when an editor is closed.
 	 */
 	readonly onDidCloseEditor: Event<IEditorInput>;
+
+	/**
+	 * Emitted when an editor is about to open. This can be prevented from
+	 * the provided event.
+	 */
+	readonly onWillOpenEditor: Event<IEditorOpeningEvent>;
+
+	/**
+	 * Emitted when an editor failed to open.
+	 */
+	readonly onDidOpenEditorFail: Event<IEditorInput>;
 
 	/**
 	 * The currently active editor control if any.

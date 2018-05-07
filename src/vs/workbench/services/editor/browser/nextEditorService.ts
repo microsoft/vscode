@@ -7,7 +7,7 @@
 
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInput, IResourceInput, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditor, ITextEditorOptions, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { GroupIdentifier, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, EditorOptions, TextEditorOptions, IEditorOpeningEvent } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -49,6 +49,12 @@ export class NextEditorService extends Disposable implements INextEditorService 
 
 	private _onDidCloseEditor: Emitter<IEditorInput> = this._register(new Emitter<IEditorInput>());
 	get onDidCloseEditor(): Event<IEditorInput> { return this._onDidCloseEditor.event; }
+
+	private _onWillOpenEditor: Emitter<IEditorOpeningEvent> = this._register(new Emitter<IEditorOpeningEvent>());
+	get onWillOpenEditor(): Event<IEditorOpeningEvent> { return this._onWillOpenEditor.event; }
+
+	private _onDidOpenEditorFail: Emitter<IEditorInput> = this._register(new Emitter<IEditorInput>());
+	get onDidOpenEditorFail(): Event<IEditorInput> { return this._onDidOpenEditorFail.event; }
 
 	//#endregion
 
@@ -95,6 +101,14 @@ export class NextEditorService extends Disposable implements INextEditorService 
 
 		groupDisposeables.push(group.onDidCloseEditor(editor => {
 			this._onDidCloseEditor.fire(editor);
+		}));
+
+		groupDisposeables.push(group.onWillOpenEditor(editor => {
+			this._onWillOpenEditor.fire(editor);
+		}));
+
+		groupDisposeables.push(group.onDidOpenEditorFail(editor => {
+			this._onDidOpenEditorFail.fire(editor);
 		}));
 
 		once(group.onWillDispose)(() => {

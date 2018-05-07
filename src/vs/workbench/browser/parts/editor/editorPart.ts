@@ -54,22 +54,6 @@ import { dispose } from 'vs/base/common/lifecycle';
  */
 export class EditorPart extends Part implements IEditorPart, IEditorGroupService {
 
-	//#region TODO@grid global events across all groups
-
-	public get onEditorOpening(): Event<IEditorOpeningEvent> {
-		return this._onEditorOpening.event;
-	}
-
-	public get onEditorOpenFail(): Event<EditorInput> {
-		return this._onEditorOpenFail.event;
-	}
-
-	public get onGroupOrientationChanged(): Event<void> {
-		return this._onGroupOrientationChanged.event;
-	}
-
-	//#endregion
-
 	//#region TODO@grid closeEditors()
 
 	public closeEditors(positions?: Position[]): TPromise<void>;
@@ -338,6 +322,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	//#endregion
 
 	//#region TODO@grid group orientation
+
+	public get onGroupOrientationChanged(): Event<void> {
+		return this._onGroupOrientationChanged.event;
+	}
 
 	public setGroupOrientation(orientation: GroupOrientation): void {
 		this.editorGroupsControl.setGroupOrientation(orientation);
@@ -913,6 +901,14 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	public get onDidLayout(): Event<Dimension> {
 		return this._onLayout.event;
+	}
+
+	public get onEditorOpening(): Event<IEditorOpeningEvent> {
+		return this._onEditorOpening.event;
+	}
+
+	public get onEditorOpenFail(): Event<EditorInput> {
+		return this._onEditorOpenFail.event;
 	}
 
 	private onEditorOpened(identifier: EditorIdentifier): void {
