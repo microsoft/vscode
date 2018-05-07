@@ -48,6 +48,11 @@ export interface INextEditorGroupsService {
 	readonly onDidRemoveGroup: Event<INextEditorGroup>;
 
 	/**
+	 * An event for when a group was moved.
+	 */
+	readonly onDidMoveGroup: Event<INextEditorGroup>;
+
+	/**
 	 * An active group is the default location for new editors to open.
 	 */
 	readonly activeGroup: INextEditorGroup;
@@ -84,18 +89,37 @@ export interface INextEditorGroupsService {
 	activateGroup(group: INextEditorGroup | GroupIdentifier): INextEditorGroup;
 
 	/**
-	 * Add a new group to the editor area. A new group is added by splitting a provided one.
+	 * Add a new group to the editor area. A new group is added by splitting a provided one in
+	 * one of the four directions.
 	 *
-	 * @param fromGroup the group from which to split to add a new group
+	 * @param location the group from which to split to add a new group
 	 * @param direction the direction of where to split to
 	 * @param copyGroup optionally copy the editors of the group to add from
 	 */
-	addGroup(fromGroup: INextEditorGroup | GroupIdentifier, direction: GroupDirection, copyGroup?: boolean): INextEditorGroup;
+	addGroup(location: INextEditorGroup | GroupIdentifier, direction: GroupDirection, copyGroup?: boolean): INextEditorGroup;
 
 	/**
 	 * Remove a group from the editor area.
 	 */
 	removeGroup(group: INextEditorGroup | GroupIdentifier): void;
+
+	/**
+	 * Move a group to a new group in the editor area.
+	 *
+	 * @param group the group to move
+	 * @param location the group from which to split to add the moved group
+	 * @param direction the direction of where to split to
+	 */
+	moveGroup(group: INextEditorGroup | GroupIdentifier, location: INextEditorGroup | GroupIdentifier, direction: GroupDirection): INextEditorGroup;
+
+	/**
+	 * Copy a group to a new group in the editor area.
+	 *
+	 * @param group the group to copy
+	 * @param location the group from which to split to add the copied group
+	 * @param direction the direction of where to split to
+	 */
+	copyGroup(group: INextEditorGroup | GroupIdentifier, location: INextEditorGroup | GroupIdentifier, direction: GroupDirection): INextEditorGroup;
 }
 
 export interface INextEditorGroup {

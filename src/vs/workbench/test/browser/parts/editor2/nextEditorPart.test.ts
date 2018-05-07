@@ -109,6 +109,11 @@ suite('Next editor2 part tests', () => {
 			groupRemovedCounter++;
 		});
 
+		let groupMovedCounter = 0;
+		const groupMovedListener = part.onDidMoveGroup(() => {
+			groupMovedCounter++;
+		});
+
 		// always a root group
 		const rootGroup = part.groups[0];
 		assert.equal(part.groups.length, 1);
@@ -159,6 +164,9 @@ suite('Next editor2 part tests', () => {
 		assert.equal(mru[1], rootGroup);
 		assert.equal(mru[2], downGroup);
 
+		part.moveGroup(downGroup, rightGroup, GroupDirection.DOWN);
+		assert.equal(groupMovedCounter, 1);
+
 		part.removeGroup(downGroup);
 		assert.ok(!part.getGroup(downGroup.id));
 		assert.equal(didDispose, true);
@@ -202,6 +210,7 @@ suite('Next editor2 part tests', () => {
 		activeGroupChangeListener.dispose();
 		groupAddedListener.dispose();
 		groupRemovedListener.dispose();
+		groupMovedListener.dispose();
 
 		part.dispose();
 	});

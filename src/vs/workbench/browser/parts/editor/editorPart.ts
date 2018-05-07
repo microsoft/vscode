@@ -56,16 +56,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	//#region TODO@grid global events across all groups
 
-	public get onEditorsChanged(): Event<void> {
-		return this._onEditorsChanged.event;
-	}
-
 	public get onEditorOpening(): Event<IEditorOpeningEvent> {
 		return this._onEditorOpening.event;
-	}
-
-	public get onEditorGroupMoved(): Event<void> {
-		return this._onEditorGroupMoved.event;
 	}
 
 	public get onEditorOpenFail(): Event<EditorInput> {
@@ -329,41 +321,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	//#endregion
 
-	//#region TODO@grid move group
-
-	public moveGroup(from: EditorGroup, to: EditorGroup): void;
-	public moveGroup(from: Position, to: Position): void;
-	public moveGroup(arg1: any, arg2: any): void {
-		const fromGroup = (typeof arg1 === 'number') ? this.stacks.groupAt(arg1) : arg1;
-		const toGroup = (typeof arg2 === 'number') ? this.stacks.groupAt(arg2) : arg2;
-
-		if (!fromGroup || !toGroup || fromGroup === toGroup) {
-			return; // Ignore if we cannot move
-		}
-
-		const fromPosition = this.stacks.positionOfGroup(fromGroup);
-		const toPosition = this.stacks.positionOfGroup(toGroup);
-
-		// Update stacks model
-		this.modifyGroups(() => this.stacks.moveGroup(fromGroup, toPosition));
-
-		// Move widgets
-		this.editorGroupsControl.move(fromPosition, toPosition);
-
-		// Move data structures
-		arrays.move(this.visibleEditors, fromPosition, toPosition);
-		arrays.move(this.editorOpenToken, fromPosition, toPosition);
-		arrays.move(this.instantiatedEditors, fromPosition, toPosition);
-
-		// Restore focus
-		this.focusGroup(fromGroup);
-
-		// Events
-		this._onEditorGroupMoved.fire();
-	}
-
-	//#endregion
-
 	//#region TODO@grid group arrangement
 
 	public arrangeGroups(arrangement: GroupArrangement): void {
@@ -623,6 +580,14 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private pendingEditorInputsToClose: EditorIdentifier[];
 	private pendingEditorInputCloseTimeout: number;
 
+	public get onEditorGroupMoved(): Event<void> {
+		return this._onEditorGroupMoved.event;
+	}
+
+	public get onEditorsChanged(): Event<void> {
+		return this._onEditorsChanged.event;
+	}
+
 	constructor(
 		id: string,
 		restoreFromStorage: boolean,
@@ -690,6 +655,37 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		this.initStyles();
 		this.registerListeners();
+	}
+
+	public moveGroup(from: EditorGroup, to: EditorGroup): void;
+	public moveGroup(from: Position, to: Position): void;
+	public moveGroup(arg1: any, arg2: any): void {
+		const fromGroup = (typeof arg1 === 'number') ? this.stacks.groupAt(arg1) : arg1;
+		const toGroup = (typeof arg2 === 'number') ? this.stacks.groupAt(arg2) : arg2;
+
+		if (!fromGroup || !toGroup || fromGroup === toGroup) {
+			return; // Ignore if we cannot move
+		}
+
+		const fromPosition = this.stacks.positionOfGroup(fromGroup);
+		const toPosition = this.stacks.positionOfGroup(toGroup);
+
+		// Update stacks model
+		this.modifyGroups(() => this.stacks.moveGroup(fromGroup, toPosition));
+
+		// Move widgets
+		this.editorGroupsControl.move(fromPosition, toPosition);
+
+		// Move data structures
+		arrays.move(this.visibleEditors, fromPosition, toPosition);
+		arrays.move(this.editorOpenToken, fromPosition, toPosition);
+		arrays.move(this.instantiatedEditors, fromPosition, toPosition);
+
+		// Restore focus
+		this.focusGroup(fromGroup);
+
+		// Events
+		this._onEditorGroupMoved.fire();
 	}
 
 	public invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T {

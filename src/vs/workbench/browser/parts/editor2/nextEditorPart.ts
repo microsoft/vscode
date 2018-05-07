@@ -68,6 +68,9 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 	private _onDidRemoveGroup: Emitter<INextEditorGroupView> = this._register(new Emitter<INextEditorGroupView>());
 	get onDidRemoveGroup(): Event<INextEditorGroupView> { return this._onDidRemoveGroup.event; }
 
+	private _onDidMoveGroup: Emitter<INextEditorGroupView> = this._register(new Emitter<INextEditorGroupView>());
+	get onDidMoveGroup(): Event<INextEditorGroupView> { return this._onDidMoveGroup.event; }
+
 	//#endregion
 
 	private memento: object;
@@ -184,32 +187,33 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 	}
 
 	activateGroup(group: INextEditorGroupView | GroupIdentifier): INextEditorGroupView {
-		const groupView = this.asGroupView(group);
-		if (groupView) {
-			this.doSetGroupActive(groupView);
-		}
+		const groupView = this.assertGroupView(group);
+		this.doSetGroupActive(groupView);
 
 		return groupView;
 	}
 
 	focusGroup(group: INextEditorGroupView | GroupIdentifier): INextEditorGroupView {
-		const groupView = this.asGroupView(group);
-		if (groupView) {
-			groupView.focus();
-		}
+		const groupView = this.assertGroupView(group);
+		groupView.focus();
 
 		return groupView;
 	}
 
-	addGroup(fromGroup: INextEditorGroupView | GroupIdentifier, direction: GroupDirection, copy?: boolean): INextEditorGroupView {
-		const fromGroupView = this.asGroupView(fromGroup);
-		const newGroupView = this.doCreateGroupView(copy ? fromGroupView : void 0);
+	addGroup(location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection, copy?: boolean): INextEditorGroupView {
+		const locationView = this.assertGroupView(location);
+
+		return this.doAddGroup(locationView, direction, copy ? locationView : void 0);
+	}
+
+	private doAddGroup(locationView: INextEditorGroupView, direction: GroupDirection, groupToCopy?: INextEditorGroupView): INextEditorGroupView {
+		const newGroupView = this.doCreateGroupView(groupToCopy);
 
 		// Add to grid widget
 		this.gridWidget.addView(
 			newGroupView,
 			AddViewSizing.Distribute,
-			fromGroupView,
+			locationView,
 			this.toGridViewDirection(direction),
 		);
 
@@ -309,9 +313,8 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 	}
 
 	removeGroup(group: INextEditorGroupView | GroupIdentifier): void {
-		const groupView = this.asGroupView(group);
+		const groupView = this.assertGroupView(group);
 		if (
-			!groupView ||
 			this.groupViews.size === 1 ||	// Cannot remove the last root group
 			!groupView.isEmpty()			// TODO@grid what about removing a group with editors, move them to other group?
 		) {
@@ -344,9 +347,46 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		this._onDidRemoveGroup.fire(groupView);
 	}
 
-	private asGroupView(group: INextEditorGroupView | GroupIdentifier): INextEditorGroupView {
+	moveGroup(group: INextEditorGroupView | GroupIdentifier, location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection): INextEditorGroupView {
+		const groupView = this.assertGroupView(group);
+		const locationView = this.assertGroupView(location);
+
+		if (groupView.id === locationView.id) {
+			throw new Error('Unable to move the same editor group into itself!');
+		}
+
+		const groupHasFocus = isAncestor(document.activeElement, groupView.element);
+
+		// Move is a remove + add
+		this.gridWidget.removeView(groupView, Sizing.Distribute);
+		this.gridWidget.addView(groupView, AddViewSizing.Distribute, locationView, this.toGridViewDirection(direction));
+
+		// Restore focus if we had it previously (we run this after gridWidget.removeView() is called
+		// because removing a view can mean to reparent it and thus focus would be removed otherwise)
+		if (groupHasFocus) {
+			groupView.focus();
+		}
+
+		// Event
+		this._onDidMoveGroup.fire(groupView);
+
+		return groupView;
+	}
+
+	copyGroup(group: INextEditorGroupView | GroupIdentifier, location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection): INextEditorGroupView {
+		const groupView = this.assertGroupView(group);
+		const locationView = this.assertGroupView(location);
+
+		return this.doAddGroup(locationView, direction, groupView);
+	}
+
+	private assertGroupView(group: INextEditorGroupView | GroupIdentifier): INextEditorGroupView {
 		if (typeof group === 'number') {
-			return this.getGroup(group);
+			group = this.getGroup(group);
+		}
+
+		if (!group) {
+			throw new Error('Invalid editor group provided!');
 		}
 
 		return group;
@@ -488,13 +528,13 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 			this.gridWidget = this._register(new SerializableGrid(container, positionOneGroupView));
 			this.doSetGroupActive(positionOneGroupView);
 
-			const createGridView = (fromGroupView: INextEditorGroupView, group: ISerializedEditorGroup, direction: GroupDirection) => {
+			const createGridView = (locationView: INextEditorGroupView, group: ISerializedEditorGroup, direction: GroupDirection) => {
 				const newGroupView = this.doCreateGroupView(group);
 
 				this.gridWidget.addView(
 					newGroupView,
 					AddViewSizing.Distribute,
-					fromGroupView,
+					locationView,
 					this.toGridViewDirection(direction),
 				);
 
