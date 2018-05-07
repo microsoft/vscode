@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/resourceviewer';
 import * as nls from 'vs/nls';
 import * as mimes from 'vs/base/common/mime';
@@ -29,11 +27,11 @@ import * as platform from 'vs/base/common/platform';
 import { IFileService } from 'vs/platform/files/common/files';
 
 export interface IResourceDescriptor {
-	resource: URI;
-	name: string;
-	size: number;
-	etag: string;
-	mime: string;
+	readonly resource: URI;
+	readonly name: string;
+	readonly size: number;
+	readonly etag: string;
+	readonly mime: string;
 }
 
 class BinarySize {
