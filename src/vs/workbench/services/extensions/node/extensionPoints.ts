@@ -299,24 +299,25 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 	}
 }
 
+// Relax the readonly properties here, it is the one place where we check and normalize values
+export interface IRelaxedExtensionDescription {
+	id: string;
+	name: string;
+	version: string;
+	publisher: string;
+	isBuiltin: boolean;
+	isUnderDevelopment: boolean;
+	extensionFolderPath: string;
+	extensionLocation: URI;
+	engines: {
+		vscode: string;
+	};
+	main?: string;
+	enableProposedApi?: boolean;
+}
+
 class ExtensionManifestValidator extends ExtensionManifestHandler {
 	validate(_extensionDescription: IExtensionDescription): IExtensionDescription {
-		// Relax the readonly properties here, it is the one place where we check and normalize values
-		interface IRelaxedExtensionDescription {
-			id: string;
-			name: string;
-			version: string;
-			publisher: string;
-			isBuiltin: boolean;
-			isUnderDevelopment: boolean;
-			extensionFolderPath: string;
-			extensionLocation: URI;
-			engines: {
-				vscode: string;
-			};
-			main?: string;
-			enableProposedApi?: boolean;
-		}
 		let extensionDescription = <IRelaxedExtensionDescription>_extensionDescription;
 		extensionDescription.isBuiltin = this._isBuiltin;
 		extensionDescription.isUnderDevelopment = this._isUnderDevelopment;
