@@ -26,6 +26,8 @@ import { assign } from 'vs/base/common/objects';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Scope } from 'vs/workbench/common/memento';
 import { ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
+import { TValueCallback, TPromise } from 'vs/base/common/winjs.base';
+import { always } from 'vs/base/common/async';
 
 // TODO@grid provide DND support of groups/editors:
 // - editor: move/copy to existing group, move/copy to new split group (up, down, left, right)
@@ -74,8 +76,12 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 	private container: HTMLElement;
 	private gridWidget: SerializableGrid<INextEditorGroupView>;
 
+	private _whenRestored: Thenable<void>;
+	private whenRestoredComplete: TValueCallback<void>;
+
 	constructor(
 		id: string,
+		private restorePreviousState: boolean,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -85,6 +91,10 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 		this._partOptions = getEditorPartOptions(this.configurationService.getValue<IWorkbenchEditorConfiguration>());
 		this.memento = this.getMemento(this.storageService, Scope.WORKSPACE);
+
+		this._whenRestored = new TPromise(resolve => {
+			this.whenRestoredComplete = resolve;
+		});
 
 		this.registerListeners();
 	}
@@ -338,6 +348,10 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 	//#region Part
 
+	get whenRestored(): Thenable<void> {
+		return this._whenRestored;
+	}
+
 	protected updateStyles(): void {
 
 		// Part container
@@ -360,11 +374,14 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 	private doCreateGridControl(container: HTMLElement): void {
 
-		// Grid Widget (restored from previous UI state)
+		// Grid Widget (restored from previous UI state unless prevented)
 		const uiState = this.memento[NextEditorPart.NEXT_EDITOR_PART_UI_STATE_STORAGE_KEY] as INextEditorPartUIState;
-		if (uiState && uiState.serializedGrid) {
+		if (this.restorePreviousState && uiState && uiState.serializedGrid) {
+
+			// MRU
 			this.mostRecentActiveGroups = uiState.mostRecentActiveGroups;
 
+			// Grid Widget
 			this.gridWidget = this._register(SerializableGrid.deserialize(container, uiState.serializedGrid, {
 				fromJSON: (serializedEditorGroup: ISerializedEditorGroup) => {
 					const groupView = this.doCreateGroupView(serializedEditorGroup);
@@ -388,6 +405,9 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 			// Ensure a group is active
 			this.doSetGroupActive(initialGroup);
 		}
+
+		// Signal restored
+		always(TPromise.join(this.groups.map(group => group.whenRestored)), () => this.whenRestoredComplete(void 0));
 
 		// Update container
 		this.updateContainer();

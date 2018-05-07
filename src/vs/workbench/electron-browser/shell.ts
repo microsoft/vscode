@@ -270,7 +270,7 @@ export class WorkbenchShell {
 			experiments: this.experimentService.getExperiments(),
 			pinnedViewlets: info.pinnedViewlets,
 			restoredViewlet: info.restoredViewlet,
-			restoredEditors: info.restoredEditors.length,
+			restoredEditors: info.restoredEditorsCount,
 			startupKind: this.lifecycleService.startupKind
 		});
 

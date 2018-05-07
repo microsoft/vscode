@@ -18,6 +18,11 @@ export type IResourceEditor = IResourceInput | IUntitledResourceInput | IResourc
 export const SIDE_BY_SIDE_VALUE = -1;
 export type SIDE_BY_SIDE = typeof SIDE_BY_SIDE_VALUE;
 
+export interface IEditorInputWithOptions {
+	editor: IEditorInput;
+	options?: IEditorOptions;
+}
+
 export interface INextEditorService {
 	_serviceBrand: ServiceIdentifier<any>;
 
@@ -82,6 +87,17 @@ export interface INextEditorService {
 	 * of the currently active group.
 	 */
 	openEditor(editor: IResourceEditor, group?: GroupIdentifier | SIDE_BY_SIDE): Thenable<IEditor>;
+
+	/**
+	 * Open editors in an editor group.
+	 *
+	 * @param editors the editors to open with associated options
+	 * @param group the target group. If unspecified, the editor will open in the currently
+	 * active group. Use `SIDE_BY_SIDE` to open the editor in a new editor group to the side
+	 * of the currently active group.
+	 */
+	openEditors(editors: IEditorInputWithOptions[], group?: GroupIdentifier | SIDE_BY_SIDE): Thenable<IEditor>;
+	openEditors(editors: IResourceEditor[], group?: GroupIdentifier | SIDE_BY_SIDE): Thenable<IEditor>;
 
 	/**
 	 * Find out if the provided editor (or resource of an editor) is opened in any group.

@@ -84,7 +84,7 @@ suite('Next editor2 part tests', () => {
 	function createPart(): NextEditorPart {
 		const instantiationService = workbenchInstantiationService();
 
-		const part = instantiationService.createInstance(NextEditorPart, 'id');
+		const part = instantiationService.createInstance(NextEditorPart, 'id', false);
 		part.create(document.createElement('div'));
 		part.layout(new Dimension(400, 300));
 

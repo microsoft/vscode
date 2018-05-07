@@ -91,6 +91,8 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	private _group: EditorGroup;
 
 	private _dimension: Dimension;
+	private _whenRestored: Thenable<void>;
+
 	private scopedInstantiationService: IInstantiationService;
 
 	private titleContainer: HTMLElement;
@@ -130,7 +132,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		this.disposedEditorsWorker = this._register(new RunOnceWorker(editors => this.handleDisposedEditors(editors), 0));
 
 		this.create();
-		this.showInitialEditors(from);
+		this._whenRestored = this.restoreEditors(from);
 
 		this.registerListeners();
 	}
@@ -267,9 +269,9 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		}
 	}
 
-	private showInitialEditors(from: INextEditorGroupView | ISerializedEditorGroup): void {
+	private restoreEditors(from: INextEditorGroupView | ISerializedEditorGroup): Thenable<void> {
 		if (this.group.count === 0) {
-			return; // nothing to show
+			return TPromise.as(void 0); // nothing to show
 		}
 
 		// Determine editor options
@@ -287,8 +289,10 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		options.pinned = this.group.isPinned(activeEditor);	// preserve pinned state
 		options.preserveFocus = true;						// handle focus after editor is opened
 
-		// Restore in editor
-		this.doShowEditor(activeEditor, true, options).then(() => {
+		// Show active editor
+		return this.doShowEditor(activeEditor, true, options).then(() => {
+
+			// Set focused now if this is the active group
 			if (this.accessor.activeGroup === this) {
 				this.focus();
 			}
@@ -445,6 +449,10 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	get dimension(): Dimension {
 		return this._dimension;
+	}
+
+	get whenRestored(): Thenable<void> {
+		return this._whenRestored;
 	}
 
 	setActive(isActive: boolean): void {

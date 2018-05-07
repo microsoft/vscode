@@ -70,6 +70,7 @@ export interface INextEditorGroupsAccessor {
 export interface INextEditorGroupView extends IDisposable, ISerializableView, INextEditorGroup {
 	readonly group: EditorGroup;
 	readonly dimension: Dimension;
+	readonly whenRestored: Thenable<void>;
 
 	readonly onDidFocus: Event<void>;
 	readonly onWillDispose: Event<void>;
