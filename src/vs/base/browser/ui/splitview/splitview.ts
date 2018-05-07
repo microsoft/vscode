@@ -59,6 +59,24 @@ enum State {
 	Busy
 }
 
+function pushToStart<T>(arr: T[], value: T): T[] {
+	let didFindValue = false;
+
+	const result = arr.filter(v => {
+		if (v === value) {
+			didFindValue = true;
+			return false;
+		}
+
+		return true;
+	});
+
+	if (didFindValue) {
+		result.unshift(value);
+	}
+
+	return result;
+}
 function pushToEnd<T>(arr: T[], value: T): T[] {
 	let didFindValue = false;
 
@@ -78,8 +96,13 @@ function pushToEnd<T>(arr: T[], value: T): T[] {
 	return result;
 }
 
-export enum Sizing {
-	Distribute = 'distribute'
+export type DistributeSizing = { type: 'distribute' };
+export type SplitSizing = { type: 'split', index: number };
+export type Sizing = DistributeSizing | SplitSizing;
+
+export namespace Sizing {
+	export const Distribute: DistributeSizing = { type: 'distribute' };
+	export function Split(index: number): SplitSizing { return { type: 'split', index }; }
 }
 
 export class SplitView implements IDisposable {
@@ -145,7 +168,16 @@ export class SplitView implements IDisposable {
 			item.view.layout(item.size, this.orientation);
 		};
 
-		const viewSize = typeof size === 'number' ? Math.round(size) : view.minimumSize;
+		let viewSize: number;
+
+		if (typeof size === 'number') {
+			viewSize = size;
+		} else if (size.type === 'split') {
+			viewSize = this.getViewSize(size.index) / 2;
+		} else {
+			viewSize = view.minimumSize;
+		}
+
 		const item: IViewItem = { view, container, size: viewSize, layout, disposable };
 		this.viewItems.splice(index, 0, item);
 
@@ -174,10 +206,17 @@ export class SplitView implements IDisposable {
 		}
 
 		container.appendChild(view.element);
-		this.relayout(index);
+
+		let highPriorityIndex: number | undefined;
+
+		if (typeof size !== 'number' && size.type === 'split') {
+			highPriorityIndex = size.index;
+		}
+
+		this.relayout(index, highPriorityIndex);
 		this.state = State.Idle;
 
-		if (size === Sizing.Distribute) {
+		if (typeof size !== 'number' && size.type === 'distribute') {
 			const size = Math.floor(this.size / this.viewItems.length);
 
 			for (let i = 0; i < this.viewItems.length - 1; i++) {
@@ -249,9 +288,9 @@ export class SplitView implements IDisposable {
 		this.addView(fromView, toSize, to);
 	}
 
-	private relayout(lowPriorityIndex?: number): void {
+	private relayout(lowPriorityIndex?: number, highPriorityIndex?: number): void {
 		const contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
-		this.resize(this.viewItems.length - 1, this.size - contentSize, undefined, lowPriorityIndex);
+		this.resize(this.viewItems.length - 1, this.size - contentSize, undefined, lowPriorityIndex, highPriorityIndex);
 	}
 
 	layout(size: number): void {
@@ -344,7 +383,7 @@ export class SplitView implements IDisposable {
 		return this.viewItems[index].size;
 	}
 
-	private resize(index: number, delta: number, sizes = this.viewItems.map(i => i.size), lowPriorityIndex?: number): void {
+	private resize(index: number, delta: number, sizes = this.viewItems.map(i => i.size), lowPriorityIndex?: number, highPriorityIndex?: number): void {
 		if (index < 0 || index >= this.viewItems.length) {
 			return;
 		}
@@ -352,6 +391,11 @@ export class SplitView implements IDisposable {
 		if (delta !== 0) {
 			let upIndexes = range(index, -1);
 			let downIndexes = range(index + 1, this.viewItems.length);
+
+			if (typeof highPriorityIndex === 'number') {
+				upIndexes = pushToStart(upIndexes, highPriorityIndex);
+				downIndexes = pushToStart(downIndexes, highPriorityIndex);
+			}
 
 			if (typeof lowPriorityIndex === 'number') {
 				upIndexes = pushToEnd(upIndexes, lowPriorityIndex);

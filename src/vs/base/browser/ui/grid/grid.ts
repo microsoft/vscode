@@ -8,7 +8,7 @@
 import 'vs/css!./gridview';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { tail2 as tail } from 'vs/base/common/arrays';
+import { tail2 as tail, tail2 } from 'vs/base/common/arrays';
 import { orthogonal, IView, GridView, Sizing as GridViewSizing } from './gridview';
 
 export { Orientation } from './gridview';
@@ -136,8 +136,8 @@ export class Grid<T extends IView> implements IDisposable {
 		let viewSize: number | GridViewSizing;
 
 		if (size === Sizing.Split) {
-			const { width, height } = this.gridview.getViewSize(referenceLocation);
-			viewSize = orientation === Orientation.VERTICAL ? Math.floor(height / 2) : Math.floor(width / 2);
+			const [, index] = tail2(referenceLocation);
+			viewSize = GridViewSizing.Split(index);
 		} else if (size === Sizing.Distribute) {
 			viewSize = GridViewSizing.Distribute;
 		} else {

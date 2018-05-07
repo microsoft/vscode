@@ -201,6 +201,39 @@ suite('Grid', function () {
 		assert.deepEqual(view5.size, [200, 300]);
 		assert.deepEqual(view6.size, [200, 150]);
 	});
+
+	test('3/2 layout with split', function () {
+		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		const grid = new Grid(container, view1);
+		grid.layout(800, 600);
+		assert.deepEqual(view1.size, [800, 600]);
+
+		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view2, Sizing.Split, view1, Direction.Down);
+		assert.deepEqual(view1.size, [800, 300]);
+		assert.deepEqual(view2.size, [800, 300]);
+
+		const view3 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view3, Sizing.Split, view2, Direction.Right);
+		assert.deepEqual(view1.size, [800, 300]);
+		assert.deepEqual(view2.size, [400, 300]);
+		assert.deepEqual(view3.size, [400, 300]);
+
+		const view4 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view4, Sizing.Split, view1, Direction.Right);
+		assert.deepEqual(view1.size, [400, 300]);
+		assert.deepEqual(view2.size, [400, 300]);
+		assert.deepEqual(view3.size, [400, 300]);
+		assert.deepEqual(view4.size, [400, 300]);
+
+		const view5 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view5, Sizing.Split, view1, Direction.Right);
+		assert.deepEqual(view1.size, [200, 300]);
+		assert.deepEqual(view2.size, [400, 300]);
+		assert.deepEqual(view3.size, [400, 300]);
+		assert.deepEqual(view4.size, [400, 300]);
+		assert.deepEqual(view5.size, [200, 300]);
+	});
 });
 
 class TestSerializableView extends TestView implements ISerializableView {

@@ -343,6 +343,10 @@ export class GridView implements IDisposable {
 			const newSibling = new LeafNode(parent.view, grandParent.orientation, parent.size);
 			newParent.addChild(newSibling, 0, 0);
 
+			if (typeof size !== 'number' && size.type === 'split') {
+				size = Sizing.Split(0);
+			}
+
 			const node = new LeafNode(view, grandParent.orientation, parent.size);
 			newParent.addChild(node, size, index);
 		}
