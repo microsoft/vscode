@@ -40,7 +40,7 @@ export class CodeActionOracle {
 	}
 
 	trigger(trigger: CodeActionTrigger) {
-		const selection = this._editor.getSelection();
+		const selection = this._getRangeOfSelectionUnlessWhitespaceEnclosed();
 		return this._createEventAndSignalChange(trigger, selection);
 	}
 
@@ -68,19 +68,59 @@ export class CodeActionOracle {
 		return undefined;
 	}
 
-	private _createEventAndSignalChange(trigger: CodeActionTrigger, selection: Selection): TPromise<CodeAction[] | undefined> {
+	private _getRangeOfSelectionUnlessWhitespaceEnclosed(): Selection | undefined {
 		const model = this._editor.getModel();
-		const markerRange = this._getRangeOfMarker(selection);
-		const position = markerRange ? markerRange.getStartPosition() : selection.getStartPosition();
-		const actions = getCodeActions(model, selection, trigger && trigger.filter);
+		const selection = this._editor.getSelection();
+		if (selection.isEmpty()) {
+			const { lineNumber, column } = selection.getPosition();
+			const line = model.getLineContent(lineNumber);
+			if (line.length === 0) {
+				// empty line
+				return undefined;
+			} else if (column === 1) {
+				// look only right
+				if (/\s/.test(line[0])) {
+					return undefined;
+				}
+			} else if (column === model.getLineMaxColumn(lineNumber)) {
+				// look only left
+				if (/\s/.test(line[line.length - 1])) {
+					return undefined;
+				}
+			} else {
+				// look left and right
+				if (/\s/.test(line[column - 2]) && /\s/.test(line[column - 1])) {
+					return undefined;
+				}
+			}
+		}
+		return selection;
+	}
 
-		this._signalChange({
-			trigger,
-			rangeOrSelection: selection,
-			position,
-			actions
-		});
-		return actions;
+	private _createEventAndSignalChange(trigger: CodeActionTrigger, selection: Selection | undefined): TPromise<CodeAction[] | undefined> {
+		if (!selection) {
+			// cancel
+			this._signalChange({
+				trigger,
+				rangeOrSelection: undefined,
+				position: undefined,
+				actions: undefined,
+			});
+			return TPromise.as(undefined);
+		} else {
+			const model = this._editor.getModel();
+			const markerRange = this._getRangeOfMarker(selection);
+			const position = markerRange ? markerRange.getStartPosition() : selection.getStartPosition();
+			const actions = getCodeActions(model, selection, trigger && trigger.filter);
+
+			this._signalChange({
+				trigger,
+				rangeOrSelection: selection,
+				position,
+				actions
+			});
+			return actions;
+		}
 	}
 }
 
