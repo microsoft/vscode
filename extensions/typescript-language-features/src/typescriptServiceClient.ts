@@ -383,7 +383,11 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 						this.error('Starting TSServer failed with error.', err);
 						window.showErrorMessage(localize('serverCouldNotBeStarted', 'TypeScript language server couldn\'t be started. Error message is: {0}', err.message || err));
 						/* __GDPR__
-							"error" : {}
+							"error" : {
+								"${include}": [
+									"${TypeScriptCommonProperties}"
+								]
+							}
 						*/
 						this.logTelemetry('error');
 						this.resetClientVersion();
@@ -401,7 +405,11 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 							this.error(`TSServer log file: ${this.tsServerLogFile}`);
 						}
 						/* __GDPR__
-							"tsserver.error" : {}
+							"tsserver.error" : {
+								"${include}": [
+									"${TypeScriptCommonProperties}"
+								]
+							}
 						*/
 						this.logTelemetry('tsserver.error');
 						this.serviceExited(false);
@@ -413,7 +421,10 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 							this.error(`TSServer exited with code: ${code}`);
 							/* __GDPR__
 								"tsserver.exitWithCode" : {
-									"code" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
+									"code" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+									"${include}": [
+										"${TypeScriptCommonProperties}"
+									]
 								}
 							*/
 							this.logTelemetry('tsserver.exitWithCode', { code: code });
@@ -567,7 +578,11 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 							id: MessageAction.reportIssue
 						});
 					/* __GDPR__
-						"serviceExited" : {}
+						"serviceExited" : {
+							"${include}": [
+								"${TypeScriptCommonProperties}"
+							]
+						}
 					*/
 					this.logTelemetry('serviceExited');
 					this.resetClientVersion();
@@ -897,7 +912,10 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 			"typingsInstalled" : {
 				"installedPackages" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 				"installSuccess": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"typingsInstallerVersion": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				"typingsInstallerVersion": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"${include}": [
+					"${TypeScriptCommonProperties}"
+				]
 			}
 		*/
 		// __GDPR__COMMENT__: Other events are defined by TypeScript.
