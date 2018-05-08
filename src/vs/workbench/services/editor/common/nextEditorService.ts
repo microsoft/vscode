@@ -32,7 +32,7 @@ export interface INextEditorService {
 	readonly onDidActiveEditorChange: Event<void>;
 
 	/**
-	 * Emitted when the set of currently visible editors changes.
+	 * Emitted when any of the current visible editors changes.
 	 */
 	readonly onDidVisibleEditorsChange: Event<void>;
 

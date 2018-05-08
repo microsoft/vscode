@@ -60,6 +60,9 @@ export class NextEditorService extends Disposable implements INextEditorService 
 
 	private fileInputFactory: IFileInputFactory;
 
+	private lastActiveEditor: IEditorInput;
+	private lastActiveGroup: INextEditorGroup;
+
 	constructor(
 		@INextEditorGroupsService private nextEditorGroupsService: INextEditorGroupsService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
@@ -85,6 +88,18 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	}
 
 	private onDidActiveGroupChange(group: INextEditorGroup): void {
+		if (!this.lastActiveGroup) {
+			return; // ignore the initial root group
+		}
+
+		this.lastActiveGroup = group;
+
+		if (!this.lastActiveEditor && !group.activeEditor) {
+			return; // ignore if we still have no active editor
+		}
+
+		this.lastActiveEditor = group.activeEditor;
+
 		this._onDidActiveEditorChange.fire();
 	}
 
