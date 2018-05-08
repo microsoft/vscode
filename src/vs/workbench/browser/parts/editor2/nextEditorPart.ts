@@ -450,6 +450,8 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 			this.doSetGroupActive(initialGroup);
 		}
 
+		this.gridWidget.onDidSashReset(e => console.log('sash reset', e));
+
 		// Signal restored
 		always(TPromise.join(this.groups.map(group => group.whenRestored)), () => this.whenRestoredComplete(void 0));
 

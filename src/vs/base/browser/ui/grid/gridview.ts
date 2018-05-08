@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./gridview';
-import { Event, anyEvent, Emitter, mapEvent } from 'vs/base/common/event';
+import { Event, anyEvent, Emitter, mapEvent, Relay } from 'vs/base/common/event';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { SplitView, IView as ISplitView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 import { empty as EmptyDisposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -85,7 +85,12 @@ class BranchNode implements ISplitView, IDisposable {
 
 	private _onDidChange: Emitter<number | undefined>;
 	get onDidChange(): Event<number | undefined> { return this._onDidChange.event; }
-	private onDidChangeDisposable: IDisposable;
+	private childrenChangeDisposable: IDisposable = EmptyDisposable;
+
+	private _onDidSashReset = new Emitter<number[]>();
+	readonly onDidSashReset: Event<number[]> = this._onDidSashReset.event;
+	private splitviewSashResetDisposable: IDisposable = EmptyDisposable;
+	private childrenSashResetDisposable: IDisposable = EmptyDisposable;
 
 	constructor(
 		readonly orientation: Orientation,
@@ -97,11 +102,13 @@ class BranchNode implements ISplitView, IDisposable {
 
 		this._onDidChange = new Emitter<number | undefined>();
 		this.children = [];
-		this.onDidChangeDisposable = EmptyDisposable;
 
 		this.element = $('.monaco-grid-branch-node');
 		this.splitview = new SplitView(this.element, { orientation: this.orientation });
 		this.splitview.layout(size);
+
+		const onDidSashReset = mapEvent(this.splitview.onDidSashReset, i => [i]);
+		this.splitviewSashResetDisposable = onDidSashReset(this._onDidSashReset.fire, this._onDidSashReset);
 	}
 
 	layout(size: number): void {
@@ -172,8 +179,13 @@ class BranchNode implements ISplitView, IDisposable {
 
 	private onDidChildrenChange(): void {
 		const onDidChildrenChange = anyEvent(...this.children.map(c => c.onDidChange));
-		this.onDidChangeDisposable.dispose();
-		this.onDidChangeDisposable = onDidChildrenChange(this._onDidChange.fire, this._onDidChange);
+		this.childrenChangeDisposable.dispose();
+		this.childrenChangeDisposable = onDidChildrenChange(this._onDidChange.fire, this._onDidChange);
+
+		const onDidChildrenSashReset = anyEvent(...this.children.map((c, i) => mapEvent(c.onDidSashReset, location => [i, ...location])));
+		this.childrenSashResetDisposable.dispose();
+		this.childrenSashResetDisposable = onDidChildrenSashReset(this._onDidSashReset.fire, this._onDidSashReset);
+
 		this._onDidChange.fire();
 	}
 
@@ -182,7 +194,9 @@ class BranchNode implements ISplitView, IDisposable {
 			child.dispose();
 		}
 
-		this.onDidChangeDisposable.dispose();
+		this.splitviewSashResetDisposable.dispose();
+		this.childrenSashResetDisposable.dispose();
+		this.childrenChangeDisposable.dispose();
 		this.splitview.dispose();
 	}
 }
@@ -194,6 +208,8 @@ class LeafNode implements ISplitView, IDisposable {
 
 	private _orthogonalSize: number;
 	get orthogonalSize(): number { return this._orthogonalSize; }
+
+	readonly onDidSashReset: Event<number[]> = Event.None;
 
 	constructor(
 		readonly view: IView,
@@ -281,6 +297,8 @@ export class GridView implements IDisposable {
 
 	private element: HTMLElement;
 	private root: BranchNode;
+	private onDidSashResetRelay = new Relay<number[]>();
+	readonly onDidSashReset: Event<number[]> = this.onDidSashResetRelay.event;
 
 	get orientation(): Orientation {
 		return this.root.orientation;
@@ -296,6 +314,7 @@ export class GridView implements IDisposable {
 
 		this.root = flipNode(oldRoot, oldRoot.orthogonalSize, oldRoot.size) as BranchNode;
 		this.element.appendChild(this.root.element);
+		this.onDidSashResetRelay.input = this.root.onDidSashReset;
 
 		this.root.layout(oldRoot.size);
 		this.root.orthogonalLayout(oldRoot.orthogonalSize);
@@ -315,6 +334,7 @@ export class GridView implements IDisposable {
 		this.element = append(container, $('.monaco-grid-view'));
 		this.root = new BranchNode(Orientation.VERTICAL);
 		this.element.appendChild(this.root.element);
+		this.onDidSashResetRelay.input = this.root.onDidSashReset;
 	}
 
 	layout(width: number, height: number): void {
@@ -494,6 +514,7 @@ export class GridView implements IDisposable {
 	}
 
 	dispose(): void {
+		this.onDidSashResetRelay.dispose();
 		this.root.dispose();
 	}
 }

@@ -117,9 +117,9 @@ export class SplitView implements IDisposable {
 	private sashDragState: ISashDragState;
 	private state: State = State.Idle;
 
-	private _onDidSashChange = new Emitter<void>();
+	private _onDidSashChange = new Emitter<number>();
 	readonly onDidSashChange = this._onDidSashChange.event;
-	private _onDidSashReset = new Emitter<void>();
+	private _onDidSashReset = new Emitter<number>();
 	readonly onDidSashReset = this._onDidSashReset.event;
 
 	get length(): number {
@@ -194,10 +194,8 @@ export class SplitView implements IDisposable {
 			const onStartDisposable = onStart(this.onSashStart, this);
 			const onChange = mapEvent(sash.onDidChange, sashEventMapper);
 			const onSashChangeDisposable = onChange(this.onSashChange, this);
-			const onEnd = mapEvent<void, void>(sash.onDidEnd, () => null);
-			const onEndDisposable = onEnd(() => this._onDidSashChange.fire());
-			const onDidReset = mapEvent<void, void>(sash.onDidReset, () => null);
-			const onDidResetDisposable = onDidReset(() => this._onDidSashReset.fire());
+			const onEndDisposable = sash.onDidEnd(() => this._onDidSashChange.fire(firstIndex(this.sashItems, item => item.sash === sash)));
+			const onDidResetDisposable = sash.onDidReset(() => this._onDidSashReset.fire(firstIndex(this.sashItems, item => item.sash === sash)));
 
 			const disposable = combinedDisposable([onStartDisposable, onSashChangeDisposable, onEndDisposable, onDidResetDisposable, sash]);
 			const sashItem: ISashItem = { sash, disposable };

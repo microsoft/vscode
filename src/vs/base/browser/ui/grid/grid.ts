@@ -10,6 +10,7 @@ import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { tail2 as tail, tail2 } from 'vs/base/common/arrays';
 import { orthogonal, IView, GridView, Sizing as GridViewSizing } from './gridview';
+import { Event } from 'vs/base/common/event';
 
 export { Orientation } from './gridview';
 
@@ -107,6 +108,7 @@ export class Grid<T extends IView> implements IDisposable {
 
 	get width(): number { return this.gridview.width; }
 	get height(): number { return this.gridview.height; }
+	get onDidSashReset(): Event<number[]> { return this.gridview.onDidSashReset; }
 
 	constructor(container: HTMLElement, view: T) {
 		this.gridview = new GridView(container);
