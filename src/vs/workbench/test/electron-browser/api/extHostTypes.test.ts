@@ -513,4 +513,10 @@ suite('ExtHostTypes', function () {
 		assert.equal(string.value, '${BAR}');
 
 	});
+
+	test('instanceof doesn\'t work for FileSystemError #49386', function () {
+		const error = types.FileSystemError.Unavailable('foo');
+		assert.ok(error instanceof Error);
+		assert.ok(error instanceof types.FileSystemError);
+	});
 });
