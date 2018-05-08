@@ -289,6 +289,10 @@ export class CodeMenu {
 		if (macApplicationMenuItem) {
 			menubar.append(macApplicationMenuItem);
 		}
+		//QMetry
+		const qmetryMenu = new Menu();
+		const qmetryMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mQMetry', comment: ['&& denotes a mnemonic'] }, "&&QMetry")), submenu: qmetryMenu });
+		this.setQmetryMenu(qmetryMenu);
 
 		menubar.append(fileMenuItem);
 		menubar.append(editMenuItem);
@@ -297,6 +301,7 @@ export class CodeMenu {
 		menubar.append(gotoMenuItem);
 		menubar.append(debugMenuItem);
 		menubar.append(taskMenuItem);
+		menubar.append(qmetryMenuItem);
 
 		if (macWindowMenuItem) {
 			menubar.append(macWindowMenuItem);
@@ -1157,6 +1162,29 @@ export class CodeMenu {
 				this.runActionInRenderer(commandId);
 			}
 		}));
+	}
+
+	private setQmetryMenu(qmetryMenu: Electron.Menu): void {
+		const newTask = this.createMenuItem(nls.localize({ key: 'miBuildTask', comment: ['&& denotes a mnemonic'] }, "&&New"), 'workbench.action.tasks.build');
+		const exploratoryTestingTasks = this.createMenuItem(nls.localize({ key: 'miRunningTask', comment: ['&& denotes a mnemonic'] }, "&&Exploratory Testing"), 'workbench.action.tasks.showTasks');
+		const configureTask = this.createMenuItem(nls.localize({ key: 'miRestartTask', comment: ['&& denotes a mnemonic'] }, "&&Configure"), 'workbench.action.tasks.restartTask');
+		const automationTestReportTask = this.createMenuItem(nls.localize({ key: 'miTerminateTask', comment: ['&& denotes a mnemonic'] }, "&&Automation Test Report"), 'workbench.action.tasks.terminate');
+		const acceptanceBotCheckTask = this.createMenuItem(nls.localize({ key: 'miConfigureTask', comment: ['&& denotes a mnemonic'] }, "&&Acceptance Bot Check"), 'workbench.action.tasks.configureTaskRunner');
+		const qasHelpTask = this.createMenuItem(nls.localize({ key: 'miRunTask', comment: ['&& denotes a mnemonic'] }, "&&QAS Help"), 'workbench.action.showQASWelcome');
+		const subscriptionDetailsTask = this.createMenuItem(nls.localize({ key: 'miConfigureBuildTask', comment: ['&& denotes a mnemonic'] }, "&&Subscription Details"), 'workbench.action.tasks.configureDefaultBuildTask');
+
+		[
+			//__separator__(),
+			newTask,
+			exploratoryTestingTasks,
+			configureTask,
+			__separator__(),
+			automationTestReportTask,
+			__separator__(),
+			acceptanceBotCheckTask,
+			qasHelpTask,
+			subscriptionDetailsTask
+		].forEach(item => qmetryMenu.append(item));
 	}
 
 	private runActionInRenderer(id: string): void {
