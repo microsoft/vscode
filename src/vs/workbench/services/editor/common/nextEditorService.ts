@@ -15,8 +15,8 @@ export const INextEditorService = createDecorator<INextEditorService>('nextEdito
 
 export type IResourceEditor = IResourceInput | IUntitledResourceInput | IResourceDiffInput | IResourceSideBySideInput;
 
-export const SIDE_BY_SIDE_VALUE = -1;
-export type SIDE_BY_SIDE = typeof SIDE_BY_SIDE_VALUE;
+export const SIDE_BY_SIDE = -1;
+export type SIDE_BY_SIDE_TYPE = typeof SIDE_BY_SIDE;
 
 export interface IEditorInputWithOptions {
 	editor: IEditorInput;
@@ -87,7 +87,7 @@ export interface INextEditorService {
 	 * active group. Use `SIDE_BY_SIDE` to open the editor in a new editor group to the side
 	 * of the currently active group.
 	 */
-	openEditor(editor: IEditorInput, options?: IEditorOptions, group?: GroupIdentifier | SIDE_BY_SIDE): Thenable<IEditor>;
+	openEditor(editor: IEditorInput, options?: IEditorOptions, group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor>;
 
 	/**
 	 * Open an editor in an editor group.
@@ -97,7 +97,7 @@ export interface INextEditorService {
 	 * active group. Use `SIDE_BY_SIDE` to open the editor in a new editor group to the side
 	 * of the currently active group.
 	 */
-	openEditor(editor: IResourceEditor, group?: GroupIdentifier | SIDE_BY_SIDE): Thenable<IEditor>;
+	openEditor(editor: IResourceEditor, group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor>;
 
 	/**
 	 * Open editors in an editor group.
@@ -107,8 +107,8 @@ export interface INextEditorService {
 	 * active group. Use `SIDE_BY_SIDE` to open the editor in a new editor group to the side
 	 * of the currently active group.
 	 */
-	openEditors(editors: IEditorInputWithOptions[], group?: GroupIdentifier | SIDE_BY_SIDE): Thenable<IEditor>;
-	openEditors(editors: IResourceEditor[], group?: GroupIdentifier | SIDE_BY_SIDE): Thenable<IEditor>;
+	openEditors(editors: IEditorInputWithOptions[], group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor>;
+	openEditors(editors: IResourceEditor[], group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor>;
 
 	/**
 	 * Find out if the provided editor (or resource of an editor) is opened in any group.

@@ -42,7 +42,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { isMacintosh } from 'vs/base/common/platform';
 import { GroupOnePicker, GroupTwoPicker, GroupThreePicker, AllEditorsPicker } from 'vs/workbench/browser/parts/editor/editorPicker';
 import { Schemas } from 'vs/base/common/network';
-import { GridOpenEditorsAction, GridCloseActiveEditorAction, GridRemoveActiveGroupAction, GridOpenOneEditorAction } from 'vs/workbench/browser/parts/editor2/nextEditorActions';
+import { GridOpenEditorsAction, GridCloseActiveEditorAction, GridRemoveActiveGroupAction, GridOpenOneEditorAction, GridOpenOneEditorSideBySideAction } from 'vs/workbench/browser/parts/editor2/nextEditorActions';
 
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -443,5 +443,6 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(GridOpenEditorsAction,
 registry.registerWorkbenchAction(new SyncActionDescriptor(GridCloseActiveEditorAction, GridCloseActiveEditorAction.ID, GridCloseActiveEditorAction.LABEL), 'Grid: Close Active Editor', gridCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(GridRemoveActiveGroupAction, GridRemoveActiveGroupAction.ID, GridRemoveActiveGroupAction.LABEL), 'Grid: Remove Active Group', gridCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(GridOpenOneEditorAction, GridOpenOneEditorAction.ID, GridOpenOneEditorAction.LABEL), 'Grid: Open One Editor', gridCategory);
+registry.registerWorkbenchAction(new SyncActionDescriptor(GridOpenOneEditorSideBySideAction, GridOpenOneEditorSideBySideAction.ID, GridOpenOneEditorSideBySideAction.LABEL), 'Grid: Open One Editor Side by Side', gridCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorGroupHorizontalAction, SplitEditorGroupHorizontalAction.ID, SplitEditorGroupHorizontalAction.LABEL), 'Grid: Split Horizontal', gridCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorGroupVerticalAction, SplitEditorGroupVerticalAction.ID, SplitEditorGroupVerticalAction.LABEL), 'Grid: Split Vertical', gridCategory);

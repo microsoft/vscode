@@ -14,6 +14,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { EditorInput } from 'vs/workbench/common/editor';
 import { join, dirname } from 'vs/base/common/paths';
 import { isWindows } from 'vs/base/common/platform';
+import { INextEditorService, SIDE_BY_SIDE } from 'vs/workbench/services/editor/common/nextEditorService';
 
 function getVSCodeBaseFolder(): string {
 	let workingDir = process.cwd();
@@ -88,6 +89,28 @@ export class GridOpenOneEditorAction extends Action {
 	run(): TPromise<any> {
 		const path = join(getVSCodeBaseFolder(), 'src/vs/workbench/browser/parts/editor/editor.contribution.ts');
 		this.nextEditorGroupsService.activeGroup.openEditor(this.legacyEditorService.createInput({ resource: URI.file(path) }) as EditorInput);
+
+		return TPromise.as(void 0);
+	}
+}
+
+export class GridOpenOneEditorSideBySideAction extends Action {
+
+	static readonly ID = 'workbench.action.gridOpenOneEditorSideBySide';
+	static readonly LABEL = localize('gridOpenOneEditorSideBySide', "Grid: Open One Editor Side by Side");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private legacyEditorService: IWorkbenchEditorService,
+		@INextEditorService private editorService: INextEditorService
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<any> {
+		const path = join(getVSCodeBaseFolder(), 'src/vs/workbench/browser/parts/editor/editor.contribution.ts');
+		this.editorService.openEditor(this.legacyEditorService.createInput({ resource: URI.file(path) }) as EditorInput, null, SIDE_BY_SIDE);
 
 		return TPromise.as(void 0);
 	}
