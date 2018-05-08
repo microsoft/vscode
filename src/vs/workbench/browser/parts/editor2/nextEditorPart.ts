@@ -38,8 +38,6 @@ import { NextEditorDragAndDrop } from './nextEditorDragAndDrop';
 // - editor: move/copy to existing group, move/copy to new split group (up, down, left, right)
 // - group: move/copy to existing group (merges?), move/copy to new split group (up, down, left, right)
 
-// TODO@grid enable double click on sash to even out widths in one dimension
-
 // TODO@grid enable minimized/maximized groups in one dimension
 
 interface INextEditorPartUIState {
