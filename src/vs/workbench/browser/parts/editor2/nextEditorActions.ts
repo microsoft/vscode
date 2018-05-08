@@ -27,7 +27,7 @@ function getVSCodeBaseFolder(): string {
 export class GridOpenEditorsAction extends Action {
 
 	static readonly ID = 'workbench.action.gridOpenEditors';
-	static readonly LABEL = localize('gridOpenEditors', "Grid: Open Some Editors");
+	static readonly LABEL = localize('gridOpenEditors', "Open Some Editors");
 
 	constructor(
 		id: string,
@@ -75,7 +75,7 @@ export class GridOpenEditorsAction extends Action {
 export class GridOpenOneEditorAction extends Action {
 
 	static readonly ID = 'workbench.action.gridOpenOneEditor';
-	static readonly LABEL = localize('gridOpenOneEditor', "Grid: Open One Editor");
+	static readonly LABEL = localize('gridOpenOneEditor', "Open One Editor");
 
 	constructor(
 		id: string,
@@ -94,10 +94,38 @@ export class GridOpenOneEditorAction extends Action {
 	}
 }
 
+export class ResetGridEditorAction extends Action {
+
+	static readonly ID = 'workbench.action.resetGrid';
+	static readonly LABEL = localize('gridReset', "Reset");
+
+	constructor(
+		id: string,
+		label: string,
+		@INextEditorGroupsService private nextEditorGroupsService: INextEditorGroupsService
+	) {
+		super(id, label);
+	}
+
+	async run(): TPromise<any> {
+		while (true) {
+			let group = this.nextEditorGroupsService.activeGroup;
+			if (this.nextEditorGroupsService.count === 1 && group.count === 0) {
+				break;
+			}
+
+			await TPromise.join(group.editors.map(editor => group.closeEditor(editor)));
+			this.nextEditorGroupsService.removeGroup(group);
+		}
+
+		return TPromise.as(void 0);
+	}
+}
+
 export class GridOpenOneEditorSideBySideAction extends Action {
 
 	static readonly ID = 'workbench.action.gridOpenOneEditorSideBySide';
-	static readonly LABEL = localize('gridOpenOneEditorSideBySide', "Grid: Open One Editor Side by Side");
+	static readonly LABEL = localize('gridOpenOneEditorSideBySide', "Open One Editor Side by Side");
 
 	constructor(
 		id: string,
@@ -119,7 +147,7 @@ export class GridOpenOneEditorSideBySideAction extends Action {
 export class GridCloseActiveEditorAction extends Action {
 
 	static readonly ID = 'workbench.action.gridCloseActiveEditor';
-	static readonly LABEL = localize('gridCloseActiveEditor', "Grid: Close Active Editor");
+	static readonly LABEL = localize('gridCloseActiveEditor', "Close Active Editor");
 
 	constructor(
 		id: string,
@@ -139,7 +167,7 @@ export class GridCloseActiveEditorAction extends Action {
 export class GridRemoveActiveGroupAction extends Action {
 
 	static readonly ID = 'workbench.action.gridRemoveActiveGroup';
-	static readonly LABEL = localize('gridRemoveActiveGroup', "Grid: Remove Active Group");
+	static readonly LABEL = localize('gridRemoveActiveGroup', "Remove Active Group");
 
 	constructor(
 		id: string,
