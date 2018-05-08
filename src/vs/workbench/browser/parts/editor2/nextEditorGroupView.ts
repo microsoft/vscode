@@ -8,7 +8,7 @@
 import 'vs/css!./media/nextEditorGroupView';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorGroup, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
-import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, IEditorOpeningEvent, EditorOpeningEvent, TextEditorOptions } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, IEditorOpeningEvent, EditorOpeningEvent } from 'vs/workbench/common/editor';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor } from 'vs/base/browser/dom';
@@ -33,10 +33,9 @@ import { Severity, INotificationService, INotificationActions } from 'vs/platfor
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RunOnceWorker } from 'vs/base/common/async';
-import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { NextTitleControl } from 'vs/workbench/browser/parts/editor2/nextTitleControl';
-import { INextEditorGroupsAccessor, INextEditorGroupView, INextEditorPartOptionsChangeEvent, EDITOR_TITLE_HEIGHT, EDITOR_MIN_DIMENSIONS, EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor2/editor2';
+import { INextEditorGroupsAccessor, INextEditorGroupView, INextEditorPartOptionsChangeEvent, EDITOR_TITLE_HEIGHT, EDITOR_MIN_DIMENSIONS, EDITOR_MAX_DIMENSIONS, getActiveTextEditorOptions } from 'vs/workbench/browser/parts/editor2/editor2';
 import { NextNoTabsTitleControl } from './nextNoTabsTitleControl';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { join } from 'vs/base/common/paths';
@@ -273,10 +272,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		// Determine editor options
 		let options: EditorOptions;
 		if (from instanceof NextEditorGroupView) {
-			const fromEditorControl = getCodeEditor(from.activeControl);
-			if (fromEditorControl) {
-				options = TextEditorOptions.fromEditor(fromEditorControl); // if we copy from another group, ensure to copy its active editor viewstate
-			}
+			options = getActiveTextEditorOptions(from); // if we copy from another group, ensure to copy its active editor viewstate
 		} else {
 			options = new EditorOptions();
 		}
@@ -668,17 +664,10 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	}
 
 	private doMoveOrCopyEditorAcrossGroups(editor: EditorInput, target: INextEditorGroupView, moveOptions: IMoveEditorOptions = Object.create(null), keepCopy?: boolean): void {
-		let options: EditorOptions;
 
 		// When moving an editor, try to preserve as much view state as possible by checking
 		// for the editor to be a text editor and creating the options accordingly if so
-		const codeEditor = getCodeEditor(this.activeControl);
-		if (codeEditor && editor.matches(this.activeEditor)) {
-			options = TextEditorOptions.fromEditor(codeEditor, moveOptions);
-		} else {
-			options = EditorOptions.create(moveOptions);
-		}
-
+		const options = getActiveTextEditorOptions(this, editor, EditorOptions.create(moveOptions));
 		options.pinned = true; // always pin moved editor
 
 		// A move to another group is an open first...

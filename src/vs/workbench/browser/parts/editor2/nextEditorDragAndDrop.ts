@@ -8,15 +8,13 @@
 import 'vs/css!./media/nextEditorDragAndDrop';
 import { LocalSelectionTransfer, DraggedEditorIdentifier, DragCounter } from 'vs/workbench/browser/dnd';
 import { addDisposableListener, EventType, EventHelper, isAncestor, toggleClass, addClass } from 'vs/base/browser/dom';
-import { INextEditorGroupsAccessor, EDITOR_TITLE_HEIGHT, INextEditorGroupView } from 'vs/workbench/browser/parts/editor2/editor2';
+import { INextEditorGroupsAccessor, EDITOR_TITLE_HEIGHT, INextEditorGroupView, getActiveTextEditorOptions } from 'vs/workbench/browser/parts/editor2/editor2';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND, Themable } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IEditorIdentifier, EditorInput, EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
+import { IEditorIdentifier, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { isMacintosh } from 'vs/base/common/platform';
 import { GroupDirection, INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
-import { IEditorInput } from 'vs/platform/editor/common/editor';
-import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { toDisposable } from 'vs/base/common/lifecycle';
 
 class DropOverlay extends Themable {
@@ -24,7 +22,7 @@ class DropOverlay extends Themable {
 	private static OVERLAY_ID = 'monaco-workbench-editor-drop-overlay';
 	private static EDGE_DISTANCE_THRESHOLD = 0.2;
 
-	private element: HTMLElement;
+	private container: HTMLElement;
 	private overlay: HTMLElement;
 
 	private splitDirection: GroupDirection;
@@ -49,16 +47,25 @@ class DropOverlay extends Themable {
 		const overlayOffsetHeight = this.getOverlayOffsetHeight();
 
 		// Container
-		this.element = document.createElement('div');
-		this.element.id = DropOverlay.OVERLAY_ID;
-		this.element.style.top = `${overlayOffsetHeight}px`;
-		this.groupView.element.appendChild(this.element);
-		this._register(toDisposable(() => this.groupView.element.removeChild(this.element)));
+		this.container = document.createElement('div');
+		this.container.id = DropOverlay.OVERLAY_ID;
+		this.container.style.top = `${overlayOffsetHeight}px`;
+		this.groupView.element.appendChild(this.container);
+		this._register(toDisposable(() => this.groupView.element.removeChild(this.container)));
 
 		// Overlay
 		this.overlay = document.createElement('div');
 		addClass(this.overlay, 'editor-group-overlay-indicator');
-		this.element.appendChild(this.overlay);
+		this.container.appendChild(this.overlay);
+
+		// Overlay Event Handling
+		this.registerListeners();
+
+		// Styles
+		this.updateStyles();
+	}
+
+	protected updateStyles(): void {
 
 		// Overlay drop background
 		this.overlay.style.backgroundColor = this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND);
@@ -69,15 +76,12 @@ class DropOverlay extends Themable {
 		this.overlay.style.outlineOffset = activeContrastBorderColor ? '-2px' : null;
 		this.overlay.style.outlineStyle = activeContrastBorderColor ? 'dashed' : null;
 		this.overlay.style.outlineWidth = activeContrastBorderColor ? '2px' : null;
-
-		// Overlay Event Handling
-		this.registerListeners();
 	}
 
 	private registerListeners(): void {
 
 		// Update position and drop effect on drag over
-		this._register(addDisposableListener(this.element, EventType.DRAG_OVER, (e: DragEvent) => {
+		this._register(addDisposableListener(this.container, EventType.DRAG_OVER, (e: DragEvent) => {
 
 			// Update the dropEffect, otherwise it would look like a "move" operation. but only if we are
 			// not dragging a tab actually because there we support both moving as well as copying
@@ -87,10 +91,10 @@ class DropOverlay extends Themable {
 
 			// Position overlay
 			this.positionOverlay(e.offsetX, e.offsetY);
-		}, true));
+		}));
 
 		// Handle drop
-		this._register(addDisposableListener(this.element, EventType.DROP, (e: DragEvent) => {
+		this._register(addDisposableListener(this.container, EventType.DROP, (e: DragEvent) => {
 			EventHelper.stop(e, true);
 
 			// Dispose overlay
@@ -101,9 +105,9 @@ class DropOverlay extends Themable {
 		}));
 
 		// Dispose on drag end
-		this._register(addDisposableListener(this.element, EventType.DRAG_END, () => this.dispose()));
-		this._register(addDisposableListener(this.element, EventType.DRAG_LEAVE, (e: DragEvent) => this.dispose()));
-		this._register(addDisposableListener(this.element, EventType.MOUSE_OVER, () => {
+		this._register(addDisposableListener(this.container, EventType.DRAG_END, () => this.dispose()));
+		this._register(addDisposableListener(this.container, EventType.DRAG_LEAVE, (e: DragEvent) => this.dispose()));
+		this._register(addDisposableListener(this.container, EventType.MOUSE_OVER, () => {
 
 			// Under some circumstances we have seen reports where the drop overlay is not being
 			// cleaned up and as such the editor area remains under the overlay so that you cannot
@@ -124,7 +128,6 @@ class DropOverlay extends Themable {
 		}
 
 		const draggedEditor = this.transfer.getData(DraggedEditorIdentifier.prototype)[0].identifier;
-		const sourceGroup = this.accessor.getGroup(draggedEditor.group.id);
 
 		// Determine target group
 		let targetGroup: INextEditorGroup;
@@ -134,8 +137,15 @@ class DropOverlay extends Themable {
 			targetGroup = this.groupView;
 		}
 
+		// Return if the drop is a no-op
+		const sourceGroup = this.accessor.getGroup(draggedEditor.group.id);
+		if (sourceGroup === targetGroup) {
+			return;
+		}
+
 		// Open in target group
-		targetGroup.openEditor(draggedEditor.editor, this.optionsFromDraggedEditor(sourceGroup, draggedEditor.editor));
+		const options = getActiveTextEditorOptions(sourceGroup, draggedEditor.editor, EditorOptions.create({ pinned: true }));
+		targetGroup.openEditor(draggedEditor.editor, options);
 
 		// Close in source group unless we copy
 		const copyEditor = this.shouldCopyEditor(draggedEditor, event);
@@ -144,20 +154,9 @@ class DropOverlay extends Themable {
 		}
 	}
 
-	private optionsFromDraggedEditor(sourceGroup: INextEditorGroupView, editor: IEditorInput): EditorOptions {
-		const codeEditor = getCodeEditor(sourceGroup.activeControl);
-		if (codeEditor && editor.matches(sourceGroup.activeControl.input)) {
-			return TextEditorOptions.fromEditor(codeEditor, { pinned: true });
-		}
-
-		return EditorOptions.create({ pinned: true });
-	}
-
 	private shouldCopyEditor(draggedEditor: IEditorIdentifier, e: DragEvent) {
-		if (draggedEditor && draggedEditor.editor instanceof EditorInput) {
-			if (!draggedEditor.editor.supportsSplitEditor()) {
-				return false;
-			}
+		if (draggedEditor.editor instanceof EditorInput && !draggedEditor.editor.supportsSplitEditor()) {
+			return false;
 		}
 
 		return (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
@@ -253,7 +252,7 @@ class DropOverlay extends Themable {
 	}
 
 	contains(element: HTMLElement): boolean {
-		return element === this.element || element === this.overlay;
+		return element === this.container || element === this.overlay;
 	}
 
 	dispose(): void {
@@ -308,7 +307,7 @@ export class NextEditorDragAndDrop extends Themable {
 
 			// Somehow we managed to move the mouse quickly out of the current overlay, so destroy it
 			if (this.overlay && !this.overlay.contains(target)) {
-				this.overlay.dispose();
+				this.disposeOverlay();
 			}
 
 			// Create overlay over target
@@ -338,9 +337,7 @@ export class NextEditorDragAndDrop extends Themable {
 		this.counter.reset();
 
 		this.updateContainer(false);
-		if (this.overlay) {
-			this.overlay.dispose();
-		}
+		this.disposeOverlay();
 	}
 
 	private findGroupView(child: HTMLElement): INextEditorGroupView {
@@ -369,8 +366,13 @@ export class NextEditorDragAndDrop extends Themable {
 	dispose(): void {
 		super.dispose();
 
+		this.disposeOverlay();
+	}
+
+	private disposeOverlay(): void {
 		if (this.overlay) {
 			this.overlay.dispose();
+			this._overlay = void 0;
 		}
 	}
 }

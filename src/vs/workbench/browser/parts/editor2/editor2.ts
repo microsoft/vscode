@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { GroupIdentifier, IWorkbenchEditorConfiguration, IWorkbenchEditorPartConfiguration } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IWorkbenchEditorConfiguration, IWorkbenchEditorPartConfiguration, EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
 import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
 import { INextEditorGroup, GroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -14,6 +14,8 @@ import { Event } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
+import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
+import { IEditorInput } from 'vs/platform/editor/common/editor';
 
 export const EDITOR_TITLE_HEIGHT = 35;
 
@@ -86,4 +88,15 @@ export interface INextEditorGroupView extends IDisposable, ISerializableView, IN
 	setActive(isActive: boolean): void;
 
 	shutdown(): void;
+}
+
+export function getActiveTextEditorOptions(group: INextEditorGroup, expectedActiveEditor?: IEditorInput, presetOptions?: EditorOptions): EditorOptions {
+	const activeGroupControl = getCodeEditor(group.activeControl);
+	if (activeGroupControl) {
+		if (!expectedActiveEditor || expectedActiveEditor.matches(group.activeEditor)) {
+			return TextEditorOptions.fromEditor(activeGroupControl, presetOptions);
+		}
+	}
+
+	return presetOptions || new EditorOptions();
 }
