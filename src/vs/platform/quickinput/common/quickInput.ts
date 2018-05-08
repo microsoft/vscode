@@ -16,9 +16,9 @@ export interface IQuickInputService {
 	_serviceBrand: any;
 
 	/**
-	 * For multi-select only. WIP.
+	 * WIP.
 	 */
-	pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options?: IPickOptions, token?: CancellationToken): TPromise<T[]>;
+	pick<T extends IPickOpenEntry, O extends IPickOptions>(picks: TPromise<T[]>, options?: O, token?: CancellationToken): TPromise<O extends { canPickMany: true } ? T[] : T>;
 
 	/**
 	 * Opens the quick open box for user input and returns a promise with the user typed value if any.

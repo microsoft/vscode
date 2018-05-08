@@ -24,6 +24,8 @@ import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlighte
 import { memoize } from 'vs/base/common/decorators';
 import { range } from 'vs/base/common/arrays';
 import * as platform from 'vs/base/common/platform';
+import { listFocusBackground } from 'vs/platform/theme/common/colorRegistry';
+import { ITheme } from 'vs/platform/theme/common/themeService';
 
 const $ = dom.$;
 
@@ -78,19 +80,20 @@ class CheckableElementRenderer implements IRenderer<CheckableElement, ICheckable
 
 	renderTemplate(container: HTMLElement): ICheckableElementTemplateData {
 		const data: ICheckableElementTemplateData = Object.create(null);
-
-		const entry = dom.append(container, $('.quick-input-checkbox-list-entry'));
-		const label = dom.append(entry, $('label.quick-input-checkbox-list-label'));
-
-		// Entry
-		data.checkbox = <HTMLInputElement>dom.append(label, $('input.quick-input-checkbox-list-checkbox'));
-		data.checkbox.type = 'checkbox';
 		data.toDisposeElement = [];
 		data.toDisposeTemplate = [];
+
+		const entry = dom.append(container, $('.quick-input-checkbox-list-entry'));
+
+		// Checkbox
+		const label = dom.append(entry, $('label.quick-input-checkbox-list-label'));
+		data.checkbox = <HTMLInputElement>dom.append(label, $('input.quick-input-checkbox-list-checkbox'));
+		data.checkbox.type = 'checkbox';
 		data.toDisposeTemplate.push(dom.addStandardDisposableListener(data.checkbox, dom.EventType.CHANGE, e => {
 			data.element.checked = data.checkbox.checked;
 		}));
 
+		// Rows
 		const rows = dom.append(label, $('.quick-input-checkbox-list-rows'));
 		const row1 = dom.append(rows, $('.quick-input-checkbox-list-row'));
 		const row2 = dom.append(rows, $('.quick-input-checkbox-list-row'));
@@ -108,7 +111,12 @@ class CheckableElementRenderer implements IRenderer<CheckableElement, ICheckable
 	renderElement(element: CheckableElement, index: number, data: ICheckableElementTemplateData): void {
 		data.toDisposeElement = dispose(data.toDisposeElement);
 		data.element = element;
-		data.checkbox.checked = element.checked;
+		if (element.checked === undefined) {
+			data.checkbox.style.display = 'none';
+		} else {
+			data.checkbox.style.display = '';
+			data.checkbox.checked = element.checked;
+		}
 		data.toDisposeElement.push(element.onChecked(checked => data.checkbox.checked = checked));
 
 		const { labelHighlights, descriptionHighlights, detailHighlights } = element;
@@ -211,6 +219,11 @@ export class QuickInputCheckboxList {
 		return mapEvent(this.list.onFocusChange, e => e.elements.map(e => e.item));
 	}
 
+	@memoize
+	get onSelectionChange() {
+		return mapEvent(this.list.onSelectionChange, e => e.elements.map(e => e.item));
+	}
+
 	getAllVisibleChecked() {
 		return this.allVisibleChecked(this.elements, false);
 	}
@@ -254,12 +267,12 @@ export class QuickInputCheckboxList {
 		}
 	}
 
-	setElements(elements: IPickOpenEntry[]): void {
+	setElements(elements: IPickOpenEntry[], canCheck = false): void {
 		this.elementDisposables = dispose(this.elementDisposables);
 		this.elements = elements.map((item, index) => new CheckableElement({
 			index,
 			item,
-			checked: !!item.picked
+			checked: canCheck ? !!item.picked : undefined
 		}));
 		this.elementDisposables.push(...this.elements.map(element => element.onChecked(() => this.fireCheckedEvents())));
 		this.list.splice(0, this.list.length, this.elements);
@@ -271,7 +284,23 @@ export class QuickInputCheckboxList {
 			.map(e => e.item);
 	}
 
+	getFocusedElements() {
+		return this.list.getFocusedElements()
+			.map(e => e.item);
+	}
+
 	focus(what: 'First' | 'Last' | 'Next' | 'Previous' | 'NextPage' | 'PreviousPage'): void {
+		if (!this.list.length) {
+			return;
+		}
+
+		if (what === 'Next' && this.list.getFocus()[0] === this.list.length - 1) {
+			what = 'First';
+		}
+		if (what === 'Previous' && this.list.getFocus()[0] === 0) {
+			what = 'Last';
+		}
+
 		this.list['focus' + what]();
 		this.list.reveal(this.list.getFocus()[0]);
 	}
@@ -352,8 +381,14 @@ export class QuickInputCheckboxList {
 		}
 	}
 
+	style(theme: ITheme) {
+		this.list.style({
+			listInactiveFocusBackground: theme.getColor(listFocusBackground),
+		});
+	}
+
 	display(display: boolean) {
-		this.container.style.display = display ? null : 'none';
+		this.container.style.display = display ? '' : 'none';
 	}
 
 	isDisplayed() {

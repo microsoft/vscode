@@ -91,8 +91,6 @@
 .quick-input-checkbox-list .quick-input-checkbox-list-checkbox {
 	align-self: center;
 	margin: 0;
-	/* TODO */
-	/* margin-top: 5px; */
 }
 
 .quick-input-checkbox-list .quick-input-checkbox-list-rows {
@@ -102,6 +100,10 @@
 	flex-direction: column;
 	height: 100%;
 	flex: 1;
+	margin-left: 5px;
+}
+
+.quick-input-widget[data-type=pickMany] .quick-input-checkbox-list .quick-input-checkbox-list-rows {
 	margin-left: 10px;
 }
 
