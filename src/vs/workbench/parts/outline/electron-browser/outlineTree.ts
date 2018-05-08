@@ -14,9 +14,27 @@ import { OneOutline, OutlineItem } from './outlineModel';
 import { HighlightedLabel } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel';
 import { createMatches } from '../../../../base/common/filters';
 
+
+export enum OutlineItemCompareType {
+	ByPosition,
+	ByName,
+	ByKind
+}
+
 export class OutlineItemComparator implements ISorter {
+
+	type: OutlineItemCompareType = OutlineItemCompareType.ByPosition;
+
 	compare(tree: ITree, a: OutlineItem, b: OutlineItem): number {
-		return Range.compareRangesUsingStarts(a.symbol.location.range, b.symbol.location.range);
+		switch (this.type) {
+			case OutlineItemCompareType.ByKind:
+				return a.symbol.kind - b.symbol.kind;
+			case OutlineItemCompareType.ByName:
+				return a.symbol.name.localeCompare(b.symbol.name);
+			case OutlineItemCompareType.ByPosition:
+			default:
+				return Range.compareRangesUsingStarts(a.symbol.location.range, b.symbol.location.range);
+		}
 	}
 }
 
@@ -82,7 +100,7 @@ export class OutlineRenderer implements IRenderer {
 	}
 
 	renderElement(tree: ITree, element: OutlineItem, templateId: string, template: OutlineItemTemplate): void {
-		template.icon.classList.add(symbolKindToCssClass((<OutlineItem>element).symbol.kind));
+		template.icon.className = `outline-element-icon symbol-icon ${symbolKindToCssClass(element.symbol.kind)}`;
 		template.label.set(element.symbol.name, element.matches ? createMatches(element.matches[1]) : []);
 	}
 
