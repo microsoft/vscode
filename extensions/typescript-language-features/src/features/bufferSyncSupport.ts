@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-
-import { workspace, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Disposable, Uri } from 'vscode';
+import { CancellationTokenSource, Disposable, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Uri, workspace } from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { Delayer } from '../utils/async';
-import * as languageModeIds from '../utils/languageModeIds';
 import { disposeAll } from '../utils/dipose';
+import * as languageModeIds from '../utils/languageModeIds';
+
 
 interface IDiagnosticRequestor {
 	requestDiagnostic(resource: Uri): void;
@@ -153,6 +153,7 @@ export default class BufferSyncSupport {
 
 	private readonly pendingDiagnostics = new Map<string, number>();
 	private readonly diagnosticDelayer: Delayer<any>;
+	private pendingGetErr: { request: Promise<any>, files: string[], token: CancellationTokenSource } | undefined;
 
 	constructor(
 		client: ITypeScriptServiceClient,
@@ -233,6 +234,10 @@ export default class BufferSyncSupport {
 		const syncedBuffer = this.syncedBuffers.get(e.document.uri);
 		if (syncedBuffer) {
 			syncedBuffer.onContentChanged(e.contentChanges);
+			if (this.pendingGetErr) {
+				this.pendingGetErr.token.cancel();
+				this.pendingGetErr = undefined;
+			}
 		}
 	}
 
@@ -279,23 +284,42 @@ export default class BufferSyncSupport {
 		if (!this._validate) {
 			return;
 		}
-		const files = Array.from(this.pendingDiagnostics.entries())
+		const files = new Set(Array.from(this.pendingDiagnostics.entries())
 			.sort((a, b) => a[1] - b[1])
-			.map(entry => entry[0]);
+			.map(entry => entry[0]));
 
 		// Add all open TS buffers to the geterr request. They might be visible
 		for (const file of this.syncedBuffers.allResources) {
 			if (!this.pendingDiagnostics.get(file)) {
-				files.push(file);
+				files.add(file);
 			}
 		}
 
-		if (files.length) {
+		if (this.pendingGetErr) {
+			for (const file of this.pendingGetErr.files) {
+				files.add(file);
+			}
+		}
+
+		if (files.size) {
+			const fileList = Array.from(files);
 			const args: Proto.GeterrRequestArgs = {
 				delay: 0,
-				files: files
+				files: fileList
 			};
-			this.client.execute('geterr', args, false);
+			const token = new CancellationTokenSource();
+
+			const getErr = this.pendingGetErr = {
+				request: this.client.execute('geterr', args, token.token)
+					.then(undefined, () => { })
+					.then(() => {
+						if (this.pendingGetErr === getErr) {
+							this.pendingGetErr = undefined;
+						}
+					}),
+				files: fileList,
+				token
+			};
 		}
 		this.pendingDiagnostics.clear();
 	}

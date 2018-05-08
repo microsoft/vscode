@@ -22,6 +22,7 @@ import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/t
 import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 import { Color } from 'vs/base/common/color';
+import URI from 'vs/base/common/uri';
 
 export class TMScopeRegistry {
 
@@ -166,7 +167,7 @@ export class TextMateService implements ITextMateService {
 			for (let i = 0; i < extensions.length; i++) {
 				let grammars = extensions[i].value;
 				for (let j = 0; j < grammars.length; j++) {
-					this._handleGrammarExtensionPointUser(extensions[i].description.extensionFolderPath, grammars[j], extensions[i].collector);
+					this._handleGrammarExtensionPointUser(extensions[i].description.extensionLocation, grammars[j], extensions[i].collector);
 				}
 			}
 		});
@@ -262,7 +263,7 @@ export class TextMateService implements ITextMateService {
 	}
 
 
-	private _handleGrammarExtensionPointUser(extensionFolderPath: string, syntax: ITMSyntaxExtensionPoint, collector: ExtensionMessageCollector): void {
+	private _handleGrammarExtensionPointUser(extensionLocation: URI, syntax: ITMSyntaxExtensionPoint, collector: ExtensionMessageCollector): void {
 		if (syntax.language && ((typeof syntax.language !== 'string') || !this._modeService.isRegisteredMode(syntax.language))) {
 			collector.error(nls.localize('invalid.language', "Unknown language in `contributes.{0}.language`. Provided value: {1}", grammarsExtPoint.name, String(syntax.language)));
 			return;
@@ -289,10 +290,11 @@ export class TextMateService implements ITextMateService {
 			return;
 		}
 
-		let normalizedAbsolutePath = normalize(join(extensionFolderPath, syntax.path));
+		//TODO@extensionLocation
+		let normalizedAbsolutePath = normalize(join(extensionLocation.fsPath, syntax.path));
 
-		if (normalizedAbsolutePath.indexOf(extensionFolderPath) !== 0) {
-			collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", grammarsExtPoint.name, normalizedAbsolutePath, extensionFolderPath));
+		if (normalizedAbsolutePath.indexOf(extensionLocation.fsPath) !== 0) {
+			collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", grammarsExtPoint.name, normalizedAbsolutePath, extensionLocation.fsPath));
 		}
 
 		this._scopeRegistry.register(syntax.scopeName, normalizedAbsolutePath, syntax.embeddedLanguages, syntax.tokenTypes);

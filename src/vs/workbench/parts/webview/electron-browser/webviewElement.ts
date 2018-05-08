@@ -14,7 +14,7 @@ import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
-import { editorBackground, editorForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { DARK, ITheme, IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { WebviewFindWidget } from './webviewFindWidget';
 
@@ -285,12 +285,13 @@ export class WebviewElement {
 		const { fontFamily, fontWeight, fontSize } = window.getComputedStyle(this._styleElement); // TODO@theme avoid styleElement
 
 		const styles = {
-			'background-color': theme.getColor(editorBackground).toString(),
-			'color': theme.getColor(editorForeground).toString(),
+			'background-color': theme.getColor(colorRegistry.editorBackground).toString(),
+			'color': theme.getColor(colorRegistry.editorForeground).toString(),
 			'font-family': fontFamily,
 			'font-weight': fontWeight,
 			'font-size': fontSize,
-			'link-color': theme.getColor(textLinkForeground).toString()
+			'link-color': theme.getColor(colorRegistry.textLinkForeground).toString(),
+			'link-active-color': theme.getColor(colorRegistry.textLinkActiveForeground).toString()
 		};
 
 		const activeTheme = ApiThemeClassName.fromTheme(theme);

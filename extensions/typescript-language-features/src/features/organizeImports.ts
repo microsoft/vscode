@@ -8,7 +8,6 @@ import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { Command, CommandManager } from '../utils/commandManager';
-import { isSupportedLanguageMode } from '../utils/languageModeIds';
 import * as typeconverts from '../utils/typeConverters';
 
 const localize = nls.loadMessageBundle();
@@ -23,18 +22,8 @@ class OrganizeImportsCommand implements Command {
 		private readonly client: ITypeScriptServiceClient
 	) { }
 
-	public async execute(): Promise<boolean> {
+	public async execute(file: string): Promise<boolean> {
 		if (!this.client.apiVersion.has280Features()) {
-			return false;
-		}
-
-		const editor = vscode.window.activeTextEditor;
-		if (!editor || !isSupportedLanguageMode(editor.document)) {
-			return false;
-		}
-
-		const file = this.client.normalizePath(editor.document.uri);
-		if (!file) {
 			return false;
 		}
 
@@ -69,7 +58,7 @@ export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvi
 	};
 
 	public provideCodeActions(
-		_document: vscode.TextDocument,
+		document: vscode.TextDocument,
 		_range: vscode.Range,
 		_context: vscode.CodeActionContext,
 		_token: vscode.CancellationToken
@@ -78,10 +67,15 @@ export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvi
 			return [];
 		}
 
+		const file = this.client.normalizePath(document.uri);
+		if (!file) {
+			return [];
+		}
+
 		const action = new vscode.CodeAction(
 			localize('oraganizeImportsAction.title', "Organize Imports"),
 			vscode.CodeActionKind.SourceOrganizeImports);
-		action.command = { title: '', command: OrganizeImportsCommand.Id };
+		action.command = { title: '', command: OrganizeImportsCommand.Id, arguments: [file] };
 		return [action];
 	}
 }

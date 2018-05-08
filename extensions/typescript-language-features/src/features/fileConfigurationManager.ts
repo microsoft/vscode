@@ -152,7 +152,7 @@ export default class FileConfigurationManager {
 			isTypeScriptDocument(document) ? 'typescript' : 'javascript',
 			document.uri);
 
-		const preferences = config.workspace.getConfiguration(
+		const preferences = workspace.getConfiguration(
 			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
 			document.uri);
 

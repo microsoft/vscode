@@ -7,12 +7,17 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IEditorInputFactory } from 'vs/workbench/common/editor';
 import { WebviewEditorInput } from './webviewEditorInput';
 import { IWebviewEditorService, WebviewInputOptions } from './webviewEditorService';
+import URI from 'vs/base/common/uri';
 
 interface SerializedWebview {
 	readonly viewType: string;
 	readonly title: string;
 	readonly options: WebviewInputOptions;
-	readonly extensionFolderPath: string;
+	/**
+	 * compatibility with previous versions
+	 */
+	readonly extensionFolderPath?: string;
+	readonly extensionLocation: string;
 	readonly state: any;
 }
 
@@ -41,7 +46,7 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 			viewType: input.viewType,
 			title: input.getName(),
 			options: input.options,
-			extensionFolderPath: input.extensionFolderPath.fsPath,
+			extensionLocation: input.extensionLocation.toString(),
 			state: input.state
 		};
 		return JSON.stringify(data);
@@ -52,6 +57,14 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 		serializedEditorInput: string
 	): WebviewEditorInput {
 		const data: SerializedWebview = JSON.parse(serializedEditorInput);
-		return this._webviewService.reviveWebview(data.viewType, data.title, data.state, data.options, data.extensionFolderPath);
+		let extensionLocation: URI;
+		if (typeof data.extensionLocation === 'string') {
+			extensionLocation = URI.parse(data.extensionLocation);
+		}
+		if (typeof data.extensionFolderPath === 'string') {
+			// compatibility with previous versions
+			extensionLocation = URI.file(data.extensionFolderPath);
+		}
+		return this._webviewService.reviveWebview(data.viewType, data.title, data.state, data.options, extensionLocation);
 	}
 }

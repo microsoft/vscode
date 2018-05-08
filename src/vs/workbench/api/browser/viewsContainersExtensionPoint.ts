@@ -137,7 +137,8 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 	private registerCustomViewContainers(containers: IUserFriendlyViewsContainerDescriptor[], extension: IExtensionDescription) {
 		containers.forEach((descriptor, index) => {
 			const cssClass = `extensionViewlet-${descriptor.id}`;
-			const icon = join(extension.extensionFolderPath, descriptor.icon);
+			// TODO@extensionLocation
+			const icon = join(extension.extensionLocation.fsPath, descriptor.icon);
 			this.registerCustomViewlet({ id: descriptor.id, title: descriptor.title, icon }, TEST_VIEW_CONTAINER_ORDER + index + 1, cssClass);
 		});
 	}
@@ -172,7 +173,8 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 				id,
 				descriptor.title,
 				cssClass,
-				order
+				order,
+				descriptor.icon
 			);
 
 			viewletRegistry.registerViewlet(viewletDescriptor);

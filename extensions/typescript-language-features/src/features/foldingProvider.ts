@@ -34,13 +34,30 @@ export default class TypeScriptFoldingProvider implements vscode.FoldingRangePro
 			return;
 		}
 
-		return response.body.map(span => {
-			const range = typeConverters.Range.fromTextSpan(span.textSpan);
-			// workaround for #47240
-			if (range.end.character > 0 && document.getText(new vscode.Range(range.end.translate(0, -1), range.end)) === '}') {
-				return new vscode.FoldingRange(range.start.line, Math.max(range.end.line - 1, range.start.line));
-			}
-			return new vscode.FoldingRange(range.start.line, range.end.line);
-		});
+		return response.body.map(span => this.convertOutliningSpan(span, document));
+	}
+
+	private convertOutliningSpan(span: Proto.OutliningSpan, document: vscode.TextDocument): vscode.FoldingRange {
+		const range = typeConverters.Range.fromTextSpan(span.textSpan);
+		const kind = TypeScriptFoldingProvider.getFoldingRangeKind(span);
+
+		const start = range.start.line;
+		// workaround for #47240
+		const end = (range.end.character > 0 && document.getText(new vscode.Range(range.end.translate(0, -1), range.end)) === '}')
+			? Math.max(range.end.line - 1, range.start.line)
+			: range.end.line;
+
+		return new vscode.FoldingRange(start, end, kind);
+	}
+
+	private static getFoldingRangeKind(span: Proto.OutliningSpan): vscode.FoldingRangeKind | undefined {
+		// TODO: remove cast once we get a new TS insiders
+		switch ((span as Proto.OutliningSpan & { kind: any }).kind) {
+			case 'comment': return vscode.FoldingRangeKind.Comment;
+			case 'region': return vscode.FoldingRangeKind.Region;
+			case 'imports': return vscode.FoldingRangeKind.Imports;
+			case 'code':
+			default: return undefined;
+		}
 	}
 }

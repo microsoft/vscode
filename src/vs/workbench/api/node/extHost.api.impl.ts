@@ -415,7 +415,7 @@ export function createApiFactory(
 				return extHostOutputService.createOutputChannel(name);
 			},
 			createWebviewPanel(viewType: string, title: string, showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn, preserveFocus?: boolean }, options: vscode.WebviewPanelOptions & vscode.WebviewOptions): vscode.WebviewPanel {
-				return extHostWebviews.createWebview(viewType, title, showOptions, options, extension.extensionFolderPath);
+				return extHostWebviews.createWebview(viewType, title, showOptions, options, extension.extensionLocation);
 			},
 			createTerminal(nameOrOptions: vscode.TerminalOptions | string, shellPath?: string, shellArgs?: string[]): vscode.Terminal {
 				if (typeof nameOrOptions === 'object') {
@@ -725,7 +725,7 @@ class Extension<T> implements vscode.Extension<T> {
 	constructor(extensionService: ExtHostExtensionService, description: IExtensionDescription) {
 		this._extensionService = extensionService;
 		this.id = description.id;
-		this.extensionPath = paths.normalize(description.extensionFolderPath, true);
+		this.extensionPath = paths.normalize(description.extensionLocation.fsPath, true);
 		this.packageJSON = description;
 	}
 
@@ -788,7 +788,9 @@ const nullExtensionDescription: IExtensionDescription = {
 	engines: undefined,
 	extensionDependencies: undefined,
 	extensionFolderPath: undefined,
+	extensionLocation: undefined,
 	isBuiltin: false,
+	isUnderDevelopment: false,
 	main: undefined,
 	version: undefined
 };

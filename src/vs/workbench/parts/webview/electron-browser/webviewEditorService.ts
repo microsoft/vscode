@@ -23,7 +23,7 @@ export interface IWebviewEditorService {
 		title: string,
 		showOptions: { viewColumn: Position, preserveFocus: boolean },
 		options: WebviewInputOptions,
-		extensionFolderPath: string,
+		extensionLocation: URI,
 		events: WebviewEvents
 	): WebviewEditorInput;
 
@@ -32,7 +32,7 @@ export interface IWebviewEditorService {
 		title: string,
 		state: any,
 		options: WebviewInputOptions,
-		extensionFolderPath: string
+		extensionLocation: URI
 	): WebviewEditorInput;
 
 	revealWebview(
@@ -89,10 +89,10 @@ export class WebviewEditorService implements IWebviewEditorService {
 		title: string,
 		showOptions: { viewColumn: Position, preserveFocus: boolean },
 		options: vscode.WebviewOptions,
-		extensionFolderPath: string,
+		extensionLocation: URI,
 		events: WebviewEvents
 	): WebviewEditorInput {
-		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, viewType, title, options, {}, events, extensionFolderPath, undefined);
+		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, viewType, title, options, {}, events, extensionLocation, undefined);
 		this._editorService.openEditor(webviewInput, { pinned: true, preserveFocus: showOptions.preserveFocus }, showOptions.viewColumn);
 		return webviewInput;
 	}
@@ -114,9 +114,9 @@ export class WebviewEditorService implements IWebviewEditorService {
 		title: string,
 		state: any,
 		options: WebviewInputOptions,
-		extensionFolderPath: string
+		extensionLocation: URI
 	): WebviewEditorInput {
-		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, viewType, title, options, state, {}, extensionFolderPath, {
+		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, viewType, title, options, state, {}, extensionLocation, {
 			canRevive: (webview) => {
 				return true;
 			},

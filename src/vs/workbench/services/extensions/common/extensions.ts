@@ -9,6 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { Event } from 'vs/base/common/event';
+import URI from 'vs/base/common/uri';
 
 export interface IExtensionDescription {
 	readonly id: string;
@@ -18,7 +19,9 @@ export interface IExtensionDescription {
 	readonly version: string;
 	readonly publisher: string;
 	readonly isBuiltin: boolean;
+	readonly isUnderDevelopment: boolean;
 	readonly extensionFolderPath: string;
+	readonly extensionLocation: URI;
 	readonly extensionDependencies?: string[];
 	readonly activationEvents?: string[];
 	readonly engines: {

@@ -49,6 +49,10 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		return OUTPUT_PANEL_ID;
 	}
 
+	public getTitle(): string {
+		return nls.localize('output', "Output");
+	}
+
 	public getActions(): IAction[] {
 		if (!this.actions) {
 			this.actions = [

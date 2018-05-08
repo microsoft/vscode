@@ -135,7 +135,7 @@ export async function applyCodeAction(
 	action: CodeAction,
 	bulkEditService: IBulkEditService,
 	commandService: ICommandService,
-	editor: ICodeEditor,
+	editor?: ICodeEditor,
 ) {
 	if (action.edit) {
 		await bulkEditService.apply(action.edit, { editor });
