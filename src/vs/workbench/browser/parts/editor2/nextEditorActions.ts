@@ -12,7 +12,16 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { INextEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorInput } from 'vs/workbench/common/editor';
-import { join } from 'vs/base/common/paths';
+import { join, dirname } from 'vs/base/common/paths';
+import { isWindows } from 'vs/base/common/platform';
+
+function getVSCodeBaseFolder(): string {
+	let workingDir = process.cwd();
+	if (isWindows) {
+		workingDir = dirname(dirname(workingDir));
+	}
+	return workingDir;
+}
 
 export class GridOpenEditorsAction extends Action {
 
@@ -29,14 +38,16 @@ export class GridOpenEditorsAction extends Action {
 	}
 
 	run(): TPromise<any> {
+		let workingDir = getVSCodeBaseFolder();
+
 		const inputs = [
-			join(process.cwd(), 'src/vs/workbench/browser/parts/editor/editor.contribution.ts'),
-			join(process.cwd(), 'src/vs/workbench/browser/parts/editor2/nextEditorActions.ts'),
-			join(process.cwd(), 'src/vs/workbench/browser/parts/editor2/nextEditorGroupView.ts'),
-			join(process.cwd(), 'src/vs/workbench/browser/parts/editor2/nextEditorPart.ts'),
-			join(process.cwd(), 'src/vs/workbench/browser/parts/editor2/nextNoTabsTitleControl.ts'),
-			join(process.cwd(), 'src/vs/workbench/browser/parts/editor2/nextTabsTitleControl.ts'),
-			join(process.cwd(), 'src/vs/workbench/browser/parts/editor2/nextTitleControl.ts')
+			join(workingDir, 'src/vs/workbench/browser/parts/editor/editor.contribution.ts'),
+			join(workingDir, 'src/vs/workbench/browser/parts/editor2/nextEditorActions.ts'),
+			join(workingDir, 'src/vs/workbench/browser/parts/editor2/nextEditorGroupView.ts'),
+			join(workingDir, 'src/vs/workbench/browser/parts/editor2/nextEditorPart.ts'),
+			join(workingDir, 'src/vs/workbench/browser/parts/editor2/nextNoTabsTitleControl.ts'),
+			join(workingDir, 'src/vs/workbench/browser/parts/editor2/nextTabsTitleControl.ts'),
+			join(workingDir, 'src/vs/workbench/browser/parts/editor2/nextTitleControl.ts')
 		].map(input => {
 			return this.legacyEditorService.createInput({ resource: URI.file(input) }) as EditorInput;
 		});
@@ -75,7 +86,7 @@ export class GridOpenOneEditorAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		const path = join(process.cwd(), 'src/vs/workbench/browser/parts/editor/editor.contribution.ts');
+		const path = join(getVSCodeBaseFolder(), 'src/vs/workbench/browser/parts/editor/editor.contribution.ts');
 		this.nextEditorGroupsService.activeGroup.openEditor(this.legacyEditorService.createInput({ resource: URI.file(path) }) as EditorInput);
 
 		return TPromise.as(void 0);
