@@ -349,6 +349,8 @@ export class ConfigurationManager implements IConfigurationManager {
 			if (!candidates) {
 				candidates = this.debuggers.filter(a => a.hasInitialConfiguration() || a.hasConfigurationProvider);
 			}
+
+			candidates = candidates.sort((first, second) => first.label.localeCompare(second.label));
 			return this.quickOpenService.pick([...candidates, { label: 'More...', separator: { border: true } }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
 				.then(picked => {
 					if (picked instanceof Debugger) {
