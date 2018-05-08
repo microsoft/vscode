@@ -26,7 +26,6 @@ import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, I
 import { Debugger } from 'vs/workbench/parts/debug/node/debugger';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
@@ -510,7 +509,6 @@ class WorkspaceLaunch extends Launch implements ILaunch {
 		@IFileService fileService: IFileService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 	) {
 		super(configurationManager, undefined, fileService, editorService, configurationService, contextService);
@@ -540,7 +538,6 @@ class UserLaunch extends Launch implements ILaunch {
 		@IFileService fileService: IFileService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
