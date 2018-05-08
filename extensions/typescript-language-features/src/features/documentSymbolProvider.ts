@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DocumentSymbolProvider, SymbolInformation, SymbolKind, TextDocument, CancellationToken, Uri } from 'vscode';
+import { DocumentSymbolProvider, SymbolInformation, SymbolKind, TextDocument, CancellationToken, Uri, HierarchicalSymbolInformation } from 'vscode';
 
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
@@ -31,7 +31,7 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 	public constructor(
 		private readonly client: ITypeScriptServiceClient) { }
 
-	public async provideDocumentSymbols(resource: TextDocument, token: CancellationToken): Promise<SymbolInformation[]> {
+	public async provideDocumentSymbols(resource: TextDocument, token: CancellationToken): Promise<any[]> { // todo@joh `any[]` temporary hack to make typescript happy...
 		const filepath = this.client.normalizePath(resource.uri);
 		if (!filepath) {
 			return [];
@@ -41,21 +41,21 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 		};
 
 		try {
-			const result: SymbolInformation[] = [];
+			const result: SymbolInformation[] | HierarchicalSymbolInformation[] = [];
 			if (this.client.apiVersion.has206Features()) {
 				const response = await this.client.execute('navtree', args, token);
 				if (response.body) {
 					// The root represents the file. Ignore this when showing in the UI
 					let tree = response.body;
 					if (tree.childItems) {
-						tree.childItems.forEach(item => TypeScriptDocumentSymbolProvider.convertNavTree(resource.uri, result, item));
+						tree.childItems.forEach(item => TypeScriptDocumentSymbolProvider.convertNavTree(resource.uri, result as HierarchicalSymbolInformation[], item));
 					}
 				}
 			} else {
 				const response = await this.client.execute('navbar', args, token);
 				if (response.body) {
 					let foldingMap: ObjectMap<SymbolInformation> = Object.create(null);
-					response.body.forEach(item => TypeScriptDocumentSymbolProvider.convertNavBar(resource.uri, 0, foldingMap, result, item));
+					response.body.forEach(item => TypeScriptDocumentSymbolProvider.convertNavBar(resource.uri, 0, foldingMap, result as SymbolInformation[], item));
 				}
 			}
 			return result;
@@ -82,15 +82,18 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 		}
 	}
 
-	private static convertNavTree(resource: Uri, bucket: SymbolInformation[], item: Proto.NavigationTree, containerLabel?: string): void {
-		const result = new SymbolInformation(item.text,
+	private static convertNavTree(resource: Uri, bucket: HierarchicalSymbolInformation[], item: Proto.NavigationTree): void {
+		const result = new HierarchicalSymbolInformation(
+			item.text,
+			'', // detail, e.g. signature etc
 			outlineTypeTable[item.kind as string] || SymbolKind.Variable,
-			containerLabel ? containerLabel : '',
-			typeConverters.Location.fromTextSpan(resource, item.spans[0])
+			typeConverters.Location.fromTextSpan(resource, item.spans[0]),
+			typeConverters.Range.fromTextSpan(item.spans[0])
 		);
 		if (item.childItems && item.childItems.length > 0) {
+			result.children = [];
 			for (const child of item.childItems) {
-				TypeScriptDocumentSymbolProvider.convertNavTree(resource, bucket, child, result.name);
+				TypeScriptDocumentSymbolProvider.convertNavTree(resource, result.children, child);
 			}
 		}
 
