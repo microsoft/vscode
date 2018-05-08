@@ -212,12 +212,17 @@ export class SettingsEditor2 extends BaseEditor {
 		this.showConfiguredSettingsOnlyCheckbox = DOM.append(headerControlsContainerRight, $('input#configured-only-checkbox'));
 		this.showConfiguredSettingsOnlyCheckbox.type = 'checkbox';
 		const showConfiguredSettingsOnlyLabel = <HTMLLabelElement>DOM.append(headerControlsContainerRight, $('label.configured-only-label'));
-		showConfiguredSettingsOnlyLabel.textContent = localize('showOverriddenOnly', "Show overridden only");
+		showConfiguredSettingsOnlyLabel.textContent = localize('showOverriddenOnly', "Show configured only");
 		showConfiguredSettingsOnlyLabel.htmlFor = 'configured-only-checkbox';
 
 		this._register(DOM.addDisposableListener(this.showConfiguredSettingsOnlyCheckbox, 'change', e => this.onShowConfiguredOnlyClicked()));
 
 		const openSettingsButton = this._register(new Button(headerControlsContainerRight, { title: true, buttonBackground: null, buttonHoverBackground: null }));
+		this._register(attachButtonStyler(openSettingsButton, this.themeService, {
+			buttonBackground: Color.transparent.toString(),
+			buttonHoverBackground: Color.transparent.toString(),
+			buttonForeground: 'foreground'
+		}));
 		openSettingsButton.label = localize('openSettingsLabel', "Open settings.json");
 		openSettingsButton.element.classList.add('open-settings-button');
 
@@ -781,6 +786,11 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 		openSettingsButton.label = localize('editInSettingsJson', "Edit in settings.json");
 		openSettingsButton.element.classList.add('edit-in-settings-button');
 		template.toDispose.push(openSettingsButton);
+		template.toDispose.push(attachButtonStyler(openSettingsButton, this.themeService, {
+			buttonBackground: Color.transparent.toString(),
+			buttonHoverBackground: Color.transparent.toString(),
+			buttonForeground: 'foreground'
+		}));
 	}
 
 	disposeTemplate(template: ISettingItemTemplate): void {

@@ -57,8 +57,6 @@
 .settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .open-settings-button,
 .settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .open-settings-button:hover,
 .settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .open-settings-button:active {
-	background: none;
-	opacity: 0.7;
 	padding: 0;
 	text-decoration: underline;
 }
@@ -174,7 +172,6 @@
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-value > .edit-in-settings-button:active {
 	margin: auto;
 	text-decoration: underline;
-	opacity: 0.7;
 }
 
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-value > .edit-in-settings-button + .setting-reset-button.monaco-button {
