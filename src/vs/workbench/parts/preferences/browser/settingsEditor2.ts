@@ -856,9 +856,9 @@ class ButtonRowRenderer implements IRenderer<IButtonRowEntry, IButtonRowTemplate
 	}
 }
 
-function settingKeyToDisplayFormat(key: string): { category: string, label: string } {
+export function settingKeyToDisplayFormat(key: string): { category: string, label: string } {
 	let label = key
-		.replace(/\.([a-z])/, (match, p1) => `.${p1.toUpperCase()}`)
+		.replace(/\.([a-z])/g, (match, p1) => `.${p1.toUpperCase()}`)
 		.replace(/([a-z])([A-Z])/g, '$1 $2') // fooBar => foo Bar
 		.replace(/^[a-z]/g, match => match.toUpperCase()); // foo => Foo
 
