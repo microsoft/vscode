@@ -89,6 +89,8 @@ export class NextEditorService extends Disposable implements INextEditorService 
 
 	private onDidActiveGroupChange(group: INextEditorGroup): void {
 		if (!this.lastActiveGroup) {
+			this.lastActiveGroup = group;
+
 			return; // ignore the initial root group
 		}
 
