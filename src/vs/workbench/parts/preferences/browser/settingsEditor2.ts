@@ -38,6 +38,7 @@ import { IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel } fr
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IPreferencesSearchService, ISearchProvider } from '../common/preferences';
+import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 
 const SETTINGS_ENTRY_TEMPLATE_ID = 'settings.entry.template';
 const SETTINGS_GROUP_ENTRY_TEMPLATE_ID = 'settings.group.template';
@@ -629,6 +630,7 @@ interface ISettingItemTemplate {
 	toDispose: IDisposable[];
 
 	containerElement: HTMLElement;
+	categoryElement: HTMLElement;
 	labelElement: HTMLElement;
 	descriptionElement: HTMLElement;
 	valueElement: HTMLElement;
@@ -676,6 +678,9 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 		const rightElement = DOM.append(itemContainer, $('.setting-item-right'));
 
 		const titleElement = DOM.append(leftElement, $('.setting-item-title'));
+		const isConfiguredIndicatorElement = DOM.append(titleElement, $('span.setting-item-is-configured-indicator'));
+		new OcticonLabel(isConfiguredIndicatorElement).text = '$(primitive-dot)';
+		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
 		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
 		const overridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
 		const descriptionElement = DOM.append(leftElement, $('.setting-item-description'));
@@ -687,6 +692,7 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 			toDispose: [],
 
 			containerElement: itemContainer,
+			categoryElement,
 			labelElement,
 			descriptionElement,
 			valueElement,
@@ -697,7 +703,11 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 	renderElement(entry: ISettingItemEntry, index: number, template: ISettingItemTemplate): void {
 		DOM.toggleClass(template.parent, 'odd', index % 2 === 1);
 
-		template.labelElement.textContent = settingKeyToLabel(entry.key);
+		const settingKeyDisplay = settingKeyToDisplayFormat(entry.key);
+		template.categoryElement.textContent = settingKeyDisplay.category + ': ';
+		template.categoryElement.title = entry.key;
+
+		template.labelElement.textContent = settingKeyDisplay.label;
 		template.labelElement.title = entry.key;
 		template.descriptionElement.textContent = entry.description;
 
@@ -836,17 +846,20 @@ class ButtonRowRenderer implements IRenderer<IButtonRowEntry, IButtonRowTemplate
 	}
 }
 
-function settingKeyToLabel(key: string): string {
-	const lastDotIdx = key.lastIndexOf('.');
-	if (lastDotIdx >= 0) {
-		key = key.substr(0, lastDotIdx) + ': ' + key.substr(lastDotIdx + 1);
-	}
-
-	return key
+function settingKeyToDisplayFormat(key: string): { category: string, label: string } {
+	let label = key
 		.replace(/\.([a-z])/, (match, p1) => `.${p1.toUpperCase()}`)
 		.replace(/([a-z])([A-Z])/g, '$1 $2') // fooBar => foo Bar
-		.replace(/^[a-z]/g, match => match.toUpperCase()) // foo => Foo
-		.replace(/ [a-z]/g, match => match.toUpperCase()); // Foo bar => Foo Bar
+		.replace(/^[a-z]/g, match => match.toUpperCase()); // foo => Foo
+
+	const lastDotIdx = label.lastIndexOf('.');
+	let category = '';
+	if (lastDotIdx >= 0) {
+		category = label.substr(0, lastDotIdx);
+		label = label.substr(lastDotIdx + 1);
+	}
+
+	return { category, label };
 }
 
 class SearchResultModel {
