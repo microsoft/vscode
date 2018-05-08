@@ -309,7 +309,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private ready = false;
 	private progressBar: ProgressBar;
 	private ignoreFocusLost = false;
-	private inQuickOpenCount = 0;
+	private inQuickOpenWidgets: Record<string, boolean> = {};
 	private inQuickOpenContext: IContextKey<boolean>;
 
 	private controller: InputController<any>;
@@ -326,16 +326,24 @@ export class QuickInputService extends Component implements IQuickInputService {
 	) {
 		super(QuickInputService.ID, themeService);
 		this.inQuickOpenContext = new RawContextKey<boolean>('inQuickOpen', false).bindTo(contextKeyService);
-		this.toUnbind.push(this.quickOpenService.onShow(() => this.inQuickOpen(true)));
-		this.toUnbind.push(this.quickOpenService.onHide(() => this.inQuickOpen(false)));
+		this.toUnbind.push(this.quickOpenService.onShow(() => this.inQuickOpen('quickOpen', true)));
+		this.toUnbind.push(this.quickOpenService.onHide(() => this.inQuickOpen('quickOpen', false)));
 	}
 
-	private inQuickOpen(open: boolean) {
-		this.inQuickOpenCount += open ? 1 : -1;
-		if (this.inQuickOpenCount) {
-			this.inQuickOpenContext.set(true);
+	private inQuickOpen(widget: 'quickInput' | 'quickOpen', open: boolean) {
+		if (open) {
+			this.inQuickOpenWidgets[widget] = true;
 		} else {
-			this.inQuickOpenContext.reset();
+			delete this.inQuickOpenWidgets[widget];
+		}
+		if (Object.keys(this.inQuickOpenWidgets).length) {
+			if (!this.inQuickOpenContext.get()) {
+				this.inQuickOpenContext.set(true);
+			}
+		} else {
+			if (this.inQuickOpenContext.get()) {
+				this.inQuickOpenContext.reset();
+			}
 		}
 	}
 
@@ -474,7 +482,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			if (resolved) {
 				const result = resolved
 					.then(() => {
-						this.inQuickOpen(false);
+						this.inQuickOpen('quickInput', false);
 						this.container.style.display = 'none';
 						if (!focusLost) {
 							this.restoreFocus();
@@ -484,7 +492,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 				return result;
 			}
 		}
-		this.inQuickOpen(false);
+		this.inQuickOpen('quickInput', false);
 		this.container.style.display = 'none';
 		if (!focusLost) {
 			this.restoreFocus();
@@ -549,7 +557,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.ui.checkboxList.display(this.controller.showUI.checkboxList);
 
 		if (this.container.style.display === 'none') {
-			this.inQuickOpen(true);
+			this.inQuickOpen('quickInput', true);
 		}
 		this.container.style.display = '';
 		this.updateLayout();
