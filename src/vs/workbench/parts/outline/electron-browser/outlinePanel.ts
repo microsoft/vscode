@@ -69,9 +69,9 @@ class ActiveEditorOracle {
 class ChangeSortAction extends Action {
 
 	private static _labels = {
-		[OutlineItemCompareType.ByPosition]: localize('sortByPosition', "Sort By Position"),
-		[OutlineItemCompareType.ByName]: localize('sortByName', "Sort By Name"),
-		[OutlineItemCompareType.ByKind]: localize('sortByKind', "Sort By Type"),
+		[OutlineItemCompareType.ByPosition]: localize('sortByPosition', "Sort By: Position"),
+		[OutlineItemCompareType.ByName]: localize('sortByName', "Sort By: Name"),
+		[OutlineItemCompareType.ByKind]: localize('sortByKind', "Sort By: Type"),
 	};
 
 	constructor(type: OutlineItemCompareType, callback: (type: OutlineItemCompareType) => any) {
