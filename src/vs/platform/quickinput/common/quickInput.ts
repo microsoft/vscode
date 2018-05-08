@@ -27,6 +27,8 @@ export interface IQuickInputService {
 
 	focus(): void;
 
+	toggle(): void;
+
 	navigate(next: boolean): void;
 
 	accept(): TPromise<void>;

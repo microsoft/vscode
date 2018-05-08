@@ -35,6 +35,7 @@ import { onUnexpectedError, canceled } from 'vs/base/common/errors';
 import Severity from 'vs/base/common/severity';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { Action } from 'vs/base/common/actions';
 
 const $ = dom.$;
 
@@ -588,8 +589,14 @@ export class QuickInputService extends Component implements IQuickInputService {
 	}
 
 	focus() {
-		if (this.ui) {
+		if (this.isDisplayed()) {
 			this.ui.inputBox.setFocus();
+		}
+	}
+
+	toggle() {
+		if (this.isDisplayed() && this.controller instanceof PickManyController) {
+			this.ui.checkboxList.toggleCheckbox();
 		}
 	}
 
@@ -647,5 +654,24 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 	private isDisplayed() {
 		return this.container && this.container.style.display !== 'none';
+	}
+}
+
+export class QuickPickManyToggleAction extends Action {
+
+	public static readonly ID = 'workbench.action.quickPickManyToggle';
+	public static readonly LABEL = localize('quickPickManyToggle', "Toggle Selection in Quick Pick");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickInputService private quickInputService: IQuickInputService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		this.quickInputService.toggle();
+		return TPromise.as(true);
 	}
 }
