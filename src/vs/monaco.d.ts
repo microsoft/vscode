@@ -360,7 +360,7 @@ declare namespace monaco {
 		 * Placed last to cover the length of the enum.
 		 * Please do not depend on this value!
 		 */
-		MAX_VALUE = 112
+		MAX_VALUE = 112,
 	}
 
 	export class KeyMod {
@@ -757,7 +757,7 @@ declare namespace monaco {
 		/**
 		 * The selection starts below where it ends.
 		 */
-		RTL = 1
+		RTL = 1,
 	}
 
 	export class Token {
@@ -1130,7 +1130,7 @@ declare namespace monaco.editor {
 	export enum ScrollbarVisibility {
 		Auto = 1,
 		Hidden = 2,
-		Visible = 3
+		Visible = 3,
 	}
 
 	export interface ThemeColor {
@@ -1144,7 +1144,7 @@ declare namespace monaco.editor {
 		Left = 1,
 		Center = 2,
 		Right = 4,
-		Full = 7
+		Full = 7,
 	}
 
 	/**
@@ -1307,7 +1307,7 @@ declare namespace monaco.editor {
 		/**
 		 * Use carriage return and line feed (\r\n) as the end of line character.
 		 */
-		CRLF = 2
+		CRLF = 2,
 	}
 
 	/**
@@ -1321,7 +1321,7 @@ declare namespace monaco.editor {
 		/**
 		 * Use carriage return and line feed (\r\n) as the end of line character.
 		 */
-		CRLF = 2
+		CRLF = 2,
 	}
 
 	/**
@@ -1335,7 +1335,7 @@ declare namespace monaco.editor {
 		/**
 		 * Use carriage return and line feed (\r\n) as the end of line character.
 		 */
-		CRLF = 1
+		CRLF = 1,
 	}
 
 	/**
@@ -1429,7 +1429,7 @@ declare namespace monaco.editor {
 		AlwaysGrowsWhenTypingAtEdges = 0,
 		NeverGrowsWhenTypingAtEdges = 1,
 		GrowsOnlyWhenTypingBefore = 2,
-		GrowsOnlyWhenTypingAfter = 3
+		GrowsOnlyWhenTypingAfter = 3,
 	}
 
 	/**
@@ -1985,7 +1985,7 @@ declare namespace monaco.editor {
 
 	export const enum ScrollType {
 		Smooth = 0,
-		Immediate = 1
+		Immediate = 1,
 	}
 
 	/**
@@ -2315,7 +2315,7 @@ declare namespace monaco.editor {
 		/**
 		 * There was a Redo.
 		 */
-		Redo = 6
+		Redo = 6,
 	}
 
 	/**
@@ -2955,7 +2955,7 @@ declare namespace monaco.editor {
 		Small = 1,
 		Large = 2,
 		SmallBlocks = 3,
-		LargeBlocks = 4
+		LargeBlocks = 4,
 	}
 
 	/**
@@ -2973,7 +2973,7 @@ declare namespace monaco.editor {
 		/**
 		 * Indent => wrapped lines get +1 indentation as the parent.
 		 */
-		Indent = 2
+		Indent = 2,
 	}
 
 	/**
@@ -3003,7 +3003,7 @@ declare namespace monaco.editor {
 		/**
 		 * No-Blinking
 		 */
-		Solid = 5
+		Solid = 5,
 	}
 
 	/**
@@ -3033,7 +3033,7 @@ declare namespace monaco.editor {
 		/**
 		 * As a thin horizontal line (sitting under a character).
 		 */
-		UnderlineThin = 6
+		UnderlineThin = 6,
 	}
 
 	export interface InternalEditorScrollbarOptions {
@@ -3081,7 +3081,7 @@ declare namespace monaco.editor {
 		On = 1,
 		Relative = 2,
 		Interval = 3,
-		Custom = 4
+		Custom = 4,
 	}
 
 	export interface InternalEditorViewOptions {
@@ -3410,7 +3410,7 @@ declare namespace monaco.editor {
 		/**
 		 * Place the content widget below a position
 		 */
-		BELOW = 2
+		BELOW = 2,
 	}
 
 	/**
@@ -3467,7 +3467,7 @@ declare namespace monaco.editor {
 		/**
 		 * Position the overlay widget in the top center
 		 */
-		TOP_CENTER = 2
+		TOP_CENTER = 2,
 	}
 
 	/**
@@ -3558,7 +3558,7 @@ declare namespace monaco.editor {
 		/**
 		 * Mouse is outside of the editor.
 		 */
-		OUTSIDE_EDITOR = 13
+		OUTSIDE_EDITOR = 13,
 	}
 
 	/**
@@ -4197,7 +4197,7 @@ declare namespace monaco.languages {
 		Color = 15,
 		File = 16,
 		Reference = 17,
-		Folder = 18
+		Folder = 18,
 	}
 
 	/**
@@ -4547,7 +4547,7 @@ declare namespace monaco.languages {
 		/**
 		 * Insert new line and outdent once (relative to the previous line's indentation).
 		 */
-		Outdent = 3
+		Outdent = 3,
 	}
 
 	/**
@@ -4618,7 +4618,7 @@ declare namespace monaco.languages {
 	export enum SuggestTriggerKind {
 		Invoke = 0,
 		TriggerCharacter = 1,
-		TriggerForIncompleteCompletions = 2
+		TriggerForIncompleteCompletions = 2,
 	}
 
 	export interface CodeAction {
@@ -4715,7 +4715,7 @@ declare namespace monaco.languages {
 		/**
 		 * Write-access of a symbol, like writing to a variable.
 		 */
-		Write = 2
+		Write = 2,
 	}
 
 	/**
@@ -4853,7 +4853,7 @@ declare namespace monaco.languages {
 		Struct = 22,
 		Event = 23,
 		Operator = 24,
-		TypeParameter = 25
+		TypeParameter = 25,
 	}
 
 	/**
