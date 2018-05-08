@@ -669,9 +669,9 @@ export function createApiFactory(
 			StatusBarAlignment: extHostTypes.StatusBarAlignment,
 			SymbolInformation: extHostTypes.SymbolInformation,
 			HierarchicalSymbolInformation: class extends extHostTypes.HierarchicalSymbolInformation {
-				constructor(name, kind, detail, keyof, range) {
+				constructor(name, detail, kind, keyof, range) {
 					checkProposedApiEnabled(extension);
-					super(name, kind, detail, keyof, range);
+					super(name, detail, kind, keyof, range);
 				}
 			},
 			SymbolKind: extHostTypes.SymbolKind,
