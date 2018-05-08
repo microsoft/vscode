@@ -132,5 +132,7 @@ import 'vs/workbench/parts/watermark/electron-browser/watermark';
 
 import 'vs/workbench/parts/welcome/overlay/browser/welcomeOverlay';
 
+import 'vs/workbench/parts/outline/electron-browser/outline.contribution';
+
 // services
 import 'vs/workbench/services/bulkEdit/electron-browser/bulkEditService';

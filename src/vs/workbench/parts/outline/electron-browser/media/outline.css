@@ -1,0 +1,160 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .outline-item .icon {
+	display: inline-block;
+	height: 16px;
+	width: 16px;
+}
+
+.monaco-workbench .outline-item .icon.constant {
+	background-image: url('Constant_16x.svg');
+	background-repeat: no-repeat;
+	background-position: 0 -2px;
+}
+.vs-dark .monaco-workbench .outline-item .icon.constant,
+.hc-black .monaco-workbench .outline-item .icon.constant {
+	background-image: url('Constant_16x_inverse.svg');
+}
+
+.monaco-workbench .outline-item .icon.enum-member {
+	background-image: url('EnumItem_16x.svg');
+	background-repeat: no-repeat;
+	background-position: 0 -2px;
+}
+.vs-dark .monaco-workbench .outline-item .icon.enum-member,
+.hc-black .monaco-workbench .outline-item .icon.enum-member {
+	background-image: url('EnumItem_inverse_16x.svg');
+}
+
+.monaco-workbench .outline-item .icon.struct {
+	background-image: url('Structure_16x_vscode.svg');
+	background-repeat: no-repeat;
+	background-position: 0 -2px;
+}
+.vs-dark .monaco-workbench .outline-item .icon.struct,
+.hc-black .monaco-workbench .outline-item .icon.struct {
+	background-image: url('Structure_16x_vscode_inverse.svg');
+}
+
+.monaco-workbench .outline-item .icon.event {
+	background-image: url('Event_16x_vscode.svg');
+	background-repeat: no-repeat;
+	background-position: 0 -2px;
+}
+.vs-dark .monaco-workbench .outline-item .icon.event,
+.hc-black .monaco-workbench .outline-item .icon.event {
+	background-image: url('Event_16x_vscode_inverse.svg');
+}
+
+.monaco-workbench .outline-item .icon.operator {
+	background-image: url('Operator_16x_vscode.svg');
+	background-repeat: no-repeat;
+	background-position: 0 -2px;
+}
+.vs-dark .monaco-workbench .outline-item .icon.operator,
+.hc-black .monaco-workbench .outline-item .icon.operator {
+	background-image: url('Operator_16x_vscode_inverse.svg');
+}
+
+.monaco-workbench .outline-item .icon.type-parameter {
+	background-image: url('Template_16x_vscode.svg');
+	background-repeat: no-repeat;
+	background-position: 0 -2px;
+}
+.vs-dark .monaco-workbench .outline-item .icon.type-parameter,
+.hc-black .monaco-workbench .outline-item .icon.type-parameter {
+	background-image: url('Template_16x_vscode_inverse.svg');
+}
+
+.monaco-workbench .outline-item .icon.method,
+.monaco-workbench .outline-item .icon.function,
+.monaco-workbench .outline-item .icon.constructor,
+.monaco-workbench .outline-item .icon.field,
+.monaco-workbench .outline-item .icon.variable,
+.monaco-workbench .outline-item .icon.class,
+.monaco-workbench .outline-item .icon.interface,
+.monaco-workbench .outline-item .icon.object,
+.monaco-workbench .outline-item .icon.namespace,
+.monaco-workbench .outline-item .icon.package,
+.monaco-workbench .outline-item .icon.module,
+.monaco-workbench .outline-item .icon.property,
+.monaco-workbench .outline-item .icon.enum,
+.monaco-workbench .outline-item .icon.key,
+.monaco-workbench .outline-item .icon.string,
+.monaco-workbench .outline-item .icon.rule,
+.monaco-workbench .outline-item .icon.file,
+.monaco-workbench .outline-item .icon.array,
+.monaco-workbench .outline-item .icon.number,
+.monaco-workbench .outline-item .icon.null,
+.monaco-workbench .outline-item .icon.boolean {
+	background-image: url('symbol-sprite.svg');
+	background-repeat: no-repeat;
+}
+
+.vs .monaco-workbench .outline-item .icon.method,
+.vs .monaco-workbench .outline-item .icon.function,
+.vs .monaco-workbench .outline-item .icon.constructor		{ background-position: 0 -4px; }
+.vs .monaco-workbench .outline-item .icon.field,
+.vs .monaco-workbench .outline-item .icon.variable 		{ background-position: -22px -4px; }
+.vs .monaco-workbench .outline-item .icon.class 			{ background-position: -43px -3px; }
+.vs .monaco-workbench .outline-item .icon.interface 		{ background-position: -63px -4px; }
+.vs .monaco-workbench .outline-item .icon.object,
+.vs .monaco-workbench .outline-item .icon.namespace,
+.vs .monaco-workbench .outline-item .icon.package,
+.vs .monaco-workbench .outline-item .icon.module 			{ background-position: -82px -4px; }
+.vs .monaco-workbench .outline-item .icon.property 		{ background-position: -102px -3px; }
+.vs .monaco-workbench .outline-item .icon.enum		 		{ background-position: -122px -3px; }
+.vs .monaco-workbench .outline-item .icon.key,
+.vs .monaco-workbench .outline-item .icon.string		 	{ background-position: -202px -3px; }
+.vs .monaco-workbench .outline-item .icon.rule		 		{ background-position: -242px -4px; }
+.vs .monaco-workbench .outline-item .icon.file		 		{ background-position: -262px -4px; }
+.vs .monaco-workbench .outline-item .icon.array		 	{ background-position: -302px -4px; }
+.vs .monaco-workbench .outline-item .icon.number		 	{ background-position: -322px -4px; }
+.vs .monaco-workbench .outline-item .icon.null,
+.vs .monaco-workbench .outline-item .icon.boolean		 	{ background-position: -343px -4px; }
+
+.vs-dark .monaco-workbench .outline-item .icon.method,
+.vs-dark .monaco-workbench .outline-item .icon.function,
+.vs-dark .monaco-workbench .outline-item .icon.constructor,
+.hc-black .monaco-workbench .outline-item .icon.method,
+.hc-black .monaco-workbench .outline-item .icon.function,
+.hc-black .monaco-workbench .outline-item .icon.constructor 	{ background-position: 0 -24px; }
+.vs-dark .monaco-workbench .outline-item .icon.field,
+.hc-black .monaco-workbench .outline-item .icon.field,
+.vs-dark .monaco-workbench .outline-item .icon.variable,
+.hc-black .monaco-workbench .outline-item .icon.variable 		{ background-position: -22px -24px; }
+.vs-dark .monaco-workbench .outline-item .icon.class,
+.hc-black .monaco-workbench .outline-item .icon.class 			{ background-position: -43px -23px; }
+.vs-dark .monaco-workbench .outline-item .icon.interface,
+.hc-black .monaco-workbench .outline-item .icon.interface 		{ background-position: -63px -24px; }
+.vs-dark .monaco-workbench .outline-item .icon.object,
+.vs-dark .monaco-workbench .outline-item .icon.namespace,
+.vs-dark .monaco-workbench .outline-item .icon.package,
+.vs-dark .monaco-workbench .outline-item .icon.module,
+.hc-black .monaco-workbench .outline-item .icon.object,
+.hc-black .monaco-workbench .outline-item .icon.namespace,
+.hc-black .monaco-workbench .outline-item .icon.package,
+.hc-black .monaco-workbench .outline-item .icon.module 		{ background-position: -82px -24px; }
+.vs-dark .monaco-workbench .outline-item .icon.property,
+.hc-black .monaco-workbench .outline-item .icon.property 		{ background-position: -102px -23px; }
+.vs-dark .monaco-workbench .outline-item .icon.key,
+.vs-dark .monaco-workbench .outline-item .icon.string,
+.hc-black .monaco-workbench .outline-item .icon.key,
+.hc-black .monaco-workbench .outline-item .icon.string			{ background-position: -202px -23px; }
+.vs-dark .monaco-workbench .outline-item .icon.enum,
+.hc-black .monaco-workbench .outline-item .icon.enum			{ background-position: -122px -23px; }
+.vs-dark .monaco-workbench .outline-item .icon.rule,
+.hc-black .monaco-workbench .outline-item .icon.rule			{ background-position: -242px -24px; }
+.vs-dark .monaco-workbench .outline-item .icon.file,
+.hc-black .monaco-workbench .outline-item .icon.file			{ background-position: -262px -24px; }
+.vs-dark .monaco-workbench .outline-item .icon.array,
+.hc-black .monaco-workbench .outline-item .icon.array			{ background-position: -302px -24px; }
+.vs-dark .monaco-workbench .outline-item .icon.number,
+.hc-black .monaco-workbench .outline-item .icon.number			{ background-position: -322px -24px; }
+.vs-dark .monaco-workbench .outline-item .icon.null,
+.vs-dark .monaco-workbench .outline-item .icon.boolean,
+.hc-black .monaco-workbench .outline-item .icon.null,
+.hc-black .monaco-workbench .outline-item .icon.boolean			{ background-position: -342px -24px; }
