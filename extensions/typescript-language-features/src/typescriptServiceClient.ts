@@ -35,9 +35,9 @@ import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
 const localize = nls.loadMessageBundle();
 
 interface CallbackItem {
-	c: (value: any) => void;
-	e: (err: any) => void;
-	start: number;
+	readonly c: (value: any) => void;
+	readonly e: (err: any) => void;
+	readonly start: number;
 }
 
 class CallbackMap {
