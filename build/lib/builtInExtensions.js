@@ -19,7 +19,7 @@ const util = require('gulp-util');
 const root = path.dirname(path.dirname(__dirname));
 // @ts-ignore Microsoft/TypeScript#21262 complains about a require of a JSON file
 const builtInExtensions = require('../builtInExtensions.json');
-const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
+const controlFilePath = path.join(os.homedir(), '.QAS-dev', 'extensions', 'control.json');
 
 function getExtensionPath(extension) {
 	return path.join(root, '.build', 'builtInExtensions', extension.name);

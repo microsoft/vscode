@@ -772,7 +772,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				const builtInExtensions = pfs.readFile(builtInExtensionsFilePath, 'utf8')
 					.then<IBuiltInExtension[]>(raw => JSON.parse(raw));
 
-				const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
+				const controlFilePath = path.join(os.homedir(), '.QAS-dev', 'extensions', 'control.json');
 				const controlFile = pfs.readFile(controlFilePath, 'utf8')
 					.then<IBuiltInExtensionControl>(raw => JSON.parse(raw), () => ({} as any));
 
