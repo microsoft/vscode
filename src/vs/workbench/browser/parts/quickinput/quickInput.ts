@@ -34,6 +34,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { onUnexpectedError, canceled } from 'vs/base/common/errors';
 import Severity from 'vs/base/common/severity';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 const $ = dom.$;
 
@@ -307,6 +308,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private ready = false;
 	private progressBar: ProgressBar;
 	private ignoreFocusLost = false;
+	private inQuickOpenCount = 0;
+	private inQuickOpenContext: IContextKey<boolean>;
 
 	private controller: InputController<any>;
 
@@ -317,9 +320,22 @@ export class QuickInputService extends Component implements IQuickInputService {
 		@IPartService private partService: IPartService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService
 	) {
 		super(QuickInputService.ID, themeService);
+		this.inQuickOpenContext = new RawContextKey<boolean>('inQuickOpen', false).bindTo(contextKeyService);
+		this.toUnbind.push(this.quickOpenService.onShow(() => this.inQuickOpen(true)));
+		this.toUnbind.push(this.quickOpenService.onHide(() => this.inQuickOpen(false)));
+	}
+
+	private inQuickOpen(open: boolean) {
+		this.inQuickOpenCount += open ? 1 : -1;
+		if (this.inQuickOpenCount) {
+			this.inQuickOpenContext.set(true);
+		} else {
+			this.inQuickOpenContext.reset();
+		}
 	}
 
 	private create() {
@@ -449,7 +465,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 	}
 
 	private close(ok?: true | Thenable<never>, focusLost?: boolean) {
-		if (!this.container || this.container.style.display === 'none') {
+		if (!this.isDisplayed()) {
 			return TPromise.as(undefined);
 		}
 		if (this.controller) {
@@ -457,6 +473,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			if (resolved) {
 				const result = resolved
 					.then(() => {
+						this.inQuickOpen(false);
 						this.container.style.display = 'none';
 						if (!focusLost) {
 							this.restoreFocus();
@@ -466,6 +483,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 				return result;
 			}
 		}
+		this.inQuickOpen(false);
 		this.container.style.display = 'none';
 		if (!focusLost) {
 			this.restoreFocus();
@@ -529,6 +547,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.ui.message.style.display = this.controller.showUI.message ? '' : 'none';
 		this.ui.checkboxList.display(this.controller.showUI.checkboxList);
 
+		if (this.container.style.display === 'none') {
+			this.inQuickOpen(true);
+		}
 		this.container.style.display = '';
 		this.updateLayout();
 		this.ui.inputBox.setFocus();
@@ -569,6 +590,12 @@ export class QuickInputService extends Component implements IQuickInputService {
 	focus() {
 		if (this.ui) {
 			this.ui.inputBox.setFocus();
+		}
+	}
+
+	navigate(next: boolean) {
+		if (this.isDisplayed() && this.ui.checkboxList.isDisplayed()) {
+			this.ui.checkboxList.focus(next ? 'Next' : 'Previous');
 		}
 	}
 
@@ -616,5 +643,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 			const widgetShadowColor = theme.getColor(widgetShadow);
 			this.container.style.boxShadow = widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : undefined;
 		}
+	}
+
+	private isDisplayed() {
+		return this.container && this.container.style.display !== 'none';
 	}
 }
