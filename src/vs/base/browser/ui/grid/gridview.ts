@@ -32,7 +32,6 @@ TODO:
 			widgets have a color (e.g. Button, with applyStyles). Challenge is that this
 			color has to be applied via JS and not CSS to not apply it to all views
 			NOT CSS
-	- remove and addView should have same type for Sizing
 */
 
 export function orthogonal(orientation: Orientation): Orientation {
@@ -66,6 +65,14 @@ class BranchNode implements ISplitView, IDisposable {
 
 	private _orthogonalSize: number;
 	get orthogonalSize(): number { return this._orthogonalSize; }
+
+	get width(): number {
+		return this.orientation === Orientation.HORIZONTAL ? this.size : this.orthogonalSize;
+	}
+
+	get height(): number {
+		return this.orientation === Orientation.HORIZONTAL ? this.orthogonalSize : this.size;
+	}
 
 	get minimumSize(): number {
 		return this.children.length === 0 ? 0 : Math.max(...this.children.map(c => c.minimumOrthogonalSize));
@@ -167,6 +174,10 @@ class BranchNode implements ISplitView, IDisposable {
 		}
 
 		this.splitview.resizeView(index, size);
+	}
+
+	distributeViewSizes(): void {
+		this.splitview.distributeViewSizes();
 	}
 
 	getChildSize(index: number): number {
@@ -470,13 +481,18 @@ export class GridView implements IDisposable {
 		parent.resizeChild(index, size);
 	}
 
-	getViewSize(location: number[]): { width: number; height: number; } {
+	distributeViewSizes(location: number[]): void {
 		const [, node] = this.getNode(location);
 
-		if (!(node instanceof LeafNode)) {
+		if (!(node instanceof BranchNode)) {
 			throw new Error('Invalid location');
 		}
 
+		node.distributeViewSizes();
+	}
+
+	getViewSize(location: number[]): { width: number; height: number; } {
+		const [, node] = this.getNode(location);
 		return { width: node.width, height: node.height };
 	}
 

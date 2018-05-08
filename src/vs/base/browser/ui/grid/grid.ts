@@ -10,7 +10,6 @@ import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { tail2 as tail, tail2 } from 'vs/base/common/arrays';
 import { orthogonal, IView, GridView, Sizing as GridViewSizing } from './gridview';
-import { Event } from 'vs/base/common/event';
 
 export { Orientation } from './gridview';
 
@@ -30,10 +29,16 @@ export function isGridBranchNode<T extends IView>(node: GridNode<T>): node is Gr
 	return !!(node as any).children;
 }
 
+function getLocationOrientation(rootOrientation: Orientation, location: number[]): Orientation {
+	return location.length % 2 === 0 ? orthogonal(rootOrientation) : rootOrientation;
+}
+
+function getSize(dimensions: { width: number; height: number; }, orientation: Orientation) {
+	return orientation === Orientation.HORIZONTAL ? dimensions.width : dimensions.height;
+}
+
 export function getRelativeLocation(rootOrientation: Orientation, location: number[], direction: Direction): number[] {
-	const orientation = location.length % 2 === 0
-		? orthogonal(rootOrientation)
-		: rootOrientation;
+	const orientation = getLocationOrientation(rootOrientation, location);
 
 	const sameDimension = (orientation === Orientation.HORIZONTAL && (direction === Direction.Left || direction === Direction.Right))
 		|| (orientation === Orientation.VERTICAL && (direction === Direction.Up || direction === Direction.Down));
@@ -108,11 +113,14 @@ export class Grid<T extends IView> implements IDisposable {
 
 	get width(): number { return this.gridview.width; }
 	get height(): number { return this.gridview.height; }
-	get onDidSashReset(): Event<number[]> { return this.gridview.onDidSashReset; }
+
+	public sashResetSizing: Sizing = Sizing.Distribute;
 
 	constructor(container: HTMLElement, view: T) {
 		this.gridview = new GridView(container);
 		this.disposables.push(this.gridview);
+
+		this.gridview.onDidSashReset(this.onDidSashReset, this, this.disposables);
 
 		this._addView(view, 0, [0]);
 	}
@@ -196,6 +204,21 @@ export class Grid<T extends IView> implements IDisposable {
 		}
 
 		return getGridLocation(element);
+	}
+
+	private onDidSashReset(location: number[]): void {
+		if (this.sashResetSizing === Sizing.Split) {
+			const orientation = getLocationOrientation(this.orientation, location);
+			const firstViewSize = getSize(this.gridview.getViewSize(location), orientation);
+			const [parentLocation, index] = tail2(location);
+			const secondViewSize = getSize(this.gridview.getViewSize([...parentLocation, index + 1]), orientation);
+			const totalSize = firstViewSize + secondViewSize;
+			this.gridview.resizeView(location, Math.floor(totalSize / 2));
+
+		} else {
+			const [parentLocation,] = tail2(location);
+			this.gridview.distributeViewSizes(parentLocation);
+		}
 	}
 
 	dispose(): void {

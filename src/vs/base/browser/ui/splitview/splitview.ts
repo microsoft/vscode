@@ -215,11 +215,7 @@ export class SplitView implements IDisposable {
 		this.state = State.Idle;
 
 		if (typeof size !== 'number' && size.type === 'distribute') {
-			const size = Math.floor(this.size / this.viewItems.length);
-
-			for (let i = 0; i < this.viewItems.length - 1; i++) {
-				this.resizeView(i, size);
-			}
+			this.distributeViewSizes();
 		}
 	}
 
@@ -248,12 +244,8 @@ export class SplitView implements IDisposable {
 		this.relayout();
 		this.state = State.Idle;
 
-		if (sizing === Sizing.Distribute) {
-			const size = Math.floor(this.size / this.viewItems.length);
-
-			for (let i = 0; i < this.viewItems.length - 1; i++) {
-				this.resizeView(i, size);
-			}
+		if (sizing && sizing.type === 'distribute') {
+			this.distributeViewSizes();
 		}
 
 		return viewItem.view;
@@ -371,6 +363,14 @@ export class SplitView implements IDisposable {
 		}
 
 		this.state = State.Idle;
+	}
+
+	distributeViewSizes(): void {
+		const size = Math.floor(this.size / this.viewItems.length);
+
+		for (let i = 0; i < this.viewItems.length - 1; i++) {
+			this.resizeView(i, size);
+		}
 	}
 
 	getViewSize(index: number): number {
