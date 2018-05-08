@@ -532,7 +532,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private getEntriesFromModel(): IListEntry[] {
 		const entries: IListEntry[] = [];
 		for (let groupIdx = 0; groupIdx < this.defaultSettingsEditorModel.settingsGroups.length; groupIdx++) {
-			if (groupIdx > 0 && !(this.showAllSettings)) {
+			if (groupIdx > 0 && !this.showAllSettings && !this.showConfiguredSettingsOnly) {
 				break;
 			}
 
@@ -557,7 +557,7 @@ export class SettingsEditor2 extends BaseEditor {
 				entries.push(...groupEntries);
 			}
 
-			if (groupIdx === 0) {
+			if (groupIdx === 0 && !this.showConfiguredSettingsOnly) {
 				const showAllSettingsLabel = this.showAllSettings ?
 					localize('showFewerSettingsLabel', "Show Fewer Settings") :
 					localize('showAllSettingsLabel', "Show All Settings");
