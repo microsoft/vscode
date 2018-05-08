@@ -40,7 +40,7 @@
 }
 
 .settings-editor > .settings-header .settings-tabs-widget > .monaco-action-bar .action-item:not(:first-child) .action-label {
-	margin-left: 33px;
+	margin-left: 14px;
 }
 
 .settings-editor > .settings-header .settings-tabs-widget .monaco-action-bar .action-item .dropdown-icon {
