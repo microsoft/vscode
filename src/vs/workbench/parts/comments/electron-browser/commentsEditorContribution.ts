@@ -25,13 +25,13 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
-import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, ITheme, IThemeService, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { peekViewEditorBackground, peekViewBorder, } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 import { Color } from 'vs/base/common/color';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Emitter, Event } from 'vs/base/common/event';
-import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, editorForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { ZoneWidget, IOptions } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { ReviewModel } from 'vs/workbench/parts/comments/common/reviewModel';
 import { ICommentService } from '../../../services/comments/electron-browser/commentService';
@@ -40,6 +40,8 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 
 export const ctxReviewPanelVisible = new RawContextKey<boolean>('reviewPanelVisible', false);
+export const overviewRulerReviewForeground = registerColor('editorOverviewRuler.reviewForeground', { dark: '#ff646480', light: '#ff646480', hc: '#ff646480' }, nls.localize('overviewRulerWordHighlightStrongForeground', 'Overview ruler marker color for write-access symbol highlights. The color must not be opaque to not hide underlying decorations.'), true);
+
 export const ID = 'editor.contrib.review';
 
 declare var ResizeObserver: any;
@@ -48,8 +50,8 @@ const REVIEW_DECORATION = ModelDecorationOptions.register({
 	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 	glyphMarginClassName: 'review',
 	overviewRuler: {
-		color: 'rgba(255, 100, 100, 0.5)',
-		darkColor: 'rgba(255, 100, 100, 0.5)',
+		color: themeColorFromId(overviewRulerReviewForeground),
+		darkColor: themeColorFromId(overviewRulerReviewForeground),
 		position: OverviewRulerLane.Full
 	}
 });
