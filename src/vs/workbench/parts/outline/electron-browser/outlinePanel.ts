@@ -27,6 +27,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { OneOutline, OutlineItem, getOutline } from './outlineModel';
 import { OutlineDataSource, OutlineRenderer, OutlineItemComparator, OutlineItemFilter } from './outlineTree';
+import { localize } from '../../../../nls';
 
 class ActiveEditorOracle {
 
@@ -104,7 +105,8 @@ export class OutlinePanel extends ViewsViewletPanel {
 		let treeContainer = dom.$('.outline-tree');
 		dom.append(container, inputContainer, treeContainer);
 
-		this._input = new InputBox(inputContainer, null, {});
+		this._input = new InputBox(inputContainer, null, { placeholder: localize('filter', "Filter") });
+		this._input.disable();
 		this.disposables.push(attachInputBoxStyler(this._input, this._themeService));
 
 		const dataSource = new OutlineDataSource();
@@ -113,7 +115,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 		this._treeFilter = new OutlineItemFilter();
 		this._tree = this._instantiationService.createInstance(WorkbenchTree, treeContainer, { dataSource, renderer, sorter: this._treeComparator, filter: this._treeFilter }, {});
 
-		this._disposables.push(this._tree);
+		this._disposables.push(this._tree, this._input);
 	}
 
 	protected layoutBody(height: number): void {
@@ -148,6 +150,8 @@ export class OutlinePanel extends ViewsViewletPanel {
 			} else {
 				this._tree.setInput(first);
 			}
+
+			this._input.enable();
 
 			this._editorDisposables.push(this._input.onDidChange(query => {
 				model.updateFilter(query);

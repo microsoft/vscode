@@ -10,7 +10,7 @@
 
 .monaco-workbench .outline-panel .outline-input {
 	box-sizing: border-box;
-	padding: 5px 9px 9px 16px;
+	padding: 5px 9px 9px 9px;
 }
 
 .monaco-workbench .outline-panel .outline-input .monaco-inputbox {
@@ -20,4 +20,19 @@
 .monaco-workbench .outline-panel .outline-tree {
 	width: 100%;
 	height: 100%;
+}
+
+.monaco-workbench .outline-panel .outline-element {
+	display: flex;
+	flex-flow: row nowrap;
+	align-items: center;
+}
+
+.monaco-workbench .outline-panel .outline-element .outline-element-icon {
+	padding-right: 4px;
+}
+
+.monaco-workbench .outline-panel .outline-element .outline-element-label {
+	text-overflow: ellipsis;
+	overflow: hidden;
 }

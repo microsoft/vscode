@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/css!./media/outline';
+import 'vs/css!./media/symbol-icons';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import { symbolKindToCssClass } from 'vs/editor/common/modes';
@@ -52,6 +52,10 @@ export class OutlineDataSource implements IDataSource {
 	async getParent(tree: ITree, element: OneOutline | OutlineItem): TPromise<any, any> {
 		return element instanceof OutlineItem ? element.parent : undefined;
 	}
+
+	shouldAutoexpand(tree: ITree, element: OutlineItem): boolean {
+		return !Boolean(element.parent);
+	}
 }
 
 export interface OutlineItemTemplate {
@@ -60,22 +64,28 @@ export interface OutlineItemTemplate {
 }
 
 export class OutlineRenderer implements IRenderer {
+
 	getHeight(tree: ITree, element: OutlineItem): number {
 		return 22;
 	}
+
 	getTemplateId(tree: ITree, element: OutlineItem): string {
 		return 'outline.element';
 	}
+
 	renderTemplate(tree: ITree, templateId: string, container: HTMLElement): OutlineItemTemplate {
-		const icon = dom.$('.icon');
-		container.appendChild(icon);
-		const label = new HighlightedLabel(container);
-		return { icon, label };
+		const icon = dom.$('.outline-element-icon symbol-icon');
+		const labelContainer = dom.$('.outline-element-label');
+		dom.addClass(container, 'outline-element');
+		dom.append(container, icon, labelContainer);
+		return { icon, label: new HighlightedLabel(labelContainer) };
 	}
+
 	renderElement(tree: ITree, element: OutlineItem, templateId: string, template: OutlineItemTemplate): void {
 		template.icon.classList.add(symbolKindToCssClass((<OutlineItem>element).symbol.kind));
 		template.label.set(element.symbol.name, element.matches ? createMatches(element.matches[1]) : []);
 	}
+
 	disposeTemplate(tree: ITree, templateId: string, template: OutlineItemTemplate): void {
 		template.label.dispose();
 	}
