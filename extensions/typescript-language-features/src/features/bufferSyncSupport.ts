@@ -310,7 +310,7 @@ export default class BufferSyncSupport {
 			const token = new CancellationTokenSource();
 
 			const getErr = this.pendingGetErr = {
-				request: this.client.execute('geterr', args, token.token)
+				request: this.client.executeAsync('geterr', args, token.token)
 					.then(undefined, () => { })
 					.then(() => {
 						if (this.pendingGetErr === getErr) {

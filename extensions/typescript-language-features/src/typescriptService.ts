@@ -30,7 +30,6 @@ export interface ITypeScriptServiceClient {
 	execute(command: 'open', args: Proto.OpenRequestArgs, expectedResult: boolean, token?: CancellationToken): Promise<any>;
 	execute(command: 'close', args: Proto.FileRequestArgs, expectedResult: boolean, token?: CancellationToken): Promise<any>;
 	execute(command: 'change', args: Proto.ChangeRequestArgs, expectedResult: boolean, token?: CancellationToken): Promise<any>;
-	execute(command: 'geterr', args: Proto.GeterrRequestArgs, expectedResult: boolean, token?: CancellationToken): Promise<any>;
 	execute(command: 'quickinfo', args: Proto.FileLocationRequestArgs, token?: CancellationToken): Promise<Proto.QuickInfoResponse>;
 	execute(command: 'completions', args: Proto.CompletionsRequestArgs, token?: CancellationToken): Promise<Proto.CompletionsResponse>;
 	execute(command: 'completionEntryDetails', args: Proto.CompletionDetailsRequestArgs, token?: CancellationToken): Promise<Proto.CompletionDetailsResponse>;
@@ -60,4 +59,6 @@ export interface ITypeScriptServiceClient {
 	execute(command: 'organizeImports', args: Proto.OrganizeImportsRequestArgs, token?: CancellationToken): Promise<Proto.OrganizeImportsResponse>;
 	execute(command: 'getOutliningSpans', args: Proto.FileRequestArgs, token: CancellationToken): Promise<Proto.OutliningSpansResponse>;
 	execute(command: string, args: any, expectedResult: boolean | CancellationToken, token?: CancellationToken): Promise<any>;
+
+	executeAsync(command: 'geterr', args: Proto.GeterrRequestArgs, token: CancellationToken): Promise<any>;
 }

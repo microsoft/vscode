@@ -42,23 +42,31 @@ interface CallbackItem {
 
 class CallbackMap {
 	private readonly callbacks: Map<number, CallbackItem> = new Map();
+	private readonly asyncCallbacks: Map<number, CallbackItem> = new Map();
 	public pendingResponses: number = 0;
 
 	public destroy(e: any): void {
 		for (const callback of this.callbacks.values()) {
 			callback.e(e);
 		}
+		for (const callback of this.asyncCallbacks.values()) {
+			callback.e(e);
+		}
 		this.callbacks.clear();
 		this.pendingResponses = 0;
 	}
 
-	public add(seq: number, callback: CallbackItem) {
-		this.callbacks.set(seq, callback);
-		++this.pendingResponses;
+	public add(seq: number, callback: CallbackItem, isAsync: boolean) {
+		if (isAsync) {
+			this.asyncCallbacks.set(seq, callback);
+		} else {
+			this.callbacks.set(seq, callback);
+			++this.pendingResponses;
+		}
 	}
 
 	public fetch(seq: number): CallbackItem | undefined {
-		const callback = this.callbacks.get(seq);
+		const callback = this.callbacks.get(seq) || this.asyncCallbacks.get(seq);
 		this.delete(seq);
 		return callback;
 	}
@@ -66,13 +74,16 @@ class CallbackMap {
 	private delete(seq: number) {
 		if (this.callbacks.delete(seq)) {
 			--this.pendingResponses;
+		} else {
+			this.asyncCallbacks.delete(seq);
 		}
 	}
 }
 
 interface RequestItem {
-	request: Proto.Request;
+	readonly request: Proto.Request;
 	callbacks: CallbackItem | null;
+	readonly isAsync: boolean;
 }
 
 class RequestQueue {
@@ -672,6 +683,10 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		return undefined;
 	}
 
+	public executeAsync(command: string, args: Proto.GeterrRequestArgs, token: CancellationToken): Promise<any> {
+		return this.executeImpl(command, args, { isAsync: true, token, expectsResult: true });
+	}
+
 	public execute(command: string, args: any, expectsResultOrToken?: boolean | CancellationToken): Promise<any> {
 		let token: CancellationToken | undefined = undefined;
 		let expectsResult = true;
@@ -680,19 +695,23 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		} else {
 			token = expectsResultOrToken;
 		}
+		return this.executeImpl(command, args, { isAsync: false, token, expectsResult });
+	}
 
+	private executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: CancellationToken, expectsResult: boolean }): Promise<any> {
 		const request = this.requestQueue.createRequest(command, args);
 		const requestInfo: RequestItem = {
 			request: request,
-			callbacks: null
+			callbacks: null,
+			isAsync: executeInfo.isAsync
 		};
 		let result: Promise<any>;
-		if (expectsResult) {
+		if (executeInfo.expectsResult) {
 			let wasCancelled = false;
 			result = new Promise<any>((resolve, reject) => {
 				requestInfo.callbacks = { c: resolve, e: reject, start: Date.now() };
-				if (token) {
-					token.onCancellationRequested(() => {
+				if (executeInfo.token) {
+					executeInfo.token.onCancellationRequested(() => {
 						wasCancelled = true;
 						this.tryCancelRequest(request.seq);
 					});
@@ -751,7 +770,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		const serverRequest = requestItem.request;
 		this.tracer.traceRequest(serverRequest, !!requestItem.callbacks, this.requestQueue.length);
 		if (requestItem.callbacks) {
-			this.callbacks.add(serverRequest.seq, requestItem.callbacks);
+			this.callbacks.add(serverRequest.seq, requestItem.callbacks, requestItem.isAsync);
 		}
 		this.service()
 			.then((childProcess) => {
@@ -820,8 +839,10 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	private dispatchEvent(event: Proto.Event) {
 		switch (event.event) {
 			case 'requestCompleted':
-				const p = this.callbacks.fetch((event as Proto.RequestCompletedEvent).body.request_seq);
+				const seq = (event as Proto.RequestCompletedEvent).body.request_seq;
+				const p = this.callbacks.fetch(seq);
 				if (p) {
+					this.tracer.traceRequestCompleted('requestCompleted', seq, p.start);
 					p.c(undefined);
 				}
 				break;
