@@ -760,7 +760,7 @@ function defineAPI(factory: IExtensionApiFactory, extensionPaths: TernarySearchT
 		}
 
 		// get extension id from filename and api for extension
-		const ext = extensionPaths.findSubstr(parent.filename);
+		const ext = extensionPaths.findSubstr(URI.file(parent.filename).fsPath);
 		if (ext) {
 			let apiImpl = extApiImpl.get(ext.id);
 			if (!apiImpl) {
@@ -772,6 +772,7 @@ function defineAPI(factory: IExtensionApiFactory, extensionPaths: TernarySearchT
 
 		// fall back to a default implementation
 		if (!defaultApiImpl) {
+			console.warn(`Could not identify extension for 'vscode' require call from ${parent.filename}`);
 			defaultApiImpl = factory(nullExtensionDescription);
 		}
 		return defaultApiImpl;
