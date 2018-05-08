@@ -8,6 +8,7 @@ import { DocumentSymbolProviderRegistry, SymbolInformation } from 'vs/editor/com
 import { ITextModel } from '../../../../editor/common/model';
 import { asWinJsPromise } from '../../../../base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { fuzzyScore } from '../../../../base/common/filters';
 
 export function getOutline(model: ITextModel): TPromise<OneOutline[]> {
 	let outlines = new Array<OneOutline>();
@@ -30,7 +31,7 @@ export class OutlineItem {
 
 	static convert(bucket: OutlineItem[], info: SymbolInformation, parent: OutlineItem): void {
 		let res = new OutlineItem(
-			`${info.name}/${parent ? parent.id : ''}`,
+			`${parent ? parent.id : ''}/${info.name}`,
 			info,
 			parent,
 			[]
@@ -43,6 +44,8 @@ export class OutlineItem {
 		bucket.push(res);
 	}
 
+	matches: [number, number[]] = [0, []];
+
 	constructor(
 		readonly id: string,
 		readonly symbol: SymbolInformation,
@@ -51,14 +54,30 @@ export class OutlineItem {
 	) {
 		//
 	}
+
+	updateFilter(pattern: string): void {
+		this.matches = fuzzyScore(pattern, this.symbol.name);
+		for (const child of this.children) {
+			child.updateFilter(pattern);
+			if (!this.matches && child.matches) {
+				this.matches = [0, []];
+			}
+		}
+	}
 }
 
 export class OneOutline {
 
 	constructor(
 		readonly source: string,
-		readonly items: OutlineItem[]
+		readonly children: OutlineItem[]
 	) {
 		//
+	}
+
+	updateFilter(pattern: string): void {
+		for (const outline of this.children) {
+			outline.updateFilter(pattern);
+		}
 	}
 }

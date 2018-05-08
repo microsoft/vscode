@@ -9,43 +9,42 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import { symbolKindToCssClass } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
-import { IDataSource, IRenderer, ITree, ISorter } from 'vs/base/parts/tree/browser/tree';
+import { IDataSource, IRenderer, ITree, ISorter, IFilter } from 'vs/base/parts/tree/browser/tree';
 import { OneOutline, OutlineItem } from './outlineModel';
 
-export class OutlineSorter implements ISorter {
-	compare(tree: ITree, a: any, b: any): number {
-		return Range.compareRangesUsingStarts((<OutlineItem>a).symbol.location.range, (<OutlineItem>b).symbol.location.range);
+export class OutlineItemComparator implements ISorter {
+	compare(tree: ITree, a: OutlineItem, b: OutlineItem): number {
+		return Range.compareRangesUsingStarts(a.symbol.location.range, b.symbol.location.range);
+	}
+}
+
+export class OutlineItemFilter implements IFilter {
+
+	isVisible(tree: ITree, element: OutlineItem): boolean {
+		return Boolean(element.matches);
 	}
 }
 
 export class OutlineDataSource implements IDataSource {
 
-	getId(tree: ITree, element: OneOutline | OutlineItem): string {
-		if (element instanceof OneOutline) {
-			return element.source;
-		} else {
+	getId(tree: ITree, element: OutlineItem | any): string {
+		if (element instanceof OutlineItem) {
 			return element.id;
+		} else {
+			return 'root';
 		}
 	}
 
 	hasChildren(tree: ITree, element: OneOutline | OutlineItem): boolean {
-		if (element instanceof OneOutline) {
-			return element.items.length > 0;
-		} else {
-			return element.children.length > 0;
-		}
+		return element.children.length > 0;
 	}
 
 	async getChildren(tree: ITree, element: OneOutline | OutlineItem): TPromise<any, any> {
-		if (element instanceof OneOutline) {
-			return element.items;
-		} else {
-			return element.children;
-		}
+		return element.children;
 	}
 
-	getParent(tree: ITree, element: any): TPromise<any, any> {
-		return null;
+	async getParent(tree: ITree, element: OneOutline | OutlineItem): TPromise<any, any> {
+		return element instanceof OutlineItem ? element.parent : undefined;
 	}
 }
 

@@ -4,24 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import 'vs/css!./outlinePanel';
+import * as dom from 'vs/base/browser/dom';
+import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { Range } from 'vs/editor/common/core/range';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { getOutline, OneOutline } from './outlineModel';
-import { OutlineDataSource, OutlineRenderer, OutlineSorter } from './outlineTree';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { OneOutline, OutlineItem, getOutline } from './outlineModel';
+import { OutlineDataSource, OutlineRenderer, OutlineItemComparator, OutlineItemFilter } from './outlineTree';
 
-class OutlineRequestLogic {
+class ActiveEditorOracle {
 
 	private readonly _disposables = new Array<IDisposable>();
 	private readonly _onDidChangeActiveEditor = new Emitter<ICodeEditor>();
@@ -60,38 +67,27 @@ class OutlineRequestLogic {
 export class OutlinePanel extends ViewsViewletPanel {
 
 	private readonly _disposables = new Array<IDisposable>();
-	private readonly _activeEditorOracle: OutlineRequestLogic;
+	private readonly _activeEditorOracle: ActiveEditorOracle;
 
+	private _editorDisposables = new Array<IDisposable>();
+
+	private _input: InputBox;
 	private _tree: Tree;
+	private _treeFilter: OutlineItemFilter;
+	private _treeComparator: OutlineItemComparator;
 
 	constructor(
 		options: IViewOptions,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IThemeService private readonly _themeService: IThemeService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService);
 
-		this._activeEditorOracle = _instantiationService.createInstance(OutlineRequestLogic);
-		this._disposables.push(this._activeEditorOracle.onDidChangeActiveEditor(editor => {
-			if (editor) {
-				getOutline(editor.getModel()).then(outline => {
-					let model = <OneOutline>this._tree.getInput();
-					let [first] = outline;
-					if (first) {
-						if (model instanceof OneOutline && first.source === model.source) {
-							model.items.splice(0, model.items.length, ...first.items);
-							this._tree.refresh(undefined, true);
-						} else {
-							this._tree.setInput(first);
-						}
-					}
-				}, err => {
-					console.error(err);
-				});
-			}
-		}));
+		this._activeEditorOracle = _instantiationService.createInstance(ActiveEditorOracle);
+		this._disposables.push(this._activeEditorOracle.onDidChangeActiveEditor(this._onEditor, this));
 		this._disposables.push(this._activeEditorOracle);
 	}
 
@@ -101,24 +97,76 @@ export class OutlinePanel extends ViewsViewletPanel {
 	}
 
 	protected renderBody(container: HTMLElement): void {
+
+		dom.addClass(container, 'outline-panel');
+
+		let inputContainer = dom.$('.outline-input');
+		let treeContainer = dom.$('.outline-tree');
+		dom.append(container, inputContainer, treeContainer);
+
+		this._input = new InputBox(inputContainer, null, {});
+		this.disposables.push(attachInputBoxStyler(this._input, this._themeService));
+
 		const dataSource = new OutlineDataSource();
 		const renderer = new OutlineRenderer();
-		const sorter = new OutlineSorter();
+		this._treeComparator = new OutlineItemComparator();
+		this._treeFilter = new OutlineItemFilter();
+		this._tree = this._instantiationService.createInstance(WorkbenchTree, treeContainer, { dataSource, renderer, sorter: this._treeComparator, filter: this._treeFilter }, {});
 
-		this._tree = this._instantiationService.createInstance(
-			WorkbenchTree,
-			container,
-			{ dataSource, renderer, sorter },
-			{}
-		);
 		this._disposables.push(this._tree);
 	}
 
 	protected layoutBody(height: number): void {
-		this._tree.layout(height);
+		this._tree.layout(height - 36);
 	}
 
 	setVisible(visible: boolean): TPromise<void> {
 		return super.setVisible(visible);
+	}
+
+	private _onEditor(editor: ICodeEditor): void {
+		dispose(this._editorDisposables);
+		this._editorDisposables = new Array();
+
+		if (!editor) {
+			//
+			return;
+		}
+
+		// todo@joh cancellation
+		// todo@joh show pending...
+		getOutline(editor.getModel()).then(outline => {
+			let model = <OneOutline>this._tree.getInput();
+			let [first] = outline;
+			if (!first) {
+				return; // todo@joh
+			}
+
+			if (model instanceof OneOutline && first.source === model.source) {
+				model.children.splice(0, model.children.length, ...first.children);
+				this._tree.refresh(undefined, true);
+			} else {
+				this._tree.setInput(first);
+			}
+
+			this._editorDisposables.push(this._input.onDidChange(query => {
+				console.log('query: ' + query);
+				model.updateFilter(query);
+				this._tree.refresh(undefined, true);
+			}));
+
+			this._editorDisposables.push(this._tree.onDidChangeSelection(e => {
+				let [first] = e.selection;
+				if (first instanceof OutlineItem) {
+					let { range } = first.symbol.location;
+					editor.revealRangeInCenterIfOutsideViewport(range, ScrollType.Smooth);
+					editor.setSelection(Range.collapseToStart(range));
+					// editor.focus();
+				}
+			}));
+
+		}, err => {
+			console.error(err);
+		});
 	}
 }
