@@ -180,6 +180,10 @@ export class IssueReporter extends Disposable {
 			content.push(`a { color: ${styles.textLinkColor}; }`);
 		}
 
+		if (styles.textLinkActiveForeground) {
+			content.push(`a:hover, .workbenchCommand:hover { color: ${styles.textLinkActiveForeground}; }`);
+		}
+
 		if (styles.sliderBackgroundColor) {
 			content.push(`::-webkit-scrollbar-thumb { background-color: ${styles.sliderBackgroundColor}; }`);
 		}

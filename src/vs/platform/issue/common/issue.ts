@@ -31,6 +31,7 @@ export enum IssueType {
 
 export interface IssueReporterStyles extends WindowStyles {
 	textLinkColor: string;
+	textLinkActiveForeground: string;
 	inputBackground: string;
 	inputForeground: string;
 	inputBorder: string;
