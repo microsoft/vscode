@@ -170,7 +170,7 @@ export default class LanguageProvider {
 	}
 
 	private configurationChanged(): void {
-		const config = workspace.getConfiguration(this.id);
+		const config = workspace.getConfiguration(this.id, null);
 		this.updateValidate(config.get(validateSetting, true));
 		this.updateSuggestionDiagnostics(config.get(suggestionSetting, true));
 
@@ -258,8 +258,10 @@ export default class LanguageProvider {
 		this.bufferSyncSupport.requestAllDiagnostics();
 	}
 
-	public diagnosticsReceived(diagnosticsKind: DiagnosticKind, file: Uri, syntaxDiagnostics: Diagnostic[]): void {
-		this.diagnosticsManager.diagnosticsReceived(diagnosticsKind, file, syntaxDiagnostics);
+	public diagnosticsReceived(diagnosticsKind: DiagnosticKind, file: Uri, diagnostics: (Diagnostic & { reportUnnecessary: any })[]): void {
+		const config = workspace.getConfiguration(this.id);
+		const reportUnnecessary = config.get<boolean>('showUnused.enabled', true);
+		this.diagnosticsManager.diagnosticsReceived(diagnosticsKind, file, diagnostics.filter(diag => diag.reportUnnecessary ? reportUnnecessary : true));
 	}
 
 	public configFileDiagnosticsReceived(file: Uri, diagnostics: Diagnostic[]): void {

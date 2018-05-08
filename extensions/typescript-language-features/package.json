@@ -470,6 +470,18 @@
           "default": "auto",
           "description": "%typescript.preferences.importModuleSpecifier%",
           "scope": "resource"
+        },
+        "javascript.showUnused.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.showUnused.enabled%",
+          "scope": "resource"
+        },
+        "typescript.showUnused.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.showUnused.enabled%",
+          "scope": "resource"
         }
       }
     },
