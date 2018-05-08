@@ -30,7 +30,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ICssStyleCollector, ITheme } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
@@ -76,17 +76,10 @@ enum SearchResultIdx {
 
 const $ = DOM.$;
 
-
-export const configuredItemBackground = registerColor('settings.configuredItemBackground', {
-	dark: '#0d466c',
-	light: '#c5e6ff',
-	hc: '#0d466c'
-}, localize('configuredItemBackground', "The background color for a configured setting."));
-
 export const configuredItemForeground = registerColor('settings.configuredItemForeground', {
-	dark: '#dddddd',
-	light: '#6c6c6c',
-	hc: '#dddddd'
+	light: '#a76e12',
+	dark: '#E2C08D',
+	hc: '#E2C08D'
 }, localize('configuredItemForeground', "The foreground color for a configured setting."));
 
 export class SettingsEditor2 extends BaseEditor {
@@ -797,6 +790,13 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 		dispose(template.toDispose);
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	const configuredItemForegroundColor = theme.getColor(configuredItemForeground);
+	if (configuredItemForegroundColor) {
+		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .monaco-list-row.is-configured .setting-item-title { color: ${configuredItemForegroundColor}; }`);
+	}
+});
 
 class GroupTitleRenderer implements IRenderer<IGroupTitleEntry, IGroupTitleTemplate> {
 
