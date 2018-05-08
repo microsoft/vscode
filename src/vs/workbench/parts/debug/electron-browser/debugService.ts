@@ -778,7 +778,6 @@ export class DebugService implements debug.IDebugService {
 				if (!config.logLevel) {
 					config.logLevel = LogLevel[this.logService.getLevel()].toLowerCase();
 				}
-				console.log(config);
 
 				return (type ? TPromise.as(null) : this.configurationManager.guessDebugger().then(a => type = a && a.type)).then(() =>
 					this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config).then(config => {
