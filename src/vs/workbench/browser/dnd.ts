@@ -456,3 +456,23 @@ export class LocalSelectionTransfer<T> {
 		}
 	}
 }
+
+export class DragCounter {
+	private _counter: number = 0;
+
+	get value(): number {
+		return this._counter;
+	}
+
+	reset(): void {
+		this._counter = 0;
+	}
+
+	increment(): void {
+		this._counter++;
+	}
+
+	decrement(): void {
+		this._counter--;
+	}
+}

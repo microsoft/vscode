@@ -32,6 +32,7 @@ import { GroupOrientation } from 'vs/workbench/services/group/common/groupServic
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { NextEditorDragAndDrop } from './nextEditorDragAndDrop';
 
 // TODO@grid provide DND support of groups/editors:
 // - editor: move/copy to existing group, move/copy to new split group (up, down, left, right)
@@ -415,6 +416,9 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 		// Grid control
 		this.doCreateGridControl(this.container);
+
+		// Drag and Drop Support
+		this._register(this.instantiationService.createInstance(NextEditorDragAndDrop, this, this.container));
 
 		return this.container;
 	}

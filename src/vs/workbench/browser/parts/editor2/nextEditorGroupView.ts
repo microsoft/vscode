@@ -36,16 +36,12 @@ import { RunOnceWorker } from 'vs/base/common/async';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { NextTitleControl } from 'vs/workbench/browser/parts/editor2/nextTitleControl';
-import { INextEditorGroupsAccessor, INextEditorGroupView, INextEditorPartOptionsChangeEvent } from 'vs/workbench/browser/parts/editor2/editor2';
+import { INextEditorGroupsAccessor, INextEditorGroupView, INextEditorPartOptionsChangeEvent, EDITOR_TITLE_HEIGHT, EDITOR_MIN_DIMENSIONS, EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor2/editor2';
 import { NextNoTabsTitleControl } from './nextNoTabsTitleControl';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { join } from 'vs/base/common/paths';
 
 export class NextEditorGroupView extends Themable implements INextEditorGroupView {
-
-	private static readonly EDITOR_TITLE_HEIGHT = 35;
-	private static readonly EDITOR_MIN_WIDTH = 170;
-	private static readonly EDITOR_MIN_HEIGHT = 70;
 
 	//#region factory
 
@@ -895,10 +891,10 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	readonly element: HTMLElement = document.createElement('div');
 
-	readonly minimumWidth = NextEditorGroupView.EDITOR_MIN_WIDTH;
-	readonly minimumHeight = NextEditorGroupView.EDITOR_MIN_HEIGHT;
-	readonly maximumWidth = Number.POSITIVE_INFINITY;
-	readonly maximumHeight = Number.POSITIVE_INFINITY;
+	readonly minimumWidth = EDITOR_MIN_DIMENSIONS.width;
+	readonly minimumHeight = EDITOR_MIN_DIMENSIONS.height;
+	readonly maximumWidth = EDITOR_MAX_DIMENSIONS.width;
+	readonly maximumHeight = EDITOR_MAX_DIMENSIONS.height;
 
 	get onDidChange() { return Event.None; } // only needed if minimum sizes ever change
 
@@ -906,8 +902,8 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		this._dimension = new Dimension(width, height);
 
 		// Forward to controls
-		this.titleAreaControl.layout(new Dimension(this._dimension.width, NextEditorGroupView.EDITOR_TITLE_HEIGHT));
-		this.editorControl.layout(new Dimension(this._dimension.width, this._dimension.height - NextEditorGroupView.EDITOR_TITLE_HEIGHT));
+		this.titleAreaControl.layout(new Dimension(this._dimension.width, EDITOR_TITLE_HEIGHT));
+		this.editorControl.layout(new Dimension(this._dimension.width, this._dimension.height - EDITOR_TITLE_HEIGHT));
 	}
 
 	toJSON(): ISerializedEditorGroup {

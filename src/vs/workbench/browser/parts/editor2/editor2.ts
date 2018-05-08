@@ -7,13 +7,18 @@
 
 import { GroupIdentifier, IWorkbenchEditorConfiguration, IWorkbenchEditorPartConfiguration } from 'vs/workbench/common/editor';
 import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
-import { INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroup, GroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Dimension } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
+
+export const EDITOR_TITLE_HEIGHT = 35;
+
+export const EDITOR_MIN_DIMENSIONS = new Dimension(170, 70);
+export const EDITOR_MAX_DIMENSIONS = new Dimension(Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY);
 
 export interface INextEditorPartOptions extends IWorkbenchEditorPartConfiguration {
 	iconTheme?: string;
@@ -65,6 +70,8 @@ export interface INextEditorGroupsAccessor {
 	readonly onDidEditorPartOptionsChange: Event<INextEditorPartOptionsChangeEvent>;
 
 	getGroup(identifier: GroupIdentifier): INextEditorGroupView;
+
+	addGroup(location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection, copyGroup?: boolean): INextEditorGroup;
 }
 
 export interface INextEditorGroupView extends IDisposable, ISerializableView, INextEditorGroup {
