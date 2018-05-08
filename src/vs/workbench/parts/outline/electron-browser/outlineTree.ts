@@ -11,6 +11,8 @@ import { symbolKindToCssClass } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
 import { IDataSource, IRenderer, ITree, ISorter, IFilter } from 'vs/base/parts/tree/browser/tree';
 import { OneOutline, OutlineItem } from './outlineModel';
+import { HighlightedLabel } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel';
+import { createMatches } from '../../../../base/common/filters';
 
 export class OutlineItemComparator implements ISorter {
 	compare(tree: ITree, a: OutlineItem, b: OutlineItem): number {
@@ -36,7 +38,11 @@ export class OutlineDataSource implements IDataSource {
 	}
 
 	hasChildren(tree: ITree, element: OneOutline | OutlineItem): boolean {
-		return element.children.length > 0;
+		if (element instanceof OneOutline) {
+			return element.children.length > 0;
+		} else {
+			return element.children.length > 0 && element.children.some(child => Boolean(child.matches));
+		}
 	}
 
 	async getChildren(tree: ITree, element: OneOutline | OutlineItem): TPromise<any, any> {
@@ -48,41 +54,29 @@ export class OutlineDataSource implements IDataSource {
 	}
 }
 
-export class OutlineItemTemplate {
-
-	readonly icon: HTMLSpanElement;
-	readonly label: HTMLSpanElement;
-	readonly detail: HTMLSpanElement;
-
-	constructor(container: HTMLElement) {
-		this.icon = document.createElement('span');
-		this.label = document.createElement('span');
-		this.detail = document.createElement('span');
-		container.appendChild(this.icon);
-		container.appendChild(this.label);
-		container.appendChild(this.detail);
-		dom.addClass(this.icon, 'icon');
-		dom.addClass(this.label, 'label');
-		dom.addClass(this.detail, 'detail');
-		dom.addClass(container, 'outline-item');
-	}
+export interface OutlineItemTemplate {
+	icon: HTMLSpanElement;
+	label: HighlightedLabel;
 }
 
 export class OutlineRenderer implements IRenderer {
-	getHeight(tree: ITree, element: any): number {
+	getHeight(tree: ITree, element: OutlineItem): number {
 		return 22;
 	}
-	getTemplateId(tree: ITree, element: any): string {
+	getTemplateId(tree: ITree, element: OutlineItem): string {
 		return 'outline.element';
 	}
-	renderTemplate(tree: ITree, templateId: string, container: HTMLElement) {
-		return new OutlineItemTemplate(container);
+	renderTemplate(tree: ITree, templateId: string, container: HTMLElement): OutlineItemTemplate {
+		const icon = dom.$('.icon');
+		container.appendChild(icon);
+		const label = new HighlightedLabel(container);
+		return { icon, label };
 	}
-	renderElement(tree: ITree, element: any, templateId: string, template: OutlineItemTemplate): void {
+	renderElement(tree: ITree, element: OutlineItem, templateId: string, template: OutlineItemTemplate): void {
 		template.icon.classList.add(symbolKindToCssClass((<OutlineItem>element).symbol.kind));
-		template.label.innerText = (<OutlineItem>element).symbol.name;
+		template.label.set(element.symbol.name, element.matches ? createMatches(element.matches[1]) : []);
 	}
-	disposeTemplate(tree: ITree, templateId: string, templateData: OutlineItemTemplate): void {
-		//todo@joh
+	disposeTemplate(tree: ITree, templateId: string, template: OutlineItemTemplate): void {
+		template.label.dispose();
 	}
 }

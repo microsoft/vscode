@@ -150,7 +150,6 @@ export class OutlinePanel extends ViewsViewletPanel {
 			}
 
 			this._editorDisposables.push(this._input.onDidChange(query => {
-				console.log('query: ' + query);
 				model.updateFilter(query);
 				this._tree.refresh(undefined, true);
 			}));
