@@ -13,7 +13,7 @@ import { Event, Emitter, once } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { INextEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Direction, SerializableGrid, Sizing } from 'vs/base/browser/ui/grid/grid';
+import { Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, ISerializedNode } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER } from 'vs/workbench/common/theme';
@@ -42,7 +42,7 @@ import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/
 // TODO@grid enable minimized/maximized groups in one dimension
 
 interface INextEditorPartUIState {
-	serializedGrid: object;
+	serializedGrid: ISerializedGrid;
 	activeGroup: GroupIdentifier;
 	mostRecentActiveGroups: GroupIdentifier[];
 }
@@ -458,15 +458,8 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 	}
 
 	private doCreateGridControlWithPreviousState(container: HTMLElement): void {
-		const uiState = this.memento[NextEditorPart.NEXT_EDITOR_PART_UI_STATE_STORAGE_KEY] as INextEditorPartUIState;
-
-		// Migration from previous UI state ()
-		if (this.migrateLegacyState(container)) {
-			// TODO@ben remove after a while
-		}
-
-		// Grid Widget (restored from previous UI state unless prevented)
-		else if (uiState && uiState.serializedGrid) {
+		const uiState = this.doGetPreviousState();
+		if (uiState && uiState.serializedGrid) {
 
 			// MRU
 			this.mostRecentActiveGroups = uiState.mostRecentActiveGroups;
@@ -488,7 +481,16 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		}
 	}
 
-	private migrateLegacyState(container: HTMLElement): boolean {
+	private doGetPreviousState(): INextEditorPartUIState {
+		const legacyState = this.doGetPreviousLegacyState();
+		if (legacyState) {
+			return legacyState; // TODO@ben remove after a while
+		}
+
+		return this.memento[NextEditorPart.NEXT_EDITOR_PART_UI_STATE_STORAGE_KEY] as INextEditorPartUIState;
+	}
+
+	private doGetPreviousLegacyState(): INextEditorPartUIState {
 		const LEGACY_EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.uiState';
 		const LEGACY_STACKS_MODEL_STORAGE_KEY = 'editorStacks.model';
 
@@ -522,46 +524,78 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		if (legacyUIState && Array.isArray(legacyUIState.groups) && legacyUIState.groups.length > 0) {
 			const splitHorizontally = legacyPartState && legacyPartState.groupOrientation === 'horizontal';
 
+			const legacyState: INextEditorPartUIState = Object.create(null);
+
 			const positionOneGroup = legacyUIState.groups[0];
-			const positionOneGroupView = this.doCreateGroupView(positionOneGroup);
-			this.gridWidget = this._register(new SerializableGrid(container, positionOneGroupView));
-			this.doSetGroupActive(positionOneGroupView);
+			const positionTwoGroup = legacyUIState.groups[1];
+			const positionThreeGroup = legacyUIState.groups[2];
 
-			const createGridView = (locationView: INextEditorGroupView, group: ISerializedEditorGroup, direction: GroupDirection) => {
-				const newGroupView = this.doCreateGroupView(group);
+			legacyState.activeGroup = legacyUIState.active;
+			legacyState.mostRecentActiveGroups = [legacyUIState.active];
 
-				this.gridWidget.addView(
-					newGroupView,
-					Sizing.Distribute,
-					locationView,
-					this.toGridViewDirection(direction),
-				);
+			if (positionTwoGroup || positionThreeGroup) {
+				if (!positionThreeGroup) {
+					legacyState.mostRecentActiveGroups.push(legacyState.activeGroup === 0 ? 1 : 0);
+				} else {
+					if (legacyState.activeGroup === 0) {
+						legacyState.mostRecentActiveGroups.push(1, 2);
+					} else if (legacyState.activeGroup === 1) {
+						legacyState.mostRecentActiveGroups.push(0, 2);
+					} else {
+						legacyState.mostRecentActiveGroups.push(0, 1);
+					}
+				}
+			}
 
-				return newGroupView;
+			const toNode = function (group: ISerializedEditorGroup, size: number): ISerializedNode {
+				return {
+					data: group,
+					size,
+					type: 'leaf'
+				};
 			};
 
-			const positionTwoGroup = legacyUIState.groups[1];
-			let positionTwoGroupView: INextEditorGroupView;
-			if (positionTwoGroup) {
-				positionTwoGroupView = createGridView(positionOneGroupView, positionTwoGroup, splitHorizontally ? GroupDirection.DOWN : GroupDirection.RIGHT);
+			const baseSize = 1200; // just some number because layout() was not called yet, but we only need the proportions
+
+			// No split editor
+			if (!positionTwoGroup) {
+				legacyState.serializedGrid = {
+					width: baseSize,
+					height: baseSize,
+					orientation: splitHorizontally ? Orientation.VERTICAL : Orientation.HORIZONTAL,
+					root: toNode(positionOneGroup, baseSize)
+				};
 			}
 
-			const positionThreeGroup = legacyUIState.groups[2];
-			let positionThreeGroupView: INextEditorGroupView;
-			if (positionThreeGroup) {
-				positionThreeGroupView = createGridView(positionTwoGroupView, positionTwoGroup, splitHorizontally ? GroupDirection.DOWN : GroupDirection.RIGHT);
+			// Split editor (2 or 3 columns)
+			else {
+				const children: ISerializedNode[] = [];
+
+				const size = positionThreeGroup ? baseSize / 3 : baseSize / 2;
+
+				children.push(toNode(positionOneGroup, size));
+				children.push(toNode(positionTwoGroup, size));
+
+				if (positionThreeGroup) {
+					children.push(toNode(positionThreeGroup, size));
+				}
+
+				legacyState.serializedGrid = {
+					width: baseSize,
+					height: baseSize,
+					orientation: splitHorizontally ? Orientation.VERTICAL : Orientation.HORIZONTAL,
+					root: {
+						data: children,
+						size: baseSize,
+						type: 'branch'
+					}
+				};
 			}
 
-			if (legacyUIState.active === 1) {
-				this.doSetGroupActive(positionTwoGroupView);
-			} else if (legacyUIState.active === 2) {
-				this.doSetGroupActive(positionThreeGroupView);
-			}
-
-			return true;
+			return legacyState;
 		}
 
-		return false;
+		return void 0;
 	}
 
 	private updateContainer(): void {

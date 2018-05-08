@@ -227,11 +227,11 @@ export class Grid<T extends IView> implements IDisposable {
 }
 
 export interface ISerializableView extends IView {
-	toJSON(): any;
+	toJSON(): object;
 }
 
 export interface IViewDeserializer<T extends ISerializableView> {
-	fromJSON(json: any): T;
+	fromJSON(json: object): T;
 }
 
 interface InitialLayoutContext<T extends ISerializableView> {
@@ -240,9 +240,22 @@ interface InitialLayoutContext<T extends ISerializableView> {
 	root: GridBranchNode<T>;
 }
 
+export interface ISerializedNode {
+	type: 'branch' | 'leaf';
+	data: ISerializedNode[] | object;
+	size: number;
+}
+
+export interface ISerializedGrid {
+	root: ISerializedNode;
+	orientation: Orientation;
+	width: number;
+	height: number;
+}
+
 export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 
-	private static serializeNode<T extends ISerializableView>(node: GridNode<T>): any {
+	private static serializeNode<T extends ISerializableView>(node: GridNode<T>): ISerializedNode {
 		if (isGridBranchNode(node)) {
 			return { type: 'branch', data: node.children.map(c => SerializableGrid.serializeNode(c)), size: node.size };
 		} else {
@@ -250,7 +263,7 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 		}
 	}
 
-	private static deserializeNode<T extends ISerializableView>(json: any, deserializer: IViewDeserializer<T>): GridNode<T> {
+	private static deserializeNode<T extends ISerializableView>(json: ISerializedNode, deserializer: IViewDeserializer<T>): GridNode<T> {
 		if (!json || typeof json !== 'object') {
 			throw new Error('Invalid JSON');
 		}
@@ -265,7 +278,7 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 				throw new Error('Invalid JSON: \'size\' property of branch must be a number.');
 			}
 
-			const nodes = data as any[];
+			const nodes = data as ISerializedNode[];
 			const children = nodes.map(c => SerializableGrid.deserializeNode(c, deserializer));
 			const size = json.size as number;
 
@@ -293,7 +306,7 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 		return SerializableGrid.getFirstLeaf(node.children[0]);
 	}
 
-	static deserialize<T extends ISerializableView>(container: HTMLElement, json: any, deserializer: IViewDeserializer<T>): SerializableGrid<T> {
+	static deserialize<T extends ISerializableView>(container: HTMLElement, json: ISerializedGrid, deserializer: IViewDeserializer<T>): SerializableGrid<T> {
 		if (typeof json.orientation !== 'number') {
 			throw new Error('Invalid JSON: \'orientation\' property must be a number.');
 		} else if (typeof json.width !== 'number') {
@@ -327,7 +340,7 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 	 */
 	private initialLayoutContext: InitialLayoutContext<T> | undefined;
 
-	serialize(): any {
+	serialize(): ISerializedGrid {
 		return {
 			root: SerializableGrid.serializeNode(this.getViews()),
 			orientation: this.orientation,
