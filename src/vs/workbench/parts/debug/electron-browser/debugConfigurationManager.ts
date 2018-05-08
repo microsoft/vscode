@@ -140,10 +140,10 @@ export class ConfigurationManager implements IConfigurationManager {
 		return this.debugAdapterProviders.get(type);
 	}
 
-	public createDebugAdapter(debugType: string, adapterExecutable: IAdapterExecutable): IDebugAdapter | undefined {
+	public createDebugAdapter(debugType: string, adapterExecutable: IAdapterExecutable, debugPort: number): IDebugAdapter | undefined {
 		let dap = this.getDebugAdapterProvider(debugType);
 		if (dap) {
-			return dap.createDebugAdapter(debugType, adapterExecutable);
+			return dap.createDebugAdapter(debugType, adapterExecutable, debugPort);
 		}
 		return undefined;
 	}
