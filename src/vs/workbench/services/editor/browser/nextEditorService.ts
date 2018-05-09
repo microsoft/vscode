@@ -25,7 +25,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { INextEditorGroupsService, INextEditorGroup, GroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
-import { INextEditorService, IResourceEditor, SIDE_BY_SIDE_TYPE, SIDE_BY_SIDE } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorService, IResourceEditor, ACTIVE_GROUP_TYPE, SIDE_GROUP_TYPE, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
@@ -161,15 +161,19 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		return coalesce(this.nextEditorGroupsService.groups.map(group => group.activeControl));
 	}
 
+	get visibleTextEditorControls(): ICodeEditor[] {
+		return this.visibleControls.map(control => control.getControl() as ICodeEditor).filter(widget => isCodeEditor(widget));
+	}
+
 	get visibleEditors(): IEditorInput[] {
 		return coalesce(this.nextEditorGroupsService.groups.map(group => group.activeEditor));
 	}
 
 	//#region openEditor()
 
-	openEditor(editor: IEditorInput, options?: IEditorOptions, group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor>;
-	openEditor(editor: IResourceEditor, group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor>;
-	openEditor(editor: IEditorInput | IResourceEditor, optionsOrGroup?: IEditorOptions | GroupIdentifier, group?: GroupIdentifier): Thenable<IEditor> {
+	openEditor(editor: IEditorInput, options?: IEditorOptions, group?: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Thenable<IEditor>;
+	openEditor(editor: IResourceEditor, group?: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Thenable<IEditor>;
+	openEditor(editor: IEditorInput | IResourceEditor, optionsOrGroup?: IEditorOptions | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE, group?: GroupIdentifier): Thenable<IEditor> {
 
 		// Typed Editor Support
 		if (editor instanceof EditorInput) {
@@ -201,11 +205,16 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		return TPromise.wrap<IEditor>(null);
 	}
 
-	private findTargetGroup(input: IEditorInput, options?: IEditorOptions, group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): INextEditorGroup {
+	private findTargetGroup(input: IEditorInput, options?: IEditorOptions, group?: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): INextEditorGroup {
 		let targetGroup: INextEditorGroup;
 
+		// Group: Active Group
+		if (group === ACTIVE_GROUP) {
+			targetGroup = this.nextEditorGroupsService.activeGroup;
+		}
+
 		// Group: Side by Side
-		if (group === SIDE_BY_SIDE) {
+		else if (group === SIDE_GROUP) {
 			targetGroup = this.createSideBySideGroup();
 		}
 
@@ -270,9 +279,9 @@ export class NextEditorService extends Disposable implements INextEditorService 
 
 	//#region openEditors()
 
-	openEditors(editors: IEditorInputWithOptions[], group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor[]>;
-	openEditors(editors: IResourceEditor[], group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor[]>;
-	openEditors(editors: (IEditorInputWithOptions | IResourceEditor)[], group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor[]> {
+	openEditors(editors: IEditorInputWithOptions[], group?: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Thenable<IEditor[]>;
+	openEditors(editors: IResourceEditor[], group?: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Thenable<IEditor[]>;
+	openEditors(editors: (IEditorInputWithOptions | IResourceEditor)[], group?: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Thenable<IEditor[]> {
 
 		// Convert to typed editors and options
 		const typedEditors: IEditorInputWithOptions[] = [];
@@ -286,7 +295,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 
 		// Find target groups to open
 		const mapGroupToEditors = new Map<INextEditorGroup, IEditorInputWithOptions[]>();
-		if (group === SIDE_BY_SIDE) {
+		if (group === SIDE_GROUP) {
 			mapGroupToEditors.set(this.createSideBySideGroup(), typedEditors);
 		} else {
 			typedEditors.forEach(typedEditor => {

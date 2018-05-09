@@ -14,7 +14,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { EditorInput } from 'vs/workbench/common/editor';
 import { join, dirname } from 'vs/base/common/paths';
 import { isWindows } from 'vs/base/common/platform';
-import { INextEditorService, SIDE_BY_SIDE } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
 
 function getVSCodeBaseFolder(): string {
 	let workingDir = process.cwd();
@@ -138,7 +138,7 @@ export class GridOpenOneEditorSideBySideAction extends Action {
 
 	run(): TPromise<any> {
 		const path = join(getVSCodeBaseFolder(), 'src/vs/workbench/browser/parts/editor/editor.contribution.ts');
-		this.editorService.openEditor(this.legacyEditorService.createInput({ resource: URI.file(path) }) as EditorInput, null, SIDE_BY_SIDE);
+		this.editorService.openEditor(this.legacyEditorService.createInput({ resource: URI.file(path) }) as EditorInput, null, SIDE_GROUP);
 
 		return TPromise.as(void 0);
 	}

@@ -25,7 +25,6 @@ import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
 import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IQueryOptions, ISearchService, ISearchStats, ISearchQuery } from 'vs/platform/search/common/search';
@@ -33,6 +32,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IRange } from 'vs/editor/common/core/range';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 
 export class FileQuickOpenModel extends QuickOpenModel {
 
@@ -49,7 +49,7 @@ export class FileEntry extends EditorQuickOpenEntry {
 		private name: string,
 		private description: string,
 		private icon: string,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@INextEditorService editorService: INextEditorService,
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
 		@IConfigurationService private configurationService: IConfigurationService,

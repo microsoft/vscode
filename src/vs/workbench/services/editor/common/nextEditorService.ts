@@ -15,8 +15,11 @@ export const INextEditorService = createDecorator<INextEditorService>('nextEdito
 
 export type IResourceEditor = IResourceInput | IUntitledResourceInput | IResourceDiffInput | IResourceSideBySideInput;
 
-export const SIDE_BY_SIDE = -1;
-export type SIDE_BY_SIDE_TYPE = typeof SIDE_BY_SIDE;
+export const ACTIVE_GROUP = -1;
+export type ACTIVE_GROUP_TYPE = typeof ACTIVE_GROUP;
+
+export const SIDE_GROUP = -2;
+export type SIDE_GROUP_TYPE = typeof SIDE_GROUP;
 
 export interface INextEditorService {
 	_serviceBrand: ServiceIdentifier<any>;
@@ -69,6 +72,11 @@ export interface INextEditorService {
 	readonly visibleControls: ReadonlyArray<IEditor>;
 
 	/**
+	 * All text editor controls that are currently visible across all editor groups.
+	 */
+	readonly visibleTextEditorControls: ICodeEditor[];
+
+	/**
 	 * All editors that are currently visible across all editor groups.
 	 */
 	readonly visibleEditors: ReadonlyArray<IEditorInput>;
@@ -79,31 +87,31 @@ export interface INextEditorService {
 	 * @param editor the editor to open
 	 * @param options the options to use for the editor
 	 * @param group the target group. If unspecified, the editor will open in the currently
-	 * active group. Use `SIDE_BY_SIDE` to open the editor in a new editor group to the side
+	 * active group. Use `SIDE_GROUP_TYPE` to open the editor in a new editor group to the side
 	 * of the currently active group.
 	 */
-	openEditor(editor: IEditorInput, options?: IEditorOptions, group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor>;
+	openEditor(editor: IEditorInput, options?: IEditorOptions, group?: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Thenable<IEditor>;
 
 	/**
 	 * Open an editor in an editor group.
 	 *
 	 * @param editor the editor to open
 	 * @param group the target group. If unspecified, the editor will open in the currently
-	 * active group. Use `SIDE_BY_SIDE` to open the editor in a new editor group to the side
+	 * active group. Use `SIDE_GROUP_TYPE` to open the editor in a new editor group to the side
 	 * of the currently active group.
 	 */
-	openEditor(editor: IResourceEditor, group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor>;
+	openEditor(editor: IResourceEditor, group?: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Thenable<IEditor>;
 
 	/**
 	 * Open editors in an editor group.
 	 *
 	 * @param editors the editors to open with associated options
 	 * @param group the target group. If unspecified, the editor will open in the currently
-	 * active group. Use `SIDE_BY_SIDE` to open the editor in a new editor group to the side
+	 * active group. Use `SIDE_GROUP_TYPE` to open the editor in a new editor group to the side
 	 * of the currently active group.
 	 */
-	openEditors(editors: IEditorInputWithOptions[], group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor[]>;
-	openEditors(editors: IResourceEditor[], group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor[]>;
+	openEditors(editors: IEditorInputWithOptions[], group?: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Thenable<IEditor[]>;
+	openEditors(editors: IResourceEditor[], group?: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Thenable<IEditor[]>;
 
 	/**
 	 * Find out if the provided editor (or resource of an editor) is opened in any group.
