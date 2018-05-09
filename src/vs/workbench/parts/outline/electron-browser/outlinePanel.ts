@@ -4,17 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/css!./outlinePanel';
 import * as dom from 'vs/base/browser/dom';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { Action, IAction, RadioGroup } from 'vs/base/common/actions';
 import { Emitter, Event } from 'vs/base/common/event';
+import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
+import 'vs/css!./outlinePanel';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
+import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -25,10 +30,8 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { OneOutline, OutlineItem, getOutline } from './outlineModel';
-import { OutlineDataSource, OutlineRenderer, OutlineItemComparator, OutlineItemFilter, OutlineItemCompareType } from './outlineTree';
-import { localize } from '../../../../nls';
-import { IAction, Action, RadioGroup } from 'vs/base/common/actions';
+import { OutlineItem, OutlineItemGroup, getOutline } from './outlineModel';
+import { OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer } from './outlineTree';
 
 class ActiveEditorOracle {
 
@@ -66,20 +69,15 @@ class ActiveEditorOracle {
 	}
 }
 
-class ChangeSortAction extends Action {
+class SimpleToggleAction extends Action {
 
-	private static _labels = {
-		[OutlineItemCompareType.ByPosition]: localize('sortByPosition', "Sort By: Position"),
-		[OutlineItemCompareType.ByName]: localize('sortByName', "Sort By: Name"),
-		[OutlineItemCompareType.ByKind]: localize('sortByKind', "Sort By: Type"),
-	};
-
-	constructor(type: OutlineItemCompareType, callback: (type: OutlineItemCompareType) => any) {
-		super(String(type), ChangeSortAction._labels[type], null, true, () => {
-			this.checked = true;
-			callback(type);
+	constructor(label: string, checked: boolean, callback: (action: SimpleToggleAction) => any) {
+		super(`simple` + defaultGenerator.nextId(), label, undefined, true, _ => {
+			this.checked = !this.checked;
+			callback(this);
 			return undefined;
 		});
+		this.checked = checked;
 	}
 }
 
@@ -94,6 +92,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 	private _tree: Tree;
 	private _treeFilter: OutlineItemFilter;
 	private _treeComparator: OutlineItemComparator;
+	private _followCursor: boolean = true;
 
 	constructor(
 		options: IViewOptions,
@@ -146,12 +145,19 @@ export class OutlinePanel extends ViewsViewletPanel {
 
 	getSecondaryActions(): IAction[] {
 		let group = new RadioGroup([
-			new ChangeSortAction(OutlineItemCompareType.ByPosition, type => this._onSortTypeChanged(type)),
-			new ChangeSortAction(OutlineItemCompareType.ByName, type => this._onSortTypeChanged(type)),
-			new ChangeSortAction(OutlineItemCompareType.ByKind, type => this._onSortTypeChanged(type)),
+			new SimpleToggleAction(localize('sortByPosition', "Sort By: Position"), true, _ => this._onSortTypeChanged(OutlineItemCompareType.ByPosition)),
+			new SimpleToggleAction(localize('sortByName', "Sort By: Name"), false, _ => this._onSortTypeChanged(OutlineItemCompareType.ByName)),
+			new SimpleToggleAction(localize('sortByKind', "Sort By: Type"), false, _ => this._onSortTypeChanged(OutlineItemCompareType.ByKind)),
 		]);
-		group.actions[0].checked = true; // todo@joh persist/restore setting
-		return group.actions;
+		let result = [
+			new SimpleToggleAction(localize('live', "Follow Cursor"), true, action => this._followCursor = action.checked),
+			new Separator(),
+			...group.actions,
+		];
+
+		this.disposables.push(...result);
+		this.disposables.push(group);
+		return result;
 	}
 
 	private _onSortTypeChanged(type: OutlineItemCompareType) {
@@ -172,18 +178,34 @@ export class OutlinePanel extends ViewsViewletPanel {
 
 		// todo@joh show pending...
 		const promise = getOutline(editor.getModel()).then(outline => {
-			let model = <OneOutline>this._tree.getInput();
+			let model = <OutlineItemGroup>this._tree.getInput();
 			let [first] = outline;
 			if (!first) {
 				return; // todo@joh
 			}
 
-			if (model instanceof OneOutline && first.source === model.source) {
+			if (model instanceof OutlineItemGroup && first.source === model.source) {
 				model.children.splice(0, model.children.length, ...first.children);
 				this._tree.refresh(undefined, true);
 			} else {
 				this._tree.setInput(first);
 			}
+
+			this._editorDisposables.push(editor.onDidChangeCursorSelection(e => {
+				if (!this._followCursor || e.reason !== CursorChangeReason.Explicit) {
+					return;
+				}
+				let item = model.getItemEnclosingPosition({
+					lineNumber: e.selection.selectionStartLineNumber,
+					column: e.selection.selectionStartColumn
+				});
+				if (item) {
+					this._tree.reveal(item);
+					this._tree.setSelection([item], this);
+				} else {
+					this._tree.setSelection([], this);
+				}
+			}));
 
 			this._input.enable();
 
@@ -194,6 +216,9 @@ export class OutlinePanel extends ViewsViewletPanel {
 			}));
 
 			this._editorDisposables.push(this._tree.onDidChangeSelection(e => {
+				if (e.payload === this) {
+					return;
+				}
 				let [first] = e.selection;
 				if (first instanceof OutlineItem) {
 					let { range } = first.symbol.location;

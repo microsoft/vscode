@@ -9,9 +9,11 @@ import { ITextModel } from '../../../../editor/common/model';
 import { asWinJsPromise } from '../../../../base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { fuzzyScore } from '../../../../base/common/filters';
+import { IPosition } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 
-export function getOutline(model: ITextModel): TPromise<OneOutline[]> {
-	let outlines = new Array<OneOutline>();
+export function getOutline(model: ITextModel): TPromise<OutlineItemGroup[]> {
+	let outlines = new Array<OutlineItemGroup>();
 	let promises = DocumentSymbolProviderRegistry.ordered(model).map((provider, i) => {
 		return asWinJsPromise(token => provider.provideDocumentSymbols(model, token)).then(result => {
 			let items = new Array<OutlineItem>();
@@ -19,7 +21,7 @@ export function getOutline(model: ITextModel): TPromise<OneOutline[]> {
 			for (const item of result) {
 				OutlineItem.convert(items, item, undefined);
 			}
-			outlines.push(new OneOutline(source, items));
+			outlines.push(new OutlineItemGroup(source, items));
 		}, err => {
 			//
 		});
@@ -66,7 +68,7 @@ export class OutlineItem {
 	}
 }
 
-export class OneOutline {
+export class OutlineItemGroup {
 
 	constructor(
 		readonly source: string,
@@ -79,5 +81,28 @@ export class OneOutline {
 		for (const outline of this.children) {
 			outline.updateFilter(pattern);
 		}
+	}
+
+	getItemEnclosingPosition(position: IPosition): OutlineItem {
+		for (const child of this.children) {
+			let candidate = this._getItemEnclosingPosition(position, child);
+			if (candidate) {
+				return candidate;
+			}
+		}
+		return undefined;
+	}
+
+	_getItemEnclosingPosition(position: IPosition, item: OutlineItem): OutlineItem {
+		if (!Range.containsPosition(item.symbol.definingRange, position)) {
+			return undefined;
+		}
+		for (const child of item.children) {
+			let candidate = this._getItemEnclosingPosition(position, child);
+			if (candidate) {
+				return candidate;
+			}
+		}
+		return item;
 	}
 }

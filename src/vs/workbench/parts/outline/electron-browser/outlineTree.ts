@@ -10,7 +10,7 @@ import * as dom from 'vs/base/browser/dom';
 import { symbolKindToCssClass } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
 import { IDataSource, IRenderer, ITree, ISorter, IFilter } from 'vs/base/parts/tree/browser/tree';
-import { OneOutline, OutlineItem } from './outlineModel';
+import { OutlineItemGroup, OutlineItem } from './outlineModel';
 import { HighlightedLabel } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel';
 import { createMatches } from '../../../../base/common/filters';
 
@@ -55,19 +55,19 @@ export class OutlineDataSource implements IDataSource {
 		}
 	}
 
-	hasChildren(tree: ITree, element: OneOutline | OutlineItem): boolean {
-		if (element instanceof OneOutline) {
+	hasChildren(tree: ITree, element: OutlineItemGroup | OutlineItem): boolean {
+		if (element instanceof OutlineItemGroup) {
 			return element.children.length > 0;
 		} else {
 			return element.children.length > 0 && element.children.some(child => Boolean(child.matches));
 		}
 	}
 
-	async getChildren(tree: ITree, element: OneOutline | OutlineItem): TPromise<any, any> {
+	async getChildren(tree: ITree, element: OutlineItemGroup | OutlineItem): TPromise<any, any> {
 		return element.children;
 	}
 
-	async getParent(tree: ITree, element: OneOutline | OutlineItem): TPromise<any, any> {
+	async getParent(tree: ITree, element: OutlineItemGroup | OutlineItem): TPromise<any, any> {
 		return element instanceof OutlineItem ? element.parent : undefined;
 	}
 
