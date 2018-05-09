@@ -133,12 +133,9 @@ export class OutlinePanel extends ViewsViewletPanel {
 		dom.addClass(container, 'outline-panel');
 
 		this._message = dom.$('.outline-message');
-		let contentContainer = dom.$('.outline-content');
-		dom.append(container, this._message, contentContainer);
-
 		let inputContainer = dom.$('.outline-input');
 		let treeContainer = dom.$('.outline-tree');
-		dom.append(contentContainer, inputContainer, treeContainer);
+		dom.append(container, this._message, inputContainer, treeContainer);
 
 		this._input = new InputBox(inputContainer, null, { placeholder: localize('filter', "Filter") });
 		this._input.disable();
@@ -160,7 +157,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 	}
 
 	protected layoutBody(height: number): void {
-		this._tree.layout(height - 36);
+		this._tree.layout(height - this._input.height);
 	}
 
 	setVisible(visible: boolean): TPromise<void> {
@@ -192,7 +189,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 	}
 
 	private _showMessage(message: string) {
-		dom.addClass(this._domNode, 'empty');
+		dom.addClass(this._domNode, 'message');
 		this._message.innerText = escape(message);
 	}
 
@@ -206,7 +203,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 			return this._showMessage(localize('no-editor', "There are no editors open that can provide outline information."));
 		}
 
-		dom.removeClass(this._domNode, 'empty');
+		dom.removeClass(this._domNode, 'message');
 		let buffer = editor.getModel();
 		let oldModel = <OutlineModel>this._tree.getInput();
 		let model = new OutlineModel(buffer, getOutline(buffer));
