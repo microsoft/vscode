@@ -55,7 +55,12 @@ export class Debug extends Viewlet {
 	}
 
 	async openDebugViewlet(): Promise<any> {
-		await this.commands.runCommand('workbench.view.debug');
+		if (process.platform === 'darwin') {
+			await this.code.dispatchKeybinding('cmd+shift+d');
+		} else {
+			await this.code.dispatchKeybinding('ctrl+shift+d');
+		}
+
 		await this.code.waitForElement(DEBUG_VIEW);
 	}
 
@@ -71,7 +76,7 @@ export class Debug extends Viewlet {
 	}
 
 	async startDebugging(): Promise<number> {
-		await this.commands.runCommand('workbench.action.debug.start');
+		await this.code.dispatchKeybinding('f5');
 		await this.code.waitForElement(PAUSE);
 		await this.code.waitForElement(DEBUG_STATUS_BAR);
 		const portPrefix = 'Port: ';

@@ -16,7 +16,7 @@ import { IExtensionDescription } from 'vs/workbench/services/extensions/common/e
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
-import { DebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
+import { DebugAdapter, SocketDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import uri from 'vs/base/common/uri';
@@ -38,13 +38,17 @@ export class Debugger {
 
 	public hasConfigurationProvider = false;
 
-	public createDebugAdapter(root: IWorkspaceFolder, outputService: IOutputService): TPromise<IDebugAdapter> {
+	public createDebugAdapter(root: IWorkspaceFolder, outputService: IOutputService, debugPort?: number): TPromise<IDebugAdapter> {
 		return this.getAdapterExecutable(root).then(adapterExecutable => {
 			const debugConfigs = this.configurationService.getValue<IDebugConfiguration>('debug');
 			if (debugConfigs.extensionHostDebugAdapter) {
-				return this.configurationManager.createDebugAdapter(this.type, adapterExecutable);
+				return this.configurationManager.createDebugAdapter(this.type, adapterExecutable, debugPort);
 			} else {
-				return new DebugAdapter(this.type, adapterExecutable, this.mergedExtensionDescriptions, outputService);
+				if (debugPort) {
+					return new SocketDebugAdapter(debugPort);
+				} else {
+					return new DebugAdapter(this.type, adapterExecutable, this.mergedExtensionDescriptions, outputService);
+				}
 			}
 		});
 	}

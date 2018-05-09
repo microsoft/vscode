@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { mixin } from 'vs/base/common/objects';
 import * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/node/extHostTypeConverters';
-import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, HierarchicalSymbolInformation } from 'vs/workbench/api/node/extHostTypes';
+import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, HierarchicalSymbolInformation, SymbolInformation } from 'vs/workbench/api/node/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
@@ -39,13 +39,15 @@ class OutlineAdapter {
 	provideDocumentSymbols(resource: URI): TPromise<SymbolInformationDto[]> {
 		let doc = this._documents.getDocumentData(resource).document;
 		return asWinJsPromise(token => this._provider.provideDocumentSymbols(doc, token)).then(value => {
-			if (value instanceof HierarchicalSymbolInformation) {
-				return [typeConvert.HierarchicalSymbolInformation.from(value)];
+			if (isFalsyOrEmpty(value)) {
+				return undefined;
 			}
-			if (Array.isArray(value)) {
-				return value.map(typeConvert.SymbolInformation.from);
+			let [probe] = value;
+			if (probe instanceof HierarchicalSymbolInformation) {
+				return (<HierarchicalSymbolInformation[]>value).map(typeConvert.HierarchicalSymbolInformation.from);
+			} else {
+				return (<SymbolInformation[]>value).map(typeConvert.SymbolInformation.from);
 			}
-			return undefined;
 		});
 	}
 }

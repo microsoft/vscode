@@ -591,11 +591,13 @@ export class ActionBar implements IActionRunner {
 
 			if (index === null || index < 0 || index >= this.actionsList.children.length) {
 				this.actionsList.appendChild(actionItemElement);
+				this.items.push(item);
 			} else {
-				this.actionsList.insertBefore(actionItemElement, this.actionsList.children[index++]);
+				this.actionsList.insertBefore(actionItemElement, this.actionsList.children[index]);
+				this.items.splice(index, 0, item);
+				index++;
 			}
 
-			this.items.push(item);
 		});
 	}
 

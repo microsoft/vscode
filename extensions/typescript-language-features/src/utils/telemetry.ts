@@ -33,6 +33,12 @@ export default class TelemetryReporter {
 			if (!properties) {
 				properties = {};
 			}
+
+			/* __GDPR__FRAGMENT__
+				"TypeScriptCommonProperties" : {
+					"version" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			properties['version'] = this.clientVersionDelegate();
 
 			reporter.sendTelemetryEvent(eventName, properties);

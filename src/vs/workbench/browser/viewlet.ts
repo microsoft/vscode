@@ -54,13 +54,13 @@ export class ViewletDescriptor extends CompositeDescriptor<Viewlet> {
 		name: string,
 		cssClass?: string,
 		order?: number,
-		private _extensionId?: string
+		private _iconUrl?: string
 	) {
 		super(ctor, id, name, cssClass, order, id);
 	}
 
-	public get extensionId(): string {
-		return this._extensionId;
+	public get iconUrl(): string {
+		return this._iconUrl;
 	}
 }
 

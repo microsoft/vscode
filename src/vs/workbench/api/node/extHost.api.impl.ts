@@ -415,7 +415,7 @@ export function createApiFactory(
 				return extHostOutputService.createOutputChannel(name);
 			},
 			createWebviewPanel(viewType: string, title: string, showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn, preserveFocus?: boolean }, options: vscode.WebviewPanelOptions & vscode.WebviewOptions): vscode.WebviewPanel {
-				return extHostWebviews.createWebview(viewType, title, showOptions, options, extension.extensionFolderPath);
+				return extHostWebviews.createWebview(viewType, title, showOptions, options, extension.extensionLocation);
 			},
 			createTerminal(nameOrOptions: vscode.TerminalOptions | string, shellPath?: string, shellArgs?: string[]): vscode.Terminal {
 				if (typeof nameOrOptions === 'object') {
@@ -725,7 +725,7 @@ class Extension<T> implements vscode.Extension<T> {
 	constructor(extensionService: ExtHostExtensionService, description: IExtensionDescription) {
 		this._extensionService = extensionService;
 		this.id = description.id;
-		this.extensionPath = paths.normalize(description.extensionFolderPath, true);
+		this.extensionPath = paths.normalize(description.extensionLocation.fsPath, true);
 		this.packageJSON = description;
 	}
 
@@ -760,7 +760,7 @@ function defineAPI(factory: IExtensionApiFactory, extensionPaths: TernarySearchT
 		}
 
 		// get extension id from filename and api for extension
-		const ext = extensionPaths.findSubstr(parent.filename);
+		const ext = extensionPaths.findSubstr(URI.file(parent.filename).fsPath);
 		if (ext) {
 			let apiImpl = extApiImpl.get(ext.id);
 			if (!apiImpl) {
@@ -772,6 +772,7 @@ function defineAPI(factory: IExtensionApiFactory, extensionPaths: TernarySearchT
 
 		// fall back to a default implementation
 		if (!defaultApiImpl) {
+			console.warn(`Could not identify extension for 'vscode' require call from ${parent.filename}`);
 			defaultApiImpl = factory(nullExtensionDescription);
 		}
 		return defaultApiImpl;
@@ -788,7 +789,9 @@ const nullExtensionDescription: IExtensionDescription = {
 	engines: undefined,
 	extensionDependencies: undefined,
 	extensionFolderPath: undefined,
+	extensionLocation: undefined,
 	isBuiltin: false,
+	isUnderDevelopment: false,
 	main: undefined,
 	version: undefined
 };

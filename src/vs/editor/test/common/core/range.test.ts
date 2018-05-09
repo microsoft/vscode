@@ -117,4 +117,14 @@ suite('Editor Core - Range', () => {
 		assert.equal(new Range(2, 2, 5, 10).containsRange(new Range(2, 3, 5, 9)), true);
 		assert.equal(new Range(2, 2, 5, 10).containsRange(new Range(3, 100, 4, 100)), true);
 	});
+
+	test('areIntersecting', () => {
+		assert.equal(Range.areIntersecting(new Range(2, 2, 3, 2), new Range(4, 2, 5, 2)), false);
+		assert.equal(Range.areIntersecting(new Range(4, 2, 5, 2), new Range(2, 2, 3, 2)), false);
+		assert.equal(Range.areIntersecting(new Range(4, 2, 5, 2), new Range(5, 2, 6, 2)), false);
+		assert.equal(Range.areIntersecting(new Range(5, 2, 6, 2), new Range(4, 2, 5, 2)), false);
+		assert.equal(Range.areIntersecting(new Range(2, 2, 2, 7), new Range(2, 4, 2, 6)), true);
+		assert.equal(Range.areIntersecting(new Range(2, 2, 2, 7), new Range(2, 4, 2, 9)), true);
+		assert.equal(Range.areIntersecting(new Range(2, 4, 2, 9), new Range(2, 2, 2, 7)), true);
+	});
 });

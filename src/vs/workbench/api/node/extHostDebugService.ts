@@ -17,18 +17,18 @@ import {
 import * as vscode from 'vscode';
 import { Disposable, Position, Location, SourceBreakpoint, FunctionBreakpoint } from 'vs/workbench/api/node/extHostTypes';
 import { generateUuid } from 'vs/base/common/uuid';
-import { DebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
+import { DebugAdapter, StreamDebugAdapter, SocketDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
-import { IAdapterExecutable, ITerminalSettings, IDebuggerContribution, IConfig } from 'vs/workbench/parts/debug/common/debug';
+import { IAdapterExecutable, ITerminalSettings, IDebuggerContribution, IConfig, IDebugAdapter } from 'vs/workbench/parts/debug/common/debug';
 import { getTerminalLauncher } from 'vs/workbench/parts/debug/node/terminals';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { VariableResolver } from 'vs/workbench/services/configurationResolver/node/variableResolver';
-import { IConfigurationResolverService } from '../../services/configurationResolver/common/configurationResolver';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { ExtHostConfiguration } from './extHostConfiguration';
 import { convertToVSCPaths, convertToDAPaths } from 'vs/workbench/parts/debug/common/debugUtils';
+import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 
 export class ExtHostDebugService implements ExtHostDebugServiceShape {
@@ -62,7 +62,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 	private readonly _onDidChangeBreakpoints: Emitter<vscode.BreakpointsChangeEvent>;
 
-	private _debugAdapters: Map<number, DebugAdapter>;
+	private _debugAdapters: Map<number, IDebugAdapter>;
 
 	private _variableResolver: IConfigurationResolverService;
 
@@ -133,22 +133,41 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		return asWinJsPromise(token => DebugAdapter.substituteVariables(folder, config, this._variableResolver));
 	}
 
-	public $startDASession(handle: number, debugType: string, adpaterExecutable: IAdapterExecutable | null): TPromise<void> {
+	public $startDASession(handle: number, debugType: string, adpaterExecutable: IAdapterExecutable | null, debugPort: number): TPromise<void> {
 		const mythis = this;
 
-		const da = new class extends DebugAdapter {
+		let da: StreamDebugAdapter = null;
 
-			// DA -> VS Code
-			public acceptMessage(message: DebugProtocol.ProtocolMessage) {
-				convertToVSCPaths(message, source => {
-					if (paths.isAbsolute(source.path)) {
-						(<any>source).path = URI.file(source.path);
-					}
-				});
-				mythis._debugServiceProxy.$acceptDAMessage(handle, message);
-			}
+		if (debugPort > 0) {
+			da = new class extends SocketDebugAdapter {
 
-		}(debugType, adpaterExecutable, this._extensionService.getAllExtensionDescriptions());
+				// DA -> VS Code
+				public acceptMessage(message: DebugProtocol.ProtocolMessage) {
+					convertToVSCPaths(message, source => {
+						if (paths.isAbsolute(source.path)) {
+							(<any>source).path = URI.file(source.path);
+						}
+					});
+					mythis._debugServiceProxy.$acceptDAMessage(handle, message);
+				}
+
+			}(debugPort);
+
+		} else {
+			da = new class extends DebugAdapter {
+
+				// DA -> VS Code
+				public acceptMessage(message: DebugProtocol.ProtocolMessage) {
+					convertToVSCPaths(message, source => {
+						if (paths.isAbsolute(source.path)) {
+							(<any>source).path = URI.file(source.path);
+						}
+					});
+					mythis._debugServiceProxy.$acceptDAMessage(handle, message);
+				}
+
+			}(debugType, adpaterExecutable, this._extensionService.getAllExtensionDescriptions());
+		}
 
 		this._debugAdapters.set(handle, da);
 		da.onError(err => this._debugServiceProxy.$acceptDAError(handle, err.name, err.message, err.stack));

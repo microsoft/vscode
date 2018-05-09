@@ -9,7 +9,7 @@ import * as platform from 'vs/base/common/platform';
 import { IAdapterExecutable, IConfigurationManager } from 'vs/workbench/parts/debug/common/debug';
 import { Debugger } from 'vs/workbench/parts/debug/node/debugger';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import uri from 'vs/base/common/uri';
+import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { DebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 
@@ -17,7 +17,7 @@ import { DebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 suite('Debug - Debugger', () => {
 	let _debugger: Debugger;
 
-	const extensionFolderPath = 'a/b/c/';
+	const extensionFolderPath = '/a/b/c/';
 	const debuggerContribution = {
 		type: 'mock',
 		label: 'Mock Debug',
@@ -53,7 +53,9 @@ suite('Debug - Debugger', () => {
 		version: '1.0.0',
 		publisher: 'vscode',
 		extensionFolderPath: extensionFolderPath,
+		extensionLocation: URI.file(extensionFolderPath),
 		isBuiltin: false,
+		isUnderDevelopment: false,
 		engines: null,
 		contributes: {
 			'debuggers': [
@@ -68,7 +70,9 @@ suite('Debug - Debugger', () => {
 		version: '1.0.0',
 		publisher: 'vscode',
 		extensionFolderPath: '/e1/b/c/',
+		extensionLocation: URI.file('/e1/b/c/'),
 		isBuiltin: false,
+		isUnderDevelopment: false,
 		engines: null,
 		contributes: {
 			'debuggers': [
@@ -89,7 +93,9 @@ suite('Debug - Debugger', () => {
 		version: '1.0.0',
 		publisher: 'vscode',
 		extensionFolderPath: '/e2/b/c/',
+		extensionLocation: URI.file('/e2/b/c/'),
 		isBuiltin: false,
+		isUnderDevelopment: false,
 		engines: null,
 		contributes: {
 			'debuggers': [
@@ -114,7 +120,7 @@ suite('Debug - Debugger', () => {
 
 
 	const configurationManager = <IConfigurationManager>{
-		debugAdapterExecutable(folderUri: uri | undefined, type: string): TPromise<IAdapterExecutable | undefined> {
+		debugAdapterExecutable(folderUri: URI | undefined, type: string): TPromise<IAdapterExecutable | undefined> {
 			return TPromise.as(undefined);
 		}
 	};
