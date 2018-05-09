@@ -94,6 +94,11 @@ export interface INextEditorGroupsService {
 	activateGroup(group: INextEditorGroup | GroupIdentifier): INextEditorGroup;
 
 	/**
+	 * Resize the group given the provided size delta.
+	 */
+	resizeGroup(group: INextEditorGroup | GroupIdentifier, sizeDelta: number): INextEditorGroup;
+
+	/**
 	 * Add a new group to the editor area. A new group is added by splitting a provided one in
 	 * one of the four directions.
 	 *

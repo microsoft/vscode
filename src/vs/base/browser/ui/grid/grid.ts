@@ -196,6 +196,12 @@ export class Grid<T extends IView> implements IDisposable {
 		return this.gridview.getViews() as GridBranchNode<T>;
 	}
 
+	getOrientation(view: T): Orientation {
+		const location = this.getViewLocation(view);
+
+		return getLocationOrientation(this.orientation, location);
+	}
+
 	private getViewLocation(view: T): number[] {
 		const element = this.views.get(view);
 

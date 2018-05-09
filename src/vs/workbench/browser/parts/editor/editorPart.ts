@@ -312,14 +312,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	//#endregion
 
-	//#region TODO@grid resizeGroup()
-
-	public resizeGroup(position: Position, groupSizeChange: number): void {
-		this.editorGroupsControl.resizeGroup(position, groupSizeChange);
-	}
-
-	//#endregion
-
 	//#region TODO@grid group orientation
 
 	public get onGroupOrientationChanged(): Event<void> {
@@ -533,6 +525,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		const ratio = this.editorGroupsControl.getRatio();
 
 		return this.doOpenEditors(editors, activePosition, ratio, sideBySide);
+	}
+
+	public resizeGroup(position: Position, groupSizeChange: number): void {
+		this.editorGroupsControl.resizeGroup(position, groupSizeChange);
 	}
 
 	private doOpenEditors(editors: { input: EditorInput, position?: Position, options?: EditorOptions }[], activePosition?: number, ratio?: number[], sideBySide?: boolean): TPromise<IEditor[]> {

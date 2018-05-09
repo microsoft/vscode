@@ -71,6 +71,9 @@ suite('Grid', function () {
 		grid.addView(view2, 200, view1, Direction.Up);
 		assert.deepEqual(view1.size, [800, 400]);
 		assert.deepEqual(view2.size, [800, 200]);
+
+		assert.equal(grid.getOrientation(view1), Orientation.VERTICAL);
+		assert.equal(grid.getOrientation(view2), Orientation.VERTICAL);
 	});
 
 	test('two views horizontally', function () {
@@ -83,6 +86,9 @@ suite('Grid', function () {
 		grid.addView(view2, 300, view1, Direction.Right);
 		assert.deepEqual(view1.size, [500, 600]);
 		assert.deepEqual(view2.size, [300, 600]);
+
+		assert.equal(grid.getOrientation(view1), Orientation.HORIZONTAL);
+		assert.equal(grid.getOrientation(view2), Orientation.HORIZONTAL);
 	});
 
 	test('simple layout', function () {
