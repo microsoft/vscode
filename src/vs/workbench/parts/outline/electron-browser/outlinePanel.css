@@ -36,3 +36,7 @@
 	text-overflow: ellipsis;
 	overflow: hidden;
 }
+
+.monaco-workbench .outline-panel .outline-element .outline-element-label .monaco-highlighted-label .highlight {
+	font-weight: bold;
+}
