@@ -17,7 +17,7 @@ import { SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from 'vs/workbench/common/th
 import { IQuickOpenService, IPickOpenEntry, IPickOptions, IInputOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { QuickInputCheckboxList } from './quickInputCheckboxList';
+import { QuickInputList } from './quickInputList';
 import { QuickInputBox } from './quickInputBox';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -77,7 +77,7 @@ interface QuickInputUI {
 	inputBox: QuickInputBox;
 	count: CountBadge;
 	message: HTMLElement;
-	checkboxList: QuickInputCheckboxList;
+	list: QuickInputList;
 	close: (ok?: true | Thenable<never>) => void;
 }
 
@@ -89,7 +89,7 @@ interface InputController<R> {
 }
 
 class PickOneController<T extends IPickOpenEntry> implements InputController<T> {
-	public showUI = { inputBox: true, checkboxList: true };
+	public showUI = { inputBox: true, list: true };
 	public result: TPromise<T>;
 	public ready: TPromise<void>;
 	public resolve: (ok?: true | Thenable<never>) => void;
@@ -99,43 +99,43 @@ class PickOneController<T extends IPickOpenEntry> implements InputController<T> 
 
 	constructor(ui: QuickInputUI, parameters: PickOneParameters<T>) {
 		this.result = new TPromise<T>((resolve, reject, progress) => {
-			this.resolve = ok => resolve(ok === true ? <T>ui.checkboxList.getFocusedElements()[0] : ok);
+			this.resolve = ok => resolve(ok === true ? <T>ui.list.getFocusedElements()[0] : ok);
 			this.progress = progress;
 		});
 		this.result.then(() => this.dispose());
 
 		ui.inputBox.value = '';
 		ui.inputBox.setPlaceholder(parameters.placeHolder || '');
-		ui.checkboxList.matchOnDescription = parameters.matchOnDescription;
-		ui.checkboxList.matchOnDetail = parameters.matchOnDetail;
-		ui.checkboxList.setElements([]);
+		ui.list.matchOnDescription = parameters.matchOnDescription;
+		ui.list.matchOnDetail = parameters.matchOnDetail;
+		ui.list.setElements([]);
 
 		this.ready = parameters.picks.then(elements => {
 			if (this.closed) {
 				return;
 			}
 
-			ui.checkboxList.setElements(elements);
-			ui.checkboxList.filter(ui.inputBox.value);
-			ui.checkboxList.focus('First');
+			ui.list.setElements(elements);
+			ui.list.filter(ui.inputBox.value);
+			ui.list.focus('First');
 
 			this.disposables.push(
-				ui.checkboxList.onSelectionChange(elements => {
+				ui.list.onSelectionChange(elements => {
 					if (elements[0]) {
 						ui.close(true);
 					}
 				}),
 				ui.inputBox.onDidChange(value => {
-					ui.checkboxList.filter(value);
-					ui.checkboxList.focus('First');
+					ui.list.filter(value);
+					ui.list.focus('First');
 				}),
 				ui.inputBox.onKeyDown(event => {
 					switch (event.keyCode) {
 						case KeyCode.DownArrow:
-							ui.checkboxList.focus('Next');
+							ui.list.focus('Next');
 							break;
 						case KeyCode.UpArrow:
-							ui.checkboxList.focus('Previous');
+							ui.list.focus('Previous');
 							break;
 					}
 				})
@@ -150,7 +150,7 @@ class PickOneController<T extends IPickOpenEntry> implements InputController<T> 
 }
 
 class PickManyController<T extends IPickOpenEntry> implements InputController<T[]> {
-	public showUI = { checkAll: true, inputBox: true, count: true, ok: true, checkboxList: true };
+	public showUI = { checkAll: true, inputBox: true, count: true, ok: true, list: true };
 	public result: TPromise<T[]>;
 	public ready: TPromise<void>;
 	public resolve: (ok?: true | Thenable<never>) => void;
@@ -160,42 +160,42 @@ class PickManyController<T extends IPickOpenEntry> implements InputController<T[
 
 	constructor(ui: QuickInputUI, parameters: PickManyParameters<T>) {
 		this.result = new TPromise<T[]>((resolve, reject, progress) => {
-			this.resolve = ok => resolve(ok === true ? <T[]>ui.checkboxList.getCheckedElements() : ok);
+			this.resolve = ok => resolve(ok === true ? <T[]>ui.list.getCheckedElements() : ok);
 			this.progress = progress;
 		});
 		this.result.then(() => this.dispose());
 
 		ui.inputBox.value = '';
 		ui.inputBox.setPlaceholder(parameters.placeHolder || '');
-		ui.checkboxList.matchOnDescription = parameters.matchOnDescription;
-		ui.checkboxList.matchOnDetail = parameters.matchOnDetail;
-		ui.checkboxList.setElements([]);
-		ui.checkAll.checked = ui.checkboxList.getAllVisibleChecked();
-		ui.count.setCount(ui.checkboxList.getCheckedCount());
+		ui.list.matchOnDescription = parameters.matchOnDescription;
+		ui.list.matchOnDetail = parameters.matchOnDetail;
+		ui.list.setElements([]);
+		ui.checkAll.checked = ui.list.getAllVisibleChecked();
+		ui.count.setCount(ui.list.getCheckedCount());
 
 		this.ready = parameters.picks.then(elements => {
 			if (this.closed) {
 				return;
 			}
 
-			ui.checkboxList.setElements(elements, true);
-			ui.checkboxList.filter(ui.inputBox.value);
-			ui.checkAll.checked = ui.checkboxList.getAllVisibleChecked();
-			ui.count.setCount(ui.checkboxList.getCheckedCount());
+			ui.list.setElements(elements, true);
+			ui.list.filter(ui.inputBox.value);
+			ui.checkAll.checked = ui.list.getAllVisibleChecked();
+			ui.count.setCount(ui.list.getCheckedCount());
 
 			this.disposables.push(
 				ui.inputBox.onDidChange(value => {
-					ui.checkboxList.filter(value);
+					ui.list.filter(value);
 				}),
 				ui.inputBox.onKeyDown(event => {
 					switch (event.keyCode) {
 						case KeyCode.DownArrow:
-							ui.checkboxList.focus('First');
-							ui.checkboxList.domFocus();
+							ui.list.focus('First');
+							ui.list.domFocus();
 							break;
 						case KeyCode.UpArrow:
-							ui.checkboxList.focus('Last');
-							ui.checkboxList.domFocus();
+							ui.list.focus('Last');
+							ui.list.domFocus();
 							break;
 					}
 				})
@@ -363,7 +363,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		checkAll.type = 'checkbox';
 		this.toUnbind.push(dom.addStandardDisposableListener(checkAll, dom.EventType.CHANGE, e => {
 			const checked = checkAll.checked;
-			checkboxList.setAllVisibleChecked(checked);
+			list.setAllVisibleChecked(checked);
 		}));
 		this.toUnbind.push(dom.addDisposableListener(checkAll, dom.EventType.CLICK, e => {
 			if (e.x || e.y) { // Avoid 'click' triggered by 'space'...
@@ -396,23 +396,23 @@ export class QuickInputService extends Component implements IQuickInputService {
 		dom.addClass(this.progressBar.getContainer(), 'quick-input-progress');
 		this.toUnbind.push(attachProgressBarStyler(this.progressBar, this.themeService));
 
-		const checkboxList = this.instantiationService.createInstance(QuickInputCheckboxList, this.container);
-		this.toUnbind.push(checkboxList);
-		this.toUnbind.push(checkboxList.onAllVisibleCheckedChanged(checked => {
+		const list = this.instantiationService.createInstance(QuickInputList, this.container);
+		this.toUnbind.push(list);
+		this.toUnbind.push(list.onAllVisibleCheckedChanged(checked => {
 			checkAll.checked = checked;
 		}));
-		this.toUnbind.push(checkboxList.onCheckedCountChanged(c => {
+		this.toUnbind.push(list.onCheckedCountChanged(c => {
 			count.setCount(c);
 		}));
-		this.toUnbind.push(checkboxList.onLeave(() => {
+		this.toUnbind.push(list.onLeave(() => {
 			// Defer to avoid the input field reacting to the triggering key.
 			setTimeout(() => {
 				inputBox.setFocus();
-				checkboxList.clearFocus();
+				list.clearFocus();
 			}, 0);
 		}));
 		this.toUnbind.push(
-			chain(checkboxList.onFocusChange)
+			chain(list.onFocusChange)
 				.map(e => e[0])
 				.filter(e => !!e)
 				.latch()
@@ -469,7 +469,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 		this.toUnbind.push(this.quickOpenService.onShow(() => this.close()));
 
-		this.ui = { checkAll, inputBox, count, message, checkboxList, close: ok => this.close(ok) };
+		this.ui = { checkAll, inputBox, count, message, list, close: ok => this.close(ok) };
 		this.updateStyles();
 	}
 
@@ -554,7 +554,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.countContainer.style.display = this.controller.showUI.count ? '' : 'none';
 		this.okContainer.style.display = this.controller.showUI.ok ? '' : 'none';
 		this.ui.message.style.display = this.controller.showUI.message ? '' : 'none';
-		this.ui.checkboxList.display(this.controller.showUI.checkboxList);
+		this.ui.list.display(this.controller.showUI.list);
 
 		if (this.container.style.display === 'none') {
 			this.inQuickOpen('quickInput', true);
@@ -604,13 +604,13 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 	toggle() {
 		if (this.isDisplayed() && this.controller instanceof PickManyController) {
-			this.ui.checkboxList.toggleCheckbox();
+			this.ui.list.toggleCheckbox();
 		}
 	}
 
 	navigate(next: boolean) {
-		if (this.isDisplayed() && this.ui.checkboxList.isDisplayed()) {
-			this.ui.checkboxList.focus(next ? 'Next' : 'Previous');
+		if (this.isDisplayed() && this.ui.list.isDisplayed()) {
+			this.ui.list.focus(next ? 'Next' : 'Previous');
 		}
 	}
 
@@ -638,7 +638,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			style.marginLeft = '-' + (width / 2) + 'px';
 
 			this.ui.inputBox.layout();
-			this.ui.checkboxList.layout();
+			this.ui.list.layout();
 		}
 	}
 
