@@ -34,6 +34,7 @@ import { OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, Outli
 import { KeyCode } from '../../../../base/common/keyCodes';
 import { LRUCache } from '../../../../base/common/map';
 import { escape } from '../../../../base/common/strings';
+import LanguageFeatureRegistry from '../../../../editor/common/modes/languageFeatureRegistry';
 
 class RequestOracle {
 
@@ -42,11 +43,12 @@ class RequestOracle {
 
 	constructor(
 		private readonly _callback: (editor: ICodeEditor) => any,
+		featureRegistry: LanguageFeatureRegistry<any>,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService private readonly _workbenchEditorService: IWorkbenchEditorService,
 	) {
 		editorGroupService.onEditorsChanged(this._update, this, this._disposables);
-		DocumentSymbolProviderRegistry.onDidChange(this._update, this, this._disposables);
+		featureRegistry.onDidChange(this._update, this, this._disposables);
 		this._update();
 	}
 
@@ -152,7 +154,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 		this._treeFilter = new OutlineItemFilter();
 		this._tree = this._instantiationService.createInstance(WorkbenchTree, treeContainer, { dataSource, renderer, sorter: this._treeComparator, filter: this._treeFilter }, {});
 
-		this._requestOracle = this._instantiationService.createInstance(RequestOracle, editor => this._onEditor(editor));
+		this._requestOracle = this._instantiationService.createInstance(RequestOracle, editor => this._onEditor(editor), DocumentSymbolProviderRegistry);
 		this._disposables.push(this._tree, this._input, this._requestOracle);
 	}
 
