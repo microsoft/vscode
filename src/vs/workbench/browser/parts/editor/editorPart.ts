@@ -304,14 +304,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	//#endregion
 
-	//#region TODO@grid group arrangement
-
-	public arrangeGroups(arrangement: GroupArrangement): void {
-		this.editorGroupsControl.arrangeGroups(arrangement);
-	}
-
-	//#endregion
-
 	//#region TODO@grid group orientation
 
 	public get onGroupOrientationChanged(): Event<void> {
@@ -1173,6 +1165,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.instantiatedEditors[position].push(editor);
 
 		return editor;
+	}
+
+	public arrangeGroups(arrangement: GroupArrangement): void {
+		this.editorGroupsControl.arrangeGroups(arrangement);
 	}
 
 	private doSetInput(group: EditorGroup, editor: BaseEditor, input: EditorInput, options: EditorOptions, monitor: ProgressMonitor): TPromise<BaseEditor> {

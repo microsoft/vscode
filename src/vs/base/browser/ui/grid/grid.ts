@@ -120,7 +120,7 @@ export class Grid<T extends IView> implements IDisposable {
 		this.gridview = new GridView(container);
 		this.disposables.push(this.gridview);
 
-		this.gridview.onDidSashReset(this.onDidSashReset, this, this.disposables);
+		this.gridview.onDidSashReset(this.doResetViewSize, this, this.disposables);
 
 		this._addView(view, 0, [0]);
 	}
@@ -202,6 +202,12 @@ export class Grid<T extends IView> implements IDisposable {
 		return getLocationOrientation(this.orientation, location);
 	}
 
+	resetViewSize(view: T): void {
+		const location = this.getViewLocation(view);
+
+		this.doResetViewSize(location);
+	}
+
 	private getViewLocation(view: T): number[] {
 		const element = this.views.get(view);
 
@@ -212,7 +218,7 @@ export class Grid<T extends IView> implements IDisposable {
 		return getGridLocation(element);
 	}
 
-	private onDidSashReset(location: number[]): void {
+	private doResetViewSize(location: number[]): void {
 		if (this.sashResetSizing === Sizing.Split) {
 			const orientation = getLocationOrientation(this.orientation, location);
 			const firstViewSize = getSize(this.gridview.getViewSize(location), orientation);

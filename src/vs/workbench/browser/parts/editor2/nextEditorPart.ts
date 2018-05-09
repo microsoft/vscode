@@ -11,14 +11,14 @@ import { Part } from 'vs/workbench/browser/part';
 import { Dimension, isAncestor, toggleClass, addClass, clearNode } from 'vs/base/browser/dom';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { INextEditorGroupsService, GroupDirection, IAddGroupOptions } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, GroupDirection, IAddGroupOptions, GroupsArrangement } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, ISerializedNode } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER } from 'vs/workbench/common/theme';
 import { distinct } from 'vs/base/common/arrays';
-import { INextEditorGroupsAccessor, INextEditorGroupView, INextEditorPartOptions, getEditorPartOptions, impactsEditorPartOptions, INextEditorPartOptionsChangeEvent } from 'vs/workbench/browser/parts/editor2/editor2';
+import { INextEditorGroupsAccessor, INextEditorGroupView, INextEditorPartOptions, getEditorPartOptions, impactsEditorPartOptions, INextEditorPartOptionsChangeEvent, EDITOR_MAX_DIMENSIONS, EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor2/editor2';
 import { NextEditorGroupView } from 'vs/workbench/browser/parts/editor2/nextEditorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -203,6 +203,35 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		this.gridWidget.resizeView(groupView, currentOrientation === Orientation.HORIZONTAL ? currentSize.width + sizeDelta : currentSize.height + sizeDelta);
 
 		return groupView;
+	}
+
+	arrangeGroups(arrangement: GroupsArrangement): void {
+		if (this.count < 2) {
+			return; // require at least 2 groups to show
+		}
+
+		// Even all group sizes
+		if (arrangement === GroupsArrangement.EVEN) {
+			this.groups.forEach(group => {
+				this.gridWidget.resetViewSize(group);
+			});
+		}
+
+		// Maximize the current active group
+		else {
+			this.groups.forEach(group => {
+				const orientation = this.gridWidget.getOrientation(group);
+
+				let newSize: number;
+				if (this.activeGroup === group) {
+					newSize = orientation === Orientation.HORIZONTAL ? EDITOR_MAX_DIMENSIONS.width : EDITOR_MAX_DIMENSIONS.height;
+				} else {
+					newSize = orientation === Orientation.HORIZONTAL ? EDITOR_MIN_DIMENSIONS.width : EDITOR_MIN_DIMENSIONS.height;
+				}
+
+				this.gridWidget.resizeView(group, newSize);
+			});
+		}
 	}
 
 	addGroup(location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): INextEditorGroupView {

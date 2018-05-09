@@ -18,12 +18,13 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { Position, IEditor, Direction, IResourceInput, IEditorInput, POSITIONS } from 'vs/platform/editor/common/editor';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IEditorGroupService, GroupArrangement } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { CLOSE_EDITOR_COMMAND_ID, NAVIGATE_IN_GROUP_ONE_PREFIX, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, NAVIGATE_IN_GROUP_THREE_PREFIX, NAVIGATE_IN_GROUP_TWO_PREFIX } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { INextEditorGroupsService, GroupDirection as SplitDirection, INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, GroupDirection as SplitDirection, INextEditorGroup, GroupsArrangement } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 
 // TODo@grid this action should be removed in favour of the split vertical/horizontal actions
 export class SplitEditorAction extends Action {
@@ -874,12 +875,12 @@ export class MinimizeOtherGroupsAction extends Action {
 	public static readonly ID = 'workbench.action.minimizeOtherEditors';
 	public static readonly LABEL = nls.localize('minimizeOtherEditorGroups', "Minimize Other Editor Groups");
 
-	constructor(id: string, label: string, @IEditorGroupService private editorGroupService: IEditorGroupService) {
+	constructor(id: string, label: string, @INextEditorGroupsService private editorGroupService: INextEditorGroupsService) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		this.editorGroupService.arrangeGroups(GroupArrangement.MINIMIZE_OTHERS);
+		this.editorGroupService.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
 
 		return TPromise.as(false);
 	}
@@ -890,12 +891,12 @@ export class EvenGroupWidthsAction extends Action {
 	public static readonly ID = 'workbench.action.evenEditorWidths';
 	public static readonly LABEL = nls.localize('evenEditorGroups', "Even Editor Group Widths");
 
-	constructor(id: string, label: string, @IEditorGroupService private editorGroupService: IEditorGroupService) {
+	constructor(id: string, label: string, @INextEditorGroupsService private editorGroupService: INextEditorGroupsService) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		this.editorGroupService.arrangeGroups(GroupArrangement.EVEN);
+		this.editorGroupService.arrangeGroups(GroupsArrangement.EVEN);
 
 		return TPromise.as(false);
 	}
@@ -909,16 +910,17 @@ export class MaximizeGroupAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@INextEditorService private editorService: INextEditorService,
+		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService,
 		@IPartService private partService: IPartService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		if (this.editorService.getActiveEditor()) {
-			this.editorGroupService.arrangeGroups(GroupArrangement.MINIMIZE_OTHERS);
+		if (this.editorService.activeEditor) {
+			this.editorGroupService.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
+
 			return this.partService.setSideBarHidden(true);
 		}
 

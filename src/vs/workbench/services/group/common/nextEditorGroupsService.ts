@@ -19,6 +19,20 @@ export enum GroupDirection {
 	RIGHT
 }
 
+export enum GroupsArrangement {
+
+	/**
+	 * Make the current active group consume the maximum
+	 * amount of space possible.
+	 */
+	MINIMIZE_OTHERS,
+
+	/**
+	 * Size all groups evenly.
+	 */
+	EVEN
+}
+
 export interface IMoveEditorOptions {
 	index?: number;
 	inactive?: boolean;
@@ -97,6 +111,11 @@ export interface INextEditorGroupsService {
 	 * Resize the group given the provided size delta.
 	 */
 	resizeGroup(group: INextEditorGroup | GroupIdentifier, sizeDelta: number): INextEditorGroup;
+
+	/**
+	 * Arrange all groups according to the provided arrangement.
+	 */
+	arrangeGroups(arrangement: GroupsArrangement): void;
 
 	/**
 	 * Add a new group to the editor area. A new group is added by splitting a provided one in
