@@ -89,7 +89,7 @@ namespace schema {
 				type: 'string'
 			},
 			group: {
-				description: localize('vscode.extension.contributes.menuItem.group', 'Group into which this command belongs'),
+				description: localize('vscode.extension.contributes.menuItem.group', 'Group into which this command belongs (`inline` for icon to the right of the menu item)'),
 				type: 'string'
 			}
 		}
