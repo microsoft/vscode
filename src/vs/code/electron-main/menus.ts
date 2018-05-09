@@ -414,6 +414,7 @@ export class CodeMenu {
 		const newWindow = new MenuItem(this.likeAction('workbench.action.newWindow', { label: this.mnemonicLabel(nls.localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window")), click: () => this.windowsMainService.openNewWindow(OpenContext.MENU) }));
 		const revertFile = this.createMenuItem(nls.localize({ key: 'miRevert', comment: ['&& denotes a mnemonic'] }, "Re&&vert File"), 'workbench.action.files.revert');
 		const closeWindow = new MenuItem(this.likeAction('workbench.action.closeWindow', { label: this.mnemonicLabel(nls.localize({ key: 'miCloseWindow', comment: ['&& denotes a mnemonic'] }, "Clos&&e Window")), click: () => this.windowsMainService.getLastActiveWindow().win.close(), enabled: this.windowsMainService.getWindowCount() > 0 }));
+		const newProject = this.getNewProjectMenu();
 
 		this.closeWorkspace = this.createMenuItem(nls.localize({ key: 'miCloseWorkspace', comment: ['&& denotes a mnemonic'] }, "Close &&Workspace"), 'workbench.action.closeFolder');
 		this.closeFolder = this.createMenuItem(nls.localize({ key: 'miCloseFolder', comment: ['&& denotes a mnemonic'] }, "Close &&Folder"), 'workbench.action.closeFolder');
@@ -427,6 +428,7 @@ export class CodeMenu {
 		arrays.coalesce([
 			newFile,
 			newWindow,
+			newProject,
 			__separator__(),
 			isMacintosh ? open : null,
 			!isMacintosh ? openFile : null,
@@ -476,7 +478,56 @@ export class CodeMenu {
 
 		return new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences")), submenu: preferencesMenu });
 	}
+	private getNewProjectMenu(): Electron.MenuItem {
 
+		debugger;
+		const nwProject_java_qaf = this.createMenuItem(nls.localize({ key: 'miJavaQAF', comment: ['&& denotes a mnemonic'] }, "&&QAF"), 'workbench.action.files.newProject.java.qaf');
+		const nwProject_java_cucumber = this.createMenuItem(nls.localize({ key: 'miJavaCucumber', comment: ['&& denotes a mnemonic'] }, "&&Cucumber"), 'workbench.action.files.newProject.java.cucumber');
+
+		const nwProject_python_cucumber = this.createMenuItem(nls.localize({ key: 'miPythonCucumber', comment: ['&& denotes a mnemonic'] }, "&&Cucumber"), 'workbench.action.files.newProject.python.cucumber');
+
+		const nwProject_js_jasmin = this.createMenuItem(nls.localize({ key: 'miJsJasmin', comment: ['&& denotes a mnemonic'] }, "&&Jasmin"), 'workbench.action.files.newProject.js.jasmin');
+		const nwProject_js_protector = this.createMenuItem(nls.localize({ key: 'miJSProtector', comment: ['&& denotes a mnemonic'] }, "&&Protector"), 'workbench.action.files.newProject.js.protector');
+		const nwProject_js_cucumber = this.createMenuItem(nls.localize({ key: 'miJsCucumber', comment: ['&& denotes a mnemonic'] }, "&&Cucumber"), 'workbench.action.files.newProject.js.cucumber');
+
+		const nwProject_cSharp_specFlow = this.createMenuItem(nls.localize({ key: 'micSharpSpecFlow', comment: ['&& denotes a mnemonic'] }, "&&SpecFlow"), 'workbench.action.files.newProject.cSharp.specflow');
+		const nWProject_ruby_cucumber = this.createMenuItem(nls.localize({ key: 'miRubyCucumber', comment: ['&& denotes a mnemonic'] }, "&&Cucumber"), 'workbench.action.files.newProject.js.ruby.cucumber');
+
+		const java = new Menu();
+		java.append(nwProject_java_cucumber);
+		java.append(nwProject_java_qaf);
+
+		const python = new Menu();
+		python.append(nwProject_python_cucumber);
+
+		const javascript = new Menu();
+		javascript.append(nwProject_js_cucumber);
+		javascript.append(nwProject_js_jasmin);
+		javascript.append(nwProject_js_protector);
+
+		const cSharp = new Menu();
+		cSharp.append(nwProject_cSharp_specFlow);
+
+		const ruby = new Menu();
+		ruby.append(nWProject_ruby_cucumber);
+
+		const javaMainMenu = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miJava', comment: ['&& denotes a mnemonic'] }, "&&Java")), submenu: java });
+		const pythonMainMenu = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miPython', comment: ['&& denotes a mnemonic'] }, "&&Python")), submenu: python });
+		const jsMainMenu = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miJavaScript', comment: ['&& denotes a mnemonic'] }, "&&JavaScript")), submenu: javascript });
+		const cSharpMainMenu = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miC#/.Net', comment: ['&& denotes a mnemonic'] }, "&&C#/.Net")), submenu: cSharp });
+		const rubyMainMenu = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miRuby', comment: ['&& denotes a mnemonic'] }, "&&Ruby")), submenu: ruby });
+
+
+		const preferencesMenu = new Menu();
+		preferencesMenu.append(javaMainMenu);
+		preferencesMenu.append(pythonMainMenu);
+		preferencesMenu.append(__separator__());
+		preferencesMenu.append(jsMainMenu);
+		preferencesMenu.append(cSharpMainMenu);
+		preferencesMenu.append(rubyMainMenu);
+
+		return new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miNewProjectX', comment: ['&& denotes a mnemonic'] }, "&&New Project..")), submenu: preferencesMenu });
+	}
 	private setOpenRecentMenu(openRecentMenu: Electron.Menu): void {
 		openRecentMenu.append(this.createMenuItem(nls.localize({ key: 'miReopenClosedEditor', comment: ['&& denotes a mnemonic'] }, "&&Reopen Closed Editor"), 'workbench.action.reopenClosedEditor'));
 
