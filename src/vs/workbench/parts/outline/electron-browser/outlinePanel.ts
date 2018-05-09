@@ -16,6 +16,7 @@ import 'vs/css!./outlinePanel';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
 import { localize } from 'vs/nls';
@@ -29,7 +30,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { OutlineItem, getOutline, OutlineModel } from './outlineModel';
+import { OutlineItem, getOutline, OutlineModel, OutlineItemGroup } from './outlineModel';
 import { OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from './outlineTree';
 import { KeyCode } from '../../../../base/common/keyCodes';
 import { LRUCache } from '../../../../base/common/map';
@@ -234,7 +235,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 		}
 
 		// wait for the actual model to work with...
-		let itemGroup = await model.selected();
+		let group = await model.selected();
 
 		this._input.enable();
 
@@ -247,7 +248,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 			if (!beforePatternState) {
 				beforePatternState = OutlineTreeState.capture(this._tree);
 			}
-			let item = itemGroup.updateMatches(pattern);
+			let item = group.updateMatches(pattern);
 			await this._tree.refresh(undefined, true);
 			if (item) {
 				await this._tree.reveal(item);
@@ -278,21 +279,24 @@ export class OutlinePanel extends ViewsViewletPanel {
 		}));
 
 		// feature: reveal editor selection in outline
-		this._editorDisposables.push(editor.onDidChangeCursorSelection(async e => {
-			if (!this._followCursor || e.reason !== CursorChangeReason.Explicit) {
-				return;
-			}
-			let item = itemGroup.getItemEnclosingPosition({
-				lineNumber: e.selection.selectionStartLineNumber,
-				column: e.selection.selectionStartColumn
-			});
-			if (item) {
-				await this._tree.reveal(item, .5);
-				this._tree.setFocus(item, this);
-				this._tree.setSelection([item], this);
-			} else {
-				this._tree.setSelection([], this);
-			}
-		}));
+		this._editorDisposables.push(editor.onDidChangeCursorSelection(e => e.reason === CursorChangeReason.Explicit && this._revealEditorSelection(group, e.selection)));
+		this._revealEditorSelection(group, editor.getSelection());
+	}
+
+	private async _revealEditorSelection(group: OutlineItemGroup, selection: Selection): TPromise<void> {
+		if (!this._followCursor) {
+			return;
+		}
+		let item = group.getItemEnclosingPosition({
+			lineNumber: selection.selectionStartLineNumber,
+			column: selection.selectionStartColumn
+		});
+		if (item) {
+			await this._tree.reveal(item, .5);
+			this._tree.setFocus(item, this);
+			this._tree.setSelection([item], this);
+		} else {
+			this._tree.setSelection([], this);
+		}
 	}
 }
