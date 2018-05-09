@@ -270,11 +270,14 @@ export class OutlinePanel extends ViewsViewletPanel {
 				return;
 			}
 			let [first] = e.selection;
+			let keyboard = e.payload && e.payload.origin === 'keyboard';
 			if (first instanceof OutlineItem) {
 				let { range } = first.symbol.location;
 				editor.revealRangeInCenterIfOutsideViewport(range, ScrollType.Smooth);
 				editor.setSelection(Range.collapseToStart(range));
-				// editor.focus();
+				if (keyboard) {
+					editor.focus();
+				}
 			}
 		}));
 
