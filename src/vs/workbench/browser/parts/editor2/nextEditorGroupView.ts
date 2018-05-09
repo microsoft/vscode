@@ -18,7 +18,7 @@ import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
-import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND } from 'vs/workbench/common/theme';
+import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_ACTIVE_EMPTY_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND } from 'vs/workbench/common/theme';
 import { IMoveEditorOptions, ICopyEditorOptions } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { NextTabsTitleControl } from 'vs/workbench/browser/parts/editor2/nextTabsTitleControl';
 import { NextEditorControl } from 'vs/workbench/browser/parts/editor2/nextEditorControl';
@@ -85,6 +85,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	private _group: EditorGroup;
 
+	private active: boolean;
 	private _dimension: Dimension;
 	private _whenRestored: Thenable<void>;
 
@@ -173,15 +174,15 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		// Editor control
 		this.editorControl = this._register(this.scopedInstantiationService.createInstance(NextEditorControl, this.editorContainer, this._group.id));
 
-		// Update styles
-		this.updateStyles();
+		// Track Focus
+		this.doTrackFocus();
 
 		// Update containers
 		this.updateTitleContainer();
 		this.updateContainer();
 
-		// Track Focus
-		this.doTrackFocus();
+		// Update styles
+		this.updateStyles();
 	}
 
 	private doTrackFocus(): void {
@@ -241,6 +242,9 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 			this.element.removeAttribute('tabIndex');
 			this.element.removeAttribute('aria-label');
 		}
+
+		// Update styles
+		this.updateStyles();
 	}
 
 	private updateTitleContainer(): void {
@@ -448,6 +452,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	}
 
 	setActive(isActive: boolean): void {
+		this.active = isActive;
 
 		// Update container
 		toggleClass(this.element, 'active', isActive);
@@ -455,6 +460,9 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 		// Update title control
 		this.titleAreaControl.setActive(isActive);
+
+		// Update styles
+		this.updateStyles();
 	}
 
 	isEmpty(): boolean {
@@ -887,6 +895,11 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 		// Container
 		this.element.style.outlineColor = this.getColor(focusBorder);
+		if (this.isEmpty()) {
+			this.element.style.backgroundColor = this.getColor(this.active ? EDITOR_GROUP_ACTIVE_EMPTY_BACKGROUND : EDITOR_GROUP_EMPTY_BACKGROUND);
+		} else {
+			this.element.style.backgroundColor = null;
+		}
 
 		// Title control
 		const { showTabs } = this.accessor.partOptions;
