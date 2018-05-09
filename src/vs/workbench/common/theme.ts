@@ -105,11 +105,17 @@ export const TAB_UNFOCUSED_INACTIVE_FOREGROUND = registerColor('tab.unfocusedIna
 
 // < --- Editors --- >
 
-export const EDITOR_GROUP_BACKGROUND = registerColor('editorGroup.background', {
-	dark: '#2D2D2D',
-	light: '#ECECEC',
+export const EDITOR_GROUP_EMPTY_BACKGROUND = registerColor('editorGroup.emptyBackground', {
+	dark: null,
+	light: null,
 	hc: null
-}, nls.localize('editorGroupBackground', "Background color of an editor group. Editor groups are the containers of editors. The background color shows up when dragging editor groups around."));
+}, nls.localize('editorGroupEmptyBackground', "Background color of an empty editor group. Editor groups are the containers of editors."));
+
+export const EDITOR_GROUP_ACTIVE_EMPTY_BACKGROUND = registerColor('editorGroup.activeEmptyBackground', {
+	dark: EDITOR_GROUP_EMPTY_BACKGROUND,
+	light: EDITOR_GROUP_EMPTY_BACKGROUND,
+	hc: EDITOR_GROUP_EMPTY_BACKGROUND
+}, nls.localize('editorGroupActiveEmptyBackground', "Background color of an empty editor group that is active. Editor groups are the containers of editors."));
 
 export const EDITOR_GROUP_HEADER_TABS_BACKGROUND = registerColor('editorGroupHeader.tabsBackground', {
 	dark: '#252526',

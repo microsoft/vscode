@@ -17,6 +17,7 @@ import * as semver from 'semver';
 import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { groupByExtension, getGalleryExtensionId, getLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import URI from 'vs/base/common/uri';
 
 const MANIFEST_FILE = 'package.json';
 
@@ -67,13 +68,15 @@ abstract class ExtensionManifestHandler {
 	protected readonly _log: ILog;
 	protected readonly _absoluteFolderPath: string;
 	protected readonly _isBuiltin: boolean;
+	protected readonly _isUnderDevelopment: boolean;
 	protected readonly _absoluteManifestPath: string;
 
-	constructor(ourVersion: string, log: ILog, absoluteFolderPath: string, isBuiltin: boolean) {
+	constructor(ourVersion: string, log: ILog, absoluteFolderPath: string, isBuiltin: boolean, isUnderDevelopment: boolean) {
 		this._ourVersion = ourVersion;
 		this._log = log;
 		this._absoluteFolderPath = absoluteFolderPath;
 		this._isBuiltin = isBuiltin;
+		this._isUnderDevelopment = isUnderDevelopment;
 		this._absoluteManifestPath = join(absoluteFolderPath, MANIFEST_FILE);
 	}
 }
@@ -108,8 +111,8 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 
 	private readonly _nlsConfig: NlsConfiguration;
 
-	constructor(ourVersion: string, log: ILog, absoluteFolderPath: string, isBuiltin: boolean, nlsConfig: NlsConfiguration) {
-		super(ourVersion, log, absoluteFolderPath, isBuiltin);
+	constructor(ourVersion: string, log: ILog, absoluteFolderPath: string, isBuiltin: boolean, isUnderDevelopment: boolean, nlsConfig: NlsConfiguration) {
+		super(ourVersion, log, absoluteFolderPath, isBuiltin, isUnderDevelopment);
 		this._nlsConfig = nlsConfig;
 	}
 
@@ -296,24 +299,28 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 	}
 }
 
+// Relax the readonly properties here, it is the one place where we check and normalize values
+export interface IRelaxedExtensionDescription {
+	id: string;
+	name: string;
+	version: string;
+	publisher: string;
+	isBuiltin: boolean;
+	isUnderDevelopment: boolean;
+	extensionFolderPath: string;
+	extensionLocation: URI;
+	engines: {
+		vscode: string;
+	};
+	main?: string;
+	enableProposedApi?: boolean;
+}
+
 class ExtensionManifestValidator extends ExtensionManifestHandler {
 	validate(_extensionDescription: IExtensionDescription): IExtensionDescription {
-		// Relax the readonly properties here, it is the one place where we check and normalize values
-		interface IRelaxedExtensionDescription {
-			id: string;
-			name: string;
-			version: string;
-			publisher: string;
-			isBuiltin: boolean;
-			extensionFolderPath: string;
-			engines: {
-				vscode: string;
-			};
-			main?: string;
-			enableProposedApi?: boolean;
-		}
 		let extensionDescription = <IRelaxedExtensionDescription>_extensionDescription;
 		extensionDescription.isBuiltin = this._isBuiltin;
+		extensionDescription.isUnderDevelopment = this._isUnderDevelopment;
 
 		let notices: string[] = [];
 		if (!ExtensionManifestValidator.isValidExtensionDescription(this._ourVersion, this._absoluteFolderPath, extensionDescription, notices)) {
@@ -337,6 +344,7 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 		}
 
 		extensionDescription.extensionFolderPath = this._absoluteFolderPath;
+		extensionDescription.extensionLocation = URI.file(this._absoluteFolderPath);
 
 		return extensionDescription;
 	}
@@ -440,6 +448,7 @@ export class ExtensionScannerInput {
 		public readonly devMode: boolean,
 		public readonly absoluteFolderPath: string,
 		public readonly isBuiltin: boolean,
+		public readonly isUnderDevelopment: boolean,
 		public readonly tanslations: Translations
 	) {
 		// Keep empty!! (JSON.parse)
@@ -462,6 +471,7 @@ export class ExtensionScannerInput {
 			&& a.devMode === b.devMode
 			&& a.absoluteFolderPath === b.absoluteFolderPath
 			&& a.isBuiltin === b.isBuiltin
+			&& a.isUnderDevelopment === b.isUnderDevelopment
 			&& a.mtime === b.mtime
 			&& Translations.equals(a.tanslations, b.tanslations)
 		);
@@ -492,23 +502,23 @@ export class ExtensionScanner {
 	/**
 	 * Read the extension defined in `absoluteFolderPath`
 	 */
-	public static scanExtension(version: string, log: ILog, absoluteFolderPath: string, isBuiltin: boolean, nlsConfig: NlsConfiguration): TPromise<IExtensionDescription> {
+	public static scanExtension(version: string, log: ILog, absoluteFolderPath: string, isBuiltin: boolean, isUnderDevelopment: boolean, nlsConfig: NlsConfiguration): TPromise<IExtensionDescription> {
 		absoluteFolderPath = normalize(absoluteFolderPath);
 
-		let parser = new ExtensionManifestParser(version, log, absoluteFolderPath, isBuiltin);
+		let parser = new ExtensionManifestParser(version, log, absoluteFolderPath, isBuiltin, isUnderDevelopment);
 		return parser.parse().then((extensionDescription) => {
 			if (extensionDescription === null) {
 				return null;
 			}
 
-			let nlsReplacer = new ExtensionManifestNLSReplacer(version, log, absoluteFolderPath, isBuiltin, nlsConfig);
+			let nlsReplacer = new ExtensionManifestNLSReplacer(version, log, absoluteFolderPath, isBuiltin, isUnderDevelopment, nlsConfig);
 			return nlsReplacer.replaceNLS(extensionDescription);
 		}).then((extensionDescription) => {
 			if (extensionDescription === null) {
 				return null;
 			}
 
-			let validator = new ExtensionManifestValidator(version, log, absoluteFolderPath, isBuiltin);
+			let validator = new ExtensionManifestValidator(version, log, absoluteFolderPath, isBuiltin, isUnderDevelopment);
 			return validator.validate(extensionDescription);
 		});
 	}
@@ -519,6 +529,7 @@ export class ExtensionScanner {
 	public static async scanExtensions(input: ExtensionScannerInput, log: ILog, resolver: IExtensionResolver = null): TPromise<IExtensionDescription[]> {
 		const absoluteFolderPath = input.absoluteFolderPath;
 		const isBuiltin = input.isBuiltin;
+		const isUnderDevelopment = input.isUnderDevelopment;
 
 		if (!resolver) {
 			resolver = new DefaultExtensionResolver(absoluteFolderPath);
@@ -559,7 +570,7 @@ export class ExtensionScanner {
 			}
 
 			const nlsConfig = ExtensionScannerInput.createNLSConfig(input);
-			let extensionDescriptions = await TPromise.join(refs.map(r => this.scanExtension(input.ourVersion, log, r.path, isBuiltin, nlsConfig)));
+			let extensionDescriptions = await TPromise.join(refs.map(r => this.scanExtension(input.ourVersion, log, r.path, isBuiltin, isUnderDevelopment, nlsConfig)));
 			extensionDescriptions = extensionDescriptions.filter(item => item !== null && !obsolete[getLocalExtensionId(getGalleryExtensionId(item.publisher, item.name), item.version)]);
 
 			if (!isBuiltin) {
@@ -588,11 +599,12 @@ export class ExtensionScanner {
 	public static scanOneOrMultipleExtensions(input: ExtensionScannerInput, log: ILog): TPromise<IExtensionDescription[]> {
 		const absoluteFolderPath = input.absoluteFolderPath;
 		const isBuiltin = input.isBuiltin;
+		const isUnderDevelopment = input.isUnderDevelopment;
 
 		return pfs.fileExists(join(absoluteFolderPath, MANIFEST_FILE)).then((exists) => {
 			if (exists) {
 				const nlsConfig = ExtensionScannerInput.createNLSConfig(input);
-				return this.scanExtension(input.ourVersion, log, absoluteFolderPath, isBuiltin, nlsConfig).then((extensionDescription) => {
+				return this.scanExtension(input.ourVersion, log, absoluteFolderPath, isBuiltin, isUnderDevelopment, nlsConfig).then((extensionDescription) => {
 					if (extensionDescription === null) {
 						return [];
 					}

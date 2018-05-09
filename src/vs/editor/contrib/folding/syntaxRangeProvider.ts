@@ -14,25 +14,24 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { MAX_LINE_NUMBER, FoldingRegions } from './foldingRanges';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
-const MAX_FOLDING_REGIONS_FOR_INDENT_LIMIT = 5000;
+const MAX_FOLDING_REGIONS = 5000;
 
 export interface IFoldingRangeData extends FoldingRange {
 	rank: number;
 }
 
 const foldingContext: FoldingContext = {
-	maxRanges: MAX_FOLDING_REGIONS_FOR_INDENT_LIMIT
 };
 
 export class SyntaxRangeProvider implements RangeProvider {
 
-	constructor(private providers: FoldingRangeProvider[]) {
+	constructor(private providers: FoldingRangeProvider[], private limit = MAX_FOLDING_REGIONS) {
 	}
 
 	compute(model: ITextModel, cancellationToken: CancellationToken): Thenable<FoldingRegions> {
 		return collectSyntaxRanges(this.providers, model, cancellationToken).then(ranges => {
 			if (ranges) {
-				let res = sanitizeRanges(ranges);
+				let res = sanitizeRanges(ranges, this.limit);
 				return res;
 			}
 			return null;
@@ -122,12 +121,13 @@ export class RangesCollector {
 					entries += n;
 				}
 			}
-			let startIndexes = new Uint32Array(entries);
-			let endIndexes = new Uint32Array(entries);
+
+			let startIndexes = new Uint32Array(this._foldingRangesLimit);
+			let endIndexes = new Uint32Array(this._foldingRangesLimit);
 			let types = [];
 			for (let i = 0, k = 0; i < this._length; i++) {
 				let level = this._nestingLevels[i];
-				if (level < maxLevel) {
+				if (level < maxLevel || (level === maxLevel && entries++ < this._foldingRangesLimit)) {
 					startIndexes[k] = this._startIndexes[i];
 					endIndexes[k] = this._endIndexes[i];
 					types[k] = this._types[i];
@@ -141,7 +141,7 @@ export class RangesCollector {
 
 }
 
-export function sanitizeRanges(rangeData: IFoldingRangeData[]): FoldingRegions {
+export function sanitizeRanges(rangeData: IFoldingRangeData[], limit: number): FoldingRegions {
 
 	let sorted = rangeData.sort((d1, d2) => {
 		let diff = d1.start - d2.start;
@@ -150,7 +150,7 @@ export function sanitizeRanges(rangeData: IFoldingRangeData[]): FoldingRegions {
 		}
 		return diff;
 	});
-	let collector = new RangesCollector(MAX_FOLDING_REGIONS_FOR_INDENT_LIMIT);
+	let collector = new RangesCollector(limit);
 
 	let top: IFoldingRangeData = null;
 	let previous = [];
@@ -168,7 +168,9 @@ export function sanitizeRanges(rangeData: IFoldingRangeData[]): FoldingRegions {
 					do {
 						top = previous.pop();
 					} while (top && entry.start > top.end);
-					previous.push(top);
+					if (top) {
+						previous.push(top);
+					}
 					top = entry;
 					collector.add(entry.start, entry.end, entry.kind && entry.kind.value, previous.length);
 				}

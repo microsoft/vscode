@@ -8,7 +8,7 @@
 import 'vs/css!./media/nextEditorGroupView';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorGroup, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
-import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, IEditorOpeningEvent, EditorOpeningEvent, TextEditorOptions, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, IEditorOpeningEvent, EditorOpeningEvent, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor } from 'vs/base/browser/dom';
@@ -18,7 +18,7 @@ import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
-import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND } from 'vs/workbench/common/theme';
+import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_ACTIVE_EMPTY_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND } from 'vs/workbench/common/theme';
 import { IMoveEditorOptions, ICopyEditorOptions } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { NextTabsTitleControl } from 'vs/workbench/browser/parts/editor2/nextTabsTitleControl';
 import { NextEditorControl } from 'vs/workbench/browser/parts/editor2/nextEditorControl';
@@ -33,10 +33,9 @@ import { Severity, INotificationService, INotificationActions } from 'vs/platfor
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RunOnceWorker } from 'vs/base/common/async';
-import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { NextTitleControl } from 'vs/workbench/browser/parts/editor2/nextTitleControl';
-import { INextEditorGroupsAccessor, INextEditorGroupView, INextEditorPartOptionsChangeEvent, EDITOR_TITLE_HEIGHT, EDITOR_MIN_DIMENSIONS, EDITOR_MAX_DIMENSIONS, getEditorPartOptions, INextEditorPartOptions } from 'vs/workbench/browser/parts/editor2/editor2';
+import { INextEditorGroupsAccessor, INextEditorGroupView, INextEditorPartOptionsChangeEvent, EDITOR_TITLE_HEIGHT, EDITOR_MIN_DIMENSIONS, EDITOR_MAX_DIMENSIONS, getEditorPartOptions, INextEditorPartOptions, getActiveTextEditorOptions } from 'vs/workbench/browser/parts/editor2/editor2';
 import { NextNoTabsTitleControl } from './nextNoTabsTitleControl';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { join } from 'vs/base/common/paths';
@@ -87,6 +86,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	private _group: EditorGroup;
 
+	private active: boolean;
 	private _dimension: Dimension;
 	private _whenRestored: Thenable<void>;
 
@@ -178,15 +178,15 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		// Editor control
 		this.editorControl = this._register(this.scopedInstantiationService.createInstance(NextEditorControl, this.editorContainer, this._group.id));
 
-		// Update styles
-		this.updateStyles();
+		// Track Focus
+		this.doTrackFocus();
 
 		// Update containers
 		this.updateTitleContainer();
 		this.updateContainer();
 
-		// Track Focus
-		this.doTrackFocus();
+		// Update styles
+		this.updateStyles();
 	}
 
 	private doTrackFocus(): void {
@@ -246,6 +246,9 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 			this.element.removeAttribute('tabIndex');
 			this.element.removeAttribute('aria-label');
 		}
+
+		// Update styles
+		this.updateStyles();
 	}
 
 	private updateTitleContainer(): void {
@@ -277,10 +280,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		// Determine editor options
 		let options: EditorOptions;
 		if (from instanceof NextEditorGroupView) {
-			const fromEditorControl = getCodeEditor(from.activeControl);
-			if (fromEditorControl) {
-				options = TextEditorOptions.fromEditor(fromEditorControl); // if we copy from another group, ensure to copy its active editor viewstate
-			}
+			options = getActiveTextEditorOptions(from); // if we copy from another group, ensure to copy its active editor viewstate
 		} else {
 			options = new EditorOptions();
 		}
@@ -456,6 +456,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	}
 
 	setActive(isActive: boolean): void {
+		this.active = isActive;
 
 		// Update container
 		toggleClass(this.element, 'active', isActive);
@@ -463,6 +464,9 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 		// Update title control
 		this.titleAreaControl.setActive(isActive);
+
+		// Update styles
+		this.updateStyles();
 	}
 
 	isEmpty(): boolean {
@@ -636,6 +640,32 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	//#endregion
 
+	//#region openEditors()
+
+	openEditors(editors: { editor: EditorInput, options?: EditorOptions }[]): Thenable<void> {
+		if (!editors.length) {
+			return TPromise.as(void 0);
+		}
+
+		// Use the first editor as active editor
+		const { editor, options } = editors.shift();
+		return this.openEditor(editor, options).then(() => {
+			const startingIndex = this.getIndexOfEditor(editor) + 1;
+
+			// Open the other ones inactive
+			return TPromise.join(editors.map(({ editor, options }, index) => {
+				const adjustedEditorOptions = options || new EditorOptions();
+				adjustedEditorOptions.inactive = true;
+				adjustedEditorOptions.pinned = true;
+				adjustedEditorOptions.index = startingIndex + index;
+
+				return this.openEditor(editor, adjustedEditorOptions);
+			})).then(() => void 0);
+		});
+	}
+
+	//#endregion
+
 	//#region moveEditor()
 
 	moveEditor(editor: EditorInput, target: INextEditorGroupView, options?: IMoveEditorOptions): void {
@@ -672,17 +702,10 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	}
 
 	private doMoveOrCopyEditorAcrossGroups(editor: EditorInput, target: INextEditorGroupView, moveOptions: IMoveEditorOptions = Object.create(null), keepCopy?: boolean): void {
-		let options: EditorOptions;
 
 		// When moving an editor, try to preserve as much view state as possible by checking
 		// for the editor to be a text editor and creating the options accordingly if so
-		const codeEditor = getCodeEditor(this.activeControl);
-		if (codeEditor && editor.matches(this.activeEditor)) {
-			options = TextEditorOptions.fromEditor(codeEditor, moveOptions);
-		} else {
-			options = EditorOptions.create(moveOptions);
-		}
-
+		const options = getActiveTextEditorOptions(this, editor, EditorOptions.create(moveOptions));
 		options.pinned = true; // always pin moved editor
 
 		// A move to another group is an open first...
@@ -878,6 +901,11 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 		// Container
 		this.element.style.outlineColor = this.getColor(focusBorder);
+		if (this.isEmpty()) {
+			this.element.style.backgroundColor = this.getColor(this.active ? EDITOR_GROUP_ACTIVE_EMPTY_BACKGROUND : EDITOR_GROUP_EMPTY_BACKGROUND);
+		} else {
+			this.element.style.backgroundColor = null;
+		}
 
 		// Title control
 		const { showTabs } = this.accessor.partOptions;

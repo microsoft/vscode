@@ -271,7 +271,6 @@ class CodeActionOnParticipant implements ISaveParticipant {
 	constructor(
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) { }
 
@@ -281,10 +280,6 @@ class CodeActionOnParticipant implements ISaveParticipant {
 		}
 
 		const model = editorModel.textEditorModel;
-		const editor = findEditor(model, this._codeEditorService);
-		if (!editor) {
-			return undefined;
-		}
 
 		const settingsOverrides = { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() };
 		const setting = this._configurationService.getValue<ICodeActionsOnSaveOptions>('editor.codeActionsOnSave', settingsOverrides);
@@ -302,12 +297,12 @@ class CodeActionOnParticipant implements ISaveParticipant {
 		return new Promise<CodeAction[]>((resolve, reject) => {
 			setTimeout(() => reject(localize('codeActionsOnSave.didTimeout', "Aborted codeActionsOnSave after {0}ms", timeout)), timeout);
 			this.getActionsToRun(model, codeActionsOnSave).then(resolve);
-		}).then(actionsToRun => this.applyCodeActions(actionsToRun, editor));
+		}).then(actionsToRun => this.applyCodeActions(actionsToRun));
 	}
 
-	private async applyCodeActions(actionsToRun: CodeAction[], editor: ICodeEditor) {
+	private async applyCodeActions(actionsToRun: CodeAction[]) {
 		for (const action of actionsToRun) {
-			await applyCodeAction(action, this._bulkEditService, this._commandService, editor);
+			await applyCodeAction(action, this._bulkEditService, this._commandService);
 		}
 	}
 

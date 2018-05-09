@@ -23,6 +23,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { NotificationsCenter } from 'vs/workbench/browser/parts/notifications/notificationsCenter';
 import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
 import { Dimension, getClientArea, size, position, hide, show } from 'vs/base/browser/dom';
+import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 const MIN_SIDEBAR_PART_WIDTH = 170;
 const DEFAULT_SIDEBAR_PART_WIDTH = 300;
@@ -108,7 +109,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IPartService private partService: IPartService,
 		@IViewletService private viewletService: IViewletService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@INextEditorGroupsService private nextEditorGroupsService: INextEditorGroupsService
 	) {
 		this.parent = parent;
 		this.workbenchContainer = workbenchContainer;
@@ -153,11 +155,11 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	}
 
 	private get editorCountForHeight(): number {
-		return Math.max(1, this.editorGroupService.getGroupOrientation() === 'horizontal' ? this.editorGroupService.getStacksModel().groups.length : 1);
+		return this.nextEditorGroupsService.count; /* TODO@grid revisit */
 	}
 
 	private get editorCountForWidth(): number {
-		return Math.max(1, this.editorGroupService.getGroupOrientation() === 'vertical' ? this.editorGroupService.getStacksModel().groups.length : 1);
+		return this.nextEditorGroupsService.count; /* TODO@grid revisit */
 	}
 
 	private get activitybarWidth(): number {
@@ -781,10 +783,9 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 					}
 
 				} else {
-					const stacks = this.editorGroupService.getStacksModel();
-					const activeGroup = stacks.positionOfGroup(stacks.activeGroup);
+					const activeGroup = this.nextEditorGroupsService.activeGroup;
 
-					this.editorGroupService.resizeGroup(activeGroup, sizeChangePxWidth);
+					this.nextEditorGroupsService.resizeGroup(activeGroup, sizeChangePxWidth);
 					doLayout = false;
 				}
 		}

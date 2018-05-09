@@ -11,6 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { exec } from 'child_process';
 import { Readable, Writable, WritableOptions } from 'stream';
+import { asWinJSImport } from 'vs/base/common/async';
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';
@@ -191,25 +192,25 @@ const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'utf-32'];
 /**
  * Guesses the encoding from buffer.
  */
-export async function guessEncodingByBuffer(buffer: NodeBuffer): TPromise<string> {
-	const jschardet = await import('jschardet');
+export function guessEncodingByBuffer(buffer: NodeBuffer): TPromise<string> {
+	return asWinJSImport(import('jschardet')).then(jschardet => {
+		jschardet.Constants.MINIMUM_THRESHOLD = MINIMUM_THRESHOLD;
 
-	jschardet.Constants.MINIMUM_THRESHOLD = MINIMUM_THRESHOLD;
+		const guessed = jschardet.detect(buffer);
+		if (!guessed || !guessed.encoding) {
+			return null;
+		}
 
-	const guessed = jschardet.detect(buffer);
-	if (!guessed || !guessed.encoding) {
-		return null;
-	}
+		const enc = guessed.encoding.toLowerCase();
 
-	const enc = guessed.encoding.toLowerCase();
+		// Ignore encodings that cannot guess correctly
+		// (http://chardet.readthedocs.io/en/latest/supported-encodings.html)
+		if (0 <= IGNORE_ENCODINGS.indexOf(enc)) {
+			return null;
+		}
 
-	// Ignore encodings that cannot guess correctly
-	// (http://chardet.readthedocs.io/en/latest/supported-encodings.html)
-	if (0 <= IGNORE_ENCODINGS.indexOf(enc)) {
-		return null;
-	}
-
-	return toIconvLiteEncoding(guessed.encoding);
+		return toIconvLiteEncoding(guessed.encoding);
+	});
 }
 
 const JSCHARDET_TO_ICONV_ENCODINGS: { [name: string]: string } = {

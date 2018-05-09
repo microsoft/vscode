@@ -240,6 +240,10 @@
 				color: var(--link-color);
 			}
 
+			body a:hover {
+				color: var(--link-active-color);
+			}
+
 			a:focus,
 			input:focus,
 			select:focus,

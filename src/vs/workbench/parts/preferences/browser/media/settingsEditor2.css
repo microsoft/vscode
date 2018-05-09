@@ -40,7 +40,7 @@
 }
 
 .settings-editor > .settings-header .settings-tabs-widget > .monaco-action-bar .action-item:not(:first-child) .action-label {
-	margin-left: 33px;
+	margin-left: 14px;
 }
 
 .settings-editor > .settings-header .settings-tabs-widget .monaco-action-bar .action-item .dropdown-icon {
@@ -57,8 +57,6 @@
 .settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .open-settings-button,
 .settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .open-settings-button:hover,
 .settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .open-settings-button:active {
-	background: none;
-	opacity: 0.7;
 	padding: 0;
 	text-decoration: underline;
 }
@@ -128,9 +126,26 @@
 	margin-left: 10px;
 }
 
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-is-configured-indicator {
+	position: absolute;
+	left: -15px;
+	top: 4px;
+	visibility: hidden;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row.is-configured .setting-item-is-configured-indicator {
+	visibility: visible;
+}
+
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-label {
 	font-size: 15px;
 	font-weight: bold;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-category {
+	font-size: 15px;
+	font-weight: bold;
+	opacity: 0.7;
 }
 
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-key {
@@ -157,7 +172,6 @@
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-value > .edit-in-settings-button:active {
 	margin: auto;
 	text-decoration: underline;
-	opacity: 0.7;
 }
 
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-value > .edit-in-settings-button + .setting-reset-button.monaco-button {
@@ -187,7 +201,7 @@
 
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-value > .setting-reset-button.monaco-button {
 	display: inline-block;
-	background: url("action-remove-dark.svg") center center no-repeat;
+	background: url("clean.svg") center center no-repeat;
 	width: 16px;
 	height: 16px;
 	margin: auto;
@@ -195,7 +209,11 @@
 	visibility: hidden;
 }
 
-.settings-editor > .settings-body > .settings-list-container .monaco-list-row.is-configured:hover .setting-item-value > .setting-reset-button.monaco-button {
+.vs-dark .settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-value > .setting-reset-button.monaco-button {
+	background: url("clean-dark.svg") center center no-repeat;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row.is-configured .setting-item-value > .setting-reset-button.monaco-button {
 	visibility: visible;
 }
 
@@ -211,3 +229,28 @@
 	padding-left: 10px;
 	padding-right: 10px;
 }
+
+/*
+	Ensure the is-configured indicators can appear outside of the list items themselves:
+	- Disable overflow: hidden on the listrow
+	- Allocate some space with a margin on the list-row
+	- Make up for that space with a negative margin on the settings-body
+
+	This is risky, consider a different approach
+	 */
+.settings-editor .settings-list-container .monaco-list-row {
+	overflow: visible;
+}
+
+.settings-editor .settings-list-container .monaco-list-row {
+	margin-left: 15px;
+	width: calc(100% - 15px);
+}
+
+.settings-editor .settings-body {
+	margin-left: -15px;
+}
+
+/* .settings-editor .settings-list-container .monaco-scrollable-element > .shadow.top {
+	width: calc(100% - 3px);
+} */

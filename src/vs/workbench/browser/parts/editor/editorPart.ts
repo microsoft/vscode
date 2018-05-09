@@ -38,7 +38,6 @@ import { Event, Emitter, once } from 'vs/base/common/event';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { EDITOR_GROUP_BACKGROUND } from 'vs/workbench/common/theme';
 import { createCSSRule, Dimension, addClass, removeClass } from 'vs/base/browser/dom';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { join } from 'vs/base/common/paths';
@@ -305,22 +304,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	//#endregion
 
-	//#region TODO@grid group arrangement
-
-	public arrangeGroups(arrangement: GroupArrangement): void {
-		this.editorGroupsControl.arrangeGroups(arrangement);
-	}
-
-	//#endregion
-
-	//#region TODO@grid resizeGroup()
-
-	public resizeGroup(position: Position, groupSizeChange: number): void {
-		this.editorGroupsControl.resizeGroup(position, groupSizeChange);
-	}
-
-	//#endregion
-
 	//#region TODO@grid group orientation
 
 	public get onGroupOrientationChanged(): Event<void> {
@@ -400,132 +383,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		});
 
 		return res;
-	}
-
-	//#endregion
-
-	//#region TODO@grid openEditors()
-
-	public openEditors(editors: { input: EditorInput, position?: Position, options?: EditorOptions }[]): TPromise<IEditor[]>;
-	public openEditors(editors: { input: EditorInput, options?: EditorOptions }[], sideBySide?: boolean): TPromise<IEditor[]>;
-	public openEditors(editors: { input: EditorInput, position?: Position, options?: EditorOptions }[], sideBySide?: boolean): TPromise<IEditor[]> {
-		if (!editors.length) {
-			return TPromise.as<IEditor[]>([]);
-		}
-
-		let activePosition: Position;
-		if (this.stacks.activeGroup) {
-			activePosition = this.stacks.positionOfGroup(this.stacks.activeGroup);
-		}
-
-		const ratio = this.editorGroupsControl.getRatio();
-
-		return this.doOpenEditors(editors, activePosition, ratio, sideBySide);
-	}
-
-	private doOpenEditors(editors: { input: EditorInput, position?: Position, options?: EditorOptions }[], activePosition?: number, ratio?: number[], sideBySide?: boolean): TPromise<IEditor[]> {
-
-		// Find position if not provided already from calling side
-		editors.forEach(editor => {
-			if (typeof editor.position !== 'number') {
-				editor.position = this.findPosition(editor.input, editor.options, sideBySide);
-			}
-		});
-
-		const positionOneEditors = editors.filter(e => e.position === Position.ONE);
-		const positionTwoEditors = editors.filter(e => e.position === Position.TWO);
-		const positionThreeEditors = editors.filter(e => e.position === Position.THREE);
-
-		const groupOne = this.stacks.groupAt(Position.ONE);
-		const groupTwo = this.stacks.groupAt(Position.TWO);
-		const groupThree = this.stacks.groupAt(Position.THREE);
-
-		// Compute the imaginary count if we const all editors open as the way requested
-		const oneCount = positionOneEditors.length + (groupOne ? groupOne.count : 0);
-		const twoCount = positionTwoEditors.length + (groupTwo ? groupTwo.count : 0);
-		const threeCount = positionThreeEditors.length + (groupThree ? groupThree.count : 0);
-
-		// Validate we do not produce empty groups given our imaginary count model
-		if ((!oneCount && (twoCount || threeCount) || (!twoCount && threeCount))) {
-			positionOneEditors.push(...positionTwoEditors);
-			positionOneEditors.push(...positionThreeEditors);
-			positionTwoEditors.splice(0, positionTwoEditors.length);
-			positionThreeEditors.splice(0, positionThreeEditors.length);
-		}
-
-		// Validate active input
-		if (typeof activePosition !== 'number') {
-			activePosition = Position.ONE;
-		}
-
-		// Validate ratios
-		const positions = positionThreeEditors.length ? 3 : positionTwoEditors.length ? 2 : 1;
-		if (!ratio || ratio.length !== positions) {
-			if (!this.getVisibleEditors().length) {
-				ratio = (positions === 3) ? [0.33, 0.33, 0.34] : (positions === 2) ? [0.5, 0.5] : [1];
-			} else {
-				ratio = void 0;
-			}
-		}
-
-		let focusGroup = false;
-		const activeGroup = this.stacks.groupAt(activePosition);
-		if (!this.stacks.activeGroup || !activeGroup) {
-			focusGroup = true; // always focus group if this is the first group or we are about to open a new group
-		} else {
-			focusGroup = editors.some(e => !e.options || (!e.options.inactive && !e.options.preserveFocus)); // only focus if the editors to open are not opening as inactive or preserveFocus
-		}
-
-		// Open each input respecting the options. Since there can only be one active editor in each
-		// position, we have to pick the first input from each position and add the others as inactive
-		const promises: TPromise<IEditor>[] = [];
-		[positionOneEditors.shift(), positionTwoEditors.shift(), positionThreeEditors.shift()].forEach((editor, position) => {
-			if (!editor) {
-				return; // unused position
-			}
-
-			const input = editor.input;
-
-			// Resolve editor options
-			const preserveFocus = (activePosition !== position && ratio && ratio.length > 0); // during restore, preserve focus to reduce flicker
-			let options: EditorOptions;
-			if (editor.options) {
-				options = editor.options;
-				if (typeof options.preserveFocus !== 'boolean') {
-					options.preserveFocus = preserveFocus;
-				}
-			} else {
-				options = EditorOptions.create({ preserveFocus });
-			}
-
-			promises.push(this.openEditor(input, options, position, ratio));
-		});
-
-		return TPromise.join(promises).then(editors => {
-
-			// Adjust focus as needed
-			if (focusGroup) {
-				this.focusGroup(activePosition);
-			}
-
-			// Update stacks model for remaining inactive editors
-			[positionOneEditors, positionTwoEditors, positionThreeEditors].forEach((editors, index) => {
-				const group = this.stacks.groupAt(index);
-				if (group) {
-
-					// Make sure we are keeping the order as the editors are passed to us. We have to set
-					// an explicit index because otherwise we would put editors in the wrong order
-					// (see https://github.com/Microsoft/vscode/issues/30364)
-					const startingIndex = group.indexOf(group.activeEditor) + 1;
-					editors.forEach((editor, offset) => group.openEditor(editor.input, { pinned: true, index: (startingIndex + offset) }));
-				}
-			});
-
-			// Full layout side by side
-			this.editorGroupsControl.layout(this.dimension);
-
-			return editors;
-		});
 	}
 
 	//#endregion
@@ -643,6 +500,132 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		this.initStyles();
 		this.registerListeners();
+	}
+
+	public openEditors(editors: { input: EditorInput, position?: Position, options?: EditorOptions }[]): TPromise<IEditor[]>;
+	public openEditors(editors: { input: EditorInput, options?: EditorOptions }[], sideBySide?: boolean): TPromise<IEditor[]>;
+	public openEditors(editors: { input: EditorInput, position?: Position, options?: EditorOptions }[], sideBySide?: boolean): TPromise<IEditor[]> {
+		if (!editors.length) {
+			return TPromise.as<IEditor[]>([]);
+		}
+
+		let activePosition: Position;
+		if (this.stacks.activeGroup) {
+			activePosition = this.stacks.positionOfGroup(this.stacks.activeGroup);
+		}
+
+		const ratio = this.editorGroupsControl.getRatio();
+
+		return this.doOpenEditors(editors, activePosition, ratio, sideBySide);
+	}
+
+	public resizeGroup(position: Position, groupSizeChange: number): void {
+		this.editorGroupsControl.resizeGroup(position, groupSizeChange);
+	}
+
+	private doOpenEditors(editors: { input: EditorInput, position?: Position, options?: EditorOptions }[], activePosition?: number, ratio?: number[], sideBySide?: boolean): TPromise<IEditor[]> {
+
+		// Find position if not provided already from calling side
+		editors.forEach(editor => {
+			if (typeof editor.position !== 'number') {
+				editor.position = this.findPosition(editor.input, editor.options, sideBySide);
+			}
+		});
+
+		const positionOneEditors = editors.filter(e => e.position === Position.ONE);
+		const positionTwoEditors = editors.filter(e => e.position === Position.TWO);
+		const positionThreeEditors = editors.filter(e => e.position === Position.THREE);
+
+		const groupOne = this.stacks.groupAt(Position.ONE);
+		const groupTwo = this.stacks.groupAt(Position.TWO);
+		const groupThree = this.stacks.groupAt(Position.THREE);
+
+		// Compute the imaginary count if we const all editors open as the way requested
+		const oneCount = positionOneEditors.length + (groupOne ? groupOne.count : 0);
+		const twoCount = positionTwoEditors.length + (groupTwo ? groupTwo.count : 0);
+		const threeCount = positionThreeEditors.length + (groupThree ? groupThree.count : 0);
+
+		// Validate we do not produce empty groups given our imaginary count model
+		if ((!oneCount && (twoCount || threeCount) || (!twoCount && threeCount))) {
+			positionOneEditors.push(...positionTwoEditors);
+			positionOneEditors.push(...positionThreeEditors);
+			positionTwoEditors.splice(0, positionTwoEditors.length);
+			positionThreeEditors.splice(0, positionThreeEditors.length);
+		}
+
+		// Validate active input
+		if (typeof activePosition !== 'number') {
+			activePosition = Position.ONE;
+		}
+
+		// Validate ratios
+		const positions = positionThreeEditors.length ? 3 : positionTwoEditors.length ? 2 : 1;
+		if (!ratio || ratio.length !== positions) {
+			if (!this.getVisibleEditors().length) {
+				ratio = (positions === 3) ? [0.33, 0.33, 0.34] : (positions === 2) ? [0.5, 0.5] : [1];
+			} else {
+				ratio = void 0;
+			}
+		}
+
+		let focusGroup = false;
+		const activeGroup = this.stacks.groupAt(activePosition);
+		if (!this.stacks.activeGroup || !activeGroup) {
+			focusGroup = true; // always focus group if this is the first group or we are about to open a new group
+		} else {
+			focusGroup = editors.some(e => !e.options || (!e.options.inactive && !e.options.preserveFocus)); // only focus if the editors to open are not opening as inactive or preserveFocus
+		}
+
+		// Open each input respecting the options. Since there can only be one active editor in each
+		// position, we have to pick the first input from each position and add the others as inactive
+		const promises: TPromise<IEditor>[] = [];
+		[positionOneEditors.shift(), positionTwoEditors.shift(), positionThreeEditors.shift()].forEach((editor, position) => {
+			if (!editor) {
+				return; // unused position
+			}
+
+			const input = editor.input;
+
+			// Resolve editor options
+			const preserveFocus = (activePosition !== position && ratio && ratio.length > 0); // during restore, preserve focus to reduce flicker
+			let options: EditorOptions;
+			if (editor.options) {
+				options = editor.options;
+				if (typeof options.preserveFocus !== 'boolean') {
+					options.preserveFocus = preserveFocus;
+				}
+			} else {
+				options = EditorOptions.create({ preserveFocus });
+			}
+
+			promises.push(this.openEditor(input, options, position, ratio));
+		});
+
+		return TPromise.join(promises).then(editors => {
+
+			// Adjust focus as needed
+			if (focusGroup) {
+				this.focusGroup(activePosition);
+			}
+
+			// Update stacks model for remaining inactive editors
+			[positionOneEditors, positionTwoEditors, positionThreeEditors].forEach((editors, index) => {
+				const group = this.stacks.groupAt(index);
+				if (group) {
+
+					// Make sure we are keeping the order as the editors are passed to us. We have to set
+					// an explicit index because otherwise we would put editors in the wrong order
+					// (see https://github.com/Microsoft/vscode/issues/30364)
+					const startingIndex = group.indexOf(group.activeEditor) + 1;
+					editors.forEach((editor, offset) => group.openEditor(editor.input, { pinned: true, index: (startingIndex + offset) }));
+				}
+			});
+
+			// Full layout side by side
+			this.editorGroupsControl.layout(this.dimension);
+
+			return editors;
+		});
 	}
 
 	public moveGroup(from: EditorGroup, to: EditorGroup): void;
@@ -1184,6 +1167,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		return editor;
 	}
 
+	public arrangeGroups(arrangement: GroupArrangement): void {
+		this.editorGroupsControl.arrangeGroups(arrangement);
+	}
+
 	private doSetInput(group: EditorGroup, editor: BaseEditor, input: EditorInput, options: EditorOptions, monitor: ProgressMonitor): TPromise<BaseEditor> {
 
 		// Emit Input-Changed Event as appropiate
@@ -1461,8 +1448,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		} else {
 			removeClass(content, 'multiple-groups');
 		}
-
-		content.style.backgroundColor = groupCount > 0 ? this.getColor(EDITOR_GROUP_BACKGROUND) : null;
 	}
 
 	public activateGroup(group: EditorGroup): void;

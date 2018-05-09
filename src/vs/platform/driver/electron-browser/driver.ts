@@ -219,7 +219,7 @@ export async function registerWindowDriver(
 	const options = await windowDriverRegistry.registerWindowDriver(windowId);
 
 	if (options.verbose) {
-		windowDriver.openDevTools();
+		// windowDriver.openDevTools();
 	}
 
 	const disposable = toDisposable(() => windowDriverRegistry.reloadWindowDriver(windowId));

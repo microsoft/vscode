@@ -249,7 +249,7 @@ export default class LanguageProvider {
 		}
 
 		if (this.client.apiVersion.has280Features()) {
-			const organizeImportsProvider = new (await import('./features/organizeImports')).OrganizeImportsCodeActionProvider(this.client, this.commandManager);
+			const organizeImportsProvider = new (await import('./features/organizeImports')).OrganizeImportsCodeActionProvider(this.client, this.commandManager, this.fileConfigurationManager);
 			this.versionDependentDisposables.push(languages.registerCodeActionsProvider(selector, organizeImportsProvider, organizeImportsProvider.metadata));
 		}
 	}

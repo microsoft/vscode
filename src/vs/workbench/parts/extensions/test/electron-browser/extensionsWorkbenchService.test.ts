@@ -128,7 +128,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 			assert.equal(null, actual.type);
 			assert.equal('expectedName', actual.name);
 			assert.equal('expectedDisplayName', actual.displayName);
-			assert.equal('expectedPublisher.expectedname', actual.id);
+			assert.equal('expectedpublisher.expectedname', actual.id);
 			assert.equal('expectedPublisher', actual.publisher);
 			assert.equal('expectedPublisherDisplayName', actual.publisherDisplayName);
 			assert.equal('1.5', actual.version);
@@ -186,7 +186,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 		assert.equal(LocalExtensionType.User, actual.type);
 		assert.equal('local1', actual.name);
 		assert.equal('localDisplayName1', actual.displayName);
-		assert.equal('localPublisher1.local1', actual.id);
+		assert.equal('localpublisher1.local1', actual.id);
 		assert.equal('localPublisher1', actual.publisher);
 		assert.equal('1.1.0', actual.version);
 		assert.equal('1.1.0', actual.latestVersion);
@@ -205,7 +205,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 		assert.equal(LocalExtensionType.System, actual.type);
 		assert.equal('local2', actual.name);
 		assert.equal('localDisplayName2', actual.displayName);
-		assert.equal('localPublisher2.local2', actual.id);
+		assert.equal('localpublisher2.local2', actual.id);
 		assert.equal('localPublisher2', actual.publisher);
 		assert.equal('1.2.0', actual.version);
 		assert.equal('1.2.0', actual.latestVersion);
@@ -278,7 +278,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 			assert.equal(LocalExtensionType.User, actual.type);
 			assert.equal('local1', actual.name);
 			assert.equal('expectedDisplayName', actual.displayName);
-			assert.equal('localPublisher1.local1', actual.id);
+			assert.equal('localpublisher1.local1', actual.id);
 			assert.equal('localPublisher1', actual.publisher);
 			assert.equal('1.1.0', actual.version);
 			assert.equal('1.5.0', actual.latestVersion);
@@ -297,7 +297,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 			assert.equal(LocalExtensionType.System, actual.type);
 			assert.equal('local2', actual.name);
 			assert.equal('localDisplayName2', actual.displayName);
-			assert.equal('localPublisher2.local2', actual.id);
+			assert.equal('localpublisher2.local2', actual.id);
 			assert.equal('localPublisher2', actual.publisher);
 			assert.equal('1.2.0', actual.version);
 			assert.equal('1.2.0', actual.latestVersion);

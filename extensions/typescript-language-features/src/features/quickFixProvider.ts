@@ -33,7 +33,10 @@ class ApplyCodeActionCommand implements Command {
 		if (action.fixName) {
 			/* __GDPR__
 				"quickFix.execute" : {
-					"fixName" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+					"fixName" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+					"${include}": [
+						"${TypeScriptCommonProperties}"
+					]
 				}
 			*/
 			this.telemetryReporter.logTelemetry('quickFix.execute', {
@@ -64,8 +67,11 @@ class ApplyFixAllCodeAction implements Command {
 
 		if (tsAction.fixName) {
 			/* __GDPR__
-				"quickFix.execute" : {
-					"fixName" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+				"quickFixAll.execute" : {
+					"fixName" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+					"${include}": [
+						"${TypeScriptCommonProperties}"
+					]
 				}
 			*/
 			this.telemetryReporter.logTelemetry('quickFixAll.execute', {

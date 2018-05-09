@@ -30,7 +30,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
-import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ICssStyleCollector, ITheme } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
@@ -38,6 +38,7 @@ import { IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel } fr
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IPreferencesSearchService, ISearchProvider } from '../common/preferences';
+import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 
 const SETTINGS_ENTRY_TEMPLATE_ID = 'settings.entry.template';
 const SETTINGS_GROUP_ENTRY_TEMPLATE_ID = 'settings.group.template';
@@ -75,17 +76,10 @@ enum SearchResultIdx {
 
 const $ = DOM.$;
 
-
-export const configuredItemBackground = registerColor('settings.configuredItemBackground', {
-	dark: '#0d466c',
-	light: '#c5e6ff',
-	hc: '#0d466c'
-}, localize('configuredItemBackground', "The background color for a configured setting."));
-
 export const configuredItemForeground = registerColor('settings.configuredItemForeground', {
-	dark: '#dddddd',
-	light: '#6c6c6c',
-	hc: '#dddddd'
+	light: '#a76e12',
+	dark: '#E2C08D',
+	hc: '#E2C08D'
 }, localize('configuredItemForeground', "The foreground color for a configured setting."));
 
 export class SettingsEditor2 extends BaseEditor {
@@ -211,12 +205,17 @@ export class SettingsEditor2 extends BaseEditor {
 		this.showConfiguredSettingsOnlyCheckbox = DOM.append(headerControlsContainerRight, $('input#configured-only-checkbox'));
 		this.showConfiguredSettingsOnlyCheckbox.type = 'checkbox';
 		const showConfiguredSettingsOnlyLabel = <HTMLLabelElement>DOM.append(headerControlsContainerRight, $('label.configured-only-label'));
-		showConfiguredSettingsOnlyLabel.textContent = localize('showOverriddenOnly', "Show overridden only");
+		showConfiguredSettingsOnlyLabel.textContent = localize('showOverriddenOnly', "Show configured only");
 		showConfiguredSettingsOnlyLabel.htmlFor = 'configured-only-checkbox';
 
 		this._register(DOM.addDisposableListener(this.showConfiguredSettingsOnlyCheckbox, 'change', e => this.onShowConfiguredOnlyClicked()));
 
 		const openSettingsButton = this._register(new Button(headerControlsContainerRight, { title: true, buttonBackground: null, buttonHoverBackground: null }));
+		this._register(attachButtonStyler(openSettingsButton, this.themeService, {
+			buttonBackground: Color.transparent.toString(),
+			buttonHoverBackground: Color.transparent.toString(),
+			buttonForeground: 'foreground'
+		}));
 		openSettingsButton.label = localize('openSettingsLabel', "Open settings.json");
 		openSettingsButton.element.classList.add('open-settings-button');
 
@@ -526,7 +525,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private getEntriesFromModel(): IListEntry[] {
 		const entries: IListEntry[] = [];
 		for (let groupIdx = 0; groupIdx < this.defaultSettingsEditorModel.settingsGroups.length; groupIdx++) {
-			if (groupIdx > 0 && !(this.showAllSettings)) {
+			if (groupIdx > 0 && !this.showAllSettings && !this.showConfiguredSettingsOnly) {
 				break;
 			}
 
@@ -551,7 +550,7 @@ export class SettingsEditor2 extends BaseEditor {
 				entries.push(...groupEntries);
 			}
 
-			if (groupIdx === 0) {
+			if (groupIdx === 0 && !this.showConfiguredSettingsOnly) {
 				const showAllSettingsLabel = this.showAllSettings ?
 					localize('showFewerSettingsLabel', "Show Fewer Settings") :
 					localize('showAllSettingsLabel', "Show All Settings");
@@ -629,6 +628,7 @@ interface ISettingItemTemplate {
 	toDispose: IDisposable[];
 
 	containerElement: HTMLElement;
+	categoryElement: HTMLElement;
 	labelElement: HTMLElement;
 	descriptionElement: HTMLElement;
 	valueElement: HTMLElement;
@@ -676,6 +676,9 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 		const rightElement = DOM.append(itemContainer, $('.setting-item-right'));
 
 		const titleElement = DOM.append(leftElement, $('.setting-item-title'));
+		const isConfiguredIndicatorElement = DOM.append(titleElement, $('span.setting-item-is-configured-indicator'));
+		new OcticonLabel(isConfiguredIndicatorElement).text = '$(primitive-dot)';
+		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
 		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
 		const overridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
 		const descriptionElement = DOM.append(leftElement, $('.setting-item-description'));
@@ -687,6 +690,7 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 			toDispose: [],
 
 			containerElement: itemContainer,
+			categoryElement,
 			labelElement,
 			descriptionElement,
 			valueElement,
@@ -697,7 +701,11 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 	renderElement(entry: ISettingItemEntry, index: number, template: ISettingItemTemplate): void {
 		DOM.toggleClass(template.parent, 'odd', index % 2 === 1);
 
-		template.labelElement.textContent = settingKeyToLabel(entry.key);
+		const settingKeyDisplay = settingKeyToDisplayFormat(entry.key);
+		template.categoryElement.textContent = settingKeyDisplay.category + ': ';
+		template.categoryElement.title = entry.key;
+
+		template.labelElement.textContent = settingKeyDisplay.label;
 		template.labelElement.title = entry.key;
 		template.descriptionElement.textContent = entry.description;
 
@@ -748,10 +756,7 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 		const idx = entry.enum.indexOf(entry.value);
 		const selectBox = new SelectBox(entry.enum, idx, this.contextViewService);
 		template.toDispose.push(selectBox);
-		template.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService, {
-			selectBackground: entry.isConfigured ? configuredItemBackground : undefined,
-			selectForeground: entry.isConfigured ? configuredItemForeground : undefined
-		}));
+		template.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService));
 		selectBox.render(template.valueElement);
 
 		template.toDispose.push(
@@ -760,10 +765,7 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 
 	private renderText(entry: ISettingItemEntry, template: ISettingItemTemplate, onChange: (value: string) => void): void {
 		const inputBox = new InputBox(template.valueElement, this.contextViewService);
-		template.toDispose.push(attachInputBoxStyler(inputBox, this.themeService, {
-			inputBackground: entry.isConfigured ? configuredItemBackground : undefined,
-			inputForeground: entry.isConfigured ? configuredItemForeground : undefined
-		}));
+		template.toDispose.push(attachInputBoxStyler(inputBox, this.themeService));
 		template.toDispose.push(inputBox);
 		inputBox.value = entry.value;
 
@@ -777,12 +779,24 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 		openSettingsButton.label = localize('editInSettingsJson', "Edit in settings.json");
 		openSettingsButton.element.classList.add('edit-in-settings-button');
 		template.toDispose.push(openSettingsButton);
+		template.toDispose.push(attachButtonStyler(openSettingsButton, this.themeService, {
+			buttonBackground: Color.transparent.toString(),
+			buttonHoverBackground: Color.transparent.toString(),
+			buttonForeground: 'foreground'
+		}));
 	}
 
 	disposeTemplate(template: ISettingItemTemplate): void {
 		dispose(template.toDispose);
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	const configuredItemForegroundColor = theme.getColor(configuredItemForeground);
+	if (configuredItemForegroundColor) {
+		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .monaco-list-row.is-configured .setting-item-title { color: ${configuredItemForegroundColor}; }`);
+	}
+});
 
 class GroupTitleRenderer implements IRenderer<IGroupTitleEntry, IGroupTitleTemplate> {
 
@@ -842,25 +856,21 @@ class ButtonRowRenderer implements IRenderer<IButtonRowEntry, IButtonRowTemplate
 	}
 }
 
-function settingKeyToLabel(key: string): string {
-	const lastDotIdx = key.lastIndexOf('.');
-	if (lastDotIdx >= 0) {
-		key = key.substr(0, lastDotIdx) + ': ' + key.substr(lastDotIdx + 1);
-	}
-
-	return key
-		.replace(/\.([a-z])/, (match, p1) => `.${p1.toUpperCase()}`)
+export function settingKeyToDisplayFormat(key: string): { category: string, label: string } {
+	let label = key
+		.replace(/\.([a-z])/g, (match, p1) => `.${p1.toUpperCase()}`)
 		.replace(/([a-z])([A-Z])/g, '$1 $2') // fooBar => foo Bar
-		.replace(/^[a-z]/g, match => match.toUpperCase()) // foo => Foo
-		.replace(/ [a-z]/g, match => match.toUpperCase()); // Foo bar => Foo Bar
-}
+		.replace(/^[a-z]/g, match => match.toUpperCase()); // foo => Foo
 
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-	const configuredItemBackgroundColor = theme.getColor(configuredItemBackground);
-	if (configuredItemBackgroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .monaco-list-row.is-configured .setting-value-checkbox::after { background-color: ${configuredItemBackgroundColor}; }`);
+	const lastDotIdx = label.lastIndexOf('.');
+	let category = '';
+	if (lastDotIdx >= 0) {
+		category = label.substr(0, lastDotIdx);
+		label = label.substr(lastDotIdx + 1);
 	}
-});
+
+	return { category, label };
+}
 
 class SearchResultModel {
 	private rawSearchResults: ISearchResult[];

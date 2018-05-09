@@ -11,14 +11,14 @@ import { Part } from 'vs/workbench/browser/part';
 import { Dimension, isAncestor, toggleClass, addClass, clearNode } from 'vs/base/browser/dom';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { INextEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, GroupDirection, IAddGroupOptions, GroupsArrangement } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, ISerializedNode } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER } from 'vs/workbench/common/theme';
 import { distinct } from 'vs/base/common/arrays';
-import { INextEditorGroupsAccessor, INextEditorGroupView, INextEditorPartOptions, getEditorPartOptions, impactsEditorPartOptions, INextEditorPartOptionsChangeEvent } from 'vs/workbench/browser/parts/editor2/editor2';
+import { INextEditorGroupsAccessor, INextEditorGroupView, INextEditorPartOptions, getEditorPartOptions, impactsEditorPartOptions, INextEditorPartOptionsChangeEvent, EDITOR_MAX_DIMENSIONS, EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor2/editor2';
 import { NextEditorGroupView } from 'vs/workbench/browser/parts/editor2/nextEditorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -33,10 +33,6 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { NextEditorDragAndDrop } from './nextEditorDragAndDrop';
-
-// TODO@grid provide DND support of groups/editors:
-// - editor: move/copy to existing group, move/copy to new split group (up, down, left, right)
-// - group: move/copy to existing group (merges?), move/copy to new split group (up, down, left, right)
 
 // TODO@grid enable minimized/maximized groups in one dimension
 
@@ -198,10 +194,54 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		return groupView;
 	}
 
-	addGroup(location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection, copy?: boolean): INextEditorGroupView {
+	resizeGroup(group: INextEditorGroupView | GroupIdentifier, sizeDelta: number): INextEditorGroupView {
+		const groupView = this.assertGroupView(group);
+		const currentSize = this.gridWidget.getViewSize(groupView);
+
+		this.gridWidget.resizeView(groupView, currentSize + sizeDelta);
+
+		return groupView;
+	}
+
+	arrangeGroups(arrangement: GroupsArrangement): void {
+		if (this.count < 2) {
+			return; // require at least 2 groups to show
+		}
+
+		// Even all group sizes
+		if (arrangement === GroupsArrangement.EVEN) {
+			this.groups.forEach(group => {
+				this.gridWidget.resetViewSize(group);
+			});
+		}
+
+		// Maximize the current active group
+		else {
+			this.groups.forEach(group => {
+				const orientation = this.gridWidget.getOrientation(group);
+
+				let newSize: number;
+				if (this.activeGroup === group) {
+					newSize = orientation === Orientation.HORIZONTAL ? EDITOR_MAX_DIMENSIONS.width : EDITOR_MAX_DIMENSIONS.height;
+				} else {
+					newSize = orientation === Orientation.HORIZONTAL ? EDITOR_MIN_DIMENSIONS.width : EDITOR_MIN_DIMENSIONS.height;
+				}
+
+				this.gridWidget.resizeView(group, newSize);
+			});
+		}
+	}
+
+	addGroup(location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): INextEditorGroupView {
 		const locationView = this.assertGroupView(location);
 
-		return this.doAddGroup(locationView, direction, copy ? locationView : void 0);
+		const group = this.doAddGroup(locationView, direction, options && options.copyGroup ? locationView : void 0);
+
+		if (options && options.activate) {
+			this.doSetGroupActive(group);
+		}
+
+		return group;
 	}
 
 	private doAddGroup(locationView: INextEditorGroupView, direction: GroupDirection, groupToCopy?: INextEditorGroupView): INextEditorGroupView {

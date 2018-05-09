@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Code } from '../../vscode/code';
-import { Commands } from '../workbench/workbench';
 
 const PANEL_SELECTOR = 'div[id="workbench.panel.terminal"]';
 const XTERM_SELECTOR = `${PANEL_SELECTOR} .terminal-wrapper`;
@@ -12,10 +11,10 @@ const XTERM_TEXTAREA = `${XTERM_SELECTOR} textarea.xterm-helper-textarea`;
 
 export class Terminal {
 
-	constructor(private code: Code, private commands: Commands) { }
+	constructor(private code: Code) { }
 
 	async showTerminal(): Promise<void> {
-		await this.commands.runCommand('workbench.action.terminal.toggleTerminal');
+		await this.code.dispatchKeybinding('ctrl+`');
 		await this.code.waitForActiveElement(XTERM_TEXTAREA);
 		await this.code.waitForTerminalBuffer(XTERM_SELECTOR, lines => lines.some(line => line.length > 0));
 	}

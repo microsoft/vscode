@@ -22,6 +22,17 @@ export interface IEditorService {
 	openEditor(input: IResourceInput, sideBySide?: boolean): TPromise<IEditor>;
 }
 
+export interface IEditorInputWithOptions {
+	editor: IEditorInput;
+	options?: IEditorOptions;
+}
+
+export function isEditorInputWithOptions(obj: any): obj is IEditorInputWithOptions {
+	const editorInputWithOptions = obj as IEditorInputWithOptions;
+
+	return !!editorInputWithOptions && !!editorInputWithOptions.editor;
+}
+
 export interface IEditorModel {
 
 	onDispose: Event<void>;
