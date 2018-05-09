@@ -25,10 +25,10 @@ import { IAdapterExecutable, ITerminalSettings, IDebuggerContribution, IConfig, 
 import { getTerminalLauncher } from 'vs/workbench/parts/debug/node/terminals';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { VariableResolver } from 'vs/workbench/services/configurationResolver/node/variableResolver';
-import { IConfigurationResolverService } from '../../services/configurationResolver/common/configurationResolver';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { ExtHostConfiguration } from './extHostConfiguration';
 import { convertToVSCPaths, convertToDAPaths } from 'vs/workbench/parts/debug/common/debugUtils';
+import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 
 export class ExtHostDebugService implements ExtHostDebugServiceShape {

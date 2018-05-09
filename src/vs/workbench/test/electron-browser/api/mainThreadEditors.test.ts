@@ -27,7 +27,7 @@ import { TestFileService } from 'vs/workbench/test/workbenchTestServices';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IFileStat } from 'vs/platform/files/common/files';
 import { ResourceTextEdit } from 'vs/editor/common/modes';
-import { BulkEditService } from '../../../services/bulkEdit/electron-browser/bulkEditService';
+import { BulkEditService } from 'vs/workbench/services/bulkEdit/electron-browser/bulkEditService';
 
 suite('MainThreadEditors', () => {
 
