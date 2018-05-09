@@ -185,6 +185,9 @@ export class NotificationsToasts extends Themable {
 			let timeoutHandle: number;
 			const hideAfterTimeout = () => {
 				timeoutHandle = setTimeout(() => {
+					if (item.progress.state.infinite) {
+						return;
+					}
 					if (!notificationList.hasFocus() && !item.expanded && !isMouseOverToast) {
 						this.removeToast(item);
 					} else {
