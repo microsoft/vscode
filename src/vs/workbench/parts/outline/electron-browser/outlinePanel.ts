@@ -32,6 +32,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { OutlineItem, OutlineItemGroup, getOutline } from './outlineModel';
 import { OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer } from './outlineTree';
+import { KeyCode } from '../../../../base/common/keyCodes';
 
 class ActiveEditorOracle {
 
@@ -125,6 +126,11 @@ export class OutlinePanel extends ViewsViewletPanel {
 		this._input = new InputBox(inputContainer, null, { placeholder: localize('filter', "Filter") });
 		this._input.disable();
 		this.disposables.push(attachInputBoxStyler(this._input, this._themeService));
+		this.disposables.push(dom.addStandardDisposableListener(this._input.inputElement, 'keyup', event => {
+			if (event.keyCode === KeyCode.DownArrow) {
+				this._tree.domFocus();
+			}
+		}));
 
 		const dataSource = new OutlineDataSource();
 		const renderer = new OutlineRenderer();
