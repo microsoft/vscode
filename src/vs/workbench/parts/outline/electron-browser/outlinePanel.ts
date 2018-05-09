@@ -112,7 +112,8 @@ export class OutlinePanel extends ViewsViewletPanel {
 	private _treeComparator: OutlineItemComparator;
 	private _treeStates = new LRUCache<string, OutlineTreeState>(10);
 
-	private _followCursor = true;
+	// todo@joh have memento object
+	private _followCursor = false;
 
 	constructor(
 		options: IViewOptions,
@@ -180,7 +181,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 			new SimpleToggleAction(localize('sortByKind', "Sort By: Type"), false, _ => this._onSortTypeChanged(OutlineItemCompareType.ByKind)),
 		]);
 		let result = [
-			new SimpleToggleAction(localize('live', "Follow Cursor"), true, action => this._followCursor = action.checked),
+			new SimpleToggleAction(localize('live', "Follow Cursor"), false, action => this._followCursor = action.checked),
 			new Separator(),
 			...group.actions,
 		];
@@ -286,7 +287,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 				column: e.selection.selectionStartColumn
 			});
 			if (item) {
-				await this._tree.reveal(item);
+				await this._tree.reveal(item, .5);
 				this._tree.setFocus(item, this);
 				this._tree.setSelection([item], this);
 			} else {
