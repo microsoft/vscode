@@ -11,6 +11,7 @@ import { Action, IAction, RadioGroup } from 'vs/base/common/actions';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import 'vs/css!./outlinePanel';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
@@ -30,12 +31,13 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { OutlineItem, getOutline, OutlineModel, OutlineItemGroup } from './outlineModel';
-import { OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState, OutlineController } from './outlineTree';
+import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent';
 import { KeyCode } from '../../../../base/common/keyCodes';
 import { LRUCache } from '../../../../base/common/map';
 import { escape } from '../../../../base/common/strings';
 import LanguageFeatureRegistry from '../../../../editor/common/modes/languageFeatureRegistry';
+import { OutlineItem, OutlineItemGroup, OutlineModel, getOutline } from './outlineModel';
+import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from './outlineTree';
 
 class RequestOracle {
 
@@ -144,16 +146,33 @@ export class OutlinePanel extends ViewsViewletPanel {
 
 		this._input = new InputBox(inputContainer, null, { placeholder: localize('filter', "Filter") });
 		this._input.disable();
+
 		this.disposables.push(attachInputBoxStyler(this._input, this._themeService));
 		this.disposables.push(dom.addStandardDisposableListener(this._input.inputElement, 'keyup', event => {
+			// todo@joh make those keybindings configurable?
 			if (event.keyCode === KeyCode.DownArrow) {
+				this._tree.domFocus();
+			} else if (event.keyCode === KeyCode.Escape) {
+				this._input.value = '';
 				this._tree.domFocus();
 			}
 		}));
 
+		const $this = this;
+		const controller = new class extends OutlineController {
+			onKeyDown(tree: ITree, event: IKeyboardEvent) {
+				let handled = super.onKeyDown(tree, event);
+				if (!handled && event.keyCode >= KeyCode.KEY_0 && event.keyCode <= KeyCode.KEY_Z) {
+					// crazy -> during keydown focus moves to the input box
+					// and because of that the keyup event is handled by the
+					// input field
+					$this._input.focus();
+				}
+				return handled;
+			}
+		};
 		const dataSource = new OutlineDataSource();
 		const renderer = new OutlineRenderer();
-		const controller = new OutlineController();
 		this._treeComparator = new OutlineItemComparator();
 		this._treeFilter = new OutlineItemFilter();
 		this._tree = this._instantiationService.createInstance(WorkbenchTree, treeContainer, { controller, dataSource, renderer, sorter: this._treeComparator, filter: this._treeFilter }, {});

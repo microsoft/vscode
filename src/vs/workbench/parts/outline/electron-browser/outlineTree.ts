@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/css!./media/symbol-icons';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
-import { symbolKindToCssClass } from 'vs/editor/common/modes';
-import { Range } from 'vs/editor/common/core/range';
-import { IDataSource, IRenderer, ITree, ISorter, IFilter } from 'vs/base/parts/tree/browser/tree';
-import { OutlineItem, OutlineModel } from './outlineModel';
-import { HighlightedLabel } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel';
-import { createMatches } from '../../../../base/common/filters';
-import { values } from 'vs/base/common/map';
-import { DefaultController, ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { values } from 'vs/base/common/map';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IDataSource, IFilter, IRenderer, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
+import { DefaultController, ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
+import 'vs/css!./media/symbol-icons';
+import { Range } from 'vs/editor/common/core/range';
+import { symbolKindToCssClass } from 'vs/editor/common/modes';
+import { HighlightedLabel } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel';
+import { createMatches } from '../../../../base/common/filters';
+import { OutlineItem, OutlineModel } from './outlineModel';
 
 export enum OutlineItemCompareType {
 	ByPosition,
