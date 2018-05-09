@@ -104,7 +104,7 @@ export function renderVariable(variable: Variable, data: IVariableTemplateData, 
 	}
 
 	if (variable.value) {
-		data.name.textContent += variable.name ? ':' : '';
+		data.name.textContent += (typeof variable.name === 'string') ? ':' : '';
 		renderExpressionValue(variable, data.value, {
 			showChanged,
 			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
