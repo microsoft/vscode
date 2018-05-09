@@ -354,9 +354,11 @@ class PlaceHolderViewletActivityAction extends ViewletActivityAction {
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super({ id, name: id, cssClass: `extensionViewlet-placeholder-${id.replace(/\./g, '-')}` }, viewletService, partService, telemetryService);
-		// Generate Placeholder CSS to show the icon in the activity bar
-		const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${this.class}`;
-		createCSSRule(iconClass, `-webkit-mask: url('${iconUrl}') no-repeat 50% 50%`);
+		if (iconUrl) {
+			// Generate Placeholder CSS to show the icon in the activity bar
+			const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${this.class}`;
+			createCSSRule(iconClass, `-webkit-mask: url('${iconUrl}') no-repeat 50% 50%`);
+		}
 		this.enabled = false;
 	}
 
