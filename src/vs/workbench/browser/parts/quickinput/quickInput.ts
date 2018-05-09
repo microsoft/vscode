@@ -646,7 +646,6 @@ export class QuickInputService extends Component implements IQuickInputService {
 		const theme = this.themeService.getTheme();
 		if (this.ui) {
 			this.ui.inputBox.style(theme);
-			this.ui.checkboxList.style(theme);
 		}
 		if (this.container) {
 			const sideBarBackground = theme.getColor(SIDE_BAR_BACKGROUND);

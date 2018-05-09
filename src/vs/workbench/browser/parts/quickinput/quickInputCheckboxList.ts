@@ -25,7 +25,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { range } from 'vs/base/common/arrays';
 import * as platform from 'vs/base/common/platform';
 import { listFocusBackground } from 'vs/platform/theme/common/colorRegistry';
-import { ITheme } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 const $ = dom.$;
 
@@ -381,12 +381,6 @@ export class QuickInputCheckboxList {
 		}
 	}
 
-	style(theme: ITheme) {
-		this.list.style({
-			listInactiveFocusBackground: theme.getColor(listFocusBackground),
-		});
-	}
-
 	display(display: boolean) {
 		this.container.style.display = display ? '' : 'none';
 	}
@@ -422,3 +416,12 @@ function compareEntries(elementA: CheckableElement, elementB: CheckableElement, 
 
 	return compareAnything(elementA.item.label, elementB.item.label, lookFor);
 }
+
+registerThemingParticipant((theme, collector) => {
+	// Override inactive focus background with active focus background for single-pick case.
+	const listInactiveFocusBackground = theme.getColor(listFocusBackground);
+	if (listInactiveFocusBackground) {
+		collector.addRule(`.quick-input-checkbox-list .monaco-list .monaco-list-row.focused { background-color:  ${listInactiveFocusBackground}; }`);
+		collector.addRule(`.quick-input-checkbox-list .monaco-list .monaco-list-row.focused:hover { background-color:  ${listInactiveFocusBackground}; }`);
+	}
+});
