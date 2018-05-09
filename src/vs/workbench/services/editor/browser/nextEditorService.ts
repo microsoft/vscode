@@ -7,7 +7,7 @@
 
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInput, IResourceInput, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditor, ITextEditorOptions, IEditorOptions, IEditorInputWithOptions, isEditorInputWithOptions } from 'vs/platform/editor/common/editor';
-import { GroupIdentifier, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, EditorOptions, TextEditorOptions, IEditorOpeningEvent } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, EditorOptions, TextEditorOptions, IEditorOpeningEvent, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -30,6 +30,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
 import { isCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { INextEditorPartOptions, getEditorPartOptions } from 'vs/workbench/browser/parts/editor2/editor2';
 
 type ICachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
 
@@ -62,6 +63,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 
 	private lastActiveEditor: IEditorInput;
 	private lastActiveGroup: INextEditorGroup;
+	private workbenchEditorOptions: INextEditorPartOptions;
 
 	constructor(
 		@INextEditorGroupsService private nextEditorGroupsService: INextEditorGroupsService,
@@ -73,7 +75,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
-
+		this.workbenchEditorOptions = getEditorPartOptions(this.configurationService.getValue<IWorkbenchEditorConfiguration>());
 		this.fileInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getFileInputFactory();
 
 		// Listen to changes for each initial group we already have
@@ -250,7 +252,14 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	}
 
 	private createSideBySideGroup(): INextEditorGroup {
-		return this.nextEditorGroupsService.addGroup(this.nextEditorGroupsService.activeGroup, GroupDirection.RIGHT);
+		let groupDirection: GroupDirection = GroupDirection.RIGHT;
+		switch (this.workbenchEditorOptions.openToTheSideDirection) {
+			case 'left': groupDirection = GroupDirection.LEFT; break;
+			case 'right': groupDirection = GroupDirection.RIGHT; break;
+			case 'up': groupDirection = GroupDirection.UP; break;
+			case 'down': groupDirection = GroupDirection.DOWN; break;
+		}
+		return this.nextEditorGroupsService.addGroup(this.nextEditorGroupsService.activeGroup, groupDirection);
 	}
 
 	private toOptions(options?: IEditorOptions | EditorOptions): EditorOptions {
