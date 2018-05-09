@@ -197,7 +197,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 				this._tree.setInput(first);
 			}
 
-			this._editorDisposables.push(editor.onDidChangeCursorSelection(e => {
+			this._editorDisposables.push(editor.onDidChangeCursorSelection(async e => {
 				if (!this._followCursor || e.reason !== CursorChangeReason.Explicit) {
 					return;
 				}
@@ -215,10 +215,14 @@ export class OutlinePanel extends ViewsViewletPanel {
 
 			this._input.enable();
 
-			this._editorDisposables.push(this._input.onDidChange(query => {
-				//todo@joh `updateFilter` should return the best match and it should be focused already
-				model.updateFilter(query);
-				this._tree.refresh(undefined, true);
+			this._editorDisposables.push(this._input.onDidChange(async query => {
+				let item = model.updateMatches(query);
+				await this._tree.refresh(undefined, true);
+				if (item) {
+					await this._tree.reveal(item);
+					this._tree.setFocus(item, this);
+					this._tree.setSelection([item], this);
+				}
 			}));
 
 			this._editorDisposables.push(this._tree.onDidChangeSelection(e => {

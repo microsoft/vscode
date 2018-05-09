@@ -56,16 +56,6 @@ export class OutlineItem {
 	) {
 		//
 	}
-
-	updateFilter(pattern: string): void {
-		this.matches = fuzzyScore(pattern, this.symbol.name);
-		for (const child of this.children) {
-			child.updateFilter(pattern);
-			if (!this.matches && child.matches) {
-				this.matches = [0, []];
-			}
-		}
-	}
 }
 
 export class OutlineItemGroup {
@@ -77,10 +67,35 @@ export class OutlineItemGroup {
 		//
 	}
 
-	updateFilter(pattern: string): void {
-		for (const outline of this.children) {
-			outline.updateFilter(pattern);
+	updateMatches(pattern: string): OutlineItem {
+		let topMatch: OutlineItem;
+		for (const child of this.children) {
+			let candidate = this._updateMatches(pattern, child);
+			if (candidate && (!topMatch || topMatch.matches[0] < candidate.matches[0])) {
+				topMatch = candidate;
+			}
 		}
+		return topMatch;
+	}
+
+	private _updateMatches(pattern: string, item: OutlineItem): OutlineItem {
+		let topMatch: OutlineItem;
+		item.matches = fuzzyScore(pattern, item.symbol.name);
+		if (item.matches) {
+			topMatch = item;
+		}
+		for (const child of item.children) {
+			let candidate = this._updateMatches(pattern, child);
+
+			if (!item.matches && child.matches) {
+				// don't filter parents with unfiltered children
+				item.matches = [0, []];
+			}
+			if (!topMatch || (candidate && candidate.matches && topMatch.matches[0] < candidate.matches[0])) {
+				topMatch = candidate;
+			}
+		}
+		return topMatch;
 	}
 
 	getItemEnclosingPosition(position: IPosition): OutlineItem {
@@ -93,7 +108,7 @@ export class OutlineItemGroup {
 		return undefined;
 	}
 
-	_getItemEnclosingPosition(position: IPosition, item: OutlineItem): OutlineItem {
+	private _getItemEnclosingPosition(position: IPosition, item: OutlineItem): OutlineItem {
 		if (!Range.containsPosition(item.symbol.definingRange, position)) {
 			return undefined;
 		}
