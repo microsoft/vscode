@@ -74,7 +74,6 @@ export class ActivitybarPart extends Part {
 
 		this.globalActivityIdToActions = Object.create(null);
 
-		this.placeholderComposites = JSON.parse(this.storageService.get(ActivitybarPart.PLACEHOLDER_VIEWLETS, StorageScope.GLOBAL, '[]'));
 		this.compositeActions = Object.create(null);
 		this.compositeBar = this.instantiationService.createInstance(CompositeBar, {
 			icon: true,
@@ -91,6 +90,8 @@ export class ActivitybarPart extends Part {
 			colors: ActivitybarPart.COLORS,
 			overflowActionSize: ActivitybarPart.ACTION_HEIGHT
 		});
+		const previousState = this.storageService.get(ActivitybarPart.PLACEHOLDER_VIEWLETS, StorageScope.GLOBAL, void 0);
+		this.placeholderComposites = previousState ? JSON.parse(previousState) : this.compositeBar.getCompositesFromStorage().map(id => (<IPlaceholderComposite>{ id, iconUrl: void 0 }));
 
 		this.registerListeners();
 		this.updateCompositebar();

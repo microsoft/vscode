@@ -63,6 +63,10 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		this.compositeSizeInBar = new Map<string, number>();
 	}
 
+	public getCompositesFromStorage(): string[] {
+		return this.storedState.map(s => s.id);
+	}
+
 	public create(parent: HTMLElement): HTMLElement {
 		const actionBarDiv = parent.appendChild($('.composite-bar'));
 		this.compositeSwitcherBar = this._register(new ActionBar(actionBarDiv, {
