@@ -78,7 +78,9 @@ export class NextEditorControl extends Disposable {
 		control.setVisible(true, this.groupId /* TODO@grid use group id instead of position */);
 
 		// Layout
-		control.layout(this.dimension);
+		if (this.dimension) {
+			control.layout(this.dimension);
+		}
 
 		return control;
 	}
@@ -172,7 +174,7 @@ export class NextEditorControl extends Disposable {
 	layout(dimension: Dimension): void {
 		this.dimension = dimension;
 
-		if (this._activeControl) {
+		if (this._activeControl && this.dimension) {
 			this._activeControl.layout(this.dimension);
 		}
 	}

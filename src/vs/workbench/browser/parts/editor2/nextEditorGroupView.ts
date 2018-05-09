@@ -86,7 +86,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	private _group: EditorGroup;
 
 	private active: boolean;
-	private _dimension: Dimension;
+	private dimension: Dimension;
 	private _whenRestored: Thenable<void>;
 
 	private scopedInstantiationService: IInstantiationService;
@@ -441,10 +441,6 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	get group(): EditorGroup {
 		return this._group;
-	}
-
-	get dimension(): Dimension {
-		return this._dimension;
 	}
 
 	get whenRestored(): Thenable<void> {
@@ -927,11 +923,11 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	get onDidChange() { return Event.None; } // only needed if minimum sizes ever change
 
 	layout(width: number, height: number): void {
-		this._dimension = new Dimension(width, height);
+		this.dimension = new Dimension(width, height);
 
 		// Forward to controls
-		this.titleAreaControl.layout(new Dimension(this._dimension.width, EDITOR_TITLE_HEIGHT));
-		this.editorControl.layout(new Dimension(this._dimension.width, this._dimension.height - EDITOR_TITLE_HEIGHT));
+		this.titleAreaControl.layout(new Dimension(this.dimension.width, EDITOR_TITLE_HEIGHT));
+		this.editorControl.layout(new Dimension(this.dimension.width, this.dimension.height - EDITOR_TITLE_HEIGHT));
 	}
 
 	toJSON(): ISerializedEditorGroup {
