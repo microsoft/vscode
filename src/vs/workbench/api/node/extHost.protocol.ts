@@ -46,7 +46,7 @@ import { IStat, FileChangeType, IWatchOptions, FileSystemProviderCapabilities, F
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { CommentRule, CharacterPair, EnterAction } from 'vs/editor/common/modes/languageConfiguration';
 import { ISingleEditOperation } from 'vs/editor/common/model';
-import { ILineMatch, IPatternInfo } from 'vs/platform/search/common/search';
+import { IPatternInfo, IRawSearchQuery, IRawFileMatch } from 'vs/platform/search/common/search';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { TaskExecutionDTO, TaskDTO, TaskHandleDTO, TaskFilterDTO } from 'vs/workbench/api/shared/tasks';
 
@@ -404,7 +404,7 @@ export interface MainThreadFileSystemShape extends IDisposable {
 export interface MainThreadSearchShape extends IDisposable {
 	$registerSearchProvider(handle: number, scheme: string): void;
 	$unregisterProvider(handle: number): void;
-	$handleFindMatch(handle: number, session: number, data: UriComponents | [UriComponents, ILineMatch]): void;
+	$handleFindMatch(handle: number, session: number, data: UriComponents | IRawFileMatch[]): void;
 }
 
 export interface MainThreadTaskShape extends IDisposable {
@@ -596,7 +596,7 @@ export interface ExtHostFileSystemShape {
 
 export interface ExtHostSearchShape {
 	$provideFileSearchResults(handle: number, session: number, query: string): TPromise<void>;
-	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, options: { includes: string[], excludes: string[] }): TPromise<void>;
+	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, query: IRawSearchQuery): TPromise<void>;
 }
 
 export interface ExtHostExtensionServiceShape {
