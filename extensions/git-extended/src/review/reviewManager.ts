@@ -32,7 +32,6 @@ export class ReviewManager implements vscode.DecorationProvider {
 	private _workspaceCommentProvider: vscode.Disposable;
 	private _command: vscode.Disposable;
 	private _prNumber: number;
-	private _resourceGroups: vscode.SourceControlResourceGroup[] = [];
 	private _disposables: vscode.Disposable[];
 
 	private _comments: Comment[] = [];
@@ -86,8 +85,13 @@ export class ReviewManager implements vscode.DecorationProvider {
 	}
 
 	async validateState() {
-		let localInfo = await this._pullRequestService.getPullRequestForCurrentBranch(this._repository);
+		let localInfo;
+		try {
+			localInfo = await this._pullRequestService.getPullRequestForCurrentBranch(this._repository);
+		} catch (e) { }
+
 		if (!localInfo) {
+			this.clear();
 			return;
 		}
 
@@ -436,7 +440,6 @@ export class ReviewManager implements vscode.DecorationProvider {
 
 			if (localBranches.length > 0) {
 				await this._pullRequestService.switchToBranch(this._repository, pr);
-				return;
 			} else {
 				let branchName = await this._pullRequestService.getDefaultLocalBranchName(this._repository, pr.prNumber, pr.title);
 				await this._pullRequestService.checkout(this._repository, pr, branchName);
@@ -450,6 +453,8 @@ export class ReviewManager implements vscode.DecorationProvider {
 	}
 
 	clear() {
+		this._prNumber = null;
+
 		if (this._command) {
 			this._command.dispose();
 		}
@@ -462,9 +467,9 @@ export class ReviewManager implements vscode.DecorationProvider {
 			this._workspaceCommentProvider.dispose();
 		}
 
-		this._resourceGroups.forEach(group => {
-			group.dispose();
-		});
+		if (this._prFileChangesProvider) {
+			this.prFileChangesProvider.hide();
+		}
 	}
 
 	dispose() {
