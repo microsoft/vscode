@@ -185,7 +185,7 @@ export class ReviewManager implements vscode.DecorationProvider {
 		this._onDidChangeDecorations.fire();
 		this.registerCommentProvider();
 
-		this.statusBarItem.text = '$(sync) Pull Request #' + this._prNumber;
+		this.statusBarItem.text = '$(git-branch) Pull Request #' + this._prNumber;
 		this.statusBarItem.show();
 	}
 
