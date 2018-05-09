@@ -120,4 +120,21 @@ export class OutlineItemGroup {
 		}
 		return item;
 	}
+
+	getItemById(id: string): OutlineItem {
+		return this._getItemById(id, this.children);
+	}
+
+	private _getItemById(id: string, items: OutlineItem[]): OutlineItem {
+		for (const item of items) {
+			if (item.id === id) {
+				return item;
+			}
+			let candidate = this._getItemById(id, item.children);
+			if (candidate) {
+				return candidate;
+			}
+		}
+		return undefined;
+	}
 }

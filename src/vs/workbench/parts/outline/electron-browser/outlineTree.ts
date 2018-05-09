@@ -108,3 +108,38 @@ export class OutlineRenderer implements IRenderer {
 		template.label.dispose();
 	}
 }
+
+export class OutlineTreeState {
+
+	readonly expanded: string[];
+
+	static capture(tree: ITree): OutlineTreeState {
+		let expanded = new Array<string>();
+		let nav = tree.getNavigator();
+		while (nav.next()) {
+			let element = nav.current();
+			if (element instanceof OutlineItem) {
+				if (tree.isExpanded(element)) {
+					expanded.push(element.id);
+				}
+			}
+		}
+		return { expanded };
+	}
+
+	static async restore(tree: ITree, state: OutlineTreeState): TPromise<void> {
+		let input = <OutlineItemGroup>tree.getInput();
+		if (!(input instanceof OutlineItemGroup)) {
+			return TPromise.as(undefined);
+		}
+		let items: OutlineItem[] = [];
+		for (const id of state.expanded) {
+			let item = input.getItemById(id);
+			if (item) {
+				items.push(item);
+			}
+		}
+		await tree.collapseAll(undefined);
+		await tree.expandAll(items);
+	}
+}

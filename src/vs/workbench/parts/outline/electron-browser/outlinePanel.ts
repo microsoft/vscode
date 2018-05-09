@@ -31,7 +31,7 @@ import { IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/view
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { OutlineItem, OutlineItemGroup, getOutline } from './outlineModel';
-import { OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer } from './outlineTree';
+import { OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from './outlineTree';
 import { KeyCode } from '../../../../base/common/keyCodes';
 
 class ActiveEditorOracle {
@@ -216,13 +216,26 @@ export class OutlinePanel extends ViewsViewletPanel {
 
 			this._input.enable();
 
-			this._editorDisposables.push(this._input.onDidChange(async query => {
-				let item = model.updateMatches(query);
+			let beforePatternState: OutlineTreeState;
+
+			this._editorDisposables.push(this._input.onDidChange(async pattern => {
+
+				if (!beforePatternState) {
+					beforePatternState = OutlineTreeState.capture(this._tree);
+				}
+
+				let item = model.updateMatches(pattern);
 				await this._tree.refresh(undefined, true);
 				if (item) {
 					await this._tree.reveal(item);
 					this._tree.setFocus(item, this);
 					this._tree.setSelection([item], this);
+					this._tree.expandAll(undefined /*all*/);
+				}
+
+				if (!pattern && beforePatternState) {
+					await OutlineTreeState.restore(this._tree, beforePatternState);
+					beforePatternState = undefined;
 				}
 			}));
 
