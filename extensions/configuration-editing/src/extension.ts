@@ -31,7 +31,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(registerVariableCompletions('**/launch.json'));
 
 	// task.json variable suggestions
-	context.subscriptions.push(registerVariableCompletions('**/task.json'));
+	context.subscriptions.push(registerVariableCompletions('**/tasks.json'));
 
 	// launch.json decorations
 	context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(editor => updateLaunchJsonDecorations(editor), null, context.subscriptions));
