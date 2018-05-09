@@ -7,6 +7,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 
 export interface IPickOpenEntry {
 	id?: string;
@@ -14,6 +15,10 @@ export interface IPickOpenEntry {
 	description?: string;
 	detail?: string;
 	picked?: boolean;
+}
+
+export interface IQuickNavigateConfiguration {
+	keybindings: ResolvedKeybinding[];
 }
 
 export interface IPickOptions {
@@ -99,7 +104,7 @@ export interface IQuickInputService {
 
 	toggle(): void;
 
-	navigate(next: boolean): void;
+	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration): void;
 
 	accept(): TPromise<void>;
 

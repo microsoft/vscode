@@ -7,7 +7,7 @@
 
 import 'vs/css!./quickInput';
 import { Component } from 'vs/workbench/common/component';
-import { IQuickInputService, IPickOpenEntry, IPickOptions, IInputOptions } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IPickOpenEntry, IPickOptions, IInputOptions, IQuickNavigateConfiguration } from 'vs/platform/quickinput/common/quickInput';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import * as dom from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -73,6 +73,7 @@ export interface TextInputParameters extends BaseInputParameters {
 }
 
 interface QuickInputUI {
+	container: HTMLElement;
 	checkAll: HTMLInputElement;
 	inputBox: QuickInputBox;
 	count: CountBadge;
@@ -95,9 +96,10 @@ class PickOneController<T extends IPickOpenEntry> implements InputController<T> 
 	public resolve: (ok?: true | Thenable<never>) => void;
 	public progress: (value: T) => void;
 	private closed = false;
+	private quickNavigate = false;
 	private disposables: IDisposable[] = [];
 
-	constructor(ui: QuickInputUI, parameters: PickOneParameters<T>) {
+	constructor(private ui: QuickInputUI, parameters: PickOneParameters<T>) {
 		this.result = new TPromise<T>((resolve, reject, progress) => {
 			this.resolve = ok => resolve(ok === true ? <T>ui.list.getFocusedElements()[0] : ok);
 			this.progress = progress;
@@ -141,6 +143,53 @@ class PickOneController<T extends IPickOpenEntry> implements InputController<T> 
 				})
 			);
 		});
+	}
+
+	configureQuickNavigate(quickNavigate: IQuickNavigateConfiguration) {
+		if (this.quickNavigate) {
+			return;
+		}
+		this.quickNavigate = true;
+
+		this.disposables.push(dom.addDisposableListener(this.ui.container, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
+			const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e as KeyboardEvent);
+			const keyCode = keyboardEvent.keyCode;
+
+			// Select element when keys are pressed that signal it
+			const quickNavKeys = quickNavigate.keybindings;
+			const wasTriggerKeyPressed = keyCode === KeyCode.Enter || quickNavKeys.some(k => {
+				const [firstPart, chordPart] = k.getParts();
+				if (chordPart) {
+					return false;
+				}
+
+				if (firstPart.shiftKey && keyCode === KeyCode.Shift) {
+					if (keyboardEvent.ctrlKey || keyboardEvent.altKey || keyboardEvent.metaKey) {
+						return false; // this is an optimistic check for the shift key being used to navigate back in quick open
+					}
+
+					return true;
+				}
+
+				if (firstPart.altKey && keyCode === KeyCode.Alt) {
+					return true;
+				}
+
+				if (firstPart.ctrlKey && keyCode === KeyCode.Ctrl) {
+					return true;
+				}
+
+				if (firstPart.metaKey && keyCode === KeyCode.Meta) {
+					return true;
+				}
+
+				return false;
+			});
+
+			if (wasTriggerKeyPressed) {
+				this.ui.close(true);
+			}
+		}));
 	}
 
 	private dispose() {
@@ -301,7 +350,6 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private static readonly MAX_WIDTH = 600; // Max total width of quick open widget
 
 	private layoutDimensions: dom.Dimension;
-	private container: HTMLElement;
 	private filterContainer: HTMLElement;
 	private countContainer: HTMLElement;
 	private okContainer: HTMLElement;
@@ -348,16 +396,16 @@ export class QuickInputService extends Component implements IQuickInputService {
 	}
 
 	private create() {
-		if (this.container) {
+		if (this.ui) {
 			return;
 		}
 
 		const workbench = document.getElementById(this.partService.getWorkbenchElementId());
-		this.container = dom.append(workbench, $('.quick-input-widget'));
-		this.container.tabIndex = -1;
-		this.container.style.display = 'none';
+		const container = dom.append(workbench, $('.quick-input-widget'));
+		container.tabIndex = -1;
+		container.style.display = 'none';
 
-		const headerContainer = dom.append(this.container, $('.quick-input-header'));
+		const headerContainer = dom.append(container, $('.quick-input-header'));
 
 		const checkAll = <HTMLInputElement>dom.append(headerContainer, $('input.quick-input-check-all'));
 		checkAll.type = 'checkbox';
@@ -390,13 +438,13 @@ export class QuickInputService extends Component implements IQuickInputService {
 			}
 		}));
 
-		const message = dom.append(this.container, $('.quick-input-message'));
+		const message = dom.append(container, $('.quick-input-message'));
 
-		this.progressBar = new ProgressBar(this.container);
+		this.progressBar = new ProgressBar(container);
 		dom.addClass(this.progressBar.getContainer(), 'quick-input-progress');
 		this.toUnbind.push(attachProgressBarStyler(this.progressBar, this.themeService));
 
-		const list = this.instantiationService.createInstance(QuickInputList, this.container);
+		const list = this.instantiationService.createInstance(QuickInputList, container);
 		this.toUnbind.push(list);
 		this.toUnbind.push(list.onAllVisibleCheckedChanged(checked => {
 			checkAll.checked = checked;
@@ -424,13 +472,13 @@ export class QuickInputService extends Component implements IQuickInputService {
 				})
 		);
 
-		this.toUnbind.push(dom.addDisposableListener(this.container, 'focusout', (e: FocusEvent) => {
-			if (e.relatedTarget === this.container) {
+		this.toUnbind.push(dom.addDisposableListener(container, 'focusout', (e: FocusEvent) => {
+			if (e.relatedTarget === container) {
 				(<HTMLElement>e.target).focus();
 				return;
 			}
 			for (let element = <Element>e.relatedTarget; element; element = element.parentElement) {
-				if (element === this.container) {
+				if (element === container) {
 					return;
 				}
 			}
@@ -438,7 +486,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 				this.close(undefined, true);
 			}
 		}));
-		this.toUnbind.push(dom.addDisposableListener(this.container, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		this.toUnbind.push(dom.addDisposableListener(container, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			switch (event.keyCode) {
 				case KeyCode.Enter:
@@ -453,7 +501,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 					break;
 				case KeyCode.Tab:
 					if (!event.altKey && !event.ctrlKey && !event.metaKey) {
-						const inputs = [].slice.call(this.container.querySelectorAll('input'))
+						const inputs = [].slice.call(container.querySelectorAll('input'))
 							.filter(input => input.style.display !== 'none');
 						if (event.shiftKey && event.target === inputs[0]) {
 							dom.EventHelper.stop(e, true);
@@ -469,7 +517,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 		this.toUnbind.push(this.quickOpenService.onShow(() => this.close()));
 
-		this.ui = { checkAll, inputBox, count, message, list, close: ok => this.close(ok) };
+		this.ui = { container, checkAll, inputBox, count, message, list, close: ok => this.close(ok) };
 		this.updateStyles();
 	}
 
@@ -483,7 +531,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 				const result = resolved
 					.then(() => {
 						this.inQuickOpen('quickInput', false);
-						this.container.style.display = 'none';
+						this.ui.container.style.display = 'none';
 						if (!focusLost) {
 							this.restoreFocus();
 						}
@@ -493,7 +541,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			}
 		}
 		this.inQuickOpen('quickInput', false);
-		this.container.style.display = 'none';
+		this.ui.container.style.display = 'none';
 		if (!focusLost) {
 			this.restoreFocus();
 		}
@@ -540,7 +588,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			this.controller.resolve();
 		}
 
-		this.container.setAttribute('data-type', parameters.type);
+		this.ui.container.setAttribute('data-type', parameters.type);
 
 		this.ignoreFocusLost = parameters.ignoreFocusLost;
 
@@ -556,10 +604,10 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.ui.message.style.display = this.controller.showUI.message ? '' : 'none';
 		this.ui.list.display(this.controller.showUI.list);
 
-		if (this.container.style.display === 'none') {
+		if (this.ui.container.style.display === 'none') {
 			this.inQuickOpen('quickInput', true);
 		}
-		this.container.style.display = '';
+		this.ui.container.style.display = '';
 		this.updateLayout();
 		this.ui.inputBox.setFocus();
 
@@ -608,9 +656,12 @@ export class QuickInputService extends Component implements IQuickInputService {
 		}
 	}
 
-	navigate(next: boolean) {
+	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration) {
 		if (this.isDisplayed() && this.ui.list.isDisplayed()) {
 			this.ui.list.focus(next ? 'Next' : 'Previous');
+			if (quickNavigate && this.controller instanceof PickOneController) {
+				this.controller.configureQuickNavigate(quickNavigate);
+			}
 		}
 	}
 
@@ -628,11 +679,11 @@ export class QuickInputService extends Component implements IQuickInputService {
 	}
 
 	private updateLayout() {
-		if (this.layoutDimensions && this.container) {
+		if (this.layoutDimensions && this.ui) {
 			const titlebarOffset = this.partService.getTitleBarOffset();
-			this.container.style.top = `${titlebarOffset}px`;
+			this.ui.container.style.top = `${titlebarOffset}px`;
 
-			const style = this.container.style;
+			const style = this.ui.container.style;
 			const width = Math.min(this.layoutDimensions.width * 0.62 /* golden cut */, QuickInputService.MAX_WIDTH);
 			style.width = width + 'px';
 			style.marginLeft = '-' + (width / 2) + 'px';
@@ -647,20 +698,20 @@ export class QuickInputService extends Component implements IQuickInputService {
 		if (this.ui) {
 			this.ui.inputBox.style(theme);
 		}
-		if (this.container) {
+		if (this.ui) {
 			const sideBarBackground = theme.getColor(SIDE_BAR_BACKGROUND);
-			this.container.style.backgroundColor = sideBarBackground ? sideBarBackground.toString() : undefined;
+			this.ui.container.style.backgroundColor = sideBarBackground ? sideBarBackground.toString() : undefined;
 			const sideBarForeground = theme.getColor(SIDE_BAR_FOREGROUND);
-			this.container.style.color = sideBarForeground ? sideBarForeground.toString() : undefined;
+			this.ui.container.style.color = sideBarForeground ? sideBarForeground.toString() : undefined;
 			const contrastBorderColor = theme.getColor(contrastBorder);
-			this.container.style.border = contrastBorderColor ? `1px solid ${contrastBorderColor}` : undefined;
+			this.ui.container.style.border = contrastBorderColor ? `1px solid ${contrastBorderColor}` : undefined;
 			const widgetShadowColor = theme.getColor(widgetShadow);
-			this.container.style.boxShadow = widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : undefined;
+			this.ui.container.style.boxShadow = widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : undefined;
 		}
 	}
 
 	private isDisplayed() {
-		return this.container && this.container.style.display !== 'none';
+		return this.ui && this.ui.container.style.display !== 'none';
 	}
 }
 
