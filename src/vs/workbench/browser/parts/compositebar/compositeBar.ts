@@ -196,8 +196,6 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	public pin(compositeId: string, open?: boolean): void {
 		if (this.model.setPinned(compositeId, true)) {
 			this.updateCompositeSwitcher();
-			// Persist
-			this.saveCompositeItems();
 
 			if (open) {
 				this.options.openComposite(compositeId)
@@ -210,8 +208,6 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		if (this.model.setPinned(compositeId, false)) {
 
 			this.updateCompositeSwitcher();
-			// Persist
-			this.saveCompositeItems();
 
 			const defaultCompositeId = this.options.getDefaultCompositeId();
 
@@ -254,11 +250,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	public move(compositeId: string, toCompositeId: string): void {
 		if (this.model.move(compositeId, toCompositeId)) {
 			// timeout helps to prevent artifacts from showing up
-			setTimeout(() => {
-				this.updateCompositeSwitcher();
-				// Persist
-				this.saveCompositeItems();
-			}, 0);
+			setTimeout(() => this.updateCompositeSwitcher(), 0);
 		}
 	}
 
@@ -399,6 +391,9 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 			this.compositeSwitcherBar.push(this.compositeOverflowAction, { label: false, icon: true });
 		}
+
+		// Persist
+		this.saveCompositeItems();
 	}
 
 	private getOverflowingComposites(): { id: string, name: string }[] {
@@ -451,10 +446,6 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	private saveCompositeItems(): void {
 		this.storedState = this.model.toJSON();
 		this.storageService.store(this.options.storageId, JSON.stringify(this.storedState), StorageScope.GLOBAL);
-	}
-
-	public shutdown(): void {
-		this.saveCompositeItems();
 	}
 }
 
