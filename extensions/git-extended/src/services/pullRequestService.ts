@@ -31,7 +31,7 @@ export class PullRequestService {
 			let remoteName = await PullRequestService.createRemote(repository, pullRequest.head.repositoryCloneUrl);
 
 			await repository.fetch(remoteName, refSpec);
-			await repository.checkout(refSpec);
+			await repository.checkout(localBranchName);
 			await repository.setTrackingBranch(localBranchName, `refs/remotes/${remoteName}/${pullRequest.head.ref}`);
 		}
 
@@ -79,7 +79,7 @@ export class PullRequestService {
 			let branch = null;
 			try {
 				branch = await repository.getBranch(branchName);
-			} catch (e) {}
+			} catch (e) { }
 
 			if (!branch) {
 				const trackedBranchName = `refs/remotes/${remoteName}/${branchName}`;
@@ -111,9 +111,9 @@ export class PullRequestService {
 
 			if (currentBranch) {
 				current = initial + '-' + index++;
+			} else {
+				break;
 			}
-
-			break;
 		}
 
 		return current.replace(/-*$/g, '');
@@ -182,7 +182,7 @@ export class PullRequestService {
 			var uniqueName = name;
 			var number = 1;
 
-			while (repository.remotes[uniqueName] !== null) {
+			while (repository.remotes.find(e => e.remoteName === uniqueName)) {
 				uniqueName = name + number++;
 			}
 

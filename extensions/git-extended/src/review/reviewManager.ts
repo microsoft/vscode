@@ -42,14 +42,23 @@ export class ReviewManager implements vscode.DecorationProvider {
 
 	private _onDidChangeCommentThreads = new vscode.EventEmitter<vscode.CommentThreadChangedEvent>();
 
-	private _prFileChangesProvider: FileChangesProvider | undefined;
+	private _prFileChangesProvider: FileChangesProvider;
 	get prFileChangesProvider() {
-		if (this._prFileChangesProvider === undefined) {
+		if (!this._prFileChangesProvider) {
 			this._prFileChangesProvider = new FileChangesProvider(this._context);
 			this._disposables.push(this._prFileChangesProvider);
 		}
 
 		return this._prFileChangesProvider;
+	}
+
+	private _statusBarItem: vscode.StatusBarItem;
+	get statusBarItem() {
+		if (!this._statusBarItem) {
+			this._statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+		}
+
+		return this._statusBarItem;
 	}
 
 	constructor(
@@ -91,7 +100,7 @@ export class ReviewManager implements vscode.DecorationProvider {
 		} catch (e) { }
 
 		if (!localInfo) {
-			this.clear();
+			this.clear(true);
 			return;
 		}
 
@@ -101,21 +110,21 @@ export class ReviewManager implements vscode.DecorationProvider {
 
 		let branch = this._repository.HEAD;
 		if (!branch) {
-			this.clear();
+			this.clear(true);
 			return;
 		}
 
 		let remote = branch.upstream ? branch.upstream.remote : null;
 		if (!remote) {
-			this.clear();
+			this.clear(true);
 			return;
 		}
 
 		// we switch to another PR, let's clean up first.
-		this.clear();
+		this.clear(false);
 		this._prNumber = localInfo.prNumber;
 		this._lastCommitSha = null;
-		let githubRepo = this._repository.githubRepositories.find(repo => repo.remote.remoteName === remote);
+		let githubRepo = this._repository.githubRepositories.find(repo => repo.remote.owner.toLocaleLowerCase() === localInfo.owner.toLocaleLowerCase());
 
 		if (!githubRepo) {
 			return; // todo, should show warning
@@ -175,6 +184,9 @@ export class ReviewManager implements vscode.DecorationProvider {
 
 		this._onDidChangeDecorations.fire();
 		this.registerCommentProvider();
+
+		this.statusBarItem.text = '$(sync) Pull Request #' + this._prNumber;
+		this.statusBarItem.show();
 	}
 
 	private async updateComments(): Promise<void> {
@@ -435,7 +447,11 @@ export class ReviewManager implements vscode.DecorationProvider {
 	}
 
 	async switch(pr: PullRequestModel) {
+		this.statusBarItem.text = '$(sync~spin) Switching to Review Mode';
+		this.statusBarItem.show();
+
 		try {
+			// todo, check if HEAD is dirty
 			let localBranches = await this._pullRequestService.getLocalBranches(this._repository, pr);
 
 			if (localBranches.length > 0) {
@@ -446,13 +462,12 @@ export class ReviewManager implements vscode.DecorationProvider {
 			}
 		} catch (e) {
 			vscode.window.showErrorMessage(e);
+			// todo, we should try to recover, for example, git checkout succeeds but set config fails.
 			return;
 		}
-
-		await this._repository.status();
 	}
 
-	clear() {
+	clear(quitReviewMode: boolean) {
 		this._prNumber = null;
 
 		if (this._command) {
@@ -467,13 +482,20 @@ export class ReviewManager implements vscode.DecorationProvider {
 			this._workspaceCommentProvider.dispose();
 		}
 
-		if (this._prFileChangesProvider) {
-			this.prFileChangesProvider.hide();
+		if (quitReviewMode) {
+			if (this._statusBarItem) {
+				this._statusBarItem.hide();
+			}
+
+			if (this._prFileChangesProvider) {
+				this.prFileChangesProvider.hide();
+			}
 		}
+
 	}
 
 	dispose() {
-		this.clear();
+		this.clear(true);
 		this._disposables.forEach(dispose => {
 			dispose.dispose();
 		});

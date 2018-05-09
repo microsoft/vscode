@@ -115,7 +115,7 @@ export class Repository {
 		if (this._HEAD.upstream.remote) {
 			let currentRemote = this._remotes.filter(remote => remote.remoteName === this._HEAD.upstream.remote);
 			if (currentRemote && currentRemote.length) {
-				this._cloneUrl =  new UriString(currentRemote[0].url);
+				this._cloneUrl = new UriString(currentRemote[0].url);
 			}
 		}
 
@@ -199,7 +199,7 @@ export class Repository {
 		const result = await GitProcess.exec(['rev-parse', name], this.path);
 
 		if (result.exitCode !== 0 || !result.stdout) {
-			return Promise.reject<Branch>(new Error('No such branch'));
+			return null;
 		}
 
 		const commit = result.stdout.trim();
