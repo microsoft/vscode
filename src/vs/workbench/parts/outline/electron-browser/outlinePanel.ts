@@ -127,6 +127,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 
 	dispose(): void {
 		dispose(this._disposables);
+		dispose(this._requestOracle);
 		super.dispose();
 	}
 
@@ -154,8 +155,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 		this._treeFilter = new OutlineItemFilter();
 		this._tree = this._instantiationService.createInstance(WorkbenchTree, treeContainer, { dataSource, renderer, sorter: this._treeComparator, filter: this._treeFilter }, {});
 
-		this._requestOracle = this._instantiationService.createInstance(RequestOracle, editor => this._onEditor(editor), DocumentSymbolProviderRegistry);
-		this._disposables.push(this._tree, this._input, this._requestOracle);
+		this._disposables.push(this._tree, this._input);
 	}
 
 	protected layoutBody(height: number): void {
@@ -163,6 +163,13 @@ export class OutlinePanel extends ViewsViewletPanel {
 	}
 
 	setVisible(visible: boolean): TPromise<void> {
+		if (visible) {
+			this._requestOracle = this._requestOracle || this._instantiationService.createInstance(RequestOracle, editor => this._onEditor(editor), DocumentSymbolProviderRegistry);
+		} else {
+			dispose(this._requestOracle);
+			this._requestOracle = undefined;
+			this._onEditor(undefined);
+		}
 		return super.setVisible(visible);
 	}
 
