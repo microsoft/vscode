@@ -8,7 +8,7 @@
 import { Event } from 'vs/base/common/event';
 import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { GroupIdentifier, IEditorOpeningEvent } from 'vs/workbench/common/editor';
-import { IEditorInput, IEditor, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IEditor, IEditorOptions, IEditorInputWithOptions } from 'vs/platform/editor/common/editor';
 
 export const INextEditorGroupsService = createDecorator<INextEditorGroupsService>('nextEditorGroupsService');
 
@@ -23,6 +23,11 @@ export interface IMoveEditorOptions {
 	index?: number;
 	inactive?: boolean;
 	preserveFocus?: boolean;
+}
+
+export interface IAddGroupOptions {
+	activate?: boolean;
+	copyGroup?: boolean;
 }
 
 export interface ICopyEditorOptions extends IMoveEditorOptions { }
@@ -94,9 +99,9 @@ export interface INextEditorGroupsService {
 	 *
 	 * @param location the group from which to split to add a new group
 	 * @param direction the direction of where to split to
-	 * @param copyGroup optionally copy the editors of the group to add from
+	 * @param options configure the newly group with options
 	 */
-	addGroup(location: INextEditorGroup | GroupIdentifier, direction: GroupDirection, copyGroup?: boolean): INextEditorGroup;
+	addGroup(location: INextEditorGroup | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): INextEditorGroup;
 
 	/**
 	 * Remove a group from the editor area.
@@ -192,6 +197,12 @@ export interface INextEditorGroup {
 	 * editor has finished loading.
 	 */
 	openEditor(editor: IEditorInput, options?: IEditorOptions): Thenable<void>;
+
+	/**
+	 * Opens editors in this group. The returned promise is resolved when the
+	 * editor has finished loading.
+	 */
+	openEditors(editors: IEditorInputWithOptions[]): Thenable<void>;
 
 	/**
 	 * Find out if the provided editor is opened in the group.

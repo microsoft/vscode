@@ -6,7 +6,7 @@
 'use strict';
 
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInput, IResourceInput, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditor, ITextEditorOptions, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IResourceInput, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditor, ITextEditorOptions, IEditorOptions, IEditorInputWithOptions, isEditorInputWithOptions } from 'vs/platform/editor/common/editor';
 import { GroupIdentifier, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, EditorOptions, TextEditorOptions, IEditorOpeningEvent } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
@@ -25,7 +25,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { INextEditorGroupsService, INextEditorGroup, GroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
-import { INextEditorService, IResourceEditor, SIDE_BY_SIDE_TYPE, SIDE_BY_SIDE, IEditorInputWithOptions } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorService, IResourceEditor, SIDE_BY_SIDE_TYPE, SIDE_BY_SIDE } from 'vs/workbench/services/editor/common/nextEditorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
@@ -173,7 +173,10 @@ export class NextEditorService extends Disposable implements INextEditorService 
 
 		// Typed Editor Support
 		if (editor instanceof EditorInput) {
-			return this.doOpenEditor(editor, this.toOptions(optionsOrGroup as IEditorOptions), group);
+			const editorOptions = this.toOptions(optionsOrGroup as IEditorOptions);
+			const targetGroup = this.findTargetGroup(editor, editorOptions, group);
+
+			return targetGroup.openEditor(editor, editorOptions).then(() => targetGroup.activeControl);
 		}
 
 		// Throw error for well known foreign resources (such as a http link) (TODO@ben remove me after this has been adopted)
@@ -189,18 +192,21 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		const textInput = <IResourceEditor>editor;
 		const typedInput = this.createInput(textInput);
 		if (typedInput) {
-			return this.doOpenEditor(typedInput, TextEditorOptions.from(textInput), optionsOrGroup as GroupIdentifier);
+			const editorOptions = TextEditorOptions.from(textInput);
+			const targetGroup = this.findTargetGroup(typedInput, editorOptions, optionsOrGroup as GroupIdentifier);
+
+			return targetGroup.openEditor(typedInput, editorOptions).then(() => targetGroup.activeControl);
 		}
 
 		return TPromise.wrap<IEditor>(null);
 	}
 
-	private doOpenEditor(input: IEditorInput, options?: EditorOptions, group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor> {
+	private findTargetGroup(input: IEditorInput, options?: IEditorOptions, group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): INextEditorGroup {
 		let targetGroup: INextEditorGroup;
 
 		// Group: Side by Side
 		if (group === SIDE_BY_SIDE) {
-			targetGroup = this.nextEditorGroupsService.addGroup(this.nextEditorGroupsService.activeGroup, GroupDirection.RIGHT);
+			targetGroup = this.createSideBySideGroup();
 		}
 
 		// Group: Specific Group
@@ -240,7 +246,11 @@ export class NextEditorService extends Disposable implements INextEditorService 
 			targetGroup = this.nextEditorGroupsService.activeGroup;
 		}
 
-		return targetGroup.openEditor(input, options).then(() => targetGroup.activeControl);
+		return targetGroup;
+	}
+
+	private createSideBySideGroup(): INextEditorGroup {
+		return this.nextEditorGroupsService.addGroup(this.nextEditorGroupsService.activeGroup, GroupDirection.RIGHT);
 	}
 
 	private toOptions(options?: IEditorOptions | EditorOptions): EditorOptions {
@@ -260,13 +270,45 @@ export class NextEditorService extends Disposable implements INextEditorService 
 
 	//#region openEditors()
 
-	// TODO@grid openEditors()
-	openEditors(editors: IEditorInputWithOptions[], group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor>;
-	openEditors(editors: IResourceEditor[], group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor>;
-	openEditors(editors: (IEditorInputWithOptions | IResourceEditor)[], group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor> {
-		const inputs = editors.map(editor => this.createInput(editor));
+	openEditors(editors: IEditorInputWithOptions[], group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor[]>;
+	openEditors(editors: IResourceEditor[], group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor[]>;
+	openEditors(editors: (IEditorInputWithOptions | IResourceEditor)[], group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor[]> {
 
-		return this.openEditor(inputs[0]);
+		// Convert to typed editors and options
+		const typedEditors: IEditorInputWithOptions[] = [];
+		editors.forEach(editor => {
+			if (isEditorInputWithOptions(editor)) {
+				typedEditors.push(editor);
+			} else {
+				typedEditors.push({ editor: this.createInput(editor), options: TextEditorOptions.from(editor) });
+			}
+		});
+
+		// Find target groups to open
+		const mapGroupToEditors = new Map<INextEditorGroup, IEditorInputWithOptions[]>();
+		if (group === SIDE_BY_SIDE) {
+			mapGroupToEditors.set(this.createSideBySideGroup(), typedEditors);
+		} else {
+			typedEditors.forEach(typedEditor => {
+				const targetGroup = this.findTargetGroup(typedEditor.editor, typedEditor.options, group);
+
+				let targetGroupEditors = mapGroupToEditors.get(targetGroup);
+				if (!targetGroupEditors) {
+					targetGroupEditors = [];
+					mapGroupToEditors.set(targetGroup, targetGroupEditors);
+				}
+
+				targetGroupEditors.push(typedEditor);
+			});
+		}
+
+		// Open in targets
+		const result: TPromise<IEditor>[] = [];
+		mapGroupToEditors.forEach((editorsWithOptions, group) => {
+			result.push((group.openEditors(editorsWithOptions) as TPromise).then(() => group.activeControl));
+		});
+
+		return TPromise.join(result);
 	}
 
 	//#endregion

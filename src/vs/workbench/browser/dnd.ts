@@ -12,12 +12,10 @@ import { IWindowsService, IWindowService } from 'vs/platform/windows/common/wind
 import URI from 'vs/base/common/uri';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Schemas } from 'vs/base/common/network';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Position } from 'vs/platform/editor/common/editor';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -32,8 +30,9 @@ import { isWindows } from 'vs/base/common/platform';
 import { coalesce } from 'vs/base/common/arrays';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
-import { IEditorIdentifier } from 'vs/workbench/common/editor';
+import { IEditorIdentifier, GroupIdentifier } from 'vs/workbench/common/editor';
 import { basenameOrAuthority } from 'vs/base/common/resources';
+import { INextEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/nextEditorService';
 
 export interface IDraggedResource {
 	resource: URI;
@@ -41,10 +40,9 @@ export interface IDraggedResource {
 }
 
 export class DraggedEditorIdentifier {
-	constructor(private _identifier: IEditorIdentifier) {
-	}
+	constructor(private _identifier: IEditorIdentifier) { }
 
-	public get identifier(): IEditorIdentifier {
+	get identifier(): IEditorIdentifier {
 		return this._identifier;
 	}
 }
@@ -155,14 +153,13 @@ export class ResourcesDropHandler {
 		@IWorkspacesService private workspacesService: IWorkspacesService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IBackupFileService private backupFileService: IBackupFileService,
-		@IEditorGroupService private groupService: IEditorGroupService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@INextEditorService private editorService: INextEditorService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 	}
 
-	public handleDrop(event: DragEvent, afterDrop: () => void, targetPosition: Position, targetIndex?: number): void {
+	handleDrop(event: DragEvent, afterDrop: (targetGroup: GroupIdentifier) => void, resolveTargetGroup: () => GroupIdentifier, targetIndex?: number): void {
 		const untitledOrFileResources = extractResources(event).filter(r => this.fileService.canHandleResource(r.resource) || r.resource.scheme === Schemas.untitled);
 		if (!untitledOrFileResources.length) {
 			return;
@@ -183,23 +180,21 @@ export class ResourcesDropHandler {
 					this.windowsService.addRecentlyOpened(filesToAddToHistory.map(resource => resource.fsPath));
 				}
 
+				const editors: IResourceEditor[] = untitledOrFileResources.map(untitledOrFileResource => ({
+					resource: untitledOrFileResource.resource,
+					options: {
+						pinned: true,
+						index: targetIndex,
+						viewState: (untitledOrFileResource as IDraggedEditor).viewState
+					}
+				}));
+
 				// Open in Editor
-				return this.editorService.openEditors(untitledOrFileResources.map(untitledOrFileResource => {
-					return {
-						input: {
-							resource: untitledOrFileResource.resource,
-							options: {
-								pinned: true,
-								index: targetIndex,
-								viewState: (untitledOrFileResource as IDraggedEditor).viewState
-							}
-						},
-						position: targetPosition
-					};
-				})).then(() => {
+				const targetGroup = resolveTargetGroup();
+				return this.editorService.openEditors(editors, targetGroup).then(() => {
 
 					// Finish with provided function
-					afterDrop();
+					afterDrop(targetGroup);
 				});
 			});
 		}).done(null, onUnexpectedError);
@@ -232,7 +227,7 @@ export class ResourcesDropHandler {
 		}
 
 		// Return early if the resource is already dirty in target or opened already
-		if (this.textFileService.isDirty(droppedDirtyEditor.resource) || this.groupService.getStacksModel().isOpen(droppedDirtyEditor.resource)) {
+		if (this.textFileService.isDirty(droppedDirtyEditor.resource) || this.editorService.isOpen({ resource: droppedDirtyEditor.resource })) {
 			return TPromise.as(false);
 		}
 
@@ -316,7 +311,7 @@ export class SimpleFileResourceDragAndDrop extends DefaultDragAndDrop {
 		super();
 	}
 
-	public getDragURI(tree: ITree, obj: any): string {
+	getDragURI(tree: ITree, obj: any): string {
 		const resource = this.toResource(obj);
 		if (resource) {
 			return resource.toString();
@@ -325,7 +320,7 @@ export class SimpleFileResourceDragAndDrop extends DefaultDragAndDrop {
 		return void 0;
 	}
 
-	public getDragLabel(tree: ITree, elements: any[]): string {
+	getDragLabel(tree: ITree, elements: any[]): string {
 		if (elements.length > 1) {
 			return String(elements.length);
 		}
@@ -338,7 +333,7 @@ export class SimpleFileResourceDragAndDrop extends DefaultDragAndDrop {
 		return void 0;
 	}
 
-	public onDragStart(tree: ITree, data: IDragAndDropData, originalEvent: DragMouseEvent): void {
+	onDragStart(tree: ITree, data: IDragAndDropData, originalEvent: DragMouseEvent): void {
 
 		// Apply some datatransfer types to allow for dragging the element outside of the application
 		const resources: URI[] = data.getData().map(source => this.toResource(source));
@@ -428,20 +423,20 @@ export class LocalSelectionTransfer<T> {
 		// protect against external instantiation
 	}
 
-	public static getInstance<T>(): LocalSelectionTransfer<T> {
+	static getInstance<T>(): LocalSelectionTransfer<T> {
 		return LocalSelectionTransfer.INSTANCE as LocalSelectionTransfer<T>;
 	}
 
-	public hasData(proto: T): boolean {
+	hasData(proto: T): boolean {
 		return proto && proto === this.proto;
 	}
 
-	public clearData(): void {
+	clearData(): void {
 		this.proto = void 0;
 		this.data = void 0;
 	}
 
-	public getData(proto: T): T[] {
+	getData(proto: T): T[] {
 		if (this.hasData(proto)) {
 			return this.data;
 		}
@@ -449,7 +444,7 @@ export class LocalSelectionTransfer<T> {
 		return void 0;
 	}
 
-	public setData(data: T[], proto: T): void {
+	setData(data: T[], proto: T): void {
 		if (proto) {
 			this.data = data;
 			this.proto = proto;

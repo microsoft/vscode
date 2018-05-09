@@ -11,7 +11,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { Dimension, isAncestor, toggleClass, addClass, clearNode } from 'vs/base/browser/dom';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { INextEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, GroupDirection, IAddGroupOptions } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, ISerializedNode } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
@@ -33,10 +33,6 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { NextEditorDragAndDrop } from './nextEditorDragAndDrop';
-
-// TODO@grid provide DND support of groups/editors:
-// - editor: move/copy to existing group, move/copy to new split group (up, down, left, right)
-// - group: move/copy to existing group (merges?), move/copy to new split group (up, down, left, right)
 
 // TODO@grid enable minimized/maximized groups in one dimension
 
@@ -198,10 +194,16 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		return groupView;
 	}
 
-	addGroup(location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection, copy?: boolean): INextEditorGroupView {
+	addGroup(location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): INextEditorGroupView {
 		const locationView = this.assertGroupView(location);
 
-		return this.doAddGroup(locationView, direction, copy ? locationView : void 0);
+		const group = this.doAddGroup(locationView, direction, options && options.copyGroup ? locationView : void 0);
+
+		if (options && options.activate) {
+			this.doSetGroupActive(group);
+		}
+
+		return group;
 	}
 
 	private doAddGroup(locationView: INextEditorGroupView, direction: GroupDirection, groupToCopy?: INextEditorGroupView): INextEditorGroupView {

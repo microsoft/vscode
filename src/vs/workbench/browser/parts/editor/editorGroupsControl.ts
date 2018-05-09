@@ -1209,7 +1209,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 					}
 
 					groupService.focusGroup(splitEditor ? splitTo : position);
-				}, splitEditor ? freeGroup : position);
+				}, () => splitEditor ? freeGroup : position);
 			}
 		}
 

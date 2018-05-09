@@ -32,7 +32,7 @@ import { getOrSet } from 'vs/base/common/map';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_BACKGROUND, WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { activeContrastBorder, contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { ResourcesDropHandler, fillResourceDataTransfers, LocalSelectionTransfer, DraggedEditorIdentifier } from 'vs/workbench/browser/dnd';
+import { ResourcesDropHandler, fillResourceDataTransfers, LocalSelectionTransfer, DraggedEditorIdentifier, DragCounter } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -508,11 +508,11 @@ export class NextTabsTitleControl extends NextTitleControl {
 		// it contains a label and a close button. HTML gives us DRAG_ENTER and DRAG_LEAVE events when hovering over
 		// these children and this can cause flicker of the drop feedback. The workaround is to count the events and only
 		// remove the drop feedback when the counter is 0 (see https://github.com/Microsoft/vscode/issues/14470)
-		let counter = 0;
+		const counter = new DragCounter();
 
 		// Drag over
 		disposables.push(addDisposableListener(tab, EventType.DRAG_ENTER, (e: DragEvent) => {
-			counter++;
+			counter.increment();
 
 			// Find out if the currently dragged editor is this tab and in that
 			// case we do not want to show any drop feedback
@@ -533,8 +533,9 @@ export class NextTabsTitleControl extends NextTitleControl {
 
 		// Drag leave
 		disposables.push(addDisposableListener(tab, EventType.DRAG_LEAVE, (e: DragEvent) => {
-			counter--;
-			if (counter === 0) {
+			counter.decrement();
+
+			if (!counter.value) {
 				removeClass(tab, 'dragged-over');
 				this.updateDropFeedback(tab, false, index);
 			}
@@ -542,7 +543,8 @@ export class NextTabsTitleControl extends NextTitleControl {
 
 		// Drag end
 		disposables.push(addDisposableListener(tab, EventType.DRAG_END, (e: DragEvent) => {
-			counter = 0;
+			counter.reset();
+
 			removeClass(tab, 'dragged-over');
 			this.updateDropFeedback(tab, false, index);
 
@@ -551,7 +553,8 @@ export class NextTabsTitleControl extends NextTitleControl {
 
 		// Drop
 		disposables.push(addDisposableListener(tab, EventType.DROP, (e: DragEvent) => {
-			counter = 0;
+			counter.reset();
+
 			removeClass(tab, 'dragged-over');
 			this.updateDropFeedback(tab, false, index);
 
@@ -929,7 +932,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 		// External DND
 		else {
 			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: false /* open workspace file as file if dropped */ });
-			dropHandler.handleDrop(e, () => this.group.focus(), this.group.id /* TODO@grid position => group id */, targetIndex);
+			dropHandler.handleDrop(e, () => this.group.focus(), () => this.group.id, targetIndex);
 		}
 	}
 

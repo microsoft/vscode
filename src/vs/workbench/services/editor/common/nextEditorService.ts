@@ -6,7 +6,7 @@
 'use strict';
 
 import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInput, IResourceInput, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditor, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IResourceInput, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditor, IEditorOptions, IEditorInputWithOptions } from 'vs/platform/editor/common/editor';
 import { GroupIdentifier, IEditorOpeningEvent } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
 import { IEditor as ICodeEditor } from 'vs/editor/common/editorCommon';
@@ -17,11 +17,6 @@ export type IResourceEditor = IResourceInput | IUntitledResourceInput | IResourc
 
 export const SIDE_BY_SIDE = -1;
 export type SIDE_BY_SIDE_TYPE = typeof SIDE_BY_SIDE;
-
-export interface IEditorInputWithOptions {
-	editor: IEditorInput;
-	options?: IEditorOptions;
-}
 
 export interface INextEditorService {
 	_serviceBrand: ServiceIdentifier<any>;
@@ -107,8 +102,8 @@ export interface INextEditorService {
 	 * active group. Use `SIDE_BY_SIDE` to open the editor in a new editor group to the side
 	 * of the currently active group.
 	 */
-	openEditors(editors: IEditorInputWithOptions[], group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor>;
-	openEditors(editors: IResourceEditor[], group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor>;
+	openEditors(editors: IEditorInputWithOptions[], group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor[]>;
+	openEditors(editors: IResourceEditor[], group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor[]>;
 
 	/**
 	 * Find out if the provided editor (or resource of an editor) is opened in any group.

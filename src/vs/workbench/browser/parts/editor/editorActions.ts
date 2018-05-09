@@ -137,7 +137,7 @@ export class BaseSplitEditorGroupAction extends Action {
 		}
 
 		// Add group
-		const newGroup = this.nextEditorGroupsService.addGroup(group, this.direction);
+		const newGroup = this.nextEditorGroupsService.addGroup(group, this.direction, { activate: true });
 
 		// Open editor
 		if (activeEditor) {

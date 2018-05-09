@@ -628,6 +628,32 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	//#endregion
 
+	//#region openEditors()
+
+	openEditors(editors: { editor: EditorInput, options?: EditorOptions }[]): Thenable<void> {
+		if (!editors.length) {
+			return TPromise.as(void 0);
+		}
+
+		// Use the first editor as active editor
+		const { editor, options } = editors.shift();
+		return this.openEditor(editor, options).then(() => {
+			const startingIndex = this.getIndexOfEditor(editor) + 1;
+
+			// Open the other ones inactive
+			return TPromise.join(editors.map(({ editor, options }, index) => {
+				const adjustedEditorOptions = options || new EditorOptions();
+				adjustedEditorOptions.inactive = true;
+				adjustedEditorOptions.pinned = true;
+				adjustedEditorOptions.index = startingIndex + index;
+
+				return this.openEditor(editor, adjustedEditorOptions);
+			})).then(() => void 0);
+		});
+	}
+
+	//#endregion
+
 	//#region moveEditor()
 
 	moveEditor(editor: EditorInput, target: INextEditorGroupView, options?: IMoveEditorOptions): void {

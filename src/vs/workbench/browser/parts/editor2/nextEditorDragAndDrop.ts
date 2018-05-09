@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/nextEditorDragAndDrop';
-import { LocalSelectionTransfer, DraggedEditorIdentifier, DragCounter } from 'vs/workbench/browser/dnd';
+import { LocalSelectionTransfer, DraggedEditorIdentifier, DragCounter, ResourcesDropHandler } from 'vs/workbench/browser/dnd';
 import { addDisposableListener, EventType, EventHelper, isAncestor, toggleClass, addClass } from 'vs/base/browser/dom';
 import { INextEditorGroupsAccessor, EDITOR_TITLE_HEIGHT, INextEditorGroupView, getActiveTextEditorOptions } from 'vs/workbench/browser/parts/editor2/editor2';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND, Themable } from 'vs/workbench/common/theme';
@@ -16,6 +16,7 @@ import { IEditorIdentifier, EditorInput, EditorOptions } from 'vs/workbench/comm
 import { isMacintosh } from 'vs/base/common/platform';
 import { GroupDirection, INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { toDisposable } from 'vs/base/common/lifecycle';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 class DropOverlay extends Themable {
 
@@ -32,7 +33,8 @@ class DropOverlay extends Themable {
 		private accessor: INextEditorGroupsAccessor,
 		private groupView: INextEditorGroupView,
 		private transfer: LocalSelectionTransfer<DraggedEditorIdentifier>,
-		themeService: IThemeService
+		themeService: IThemeService,
+		private instantiationService: IInstantiationService
 	) {
 		super(themeService);
 
@@ -123,34 +125,47 @@ class DropOverlay extends Themable {
 	}
 
 	private handleDrop(event: DragEvent): void {
-		if (!this.transfer.hasData(DraggedEditorIdentifier.prototype)) {
-			return; // TODO@grid support more drops
-		}
-
-		const draggedEditor = this.transfer.getData(DraggedEditorIdentifier.prototype)[0].identifier;
 
 		// Determine target group
-		let targetGroup: INextEditorGroup;
-		if (typeof this.splitDirection === 'number') {
-			targetGroup = this.accessor.addGroup(this.groupView, this.splitDirection);
-		} else {
-			targetGroup = this.groupView;
+		const ensureTargetGroup = () => {
+			let targetGroup: INextEditorGroup;
+			if (typeof this.splitDirection === 'number') {
+				targetGroup = this.accessor.addGroup(this.groupView, this.splitDirection, { activate: true });
+			} else {
+				targetGroup = this.groupView;
+			}
+
+			return targetGroup;
+		};
+
+		// Check for transfer from title control
+		if (this.transfer.hasData(DraggedEditorIdentifier.prototype)) {
+			const draggedEditor = this.transfer.getData(DraggedEditorIdentifier.prototype)[0].identifier;
+			const targetGroup = ensureTargetGroup();
+
+			// Return if the drop is a no-op
+			const sourceGroup = this.accessor.getGroup(draggedEditor.group.id);
+			if (sourceGroup === targetGroup) {
+				return;
+			}
+
+			// Open in target group
+			const options = getActiveTextEditorOptions(sourceGroup, draggedEditor.editor, EditorOptions.create({ pinned: true }));
+			targetGroup.openEditor(draggedEditor.editor, options);
+
+			// Close in source group unless we copy
+			const copyEditor = this.shouldCopyEditor(draggedEditor, event);
+			if (!copyEditor) {
+				sourceGroup.closeEditor(draggedEditor.editor);
+			}
 		}
 
-		// Return if the drop is a no-op
-		const sourceGroup = this.accessor.getGroup(draggedEditor.group.id);
-		if (sourceGroup === targetGroup) {
-			return;
-		}
-
-		// Open in target group
-		const options = getActiveTextEditorOptions(sourceGroup, draggedEditor.editor, EditorOptions.create({ pinned: true }));
-		targetGroup.openEditor(draggedEditor.editor, options);
-
-		// Close in source group unless we copy
-		const copyEditor = this.shouldCopyEditor(draggedEditor, event);
-		if (!copyEditor) {
-			sourceGroup.closeEditor(draggedEditor.editor);
+		// Check for URI transfer
+		else {
+			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: true /* open workspace instead of file if dropped */ });
+			dropHandler.handleDrop(event, targetGroupIdentifier => {
+				this.accessor.getGroup(targetGroupIdentifier).focus();
+			}, () => ensureTargetGroup().id);
 		}
 	}
 
@@ -272,7 +287,8 @@ export class NextEditorDragAndDrop extends Themable {
 	constructor(
 		private accessor: INextEditorGroupsAccessor,
 		private container: HTMLElement,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(themeService);
 
@@ -314,7 +330,7 @@ export class NextEditorDragAndDrop extends Themable {
 			if (!this.overlay) {
 				const groupView = this.findGroupView(target);
 				if (groupView) {
-					this._overlay = new DropOverlay(this.accessor, groupView, this.transfer, this.themeService);
+					this._overlay = new DropOverlay(this.accessor, groupView, this.transfer, this.themeService, this.instantiationService);
 				}
 			}
 

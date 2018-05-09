@@ -404,7 +404,120 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	//#endregion
 
-	//#region TODO@grid openEditors()
+	//#region Handled or Adopted or Obsolete
+
+	public _serviceBrand: any;
+
+	private static readonly GROUP_LEFT = nls.localize('groupOneVertical', "Left");
+	private static readonly GROUP_CENTER = nls.localize('groupTwoVertical', "Center");
+	private static readonly GROUP_RIGHT = nls.localize('groupThreeVertical', "Right");
+	private static readonly GROUP_TOP = nls.localize('groupOneHorizontal', "Top");
+	private static readonly GROUP_MIDDLE = nls.localize('groupTwoHorizontal', "Center");
+	private static readonly GROUP_BOTTOM = nls.localize('groupThreeHorizontal', "Bottom");
+
+	private static readonly EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.uiState';
+
+	private dimension: Dimension;
+	private editorGroupsControl: IEditorGroupsControl;
+	private memento: object;
+	private stacks: EditorStacksModel;
+	private tabOptions: IEditorTabOptions;
+	private forceHideTabs: boolean;
+	private revealIfOpen: boolean;
+	private ignoreOpenEditorErrors: boolean;
+	private textCompareEditorVisible: IContextKey<boolean>;
+
+	private readonly _onEditorsChanged: ThrottledEmitter<void>;
+	private readonly _onEditorOpening: Emitter<IEditorOpeningEvent>;
+	private readonly _onEditorGroupMoved: Emitter<void>;
+	private readonly _onEditorOpenFail: Emitter<EditorInput>;
+	private readonly _onGroupOrientationChanged: Emitter<void>;
+	private readonly _onTabOptionsChanged: Emitter<IEditorTabOptions>;
+	private readonly _onLayout: Emitter<Dimension>;
+
+	// The following data structures are partitioned into array of Position as provided by Services.POSITION array
+	private visibleEditors: BaseEditor[];
+	private instantiatedEditors: BaseEditor[][];
+	private editorOpenToken: number[];
+	private pendingEditorInputsToClose: EditorIdentifier[];
+	private pendingEditorInputCloseTimeout: number;
+
+	public get onEditorGroupMoved(): Event<void> {
+		return this._onEditorGroupMoved.event;
+	}
+
+	public get onEditorsChanged(): Event<void> {
+		return this._onEditorsChanged.event;
+	}
+
+	constructor(
+		id: string,
+		restoreFromStorage: boolean,
+		@INotificationService private notificationService: INotificationService,
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IStorageService private storageService: IStorageService,
+		@IPartService private partService: IPartService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IEnvironmentService private environmentService: IEnvironmentService
+	) {
+		super(id, { hasTitle: false }, themeService);
+
+		this._onEditorsChanged = new ThrottledEmitter<void>();
+		this._onEditorOpening = new Emitter<IEditorOpeningEvent>();
+		this._onEditorGroupMoved = new Emitter<void>();
+		this._onEditorOpenFail = new Emitter<EditorInput>();
+		this._onGroupOrientationChanged = new Emitter<void>();
+		this._onTabOptionsChanged = new Emitter<IEditorTabOptions>();
+		this._onLayout = new Emitter<Dimension>();
+
+		this.visibleEditors = [];
+
+		this.editorOpenToken = arrays.fill(POSITIONS.length, () => 0);
+
+		this.instantiatedEditors = arrays.fill(POSITIONS.length, () => []);
+
+		this.pendingEditorInputsToClose = [];
+		this.pendingEditorInputCloseTimeout = null;
+
+		this.stacks = this.instantiationService.createInstance(EditorStacksModel, restoreFromStorage);
+
+		this.textCompareEditorVisible = TextCompareEditorVisibleContext.bindTo(contextKeyService);
+
+		const config = configurationService.getValue<IWorkbenchEditorConfiguration>();
+		if (config && config.workbench && config.workbench.editor) {
+			const editorConfig = config.workbench.editor;
+
+			this.tabOptions = {
+				previewEditors: editorConfig.enablePreview,
+				showIcons: editorConfig.showIcons,
+				showTabs: editorConfig.showTabs,
+				tabCloseButton: editorConfig.tabCloseButton,
+				tabSizing: editorConfig.tabSizing,
+				labelFormat: editorConfig.labelFormat,
+				iconTheme: config.workbench.iconTheme
+			};
+
+			this.revealIfOpen = editorConfig.revealIfOpen;
+		} else {
+			this.tabOptions = {
+				previewEditors: true,
+				showIcons: false,
+				showTabs: true,
+				tabCloseButton: 'right',
+				tabSizing: 'fit',
+				labelFormat: 'default',
+				iconTheme: 'vs-seti'
+			};
+
+			this.revealIfOpen = false;
+		}
+
+		this.initStyles();
+		this.registerListeners();
+	}
 
 	public openEditors(editors: { input: EditorInput, position?: Position, options?: EditorOptions }[]): TPromise<IEditor[]>;
 	public openEditors(editors: { input: EditorInput, options?: EditorOptions }[], sideBySide?: boolean): TPromise<IEditor[]>;
@@ -526,123 +639,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 			return editors;
 		});
-	}
-
-	//#endregion
-
-	//#region Handled or Adopted or Obsolete
-
-	public _serviceBrand: any;
-
-	private static readonly GROUP_LEFT = nls.localize('groupOneVertical', "Left");
-	private static readonly GROUP_CENTER = nls.localize('groupTwoVertical', "Center");
-	private static readonly GROUP_RIGHT = nls.localize('groupThreeVertical', "Right");
-	private static readonly GROUP_TOP = nls.localize('groupOneHorizontal', "Top");
-	private static readonly GROUP_MIDDLE = nls.localize('groupTwoHorizontal', "Center");
-	private static readonly GROUP_BOTTOM = nls.localize('groupThreeHorizontal', "Bottom");
-
-	private static readonly EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.uiState';
-
-	private dimension: Dimension;
-	private editorGroupsControl: IEditorGroupsControl;
-	private memento: object;
-	private stacks: EditorStacksModel;
-	private tabOptions: IEditorTabOptions;
-	private forceHideTabs: boolean;
-	private revealIfOpen: boolean;
-	private ignoreOpenEditorErrors: boolean;
-	private textCompareEditorVisible: IContextKey<boolean>;
-
-	private readonly _onEditorsChanged: ThrottledEmitter<void>;
-	private readonly _onEditorOpening: Emitter<IEditorOpeningEvent>;
-	private readonly _onEditorGroupMoved: Emitter<void>;
-	private readonly _onEditorOpenFail: Emitter<EditorInput>;
-	private readonly _onGroupOrientationChanged: Emitter<void>;
-	private readonly _onTabOptionsChanged: Emitter<IEditorTabOptions>;
-	private readonly _onLayout: Emitter<Dimension>;
-
-	// The following data structures are partitioned into array of Position as provided by Services.POSITION array
-	private visibleEditors: BaseEditor[];
-	private instantiatedEditors: BaseEditor[][];
-	private editorOpenToken: number[];
-	private pendingEditorInputsToClose: EditorIdentifier[];
-	private pendingEditorInputCloseTimeout: number;
-
-	public get onEditorGroupMoved(): Event<void> {
-		return this._onEditorGroupMoved.event;
-	}
-
-	public get onEditorsChanged(): Event<void> {
-		return this._onEditorsChanged.event;
-	}
-
-	constructor(
-		id: string,
-		restoreFromStorage: boolean,
-		@INotificationService private notificationService: INotificationService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IStorageService private storageService: IStorageService,
-		@IPartService private partService: IPartService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IEnvironmentService private environmentService: IEnvironmentService
-	) {
-		super(id, { hasTitle: false }, themeService);
-
-		this._onEditorsChanged = new ThrottledEmitter<void>();
-		this._onEditorOpening = new Emitter<IEditorOpeningEvent>();
-		this._onEditorGroupMoved = new Emitter<void>();
-		this._onEditorOpenFail = new Emitter<EditorInput>();
-		this._onGroupOrientationChanged = new Emitter<void>();
-		this._onTabOptionsChanged = new Emitter<IEditorTabOptions>();
-		this._onLayout = new Emitter<Dimension>();
-
-		this.visibleEditors = [];
-
-		this.editorOpenToken = arrays.fill(POSITIONS.length, () => 0);
-
-		this.instantiatedEditors = arrays.fill(POSITIONS.length, () => []);
-
-		this.pendingEditorInputsToClose = [];
-		this.pendingEditorInputCloseTimeout = null;
-
-		this.stacks = this.instantiationService.createInstance(EditorStacksModel, restoreFromStorage);
-
-		this.textCompareEditorVisible = TextCompareEditorVisibleContext.bindTo(contextKeyService);
-
-		const config = configurationService.getValue<IWorkbenchEditorConfiguration>();
-		if (config && config.workbench && config.workbench.editor) {
-			const editorConfig = config.workbench.editor;
-
-			this.tabOptions = {
-				previewEditors: editorConfig.enablePreview,
-				showIcons: editorConfig.showIcons,
-				showTabs: editorConfig.showTabs,
-				tabCloseButton: editorConfig.tabCloseButton,
-				tabSizing: editorConfig.tabSizing,
-				labelFormat: editorConfig.labelFormat,
-				iconTheme: config.workbench.iconTheme
-			};
-
-			this.revealIfOpen = editorConfig.revealIfOpen;
-		} else {
-			this.tabOptions = {
-				previewEditors: true,
-				showIcons: false,
-				showTabs: true,
-				tabCloseButton: 'right',
-				tabSizing: 'fit',
-				labelFormat: 'default',
-				iconTheme: 'vs-seti'
-			};
-
-			this.revealIfOpen = false;
-		}
-
-		this.initStyles();
-		this.registerListeners();
 	}
 
 	public moveGroup(from: EditorGroup, to: EditorGroup): void;
