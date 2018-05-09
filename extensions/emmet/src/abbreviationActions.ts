@@ -155,7 +155,7 @@ function doWrapping(individualLines: boolean, args: any) {
 					newPreviewEnd += newPreviewStart;
 				}
 				else if (newPreviewLineStart === charactersInLine.line) {
-					// Almost same as above but newLinesInserted > 1 so newPreviewEnd keeps its value.
+					// Same as above but expandedTextLines.length > 1 so newPreviewEnd keeps its value.
 					newPreviewStart = charactersInLine.count + (oldPreviewRange.start.character - lastOldPreviewRange.end.character);
 				}
 				else if (expandedTextLines.length === 1) {
