@@ -61,24 +61,12 @@ function doWrapping(individualLines: boolean, args: any) {
 		return;
 	}
 
-	const selections = editor.selections.sort((a: vscode.Selection, b: vscode.Selection) => { return a.start.compareTo(b.start); });
-	let disableLivePreview = false;
-	for (let i = 1; i < selections.length; i++) {
-		if (selections[i].start.line === selections[i - 1].start.line
-			|| selections[i].end.line === selections[i - 1].start.line
-			|| selections[i].start.line === selections[i - 1].end.line
-			|| selections[i].end.line === selections[i - 1].end.line) {
-			disableLivePreview = true; // Disable Live Preview due to https://github.com/Microsoft/vscode/issues/49138
-			break;
-		}
-	}
-
 	let inPreview = false;
 	let currentValue = '';
 	const helper = getEmmetHelper();
 
 	// Fetch general information for the succesive expansions. i.e. the ranges to replace and its contents
-	let rangesToReplace: PreviewRangesWithContent[] = selections.map(selection => {
+	let rangesToReplace: PreviewRangesWithContent[] = editor.selections.sort((a: vscode.Selection, b: vscode.Selection) => { return a.start.compareTo(b.start); }).map(selection => {
 		let rangeToReplace: vscode.Range = selection.isReversed ? new vscode.Range(selection.active, selection.anchor) : selection;
 		if (!rangeToReplace.isSingleLine && rangeToReplace.end.character === 0) {
 			const previousLine = rangeToReplace.end.line - 1;
@@ -128,7 +116,9 @@ function doWrapping(individualLines: boolean, args: any) {
 	}
 
 	function applyPreview(expandAbbrList: ExpandAbbreviationInput[]): Thenable<boolean> {
+		let lastOldPreviewRange: vscode.Range;
 		let totalLinesInserted = 0;
+		let charactersInLine = { line: -1, count: 0 };
 
 		return editor.edit(builder => {
 			for (let i = 0; i < rangesToReplace.length; i++) {
@@ -153,14 +143,32 @@ function doWrapping(individualLines: boolean, args: any) {
 				const oldPreviewLines = oldPreviewRange.end.line - oldPreviewRange.start.line + 1;
 				const newLinesInserted = expandedTextLines.length - oldPreviewLines;
 
-				let lastLineEnd = expandedTextLines[expandedTextLines.length - 1].length;
-				if (expandedTextLines.length === 1) {
-					// If the expandedText is single line, add the length of preceeding whitespace as it will not be included in line length.
-					lastLineEnd += oldPreviewRange.start.character;
+				let newPreviewLineStart = oldPreviewRange.start.line + totalLinesInserted;
+				let newPreviewStart = oldPreviewRange.start.character;
+				const newPreviewLineEnd = oldPreviewRange.end.line + totalLinesInserted + newLinesInserted;
+				let newPreviewEnd = expandedTextLines[expandedTextLines.length - 1].length;
+				if (newPreviewLineEnd === charactersInLine.line) {
+					// If newPreviewLineEnd is equal to the previous expandedText lineEnd,
+					// set newPreviewStart to the length of the previous expandedText in that line
+					// plus the number of characters between both selections.
+					newPreviewStart = charactersInLine.count + (oldPreviewRange.start.character - lastOldPreviewRange.end.character);
+					newPreviewEnd += newPreviewStart;
+				}
+				else if (newPreviewLineStart === charactersInLine.line) {
+					// Almost same as above but newLinesInserted > 1 so newPreviewEnd keeps its value.
+					newPreviewStart = charactersInLine.count + (oldPreviewRange.start.character - lastOldPreviewRange.end.character);
+				}
+				else if (expandedTextLines.length === 1) {
+					// If the expandedText is single line, add the length of preceeding text as it will not be included in line length.
+					newPreviewEnd += oldPreviewRange.start.character;
 				}
 
-				rangesToReplace[i].previewRange = new vscode.Range(oldPreviewRange.start.line + totalLinesInserted, oldPreviewRange.start.character, oldPreviewRange.end.line + totalLinesInserted + newLinesInserted, lastLineEnd);
+				lastOldPreviewRange = rangesToReplace[i].previewRange;
+				rangesToReplace[i].previewRange = new vscode.Range(newPreviewLineStart, newPreviewStart, newPreviewLineEnd, newPreviewEnd);
+
 				totalLinesInserted += newLinesInserted;
+				charactersInLine.count = newPreviewEnd;
+				charactersInLine.line = newPreviewLineEnd;
 			}
 		}, { undoStopBefore: false, undoStopAfter: false });
 	}
@@ -203,9 +211,6 @@ function doWrapping(individualLines: boolean, args: any) {
 	}
 
 	function inputChanged(value: string): string {
-		if (disableLivePreview) {
-			return '';
-		}
 		if (value !== currentValue) {
 			currentValue = value;
 			makeChanges(value, false).then((out) => {
