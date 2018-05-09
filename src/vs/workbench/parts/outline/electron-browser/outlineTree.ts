@@ -10,7 +10,7 @@ import * as dom from 'vs/base/browser/dom';
 import { symbolKindToCssClass } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
 import { IDataSource, IRenderer, ITree, ISorter, IFilter } from 'vs/base/parts/tree/browser/tree';
-import { OutlineItemGroup, OutlineItem } from './outlineModel';
+import { OutlineItem, OutlineModel } from './outlineModel';
 import { HighlightedLabel } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel';
 import { createMatches } from '../../../../base/common/filters';
 import { values } from 'vs/base/common/map';
@@ -56,27 +56,29 @@ export class OutlineDataSource implements IDataSource {
 		}
 	}
 
-	hasChildren(tree: ITree, element: OutlineItemGroup | OutlineItem): boolean {
-		if (element instanceof OutlineItemGroup) {
-			return element.children.length > 0;
+	hasChildren(tree: ITree, element: OutlineModel | OutlineItem): boolean {
+		if (element instanceof OutlineModel) {
+			return element.all().length > 0;
 		} else {
-			let res = element.children.size > 0;
-			if (res) {
+			if (element.children.size === 0) {
+				return false;
+			} else {
+				let res: boolean;
 				element.children.forEach(child => res = res || Boolean(child.matches));
+				return res;
 			}
-			return res;
 		}
 	}
 
-	async getChildren(tree: ITree, element: OutlineItemGroup | OutlineItem): TPromise<any, any> {
-		if (element instanceof OutlineItemGroup) {
-			return element.children;
+	async getChildren(tree: ITree, element: OutlineModel | OutlineItem): TPromise<OutlineItem[]> {
+		if (element instanceof OutlineModel) {
+			return (await element.selected()).children;
 		} else {
 			return values(element.children);
 		}
 	}
 
-	async getParent(tree: ITree, element: OutlineItemGroup | OutlineItem): TPromise<any, any> {
+	async getParent(tree: ITree, element: OutlineItem | any): TPromise<OutlineItem> {
 		return element instanceof OutlineItem ? element.parent : undefined;
 	}
 
@@ -137,13 +139,14 @@ export class OutlineTreeState {
 	}
 
 	static async restore(tree: ITree, state: OutlineTreeState): TPromise<void> {
-		let input = <OutlineItemGroup>tree.getInput();
-		if (!(input instanceof OutlineItemGroup)) {
+		let model = <OutlineModel>tree.getInput();
+		if (!state || !(model instanceof OutlineModel)) {
 			return TPromise.as(undefined);
 		}
+		let group = await model.selected();
 		let items: OutlineItem[] = [];
 		for (const id of state.expanded) {
-			let item = input.getItemById(id);
+			let item = group.getItemById(id);
 			if (item) {
 				items.push(item);
 			}

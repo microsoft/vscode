@@ -30,9 +30,10 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { OutlineItem, OutlineItemGroup, getOutline } from './outlineModel';
+import { OutlineItem, getOutline, OutlineModel } from './outlineModel';
 import { OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from './outlineTree';
 import { KeyCode } from '../../../../base/common/keyCodes';
+import { LRUCache } from '../../../../base/common/map';
 
 class ActiveEditorOracle {
 
@@ -93,7 +94,8 @@ export class OutlinePanel extends ViewsViewletPanel {
 	private _tree: Tree;
 	private _treeFilter: OutlineItemFilter;
 	private _treeComparator: OutlineItemComparator;
-	private _followCursor: boolean = true;
+	private _treeStates = new LRUCache<string, OutlineTreeState>(10);
+	private _followCursor = true;
 
 	constructor(
 		options: IViewOptions,
@@ -173,94 +175,96 @@ export class OutlinePanel extends ViewsViewletPanel {
 		}
 	}
 
-	private _onEditor(editor: ICodeEditor): void {
+	private async _onEditor(editor: ICodeEditor): TPromise<void> {
 		dispose(this._editorDisposables);
+
 		this._editorDisposables = new Array();
+		this._input.disable();
 
 		if (!editor) {
-			//
-			return;
+			// todo@joh show empty message
+			return undefined;
 		}
 
-		// todo@joh show pending...
-		const promise = getOutline(editor.getModel()).then(outline => {
-			let model = <OutlineItemGroup>this._tree.getInput();
-			let [first] = outline;
-			if (!first) {
-				return; // todo@joh
+		let textModel = editor.getModel();
+		let oldModel = <OutlineModel>this._tree.getInput();
+		let model = new OutlineModel(textModel.uri, getOutline(textModel));
+
+		if (oldModel && oldModel.merge(model)) {
+			model = oldModel;
+			this._tree.refresh(undefined, true);
+
+		} else {
+			// persist state
+			if (oldModel) {
+				let state = OutlineTreeState.capture(this._tree);
+				this._treeStates.set(oldModel.uri.toString(), state);
+			}
+			await this._tree.setInput(model);
+			let state = this._treeStates.get(model.uri.toString());
+			OutlineTreeState.restore(this._tree, state);
+		}
+
+		// wait for the actual model to work with...
+		let itemGroup = await model.selected();
+
+		this._input.enable();
+
+		// feature: filter on type
+		// on type -> update filters
+		// on first type -> capture tree state
+		// on erase -> restore captured tree state
+		let beforePatternState: OutlineTreeState;
+		this._editorDisposables.push(this._input.onDidChange(async pattern => {
+			if (!beforePatternState) {
+				beforePatternState = OutlineTreeState.capture(this._tree);
+			}
+			let item = itemGroup.updateMatches(pattern);
+			await this._tree.refresh(undefined, true);
+			if (item) {
+				await this._tree.reveal(item);
+				this._tree.setFocus(item, this);
+				this._tree.setSelection([item], this);
+				this._tree.expandAll(undefined /*all*/);
 			}
 
-			if (model instanceof OutlineItemGroup && first.source === model.source) {
-				model.children.splice(0, model.children.length, ...first.children);
-				this._tree.refresh(undefined, true);
+			if (!pattern && beforePatternState) {
+				await OutlineTreeState.restore(this._tree, beforePatternState);
+				beforePatternState = undefined;
+			}
+		}));
+
+		// feature: reveal outline selection in editor
+		// on change -> reveal/select defining range
+		this._editorDisposables.push(this._tree.onDidChangeSelection(e => {
+			if (e.payload === this) {
+				return;
+			}
+			let [first] = e.selection;
+			if (first instanceof OutlineItem) {
+				let { range } = first.symbol.location;
+				editor.revealRangeInCenterIfOutsideViewport(range, ScrollType.Smooth);
+				editor.setSelection(Range.collapseToStart(range));
+				// editor.focus();
+			}
+		}));
+
+		// feature: reveal editor selection in outline
+		this._editorDisposables.push(editor.onDidChangeCursorSelection(async e => {
+			if (!this._followCursor || e.reason !== CursorChangeReason.Explicit) {
+				return;
+			}
+			let item = itemGroup.getItemEnclosingPosition({
+				lineNumber: e.selection.selectionStartLineNumber,
+				column: e.selection.selectionStartColumn
+			});
+			if (item) {
+				await this._tree.reveal(item);
+				this._tree.setFocus(item, this);
+				this._tree.setSelection([item], this);
 			} else {
-				this._tree.setInput(first);
+				this._tree.setSelection([], this);
 			}
-
-			this._editorDisposables.push(editor.onDidChangeCursorSelection(async e => {
-				if (!this._followCursor || e.reason !== CursorChangeReason.Explicit) {
-					return;
-				}
-				let item = model.getItemEnclosingPosition({
-					lineNumber: e.selection.selectionStartLineNumber,
-					column: e.selection.selectionStartColumn
-				});
-				if (item) {
-					await this._tree.reveal(item);
-					this._tree.setFocus(item, this);
-					this._tree.setSelection([item], this);
-				} else {
-					this._tree.setSelection([], this);
-				}
-			}));
-
-			this._input.enable();
-
-			let beforePatternState: OutlineTreeState;
-
-			this._editorDisposables.push(this._input.onDidChange(async pattern => {
-
-				if (!beforePatternState) {
-					beforePatternState = OutlineTreeState.capture(this._tree);
-				}
-
-				let item = model.updateMatches(pattern);
-				await this._tree.refresh(undefined, true);
-				if (item) {
-					await this._tree.reveal(item);
-					this._tree.setFocus(item, this);
-					this._tree.setSelection([item], this);
-					this._tree.expandAll(undefined /*all*/);
-				}
-
-				if (!pattern && beforePatternState) {
-					await OutlineTreeState.restore(this._tree, beforePatternState);
-					beforePatternState = undefined;
-				}
-			}));
-
-			this._editorDisposables.push(this._tree.onDidChangeSelection(e => {
-				if (e.payload === this) {
-					return;
-				}
-				let [first] = e.selection;
-				if (first instanceof OutlineItem) {
-					let { range } = first.symbol.location;
-					editor.revealRangeInCenterIfOutsideViewport(range, ScrollType.Smooth);
-					editor.setSelection(Range.collapseToStart(range));
-					// editor.focus();
-				}
-			}));
-
-		}, err => {
-			//todo@joh have an error screen
-			console.error(err);
-		});
-
-		this._editorDisposables.push({
-			dispose() {
-				promise.cancel();
-			}
-		});
+		}));
 	}
 }

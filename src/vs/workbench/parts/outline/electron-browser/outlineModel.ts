@@ -12,29 +12,38 @@ import { fuzzyScore } from '../../../../base/common/filters';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { values } from 'vs/base/common/map';
+import URI from 'vs/base/common/uri';
 
-export function getOutline(model: ITextModel): TPromise<OutlineItemGroup[]> {
-	let outlines = new Array<OutlineItemGroup>();
-	let promises = DocumentSymbolProviderRegistry.ordered(model).map((provider, i) => {
+export function getOutline(model: ITextModel): TPromise<OutlineItemGroup>[] {
+	return DocumentSymbolProviderRegistry.ordered(model).map((provider, i) => {
+		let source = `provider${i}`;
 		return asWinJsPromise(token => provider.provideDocumentSymbols(model, token)).then(result => {
-			let source = `provider${i}`;
-			let items = result.map(info => asOutlineItem(info, undefined));
-			outlines.push(new OutlineItemGroup(source, items));
+			let items = result.map(info => asOutlineItem(info, source));
+			return new OutlineItemGroup(source, items);
 		}, err => {
-			//
+			//todo@joh capture error in group
+			return new OutlineItemGroup(source, []);
 		});
 	});
-	return TPromise.join(promises).then(() => outlines);
 }
 
-function asOutlineItem(info: SymbolInformation, parent: OutlineItem): OutlineItem {
+function asOutlineItem(info: SymbolInformation, parentOrExtensionId: OutlineItem | string): OutlineItem {
+
+	// complex id-computation which contains the origin/extension,
+	// the parent path, and some dedupe logic when names collide
+	let parent: OutlineItem;
 	let id = info.name;
-	if (parent) {
-		id = parent.id + info.name;
-		for (let i = 1; parent.children.has(id); i++) {
-			id = parent.id + info.name + i;
+	if (typeof parentOrExtensionId === 'string') {
+		id = parentOrExtensionId + id;
+	} else if (parentOrExtensionId) {
+		parent = parentOrExtensionId;
+		id = parentOrExtensionId.id + info.name;
+		for (let i = 1; parentOrExtensionId.children.has(id); i++) {
+			id = parentOrExtensionId.id + info.name + i;
 		}
 	}
+
+	// build item and recurse
 	let res = new OutlineItem(id, info, parent);
 	if (info.children) {
 		for (const child of info.children) {
@@ -136,5 +145,43 @@ export class OutlineItemGroup {
 			}
 		}
 		return undefined;
+	}
+}
+
+export class OutlineModel {
+
+	constructor(
+		readonly uri: URI,
+		private _requests: TPromise<OutlineItemGroup>[]
+	) {
+		//
+	}
+
+	dispose(): void {
+		this._cancelRequests();
+	}
+
+	private _cancelRequests() {
+		for (const req of this._requests) {
+			req.cancel();
+		}
+	}
+
+	all(): TPromise<OutlineItemGroup>[] {
+		return this._requests;
+	}
+
+	selected(): TPromise<OutlineItemGroup> {
+		// todo@joh allow to 'select' results from different providers
+		return this._requests[0];
+	}
+
+	merge(other: OutlineModel): boolean {
+		if (this.uri.toString() !== other.uri.toString()) {
+			return false;
+		}
+		this._cancelRequests();
+		this._requests = other._requests;
+		return true;
 	}
 }
