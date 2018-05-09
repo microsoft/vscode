@@ -11,7 +11,7 @@ import * as dom from 'vs/base/browser/dom';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
+import { IPickOpenEntry } from 'vs/platform/quickinput/common/quickInput';
 import { IMatch } from 'vs/base/common/filters';
 import { matchesFuzzyOcticonAware, parseOcticons } from 'vs/base/common/octicon';
 import { compareAnything } from 'vs/base/common/comparers';
