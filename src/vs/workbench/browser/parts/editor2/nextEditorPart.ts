@@ -68,6 +68,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 	//#endregion
 
 	private memento: object;
+	private splitPreference: Sizing;
 	private dimension: Dimension;
 	private _partOptions: INextEditorPartOptions;
 
@@ -101,6 +102,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 			this.whenRestoredComplete = resolve;
 		});
 
+		this.splitPreference = this._partOptions.distributeOnSplit ? Sizing.Distribute : Sizing.Split;
 		this.registerListeners();
 	}
 
@@ -223,7 +225,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		// Add to grid widget
 		this.gridWidget.addView(
 			newGroupView,
-			Sizing.Distribute,
+			this.splitPreference,
 			locationView,
 			this.toGridViewDirection(direction),
 		);
@@ -342,7 +344,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		}
 
 		// Remove from grid widget & dispose
-		this.gridWidget.removeView(groupView, Sizing.Distribute);
+		this.gridWidget.removeView(groupView, this.splitPreference);
 		groupView.dispose();
 
 		// Restore focus if we had it previously (we run this after gridWidget.removeView() is called
@@ -369,8 +371,8 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		const groupHasFocus = isAncestor(document.activeElement, groupView.element);
 
 		// Move is a remove + add
-		this.gridWidget.removeView(groupView, Sizing.Distribute);
-		this.gridWidget.addView(groupView, Sizing.Distribute, locationView, this.toGridViewDirection(direction));
+		this.gridWidget.removeView(groupView, this.splitPreference);
+		this.gridWidget.addView(groupView, this.splitPreference, locationView, this.toGridViewDirection(direction));
 
 		// Restore focus if we had it previously (we run this after gridWidget.removeView() is called
 		// because removing a view can mean to reparent it and thus focus would be removed otherwise)

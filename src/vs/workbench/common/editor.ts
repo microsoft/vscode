@@ -844,6 +844,7 @@ export interface IWorkbenchEditorPartConfiguration {
 	revealIfOpen?: boolean;
 	swipeToNavigate?: boolean;
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
+	distributeOnSplit?: boolean;
 }
 
 export const ActiveEditorMovePositioning = {

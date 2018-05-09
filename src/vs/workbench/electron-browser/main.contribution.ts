@@ -223,6 +223,11 @@ configurationRegistry.registerConfiguration({
 			'default': false,
 			'included': isMacintosh
 		},
+		'workbench.editor.distributeOnSplit': {
+			'type': 'boolean',
+			'description': nls.localize('distributeOnSplit', "Distributes size of all editors in group on split."),
+			'default': true,
+		},
 		'workbench.commandPalette.history': {
 			'type': 'number',
 			'description': nls.localize('commandHistory', "Controls the number of recently used commands to keep in history for the command palette. Set to 0 to disable command history."),
