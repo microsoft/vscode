@@ -140,7 +140,7 @@ class DropOverlay extends Themable {
 		// Close in source group unless we copy
 		const copyEditor = this.shouldCopyEditor(draggedEditor, event);
 		if (!copyEditor) {
-			sourceGroup.closeEditor(draggedEditor.editor);
+			sourceGroup.closeEditor(draggedEditor.editor, true);
 		}
 	}
 

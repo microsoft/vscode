@@ -843,6 +843,7 @@ export interface IWorkbenchEditorPartConfiguration {
 	openPositioning?: 'left' | 'right' | 'first' | 'last';
 	revealIfOpen?: boolean;
 	swipeToNavigate?: boolean;
+	collapseEmptyGroupsOnClose?: boolean;
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
 }
 

@@ -229,9 +229,12 @@ export interface INextEditorGroup {
 	 * @param editor the editor to close, or the currently active editor
 	 * if unspecified.
 	 *
+	 * @param allowEmpty allows the group to remain empty if this editor is the last one in the group,
+	 * even if there are settings that would otherwise close this group.
+	 *
 	 * @returns a promise when the editor is closed.
 	 */
-	closeEditor(editor?: IEditorInput): Thenable<void>;
+	closeEditor(editor?: IEditorInput, allowEmpty?: boolean): Thenable<void>;
 
 	/**
 	 * Set an editor to be pinned. A pinned editor is not replaced

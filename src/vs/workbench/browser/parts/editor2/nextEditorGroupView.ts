@@ -8,7 +8,7 @@
 import 'vs/css!./media/nextEditorGroupView';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorGroup, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
-import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, IEditorOpeningEvent, EditorOpeningEvent, TextEditorOptions } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, IEditorOpeningEvent, EditorOpeningEvent, TextEditorOptions, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor } from 'vs/base/browser/dom';
@@ -36,10 +36,11 @@ import { RunOnceWorker } from 'vs/base/common/async';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { NextTitleControl } from 'vs/workbench/browser/parts/editor2/nextTitleControl';
-import { INextEditorGroupsAccessor, INextEditorGroupView, INextEditorPartOptionsChangeEvent, EDITOR_TITLE_HEIGHT, EDITOR_MIN_DIMENSIONS, EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor2/editor2';
+import { INextEditorGroupsAccessor, INextEditorGroupView, INextEditorPartOptionsChangeEvent, EDITOR_TITLE_HEIGHT, EDITOR_MIN_DIMENSIONS, EDITOR_MAX_DIMENSIONS, getEditorPartOptions, INextEditorPartOptions } from 'vs/workbench/browser/parts/editor2/editor2';
 import { NextNoTabsTitleControl } from './nextNoTabsTitleControl';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { join } from 'vs/base/common/paths';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class NextEditorGroupView extends Themable implements INextEditorGroupView {
 
@@ -101,6 +102,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	private ignoreOpenEditorErrors: boolean;
 	private disposedEditorsWorker: RunOnceWorker<EditorInput>;
+	private workbenchEditorOptions: INextEditorPartOptions;
 
 	constructor(
 		private accessor: INextEditorGroupsAccessor,
@@ -111,9 +113,11 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		@IPartService private partService: IPartService,
 		@INotificationService private notificationService: INotificationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IConfigurationService private configurationService: IConfigurationService,
 	) {
 		super(themeService);
+		this.workbenchEditorOptions = getEditorPartOptions(this.configurationService.getValue<IWorkbenchEditorConfiguration>());
 
 		if (from instanceof NextEditorGroupView) {
 			this._group = this._register(from.group.clone());
@@ -712,7 +716,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	//#region closeEditor()
 
-	closeEditor(editor: EditorInput = this.activeEditor): Thenable<void> {
+	closeEditor(editor: EditorInput = this.activeEditor, allowEmpty: boolean = false): Thenable<void> {
 		if (!editor) {
 			return TPromise.as(void 0);
 		}
@@ -724,15 +728,15 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 			}
 
 			// Do close
-			this.doCloseEditor(editor);
+			this.doCloseEditor(editor, allowEmpty);
 		});
 	}
 
-	private doCloseEditor(editor: EditorInput, focusNext = this.accessor.activeGroup === this): void {
+	private doCloseEditor(editor: EditorInput, allowEmpty: boolean = false, focusNext = this.accessor.activeGroup === this): void {
 
 		// Closing the active editor of the group is a bit more work
 		if (this.group.isActive(editor)) {
-			this.doCloseActiveEditor(focusNext);
+			this.doCloseActiveEditor(focusNext, allowEmpty);
 		}
 
 		// Closing inactive editor is just a model update
@@ -741,7 +745,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		}
 	}
 
-	private doCloseActiveEditor(focusNext = this.accessor.activeGroup === this, fromError?: boolean): void {
+	private doCloseActiveEditor(focusNext = this.accessor.activeGroup === this, allowEmpty: boolean, fromError?: boolean): void {
 		const editorToClose = this.activeEditor;
 		const editorHasFocus = isAncestor(document.activeElement, this.element);
 
@@ -783,8 +787,10 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 			// Editor Change Event
 			this._onDidActiveEditorChange.fire();
+		}
 
-			// TODO@grid introduce and support a setting to close the group when the last editor closes
+		if (this.workbenchEditorOptions.collapseEmptyGroupsOnClose && (this._group.count === 0) && !allowEmpty) {
+			this.accessor.removeGroup();
 		}
 	}
 

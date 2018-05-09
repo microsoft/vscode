@@ -310,7 +310,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		}
 	}
 
-	removeGroup(group: INextEditorGroupView | GroupIdentifier): void {
+	removeGroup(group: INextEditorGroupView | GroupIdentifier = this.activeGroup): void {
 		const groupView = this.assertGroupView(group);
 		if (
 			this.groupViews.size === 1 ||	// Cannot remove the last root group
