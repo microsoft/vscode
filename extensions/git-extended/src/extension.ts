@@ -9,7 +9,7 @@ import { PRProvider } from './prView/prProvider';
 import { Repository } from './common/models/repository';
 import { Configuration } from './configuration';
 import { Resource } from './common/resources';
-import { ReviewMode } from './review/reviewMode';
+import { ReviewManager } from './review/reviewManager';
 import { CredentialStore } from './credentials';
 import { PullRequestService } from './services/pullRequestService';
 
@@ -36,22 +36,22 @@ export async function activate(context: vscode.ExtensionContext) {
 		})
 	);
 
-	let gitExt = vscode.extensions.getExtension('vscode.git');
-	let importedGitApi = gitExt.exports;
-	let repos = await importedGitApi.getRepositories();
-	let repo;
+	// let gitExt = vscode.extensions.getExtension('vscode.git');
+	// let importedGitApi = gitExt.exports;
+	// let repos = await importedGitApi.getRepositories();
+	// let repo;
 
-	if (!repos || !repos.length) {
-		let waitForRepo = new Promise((resolve, reject) => {
-			importedGitApi.onDidOpenRepository(repository => {
-				resolve(repository);
-			});
-		});
+	// if (!repos || !repos.length) {
+	// 	let waitForRepo = new Promise((resolve, reject) => {
+	// 		importedGitApi.onDidOpenRepository(repository => {
+	// 			resolve(repository);
+	// 		});
+	// 	});
 
-		repo = await waitForRepo;
-	} else {
-		repo = repos[0];
-	}
+	// 	repo = await waitForRepo;
+	// } else {
+	// 	repo = repos[0];
+	// }
 
 	const repository = new Repository(rootPath, context.workspaceState);
 	let repositoryInitialized = false;
@@ -63,7 +63,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		let credentialStore = new CredentialStore(configuration);
 		await repository.connectGitHub(credentialStore);
 		let pullRequestService = new PullRequestService();
-		let reviewMode = new ReviewMode(repository, pullRequestService, context.workspaceState, repo);
+		let reviewMode = new ReviewManager(context, repository, pullRequestService, context.workspaceState);
 		await (new PRProvider(context, configuration, reviewMode)).activate(repository);
 	});
 }

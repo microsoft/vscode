@@ -7,7 +7,7 @@
 
 import { Model } from './model';
 import { Repository as ModelRepository } from './repository';
-import { Uri, SourceControlInputBox, SourceControl, EventEmitter, Event } from 'vscode';
+import { Uri, SourceControlInputBox } from 'vscode';
 
 export interface InputBox {
 	value: string;
@@ -28,12 +28,10 @@ export class RepositoryImpl implements Repository {
 
 	readonly rootUri: Uri;
 	readonly inputBox: InputBox;
-	readonly sourceControl: SourceControl;
 
 	constructor(repository: ModelRepository) {
 		this.rootUri = Uri.file(repository.root);
 		this.inputBox = new InputBoxImpl(repository.inputBox);
-		this.sourceControl = repository.sourceControl;
 	}
 }
 
@@ -43,16 +41,8 @@ export interface API {
 }
 
 export class APIImpl implements API {
-	private _onDidOpenRepository = new EventEmitter<Repository>();
-	readonly onDidOpenRepository: Event<Repository> = this._onDidOpenRepository.event;
 
-	constructor(private modelPromise: Promise<Model>) {
-		modelPromise.then(model => {
-			model.onDidOpenRepository(repository => {
-				this._onDidOpenRepository.fire(new RepositoryImpl(repository));
-			});
-		});
-	}
+	constructor(private modelPromise: Promise<Model>) { }
 
 	async getGitPath(): Promise<string> {
 		const model = await this.modelPromise;

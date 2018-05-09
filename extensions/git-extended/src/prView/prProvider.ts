@@ -13,7 +13,7 @@ import { Configuration } from '../configuration';
 import { parseComments } from '../common/comment';
 import { PRGroupTreeItem, FileChangeTreeItem } from '../common/treeItems';
 import { Resource } from '../common/resources';
-import { ReviewMode } from '../review/reviewMode';
+import { ReviewManager } from '../review/reviewManager';
 import { toPRUri } from '../common/uri';
 import * as fs from 'fs';
 import { PullRequestModel, PRType } from '../common/models/pullRequestModel';
@@ -22,13 +22,13 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 	private context: vscode.ExtensionContext;
 	private repository: Repository;
 	private configuration: Configuration;
-	private reviewMode: ReviewMode;
+	private reviewMode: ReviewManager;
 	private _onDidChangeTreeData = new vscode.EventEmitter<PRGroupTreeItem | PullRequestModel | FileChangeTreeItem | undefined>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 	private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
 	get onDidChange(): vscode.Event<vscode.Uri> { return this._onDidChange.event; }
 
-	constructor(context: vscode.ExtensionContext, configuration: Configuration, reviewMode: ReviewMode) {
+	constructor(context: vscode.ExtensionContext, configuration: Configuration, reviewMode: ReviewManager) {
 		this.context = context;
 		this.configuration = configuration;
 		this.reviewMode = reviewMode;

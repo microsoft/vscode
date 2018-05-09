@@ -15,6 +15,7 @@ import { PullRequestModel } from '../common/models/pullRequestModel';
 import { toGitUri } from '../common/uri';
 import { GitChangeType } from '../common/models/file';
 import { PullRequestService } from '../services/pullRequestService';
+import { FileChangesProvider } from './fileChangesProvider';
 
 const REVIEW_STATE = 'git-extended.state';
 
@@ -26,7 +27,7 @@ export interface ReviewState {
 	base: any;
 }
 
-export class ReviewMode implements vscode.DecorationProvider {
+export class ReviewManager implements vscode.DecorationProvider {
 	private _documentCommentProvider: vscode.Disposable;
 	private _workspaceCommentProvider: vscode.Disposable;
 	private _command: vscode.Disposable;
@@ -41,11 +42,22 @@ export class ReviewMode implements vscode.DecorationProvider {
 	private _lastCommitSha: string;
 
 	private _onDidChangeCommentThreads = new vscode.EventEmitter<vscode.CommentThreadChangedEvent>();
+
+	private _prFileChangesProvider: FileChangesProvider | undefined;
+	get prFileChangesProvider() {
+		if (this._prFileChangesProvider === undefined) {
+			this._prFileChangesProvider = new FileChangesProvider(this._context);
+			this._disposables.push(this._prFileChangesProvider);
+		}
+
+		return this._prFileChangesProvider;
+	}
+
 	constructor(
+		private _context: vscode.ExtensionContext,
 		private _repository: Repository,
 		private _pullRequestService: PullRequestService,
-		private _workspaceState: vscode.Memento,
-		private _gitRepo: any
+		private _workspaceState: vscode.Memento
 	) {
 		this._documentCommentProvider = null;
 		this._workspaceCommentProvider = null;
@@ -111,22 +123,7 @@ export class ReviewMode implements vscode.DecorationProvider {
 		}
 
 		await this.getPullRequestData(pr);
-
-		let prChangeResources: vscode.SourceControlResourceState[] = this._localFileChanges.map(fileChange => ({
-			resourceUri: fileChange.filePath,
-			command: {
-				title: 'show diff',
-				command: 'vscode.diff',
-				arguments: [
-					fileChange.parentFilePath,
-					fileChange.filePath,
-					fileChange.fileName
-				]
-			},
-			decorations: {
-				letter: fileChange.letter
-			}
-		}));
+		await this.prFileChangesProvider.showPullRequestFileChanges(this._localFileChanges);
 
 		this._command = vscode.commands.registerCommand(this._prNumber + '-post', async (uri: vscode.Uri, range: vscode.Range, thread: vscode.CommentThread, text: string) => {
 			try {
@@ -174,10 +171,6 @@ export class ReviewMode implements vscode.DecorationProvider {
 
 		this._onDidChangeDecorations.fire();
 		this.registerCommentProvider();
-
-		let prGroup: vscode.SourceControlResourceGroup = this._gitRepo.sourceControl.createResourceGroup('pr', 'Changes from PR');
-		this._resourceGroups.push(prGroup);
-		prGroup.resourceStates = prChangeResources;
 	}
 
 	private async updateComments(): Promise<void> {

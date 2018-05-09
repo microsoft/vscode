@@ -47,10 +47,17 @@
       }
     },
     "views": {
-      "scm": [{
-        "id": "pr",
-        "name": "GitHub Pull Requests"
-      }]
+      "scm": [
+        {
+          "id": "pr",
+          "name": "GitHub Pull Requests"
+        },
+        {
+          "id": "prStatus",
+          "name": "Changes From Pull Request",
+          "when": "git:ispr"
+        }
+      ]
     },
     "commands": [{
         "command": "pr.refreshList",
