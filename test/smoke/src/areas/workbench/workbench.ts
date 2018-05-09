@@ -6,6 +6,7 @@
 import { Explorer } from '../explorer/explorer';
 import { ActivityBar } from '../activitybar/activityBar';
 import { QuickOpen } from '../quickopen/quickopen';
+import { QuickInput } from '../quickinput/quickinput';
 import { Extensions } from '../extensions/extensions';
 import { Search } from '../search/search';
 import { Editor } from '../editor/editor';
@@ -26,6 +27,7 @@ export interface Commands {
 export class Workbench {
 
 	readonly quickopen: QuickOpen;
+	readonly quickinput: QuickInput;
 	readonly editors: Editors;
 	readonly explorer: Explorer;
 	readonly activitybar: ActivityBar;
@@ -43,6 +45,7 @@ export class Workbench {
 	constructor(code: Code, userDataPath: string) {
 		this.editors = new Editors(code);
 		this.quickopen = new QuickOpen(code, this.editors);
+		this.quickinput = new QuickInput(code);
 		this.explorer = new Explorer(code, this.editors);
 		this.activitybar = new ActivityBar(code);
 		this.search = new Search(code);

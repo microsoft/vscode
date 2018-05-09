@@ -30,8 +30,8 @@ export function setup() {
 			const app = this.app as Application;
 
 			await app.workbench.statusbar.clickOn(StatusBarElement.BRANCH_STATUS);
-			await app.workbench.quickopen.waitForQuickOpenOpened();
-			await app.workbench.quickopen.closeQuickOpen();
+			await app.workbench.quickinput.waitForQuickInputOpened();
+			await app.workbench.quickinput.closeQuickInput();
 
 			await app.workbench.quickopen.openFile('app.js');
 			await app.workbench.statusbar.clickOn(StatusBarElement.INDENTATION_STATUS);
