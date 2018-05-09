@@ -306,15 +306,21 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		return [];
 	}
 
+	private isInstallTask(task: Task): boolean {
+		let fullName = getTaskName('install', task.definition.path);
+		return fullName === task.name;
+	}
+
 	private buildTaskTree(tasks: Task[]): Folder[] | PackageJSON[] | NoScripts[] {
 		let folders: Map<String, Folder> = new Map();
 		let packages: Map<String, PackageJSON> = new Map();
+		let scripts: Map<String, NpmScript> = new Map();
 
 		let folder = null;
 		let packageJson = null;
 
 		tasks.forEach(each => {
-			if (isWorkspaceFolder(each.scope) && each.name !== 'install') {
+			if (isWorkspaceFolder(each.scope) && !this.isInstallTask(each)) {
 				folder = folders.get(each.scope.name);
 				if (!folder) {
 					folder = new Folder(each.scope);
@@ -329,8 +335,12 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 					folder.addPackage(packageJson);
 					packages.set(fullPath, packageJson);
 				}
-				let script = new NpmScript(this.extensionContext, packageJson, each);
-				packageJson.addScript(script);
+				let fullScriptPath = path.join(packageJson.path, each.name);
+				if (!scripts.get(fullScriptPath)) {
+					let script = new NpmScript(this.extensionContext, packageJson, each);
+					packageJson.addScript(script);
+					scripts.set(fullScriptPath, script);
+				}
 			}
 		});
 		if (folders.size === 1) {

@@ -16,16 +16,20 @@ export interface IQuickInputService {
 	_serviceBrand: any;
 
 	/**
-	 * For multi-select only. WIP.
+	 * Opens the quick input box for selecting items and returns a promise with the user selected item(s) if any.
 	 */
-	pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options?: IPickOptions, token?: CancellationToken): TPromise<T[]>;
+	pick<T extends IPickOpenEntry, O extends IPickOptions>(picks: TPromise<T[]>, options?: O, token?: CancellationToken): TPromise<O extends { canPickMany: true } ? T[] : T>;
 
 	/**
-	 * Opens the quick open box for user input and returns a promise with the user typed value if any.
+	 * Opens the quick input box for text input and returns a promise with the user typed value if any.
 	 */
 	input(options?: IInputOptions, token?: CancellationToken): TPromise<string>;
 
 	focus(): void;
+
+	toggle(): void;
+
+	navigate(next: boolean): void;
 
 	accept(): TPromise<void>;
 

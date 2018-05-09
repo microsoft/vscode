@@ -239,7 +239,6 @@ async function findAllScripts(buffer: string): Promise<StringMap> {
 			}
 		},
 		onLiteralValue(value: any, _offset: number, _length: number) {
-			console.log(value);
 			if (script) {
 				scripts[script] = value;
 				script = undefined;

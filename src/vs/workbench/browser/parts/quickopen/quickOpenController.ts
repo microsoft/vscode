@@ -93,7 +93,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	private handlerOnOpenCalled: { [prefix: string]: boolean; };
 	private currentResultToken: string;
 	private currentPickerToken: string;
-	private inQuickOpenMode: IContextKey<boolean>;
 	private promisesToCompleteOnHide: ValueCallback[];
 	private previousActiveHandlerDescriptor: QuickOpenHandlerDescriptor;
 	private actionProvider = new ContributableActionProvider();
@@ -120,8 +119,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		this.promisesToCompleteOnHide = [];
 
 		this.editorHistoryHandler = this.instantiationService.createInstance(EditorHistoryHandler);
-
-		this.inQuickOpenMode = new RawContextKey<boolean>('inQuickOpen', false).bindTo(contextKeyService);
 
 		this._onShow = new Emitter<void>();
 		this._onHide = new Emitter<void>();
@@ -557,7 +554,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			this.pickOpenWidget.hide(HideReason.FOCUS_LOST);
 		}
 
-		this.inQuickOpenMode.set(true);
 		this.emitQuickOpenVisibilityChange(true);
 	}
 
@@ -590,7 +586,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		}
 
 		// Reset context keys
-		this.inQuickOpenMode.reset();
 		this.resetQuickOpenContextKeys();
 
 		// Events

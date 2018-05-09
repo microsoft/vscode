@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as map from 'vs/base/common/map';
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -71,9 +71,9 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		title: string,
 		showOptions: { viewColumn: Position, preserveFocus: boolean },
 		options: WebviewInputOptions,
-		extensionFolderPath: string
+		extensionLocation: UriComponents
 	): void {
-		const webview = this._webviewService.createWebview(MainThreadWebviews.viewType, title, showOptions, options, extensionFolderPath, this.createWebviewEventDelegate(handle));
+		const webview = this._webviewService.createWebview(MainThreadWebviews.viewType, title, showOptions, options, URI.revive(extensionLocation), this.createWebviewEventDelegate(handle));
 		webview.state = {
 			viewType: viewType,
 			state: undefined

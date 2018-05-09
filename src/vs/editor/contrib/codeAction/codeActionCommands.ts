@@ -23,7 +23,7 @@ import { CodeActionAutoApply, CodeActionFilter, CodeActionKind } from './codeAct
 import { CodeActionContextMenu } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { IBulkEditService } from '../../browser/services/bulkEditService';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(
@@ -135,7 +135,7 @@ export async function applyCodeAction(
 	action: CodeAction,
 	bulkEditService: IBulkEditService,
 	commandService: ICommandService,
-	editor: ICodeEditor,
+	editor?: ICodeEditor,
 ) {
 	if (action.edit) {
 		await bulkEditService.apply(action.edit, { editor });

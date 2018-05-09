@@ -18,7 +18,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as objects from 'vs/base/common/objects';
 import * as extfs from 'vs/base/node/extfs';
-import { nfcall, ThrottledDelayer, asWinJsPromise } from 'vs/base/common/async';
+import { nfcall, ThrottledDelayer, asWinJSImport } from 'vs/base/common/async';
 import uri from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
@@ -689,7 +689,7 @@ export class FileService implements IFileService {
 			return this.updateContent(uri.file(tmpPath), value, writeOptions).then(() => {
 
 				// 3.) invoke our CLI as super user
-				return (import('sudo-prompt')).then(sudoPrompt => {
+				return asWinJSImport(import('sudo-prompt')).then(sudoPrompt => {
 					return new TPromise<void>((c, e) => {
 						const promptOptions = {
 							name: this.environmentService.appNameLong.replace('-', ''),
@@ -926,7 +926,7 @@ export class FileService implements IFileService {
 
 	public del(resource: uri, useTrash?: boolean): TPromise<void> {
 		if (useTrash) {
-			return asWinJsPromise(() => this.doMoveItemToTrash(resource));
+			return this.doMoveItemToTrash(resource);
 		}
 
 		return this.doDelete(resource);
@@ -935,18 +935,15 @@ export class FileService implements IFileService {
 	private doMoveItemToTrash(resource: uri): TPromise<void> {
 		const absolutePath = resource.fsPath;
 
-		return new TPromise((resolve, reject) => {
-			(import('electron')).then(electron => { // workaround for https://github.com/Microsoft/vscode/issues/48205
-				const result = electron.shell.moveItemToTrash(absolutePath);
-				if (!result) {
-					reject(new Error(isWindows ? nls.localize('binFailed', "Failed to move '{0}' to the recycle bin", paths.basename(absolutePath)) : nls.localize('trashFailed', "Failed to move '{0}' to the trash", paths.basename(absolutePath))));
-					return;
-				}
+		return asWinJSImport(import('electron')).then(electron => {
+			const result = electron.shell.moveItemToTrash(absolutePath);
+			if (!result) {
+				return TPromise.wrapError(new Error(isWindows ? nls.localize('binFailed', "Failed to move '{0}' to the recycle bin", paths.basename(absolutePath)) : nls.localize('trashFailed', "Failed to move '{0}' to the trash", paths.basename(absolutePath))));
+			}
 
-				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
+			this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
 
-				resolve(null);
-			}, reject);
+			return void 0;
 		});
 	}
 

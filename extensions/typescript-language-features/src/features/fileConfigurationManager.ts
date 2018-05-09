@@ -88,10 +88,10 @@ export default class FileConfigurationManager {
 			return;
 		}
 
-		const args = {
+		const args: Proto.ConfigureRequestArguments = {
 			file,
 			...currentOptions
-		} as Proto.ConfigureRequestArguments;
+		};
 		await this.client.execute('configure', args, token);
 		this.formatOptions[key] = currentOptions;
 	}
@@ -152,7 +152,7 @@ export default class FileConfigurationManager {
 			isTypeScriptDocument(document) ? 'typescript' : 'javascript',
 			document.uri);
 
-		const preferences = config.workspace.getConfiguration(
+		const preferences = workspace.getConfiguration(
 			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
 			document.uri);
 

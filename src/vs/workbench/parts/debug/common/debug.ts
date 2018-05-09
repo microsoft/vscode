@@ -406,7 +406,7 @@ export interface IDebugAdapter extends IDisposable {
 }
 
 export interface IDebugAdapterProvider extends ITerminalLauncher {
-	createDebugAdapter(debugType: string, adapterInfo: IAdapterExecutable | null): IDebugAdapter;
+	createDebugAdapter(debugType: string, adapterInfo: IAdapterExecutable | null, debugPort: number): IDebugAdapter;
 	substituteVariables(folder: IWorkspaceFolder, config: IConfig): TPromise<IConfig>;
 }
 
@@ -506,7 +506,7 @@ export interface IConfigurationManager {
 	debugAdapterExecutable(folderUri: uri | undefined, type: string): TPromise<IAdapterExecutable | undefined>;
 
 	registerDebugAdapterProvider(debugTypes: string[], debugAdapterLauncher: IDebugAdapterProvider): IDisposable;
-	createDebugAdapter(debugType: string, adapterExecutable: IAdapterExecutable | null): IDebugAdapter | undefined;
+	createDebugAdapter(debugType: string, adapterExecutable: IAdapterExecutable | null, debugPort?: number): IDebugAdapter | undefined;
 	substituteVariables(debugType: string, folder: IWorkspaceFolder, config: IConfig): TPromise<IConfig>;
 	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void>;
 }

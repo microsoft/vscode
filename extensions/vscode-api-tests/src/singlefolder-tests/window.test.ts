@@ -298,6 +298,44 @@ suite('window namespace tests', () => {
 	});
 
 
+	test('showQuickPick, accept first', async function () {
+		const pick = window.showQuickPick(['eins', 'zwei', 'drei']);
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		assert.equal(await pick, 'eins');
+	});
+
+	test('showQuickPick, accept second', async function () {
+		const resolves: ((value: string) => void)[] = [];
+		const first = new Promise(resolve => resolves.push(resolve));
+		const pick = window.showQuickPick(['eins', 'zwei', 'drei'], {
+			onDidSelectItem: item => resolves.shift()!(item as string)
+		});
+		assert.equal(await first, 'eins');
+		const second = new Promise(resolve => resolves.push(resolve));
+		await commands.executeCommand('workbench.action.quickOpenSelectNext');
+		assert.equal(await second, 'zwei');
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		assert.equal(await pick, 'zwei');
+	});
+
+	test('showQuickPick, select first two', async function () {
+		const resolves: ((value: string) => void)[] = [];
+		const picks = window.showQuickPick(['eins', 'zwei', 'drei'], {
+			onDidSelectItem: item => resolves.shift()!(item as string),
+			canPickMany: true
+		});
+		const first = new Promise(resolve => resolves.push(resolve));
+		await commands.executeCommand('workbench.action.quickOpenSelectNext');
+		assert.equal(await first, 'eins');
+		await commands.executeCommand('workbench.action.quickPickManyToggle');
+		const second = new Promise(resolve => resolves.push(resolve));
+		await commands.executeCommand('workbench.action.quickOpenSelectNext');
+		assert.equal(await second, 'zwei');
+		await commands.executeCommand('workbench.action.quickPickManyToggle');
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		assert.deepStrictEqual(await picks, ['eins', 'zwei']);
+	});
+
 	test('showQuickPick, undefined on cancel', function () {
 		const source = new CancellationTokenSource();
 		const p = window.showQuickPick(['eins', 'zwei', 'drei'], undefined, source.token);

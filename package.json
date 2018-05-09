@@ -32,7 +32,7 @@
     "graceful-fs": "4.1.11",
     "http-proxy-agent": "^2.1.0",
     "https-proxy-agent": "^2.2.1",
-    "iconv-lite": "0.4.19",
+    "iconv-lite": "0.4.23",
     "jschardet": "1.6.0",
     "keytar": "^4.0.5",
     "minimist": "1.2.0",

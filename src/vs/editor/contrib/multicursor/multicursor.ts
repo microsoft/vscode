@@ -830,7 +830,9 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 				const cmp = Range.compareRangesUsingStarts(match, selections[j]);
 				if (cmp < 0) {
 					// match is before sel
-					matches.push(match);
+					if (!Range.areIntersecting(match, selections[j])) {
+						matches.push(match);
+					}
 					i++;
 				} else if (cmp > 0) {
 					// sel is before match

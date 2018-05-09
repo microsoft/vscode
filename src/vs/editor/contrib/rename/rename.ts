@@ -27,7 +27,7 @@ import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IBulkEditService } from '../../browser/services/bulkEditService';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 
 class RenameSkeleton {
 

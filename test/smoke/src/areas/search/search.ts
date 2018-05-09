@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Viewlet } from '../workbench/viewlet';
-import { Commands } from '../workbench/workbench';
 import { Code } from '../../vscode/code';
 
 const VIEWLET = 'div[id="workbench.view.search"] .search-view';
@@ -13,13 +12,18 @@ const INCLUDE_INPUT = `${VIEWLET} .query-details .file-types.includes .monaco-in
 
 export class Search extends Viewlet {
 
-	constructor(code: Code, private commands: Commands) {
+	constructor(code: Code) {
 		super(code);
 	}
 
 	async openSearchViewlet(): Promise<any> {
-		await this.commands.runCommand('workbench.view.search');
-		await this.code.waitForActiveElement(INPUT);
+		if (process.platform === 'darwin') {
+			await this.code.dispatchKeybinding('cmd+shift+f');
+		} else {
+			await this.code.dispatchKeybinding('ctrl+shift+f');
+		}
+
+		await this.waitForInputFocus(INPUT);
 	}
 
 	async searchFor(text: string): Promise<void> {
@@ -79,7 +83,7 @@ export class Search extends Viewlet {
 
 		// other parts of code might steal focus away from input boxes :(
 		while (retries < 5) {
-			await this.code.waitAndClick(INPUT);
+			await this.code.waitAndClick(INPUT, 2, 2);
 
 			try {
 				await this.code.waitForActiveElement(INPUT, 10);
