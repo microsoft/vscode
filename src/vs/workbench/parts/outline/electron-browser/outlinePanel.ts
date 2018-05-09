@@ -31,7 +31,7 @@ import { IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/view
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { OutlineItem, getOutline, OutlineModel, OutlineItemGroup } from './outlineModel';
-import { OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from './outlineTree';
+import { OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState, OutlineController } from './outlineTree';
 import { KeyCode } from '../../../../base/common/keyCodes';
 import { LRUCache } from '../../../../base/common/map';
 import { escape } from '../../../../base/common/strings';
@@ -153,9 +153,10 @@ export class OutlinePanel extends ViewsViewletPanel {
 
 		const dataSource = new OutlineDataSource();
 		const renderer = new OutlineRenderer();
+		const controller = new OutlineController();
 		this._treeComparator = new OutlineItemComparator();
 		this._treeFilter = new OutlineItemFilter();
-		this._tree = this._instantiationService.createInstance(WorkbenchTree, treeContainer, { dataSource, renderer, sorter: this._treeComparator, filter: this._treeFilter }, {});
+		this._tree = this._instantiationService.createInstance(WorkbenchTree, treeContainer, { controller, dataSource, renderer, sorter: this._treeComparator, filter: this._treeFilter }, {});
 
 		this._disposables.push(this._tree, this._input);
 	}

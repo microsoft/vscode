@@ -14,7 +14,9 @@ import { OutlineItem, OutlineModel } from './outlineModel';
 import { HighlightedLabel } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel';
 import { createMatches } from '../../../../base/common/filters';
 import { values } from 'vs/base/common/map';
-
+import { DefaultController, ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export enum OutlineItemCompareType {
 	ByPosition,
@@ -153,5 +155,17 @@ export class OutlineTreeState {
 		}
 		await tree.collapseAll(undefined);
 		await tree.expandAll(items);
+	}
+}
+
+export class OutlineController extends DefaultController {
+
+	protected onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {
+		let undoExpansion = !this.isClickOnTwistie(<IMouseEvent>eventish);
+		let result = super.onLeftClick(tree, element, eventish, origin);
+		if (undoExpansion) {
+			tree.toggleExpansion(element, false).then(undefined, onUnexpectedError);
+		}
+		return result;
 	}
 }
