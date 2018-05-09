@@ -12,7 +12,6 @@ import { fuzzyScore } from '../../../../base/common/filters';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { values } from 'vs/base/common/map';
-import URI from 'vs/base/common/uri';
 
 export function getOutline(model: ITextModel): TPromise<OutlineItemGroup>[] {
 	return DocumentSymbolProviderRegistry.ordered(model).map((provider, i) => {
@@ -151,7 +150,7 @@ export class OutlineItemGroup {
 export class OutlineModel {
 
 	constructor(
-		readonly uri: URI,
+		readonly buffer: ITextModel,
 		private _requests: TPromise<OutlineItemGroup>[]
 	) {
 		//
@@ -177,7 +176,7 @@ export class OutlineModel {
 	}
 
 	merge(other: OutlineModel): boolean {
-		if (this.uri.toString() !== other.uri.toString()) {
+		if (this.buffer.uri.toString() !== other.buffer.uri.toString()) {
 			return false;
 		}
 		this._cancelRequests();

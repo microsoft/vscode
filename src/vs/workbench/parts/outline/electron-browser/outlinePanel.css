@@ -22,6 +22,25 @@
 	height: 100%;
 }
 
+.monaco-workbench .outline-panel .outline-message {
+	display: none;
+	padding: 10px 22px 0 22px;
+	opacity: 0.5;
+}
+
+.monaco-workbench .outline-panel.empty .outline-message {
+	display: inherit;
+}
+
+.monaco-workbench .outline-panel .outline-content {
+	width: 100%;
+	height: 100%;
+}
+
+.monaco-workbench .outline-panel.empty .outline-content {
+	display: none;
+}
+
 .monaco-workbench .outline-panel .outline-element {
 	display: flex;
 	flex-flow: row nowrap;

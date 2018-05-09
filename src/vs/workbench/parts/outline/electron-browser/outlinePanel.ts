@@ -8,7 +8,6 @@ import * as dom from 'vs/base/browser/dom';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Action, IAction, RadioGroup } from 'vs/base/common/actions';
-import { Emitter, Event } from 'vs/base/common/event';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -34,30 +33,31 @@ import { OutlineItem, getOutline, OutlineModel } from './outlineModel';
 import { OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from './outlineTree';
 import { KeyCode } from '../../../../base/common/keyCodes';
 import { LRUCache } from '../../../../base/common/map';
+import { escape } from '../../../../base/common/strings';
 
-class ActiveEditorOracle {
+class RequestOracle {
 
-	private readonly _disposables = new Array<IDisposable>();
-	private readonly _onDidChangeActiveEditor = new Emitter<ICodeEditor>();
-
-	private _editorListener: IDisposable;
-
-	readonly onDidChangeActiveEditor: Event<ICodeEditor> = this._onDidChangeActiveEditor.event;
+	private _disposables = new Array<IDisposable>();
+	private _sessionDisposable: IDisposable;
 
 	constructor(
+		private readonly _callback: (editor: ICodeEditor) => any,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService private readonly _workbenchEditorService: IWorkbenchEditorService,
 	) {
 		editorGroupService.onEditorsChanged(this._update, this, this._disposables);
 		DocumentSymbolProviderRegistry.onDidChange(this._update, this, this._disposables);
+		this._update();
 	}
 
 	dispose(): void {
 		dispose(this._disposables);
+		dispose(this._sessionDisposable);
 	}
 
 	private _update(): void {
-		dispose(this._editorListener);
+		dispose(this._sessionDisposable);
+
 		let editor = this._workbenchEditorService.getActiveEditor();
 		let control = editor && editor.getControl();
 		let codeEditor: ICodeEditor = undefined;
@@ -66,8 +66,21 @@ class ActiveEditorOracle {
 		} else if (isDiffEditor(control)) {
 			codeEditor = control.getModifiedEditor();
 		}
-		this._editorListener = codeEditor && codeEditor.onDidChangeModelContent(e => this._onDidChangeActiveEditor.fire(codeEditor));
-		this._onDidChangeActiveEditor.fire(codeEditor);
+
+		this._callback(codeEditor);
+
+		if (codeEditor) {
+			let handle: number;
+			let listener = codeEditor.onDidChangeModelContent(_ => {
+				handle = setTimeout(() => this._callback, 50);
+			});
+			this._sessionDisposable = {
+				dispose() {
+					listener.dispose();
+					clearTimeout(handle);
+				}
+			};
+		}
 	}
 }
 
@@ -85,16 +98,18 @@ class SimpleToggleAction extends Action {
 
 export class OutlinePanel extends ViewsViewletPanel {
 
-	private readonly _disposables = new Array<IDisposable>();
-	private readonly _activeEditorOracle: ActiveEditorOracle;
+	private _disposables = new Array<IDisposable>();
 
 	private _editorDisposables = new Array<IDisposable>();
-
+	private _requestOracle: RequestOracle;
+	private _domNode: HTMLElement;
+	private _message: HTMLDivElement;
 	private _input: InputBox;
 	private _tree: Tree;
 	private _treeFilter: OutlineItemFilter;
 	private _treeComparator: OutlineItemComparator;
 	private _treeStates = new LRUCache<string, OutlineTreeState>(10);
+
 	private _followCursor = true;
 
 	constructor(
@@ -106,10 +121,6 @@ export class OutlinePanel extends ViewsViewletPanel {
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService);
-
-		this._activeEditorOracle = _instantiationService.createInstance(ActiveEditorOracle);
-		this._disposables.push(this._activeEditorOracle.onDidChangeActiveEditor(this._onEditor, this));
-		this._disposables.push(this._activeEditorOracle);
 	}
 
 	dispose(): void {
@@ -118,12 +129,16 @@ export class OutlinePanel extends ViewsViewletPanel {
 	}
 
 	protected renderBody(container: HTMLElement): void {
-
+		this._domNode = container;
 		dom.addClass(container, 'outline-panel');
+
+		this._message = dom.$('.outline-message');
+		let contentContainer = dom.$('.outline-content');
+		dom.append(container, this._message, contentContainer);
 
 		let inputContainer = dom.$('.outline-input');
 		let treeContainer = dom.$('.outline-tree');
-		dom.append(container, inputContainer, treeContainer);
+		dom.append(contentContainer, inputContainer, treeContainer);
 
 		this._input = new InputBox(inputContainer, null, { placeholder: localize('filter', "Filter") });
 		this._input.disable();
@@ -140,7 +155,8 @@ export class OutlinePanel extends ViewsViewletPanel {
 		this._treeFilter = new OutlineItemFilter();
 		this._tree = this._instantiationService.createInstance(WorkbenchTree, treeContainer, { dataSource, renderer, sorter: this._treeComparator, filter: this._treeFilter }, {});
 
-		this._disposables.push(this._tree, this._input);
+		this._requestOracle = this._instantiationService.createInstance(RequestOracle, editor => this._onEditor(editor));
+		this._disposables.push(this._tree, this._input, this._requestOracle);
 	}
 
 	protected layoutBody(height: number): void {
@@ -175,20 +191,25 @@ export class OutlinePanel extends ViewsViewletPanel {
 		}
 	}
 
+	private _showMessage(message: string) {
+		dom.addClass(this._domNode, 'empty');
+		this._message.innerText = escape(message);
+	}
+
 	private async _onEditor(editor: ICodeEditor): TPromise<void> {
 		dispose(this._editorDisposables);
 
 		this._editorDisposables = new Array();
 		this._input.disable();
 
-		if (!editor) {
-			// todo@joh show empty message
-			return undefined;
+		if (!editor || !DocumentSymbolProviderRegistry.has(editor.getModel())) {
+			return this._showMessage(localize('no-editor', "There are no editors open that can provide outline information."));
 		}
 
-		let textModel = editor.getModel();
+		dom.removeClass(this._domNode, 'empty');
+		let buffer = editor.getModel();
 		let oldModel = <OutlineModel>this._tree.getInput();
-		let model = new OutlineModel(textModel.uri, getOutline(textModel));
+		let model = new OutlineModel(buffer, getOutline(buffer));
 
 		if (oldModel && oldModel.merge(model)) {
 			model = oldModel;
@@ -198,10 +219,10 @@ export class OutlinePanel extends ViewsViewletPanel {
 			// persist state
 			if (oldModel) {
 				let state = OutlineTreeState.capture(this._tree);
-				this._treeStates.set(oldModel.uri.toString(), state);
+				this._treeStates.set(oldModel.buffer.uri.toString(), state);
 			}
 			await this._tree.setInput(model);
-			let state = this._treeStates.get(model.uri.toString());
+			let state = this._treeStates.get(model.buffer.uri.toString());
 			OutlineTreeState.restore(this._tree, state);
 		}
 
