@@ -66,6 +66,9 @@ export function renderExpressionValue(expressionOrValue: IExpression | string, c
 		if (value !== Expression.DEFAULT_VALUE) {
 			dom.addClass(container, 'error');
 		}
+	} else if (options.showChanged && (<any>expressionOrValue).valueChanged && value !== Expression.DEFAULT_VALUE) {
+		// value changed color has priority over other colors.
+		container.className = 'value changed';
 	}
 
 	if (options.colorize && typeof expressionOrValue !== 'string') {
@@ -78,11 +81,6 @@ export function renderExpressionValue(expressionOrValue: IExpression | string, c
 		} else if (stringRegex.test(value)) {
 			dom.addClass(container, 'string');
 		}
-	}
-
-	if (options.showChanged && (<any>expressionOrValue).valueChanged && value !== Expression.DEFAULT_VALUE) {
-		// value changed color has priority over other colors.
-		container.className = 'value changed';
 	}
 
 	if (options.maxValueLength && value.length > options.maxValueLength) {
