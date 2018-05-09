@@ -43,7 +43,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 				this._proxy.$handleFindMatch(handle, session, uri);
 			}
 		};
-		return asWinJsPromise(token => provider.provideFileSearchResults(query, progress, token));
+		return asWinJsPromise(token => provider.provideFileSearchResults(query, null, progress, token));
 	}
 
 	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, query: IRawSearchQuery): TPromise<void> {
@@ -76,8 +76,8 @@ export class ExtHostSearch implements ExtHostSearchShape {
 			folder: URI.from(folderQuery.folder),
 			excludes,
 			includes,
-			disregardIgnoreFiles: query.disregardIgnoreFiles,
-			ignoreSymlinks: query.ignoreSymlinks,
+			useIgnoreFiles: !query.disregardIgnoreFiles,
+			followSymlinks: !query.ignoreSymlinks,
 			encoding: query.fileEncoding
 		};
 
@@ -118,10 +118,11 @@ class TextSearchResultsCollector {
 		}
 
 		// TODO@roblou - line text is sent for every match
+		const matchRange = data.preview.match;
 		this._currentFileMatch.lineMatches.push({
 			lineNumber: data.range.start.line,
-			preview: data.preview.leading + data.preview.matching + data.preview.trailing,
-			offsetAndLengths: [[data.preview.leading.length, data.preview.matching.length]]
+			preview: data.preview.text,
+			offsetAndLengths: [[matchRange.start.character, matchRange.end.character - matchRange.start.character]]
 		});
 	}
 

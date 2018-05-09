@@ -60,24 +60,30 @@ declare module 'vscode' {
 		isWordMatch?: boolean;
 	}
 
-	export interface TextSearchOptions {
+	export interface SearchOptions {
 		folder: Uri;
-		includes: GlobPattern[];
-		excludes: GlobPattern[];
+		includes: string[]; // paths relative to folder
+		excludes: string[];
+		useIgnoreFiles?: boolean;
+		followSymlinks?: boolean;
+		previewOptions?: any; // total length? # of context lines? leading and trailing # of chars?
+	}
+
+	export interface TextSearchOptions extends SearchOptions {
 		maxFileSize?: number;
-		disregardIgnoreFiles?: boolean;
-		ignoreSymlinks?: boolean;
 		encoding?: string;
 	}
 
 	export interface TextSearchResult {
 		uri: Uri;
 		range: Range;
-		preview: { leading: string, matching: string, trailing: string };
+
+		// For now, preview must be a single line of text
+		preview: { text: string, match: Range };
 	}
 
 	export interface SearchProvider {
-		provideFileSearchResults?(query: string, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
+		provideFileSearchResults?(query: string, options: SearchOptions, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
 		provideTextSearchResults?(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
 	}
 

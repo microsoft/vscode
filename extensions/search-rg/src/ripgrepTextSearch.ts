@@ -275,15 +275,15 @@ export class RipgrepParser extends EventEmitter {
 
 		// Get full real text line without color codes
 		const preview = realTextParts.join('');
+
 		lineMatches
 			.map(range => {
 				return <vscode.TextSearchResult>{
 					uri: this.currentFile,
 					range,
 					preview: {
-						leading: preview.substring(0, range.start.character),
-						matching: preview.substring(range.start.character, range.end.character),
-						trailing: preview.substring(range.end.character)
+						text: preview,
+						match: new vscode.Range(0, range.start.character, 0, range.end.character)
 					}
 				};
 			})
@@ -314,15 +314,14 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 		args.push('--max-filesize', options.maxFileSize + '');
 	}
 
-	if (options.disregardIgnoreFiles) {
+	if (options.useIgnoreFiles) {
+		args.push('--no-ignore-parent');
+	} else {
 		// Don't use .gitignore or .ignore
 		args.push('--no-ignore');
-	} else {
-		args.push('--no-ignore-parent');
 	}
 
-	// Follow symlinks
-	if (!options.ignoreSymlinks) {
+	if (options.followSymlinks) {
 		args.push('--follow');
 	}
 
@@ -362,7 +361,7 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 	return args;
 }
 
-// TODO organize away
+// TODO@roblou organize away
 
 interface RegExpOptions {
 	matchCase?: boolean;
