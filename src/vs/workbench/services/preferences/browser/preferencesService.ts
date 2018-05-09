@@ -38,6 +38,7 @@ import { parse } from 'vs/base/common/json';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { assign } from 'vs/base/common/objects';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -58,6 +59,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@INextEditorService private nextEditorService: INextEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IFileService private fileService: IFileService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
@@ -230,7 +232,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			});
 
 		}
-		return this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { pinned: true }).then(() => null);
+		return (this.nextEditorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { pinned: true }) as TPromise).then(() => null);
 	}
 
 	configureSettingsForLanguage(language: string): void {
@@ -269,9 +271,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 					const defaultPreferencesEditorInput = this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.getDefaultSettingsResource(configurationTarget));
 					const preferencesEditorInput = new PreferencesEditorInput(this.getPreferencesEditorInputName(configurationTarget, resource), editableSettingsEditorInput.getDescription(), defaultPreferencesEditorInput, <EditorInput>editableSettingsEditorInput);
 					this.lastOpenedSettingsInput = preferencesEditorInput;
-					return this.editorService.openEditor(preferencesEditorInput, options, position);
+					return this.nextEditorService.openEditor(preferencesEditorInput, options /*, TODO@grid position */);
 				}
-				return this.editorService.openEditor(editableSettingsEditorInput, options, position);
+				return this.nextEditorService.openEditor(editableSettingsEditorInput, options /*, TODO@grid position */);
 			});
 	}
 
