@@ -196,11 +196,9 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 	resizeGroup(group: INextEditorGroupView | GroupIdentifier, sizeDelta: number): INextEditorGroupView {
 		const groupView = this.assertGroupView(group);
-
 		const currentSize = this.gridWidget.getViewSize(groupView);
-		const currentOrientation = this.gridWidget.getOrientation(groupView);
 
-		this.gridWidget.resizeView(groupView, currentOrientation === Orientation.HORIZONTAL ? currentSize.width + sizeDelta : currentSize.height + sizeDelta);
+		this.gridWidget.resizeView(groupView, currentSize + sizeDelta);
 
 		return groupView;
 	}

@@ -187,9 +187,11 @@ export class Grid<T extends IView> implements IDisposable {
 		return this.gridview.resizeView(location, size);
 	}
 
-	getViewSize(view: T): { width: number; height: number; } {
+	getViewSize(view: T): number {
 		const location = this.getViewLocation(view);
-		return this.gridview.getViewSize(location);
+		const viewSize = this.gridview.getViewSize(location);
+
+		return getLocationOrientation(this.orientation, location) === Orientation.HORIZONTAL ? viewSize.width : viewSize.height;
 	}
 
 	getViews(): GridBranchNode<T> {
