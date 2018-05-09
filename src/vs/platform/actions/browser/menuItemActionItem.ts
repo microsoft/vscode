@@ -60,6 +60,8 @@ class AlternativeKeyEmitter extends Emitter<boolean> {
 	}
 
 	suppressAltKeyUp() {
+		// Sometimes the native alt behavior needs to be suppresed since the alt was already used as an alternative key
+		// Example: windows behavior to toggle tha top level menu #44396
 		this._suppressAltKeyUp = true;
 	}
 
