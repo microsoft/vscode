@@ -217,34 +217,19 @@ class DropOverlay extends Themable {
 		// Position overlay according to location
 		switch (splitDirection) {
 			case GroupDirection.UP:
-				this.overlay.style.top = '0';
-				this.overlay.style.left = '0';
-				this.overlay.style.width = '100%';
-				this.overlay.style.height = '50%';
+				this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '50%' });
 				break;
 			case GroupDirection.DOWN:
-				this.overlay.style.top = '50%';
-				this.overlay.style.left = '0';
-				this.overlay.style.width = '100%';
-				this.overlay.style.height = '50%';
+				this.doPositionOverlay({ top: '50%', left: '0', width: '100%', height: '50%' });
 				break;
 			case GroupDirection.LEFT:
-				this.overlay.style.top = '0';
-				this.overlay.style.left = '0';
-				this.overlay.style.width = '50%';
-				this.overlay.style.height = '100%';
+				this.doPositionOverlay({ top: '0', left: '0', width: '50%', height: '100%' });
 				break;
 			case GroupDirection.RIGHT:
-				this.overlay.style.top = '0';
-				this.overlay.style.left = '50%';
-				this.overlay.style.width = '50%';
-				this.overlay.style.height = '100%';
+				this.doPositionOverlay({ top: '0', left: '50%', width: '50%', height: '100%' });
 				break;
 			default:
-				this.overlay.style.top = '0';
-				this.overlay.style.left = '0';
-				this.overlay.style.width = '100%';
-				this.overlay.style.height = '100%';
+				this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '100%' });
 				break;
 		}
 
@@ -256,6 +241,13 @@ class DropOverlay extends Themable {
 
 		// Remember as current split direction
 		this.splitDirection = splitDirection;
+	}
+
+	private doPositionOverlay(options: { top: string, left: string, width: string, height: string }): void {
+		this.overlay.style.top = options.top;
+		this.overlay.style.left = options.left;
+		this.overlay.style.width = options.width;
+		this.overlay.style.height = options.height;
 	}
 
 	private getOverlayOffsetHeight(): number {
@@ -333,11 +325,6 @@ export class NextEditorDragAndDrop extends Themable {
 					this._overlay = new DropOverlay(this.accessor, groupView, this.transfer, this.themeService, this.instantiationService);
 				}
 			}
-
-			// If we show an overlay, we can remove the drop feedback from the container
-			if (this.overlay) {
-				this.updateContainer(false);
-			}
 		}
 	}
 
@@ -370,12 +357,6 @@ export class NextEditorDragAndDrop extends Themable {
 	}
 
 	private updateContainer(isDraggedOver: boolean): void {
-		const activeContrastBorderColor = this.getColor(activeContrastBorder);
-		this.container.style.outlineColor = isDraggedOver ? activeContrastBorderColor : null;
-		this.container.style.outlineStyle = isDraggedOver && activeContrastBorderColor ? 'dashed' : null;
-		this.container.style.outlineWidth = isDraggedOver && activeContrastBorderColor ? '2px' : null;
-		this.container.style.outlineOffset = isDraggedOver && activeContrastBorderColor ? '-2px' : null;
-
 		toggleClass(this.container, 'dragged-over', isDraggedOver);
 	}
 
