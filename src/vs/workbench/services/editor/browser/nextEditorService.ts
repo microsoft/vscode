@@ -61,7 +61,6 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	private fileInputFactory: IFileInputFactory;
 
 	private lastActiveEditor: IEditorInput;
-	private lastActiveGroup: INextEditorGroup;
 
 	constructor(
 		@INextEditorGroupsService private nextEditorGroupsService: INextEditorGroupsService,
@@ -83,18 +82,14 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	}
 
 	private registerListeners(): void {
-		this.nextEditorGroupsService.onDidActiveGroupChange(group => this.onDidActiveGroupChange(group));
+		this.nextEditorGroupsService.onDidActiveGroupChange(group => this.handleActiveEditorChange(group));
 		this.nextEditorGroupsService.onDidAddGroup(group => this.onDidAddGroup(group));
 	}
 
-	private onDidActiveGroupChange(group: INextEditorGroup): void {
-		if (!this.lastActiveGroup) {
-			this.lastActiveGroup = group;
-
-			return; // ignore the initial root group
+	private handleActiveEditorChange(group: INextEditorGroup): void {
+		if (group !== this.nextEditorGroupsService.activeGroup) {
+			return; // ignore if not the active group
 		}
-
-		this.lastActiveGroup = group;
 
 		if (!this.lastActiveEditor && !group.activeEditor) {
 			return; // ignore if we still have no active editor
@@ -109,10 +104,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		const groupDisposeables: IDisposable[] = [];
 
 		groupDisposeables.push(group.onDidActiveEditorChange(() => {
-			if (group === this.nextEditorGroupsService.activeGroup) {
-				this._onDidActiveEditorChange.fire();
-			}
-
+			this.handleActiveEditorChange(group);
 			this._onDidVisibleEditorsChange.fire();
 		}));
 
