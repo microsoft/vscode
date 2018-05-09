@@ -206,7 +206,8 @@ export class OutlinePanel extends ViewsViewletPanel {
 					column: e.selection.selectionStartColumn
 				});
 				if (item) {
-					this._tree.reveal(item);
+					await this._tree.reveal(item);
+					this._tree.setFocus(item, this);
 					this._tree.setSelection([item], this);
 				} else {
 					this._tree.setSelection([], this);
