@@ -13,6 +13,7 @@ import { IDataSource, IRenderer, ITree, ISorter, IFilter } from 'vs/base/parts/t
 import { OutlineItemGroup, OutlineItem } from './outlineModel';
 import { HighlightedLabel } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel';
 import { createMatches } from '../../../../base/common/filters';
+import { values } from 'vs/base/common/map';
 
 
 export enum OutlineItemCompareType {
@@ -59,12 +60,20 @@ export class OutlineDataSource implements IDataSource {
 		if (element instanceof OutlineItemGroup) {
 			return element.children.length > 0;
 		} else {
-			return element.children.length > 0 && element.children.some(child => Boolean(child.matches));
+			let res = element.children.size > 0;
+			if (res) {
+				element.children.forEach(child => res = res || Boolean(child.matches));
+			}
+			return res;
 		}
 	}
 
 	async getChildren(tree: ITree, element: OutlineItemGroup | OutlineItem): TPromise<any, any> {
-		return element.children;
+		if (element instanceof OutlineItemGroup) {
+			return element.children;
+		} else {
+			return values(element.children);
+		}
 	}
 
 	async getParent(tree: ITree, element: OutlineItemGroup | OutlineItem): TPromise<any, any> {
