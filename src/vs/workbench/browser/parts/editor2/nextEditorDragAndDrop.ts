@@ -237,7 +237,7 @@ class DropOverlay extends Themable {
 		this.overlay.style.opacity = '1';
 
 		// Enable transition after a timeout to prevent initial animation
-		setTimeout(() => addClass(this.overlay, 'overlay-transition'), 0);
+		setTimeout(() => addClass(this.overlay, 'overlay-move-transition'), 0);
 
 		// Remember as current split direction
 		this.splitDirection = splitDirection;

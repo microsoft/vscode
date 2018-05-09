@@ -21,8 +21,9 @@
 	pointer-events: none; /* very important to not take events away from the parent */
 
 	opacity: 0; /* hidden initially */
+	transition: opacity 150ms ease-out;
 }
 
-#monaco-workbench-editor-drop-overlay > .editor-group-overlay-indicator.overlay-transition {
-	transition: top 70ms ease-out, left 70ms ease-out, width 70ms ease-out, height 70ms ease-out;
+#monaco-workbench-editor-drop-overlay > .editor-group-overlay-indicator.overlay-move-transition {
+	transition: top 70ms ease-out, left 70ms ease-out, width 70ms ease-out, height 70ms ease-out, opacity 150ms ease-out;
 }
