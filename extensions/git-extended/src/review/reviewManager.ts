@@ -444,6 +444,12 @@ export class ReviewManager implements vscode.DecorationProvider {
 	}
 
 	async switch(pr: PullRequestModel): Promise<void> {
+		let isDirty = await this._repository.isDirty();
+		if (isDirty) {
+			vscode.window.showErrorMessage('Your local changes would be overwritten by checkout, please commit your changes or stash them before you switch branches');
+			return;
+		}
+
 		this.statusBarItem.text = '$(sync~spin) Switching to Review Mode';
 		this.statusBarItem.show();
 

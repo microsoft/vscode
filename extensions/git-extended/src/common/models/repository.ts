@@ -348,6 +348,11 @@ export class Repository {
 			throw (result.exitCode);
 		}
 	}
+
+	async isDirty(): Promise<boolean> {
+		let result = await GitProcess.exec(['diff', '--no-ext-diff', '--exit-code'], this.path);
+		return result.exitCode !== 0;
+	}
 }
 
 export class GitHubRepository {
