@@ -154,11 +154,38 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 
 		this.toDispose.push(dom.addStandardDisposableListener(this.selectElement, 'change', (e) => {
 			this.selectElement.title = e.target.value;
-			this._onDidSelect.fire({
-				index: e.target.selectedIndex,
-				selected: e.target.value
-			});
+			this.selected = e.target.selectedIndex;
+
+			const o = this.selectElement.title.slice(0, 3);
+
+			// Look at option for quick demo/need to add option tag
+			if (o !== 'Add') {
+				// Only update if not an action item
+				this._onDidSelect.fire({
+					index: e.target.selectedIndex,
+					selected: e.target.value
+				});
+			}
 		}));
+
+		this.toDispose.push(dom.addStandardDisposableListener(this.selectElement, 'blur', (e) => {
+			const o = this.selectElement.title.slice(0, 3);
+
+			// Look at option for quick demo/need to add option tag
+			if (o === 'Add') {
+				// reset selection
+				this.selected = this._currentSelection;
+				this.selectElement.selectedIndex = this.selected;
+				this.selectElement.title = this.options[this.selected];
+			}
+
+		}));
+
+		this.toDispose.push(dom.addStandardDisposableListener(this.selectElement, 'focus', (e) => {
+			// Capture currently selected on focus to allow restore
+			this._currentSelection = this.selected;
+		}));
+
 
 		// Have to implement both keyboard and mouse controllers to handle disabled options
 		// Intercept mouse events to override normal select actions on parents
@@ -189,7 +216,22 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 					showDropDown = true;
 				}
 			} else {
-				if (event.keyCode === KeyCode.DownArrow && event.altKey || event.keyCode === KeyCode.UpArrow && event.altKey || event.keyCode === KeyCode.Space || event.keyCode === KeyCode.Enter) {
+
+				if (!this._isVisible && event.keyCode === KeyCode.Enter) {
+					const o = this.selectElement.title.slice(0, 3);
+
+					// Look at option for quick demo/need to add option tag
+					// User actively chooses action item
+					if (o === 'Add') {
+						this._onDidSelect.fire({
+							index: this.selected,
+							selected: this.selectElement.title
+						});
+					} else {
+						showDropDown = true;
+					}
+
+				} else if (event.keyCode === KeyCode.DownArrow && event.altKey || event.keyCode === KeyCode.UpArrow && event.altKey || event.keyCode === KeyCode.Space || event.keyCode === KeyCode.Enter) {
 					showDropDown = true;
 				}
 			}
