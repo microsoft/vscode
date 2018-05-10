@@ -39,7 +39,12 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 		this.repository = repository;
 		this.context.subscriptions.push(vscode.window.registerTreeDataProvider<PRGroupTreeItem | PullRequestModel | FileChangeTreeItem>('pr', this));
 		this.context.subscriptions.push(vscode.commands.registerCommand('pr.pick', async (pr: PullRequestModel) => {
-			await this.reviewManager.switch(pr);
+			vscode.window.withProgress({
+				location: vscode.ProgressLocation.SourceControl,
+				title: `Switching to Pull Request #${pr.prNumber}`,
+			}, async (progress, token) => {
+				await this.reviewManager.switch(pr);
+			});
 		}));
 		this.context.subscriptions.push(this.configuration.onDidChange(e => {
 			this._onDidChangeTreeData.fire();

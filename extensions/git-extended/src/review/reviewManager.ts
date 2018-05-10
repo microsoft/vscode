@@ -443,7 +443,7 @@ export class ReviewManager implements vscode.DecorationProvider {
 		});
 	}
 
-	async switch(pr: PullRequestModel) {
+	async switch(pr: PullRequestModel): Promise<void> {
 		this.statusBarItem.text = '$(sync~spin) Switching to Review Mode';
 		this.statusBarItem.show();
 
@@ -470,6 +470,9 @@ export class ReviewManager implements vscode.DecorationProvider {
 			// todo, we should try to recover, for example, git checkout succeeds but set config fails.
 			return;
 		}
+
+		await this._repository.status();
+		await this.validateState();
 	}
 
 	clear(quitReviewMode: boolean) {
