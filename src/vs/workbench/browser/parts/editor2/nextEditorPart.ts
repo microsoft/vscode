@@ -717,7 +717,6 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 	private updateContainer(): void {
 		toggleClass(this.container, 'empty', this.isEmpty());
-		toggleClass(this.container, 'multiple-groups', this.count > 1);
 	}
 
 	private isEmpty(): boolean {

@@ -188,13 +188,15 @@ class DropOverlay extends Themable {
 			const options = getActiveTextEditorOptions(sourceGroup, draggedEditor.editor, EditorOptions.create({ pinned: true }));
 			targetGroup.openEditor(draggedEditor.editor, options);
 
+			// Ensure target is active
+			this.accessor.activateGroup(targetGroup);
+
 			// Close in source group unless we copy
 			const copyEditor = this.isCopyOperation(event, draggedEditor);
 			if (!copyEditor) {
 				sourceGroup.closeEditor(draggedEditor.editor);
 			}
 
-			this.accessor.activateGroup(targetGroup);
 			this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
 		}
 
@@ -202,7 +204,9 @@ class DropOverlay extends Themable {
 		else {
 			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: true /* open workspace instead of file if dropped */ });
 			dropHandler.handleDrop(event, targetGroupIdentifier => {
-				this.accessor.getGroup(targetGroupIdentifier).focus();
+				const targetGroup = this.accessor.getGroup(targetGroupIdentifier);
+
+				this.accessor.activateGroup(targetGroup);
 			}, () => ensureTargetGroup().id);
 		}
 	}

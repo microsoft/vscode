@@ -55,7 +55,7 @@
 }
 
 /* Drag Cursor */
-.monaco-workbench > .part.editor > .content.multiple-groups .editor-group-container > .title {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title {
 	cursor: -webkit-grab;
 }
 
