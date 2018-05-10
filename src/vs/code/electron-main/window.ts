@@ -367,7 +367,7 @@ export class CodeWindow implements ICodeWindow {
 			}
 
 			// To prevent flashing, we set the window visible after the page has finished to load but before Code is loaded
-			if (!this._win.isVisible()) {
+			if (this._win && !this._win.isVisible()) {
 				if (this.windowState.mode === WindowMode.Maximized) {
 					this._win.maximize();
 				}
