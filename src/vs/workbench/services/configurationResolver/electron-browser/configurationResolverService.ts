@@ -152,9 +152,9 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 						commandValueMapping[interactiveVariable] = result;
 					} else if (isUndefinedOrNull(result)) {
 						cancelled = true;
+					} else {
+						throw new Error(localize('stringsOnlySupported', "Command {0} did not return a string result. Only strings are supported as results for commands used for variable substitution.", commandId));
 					}
-
-					return TPromise.wrapError(new Error(localize('stringsOnlySupported', "Command {0} did not return a string result. Only strings are supported as results for commands used for variable substitution.", commandId)));
 				});
 			};
 		});
