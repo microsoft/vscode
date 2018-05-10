@@ -469,7 +469,7 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 			}
 		}
 
-		if (context.triggerCharacter === '@') {
+		if (context.triggerCharacter === '@' && !this.client.apiVersion.has290Features()) {
 			// make sure we are in something that looks like the start of a jsdoc comment
 			const pre = line.text.slice(0, position.character);
 			if (!pre.match(/^\s*\*[ ]?@/) && !pre.match(/\/\*\*+[ ]?@/)) {
