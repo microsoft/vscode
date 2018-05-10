@@ -218,7 +218,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		});
 
 		// Toolbar actions
-		const removeGroupAction = this._register(this.instantiationService.createInstance(RemoveActiveEditorGroupAction, RemoveActiveEditorGroupAction.ID, localize('removeGroupAction', "Collapse Editor Group")));
+		const removeGroupAction = this._register(this.instantiationService.createInstance(RemoveActiveEditorGroupAction, RemoveActiveEditorGroupAction.ID, localize('removeGroupAction', "Remove Editor Group")));
 		const keybinding = this.keybindingService.lookupKeybinding(removeGroupAction.id);
 		containerToolbar.push(removeGroupAction, { icon: true, label: false, keybinding: keybinding ? keybinding.getLabel() : void 0 });
 	}
