@@ -11,6 +11,7 @@ import { parseRemote } from '../remote';
 import { CredentialStore } from '../../credentials';
 import { PullRequestModel, PRType } from './pullRequestModel';
 import { UriString } from './uriString';
+import { GitError, GitErrorCodes } from './gitError';
 
 export enum RefType {
 	Head,
@@ -112,7 +113,7 @@ export class Repository {
 		this._refs = refs;
 		this._remotes = remotes;
 
-		if (this._HEAD.upstream.remote) {
+		if (this._HEAD.upstream && this._HEAD.upstream.remote) {
 			let currentRemote = this._remotes.filter(remote => remote.remoteName === this._HEAD.upstream.remote);
 			if (currentRemote && currentRemote.length) {
 				this._cloneUrl = new UriString(currentRemote[0].url);
@@ -159,7 +160,14 @@ export class Repository {
 		);
 
 		if (result.exitCode !== 0) {
-			throw (result.stderr);
+			let rej = new GitError({
+				stdout: result.stdout,
+				stderr: result.stderr,
+			});
+			if (/error: Your local changes to the following files would be overwritten/.test(result.stderr || '')) {
+				rej.gitErrorCode = GitErrorCodes.LocalChangesOverwritten;
+			}
+			throw rej;
 		}
 	}
 
@@ -293,26 +301,6 @@ export class Repository {
 		}
 	}
 
-	async checkoutPR(pr: PullRequestModel) {
-		let cloneUrl = pr.prItem.head.repo.clone_url;
-		let result = await GitProcess.exec(['remote', 'add', `pull/${pr.prItem.number}`, cloneUrl], this.path);
-
-		if (result.exitCode !== 0) {
-			throw (result.exitCode);
-		}
-
-		result = await GitProcess.exec(['fetch', `pull/${pr.prItem.number}`], this.path);
-		if (result.exitCode !== 0) {
-			throw (result.exitCode);
-		}
-
-		result = await GitProcess.exec(['checkout', '-b', `pull-request-${pr.prItem.number}`, '--track', `pull/${pr.prItem.number}/${pr.prItem.head.ref}`], this.path);
-
-		if (result.exitCode !== 0) {
-			throw (result.exitCode);
-		}
-	}
-
 	async setConfig(key: string, value: string) {
 		await GitProcess.exec(['config', '--local', key, value], this.path);
 	}
@@ -321,20 +309,20 @@ export class Repository {
 		let result = await GitProcess.exec(['config', '--local', '--get', key], this.path);
 
 		if (result.exitCode !== 0) {
-			throw (result.exitCode);
+			return null;
 		}
 
-		return result.stdout;
+		return result.stdout.trim();
 	}
 
 	async getConfigs() {
 		let result = await GitProcess.exec(['config', '--local', '-l'], this.path);
 
 		if (result.exitCode !== 0) {
-			throw (result.exitCode);
+			return [];
 		}
 
-		let entries = result.stdout.split(/\r|\r\n|\n/);
+		let entries = result.stdout.trim().split(/\r|\r\n|\n/);
 
 		return entries.map(entry => {
 			let ret = entry.split('=');
@@ -353,7 +341,7 @@ export class Repository {
 		}
 	}
 
-	async setRemote(name: string, remoteUrl: string) {
+	async addRemote(name: string, remoteUrl: string) {
 		let result = await GitProcess.exec(['remote', 'add', name, remoteUrl], this.path);
 
 		if (result.exitCode !== 0) {
@@ -368,11 +356,11 @@ export class GitHubRepository {
 
 	async getPullRequests(prType: PRType) {
 		if (prType === PRType.All) {
-			let { data } = await this.octokit.pullRequests.getAll({
+			let result = await this.octokit.pullRequests.getAll({
 				owner: this.remote.owner,
 				repo: this.remote.name,
 			});
-			let ret = data.map(item => new PullRequestModel(this.octokit, this.remote, item));
+			let ret = result.data.map(item => new PullRequestModel(this.octokit, this.remote, item));
 			return ret;
 		} else {
 

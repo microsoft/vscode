@@ -3,6 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* --------------------------------------------------------------------------------------------
+ * Includes code from github/VisualStudio project, obtained from
+ * https://github.com/github/VisualStudio/blob/master/src/GitHub.Exports/Models/DiffLine.cs
+ * ------------------------------------------------------------------------------------------ */
+
 export enum DiffChangeType {
 	None,
 	Add,

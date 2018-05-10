@@ -3,6 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* --------------------------------------------------------------------------------------------
+ * Includes code from github/VisualStudio project, obtained from
+ * https://github.com/github/VisualStudio/blob/master/src/GitHub.App/Services/PullRequestService.cs
+ * ------------------------------------------------------------------------------------------ */
+
 import { Repository } from '../common/models/repository';
 import { PullRequestModel } from '../common/models/pullRequestModel';
 import { UriString } from '../common/models/uriString';
@@ -12,13 +17,8 @@ const SettingCreatedByGHfVSC = 'created-by-ghfvsc';
 const SettingGHfVSCPullRequest = 'ghfvs-pr-owner-number';
 const BranchCapture = /branch\.(.+)\.ghfvsc-pr/;
 
-export class PullRequestService {
-
-	constructor() {
-
-	}
-
-	async checkout(repository: Repository, pullRequest: PullRequestModel, localBranchName: string) {
+export class PullRequestGitHelper {
+	static async checkout(repository: Repository, pullRequest: PullRequestModel, localBranchName: string) {
 		let existing = await repository.getBranch(localBranchName);
 		if (existing) {
 			await repository.checkout(localBranchName);
@@ -28,23 +28,22 @@ export class PullRequestService {
 		} else {
 			// nothing matches
 			let refSpec = `${pullRequest.head.ref}:${localBranchName}`;
-			let remoteName = await PullRequestService.createRemote(repository, pullRequest.head.repositoryCloneUrl);
+			let remoteName = await PullRequestGitHelper.createRemote(repository, pullRequest.head.repositoryCloneUrl);
 
 			await repository.fetch(remoteName, refSpec);
 			await repository.checkout(localBranchName);
 			await repository.setTrackingBranch(localBranchName, `refs/remotes/${remoteName}/${pullRequest.head.ref}`);
 		}
 
-		// Store the PR number in the branch config with the key "ghfvsc-pr".
 		var prConfigKey = `branch.${localBranchName}.${SettingGHfVSCPullRequest}`;
-		await repository.setConfig(prConfigKey, PullRequestService.buildGHfVSConfigKeyValue(pullRequest));
+		await repository.setConfig(prConfigKey, PullRequestGitHelper.buildGHfVSConfigKeyValue(pullRequest));
 	}
 
-	async getLocalBranches(repository: Repository, pullRequest: PullRequestModel): Promise<string[]> {
-		if (PullRequestService.isPullRequestFromRepository(repository, pullRequest)) {
+	static async getLocalBranchesForPullRequest(repository: Repository, pullRequest: PullRequestModel): Promise<string[]> {
+		if (PullRequestGitHelper.isPullRequestFromRepository(repository, pullRequest)) {
 			return [pullRequest.head.ref];
 		} else {
-			let key = PullRequestService.buildGHfVSConfigKeyValue(pullRequest);
+			let key = PullRequestGitHelper.buildGHfVSConfigKeyValue(pullRequest);
 
 			let configs = await repository.getConfigs();
 
@@ -65,8 +64,8 @@ export class PullRequestService {
 		}
 	}
 
-	async switchToBranch(repository: Repository, pullRequest: PullRequestModel): Promise<string[]> {
-		let matchingBranches = await this.getLocalBranches(repository, pullRequest);
+	static async switchToBranch(repository: Repository, pullRequest: PullRequestModel): Promise<void> {
+		let matchingBranches = await PullRequestGitHelper.getLocalBranchesForPullRequest(repository, pullRequest);
 		if (matchingBranches && matchingBranches.length) {
 			let branchName = matchingBranches[0];
 			let remoteName = repository.HEAD.upstream.remote;
@@ -95,14 +94,12 @@ export class PullRequestService {
 			}
 
 			await repository.checkout(branchName);
-			await PullRequestService.markBranchAsPullRequest(repository, pullRequest, branchName);
+			await PullRequestGitHelper.markBranchAsPullRequest(repository, pullRequest, branchName);
 		}
-
-		return [];
 	}
 
-	async getDefaultLocalBranchName(repository: Repository, pullRequestNumber: number, pullRequestTitle: string): Promise<string> {
-		let initial = 'pr/' + pullRequestNumber + '-' + PullRequestService.getSafeBranchName(pullRequestTitle);
+	static async getDefaultLocalBranchName(repository: Repository, pullRequestNumber: number, pullRequestTitle: string): Promise<string> {
+		let initial = 'pr/' + pullRequestNumber + '-' + PullRequestGitHelper.getSafeBranchName(pullRequestTitle);
 		let current = initial;
 		let index = 2;
 
@@ -119,10 +116,10 @@ export class PullRequestService {
 		return current.replace(/-*$/g, '');
 	}
 
-	async getPullRequestForCurrentBranch(repository: Repository) {
+	static async getPullRequestForCurrentBranch(repository: Repository) {
 		let configKey = `branch.${repository.HEAD.name}.${SettingGHfVSCPullRequest}`;
 		let configValue = await repository.getConfig(configKey);
-		return PullRequestService.parseGHfVSConfigKeyValue(configValue);
+		return PullRequestGitHelper.parseGHfVSConfigKeyValue(configValue);
 	}
 
 	static getSafeBranchName(name: string): string {
@@ -165,16 +162,25 @@ export class PullRequestService {
 		let remotes = repository.remotes;
 
 		remotes.forEach(remote => {
-			// todo equals
-			if (remote.url === cloneUrl.toRepositoryUrl().toString()) {
+			if (new UriString(remote.url).equals(cloneUrl)) {
 				return remote.name;
 			}
 		});
 
-		var remoteName = PullRequestService.createUniqueRemoteName(repository, cloneUrl.owner);
-		await repository.setRemote(remoteName, cloneUrl.toRepositoryUrl().toString());
+		var remoteName = PullRequestGitHelper.createUniqueRemoteName(repository, cloneUrl.owner);
+		await repository.addRemote(remoteName, cloneUrl.toRepositoryUrl().toString());
 		await repository.setConfig(`remote.${remoteName}.${SettingCreatedByGHfVSC}`, 'true');
 		return remoteName;
+	}
+
+	static async isRemoteCreatedForPullRequest(repository: Repository, remoteName: string) {
+		let isForPR = await repository.getConfig(`remote.${remoteName}.${SettingCreatedByGHfVSC}`);
+
+		if (isForPR === 'true') {
+			return true;
+		} else {
+			return false;
+		}
 	}
 
 	static createUniqueRemoteName(repository: Repository, name: string) {
@@ -194,12 +200,8 @@ export class PullRequestService {
 		return repository.cloneUrl && repository.cloneUrl.equals(pullRequest.head.repositoryCloneUrl);
 	}
 
-	static isBranchMarkedAsPullRequest(repository: Repository) {
-
-	}
-
 	static async markBranchAsPullRequest(repository: Repository, pullRequest: PullRequestModel, branchName: string) {
 		let prConfigKey = `branch.${branchName}.${SettingGHfVSCPullRequest}`;
-		await repository.setConfig(prConfigKey, PullRequestService.buildGHfVSConfigKeyValue(pullRequest));
+		await repository.setConfig(prConfigKey, PullRequestGitHelper.buildGHfVSConfigKeyValue(pullRequest));
 	}
 }

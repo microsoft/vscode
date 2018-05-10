@@ -17,21 +17,20 @@ import { ReviewManager } from '../review/reviewManager';
 import { toPRUri } from '../common/uri';
 import * as fs from 'fs';
 import { PullRequestModel, PRType } from '../common/models/pullRequestModel';
+import { PullRequestGitHelper } from '../common/pullRequestGitHelper';
 
 export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | PullRequestModel | FileChangeTreeItem>, vscode.TextDocumentContentProvider, vscode.DecorationProvider {
-	private context: vscode.ExtensionContext;
 	private repository: Repository;
-	private configuration: Configuration;
-	private reviewMode: ReviewManager;
 	private _onDidChangeTreeData = new vscode.EventEmitter<PRGroupTreeItem | PullRequestModel | FileChangeTreeItem | undefined>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 	private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
 	get onDidChange(): vscode.Event<vscode.Uri> { return this._onDidChange.event; }
 
-	constructor(context: vscode.ExtensionContext, configuration: Configuration, reviewMode: ReviewManager) {
-		this.context = context;
-		this.configuration = configuration;
-		this.reviewMode = reviewMode;
+	constructor(
+		private context: vscode.ExtensionContext,
+		private configuration: Configuration,
+		private reviewManager: ReviewManager,
+	) {
 		vscode.workspace.registerTextDocumentContentProvider('pr', this);
 		vscode.window.registerDecorationProvider(this);
 	}
@@ -40,7 +39,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 		this.repository = repository;
 		this.context.subscriptions.push(vscode.window.registerTreeDataProvider<PRGroupTreeItem | PullRequestModel | FileChangeTreeItem>('pr', this));
 		this.context.subscriptions.push(vscode.commands.registerCommand('pr.pick', async (pr: PullRequestModel) => {
-			await this.reviewMode.switch(pr);
+			await this.reviewManager.switch(pr);
 		}));
 		this.context.subscriptions.push(this.configuration.onDidChange(e => {
 			this._onDidChangeTreeData.fire();
@@ -235,6 +234,11 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 
 	async getPRs(element: PRGroupTreeItem): Promise<PullRequestModel[]> {
 		let promises = this.repository.githubRepositories.map(async githubRepository => {
+			let remote = githubRepository.remote.remoteName;
+			let isRemoteForPR = await PullRequestGitHelper.isRemoteCreatedForPullRequest(this.repository, remote);
+			if (isRemoteForPR) {
+				return Promise.resolve([]);
+			}
 			return await githubRepository.getPullRequests(element.type);
 		});
 

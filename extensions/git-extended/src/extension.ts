@@ -11,7 +11,6 @@ import { Configuration } from './configuration';
 import { Resource } from './common/resources';
 import { ReviewManager } from './review/reviewManager';
 import { CredentialStore } from './credentials';
-import { PullRequestService } from './services/pullRequestService';
 
 export async function activate(context: vscode.ExtensionContext) {
 	// initialize resources
@@ -36,23 +35,6 @@ export async function activate(context: vscode.ExtensionContext) {
 		})
 	);
 
-	// let gitExt = vscode.extensions.getExtension('vscode.git');
-	// let importedGitApi = gitExt.exports;
-	// let repos = await importedGitApi.getRepositories();
-	// let repo;
-
-	// if (!repos || !repos.length) {
-	// 	let waitForRepo = new Promise((resolve, reject) => {
-	// 		importedGitApi.onDidOpenRepository(repository => {
-	// 			resolve(repository);
-	// 		});
-	// 	});
-
-	// 	repo = await waitForRepo;
-	// } else {
-	// 	repo = repos[0];
-	// }
-
 	const repository = new Repository(rootPath, context.workspaceState);
 	let repositoryInitialized = false;
 	repository.onDidRunGitStatus(async e => {
@@ -62,8 +44,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		repositoryInitialized = true;
 		let credentialStore = new CredentialStore(configuration);
 		await repository.connectGitHub(credentialStore);
-		let pullRequestService = new PullRequestService();
-		let reviewMode = new ReviewManager(context, repository, pullRequestService, context.workspaceState);
-		await (new PRProvider(context, configuration, reviewMode)).activate(repository);
+		let reviewManager = new ReviewManager(context, repository, context.workspaceState);
+		await (new PRProvider(context, configuration, reviewManager)).activate(repository);
 	});
 }

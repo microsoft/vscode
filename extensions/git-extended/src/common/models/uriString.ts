@@ -3,6 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* --------------------------------------------------------------------------------------------
+ * Includes code from github/VisualStudio project, obtained from
+ * https://github.com/github/VisualStudio/blob/master/src/GitHub.Exports/Primitives/UriString.cs
+ * ------------------------------------------------------------------------------------------ */
+
 import * as vscode from 'vscode';
 
 const sshRegex = /^.+@(([.*?]|[a-z0-9-.]+?))(:(.*?))?(\/(.*)(.git)?)?$/i;
@@ -49,7 +54,7 @@ export class UriString {
 				} else {
 					this.setFilePath2(uriString);
 				}
-			} catch(e) {}
+			} catch (e) { }
 		}
 
 		if (this.repositoryName) {

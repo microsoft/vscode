@@ -14,8 +14,9 @@ import { Comment } from '../common/models/comment';
 import { PullRequestModel } from '../common/models/pullRequestModel';
 import { toGitUri } from '../common/uri';
 import { GitChangeType } from '../common/models/file';
-import { PullRequestService } from '../services/pullRequestService';
 import { FileChangesProvider } from './fileChangesProvider';
+import { PullRequestGitHelper } from '../common/pullRequestGitHelper';
+import { GitErrorCodes } from '../common/models/gitError';
 
 const REVIEW_STATE = 'git-extended.state';
 
@@ -64,7 +65,6 @@ export class ReviewManager implements vscode.DecorationProvider {
 	constructor(
 		private _context: vscode.ExtensionContext,
 		private _repository: Repository,
-		private _pullRequestService: PullRequestService,
 		private _workspaceState: vscode.Memento
 	) {
 		this._documentCommentProvider = null;
@@ -94,10 +94,7 @@ export class ReviewManager implements vscode.DecorationProvider {
 	}
 
 	async validateState() {
-		let localInfo;
-		try {
-			localInfo = await this._pullRequestService.getPullRequestForCurrentBranch(this._repository);
-		} catch (e) { }
+		let localInfo = await PullRequestGitHelper.getPullRequestForCurrentBranch(this._repository);
 
 		if (!localInfo) {
 			this.clear(true);
@@ -452,15 +449,23 @@ export class ReviewManager implements vscode.DecorationProvider {
 
 		try {
 			// todo, check if HEAD is dirty
-			let localBranches = await this._pullRequestService.getLocalBranches(this._repository, pr);
+			let localBranches = await PullRequestGitHelper.getLocalBranchesForPullRequest(this._repository, pr);
 
 			if (localBranches.length > 0) {
-				await this._pullRequestService.switchToBranch(this._repository, pr);
+				await PullRequestGitHelper.switchToBranch(this._repository, pr);
 			} else {
-				let branchName = await this._pullRequestService.getDefaultLocalBranchName(this._repository, pr.prNumber, pr.title);
-				await this._pullRequestService.checkout(this._repository, pr, branchName);
+				let branchName = await PullRequestGitHelper.getDefaultLocalBranchName(this._repository, pr.prNumber, pr.title);
+				await PullRequestGitHelper.checkout(this._repository, pr, branchName);
 			}
 		} catch (e) {
+			if (e.gitErrorCode) {
+				// for known git errors, we should provide actions for users to continue.
+				if (e.gitErrorCode === GitErrorCodes.LocalChangesOverwritten) {
+					vscode.window.showErrorMessage('Your local changes would be overwritten by checkout, please commit your changes or stash them before you switch branches');
+					return;
+				}
+			}
+
 			vscode.window.showErrorMessage(e);
 			// todo, we should try to recover, for example, git checkout succeeds but set config fails.
 			return;

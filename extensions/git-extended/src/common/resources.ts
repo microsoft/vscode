@@ -23,7 +23,8 @@ export class Resource {
 				Untracked: context.asAbsolutePath(path.join('resources', 'icons', 'light', 'status-untrackedt.svg')),
 				Ignored: context.asAbsolutePath(path.join('resources', 'icons', 'light', 'status-ignored.svg')),
 				Conflict: context.asAbsolutePath(path.join('resources', 'icons', 'light', 'status-conflict.svg')),
-				Comment: context.asAbsolutePath(path.join('resources', 'icons', 'comment.svg'))
+				Comment: context.asAbsolutePath(path.join('resources', 'icons', 'comment.svg')),
+				Fold: context.asAbsolutePath(path.join('resources', 'icons', 'light', 'fold.svg')),
 			},
 			dark: {
 				Modified: context.asAbsolutePath(path.join('resources', 'icons', 'dark', 'status-modified.svg')),
@@ -34,7 +35,9 @@ export class Resource {
 				Untracked: context.asAbsolutePath(path.join('resources', 'icons', 'dark', 'status-untracked.svg')),
 				Ignored: context.asAbsolutePath(path.join('resources', 'icons', 'dark', 'status-ignored.svg')),
 				Conflict: context.asAbsolutePath(path.join('resources', 'icons', 'dark', 'status-conflict.svg')),
-				Comment: context.asAbsolutePath(path.join('resources', 'icons', 'comment.svg'))
+				Comment: context.asAbsolutePath(path.join('resources', 'icons', 'comment.svg')),
+				Fold: context.asAbsolutePath(path.join('resources', 'icons', 'dark', 'fold.svg')),
+
 			}
 		};
 	}
