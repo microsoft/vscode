@@ -157,6 +157,15 @@ export interface INextEditorGroupsService {
 	moveGroup(group: INextEditorGroup | GroupIdentifier, location: INextEditorGroup | GroupIdentifier, direction: GroupDirection): INextEditorGroup;
 
 	/**
+	 * Merging a group will take any opened editor of that group and move them
+	 * into the target. After that, the group will be removed.
+	 *
+	 * @param group the group to merge
+	 * @param target the target group to merge into
+	 */
+	mergeGroup(group: INextEditorGroup | GroupIdentifier, target: INextEditorGroup | GroupIdentifier): void;
+
+	/**
 	 * Copy a group to a new group in the editor area.
 	 *
 	 * @param group the group to copy

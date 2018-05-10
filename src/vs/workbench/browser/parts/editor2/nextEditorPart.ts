@@ -360,13 +360,35 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 	removeGroup(group: INextEditorGroupView | GroupIdentifier): void {
 		const groupView = this.assertGroupView(group);
-		if (
-			this.groupViews.size === 1 ||	// Cannot remove the last root group
-			!groupView.isEmpty()			// TODO@grid what about removing a group with editors, move them to other group?
-		) {
-			return;
+		if (this.groupViews.size === 1) {
+			return; // Cannot remove the last root group
 		}
 
+		// Remove empty group
+		if (groupView.isEmpty()) {
+			return this.doRemoveEmptyGroup(groupView);
+		}
+
+		// Remove group with editors
+		return this.doRemoveGroupWithEditors(groupView);
+	}
+
+	private doRemoveGroupWithEditors(groupView: INextEditorGroupView): void {
+		const mostRecentlyActiveGroups = this.getGroups(true);
+
+		let lastActiveGroup: INextEditorGroupView;
+		if (this._activeGroup === groupView) {
+			lastActiveGroup = mostRecentlyActiveGroups[1];
+		} else {
+			lastActiveGroup = mostRecentlyActiveGroups[0];
+		}
+
+		// Removing a group with editors should merge these editors into the
+		// last active group and then remove this group.
+		return this.mergeGroup(groupView, lastActiveGroup);
+	}
+
+	private doRemoveEmptyGroup(groupView: INextEditorGroupView): void {
 		const groupHasFocus = isAncestor(document.activeElement, groupView.element);
 
 		// Activate next group if the removed one was active
@@ -424,6 +446,23 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		const locationView = this.assertGroupView(location);
 
 		return this.doAddGroup(locationView, direction, groupView);
+	}
+
+	mergeGroup(group: INextEditorGroupView | GroupIdentifier, target: INextEditorGroupView | GroupIdentifier): void {
+		const sourceView = this.assertGroupView(group);
+		const targetView = this.assertGroupView(target);
+
+		// Move editors over
+		let index = targetView.count;
+		sourceView.editors.forEach(editor => {
+			const inactive = sourceView.activeEditor !== editor;
+			sourceView.moveEditor(editor, targetView, { index, inactive, preserveFocus: inactive });
+
+			index++;
+		});
+
+		// Remove source
+		this.removeGroup(sourceView);
 	}
 
 	private assertGroupView(group: INextEditorGroupView | GroupIdentifier): INextEditorGroupView {
