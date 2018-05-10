@@ -385,7 +385,6 @@ export class ReviewManager implements vscode.DecorationProvider {
 			}
 		}
 
-
 		return {};
 	}
 

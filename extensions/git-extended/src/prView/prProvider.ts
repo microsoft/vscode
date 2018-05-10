@@ -78,6 +78,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 	async getChildren(element?: PRGroupTreeItem | PullRequestModel | PRGroupActionTreeItem | FileChangeTreeItem): Promise<(PRGroupTreeItem | PullRequestModel | PRGroupActionTreeItem | FileChangeTreeItem)[]> {
 		if (!element) {
 			return Promise.resolve([
+				new PRGroupTreeItem(PRType.LocalPullRequest),
 				new PRGroupTreeItem(PRType.RequestReview),
 				new PRGroupTreeItem(PRType.ReviewedByMe),
 				new PRGroupTreeItem(PRType.Mine),
@@ -245,6 +246,25 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 	}
 
 	async getPRs(element: PRGroupTreeItem): Promise<PullRequestModel[]> {
+		if (element.type === PRType.LocalPullRequest) {
+			let infos = await PullRequestGitHelper.getLocalBranchesMarkedAsPullRequest(this.repository);
+			let promises = infos.map(async info => {
+				let owner = info.owner;
+				let prNumber = info.prNumber;
+				let githubRepo = this.repository.githubRepositories.find(repo => repo.remote.owner.toLocaleLowerCase() === owner.toLocaleLowerCase());
+
+				if (!githubRepo) {
+					return Promise.resolve([]);
+				}
+
+				return await githubRepo.getPullRequest(prNumber);
+			});
+
+			return Promise.all(promises).then(values => {
+				return _.flatten(values);
+			});
+		}
+
 		let promises = this.repository.githubRepositories.map(async githubRepository => {
 			let remote = githubRepository.remote.remoteName;
 			let isRemoteForPR = await PullRequestGitHelper.isRemoteCreatedForPullRequest(this.repository, remote);

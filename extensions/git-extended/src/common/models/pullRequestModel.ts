@@ -14,7 +14,8 @@ export enum PRType {
 	ReviewedByMe = 1,
 	Mine = 2,
 	Mention = 3,
-	All = 4
+	All = 4,
+	LocalPullRequest = 5
 }
 
 export enum PullRequestStateEnum {

@@ -60,6 +60,9 @@ export class PRGroupTreeItem implements vscode.TreeItem {
 			case PRType.Mine:
 				this.label = 'Mine';
 				break;
+			case PRType.LocalPullRequest:
+				this.label = 'Local Pull Request Branches';
+				break;
 			default:
 				break;
 		}

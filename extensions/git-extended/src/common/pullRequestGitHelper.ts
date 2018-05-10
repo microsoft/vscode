@@ -200,8 +200,29 @@ export class PullRequestGitHelper {
 		return repository.cloneUrl && repository.cloneUrl.equals(pullRequest.head.repositoryCloneUrl);
 	}
 
+	static async getPullRequestForBranch(repository: Repository, branchName: string) {
+		let prConfigKey = `branch.${branchName}.${SettingGHfVSCPullRequest}`;
+		let info = await repository.getConfig(prConfigKey);
+
+		return info;
+	}
+
 	static async markBranchAsPullRequest(repository: Repository, pullRequest: PullRequestModel, branchName: string) {
 		let prConfigKey = `branch.${branchName}.${SettingGHfVSCPullRequest}`;
 		await repository.setConfig(prConfigKey, PullRequestGitHelper.buildGHfVSConfigKeyValue(pullRequest));
+	}
+
+	static async getLocalBranchesMarkedAsPullRequest(repository: Repository) {
+		let branches = await repository.getLocalBranches();
+
+		let ret = [];
+		for (let i = 0; i < branches.length; i++) {
+			let localInfo = await PullRequestGitHelper.getPullRequestForBranch(repository, branches[i]);
+			if (localInfo) {
+				ret.push(PullRequestGitHelper.parseGHfVSConfigKeyValue(localInfo));
+			}
+		}
+
+		return ret;
 	}
 }

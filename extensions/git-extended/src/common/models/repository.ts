@@ -243,6 +243,18 @@ export class Repository {
 		}
 	}
 
+	async getLocalBranches(): Promise<string[]> {
+		let result = await GitProcess.exec(['branch'], this.path);
+
+		if (result.exitCode !== 0) {
+			return [];
+		}
+
+		return result.stdout.trim().split(/\r|\n|\r\n/).map(branchName => {
+			return branchName.substr(2);
+		});
+	}
+
 	async getRefs(): Promise<Ref[]> {
 		const result = await GitProcess.exec(['for-each-ref', '--format', '%(refname) %(objectname)', '--sort', '-committerdate'], this.path);
 
