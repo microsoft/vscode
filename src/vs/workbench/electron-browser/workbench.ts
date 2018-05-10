@@ -677,7 +677,7 @@ export class Workbench extends Disposable implements IPartService {
 		}
 
 		// Restore Forced Editor Center Mode
-		if (this.storageService.getBoolean(Workbench.centeredEditorLayoutActiveStorageKey, StorageScope.GLOBAL, false)) {
+		if (this.storageService.getBoolean(Workbench.centeredEditorLayoutActiveStorageKey, StorageScope.WORKSPACE, false)) {
 			this.centeredEditorLayoutActive = true;
 		}
 
@@ -1244,7 +1244,7 @@ export class Workbench extends Disposable implements IPartService {
 	// - IEditorInput.supportsCenteredEditorLayout() no longer supported
 	centerEditorLayout(active: boolean, skipLayout?: boolean): void {
 		this.centeredEditorLayoutActive = active;
-		this.storageService.store(Workbench.centeredEditorLayoutActiveStorageKey, this.centeredEditorLayoutActive, StorageScope.GLOBAL);
+		this.storageService.store(Workbench.centeredEditorLayoutActiveStorageKey, this.centeredEditorLayoutActive, StorageScope.WORKSPACE);
 
 		// Enter Centered Editor Layout
 		if (active) {

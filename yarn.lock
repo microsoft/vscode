@@ -5380,9 +5380,9 @@ strip-json-comments@~2.0.1:
   version "2.0.1"
   resolved "https://registry.yarnpkg.com/strip-json-comments/-/strip-json-comments-2.0.1.tgz#3c531942e908c2697c0ec344858c286c7ca0a60a"
 
-sudo-prompt@^8.0.0:
-  version "8.0.0"
-  resolved "https://registry.yarnpkg.com/sudo-prompt/-/sudo-prompt-8.0.0.tgz#a7b4a1ca6cbcca0e705b90a89dfc81d11034cba9"
+sudo-prompt@8.2.0:
+  version "8.2.0"
+  resolved "https://registry.yarnpkg.com/sudo-prompt/-/sudo-prompt-8.2.0.tgz#bcd4aaacdb367b77b4bffcce1c658c2b1dd327f3"
 
 sumchecker@^2.0.1:
   version "2.0.2"
@@ -5997,9 +5997,9 @@ vscode-textmate@^3.3.3:
     fast-plist "^0.1.2"
     oniguruma "^6.0.1"
 
-vscode-xterm@3.5.0-beta1:
-  version "3.5.0-beta1"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.5.0-beta1.tgz#90b45c71aa188d0c6e1acbec18f587203d18dc2a"
+vscode-xterm@3.4.0-beta3:
+  version "3.4.0-beta3"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.4.0-beta3.tgz#349db387bd3669ad4d6044a6ea6d699e6d649fb5"
 
 vso-node-api@^6.1.2-preview:
   version "6.1.2-preview"

@@ -126,7 +126,7 @@ export class ExplorerItem {
 	}
 
 	public get isRoot(): boolean {
-		return this.resource.toString() === this.root.resource.toString();
+		return this === this.root;
 	}
 
 	public static create(raw: IFileStat, root: ExplorerItem, resolveTo?: URI[]): ExplorerItem {

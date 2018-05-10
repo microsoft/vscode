@@ -446,6 +446,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 		const isHorizontal = (direction === Direction.Left || direction === Direction.Right);
 		const font = this._terminalService.configHelper.getFont();
+		// TODO: Support letter spacing and line height
 		const amount = isHorizontal ? font.charWidth : font.charHeight;
 		if (amount) {
 			this._splitPaneContainer.resizePane(this._activeInstanceIndex, direction, amount);

@@ -40,7 +40,6 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 		const itemsPromise = <TPromise<Item[]>>TPromise.wrap(itemsOrItemsPromise);
 
 		const quickPickWidget = this._proxy.$show({
-			autoFocus: { autoFocusFirstEntry: true },
 			placeHolder: options && options.placeHolder,
 			matchOnDescription: options && options.matchOnDescription,
 			matchOnDetail: options && options.matchOnDetail,
