@@ -290,7 +290,7 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 			...typeConverters.Position.toFileLocationRequestArgs(file, position),
 			includeExternalModuleExports: completionConfiguration.autoImportSuggestions,
 			includeInsertTextCompletions: true,
-			triggerCharacter: context.triggerCharacter ? (context.triggerCharacter === '.' ? undefined : context.triggerCharacter) : undefined
+			triggerCharacter: context.triggerCharacter as Proto.CompletionsTriggerCharacter
 		};
 
 		let msg: Proto.CompletionEntry[] | undefined = undefined;
