@@ -57,6 +57,12 @@ export type ICloseEditorsFilter = {
 	savedOnly?: boolean
 };
 
+export interface IEditorReplacement {
+	editor: IEditorInput;
+	replacement: IEditorInput;
+	options?: IEditorOptions;
+}
+
 export interface INextEditorGroupsService {
 
 	_serviceBrand: ServiceIdentifier<any>;
@@ -247,14 +253,18 @@ export interface INextEditorGroup {
 	getIndexOfEditor(editor: IEditorInput): number;
 
 	/**
-	 * Open an editor in this group. The returned promise is resolved when the
-	 * editor has finished loading.
+	 * Open an editor in this group.
+	 *
+	 * @returns a promise that is resolved when the active editor (if any)
+	 * has finished loading
 	 */
 	openEditor(editor: IEditorInput, options?: IEditorOptions): Thenable<void>;
 
 	/**
-	 * Opens editors in this group. The returned promise is resolved when the
-	 * editor has finished loading.
+	 * Opens editors in this group.
+	 *
+	 * @returns a promise that is resolved when the active editor (if any)
+	 * has finished loading
 	 */
 	openEditors(editors: IEditorInputWithOptions[]): Thenable<void>;
 
@@ -313,6 +323,16 @@ export interface INextEditorGroup {
 	 * @returns a promise when all editors are closed.
 	 */
 	closeAllEditors(): Thenable<void>;
+
+	/**
+	 * Replaces editors in this group with the provided replacement.
+	 *
+	 * @param editors the editors to replace
+	 *
+	 * @returns a promise that is resolved when the replaced active
+	 * editor (if any) has finished loading.
+	 */
+	replaceEditors(editors: IEditorReplacement[]): Thenable<void>;
 
 	/**
 	 * Set an editor to be pinned. A pinned editor is not replaced

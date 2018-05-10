@@ -993,6 +993,73 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	//#endregion
 
+	//#region replaceEditors()
+
+	replaceEditors(editors: EditorReplacement[]): Thenable<void> {
+
+		// Extract active vs. inactive replacements
+		let activeReplacement: EditorReplacement;
+		const inactiveReplacements: EditorReplacement[] = [];
+		editors.forEach(({ editor, replacement, options }) => {
+			if (editor.isDirty()) {
+				return; // we do not handle dirty in this method, so ignore all dirty
+			}
+
+			const index = this.getIndexOfEditor(editor);
+			if (index >= 0) {
+				const isActiveEditor = this.isActive(editor);
+
+				// make sure we respect the index of the editor to replace
+				if (options) {
+					options.index = index;
+				} else {
+					options = EditorOptions.create({ index });
+				}
+
+				options.inactive = !isActiveEditor;
+				options.pinned = true;
+
+				const editorToReplace = { editor, replacement, options };
+				if (isActiveEditor) {
+					activeReplacement = editorToReplace;
+				} else {
+					inactiveReplacements.push(editorToReplace);
+				}
+			}
+		});
+
+		// Handle inactive first
+		inactiveReplacements.forEach(({ editor, replacement, options }) => {
+
+			// Open inactive editor
+			this.doOpenEditor(replacement, options);
+
+			// Close replaced inactive edior
+			this.doCloseInactiveEditor(editor);
+
+			// Forward to title control
+			this.titleAreaControl.closeEditor(editor);
+		});
+
+		// Handle active last
+		if (activeReplacement) {
+
+			// Open replacement as active editor
+			return this.doOpenEditor(activeReplacement.replacement, activeReplacement.options).then(() => {
+
+				// Close previous active editor
+				this.doCloseInactiveEditor(activeReplacement.editor);
+
+				// Forward to title control
+				this.titleAreaControl.closeEditor(activeReplacement.editor);
+			});
+		}
+
+		return TPromise.as(void 0);
+	}
+
+	//#endregion
+
 	//#endregion
 
 	//#region Themable
@@ -1057,6 +1124,12 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 		super.dispose();
 	}
+}
+
+export interface EditorReplacement {
+	editor: EditorInput;
+	replacement: EditorInput;
+	options?: EditorOptions;
 }
 
 registerThemingParticipant((theme, collector, environment) => {
