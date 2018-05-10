@@ -903,6 +903,16 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				]
 			}
 		*/
+		/* __GDPR__
+			"extensionGallery:update" : {
+				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+				"${include}": [
+					"${GalleryExtensionTelemetryData}"
+				]
+			}
+		*/
 		this.telemetryService.publicLog(eventName, assign(extensionData, { success: !error, duration, errorcode }));
 	}
 }
