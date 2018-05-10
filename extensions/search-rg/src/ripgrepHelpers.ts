@@ -9,17 +9,6 @@ import * as vscode from 'vscode';
 
 import * as path from 'path';
 
-export function patternsToRgGlobs(patterns: vscode.GlobPattern[]): string[] {
-	return patterns.map(p => {
-		if (typeof p === 'string') {
-			return p;
-		} else {
-			// TODO
-			return p.pattern;
-		}
-	});
-}
-
 export function fixDriveC(_path: string): string {
 	const root = path.parse(_path).root;
 	return root.toLowerCase() === 'c:/' ?

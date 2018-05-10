@@ -13,7 +13,6 @@ import { StringDecoder, NodeStringDecoder } from 'string_decoder';
 
 import * as cp from 'child_process';
 import { rgPath } from 'vscode-ripgrep';
-import { patternsToRgGlobs } from './ripgrepHelpers';
 import { start } from 'repl';
 
 // If vscode-ripgrep is in an .asar file, then the binary is unpacked.
@@ -35,7 +34,6 @@ export class RipgrepTextSearchEngine {
 
 	provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
 		return new Promise((resolve, reject) => {
-			let isDone = false;
 			const cancel = () => {
 				this.isDone = true;
 				this.ripgrepParser.cancel();
@@ -85,7 +83,7 @@ export class RipgrepTextSearchEngine {
 
 			this.rgProc.on('close', code => {
 				process.removeListener('exit', this.killRgProcFn);
-				if (isDone) {
+				if (this.isDone) {
 					resolve();
 				} else {
 					// Trigger last result
@@ -304,10 +302,11 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 	const args = ['--hidden', '--heading', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold'];
 	args.push(query.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
-	patternsToRgGlobs(options.includes)
+	// TODO@roblou
+	options.includes
 		.forEach(globArg => args.push('-g', globArg));
 
-	patternsToRgGlobs(options.excludes)
+	options.excludes
 		.forEach(rgGlob => args.push('-g', `!${rgGlob}`));
 
 	if (options.maxFileSize) {

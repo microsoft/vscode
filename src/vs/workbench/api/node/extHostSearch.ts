@@ -6,7 +6,7 @@
 
 import { asWinJsPromise } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IPatternInfo, IFolderQuery, IRawSearchQuery, IRawFileMatch, IFileMatch } from 'vs/platform/search/common/search';
+import { IPatternInfo, IFolderQuery, IRawSearchQuery, IRawFileMatch, IFileMatch, ISearchQuery } from 'vs/platform/search/common/search';
 import * as vscode from 'vscode';
 import { ExtHostSearchShape, IMainContext, MainContext, MainThreadSearchShape } from './extHost.protocol';
 import URI, { UriComponents } from 'vs/base/common/uri';
@@ -33,17 +33,14 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		};
 	}
 
-	$provideFileSearchResults(handle: number, session: number, query: string): TPromise<void> {
-		const provider = this._searchProvider.get(handle);
-		if (!provider.provideFileSearchResults) {
-			return TPromise.as(undefined);
-		}
-		const progress = {
-			report: (uri) => {
-				this._proxy.$handleFindMatch(handle, session, uri);
-			}
-		};
-		return asWinJsPromise(token => provider.provideFileSearchResults(query, null, progress, token));
+	$provideFileSearchResults(handle: number, session: number, query: IRawSearchQuery): TPromise<void> {
+		return TPromise.join(
+			query.folderQueries.map(fq => this.provideFileSearchResultsForFolder(handle, session, query, fq))
+		).then(
+			() => { },
+			(err: Error[]) => {
+				return TPromise.wrapError(err[0]);
+			});
 	}
 
 	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, query: IRawSearchQuery): TPromise<void> {
@@ -54,6 +51,39 @@ export class ExtHostSearch implements ExtHostSearchShape {
 			(err: Error[]) => {
 				return TPromise.wrapError(err[0]);
 			});
+	}
+
+	private provideFileSearchResultsForFolder(handle: number, session: number, query: IRawSearchQuery, folderQuery: IFolderQuery<UriComponents>): TPromise<void> {
+		const provider = this._searchProvider.get(handle);
+		if (!provider.provideFileSearchResults) {
+			return TPromise.as(undefined);
+		}
+
+		const includes: string[] = query.includePattern ? Object.keys(query.includePattern) : [];
+		if (folderQuery.includePattern) {
+			includes.push(...Object.keys(folderQuery.includePattern));
+		}
+
+		const excludes: string[] = query.excludePattern ? Object.keys(query.excludePattern) : [];
+		if (folderQuery.excludePattern) {
+			excludes.push(...Object.keys(folderQuery.excludePattern));
+		}
+
+		const searchOptions: vscode.FileSearchOptions = {
+			folder: URI.from(folderQuery.folder),
+			excludes,
+			includes,
+			useIgnoreFiles: !query.disregardIgnoreFiles,
+			followSymlinks: !query.ignoreSymlinks
+		};
+
+		const progress = {
+			report: (data: vscode.Uri) => {
+				this._proxy.$handleFindMatch(handle, session, data);
+			}
+		};
+
+		return asWinJsPromise(token => provider.provideFileSearchResults(searchOptions, progress, token));
 	}
 
 	private provideTextSearchResultsForFolder(handle: number, session: number, pattern: IPatternInfo, query: IRawSearchQuery, folderQuery: IFolderQuery<UriComponents>): TPromise<void> {

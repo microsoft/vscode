@@ -74,6 +74,8 @@ declare module 'vscode' {
 		encoding?: string;
 	}
 
+	export interface FileSearchOptions extends SearchOptions { }
+
 	export interface TextSearchResult {
 		uri: Uri;
 		range: Range;
@@ -83,7 +85,7 @@ declare module 'vscode' {
 	}
 
 	export interface SearchProvider {
-		provideFileSearchResults?(query: string, options: SearchOptions, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
+		provideFileSearchResults?(options: FileSearchOptions, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
 		provideTextSearchResults?(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
 	}
 
