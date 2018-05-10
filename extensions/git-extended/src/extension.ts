@@ -11,6 +11,7 @@ import { Configuration } from './configuration';
 import { Resource } from './common/resources';
 import { ReviewManager } from './review/reviewManager';
 import { CredentialStore } from './credentials';
+import { registerCommands } from './commands';
 
 export async function activate(context: vscode.ExtensionContext) {
 	// initialize resources
@@ -35,7 +36,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		})
 	);
 
-	const repository = new Repository(rootPath, context.workspaceState);
+	const repository = new Repository(rootPath);
 	let repositoryInitialized = false;
 	repository.onDidRunGitStatus(async e => {
 		if (repositoryInitialized) {
@@ -44,7 +45,8 @@ export async function activate(context: vscode.ExtensionContext) {
 		repositoryInitialized = true;
 		let credentialStore = new CredentialStore(configuration);
 		await repository.connectGitHub(credentialStore);
-		let reviewManager = new ReviewManager(context, repository, context.workspaceState);
-		await (new PRProvider(context, configuration, reviewManager)).activate(repository);
+		ReviewManager.initialize(context, repository);
+		PRProvider.initialize(context, configuration, repository);
+		registerCommands(context);
 	});
 }

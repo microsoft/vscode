@@ -29,6 +29,7 @@ export interface ReviewState {
 }
 
 export class ReviewManager implements vscode.DecorationProvider {
+	private static _instance: ReviewManager;
 	private _documentCommentProvider: vscode.Disposable;
 	private _workspaceCommentProvider: vscode.Disposable;
 	private _command: vscode.Disposable;
@@ -62,7 +63,7 @@ export class ReviewManager implements vscode.DecorationProvider {
 		return this._statusBarItem;
 	}
 
-	constructor(
+	private constructor(
 		private _context: vscode.ExtensionContext,
 		private _repository: Repository,
 		private _workspaceState: vscode.Memento
@@ -86,6 +87,17 @@ export class ReviewManager implements vscode.DecorationProvider {
 		this.pollForStatusChange();
 	}
 
+	static initialize(
+		_context: vscode.ExtensionContext,
+		_repository: Repository
+	) {
+		ReviewManager._instance = new ReviewManager(_context, _repository, _context.workspaceState);
+	}
+
+	static get instance() {
+		return ReviewManager._instance;
+	}
+
 	private pollForStatusChange() {
 		setTimeout(async () => {
 			await this.updateComments();
@@ -93,7 +105,7 @@ export class ReviewManager implements vscode.DecorationProvider {
 		}, 1000 * 10);
 	}
 
-	async validateState() {
+	private async validateState() {
 		let localInfo = await PullRequestGitHelper.getPullRequestForCurrentBranch(this._repository);
 
 		if (!localInfo) {
@@ -277,10 +289,11 @@ export class ReviewManager implements vscode.DecorationProvider {
 		const richContentChanges = await parseDiff(data, this._repository, baseSha);
 		this._localFileChanges = richContentChanges.map(change => {
 			let changedItem = new FileChangeTreeItem(
-				pr.prItem,
+				pr,
 				change.fileName,
 				change.status,
 				change.fileName,
+				change.blobUrl,
 				toGitUri(vscode.Uri.parse(change.fileName), null, change.status === GitChangeType.DELETE ? '' : pr.prItem.head.sha, {}),
 				toGitUri(vscode.Uri.parse(change.fileName), null, change.status === GitChangeType.ADD ? '' : pr.prItem.base.sha, {}),
 				this._repository.path,
@@ -367,7 +380,7 @@ export class ReviewManager implements vscode.DecorationProvider {
 		return {};
 	}
 
-	registerCommentProvider() {
+	private registerCommentProvider() {
 		this._documentCommentProvider = vscode.workspace.registerDocumentCommentProvider({
 			onDidChangeCommentThreads: this._onDidChangeCommentThreads.event,
 			provideDocumentComments: async (document: vscode.TextDocument, token: vscode.CancellationToken) => {
@@ -443,7 +456,7 @@ export class ReviewManager implements vscode.DecorationProvider {
 		});
 	}
 
-	async switch(pr: PullRequestModel): Promise<void> {
+	public async switch(pr: PullRequestModel): Promise<void> {
 		let isDirty = await this._repository.isDirty();
 		if (isDirty) {
 			vscode.window.showErrorMessage('Your local changes would be overwritten by checkout, please commit your changes or stash them before you switch branches');
@@ -481,7 +494,7 @@ export class ReviewManager implements vscode.DecorationProvider {
 		await this.validateState();
 	}
 
-	clear(quitReviewMode: boolean) {
+	private clear(quitReviewMode: boolean) {
 		this._prNumber = null;
 
 		if (this._command) {

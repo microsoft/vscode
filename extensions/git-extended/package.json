@@ -72,6 +72,10 @@
         "title": "Checkout Source Branch"
       },
       {
+        "command": "pr.openInGitHub",
+        "title": "Open in GitHub"
+      },
+      {
         "command": "review.openFile",
         "title": "Open File",
         "icon": {
@@ -83,12 +87,21 @@
     "menus": {
       "view/title": [{
         "command": "pr.refreshList",
-        "when": "view == pr"
+        "when": "view == pr",
+        "group": "navigation"
       }],
-      "view/item/context": [{
-        "command": "pr.pick",
-        "when": "view == pr && viewItem == pullrequest"
-      }],
+      "view/item/context": [
+        {
+          "command": "pr.pick",
+          "when": "view == pr && viewItem == pullrequest"
+        },{
+          "command": "pr.openInGitHub",
+          "when": "view == pr && viewItem == pullrequest"
+        },{
+          "command": "pr.openInGitHub",
+          "when": "view =~ /(pr|prStatus)/ && viewItem == filechange"
+        }
+      ],
       "editor/title": [{
         "command": "review.openFile",
         "group": "navigation",

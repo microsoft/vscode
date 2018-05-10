@@ -275,9 +275,11 @@ export async function parseDiff(reviews: any[], repository: Repository, parentCo
 			try {
 				let originalContent = await getFileContent(repository.path, parentCommit, fileName);
 				let richFileChange = await parseModifiedHunkComplete(originalContent, review.patch, fileName, fileName);
+				richFileChange.blobUrl = review.blob_url;
 				richFileChanges.push(richFileChange);
 			} catch (e) {
 				let richFileChange = await parseModifiedHunkFast(review.patch, fileName, fileName);
+				richFileChange.blobUrl = review.blob_url;
 				richFileChanges.push(richFileChange);
 			}
 		} else if (review.status === 'removed') {
@@ -296,6 +298,7 @@ export async function parseDiff(reviews: any[], repository: Repository, parentCo
 			let originalFilePath = await writeTmpFile(contentArray.join('\n'), path.extname(fileName));
 			let filePath = await writeTmpFile('', path.extname(fileName));
 			let richFileChange = new RichFileChange(filePath, originalFilePath, GitChangeType.DELETE, fileName, review.patch);
+			richFileChange.blobUrl = review.blob_url;
 			richFileChanges.push(richFileChange);
 		} else {
 			// added
@@ -314,6 +317,7 @@ export async function parseDiff(reviews: any[], repository: Repository, parentCo
 			let oriFilePath = await writeTmpFile('', path.extname(fileName));
 			let filePath = await writeTmpFile(contentArray.join('\n'), path.extname(fileName));
 			let richFileChange = new RichFileChange(filePath, oriFilePath, GitChangeType.ADD, fileName, review.patch);
+			richFileChange.blobUrl = review.blob_url;
 			richFileChanges.push(richFileChange);
 		}
 	}

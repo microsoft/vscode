@@ -6,6 +6,37 @@
 import * as vscode from 'vscode';
 import { GitChangeType } from './models/file';
 import { PullRequestModel, PRType } from './models/pullRequestModel';
+import { Resource } from './resources';
+
+export enum PRGroupActionType {
+	Empty,
+	More
+}
+
+export class PRGroupActionTreeItem implements vscode.TreeItem {
+	public readonly label: string;
+	public collapsibleState: vscode.TreeItemCollapsibleState;
+	public iconPath?: { light: string | vscode.Uri; dark: string | vscode.Uri };
+	public type: PRGroupActionType;
+	constructor(type: PRGroupActionType) {
+		this.type = type;
+		this.collapsibleState = vscode.TreeItemCollapsibleState.None;
+		switch (type) {
+			case PRGroupActionType.Empty:
+				this.label = '0 pull request in this category';
+				break;
+			case PRGroupActionType.More:
+				this.label = 'Load more';
+				this.iconPath = {
+					light: Resource.icons.light.fold,
+					dark: Resource.icons.dark.fold
+				};
+				break;
+			default:
+				break;
+		}
+	}
+}
 
 export class PRGroupTreeItem implements vscode.TreeItem {
 	public readonly label: string;
@@ -42,6 +73,7 @@ export class FileChangeTreeItem implements vscode.TreeItem {
 	public parentSha: string;
 	public command?: vscode.Command;
 	public comments?: any[];
+	public contextValue: string;
 
 	get letter(): string {
 		switch (this.status) {
@@ -61,15 +93,17 @@ export class FileChangeTreeItem implements vscode.TreeItem {
 	}
 
 	constructor(
-		public readonly prItem: any,
+		public readonly pullRequest: PullRequestModel,
 		public readonly label: string,
 		public readonly status: GitChangeType,
 		public readonly fileName: string,
+		public blobUrl: string,
 		public readonly filePath: vscode.Uri,
 		public readonly parentFilePath: vscode.Uri,
 		public readonly workspaceRoot: string,
 		public readonly patch: string
 	) {
+		this.contextValue = 'filechange';
 		this.command = {
 			title: 'show diff',
 			command: 'vscode.diff',

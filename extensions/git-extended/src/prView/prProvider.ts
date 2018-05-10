@@ -11,48 +11,49 @@ import { Comment } from '../common/models/comment';
 import * as _ from 'lodash';
 import { Configuration } from '../configuration';
 import { parseComments } from '../common/comment';
-import { PRGroupTreeItem, FileChangeTreeItem } from '../common/treeItems';
+import { PRGroupTreeItem, FileChangeTreeItem, PRGroupActionTreeItem, PRGroupActionType } from '../common/treeItems';
 import { Resource } from '../common/resources';
-import { ReviewManager } from '../review/reviewManager';
 import { toPRUri } from '../common/uri';
 import * as fs from 'fs';
 import { PullRequestModel, PRType } from '../common/models/pullRequestModel';
 import { PullRequestGitHelper } from '../common/pullRequestGitHelper';
 
-export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | PullRequestModel | FileChangeTreeItem>, vscode.TextDocumentContentProvider, vscode.DecorationProvider {
-	private repository: Repository;
-	private _onDidChangeTreeData = new vscode.EventEmitter<PRGroupTreeItem | PullRequestModel | FileChangeTreeItem | undefined>();
+export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | PullRequestModel | PRGroupActionTreeItem | FileChangeTreeItem>, vscode.TextDocumentContentProvider, vscode.DecorationProvider {
+	private static _instance: PRProvider;
+	private _onDidChangeTreeData = new vscode.EventEmitter<PRGroupTreeItem | PullRequestModel | PRGroupActionTreeItem | FileChangeTreeItem | undefined>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 	private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
 	get onDidChange(): vscode.Event<vscode.Uri> { return this._onDidChange.event; }
 
-	constructor(
+	private constructor(
 		private context: vscode.ExtensionContext,
 		private configuration: Configuration,
-		private reviewManager: ReviewManager,
+		private repository: Repository
 	) {
-		vscode.workspace.registerTextDocumentContentProvider('pr', this);
-		vscode.window.registerDecorationProvider(this);
-	}
-
-	async activate(repository: Repository) {
-		this.repository = repository;
-		this.context.subscriptions.push(vscode.window.registerTreeDataProvider<PRGroupTreeItem | PullRequestModel | FileChangeTreeItem>('pr', this));
-		this.context.subscriptions.push(vscode.commands.registerCommand('pr.pick', async (pr: PullRequestModel) => {
-			vscode.window.withProgress({
-				location: vscode.ProgressLocation.SourceControl,
-				title: `Switching to Pull Request #${pr.prNumber}`,
-			}, async (progress, token) => {
-				await this.reviewManager.switch(pr);
-			});
+		context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider('pr', this));
+		context.subscriptions.push(vscode.window.registerDecorationProvider(this));
+		context.subscriptions.push(vscode.commands.registerCommand('pr.refreshList', _ => {
+			this._onDidChangeTreeData.fire();
 		}));
+		this.context.subscriptions.push(vscode.window.registerTreeDataProvider<PRGroupTreeItem | PullRequestModel | PRGroupActionTreeItem | FileChangeTreeItem>('pr', this));
 		this.context.subscriptions.push(this.configuration.onDidChange(e => {
 			this._onDidChangeTreeData.fire();
 		}));
 	}
 
-	getTreeItem(element: PRGroupTreeItem | PullRequestModel | FileChangeTreeItem): vscode.TreeItem {
-		if (element instanceof PRGroupTreeItem) {
+	static initialize(
+		context: vscode.ExtensionContext,
+		configuration: Configuration,
+		repository: Repository) {
+		PRProvider._instance = new PRProvider(context, configuration, repository);
+	}
+
+	static get instance() {
+		return PRProvider._instance;
+	}
+
+	getTreeItem(element: PRGroupTreeItem | PullRequestModel | PRGroupActionTreeItem | FileChangeTreeItem): vscode.TreeItem {
+		if (element instanceof PRGroupTreeItem || element instanceof PRGroupActionTreeItem) {
 			return element;
 		}
 
@@ -74,7 +75,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 		}
 	}
 
-	async getChildren(element?: PRGroupTreeItem | PullRequestModel | FileChangeTreeItem): Promise<(PRGroupTreeItem | PullRequestModel | FileChangeTreeItem)[]> {
+	async getChildren(element?: PRGroupTreeItem | PullRequestModel | PRGroupActionTreeItem | FileChangeTreeItem): Promise<(PRGroupTreeItem | PullRequestModel | PRGroupActionTreeItem | FileChangeTreeItem)[]> {
 		if (!element) {
 			return Promise.resolve([
 				new PRGroupTreeItem(PRType.RequestReview),
@@ -85,11 +86,16 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 		}
 
 		if (!this.repository.remotes || !this.repository.remotes.length) {
-			return Promise.resolve([]);
+			return Promise.resolve([new PRGroupActionTreeItem(PRGroupActionType.Empty)]);
 		}
 
 		if (element instanceof PRGroupTreeItem) {
-			return this.getPRs(element);
+			let prItems = await this.getPRs(element);
+			if (prItems && prItems.length) {
+				return prItems;
+			} else {
+				return [new PRGroupActionTreeItem(PRGroupActionType.Empty)];
+			}
 		}
 
 		if (element instanceof PullRequestModel) {
@@ -101,10 +107,11 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 			let fileChanges = richContentChanges.map(change => {
 				let fileInRepo = path.resolve(this.repository.path, change.fileName);
 				let changedItem = new FileChangeTreeItem(
-					element.prItem,
+					element,
 					change.fileName,
 					change.status,
 					change.fileName,
+					change.blobUrl,
 					toPRUri(vscode.Uri.file(change.filePath), fileInRepo, change.fileName, true),
 					toPRUri(vscode.Uri.file(change.originalFilePath), fileInRepo, change.fileName, false),
 					this.repository.path,

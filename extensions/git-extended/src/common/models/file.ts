@@ -45,6 +45,7 @@ export class SlimFileChange {
 }
 
 export class RichFileChange {
+	public blobUrl: string;
 	constructor(
 		public readonly filePath: string,
 		public readonly originalFilePath: string,

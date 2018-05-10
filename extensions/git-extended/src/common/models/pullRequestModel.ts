@@ -26,6 +26,7 @@ export enum PullRequestStateEnum {
 export class PullRequestModel {
 	public prNumber: number;
 	public title: string;
+	public html_url: string;
 	public state: PullRequestStateEnum = PullRequestStateEnum.Open;
 	public commentCount: number;
 	public commitCount: number;
@@ -47,6 +48,7 @@ export class PullRequestModel {
 	constructor(public readonly otcokit: any, public readonly remote: Remote, public prItem: any) {
 		this.prNumber = prItem.number;
 		this.title = prItem.title;
+		this.html_url = prItem.html_url;
 		this.author = {
 			login: prItem.user.login,
 			isUser: prItem.user.type === 'User',

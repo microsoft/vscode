@@ -69,7 +69,7 @@ export class Repository {
 	private statusTimeout: any;
 	private disposables: vscode.Disposable[] = [];
 
-	constructor(path: string, workspaceState: vscode.Memento) {
+	constructor(path: string) {
 		this.path = path;
 
 		const fsWatcher = vscode.workspace.createFileSystemWatcher('**');
