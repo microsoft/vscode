@@ -95,7 +95,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 	public renderBody(container: HTMLElement): void {
 		dom.addClass(container, 'debug-call-stack');
 		this.treeContainer = renderViewTree(container);
-		const actionProvider = new CallStackActionProvider(this.debugService, this.keybindingService);
+		const actionProvider = new CallStackActionProvider(this.debugService, this.keybindingService, this.instantiationService);
 		const controller = this.instantiationService.createInstance(CallStackController, actionProvider, MenuId.DebugCallStackContext, {});
 
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
@@ -238,7 +238,7 @@ class CallStackController extends BaseDebugController {
 
 class CallStackActionProvider implements IActionProvider {
 
-	constructor(private debugService: IDebugService, private keybindingService: IKeybindingService) {
+	constructor(private debugService: IDebugService, private keybindingService: IKeybindingService, private instantiationService: IInstantiationService) {
 		// noop
 	}
 
@@ -257,7 +257,7 @@ class CallStackActionProvider implements IActionProvider {
 	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
 		const actions: IAction[] = [];
 		if (element instanceof Session) {
-			actions.push(new RestartAction(RestartAction.ID, RestartAction.LABEL, this.debugService, this.keybindingService));
+			actions.push(this.instantiationService.createInstance(RestartAction, RestartAction.ID, RestartAction.LABEL));
 			actions.push(new StopAction(StopAction.ID, StopAction.LABEL, this.debugService, this.keybindingService));
 		} else if (element instanceof Thread) {
 			const thread = <Thread>element;
