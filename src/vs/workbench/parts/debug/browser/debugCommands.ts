@@ -23,6 +23,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { openBreakpointSource } from 'vs/workbench/parts/debug/browser/breakpointsView';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { InputFocusedContext } from 'vs/platform/workbench/common/contextkeys';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 export function registerCommands(): void {
 
@@ -197,46 +198,51 @@ export function registerCommands(): void {
 		}
 	});
 
-	const COLUMN_BREAKPOINT_COMMAND_ID = 'editor.debug.action.toggleColumnBreakpoint';
+	const INLINE_BREAKPOINT_COMMAND_ID = 'editor.debug.action.toggleInlineBreakpoint';
+	const inlineBreakpointHandler = (accessor) => {
+		const debugService = accessor.get(IDebugService);
+		const editorService = accessor.get(IWorkbenchEditorService);
+		const editor = editorService.getActiveEditor();
+		const control = editor && <ICodeEditor>editor.getControl();
+		if (control) {
+			const position = control.getPosition();
+			const modelUri = control.getModel().uri;
+			const bp = debugService.getModel().getBreakpoints({ lineNumber: position.lineNumber, uri: modelUri })
+				.filter(bp => (bp.column === position.column || !bp.column && position.column <= 1)).pop();
+
+			if (bp) {
+				return TPromise.as(null);
+			}
+			if (debugService.getConfigurationManager().canSetBreakpointsIn(control.getModel())) {
+				return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column > 1 ? position.column : undefined }]);
+			}
+		}
+
+		return TPromise.as(null);
+	};
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		primary: KeyMod.Shift | KeyCode.F9,
 		when: EditorContextKeys.editorTextFocus,
-		id: COLUMN_BREAKPOINT_COMMAND_ID,
-		handler: (accessor) => {
-			const debugService = accessor.get(IDebugService);
-			const editorService = accessor.get(IWorkbenchEditorService);
-			const editor = editorService.getActiveEditor();
-			const control = editor && <ICodeEditor>editor.getControl();
-			if (control) {
-				const position = control.getPosition();
-				const modelUri = control.getModel().uri;
-				const bp = debugService.getModel().getBreakpoints({ lineNumber: position.lineNumber, uri: modelUri })
-					.filter(bp => (bp.column === position.column || !bp.column && position.column <= 1)).pop();
-
-				if (bp) {
-					return TPromise.as(null);
-				}
-				if (debugService.getConfigurationManager().canSetBreakpointsIn(control.getModel())) {
-					return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column > 1 ? position.column : undefined }]);
-				}
-			}
-
-			return TPromise.as(null);
-		}
+		id: INLINE_BREAKPOINT_COMMAND_ID,
+		handler: inlineBreakpointHandler
+	});
+	CommandsRegistry.registerCommand({
+		id: 'editor.debug.action.toggleColumnBreakpoint',
+		handler: inlineBreakpointHandler
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		command: {
-			id: COLUMN_BREAKPOINT_COMMAND_ID,
-			title: nls.localize('columnBreakpoint', "Column Breakpoint"),
+			id: INLINE_BREAKPOINT_COMMAND_ID,
+			title: nls.localize('inlineBreakpoint', "Inline Breakpoint"),
 			category: nls.localize('debug', "Debug")
 		}
 	});
 	MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 		command: {
-			id: COLUMN_BREAKPOINT_COMMAND_ID,
-			title: nls.localize('addColumnBreakpoint', "Add Column Breakpoint")
+			id: INLINE_BREAKPOINT_COMMAND_ID,
+			title: nls.localize('addInlineBreakpoint', "Add Inline Breakpoint")
 		},
 		when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, EditorContextKeys.writable),
 		group: 'debug',
