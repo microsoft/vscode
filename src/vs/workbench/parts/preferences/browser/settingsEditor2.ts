@@ -741,6 +741,7 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 		template.labelElement.textContent = settingKeyDisplay.label;
 		template.labelElement.title = titleTooltip;
 		template.descriptionElement.textContent = entry.description;
+		template.descriptionElement.title = entry.description;
 
 		DOM.toggleClass(template.parent, 'is-configured', entry.isConfigured);
 		this.renderValue(entry, template);
