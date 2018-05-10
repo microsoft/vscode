@@ -28,7 +28,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IMenuService, MenuId, IMenu, ExecuteCommandAction } from 'vs/platform/actions/common/actions';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { Themable } from 'vs/workbench/common/theme';
 import { isDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -37,6 +37,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { INextEditorGroupsAccessor, INextEditorPartOptions } from 'vs/workbench/browser/parts/editor2/editor2';
+import { listActiveSelectionBackground } from 'vs/platform/theme/common/colorRegistry';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -307,3 +308,16 @@ export abstract class NextTitleControl extends Themable {
 
 	//#endregion
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+
+	// Drag Feedback
+	const dragImageColor = theme.getColor(listActiveSelectionBackground);
+	if (dragImageColor) {
+		collector.addRule(`
+			.monaco-editor-group-drag-image {
+				background: ${dragImageColor};
+			}
+		`);
+	}
+});

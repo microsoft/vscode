@@ -54,24 +54,11 @@
 	display: none;
 }
 
-/* Drag Cursor (TODO@grid this depends on the feature to drag an entire group to another location) */
-.monaco-workbench > .part.editor > .content.multiple-groups .editor-group-container > .title,
-.monaco-workbench > .part.editor > .content.multiple-groups .editor-group-container > .title.tabs .scrollbar .slider,
-.monaco-workbench > .part.editor > .content.multiple-groups .editor-group-container > .title .monaco-icon-label::before,
-.monaco-workbench > .part.editor > .content.multiple-groups .editor-group-container > .title .title-label a,
-.monaco-workbench > .part.editor > .content.multiple-groups .editor-group-container > .title .title-label span {
+/* Drag Cursor */
+.monaco-workbench > .part.editor > .content.multiple-groups .editor-group-container > .title {
 	cursor: -webkit-grab;
 }
 
-#monaco-workbench-editor-move-overlay,
-.monaco-workbench > .part.editor > .content.multiple-groups .editor-group-container.drag,
-.monaco-workbench > .part.editor > .content.multiple-groups .editor-group-container.drag > .title,
-.monaco-workbench > .part.editor > .content.multiple-groups .editor-group-container.drag > .title.tabs .scrollbar .slider,
-.monaco-workbench > .part.editor > .content.multiple-groups .editor-group-container.drag > .title .monaco-icon-label::before,
-.monaco-workbench > .part.editor > .content.multiple-groups .editor-group-container.drag > .title .title-label a,
-.monaco-workbench > .part.editor > .content.multiple-groups .editor-group-container.drag > .title .title-label span {
-	cursor: -webkit-grabbing;
-}
 
 /* Actions */
 
@@ -100,4 +87,14 @@
 .vs-dark .monaco-workbench > .part.editor > .content .editor-group-container > .title .split-editor-vertical-action,
 .hc-black .monaco-workbench > .part.editor > .content .editor-group-container > .title .split-editor-vertical-action {
 	background: url('split-editor-vertical-inverse.svg') center center no-repeat;
+}
+
+/* Drag and Drop Feedback */
+
+.monaco-editor-group-drag-image {
+	display: inline-block;
+	padding: 1px 7px;
+	border-radius: 10px;
+	font-size: 12px;
+	position: absolute;
 }

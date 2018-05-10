@@ -204,11 +204,11 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		// Toolbar
 		const groupId = this._group.id;
 		const containerToolbar = new ActionBar(toolbarContainer, {
-			ariaLabel: localize('araLabelGroupActions', "Editor group actions"), actionRunner: new class extends ActionRunner {
+			ariaLabel: localize('araLabelGroupActions', "Editor group actions"), actionRunner: this._register(new class extends ActionRunner {
 				run(action: IAction) {
 					return action.run(groupId);
 				}
-			}
+			})
 		});
 
 		// Toolbar actions

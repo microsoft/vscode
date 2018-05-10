@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/nextEditorDragAndDrop';
-import { LocalSelectionTransfer, DraggedEditorIdentifier, DragCounter, ResourcesDropHandler } from 'vs/workbench/browser/dnd';
+import { LocalSelectionTransfer, DraggedEditorIdentifier, DragCounter, ResourcesDropHandler, DraggedEditorGroupIdentifier } from 'vs/workbench/browser/dnd';
 import { addDisposableListener, EventType, EventHelper, isAncestor, toggleClass, addClass } from 'vs/base/browser/dom';
 import { INextEditorGroupsAccessor, EDITOR_TITLE_HEIGHT, INextEditorGroupView, getActiveTextEditorOptions } from 'vs/workbench/browser/parts/editor2/editor2';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND, Themable } from 'vs/workbench/common/theme';
@@ -14,7 +14,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorIdentifier, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { isMacintosh } from 'vs/base/common/platform';
-import { GroupDirection, INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { GroupDirection, MergeGroupMode } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
@@ -29,10 +29,12 @@ class DropOverlay extends Themable {
 	private splitDirection: GroupDirection;
 	private _disposed: boolean;
 
+	private readonly editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
+	private readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
+
 	constructor(
 		private accessor: INextEditorGroupsAccessor,
 		private groupView: INextEditorGroupView,
-		private transfer: LocalSelectionTransfer<DraggedEditorIdentifier>,
 		themeService: IThemeService,
 		private instantiationService: IInstantiationService
 	) {
@@ -87,7 +89,7 @@ class DropOverlay extends Themable {
 
 			// Update the dropEffect, otherwise it would look like a "move" operation. but only if we are
 			// not dragging a tab actually because there we support both moving as well as copying
-			if (!this.transfer.hasData(DraggedEditorIdentifier.prototype)) {
+			if (!this.editorTransfer.hasData(DraggedEditorIdentifier.prototype) && !this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) {
 				e.dataTransfer.dropEffect = 'copy';
 			}
 
@@ -108,7 +110,7 @@ class DropOverlay extends Themable {
 
 		// Dispose on drag end
 		this._register(addDisposableListener(this.container, EventType.DRAG_END, () => this.dispose()));
-		this._register(addDisposableListener(this.container, EventType.DRAG_LEAVE, (e: DragEvent) => this.dispose()));
+		this._register(addDisposableListener(this.container, EventType.DRAG_LEAVE, () => this.dispose()));
 		this._register(addDisposableListener(this.container, EventType.MOUSE_OVER, () => {
 
 			// Under some circumstances we have seen reports where the drop overlay is not being
@@ -128,7 +130,7 @@ class DropOverlay extends Themable {
 
 		// Determine target group
 		const ensureTargetGroup = () => {
-			let targetGroup: INextEditorGroup;
+			let targetGroup: INextEditorGroupView;
 			if (typeof this.splitDirection === 'number') {
 				targetGroup = this.accessor.addGroup(this.groupView, this.splitDirection, { activate: true });
 			} else {
@@ -138,9 +140,42 @@ class DropOverlay extends Themable {
 			return targetGroup;
 		};
 
-		// Check for transfer from title control
-		if (this.transfer.hasData(DraggedEditorIdentifier.prototype)) {
-			const draggedEditor = this.transfer.getData(DraggedEditorIdentifier.prototype)[0].identifier;
+		// Check for group transfer from title control
+		if (this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) {
+			const draggedEditorGroup = this.groupTransfer.getData(DraggedEditorGroupIdentifier.prototype)[0].identifier;
+
+			// Return if the drop is a no-op
+			const sourceGroup = this.accessor.getGroup(draggedEditorGroup);
+			if (typeof this.splitDirection !== 'number' && sourceGroup === this.groupView) {
+				return;
+			}
+
+			// Split to new group
+			let targetGroup: INextEditorGroupView;
+			if (typeof this.splitDirection === 'number') {
+				if (this.isCopyOperation(event)) {
+					targetGroup = this.accessor.copyGroup(sourceGroup, this.groupView, this.splitDirection);
+				} else {
+					targetGroup = this.accessor.moveGroup(sourceGroup, this.groupView, this.splitDirection);
+				}
+			}
+
+			// Merge into existing group
+			else {
+				if (this.isCopyOperation(event)) {
+					targetGroup = this.accessor.mergeGroup(sourceGroup, this.groupView, { mode: MergeGroupMode.COPY_EDITORS });
+				} else {
+					targetGroup = this.accessor.mergeGroup(sourceGroup, this.groupView);
+				}
+			}
+
+			this.accessor.activateGroup(targetGroup);
+			this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
+		}
+
+		// Check for editor transfer from title control
+		else if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
+			const draggedEditor = this.editorTransfer.getData(DraggedEditorIdentifier.prototype)[0].identifier;
 			const targetGroup = ensureTargetGroup();
 
 			// Return if the drop is a no-op
@@ -154,10 +189,13 @@ class DropOverlay extends Themable {
 			targetGroup.openEditor(draggedEditor.editor, options);
 
 			// Close in source group unless we copy
-			const copyEditor = this.shouldCopyEditor(draggedEditor, event);
+			const copyEditor = this.isCopyOperation(event, draggedEditor);
 			if (!copyEditor) {
 				sourceGroup.closeEditor(draggedEditor.editor);
 			}
+
+			this.accessor.activateGroup(targetGroup);
+			this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
 		}
 
 		// Check for URI transfer
@@ -169,8 +207,8 @@ class DropOverlay extends Themable {
 		}
 	}
 
-	private shouldCopyEditor(draggedEditor: IEditorIdentifier, e: DragEvent) {
-		if (draggedEditor.editor instanceof EditorInput && !draggedEditor.editor.supportsSplitEditor()) {
+	private isCopyOperation(e: DragEvent, draggedEditor?: IEditorIdentifier): boolean {
+		if (draggedEditor && draggedEditor.editor instanceof EditorInput && !draggedEditor.editor.supportsSplitEditor()) {
 			return false;
 		}
 
@@ -195,42 +233,32 @@ class DropOverlay extends Themable {
 			case topEdgeDistance:
 				if (topEdgeDistance < edgeHeightThreshold) {
 					splitDirection = GroupDirection.UP;
+					this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '50%' });
 				}
 				break;
 			case bottomEdgeDistance:
 				if (bottomEdgeDistance < edgeHeightThreshold) {
 					splitDirection = GroupDirection.DOWN;
+					this.doPositionOverlay({ top: '50%', left: '0', width: '100%', height: '50%' });
 				}
 				break;
 			case leftEdgeDistance:
 				if (leftEdgeDistance < edgeWidthThreshold) {
 					splitDirection = GroupDirection.LEFT;
+					this.doPositionOverlay({ top: '0', left: '0', width: '50%', height: '100%' });
 				}
 				break;
 			case rightEdgeDistance:
 				if (rightEdgeDistance < edgeWidthThreshold) {
 					splitDirection = GroupDirection.RIGHT;
+					this.doPositionOverlay({ top: '0', left: '50%', width: '50%', height: '100%' });
 				}
 				break;
 		}
 
-		// Position overlay according to location
-		switch (splitDirection) {
-			case GroupDirection.UP:
-				this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '50%' });
-				break;
-			case GroupDirection.DOWN:
-				this.doPositionOverlay({ top: '50%', left: '0', width: '100%', height: '50%' });
-				break;
-			case GroupDirection.LEFT:
-				this.doPositionOverlay({ top: '0', left: '0', width: '50%', height: '100%' });
-				break;
-			case GroupDirection.RIGHT:
-				this.doPositionOverlay({ top: '0', left: '50%', width: '50%', height: '100%' });
-				break;
-			default:
-				this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '100%' });
-				break;
+		// No split, position overlay over entire group
+		if (typeof splitDirection !== 'number') {
+			this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '100%' });
 		}
 
 		// Make sure the overlay is visible now
@@ -273,8 +301,10 @@ export class NextEditorDragAndDrop extends Themable {
 
 	private _overlay: DropOverlay;
 
-	private transfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 	private counter = new DragCounter(); // see https://github.com/Microsoft/vscode/issues/14470
+
+	private readonly editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
+	private readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
 
 	constructor(
 		private accessor: INextEditorGroupsAccessor,
@@ -297,13 +327,18 @@ export class NextEditorDragAndDrop extends Themable {
 
 	private registerListeners(): void {
 		this._register(addDisposableListener(this.container, EventType.DRAG_ENTER, e => this.onDragEnter(e)));
-		this._register(addDisposableListener(this.container, EventType.DRAG_LEAVE, e => this.onDragLeave()));
+		this._register(addDisposableListener(this.container, EventType.DRAG_LEAVE, () => this.onDragLeave()));
 		[this.container, window].forEach(node => this._register(addDisposableListener(node as HTMLElement, EventType.DRAG_END, () => this.onDragEnd())));
 	}
 
 	private onDragEnter(event: DragEvent): void {
-		if (!this.transfer.hasData(DraggedEditorIdentifier.prototype) && !event.dataTransfer.types.length) {
-			return; // invalid DND (see https://github.com/Microsoft/vscode/issues/25789)
+		if (
+			!this.editorTransfer.hasData(DraggedEditorIdentifier.prototype) &&
+			!this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype) &&
+			!event.dataTransfer.types.length // see https://github.com/Microsoft/vscode/issues/25789
+		) {
+			event.dataTransfer.dropEffect = 'none';
+			return; // unsupported transfer
 		}
 
 		// Signal DND start
@@ -322,7 +357,7 @@ export class NextEditorDragAndDrop extends Themable {
 			if (!this.overlay) {
 				const groupView = this.findGroupView(target);
 				if (groupView) {
-					this._overlay = new DropOverlay(this.accessor, groupView, this.transfer, this.themeService, this.instantiationService);
+					this._overlay = new DropOverlay(this.accessor, groupView, this.themeService, this.instantiationService);
 				}
 			}
 		}

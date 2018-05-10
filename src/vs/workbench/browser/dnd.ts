@@ -47,6 +47,14 @@ export class DraggedEditorIdentifier {
 	}
 }
 
+export class DraggedEditorGroupIdentifier {
+	constructor(private _identifier: GroupIdentifier) { }
+
+	get identifier(): GroupIdentifier {
+		return this._identifier;
+	}
+}
+
 export interface IDraggedEditor extends IDraggedResource {
 	backupResource?: URI;
 	viewState?: IEditorViewState;
@@ -431,9 +439,11 @@ export class LocalSelectionTransfer<T> {
 		return proto && proto === this.proto;
 	}
 
-	clearData(): void {
-		this.proto = void 0;
-		this.data = void 0;
+	clearData(proto: T): void {
+		if (this.hasData(proto)) {
+			this.proto = void 0;
+			this.data = void 0;
+		}
 	}
 
 	getData(proto: T): T[] {

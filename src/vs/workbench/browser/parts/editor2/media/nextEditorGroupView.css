@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/** Container */
+/* Container */
 
 .monaco-workbench > .part.editor > .content .editor-group-container {
 	height: 100%;
@@ -29,7 +29,7 @@
 	outline-width: 0; /* no outline when editor part is empty */
 }
 
-/** Title */
+/* Title */
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title {
 	height: 35px;
@@ -47,7 +47,7 @@
 	display: none;
 }
 
-/** Toolbar */
+/* Toolbar */
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .editor-group-container-toolbar {
 	display: none;

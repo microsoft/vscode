@@ -44,12 +44,22 @@ export interface IMoveEditorOptions {
 	preserveFocus?: boolean;
 }
 
+export interface ICopyEditorOptions extends IMoveEditorOptions { }
+
 export interface IAddGroupOptions {
 	activate?: boolean;
 	copyGroup?: boolean;
 }
 
-export interface ICopyEditorOptions extends IMoveEditorOptions { }
+export enum MergeGroupMode {
+	COPY_EDITORS,
+	MOVE_EDITORS_REMOVE_GROUP,
+	MOVE_EDITORS_KEEP_GROUP
+}
+
+export interface IMergeGroupOptions {
+	mode?: MergeGroupMode;
+}
 
 export type ICloseEditorsFilter = {
 	except?: IEditorInput,
@@ -169,13 +179,18 @@ export interface INextEditorGroupsService {
 	moveGroup(group: INextEditorGroup | GroupIdentifier, location: INextEditorGroup | GroupIdentifier, direction: GroupDirection): INextEditorGroup;
 
 	/**
-	 * Merging a group will take any opened editor of that group and move them
-	 * into the target. After that, the group will be removed.
+	 * Merge the editors of a group into a target group. By default, all editors will
+	 * move and the source group will close. This behaviour can be configured via the
+	 * `IMergeGroupOptions` options.
 	 *
 	 * @param group the group to merge
 	 * @param target the target group to merge into
+	 * @param options controls how the merge should be performed. by default all editors
+	 * will be moved over to the target and the source group will close. Configure to
+	 * `MOVE_EDITORS_KEEP_GROUP` to prevent the source group from closing. Set to
+	 * `COPY_EDITORS` to copy the editors into the target instead of moding them.
 	 */
-	mergeGroup(group: INextEditorGroup | GroupIdentifier, target: INextEditorGroup | GroupIdentifier): void;
+	mergeGroup(group: INextEditorGroup | GroupIdentifier, target: INextEditorGroup | GroupIdentifier, options?: IMergeGroupOptions): INextEditorGroup;
 
 	/**
 	 * Copy a group to a new group in the editor area.

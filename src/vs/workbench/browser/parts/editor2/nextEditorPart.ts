@@ -11,7 +11,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { Dimension, isAncestor, toggleClass, addClass, clearNode } from 'vs/base/browser/dom';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { INextEditorGroupsService, GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, ICopyEditorOptions } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, ISerializedNode } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
@@ -193,6 +193,9 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 	focusGroup(group: INextEditorGroupView | GroupIdentifier): INextEditorGroupView {
 		const groupView = this.assertGroupView(group);
+
+		// Activate and focus group
+		this.doSetGroupActive(groupView);
 		groupView.focus();
 
 		return groupView;
@@ -370,7 +373,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		}
 
 		// Remove group with editors
-		return this.doRemoveGroupWithEditors(groupView);
+		this.doRemoveGroupWithEditors(groupView);
 	}
 
 	private doRemoveGroupWithEditors(groupView: INextEditorGroupView): void {
@@ -385,7 +388,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 		// Removing a group with editors should merge these editors into the
 		// last active group and then remove this group.
-		return this.mergeGroup(groupView, lastActiveGroup);
+		this.mergeGroup(groupView, lastActiveGroup);
 	}
 
 	private doRemoveEmptyGroup(groupView: INextEditorGroupView): void {
@@ -405,7 +408,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		// Restore focus if we had it previously (we run this after gridWidget.removeView() is called
 		// because removing a view can mean to reparent it and thus focus would be removed otherwise)
 		if (groupHasFocus) {
-			this._activeGroup.focus();
+			this.focusGroup(this._activeGroup);
 		}
 
 		// Update container
@@ -419,20 +422,25 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		const groupView = this.assertGroupView(group);
 		const locationView = this.assertGroupView(location);
 
-		if (groupView.id === locationView.id) {
-			throw new Error('Unable to move the same editor group into itself!');
-		}
-
 		const groupHasFocus = isAncestor(document.activeElement, groupView.element);
 
-		// Move is a remove + add
-		this.gridWidget.removeView(groupView, Sizing.Distribute);
-		this.gridWidget.addView(groupView, Sizing.Distribute, locationView, this.toGridViewDirection(direction));
+		// Target is same view: we first need to create the new group and then merge
+		// all editors of the group into it to preserve the view state.
+		if (groupView.id === locationView.id) {
+			const newGroup = this.doAddGroup(groupView, direction);
+			this.mergeGroup(groupView, newGroup, { mode: MergeGroupMode.MOVE_EDITORS_KEEP_GROUP });
+		}
+
+		// Target is different view: operation is a simple remove and add
+		else {
+			this.gridWidget.removeView(groupView, Sizing.Distribute);
+			this.gridWidget.addView(groupView, Sizing.Distribute, locationView, this.toGridViewDirection(direction));
+		}
 
 		// Restore focus if we had it previously (we run this after gridWidget.removeView() is called
 		// because removing a view can mean to reparent it and thus focus would be removed otherwise)
 		if (groupHasFocus) {
-			groupView.focus();
+			this.focusGroup(groupView);
 		}
 
 		// Event
@@ -445,10 +453,20 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		const groupView = this.assertGroupView(group);
 		const locationView = this.assertGroupView(location);
 
-		return this.doAddGroup(locationView, direction, groupView);
+		const groupHasFocus = isAncestor(document.activeElement, groupView.element);
+
+		// Copy the group view
+		const copiedGroupView = this.doAddGroup(locationView, direction, groupView);
+
+		// Restore focus if we had it
+		if (groupHasFocus) {
+			this.focusGroup(copiedGroupView);
+		}
+
+		return copiedGroupView;
 	}
 
-	mergeGroup(group: INextEditorGroupView | GroupIdentifier, target: INextEditorGroupView | GroupIdentifier): void {
+	mergeGroup(group: INextEditorGroupView | GroupIdentifier, target: INextEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): INextEditorGroupView {
 		const sourceView = this.assertGroupView(group);
 		const targetView = this.assertGroupView(target);
 
@@ -456,13 +474,23 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		let index = targetView.count;
 		sourceView.editors.forEach(editor => {
 			const inactive = sourceView.activeEditor !== editor;
-			sourceView.moveEditor(editor, targetView, { index, inactive, preserveFocus: inactive });
+			const copyOptions: ICopyEditorOptions = { index, inactive, preserveFocus: inactive };
+
+			if (options && options.mode === MergeGroupMode.COPY_EDITORS) {
+				sourceView.copyEditor(editor, targetView, copyOptions);
+			} else {
+				sourceView.moveEditor(editor, targetView, copyOptions);
+			}
 
 			index++;
 		});
 
-		// Remove source
-		this.removeGroup(sourceView);
+		// Remove source (unless prevented)
+		if (!options || options.mode === MergeGroupMode.MOVE_EDITORS_REMOVE_GROUP) {
+			this.removeGroup(sourceView);
+		}
+
+		return targetView;
 	}
 
 	private assertGroupView(group: INextEditorGroupView | GroupIdentifier): INextEditorGroupView {
@@ -689,6 +717,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 	private updateContainer(): void {
 		toggleClass(this.container, 'empty', this.isEmpty());
+		toggleClass(this.container, 'multiple-groups', this.count > 1);
 	}
 
 	private isEmpty(): boolean {

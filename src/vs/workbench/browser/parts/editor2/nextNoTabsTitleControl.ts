@@ -14,26 +14,26 @@ import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workb
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { addDisposableListener, EventType, addClass, EventHelper, removeClass } from 'vs/base/browser/dom';
 import { INextEditorPartOptions } from 'vs/workbench/browser/parts/editor2/editor2';
+import { LocalSelectionTransfer, DraggedEditorGroupIdentifier, fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
+import { applyDragImage } from 'vs/base/browser/dnd';
+import { localize } from 'vs/nls';
 
 export class NextNoTabsTitleControl extends NextTitleControl {
 	private titleContainer: HTMLElement;
 	private editorLabel: ResourceLabel;
 	private lastRenderedEditor: IEditorInput;
 
+	private readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
+
 	protected create(parent: HTMLElement): void {
 		this.titleContainer = parent;
+		this.titleContainer.draggable = true;
+
+		//Container listeners
+		this.hookContainerListeners();
 
 		// Gesture Support
 		Gesture.addTarget(this.titleContainer);
-
-		// Pin on double click
-		this._register(addDisposableListener(this.titleContainer, EventType.DBLCLICK, (e: MouseEvent) => this.onTitleDoubleClick(e)));
-
-		// Detect mouse click
-		this._register(addDisposableListener(this.titleContainer, EventType.CLICK, (e: MouseEvent) => this.onTitleClick(e)));
-
-		// Detect touch
-		this._register(addDisposableListener(this.titleContainer, TouchEventType.Tap, (e: GestureEvent) => this.onTitleClick(e)));
 
 		// Editor Label
 		this.editorLabel = this._register(this.instantiationService.createInstance(ResourceLabel, this.titleContainer, void 0));
@@ -46,6 +46,43 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 
 		// Editor actions toolbar
 		this.createEditorActionsToolBar(actionsContainer);
+	}
+
+	private hookContainerListeners(): void {
+
+		// Drag start
+		this._register(addDisposableListener(this.titleContainer, EventType.DRAG_START, (e: DragEvent) => {
+			if (e.target !== this.titleContainer) {
+				return; // only if originating from tabs container
+			}
+
+			// Set editor group as transfer
+			this.groupTransfer.setData([new DraggedEditorGroupIdentifier(this.group.id)], DraggedEditorGroupIdentifier.prototype);
+			e.dataTransfer.effectAllowed = 'copyMove';
+
+			// Apply some datatransfer types to allow for dragging the element outside of the application
+			const resource = toResource(this.lastRenderedEditor, { supportSideBySide: true });
+			if (resource) {
+				this.instantiationService.invokeFunction(fillResourceDataTransfers, [resource], e);
+			}
+
+			// Drag Image
+			applyDragImage(e, this.group.count === 1 ? localize('oneEditor', "1 editor") : localize('multipleEditor', "{0} editors", this.group.count), 'monaco-editor-group-drag-image');
+		}));
+
+		// Drag end
+		this._register(addDisposableListener(this.titleContainer, EventType.DRAG_END, () => {
+			this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
+		}));
+
+		// Pin on double click
+		this._register(addDisposableListener(this.titleContainer, EventType.DBLCLICK, (e: MouseEvent) => this.onTitleDoubleClick(e)));
+
+		// Detect mouse click
+		this._register(addDisposableListener(this.titleContainer, EventType.CLICK, (e: MouseEvent) => this.onTitleClick(e)));
+
+		// Detect touch
+		this._register(addDisposableListener(this.titleContainer, TouchEventType.Tap, (e: GestureEvent) => this.onTitleClick(e)));
 
 		// Context Menu
 		this._register(addDisposableListener(this.titleContainer, EventType.CONTEXT_MENU, (e: Event) => this.onContextMenu(this.group.activeEditor, e, this.titleContainer)));

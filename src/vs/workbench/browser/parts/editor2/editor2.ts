@@ -7,7 +7,7 @@
 
 import { GroupIdentifier, IWorkbenchEditorConfiguration, IWorkbenchEditorPartConfiguration, EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
 import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
-import { INextEditorGroup, GroupDirection, IAddGroupOptions } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Dimension } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
@@ -73,7 +73,11 @@ export interface INextEditorGroupsAccessor {
 
 	getGroup(identifier: GroupIdentifier): INextEditorGroupView;
 
-	addGroup(location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): INextEditorGroup;
+	activateGroup(identifier: INextEditorGroupView | GroupIdentifier): INextEditorGroupView;
+	addGroup(location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): INextEditorGroupView;
+	moveGroup(group: INextEditorGroupView | GroupIdentifier, location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection): INextEditorGroupView;
+	mergeGroup(group: INextEditorGroupView | GroupIdentifier, target: INextEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): INextEditorGroupView;
+	copyGroup(group: INextEditorGroupView | GroupIdentifier, location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection): INextEditorGroupView;
 }
 
 export interface INextEditorGroupView extends IDisposable, ISerializableView, INextEditorGroup {

@@ -588,7 +588,7 @@ class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateDat
 			}
 		}));
 		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_END, () => {
-			this.transfer.clearData();
+			this.transfer.clearData(OpenEditor.prototype);
 		}));
 
 		return editorTemplate;
