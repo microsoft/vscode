@@ -8,7 +8,7 @@
 import { Event } from 'vs/base/common/event';
 import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { GroupIdentifier, IEditorOpeningEvent } from 'vs/workbench/common/editor';
-import { IEditorInput, IEditor, IEditorOptions, IEditorInputWithOptions } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IEditor, IEditorOptions, IEditorInputWithOptions, Direction } from 'vs/platform/editor/common/editor';
 
 export const INextEditorGroupsService = createDecorator<INextEditorGroupsService>('nextEditorGroupsService');
 
@@ -50,6 +50,12 @@ export interface IAddGroupOptions {
 }
 
 export interface ICopyEditorOptions extends IMoveEditorOptions { }
+
+export type ICloseEditorsFilter = {
+	except?: IEditorInput,
+	direction?: Direction,
+	savedOnly?: boolean
+};
 
 export interface INextEditorGroupsService {
 
@@ -291,6 +297,22 @@ export interface INextEditorGroup {
 	 * @returns a promise when the editor is closed.
 	 */
 	closeEditor(editor?: IEditorInput): Thenable<void>;
+
+	/**
+	 * Closes specific editors in this group. This may trigger a confirmation dialog if
+	 * there are dirty editors and thus returns a promise as value.
+	 *
+	 * @returns a promise when all editors are closed.
+	 */
+	closeEditors(editors: IEditorInput[] | ICloseEditorsFilter): Thenable<void>;
+
+	/**
+	 * Closes all editors from the group. This may trigger a confirmation dialog if
+	 * there are dirty editors and thus returns a promise as value.
+	 *
+	 * @returns a promise when all editors are closed.
+	 */
+	closeAllEditors(): Thenable<void>;
 
 	/**
 	 * Set an editor to be pinned. A pinned editor is not replaced

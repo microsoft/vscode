@@ -275,7 +275,11 @@ export abstract class NextTitleControl extends Themable {
 
 	abstract openEditor(editor: IEditorInput): void;
 
-	abstract closeEditor(editor: IEditorInput, index: number): void;
+	abstract closeEditor(editor: IEditorInput): void;
+
+	abstract closeEditors(editors: IEditorInput[]): void;
+
+	abstract closeAllEditors(): void;
 
 	abstract moveEditor(editor: IEditorInput, fromIndex: number, targetIndex: number): void;
 

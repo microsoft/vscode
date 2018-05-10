@@ -217,7 +217,19 @@ export class NextTabsTitleControl extends NextTitleControl {
 		this.redraw();
 	}
 
-	closeEditor(editor: IEditorInput, index: number): void {
+	closeEditor(editor: IEditorInput): void {
+		this.handleClosedEditors();
+	}
+
+	closeEditors(editors: IEditorInput[]): void {
+		this.handleClosedEditors();
+	}
+
+	closeAllEditors(): void {
+		this.handleClosedEditors();
+	}
+
+	private handleClosedEditors(): void {
 
 		// There are tabs to show
 		if (this.group.activeEditor) {

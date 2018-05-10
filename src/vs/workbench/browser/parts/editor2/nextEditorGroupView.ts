@@ -19,7 +19,7 @@ import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_ACTIVE_EMPTY_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND } from 'vs/workbench/common/theme';
-import { IMoveEditorOptions, ICopyEditorOptions } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { IMoveEditorOptions, ICopyEditorOptions, ICloseEditorsFilter } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { NextTabsTitleControl } from 'vs/workbench/browser/parts/editor2/nextTabsTitleControl';
 import { NextEditorControl } from 'vs/workbench/browser/parts/editor2/nextEditorControl';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -39,6 +39,7 @@ import { INextEditorGroupsAccessor, INextEditorGroupView, INextEditorPartOptions
 import { NextNoTabsTitleControl } from './nextNoTabsTitleControl';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { join } from 'vs/base/common/paths';
+import { Direction } from 'vs/platform/editor/common/editor';
 
 export class NextEditorGroupView extends Themable implements INextEditorGroupView {
 
@@ -758,6 +759,9 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		else {
 			this.doCloseInactiveEditor(editor);
 		}
+
+		// Forward to title control
+		this.titleAreaControl.closeEditor(editor);
 	}
 
 	private doCloseActiveEditor(focusNext = this.accessor.activeGroup === this, fromError?: boolean): void {
@@ -765,10 +769,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		const editorHasFocus = isAncestor(document.activeElement, this.element);
 
 		// Update model
-		const index = this._group.closeEditor(editorToClose);
-
-		// Forward to title control
-		this.titleAreaControl.closeEditor(editorToClose, index);
+		this._group.closeEditor(editorToClose);
 
 		// Open next active if there are more to show
 		const nextActiveEditor = this._group.activeEditor;
@@ -807,13 +808,10 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		}
 	}
 
-	private doCloseInactiveEditor(editor: EditorInput): void {
+	private doCloseInactiveEditor(editor: EditorInput) {
 
 		// Update model
-		const index = this._group.closeEditor(editor);
-
-		// Forward to title control
-		this.titleAreaControl.closeEditor(editor, index); // TODO@grid avoid calling this for many editors to avoid perf issues
+		this._group.closeEditor(editor);
 	}
 
 	private handleDirty(editors: EditorInput[], ignoreIfOpenedInOtherGroup?: boolean): Thenable<boolean /* veto */> {
@@ -879,6 +877,118 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 				}
 			});
 		});
+	}
+
+	//#endregion
+
+	//#region closeEditors()
+
+	closeEditors(args: EditorInput[] | ICloseEditorsFilter): Thenable<void> {
+		if (this.isEmpty()) {
+			return TPromise.as(void 0);
+		}
+
+		const editors = this.getEditorsToClose(args);
+
+		// Check for dirty and veto
+		return this.handleDirty(editors, true /* ignore if opened in other group */).then(veto => {
+			if (veto) {
+				return;
+			}
+
+			// Do close
+			this.doCloseEditors(editors);
+		});
+	}
+
+	private getEditorsToClose(editors: EditorInput[] | ICloseEditorsFilter): EditorInput[] {
+		if (Array.isArray(editors)) {
+			return editors;
+		}
+
+		const filter = editors;
+		const hasDirection = typeof filter.direction === 'number';
+
+		let editorsToClose = this._group.getEditors(!hasDirection /* in MRU order only if direction is not specified */);
+
+		// Filter: saved only
+		if (filter.savedOnly) {
+			editorsToClose = editorsToClose.filter(e => !e.isDirty());
+		}
+
+		// Filter: direction (left / right)
+		else if (hasDirection) {
+			editorsToClose = (filter.direction === Direction.LEFT) ?
+				editorsToClose.slice(0, this._group.indexOf(filter.except as EditorInput)) :
+				editorsToClose.slice(this._group.indexOf(filter.except as EditorInput) + 1);
+		}
+
+		// Filter: except
+		else if (filter.except) {
+			editorsToClose = editorsToClose.filter(e => !e.matches(filter.except));
+		}
+
+		return editorsToClose;
+	}
+
+	private doCloseEditors(editors: EditorInput[]): void {
+		const activeEditor = this.activeEditor;
+
+		// Close all inactive editors first
+		let closeActiveEditor = false;
+		editors.forEach(editor => {
+			if (editor !== activeEditor) {
+				this.doCloseInactiveEditor(editor);
+			} else {
+				closeActiveEditor = true;
+			}
+		});
+
+		// Close active editor last if contained in editors list to close
+		if (closeActiveEditor) {
+			this.doCloseActiveEditor();
+		}
+
+		// Forward to title control
+		this.titleAreaControl.closeEditors(editors);
+	}
+
+	//#endregion
+
+	//#region closeAllEditors()
+
+	closeAllEditors(): Thenable<void> {
+		if (this.isEmpty()) {
+			return TPromise.as(void 0);
+		}
+
+		// Check for dirty and veto
+		const editors = this._group.getEditors(true);
+		return this.handleDirty(editors, true /* ignore if opened in other group */).then(veto => {
+			if (veto) {
+				return;
+			}
+
+			// Do close
+			this.doCloseAllEditors();
+		});
+	}
+
+	private doCloseAllEditors(): void {
+		const activeEditor = this.activeEditor;
+
+		// Close all inactive editors first
+		this.editors.forEach(editor => {
+			if (editor !== activeEditor) {
+				this.doCloseInactiveEditor(editor);
+			}
+		});
+
+		// Close active editor last
+		this.doCloseActiveEditor();
+
+		// Forward to title control
+		this.titleAreaControl.closeAllEditors();
 	}
 
 	//#endregion
