@@ -799,18 +799,17 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		const extension: Extension = installingExtension ? installingExtension : zipPath ? new Extension(this.galleryService, this.stateProvider, null, null, this.telemetryService) : null;
 		if (extension) {
 			this.installing = installingExtension ? this.installing.filter(e => e !== installingExtension) : this.installing;
-
+			const installed = this.installed.filter(e => e.id === extension.id)[0];
 			if (!error) {
 				extension.local = local;
-				const installed = this.installed.filter(e => e.id === extension.id)[0];
 				if (installed) {
 					installed.local = local;
 				} else {
 					this.installed.push(extension);
 				}
 			}
-			if (extension.gallery) {
-				// Report telemetry only for gallery extensions
+			if (extension.gallery && !installed) {
+				// Report recommendation telemetry only for gallery extensions that are first time installs
 				this.reportExtensionRecommendationsTelemetry(installingExtension);
 			}
 		}
