@@ -33,7 +33,6 @@ export class ReviewManager implements vscode.DecorationProvider {
 	private _documentCommentProvider: vscode.Disposable;
 	private _workspaceCommentProvider: vscode.Disposable;
 	private _command: vscode.Disposable;
-	private _prNumber: number;
 	private _disposables: vscode.Disposable[];
 
 	private _comments: Comment[] = [];
@@ -62,6 +61,14 @@ export class ReviewManager implements vscode.DecorationProvider {
 
 		return this._statusBarItem;
 	}
+
+	private _prNumber: number;
+	private _pr: PullRequestModel;
+
+	get currentPullRequest(): PullRequestModel {
+		return this._pr;
+	}
+
 
 	private constructor(
 		private _context: vscode.ExtensionContext,
@@ -140,6 +147,7 @@ export class ReviewManager implements vscode.DecorationProvider {
 		}
 
 		const pr = await githubRepo.getPullRequest(this._prNumber);
+		this._pr = pr;
 		if (!this._lastCommitSha) {
 			this._lastCommitSha = pr.head.sha;
 		}
@@ -195,6 +203,7 @@ export class ReviewManager implements vscode.DecorationProvider {
 		this.registerCommentProvider();
 
 		this.statusBarItem.text = '$(git-branch) Pull Request #' + this._prNumber;
+		this.statusBarItem.command = 'pr.openInGitHub';
 		this.statusBarItem.show();
 	}
 
@@ -464,6 +473,7 @@ export class ReviewManager implements vscode.DecorationProvider {
 		}
 
 		this.statusBarItem.text = '$(sync~spin) Switching to Review Mode';
+		this.statusBarItem.command = null;
 		this.statusBarItem.show();
 
 		try {
@@ -496,6 +506,7 @@ export class ReviewManager implements vscode.DecorationProvider {
 
 	private clear(quitReviewMode: boolean) {
 		this._prNumber = null;
+		this._pr = null;
 
 		if (this._command) {
 			this._command.dispose();

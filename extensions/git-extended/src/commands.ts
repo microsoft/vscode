@@ -12,6 +12,12 @@ import { ReviewManager } from './review/reviewManager';
 export function registerCommands(context: vscode.ExtensionContext) {
 	// initialize resources
 	context.subscriptions.push(vscode.commands.registerCommand('pr.openInGitHub', (e: PullRequestModel | FileChangeTreeItem) => {
+		if (!e) {
+			if (ReviewManager.instance.currentPullRequest) {
+				vscode.commands.executeCommand('vscode.open', vscode.Uri.parse(ReviewManager.instance.currentPullRequest.html_url));
+			}
+			return;
+		}
 		if (e instanceof PullRequestModel) {
 			vscode.commands.executeCommand('vscode.open', vscode.Uri.parse(e.html_url));
 		} else {
