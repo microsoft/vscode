@@ -488,11 +488,11 @@ export class RawDebugSession implements debug.IRawSession {
 		}
 
 		this._onDidExitAdapter.fire({ sessionId: this.getId() });
-		if (this.debugAdapter instanceof SocketDebugAdapter) {
+		this.disconnected = true;
+		if (!this.debugAdapter || this.debugAdapter instanceof SocketDebugAdapter) {
 			return TPromise.as(null);
 		}
 
-		this.disconnected = true;
 
 		return this.debugAdapter.stopSession();
 	}
