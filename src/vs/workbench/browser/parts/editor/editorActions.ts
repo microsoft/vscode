@@ -9,7 +9,7 @@ import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { mixin } from 'vs/base/common/objects';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
-import { EditorInput, TextEditorOptions, EditorOptions, IEditorIdentifier, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands, ConfirmResult, IEditorCommandsContext } from 'vs/workbench/common/editor';
+import { EditorInput, TextEditorOptions, EditorOptions, IEditorIdentifier, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands, ConfirmResult, IEditorCommandsContext, GroupIdentifier, groupFromContext } from 'vs/workbench/common/editor';
 import { QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -183,6 +183,30 @@ export class SplitEditorGroupHorizontalAction extends BaseSplitEditorGroupAction
 		@INextEditorGroupsService nextEditorGroupsService: INextEditorGroupsService
 	) {
 		super(id, label, 'split-editor-horizontal-action', SplitDirection.RIGHT, nextEditorGroupsService);
+	}
+}
+
+export class RemoveActiveEditorGroupAction extends Action {
+
+	static readonly ID = 'workbench.action.removeActiveEditorGroup';
+	static readonly LABEL = nls.localize('removeActiveGroup', "Remove Active Editor Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@INextEditorGroupsService private nextEditorGroupsService: INextEditorGroupsService
+	) {
+		super(id, label);
+
+		this.class = 'close-editor-group';
+	}
+
+	run(context?: GroupIdentifier): TPromise<any> {
+		const group = groupFromContext(context, this.nextEditorGroupsService);
+
+		this.nextEditorGroupsService.removeGroup(group);
+
+		return TPromise.as(void 0);
 	}
 }
 

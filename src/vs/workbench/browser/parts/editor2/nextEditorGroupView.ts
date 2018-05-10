@@ -40,6 +40,10 @@ import { NextNoTabsTitleControl } from './nextNoTabsTitleControl';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { join } from 'vs/base/common/paths';
 import { Direction } from 'vs/platform/editor/common/editor';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { RemoveActiveEditorGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { ActionRunner, IAction } from 'vs/base/common/actions';
 
 export class NextEditorGroupView extends Themable implements INextEditorGroupView {
 
@@ -112,7 +116,8 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		@IPartService private partService: IPartService,
 		@INotificationService private notificationService: INotificationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super(themeService);
 
@@ -147,6 +152,9 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 				this.openEditor(this.untitledEditorService.createOrGet(), EditorOptions.create({ pinned: true }));
 			}
 		}));
+
+		// Container toolbar
+		this.createContainerToolbar();
 
 		// Progress bar
 		this.progressBar = this._register(new ProgressBar(this.element));
@@ -184,6 +192,29 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 		// Update styles
 		this.updateStyles();
+	}
+
+	private createContainerToolbar(): void {
+
+		// Toolbar Container
+		const toolbarContainer = document.createElement('div');
+		addClass(toolbarContainer, 'editor-group-container-toolbar');
+		this.element.appendChild(toolbarContainer);
+
+		// Toolbar
+		const groupId = this._group.id;
+		const containerToolbar = new ActionBar(toolbarContainer, {
+			ariaLabel: localize('araLabelGroupActions', "Editor group actions"), actionRunner: new class extends ActionRunner {
+				run(action: IAction) {
+					return action.run(groupId);
+				}
+			}
+		});
+
+		// Toolbar actions
+		const removeGroupAction = this._register(this.instantiationService.createInstance(RemoveActiveEditorGroupAction, RemoveActiveEditorGroupAction.ID, localize('removeGroupAction', "Collapse Editor Group")));
+		const keybinding = this.keybindingService.lookupKeybinding(removeGroupAction.id);
+		containerToolbar.push(removeGroupAction, { icon: true, label: false, keybinding: keybinding ? keybinding.getLabel() : void 0 });
 	}
 
 	private doTrackFocus(): void {

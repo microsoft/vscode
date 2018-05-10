@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/** Container */
+
 .monaco-workbench > .part.editor > .content .editor-group-container {
 	height: 100%;
 }
@@ -27,6 +29,8 @@
 	outline-width: 0; /* no outline when editor part is empty */
 }
 
+/** Title */
+
 .monaco-workbench > .part.editor > .content .editor-group-container > .title {
 	height: 35px;
 	display: flex;
@@ -41,4 +45,38 @@
 .monaco-workbench > .part.editor > .content .editor-group-container.empty > .title,
 .monaco-workbench > .part.editor > .content .editor-group-container.empty > .editor-container  {
 	display: none;
+}
+
+/** Toolbar */
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .editor-group-container-toolbar {
+	display: none;
+	opacity: 0.5;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container.empty > .editor-group-container-toolbar {
+	display: block;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container.empty.active > .editor-group-container-toolbar {
+	opacity: 1;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .editor-group-container-toolbar .action-label {
+	display: block;
+	height: 35px;
+	line-height: 35px;
+	min-width: 28px;
+	background-size: 16px;
+	background-position: center center;
+	background-repeat: no-repeat;
+}
+
+.vs .monaco-workbench > .part.editor > .content .editor-group-container > .editor-group-container-toolbar .close-editor-group {
+	background-image: url('close.svg');
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content .editor-group-container > .editor-group-container-toolbar .close-editor-group,
+.hc-black .monaco-workbench > .part.editor > .content .editor-group-container > .editor-group-container-toolbar .close-editor-group {
+	background-image: url('close-inverse.svg');
 }

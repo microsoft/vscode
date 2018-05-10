@@ -163,23 +163,3 @@ export class GridCloseActiveEditorAction extends Action {
 		return TPromise.as(void 0);
 	}
 }
-
-export class GridRemoveActiveGroupAction extends Action {
-
-	static readonly ID = 'workbench.action.gridRemoveActiveGroup';
-	static readonly LABEL = localize('gridRemoveActiveGroup', "Remove Active Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@INextEditorGroupsService private nextEditorGroupsService: INextEditorGroupsService
-	) {
-		super(id, label);
-	}
-
-	run(): TPromise<any> {
-		this.nextEditorGroupsService.removeGroup(this.nextEditorGroupsService.activeGroup);
-
-		return TPromise.as(void 0);
-	}
-}
