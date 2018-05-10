@@ -54,11 +54,11 @@
 	opacity: 0.5;
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container.empty > .editor-group-container-toolbar {
+.monaco-workbench > .part.editor > .content:not(.empty) .editor-group-container.empty > .editor-group-container-toolbar {
 	display: block;
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container.empty.active > .editor-group-container-toolbar {
+.monaco-workbench > .part.editor > .content:not(.empty) .editor-group-container.empty.active > .editor-group-container-toolbar {
 	opacity: 1;
 }
 
