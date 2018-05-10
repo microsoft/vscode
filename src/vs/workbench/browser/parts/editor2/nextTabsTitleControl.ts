@@ -98,7 +98,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 		addClass(this.tabsContainer, 'tabs-container');
 
 		// Tabs Container listeners
-		this.hookContainerListeners();
+		this.registerContainerListeners();
 
 		// Scrollbar
 		this.createScrollbar();
@@ -130,7 +130,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 		this.titleContainer.appendChild(this.scrollbar.getDomNode());
 	}
 
-	private hookContainerListeners(): void {
+	private registerContainerListeners(): void {
 
 		// Forward scrolling inside the container to our custom scrollbar
 		this._register(addDisposableListener(this.tabsContainer, EventType.SCROLL, () => {
@@ -168,7 +168,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 			e.dataTransfer.effectAllowed = 'copyMove';
 
 			// Drag Image
-			applyDragImage(e, this.group.count === 1 ? localize('oneEditor', "1 editor") : localize('multipleEditor', "{0} editors", this.group.count), 'monaco-editor-group-drag-image');
+			applyDragImage(e, localize('editorGroup', "Editor Group"), 'monaco-editor-group-drag-image');
 		}));
 
 		// Drag enter
@@ -414,14 +414,14 @@ export class NextTabsTitleControl extends NextTitleControl {
 		actionBar.onDidBeforeRun(() => this.blockRevealActiveTabOnce());
 
 		// Eventing
-		const eventsDisposable = this.hookTabListeners(tabContainer, index);
+		const eventsDisposable = this.registerTabListeners(tabContainer, index);
 
 		this.tabDisposeables.push(combinedDisposable([eventsDisposable, actionBar, actionRunner, editorLabel]));
 
 		return tabContainer;
 	}
 
-	private hookTabListeners(tab: HTMLElement, index: number): IDisposable {
+	private registerTabListeners(tab: HTMLElement, index: number): IDisposable {
 		const disposables: IDisposable[] = [];
 
 		const handleClickOrTouch = (e: MouseEvent | GestureEvent): void => {

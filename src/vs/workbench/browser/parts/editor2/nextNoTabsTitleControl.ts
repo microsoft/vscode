@@ -30,7 +30,7 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 		this.titleContainer.draggable = true;
 
 		//Container listeners
-		this.hookContainerListeners();
+		this.registerContainerListeners();
 
 		// Gesture Support
 		Gesture.addTarget(this.titleContainer);
@@ -48,7 +48,7 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 		this.createEditorActionsToolBar(actionsContainer);
 	}
 
-	private hookContainerListeners(): void {
+	private registerContainerListeners(): void {
 
 		// Drag start
 		this._register(addDisposableListener(this.titleContainer, EventType.DRAG_START, (e: DragEvent) => {
@@ -67,7 +67,7 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 			}
 
 			// Drag Image
-			applyDragImage(e, this.group.count === 1 ? localize('oneEditor', "1 editor") : localize('multipleEditor', "{0} editors", this.group.count), 'monaco-editor-group-drag-image');
+			applyDragImage(e, localize('editorGroup', "Editor Group"), 'monaco-editor-group-drag-image');
 		}));
 
 		// Drag end

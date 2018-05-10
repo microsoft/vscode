@@ -245,7 +245,7 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 			}
 
 			// Listeners
-			this.hookEditorListeners(editor);
+			this.registerEditorListeners(editor);
 
 			// Event
 			this._onDidEditorOpen.fire(editor);
@@ -276,7 +276,7 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 		}
 	}
 
-	private hookEditorListeners(editor: EditorInput): void {
+	private registerEditorListeners(editor: EditorInput): void {
 		const unbind: IDisposable[] = [];
 
 		// Re-emit disposal of editor input as our own event
@@ -667,7 +667,7 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 			if (factory) {
 				const editor = factory.deserialize(this.instantiationService, e.value);
 
-				this.hookEditorListeners(editor);
+				this.registerEditorListeners(editor);
 				this.updateResourceMap(editor, false /* add */);
 
 				return editor;

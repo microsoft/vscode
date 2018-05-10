@@ -144,14 +144,8 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		// Container
 		addClasses(this.element, 'editor-group-container');
 
-		// Open new file via doubleclick on container
-		this._register(addDisposableListener(this.element, EventType.DBLCLICK, e => {
-			if (e.target === this.element) {
-				EventHelper.stop(e);
-
-				this.openEditor(this.untitledEditorService.createOrGet(), EditorOptions.create({ pinned: true }));
-			}
-		}));
+		// Container listeners
+		this.registerContainerListeners();
 
 		// Container toolbar
 		this.createContainerToolbar();
@@ -192,6 +186,18 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 		// Update styles
 		this.updateStyles();
+	}
+
+	private registerContainerListeners(): void {
+
+		// Open new file via doubleclick on container
+		this._register(addDisposableListener(this.element, EventType.DBLCLICK, e => {
+			if (e.target === this.element) {
+				EventHelper.stop(e);
+
+				this.openEditor(this.untitledEditorService.createOrGet(), EditorOptions.create({ pinned: true }));
+			}
+		}));
 	}
 
 	private createContainerToolbar(): void {
@@ -261,7 +267,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	private updateContainer(): void {
 
-		// Empty Container: allow to focus
+		// Empty Container: add some empty container attributes
 		if (this.isEmpty()) {
 			addClass(this.element, 'empty');
 			this.element.tabIndex = 0;
