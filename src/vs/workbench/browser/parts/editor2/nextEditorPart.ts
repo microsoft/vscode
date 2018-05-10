@@ -11,7 +11,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { Dimension, isAncestor, toggleClass, addClass, clearNode } from 'vs/base/browser/dom';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { INextEditorGroupsService, GroupDirection, IAddGroupOptions, GroupsArrangement } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, ISerializedNode } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
@@ -28,7 +28,7 @@ import { Scope } from 'vs/workbench/common/memento';
 import { ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
 import { TValueCallback, TPromise } from 'vs/base/common/winjs.base';
 import { always } from 'vs/base/common/async';
-import { GroupOrientation } from 'vs/workbench/services/group/common/groupService';
+import { GroupOrientation as LegacyGroupOrientation } from 'vs/workbench/services/group/common/groupService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -164,6 +164,10 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		return this.groupViews.size;
 	}
 
+	get orientation(): GroupOrientation {
+		return this.gridWidget.orientation === Orientation.VERTICAL ? GroupOrientation.VERTICAL : GroupOrientation.HORIZONTAL;
+	}
+
 	getGroups(sortByMostRecentlyActive?: boolean): INextEditorGroupView[] {
 		if (!sortByMostRecentlyActive) {
 			return this.groups;
@@ -230,6 +234,10 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 				this.gridWidget.resizeView(group, newSize);
 			});
 		}
+	}
+
+	setGroupOrientation(orientation: GroupOrientation): void {
+		this.gridWidget.orientation = (orientation === GroupOrientation.HORIZONTAL) ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 	}
 
 	addGroup(location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): INextEditorGroupView {
@@ -538,7 +546,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 		interface ILegacyEditorPartUIState {
 			ratio: number[];
-			groupOrientation: GroupOrientation;
+			groupOrientation: LegacyGroupOrientation;
 		}
 
 		interface ISerializedLegacyEditorStacksModel {

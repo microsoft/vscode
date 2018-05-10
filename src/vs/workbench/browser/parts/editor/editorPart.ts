@@ -304,26 +304,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	//#endregion
 
-	//#region TODO@grid group orientation
-
-	public get onGroupOrientationChanged(): Event<void> {
-		return this._onGroupOrientationChanged.event;
-	}
-
-	public setGroupOrientation(orientation: GroupOrientation): void {
-		this.editorGroupsControl.setGroupOrientation(orientation);
-		this._onGroupOrientationChanged.fire();
-
-		// Rename groups when layout changes
-		this.renameGroups();
-	}
-
-	public getGroupOrientation(): GroupOrientation {
-		return this.editorGroupsControl.getGroupOrientation();
-	}
-
-	//#endregion
-
 	//#region TODO@grid replaceEditors()
 
 	public replaceEditors(editors: { toReplace: EditorInput, replaceWith: EditorInput, options?: EditorOptions }[], position?: Position): TPromise<IEditor[]> {
@@ -1083,6 +1063,22 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.editorGroupsControl.layout(position);
 
 		return editor;
+	}
+
+	public get onGroupOrientationChanged(): Event<void> {
+		return this._onGroupOrientationChanged.event;
+	}
+
+	public setGroupOrientation(orientation: GroupOrientation): void {
+		this.editorGroupsControl.setGroupOrientation(orientation);
+		this._onGroupOrientationChanged.fire();
+
+		// Rename groups when layout changes
+		this.renameGroups();
+	}
+
+	public getGroupOrientation(): GroupOrientation {
+		return this.editorGroupsControl.getGroupOrientation();
 	}
 
 	private updateTextCompareEditorVisible(): void {

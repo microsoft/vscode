@@ -19,6 +19,11 @@ export enum GroupDirection {
 	RIGHT
 }
 
+export enum GroupOrientation {
+	HORIZONTAL,
+	VERTICAL
+}
+
 export enum GroupsArrangement {
 
 	/**
@@ -87,6 +92,11 @@ export interface INextEditorGroupsService {
 	readonly count: number;
 
 	/**
+	 * The current layout orientation of the root group.
+	 */
+	readonly orientation: GroupOrientation;
+
+	/**
 	 * Get all groups that are currently visible in the editor area optionally
 	 * sorted by being most recent active.
 	 */
@@ -116,6 +126,11 @@ export interface INextEditorGroupsService {
 	 * Arrange all groups according to the provided arrangement.
 	 */
 	arrangeGroups(arrangement: GroupsArrangement): void;
+
+	/**
+	 * Sets the orientation of the root group to be either vertical or horizontal.
+	 */
+	setGroupOrientation(orientation: GroupOrientation): void;
 
 	/**
 	 * Add a new group to the editor area. A new group is added by splitting a provided one in
