@@ -654,7 +654,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		return rpcProtocol.sync().then(() => {
-			return getCodeActions(model, model.getFullModelRange()).then(value => {
+			return getCodeActions(model, model.getFullModelRange(), undefined).then(value => {
 				assert.equal(value.length, 2);
 
 				const [first, second] = value;
@@ -681,7 +681,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		return rpcProtocol.sync().then(() => {
-			return getCodeActions(model, model.getFullModelRange()).then(value => {
+			return getCodeActions(model, model.getFullModelRange(), undefined).then(value => {
 				assert.equal(value.length, 1);
 
 				const [first] = value;
@@ -707,7 +707,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		return rpcProtocol.sync().then(() => {
-			return getCodeActions(model, model.getFullModelRange()).then(value => {
+			return getCodeActions(model, model.getFullModelRange(), undefined).then(value => {
 				assert.equal(value.length, 1);
 			});
 		});
@@ -727,7 +727,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		return rpcProtocol.sync().then(() => {
-			return getCodeActions(model, model.getFullModelRange()).then(value => {
+			return getCodeActions(model, model.getFullModelRange(), undefined).then(value => {
 				assert.equal(value.length, 1);
 			});
 		});

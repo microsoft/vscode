@@ -23,6 +23,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { isObject } from 'vs/base/common/types';
+import { ISelection, Selection } from 'vs/editor/common/core/selection';
 
 // --- adapter
 
@@ -267,14 +268,16 @@ class CodeActionAdapter {
 		private readonly _provider: vscode.CodeActionProvider
 	) { }
 
-	provideCodeActions(resource: URI, range: IRange, context: modes.CodeActionContext): TPromise<CodeActionDto[]> {
+	provideCodeActions(resource: URI, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext): TPromise<CodeActionDto[]> {
 
 		const doc = this._documents.getDocumentData(resource).document;
-		const ran = <vscode.Range>typeConvert.Range.to(range);
+		const ran = Selection.isISelection(rangeOrSelection)
+			? <vscode.Selection>typeConvert.Selection.to(rangeOrSelection)
+			: <vscode.Range>typeConvert.Range.to(rangeOrSelection);
 		const allDiagnostics: vscode.Diagnostic[] = [];
 
 		for (const diagnostic of this._diagnostics.getDiagnostics(resource)) {
-			if (ran.contains(diagnostic.range)) {
+			if (ran.intersection(diagnostic.range)) {
 				allDiagnostics.push(diagnostic);
 			}
 		}
@@ -283,6 +286,7 @@ class CodeActionAdapter {
 			diagnostics: allDiagnostics,
 			only: context.only ? new CodeActionKind(context.only) : undefined
 		};
+
 		return asWinJsPromise(token =>
 			this._provider.provideCodeActions(doc, ran, codeActionContext, token)
 		).then(commandsOrActions => {
@@ -1037,8 +1041,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	}
 
 
-	$provideCodeActions(handle: number, resource: UriComponents, range: IRange, context: modes.CodeActionContext): TPromise<CodeActionDto[]> {
-		return this._withAdapter(handle, CodeActionAdapter, adapter => adapter.provideCodeActions(URI.revive(resource), range, context));
+	$provideCodeActions(handle: number, resource: UriComponents, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext): TPromise<CodeActionDto[]> {
+		return this._withAdapter(handle, CodeActionAdapter, adapter => adapter.provideCodeActions(URI.revive(resource), rangeOrSelection, context));
 	}
 
 	// --- formatting
