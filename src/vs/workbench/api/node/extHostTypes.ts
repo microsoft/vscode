@@ -673,6 +673,10 @@ export class SnippetString {
 	}
 }
 
+export enum DiagnosticTag {
+	Unnecessary = 'unnecessary',
+}
+
 export enum DiagnosticSeverity {
 	Hint = 3,
 	Information = 2,
@@ -747,6 +751,7 @@ export class Diagnostic {
 	code: string | number;
 	severity: DiagnosticSeverity;
 	relatedInformation: DiagnosticRelatedInformation[];
+	customTags?: DiagnosticTag[];
 
 	constructor(range: Range, message: string, severity: DiagnosticSeverity = DiagnosticSeverity.Error) {
 		this.range = range;

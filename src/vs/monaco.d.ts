@@ -1089,6 +1089,7 @@ declare namespace monaco.editor {
 		endLineNumber: number;
 		endColumn: number;
 		relatedInformation?: IRelatedInformation[];
+		customTags?: string[];
 	}
 
 	/**
@@ -1104,6 +1105,7 @@ declare namespace monaco.editor {
 		endLineNumber: number;
 		endColumn: number;
 		relatedInformation?: IRelatedInformation[];
+		customTags?: string[];
 	}
 
 	/**

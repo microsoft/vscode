@@ -3846,6 +3846,16 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Additional metadata about the type of diagnostic.
+	 */
+	export enum DiagnosticTag {
+		/**
+		 * Unused or unnecessary code.
+		 */
+		Unnecessary = 'unnecessary'
+	}
+
+	/**
 	 * Represents a related message and source code location for a diagnostic. This should be
 	 * used to point to code locations that cause or related to a diagnostics, e.g when duplicating
 	 * a symbol in a scope.
@@ -3891,6 +3901,11 @@ declare module 'vscode' {
 		 * The severity, default is [error](#DiagnosticSeverity.Error).
 		 */
 		severity: DiagnosticSeverity;
+
+		/**
+		 * Additional metadata about the type of the diagnostic.
+		 */
+		customTags?: DiagnosticTag[];
 
 		/**
 		 * A human-readable string describing the source of this

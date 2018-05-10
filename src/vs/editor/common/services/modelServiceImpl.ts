@@ -11,7 +11,7 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IMarker, IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { IMarker, IMarkerService, MarkerSeverity, WellKnownMarkerTags } from 'vs/platform/markers/common/markers';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
@@ -127,10 +127,13 @@ class ModelMarkerHandler {
 		let color: ThemeColor;
 		let darkColor: ThemeColor;
 		let zIndex: number;
+		let inlineClassName: string;
 
 		switch (marker.severity) {
 			case MarkerSeverity.Hint:
-				className = ClassName.EditorHintDecoration;
+				if (!marker.customTags || marker.customTags.indexOf(WellKnownMarkerTags.Unnecessary) === -1) {
+					className = ClassName.EditorHintDecoration;
+				}
 				zIndex = 0;
 				break;
 			case MarkerSeverity.Warning:
@@ -152,6 +155,12 @@ class ModelMarkerHandler {
 				darkColor = themeColorFromId(overviewRulerError);
 				zIndex = 30;
 				break;
+		}
+
+		if (marker.customTags) {
+			if (marker.customTags.indexOf(WellKnownMarkerTags.Unnecessary) === -1) {
+				inlineClassName = ClassName.EditorUnnecessaryDecoration;
+			}
 		}
 
 		let hoverMessage: MarkdownString = null;
@@ -193,7 +202,8 @@ class ModelMarkerHandler {
 				darkColor,
 				position: OverviewRulerLane.Right
 			},
-			zIndex
+			zIndex,
+			inlineClassName,
 		};
 	}
 }

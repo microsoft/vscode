@@ -21,7 +21,6 @@ import { CachedNavTreeResponse } from './features/baseCodeLensProvider';
 import { memoize } from './utils/memoize';
 import { disposeAll } from './utils/dispose';
 import TelemetryReporter from './utils/telemetry';
-import { UnusedHighlighter } from './features/unusedHighlighter';
 
 const validateSetting = 'validate.enable';
 const suggestionSetting = 'suggestionActions.enabled';
@@ -30,7 +29,6 @@ const foldingSetting = 'typescript.experimental.syntaxFolding';
 export default class LanguageProvider {
 	private readonly diagnosticsManager: DiagnosticsManager;
 	private readonly bufferSyncSupport: BufferSyncSupport;
-	private readonly ununsedHighlighter: UnusedHighlighter;
 	private readonly fileConfigurationManager: FileConfigurationManager;
 
 	private readonly toUpdateOnConfigurationChanged: ({ updateConfiguration: () => void })[] = [];
@@ -58,7 +56,6 @@ export default class LanguageProvider {
 		}, this._validate);
 
 		this.diagnosticsManager = new DiagnosticsManager(description.diagnosticOwner);
-		this.ununsedHighlighter = new UnusedHighlighter();
 
 		workspace.onDidChangeConfiguration(this.configurationChanged, this, this.disposables);
 		this.configurationChanged();
@@ -229,7 +226,6 @@ export default class LanguageProvider {
 
 	public reInitialize(): void {
 		this.diagnosticsManager.reInitialize();
-		this.ununsedHighlighter.reInitialize();
 		this.bufferSyncSupport.reOpenDocuments();
 		this.bufferSyncSupport.requestAllDiagnostics();
 		this.fileConfigurationManager.reset();
@@ -265,9 +261,6 @@ export default class LanguageProvider {
 	public diagnosticsReceived(diagnosticsKind: DiagnosticKind, file: Uri, diagnostics: (Diagnostic & { reportUnnecessary: any })[]): void {
 		const config = workspace.getConfiguration(this.id, file);
 		const reportUnnecessary = config.get<boolean>('showUnused.enabled', true);
-		if (diagnosticsKind === DiagnosticKind.Suggestion) {
-			this.ununsedHighlighter.diagnosticsReceived(file, diagnostics.filter(diag => diag.reportUnnecessary));
-		}
 		this.diagnosticsManager.diagnosticsReceived(diagnosticsKind, file, diagnostics.filter(diag => diag.reportUnnecessary ? reportUnnecessary : true));
 	}
 

@@ -96,7 +96,8 @@ export namespace Diagnostic {
 			source: value.source,
 			code: String(value.code),
 			severity: DiagnosticSeverity.from(value.severity),
-			relatedInformation: value.relatedInformation && value.relatedInformation.map(DiagnosticRelatedInformation.from)
+			relatedInformation: value.relatedInformation && value.relatedInformation.map(DiagnosticRelatedInformation.from),
+			customTags: value.customTags,
 		};
 	}
 }
