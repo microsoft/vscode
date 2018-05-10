@@ -729,18 +729,24 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 	renderElement(entry: ISettingItemEntry, index: number, template: ISettingItemTemplate): void {
 		DOM.toggleClass(template.parent, 'odd', index % 2 === 1);
 
+		let titleTooltip = entry.key;
+		if (entry.isConfigured) {
+			titleTooltip += ' - ' + localize('configuredTitleToolip', "This setting is configured");
+		}
+
 		const settingKeyDisplay = settingKeyToDisplayFormat(entry.key);
 		template.categoryElement.textContent = settingKeyDisplay.category + ': ';
-		template.categoryElement.title = entry.key;
+		template.categoryElement.title = titleTooltip;
 
 		template.labelElement.textContent = settingKeyDisplay.label;
-		template.labelElement.title = entry.key;
+		template.labelElement.title = titleTooltip;
 		template.descriptionElement.textContent = entry.description;
 
 		DOM.toggleClass(template.parent, 'is-configured', entry.isConfigured);
 		this.renderValue(entry, template);
 
 		const resetButton = new Button(template.valueElement);
+		resetButton.element.title = localize('resetButtonTitle', "Reset");
 		resetButton.element.classList.add('setting-reset-button');
 		attachButtonStyler(resetButton, this.themeService, {
 			buttonBackground: Color.transparent.toString(),
