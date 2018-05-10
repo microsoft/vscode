@@ -48,7 +48,6 @@ export const debugToolBarBorder = registerColor('debugToolBar.border', {
 export class DebugActionsWidget extends Themable implements IWorkbenchContribution {
 
 	private $el: Builder;
-	private dragArea: Builder;
 	private actionBar: ActionBar;
 	private allActions: AbstractDebugAction[] = [];
 	private activeActions: AbstractDebugAction[];
@@ -72,8 +71,6 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		super(themeService);
 
 		this.$el = $().div().addClass('debug-actions-widget').style('top', `${partService.getTitleBarOffset()}px`);
-		this.dragArea = $().div().addClass('drag-area');
-		this.$el.append(this.dragArea);
 
 		const actionBarContainter = $().div().addClass('.action-bar-container');
 		this.$el.append(actionBarContainter);
@@ -138,40 +135,8 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		}));
 		$(window).on(dom.EventType.RESIZE, () => this.setXCoordinate(), this.toUnbind);
 
-		this.dragArea.on(dom.EventType.MOUSE_UP, (event: MouseEvent) => {
-			const mouseClickEvent = new StandardMouseEvent(event);
-			if (mouseClickEvent.detail === 2) {
-				// double click on debug bar centers it again #8250
-				const widgetWidth = this.$el.getHTMLElement().clientWidth;
-				this.setXCoordinate(0.5 * window.innerWidth - 0.5 * widgetWidth);
-				this.storePosition();
-			}
-		});
-
-		this.dragArea.on(dom.EventType.MOUSE_DOWN, (event: MouseEvent) => {
-			const $window = $(window);
-			this.dragArea.addClass('dragged');
-
-			$window.on('mousemove', (e: MouseEvent) => {
-				const mouseMoveEvent = new StandardMouseEvent(e);
-				// Prevent default to stop editor selecting text #8524
-				mouseMoveEvent.preventDefault();
-				// Reduce x by width of drag handle to reduce jarring #16604
-				this.setXCoordinate(mouseMoveEvent.posx - 14);
-			}).once('mouseup', (e: MouseEvent) => {
-				this.storePosition();
-				this.dragArea.removeClass('dragged');
-				$window.off('mousemove');
-			});
-		});
-
 		this.toUnbind.push(this.partService.onTitleBarVisibilityChange(() => this.positionDebugWidget()));
 		this.toUnbind.push(browser.onDidChangeZoomLevel(() => this.positionDebugWidget()));
-	}
-
-	private storePosition(): void {
-		const position = parseFloat(this.$el.getComputedStyle().left) / window.innerWidth;
-		this.storageService.store(DEBUG_ACTIONS_WIDGET_POSITION_KEY, position, StorageScope.WORKSPACE);
 	}
 
 	protected updateStyles(): void {
