@@ -399,7 +399,8 @@ export class ReviewManager implements vscode.DecorationProvider {
 				if (document.uri.scheme === 'review') {
 					// from scm viewlet
 					matchingComments = this._commentsCache.get(document.uri.toString());
-					let matchedFiles = this._localFileChanges.filter(fileChange => path.resolve(this._repository.path, fileChange.fileName) === document.uri.toString());
+					let query = JSON.parse(document.uri.query);
+					let matchedFiles = this._localFileChanges.filter(fileChange => fileChange.fileName === query.path);
 					if (matchedFiles && matchedFiles.length) {
 						let matchedFile = matchedFiles[0];
 
