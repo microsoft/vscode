@@ -136,6 +136,8 @@ class MyCompletionItem extends vscode.CompletionItem {
 				return vscode.CompletionItemKind.File;
 			case PConst.Kind.directory:
 				return vscode.CompletionItemKind.Folder;
+			case PConst.Kind.string:
+				return vscode.CompletionItemKind.Constant;
 		}
 		return vscode.CompletionItemKind.Property;
 	}
