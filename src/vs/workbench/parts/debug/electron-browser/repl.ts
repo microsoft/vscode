@@ -30,7 +30,6 @@ import { IInstantiationService, createDecorator } from 'vs/platform/instantiatio
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ReplExpressionsRenderer, ReplExpressionsController, ReplExpressionsDataSource, ReplExpressionsActionProvider, ReplExpressionsAccessibilityProvider } from 'vs/workbench/parts/debug/electron-browser/replViewer';
 import { SimpleDebugEditor } from 'vs/workbench/parts/debug/electron-browser/simpleDebugEditor';
-import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { ReplHistory } from 'vs/workbench/parts/debug/common/replHistory';
 import { Panel } from 'vs/workbench/browser/panel';
@@ -44,6 +43,7 @@ import { dispose } from 'vs/base/common/lifecycle';
 import { OpenMode, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { IDebugService, REPL_ID, DEBUG_SCHEME, CONTEXT_ON_FIRST_DEBUG_REPL_LINE, CONTEXT_IN_DEBUG_REPL, CONTEXT_ON_LAST_DEBUG_REPL_LINE } from 'vs/workbench/parts/debug/common/debug';
 
 const $ = dom.$;
 
@@ -85,7 +85,7 @@ export class Repl extends Panel implements IPrivateReplService {
 	private model: ITextModel;
 
 	constructor(
-		@debug.IDebugService private debugService: debug.IDebugService,
+		@IDebugService private debugService: IDebugService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService,
@@ -94,7 +94,7 @@ export class Repl extends Panel implements IPrivateReplService {
 		@IModelService private modelService: IModelService,
 		@IContextKeyService private contextKeyService: IContextKeyService
 	) {
-		super(debug.REPL_ID, telemetryService, themeService);
+		super(REPL_ID, telemetryService, themeService);
 
 		this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
 		this.registerListeners();
@@ -155,7 +155,7 @@ export class Repl extends Panel implements IPrivateReplService {
 		if (!visible) {
 			dispose(this.model);
 		} else {
-			this.model = this.modelService.createModel('', null, uri.parse(`${debug.DEBUG_SCHEME}:input`), true);
+			this.model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:input`), true);
 			this.replInput.setModel(this.model);
 		}
 
@@ -167,17 +167,17 @@ export class Repl extends Panel implements IPrivateReplService {
 
 		const scopedContextKeyService = this.contextKeyService.createScoped(this.replInputContainer);
 		this.toUnbind.push(scopedContextKeyService);
-		debug.CONTEXT_IN_DEBUG_REPL.bindTo(scopedContextKeyService).set(true);
-		const onFirstReplLine = debug.CONTEXT_ON_FIRST_DEBUG_REPL_LINE.bindTo(scopedContextKeyService);
+		CONTEXT_IN_DEBUG_REPL.bindTo(scopedContextKeyService).set(true);
+		const onFirstReplLine = CONTEXT_ON_FIRST_DEBUG_REPL_LINE.bindTo(scopedContextKeyService);
 		onFirstReplLine.set(true);
-		const onLastReplLine = debug.CONTEXT_ON_LAST_DEBUG_REPL_LINE.bindTo(scopedContextKeyService);
+		const onLastReplLine = CONTEXT_ON_LAST_DEBUG_REPL_LINE.bindTo(scopedContextKeyService);
 		onLastReplLine.set(true);
 
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
 		this.replInput = scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, SimpleDebugEditor.getEditorOptions(), SimpleDebugEditor.getCodeEditorWidgetOptions());
 
-		modes.SuggestRegistry.register({ scheme: debug.DEBUG_SCHEME, hasAccessToAllModels: true }, {
+		modes.SuggestRegistry.register({ scheme: DEBUG_SCHEME, hasAccessToAllModels: true }, {
 			triggerCharacters: ['.'],
 			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
 				const word = this.replInput.getModel().getWordAtPosition(position);
@@ -307,9 +307,9 @@ class ReplHistoryPreviousAction extends EditorAction {
 			id: 'repl.action.historyPrevious',
 			label: nls.localize('actions.repl.historyPrevious', "History Previous"),
 			alias: 'History Previous',
-			precondition: debug.CONTEXT_IN_DEBUG_REPL,
+			precondition: CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
-				kbExpr: debug.CONTEXT_ON_FIRST_DEBUG_REPL_LINE,
+				kbExpr: CONTEXT_ON_FIRST_DEBUG_REPL_LINE,
 				primary: KeyCode.UpArrow,
 				weight: 50
 			},
@@ -331,9 +331,9 @@ class ReplHistoryNextAction extends EditorAction {
 			id: 'repl.action.historyNext',
 			label: nls.localize('actions.repl.historyNext', "History Next"),
 			alias: 'History Next',
-			precondition: debug.CONTEXT_IN_DEBUG_REPL,
+			precondition: CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
-				kbExpr: debug.CONTEXT_ON_LAST_DEBUG_REPL_LINE,
+				kbExpr: CONTEXT_ON_LAST_DEBUG_REPL_LINE,
 				primary: KeyCode.DownArrow,
 				weight: 50
 			},
@@ -355,7 +355,7 @@ class AcceptReplInputAction extends EditorAction {
 			id: 'repl.action.acceptInput',
 			label: nls.localize({ key: 'actions.repl.acceptInput', comment: ['Apply input from the debug console input box'] }, "REPL Accept Input"),
 			alias: 'REPL Accept Input',
-			precondition: debug.CONTEXT_IN_DEBUG_REPL,
+			precondition: CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyCode.Enter
@@ -376,7 +376,7 @@ export class ReplCopyAllAction extends EditorAction {
 			id: 'repl.action.copyAll',
 			label: nls.localize('actions.repl.copyAll', "Debug: Console Copy All"),
 			alias: 'Debug Console Copy All',
-			precondition: debug.CONTEXT_IN_DEBUG_REPL,
+			precondition: CONTEXT_IN_DEBUG_REPL,
 		});
 	}
 
@@ -393,7 +393,7 @@ registerEditorAction(ReplCopyAllAction);
 const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(SuggestController.get);
 registerEditorCommand(new SuggestCommand({
 	id: 'repl.action.acceptSuggestion',
-	precondition: ContextKeyExpr.and(debug.CONTEXT_IN_DEBUG_REPL, SuggestContext.Visible),
+	precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_REPL, SuggestContext.Visible),
 	handler: x => x.acceptSelectedSuggestion(),
 	kbOpts: {
 		weight: 50,
