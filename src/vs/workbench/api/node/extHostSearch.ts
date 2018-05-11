@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as fs from 'fs';
+import * as pfs from 'vs/base/node/pfs';
 import * as path from 'path';
 import * as arrays from 'vs/base/common/arrays';
 import { asWinJsPromise } from 'vs/base/common/async';
@@ -18,6 +18,7 @@ import { IItemAccessor, ScorerCache, compareItemsByScore, prepareQuery } from 'v
 import { ICachedSearchStats, IFileMatch, IFolderQuery, IPatternInfo, IRawSearchQuery, ISearchQuery } from 'vs/platform/search/common/search';
 import * as vscode from 'vscode';
 import { ExtHostSearchShape, IMainContext, MainContext, MainThreadSearchShape } from './extHost.protocol';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 type OneOrMore<T> = T | T[];
 
@@ -27,7 +28,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 	private readonly _searchProvider = new Map<number, vscode.SearchProvider>();
 	private _handlePool: number = 0;
 
-	private _fileSearchEngine = new FileSearchEngine();
+	private _fileSearchManager = new FileSearchManager();
 
 	constructor(mainContext: IMainContext) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadSearch);
@@ -52,7 +53,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		}
 
 		const query = reviveQuery(rawQuery);
-		return this._fileSearchEngine.fileSearch(query, provider).then(
+		return this._fileSearchManager.fileSearch(query, provider).then(
 			() => { }, // still need to return limitHit
 			null,
 			progress => {
@@ -283,8 +284,7 @@ interface IInternalFileMatch {
 	size?: number;
 }
 
-class FileWalker {
-	private config: ISearchQuery;
+class FileSearchEngine {
 	private filePattern: string;
 	private normalizedFilePatternLowercase: string;
 	private includePattern: glob.ParsedExpression;
@@ -301,8 +301,7 @@ class FileWalker {
 	private folderExcludePatterns: Map<string, AbsoluteAndRelativeParsedExpression>;
 	private globalExcludePattern: glob.ParsedExpression;
 
-	constructor(config: ISearchQuery) {
-		this.config = config;
+	constructor(private config: ISearchQuery, private provider: vscode.SearchProvider) {
 		this.filePattern = config.filePattern;
 		this.includePattern = config.includePattern && glob.parse(config.includePattern);
 		this.maxResults = config.maxResults || null;
@@ -348,142 +347,154 @@ class FileWalker {
 		this.isCanceled = true;
 	}
 
-	public walk(provider: vscode.SearchProvider, onResult: (result: IInternalFileMatch) => void, done: (error: Error, isLimitHit: boolean) => void): void {
+	public search(): PPromise<{ isLimitHit: boolean }, IInternalFileMatch> {
 		const folderQueries = this.config.folderQueries;
 
-		// Support that the file pattern is a full path to a file that exists
-		this.checkFilePatternAbsoluteMatch((exists, size) => {
-			if (this.isCanceled) {
-				return done(null, this.isLimitHit);
-			}
+		return new PPromise<{ isLimitHit: boolean }, IInternalFileMatch>((resolve, reject, onResult) => {
+			// Support that the file pattern is a full path to a file that exists
+			this.checkFilePatternAbsoluteMatch().then(({ exists, size }) => {
+				if (this.isCanceled) {
+					return resolve({ isLimitHit: this.isLimitHit });
+				}
 
-			// Report result from file pattern if matching
-			if (exists) {
-				this.resultCount++;
-				onResult({
-					relativePath: this.filePattern,
-					basename: path.basename(this.filePattern),
-					size
-				});
-
-				// Optimization: a match on an absolute path is a good result and we do not
-				// continue walking the entire root paths array for other matches because
-				// it is very unlikely that another file would match on the full absolute path
-				return done(null, this.isLimitHit);
-			}
-
-			// For each extra file
-			if (this.config.extraFileResources) {
-				this.config.extraFileResources
-					.map(uri => uri.toString())
-					.forEach(extraFilePath => {
-						const basename = path.basename(extraFilePath);
-						if (this.globalExcludePattern && this.globalExcludePattern(extraFilePath, basename)) {
-							return; // excluded
-						}
-
-						// File: Check for match on file pattern and include pattern
-						this.matchFile(onResult, { relativePath: extraFilePath /* no workspace relative path */, basename });
+				// Report result from file pattern if matching
+				if (exists) {
+					this.resultCount++;
+					onResult({
+						relativePath: this.filePattern,
+						basename: path.basename(this.filePattern),
+						size
 					});
-			}
 
-			// For each root folder
-			const searchAllFoldersP = TPromise.join(folderQueries.map(fq => {
-				// const options: vscode.FileSearchOptions = {
-				// 	excludes: [],
-				// 	includes: [],
-				// 	folder: fq.folder,
-				// 	followSymlinks: !this.config.ignoreSymlinks,
-				// 	useIgnoreFiles: !this.config.disregardIgnoreFiles
-				// };
-
-				const includes: string[] = this.config.includePattern ? Object.keys(this.config.includePattern) : [];
-				if (fq.includePattern) {
-					includes.push(...Object.keys(fq.includePattern));
+					// Optimization: a match on an absolute path is a good result and we do not
+					// continue walking the entire root paths array for other matches because
+					// it is very unlikely that another file would match on the full absolute path
+					return resolve({ isLimitHit: this.isLimitHit });
 				}
 
-				const excludes: string[] = this.config.excludePattern ? Object.keys(this.config.excludePattern) : [];
-				if (fq.excludePattern) {
-					excludes.push(...Object.keys(fq.excludePattern));
-				}
-
-				const options: vscode.FileSearchOptions = {
-					folder: fq.folder,
-					excludes,
-					includes,
-					useIgnoreFiles: !this.config.disregardIgnoreFiles,
-					followSymlinks: !this.config.ignoreSymlinks
-				};
-
-				const folderStr = fq.folder.toString();
-				let filePatternSeen = false;
-				return asWinJsPromise(token => {
-					const tree = this.initDirectoryTree();
-
-					const noSiblingsClauses = true;
-					return provider.provideFileSearchResults(options, {
-						report: (result: URI) => {
-							// TODO@roblou - What if it is not relative to the folder query
-							const relativePath = path.relative(folderStr, result.toString());
-
-							if (noSiblingsClauses) {
-								if (relativePath === this.filePattern) {
-									filePatternSeen = true;
-								}
-
-								const basename = path.basename(relativePath);
-								this.matchFile(onResult, { base: folderStr, relativePath, basename });
-
-								// if (this.isLimitHit) {
-								// 	killCmd();
-								// 	break;
-								// }
-
-								return;
+				// For each extra file
+				if (this.config.extraFileResources) {
+					this.config.extraFileResources
+						.map(uri => uri.toString())
+						.forEach(extraFilePath => {
+							const basename = path.basename(extraFilePath);
+							if (this.globalExcludePattern && this.globalExcludePattern(extraFilePath, basename)) {
+								return; // excluded
 							}
 
-							// TODO: Optimize siblings clauses with ripgrep here.
-							this.addDirectoryEntries(tree, folderStr, relativePath, onResult);
-						}
-					},
-						token).then(() => {
-							if (noSiblingsClauses && this.isLimitHit) {
-								if (!filePatternSeen) {
-									// If the limit was hit, check whether filePattern is an exact relative match because it must be included
-									this.checkFilePatternRelativeMatch(folderStr, (match, size) => {
-										if (match) {
-											this.resultCount++;
-											onResult({
-												base: folderStr,
-												relativePath: this.filePattern,
-												basename: path.basename(this.filePattern),
-											});
-										}
-									});
-								}
-
-								return;
-							}
-
-							this.matchDirectoryTree(tree, folderStr, onResult);
+							// File: Check for match on file pattern and include pattern
+							this.matchFile(onResult, { relativePath: extraFilePath /* no workspace relative path */, basename });
 						});
-				});
-			}));
-
-			searchAllFoldersP.then(() => {
-				done(null, false);
-			}, (errs: Error[]) => {
-				const errMsg = errs
-					.map(err => toErrorMessage(err))
-					.filter(msg => !!msg)[0];
-
-				if (errMsg) {
-					console.error(errMsg);
 				}
 
-				done(new Error(errMsg), false);
+				// For each root folder
+				PPromise.join(folderQueries.map(fq => {
+					return this.searchInFolder(fq).then(null, null, onResult);
+				})).then(() => {
+					resolve({ isLimitHit: false });
+				}, (errs: Error[]) => {
+					const errMsg = errs
+						.map(err => toErrorMessage(err))
+						.filter(msg => !!msg)[0];
+
+					if (errMsg) {
+						console.error(errMsg);
+					}
+
+					reject(new Error(errMsg));
+				});
 			});
 		});
+
+	}
+
+	private searchInFolder(fq: IFolderQuery<URI>): PPromise<void, IInternalFileMatch> {
+		let cancellation = new CancellationTokenSource();
+		return new PPromise((resolve, reject, onResult) => {
+			const options = this.getSearchOptionsForFolder(fq);
+			const folderStr = fq.folder.toString();
+			let filePatternSeen = false;
+			const tree = this.initDirectoryTree();
+
+			const onProviderResult = (result: URI) => {
+				// TODO@roblou - What if it is not relative to the folder query.
+				// This is slow...
+				const relativePath = path.relative(folderStr, result.toString());
+
+				if (noSiblingsClauses) {
+					if (relativePath === this.filePattern) {
+						filePatternSeen = true;
+					}
+
+					const basename = path.basename(relativePath);
+					this.matchFile(onResult, { base: folderStr, relativePath, basename });
+
+					// if (this.isLimitHit) {
+					// 	killCmd();
+					// 	break;
+					// }
+
+					return;
+				}
+
+				// TODO: Optimize siblings clauses with ripgrep here.
+				this.addDirectoryEntries(tree, folderStr, relativePath, onResult);
+			};
+
+			// TODO@roblou
+			const noSiblingsClauses = true;
+			this.provider.provideFileSearchResults(options, { report: onProviderResult }, cancellation.token)
+				.then(() => {
+					if (noSiblingsClauses && this.isLimitHit) {
+						if (!filePatternSeen) {
+							// If the limit was hit, check whether filePattern is an exact relative match because it must be included
+							return this.checkFilePatternRelativeMatch(folderStr).then(({ exists, size }) => {
+								if (exists) {
+									this.resultCount++;
+									onResult({
+										base: folderStr,
+										relativePath: this.filePattern,
+										basename: path.basename(this.filePattern),
+									});
+								}
+							});
+						}
+					}
+
+					this.matchDirectoryTree(tree, folderStr, onResult);
+					return null;
+				}).then(
+					() => {
+						cancellation.dispose();
+						resolve(undefined);
+					},
+					err => {
+						cancellation.dispose();
+						reject(err);
+					});
+		}, () => {
+			cancellation.cancel();
+		});
+	}
+
+	private getSearchOptionsForFolder(fq: IFolderQuery<URI>): vscode.FileSearchOptions {
+		const includes: string[] = this.config.includePattern ? Object.keys(this.config.includePattern) : [];
+		if (fq.includePattern) {
+			includes.push(...Object.keys(fq.includePattern));
+		}
+
+		const excludes: string[] = this.config.excludePattern ? Object.keys(this.config.excludePattern) : [];
+		if (fq.excludePattern) {
+			excludes.push(...Object.keys(fq.excludePattern));
+		}
+
+		return {
+			folder: fq.folder,
+			excludes,
+			includes,
+			useIgnoreFiles: !this.config.disregardIgnoreFiles,
+			followSymlinks: !this.config.ignoreSymlinks
+		};
 	}
 
 	private initDirectoryTree(): IDirectoryTree {
@@ -574,25 +585,43 @@ class FileWalker {
 		// };
 	}
 
-	private checkFilePatternAbsoluteMatch(clb: (exists: boolean, size?: number) => void): void {
+	/**
+	 * Return whether the file pattern is an absolute path to a file that exists.
+	 * TODO@roblou should use FS provider?
+	 */
+	private checkFilePatternAbsoluteMatch(): TPromise<{ exists: boolean, size?: number }> {
 		if (!this.filePattern || !path.isAbsolute(this.filePattern)) {
-			return clb(false);
+			return TPromise.wrap({ exists: false });
 		}
 
-		return fs.stat(this.filePattern, (error, stat) => {
-			return clb(!error && !stat.isDirectory(), stat && stat.size); // only existing files
-		});
+		return pfs.stat(this.filePattern)
+			.then(stat => {
+				return {
+					exists: !stat.isDirectory(),
+					size: stat.size
+				};
+			}, err => {
+				return {
+					exists: false
+				};
+			});
 	}
 
-	private checkFilePatternRelativeMatch(basePath: string, clb: (matchPath: string, size?: number) => void): void {
+	private checkFilePatternRelativeMatch(basePath: string): TPromise<{ exists: boolean, size?: number }> {
 		if (!this.filePattern || path.isAbsolute(this.filePattern)) {
-			return clb(null);
+			return TPromise.wrap({ exists: false });
 		}
 
 		const absolutePath = path.join(basePath, this.filePattern);
-
-		return fs.stat(absolutePath, (error, stat) => {
-			return clb(!error && !stat.isDirectory() ? absolutePath : null, stat && stat.size); // only existing files
+		return pfs.stat(absolutePath).then(stat => {
+			return {
+				exists: !stat.isDirectory(),
+				size: stat.size
+			};
+		}, err => {
+			return {
+				exists: false
+			};
 		});
 	}
 
@@ -697,7 +726,7 @@ interface ISearchComplete {
 	stats?: any;
 }
 
-class FileSearchEngine {
+class FileSearchManager {
 
 	private static readonly BATCH_SIZE = 512;
 
@@ -707,22 +736,22 @@ class FileSearchEngine {
 		if (config.sortByScore) {
 			let sortedSearch = this.trySortedSearchFromCache(config);
 			if (!sortedSearch) {
-				const walkerConfig = config.maxResults ?
+				const engineConfig = config.maxResults ?
 					{
 						...config,
 						...{ maxResults: null }
 					} :
 					config;
 
-				const walker = new FileWalker(walkerConfig);
-				sortedSearch = this.doSortedSearch(walker, provider, config);
+				const engine = new FileSearchEngine(engineConfig, provider);
+				sortedSearch = this.doSortedSearch(engine, provider, config);
 			}
 
 			return new PPromise<ISearchComplete, OneOrMore<IFileMatch>>((c, e, p) => {
 				process.nextTick(() => { // allow caller to register progress callback first
 					sortedSearch.then(([result, rawMatches]) => {
 						const serializedMatches = rawMatches.map(rawMatch => this.rawMatchToSearchItem(rawMatch));
-						this.sendProgress(serializedMatches, p, FileSearchEngine.BATCH_SIZE);
+						this.sendProgress(serializedMatches, p, FileSearchManager.BATCH_SIZE);
 						c(result);
 					}, e, p);
 				});
@@ -733,8 +762,8 @@ class FileSearchEngine {
 
 		let searchPromise: PPromise<void, OneOrMore<IInternalFileMatch>>;
 		return new PPromise<ISearchComplete, OneOrMore<IFileMatch>>((c, e, p) => {
-			const walker = new FileWalker(config);
-			searchPromise = this.doSearch(walker, provider, FileSearchEngine.BATCH_SIZE)
+			const engine = new FileSearchEngine(config, provider);
+			searchPromise = this.doSearch(engine, provider, FileSearchManager.BATCH_SIZE)
 				.then(c, e, progress => {
 					if (Array.isArray(progress)) {
 						p(progress.map(m => this.rawMatchToSearchItem(m)));
@@ -748,14 +777,16 @@ class FileSearchEngine {
 	}
 
 	private rawMatchToSearchItem(match: IInternalFileMatch): IFileMatch {
-		return { resource: URI.parse(path.join(match.base, match.relativePath)) };
+		return {
+			resource: URI.parse(match.base ? path.join(match.base, match.relativePath) : match.relativePath)
+		};
 	}
 
-	private doSortedSearch(walker: FileWalker, provider: vscode.SearchProvider, config: IRawSearchQuery): PPromise<[ISearchComplete, IInternalFileMatch[]]> {
+	private doSortedSearch(engine: FileSearchEngine, provider: vscode.SearchProvider, config: IRawSearchQuery): PPromise<[ISearchComplete, IInternalFileMatch[]]> {
 		let searchPromise: PPromise<void, OneOrMore<IInternalFileMatch>>;
 		let allResultsPromise = new PPromise<[ISearchComplete, IInternalFileMatch[]], OneOrMore<IInternalFileMatch>>((c, e, p) => {
 			let results: IInternalFileMatch[] = [];
-			searchPromise = this.doSearch(walker, provider, -1)
+			searchPromise = this.doSearch(engine, provider, -1)
 				.then(result => {
 					c([result, results]);
 					// TODO@roblou telemetry
@@ -945,10 +976,25 @@ class FileSearchEngine {
 		});
 	}
 
-	private doSearch(walker: FileWalker, provider: vscode.SearchProvider, batchSize?: number): PPromise<ISearchComplete, OneOrMore<IInternalFileMatch>> {
+	private doSearch(engine: FileSearchEngine, provider: vscode.SearchProvider, batchSize?: number): PPromise<ISearchComplete, OneOrMore<IInternalFileMatch>> {
 		return new PPromise<ISearchComplete, OneOrMore<IInternalFileMatch>>((c, e, p) => {
 			let batch: IInternalFileMatch[] = [];
-			walker.walk(provider, (match) => {
+			engine.search().then(() => {
+				if (batch.length) {
+					p(batch);
+				}
+
+				c({
+					limitHit: false,
+					stats: engine.getStats()
+				});
+			}, error => {
+				if (batch.length) {
+					p(batch);
+				}
+
+				e(error);
+			}, match => {
 				if (match) {
 					if (batchSize) {
 						batch.push(match);
@@ -960,22 +1006,9 @@ class FileSearchEngine {
 						p(match);
 					}
 				}
-			},
-				(error, limitHit) => {
-					if (batch.length) {
-						p(batch);
-					}
-					if (error) {
-						e(error);
-					} else {
-						c({
-							limitHit,
-							stats: walker.getStats()
-						});
-					}
-				});
+			});
 		}, () => {
-			walker.cancel();
+			engine.cancel();
 		});
 	}
 
