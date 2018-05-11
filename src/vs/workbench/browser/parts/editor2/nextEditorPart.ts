@@ -11,9 +11,9 @@ import { Part } from 'vs/workbench/browser/part';
 import { Dimension, isAncestor, toggleClass, addClass, clearNode } from 'vs/base/browser/dom';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { INextEditorGroupsService, GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, ICopyEditorOptions } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, ICopyEditorOptions, GroupsOrder } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, ISerializedNode } from 'vs/base/browser/ui/grid/grid';
+import { Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, ISerializedNode, GridBranchNode, isGridBranchNode, GridNode } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER } from 'vs/workbench/common/theme';
@@ -168,16 +168,32 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		return this.gridWidget.orientation === Orientation.VERTICAL ? GroupOrientation.VERTICAL : GroupOrientation.HORIZONTAL;
 	}
 
-	getGroups(sortByMostRecentlyActive?: boolean): INextEditorGroupView[] {
-		if (!sortByMostRecentlyActive) {
-			return this.groups;
+	getGroups(order?: GroupsOrder): INextEditorGroupView[] {
+		switch (order) {
+			case GroupsOrder.MOST_RECENTLY_ACTIVE:
+				const mostRecentActive = this.mostRecentActiveGroups.map(groupId => this.getGroup(groupId));
+
+				// there can be groups that got never active, even though they exist. in this case
+				// make sure to ust append them at the end so that all groups are returned properly
+				return distinct([...mostRecentActive, ...this.groups]);
+
+			case GroupsOrder.GRID_ORDER:
+				const views: INextEditorGroupView[] = [];
+				this.fillGridNodes(views, this.gridWidget.getViews());
+
+				return views;
+
+			default:
+				return this.groups;
 		}
+	}
 
-		const mostRecentActive = this.mostRecentActiveGroups.map(groupId => this.getGroup(groupId));
-
-		// there can be groups that got never active, even though they exist. in this case
-		// make sure to ust append them at the end so that all groups are returned properly
-		return distinct([...mostRecentActive, ...this.groups]);
+	private fillGridNodes(target: INextEditorGroupView[], node: GridBranchNode<INextEditorGroupView> | GridNode<INextEditorGroupView>): void {
+		if (isGridBranchNode(node)) {
+			node.children.forEach(child => this.fillGridNodes(target, child));
+		} else {
+			target.push(node.view);
+		}
 	}
 
 	getGroup(identifier: GroupIdentifier): INextEditorGroupView {
@@ -377,7 +393,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 	}
 
 	private doRemoveGroupWithEditors(groupView: INextEditorGroupView): void {
-		const mostRecentlyActiveGroups = this.getGroups(true);
+		const mostRecentlyActiveGroups = this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 
 		let lastActiveGroup: INextEditorGroupView;
 		if (this._activeGroup === groupView) {
@@ -396,7 +412,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 		// Activate next group if the removed one was active
 		if (this._activeGroup === groupView) {
-			const mostRecentlyActiveGroups = this.getGroups(true);
+			const mostRecentlyActiveGroups = this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 			const nextActiveGroup = mostRecentlyActiveGroups[1]; // [0] will be the current group we are about to dispose
 			this.activateGroup(nextActiveGroup);
 		}

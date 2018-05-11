@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import { NextEditorPart } from 'vs/workbench/browser/parts/editor2/nextEditorPart';
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
-import { GroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { GroupDirection, GroupsOrder } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { Dimension } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INextEditorPartOptions } from 'vs/workbench/browser/parts/editor2/editor2';
@@ -121,7 +121,7 @@ suite('Next editor2 part tests', () => {
 		assert.equal(rootGroup, part.getGroup(rootGroup.id));
 		assert.ok(part.activeGroup === rootGroup);
 
-		let mru = part.getGroups(true);
+		let mru = part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 		assert.equal(mru.length, 1);
 		assert.equal(mru[0], rootGroup);
 
@@ -132,7 +132,7 @@ suite('Next editor2 part tests', () => {
 		assert.equal(part.count, 2);
 		assert.ok(part.activeGroup === rootGroup);
 
-		mru = part.getGroups(true);
+		mru = part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 		assert.equal(mru.length, 2);
 		assert.equal(mru[0], rootGroup);
 		assert.equal(mru[1], rightGroup);
@@ -143,7 +143,7 @@ suite('Next editor2 part tests', () => {
 		assert.ok(part.activeGroup === rightGroup);
 		assert.equal(activeGroupChangeCounter, 1);
 
-		mru = part.getGroups(true);
+		mru = part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 		assert.equal(mru.length, 2);
 		assert.equal(mru[0], rightGroup);
 		assert.equal(mru[1], rootGroup);
@@ -158,11 +158,17 @@ suite('Next editor2 part tests', () => {
 		assert.ok(part.activeGroup === rightGroup);
 		assert.ok(!downGroup.activeControl);
 
-		mru = part.getGroups(true);
+		mru = part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 		assert.equal(mru.length, 3);
 		assert.equal(mru[0], rightGroup);
 		assert.equal(mru[1], rootGroup);
 		assert.equal(mru[2], downGroup);
+
+		const gridOrder = part.getGroups(GroupsOrder.GRID_ORDER);
+		assert.equal(gridOrder.length, 3);
+		assert.equal(gridOrder[0], rootGroup);
+		assert.equal(gridOrder[1], rightGroup);
+		assert.equal(gridOrder[2], downGroup);
 
 		part.moveGroup(downGroup, rightGroup, GroupDirection.DOWN);
 		assert.equal(groupMovedCounter, 1);
@@ -174,7 +180,7 @@ suite('Next editor2 part tests', () => {
 		assert.equal(part.groups.length, 2);
 		assert.ok(part.activeGroup === rightGroup);
 
-		mru = part.getGroups(true);
+		mru = part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 		assert.equal(mru.length, 2);
 		assert.equal(mru[0], rightGroup);
 		assert.equal(mru[1], rootGroup);
@@ -198,7 +204,7 @@ suite('Next editor2 part tests', () => {
 		assert.equal(part.groups.length, 1);
 		assert.ok(part.activeGroup === rootGroup);
 
-		mru = part.getGroups(true);
+		mru = part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 		assert.equal(mru.length, 1);
 		assert.equal(mru[0], rootGroup);
 

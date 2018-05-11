@@ -24,7 +24,7 @@ import { basename } from 'vs/base/common/paths';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { INextEditorGroupsService, INextEditorGroup, GroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, INextEditorGroup, GroupDirection, GroupsOrder } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { INextEditorService, IResourceEditor, ACTIVE_GROUP_TYPE, SIDE_GROUP_TYPE, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -217,7 +217,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 
 		// Group: Unspecified without a specific index to open
 		else if (!options || typeof options.index !== 'number') {
-			const groupsByLastActive = this.nextEditorGroupsService.getGroups(true);
+			const groupsByLastActive = this.nextEditorGroupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 
 			// Respect option to reveal an editor if it is already visible in any group
 			if (options && options.revealIfVisible) {

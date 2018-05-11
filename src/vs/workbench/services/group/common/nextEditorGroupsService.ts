@@ -73,6 +73,11 @@ export interface IEditorReplacement {
 	options?: IEditorOptions;
 }
 
+export enum GroupsOrder {
+	MOST_RECENTLY_ACTIVE,
+	GRID_ORDER
+}
+
 export interface INextEditorGroupsService {
 
 	_serviceBrand: ServiceIdentifier<any>;
@@ -120,9 +125,9 @@ export interface INextEditorGroupsService {
 
 	/**
 	 * Get all groups that are currently visible in the editor area optionally
-	 * sorted by being most recent active.
+	 * sorted by being most recent active or grid order.
 	 */
-	getGroups(sortByMostRecentlyActive?: boolean): ReadonlyArray<INextEditorGroup>;
+	getGroups(order?: GroupsOrder): ReadonlyArray<INextEditorGroup>;
 
 	/**
 	 * Allows to convert a group identifier to a group.
