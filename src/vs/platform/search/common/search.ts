@@ -58,6 +58,7 @@ export interface ICommonQueryOptions<U> {
 	disregardIgnoreFiles?: boolean;
 	disregardExcludeSettings?: boolean;
 	ignoreSymlinks?: boolean;
+	maxFileSize?: number;
 }
 
 export interface IQueryOptions extends ICommonQueryOptions<uri> {
@@ -108,7 +109,7 @@ export interface IFileMatch<U extends UriComponents = uri> {
 	lineMatches?: ILineMatch[];
 }
 
-export type IRawFileMatch = IFileMatch<UriComponents>;
+export type IRawFileMatch2 = IFileMatch<UriComponents>;
 
 export interface ILineMatch {
 	preview: string;

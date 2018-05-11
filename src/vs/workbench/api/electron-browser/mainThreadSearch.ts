@@ -9,7 +9,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
-import { IFileMatch, ISearchComplete, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, QueryType, IRawFileMatch } from 'vs/platform/search/common/search';
+import { IFileMatch, ISearchComplete, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, QueryType, IRawFileMatch2 } from 'vs/platform/search/common/search';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostSearchShape, IExtHostContext, MainContext, MainThreadSearchShape } from '../node/extHost.protocol';
 
@@ -40,7 +40,7 @@ export class MainThreadSearch implements MainThreadSearchShape {
 		this._searchProvider.delete(handle);
 	}
 
-	$handleFindMatch(handle: number, session, data: UriComponents | IRawFileMatch[]): void {
+	$handleFindMatch(handle: number, session, data: UriComponents | IRawFileMatch2[]): void {
 		this._searchProvider.get(handle).handleFindMatch(session, data);
 	}
 }
@@ -125,7 +125,7 @@ class RemoteSearchProvider implements ISearchResultProvider {
 		});
 	}
 
-	handleFindMatch(session: number, dataOrUri: UriComponents | IRawFileMatch[]): void {
+	handleFindMatch(session: number, dataOrUri: UriComponents | IRawFileMatch2[]): void {
 		if (!this._searches.has(session)) {
 			// ignore...
 			return;
