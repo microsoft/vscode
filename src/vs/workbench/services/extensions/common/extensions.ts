@@ -41,7 +41,6 @@ export const IExtensionService = createDecorator<IExtensionService>('extensionSe
 export interface IMessage {
 	type: Severity;
 	message: string;
-	source: string;
 	extensionId: string;
 	extensionPointId: string;
 }
