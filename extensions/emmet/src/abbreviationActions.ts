@@ -391,13 +391,13 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 				&& position.isAfterOrEqual(propertyNode.separatorToken.end)
 				&& position.isBeforeOrEqual(propertyNode.terminatorToken.start)
 				&& abbreviation.indexOf(':') === -1) {
-				return hexColorRegex.test(abbreviation);
+				return hexColorRegex.test(abbreviation) || abbreviation === '!';
 			}
 			if (!propertyNode.terminatorToken
 				&& propertyNode.separator
 				&& position.isAfterOrEqual(propertyNode.separatorToken.end)
 				&& abbreviation.indexOf(':') === -1) {
-				return hexColorRegex.test(abbreviation);
+				return hexColorRegex.test(abbreviation) || abbreviation === '!';
 			}
 		}
 
