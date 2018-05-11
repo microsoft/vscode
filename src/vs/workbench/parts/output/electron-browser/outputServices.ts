@@ -12,6 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -532,6 +533,31 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		}
 	}
 
+	private smartRevealLastLine(outputPanel: OutputPanel) {
+		const codeEditor = <ICodeEditor>outputPanel.getControl();
+		const model = codeEditor.getModel();
+
+		if (model) {
+			// Only scroll if the cursor is currently on the last line of the output panel. This allows
+			// users to click on the output panel to stop scrolling when they see something of interest.
+			// To resume, they should scroll to the end of the output panel again.
+			const lastLine = model.getLineCount();
+			if (codeEditor.getPosition().lineNumber === lastLine) {
+				codeEditor.revealPosition({ lineNumber: lastLine, column: model.getLineMaxColumn(lastLine) });
+			}
+		}
+	}
+
+	private setPrimaryCursorToLastLine(): void {
+		const codeEditor = <ICodeEditor>this._outputPanel.getControl();
+		const model = codeEditor.getModel();
+
+		if (model) {
+			const lastLine = model.getLineCount();
+			codeEditor.setPosition({ lineNumber: lastLine, column: model.getLineMaxColumn(lastLine) });
+		}
+	}
+
 	private createChannel(id: string): OutputChannel {
 		const channelDisposables: IDisposable[] = [];
 		const channel = this.instantiateChannel(id);
@@ -540,14 +566,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 				const panel = this.panelService.getActivePanel();
 				if (panel && panel.getId() === OUTPUT_PANEL_ID && this.isChannelShown(channel)) {
 					let outputPanel = <OutputPanel>panel;
-
-					// Smart Scroll:
-					// Only scroll if the cursor is currently on the last line of the output panel. This allows
-					// users to click on the output panel to stop scrolling when they see something of interest.
-					// To resume, they should scroll to the end of the output panel again.
-					if (outputPanel.isPrimaryCursorOnLastLine()) {
-						outputPanel.revealLastLine();
-					}
+					this.smartRevealLastLine(outputPanel);
 				}
 			}
 		}, channelDisposables);
@@ -598,7 +617,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 					}
 				})
 				// Activate smart scroll when switching back to the output panel
-				.then(() => this._outputPanel.setPrimaryCursorToLastLine());
+				.then(() => this.setPrimaryCursorToLastLine());
 		}
 		return TPromise.as(null);
 	}
