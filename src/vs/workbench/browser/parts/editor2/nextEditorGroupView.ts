@@ -27,7 +27,6 @@ import { ProgressService } from 'vs/workbench/services/progress/browser/progress
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { localize } from 'vs/nls';
 import { isPromiseCanceledError, isErrorWithActions, IErrorWithActions } from 'vs/base/common/errors';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { dispose } from 'vs/base/common/lifecycle';
 import { Severity, INotificationService, INotificationActions } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -92,7 +91,9 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	private active: boolean;
 	private dimension: Dimension;
+
 	private _whenRestored: Thenable<void>;
+	private isRestored: boolean;
 
 	private scopedInstantiationService: IInstantiationService;
 
@@ -113,7 +114,6 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
-		@IPartService private partService: IPartService,
 		@INotificationService private notificationService: INotificationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
@@ -134,7 +134,9 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		this.disposedEditorsWorker = this._register(new RunOnceWorker(editors => this.handleDisposedEditors(editors), 0));
 
 		this.create();
+
 		this._whenRestored = this.restoreEditors(from);
+		this._whenRestored.then(() => this.isRestored = true);
 
 		this.registerListeners();
 	}
@@ -643,7 +645,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 		// Report error only if this was not us restoring previous error state or
 		// we are told to ignore errors that occur from opening an editor
-		if (this.partService.isCreated() && !isPromiseCanceledError(error) && !this.ignoreOpenEditorErrors) {
+		if (this.isRestored && !isPromiseCanceledError(error) && !this.ignoreOpenEditorErrors) {
 			const actions: INotificationActions = { primary: [] };
 			if (isErrorWithActions(error)) {
 				actions.primary = (error as IErrorWithActions).actions;
