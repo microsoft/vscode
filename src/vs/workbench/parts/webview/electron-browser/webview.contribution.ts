@@ -20,6 +20,7 @@ import { HideWebViewEditorFindCommand, OpenWebviewDeveloperToolsAction, ReloadWe
 import { WebviewEditor } from './webviewEditor';
 import { WebviewEditorInput } from './webviewEditorInput';
 import { IWebviewEditorService, WebviewEditorService } from './webviewEditorService';
+import './webviewExtensionPoint';
 
 (Registry.as<IEditorRegistry>(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(
 	WebviewEditor,
