@@ -17,6 +17,7 @@ import { toPRUri } from '../common/uri';
 import * as fs from 'fs';
 import { PullRequestModel, PRType } from '../common/models/pullRequestModel';
 import { PullRequestGitHelper } from '../common/pullRequestGitHelper';
+import { ReviewManager } from '../review/reviewManager';
 
 export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | PullRequestModel | PRGroupActionTreeItem | FileChangeTreeItem>, vscode.TextDocumentContentProvider, vscode.DecorationProvider {
 	private static _instance: PRProvider;
@@ -58,8 +59,10 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 		}
 
 		if (element instanceof PullRequestModel) {
+			let currentBranchIsForThisPR = element.equals(ReviewManager.instance.currentPullRequest);
 			return {
-				label: element.prItem.title,
+				label: (currentBranchIsForThisPR ? ' * ' : '') + element.title,
+				tooltip: (currentBranchIsForThisPR ? 'Current Branch * ' : '') + element.title,
 				collapsibleState: 1,
 				contextValue: 'pullrequest',
 				iconPath: Resource.getGravatarUri(element)

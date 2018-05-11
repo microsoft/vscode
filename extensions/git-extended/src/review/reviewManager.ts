@@ -205,6 +205,7 @@ export class ReviewManager implements vscode.DecorationProvider {
 		this.statusBarItem.text = '$(git-branch) Pull Request #' + this._prNumber;
 		this.statusBarItem.command = 'pr.openInGitHub';
 		this.statusBarItem.show();
+		vscode.commands.executeCommand('pr.refreshList');
 	}
 
 	private async updateComments(): Promise<void> {
@@ -530,6 +531,7 @@ export class ReviewManager implements vscode.DecorationProvider {
 			}
 		}
 
+		vscode.commands.executeCommand('pr.refreshList');
 	}
 
 	dispose() {

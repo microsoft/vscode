@@ -149,4 +149,20 @@ export class PullRequestModel {
 	getUserGravatar(): string {
 		return this.prItem.user.avatar_url;
 	}
+
+	equals(other: PullRequestModel): boolean {
+		if (!other) {
+			return false;
+		}
+
+		if (this.prNumber !== other.prNumber) {
+			return false;
+		}
+
+		if (this.html_url !== other.html_url) {
+			return false;
+		}
+
+		return true;
+	}
 }

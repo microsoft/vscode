@@ -16,9 +16,9 @@ export class Remote {
 		if (this.remoteName !== remote.remoteName) {
 			return false;
 		}
-		if (this.url !== remote.url) {
-			return false;
-		}
+		// if (this.url !== remote.url) {
+		// 	return false;
+		// }
 		if (this.hostname !== remote.hostname) {
 			return false;
 		}
