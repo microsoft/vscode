@@ -9,7 +9,7 @@ import * as dom from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import { TreeViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDebugService, State, IStackFrame, ISession, IThread } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, State, IStackFrame, ISession, IThread, CONTEXT_CALLSTACK_ITEM_TYPE } from 'vs/workbench/parts/debug/common/debug';
 import { Thread, StackFrame, ThreadAndSessionIds, Session, Model } from 'vs/workbench/parts/debug/common/debugModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -25,6 +25,7 @@ import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/l
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const $ = dom.$;
 
@@ -38,6 +39,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 	private needsRefresh: boolean;
 	private ignoreSelectionChangedEvent: boolean;
 	private treeContainer: HTMLElement;
+	private callStackItemType: IContextKey<string>;
 
 	constructor(
 		private options: IViewletViewOptions,
@@ -47,9 +49,11 @@ export class CallStackView extends TreeViewsViewletPanel {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService, configurationService);
 		this.settings = options.viewletSettings;
+		this.callStackItemType = CONTEXT_CALLSTACK_ITEM_TYPE.bindTo(contextKeyService);
 
 		// Create scheduler to prevent unnecessary flashing of tree when reacting to changes
 		this.onCallStackChangeScheduler = new RunOnceScheduler(() => {
@@ -130,6 +134,18 @@ export class CallStackView extends TreeViewsViewletPanel {
 					(<Thread>thread).fetchCallStack()
 						.done(() => this.tree.refresh(), errors.onUnexpectedError);
 				}
+			}
+		}));
+		this.disposables.push(this.tree.onDidChangeFocus(() => {
+			const focus = this.tree.getFocus();
+			if (focus instanceof StackFrame) {
+				this.callStackItemType.set('stackFrame');
+			} else if (focus instanceof Thread) {
+				this.callStackItemType.set('thread');
+			} else if (focus instanceof Session) {
+				this.callStackItemType.set('session');
+			} else {
+				this.callStackItemType.reset();
 			}
 		}));
 
