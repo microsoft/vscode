@@ -25,6 +25,8 @@ import {
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { mixin } from 'vs/base/common/objects';
+import { commonSuffixLength } from 'vs/base/common/strings';
+import { sep } from 'vs/base/common/paths';
 
 const MAX_REPL_LENGTH = 10000;
 
@@ -358,6 +360,22 @@ export class StackFrame implements IStackFrame {
 		}
 
 		return this.scopes;
+	}
+
+	public getSpecificSourceName(): string {
+		const otherSources = this.thread.getCallStack().map(sf => sf.source).filter(s => s !== this.source);
+		let suffixLength = 0;
+		otherSources.forEach(s => {
+			if (s.name === this.source.name) {
+				suffixLength = Math.max(suffixLength, commonSuffixLength(this.source.uri.path, s.uri.path));
+			}
+		});
+		if (suffixLength === 0) {
+			return this.source.name;
+		}
+
+		const from = Math.max(0, this.source.uri.path.lastIndexOf(sep, this.source.uri.path.length - suffixLength - 1));
+		return (from > 0 ? '...' : '') + this.source.uri.path.substr(from);
 	}
 
 	public getMostSpecificScopes(range: IRange): TPromise<IScope[]> {

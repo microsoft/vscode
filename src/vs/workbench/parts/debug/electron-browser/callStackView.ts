@@ -21,9 +21,6 @@ import { IAction, IActionItem } from 'vs/base/common/actions';
 import { RestartAction, StopAction, ContinueAction, StepOverAction, StepIntoAction, StepOutAction, PauseAction, RestartFrameAction, TerminateThreadAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyStackTraceAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { Source } from 'vs/workbench/parts/debug/common/debugSource';
-import { basenameOrAuthority } from 'vs/base/common/resources';
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -383,7 +380,6 @@ class CallStackRenderer implements IRenderer {
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		// noop
 	}
@@ -508,7 +504,7 @@ class CallStackRenderer implements IRenderer {
 		}
 		data.label.textContent = stackFrame.name;
 		data.label.title = stackFrame.name;
-		data.fileName.textContent = getSourceName(stackFrame.source, this.contextService, this.environmentService);
+		data.fileName.textContent = stackFrame.getSpecificSourceName();
 		if (stackFrame.range.startLineNumber !== undefined) {
 			data.lineNumber.textContent = `${stackFrame.range.startLineNumber}`;
 			if (stackFrame.range.startColumn) {
@@ -527,7 +523,7 @@ class CallStackRenderer implements IRenderer {
 
 class CallstackAccessibilityProvider implements IAccessibilityProvider {
 
-	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor() {
 		// noop
 	}
 
@@ -536,17 +532,9 @@ class CallstackAccessibilityProvider implements IAccessibilityProvider {
 			return nls.localize('threadAriaLabel', "Thread {0}, callstack, debug", (<Thread>element).name);
 		}
 		if (element instanceof StackFrame) {
-			return nls.localize('stackFrameAriaLabel', "Stack Frame {0} line {1} {2}, callstack, debug", (<StackFrame>element).name, (<StackFrame>element).range.startLineNumber, getSourceName((<StackFrame>element).source, this.contextService));
+			return nls.localize('stackFrameAriaLabel', "Stack Frame {0} line {1} {2}, callstack, debug", element.name, element.range.startLineNumber, element.getSpecificSourceName());
 		}
 
 		return null;
 	}
-}
-
-function getSourceName(source: Source, contextService: IWorkspaceContextService, environmentService?: IEnvironmentService): string {
-	if (source.name) {
-		return source.name;
-	}
-
-	return basenameOrAuthority(source.uri);
 }

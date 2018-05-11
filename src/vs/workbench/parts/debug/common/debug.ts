@@ -219,6 +219,7 @@ export interface IStackFrame extends ITreeElement {
 	readonly source: Source;
 	getScopes(): TPromise<ReadonlyArray<IScope>>;
 	getMostSpecificScopes(range: IRange): TPromise<ReadonlyArray<IScope>>;
+	getSpecificSourceName(): string;
 	restart(): TPromise<any>;
 	toString(): string;
 	openInEditor(editorService: IWorkbenchEditorService, preserveFocus?: boolean, sideBySide?: boolean): TPromise<any>;
