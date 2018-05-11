@@ -233,7 +233,7 @@ export abstract class NextTitleControl extends Themable {
 		this.currentSecondaryEditorActionIds = [];
 	}
 
-	protected enableGroupDragging(element: HTMLElement, supportExternalDrag?: boolean): void {
+	protected enableGroupDragging(element: HTMLElement): void {
 
 		// Drag start
 		this._register(addDisposableListener(element, EventType.DRAG_START, (e: DragEvent) => {
@@ -245,8 +245,8 @@ export abstract class NextTitleControl extends Themable {
 			this.groupTransfer.setData([new DraggedEditorGroupIdentifier(this.group.id)], DraggedEditorGroupIdentifier.prototype);
 			e.dataTransfer.effectAllowed = 'copyMove';
 
-			// Apply some datatransfer types to allow for dragging the element outside of the application
-			if (supportExternalDrag) {
+			// If tabs are disabled, treat dragging as if an editor tab was dragged
+			if (!this.accessor.partOptions.showTabs) {
 				const resource = toResource(this.group.activeEditor, { supportSideBySide: true });
 				if (resource) {
 					this.instantiationService.invokeFunction(fillResourceDataTransfers, [resource], e);
@@ -254,7 +254,12 @@ export abstract class NextTitleControl extends Themable {
 			}
 
 			// Drag Image
-			applyDragImage(e, localize('editorGroup', "Editor Group"), 'monaco-editor-group-drag-image');
+			let label = this.group.activeEditor.getName();
+			if (this.accessor.partOptions.showTabs && this.group.count > 1) {
+				label = localize('draggedEditorGroup', "{0} (+{1})", label, this.group.count - 1);
+			}
+
+			applyDragImage(e, label, 'monaco-editor-group-drag-image');
 		}));
 
 		// Drag end

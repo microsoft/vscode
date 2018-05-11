@@ -545,6 +545,9 @@ export class NextTabsTitleControl extends NextTitleControl {
 		disposables.push(new DragAndDropObserver(tab, {
 			onDragEnter: e => {
 
+				// Update class to signal drag operation
+				addClass(tab, 'dragged-over');
+
 				// Return if transfer is unsupported
 				if (!this.isSupportedDropTransfer(e)) {
 					e.dataTransfer.dropEffect = 'none';
@@ -569,7 +572,6 @@ export class NextTabsTitleControl extends NextTitleControl {
 					e.dataTransfer.dropEffect = 'copy';
 				}
 
-				addClass(tab, 'dragged-over');
 				this.updateDropFeedback(tab, true, index);
 			},
 

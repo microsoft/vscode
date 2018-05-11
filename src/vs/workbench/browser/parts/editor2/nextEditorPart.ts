@@ -426,27 +426,29 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 		// Target is same view: we first need to create the new group and then merge
 		// all editors of the group into it to preserve the view state.
+		let targetView: INextEditorGroupView;
 		if (groupView.id === locationView.id) {
-			const newGroup = this.doAddGroup(groupView, direction);
-			this.mergeGroup(groupView, newGroup, { mode: MergeGroupMode.MOVE_EDITORS_KEEP_GROUP });
+			targetView = this.doAddGroup(groupView, direction);
+			this.mergeGroup(groupView, targetView, { mode: MergeGroupMode.MOVE_EDITORS_KEEP_GROUP });
 		}
 
 		// Target is different view: operation is a simple remove and add
 		else {
-			this.gridWidget.removeView(groupView, Sizing.Distribute);
-			this.gridWidget.addView(groupView, Sizing.Distribute, locationView, this.toGridViewDirection(direction));
+			targetView = groupView;
+			this.gridWidget.removeView(targetView, Sizing.Distribute);
+			this.gridWidget.addView(targetView, Sizing.Distribute, locationView, this.toGridViewDirection(direction));
 		}
 
 		// Restore focus if we had it previously (we run this after gridWidget.removeView() is called
 		// because removing a view can mean to reparent it and thus focus would be removed otherwise)
 		if (groupHasFocus) {
-			this.focusGroup(groupView);
+			this.focusGroup(targetView);
 		}
 
 		// Event
 		this._onDidMoveGroup.fire(groupView);
 
-		return groupView;
+		return targetView;
 	}
 
 	copyGroup(group: INextEditorGroupView | GroupIdentifier, location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection): INextEditorGroupView {
