@@ -8,7 +8,7 @@ import { CancellationTokenSource, Disposable, TextDocument, TextDocumentChangeEv
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { Delayer } from '../utils/async';
-import { disposeAll } from '../utils/dipose';
+import { disposeAll } from '../utils/dispose';
 import * as languageModeIds from '../utils/languageModeIds';
 
 
