@@ -158,6 +158,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._toggleAction = new Action('review.expand', nls.localize('label.expand', "Expand"), this._isCollapsed ? EXPAND_ACTION_CLASS : COLLAPSE_ACTION_CLASS, true, () => {
 			if (this._isCollapsed) {
 				this._isCollapsed = false;
+				this.show({ lineNumber: this._commentThread.range.startLineNumber, column: 1 }, 2);
 			}
 			else {
 				this._isCollapsed = true;
@@ -234,7 +235,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 	display(lineNumber: number) {
 		const commentWidget = new CommentGlyphWidget(`review_${lineNumber}`, this.editor, lineNumber, () => {
-			// Does nothing when clicked
+			this.toggleExpand();
 		});
 		this.editor.layoutContentWidget(commentWidget);
 

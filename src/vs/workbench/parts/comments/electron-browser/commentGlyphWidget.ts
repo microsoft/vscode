@@ -13,6 +13,7 @@ export class CommentGlyphWidget implements IContentWidget {
 	private _editor: ICodeEditor;
 
 	constructor(id: string, editor: ICodeEditor, lineNumber: number, onClick: () => void) {
+		this._id = id;
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'new-comment-hint';
 		this._domNode.addEventListener('click', onClick);

@@ -13,7 +13,7 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDecoration, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import * as modes from 'vs/editor/common/modes';
 import { peekViewEditorBackground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
@@ -251,14 +251,13 @@ export class ReviewController implements IEditorContribution {
 		if (this.canAddNewCommentToLine(lineNumber)) {
 			let newCommentInfo = this.getNewCommentAction(lineNumber);
 			if (!newCommentInfo) {
-
 				return;
 			}
 
 			// add new comment
 			this._reviewPanelVisible.set(true);
-			const [replyCommand, owner] = newCommentInfo;
-			this._zoneWidget = new ReviewZoneWidget(this.editor, owner, {
+			const { replyCommand, ownerId } = newCommentInfo;
+			this._zoneWidget = new ReviewZoneWidget(this.editor, ownerId, {
 				threadId: null,
 				resource: null,
 				comments: [],
@@ -268,7 +267,7 @@ export class ReviewController implements IEditorContribution {
 					endLineNumber: lineNumber,
 					endColumn: 0
 				},
-				reply: newCommentInfo[0],
+				reply: replyCommand,
 				collapsibleState: CommentThreadCollapsibleState.Expanded,
 			}, replyCommand, {}, this.themeService, this.commandService);
 
@@ -282,14 +281,13 @@ export class ReviewController implements IEditorContribution {
 	private addComment(lineNumber: number) {
 		let newCommentInfo = this.getNewCommentAction(lineNumber);
 		if (!newCommentInfo) {
-
 			return;
 		}
 
 		// add new comment
 		this._reviewPanelVisible.set(true);
-		const [replyCommand, owner] = newCommentInfo;
-		this._zoneWidget = new ReviewZoneWidget(this.editor, owner, {
+		const { replyCommand, ownerId } = newCommentInfo;
+		this._zoneWidget = new ReviewZoneWidget(this.editor, ownerId, {
 			threadId: null,
 			resource: null,
 			comments: [],
@@ -299,7 +297,7 @@ export class ReviewController implements IEditorContribution {
 				endLineNumber: lineNumber,
 				endColumn: 0
 			},
-			reply: newCommentInfo[0],
+			reply: replyCommand,
 			collapsibleState: CommentThreadCollapsibleState.Expanded,
 		}, replyCommand, {}, this.themeService, this.commandService);
 
@@ -333,40 +331,22 @@ export class ReviewController implements IEditorContribution {
 		}
 	}
 
-	getNewCommentAction(line: number): [modes.Command, number] {
-		const decorations = this.editor.getLineDecorations(line);
-		let activeDecoration: IModelDecoration;
-		if (decorations) {
-			for (const decoration of decorations) {
-				if (decoration.options.linesDecorationsClassName &&
-					decoration.options.linesDecorationsClassName.indexOf('commenting-range') > -1 &&
-					decoration.options.glyphMarginClassName.indexOf('review') < 0
-				) {
-					activeDecoration = decoration;
-				}
+	getNewCommentAction(line: number): { replyCommand: modes.Command, ownerId: number } {
+		for (let i = 0; i < this._commentInfos.length; i++) {
+			const commentInfo = this._commentInfos[i];
+			const lineWithinRange = commentInfo.commentingRanges.some(range =>
+				range.startLineNumber <= line && line <= range.endLineNumber
+			);
+
+			if (lineWithinRange) {
+				return {
+					replyCommand: commentInfo.reply,
+					ownerId: commentInfo.owner
+				};
 			}
 		}
 
-		if (!activeDecoration) {
-			return null;
-		}
-
-		let cmd: modes.Command = null;
-		let owner: number = -1;
-
-		this.commentingRangeDecorationMap.forEach((value, key) => {
-			if (!cmd && value.indexOf(activeDecoration.id) > -1) {
-				// index
-				let infos = this._commentInfos.filter(info => info.owner === Number(key));
-
-				if (infos && infos.length) {
-					cmd = infos[0].reply;
-					owner = Number(key);
-				}
-			}
-		});
-
-		return [cmd, owner];
+		return null;
 	}
 
 	canAddNewCommentToLine(line: number): boolean {

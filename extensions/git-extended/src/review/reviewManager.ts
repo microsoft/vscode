@@ -392,7 +392,7 @@ export class ReviewManager implements vscode.DecorationProvider {
 	private registerCommentProvider() {
 		this._documentCommentProvider = vscode.workspace.registerDocumentCommentProvider({
 			onDidChangeCommentThreads: this._onDidChangeCommentThreads.event,
-			provideDocumentComments: async (document: vscode.TextDocument, token: vscode.CancellationToken) => {
+			provideDocumentComments: async (document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.CommentInfo> => {
 				let ranges: vscode.Range[] = [];
 
 				let matchingComments: Comment[];
@@ -450,7 +450,7 @@ export class ReviewManager implements vscode.DecorationProvider {
 				return {
 					threads: this.commentsToCommentThreads(matchingComments, document.uri.scheme === 'file' ? vscode.CommentThreadCollapsibleState.Collapsed : vscode.CommentThreadCollapsibleState.Expanded),
 					commentingRanges: ranges,
-					reply: this._reply
+					postReviewComment: this._reply
 				};
 			}
 		});
