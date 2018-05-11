@@ -104,12 +104,12 @@ export class UriString {
 	}
 
 	toRepositoryUrl(owner: string = null): vscode.Uri {
-		if (!this.isScpUri && (this.url === null || this.isFileUri)) {
+		if (!this.isScpUri && (!this.url || this.isFileUri)) {
 			return this.url;
 		}
 
 		let scheme = 'https';
-		if (this.url !== null && (this.url.scheme === 'http' || this.url.scheme === 'https')) {
+		if (this.url && (this.url.scheme === 'http' || this.url.scheme === 'https')) {
 			scheme = this.url.scheme;
 		}
 
