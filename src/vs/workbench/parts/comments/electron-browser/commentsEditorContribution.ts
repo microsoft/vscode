@@ -22,13 +22,14 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { editorBackground, editorForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { CommentThreadCollapsibleState } from 'vs/workbench/api/node/extHostTypes';
 import { ReviewModel } from 'vs/workbench/parts/comments/common/reviewModel';
+import { CommentGlyphWidget } from 'vs/workbench/parts/comments/electron-browser/commentGlyphWidget';
 import { ReviewZoneWidget } from 'vs/workbench/parts/comments/electron-browser/commentThreadWidget';
-import { CommentThreadCollapsibleState } from '../../../api/node/extHostTypes';
-import { ICommentService } from '../../../services/comments/electron-browser/commentService';
-import { CommentGlyphWidget } from './commentGlyphWidget';
+import { ICommentService } from 'vs/workbench/services/comments/electron-browser/commentService';
 
 export const ctxReviewPanelVisible = new RawContextKey<boolean>('reviewPanelVisible', false);
 export const overviewRulerReviewForeground = registerColor('editorOverviewRuler.reviewForeground', { dark: '#ff646480', light: '#ff646480', hc: '#ff646480' }, nls.localize('overviewRulerWordHighlightStrongForeground', 'Overview ruler marker color for write-access symbol highlights. The color must not be opaque to not hide underlying decorations.'), true);
@@ -76,7 +77,8 @@ export class ReviewController implements IEditorContribution {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService private themeService: IThemeService,
 		@ICommandService private commandService: ICommandService,
-		@ICommentService private commentService: ICommentService
+		@ICommentService private commentService: ICommentService,
+		@INotificationService private notificationService: INotificationService
 	) {
 		this.editor = editor;
 		this.globalToDispose = [];
@@ -309,25 +311,20 @@ export class ReviewController implements IEditorContribution {
 
 	private onEditorMouseMove(e: IEditorMouseEvent): void {
 		if (e.target.position && e.target.position.lineNumber !== undefined) {
-			if (this.canAddNewCommentToLine(e.target.position.lineNumber)) {
-				const showNewCommentHintAtLineNumber = e.target.position.lineNumber;
-				if (!this._newCommentGlyph) {
-					this._newCommentGlyph = new CommentGlyphWidget('new-comment-hint', this.editor, showNewCommentHintAtLineNumber, () => {
-						this.addComment(showNewCommentHintAtLineNumber);
-					});
-				} else {
-					this.editor.removeContentWidget(this._newCommentGlyph);
-					this._newCommentGlyph = new CommentGlyphWidget('new-comment-hint', this.editor, showNewCommentHintAtLineNumber, () => {
-						this.addComment(showNewCommentHintAtLineNumber);
-					});
-				}
-
-				this.editor.layoutContentWidget(this._newCommentGlyph);
-			}
-		} else {
-			if (this._newCommentGlyph && e.target.element.className !== 'new-comment-hint') {
+			if (this._newCommentGlyph && e.target.element.className !== 'comment-hint') {
 				this.editor.removeContentWidget(this._newCommentGlyph);
 			}
+
+			const showNewCommentHintAtLineNumber = e.target.position.lineNumber;
+			this._newCommentGlyph = this.canAddNewCommentToLine(e.target.position.lineNumber)
+				? this._newCommentGlyph = new CommentGlyphWidget('comment-hint', this.editor, showNewCommentHintAtLineNumber, false, () => {
+					this.addComment(showNewCommentHintAtLineNumber);
+				})
+				: this._newCommentGlyph = new CommentGlyphWidget('comment-hint', this.editor, e.target.position.lineNumber, true, () => {
+					this.notificationService.warn('Commenting is not supported outside of diff chunk areas.');
+				});
+
+			this.editor.layoutContentWidget(this._newCommentGlyph);
 		}
 	}
 
@@ -417,6 +414,10 @@ export class ReviewController implements IEditorContribution {
 		if (this._zoneWidget) {
 			this._zoneWidget.dispose();
 			this._zoneWidget = null;
+		}
+
+		if (this._zoneWidgets) {
+			this._zoneWidgets.forEach(widget => widget.dispose());
 		}
 
 		this.editor.focus();

@@ -10,7 +10,7 @@
 	background-position: center center;
 }
 
-.monaco-editor .new-comment-hint{
+.monaco-editor .comment-hint{
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -20,7 +20,11 @@
 	background: url('comment.svg') center center no-repeat;
 }
 
-.monaco-editor .new-comment-hint:hover {
+.monaco-editor .comment-hint.commenting-disabled {
+	opacity: 0.5;
+}
+
+.monaco-editor .comment-hint:hover {
 	cursor: pointer;
 }
 

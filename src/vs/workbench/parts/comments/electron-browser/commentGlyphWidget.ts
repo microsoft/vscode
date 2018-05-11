@@ -12,10 +12,10 @@ export class CommentGlyphWidget implements IContentWidget {
 	private _domNode: HTMLDivElement;
 	private _editor: ICodeEditor;
 
-	constructor(id: string, editor: ICodeEditor, lineNumber: number, onClick: () => void) {
+	constructor(id: string, editor: ICodeEditor, lineNumber: number, disabled: boolean, onClick: () => void) {
 		this._id = id;
 		this._domNode = document.createElement('div');
-		this._domNode.className = 'new-comment-hint';
+		this._domNode.className = disabled ? 'comment-hint commenting-disabled' : 'comment-hint';
 		this._domNode.addEventListener('click', onClick);
 
 		this._lineNumber = lineNumber;

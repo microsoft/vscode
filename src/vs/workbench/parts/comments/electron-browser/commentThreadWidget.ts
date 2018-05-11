@@ -240,7 +240,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	}
 
 	display(lineNumber: number) {
-		this._commentGlyph = new CommentGlyphWidget(`review_${lineNumber}`, this.editor, lineNumber, () => {
+		this._commentGlyph = new CommentGlyphWidget(`review_${lineNumber}`, this.editor, lineNumber, false, () => {
 			this.toggleExpand();
 		});
 		this.editor.layoutContentWidget(this._commentGlyph);
