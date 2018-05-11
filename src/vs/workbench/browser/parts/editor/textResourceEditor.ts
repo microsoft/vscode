@@ -150,34 +150,6 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		}
 	}
 
-	/**
-	 * Returns true if the primary cursor is on the last line, only of this editor has a model set.
-	 */
-	public isPrimaryCursorOnLastLine(): boolean {
-		const codeEditor = <ICodeEditor>this.getControl();
-		const model = codeEditor.getModel();
-
-		if (model) {
-			const lastLine = model.getLineCount();
-			return codeEditor.getPosition().lineNumber === lastLine;
-		}
-
-		return false;
-	}
-
-	/**
-	 * Positions the primary cursor on the end of the last line if this editor has a model set.
-	 */
-	public setPrimaryCursorToLastLine(): void {
-		const codeEditor = <ICodeEditor>this.getControl();
-		const model = codeEditor.getModel();
-
-		if (model) {
-			const lastLine = model.getLineCount();
-			codeEditor.setPosition({ lineNumber: lastLine, column: model.getLineMaxColumn(lastLine) });
-		}
-	}
-
 	public clearInput(): void {
 
 		// Keep editor view state in settings to restore when coming back
