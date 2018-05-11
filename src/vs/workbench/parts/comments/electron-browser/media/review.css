@@ -10,12 +10,18 @@
 	background-position: center center;
 }
 
-.monaco-editor .margin-view-overlays .new-comment-hint {
-	background-image: url('comment.svg');
-	opacity: 0.5;
+.monaco-editor .new-comment-hint{
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 16px;
+	width: 20px;
+	padding-left: 2px;
+	background: url('comment.svg') center center no-repeat;
+}
+
+.monaco-editor .new-comment-hint:hover {
 	cursor: pointer;
-	background-repeat: no-repeat;
-	background-position: center center;
 }
 
 .monaco-editor .review-widget {
