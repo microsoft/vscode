@@ -15,10 +15,11 @@ import * as strings from 'vs/base/common/strings';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import { IItemAccessor, ScorerCache, compareItemsByScore, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
-import { ICachedSearchStats, IFileMatch, IFolderQuery, IPatternInfo, IProgress, IRawSearchQuery, ISearchQuery } from 'vs/platform/search/common/search';
-import { IFileSearchProgressItem, IRawFileMatch, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem } from 'vs/workbench/services/search/node/search';
+import { ICachedSearchStats, IFileMatch, IFolderQuery, IPatternInfo, IRawSearchQuery, ISearchQuery } from 'vs/platform/search/common/search';
 import * as vscode from 'vscode';
 import { ExtHostSearchShape, IMainContext, MainContext, MainThreadSearchShape } from './extHost.protocol';
+
+type OneOrMore<T> = T | T[];
 
 export class ExtHostSearch implements ExtHostSearchShape {
 
@@ -26,7 +27,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 	private readonly _searchProvider = new Map<number, vscode.SearchProvider>();
 	private _handlePool: number = 0;
 
-	private _fileSearchThingy = new FileSearchEngine();
+	private _fileSearchEngine = new FileSearchEngine();
 
 	constructor(mainContext: IMainContext) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadSearch);
@@ -51,18 +52,16 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		}
 
 		const query = reviveQuery(rawQuery);
-		return this._fileSearchThingy.fileSearch(query, provider).then(
+		return this._fileSearchEngine.fileSearch(query, provider).then(
 			() => { }, // still need to return limitHit
 			null,
 			progress => {
 				if (Array.isArray(progress)) {
 					progress.forEach(p => {
-						const uri = URI.parse(p.path);
-						this._proxy.$handleFindMatch(handle, session, uri);
+						this._proxy.$handleFindMatch(handle, session, p.resource);
 					});
 				} else {
-					const uri = URI.parse((<ISerializedFileMatch>progress).path);
-					this._proxy.$handleFindMatch(handle, session, uri);
+					this._proxy.$handleFindMatch(handle, session, progress.resource);
 				}
 			});
 	}
@@ -140,7 +139,7 @@ class TextSearchResultsCollector {
 	}
 
 	add(data: vscode.TextSearchResult): void {
-		// Collects TextSearchResults into IRawFileMatches and collates using BatchedCollector.
+		// Collects TextSearchResults into IInternalFileMatches and collates using BatchedCollector.
 		// This is efficient for ripgrep which sends results back one file at a time. It wouldn't be efficient for other search
 		// providers that send results in random order. We could do this step afterwards instead.
 		if (this._currentFileMatch && this._currentFileMatch.resource.toString() !== data.uri.toString()) {
@@ -277,7 +276,14 @@ interface IDirectoryTree {
 	pathToEntries: { [relativePath: string]: IDirectoryEntry[] };
 }
 
-export class FileWalker {
+interface IInternalFileMatch {
+	base?: string;
+	relativePath: string; // Not necessarily relative... extraFiles put an absolute path here. Rename.
+	basename: string;
+	size?: number;
+}
+
+class FileWalker {
 	private config: ISearchQuery;
 	private filePattern: string;
 	private normalizedFilePatternLowercase: string;
@@ -288,7 +294,6 @@ export class FileWalker {
 	private isLimitHit: boolean;
 	private resultCount: number;
 	private isCanceled: boolean;
-	private errors: string[];
 
 	// private filesWalked: number;
 	// private directoriesWalked: number;
@@ -305,7 +310,6 @@ export class FileWalker {
 		// this.maxFilesize = config.maxFileSize || null;
 		this.resultCount = 0;
 		this.isLimitHit = false;
-		this.errors = [];
 
 		// this.filesWalked = 0;
 		// this.directoriesWalked = 0;
@@ -344,8 +348,7 @@ export class FileWalker {
 		this.isCanceled = true;
 	}
 
-	public walk(provider: vscode.SearchProvider, onResult: (result: IRawFileMatch) => void, done: (error: Error, isLimitHit: boolean) => void): void {
-		const extraFiles = this.config.extraFileResources.map(uri => uri.toString());
+	public walk(provider: vscode.SearchProvider, onResult: (result: IInternalFileMatch) => void, done: (error: Error, isLimitHit: boolean) => void): void {
 		const folderQueries = this.config.folderQueries;
 
 		// Support that the file pattern is a full path to a file that exists
@@ -370,16 +373,18 @@ export class FileWalker {
 			}
 
 			// For each extra file
-			if (extraFiles) {
-				extraFiles.forEach(extraFilePath => {
-					const basename = path.basename(extraFilePath);
-					if (this.globalExcludePattern && this.globalExcludePattern(extraFilePath, basename)) {
-						return; // excluded
-					}
+			if (this.config.extraFileResources) {
+				this.config.extraFileResources
+					.map(uri => uri.toString())
+					.forEach(extraFilePath => {
+						const basename = path.basename(extraFilePath);
+						if (this.globalExcludePattern && this.globalExcludePattern(extraFilePath, basename)) {
+							return; // excluded
+						}
 
-					// File: Check for match on file pattern and include pattern
-					this.matchFile(onResult, { relativePath: extraFilePath /* no workspace relative path */, basename });
-				});
+						// File: Check for match on file pattern and include pattern
+						this.matchFile(onResult, { relativePath: extraFilePath /* no workspace relative path */, basename });
+					});
 			}
 
 			// For each root folder
@@ -403,13 +408,14 @@ export class FileWalker {
 				}
 
 				const options: vscode.FileSearchOptions = {
-					folder: URI.from(fq.folder),
+					folder: fq.folder,
 					excludes,
 					includes,
 					useIgnoreFiles: !this.config.disregardIgnoreFiles,
 					followSymlinks: !this.config.ignoreSymlinks
 				};
 
+				const folderStr = fq.folder.toString();
 				let filePatternSeen = false;
 				return asWinJsPromise(token => {
 					const tree = this.initDirectoryTree();
@@ -417,14 +423,17 @@ export class FileWalker {
 					const noSiblingsClauses = true;
 					return provider.provideFileSearchResults(options, {
 						report: (result: URI) => {
-							const relativePath = path.relative(fq.folder.toString(), result.toString());
+							// TODO@roblou - What if it is not relative to the folder query
+							const relativePath = path.relative(folderStr, result.toString());
 
 							if (noSiblingsClauses) {
 								if (relativePath === this.filePattern) {
 									filePatternSeen = true;
 								}
+
 								const basename = path.basename(relativePath);
-								this.matchFile(onResult, { base: fq.folder.toString(), relativePath, basename });
+								this.matchFile(onResult, { base: folderStr, relativePath, basename });
+
 								// if (this.isLimitHit) {
 								// 	killCmd();
 								// 	break;
@@ -434,17 +443,18 @@ export class FileWalker {
 							}
 
 							// TODO: Optimize siblings clauses with ripgrep here.
-							this.addDirectoryEntries(tree, fq.folder.toString(), relativePath, onResult);
+							this.addDirectoryEntries(tree, folderStr, relativePath, onResult);
 						}
 					},
 						token).then(() => {
 							if (noSiblingsClauses && this.isLimitHit) {
 								if (!filePatternSeen) {
-									this.checkFilePatternRelativeMatch(fq.folder.toString(), (match, size) => {
+									// If the limit was hit, check whether filePattern is an exact relative match because it must be included
+									this.checkFilePatternRelativeMatch(folderStr, (match, size) => {
 										if (match) {
 											this.resultCount++;
 											onResult({
-												base: fq.folder.toString(),
+												base: folderStr,
 												relativePath: this.filePattern,
 												basename: path.basename(this.filePattern),
 											});
@@ -455,19 +465,23 @@ export class FileWalker {
 								return;
 							}
 
-							this.matchDirectoryTree(tree, fq.folder.toString(), onResult);
+							this.matchDirectoryTree(tree, folderStr, onResult);
 						});
 				});
 			}));
 
 			searchAllFoldersP.then(() => {
-				// TODO
 				done(null, false);
-			}, err => {
-				const errorMessage = toErrorMessage(err);
-				console.error(errorMessage);
-				this.errors.push(errorMessage);
-				// rootFolderDone(err, undefined);
+			}, (errs: Error[]) => {
+				const errMsg = errs
+					.map(err => toErrorMessage(err))
+					.filter(msg => !!msg)[0];
+
+				if (errMsg) {
+					console.error(errMsg);
+				}
+
+				done(new Error(errMsg), false);
 			});
 		});
 	}
@@ -481,7 +495,7 @@ export class FileWalker {
 		return tree;
 	}
 
-	private addDirectoryEntries({ pathToEntries }: IDirectoryTree, base: string, relativeFile: string, onResult: (result: IRawFileMatch) => void) {
+	private addDirectoryEntries({ pathToEntries }: IDirectoryTree, base: string, relativeFile: string, onResult: (result: IInternalFileMatch) => void) {
 		// Support relative paths to files from a root resource (ignores excludes)
 		if (relativeFile === this.filePattern) {
 			const basename = path.basename(this.filePattern);
@@ -506,7 +520,7 @@ export class FileWalker {
 		add(relativeFile);
 	}
 
-	private matchDirectoryTree({ rootEntries, pathToEntries }: IDirectoryTree, rootFolder: string, onResult: (result: IRawFileMatch) => void) {
+	private matchDirectoryTree({ rootEntries, pathToEntries }: IDirectoryTree, rootFolder: string, onResult: (result: IInternalFileMatch) => void) {
 		const self = this;
 		const excludePattern = this.folderExcludePatterns.get(rootFolder);
 		const filePattern = this.filePattern;
@@ -582,7 +596,7 @@ export class FileWalker {
 		});
 	}
 
-	private matchFile(onResult: (result: IRawFileMatch) => void, candidate: IRawFileMatch): void {
+	private matchFile(onResult: (result: IInternalFileMatch) => void, candidate: IInternalFileMatch): void {
 		if (this.isFilePatternMatch(candidate.relativePath) && (!this.includePattern || this.includePattern(candidate.relativePath, candidate.basename))) {
 			this.resultCount++;
 
@@ -678,13 +692,18 @@ class AbsoluteAndRelativeParsedExpression {
 	}
 }
 
-export class FileSearchEngine {
+interface ISearchComplete {
+	limitHit: boolean;
+	stats?: any;
+}
+
+class FileSearchEngine {
 
 	private static readonly BATCH_SIZE = 512;
 
 	private caches: { [cacheKey: string]: Cache; } = Object.create(null);
 
-	public fileSearch(config: ISearchQuery, provider: vscode.SearchProvider): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
+	public fileSearch(config: ISearchQuery, provider: vscode.SearchProvider): PPromise<ISearchComplete, OneOrMore<IFileMatch>> {
 		if (config.sortByScore) {
 			let sortedSearch = this.trySortedSearchFromCache(config);
 			if (!sortedSearch) {
@@ -699,7 +718,7 @@ export class FileSearchEngine {
 				sortedSearch = this.doSortedSearch(walker, provider, config);
 			}
 
-			return new PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>((c, e, p) => {
+			return new PPromise<ISearchComplete, OneOrMore<IFileMatch>>((c, e, p) => {
 				process.nextTick(() => { // allow caller to register progress callback first
 					sortedSearch.then(([result, rawMatches]) => {
 						const serializedMatches = rawMatches.map(rawMatch => this.rawMatchToSearchItem(rawMatch));
@@ -712,17 +731,15 @@ export class FileSearchEngine {
 			});
 		}
 
-		let searchPromise: PPromise<void, IFileSearchProgressItem>;
-		return new PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>((c, e, p) => {
+		let searchPromise: PPromise<void, OneOrMore<IInternalFileMatch>>;
+		return new PPromise<ISearchComplete, OneOrMore<IFileMatch>>((c, e, p) => {
 			const walker = new FileWalker(config);
 			searchPromise = this.doSearch(walker, provider, FileSearchEngine.BATCH_SIZE)
 				.then(c, e, progress => {
 					if (Array.isArray(progress)) {
 						p(progress.map(m => this.rawMatchToSearchItem(m)));
-					} else if ((<IRawFileMatch>progress).relativePath) {
-						p(this.rawMatchToSearchItem(<IRawFileMatch>progress));
-					} else {
-						p(<IProgress>progress);
+					} else if ((<IInternalFileMatch>progress).relativePath) {
+						p(this.rawMatchToSearchItem(<IInternalFileMatch>progress));
 					}
 				});
 		}, () => {
@@ -730,14 +747,14 @@ export class FileSearchEngine {
 		});
 	}
 
-	private rawMatchToSearchItem(match: IRawFileMatch): ISerializedFileMatch {
-		return { path: match.base ? path.join(match.base, match.relativePath) : match.relativePath };
+	private rawMatchToSearchItem(match: IInternalFileMatch): IFileMatch {
+		return { resource: URI.parse(path.join(match.base, match.relativePath)) };
 	}
 
-	private doSortedSearch(walker: FileWalker, provider: vscode.SearchProvider, config: IRawSearchQuery): PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress> {
-		let searchPromise: PPromise<void, IFileSearchProgressItem>;
-		let allResultsPromise = new PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IFileSearchProgressItem>((c, e, p) => {
-			let results: IRawFileMatch[] = [];
+	private doSortedSearch(walker: FileWalker, provider: vscode.SearchProvider, config: IRawSearchQuery): PPromise<[ISearchComplete, IInternalFileMatch[]]> {
+		let searchPromise: PPromise<void, OneOrMore<IInternalFileMatch>>;
+		let allResultsPromise = new PPromise<[ISearchComplete, IInternalFileMatch[]], OneOrMore<IInternalFileMatch>>((c, e, p) => {
+			let results: IInternalFileMatch[] = [];
 			searchPromise = this.doSearch(walker, provider, -1)
 				.then(result => {
 					c([result, results]);
@@ -771,7 +788,7 @@ export class FileSearchEngine {
 		}
 
 		let chained: TPromise<void>;
-		return new PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress>((c, e, p) => {
+		return new PPromise<[ISearchComplete, IInternalFileMatch[]]>((c, e, p) => {
 			chained = allResultsPromise.then(([result, results]) => {
 				const scorerCache: ScorerCache = cache ? cache.scorerCache : Object.create(null);
 				const unsortedResultTime = Date.now();
@@ -801,7 +818,7 @@ export class FileSearchEngine {
 		return this.caches[cacheKey] = new Cache();
 	}
 
-	private trySortedSearchFromCache(config: IRawSearchQuery): TPromise<[ISerializedSearchComplete, IRawFileMatch[]]> {
+	private trySortedSearchFromCache(config: IRawSearchQuery): TPromise<[ISearchComplete, IInternalFileMatch[]]> {
 		const cache = config.cacheKey && this.caches[config.cacheKey];
 		if (!cache) {
 			return undefined;
@@ -811,7 +828,7 @@ export class FileSearchEngine {
 		const cached = this.getResultsFromCache(cache, config.filePattern);
 		if (cached) {
 			let chained: TPromise<void>;
-			return new TPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress>((c, e) => {
+			return new TPromise<[ISearchComplete, IInternalFileMatch[]]>((c, e) => {
 				chained = cached.then(([result, results, cacheStats]) => {
 					const cacheLookupResultTime = Date.now();
 					return this.sortResults(config, results, cache.scorerCache)
@@ -849,18 +866,18 @@ export class FileSearchEngine {
 		return undefined;
 	}
 
-	private sortResults(config: IRawSearchQuery, results: IRawFileMatch[], scorerCache: ScorerCache): TPromise<IRawFileMatch[]> {
+	private sortResults(config: IRawSearchQuery, results: IInternalFileMatch[], scorerCache: ScorerCache): TPromise<IInternalFileMatch[]> {
 		// we use the same compare function that is used later when showing the results using fuzzy scoring
 		// this is very important because we are also limiting the number of results by config.maxResults
 		// and as such we want the top items to be included in this result set if the number of items
 		// exceeds config.maxResults.
 		const query = prepareQuery(config.filePattern);
-		const compare = (matchA: IRawFileMatch, matchB: IRawFileMatch) => compareItemsByScore(matchA, matchB, query, true, FileMatchItemAccessor, scorerCache);
+		const compare = (matchA: IInternalFileMatch, matchB: IInternalFileMatch) => compareItemsByScore(matchA, matchB, query, true, FileMatchItemAccessor, scorerCache);
 
 		return arrays.topAsync(results, compare, config.maxResults, 10000);
 	}
 
-	private sendProgress(results: ISerializedFileMatch[], progressCb: (batch: ISerializedFileMatch[]) => void, batchSize: number) {
+	private sendProgress(results: IFileMatch[], progressCb: (batch: IFileMatch[]) => void, batchSize: number) {
 		if (batchSize && batchSize > 0) {
 			for (let i = 0; i < results.length; i += batchSize) {
 				progressCb(results.slice(i, i + batchSize));
@@ -870,14 +887,14 @@ export class FileSearchEngine {
 		}
 	}
 
-	private getResultsFromCache(cache: Cache, searchValue: string): PPromise<[ISerializedSearchComplete, IRawFileMatch[], CacheStats], IProgress> {
+	private getResultsFromCache(cache: Cache, searchValue: string): PPromise<[ISearchComplete, IInternalFileMatch[], CacheStats]> {
 		if (path.isAbsolute(searchValue)) {
 			return null; // bypass cache if user looks up an absolute path where matching goes directly on disk
 		}
 
 		// Find cache entries by prefix of search value
 		const hasPathSep = searchValue.indexOf(path.sep) >= 0;
-		let cached: PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IFileSearchProgressItem>;
+		let cached: PPromise<[ISearchComplete, IInternalFileMatch[]], OneOrMore<IInternalFileMatch>>;
 		let wasResolved: boolean;
 		for (let previousSearch in cache.resultsToSearchCache) {
 
@@ -899,12 +916,12 @@ export class FileSearchEngine {
 			return null;
 		}
 
-		return new PPromise<[ISerializedSearchComplete, IRawFileMatch[], CacheStats], IProgress>((c, e, p) => {
+		return new PPromise<[ISearchComplete, IInternalFileMatch[], CacheStats]>((c, e, p) => {
 			cached.then(([complete, cachedEntries]) => {
 				const cacheFilterStartTime = Date.now();
 
 				// Pattern match on results
-				let results: IRawFileMatch[] = [];
+				let results: IInternalFileMatch[] = [];
 				const normalizedSearchValueLowercase = strings.stripWildcards(searchValue).toLowerCase();
 				for (let i = 0; i < cachedEntries.length; i++) {
 					let entry = cachedEntries[i];
@@ -928,9 +945,9 @@ export class FileSearchEngine {
 		});
 	}
 
-	private doSearch(walker: FileWalker, provider: vscode.SearchProvider, batchSize?: number): PPromise<ISerializedSearchComplete, IFileSearchProgressItem> {
-		return new PPromise<ISerializedSearchComplete, IFileSearchProgressItem>((c, e, p) => {
-			let batch: IRawFileMatch[] = [];
+	private doSearch(walker: FileWalker, provider: vscode.SearchProvider, batchSize?: number): PPromise<ISearchComplete, OneOrMore<IInternalFileMatch>> {
+		return new PPromise<ISearchComplete, OneOrMore<IInternalFileMatch>>((c, e, p) => {
+			let batch: IInternalFileMatch[] = [];
 			walker.walk(provider, (match) => {
 				if (match) {
 					if (batchSize) {
@@ -981,22 +998,22 @@ export class FileSearchEngine {
 
 class Cache {
 
-	public resultsToSearchCache: { [searchValue: string]: PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IFileSearchProgressItem>; } = Object.create(null);
+	public resultsToSearchCache: { [searchValue: string]: PPromise<[ISearchComplete, IInternalFileMatch[]], OneOrMore<IInternalFileMatch>>; } = Object.create(null);
 
 	public scorerCache: ScorerCache = Object.create(null);
 }
 
-const FileMatchItemAccessor = new class implements IItemAccessor<IRawFileMatch> {
+const FileMatchItemAccessor = new class implements IItemAccessor<IInternalFileMatch> {
 
-	public getItemLabel(match: IRawFileMatch): string {
+	public getItemLabel(match: IInternalFileMatch): string {
 		return match.basename; // e.g. myFile.txt
 	}
 
-	public getItemDescription(match: IRawFileMatch): string {
+	public getItemDescription(match: IInternalFileMatch): string {
 		return match.relativePath.substr(0, match.relativePath.length - match.basename.length - 1); // e.g. some/path/to/file
 	}
 
-	public getItemPath(match: IRawFileMatch): string {
+	public getItemPath(match: IInternalFileMatch): string {
 		return match.relativePath; // e.g. some/path/to/file/myFile.txt
 	}
 };
