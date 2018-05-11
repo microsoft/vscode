@@ -249,7 +249,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 
-	addMenu(menuTitle: string, menuId: MenuId): void {
+	private addMenu(menuTitle: string, menuId: MenuId): void {
 		if (this.menus[menuTitle]) {
 			throw new Error(`Menu ${menuTitle} already exists.`);
 		}
@@ -293,7 +293,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		});
 	}
 
-	showMenu(title: string): void {
+	private showMenu(title: string): void {
 		this.menus[title].menuItemsElement.addClass('menubar-menu-items-holder-open');
 
 		let boundingRect = this.menus[title].element.getHTMLElement().getBoundingClientRect();
@@ -307,7 +307,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		});
 	}
 
-	addMenuItem(title: string, parent: string, action: IAction): void {
+	private addMenuItem(title: string, parent: string, action: IAction): void {
 		if (!this.menus[parent]) {
 			throw new Error(`Menu ${parent} does not exist.`);
 		}
