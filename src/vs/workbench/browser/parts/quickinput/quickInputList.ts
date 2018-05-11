@@ -353,16 +353,18 @@ export class QuickInputList {
 			});
 		}
 
+		const shownElements = this.elements.filter(element => !element.hidden);
+
 		// Sort by value
 		const normalizedSearchValue = query.toLowerCase();
-		this.elements.sort((a, b) => {
+		shownElements.sort((a, b) => {
 			if (!query) {
 				return a.index - b.index; // restore natural order
 			}
 			return compareEntries(a, b, normalizedSearchValue);
 		});
 
-		this.list.splice(0, this.list.length, this.elements.filter(element => !element.hidden));
+		this.list.splice(0, this.list.length, shownElements);
 		this.list.setFocus([]);
 		this.list.layout();
 
