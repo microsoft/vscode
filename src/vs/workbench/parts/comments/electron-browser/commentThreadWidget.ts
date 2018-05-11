@@ -68,6 +68,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	protected _metaHeading: HTMLElement;
 	protected _actionbarWidget: ActionBar;
 	private _bodyElement: HTMLElement;
+	private _textArea: HTMLTextAreaElement;
 	private _commentsElement: HTMLElement;
 	private _commentElements: CommentNode[];
 	private _resizeObserver: any;
@@ -256,28 +257,34 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		if (this._commentThread.reply) {
 			const commentForm = $('.comment-form').appendTo(this._bodyElement).getHTMLElement();
-			const reviewThreadReplyButton = <HTMLButtonElement>$('button.review-thread-reply-button').appendTo(commentForm).getHTMLElement();
-			reviewThreadReplyButton.title = 'Reply...';
-			reviewThreadReplyButton.textContent = 'Reply...';
-			const textArea = <HTMLTextAreaElement>$('textarea').appendTo(commentForm).getHTMLElement();
-			textArea.placeholder = 'Reply...';
+			this._textArea = <HTMLTextAreaElement>$('textarea').appendTo(commentForm).getHTMLElement();
+			const hasExistingComments = this._commentThread.comments.length > 0;
+			this._textArea.placeholder = hasExistingComments ? 'Reply...' : 'Type a new comment';
 
-			// bind click/escape actions for reviewThreadReplyButton and textArea
-			reviewThreadReplyButton.onclick = () => {
-				if (!dom.hasClass(commentForm, 'expand')) {
-					dom.addClass(commentForm, 'expand');
-					textArea.focus();
-				}
-			};
+			// Only add the additional step of clicking a reply button to expand the textarea when there are existing comments
+			if (hasExistingComments) {
+				const reviewThreadReplyButton = <HTMLButtonElement>$('button.review-thread-reply-button').appendTo(commentForm).getHTMLElement();
+				reviewThreadReplyButton.title = 'Reply...';
+				reviewThreadReplyButton.textContent = 'Reply...';
+				// bind click/escape actions for reviewThreadReplyButton and textArea
+				reviewThreadReplyButton.onclick = () => {
+					if (!dom.hasClass(commentForm, 'expand')) {
+						dom.addClass(commentForm, 'expand');
+						this._textArea.focus();
+					}
+				};
 
-			dom.addDisposableListener(textArea, 'blur', () => {
-				if (textArea.value === '' && dom.hasClass(commentForm, 'expand')) {
-					dom.removeClass(commentForm, 'expand');
-				}
-			});
+				dom.addDisposableListener(this._textArea, 'blur', () => {
+					if (this._textArea.value === '' && dom.hasClass(commentForm, 'expand')) {
+						dom.removeClass(commentForm, 'expand');
+					}
+				});
+			} else {
+				dom.addClass(commentForm, 'expand');
+			}
 
-			dom.addDisposableListener(textArea, 'keydown', (ev: KeyboardEvent) => {
-				if (textArea.value === '' && ev.keyCode === 27) {
+			dom.addDisposableListener(this._textArea, 'keydown', (ev: KeyboardEvent) => {
+				if (this._textArea.value === '' && ev.keyCode === 27) {
 					if (dom.hasClass(commentForm, 'expand')) {
 						dom.removeClass(commentForm, 'expand');
 					}
@@ -293,9 +300,9 @@ export class ReviewZoneWidget extends ZoneWidget {
 				let newComment = await this.commandService.executeCommand(this._replyCommand.id, this.editor.getModel().uri, {
 					start: { line: lineNumber, column: 1 },
 					end: { line: lineNumber, column: 1 }
-				}, this._commentThread, textArea.value);
+				}, this._commentThread, this._textArea.value);
 				if (newComment) {
-					textArea.value = '';
+					this._textArea.value = '';
 					this._commentThread.comments.push(newComment);
 					let newCommentNode = new CommentNode(newComment);
 					this._commentElements.push(newCommentNode);
@@ -319,6 +326,11 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		if (this._commentThread.collapsibleState === modes.CommentThreadCollapsibleState.Expanded) {
 			this.show({ lineNumber: lineNumber, column: 1 }, 2);
+		}
+
+		// If there are no existing comments, place focus on the text area. This must be done after show, which also moves focus.
+		if (this._commentThread.reply && !this._commentThread.comments.length) {
+			this._textArea.focus();
 		}
 	}
 
