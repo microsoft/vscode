@@ -32,7 +32,7 @@ export class HighlightedLabel implements IDisposable {
 		return this.domNode;
 	}
 
-	set(text: string, highlights: IHighlight[] = []) {
+	set(text: string, highlights: IHighlight[] = [], escapedNewLines: boolean = false) {
 		if (!text) {
 			text = '';
 		}
@@ -44,13 +44,50 @@ export class HighlightedLabel implements IDisposable {
 			highlights = [];
 		}
 
+		const originalHighlights = [...highlights];
 		this.text = text;
 		this.highlights = highlights;
+		if (escapedNewLines) {
+			this.highlights = this.adjustHighlightsForEscapedLineBreaks(this.highlights);
+		}
 		this.render();
+		this.highlights = originalHighlights;
+	}
+
+	private adjustHighlightsForEscapedLineBreaks(highlights: IHighlight[]): IHighlight[] {
+		const lineBreaksIndices = this.getEscapedLineBreakIndices(this.text);
+
+		if (lineBreaksIndices.length === 0 || highlights.length === 0) {
+			return highlights;
+		}
+
+		highlights.map((highlight) => {
+			for (let i = 0; i < lineBreaksIndices.length; i++) {
+				if (lineBreaksIndices[i] < highlight.start) {
+					++highlight.start;
+				}
+				if (lineBreaksIndices[i] < highlight.end) {
+					++highlight.end;
+				}
+			}
+			return highlight;
+		});
+		return highlights;
+	}
+
+	private getEscapedLineBreakIndices(text: string): number[] {
+		const lineBreaksIndices: number[] = [];
+		const regex = /\\n/g;
+		let current;
+		while ((current = regex.exec(text)) !== null) {
+			lineBreaksIndices.push(current.index);
+		}
+		return lineBreaksIndices;
 	}
 
 	private render() {
 		dom.clearNode(this.domNode);
+
 
 		let htmlContent: string[] = [],
 			highlight: IHighlight,
