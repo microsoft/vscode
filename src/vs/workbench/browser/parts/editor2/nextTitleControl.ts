@@ -32,12 +32,14 @@ import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector }
 import { Themable } from 'vs/workbench/common/theme';
 import { isDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Dimension } from 'vs/base/browser/dom';
+import { Dimension, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { INextEditorGroupsAccessor, INextEditorPartOptions } from 'vs/workbench/browser/parts/editor2/editor2';
-import { listActiveSelectionBackground } from 'vs/platform/theme/common/colorRegistry';
+import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { LocalSelectionTransfer, DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
+import { applyDragImage } from 'vs/base/browser/dnd';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -47,6 +49,9 @@ export interface IToolbarActions {
 export abstract class NextTitleControl extends Themable {
 
 	protected closeOneEditorAction: CloseOneEditorAction;
+
+	protected readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
+	protected readonly editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 
 	private currentPrimaryEditorActionIds: string[] = [];
 	private currentSecondaryEditorActionIds: string[] = [];
@@ -228,6 +233,34 @@ export abstract class NextTitleControl extends Themable {
 		this.currentSecondaryEditorActionIds = [];
 	}
 
+	protected enableGroupDragging(element: HTMLElement): void {
+
+		// Drag start
+		this._register(addDisposableListener(element, EventType.DRAG_START, (e: DragEvent) => {
+			if (e.target !== element) {
+				return; // only if originating from tabs container
+			}
+
+			// Set editor group as transfer
+			this.groupTransfer.setData([new DraggedEditorGroupIdentifier(this.group.id)], DraggedEditorGroupIdentifier.prototype);
+			e.dataTransfer.effectAllowed = 'copyMove';
+
+			// Apply some datatransfer types to allow for dragging the element outside of the application
+			const resource = toResource(this.group.activeEditor, { supportSideBySide: true });
+			if (resource) {
+				this.instantiationService.invokeFunction(fillResourceDataTransfers, [resource], e);
+			}
+
+			// Drag Image
+			applyDragImage(e, localize('editorGroup', "Editor Group"), 'monaco-editor-group-drag-image');
+		}));
+
+		// Drag end
+		this._register(addDisposableListener(element, EventType.DRAG_END, () => {
+			this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
+		}));
+	}
+
 	protected onContextMenu(editor: IEditorInput, e: Event, node: HTMLElement): void {
 
 		// Update the resource context
@@ -251,7 +284,7 @@ export abstract class NextTitleControl extends Themable {
 			getActions: () => TPromise.as(actions),
 			getActionsContext: () => ({ groupId: this.group.id, editorIndex: this.group.getIndexOfEditor(editor) } as IEditorCommandsContext),
 			getKeyBinding: (action) => this.getKeybinding(action),
-			onHide: (cancel) => {
+			onHide: () => {
 
 				// restore previous context
 				this.resourceContext.set(currentContext);
@@ -312,12 +345,12 @@ export abstract class NextTitleControl extends Themable {
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 	// Drag Feedback
-	const dragImageColor = theme.getColor(listActiveSelectionBackground);
-	if (dragImageColor) {
-		collector.addRule(`
-			.monaco-editor-group-drag-image {
-				background: ${dragImageColor};
-			}
-		`);
-	}
+	const dragImageBackground = theme.getColor(listActiveSelectionBackground);
+	const dragImageForeground = theme.getColor(listActiveSelectionForeground);
+	collector.addRule(`
+		.monaco-editor-group-drag-image {
+			background: ${dragImageBackground};
+			color: ${dragImageForeground};
+		}
+	`);
 });

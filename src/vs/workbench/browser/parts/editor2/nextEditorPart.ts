@@ -32,7 +32,7 @@ import { GroupOrientation as LegacyGroupOrientation } from 'vs/workbench/service
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { NextEditorDragAndDrop } from './nextEditorDragAndDrop';
+import { NextEditorDropTarget } from 'vs/workbench/browser/parts/editor2/nextEditorDropTarget';
 
 // TODO@grid enable minimized/maximized groups in one dimension
 
@@ -470,7 +470,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		const sourceView = this.assertGroupView(group);
 		const targetView = this.assertGroupView(target);
 
-		// Move editors over
+		// Move/Copy editors over into target
 		let index = targetView.count;
 		sourceView.editors.forEach(editor => {
 			const inactive = sourceView.activeEditor !== editor;
@@ -514,10 +514,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 	}
 
 	protected updateStyles(): void {
-
-		// Part container
-		const container = this.getContainer();
-		container.style.backgroundColor = this.getColor(editorBackground);
+		this.container.style.backgroundColor = this.getColor(editorBackground);
 	}
 
 	createContentArea(parent: HTMLElement): HTMLElement {
@@ -530,8 +527,8 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		// Grid control
 		this.doCreateGridControl(this.container);
 
-		// Drag and Drop Support
-		this._register(this.instantiationService.createInstance(NextEditorDragAndDrop, this, this.container));
+		// Drop support
+		this._register(this.instantiationService.createInstance(NextEditorDropTarget, this, this.container));
 
 		return this.container;
 	}

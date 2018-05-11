@@ -74,9 +74,12 @@ export interface INextEditorGroupsAccessor {
 	getGroup(identifier: GroupIdentifier): INextEditorGroupView;
 
 	activateGroup(identifier: INextEditorGroupView | GroupIdentifier): INextEditorGroupView;
+	focusGroup(identifier: INextEditorGroupView | GroupIdentifier): INextEditorGroupView;
+
 	addGroup(location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): INextEditorGroupView;
-	moveGroup(group: INextEditorGroupView | GroupIdentifier, location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection): INextEditorGroupView;
 	mergeGroup(group: INextEditorGroupView | GroupIdentifier, target: INextEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): INextEditorGroupView;
+
+	moveGroup(group: INextEditorGroupView | GroupIdentifier, location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection): INextEditorGroupView;
 	copyGroup(group: INextEditorGroupView | GroupIdentifier, location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection): INextEditorGroupView;
 }
 

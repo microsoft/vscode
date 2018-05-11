@@ -5,8 +5,8 @@
 
 'use strict';
 
-import 'vs/css!./media/nextEditorDragAndDrop';
-import { LocalSelectionTransfer, DraggedEditorIdentifier, DragCounter, ResourcesDropHandler, DraggedEditorGroupIdentifier } from 'vs/workbench/browser/dnd';
+import 'vs/css!./media/nextEditorDropTarget';
+import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier } from 'vs/workbench/browser/dnd';
 import { addDisposableListener, EventType, EventHelper, isAncestor, toggleClass, addClass } from 'vs/base/browser/dom';
 import { INextEditorGroupsAccessor, EDITOR_TITLE_HEIGHT, INextEditorGroupView, getActiveTextEditorOptions } from 'vs/workbench/browser/parts/editor2/editor2';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND, Themable } from 'vs/workbench/common/theme';
@@ -87,9 +87,12 @@ class DropOverlay extends Themable {
 		// Update position and drop effect on drag over
 		this._register(addDisposableListener(this.container, EventType.DRAG_OVER, (e: DragEvent) => {
 
-			// Update the dropEffect, otherwise it would look like a "move" operation. but only if we are
-			// not dragging a tab actually because there we support both moving as well as copying
-			if (!this.editorTransfer.hasData(DraggedEditorIdentifier.prototype) && !this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) {
+			// Update the dropEffect to "copy" if there is no local data to be dragged because
+			// in that case we can only copy the data into and not move it from its source
+			if (
+				!this.editorTransfer.hasData(DraggedEditorIdentifier.prototype) &&
+				!this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)
+			) {
 				e.dataTransfer.dropEffect = 'copy';
 			}
 
@@ -203,11 +206,7 @@ class DropOverlay extends Themable {
 		// Check for URI transfer
 		else {
 			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: true /* open workspace instead of file if dropped */ });
-			dropHandler.handleDrop(event, targetGroupIdentifier => {
-				const targetGroup = this.accessor.getGroup(targetGroupIdentifier);
-
-				this.accessor.activateGroup(targetGroup);
-			}, () => ensureTargetGroup().id);
+			dropHandler.handleDrop(event, targetGroupIdentifier => this.accessor.activateGroup(targetGroupIdentifier), () => ensureTargetGroup().id);
 		}
 	}
 
@@ -301,11 +300,11 @@ class DropOverlay extends Themable {
 	}
 }
 
-export class NextEditorDragAndDrop extends Themable {
+export class NextEditorDropTarget extends Themable {
 
 	private _overlay: DropOverlay;
 
-	private counter = new DragCounter(); // see https://github.com/Microsoft/vscode/issues/14470
+	private counter = 0;
 
 	private readonly editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 	private readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
@@ -346,7 +345,7 @@ export class NextEditorDragAndDrop extends Themable {
 		}
 
 		// Signal DND start
-		this.counter.increment();
+		this.counter++;
 		this.updateContainer(true);
 
 		const target = event.target as HTMLElement;
@@ -368,15 +367,15 @@ export class NextEditorDragAndDrop extends Themable {
 	}
 
 	private onDragLeave(): void {
-		this.counter.decrement();
+		this.counter--;
 
-		if (!this.counter.value) {
+		if (this.counter === 0) {
 			this.updateContainer(false);
 		}
 	}
 
 	private onDragEnd(): void {
-		this.counter.reset();
+		this.counter = 0;
 
 		this.updateContainer(false);
 		this.disposeOverlay();

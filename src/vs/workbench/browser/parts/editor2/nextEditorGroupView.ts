@@ -252,12 +252,13 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 				return; // not when clicking on actions
 			}
 
-			EventHelper.stop(e);
-
-			this.focus();
+			// timeout to keep focus in editor after mouse up
+			setTimeout(() => {
+				this.focus();
+			});
 		};
 
-		this._register(addDisposableListener(this.titleContainer, EventType.MOUSE_UP, e => handleTitleClickOrTouch(e)));
+		this._register(addDisposableListener(this.titleContainer, EventType.MOUSE_DOWN, e => handleTitleClickOrTouch(e)));
 		this._register(addDisposableListener(this.titleContainer, TouchEventType.Tap, e => handleTitleClickOrTouch(e)));
 
 		// Editor Container

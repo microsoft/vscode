@@ -74,7 +74,7 @@ export interface INextEditorService {
 	/**
 	 * All text editor controls that are currently visible across all editor groups.
 	 */
-	readonly visibleTextEditorControls: ICodeEditor[];
+	readonly visibleTextEditorControls: ReadonlyArray<ICodeEditor>;
 
 	/**
 	 * All editors that are currently visible across all editor groups.
@@ -110,8 +110,8 @@ export interface INextEditorService {
 	 * active group. Use `SIDE_GROUP_TYPE` to open the editor in a new editor group to the side
 	 * of the currently active group.
 	 */
-	openEditors(editors: IEditorInputWithOptions[], group?: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Thenable<IEditor[]>;
-	openEditors(editors: IResourceEditor[], group?: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Thenable<IEditor[]>;
+	openEditors(editors: IEditorInputWithOptions[], group?: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Thenable<ReadonlyArray<IEditor>>;
+	openEditors(editors: IResourceEditor[], group?: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Thenable<ReadonlyArray<IEditor>>;
 
 	/**
 	 * Find out if the provided editor (or resource of an editor) is opened in any group.
