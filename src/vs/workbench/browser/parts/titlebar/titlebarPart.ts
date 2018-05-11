@@ -7,6 +7,7 @@
 
 import * as path from 'path';
 import 'vs/css!./media/titlebarpart';
+import 'vs/workbench/browser/parts/menubar/menubar.contribution';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, $ } from 'vs/base/browser/builder';
 import * as paths from 'vs/base/common/paths';
@@ -36,6 +37,17 @@ import { Color } from 'vs/base/common/color';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { trim } from 'vs/base/common/strings';
 import { addDisposableListener, EventType, EventHelper, Dimension } from 'vs/base/browser/dom';
+import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+
+interface Menu {
+	title: string;
+	element: Builder;
+	menuItemsElement: Builder;
+	actions?: IAction[];
+}
+
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -48,6 +60,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private static readonly TITLE_SEPARATOR = isMacintosh ? ' — ' : ' - '; // macOS uses special - separator
 
 	private titleContainer: Builder;
+	private menubarContainer: Builder;
 	private title: Builder;
 	private pendingTitle: string;
 	private initialTitleFontSize: number;
@@ -57,6 +70,12 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private properties: ITitleProperties;
 	private activeEditorListeners: IDisposable[];
+
+	private menus: {
+		[title: string]: Menu;
+	} = {};
+
+
 
 	constructor(
 		id: string,
@@ -69,7 +88,9 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IThemeService themeService: IThemeService,
-		@ILifecycleService private lifecycleService: ILifecycleService
+		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IMenuService private menuService: IMenuService,
+		@IContextKeyService private contextKeyService: IContextKeyService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
@@ -82,7 +103,6 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private init(): void {
-
 		// Initial window title when loading is done
 		this.lifecycleService.when(LifecyclePhase.Running).then(() => this.setTitle(this.getWindowTitle()));
 	}
@@ -228,6 +248,74 @@ export class TitlebarPart extends Part implements ITitleService {
 		});
 	}
 
+
+	addMenu(menuTitle: string, menuId: MenuId): void {
+		if (this.menus[menuTitle]) {
+			throw new Error(`Menu ${menuTitle} already exists.`);
+		}
+
+		const menu: IMenu = this.menuService.createMenu(menuId, this.contextKeyService);
+
+		console.log(menu);
+
+		let menuElement = $(this.menubarContainer).div({ class: 'menubar-menu-button' });
+		$(menuElement).div({ class: 'menubar-menu-title' }).text(menuTitle);
+		let menuItemsHolder = $(menuElement).div({ class: 'menubar-menu-items-holder' });
+
+		this.menus[menuTitle] = {
+			title: menuTitle,
+			element: menuElement,
+			menuItemsElement: menuItemsHolder
+		};
+
+		const updateActions = () => {
+			this.menus[menuTitle].actions = [];
+			let groups = menu.getActions();
+			for (let group of groups) {
+				const [, actions] = group;
+				this.menus[menuTitle].actions.push(...actions);
+				this.menus[menuTitle].actions.push(new Separator());
+			}
+
+			this.menus[menuTitle].actions.pop();
+
+			this.menus[menuTitle].actions.forEach((action: IAction) => {
+				this.addMenuItem(action.label, menuTitle, action);
+			});
+		};
+
+		menu.onDidChange(updateActions, null);
+		updateActions();
+
+		this.menus[menuTitle].element.on(EventType.CLICK, () => {
+			console.log('element clicked');
+			this.showMenu(menuTitle);
+		});
+	}
+
+	showMenu(title: string): void {
+		this.menus[title].menuItemsElement.addClass('menubar-menu-items-holder-open');
+
+		let boundingRect = this.menus[title].element.getHTMLElement().getBoundingClientRect();
+		console.log(this.menus[title].actions);
+
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => ({ x: boundingRect.left, y: boundingRect.bottom }),
+			getActions: () => TPromise.as(
+				this.menus[title].actions
+			)
+		});
+	}
+
+	addMenuItem(title: string, parent: string, action: IAction): void {
+		if (!this.menus[parent]) {
+			throw new Error(`Menu ${parent} does not exist.`);
+		}
+
+		let menuitem = $(this.menus[parent].menuItemsElement).div({ class: 'menubar-menu-item' });
+		menuitem.text(title);
+	}
+
 	public createContentArea(parent: HTMLElement): HTMLElement {
 		const SVGNS = 'http://www.w3.org/2000/svg';
 		this.titleContainer = $(parent);
@@ -240,6 +328,8 @@ export class TitlebarPart extends Part implements ITitleService {
 				EventHelper.stop(e, true);
 				this.windowService.closeWindow().then(null, errors.onUnexpectedError);
 			});
+
+			this.menubarContainer = $(this.titleContainer).div({ class: 'menubar-container' });
 		}
 
 		// Title
@@ -274,7 +364,9 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		if (!isMacintosh) {
 			// The svgs and styles for the titlebar come from the electron-titlebar-windows package
-			$(this.titleContainer).div({ class: 'window-icon' }, (builder) => {
+			let windowControls = $(this.titleContainer).div({ class: 'window-controls-container' });
+
+			$(windowControls).div({ class: 'window-icon' }, (builder) => {
 				const svg = $svg('svg', { x: 0, y: 0, viewBox: '0 0 10 1' });
 				svg.appendChild($svg('rect', { fill: 'currentColor', width: 10, height: 1 }));
 				builder.getHTMLElement().appendChild(svg);
@@ -282,7 +374,7 @@ export class TitlebarPart extends Part implements ITitleService {
 				this.windowService.minimizeWindow().then(null, errors.onUnexpectedError);
 			});
 
-			$(this.titleContainer).div({ class: 'window-icon' }, (builder) => {
+			$(windowControls).div({ class: 'window-icon' }, (builder) => {
 				const svgf = $svg('svg', { class: 'window-maximize', x: 0, y: 0, viewBox: '0 0 10 10' });
 				svgf.appendChild($svg('path', { fill: 'currentColor', d: 'M 0 0 L 0 10 L 10 10 L 10 0 L 0 0 z M 1 1 L 9 1 L 9 9 L 1 9 L 1 1 z' }));
 				builder.getHTMLElement().appendChild(svgf);
@@ -305,7 +397,7 @@ export class TitlebarPart extends Part implements ITitleService {
 				}).then(null, errors.onUnexpectedError);
 			});
 
-			$(this.titleContainer).div({ class: 'window-icon window-close' }, (builder) => {
+			$(windowControls).div({ class: 'window-icon window-close' }, (builder) => {
 				const svg = $svg('svg', { x: '0', y: '0', viewBox: '0 0 10 10' });
 				svg.appendChild($svg('polygon', { fill: 'currentColor', points: '10,1 9,0 5,4 1,0 0,1 4,5 0,9 1,10 5,6 9,10 10,9 6,5' }));
 				builder.getHTMLElement().appendChild(svg);
@@ -315,6 +407,40 @@ export class TitlebarPart extends Part implements ITitleService {
 
 			this.windowService.isMaximized().then((max) => this.onDidChangeMaximized(max), errors.onUnexpectedError);
 			this.windowService.onDidChangeMaximize(this.onDidChangeMaximized, this);
+		}
+
+		// Build the menubar
+		if (this.menubarContainer) {
+
+			// let menuTitles = ['File', 'Edit'];
+			// let menuIds = [ MenuId.MenubarFileMenu, MenuId.MenubarEditMenu ];
+
+			// let menuTitles = ['File', 'Edit', 'Selection', 'View', 'Go', 'Debug', 'Tasks', 'Help'];
+			// menuTitles.forEach(menuTitle => {
+			// 	this.addMenu(menuTitle);
+			// });
+
+			this.addMenu('File', MenuId.MenubarFileMenu);
+			this.addMenu('Edit', MenuId.MenubarEditMenu);
+
+			/**
+			 * File
+			 */
+
+			// this.addMenuItem('New File', 'File');
+			// this.addMenuItem('New Window', 'File');
+			// this.addMenuItem('Open File...', 'File');
+			// this.addMenuItem('Exit', 'File');
+
+			/**
+			 * Edit
+			 */
+
+			// this.addMenuItem('Undo', 'Edit');
+			// this.addMenuItem('Redo', 'Edit');
+			// this.addMenuItem('Cut', 'Edit');
+			// this.addMenuItem('Copy', 'Edit');
+			// this.addMenuItem('Paste', 'Edit');
 		}
 
 		// Since the title area is used to drag the window, we do not want to steal focus from the
@@ -338,8 +464,8 @@ export class TitlebarPart extends Part implements ITitleService {
 	private onDidChangeMaximized(maximized: boolean) {
 		($(this.titleContainer).getHTMLElement().querySelector('.window-maximize') as SVGElement).style.display = maximized ? 'none' : 'inline';
 		($(this.titleContainer).getHTMLElement().querySelector('.window-unmaximize') as SVGElement).style.display = maximized ? 'inline' : 'none';
-		$(this.titleContainer).getHTMLElement().style.paddingLeft = maximized ? '0.15em' : '0.5em';
-		$(this.titleContainer).getHTMLElement().style.paddingRight = maximized ? 'calc(2em / 12)' : '0';
+		// $(this.titleContainer).getHTMLElement().style.paddingLeft = maximized ? '0.15em' : '0.5em';
+		// $(this.titleContainer).getHTMLElement().style.paddingRight = maximized ? 'calc(2em / 12)' : '0';
 	}
 
 	protected updateStyles(): void {

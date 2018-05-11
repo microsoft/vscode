@@ -18,6 +18,7 @@
 	line-height: 22px;
 	height: 22px;
 	display: flex;
+	order: 1;
 }
 
 .monaco-workbench > .part.titlebar > .window-title {
@@ -26,7 +27,7 @@
 	white-space: nowrap;
 	line-height: 22px;
 	text-overflow: ellipsis;
-	-webkit-app-region: drag;
+	/* -webkit-app-region: drag; */
 	zoom: 1; /* prevent zooming */
 }
 
@@ -37,30 +38,33 @@
 .monaco-workbench.windows > .part.titlebar, .monaco-workbench.linux > .part.titlebar {
 	line-height: 25px;
 	height: 25px;
-	padding: 0 0 0 0.5em;
-	-webkit-app-region: no-drag;
+	padding: 0;
+	justify-content: center;
 }
 
 .monaco-workbench.windows > .part.titlebar > .window-title, .monaco-workbench.linux > .part.titlebar > .window-title  {
 	line-height: 25px;
-	flex-grow: 1;
-	margin-left: 0.35em;
-	-webkit-app-region: drag;
+	text-align: center;
+	position: fixed;
+	width: 100vw;
+	left: calc(-100vw + 100%);
 }
 
 .monaco-workbench > .part.titlebar > .window-appicon {
 	width: calc(16em / 12);
 	height: calc(16em / 12);
 	-webkit-app-region: no-drag;
+	margin: 0 10px;
+	position: relative;
+	z-index: 100;
+	order: 2;
 }
 
-.monaco-workbench > .part.titlebar > .window-icon {
+.monaco-workbench > .part.titlebar > .window-controls-container > .window-icon {
 	width: calc(46em / 12);
 	height: calc(100% - 1.5em / 12);
 	margin-bottom: calc(1.5em / 12);
-	display: flex;
-	align-items: center;
-	justify-content: center;
+	display: inline-block;
 	-webkit-app-region: no-drag;
 	-webkit-transition: background-color .2s;
 	transition: background-color .2s;
@@ -70,21 +74,70 @@
 	display: none;
 }
 
-.monaco-workbench > .part.titlebar > .window-icon svg {
+.monaco-workbench > .part.titlebar > .window-controls-container {
+	display: block;
+	flex-grow: 0;
+	flex-shrink: 0;
+	margin-left: auto;
+	text-align: center;
+	position: relative;
+	z-index: 100;
+	bottom: calc(1.5em / 12);
+	order: 4;
+	-webkit-app-region: no-drag;
+}
+
+.monaco-workbench > .part.titlebar > .window-controls-container > .window-icon svg {
 	width: calc(10em / 12);
 	height: calc(10em / 12);
 	shape-rendering: crispEdges;
+	text-align: center;
 }
 
-.monaco-workbench > .part.titlebar > .window-icon:hover {
+.monaco-workbench > .part.titlebar > .window-controls-container > .window-icon:hover {
 	background-color: rgba(255, 255, 255, 0.1);
 }
 
-.monaco-workbench > .part.titlebar.light > .window-icon:hover {
+.monaco-workbench > .part.titlebar.light > .window-controls-container > .window-icon:hover {
 	background-color: rgba(0, 0, 0, 0.1);
 }
 
-.monaco-workbench > .part.titlebar.titlebar > .window-close:hover {
+.monaco-workbench > .part.titlebar.titlebar > .window-controls-container > .window-close:hover {
 	background-color: rgba(232, 17, 35, 0.9);
 	color: rgba(255, 255, 255, 1);
+}
+
+.monaco-workbench > .part.titlebar > .menubar-container {
+	display: flex;
+	position: relative;
+	z-index: 100;
+	-webkit-app-region: no-drag;
+	order: 3;
+}
+
+.monaco-workbench > .part.titlebar > .menubar-container > .menubar-menu-button {
+	display: block;
+	min-width: 0;
+	padding: 5px;
+	position: relative;
+	z-index: 900;
+	cursor: pointer;
+}
+
+.monaco-workbench > .part.titlebar > .menubar-container > .menubar-menu-button:hover {
+	background-color: rgba(255, 255, 255, 0.1);
+}
+
+.monaco-workbench > .part.titlebar.light > .menubar-container > .menubar-menu-button:hover {
+	background-color: rgba(0, 0, 0, 0.1);
+}
+
+.menubar-menu-items-holder {
+	display: none;
+	position: absolute;
+}
+
+.menubar-menu-items-holder-open {
+	display: flex;
+	flex-direction: column;
 }
