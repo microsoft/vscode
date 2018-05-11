@@ -76,6 +76,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _isCollapsed;
 	private _toggleAction: Action;
 	private _commentThread: modes.CommentThread;
+	private _commentGlyph: CommentGlyphWidget;
 	public get commentThread(): modes.CommentThread {
 		return this._commentThread;
 	}
@@ -162,6 +163,10 @@ export class ReviewZoneWidget extends ZoneWidget {
 				this.show({ lineNumber: this._commentThread.range.startLineNumber, column: 1 }, 2);
 			}
 			else {
+				if (this._commentThread.comments.length === 0) {
+					this.dispose();
+					return null;
+				}
 				this._isCollapsed = true;
 				this.hide();
 			}
@@ -235,10 +240,10 @@ export class ReviewZoneWidget extends ZoneWidget {
 	}
 
 	display(lineNumber: number) {
-		const commentWidget = new CommentGlyphWidget(`review_${lineNumber}`, this.editor, lineNumber, () => {
+		this._commentGlyph = new CommentGlyphWidget(`review_${lineNumber}`, this.editor, lineNumber, () => {
 			this.toggleExpand();
 		});
-		this.editor.layoutContentWidget(commentWidget);
+		this.editor.layoutContentWidget(this._commentGlyph);
 
 		this._localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this._localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
@@ -410,6 +415,8 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this.editor.changeDecorations(accessor => {
 			accessor.deltaDecorations(this._decorationIDs, []);
 		});
+		this.editor.removeContentWidget(this._commentGlyph);
+		this._commentGlyph = null;
 		this._localToDispose.forEach(local => local.dispose());
 		this._onDidClose.fire();
 	}
