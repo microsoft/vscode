@@ -17,4 +17,6 @@
   '2018-04-23 18:00, US/Pacific':    'endgame',
   '2018-05-03 12:00, US/Pacific':    'release', # 1.23.0
   '2018-05-08 12:00, US/Pacific':    'development',
+  '2018-05-10 12:00, US/Pacific':    'release', # 1.23.1
+  '2018-05-15 12:00, US/Pacific':    'development',
 }
