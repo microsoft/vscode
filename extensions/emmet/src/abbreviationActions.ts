@@ -502,7 +502,11 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 			continue;
 		}
 		if (char === endAngle) {
-			break;
+			if (i >= 0 && textToBackTrack[i] === '=') {
+				continue; // False alarm of cases like =>
+			} else {
+				break;
+			}
 		}
 		if (char === startAngle) {
 			valid = !foundSpace;
