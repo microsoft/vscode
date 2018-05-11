@@ -791,8 +791,8 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 					let resultArr = Object.keys(resultMap).map((id) => resultMap[id]);
 					resultArr.sort((a, b) => {
-						const aLastSegment = path.basename(a.extensionFolderPath);
-						const bLastSegment = path.basename(b.extensionFolderPath);
+						const aLastSegment = path.basename(a.extensionLocation.fsPath);
+						const bLastSegment = path.basename(b.extensionLocation.fsPath);
 						if (aLastSegment < bLastSegment) {
 							return -1;
 						}

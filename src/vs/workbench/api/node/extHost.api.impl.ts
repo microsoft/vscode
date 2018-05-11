@@ -788,7 +788,6 @@ const nullExtensionDescription: IExtensionDescription = {
 	enableProposedApi: false,
 	engines: undefined,
 	extensionDependencies: undefined,
-	extensionFolderPath: undefined,
 	extensionLocation: undefined,
 	isBuiltin: false,
 	isUnderDevelopment: false,

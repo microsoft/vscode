@@ -20,7 +20,6 @@ export interface IExtensionDescription {
 	readonly publisher: string;
 	readonly isBuiltin: boolean;
 	readonly isUnderDevelopment: boolean;
-	readonly extensionFolderPath: string;
 	readonly extensionLocation: URI;
 	readonly extensionDependencies?: string[];
 	readonly activationEvents?: string[];
