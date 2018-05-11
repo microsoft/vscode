@@ -233,7 +233,7 @@ export abstract class NextTitleControl extends Themable {
 		this.currentSecondaryEditorActionIds = [];
 	}
 
-	protected enableGroupDragging(element: HTMLElement): void {
+	protected enableGroupDragging(element: HTMLElement, supportExternalDrag?: boolean): void {
 
 		// Drag start
 		this._register(addDisposableListener(element, EventType.DRAG_START, (e: DragEvent) => {
@@ -246,9 +246,11 @@ export abstract class NextTitleControl extends Themable {
 			e.dataTransfer.effectAllowed = 'copyMove';
 
 			// Apply some datatransfer types to allow for dragging the element outside of the application
-			const resource = toResource(this.group.activeEditor, { supportSideBySide: true });
-			if (resource) {
-				this.instantiationService.invokeFunction(fillResourceDataTransfers, [resource], e);
+			if (supportExternalDrag) {
+				const resource = toResource(this.group.activeEditor, { supportSideBySide: true });
+				if (resource) {
+					this.instantiationService.invokeFunction(fillResourceDataTransfers, [resource], e);
+				}
 			}
 
 			// Drag Image

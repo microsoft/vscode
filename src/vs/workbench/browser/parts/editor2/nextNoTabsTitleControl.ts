@@ -46,7 +46,7 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 	private registerContainerListeners(): void {
 
 		// Group dragging
-		this.enableGroupDragging(this.titleContainer);
+		this.enableGroupDragging(this.titleContainer, true /* support external DND of active editor */);
 
 		// Pin on double click
 		this._register(addDisposableListener(this.titleContainer, EventType.DBLCLICK, (e: MouseEvent) => this.onTitleDoubleClick(e)));
