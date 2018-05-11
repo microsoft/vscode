@@ -18,6 +18,8 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { getPathLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
 import { startsWith, startsWithIgnoreCase, rtrim } from 'vs/base/common/strings';
+// tslint:disable-next-line:import-patterns
+import * as path from 'path';
 
 export class Model {
 
@@ -304,7 +306,7 @@ export class ExplorerItem {
 	}
 
 	private updateResource(recursive: boolean): void {
-		this.resource = this.parent.resource.with({ path: paths.join(this.parent.resource.path, this.name) });
+		this.resource = this.parent.resource.with({ path: path.join(this.parent.resource.path, this.name) });
 
 		if (recursive) {
 			if (this.isDirectory && this.children) {

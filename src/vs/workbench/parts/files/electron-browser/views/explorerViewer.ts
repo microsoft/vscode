@@ -1057,12 +1057,12 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 				// If the dirty file itself got moved, just reparent it to the target folder
 				if (source.resource.toString() === d.toString()) {
-					moved = target.resource.with({ path: paths.join(target.resource.path, source.name) });
+					moved = target.resource.with({ path: path.join(target.resource.path, source.name) });
 				}
 
 				// Otherwise, a parent of the dirty resource got moved, so we have to reparent more complicated. Example:
 				else {
-					moved = target.resource.with({ path: paths.join(target.resource.path, d.path.substr(source.parent.resource.path.length + 1)) });
+					moved = target.resource.with({ path: path.join(target.resource.path, d.path.substr(source.parent.resource.path.length + 1)) });
 				}
 
 				dirtyMoved.push(moved);
@@ -1077,7 +1077,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 				// 3.) run the move operation
 				.then(() => {
-					const targetResource = target.resource.with({ path: paths.join(target.resource.path, source.name) });
+					const targetResource = target.resource.with({ path: path.join(target.resource.path, source.name) });
 
 					return this.fileService.moveFile(source.resource, targetResource).then(null, error => {
 
