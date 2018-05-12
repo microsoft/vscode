@@ -947,11 +947,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// Editor opening event (can be prevented and overridden)
-		const event = new EditorOpeningEvent(input, options, position);
+		const event = new EditorOpeningEvent(null, input, options);
 		this._onEditorOpening.fire(event);
 		const prevented = event.isPrevented();
 		if (prevented) {
-			return prevented();
+			return prevented() as any;
 		}
 
 		// Open through UI

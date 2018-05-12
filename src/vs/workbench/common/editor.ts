@@ -11,7 +11,7 @@ import * as types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IEditor, IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
-import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position, Verbosity, IEditor as IBaseEditor, IRevertOptions } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position, Verbosity, IRevertOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -274,9 +274,9 @@ export abstract class EditorInput implements IEditorInput {
 }
 
 export interface IEditorOpeningEvent {
-	input: IEditorInput;
+	editor: IEditorInput;
 	options?: IEditorOptions;
-	position: Position;
+	group: INextEditorGroup;
 
 	/**
 	 * Allows to prevent the opening of an editor by providing a callback
@@ -285,32 +285,32 @@ export interface IEditorOpeningEvent {
 	 * to return a promise that resolves to NULL to prevent the opening
 	 * altogether.
 	 */
-	prevent(callback: () => TPromise<IBaseEditor>): void;
+	prevent(callback: () => Thenable<any>): void;
 }
 
 export class EditorOpeningEvent implements IEditorOpeningEvent {
-	private override: () => TPromise<IBaseEditor>;
+	private override: () => Thenable<any>;
 
-	constructor(private _input: IEditorInput, private _options: IEditorOptions, private _position: Position) {
+	constructor(private _group: INextEditorGroup, private _editor: IEditorInput, private _options: IEditorOptions) {
 	}
 
-	public get input(): IEditorInput {
-		return this._input;
+	public get group(): INextEditorGroup {
+		return this._group;
+	}
+
+	public get editor(): IEditorInput {
+		return this._editor;
 	}
 
 	public get options(): IEditorOptions {
 		return this._options;
 	}
 
-	public get position(): Position {
-		return this._position;
-	}
-
-	public prevent(callback: () => TPromise<IBaseEditor>): void {
+	public prevent(callback: () => Thenable<any>): void {
 		this.override = callback;
 	}
 
-	public isPrevented(): () => TPromise<IBaseEditor> {
+	public isPrevented(): () => Thenable<any> {
 		return this.override;
 	}
 }
@@ -517,6 +517,17 @@ export class EditorModel extends Disposable implements IEditorModel {
 		this._onDispose.dispose();
 		super.dispose();
 	}
+}
+
+export interface IEditorInputWithOptions {
+	editor: IEditorInput;
+	options?: IEditorOptions;
+}
+
+export function isEditorInputWithOptions(obj: any): obj is IEditorInputWithOptions {
+	const editorInputWithOptions = obj as IEditorInputWithOptions;
+
+	return !!editorInputWithOptions && !!editorInputWithOptions.editor;
 }
 
 /**

@@ -60,7 +60,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 	}
 
 	private onEditorOpening(event: IEditorOpeningEvent): void {
-		const resource = event.input.getResource();
+		const resource = event.editor.getResource();
 		if (
 			!resource || resource.scheme !== 'file' ||									// require a file path opening
 			!endsWith(resource.fsPath, 'settings.json') ||								// file must end in settings.json
@@ -72,15 +72,13 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		// If the file resource was already opened before in the group, do not prevent
 		// the opening of that resource. Otherwise we would have the same settings
 		// opened twice (https://github.com/Microsoft/vscode/issues/36447)
-		const stacks = this.editorGroupService.getStacksModel();
-		const group = stacks.groupAt(event.position);
-		if (group && group.contains(event.input)) {
+		if (event.group.isOpened(event.editor)) {
 			return;
 		}
 
 		// Global User Settings File
 		if (resource.fsPath === this.environmentService.appSettingsPath) {
-			return event.prevent(() => this.preferencesService.openGlobalSettings(event.options, event.position));
+			return event.prevent(() => this.preferencesService.openGlobalSettings(event.options, event.group));
 		}
 
 		// Single Folder Workspace Settings File
@@ -88,7 +86,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		if (state === WorkbenchState.FOLDER) {
 			const folders = this.workspaceService.getWorkspace().folders;
 			if (resource.fsPath === folders[0].toResource(FOLDER_SETTINGS_PATH).fsPath) {
-				return event.prevent(() => this.preferencesService.openWorkspaceSettings(event.options, event.position));
+				return event.prevent(() => this.preferencesService.openWorkspaceSettings(event.options, event.group));
 			}
 		}
 
@@ -97,7 +95,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 			const folders = this.workspaceService.getWorkspace().folders;
 			for (let i = 0; i < folders.length; i++) {
 				if (resource.fsPath === folders[i].toResource(FOLDER_SETTINGS_PATH).fsPath) {
-					return event.prevent(() => this.preferencesService.openFolderSettings(folders[i].uri, event.options, event.position));
+					return event.prevent(() => this.preferencesService.openFolderSettings(folders[i].uri, event.options, event.group));
 				}
 			}
 		}

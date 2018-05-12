@@ -582,11 +582,11 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	openEditor(editor: EditorInput, options?: EditorOptions): Thenable<void> {
 
 		// Editor opening event allows for prevention
-		const event = new EditorOpeningEvent(editor, options, this._group.id); // TODO@grid position => group ID
+		const event = new EditorOpeningEvent(this, editor, options);
 		this._onWillOpenEditor.fire(event);
 		const prevented = event.isPrevented();
 		if (prevented) {
-			return prevented().then(() => void 0); // TODO@grid do we need the BaseEditor return type still in the event?
+			return prevented();
 		}
 
 		// Proceed with opening

@@ -39,6 +39,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { assign } from 'vs/base/common/objects';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorGroup, INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -61,6 +62,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@INextEditorService private nextEditorService: INextEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@INextEditorGroupsService private nextEditorGroupService: INextEditorGroupsService,
 		@IFileService private fileService: IFileService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@INotificationService private notificationService: INotificationService,
@@ -181,30 +183,30 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.openOrSwitchSettings(target, resource);
 	}
 
-	openGlobalSettings(options?: IEditorOptions, position?: EditorPosition): TPromise<IEditor> {
-		return this.openOrSwitchSettings(ConfigurationTarget.USER, this.userSettingsResource, options, position);
+	openGlobalSettings(options?: IEditorOptions, group?: INextEditorGroup): TPromise<IEditor> {
+		return this.openOrSwitchSettings(ConfigurationTarget.USER, this.userSettingsResource, options, group);
 	}
 
 	openSettings2(): TPromise<IEditor> {
 		return this.editorService.openEditor(this.instantiationService.createInstance(SettingsEditor2Input), { pinned: true }).then(() => null);
 	}
 
-	openWorkspaceSettings(options?: IEditorOptions, position?: EditorPosition): TPromise<IEditor> {
+	openWorkspaceSettings(options?: IEditorOptions, group?: INextEditorGroup): TPromise<IEditor> {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.notificationService.info(nls.localize('openFolderFirst', "Open a folder first to create workspace settings"));
 			return TPromise.as(null);
 		}
-		return this.openOrSwitchSettings(ConfigurationTarget.WORKSPACE, this.workspaceSettingsResource, options, position);
+		return this.openOrSwitchSettings(ConfigurationTarget.WORKSPACE, this.workspaceSettingsResource, options, group);
 	}
 
-	openFolderSettings(folder: URI, options?: IEditorOptions, position?: EditorPosition): TPromise<IEditor> {
-		return this.openOrSwitchSettings(ConfigurationTarget.WORKSPACE_FOLDER, this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE_FOLDER, folder), options, position);
+	openFolderSettings(folder: URI, options?: IEditorOptions, group?: INextEditorGroup): TPromise<IEditor> {
+		return this.openOrSwitchSettings(ConfigurationTarget.WORKSPACE_FOLDER, this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE_FOLDER, folder), options, group);
 	}
 
 	switchSettings(target: ConfigurationTarget, resource: URI): TPromise<void> {
 		const activeEditor = this.editorService.getActiveEditor();
 		if (activeEditor && activeEditor.input instanceof PreferencesEditorInput) {
-			return this.doSwitchSettings(target, resource, activeEditor.input, activeEditor.position).then(() => null);
+			return this.doSwitchSettings(target, resource, activeEditor.input, null).then(() => null);
 		} else {
 			return this.doOpenSettings(target, resource).then(() => null);
 		}
@@ -247,17 +249,15 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			});
 	}
 
-	private openOrSwitchSettings(configurationTarget: ConfigurationTarget, resource: URI, options?: IEditorOptions, position?: EditorPosition): TPromise<IEditor> {
-		const activeGroup = this.editorGroupService.getStacksModel().activeGroup;
-		const positionToReplace = position !== void 0 ? position : activeGroup ? this.editorGroupService.getStacksModel().positionOfGroup(activeGroup) : EditorPosition.ONE;
-		const editorInput = this.getActiveSettingsEditorInput(positionToReplace);
+	private openOrSwitchSettings(configurationTarget: ConfigurationTarget, resource: URI, options?: IEditorOptions, group: INextEditorGroup = this.nextEditorGroupService.activeGroup): TPromise<IEditor> {
+		const editorInput = this.getActiveSettingsEditorInput(group);
 		if (editorInput && editorInput.master.getResource().fsPath !== resource.fsPath) {
-			return this.doSwitchSettings(configurationTarget, resource, editorInput, positionToReplace);
+			return this.doSwitchSettings(configurationTarget, resource, editorInput, group);
 		}
-		return this.doOpenSettings(configurationTarget, resource, options, position);
+		return this.doOpenSettings(configurationTarget, resource, options, group);
 	}
 
-	private doOpenSettings(configurationTarget: ConfigurationTarget, resource: URI, options?: IEditorOptions, position?: EditorPosition): TPromise<IEditor> {
+	private doOpenSettings(configurationTarget: ConfigurationTarget, resource: URI, options?: IEditorOptions, group?: INextEditorGroup): TPromise<IEditor> {
 		const openDefaultSettings = !!this.configurationService.getValue(DEFAULT_SETTINGS_EDITOR_SETTING);
 		return this.getOrCreateEditableSettingsEditorInput(configurationTarget, resource)
 			.then(editableSettingsEditorInput => {
@@ -271,30 +271,29 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 					const defaultPreferencesEditorInput = this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.getDefaultSettingsResource(configurationTarget));
 					const preferencesEditorInput = new PreferencesEditorInput(this.getPreferencesEditorInputName(configurationTarget, resource), editableSettingsEditorInput.getDescription(), defaultPreferencesEditorInput, <EditorInput>editableSettingsEditorInput);
 					this.lastOpenedSettingsInput = preferencesEditorInput;
-					return this.nextEditorService.openEditor(preferencesEditorInput, options /*, TODO@grid position */);
+					return this.nextEditorService.openEditor(preferencesEditorInput, options, group);
 				}
-				return this.nextEditorService.openEditor(editableSettingsEditorInput, options /*, TODO@grid position */);
+				return this.nextEditorService.openEditor(editableSettingsEditorInput, options, group);
 			});
 	}
 
-	private doSwitchSettings(target: ConfigurationTarget, resource: URI, input: PreferencesEditorInput, position?: EditorPosition): TPromise<IEditor> {
+	private doSwitchSettings(target: ConfigurationTarget, resource: URI, input: PreferencesEditorInput, group: INextEditorGroup): TPromise<IEditor> {
 		return this.getOrCreateEditableSettingsEditorInput(target, this.getEditableSettingsURI(target, resource))
 			.then(toInput => {
 				const replaceWith = new PreferencesEditorInput(this.getPreferencesEditorInputName(target, resource), toInput.getDescription(), this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.getDefaultSettingsResource(target)), toInput);
-				return this.editorService.replaceEditors([{
-					toReplace: input,
-					replaceWith
-				}], position).then(editors => {
+
+				return group.replaceEditors([{
+					editor: input,
+					replacement: replaceWith
+				}]).then(() => {
 					this.lastOpenedSettingsInput = replaceWith;
-					return editors[0];
+					return group.activeControl;
 				});
 			});
 	}
 
-	private getActiveSettingsEditorInput(position?: EditorPosition): PreferencesEditorInput {
-		const stacksModel = this.editorGroupService.getStacksModel();
-		const group = position !== void 0 ? stacksModel.groupAt(position) : stacksModel.activeGroup;
-		return group && <PreferencesEditorInput>group.getEditors().filter(e => e instanceof PreferencesEditorInput)[0];
+	private getActiveSettingsEditorInput(group: INextEditorGroup = this.nextEditorGroupService.activeGroup): PreferencesEditorInput {
+		return <PreferencesEditorInput>group.editors.filter(e => e instanceof PreferencesEditorInput)[0];
 	}
 
 	private getConfigurationTargetFromSettingsResource(resource: URI): ConfigurationTarget {
