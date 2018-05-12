@@ -86,9 +86,9 @@ suite('ExtHostSearch', () => {
 	});
 
 	suite('File:', () => {
-		const rootFolderA = URI.parse('/foo/bar');
-		const rootFolderB = URI.parse('/foo/bar2');
-		// const rootFolderC = URI.parse('/foo/bar3');
+		const rootFolderA = URI.file('/foo/bar');
+		const rootFolderB = URI.file('/foo/bar2');
+		// const rootFolderC = URI.file('/foo/bar3');
 
 		function getSimpleQuery(filePattern = ''): ISearchQuery {
 			return {
@@ -102,7 +102,7 @@ suite('ExtHostSearch', () => {
 		}
 
 		function makeFileResult(root: URI, relativePath: string): URI {
-			return URI.parse(
+			return URI.file(
 				path.join(root.toString(), relativePath));
 		}
 
