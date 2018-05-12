@@ -469,6 +469,8 @@ export interface IDragAndDropObserverCallbacks {
 	onDragLeave: (e: DragEvent) => void;
 	onDrop: (e: DragEvent) => void;
 	onDragEnd: (e: DragEvent) => void;
+
+	onDragOver?: (e: DragEvent) => void;
 }
 
 export class DragAndDropObserver extends Disposable {
@@ -490,6 +492,12 @@ export class DragAndDropObserver extends Disposable {
 			this.counter++;
 
 			this.callbacks.onDragEnter(e);
+		}));
+
+		this._register(addDisposableListener(this.element, EventType.DRAG_OVER, (e: DragEvent) => {
+			if (this.callbacks.onDragOver) {
+				this.callbacks.onDragOver(e);
+			}
 		}));
 
 		this._register(addDisposableListener(this.element, EventType.DRAG_LEAVE, (e: DragEvent) => {

@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/nextEditorDropTarget';
-import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier } from 'vs/workbench/browser/dnd';
+import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, DragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { addDisposableListener, EventType, EventHelper, isAncestor, toggleClass, addClass } from 'vs/base/browser/dom';
 import { INextEditorGroupsAccessor, EDITOR_TITLE_HEIGHT, INextEditorGroupView, getActiveTextEditorOptions } from 'vs/workbench/browser/parts/editor2/editor2';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND, Themable } from 'vs/workbench/common/theme';
@@ -83,39 +83,38 @@ class DropOverlay extends Themable {
 	}
 
 	private registerListeners(): void {
+		this._register(new DragAndDropObserver(this.container, {
+			onDragEnter: e => void 0,
+			onDragOver: e => {
 
-		// Update position and drop effect on drag over
-		this._register(addDisposableListener(this.container, EventType.DRAG_OVER, (e: DragEvent) => {
+				// Update the dropEffect to "copy" if there is no local data to be dragged because
+				// in that case we can only copy the data into and not move it from its source
+				if (
+					!this.editorTransfer.hasData(DraggedEditorIdentifier.prototype) &&
+					!this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)
+				) {
+					e.dataTransfer.dropEffect = 'copy';
+				}
 
-			// Update the dropEffect to "copy" if there is no local data to be dragged because
-			// in that case we can only copy the data into and not move it from its source
-			if (
-				!this.editorTransfer.hasData(DraggedEditorIdentifier.prototype) &&
-				!this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)
-			) {
-				e.dataTransfer.dropEffect = 'copy';
+				// Position overlay
+				this.positionOverlay(e.offsetX, e.offsetY);
+			},
+
+			onDragLeave: e => this.dispose(),
+			onDragEnd: e => this.dispose(),
+
+			onDrop: e => {
+				EventHelper.stop(e, true);
+
+				// Dispose overlay
+				this.dispose();
+
+				// Handle drop
+				this.handleDrop(e);
 			}
-
-			// Position overlay
-			this.positionOverlay(e.offsetX, e.offsetY);
 		}));
 
-		// Handle drop
-		this._register(addDisposableListener(this.container, EventType.DROP, (e: DragEvent) => {
-			EventHelper.stop(e, true);
-
-			// Dispose overlay
-			this.dispose();
-
-			// Handle drop
-			this.handleDrop(e);
-		}));
-
-		// Dispose on drag end
-		this._register(addDisposableListener(this.container, EventType.DRAG_END, () => this.dispose()));
-		this._register(addDisposableListener(this.container, EventType.DRAG_LEAVE, () => this.dispose()));
 		this._register(addDisposableListener(this.container, EventType.MOUSE_OVER, () => {
-
 			// Under some circumstances we have seen reports where the drop overlay is not being
 			// cleaned up and as such the editor area remains under the overlay so that you cannot
 			// type into the editor anymore. This seems related to using VMs and DND via host and
@@ -143,7 +142,7 @@ class DropOverlay extends Themable {
 			return targetGroup;
 		};
 
-		// Check for group transfer from title control
+		// Check for group transfer
 		if (this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) {
 			const draggedEditorGroup = this.groupTransfer.getData(DraggedEditorGroupIdentifier.prototype)[0].identifier;
 
@@ -176,7 +175,7 @@ class DropOverlay extends Themable {
 			this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
 		}
 
-		// Check for editor transfer from title control
+		// Check for editor transfer
 		else if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
 			const draggedEditor = this.editorTransfer.getData(DraggedEditorIdentifier.prototype)[0].identifier;
 			const targetGroup = ensureTargetGroup();
@@ -335,6 +334,9 @@ export class NextEditorDropTarget extends Themable {
 	}
 
 	private onDragEnter(event: DragEvent): void {
+		this.counter++;
+
+		// Validate transfer
 		if (
 			!this.editorTransfer.hasData(DraggedEditorIdentifier.prototype) &&
 			!this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype) &&
@@ -345,7 +347,6 @@ export class NextEditorDropTarget extends Themable {
 		}
 
 		// Signal DND start
-		this.counter++;
 		this.updateContainer(true);
 
 		const target = event.target as HTMLElement;
@@ -358,10 +359,27 @@ export class NextEditorDropTarget extends Themable {
 
 			// Create overlay over target
 			if (!this.overlay) {
-				const groupView = this.findGroupView(target);
-				if (groupView) {
-					this._overlay = new DropOverlay(this.accessor, groupView, this.themeService, this.instantiationService);
+				const sourceGroupView = this.findSourceGroupView();
+				const targetGroupView = this.findTargetGroupView(target);
+
+				if (!targetGroupView) {
+					return; // we need a target at least
 				}
+
+				if (sourceGroupView === targetGroupView) {
+					const isGroupTransfer = this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype);
+					if (isGroupTransfer) {
+						return; // do not allow to drop group on itself
+					}
+
+					const isEditorTransfer = this.editorTransfer.hasData(DraggedEditorIdentifier.prototype);
+					if (isEditorTransfer && sourceGroupView.count < 2) {
+						return; // do not allow to drop editor on itself unless there are 2 editors at least
+					}
+				}
+
+				// Show overlay
+				this._overlay = new DropOverlay(this.accessor, targetGroupView, this.themeService, this.instantiationService);
 			}
 		}
 	}
@@ -381,7 +399,22 @@ export class NextEditorDropTarget extends Themable {
 		this.disposeOverlay();
 	}
 
-	private findGroupView(child: HTMLElement): INextEditorGroupView {
+	private findSourceGroupView(): INextEditorGroupView {
+
+		// Check for group transfer
+		if (this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) {
+			return this.accessor.getGroup(this.groupTransfer.getData(DraggedEditorGroupIdentifier.prototype)[0].identifier);
+		}
+
+		// Check for editor transfer
+		else if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
+			return this.accessor.getGroup(this.editorTransfer.getData(DraggedEditorIdentifier.prototype)[0].identifier.group.id);
+		}
+
+		return void 0;
+	}
+
+	private findTargetGroupView(child: HTMLElement): INextEditorGroupView {
 		const groups = this.accessor.groups;
 		for (let i = 0; i < groups.length; i++) {
 			const groupView = groups[i];
