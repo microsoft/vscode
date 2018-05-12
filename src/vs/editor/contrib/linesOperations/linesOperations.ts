@@ -42,6 +42,7 @@ abstract class AbstractCopyLinesAction extends EditorAction {
 		let fullResult = [];
 		let positionList: Position[] = [];
 		let textToMove = [];
+		const primaryCursor = editor.getSelection();
 
 		for (let i = 0; i < selections.length; i++) {
 			textToMove.push(model.getLineContent(selections[i].startLineNumber));
@@ -59,26 +60,68 @@ abstract class AbstractCopyLinesAction extends EditorAction {
 			fullResult.push(new Range(positionList[i].lineNumber, 0, positionList[i].lineNumber, 0));
 		}
 
+		let rangesToMove = this._getRangesToMove(editor);
+
+		let endCursorState = this._getEndCursorState(primaryCursor, rangesToMove, this.down);
+
 		let anotherCount = 0;
 		let edits: IIdentifiedSingleEditOperation[] = fullResult.map(range => {
-
-			return EditOperation.replaceMove(range, textToMove[anotherCount++] + '\n');
+			if (this.down) {
+				return EditOperation.replaceMove(range, textToMove[anotherCount++] + '\n');
+			} else {
+				return EditOperation.replace(range, textToMove[anotherCount++] + '\n');
+			}
 		});
 
 		editor.pushUndoStop();
-		editor.executeEdits(this.id, edits);
+		if (this.down) {
+			editor.executeEdits(this.id, edits);
+		} else {
+			editor.executeEdits(this.id, edits, endCursorState);
+		}
 		editor.pushUndoStop();
 	}
 
-	_getFullRangesToMove(editor: ICodeEditor, rangesText: string[]): Range[] {
-		let rangesToMove: Range[] = editor.getSelections();
-		let fullRanges = [];
+	_getEndCursorState(primaryCursor: Range, rangesToMove: Range[], down: boolean): Selection[] {
+		let endPrimaryCursor: Selection;
+		let endCursorState: Selection[] = [];
 
-		for (let i = 0; i < rangesToMove.length; i++) {
-			fullRanges.push(editor.getModel().findNextMatch(rangesText[i], editor.getPosition(), false, true, null, false).range);
+		for (let i = 0, len = rangesToMove.length; i < len; i++) {
+			let range = rangesToMove[i];
+			let endCursor = null;
+			if (down) {
+				endCursor = new Selection(rangesToMove[i].startLineNumber + 1, rangesToMove[i].startColumn, rangesToMove[i].endLineNumber + 1, rangesToMove[i].endColumn);
+			} else {
+				endCursor = new Selection(rangesToMove[i].startLineNumber, rangesToMove[i].startColumn, rangesToMove[i].endLineNumber, rangesToMove[i].endColumn);
+			}
+
+			if (range.intersectRanges(primaryCursor)) {
+				endPrimaryCursor = endCursor;
+			} else {
+				endCursorState.push(endCursor);
+			}
 		}
 
-		return fullRanges;
+		if (endPrimaryCursor) {
+			endCursorState.unshift(endPrimaryCursor);
+		}
+
+		return endCursorState;
+	}
+
+	_getRangesToMove(editor: ICodeEditor): Range[] {
+		let rangesToMove: Range[] = editor.getSelections();
+
+		rangesToMove.sort(Range.compareRangesUsingStarts);
+		rangesToMove = rangesToMove.map(selection => {
+			if (selection.isEmpty()) {
+				return new Range(selection.startLineNumber, selection.startColumn, selection.endLineNumber, selection.endColumn);
+			} else {
+				return selection;
+			}
+		});
+
+		return rangesToMove;
 	}
 
 }
