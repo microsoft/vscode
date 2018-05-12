@@ -422,7 +422,7 @@ class FileSearchEngine {
 		let cancellation = new CancellationTokenSource();
 		return new PPromise((resolve, reject, onResult) => {
 			const options = this.getSearchOptionsForFolder(fq);
-			const folderStr = fq.folder.toString();
+			const folderStr = fq.folder.fsPath;
 			let filePatternSeen = false;
 			const tree = this.initDirectoryTree();
 
@@ -433,7 +433,7 @@ class FileSearchEngine {
 
 				// TODO@roblou - What if it is not relative to the folder query.
 				// This is slow...
-				const relativePath = path.relative(folderStr, result.toString());
+				const relativePath = path.relative(folderStr, result.fsPath);
 
 				if (noSiblingsClauses) {
 					if (relativePath === this.filePattern) {
@@ -792,7 +792,7 @@ class FileSearchManager {
 
 	private rawMatchToSearchItem(match: IInternalFileMatch): IFileMatch {
 		return {
-			resource: URI.parse(match.base ? path.join(match.base, match.relativePath) : match.relativePath)
+			resource: URI.file(match.base ? path.join(match.base, match.relativePath) : match.relativePath)
 		};
 	}
 
