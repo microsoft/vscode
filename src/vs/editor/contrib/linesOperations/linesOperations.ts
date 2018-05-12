@@ -37,17 +37,50 @@ abstract class AbstractCopyLinesAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 
-		let commands: ICommand[] = [];
 		let selections = editor.getSelections();
+		let model = editor.getModel();
+		let fullResult = [];
+		let positionList: Position[] = [];
+		let textToMove = [];
 
 		for (let i = 0; i < selections.length; i++) {
-			commands.push(new CopyLinesCommand(selections[i], this.down));
+			textToMove.push(model.getLineContent(selections[i].startLineNumber));
 		}
 
+		textToMove = textToMove.filter(function (item, pos) {
+			return textToMove.indexOf(item) === pos;
+		});
+
+		for (let i = 0; i < textToMove.length; i++) {
+			positionList.push(selections[i].getPosition());
+		}
+
+		for (let i = 0; i < positionList.length; i++) {
+			fullResult.push(new Range(positionList[i].lineNumber, 0, positionList[i].lineNumber, 0));
+		}
+
+		let anotherCount = 0;
+		let edits: IIdentifiedSingleEditOperation[] = fullResult.map(range => {
+
+			return EditOperation.replaceMove(range, textToMove[anotherCount++] + '\n');
+		});
+
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, commands);
+		editor.executeEdits(this.id, edits);
 		editor.pushUndoStop();
 	}
+
+	_getFullRangesToMove(editor: ICodeEditor, rangesText: string[]): Range[] {
+		let rangesToMove: Range[] = editor.getSelections();
+		let fullRanges = [];
+
+		for (let i = 0; i < rangesToMove.length; i++) {
+			fullRanges.push(editor.getModel().findNextMatch(rangesText[i], editor.getPosition(), false, true, null, false).range);
+		}
+
+		return fullRanges;
+	}
+
 }
 
 class CopyLinesUpAction extends AbstractCopyLinesAction {
