@@ -604,6 +604,11 @@ configurationRegistry.registerConfiguration({
 			default: 'sidebar',
 			description: nls.localize('search.location', "Controls if the search will be shown as a view in the sidebar or as a panel in the panel area for more horizontal space. Next release search in panel will have improved horizontal layout and this will no longer be a preview."),
 		},
+		'search.enableSearchProviders': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('search.enableSearchProviders', " (Experimental) Controls whether search provider extensions should be enabled.")
+		}
 	}
 });
 
