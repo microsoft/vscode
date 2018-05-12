@@ -295,6 +295,8 @@ class FileSearchEngine {
 	private resultCount: number;
 	private isCanceled: boolean;
 
+	private activeCancellationTokens: Set<CancellationTokenSource>;
+
 	// private filesWalked: number;
 	// private directoriesWalked: number;
 
@@ -309,6 +311,7 @@ class FileSearchEngine {
 		// this.maxFilesize = config.maxFileSize || null;
 		this.resultCount = 0;
 		this.isLimitHit = false;
+		this.activeCancellationTokens = new Set<CancellationTokenSource>();
 
 		// this.filesWalked = 0;
 		// this.directoriesWalked = 0;
@@ -345,6 +348,8 @@ class FileSearchEngine {
 
 	public cancel(): void {
 		this.isCanceled = true;
+		this.activeCancellationTokens.forEach(t => t.cancel());
+		this.activeCancellationTokens = new Set();
 	}
 
 	public search(): PPromise<{ isLimitHit: boolean }, IInternalFileMatch> {
@@ -405,7 +410,6 @@ class FileSearchEngine {
 				});
 			});
 		});
-
 	}
 
 	private searchInFolder(fq: IFolderQuery<URI>): PPromise<void, IInternalFileMatch> {
@@ -417,6 +421,10 @@ class FileSearchEngine {
 			const tree = this.initDirectoryTree();
 
 			const onProviderResult = (result: URI) => {
+				if (this.isCanceled) {
+					return;
+				}
+
 				// TODO@roblou - What if it is not relative to the folder query.
 				// This is slow...
 				const relativePath = path.relative(folderStr, result.toString());
@@ -443,8 +451,17 @@ class FileSearchEngine {
 
 			// TODO@roblou
 			const noSiblingsClauses = true;
-			this.provider.provideFileSearchResults(options, { report: onProviderResult }, cancellation.token)
+			new TPromise(resolve => process.nextTick(resolve))
 				.then(() => {
+					this.activeCancellationTokens.add(cancellation);
+					return this.provider.provideFileSearchResults(options, { report: onProviderResult }, cancellation.token);
+				})
+				.then(() => {
+					this.activeCancellationTokens.delete(cancellation);
+					if (this.isCanceled) {
+						return null;
+					}
+
 					if (noSiblingsClauses && this.isLimitHit) {
 						if (!filePatternSeen) {
 							// If the limit was hit, check whether filePattern is an exact relative match because it must be included
@@ -472,8 +489,6 @@ class FileSearchEngine {
 						cancellation.dispose();
 						reject(err);
 					});
-		}, () => {
-			cancellation.cancel();
 		});
 	}
 
