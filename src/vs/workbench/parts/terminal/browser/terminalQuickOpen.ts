@@ -109,10 +109,13 @@ export class TerminalPickerHandler extends QuickOpenHandler {
 	}
 
 	private getTerminals(): TerminalEntry[] {
-		const labels = this.terminalService.getTabLabels();
-		return this.terminalService.terminalTabs.map(((tab, i) => {
-			return new TerminalEntry(tab.activeInstance, labels[i], this.terminalService);
-		}));
+		return this.terminalService.terminalTabs.reduce((terminals, tab, tabIndex) => {
+			const terminalsInTab = tab.terminalInstances.map((terminal, terminalIndex) => {
+				const label = `${tabIndex + 1}.${terminalIndex + 1}: ${terminal.title}`;
+				return new TerminalEntry(terminal, label, this.terminalService);
+			});
+			return [...terminals, ...terminalsInTab];
+		}, []);
 	}
 
 	public getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
