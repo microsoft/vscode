@@ -96,6 +96,21 @@ export interface IDevToolsOptions {
 	mode: 'right' | 'bottom' | 'undocked' | 'detach';
 }
 
+export interface IOpenWindowOptions {
+	forceNewWindow?: boolean;
+	forceReuseWindow?: boolean;
+	forceOpenWorkspaceAsFile?: boolean;
+	targetWindowId?: number;
+}
+
+export interface IOpenOptions {
+	cli?: ParsedArgs;
+	userEnv?: IProcessEnvironment;
+	targetWindowId?: number;
+	initialStartup?: boolean;
+	forceNewWindow?: boolean;
+}
+
 export interface IWindowsService {
 
 	_serviceBrand: any;
@@ -151,7 +166,7 @@ export interface IWindowsService {
 	toggleSharedProcess(): TPromise<void>;
 
 	// Global methods
-	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean; }): TPromise<void>;
+	openWindow(paths: string[], options?: IOpenWindowOptions): TPromise<void>;
 	openNewWindow(): TPromise<void>;
 	showWindow(windowId: number): TPromise<void>;
 	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderPath?: string; title: string; filename?: string; }[]>;
