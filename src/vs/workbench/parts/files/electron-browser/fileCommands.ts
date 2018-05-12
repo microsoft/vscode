@@ -56,6 +56,7 @@ export const COMPARE_SELECTED_COMMAND_ID = 'compareSelected';
 export const COMPARE_RESOURCE_COMMAND_ID = 'compareFiles';
 export const COMPARE_WITH_SAVED_COMMAND_ID = 'workbench.files.action.compareWithSaved';
 export const COPY_PATH_COMMAND_ID = 'copyFilePath';
+export const COPY_REL_PATH_COMMAND_ID = 'copyRelativeFilePath';
 
 export const SAVE_FILE_AS_COMMAND_ID = 'workbench.action.files.saveAs';
 export const SAVE_FILE_AS_LABEL = nls.localize('saveAs', "Save As...");
@@ -422,15 +423,33 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-function resourcesToClipboard(resources: URI[], clipboardService: IClipboardService, notificationService: INotificationService): void {
+function resourcesToClipboardBase(resources: URI[], clipboardService: IClipboardService, notificationService: INotificationService): string {
 	if (resources.length) {
 		const lineDelimiter = isWindows ? '\r\n' : '\n';
-		const text = resources.map(r => r.scheme === Schemas.file ? labels.getPathLabel(r) : r.toString()).join(lineDelimiter);
-		clipboardService.writeText(text);
+		return resources.map(r => r.scheme === Schemas.file ? labels.getPathLabel(r) : r.toString()).join(lineDelimiter);
 	} else {
 		notificationService.info(nls.localize('openFileToCopy', "Open a file first to copy its path"));
+		return null;
 	}
 }
+
+function resourcesToClipboard(resources: URI[], clipboardService: IClipboardService, notificationService: INotificationService): void {
+	const text = resourcesToClipboardBase(resources, clipboardService, notificationService);
+	if (text) {
+		clipboardService.writeText(text);
+	}
+}
+
+function relativeResourcesToClipboard(resources: URI[], clipboardService: IClipboardService, notificationService: INotificationService, contextService: IWorkspaceContextService): void {
+	const workspaceFolder = contextService.getWorkspaceFolder(resources[0]);
+	const regex = new RegExp(workspaceFolder.uri.fsPath + '/', 'g');
+	let text = resourcesToClipboardBase(resources, clipboardService, notificationService);
+	if (text) {
+		text = text.replace(regex, '');
+		clipboardService.writeText(text);
+	}
+}
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: EditorContextKeys.focus.toNegated(),
@@ -442,6 +461,20 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, resource: URI | object) => {
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
 		resourcesToClipboard(resources, accessor.get(IClipboardService), accessor.get(INotificationService));
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: ExplorerFocusCondition,
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KEY_C,
+	win: {
+		primary: KeyMod.WinCtrl | KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_C
+	},
+	id: COPY_REL_PATH_COMMAND_ID,
+	handler: (accessor, resource: URI) => {
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
+		relativeResourcesToClipboard(resources, accessor.get(IClipboardService), accessor.get(INotificationService), accessor.get(IWorkspaceContextService));
 	}
 });
 

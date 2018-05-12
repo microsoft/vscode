@@ -40,7 +40,7 @@ import { IInstantiationService, ServicesAccessor, IConstructorSignature2 } from 
 import { ITextModel } from 'vs/editor/common/model';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID } from 'vs/workbench/parts/files/electron-browser/fileCommands';
+import { COPY_PATH_COMMAND_ID, COPY_REL_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { once } from 'vs/base/common/event';
@@ -1397,6 +1397,24 @@ export class CopyPathAction extends Action {
 
 	public run(): TPromise<any> {
 		return this.commandService.executeCommand(COPY_PATH_COMMAND_ID, this.resource);
+	}
+}
+
+export class CopyRelativePathAction extends Action {
+
+	public static readonly LABEL = nls.localize('copy Relative  Path', "Copy Relative Path");
+
+	constructor(
+		private resource: URI,
+		@ICommandService private commandService: ICommandService
+	) {
+		super('copyFilePath', CopyPathAction.LABEL);
+
+		this.order = 140;
+	}
+
+	public run(): TPromise<any> {
+		return this.commandService.executeCommand(COPY_REL_PATH_COMMAND_ID, this.resource);
 	}
 }
 
