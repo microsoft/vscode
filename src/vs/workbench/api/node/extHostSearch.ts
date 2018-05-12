@@ -83,15 +83,8 @@ export class ExtHostSearch implements ExtHostSearchShape {
 			return TPromise.as(undefined);
 		}
 
-		const includes: string[] = query.includePattern ? Object.keys(query.includePattern) : [];
-		if (folderQuery.includePattern) {
-			includes.push(...Object.keys(folderQuery.includePattern));
-		}
-
-		const excludes: string[] = query.excludePattern ? Object.keys(query.excludePattern) : [];
-		if (folderQuery.excludePattern) {
-			excludes.push(...Object.keys(folderQuery.excludePattern));
-		}
+		const includes = resolvePatternsForProvider(query.includePattern, folderQuery.includePattern);
+		const excludes = resolvePatternsForProvider(query.excludePattern, folderQuery.excludePattern);
 
 		const searchOptions: vscode.TextSearchOptions = {
 			folder: URI.from(folderQuery.folder),
@@ -111,6 +104,23 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		return asWinJsPromise(token => provider.provideTextSearchResults(pattern, searchOptions, progress, token))
 			.then(() => collector.flush());
 	}
+}
+
+/**
+ * TODO@roblou
+ * Discards sibling clauses (for now) and 'false' patterns
+ */
+function resolvePatternsForProvider(globalPattern: glob.IExpression, folderPattern: glob.IExpression): string[] {
+	const merged = {
+		...(globalPattern || {}),
+		...(folderPattern || {})
+	};
+
+	return Object.keys(merged)
+		.filter(key => {
+			const value = merged[key];
+			return typeof value === 'boolean' && value;
+		});
 }
 
 function reviveQuery(rawQuery: IRawSearchQuery): ISearchQuery {
@@ -402,10 +412,6 @@ class FileSearchEngine {
 						.map(err => toErrorMessage(err))
 						.filter(msg => !!msg)[0];
 
-					if (errMsg) {
-						console.error(errMsg);
-					}
-
 					reject(new Error(errMsg));
 				});
 			});
@@ -493,15 +499,8 @@ class FileSearchEngine {
 	}
 
 	private getSearchOptionsForFolder(fq: IFolderQuery<URI>): vscode.FileSearchOptions {
-		const includes: string[] = this.config.includePattern ? Object.keys(this.config.includePattern) : [];
-		if (fq.includePattern) {
-			includes.push(...Object.keys(fq.includePattern));
-		}
-
-		const excludes: string[] = this.config.excludePattern ? Object.keys(this.config.excludePattern) : [];
-		if (fq.excludePattern) {
-			excludes.push(...Object.keys(fq.excludePattern));
-		}
+		const includes = resolvePatternsForProvider(this.config.includePattern, fq.includePattern);
+		const excludes = resolvePatternsForProvider(this.config.excludePattern, fq.excludePattern);
 
 		return {
 			folder: fq.folder,

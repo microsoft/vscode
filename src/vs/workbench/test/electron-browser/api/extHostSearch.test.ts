@@ -13,8 +13,8 @@ import { MainContext, MainThreadSearchShape } from 'vs/workbench/api/node/extHos
 import { ExtHostSearch } from 'vs/workbench/api/node/extHostSearch';
 import { TestRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';
 import * as vscode from 'vscode';
-import { dispose } from '../../../../base/common/lifecycle';
-import { isPromiseCanceledError } from '../../../../base/common/errors';
+import { dispose } from 'vs/base/common/lifecycle';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 
 let rpcProtocol: TestRPCProtocol;
 let extHostSearch: ExtHostSearch;
@@ -45,7 +45,7 @@ class MockMainThreadSearch implements MainThreadSearchShape {
 	}
 }
 
-suite.only('ExtHostSearch', () => {
+suite('ExtHostSearch', () => {
 	async function registerTestSearchProvider(provider: vscode.SearchProvider): TPromise<void> {
 		disposables.push(extHostSearch.registerSearchProvider('file', provider));
 		await rpcProtocol.sync();
@@ -85,16 +85,21 @@ suite.only('ExtHostSearch', () => {
 		return rpcProtocol.sync();
 	});
 
-	suite('File', () => {
+	suite('File:', () => {
 		const rootFolderA = URI.parse('/foo/bar');
-		const simpleQuery: ISearchQuery = {
-			type: QueryType.File,
+		const rootFolderB = URI.parse('/foo/bar2');
+		// const rootFolderC = URI.parse('/foo/bar3');
 
-			filePattern: '',
-			folderQueries: [
-				{ folder: rootFolderA }
-			]
-		};
+		function getSimpleQuery(filePattern = ''): ISearchQuery {
+			return {
+				type: QueryType.File,
+
+				filePattern,
+				folderQueries: [
+					{ folder: rootFolderA }
+				]
+			};
+		}
 
 		function makeFileResult(root: URI, relativePath: string): URI {
 			return URI.parse(
@@ -114,9 +119,8 @@ suite.only('ExtHostSearch', () => {
 				}
 			});
 
-			return runFileSearch(simpleQuery).then(results => {
-				assert(!results.length);
-			});
+			const results = await runFileSearch(getSimpleQuery());
+			assert(!results.length);
 		});
 
 		test('simple results', async () => {
@@ -133,10 +137,9 @@ suite.only('ExtHostSearch', () => {
 				}
 			});
 
-			return runFileSearch(simpleQuery).then(results => {
-				assert.equal(results.length, 3);
-				compareURIs(results, reportedResults);
-			});
+			const results = await runFileSearch(getSimpleQuery());
+			assert.equal(results.length, 3);
+			compareURIs(results, reportedResults);
 		});
 
 		// Sibling clauses
@@ -161,10 +164,177 @@ suite.only('ExtHostSearch', () => {
 				}
 			});
 
-			return runFileSearch(simpleQuery, true).then(results => {
-				assert(cancelRequested);
-				assert(!results.length);
-			});
+			const results = await runFileSearch(getSimpleQuery(), true);
+			assert(cancelRequested);
+			assert(!results.length);
 		});
+
+		test('provider fail', async () => {
+			const reportedResults = [
+				makeFileResult(rootFolderA, 'file1.ts'),
+				makeFileResult(rootFolderA, 'file2.ts'),
+				makeFileResult(rootFolderA, 'file3.ts'),
+			];
+
+			await registerTestSearchProvider({
+				provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<vscode.Uri>, token: vscode.CancellationToken): Thenable<void> {
+					reportedResults.forEach(r => progress.report(r));
+					throw new Error('I broke');
+				}
+			});
+
+			try {
+				await runFileSearch(getSimpleQuery());
+				assert(false, 'Expected to fail');
+			} catch {
+				// Expected to throw
+			}
+		});
+
+		test('provider returns null', async () => {
+			await registerTestSearchProvider({
+				provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<vscode.Uri>, token: vscode.CancellationToken): Thenable<void> {
+					return null;
+				}
+			});
+
+			try {
+				await runFileSearch(getSimpleQuery());
+				assert(false, 'Expected to fail');
+			} catch {
+				// Expected to throw
+			}
+		});
+
+		test('all provider calls get global include/excludes', async () => {
+			await registerTestSearchProvider({
+				provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<vscode.Uri>, token: vscode.CancellationToken): Thenable<void> {
+					assert(options.excludes.length === 2 && options.includes.length === 2, 'Missing global include/excludes');
+					return TPromise.wrap(null);
+				}
+			});
+
+			const query: ISearchQuery = {
+				type: QueryType.File,
+
+				filePattern: '',
+				includePattern: {
+					'foo': true,
+					'bar': true
+				},
+				excludePattern: {
+					'something': true,
+					'else': true
+				},
+				folderQueries: [
+					{ folder: rootFolderA },
+					{ folder: rootFolderB }
+				]
+			};
+
+			await runFileSearch(query);
+		});
+
+		test('global/local include/excludes combined', async () => {
+			await registerTestSearchProvider({
+				provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<vscode.Uri>, token: vscode.CancellationToken): Thenable<void> {
+					if (options.folder.toString() === rootFolderA.toString()) {
+						assert.deepEqual(options.includes.sort(), ['*.ts', 'foo']);
+						assert.deepEqual(options.excludes.sort(), ['*.js', 'bar']);
+					} else {
+						assert.deepEqual(options.includes.sort(), ['*.ts']);
+						assert.deepEqual(options.excludes.sort(), ['*.js']);
+					}
+
+					return TPromise.wrap(null);
+				}
+			});
+
+			const query: ISearchQuery = {
+				type: QueryType.File,
+
+				filePattern: '',
+				includePattern: {
+					'*.ts': true
+				},
+				excludePattern: {
+					'*.js': true
+				},
+				folderQueries: [
+					{
+						folder: rootFolderA,
+						includePattern: {
+							'foo': true
+						},
+						excludePattern: {
+							'bar': true
+						}
+					},
+					{ folder: rootFolderB }
+				]
+			};
+
+			await runFileSearch(query);
+		});
+
+		test('include/excludes resolved correctly', async () => {
+			await registerTestSearchProvider({
+				provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<vscode.Uri>, token: vscode.CancellationToken): Thenable<void> {
+					assert.deepEqual(options.includes.sort(), ['*.jsx', '*.ts']);
+					assert.deepEqual(options.excludes.sort(), []);
+
+					return TPromise.wrap(null);
+				}
+			});
+
+			const query: ISearchQuery = {
+				type: QueryType.File,
+
+				filePattern: '',
+				includePattern: {
+					'*.ts': true,
+					'*.jsx': false
+				},
+				excludePattern: {
+					'*.js': true,
+					'*.tsx': false
+				},
+				folderQueries: [
+					{
+						folder: rootFolderA,
+						includePattern: {
+							'*.jsx': true
+						},
+						excludePattern: {
+							'*.js': false
+						}
+					}
+				]
+			};
+
+			await runFileSearch(query);
+		});
+
+		// Mock fs?
+		// test('Returns result for absolute path', async () => {
+		// 	const queriedFile = makeFileResult(rootFolderA, 'file2.ts');
+		// 	const reportedResults = [
+		// 		makeFileResult(rootFolderA, 'file1.ts'),
+		// 		queriedFile,
+		// 		makeFileResult(rootFolderA, 'file3.ts'),
+		// 	];
+
+		// 	await registerTestSearchProvider({
+		// 		provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<vscode.Uri>, token: vscode.CancellationToken): Thenable<void> {
+		// 			reportedResults.forEach(r => progress.report(r));
+		// 			return TPromise.wrap(null);
+		// 		}
+		// 	});
+
+		// 	const queriedFilePath = queriedFile.fsPath;
+		// 	const results = await runFileSearch(getSimpleQuery(queriedFilePath));
+		// 	assert.equal(results.length, 1);
+		// 	compareURIs(results, [queriedFile]);
+		// });
 	});
 });
