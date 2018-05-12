@@ -253,14 +253,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 		// Reset classes to clear ansi decorations since templates are reused
 		templateData.value.className = 'value';
 		let result = this.handleANSIOutput(element.value);
-		if (typeof result === 'string') {
-			renderExpressionValue(result, templateData.value, {
-				preserveWhitespace: true,
-				showHover: false
-			});
-		} else {
-			templateData.value.appendChild(result);
-		}
+		templateData.value.appendChild(result);
 
 		dom.addClass(templateData.value, (element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : 'info');
 		templateData.source.textContent = element.sourceData ? `${element.sourceData.source.name}:${element.sourceData.lineNumber}` : '';
@@ -292,113 +285,130 @@ export class ReplExpressionsRenderer implements IRenderer {
 		}
 	}
 
-	private handleANSIOutput(text: string): HTMLElement | string {
-		let tokensContainer: HTMLSpanElement;
-		let currentToken: HTMLSpanElement;
+	/**
+	 * @param text The content to stylize.
+	 * @returns An {@link HTMLSpanElement} that contains the potentially stylized text.
+	 */
+	private handleANSIOutput(text: string): HTMLSpanElement {
+
+		const root: HTMLSpanElement = document.createElement('span');
+		const textLength: number = text.length;
+
+		let styleNames: string[] = [];
+		let currentPos: number = 0;
 		let buffer: string = '';
 
-		for (let i = 0, len = text.length; i < len; i++) {
+		while (currentPos < textLength) {
 
-			// start of ANSI escape sequence (see http://ascii-table.com/ansi-escape-sequences.php)
-			if (text.charCodeAt(i) === 27) {
-				let index = i;
-				let chr = (++index < len ? text.charAt(index) : null);
-				let codes = [];
-				if (chr && chr === '[') {
-					let code: string = null;
-					while (chr !== 'm' && codes.length <= 7) {
-						chr = (++index < len ? text.charAt(index) : null);
+			// Potentially an ANSI escape sequence.
+			// See http://ascii-table.com/ansi-escape-sequences.php & https://en.wikipedia.org/wiki/ANSI_escape_code
+			if (text.charCodeAt(currentPos) === 27 && text.charAt(currentPos + 1) === '[') {
 
-						if (chr && chr >= '0' && chr <= '9') {
-							code = chr;
-							chr = (++index < len ? text.charAt(index) : null);
-						}
+				const startPos: number = currentPos;
+				currentPos += 2; // Ignore 'Esc[' as it's in every sequence.
 
-						if (chr && chr >= '0' && chr <= '9') {
-							code += chr;
-							chr = (++index < len ? text.charAt(index) : null);
-						}
+				let ansiSequence: string = '';
+				let sequenceFound: boolean = false;
 
-						if (code === null) {
-							code = '0';
-						}
+				while (currentPos < textLength) {
+					const char: string = text.charAt(currentPos);
+					ansiSequence += char;
 
-						codes.push(code);
+					currentPos++;
+
+					if (char.match(/^[ABCDHIJKfhmpsu]$/)) {
+						sequenceFound = true;
+						break;
 					}
 
-					if (chr === 'm') { // set text color/mode.
-						code = null;
-						// only respect text-foreground ranges and ignore the values for "black" & "white" because those
-						// only make sense in combination with text-background ranges which we currently not support
-						let token = document.createElement('span');
-						token.className = '';
-						while (codes.length > 0) {
-							code = codes.pop();
-							let parsedMode = parseInt(code, 10);
-							if (token.className.length > 0) {
-								token.className += ' ';
-							}
-							if ((parsedMode >= 30 && parsedMode <= 37) || (parsedMode >= 90 && parsedMode <= 97)) {
-								token.className += 'code' + parsedMode;
-							} else if (parsedMode === 1) {
-								token.className += 'code-bold';
-							} else if (parsedMode === 4) {
-								token.className += 'code-underline';
-							}
-						}
-
-						// we need a tokens container now
-						if (!tokensContainer) {
-							tokensContainer = document.createElement('span');
-						}
-
-						// flush text buffer if we have any
-						if (buffer) {
-							this.insert(this.linkDetector.handleLinks(buffer), currentToken || tokensContainer);
-							buffer = '';
-						}
-
-						currentToken = token;
-
-						// get child until deepest nested node is found
-						let childPointer: Node = tokensContainer;
-						while (childPointer.hasChildNodes() && childPointer.firstChild.nodeName !== '#text') {
-							childPointer = childPointer.firstChild;
-						}
-						childPointer.appendChild(token);
-
-						i = index;
-					}
 				}
+
+				if (sequenceFound) {
+
+					// Flush buffer with previous styles.
+					this.appendStylizedStringToContainer(root, buffer, styleNames);
+					buffer = '';
+
+					/*
+					 * Certain ranges that are matched here do not contain real graphics rendition sequences. For
+					 * the sake of having a simpler expression, they have been included anyway.
+					 */
+					if (ansiSequence.match(/^(?:[39][0-7]|[0-8]|39)(?:;(?:[39][0-7]|[0-8]|39))*;?m$/)) {
+
+						const styleCodes: number[] = ansiSequence.slice(0, -1)	// Remove final 'm' character.
+							.split(';')											// Separate style codes.
+							.filter(elem => elem !== '')						// Filter empty elems as '34;m' -> ['34', ''].
+							.map(elem => parseInt(elem, 10));					// Convert to numbers.
+
+						for (let code of styleCodes) {
+							if (code === 0) {
+								styleNames = [];
+							} else if (code === 1) {
+								styleNames.push('code-bold');
+							} else if (code === 4) {
+								styleNames.push('code-underline');
+							} else if ((code >= 30 && code <= 37) || (code >= 90 && code <= 97)) {
+								styleNames.push('code-fg-' + code);
+							} else if (code === 39) {
+								styleNames = styleNames.filter(style => !style.match(/^code-fg-\d+$/));
+							}
+						}
+
+					} else if (ansiSequence.match(/^.*[ABCDHIJKfhmpsu]$/)) {
+						// Unsupported sequence so simply hide it.
+					} else {
+						sequenceFound = false;
+					}
+
+				}
+
+				if (sequenceFound === false) {
+					/*
+					 * Reached end of text without ending the escape sequence,
+					 * or given sequence is currently unsupported. In either
+					 * case, treat sequence as regular text.
+					 */
+					currentPos = startPos + 1;
+				}
+
+			} else {
+				buffer += text.charAt(currentPos);
+				currentPos++;
 			}
 
-			// normal text
-			else {
-				buffer += text[i];
-			}
 		}
 
-		// flush remaining text buffer if we have any
+		// Flush remaining text buffer if not empty.
 		if (buffer) {
-			let res = this.linkDetector.handleLinks(buffer);
-			if (typeof res !== 'string' || currentToken) {
-				if (!tokensContainer) {
-					tokensContainer = document.createElement('span');
-				}
-
-				this.insert(res, currentToken || tokensContainer);
-			}
+			this.appendStylizedStringToContainer(root, buffer, styleNames);
 		}
 
-		return tokensContainer || buffer;
+		return root;
+
 	}
 
-	private insert(arg: HTMLElement | string, target: HTMLElement): void {
-		if (typeof arg === 'string') {
-			target.textContent = arg;
-		} else {
-			target.appendChild(arg);
+	/**
+	 * @param root The {@link HTMLElement} to append the content to.
+	 * @param stringContent The text content to be appended.
+	 * @param cssClasses The list of CSS styles to apply to the text content.
+	 */
+	private appendStylizedStringToContainer(root: HTMLElement, stringContent: string, cssClasses: string[]): void {
+		if (!root || !stringContent) {
+			return;
 		}
+
+		const content: string | HTMLElement = this.linkDetector.handleLinks(stringContent);
+		let container: HTMLElement;
+
+		if (typeof content === 'string') {
+			container = document.createElement('span');
+			container.textContent = content;
+		} else {
+			container = content;
+		}
+
+		container.className = cssClasses.join(' ');
+		root.appendChild(container);
 	}
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
