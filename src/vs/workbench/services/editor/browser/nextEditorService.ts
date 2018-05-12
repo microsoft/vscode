@@ -172,7 +172,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 			const editorOptions = this.toOptions(optionsOrGroup as IEditorOptions);
 			const targetGroup = this.findTargetGroup(editor, editorOptions, group);
 
-			return targetGroup.openEditor(editor, editorOptions).then(() => targetGroup.activeControl);
+			return this.doOpenEditor(targetGroup, editor, editorOptions);
 		}
 
 		// Throw error for well known foreign resources (such as a http link) (TODO@ben remove me after this has been adopted)
@@ -191,10 +191,14 @@ export class NextEditorService extends Disposable implements INextEditorService 
 			const editorOptions = TextEditorOptions.from(textInput);
 			const targetGroup = this.findTargetGroup(typedInput, editorOptions, optionsOrGroup as INextEditorGroup | GroupIdentifier);
 
-			return targetGroup.openEditor(typedInput, editorOptions).then(() => targetGroup.activeControl);
+			return this.doOpenEditor(targetGroup, typedInput, editorOptions);
 		}
 
 		return TPromise.wrap<IEditor>(null);
+	}
+
+	protected doOpenEditor(group: INextEditorGroup, editor: IEditorInput, options?: IEditorOptions): Thenable<IEditor> {
+		return group.openEditor(editor, options).then(() => group.activeControl);
 	}
 
 	private findTargetGroup(input: IEditorInput, options?: IEditorOptions, group?: INextEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): INextEditorGroup {
@@ -475,4 +479,52 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	}
 
 	//#endregion
+}
+
+export interface IEditorOpenHandler {
+	(group: INextEditorGroup, editor: IEditorInput, options?: IEditorOptions): Thenable<IEditor>;
+}
+
+/**
+ * The delegating workbench editor service can be used to override the behaviour of the openEditor()
+ * method by providing a IEditorOpenHandler.
+ */
+export class DelegatingWorkbenchEditorService extends NextEditorService {
+	private editorOpenHandler: IEditorOpenHandler;
+
+	constructor(
+		@INextEditorGroupsService nextEditorGroupsService: INextEditorGroupsService,
+		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IFileService fileService: IFileService,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		super(
+			nextEditorGroupsService,
+			untitledEditorService,
+			workspaceContextService,
+			instantiationService,
+			environmentService,
+			fileService,
+			configurationService
+		);
+	}
+
+	setEditorOpenHandler(handler: IEditorOpenHandler): void {
+		this.editorOpenHandler = handler;
+	}
+
+	protected doOpenEditor(group: INextEditorGroup, editor: IEditorInput, options?: IEditorOptions): Thenable<IEditor> {
+		const handleOpen = this.editorOpenHandler ? this.editorOpenHandler(group, editor, options) : TPromise.as(void 0);
+
+		return handleOpen.then(control => {
+			if (control) {
+				return TPromise.as<IEditor>(control); // the opening was handled, so return early
+			}
+
+			return super.doOpenEditor(group, editor, options);
+		});
+	}
 }

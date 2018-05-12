@@ -532,6 +532,10 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		return this._group.activeEditor;
 	}
 
+	get previewEditor(): EditorInput {
+		return this._group.previewEditor;
+	}
+
 	isPinned(editor: EditorInput): boolean {
 		return this._group.isPinned(editor);
 	}

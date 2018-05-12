@@ -227,6 +227,12 @@ export interface INextEditorGroup {
 	readonly activeEditor: IEditorInput;
 
 	/**
+	 * The editor in the group that is in preview mode if any. There can
+	 * only ever be one editor in preview mode.
+	 */
+	readonly previewEditor: IEditorInput;
+
+	/**
 	 * The number of opend editors in this group.
 	 */
 	readonly count: number;
