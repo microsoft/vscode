@@ -30,6 +30,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
 import { isCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { toWinJsPromise } from 'vs/base/common/async';
 
 type ICachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
 
@@ -315,7 +316,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		// Open in targets
 		const result: TPromise<IEditor>[] = [];
 		mapGroupToEditors.forEach((editorsWithOptions, group) => {
-			result.push((group.openEditors(editorsWithOptions) as TPromise).then(() => group.activeControl));
+			result.push((toWinJsPromise(group.openEditors(editorsWithOptions))).then(() => group.activeControl));
 		});
 
 		return TPromise.join(result);

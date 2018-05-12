@@ -40,6 +40,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { assign } from 'vs/base/common/objects';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { INextEditorGroup, INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { toWinJsPromise } from 'vs/base/common/async';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -172,8 +173,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return TPromise.wrap<IPreferencesEditorModel<any>>(null);
 	}
 
-	openRawDefaultSettings(): TPromise<void> {
-		return this.editorService.openEditor({ resource: this.defaultSettingsRawResource }, EditorPosition.ONE) as TPromise<any>;
+	openRawDefaultSettings(): TPromise<IEditor> {
+		return toWinJsPromise(this.editorService.openEditor({ resource: this.defaultSettingsRawResource }, EditorPosition.ONE));
 	}
 
 	openSettings(): TPromise<IEditor> {
@@ -234,7 +235,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			});
 
 		}
-		return (this.nextEditorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { pinned: true }) as TPromise).then(() => null);
+		return toWinJsPromise(this.nextEditorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { pinned: true })).then(() => null);
 	}
 
 	configureSettingsForLanguage(language: string): void {
