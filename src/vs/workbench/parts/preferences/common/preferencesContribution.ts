@@ -21,6 +21,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IEditorOpeningEvent } from 'vs/workbench/common/editor';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 const schemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -34,6 +35,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IModeService private modeService: IModeService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@INextEditorGroupsService private nextEditorGroupService: INextEditorGroupsService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWorkspaceContextService private workspaceService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService
@@ -72,13 +74,14 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		// If the file resource was already opened before in the group, do not prevent
 		// the opening of that resource. Otherwise we would have the same settings
 		// opened twice (https://github.com/Microsoft/vscode/issues/36447)
-		if (event.group.isOpened(event.editor)) {
+		const group = this.nextEditorGroupService.getGroup(event.group);
+		if (group.isOpened(event.editor)) {
 			return;
 		}
 
 		// Global User Settings File
 		if (resource.fsPath === this.environmentService.appSettingsPath) {
-			return event.prevent(() => this.preferencesService.openGlobalSettings(event.options, event.group));
+			return event.prevent(() => this.preferencesService.openGlobalSettings(event.options, group));
 		}
 
 		// Single Folder Workspace Settings File
@@ -86,7 +89,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		if (state === WorkbenchState.FOLDER) {
 			const folders = this.workspaceService.getWorkspace().folders;
 			if (resource.fsPath === folders[0].toResource(FOLDER_SETTINGS_PATH).fsPath) {
-				return event.prevent(() => this.preferencesService.openWorkspaceSettings(event.options, event.group));
+				return event.prevent(() => this.preferencesService.openWorkspaceSettings(event.options, group));
 			}
 		}
 
@@ -95,7 +98,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 			const folders = this.workspaceService.getWorkspace().folders;
 			for (let i = 0; i < folders.length; i++) {
 				if (resource.fsPath === folders[i].toResource(FOLDER_SETTINGS_PATH).fsPath) {
-					return event.prevent(() => this.preferencesService.openFolderSettings(folders[i].uri, event.options, event.group));
+					return event.prevent(() => this.preferencesService.openFolderSettings(folders[i].uri, event.options, group));
 				}
 			}
 		}

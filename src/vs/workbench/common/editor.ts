@@ -273,10 +273,8 @@ export abstract class EditorInput implements IEditorInput {
 	}
 }
 
-export interface IEditorOpeningEvent {
-	editor: IEditorInput;
+export interface IEditorOpeningEvent extends IEditorIdentifier {
 	options?: IEditorOptions;
-	group: INextEditorGroup;
 
 	/**
 	 * Allows to prevent the opening of an editor by providing a callback
@@ -291,10 +289,10 @@ export interface IEditorOpeningEvent {
 export class EditorOpeningEvent implements IEditorOpeningEvent {
 	private override: () => Thenable<any>;
 
-	constructor(private _group: INextEditorGroup, private _editor: IEditorInput, private _options: IEditorOptions) {
+	constructor(private _group: GroupIdentifier, private _editor: IEditorInput, private _options: IEditorOptions) {
 	}
 
-	public get group(): INextEditorGroup {
+	public get group(): GroupIdentifier {
 		return this._group;
 	}
 
@@ -805,7 +803,7 @@ export interface IEditorGroup {
 }
 
 export interface IEditorIdentifier {
-	group: IEditorGroup; // TODO@grid this should be the group identifier instead
+	group: GroupIdentifier;
 	editor: IEditorInput;
 }
 

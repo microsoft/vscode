@@ -7,7 +7,7 @@
 
 import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInput, IResourceInput, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditor, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { GroupIdentifier, IEditorOpeningEvent, IEditorInputWithOptions } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IEditorOpeningEvent, IEditorInputWithOptions, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
 import { IEditor as ICodeEditor } from 'vs/editor/common/editorCommon';
 import { INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
@@ -36,9 +36,16 @@ export interface INextEditorService {
 	readonly onDidVisibleEditorsChange: Event<void>;
 
 	/**
+	 * Emitted when an editor is about to get closed. Listeners can
+	 * for example save view state now before the underlying widget
+	 * gets disposed.
+	 */
+	readonly onWillCloseEditor: Event<IEditorIdentifier>;
+
+	/**
 	 * Emitted when an editor is closed.
 	 */
-	readonly onDidCloseEditor: Event<IEditorInput>;
+	readonly onDidCloseEditor: Event<IEditorIdentifier>;
 
 	/**
 	 * Emitted when an editor is about to open. This can be prevented from
@@ -49,7 +56,7 @@ export interface INextEditorService {
 	/**
 	 * Emitted when an editor failed to open.
 	 */
-	readonly onDidOpenEditorFail: Event<IEditorInput>;
+	readonly onDidOpenEditorFail: Event<IEditorIdentifier>;
 
 	/**
 	 * The currently active editor control if any.

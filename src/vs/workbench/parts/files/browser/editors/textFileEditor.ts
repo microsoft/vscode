@@ -14,7 +14,7 @@ import { Action } from 'vs/base/common/actions';
 import { VIEWLET_ID, IExplorerViewlet, TEXT_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { EditorOptions, TextEditorOptions, IEditorCloseEvent } from 'vs/workbench/common/editor';
+import { EditorOptions, TextEditorOptions, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -31,6 +31,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 
 /**
  * An implementation of editor for file system resources.
@@ -48,6 +49,7 @@ export class TextFileEditor extends BaseTextEditor {
 		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@INextEditorService nextEditorService: INextEditorService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@ITextFileService textFileService: ITextFileService,
@@ -60,7 +62,7 @@ export class TextFileEditor extends BaseTextEditor {
 		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
 
 		// React to editors closing to preserve view state
-		this.toUnbind.push(editorGroupService.getStacksModel().onWillCloseEditor(e => this.onWillCloseEditor(e)));
+		this.toUnbind.push(nextEditorService.onWillCloseEditor(e => this.onWillCloseEditor(e)));
 	}
 
 	private onFilesChanged(e: FileChangesEvent): void {
@@ -70,8 +72,8 @@ export class TextFileEditor extends BaseTextEditor {
 		}
 	}
 
-	private onWillCloseEditor(e: IEditorCloseEvent): void {
-		if (e.editor === this.input && this.group === this.editorGroupService.getStacksModel().positionOfGroup(e.group)) {
+	private onWillCloseEditor(e: IEditorIdentifier): void {
+		if (e.editor === this.input && this.group === e.group) {
 			this.doSaveTextEditorViewState(this.input);
 		}
 	}

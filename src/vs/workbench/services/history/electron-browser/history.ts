@@ -9,8 +9,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
-import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput, ITextEditorSelection, Position as GroupPosition } from 'vs/platform/editor/common/editor';
-import { Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorGroup, IEditorInputFactoryRegistry, toResource, Extensions as EditorInputExtensions, IFileInputFactory } from 'vs/workbench/common/editor';
+import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput, ITextEditorSelection } from 'vs/platform/editor/common/editor';
+import { Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorGroup, IEditorInputFactoryRegistry, toResource, Extensions as EditorInputExtensions, IFileInputFactory, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
@@ -83,11 +83,6 @@ export class TextEditorState {
 interface ISerializedEditorHistoryEntry {
 	resourceJSON?: object;
 	editorInputJSON?: { typeId: string; deserialized: string; };
-}
-
-interface IEditorIdentifier {
-	editor: IEditorInput;
-	position: GroupPosition;
 }
 
 interface IStackEntry {
@@ -180,7 +175,7 @@ export class HistoryService implements IHistoryService {
 		}
 
 		// Remember as last active editor (can be undefined if none opened)
-		this.lastActiveEditor = activeEditor ? { editor: activeEditor.input, position: activeEditor.group } : void 0;
+		this.lastActiveEditor = activeEditor ? { editor: activeEditor.input, group: activeEditor.group } : void 0;
 
 		// Dispose old listeners
 		dispose(this.activeEditorListeners);
@@ -207,7 +202,7 @@ export class HistoryService implements IHistoryService {
 			return false;
 		}
 
-		if (identifier.position !== editor.group) {
+		if (identifier.group !== editor.group) {
 			return false;
 		}
 

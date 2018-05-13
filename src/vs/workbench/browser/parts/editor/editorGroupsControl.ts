@@ -1135,7 +1135,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			let options = EditorOptions.create({ pinned: true });
 			const activeEditor = $this.editorService.getActiveEditor();
 			const editor = getCodeEditor(activeEditor);
-			if (editor && activeEditor.group === stacks.positionOfGroup(identifier.group) && identifier.editor.matches(activeEditor.input)) {
+			if (editor && activeEditor.group === stacks.positionOfGroup(stacks.getGroup(identifier.group)) && identifier.editor.matches(activeEditor.input)) {
 				options = TextEditorOptions.fromEditor(editor, { pinned: true });
 			}
 
@@ -1181,16 +1181,17 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 				// Move editor to new location
 				else {
-					const sourcePosition = stacks.positionOfGroup(draggedEditor.group);
+					const draggedGroup = stacks.getGroup(draggedEditor.group);
+					const sourcePosition = stacks.positionOfGroup(draggedGroup);
 					if (splitEditor) {
-						if (draggedEditor.group.count === 1) {
+						if (draggedGroup.count === 1) {
 							groupService.moveGroup(sourcePosition, splitTo);
 						} else {
 							editorService.openEditor(draggedEditor.editor, optionsFromDraggedEditor(draggedEditor), freeGroup).then(() => {
 								if (splitTo !== freeGroup) {
 									groupService.moveGroup(freeGroup, splitTo);
 								}
-								groupService.moveEditor(draggedEditor.editor, stacks.positionOfGroup(draggedEditor.group), splitTo);
+								groupService.moveEditor(draggedEditor.editor, stacks.positionOfGroup(draggedGroup), splitTo);
 							}).done(null, errors.onUnexpectedError);
 						}
 
@@ -1228,14 +1229,16 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 			let splitTarget: Position;
 
+			const draggedGroup = stacks.getGroup(draggedEditor.group);
+
 			// No splitting if we reached maximum group count
 			if (groups === POSITIONS.length) {
 				splitTarget = null;
 			}
 
 			// Special splitting if we drag an editor of a group with only one editor
-			else if (!isCopy && draggedEditor && draggedEditor.group.count === 1) {
-				const positionOfDraggedEditor = stacks.positionOfGroup(draggedEditor.group);
+			else if (!isCopy && draggedEditor && draggedGroup.count === 1) {
+				const positionOfDraggedEditor = stacks.positionOfGroup(draggedGroup);
 				switch (positionOfDraggedEditor) {
 					case Position.ONE:
 						if (position === Position.TWO && isOverSplitRightOrBottom) {

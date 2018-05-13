@@ -22,7 +22,7 @@ export interface EditorCloseEvent extends IEditorCloseEvent {
 }
 
 export interface EditorIdentifier extends IEditorIdentifier {
-	group: EditorGroup;
+	group: GroupIdentifier;
 	editor: EditorInput;
 }
 
@@ -348,7 +348,7 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 		this.splice(index, true);
 
 		// Event
-		return { editor, replaced, index, group: this };
+		return { editor, replaced, index, group: this.id };
 	}
 
 	closeEditors(except: EditorInput, direction?: Direction): void {
@@ -984,7 +984,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 		// Return next in group
 		if (index + 1 < this.activeGroup.count) {
-			return { group: this.activeGroup, editor: this.activeGroup.getEditor(index + 1) };
+			return { group: this.activeGroup.id, editor: this.activeGroup.getEditor(index + 1) };
 		}
 
 		// Return first if we are not jumping groups
@@ -992,14 +992,14 @@ export class EditorStacksModel implements IEditorStacksModel {
 			if (!cycleAtEnd) {
 				return null;
 			}
-			return { group: this.activeGroup, editor: this.activeGroup.getEditor(0) };
+			return { group: this.activeGroup.id, editor: this.activeGroup.getEditor(0) };
 		}
 
 		// Return first in next group
 		const indexOfGroup = this.indexOf(this.activeGroup);
 		const nextGroup = this.groups[indexOfGroup + 1];
 		if (nextGroup) {
-			return { group: nextGroup, editor: nextGroup.getEditor(0) };
+			return { group: nextGroup.id, editor: nextGroup.getEditor(0) };
 		}
 
 		// Return null if we are not cycling at the end
@@ -1009,7 +1009,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 		// Return first in first group
 		const firstGroup = this.groups[0];
-		return { group: firstGroup, editor: firstGroup.getEditor(0) };
+		return { group: firstGroup.id, editor: firstGroup.getEditor(0) };
 	}
 
 	previous(jumpGroups: boolean, cycleAtStart = true): IEditorIdentifier {
@@ -1023,7 +1023,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 		// Return previous in group
 		if (index > 0) {
-			return { group: this.activeGroup, editor: this.activeGroup.getEditor(index - 1) };
+			return { group: this.activeGroup.id, editor: this.activeGroup.getEditor(index - 1) };
 		}
 
 		// Return last if we are not jumping groups
@@ -1031,14 +1031,14 @@ export class EditorStacksModel implements IEditorStacksModel {
 			if (!cycleAtStart) {
 				return null;
 			}
-			return { group: this.activeGroup, editor: this.activeGroup.getEditor(this.activeGroup.count - 1) };
+			return { group: this.activeGroup.id, editor: this.activeGroup.getEditor(this.activeGroup.count - 1) };
 		}
 
 		// Return last in previous group
 		const indexOfGroup = this.indexOf(this.activeGroup);
 		const previousGroup = this.groups[indexOfGroup - 1];
 		if (previousGroup) {
-			return { group: previousGroup, editor: previousGroup.getEditor(previousGroup.count - 1) };
+			return { group: previousGroup.id, editor: previousGroup.getEditor(previousGroup.count - 1) };
 		}
 
 		// Return null if we are not cycling at the start
@@ -1048,7 +1048,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 		// Return last in last group
 		const lastGroup = this.groups[this.groups.length - 1];
-		return { group: lastGroup, editor: lastGroup.getEditor(lastGroup.count - 1) };
+		return { group: lastGroup.id, editor: lastGroup.getEditor(lastGroup.count - 1) };
 	}
 
 	last(): IEditorIdentifier {
@@ -1058,7 +1058,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 			return null;
 		}
 
-		return { group: this.activeGroup, editor: this.activeGroup.getEditor(this.activeGroup.count - 1) };
+		return { group: this.activeGroup.id, editor: this.activeGroup.getEditor(this.activeGroup.count - 1) };
 	}
 
 	private save(): void {
@@ -1168,15 +1168,15 @@ export class EditorStacksModel implements IEditorStacksModel {
 		unbind.push(group.onDidEditorLabelChange(editor => this._onModelChanged.fire({ group, editor })));
 		unbind.push(group.onDidEditorPin(editor => this._onModelChanged.fire({ group, editor })));
 		unbind.push(group.onDidEditorUnpin(editor => this._onModelChanged.fire({ group, editor })));
-		unbind.push(group.onDidEditorOpen(editor => this._onEditorOpened.fire({ editor, group })));
+		unbind.push(group.onDidEditorOpen(editor => this._onEditorOpened.fire({ editor, group: group.id })));
 		unbind.push(group.onDidEditorClose(event => {
 			this._onWillCloseEditor.fire(event);
 			this.handleOnEditorClosed(event);
 			this._onEditorClosed.fire(event);
 		}));
-		unbind.push(group.onDidEditorDispose(editor => this._onEditorDisposed.fire({ editor, group })));
-		unbind.push(group.onDidEditorBecomeDirty(editor => this._onEditorDirty.fire({ editor, group })));
-		unbind.push(group.onDidEditorLabelChange(editor => this._onEditorLabelChange.fire({ editor, group })));
+		unbind.push(group.onDidEditorDispose(editor => this._onEditorDisposed.fire({ editor, group: group.id })));
+		unbind.push(group.onDidEditorBecomeDirty(editor => this._onEditorDirty.fire({ editor, group: group.id })));
+		unbind.push(group.onDidEditorLabelChange(editor => this._onEditorLabelChange.fire({ editor, group: group.id })));
 		unbind.push(this.onGroupClosed(g => {
 			if (g === group) {
 				dispose(unbind);

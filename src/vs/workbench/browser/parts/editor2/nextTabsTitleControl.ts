@@ -11,7 +11,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IEditorInput, Verbosity } from 'vs/platform/editor/common/editor';
-import { IEditorGroup, toResource, GroupIdentifier } from 'vs/workbench/common/editor';
+import { toResource, GroupIdentifier } from 'vs/workbench/common/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -181,7 +181,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 					isLocalDragAndDrop = true;
 
 					const localDraggedEditor = this.editorTransfer.getData(DraggedEditorIdentifier.prototype)[0].identifier;
-					if (this.group.id === localDraggedEditor.group.id && this.group.getIndexOfEditor(localDraggedEditor.editor) === this.group.count - 1) {
+					if (this.group.id === localDraggedEditor.group && this.group.getIndexOfEditor(localDraggedEditor.editor) === this.group.count - 1) {
 						e.dataTransfer.dropEffect = 'none';
 						return;
 					}
@@ -526,7 +526,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 		// Drag support
 		disposables.push(addDisposableListener(tab, EventType.DRAG_START, (e: DragEvent) => {
 			const editor = this.group.getEditor(index);
-			this.editorTransfer.setData([new DraggedEditorIdentifier({ editor, group: (<any>this.group /* TODO@grid should be GroupIdentifier or INextEditorGroup */).group })], DraggedEditorIdentifier.prototype);
+			this.editorTransfer.setData([new DraggedEditorIdentifier({ editor, group: this.group.id })], DraggedEditorIdentifier.prototype);
 
 			e.dataTransfer.effectAllowed = 'copyMove';
 
@@ -560,7 +560,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 					isLocalDragAndDrop = true;
 
 					const localDraggedEditor = this.editorTransfer.getData(DraggedEditorIdentifier.prototype)[0].identifier;
-					if (localDraggedEditor.editor === this.group.getEditor(index) && localDraggedEditor.group.id === this.group.id) {
+					if (localDraggedEditor.editor === this.group.getEditor(index) && localDraggedEditor.group === this.group.id) {
 						e.dataTransfer.dropEffect = 'none';
 						return;
 					}
@@ -967,7 +967,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 		// Local DND
 		const draggedEditor = this.editorTransfer.hasData(DraggedEditorIdentifier.prototype) ? this.editorTransfer.getData(DraggedEditorIdentifier.prototype)[0].identifier : void 0;
 		if (draggedEditor) {
-			const sourceGroup = this.accessor.getGroup(draggedEditor.group.id) as INextEditorGroup;
+			const sourceGroup = this.accessor.getGroup(draggedEditor.group);
 
 			// Move editor to target position and index
 			if (this.isMoveOperation(e, draggedEditor.group)) {
@@ -990,10 +990,10 @@ export class NextTabsTitleControl extends NextTitleControl {
 		}
 	}
 
-	private isMoveOperation(e: DragEvent, source: IEditorGroup) {
+	private isMoveOperation(e: DragEvent, source: GroupIdentifier) {
 		const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
 
-		return !isCopy || source.id === this.group.id;
+		return !isCopy || source === this.group.id;
 	}
 
 	dispose(): void {

@@ -154,7 +154,7 @@ class DropOverlay extends Themable {
 
 		// Check for editor transfer
 		else if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
-			return this.accessor.getGroup(this.editorTransfer.getData(DraggedEditorIdentifier.prototype)[0].identifier.group.id);
+			return this.accessor.getGroup(this.editorTransfer.getData(DraggedEditorIdentifier.prototype)[0].identifier.group);
 		}
 
 		return void 0;
@@ -213,7 +213,7 @@ class DropOverlay extends Themable {
 			const targetGroup = ensureTargetGroup();
 
 			// Return if the drop is a no-op
-			const sourceGroup = this.accessor.getGroup(draggedEditor.group.id);
+			const sourceGroup = this.accessor.getGroup(draggedEditor.group);
 			if (sourceGroup === targetGroup) {
 				return;
 			}

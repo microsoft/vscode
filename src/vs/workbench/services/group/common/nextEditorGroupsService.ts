@@ -253,6 +253,14 @@ export interface INextEditorGroup {
 	readonly onDidActiveEditorChange: Event<void>;
 
 	/**
+	 * Emitted when an editor of this group is about to get closed.
+	 *
+	 * Listeners can for example save view state now before the
+	 * underlying widget gets disposed.
+	 */
+	readonly onWillCloseEditor: Event<IEditorInput>;
+
+	/**
 	 * Emitted when an editor of this group is closed.
 	 */
 	readonly onDidCloseEditor: Event<IEditorInput>;

@@ -20,7 +20,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Scope as MementoScope } from 'vs/workbench/common/memento';
 import { Part } from 'vs/workbench/browser/part';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorInput, EditorOptions, ConfirmResult, IWorkbenchEditorConfiguration, TextEditorOptions, SideBySideEditorInput, TextCompareEditorVisibleContext, TEXT_DIFF_EDITOR_ID, EditorOpeningEvent, IEditorOpeningEvent } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, ConfirmResult, IWorkbenchEditorConfiguration, TextEditorOptions, SideBySideEditorInput, TextCompareEditorVisibleContext, TEXT_DIFF_EDITOR_ID, EditorOpeningEvent, IEditorOpeningEvent, GroupIdentifier } from 'vs/workbench/common/editor';
 import { EditorGroupsControl, Rochade, IEditorGroupsControl, ProgressState } from 'vs/workbench/browser/parts/editor/editorGroupsControl';
 import { ScopedProgressService } from 'vs/workbench/services/progress/browser/progressService';
 import { IEditorGroupService, GroupOrientation, GroupArrangement, IEditorTabOptions, IMoveOptions } from 'vs/workbench/services/group/common/groupService';
@@ -189,7 +189,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 							editor.options = EditorOptions.create({ index });
 						}
 
-						const replacement = { group, editor: editor.toReplace, replaceWith: editor.replaceWith, options: editor.options };
+						const replacement = { group: group.id, editor: editor.toReplace, replaceWith: editor.replaceWith, options: editor.options };
 						if (group.activeEditor.matches(editor.toReplace)) {
 							activeReplacements.push(replacement);
 						} else {
@@ -202,7 +202,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Deal with hidden replacements first
 		hiddenReplacements.forEach(replacement => {
-			const group = replacement.group;
+			const group = this.stacks.getGroup(replacement.group);
 
 			group.openEditor(replacement.replaceWith, { active: false, pinned: true, index: replacement.options.index });
 			group.closeEditor(replacement.editor);
@@ -210,7 +210,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Now deal with active editors to be opened
 		const res = this.openEditors(activeReplacements.map(replacement => {
-			const group = replacement.group;
+			const group = this.stacks.getGroup(replacement.group);
 
 			return {
 				input: replacement.replaceWith,
@@ -221,7 +221,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Close active editors to be replaced now (they are no longer active)
 		activeReplacements.forEach(replacement => {
-			this.doCloseEditor(replacement.group, replacement.editor, false);
+			this.doCloseEditor(this.stacks.getGroup(replacement.group), replacement.editor, false);
 		});
 
 		return res;
@@ -301,7 +301,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Check for dirty and veto
 		const ignoreDirtyIfOpenedInOtherGroup = (groups.length === 1);
-		return this.handleDirty(arrays.flatten(groups.map(group => group.getEditors(true /* in MRU order */).map(editor => ({ group, editor })))), ignoreDirtyIfOpenedInOtherGroup).then(veto => {
+		return this.handleDirty(arrays.flatten(groups.map(group => group.getEditors(true /* in MRU order */).map(editor => ({ group: group.id, editor })))), ignoreDirtyIfOpenedInOtherGroup).then(veto => {
 			if (veto) {
 				return;
 			}
@@ -384,7 +384,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			}
 		}
 
-		return { group, editorsToClose: editorsToClose.map(editor => ({ editor, group })), filter };
+		return { group: group.id, editorsToClose: editorsToClose.map(editor => ({ editor, group: group.id })), filter } as any;
 	}
 
 	private doCloseEditors(group: EditorGroup, editors: EditorInput[]): void {
@@ -799,20 +799,20 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				this.pendingEditorInputsToClose.forEach(identifier => {
 					const { group, editor } = identifier;
 
-					if (group.isActive(editor)) {
+					if (this.stacks.getGroup(group).isActive(editor)) {
 						visibleEditors.push(identifier);
-					} else if (group.contains(editor)) {
+					} else if (this.stacks.getGroup(group).contains(editor)) {
 						hiddenEditors.push(identifier);
 					}
 				});
 
 				// Close all hidden first
-				hiddenEditors.forEach(hidden => this.doCloseEditor(<EditorGroup>hidden.group, hidden.editor, false));
+				hiddenEditors.forEach(hidden => this.doCloseEditor(this.stacks.getGroup(hidden.group), hidden.editor, false));
 
 				// Close visible ones second
 				visibleEditors
-					.sort((a1, a2) => this.stacks.positionOfGroup(a2.group) - this.stacks.positionOfGroup(a1.group))	// reduce layout work by starting right/bottom first
-					.forEach(visible => this.doCloseEditor(<EditorGroup>visible.group, visible.editor, false));
+					.sort((a1, a2) => this.stacks.positionOfGroup(this.stacks.getGroup(a2.group)) - this.stacks.positionOfGroup(this.stacks.getGroup(a1.group)))	// reduce layout work by starting right/bottom first
+					.forEach(visible => this.doCloseEditor(this.stacks.getGroup(visible.group), visible.editor, false));
 
 				// Reset
 				this.pendingEditorInputCloseTimeout = null;
@@ -1240,7 +1240,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// Check for dirty and veto
-		return this.handleDirty([{ group, editor: input }], true /* ignore if opened in other group */).then(veto => {
+		return this.handleDirty([{ group: group.id, editor: input }], true /* ignore if opened in other group */).then(veto => {
 			if (veto) {
 				return;
 			}
@@ -1356,7 +1356,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		const { editor } = identifier;
 
 		// Switch to editor that we want to handle
-		return this.openEditor(identifier.editor, null, this.stacks.positionOfGroup(identifier.group)).then(() => {
+		return this.openEditor(identifier.editor, null, this.stacks.positionOfGroup(this.stacks.getGroup(identifier.group))).then(() => {
 			return editor.confirmSave().then(res => {
 
 				// It could be that the editor saved meanwhile, so we check again
@@ -1742,7 +1742,7 @@ interface IEditorPartUIState {
 }
 
 interface IEditorReplacement extends EditorIdentifier {
-	group: EditorGroup;
+	group: GroupIdentifier;
 	editor: EditorInput;
 	replaceWith: EditorInput;
 	options?: EditorOptions;

@@ -199,7 +199,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 			const element = focused.length ? focused[0] : undefined;
 			if (element instanceof OpenEditor) {
 				if (isMiddleClick) {
-					const position = this.model.positionOfGroup(element.group);
+					const position = this.model.positionOfGroup(element.legacyGroup);
 					this.editorService.closeEditor(position, element.editor).done(null, errors.onUnexpectedError);
 				} else {
 					this.openEditor(element, { preserveFocus: isSingleClick, pinned: isDoubleClick, sideBySide: openToSide });
@@ -291,7 +291,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 			*/
 			this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'openEditors' });
 
-			let position = this.model.positionOfGroup(element.group);
+			let position = this.model.positionOfGroup(element.legacyGroup);
 			if (options.sideBySide && position !== Position.THREE) {
 				position++;
 			}
@@ -317,7 +317,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 				fillInActions(this.contributedContextMenu, { shouldForwardArgs: true, arg: element instanceof OpenEditor ? element.editor.getResource() : {} }, actions, this.contextMenuService);
 				return TPromise.as(actions);
 			},
-			getActionsContext: () => element instanceof OpenEditor ? { groupId: element.group.id, editorIndex: element.editorIndex } : { groupId: element.id }
+			getActionsContext: () => element instanceof OpenEditor ? { groupId: element.group, editorIndex: element.editorIndex } : { groupId: element.id }
 		});
 	}
 
@@ -493,7 +493,7 @@ class EditorGroupRenderer implements IRenderer<IEditorGroup, IEditorGroupTemplat
 
 			if (this.transfer.hasData(OpenEditor.prototype)) {
 				this.transfer.getData(OpenEditor.prototype).forEach(oe =>
-					this.editorGroupService.moveEditor(oe.editor, model.positionOfGroup(oe.group), positionOfTargetGroup, { preserveFocus: true }));
+					this.editorGroupService.moveEditor(oe.editor, model.positionOfGroup(oe.legacyGroup), positionOfTargetGroup, { preserveFocus: true }));
 				this.editorGroupService.activateGroup(positionOfTargetGroup);
 			} else {
 				const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: false });
@@ -575,12 +575,12 @@ class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateDat
 		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DROP, (e: DragEvent) => {
 			dom.removeClass(container, 'focused');
 			const model = this.editorGroupService.getStacksModel();
-			const positionOfTargetGroup = model.positionOfGroup(editorTemplate.openEditor.group);
-			const index = editorTemplate.openEditor.group.indexOf(editorTemplate.openEditor.editor);
+			const positionOfTargetGroup = model.positionOfGroup(editorTemplate.openEditor.legacyGroup);
+			const index = editorTemplate.openEditor.legacyGroup.indexOf(editorTemplate.openEditor.editor);
 
 			if (this.transfer.hasData(OpenEditor.prototype)) {
 				this.transfer.getData(OpenEditor.prototype).forEach((oe, offset) =>
-					this.editorGroupService.moveEditor(oe.editor, model.positionOfGroup(oe.group), positionOfTargetGroup, { index: index + offset, preserveFocus: true }));
+					this.editorGroupService.moveEditor(oe.editor, model.positionOfGroup(oe.legacyGroup), positionOfTargetGroup, { index: index + offset, preserveFocus: true }));
 				this.editorGroupService.activateGroup(positionOfTargetGroup);
 			} else {
 				const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: false });
@@ -602,7 +602,7 @@ class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateDat
 			extraClasses: ['open-editor'],
 			fileDecorations: this.configurationService.getValue<IFilesConfiguration>().explorer.decorations
 		});
-		templateData.actionBar.context = { groupId: editor.group.id, editorIndex: editor.editorIndex };
+		templateData.actionBar.context = { groupId: editor.group, editorIndex: editor.editorIndex };
 	}
 
 	disposeTemplate(templateData: IOpenEditorTemplateData): void {
