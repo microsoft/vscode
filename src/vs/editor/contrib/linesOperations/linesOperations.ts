@@ -25,7 +25,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 // copy lines
 
-abstract class AbstractCopyLinesAction extends EditorAction {
+export abstract class AbstractCopyLinesAction extends EditorAction {
 
 	private down: boolean;
 
@@ -125,7 +125,7 @@ abstract class AbstractCopyLinesAction extends EditorAction {
 
 }
 
-class CopyLinesUpAction extends AbstractCopyLinesAction {
+export class CopyLinesUpAction extends AbstractCopyLinesAction {
 	constructor() {
 		super(false, {
 			id: 'editor.action.copyLinesUpAction',
@@ -141,7 +141,7 @@ class CopyLinesUpAction extends AbstractCopyLinesAction {
 	}
 }
 
-class CopyLinesDownAction extends AbstractCopyLinesAction {
+export class CopyLinesDownAction extends AbstractCopyLinesAction {
 	constructor() {
 		super(true, {
 			id: 'editor.action.copyLinesDownAction',
