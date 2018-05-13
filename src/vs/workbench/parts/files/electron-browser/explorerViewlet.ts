@@ -24,7 +24,6 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewsRegistry, ViewLocation, IViewDescriptor } from 'vs/workbench/common/views';
@@ -218,7 +217,7 @@ export class ExplorerViewlet extends PersistentViewsViewlet implements IExplorer
 				return this.nextEditorService.openEditor(editor, options, group).then(onSuccessOrError, onSuccessOrError);
 			});
 
-			const explorerInstantiator = this.instantiationService.createChild(new ServiceCollection([IWorkbenchEditorService, delegatingEditorService]));
+			const explorerInstantiator = this.instantiationService.createChild(new ServiceCollection([INextEditorService, delegatingEditorService]));
 			return explorerInstantiator.createInstance(ExplorerView, <IExplorerViewOptions>{ ...options, viewletState: this.viewletState });
 		}
 		return super.createView(viewDescriptor, options);

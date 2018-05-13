@@ -40,6 +40,7 @@ import { getCodeOrDiffEditor } from 'vs/editor/browser/services/codeEditorServic
 import { once } from 'vs/base/common/event';
 import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/nextEditorService';
 import { INextEditorGroup, INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -122,7 +123,7 @@ export class TextDiffEditor extends BaseTextEditor {
 		});
 
 		// Create a special child of instantiator that will delegate all calls to openEditor() to the same diff editor if the input matches with the modified one
-		const diffEditorInstantiator = this.instantiationService.createChild(new ServiceCollection([IWorkbenchEditorService, delegatingEditorService]));
+		const diffEditorInstantiator = this.instantiationService.createChild(new ServiceCollection([INextEditorService, delegatingEditorService]));
 
 		return diffEditorInstantiator.createInstance(DiffEditorWidget, parent, configuration);
 	}
