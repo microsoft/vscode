@@ -9,7 +9,7 @@ import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platfor
 import { IEditorInput, IResourceInput, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditor, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { GroupIdentifier, IEditorOpeningEvent, IEditorInputWithOptions, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
-import { IEditor as ICodeEditor } from 'vs/editor/common/editorCommon';
+import { IEditor as ITextEditor } from 'vs/editor/common/editorCommon';
 import { INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 export const INextEditorService = createDecorator<INextEditorService>('nextEditorService');
@@ -65,9 +65,10 @@ export interface INextEditorService {
 
 	/**
 	 * The currently active text editor control if there is a control active
-	 * and it is an instance of the code text editor.
+	 * and it is an instance of the code text editor (either normal or diff
+	 * editor).
 	 */
-	readonly activeTextEditorControl: ICodeEditor;
+	readonly activeTextEditorControl: ITextEditor;
 
 	/**
 	 * The currently active editor if any.
@@ -80,9 +81,10 @@ export interface INextEditorService {
 	readonly visibleControls: ReadonlyArray<IEditor>;
 
 	/**
-	 * All text editor controls that are currently visible across all editor groups.
+	 * All text editor controls (either normal or diff editor) that are currently
+	 * visible across all editor groups.
 	 */
-	readonly visibleTextEditorControls: ReadonlyArray<ICodeEditor>;
+	readonly visibleTextEditorControls: ReadonlyArray<ITextEditor>;
 
 	/**
 	 * All editors that are currently visible across all editor groups.

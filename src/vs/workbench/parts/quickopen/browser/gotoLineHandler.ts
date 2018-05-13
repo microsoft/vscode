@@ -19,7 +19,7 @@ import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRe
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IEditorOptions, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { INextEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 
 export const GOTO_LINE_PREFIX = ':';
 
@@ -37,10 +37,13 @@ export class GotoLineAction extends QuickOpenAction {
 
 	public run(): TPromise<void> {
 
-		const editor = this.editorService.activeTextEditorControl as ICodeEditor;
+		let editor = this.editorService.activeTextEditorControl;
+		if (isDiffEditor(editor)) {
+			editor = editor.getModifiedEditor();
+		}
 		let restoreOptions: IEditorOptions = null;
 
-		if (editor) {
+		if (isCodeEditor(editor)) {
 			const config = editor.getConfiguration();
 			if (config.viewInfo.renderLineNumbers === RenderLineNumbersType.Relative) {
 				editor.updateOptions({

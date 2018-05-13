@@ -29,7 +29,8 @@ import { INextEditorService, IResourceEditor, ACTIVE_GROUP_TYPE, SIDE_GROUP_TYPE
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
-import { isCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { IEditor as ITextEditor } from 'vs/editor/common/editorCommon';
 import { toWinJsPromise } from 'vs/base/common/async';
 
 type ICachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
@@ -139,11 +140,11 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		return activeGroup ? activeGroup.activeControl : void 0;
 	}
 
-	get activeTextEditorControl(): ICodeEditor {
+	get activeTextEditorControl(): ITextEditor {
 		const activeControl = this.activeControl;
 		if (activeControl) {
 			const activeControlWidget = activeControl.getControl();
-			if (isCodeEditor(activeControlWidget)) {
+			if (isCodeEditor(activeControlWidget) || isDiffEditor(activeControlWidget)) {
 				return activeControlWidget;
 			}
 		}
@@ -161,8 +162,8 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		return coalesce(this.nextEditorGroupsService.groups.map(group => group.activeControl));
 	}
 
-	get visibleTextEditorControls(): ICodeEditor[] {
-		return this.visibleControls.map(control => control.getControl() as ICodeEditor).filter(widget => isCodeEditor(widget));
+	get visibleTextEditorControls(): ITextEditor[] {
+		return this.visibleControls.map(control => control.getControl() as ITextEditor).filter(widget => isCodeEditor(widget) || isDiffEditor(widget));
 	}
 
 	get visibleEditors(): IEditorInput[] {
@@ -358,7 +359,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 
 	invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T {
 		const activeTextEditorControl = this.activeTextEditorControl;
-		if (activeTextEditorControl) {
+		if (isCodeEditor(activeTextEditorControl)) {
 			return activeTextEditorControl.invokeWithinContext(fn);
 		}
 
