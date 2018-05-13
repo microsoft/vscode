@@ -269,7 +269,17 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	}
 
 	private createSideBySideGroup(): INextEditorGroup {
-		return this.nextEditorGroupsService.addGroup(this.nextEditorGroupsService.activeGroup, GroupDirection.RIGHT); // TODO@grid this should use an existing side group if there is one
+		const direction = this.configurationService.getValue<'left' | 'right' | 'up' | 'down'>('workbench.editor.openToTheSideDirection');
+
+		let groupDirection: GroupDirection = GroupDirection.RIGHT;
+		switch (direction) {
+			case 'left': groupDirection = GroupDirection.LEFT; break;
+			case 'right': groupDirection = GroupDirection.RIGHT; break;
+			case 'up': groupDirection = GroupDirection.UP; break;
+			case 'down': groupDirection = GroupDirection.DOWN; break;
+			default: groupDirection = GroupDirection.RIGHT;
+		}
+		return this.nextEditorGroupsService.addGroup(this.nextEditorGroupsService.activeGroup, groupDirection);
 	}
 
 	private toOptions(options?: IEditorOptions | EditorOptions): EditorOptions {
