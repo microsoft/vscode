@@ -20,14 +20,14 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Scope as MementoScope } from 'vs/workbench/common/memento';
 import { Part } from 'vs/workbench/browser/part';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorInput, EditorOptions, ConfirmResult, IWorkbenchEditorConfiguration, TextEditorOptions, SideBySideEditorInput, TextCompareEditorVisibleContext, TEXT_DIFF_EDITOR_ID, EditorOpeningEvent, IEditorOpeningEvent, GroupIdentifier } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, ConfirmResult, IWorkbenchEditorConfiguration, TextEditorOptions, SideBySideEditorInput, TextCompareEditorVisibleContext, TEXT_DIFF_EDITOR_ID, IEditorOpeningEvent, GroupIdentifier, CloseDirection } from 'vs/workbench/common/editor';
 import { EditorGroupsControl, Rochade, IEditorGroupsControl, ProgressState } from 'vs/workbench/browser/parts/editor/editorGroupsControl';
 import { ScopedProgressService } from 'vs/workbench/services/progress/browser/progressService';
 import { IEditorGroupService, GroupOrientation, GroupArrangement, IEditorTabOptions, IMoveOptions } from 'vs/workbench/services/group/common/groupService';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IEditorPart } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { Position, POSITIONS, Direction, IEditor } from 'vs/platform/editor/common/editor';
+import { Position, POSITIONS, IEditor } from 'vs/platform/editor/common/editor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -46,6 +46,7 @@ import { ThrottledEmitter } from 'vs/base/common/async';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService, Severity, INotificationActions } from 'vs/platform/notification/common/notification';
 import { dispose } from 'vs/base/common/lifecycle';
+import { EditorOpeningEvent } from 'vs/workbench/browser/parts/editor2/nextEditorGroupView';
 
 /**
  * The editor part is the container for editors in the workbench. Based on the editor input being opened, it asks the registered
@@ -375,7 +376,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 			// Filter: direction (left / right)
 			else if (hasDirection) {
-				editorsToClose = (filter.direction === Direction.LEFT) ? editorsToClose.slice(0, group.indexOf(filter.except)) : editorsToClose.slice(group.indexOf(filter.except) + 1);
+				editorsToClose = (filter.direction === CloseDirection.LEFT) ? editorsToClose.slice(0, group.indexOf(filter.except)) : editorsToClose.slice(group.indexOf(filter.except) + 1);
 			}
 
 			// Filter: except
@@ -414,7 +415,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 	}
 
-	private doCloseEditorsWithFilter(group: EditorGroup, filter: { except?: EditorInput, direction?: Direction, savedOnly?: boolean }): void {
+	private doCloseEditorsWithFilter(group: EditorGroup, filter: { except?: EditorInput, direction?: CloseDirection, savedOnly?: boolean }): void {
 
 		// Close all editors if there is no editor to except and
 		// we either are not only closing saved editors or
@@ -1748,7 +1749,7 @@ interface IEditorReplacement extends EditorIdentifier {
 	options?: EditorOptions;
 }
 
-export type ICloseEditorsFilter = { except?: EditorInput, direction?: Direction, savedOnly?: boolean };
+export type ICloseEditorsFilter = { except?: EditorInput, direction?: CloseDirection, savedOnly?: boolean };
 export type ICloseEditorsByFilterArgs = { positionOne?: ICloseEditorsFilter, positionTwo?: ICloseEditorsFilter, positionThree?: ICloseEditorsFilter };
 export type ICloseEditorsArgs = { positionOne?: EditorInput[], positionTwo?: EditorInput[], positionThree?: EditorInput[] };
 

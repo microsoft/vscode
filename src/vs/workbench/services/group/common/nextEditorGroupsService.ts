@@ -7,8 +7,8 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { GroupIdentifier, IEditorOpeningEvent, IEditorInputWithOptions } from 'vs/workbench/common/editor';
-import { IEditorInput, IEditor, IEditorOptions, Direction } from 'vs/platform/editor/common/editor';
+import { GroupIdentifier, IEditorOpeningEvent, IEditorInputWithOptions, CloseDirection } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor, IEditorOptions } from 'vs/platform/editor/common/editor';
 
 export const INextEditorGroupsService = createDecorator<INextEditorGroupsService>('nextEditorGroupsService');
 
@@ -63,7 +63,7 @@ export interface IMergeGroupOptions {
 
 export type ICloseEditorsFilter = {
 	except?: IEditorInput,
-	direction?: Direction,
+	direction?: CloseDirection,
 	savedOnly?: boolean
 };
 

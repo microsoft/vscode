@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import { EditorStacksModel, EditorGroup, EditorCloseEvent, ISerializedEditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
-import { Extensions as EditorExtensions, IEditorInputFactoryRegistry, EditorInput, IFileEditorInput, IEditorIdentifier, IEditorGroup, IStacksModelChangeEvent, IEditorInputFactory, IEditorCloseEvent } from 'vs/workbench/common/editor';
+import { Extensions as EditorExtensions, IEditorInputFactoryRegistry, EditorInput, IFileEditorInput, IEditorIdentifier, IEditorGroup, IStacksModelChangeEvent, IEditorInputFactory, IEditorCloseEvent, CloseDirection } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import { TestStorageService, TestLifecycleService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -17,7 +17,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Position, Direction, IEditorModel } from 'vs/platform/editor/common/editor';
+import { Position, IEditorModel } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -1046,7 +1046,7 @@ suite('Editor Stacks Model', () => {
 
 		// Close Left
 		assert.equal(group.activeEditor, input3);
-		group.closeEditors(group.activeEditor, Direction.LEFT);
+		group.closeEditors(group.activeEditor, CloseDirection.LEFT);
 		assert.equal(group.activeEditor, input3);
 		assert.equal(group.count, 3);
 		assert.equal(group.getEditors()[0], input3);
@@ -1063,7 +1063,7 @@ suite('Editor Stacks Model', () => {
 
 		// Close Right
 		assert.equal(group.activeEditor, input3);
-		group.closeEditors(group.activeEditor, Direction.RIGHT);
+		group.closeEditors(group.activeEditor, CloseDirection.RIGHT);
 		assert.equal(group.activeEditor, input3);
 		assert.equal(group.count, 3);
 		assert.equal(group.getEditors()[0], input1);

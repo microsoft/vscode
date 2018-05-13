@@ -187,11 +187,6 @@ export enum Position {
 
 export const POSITIONS = [Position.ONE, Position.TWO, Position.THREE];
 
-export enum Direction {
-	LEFT,
-	RIGHT
-}
-
 export enum Verbosity {
 	SHORT,
 	MEDIUM,

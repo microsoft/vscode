@@ -8,9 +8,9 @@ import * as types from 'vs/base/common/types';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands, TextCompareEditorVisibleContext, EditorInput, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext } from 'vs/workbench/common/editor';
+import { TextCompareEditorVisibleContext, EditorInput, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditor, Position, POSITIONS, Direction, IEditorInput } from 'vs/platform/editor/common/editor';
+import { IEditor, Position, POSITIONS, IEditorInput } from 'vs/platform/editor/common/editor';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import { EditorStacksModel, EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
@@ -24,6 +24,30 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { distinct } from 'vs/base/common/arrays';
 import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+
+export const ActiveEditorMovePositioning = {
+	FIRST: 'first',
+	LAST: 'last',
+	LEFT: 'left',
+	RIGHT: 'right',
+	CENTER: 'center',
+	POSITION: 'position',
+};
+
+export const ActiveEditorMovePositioningBy = {
+	TAB: 'tab',
+	GROUP: 'group'
+};
+
+export interface ActiveEditorMoveArguments {
+	to?: string;
+	by?: string;
+	value?: number;
+}
+
+export const EditorCommands = {
+	MoveActiveEditor: 'moveActiveEditor'
+};
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -439,7 +463,7 @@ function registerEditorCommands() {
 			const { position, input } = positionAndInput(editorGroupService, editorService, context);
 
 			if (typeof position === 'number' && input) {
-				return editorService.closeEditors(position, { except: input, direction: Direction.RIGHT });
+				return editorService.closeEditors(position, { except: input, direction: CloseDirection.RIGHT });
 			}
 
 			return TPromise.as(false);

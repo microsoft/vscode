@@ -129,6 +129,8 @@ suite('Workbench - Editor', () => {
 		// Save at an unknown group
 		memento.saveState(4, URI.file('/E'), { line: 1 });
 		assert.ok(memento.loadState(4, URI.file('/E'))); // only gets removed when memento is saved
+		memento.saveState(4, URI.file('/C'), { line: 1 });
+		assert.ok(memento.loadState(4, URI.file('/C'))); // only gets removed when memento is saved
 
 		memento.save();
 
@@ -136,7 +138,10 @@ suite('Workbench - Editor', () => {
 		assert.ok(memento.loadState(0, URI.file('/C')));
 		assert.ok(memento.loadState(0, URI.file('/D')));
 		assert.ok(memento.loadState(0, URI.file('/E')));
+
+		// Check on entries no longer there from invalid groups
 		assert.ok(!memento.loadState(4, URI.file('/E')));
+		assert.ok(!memento.loadState(4, URI.file('/C')));
 
 		memento.clearState(URI.file('/C'));
 		memento.clearState(URI.file('/E'));

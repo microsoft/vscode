@@ -28,12 +28,6 @@ export const MultipleEditorGroupsContext = new RawContextKey<boolean>('multipleE
 export const SingleEditorGroupsContext = MultipleEditorGroupsContext.toNegated();
 export const InEditorZenModeContext = new RawContextKey<boolean>('inZenMode', false);
 
-export enum ConfirmResult {
-	SAVE,
-	DONT_SAVE,
-	CANCEL
-}
-
 /**
  * Text diff editor id.
  */
@@ -273,6 +267,12 @@ export abstract class EditorInput implements IEditorInput {
 	}
 }
 
+export enum ConfirmResult {
+	SAVE,
+	DONT_SAVE,
+	CANCEL
+}
+
 export interface IEditorOpeningEvent extends IEditorIdentifier {
 	options?: IEditorOptions;
 
@@ -284,33 +284,6 @@ export interface IEditorOpeningEvent extends IEditorIdentifier {
 	 * altogether.
 	 */
 	prevent(callback: () => Thenable<any>): void;
-}
-
-export class EditorOpeningEvent implements IEditorOpeningEvent {
-	private override: () => Thenable<any>;
-
-	constructor(private _group: GroupIdentifier, private _editor: IEditorInput, private _options: IEditorOptions) {
-	}
-
-	public get group(): GroupIdentifier {
-		return this._group;
-	}
-
-	public get editor(): IEditorInput {
-		return this._editor;
-	}
-
-	public get options(): IEditorOptions {
-		return this._options;
-	}
-
-	public prevent(callback: () => Thenable<any>): void {
-		this.override = callback;
-	}
-
-	public isPrevented(): () => Thenable<any> {
-		return this.override;
-	}
 }
 
 export enum EncodingMode {
@@ -752,56 +725,6 @@ export class TextEditorOptions extends EditorOptions {
 	}
 }
 
-export interface IStacksModelChangeEvent {
-	group: IEditorGroup;
-	editor?: IEditorInput;
-	structural?: boolean;
-}
-
-export interface IEditorStacksModel {
-
-	onModelChanged: Event<IStacksModelChangeEvent>;
-
-	onWillCloseEditor: Event<IEditorCloseEvent>;
-	onEditorClosed: Event<IEditorCloseEvent>;
-
-	groups: IEditorGroup[];
-	activeGroup: IEditorGroup;
-	isActive(group: IEditorGroup): boolean;
-
-	getGroup(id: GroupIdentifier): IEditorGroup;
-
-	positionOfGroup(group: IEditorGroup): Position;
-	groupAt(position: Position): IEditorGroup;
-
-	next(jumpGroups: boolean, cycleAtEnd?: boolean): IEditorIdentifier;
-	previous(jumpGroups: boolean, cycleAtStart?: boolean): IEditorIdentifier;
-	last(): IEditorIdentifier;
-
-	isOpen(resource: URI): boolean;
-
-	toString(): string;
-}
-
-export interface IEditorGroup {
-	id: GroupIdentifier;
-	count: number;
-	activeEditor: IEditorInput;
-	previewEditor: IEditorInput;
-
-	getEditor(index: number): IEditorInput;
-	getEditor(resource: URI): IEditorInput;
-	indexOf(editor: IEditorInput): number;
-
-	contains(editorOrResource: IEditorInput | URI): boolean;
-
-	getEditors(mru?: boolean): IEditorInput[];
-	isActive(editor: IEditorInput): boolean;
-	isPreview(editor: IEditorInput): boolean;
-	isPinned(index: number): boolean;
-	isPinned(editor: IEditorInput): boolean;
-}
-
 export interface IEditorIdentifier {
 	group: GroupIdentifier;
 	editor: IEditorInput;
@@ -833,15 +756,6 @@ export interface IEditorCloseEvent extends IEditorIdentifier {
 
 export type GroupIdentifier = number;
 
-export const EditorOpenPositioning = {
-	LEFT: 'left',
-	RIGHT: 'right',
-	FIRST: 'first',
-	LAST: 'last'
-};
-
-export const OPEN_POSITIONING_CONFIG = 'workbench.editor.openPositioning';
-
 export interface IWorkbenchEditorConfiguration {
 	workbench: {
 		editor: IWorkbenchEditorPartConfiguration,
@@ -862,30 +776,6 @@ export interface IWorkbenchEditorPartConfiguration {
 	swipeToNavigate?: boolean;
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
 }
-
-export const ActiveEditorMovePositioning = {
-	FIRST: 'first',
-	LAST: 'last',
-	LEFT: 'left',
-	RIGHT: 'right',
-	CENTER: 'center',
-	POSITION: 'position',
-};
-
-export const ActiveEditorMovePositioningBy = {
-	TAB: 'tab',
-	GROUP: 'group'
-};
-
-export interface ActiveEditorMoveArguments {
-	to?: string;
-	by?: string;
-	value?: number;
-}
-
-export const EditorCommands = {
-	MoveActiveEditor: 'moveActiveEditor'
-};
 
 export interface IResourceOptions {
 	supportSideBySide?: boolean;
@@ -930,6 +820,11 @@ export function toResource(editor: IEditorInput, options?: IResourceOptions): UR
 	}
 
 	return null;
+}
+
+export enum CloseDirection {
+	LEFT,
+	RIGHT
 }
 
 interface MapGroupToViewStates<T> {
@@ -1090,3 +985,57 @@ export const Extensions = {
 };
 
 Registry.add(Extensions.EditorInputFactories, new EditorInputFactoryRegistry());
+
+//#region obsolete
+
+export interface IStacksModelChangeEvent {
+	group: IEditorGroup;
+	editor?: IEditorInput;
+	structural?: boolean;
+}
+
+export interface IEditorStacksModel {
+
+	onModelChanged: Event<IStacksModelChangeEvent>;
+
+	onWillCloseEditor: Event<IEditorCloseEvent>;
+	onEditorClosed: Event<IEditorCloseEvent>;
+
+	groups: IEditorGroup[];
+	activeGroup: IEditorGroup;
+	isActive(group: IEditorGroup): boolean;
+
+	getGroup(id: GroupIdentifier): IEditorGroup;
+
+	positionOfGroup(group: IEditorGroup): Position;
+	groupAt(position: Position): IEditorGroup;
+
+	next(jumpGroups: boolean, cycleAtEnd?: boolean): IEditorIdentifier;
+	previous(jumpGroups: boolean, cycleAtStart?: boolean): IEditorIdentifier;
+	last(): IEditorIdentifier;
+
+	isOpen(resource: URI): boolean;
+
+	toString(): string;
+}
+
+export interface IEditorGroup {
+	id: GroupIdentifier;
+	count: number;
+	activeEditor: IEditorInput;
+	previewEditor: IEditorInput;
+
+	getEditor(index: number): IEditorInput;
+	getEditor(resource: URI): IEditorInput;
+	indexOf(editor: IEditorInput): number;
+
+	contains(editorOrResource: IEditorInput | URI): boolean;
+
+	getEditors(mru?: boolean): IEditorInput[];
+	isActive(editor: IEditorInput): boolean;
+	isPreview(editor: IEditorInput): boolean;
+	isPinned(index: number): boolean;
+	isPinned(editor: IEditorInput): boolean;
+}
+
+//#endregion

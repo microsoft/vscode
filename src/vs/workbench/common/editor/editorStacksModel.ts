@@ -6,7 +6,7 @@
 'use strict';
 
 import { Event, Emitter, once } from 'vs/base/common/event';
-import { Extensions, IEditorInputFactoryRegistry, EditorInput, toResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, IStacksModelChangeEvent, EditorOpenPositioning, SideBySideEditorInput, OPEN_POSITIONING_CONFIG } from 'vs/workbench/common/editor';
+import { Extensions, IEditorInputFactoryRegistry, EditorInput, toResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, IStacksModelChangeEvent, SideBySideEditorInput, CloseDirection } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -14,8 +14,17 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { dispose, IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Position, Direction } from 'vs/platform/editor/common/editor';
+import { Position } from 'vs/platform/editor/common/editor';
 import { ResourceMap } from 'vs/base/common/map';
+
+const EditorOpenPositioning = {
+	LEFT: 'left',
+	RIGHT: 'right',
+	FIRST: 'first',
+	LAST: 'last'
+};
+
+const OPEN_POSITIONING_CONFIG = 'workbench.editor.openPositioning';
 
 export interface EditorCloseEvent extends IEditorCloseEvent {
 	editor: EditorInput;
@@ -351,21 +360,21 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 		return { editor, replaced, index, group: this.id };
 	}
 
-	closeEditors(except: EditorInput, direction?: Direction): void {
+	closeEditors(except: EditorInput, direction?: CloseDirection): void {
 		const index = this.indexOf(except);
 		if (index === -1) {
 			return; // not found
 		}
 
 		// Close to the left
-		if (direction === Direction.LEFT) {
+		if (direction === CloseDirection.LEFT) {
 			for (let i = index - 1; i >= 0; i--) {
 				this.closeEditor(this.editors[i]);
 			}
 		}
 
 		// Close to the right
-		else if (direction === Direction.RIGHT) {
+		else if (direction === CloseDirection.RIGHT) {
 			for (let i = this.editors.length - 1; i > index; i--) {
 				this.closeEditor(this.editors[i]);
 			}

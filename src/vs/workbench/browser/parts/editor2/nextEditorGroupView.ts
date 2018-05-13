@@ -8,7 +8,7 @@
 import 'vs/css!./media/nextEditorGroupView';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorGroup, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
-import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, IEditorOpeningEvent, EditorOpeningEvent } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, IEditorOpeningEvent, CloseDirection } from 'vs/workbench/common/editor';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor } from 'vs/base/browser/dom';
@@ -38,7 +38,6 @@ import { INextEditorGroupsAccessor, INextEditorGroupView, INextEditorPartOptions
 import { NextNoTabsTitleControl } from './nextNoTabsTitleControl';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { join } from 'vs/base/common/paths';
-import { Direction } from 'vs/platform/editor/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { RemoveActiveEditorGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
@@ -960,7 +959,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 		// Filter: direction (left / right)
 		else if (hasDirection) {
-			editorsToClose = (filter.direction === Direction.LEFT) ?
+			editorsToClose = (filter.direction === CloseDirection.LEFT) ?
 				editorsToClose.slice(0, this._group.indexOf(filter.except as EditorInput)) :
 				editorsToClose.slice(this._group.indexOf(filter.except as EditorInput) + 1);
 		}
@@ -1165,6 +1164,37 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		this.titleAreaControl.dispose();
 
 		super.dispose();
+	}
+}
+
+export class EditorOpeningEvent implements IEditorOpeningEvent {
+	private override: () => Thenable<any>;
+
+	constructor(
+		private _group: GroupIdentifier,
+		private _editor: EditorInput,
+		private _options: EditorOptions
+	) {
+	}
+
+	get group(): GroupIdentifier {
+		return this._group;
+	}
+
+	get editor(): EditorInput {
+		return this._editor;
+	}
+
+	get options(): EditorOptions {
+		return this._options;
+	}
+
+	prevent(callback: () => Thenable<any>): void {
+		this.override = callback;
+	}
+
+	isPrevented(): () => Thenable<any> {
+		return this.override;
 	}
 }
 
