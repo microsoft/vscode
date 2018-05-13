@@ -148,7 +148,7 @@ function save(resource: URI, isSaveAs: boolean, editorService: IWorkbenchEditorS
 		const editor = editorService.getActiveEditor();
 		const activeEditorResource = editor && editor.input && editor.input.getResource();
 		if (activeEditorResource && activeEditorResource.toString() === resource.toString()) {
-			editorGroupService.pinEditor(editor.position, editor.input);
+			editorGroupService.pinEditor(editor.group, editor.input);
 		}
 
 		// Just save
@@ -528,7 +528,7 @@ CommandsRegistry.registerCommand({
 CommandsRegistry.registerCommand({
 	id: SAVE_ALL_IN_GROUP_COMMAND_ID,
 	handler: (accessor, resource: URI | object, editorContext: IEditorCommandsContext) => {
-		const contexts = getMultiSelectedEditorContexts(editorContext, accessor.get(IListService));
+		const contexts = getMultiSelectedEditorContexts(editorContext, accessor.get(IListService), accessor.get(IEditorGroupService));
 		const editorGroupService = accessor.get(IEditorGroupService);
 		let saveAllArg: any;
 		if (!contexts.length) {

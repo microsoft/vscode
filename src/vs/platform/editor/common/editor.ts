@@ -22,19 +22,11 @@ export interface IEditorService {
 	openEditor(input: IResourceInput, sideBySide?: boolean): TPromise<IEditor>;
 }
 
-export interface IEditorInputWithOptions {
-	editor: IEditorInput;
-	options?: IEditorOptions;
-}
-
-export function isEditorInputWithOptions(obj: any): obj is IEditorInputWithOptions {
-	const editorInputWithOptions = obj as IEditorInputWithOptions;
-
-	return !!editorInputWithOptions && !!editorInputWithOptions.editor;
-}
-
 export interface IEditorModel {
 
+	/**
+	 * Emitted when the model is disposed.
+	 */
 	onDispose: Event<void>;
 
 	/**
@@ -133,9 +125,12 @@ export interface IResourceSideBySideInput extends IBaseResourceInput {
 	detailResource: URI;
 }
 
-export interface IEditorControl {
+/**
+ * Marker interface for the editor control
+ */
+export interface IEditorControl { }
 
-}
+export type GroupIdentifier = number;
 
 export interface IEditor {
 
@@ -150,9 +145,9 @@ export interface IEditor {
 	options: IEditorOptions;
 
 	/**
-	 * The assigned position of this editor.
+	 * The assigned group this editor is showing in.
 	 */
-	position: Position;
+	group: GroupIdentifier;
 
 	/**
 	 * Returns the unique identifier of this editor.
@@ -191,11 +186,6 @@ export enum Position {
 }
 
 export const POSITIONS = [Position.ONE, Position.TWO, Position.THREE];
-
-export enum Direction {
-	LEFT,
-	RIGHT
-}
 
 export enum Verbosity {
 	SHORT,

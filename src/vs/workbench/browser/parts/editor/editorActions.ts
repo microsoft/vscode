@@ -9,21 +9,23 @@ import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { mixin } from 'vs/base/common/objects';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
-import { EditorInput, TextEditorOptions, EditorOptions, IEditorIdentifier, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands, ConfirmResult, IEditorCommandsContext } from 'vs/workbench/common/editor';
+import { EditorInput, TextEditorOptions, EditorOptions, IEditorIdentifier, ConfirmResult, IEditorCommandsContext, GroupIdentifier, groupFromContext, CloseDirection } from 'vs/workbench/common/editor';
 import { QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { Position, IEditor, Direction, IResourceInput, IEditorInput, POSITIONS } from 'vs/platform/editor/common/editor';
+import { Position, IEditor, IResourceInput, IEditorInput, POSITIONS } from 'vs/platform/editor/common/editor';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IEditorGroupService, GroupArrangement } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { CLOSE_EDITOR_COMMAND_ID, NAVIGATE_IN_GROUP_ONE_PREFIX, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, NAVIGATE_IN_GROUP_THREE_PREFIX, NAVIGATE_IN_GROUP_TWO_PREFIX } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { INextEditorGroupsService, GroupDirection as SplitDirection, INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { CLOSE_EDITOR_COMMAND_ID, NAVIGATE_IN_GROUP_ONE_PREFIX, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, NAVIGATE_IN_GROUP_THREE_PREFIX, NAVIGATE_IN_GROUP_TWO_PREFIX, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { INextEditorGroupsService, GroupDirection as SplitDirection, INextEditorGroup, GroupsArrangement } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
+import { toWinJsPromise } from 'vs/base/common/async';
 
 // TODo@grid this action should be removed in favour of the split vertical/horizontal actions
 export class SplitEditorAction extends Action {
@@ -85,12 +87,12 @@ export class SplitEditorAction extends Action {
 			case 2:
 
 				// Continue splitting to the right/bottom
-				if (editorToSplit.position === Position.TWO) {
+				if (editorToSplit.group === Position.TWO) {
 					targetPosition = Position.THREE;
 				}
 
 				// Push the second group to the right/bottom to make room for the splitted input
-				else if (editorToSplit.position === Position.ONE) {
+				else if (editorToSplit.group === Position.ONE) {
 					options.preserveFocus = true;
 
 					return this.editorService.openEditor(editorToSplit.input, options, Position.THREE).then(() => {
@@ -124,7 +126,7 @@ export class BaseSplitEditorGroupAction extends Action {
 	public run(context?: IEditorIdentifier): TPromise<any> {
 		let group: INextEditorGroup;
 		if (context && context.group) {
-			group = this.nextEditorGroupsService.getGroup(context.group.id);
+			group = this.nextEditorGroupsService.getGroup(context.group);
 		}
 
 		if (!group) {
@@ -185,6 +187,30 @@ export class SplitEditorGroupHorizontalAction extends BaseSplitEditorGroupAction
 	}
 }
 
+export class RemoveActiveEditorGroupAction extends Action {
+
+	static readonly ID = 'workbench.action.removeActiveEditorGroup';
+	static readonly LABEL = nls.localize('removeActiveGroup', "Remove Active Editor Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@INextEditorGroupsService private nextEditorGroupsService: INextEditorGroupsService
+	) {
+		super(id, label);
+
+		this.class = 'close-editor-group';
+	}
+
+	run(context?: GroupIdentifier): TPromise<any> {
+		const group = groupFromContext(context, this.nextEditorGroupsService);
+
+		this.nextEditorGroupsService.removeGroup(group);
+
+		return TPromise.as(void 0);
+	}
+}
+
 export class JoinTwoGroupsAction extends Action {
 
 	public static readonly ID = 'workbench.action.joinTwoGroups';
@@ -212,7 +238,7 @@ export class JoinTwoGroupsAction extends Action {
 
 		// Joining group is from context, or the active group
 		if (context) {
-			fromPosition = editorStacksModel.positionOfGroup(context.group);
+			fromPosition = editorStacksModel.positionOfGroup(editorStacksModel.getGroup(context.group));
 		} else {
 			fromPosition = editorStacksModel.positionOfGroup(editorStacksModel.activeGroup);
 		}
@@ -274,7 +300,7 @@ export class NavigateBetweenGroupsAction extends Action {
 		// Cycle to the left/top and use module to start at 0 again
 		const visibleEditors = this.editorService.getVisibleEditors();
 		const editorCount = visibleEditors.length;
-		const newIndex = (activeEditor.position + 1) % editorCount;
+		const newIndex = (activeEditor.group + 1) % editorCount;
 
 		this.editorGroupService.focusGroup(<Position>newIndex);
 
@@ -325,7 +351,7 @@ export class FocusFirstGroupAction extends Action {
 		// Find left/top editor and focus it
 		const editors = this.editorService.getVisibleEditors();
 		for (let editor of editors) {
-			if (editor.position === Position.ONE) {
+			if (editor.group === Position.ONE) {
 				this.editorGroupService.focusGroup(Position.ONE);
 
 				return TPromise.as(true);
@@ -372,14 +398,14 @@ export abstract class BaseFocusSideGroupAction extends Action {
 			const editor = editors[i];
 
 			// Target editor exists so focus it
-			if (editor.position === this.getTargetEditorSide()) {
-				this.editorGroupService.focusGroup(editor.position);
+			if (editor.group === this.getTargetEditorSide()) {
+				this.editorGroupService.focusGroup(editor.group);
 
 				return TPromise.as(true);
 			}
 
 			// Remember reference editor
-			if (editor.position === this.getReferenceEditorSide()) {
+			if (editor.group === this.getReferenceEditorSide()) {
 				referenceEditor = editor;
 			}
 		}
@@ -496,7 +522,7 @@ export class FocusPreviousGroup extends Action {
 		}
 
 		// Nevigate to the previous group or to the last group if the first group is active
-		const newPositionIndex = (activeEditor.position + groupCount - 1) % groupCount;
+		const newPositionIndex = (activeEditor.group + groupCount - 1) % groupCount;
 		this.editorGroupService.focusGroup(<Position>newPositionIndex);
 
 		return TPromise.as(true);
@@ -534,7 +560,7 @@ export class FocusNextGroup extends Action {
 		}
 
 		// Nevigate to the next group or to the first group if the last group is active
-		const newPositionIndex = (activeEditor.position + 1) % groupCount;
+		const newPositionIndex = (activeEditor.group + 1) % groupCount;
 		this.editorGroupService.focusGroup(<Position>newPositionIndex);
 
 		return TPromise.as(true);
@@ -564,7 +590,7 @@ export class OpenToSideAction extends Action {
 
 	private updateEnablement(): void {
 		const activeEditor = this.editorService.getActiveEditor();
-		this.enabled = (!activeEditor || activeEditor.position !== Position.THREE);
+		this.enabled = (!activeEditor || activeEditor.group !== Position.THREE);
 	}
 
 	public run(context: any): TPromise<any> {
@@ -653,13 +679,13 @@ export class CloseOneEditorAction extends Action {
 		if (typeof editorIndex === 'number') {
 			const editorAtIndex = group.getEditor(editorIndex);
 			if (editorAtIndex) {
-				return group.closeEditor(editorAtIndex) as TPromise;
+				return toWinJsPromise(group.closeEditor(editorAtIndex));
 			}
 		}
 
 		// Otherwise close active editor in group
 		if (group.activeEditor) {
-			return group.closeEditor(group.activeEditor) as TPromise;
+			return toWinJsPromise(group.closeEditor(group.activeEditor));
 		}
 
 		return TPromise.as(false);
@@ -683,7 +709,7 @@ export class RevertAndCloseEditorAction extends Action {
 		const activeEditor = this.editorService.getActiveEditor();
 		if (activeEditor && activeEditor.input) {
 			const input = activeEditor.input;
-			const position = activeEditor.position;
+			const position = activeEditor.group;
 
 			// first try a normal revert where the contents of the editor are restored
 			return activeEditor.input.revert().then(() => this.editorService.closeEditor(position, input), error => {
@@ -716,7 +742,7 @@ export class CloseLeftEditorsInGroupAction extends Action {
 	public run(context?: IEditorIdentifier): TPromise<any> {
 		const editor = getTarget(this.editorService, this.groupService, context);
 		if (editor) {
-			return this.editorService.closeEditors(editor.position, { except: editor.input, direction: Direction.LEFT });
+			return this.editorService.closeEditors(editor.position, { except: editor.input, direction: CloseDirection.LEFT });
 		}
 
 		return TPromise.as(false);
@@ -783,11 +809,11 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 	}
 
 	public run(context?: IEditorIdentifier): TPromise<any> {
-		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
+		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(this.editorGroupService.getStacksModel().getGroup(context.group)) : null;
 		if (typeof position !== 'number') {
 			const activeEditor = this.editorService.getActiveEditor();
 			if (activeEditor) {
-				position = activeEditor.position;
+				position = activeEditor.group;
 			}
 		}
 
@@ -814,11 +840,11 @@ export class MoveGroupLeftAction extends Action {
 	}
 
 	public run(context?: IEditorIdentifier): TPromise<any> {
-		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
+		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(this.editorGroupService.getStacksModel().getGroup(context.group)) : null;
 		if (typeof position !== 'number') {
 			const activeEditor = this.editorService.getActiveEditor();
-			if (activeEditor && (activeEditor.position === Position.TWO || activeEditor.position === Position.THREE)) {
-				position = activeEditor.position;
+			if (activeEditor && (activeEditor.group === Position.TWO || activeEditor.group === Position.THREE)) {
+				position = activeEditor.group;
 			}
 		}
 
@@ -848,13 +874,13 @@ export class MoveGroupRightAction extends Action {
 	}
 
 	public run(context?: IEditorIdentifier): TPromise<any> {
-		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
+		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(this.editorGroupService.getStacksModel().getGroup(context.group)) : null;
 		if (typeof position !== 'number') {
 			const activeEditor = this.editorService.getActiveEditor();
 			const editors = this.editorService.getVisibleEditors();
 
-			if ((editors.length === 2 && activeEditor.position === Position.ONE) || (editors.length === 3 && activeEditor.position !== Position.THREE)) {
-				position = activeEditor.position;
+			if ((editors.length === 2 && activeEditor.group === Position.ONE) || (editors.length === 3 && activeEditor.group !== Position.THREE)) {
+				position = activeEditor.group;
 			}
 		}
 
@@ -874,12 +900,12 @@ export class MinimizeOtherGroupsAction extends Action {
 	public static readonly ID = 'workbench.action.minimizeOtherEditors';
 	public static readonly LABEL = nls.localize('minimizeOtherEditorGroups', "Minimize Other Editor Groups");
 
-	constructor(id: string, label: string, @IEditorGroupService private editorGroupService: IEditorGroupService) {
+	constructor(id: string, label: string, @INextEditorGroupsService private editorGroupService: INextEditorGroupsService) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		this.editorGroupService.arrangeGroups(GroupArrangement.MINIMIZE_OTHERS);
+		this.editorGroupService.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
 
 		return TPromise.as(false);
 	}
@@ -890,12 +916,12 @@ export class EvenGroupWidthsAction extends Action {
 	public static readonly ID = 'workbench.action.evenEditorWidths';
 	public static readonly LABEL = nls.localize('evenEditorGroups', "Even Editor Group Widths");
 
-	constructor(id: string, label: string, @IEditorGroupService private editorGroupService: IEditorGroupService) {
+	constructor(id: string, label: string, @INextEditorGroupsService private editorGroupService: INextEditorGroupsService) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		this.editorGroupService.arrangeGroups(GroupArrangement.EVEN);
+		this.editorGroupService.arrangeGroups(GroupsArrangement.EVEN);
 
 		return TPromise.as(false);
 	}
@@ -909,16 +935,17 @@ export class MaximizeGroupAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@INextEditorService private editorService: INextEditorService,
+		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService,
 		@IPartService private partService: IPartService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		if (this.editorService.getActiveEditor()) {
-			this.editorGroupService.arrangeGroups(GroupArrangement.MINIMIZE_OTHERS);
+		if (this.editorService.activeEditor) {
+			this.editorGroupService.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
+
 			return this.partService.setSideBarHidden(true);
 		}
 
@@ -928,12 +955,12 @@ export class MaximizeGroupAction extends Action {
 
 function getTarget(editorService: IWorkbenchEditorService, editorGroupService: IEditorGroupService, context?: IEditorIdentifier): { input: IEditorInput, position: Position } {
 	if (context) {
-		return { input: context.editor, position: editorGroupService.getStacksModel().positionOfGroup(context.group) };
+		return { input: context.editor, position: editorGroupService.getStacksModel().positionOfGroup(editorGroupService.getStacksModel().getGroup(context.group)) };
 	}
 
 	const activeEditor = editorService.getActiveEditor();
 	if (activeEditor) {
-		return { input: activeEditor.input, position: activeEditor.position };
+		return { input: activeEditor.input, position: activeEditor.group };
 	}
 
 	return null;
@@ -954,7 +981,7 @@ export abstract class BaseNavigateEditorAction extends Action {
 		const model = this.editorGroupService.getStacksModel();
 		const result = this.navigate();
 		if (result) {
-			return this.editorService.openEditor(result.editor, null, model.positionOfGroup(result.group));
+			return this.editorService.openEditor(result.editor, null, model.positionOfGroup(this.editorGroupService.getStacksModel().getGroup(result.group)));
 		}
 
 		return TPromise.as(false);
@@ -1363,7 +1390,7 @@ export class FocusLastEditorInStackAction extends Action {
 	public run(): TPromise<any> {
 		const active = this.editorService.getActiveEditor();
 		if (active) {
-			const group = this.editorGroupService.getStacksModel().groupAt(active.position);
+			const group = this.editorGroupService.getStacksModel().groupAt(active.group);
 			const editor = group.getEditor(group.count - 1);
 
 			if (editor) {
@@ -1437,8 +1464,8 @@ export class MoveEditorToPreviousGroupAction extends Action {
 
 	public run(): TPromise<any> {
 		const activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor && activeEditor.position !== Position.ONE) {
-			this.editorGroupService.moveEditor(activeEditor.input, activeEditor.position, activeEditor.position - 1);
+		if (activeEditor && activeEditor.group !== Position.ONE) {
+			this.editorGroupService.moveEditor(activeEditor.input, activeEditor.group, activeEditor.group - 1);
 		}
 
 		return TPromise.as(true);
@@ -1461,8 +1488,8 @@ export class MoveEditorToNextGroupAction extends Action {
 
 	public run(): TPromise<any> {
 		const activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor && activeEditor.position !== Position.THREE) {
-			this.editorGroupService.moveEditor(activeEditor.input, activeEditor.position, activeEditor.position + 1);
+		if (activeEditor && activeEditor.group !== Position.THREE) {
+			this.editorGroupService.moveEditor(activeEditor.input, activeEditor.group, activeEditor.group + 1);
 		}
 
 		return TPromise.as(true);
@@ -1483,8 +1510,8 @@ export abstract class MoveEditorToSpecificGroup extends Action {
 
 	public run(): TPromise<any> {
 		const activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor && activeEditor.position !== this.position) {
-			this.editorGroupService.moveEditor(activeEditor.input, activeEditor.position, this.position);
+		if (activeEditor && activeEditor.group !== this.position) {
+			this.editorGroupService.moveEditor(activeEditor.input, activeEditor.group, this.position);
 		}
 
 		return TPromise.as(true);

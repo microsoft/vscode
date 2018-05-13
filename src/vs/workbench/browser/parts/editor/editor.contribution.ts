@@ -32,7 +32,7 @@ import {
 	NavigateBetweenGroupsAction, FocusActiveGroupAction, FocusFirstGroupAction, FocusSecondGroupAction, FocusThirdGroupAction, EvenGroupWidthsAction, MaximizeGroupAction, MinimizeOtherGroupsAction, FocusPreviousGroup, FocusNextGroup, ShowEditorsInGroupOneAction,
 	toEditorQuickOpenEntry, CloseLeftEditorsInGroupAction, OpenNextEditor, OpenPreviousEditor, NavigateBackwardsAction, NavigateForwardAction, NavigateLastAction, ReopenClosedEditorAction, OpenPreviousRecentlyUsedEditorInGroupAction,
 	OpenPreviousEditorFromHistoryAction, ShowAllEditorsAction, ClearEditorHistoryAction, ShowEditorsInGroupTwoAction, MoveEditorRightInGroupAction, OpenNextEditorInGroup, OpenPreviousEditorInGroup, OpenNextRecentlyUsedEditorAction, OpenPreviousRecentlyUsedEditorAction,
-	ShowEditorsInGroupThreeAction, FocusLastEditorInStackAction, OpenNextRecentlyUsedEditorInGroupAction, MoveEditorToPreviousGroupAction, MoveEditorToNextGroupAction, MoveEditorToFirstGroupAction, MoveEditorToSecondGroupAction, MoveEditorToThirdGroupAction, MoveEditorLeftInGroupAction, ClearRecentFilesAction, OpenLastEditorInGroup, SplitEditorGroupHorizontalAction, SplitEditorGroupVerticalAction
+	ShowEditorsInGroupThreeAction, FocusLastEditorInStackAction, OpenNextRecentlyUsedEditorInGroupAction, MoveEditorToPreviousGroupAction, MoveEditorToNextGroupAction, MoveEditorToFirstGroupAction, MoveEditorToSecondGroupAction, MoveEditorToThirdGroupAction, MoveEditorLeftInGroupAction, ClearRecentFilesAction, OpenLastEditorInGroup, SplitEditorGroupHorizontalAction, SplitEditorGroupVerticalAction, RemoveActiveEditorGroupAction
 } from 'vs/workbench/browser/parts/editor/editorActions';
 import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -42,7 +42,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { isMacintosh } from 'vs/base/common/platform';
 import { GroupOnePicker, GroupTwoPicker, GroupThreePicker, AllEditorsPicker } from 'vs/workbench/browser/parts/editor/editorPicker';
 import { Schemas } from 'vs/base/common/network';
-import { GridOpenEditorsAction, GridCloseActiveEditorAction, GridRemoveActiveGroupAction, GridOpenOneEditorAction, GridOpenOneEditorSideBySideAction, ResetGridEditorAction } from 'vs/workbench/browser/parts/editor2/nextEditorActions';
+import { GridOpenEditorsAction, GridCloseActiveEditorAction, GridOpenOneEditorAction, GridOpenOneEditorSideBySideAction, ResetGridEditorAction } from 'vs/workbench/browser/parts/editor2/nextEditorActions';
 
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -442,8 +442,9 @@ const gridCategory = nls.localize('grid', "Grid");
 registry.registerWorkbenchAction(new SyncActionDescriptor(ResetGridEditorAction, ResetGridEditorAction.ID, ResetGridEditorAction.LABEL), 'Grid: Reset Grid', gridCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(GridOpenEditorsAction, GridOpenEditorsAction.ID, GridOpenEditorsAction.LABEL), 'Grid: Open Some Editors', gridCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(GridCloseActiveEditorAction, GridCloseActiveEditorAction.ID, GridCloseActiveEditorAction.LABEL), 'Grid: Close Active Editor', gridCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(GridRemoveActiveGroupAction, GridRemoveActiveGroupAction.ID, GridRemoveActiveGroupAction.LABEL), 'Grid: Remove Active Group', gridCategory);
+registry.registerWorkbenchAction(new SyncActionDescriptor(RemoveActiveEditorGroupAction, RemoveActiveEditorGroupAction.ID, RemoveActiveEditorGroupAction.LABEL), 'Grid: Remove Active Editor Group', gridCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(GridOpenOneEditorAction, GridOpenOneEditorAction.ID, GridOpenOneEditorAction.LABEL), 'Grid: Open One Editor', gridCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(GridOpenOneEditorSideBySideAction, GridOpenOneEditorSideBySideAction.ID, GridOpenOneEditorSideBySideAction.LABEL), 'Grid: Open One Editor Side by Side', gridCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorGroupHorizontalAction, SplitEditorGroupHorizontalAction.ID, SplitEditorGroupHorizontalAction.LABEL), 'Grid: Split Horizontal', gridCategory);
+registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorGroupVerticalAction, SplitEditorGroupVerticalAction.ID, SplitEditorGroupVerticalAction.LABEL), 'Grid: Split Vertical', gridCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorGroupVerticalAction, SplitEditorGroupVerticalAction.ID, SplitEditorGroupVerticalAction.LABEL), 'Grid: Split Vertical', gridCategory);

@@ -6,17 +6,21 @@
 'use strict';
 
 import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInput, IResourceInput, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditor, IEditorOptions, IEditorInputWithOptions } from 'vs/platform/editor/common/editor';
-import { GroupIdentifier, IEditorOpeningEvent } from 'vs/workbench/common/editor';
+import { IEditorInput, IResourceInput, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditor, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { GroupIdentifier, IEditorOpeningEvent, IEditorInputWithOptions, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
-import { IEditor as ICodeEditor } from 'vs/editor/common/editorCommon';
+import { IEditor as ITextEditor } from 'vs/editor/common/editorCommon';
+import { INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 export const INextEditorService = createDecorator<INextEditorService>('nextEditorService');
 
 export type IResourceEditor = IResourceInput | IUntitledResourceInput | IResourceDiffInput | IResourceSideBySideInput;
 
-export const SIDE_BY_SIDE = -1;
-export type SIDE_BY_SIDE_TYPE = typeof SIDE_BY_SIDE;
+export const ACTIVE_GROUP = -1;
+export type ACTIVE_GROUP_TYPE = typeof ACTIVE_GROUP;
+
+export const SIDE_GROUP = -2;
+export type SIDE_GROUP_TYPE = typeof SIDE_GROUP;
 
 export interface INextEditorService {
 	_serviceBrand: ServiceIdentifier<any>;
@@ -32,9 +36,16 @@ export interface INextEditorService {
 	readonly onDidVisibleEditorsChange: Event<void>;
 
 	/**
+	 * Emitted when an editor is about to get closed. Listeners can
+	 * for example save view state now before the underlying widget
+	 * gets disposed.
+	 */
+	readonly onWillCloseEditor: Event<IEditorIdentifier>;
+
+	/**
 	 * Emitted when an editor is closed.
 	 */
-	readonly onDidCloseEditor: Event<IEditorInput>;
+	readonly onDidCloseEditor: Event<IEditorIdentifier>;
 
 	/**
 	 * Emitted when an editor is about to open. This can be prevented from
@@ -45,7 +56,7 @@ export interface INextEditorService {
 	/**
 	 * Emitted when an editor failed to open.
 	 */
-	readonly onDidOpenEditorFail: Event<IEditorInput>;
+	readonly onDidOpenEditorFail: Event<IEditorIdentifier>;
 
 	/**
 	 * The currently active editor control if any.
@@ -54,9 +65,10 @@ export interface INextEditorService {
 
 	/**
 	 * The currently active text editor control if there is a control active
-	 * and it is an instance of the code text editor.
+	 * and it is an instance of the code text editor (either normal or diff
+	 * editor).
 	 */
-	readonly activeTextEditorControl: ICodeEditor;
+	readonly activeTextEditorControl: ITextEditor;
 
 	/**
 	 * The currently active editor if any.
@@ -69,6 +81,12 @@ export interface INextEditorService {
 	readonly visibleControls: ReadonlyArray<IEditor>;
 
 	/**
+	 * All text editor controls (either normal or diff editor) that are currently
+	 * visible across all editor groups.
+	 */
+	readonly visibleTextEditorControls: ReadonlyArray<ITextEditor>;
+
+	/**
 	 * All editors that are currently visible across all editor groups.
 	 */
 	readonly visibleEditors: ReadonlyArray<IEditorInput>;
@@ -79,31 +97,31 @@ export interface INextEditorService {
 	 * @param editor the editor to open
 	 * @param options the options to use for the editor
 	 * @param group the target group. If unspecified, the editor will open in the currently
-	 * active group. Use `SIDE_BY_SIDE` to open the editor in a new editor group to the side
+	 * active group. Use `SIDE_GROUP_TYPE` to open the editor in a new editor group to the side
 	 * of the currently active group.
 	 */
-	openEditor(editor: IEditorInput, options?: IEditorOptions, group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor>;
+	openEditor(editor: IEditorInput, options?: IEditorOptions, group?: INextEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Thenable<IEditor>;
 
 	/**
 	 * Open an editor in an editor group.
 	 *
 	 * @param editor the editor to open
 	 * @param group the target group. If unspecified, the editor will open in the currently
-	 * active group. Use `SIDE_BY_SIDE` to open the editor in a new editor group to the side
+	 * active group. Use `SIDE_GROUP_TYPE` to open the editor in a new editor group to the side
 	 * of the currently active group.
 	 */
-	openEditor(editor: IResourceEditor, group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor>;
+	openEditor(editor: IResourceEditor, group?: INextEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Thenable<IEditor>;
 
 	/**
 	 * Open editors in an editor group.
 	 *
 	 * @param editors the editors to open with associated options
 	 * @param group the target group. If unspecified, the editor will open in the currently
-	 * active group. Use `SIDE_BY_SIDE` to open the editor in a new editor group to the side
+	 * active group. Use `SIDE_GROUP_TYPE` to open the editor in a new editor group to the side
 	 * of the currently active group.
 	 */
-	openEditors(editors: IEditorInputWithOptions[], group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor[]>;
-	openEditors(editors: IResourceEditor[], group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor[]>;
+	openEditors(editors: IEditorInputWithOptions[], group?: INextEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Thenable<ReadonlyArray<IEditor>>;
+	openEditors(editors: IResourceEditor[], group?: INextEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Thenable<ReadonlyArray<IEditor>>;
 
 	/**
 	 * Find out if the provided editor (or resource of an editor) is opened in any group.

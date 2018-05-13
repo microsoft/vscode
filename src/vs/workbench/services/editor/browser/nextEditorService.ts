@@ -6,8 +6,8 @@
 'use strict';
 
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInput, IResourceInput, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditor, ITextEditorOptions, IEditorOptions, IEditorInputWithOptions, isEditorInputWithOptions } from 'vs/platform/editor/common/editor';
-import { GroupIdentifier, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, EditorOptions, TextEditorOptions, IEditorOpeningEvent, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+import { IEditorInput, IResourceInput, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditor, ITextEditorOptions, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { GroupIdentifier, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorOpeningEvent, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -24,13 +24,14 @@ import { basename } from 'vs/base/common/paths';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { INextEditorGroupsService, INextEditorGroup, GroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
-import { INextEditorService, IResourceEditor, SIDE_BY_SIDE_TYPE, SIDE_BY_SIDE } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorGroupsService, INextEditorGroup, GroupDirection, GroupsOrder } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorService, IResourceEditor, ACTIVE_GROUP_TYPE, SIDE_GROUP_TYPE, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
-import { isCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { INextEditorPartOptions, getEditorPartOptions } from 'vs/workbench/browser/parts/editor2/editor2';
+import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { IEditor as ITextEditor } from 'vs/editor/common/editorCommon';
+import { toWinJsPromise } from 'vs/base/common/async';
 
 type ICachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
 
@@ -48,22 +49,23 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	private _onDidVisibleEditorsChange: Emitter<void> = this._register(new Emitter<void>());
 	get onDidVisibleEditorsChange(): Event<void> { return this._onDidVisibleEditorsChange.event; }
 
-	private _onDidCloseEditor: Emitter<IEditorInput> = this._register(new Emitter<IEditorInput>());
-	get onDidCloseEditor(): Event<IEditorInput> { return this._onDidCloseEditor.event; }
+	private _onWillCloseEditor: Emitter<IEditorIdentifier> = this._register(new Emitter<IEditorIdentifier>());
+	get onWillCloseEditor(): Event<IEditorIdentifier> { return this._onWillCloseEditor.event; }
+
+	private _onDidCloseEditor: Emitter<IEditorIdentifier> = this._register(new Emitter<IEditorIdentifier>());
+	get onDidCloseEditor(): Event<IEditorIdentifier> { return this._onDidCloseEditor.event; }
 
 	private _onWillOpenEditor: Emitter<IEditorOpeningEvent> = this._register(new Emitter<IEditorOpeningEvent>());
 	get onWillOpenEditor(): Event<IEditorOpeningEvent> { return this._onWillOpenEditor.event; }
 
-	private _onDidOpenEditorFail: Emitter<IEditorInput> = this._register(new Emitter<IEditorInput>());
-	get onDidOpenEditorFail(): Event<IEditorInput> { return this._onDidOpenEditorFail.event; }
+	private _onDidOpenEditorFail: Emitter<IEditorIdentifier> = this._register(new Emitter<IEditorIdentifier>());
+	get onDidOpenEditorFail(): Event<IEditorIdentifier> { return this._onDidOpenEditorFail.event; }
 
 	//#endregion
 
 	private fileInputFactory: IFileInputFactory;
 
 	private lastActiveEditor: IEditorInput;
-	private lastActiveGroup: INextEditorGroup;
-	private workbenchEditorOptions: INextEditorPartOptions;
 
 	constructor(
 		@INextEditorGroupsService private nextEditorGroupsService: INextEditorGroupsService,
@@ -75,7 +77,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
-		this.workbenchEditorOptions = getEditorPartOptions(this.configurationService.getValue<IWorkbenchEditorConfiguration>());
+
 		this.fileInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getFileInputFactory();
 
 		// Listen to changes for each initial group we already have
@@ -85,18 +87,14 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	}
 
 	private registerListeners(): void {
-		this.nextEditorGroupsService.onDidActiveGroupChange(group => this.onDidActiveGroupChange(group));
+		this.nextEditorGroupsService.onDidActiveGroupChange(group => this.handleActiveEditorChange(group));
 		this.nextEditorGroupsService.onDidAddGroup(group => this.onDidAddGroup(group));
 	}
 
-	private onDidActiveGroupChange(group: INextEditorGroup): void {
-		if (!this.lastActiveGroup) {
-			this.lastActiveGroup = group;
-
-			return; // ignore the initial root group
+	private handleActiveEditorChange(group: INextEditorGroup): void {
+		if (group !== this.nextEditorGroupsService.activeGroup) {
+			return; // ignore if not the active group
 		}
-
-		this.lastActiveGroup = group;
 
 		if (!this.lastActiveEditor && !group.activeEditor) {
 			return; // ignore if we still have no active editor
@@ -111,15 +109,16 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		const groupDisposeables: IDisposable[] = [];
 
 		groupDisposeables.push(group.onDidActiveEditorChange(() => {
-			if (group === this.nextEditorGroupsService.activeGroup) {
-				this._onDidActiveEditorChange.fire();
-			}
-
+			this.handleActiveEditorChange(group);
 			this._onDidVisibleEditorsChange.fire();
 		}));
 
+		groupDisposeables.push(group.onWillCloseEditor(editor => {
+			this._onWillCloseEditor.fire({ editor, group: group.id });
+		}));
+
 		groupDisposeables.push(group.onDidCloseEditor(editor => {
-			this._onDidCloseEditor.fire(editor);
+			this._onDidCloseEditor.fire({ editor, group: group.id });
 		}));
 
 		groupDisposeables.push(group.onWillOpenEditor(editor => {
@@ -127,7 +126,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		}));
 
 		groupDisposeables.push(group.onDidOpenEditorFail(editor => {
-			this._onDidOpenEditorFail.fire(editor);
+			this._onDidOpenEditorFail.fire({ editor, group: group.id });
 		}));
 
 		once(group.onWillDispose)(() => {
@@ -141,11 +140,11 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		return activeGroup ? activeGroup.activeControl : void 0;
 	}
 
-	get activeTextEditorControl(): ICodeEditor {
+	get activeTextEditorControl(): ITextEditor {
 		const activeControl = this.activeControl;
 		if (activeControl) {
 			const activeControlWidget = activeControl.getControl();
-			if (isCodeEditor(activeControlWidget)) {
+			if (isCodeEditor(activeControlWidget) || isDiffEditor(activeControlWidget)) {
 				return activeControlWidget;
 			}
 		}
@@ -163,22 +162,26 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		return coalesce(this.nextEditorGroupsService.groups.map(group => group.activeControl));
 	}
 
+	get visibleTextEditorControls(): ITextEditor[] {
+		return this.visibleControls.map(control => control.getControl() as ITextEditor).filter(widget => isCodeEditor(widget) || isDiffEditor(widget));
+	}
+
 	get visibleEditors(): IEditorInput[] {
 		return coalesce(this.nextEditorGroupsService.groups.map(group => group.activeEditor));
 	}
 
 	//#region openEditor()
 
-	openEditor(editor: IEditorInput, options?: IEditorOptions, group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor>;
-	openEditor(editor: IResourceEditor, group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor>;
-	openEditor(editor: IEditorInput | IResourceEditor, optionsOrGroup?: IEditorOptions | GroupIdentifier, group?: GroupIdentifier): Thenable<IEditor> {
+	openEditor(editor: IEditorInput, options?: IEditorOptions, group?: INextEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Thenable<IEditor>;
+	openEditor(editor: IResourceEditor, group?: INextEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Thenable<IEditor>;
+	openEditor(editor: IEditorInput | IResourceEditor, optionsOrGroup?: IEditorOptions | INextEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE, group?: GroupIdentifier): Thenable<IEditor> {
 
 		// Typed Editor Support
 		if (editor instanceof EditorInput) {
 			const editorOptions = this.toOptions(optionsOrGroup as IEditorOptions);
 			const targetGroup = this.findTargetGroup(editor, editorOptions, group);
 
-			return targetGroup.openEditor(editor, editorOptions).then(() => targetGroup.activeControl);
+			return this.doOpenEditor(targetGroup, editor, editorOptions);
 		}
 
 		// Throw error for well known foreign resources (such as a http link) (TODO@ben remove me after this has been adopted)
@@ -195,19 +198,33 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		const typedInput = this.createInput(textInput);
 		if (typedInput) {
 			const editorOptions = TextEditorOptions.from(textInput);
-			const targetGroup = this.findTargetGroup(typedInput, editorOptions, optionsOrGroup as GroupIdentifier);
+			const targetGroup = this.findTargetGroup(typedInput, editorOptions, optionsOrGroup as INextEditorGroup | GroupIdentifier);
 
-			return targetGroup.openEditor(typedInput, editorOptions).then(() => targetGroup.activeControl);
+			return this.doOpenEditor(targetGroup, typedInput, editorOptions);
 		}
 
 		return TPromise.wrap<IEditor>(null);
 	}
 
-	private findTargetGroup(input: IEditorInput, options?: IEditorOptions, group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): INextEditorGroup {
+	protected doOpenEditor(group: INextEditorGroup, editor: IEditorInput, options?: IEditorOptions): Thenable<IEditor> {
+		return group.openEditor(editor, options).then(() => group.activeControl);
+	}
+
+	private findTargetGroup(input: IEditorInput, options?: IEditorOptions, group?: INextEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): INextEditorGroup {
 		let targetGroup: INextEditorGroup;
 
+		// Group: Instance of Group
+		if (group && typeof group !== 'number') {
+			return group;
+		}
+
+		// Group: Active Group
+		if (group === ACTIVE_GROUP) {
+			targetGroup = this.nextEditorGroupsService.activeGroup;
+		}
+
 		// Group: Side by Side
-		if (group === SIDE_BY_SIDE) {
+		else if (group === SIDE_GROUP) {
 			targetGroup = this.createSideBySideGroup();
 		}
 
@@ -218,7 +235,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 
 		// Group: Unspecified without a specific index to open
 		else if (!options || typeof options.index !== 'number') {
-			const groupsByLastActive = this.nextEditorGroupsService.getGroups(true);
+			const groupsByLastActive = this.nextEditorGroupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 
 			// Respect option to reveal an editor if it is already visible in any group
 			if (options && options.revealIfVisible) {
@@ -252,12 +269,15 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	}
 
 	private createSideBySideGroup(): INextEditorGroup {
+		const direction = this.configurationService.getValue<'left' | 'right' | 'up' | 'down'>('workbench.editor.openToTheSideDirection');
+
 		let groupDirection: GroupDirection = GroupDirection.RIGHT;
-		switch (this.workbenchEditorOptions.openToTheSideDirection) {
+		switch (direction) {
 			case 'left': groupDirection = GroupDirection.LEFT; break;
 			case 'right': groupDirection = GroupDirection.RIGHT; break;
 			case 'up': groupDirection = GroupDirection.UP; break;
 			case 'down': groupDirection = GroupDirection.DOWN; break;
+			default: groupDirection = GroupDirection.RIGHT;
 		}
 		return this.nextEditorGroupsService.addGroup(this.nextEditorGroupsService.activeGroup, groupDirection);
 	}
@@ -279,9 +299,9 @@ export class NextEditorService extends Disposable implements INextEditorService 
 
 	//#region openEditors()
 
-	openEditors(editors: IEditorInputWithOptions[], group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor[]>;
-	openEditors(editors: IResourceEditor[], group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor[]>;
-	openEditors(editors: (IEditorInputWithOptions | IResourceEditor)[], group?: GroupIdentifier | SIDE_BY_SIDE_TYPE): Thenable<IEditor[]> {
+	openEditors(editors: IEditorInputWithOptions[], group?: INextEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Thenable<IEditor[]>;
+	openEditors(editors: IResourceEditor[], group?: INextEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Thenable<IEditor[]>;
+	openEditors(editors: (IEditorInputWithOptions | IResourceEditor)[], group?: INextEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Thenable<IEditor[]> {
 
 		// Convert to typed editors and options
 		const typedEditors: IEditorInputWithOptions[] = [];
@@ -295,7 +315,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 
 		// Find target groups to open
 		const mapGroupToEditors = new Map<INextEditorGroup, IEditorInputWithOptions[]>();
-		if (group === SIDE_BY_SIDE) {
+		if (group === SIDE_GROUP) {
 			mapGroupToEditors.set(this.createSideBySideGroup(), typedEditors);
 		} else {
 			typedEditors.forEach(typedEditor => {
@@ -314,7 +334,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		// Open in targets
 		const result: TPromise<IEditor>[] = [];
 		mapGroupToEditors.forEach((editorsWithOptions, group) => {
-			result.push((group.openEditors(editorsWithOptions) as TPromise).then(() => group.activeControl));
+			result.push((toWinJsPromise(group.openEditors(editorsWithOptions))).then(() => group.activeControl));
 		});
 
 		return TPromise.join(result);
@@ -349,7 +369,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 
 	invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T {
 		const activeTextEditorControl = this.activeTextEditorControl;
-		if (activeTextEditorControl) {
+		if (isCodeEditor(activeTextEditorControl)) {
 			return activeTextEditorControl.invokeWithinContext(fn);
 		}
 
@@ -478,4 +498,52 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	}
 
 	//#endregion
+}
+
+export interface IEditorOpenHandler {
+	(group: INextEditorGroup, editor: IEditorInput, options?: IEditorOptions): Thenable<IEditor>;
+}
+
+/**
+ * The delegating workbench editor service can be used to override the behaviour of the openEditor()
+ * method by providing a IEditorOpenHandler.
+ */
+export class DelegatingWorkbenchEditorService extends NextEditorService {
+	private editorOpenHandler: IEditorOpenHandler;
+
+	constructor(
+		@INextEditorGroupsService nextEditorGroupsService: INextEditorGroupsService,
+		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IFileService fileService: IFileService,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		super(
+			nextEditorGroupsService,
+			untitledEditorService,
+			workspaceContextService,
+			instantiationService,
+			environmentService,
+			fileService,
+			configurationService
+		);
+	}
+
+	setEditorOpenHandler(handler: IEditorOpenHandler): void {
+		this.editorOpenHandler = handler;
+	}
+
+	protected doOpenEditor(group: INextEditorGroup, editor: IEditorInput, options?: IEditorOptions): Thenable<IEditor> {
+		const handleOpen = this.editorOpenHandler ? this.editorOpenHandler(group, editor, options) : TPromise.as(void 0);
+
+		return handleOpen.then(control => {
+			if (control) {
+				return TPromise.as<IEditor>(control); // the opening was handled, so return early
+			}
+
+			return super.doOpenEditor(group, editor, options);
+		});
+	}
 }

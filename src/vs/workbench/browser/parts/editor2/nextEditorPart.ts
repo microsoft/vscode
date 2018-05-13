@@ -11,14 +11,14 @@ import { Part } from 'vs/workbench/browser/part';
 import { Dimension, isAncestor, toggleClass, addClass, clearNode } from 'vs/base/browser/dom';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { INextEditorGroupsService, GroupDirection, IAddGroupOptions } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, ICopyEditorOptions, GroupsOrder } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, ISerializedNode } from 'vs/base/browser/ui/grid/grid';
+import { Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, ISerializedNode, GridBranchNode, isGridBranchNode, GridNode } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER } from 'vs/workbench/common/theme';
 import { distinct } from 'vs/base/common/arrays';
-import { INextEditorGroupsAccessor, INextEditorGroupView, INextEditorPartOptions, getEditorPartOptions, impactsEditorPartOptions, INextEditorPartOptionsChangeEvent } from 'vs/workbench/browser/parts/editor2/editor2';
+import { INextEditorGroupsAccessor, INextEditorGroupView, INextEditorPartOptions, getEditorPartOptions, impactsEditorPartOptions, INextEditorPartOptionsChangeEvent, EDITOR_MAX_DIMENSIONS, EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor2/editor2';
 import { NextEditorGroupView } from 'vs/workbench/browser/parts/editor2/nextEditorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -28,11 +28,11 @@ import { Scope } from 'vs/workbench/common/memento';
 import { ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
 import { TValueCallback, TPromise } from 'vs/base/common/winjs.base';
 import { always } from 'vs/base/common/async';
-import { GroupOrientation } from 'vs/workbench/services/group/common/groupService';
+import { GroupOrientation as LegacyGroupOrientation } from 'vs/workbench/services/group/common/groupService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { NextEditorDragAndDrop } from './nextEditorDragAndDrop';
+import { NextEditorDropTarget } from 'vs/workbench/browser/parts/editor2/nextEditorDropTarget';
 
 // TODO@grid enable minimized/maximized groups in one dimension
 
@@ -164,16 +164,36 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		return this.groupViews.size;
 	}
 
-	getGroups(sortByMostRecentlyActive?: boolean): INextEditorGroupView[] {
-		if (!sortByMostRecentlyActive) {
-			return this.groups;
+	get orientation(): GroupOrientation {
+		return this.gridWidget.orientation === Orientation.VERTICAL ? GroupOrientation.VERTICAL : GroupOrientation.HORIZONTAL;
+	}
+
+	getGroups(order?: GroupsOrder): INextEditorGroupView[] {
+		switch (order) {
+			case GroupsOrder.MOST_RECENTLY_ACTIVE:
+				const mostRecentActive = this.mostRecentActiveGroups.map(groupId => this.getGroup(groupId));
+
+				// there can be groups that got never active, even though they exist. in this case
+				// make sure to ust append them at the end so that all groups are returned properly
+				return distinct([...mostRecentActive, ...this.groups]);
+
+			case GroupsOrder.GRID_ORDER:
+				const views: INextEditorGroupView[] = [];
+				this.fillGridNodes(views, this.gridWidget.getViews());
+
+				return views;
+
+			default:
+				return this.groups;
 		}
+	}
 
-		const mostRecentActive = this.mostRecentActiveGroups.map(groupId => this.getGroup(groupId));
-
-		// there can be groups that got never active, even though they exist. in this case
-		// make sure to ust append them at the end so that all groups are returned properly
-		return distinct([...mostRecentActive, ...this.groups]);
+	private fillGridNodes(target: INextEditorGroupView[], node: GridBranchNode<INextEditorGroupView> | GridNode<INextEditorGroupView>): void {
+		if (isGridBranchNode(node)) {
+			node.children.forEach(child => this.fillGridNodes(target, child));
+		} else {
+			target.push(node.view);
+		}
 	}
 
 	getGroup(identifier: GroupIdentifier): INextEditorGroupView {
@@ -189,6 +209,9 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 	focusGroup(group: INextEditorGroupView | GroupIdentifier): INextEditorGroupView {
 		const groupView = this.assertGroupView(group);
+
+		// Activate and focus group
+		this.doSetGroupActive(groupView);
 		groupView.focus();
 
 		return groupView;
@@ -196,13 +219,44 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 	resizeGroup(group: INextEditorGroupView | GroupIdentifier, sizeDelta: number): INextEditorGroupView {
 		const groupView = this.assertGroupView(group);
-
 		const currentSize = this.gridWidget.getViewSize(groupView);
-		const currentOrientation = this.gridWidget.getOrientation(groupView);
 
-		this.gridWidget.resizeView(groupView, currentOrientation === Orientation.HORIZONTAL ? currentSize.width + sizeDelta : currentSize.height + sizeDelta);
+		this.gridWidget.resizeView(groupView, currentSize + sizeDelta);
 
 		return groupView;
+	}
+
+	arrangeGroups(arrangement: GroupsArrangement): void {
+		if (this.count < 2) {
+			return; // require at least 2 groups to show
+		}
+
+		// Even all group sizes
+		if (arrangement === GroupsArrangement.EVEN) {
+			this.groups.forEach(group => {
+				this.gridWidget.resetViewSize(group);
+			});
+		}
+
+		// Maximize the current active group
+		else {
+			this.groups.forEach(group => {
+				const orientation = this.gridWidget.getOrientation(group);
+
+				let newSize: number;
+				if (this.activeGroup === group) {
+					newSize = orientation === Orientation.HORIZONTAL ? EDITOR_MAX_DIMENSIONS.width : EDITOR_MAX_DIMENSIONS.height;
+				} else {
+					newSize = orientation === Orientation.HORIZONTAL ? EDITOR_MIN_DIMENSIONS.width : EDITOR_MIN_DIMENSIONS.height;
+				}
+
+				this.gridWidget.resizeView(group, newSize);
+			});
+		}
+	}
+
+	setGroupOrientation(orientation: GroupOrientation): void {
+		this.gridWidget.orientation = (orientation === GroupOrientation.HORIZONTAL) ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 	}
 
 	addGroup(location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): INextEditorGroupView {
@@ -325,18 +379,40 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 	removeGroup(group: INextEditorGroupView | GroupIdentifier): void {
 		const groupView = this.assertGroupView(group);
-		if (
-			this.groupViews.size === 1 ||	// Cannot remove the last root group
-			!groupView.isEmpty()			// TODO@grid what about removing a group with editors, move them to other group?
-		) {
-			return;
+		if (this.groupViews.size === 1) {
+			return; // Cannot remove the last root group
 		}
 
+		// Remove empty group
+		if (groupView.isEmpty()) {
+			return this.doRemoveEmptyGroup(groupView);
+		}
+
+		// Remove group with editors
+		this.doRemoveGroupWithEditors(groupView);
+	}
+
+	private doRemoveGroupWithEditors(groupView: INextEditorGroupView): void {
+		const mostRecentlyActiveGroups = this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
+
+		let lastActiveGroup: INextEditorGroupView;
+		if (this._activeGroup === groupView) {
+			lastActiveGroup = mostRecentlyActiveGroups[1];
+		} else {
+			lastActiveGroup = mostRecentlyActiveGroups[0];
+		}
+
+		// Removing a group with editors should merge these editors into the
+		// last active group and then remove this group.
+		this.mergeGroup(groupView, lastActiveGroup);
+	}
+
+	private doRemoveEmptyGroup(groupView: INextEditorGroupView): void {
 		const groupHasFocus = isAncestor(document.activeElement, groupView.element);
 
 		// Activate next group if the removed one was active
 		if (this._activeGroup === groupView) {
-			const mostRecentlyActiveGroups = this.getGroups(true);
+			const mostRecentlyActiveGroups = this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 			const nextActiveGroup = mostRecentlyActiveGroups[1]; // [0] will be the current group we are about to dispose
 			this.activateGroup(nextActiveGroup);
 		}
@@ -348,7 +424,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		// Restore focus if we had it previously (we run this after gridWidget.removeView() is called
 		// because removing a view can mean to reparent it and thus focus would be removed otherwise)
 		if (groupHasFocus) {
-			this._activeGroup.focus();
+			this.focusGroup(this._activeGroup);
 		}
 
 		// Update container
@@ -362,33 +438,77 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		const groupView = this.assertGroupView(group);
 		const locationView = this.assertGroupView(location);
 
-		if (groupView.id === locationView.id) {
-			throw new Error('Unable to move the same editor group into itself!');
-		}
-
 		const groupHasFocus = isAncestor(document.activeElement, groupView.element);
 
-		// Move is a remove + add
-		this.gridWidget.removeView(groupView, Sizing.Distribute);
-		this.gridWidget.addView(groupView, Sizing.Distribute, locationView, this.toGridViewDirection(direction));
+		// Target is same view: we first need to create the new group and then merge
+		// all editors of the group into it to preserve the view state.
+		let targetView: INextEditorGroupView;
+		if (groupView.id === locationView.id) {
+			targetView = this.doAddGroup(groupView, direction);
+			this.mergeGroup(groupView, targetView, { mode: MergeGroupMode.MOVE_EDITORS_KEEP_GROUP });
+		}
+
+		// Target is different view: operation is a simple remove and add
+		else {
+			targetView = groupView;
+			this.gridWidget.removeView(targetView, Sizing.Distribute);
+			this.gridWidget.addView(targetView, Sizing.Distribute, locationView, this.toGridViewDirection(direction));
+		}
 
 		// Restore focus if we had it previously (we run this after gridWidget.removeView() is called
 		// because removing a view can mean to reparent it and thus focus would be removed otherwise)
 		if (groupHasFocus) {
-			groupView.focus();
+			this.focusGroup(targetView);
 		}
 
 		// Event
 		this._onDidMoveGroup.fire(groupView);
 
-		return groupView;
+		return targetView;
 	}
 
 	copyGroup(group: INextEditorGroupView | GroupIdentifier, location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection): INextEditorGroupView {
 		const groupView = this.assertGroupView(group);
 		const locationView = this.assertGroupView(location);
 
-		return this.doAddGroup(locationView, direction, groupView);
+		const groupHasFocus = isAncestor(document.activeElement, groupView.element);
+
+		// Copy the group view
+		const copiedGroupView = this.doAddGroup(locationView, direction, groupView);
+
+		// Restore focus if we had it
+		if (groupHasFocus) {
+			this.focusGroup(copiedGroupView);
+		}
+
+		return copiedGroupView;
+	}
+
+	mergeGroup(group: INextEditorGroupView | GroupIdentifier, target: INextEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): INextEditorGroupView {
+		const sourceView = this.assertGroupView(group);
+		const targetView = this.assertGroupView(target);
+
+		// Move/Copy editors over into target
+		let index = targetView.count;
+		sourceView.editors.forEach(editor => {
+			const inactive = sourceView.activeEditor !== editor;
+			const copyOptions: ICopyEditorOptions = { index, inactive, preserveFocus: inactive };
+
+			if (options && options.mode === MergeGroupMode.COPY_EDITORS) {
+				sourceView.copyEditor(editor, targetView, copyOptions);
+			} else {
+				sourceView.moveEditor(editor, targetView, copyOptions);
+			}
+
+			index++;
+		});
+
+		// Remove source (unless prevented)
+		if (!options || options.mode === MergeGroupMode.MOVE_EDITORS_REMOVE_GROUP) {
+			this.removeGroup(sourceView);
+		}
+
+		return targetView;
 	}
 
 	private assertGroupView(group: INextEditorGroupView | GroupIdentifier): INextEditorGroupView {
@@ -412,10 +532,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 	}
 
 	protected updateStyles(): void {
-
-		// Part container
-		const container = this.getContainer();
-		container.style.backgroundColor = this.getColor(editorBackground);
+		this.container.style.backgroundColor = this.getColor(editorBackground);
 	}
 
 	createContentArea(parent: HTMLElement): HTMLElement {
@@ -428,8 +545,8 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		// Grid control
 		this.doCreateGridControl(this.container);
 
-		// Drag and Drop Support
-		this._register(this.instantiationService.createInstance(NextEditorDragAndDrop, this, this.container));
+		// Drop support
+		this._register(this.instantiationService.createInstance(NextEditorDropTarget, this, this.container));
 
 		return this.container;
 	}
@@ -511,7 +628,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 		interface ILegacyEditorPartUIState {
 			ratio: number[];
-			groupOrientation: GroupOrientation;
+			groupOrientation: LegacyGroupOrientation;
 		}
 
 		interface ISerializedLegacyEditorStacksModel {

@@ -275,7 +275,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 
 		for (let i = 0; i < editors.length; i++) {
 			const editor = editors[i];
-			if (editor && editor.input && editor.position === stacks.positionOfGroup(group)) {
+			if (editor && editor.input && editor.group === stacks.positionOfGroup(group)) {
 				const editorResource = editor.input.getResource();
 				if (editorResource && resource.toString() === editorResource.toString()) {
 					const control = editor.getControl();
@@ -313,7 +313,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 
 			// Binary editor that should reload from event
 			if (resource && isBinaryEditor && (e.contains(resource, FileChangeType.UPDATED) || e.contains(resource, FileChangeType.ADDED))) {
-				this.editorService.openEditor(editor.input, { forceOpen: true, preserveFocus: true }, editor.position).done(null, errors.onUnexpectedError);
+				this.editorService.openEditor(editor.input, { forceOpen: true, preserveFocus: true }, editor.group).done(null, errors.onUnexpectedError);
 			}
 		});
 	}

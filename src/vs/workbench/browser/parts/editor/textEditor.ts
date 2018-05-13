@@ -13,10 +13,9 @@ import * as types from 'vs/base/common/types';
 import * as errors from 'vs/base/common/errors';
 import * as DOM from 'vs/base/browser/dom';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { EditorInput, EditorOptions, EditorViewStateMemento } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, EditorViewStateMemento, GroupIdentifier } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorViewState, IEditor } from 'vs/editor/common/editorCommon';
-import { Position } from 'vs/platform/editor/common/editor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -28,6 +27,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { isDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 const TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 
@@ -55,11 +55,12 @@ export abstract class BaseTextEditor extends BaseEditor {
 		@ITextResourceConfigurationService private readonly _configurationService: ITextResourceConfigurationService,
 		@IThemeService protected themeService: IThemeService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IEditorGroupService protected editorGroupService: IEditorGroupService
+		@IEditorGroupService protected editorGroupService: IEditorGroupService,
+		@INextEditorGroupsService nextEditorGroupService: INextEditorGroupsService
 	) {
 		super(id, telemetryService, themeService);
 
-		this.editorViewStateMemento = new EditorViewStateMemento<IEditorViewState>(this.getMemento(storageService, Scope.WORKSPACE), TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY, 100);
+		this.editorViewStateMemento = new EditorViewStateMemento<IEditorViewState>(nextEditorGroupService, this.getMemento(storageService, Scope.WORKSPACE), TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY, 100);
 
 		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.handleConfigurationChangeEvent(this.configurationService.getValue<IEditorConfiguration>(this.getResource()))));
 	}
@@ -107,8 +108,8 @@ export abstract class BaseTextEditor extends BaseEditor {
 		let ariaLabel = this.getAriaLabel();
 
 		// Apply group information to help identify in which group we are
-		if (ariaLabel && typeof this.position === 'number') {
-			ariaLabel = nls.localize('editorLabelWithGroup', "{0}, Group {1}.", ariaLabel, this.position + 1);
+		if (ariaLabel && typeof this.group === 'number') {
+			ariaLabel = nls.localize('editorLabelWithGroup', "{0}, Group {1}.", ariaLabel, this.group + 1);
 		}
 
 		return ariaLabel;
@@ -195,16 +196,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		});
 	}
 
-	public changePosition(position: Position): void {
-		super.changePosition(position);
-
-		// Make sure to update ARIA label if the position of this editor changed
-		if (this.editorControl) {
-			this.editorControl.updateOptions({ ariaLabel: this.computeAriaLabel() });
-		}
-	}
-
-	protected setEditorVisible(visible: boolean, position: Position = null): void {
+	protected setEditorVisible(visible: boolean, group: GroupIdentifier): void {
 
 		// Pass on to Editor
 		if (visible) {
@@ -214,7 +206,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 			this.editorControl.onHide();
 		}
 
-		super.setEditorVisible(visible, position);
+		super.setEditorVisible(visible, group);
 	}
 
 	public focus(): void {
@@ -240,7 +232,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 			return;
 		}
 
-		this.editorViewStateMemento.saveState(resource, this.position, editorViewState);
+		this.editorViewStateMemento.saveState(this.group, resource, editorViewState);
 	}
 
 	protected retrieveTextEditorViewState(resource: URI): IEditorViewState {
@@ -279,7 +271,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 	 * Loads the text editor view state for the given resource and returns it.
 	 */
 	protected loadTextEditorViewState(resource: URI): IEditorViewState {
-		return this.editorViewStateMemento.loadState(resource, this.position);
+		return this.editorViewStateMemento.loadState(this.group, resource);
 	}
 
 	private updateEditorConfiguration(configuration = this.configurationService.getValue<IEditorConfiguration>(this.getResource())): void {

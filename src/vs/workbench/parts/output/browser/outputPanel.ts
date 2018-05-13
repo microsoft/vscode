@@ -23,6 +23,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 export class OutputPanel extends AbstractTextResourceEditor {
 	private actions: IAction[];
@@ -38,9 +39,10 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		@IOutputService private outputService: IOutputService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@ITextFileService textFileService: ITextFileService
+		@ITextFileService textFileService: ITextFileService,
+		@INextEditorGroupsService nextEditorGroupService: INextEditorGroupsService
 	) {
-		super(OUTPUT_PANEL_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService);
+		super(OUTPUT_PANEL_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService, nextEditorGroupService);
 
 		this.scopedInstantiationService = instantiationService;
 	}

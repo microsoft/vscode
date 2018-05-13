@@ -11,13 +11,14 @@ import * as types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IEditor, IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
-import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position, Verbosity, IEditor as IBaseEditor, IRevertOptions } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position, Verbosity, IRevertOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITextModel } from 'vs/editor/common/model';
 import { Schemas } from 'vs/base/common/network';
 import { LRUCache } from 'vs/base/common/map';
+import { INextEditorGroupsService, INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
 export const NoEditorsVisibleContext: ContextKeyExpr = EditorsVisibleContext.toNegated();
@@ -26,12 +27,6 @@ export const ActiveEditorGroupEmptyContext = new RawContextKey<boolean>('activeE
 export const MultipleEditorGroupsContext = new RawContextKey<boolean>('multipleEditorGroups', false);
 export const SingleEditorGroupsContext = MultipleEditorGroupsContext.toNegated();
 export const InEditorZenModeContext = new RawContextKey<boolean>('inZenMode', false);
-
-export enum ConfirmResult {
-	SAVE,
-	DONT_SAVE,
-	CANCEL
-}
 
 /**
  * Text diff editor id.
@@ -272,10 +267,14 @@ export abstract class EditorInput implements IEditorInput {
 	}
 }
 
-export interface IEditorOpeningEvent {
-	input: IEditorInput;
+export enum ConfirmResult {
+	SAVE,
+	DONT_SAVE,
+	CANCEL
+}
+
+export interface IEditorOpeningEvent extends IEditorIdentifier {
 	options?: IEditorOptions;
-	position: Position;
 
 	/**
 	 * Allows to prevent the opening of an editor by providing a callback
@@ -284,34 +283,7 @@ export interface IEditorOpeningEvent {
 	 * to return a promise that resolves to NULL to prevent the opening
 	 * altogether.
 	 */
-	prevent(callback: () => TPromise<IBaseEditor>): void;
-}
-
-export class EditorOpeningEvent implements IEditorOpeningEvent {
-	private override: () => TPromise<IBaseEditor>;
-
-	constructor(private _input: IEditorInput, private _options: IEditorOptions, private _position: Position) {
-	}
-
-	public get input(): IEditorInput {
-		return this._input;
-	}
-
-	public get options(): IEditorOptions {
-		return this._options;
-	}
-
-	public get position(): Position {
-		return this._position;
-	}
-
-	public prevent(callback: () => TPromise<IBaseEditor>): void {
-		this.override = callback;
-	}
-
-	public isPrevented(): () => TPromise<IBaseEditor> {
-		return this.override;
-	}
+	prevent(callback: () => Thenable<any>): void;
 }
 
 export enum EncodingMode {
@@ -516,6 +488,17 @@ export class EditorModel extends Disposable implements IEditorModel {
 		this._onDispose.dispose();
 		super.dispose();
 	}
+}
+
+export interface IEditorInputWithOptions {
+	editor: IEditorInput;
+	options?: IEditorOptions;
+}
+
+export function isEditorInputWithOptions(obj: any): obj is IEditorInputWithOptions {
+	const editorInputWithOptions = obj as IEditorInputWithOptions;
+
+	return !!editorInputWithOptions && !!editorInputWithOptions.editor;
 }
 
 /**
@@ -742,61 +725,18 @@ export class TextEditorOptions extends EditorOptions {
 	}
 }
 
-export interface IStacksModelChangeEvent {
-	group: IEditorGroup;
-	editor?: IEditorInput;
-	structural?: boolean;
-}
-
-export interface IEditorStacksModel {
-
-	onModelChanged: Event<IStacksModelChangeEvent>;
-
-	onWillCloseEditor: Event<IEditorCloseEvent>;
-	onEditorClosed: Event<IEditorCloseEvent>;
-
-	groups: IEditorGroup[];
-	activeGroup: IEditorGroup;
-	isActive(group: IEditorGroup): boolean;
-
-	getGroup(id: GroupIdentifier): IEditorGroup;
-
-	positionOfGroup(group: IEditorGroup): Position;
-	groupAt(position: Position): IEditorGroup;
-
-	next(jumpGroups: boolean, cycleAtEnd?: boolean): IEditorIdentifier;
-	previous(jumpGroups: boolean, cycleAtStart?: boolean): IEditorIdentifier;
-	last(): IEditorIdentifier;
-
-	isOpen(resource: URI): boolean;
-
-	toString(): string;
-}
-
-export interface IEditorGroup {
-
-	id: GroupIdentifier;
-	label: string;
-	count: number;
-	activeEditor: IEditorInput;
-	previewEditor: IEditorInput;
-
-	getEditor(index: number): IEditorInput;
-	getEditor(resource: URI): IEditorInput;
-	indexOf(editor: IEditorInput): number;
-
-	contains(editorOrResource: IEditorInput | URI): boolean;
-
-	getEditors(mru?: boolean): IEditorInput[];
-	isActive(editor: IEditorInput): boolean;
-	isPreview(editor: IEditorInput): boolean;
-	isPinned(index: number): boolean;
-	isPinned(editor: IEditorInput): boolean;
-}
-
 export interface IEditorIdentifier {
-	group: IEditorGroup; // TODO@grid this should be the group identifier instead
+	group: GroupIdentifier;
 	editor: IEditorInput;
+}
+
+export function groupFromContext(context: GroupIdentifier, editorGroupService: INextEditorGroupsService): INextEditorGroup {
+	let group: INextEditorGroup;
+	if (typeof context === 'number') {
+		group = editorGroupService.getGroup(context);
+	}
+
+	return group || editorGroupService.activeGroup;
 }
 
 /**
@@ -815,15 +755,6 @@ export interface IEditorCloseEvent extends IEditorIdentifier {
 }
 
 export type GroupIdentifier = number;
-
-export const EditorOpenPositioning = {
-	LEFT: 'left',
-	RIGHT: 'right',
-	FIRST: 'first',
-	LAST: 'last'
-};
-
-export const OPEN_POSITIONING_CONFIG = 'workbench.editor.openPositioning';
 
 export interface IWorkbenchEditorConfiguration {
 	workbench: {
@@ -846,30 +777,6 @@ export interface IWorkbenchEditorPartConfiguration {
 	swipeToNavigate?: boolean;
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
 }
-
-export const ActiveEditorMovePositioning = {
-	FIRST: 'first',
-	LAST: 'last',
-	LEFT: 'left',
-	RIGHT: 'right',
-	CENTER: 'center',
-	POSITION: 'position',
-};
-
-export const ActiveEditorMovePositioningBy = {
-	TAB: 'tab',
-	GROUP: 'group'
-};
-
-export interface ActiveEditorMoveArguments {
-	to?: string;
-	by?: string;
-	value?: number;
-}
-
-export const EditorCommands = {
-	MoveActiveEditor: 'moveActiveEditor'
-};
 
 export interface IResourceOptions {
 	supportSideBySide?: boolean;
@@ -916,35 +823,39 @@ export function toResource(editor: IEditorInput, options?: IResourceOptions): UR
 	return null;
 }
 
-export interface IEditorViewStates<T> {
-	[Position.ONE]?: T;
-	[Position.TWO]?: T;
-	[Position.THREE]?: T;
+export enum CloseDirection {
+	LEFT,
+	RIGHT
+}
+
+interface MapGroupToViewStates<T> {
+	[group: number]: T;
 }
 
 export class EditorViewStateMemento<T> {
-	private cache: LRUCache<string, IEditorViewStates<T>>;
+	private cache: LRUCache<string, MapGroupToViewStates<T>>;
 
-	constructor(private memento: object, private key: string, private limit: number = 10) { }
+	constructor(
+		private editorGroupService: INextEditorGroupsService,
+		private memento: object,
+		private key: string,
+		private limit: number = 10
+	) { }
 
-	public saveState(resource: URI, position: Position, state: T): void;
-	public saveState(editor: EditorInput, position: Position, state: T): void;
-	public saveState(resourceOrEditor: URI | EditorInput, position: Position, state: T): void {
-		if (typeof position !== 'number') {
-			return; // we need a position at least
-		}
-
+	public saveState(group: GroupIdentifier, resource: URI, state: T): void;
+	public saveState(group: GroupIdentifier, editor: EditorInput, state: T): void;
+	public saveState(group: GroupIdentifier, resourceOrEditor: URI | EditorInput, state: T): void {
 		const resource = this.doGetResource(resourceOrEditor);
 		if (resource) {
 			const cache = this.doLoad();
 
 			let viewStates = cache.get(resource.toString());
 			if (!viewStates) {
-				viewStates = Object.create(null) as IEditorViewStates<T>;
+				viewStates = Object.create(null) as MapGroupToViewStates<T>;
 				cache.set(resource.toString(), viewStates);
 			}
 
-			viewStates[position] = state;
+			viewStates[group] = state;
 
 			// Automatically clear when editor input gets disposed if any
 			if (resourceOrEditor instanceof EditorInput) {
@@ -955,20 +866,16 @@ export class EditorViewStateMemento<T> {
 		}
 	}
 
-	public loadState(resource: URI, position: Position): T;
-	public loadState(editor: EditorInput, position: Position): T;
-	public loadState(resourceOrEditor: URI | EditorInput, position: Position): T {
-		if (typeof position !== 'number') {
-			return void 0; // we need a position at least
-		}
-
+	public loadState(group: GroupIdentifier, resource: URI): T;
+	public loadState(group: GroupIdentifier, editor: EditorInput): T;
+	public loadState(group: GroupIdentifier, resourceOrEditor: URI | EditorInput): T {
 		const resource = this.doGetResource(resourceOrEditor);
 		if (resource) {
 			const cache = this.doLoad();
 
 			const viewStates = cache.get(resource.toString());
 			if (viewStates) {
-				return viewStates[position];
+				return viewStates[group];
 			}
 		}
 
@@ -993,24 +900,14 @@ export class EditorViewStateMemento<T> {
 		return resourceOrEditor;
 	}
 
-	private doLoad(): LRUCache<string, IEditorViewStates<T>> {
+	private doLoad(): LRUCache<string, MapGroupToViewStates<T>> {
 		if (!this.cache) {
-			this.cache = new LRUCache<string, T>(this.limit);
+			this.cache = new LRUCache<string, MapGroupToViewStates<T>>(this.limit);
 
 			// Restore from serialized map state
 			const rawViewState = this.memento[this.key];
 			if (Array.isArray(rawViewState)) {
 				this.cache.fromJSON(rawViewState);
-			}
-
-			// Migration from old object state
-			else if (rawViewState) {
-				const keys = Object.keys(rawViewState);
-				keys.forEach((key, index) => {
-					if (index < this.limit) {
-						this.cache.set(key, rawViewState[key]);
-					}
-				});
 			}
 		}
 
@@ -1019,6 +916,20 @@ export class EditorViewStateMemento<T> {
 
 	public save(): void {
 		const cache = this.doLoad();
+
+		// Remove groups from states that no longer exist
+		cache.forEach((mapGroupToViewStates, resource) => {
+			Object.keys(mapGroupToViewStates).forEach(group => {
+				const groupId: GroupIdentifier = Number(group);
+				if (!this.editorGroupService.getGroup(groupId)) {
+					delete mapGroupToViewStates[groupId];
+
+					if (types.isEmptyObject(mapGroupToViewStates)) {
+						cache.delete(resource);
+					}
+				}
+			});
+		});
 
 		this.memento[this.key] = cache.toJSON();
 	}
@@ -1075,3 +986,57 @@ export const Extensions = {
 };
 
 Registry.add(Extensions.EditorInputFactories, new EditorInputFactoryRegistry());
+
+//#region obsolete
+
+export interface IStacksModelChangeEvent {
+	group: IEditorGroup;
+	editor?: IEditorInput;
+	structural?: boolean;
+}
+
+export interface IEditorStacksModel {
+
+	onModelChanged: Event<IStacksModelChangeEvent>;
+
+	onWillCloseEditor: Event<IEditorCloseEvent>;
+	onEditorClosed: Event<IEditorCloseEvent>;
+
+	groups: IEditorGroup[];
+	activeGroup: IEditorGroup;
+	isActive(group: IEditorGroup): boolean;
+
+	getGroup(id: GroupIdentifier): IEditorGroup;
+
+	positionOfGroup(group: IEditorGroup): Position;
+	groupAt(position: Position): IEditorGroup;
+
+	next(jumpGroups: boolean, cycleAtEnd?: boolean): IEditorIdentifier;
+	previous(jumpGroups: boolean, cycleAtStart?: boolean): IEditorIdentifier;
+	last(): IEditorIdentifier;
+
+	isOpen(resource: URI): boolean;
+
+	toString(): string;
+}
+
+export interface IEditorGroup {
+	id: GroupIdentifier;
+	count: number;
+	activeEditor: IEditorInput;
+	previewEditor: IEditorInput;
+
+	getEditor(index: number): IEditorInput;
+	getEditor(resource: URI): IEditorInput;
+	indexOf(editor: IEditorInput): number;
+
+	contains(editorOrResource: IEditorInput | URI): boolean;
+
+	getEditors(mru?: boolean): IEditorInput[];
+	isActive(editor: IEditorInput): boolean;
+	isPreview(editor: IEditorInput): boolean;
+	isPinned(index: number): boolean;
+	isPinned(editor: IEditorInput): boolean;
+}
+
+//#endregion

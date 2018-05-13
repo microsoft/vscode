@@ -685,7 +685,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 		// Inform editor
 		const editor = this.visibleEditors[from];
-		editor.changePosition(to);
+		// editor.changePosition(to);
 
 		// Change data structures
 		const listeners = this.visibleEditorFocusTrackerDisposable[from];
@@ -718,8 +718,8 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			containerTo.appendTo(this.silos[from]);
 
 			// Inform Editors
-			this.visibleEditors[from].changePosition(to);
-			this.visibleEditors[to].changePosition(from);
+			// this.visibleEditors[from].changePosition(to);
+			// this.visibleEditors[to].changePosition(from);
 
 			// Update last active position accordingly
 			if (this.lastActivePosition === from) {
@@ -758,9 +758,9 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			containerPos3.appendTo(this.silos[newPositionThree]);
 
 			// Inform Editors
-			this.visibleEditors[Position.ONE].changePosition(newPositionOne);
-			this.visibleEditors[Position.TWO].changePosition(newPositionTwo);
-			this.visibleEditors[Position.THREE].changePosition(newPositionThree);
+			// this.visibleEditors[Position.ONE].changePosition(newPositionOne);
+			// this.visibleEditors[Position.TWO].changePosition(newPositionTwo);
+			// this.visibleEditors[Position.THREE].changePosition(newPositionThree);
 
 			// Update last active position accordingly
 			if (this.lastActivePosition === Position.ONE) {
@@ -1074,7 +1074,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			this.centeredEditorLeftMarginRatio = 0.5;
 
 			// Restore centered layout position and size
-			const centeredLayoutDataString = this.storageService.get(EditorGroupsControl.CENTERED_EDITOR_LAYOUT_DATA_STORAGE_KEY, StorageScope.GLOBAL);
+			const centeredLayoutDataString = this.storageService.get(EditorGroupsControl.CENTERED_EDITOR_LAYOUT_DATA_STORAGE_KEY, StorageScope.WORKSPACE);
 			if (centeredLayoutDataString) {
 				const centeredLayout = <CenteredEditorLayoutData>JSON.parse(centeredLayoutDataString);
 				this.centeredEditorLeftMarginRatio = centeredLayout.leftMarginRatio;
@@ -1135,7 +1135,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			let options = EditorOptions.create({ pinned: true });
 			const activeEditor = $this.editorService.getActiveEditor();
 			const editor = getCodeEditor(activeEditor);
-			if (editor && activeEditor.position === stacks.positionOfGroup(identifier.group) && identifier.editor.matches(activeEditor.input)) {
+			if (editor && activeEditor.group === stacks.positionOfGroup(stacks.getGroup(identifier.group)) && identifier.editor.matches(activeEditor.input)) {
 				options = TextEditorOptions.fromEditor(editor, { pinned: true });
 			}
 
@@ -1181,16 +1181,17 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 				// Move editor to new location
 				else {
-					const sourcePosition = stacks.positionOfGroup(draggedEditor.group);
+					const draggedGroup = stacks.getGroup(draggedEditor.group);
+					const sourcePosition = stacks.positionOfGroup(draggedGroup);
 					if (splitEditor) {
-						if (draggedEditor.group.count === 1) {
+						if (draggedGroup.count === 1) {
 							groupService.moveGroup(sourcePosition, splitTo);
 						} else {
 							editorService.openEditor(draggedEditor.editor, optionsFromDraggedEditor(draggedEditor), freeGroup).then(() => {
 								if (splitTo !== freeGroup) {
 									groupService.moveGroup(freeGroup, splitTo);
 								}
-								groupService.moveEditor(draggedEditor.editor, stacks.positionOfGroup(draggedEditor.group), splitTo);
+								groupService.moveEditor(draggedEditor.editor, stacks.positionOfGroup(draggedGroup), splitTo);
 							}).done(null, errors.onUnexpectedError);
 						}
 
@@ -1228,14 +1229,16 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 			let splitTarget: Position;
 
+			const draggedGroup = stacks.getGroup(draggedEditor.group);
+
 			// No splitting if we reached maximum group count
 			if (groups === POSITIONS.length) {
 				splitTarget = null;
 			}
 
 			// Special splitting if we drag an editor of a group with only one editor
-			else if (!isCopy && draggedEditor && draggedEditor.group.count === 1) {
-				const positionOfDraggedEditor = stacks.positionOfGroup(draggedEditor.group);
+			else if (!isCopy && draggedEditor && draggedGroup.count === 1) {
+				const positionOfDraggedEditor = stacks.positionOfGroup(draggedGroup);
 				switch (positionOfDraggedEditor) {
 					case Position.ONE:
 						if (position === Position.TWO && isOverSplitRightOrBottom) {
@@ -1985,7 +1988,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			leftMarginRatio: this.centeredEditorLeftMarginRatio,
 			size: this.centeredEditorSize
 		};
-		this.storageService.store(EditorGroupsControl.CENTERED_EDITOR_LAYOUT_DATA_STORAGE_KEY, JSON.stringify(data), StorageScope.GLOBAL);
+		this.storageService.store(EditorGroupsControl.CENTERED_EDITOR_LAYOUT_DATA_STORAGE_KEY, JSON.stringify(data), StorageScope.WORKSPACE);
 	}
 
 	public getVerticalSashTop(sash: Sash): number {
@@ -2230,7 +2233,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		if (layout) {
 			this.layoutContainers();
 		}
-		this.storageService.remove(EditorGroupsControl.CENTERED_EDITOR_LAYOUT_DATA_STORAGE_KEY, StorageScope.GLOBAL);
+		this.storageService.remove(EditorGroupsControl.CENTERED_EDITOR_LAYOUT_DATA_STORAGE_KEY, StorageScope.WORKSPACE);
 	}
 
 	public getInstantiationService(position: Position): IInstantiationService {

@@ -94,7 +94,7 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 
 	private doOpenDirtyResources(resources: URI[]): void {
 		const activeEditor = this.editorService.getActiveEditor();
-		const activePosition = activeEditor ? activeEditor.position : Position.ONE;
+		const activePosition = activeEditor ? activeEditor.group : Position.ONE;
 
 		// Open
 		this.editorService.openEditors(resources.map(resource => {

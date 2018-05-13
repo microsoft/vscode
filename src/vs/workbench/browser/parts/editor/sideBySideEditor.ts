@@ -8,7 +8,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorInput, EditorOptions, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorControl, Position, IEditor } from 'vs/platform/editor/common/editor';
+import { IEditorControl, IEditor, GroupIdentifier } from 'vs/platform/editor/common/editor';
 import { VSash } from 'vs/base/browser/ui/sash/sash';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -49,24 +49,14 @@ export class SideBySideEditor extends BaseEditor {
 			.then(() => this.updateInput(oldInput, newInput, options));
 	}
 
-	protected setEditorVisible(visible: boolean, position: Position): void {
+	protected setEditorVisible(visible: boolean, group: GroupIdentifier): void {
 		if (this.masterEditor) {
-			this.masterEditor.setVisible(visible, position);
+			this.masterEditor.setVisible(visible, group);
 		}
 		if (this.detailsEditor) {
-			this.detailsEditor.setVisible(visible, position);
+			this.detailsEditor.setVisible(visible, group);
 		}
-		super.setEditorVisible(visible, position);
-	}
-
-	public changePosition(position: Position): void {
-		if (this.masterEditor) {
-			this.masterEditor.changePosition(position);
-		}
-		if (this.detailsEditor) {
-			this.detailsEditor.changePosition(position);
-		}
-		super.changePosition(position);
+		super.setEditorVisible(visible, group);
 	}
 
 	public clearInput(): void {
@@ -138,7 +128,7 @@ export class SideBySideEditor extends BaseEditor {
 
 		const editor = descriptor.instantiate(this.instantiationService);
 		editor.create(container);
-		editor.setVisible(this.isVisible(), this.position);
+		editor.setVisible(this.isVisible(), this.group);
 
 		return editor;
 	}

@@ -33,6 +33,8 @@ import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorIdentifier, GroupIdentifier } from 'vs/workbench/common/editor';
 import { basenameOrAuthority } from 'vs/base/common/resources';
 import { INextEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/nextEditorService';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 
 export interface IDraggedResource {
 	resource: URI;
@@ -43,6 +45,14 @@ export class DraggedEditorIdentifier {
 	constructor(private _identifier: IEditorIdentifier) { }
 
 	get identifier(): IEditorIdentifier {
+		return this._identifier;
+	}
+}
+
+export class DraggedEditorGroupIdentifier {
+	constructor(private _identifier: GroupIdentifier) { }
+
+	get identifier(): GroupIdentifier {
 		return this._identifier;
 	}
 }
@@ -431,9 +441,11 @@ export class LocalSelectionTransfer<T> {
 		return proto && proto === this.proto;
 	}
 
-	clearData(): void {
-		this.proto = void 0;
-		this.data = void 0;
+	clearData(proto: T): void {
+		if (this.hasData(proto)) {
+			this.proto = void 0;
+			this.data = void 0;
+		}
 	}
 
 	getData(proto: T): T[] {
@@ -452,22 +464,58 @@ export class LocalSelectionTransfer<T> {
 	}
 }
 
-export class DragCounter {
-	private _counter: number = 0;
+export interface IDragAndDropObserverCallbacks {
+	onDragEnter: (e: DragEvent) => void;
+	onDragLeave: (e: DragEvent) => void;
+	onDrop: (e: DragEvent) => void;
+	onDragEnd: (e: DragEvent) => void;
 
-	get value(): number {
-		return this._counter;
+	onDragOver?: (e: DragEvent) => void;
+}
+
+export class DragAndDropObserver extends Disposable {
+
+	// A helper to fix issues with repeated DRAG_ENTER / DRAG_LEAVE
+	// calls see https://github.com/Microsoft/vscode/issues/14470
+	// when the element has child elements where the events are fired
+	// repeadedly.
+	private counter: number = 0;
+
+	constructor(private element: HTMLElement, private callbacks: IDragAndDropObserverCallbacks) {
+		super();
+
+		this.registerListeners();
 	}
 
-	reset(): void {
-		this._counter = 0;
-	}
+	private registerListeners(): void {
+		this._register(addDisposableListener(this.element, EventType.DRAG_ENTER, (e: DragEvent) => {
+			this.counter++;
 
-	increment(): void {
-		this._counter++;
-	}
+			this.callbacks.onDragEnter(e);
+		}));
 
-	decrement(): void {
-		this._counter--;
+		this._register(addDisposableListener(this.element, EventType.DRAG_OVER, (e: DragEvent) => {
+			if (this.callbacks.onDragOver) {
+				this.callbacks.onDragOver(e);
+			}
+		}));
+
+		this._register(addDisposableListener(this.element, EventType.DRAG_LEAVE, (e: DragEvent) => {
+			this.counter--;
+
+			if (this.counter === 0) {
+				this.callbacks.onDragLeave(e);
+			}
+		}));
+
+		this._register(addDisposableListener(this.element, EventType.DRAG_END, (e: DragEvent) => {
+			this.counter = 0;
+			this.callbacks.onDragEnd(e);
+		}));
+
+		this._register(addDisposableListener(this.element, EventType.DROP, (e: DragEvent) => {
+			this.counter = 0;
+			this.callbacks.onDrop(e);
+		}));
 	}
 }

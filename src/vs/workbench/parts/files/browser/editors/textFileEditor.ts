@@ -14,7 +14,7 @@ import { Action } from 'vs/base/common/actions';
 import { VIEWLET_ID, IExplorerViewlet, TEXT_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { EditorOptions, TextEditorOptions, IEditorCloseEvent } from 'vs/workbench/common/editor';
+import { EditorOptions, TextEditorOptions, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -31,6 +31,8 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 /**
  * An implementation of editor for file system resources.
@@ -48,19 +50,21 @@ export class TextFileEditor extends BaseTextEditor {
 		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@INextEditorService nextEditorService: INextEditorService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@ITextFileService textFileService: ITextFileService,
 		@IWindowsService private windowsService: IWindowsService,
-		@IPreferencesService private preferencesService: IPreferencesService
+		@IPreferencesService private preferencesService: IPreferencesService,
+		@INextEditorGroupsService nextEditorGroupService: INextEditorGroupsService
 	) {
-		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService);
+		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService, nextEditorGroupService);
 
 		// Clear view state for deleted files
 		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
 
 		// React to editors closing to preserve view state
-		this.toUnbind.push(editorGroupService.getStacksModel().onWillCloseEditor(e => this.onWillCloseEditor(e)));
+		this.toUnbind.push(nextEditorService.onWillCloseEditor(e => this.onWillCloseEditor(e)));
 	}
 
 	private onFilesChanged(e: FileChangesEvent): void {
@@ -70,8 +74,8 @@ export class TextFileEditor extends BaseTextEditor {
 		}
 	}
 
-	private onWillCloseEditor(e: IEditorCloseEvent): void {
-		if (e.editor === this.input && this.position === this.editorGroupService.getStacksModel().positionOfGroup(e.group)) {
+	private onWillCloseEditor(e: IEditorIdentifier): void {
+		if (e.editor === this.input && this.group === e.group) {
 			this.doSaveTextEditorViewState(this.input);
 		}
 	}
@@ -201,13 +205,13 @@ export class TextFileEditor extends BaseTextEditor {
 
 	private openAsBinary(input: FileEditorInput, options: EditorOptions): void {
 		input.setForceOpenAsBinary();
-		this.editorService.openEditor(input, options, this.position).done(null, errors.onUnexpectedError);
+		this.editorService.openEditor(input, options, this.group).done(null, errors.onUnexpectedError);
 	}
 
 	private openAsFolder(input: FileEditorInput): boolean {
 
 		// Since we cannot open a folder, we have to restore the previous input if any and close the editor
-		this.editorService.closeEditor(this.position, this.input).done(() => {
+		this.editorService.closeEditor(this.group, this.input).done(() => {
 
 			// Best we can do is to reveal the folder in the explorer
 			if (this.contextService.isInsideWorkspace(input.getResource())) {

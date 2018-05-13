@@ -237,11 +237,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return sizes;
 	}
 
-	public shutdown(): void {
-		this.compositeBar.shutdown();
-		super.shutdown();
-	}
-
 	private layoutCompositeBar(): void {
 		if (this.dimension) {
 			let availableWidth = this.dimension.width - 40; // take padding into account

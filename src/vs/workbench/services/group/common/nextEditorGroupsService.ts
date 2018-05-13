@@ -7,8 +7,8 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { GroupIdentifier, IEditorOpeningEvent } from 'vs/workbench/common/editor';
-import { IEditorInput, IEditor, IEditorOptions, IEditorInputWithOptions } from 'vs/platform/editor/common/editor';
+import { GroupIdentifier, IEditorOpeningEvent, IEditorInputWithOptions, CloseDirection } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor, IEditorOptions } from 'vs/platform/editor/common/editor';
 
 export const INextEditorGroupsService = createDecorator<INextEditorGroupsService>('nextEditorGroupsService');
 
@@ -19,18 +19,64 @@ export enum GroupDirection {
 	RIGHT
 }
 
+export enum GroupOrientation {
+	HORIZONTAL,
+	VERTICAL
+}
+
+export enum GroupsArrangement {
+
+	/**
+	 * Make the current active group consume the maximum
+	 * amount of space possible.
+	 */
+	MINIMIZE_OTHERS,
+
+	/**
+	 * Size all groups evenly.
+	 */
+	EVEN
+}
+
 export interface IMoveEditorOptions {
 	index?: number;
 	inactive?: boolean;
 	preserveFocus?: boolean;
 }
 
+export interface ICopyEditorOptions extends IMoveEditorOptions { }
+
 export interface IAddGroupOptions {
 	activate?: boolean;
 	copyGroup?: boolean;
 }
 
-export interface ICopyEditorOptions extends IMoveEditorOptions { }
+export enum MergeGroupMode {
+	COPY_EDITORS,
+	MOVE_EDITORS_REMOVE_GROUP,
+	MOVE_EDITORS_KEEP_GROUP
+}
+
+export interface IMergeGroupOptions {
+	mode?: MergeGroupMode;
+}
+
+export type ICloseEditorsFilter = {
+	except?: IEditorInput,
+	direction?: CloseDirection,
+	savedOnly?: boolean
+};
+
+export interface IEditorReplacement {
+	editor: IEditorInput;
+	replacement: IEditorInput;
+	options?: IEditorOptions;
+}
+
+export enum GroupsOrder {
+	MOST_RECENTLY_ACTIVE,
+	GRID_ORDER
+}
 
 export interface INextEditorGroupsService {
 
@@ -73,10 +119,15 @@ export interface INextEditorGroupsService {
 	readonly count: number;
 
 	/**
-	 * Get all groups that are currently visible in the editor area optionally
-	 * sorted by being most recent active.
+	 * The current layout orientation of the root group.
 	 */
-	getGroups(sortByMostRecentlyActive?: boolean): ReadonlyArray<INextEditorGroup>;
+	readonly orientation: GroupOrientation;
+
+	/**
+	 * Get all groups that are currently visible in the editor area optionally
+	 * sorted by being most recent active or grid order.
+	 */
+	getGroups(order?: GroupsOrder): ReadonlyArray<INextEditorGroup>;
 
 	/**
 	 * Allows to convert a group identifier to a group.
@@ -97,6 +148,16 @@ export interface INextEditorGroupsService {
 	 * Resize the group given the provided size delta.
 	 */
 	resizeGroup(group: INextEditorGroup | GroupIdentifier, sizeDelta: number): INextEditorGroup;
+
+	/**
+	 * Arrange all groups according to the provided arrangement.
+	 */
+	arrangeGroups(arrangement: GroupsArrangement): void;
+
+	/**
+	 * Sets the orientation of the root group to be either vertical or horizontal.
+	 */
+	setGroupOrientation(orientation: GroupOrientation): void;
 
 	/**
 	 * Add a new group to the editor area. A new group is added by splitting a provided one in
@@ -121,6 +182,20 @@ export interface INextEditorGroupsService {
 	 * @param direction the direction of where to split to
 	 */
 	moveGroup(group: INextEditorGroup | GroupIdentifier, location: INextEditorGroup | GroupIdentifier, direction: GroupDirection): INextEditorGroup;
+
+	/**
+	 * Merge the editors of a group into a target group. By default, all editors will
+	 * move and the source group will close. This behaviour can be configured via the
+	 * `IMergeGroupOptions` options.
+	 *
+	 * @param group the group to merge
+	 * @param target the target group to merge into
+	 * @param options controls how the merge should be performed. by default all editors
+	 * will be moved over to the target and the source group will close. Configure to
+	 * `MOVE_EDITORS_KEEP_GROUP` to prevent the source group from closing. Set to
+	 * `COPY_EDITORS` to copy the editors into the target instead of moding them.
+	 */
+	mergeGroup(group: INextEditorGroup | GroupIdentifier, target: INextEditorGroup | GroupIdentifier, options?: IMergeGroupOptions): INextEditorGroup;
 
 	/**
 	 * Copy a group to a new group in the editor area.
@@ -152,6 +227,12 @@ export interface INextEditorGroup {
 	readonly activeEditor: IEditorInput;
 
 	/**
+	 * The editor in the group that is in preview mode if any. There can
+	 * only ever be one editor in preview mode.
+	 */
+	readonly previewEditor: IEditorInput;
+
+	/**
 	 * The number of opend editors in this group.
 	 */
 	readonly count: number;
@@ -170,6 +251,14 @@ export interface INextEditorGroup {
 	 * Emitted when the active editor of this group changed.
 	 */
 	readonly onDidActiveEditorChange: Event<void>;
+
+	/**
+	 * Emitted when an editor of this group is about to get closed.
+	 *
+	 * Listeners can for example save view state now before the
+	 * underlying widget gets disposed.
+	 */
+	readonly onWillCloseEditor: Event<IEditorInput>;
 
 	/**
 	 * Emitted when an editor of this group is closed.
@@ -198,14 +287,18 @@ export interface INextEditorGroup {
 	getIndexOfEditor(editor: IEditorInput): number;
 
 	/**
-	 * Open an editor in this group. The returned promise is resolved when the
-	 * editor has finished loading.
+	 * Open an editor in this group.
+	 *
+	 * @returns a promise that is resolved when the active editor (if any)
+	 * has finished loading
 	 */
 	openEditor(editor: IEditorInput, options?: IEditorOptions): Thenable<void>;
 
 	/**
-	 * Opens editors in this group. The returned promise is resolved when the
-	 * editor has finished loading.
+	 * Opens editors in this group.
+	 *
+	 * @returns a promise that is resolved when the active editor (if any)
+	 * has finished loading
 	 */
 	openEditors(editors: IEditorInputWithOptions[]): Thenable<void>;
 
@@ -248,6 +341,32 @@ export interface INextEditorGroup {
 	 * @returns a promise when the editor is closed.
 	 */
 	closeEditor(editor?: IEditorInput): Thenable<void>;
+
+	/**
+	 * Closes specific editors in this group. This may trigger a confirmation dialog if
+	 * there are dirty editors and thus returns a promise as value.
+	 *
+	 * @returns a promise when all editors are closed.
+	 */
+	closeEditors(editors: IEditorInput[] | ICloseEditorsFilter): Thenable<void>;
+
+	/**
+	 * Closes all editors from the group. This may trigger a confirmation dialog if
+	 * there are dirty editors and thus returns a promise as value.
+	 *
+	 * @returns a promise when all editors are closed.
+	 */
+	closeAllEditors(): Thenable<void>;
+
+	/**
+	 * Replaces editors in this group with the provided replacement.
+	 *
+	 * @param editors the editors to replace
+	 *
+	 * @returns a promise that is resolved when the replaced active
+	 * editor (if any) has finished loading.
+	 */
+	replaceEditors(editors: IEditorReplacement[]): Thenable<void>;
 
 	/**
 	 * Set an editor to be pinned. A pinned editor is not replaced

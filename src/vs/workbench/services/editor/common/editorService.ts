@@ -7,11 +7,11 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator, ServiceIdentifier, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorService, IEditor, IEditorInput, IEditorOptions, ITextEditorOptions, Position, Direction, IResourceInput, IResourceDiffInput, IResourceSideBySideInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
+import { IEditorService, IEditor, IEditorInput, IEditorOptions, ITextEditorOptions, Position, IResourceInput, IResourceDiffInput, IResourceSideBySideInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import URI from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { basename } from 'vs/base/common/paths';
-import { EditorInput, EditorOptions, TextEditorOptions, Extensions as EditorExtensions, SideBySideEditorInput, IFileEditorInput, IFileInputFactory, IEditorInputFactoryRegistry, IEditorStacksModel, IEditorOpeningEvent, IEditorGroup, IStacksModelChangeEvent, IEditorCloseEvent, IEditorIdentifier } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, TextEditorOptions, Extensions as EditorExtensions, SideBySideEditorInput, IFileEditorInput, IFileInputFactory, IEditorInputFactoryRegistry, IEditorStacksModel, IEditorOpeningEvent, IEditorGroup, IStacksModelChangeEvent, IEditorCloseEvent, IEditorIdentifier, CloseDirection } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -30,7 +30,7 @@ export const IWorkbenchEditorService = createDecorator<IWorkbenchEditorService>(
 
 export type IResourceInputType = IResourceInput | IUntitledResourceInput | IResourceDiffInput | IResourceSideBySideInput;
 
-export type ICloseEditorsFilter = { except?: IEditorInput, direction?: Direction, savedOnly?: boolean };
+export type ICloseEditorsFilter = { except?: IEditorInput, direction?: CloseDirection, savedOnly?: boolean };
 
 /**
  * The editor service allows to open editors and work on the active

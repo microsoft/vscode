@@ -22,18 +22,13 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 
 	protected create(parent: HTMLElement): void {
 		this.titleContainer = parent;
+		this.titleContainer.draggable = true;
+
+		//Container listeners
+		this.registerContainerListeners();
 
 		// Gesture Support
 		Gesture.addTarget(this.titleContainer);
-
-		// Pin on double click
-		this._register(addDisposableListener(this.titleContainer, EventType.DBLCLICK, (e: MouseEvent) => this.onTitleDoubleClick(e)));
-
-		// Detect mouse click
-		this._register(addDisposableListener(this.titleContainer, EventType.CLICK, (e: MouseEvent) => this.onTitleClick(e)));
-
-		// Detect touch
-		this._register(addDisposableListener(this.titleContainer, TouchEventType.Tap, (e: GestureEvent) => this.onTitleClick(e)));
 
 		// Editor Label
 		this.editorLabel = this._register(this.instantiationService.createInstance(ResourceLabel, this.titleContainer, void 0));
@@ -46,6 +41,21 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 
 		// Editor actions toolbar
 		this.createEditorActionsToolBar(actionsContainer);
+	}
+
+	private registerContainerListeners(): void {
+
+		// Group dragging
+		this.enableGroupDragging(this.titleContainer);
+
+		// Pin on double click
+		this._register(addDisposableListener(this.titleContainer, EventType.DBLCLICK, (e: MouseEvent) => this.onTitleDoubleClick(e)));
+
+		// Detect mouse click
+		this._register(addDisposableListener(this.titleContainer, EventType.CLICK, (e: MouseEvent) => this.onTitleClick(e)));
+
+		// Detect touch
+		this._register(addDisposableListener(this.titleContainer, TouchEventType.Tap, (e: GestureEvent) => this.onTitleClick(e)));
 
 		// Context Menu
 		this._register(addDisposableListener(this.titleContainer, EventType.CONTEXT_MENU, (e: Event) => this.onContextMenu(this.group.activeEditor, e, this.titleContainer)));
@@ -77,8 +87,16 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 		this.ifActiveEditorChanged(() => this.redraw());
 	}
 
-	closeEditor(editor: IEditorInput, index: number): void {
+	closeEditor(editor: IEditorInput): void {
 		this.ifActiveEditorChanged(() => this.redraw());
+	}
+
+	closeEditors(editors: IEditorInput[]): void {
+		this.ifActiveEditorChanged(() => this.redraw());
+	}
+
+	closeAllEditors(): void {
+		this.redraw();
 	}
 
 	moveEditor(editor: IEditorInput, fromIndex: number, targetIndex: number): void {

@@ -422,14 +422,14 @@ export class MainThreadDocumentsAndEditors {
 			options: props.options,
 			selections: props.selections,
 			visibleRanges: props.visibleRanges,
-			editorPosition: this._findEditorPosition(textEditor)
+			editorPosition: this._findEditorPosition(textEditor) // TODO@grid [EXTENSIONS] adopt in extension host
 		};
 	}
 
 	private _findEditorPosition(editor: MainThreadTextEditor): EditorPosition {
 		for (let workbenchEditor of this._workbenchEditorService.getVisibleEditors()) {
 			if (editor.matches(workbenchEditor)) {
-				return workbenchEditor.position;
+				return workbenchEditor.group;
 			}
 		}
 		return undefined;

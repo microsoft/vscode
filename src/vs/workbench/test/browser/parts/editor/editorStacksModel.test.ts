@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import { EditorStacksModel, EditorGroup, EditorCloseEvent, ISerializedEditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
-import { Extensions as EditorExtensions, IEditorInputFactoryRegistry, EditorInput, IFileEditorInput, IEditorIdentifier, IEditorGroup, IStacksModelChangeEvent, IEditorInputFactory, IEditorCloseEvent } from 'vs/workbench/common/editor';
+import { Extensions as EditorExtensions, IEditorInputFactoryRegistry, EditorInput, IFileEditorInput, IEditorIdentifier, IEditorGroup, IStacksModelChangeEvent, IEditorInputFactory, IEditorCloseEvent, CloseDirection } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import { TestStorageService, TestLifecycleService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -17,7 +17,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Position, Direction, IEditorModel } from 'vs/platform/editor/common/editor';
+import { Position, IEditorModel } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -291,19 +291,6 @@ suite('Editor Stacks Model', () => {
 
 		model.closeGroup(third);
 		assert.equal(events.moved.length, 2);
-	});
-
-	test('Groups - Move Groups', function () {
-		const model = create();
-		const events = modelListener(model);
-
-		model.openGroup('first');
-		const group2 = model.openGroup('second');
-
-		model.renameGroup(group2, 'renamed');
-
-		assert.equal(group2.label, 'renamed');
-		assert.equal(group2, events.renamed[0]);
 	});
 
 	test('Groups - Position of Group', function () {
@@ -1059,7 +1046,7 @@ suite('Editor Stacks Model', () => {
 
 		// Close Left
 		assert.equal(group.activeEditor, input3);
-		group.closeEditors(group.activeEditor, Direction.LEFT);
+		group.closeEditors(group.activeEditor, CloseDirection.LEFT);
 		assert.equal(group.activeEditor, input3);
 		assert.equal(group.count, 3);
 		assert.equal(group.getEditors()[0], input3);
@@ -1076,7 +1063,7 @@ suite('Editor Stacks Model', () => {
 
 		// Close Right
 		assert.equal(group.activeEditor, input3);
-		group.closeEditors(group.activeEditor, Direction.RIGHT);
+		group.closeEditors(group.activeEditor, CloseDirection.RIGHT);
 		assert.equal(group.activeEditor, input3);
 		assert.equal(group.count, 3);
 		assert.equal(group.getEditors()[0], input1);
@@ -1222,7 +1209,6 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.count, 1);
 		assert.equal(group.activeEditor.matches(input1), true);
 		assert.equal(group.previewEditor.matches(input1), true);
-		assert.equal(group.label, 'group');
 		assert.equal(group.isActive(input1), true);
 
 		lifecycle.fireShutdown();
@@ -1237,7 +1223,6 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.count, 1);
 		assert.equal(group.activeEditor.matches(input1), true);
 		assert.equal(group.previewEditor.matches(input1), true);
-		assert.equal(group.label, 'group');
 		assert.equal(group.isActive(input1), true);
 	});
 
@@ -1286,8 +1271,6 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group2.activeEditor.matches(g2_input1), true);
 		assert.equal(group1.previewEditor.matches(g1_input2), true);
 		assert.equal(group2.previewEditor.matches(g2_input2), true);
-		assert.equal(group1.label, 'group1');
-		assert.equal(group2.label, 'group2');
 
 		assert.equal(group1.getEditors(true)[0].matches(g1_input2), true);
 		assert.equal(group1.getEditors(true)[1].matches(g1_input1), true);
@@ -1312,8 +1295,6 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group2.activeEditor.matches(g2_input1), true);
 		assert.equal(group1.previewEditor.matches(g1_input2), true);
 		assert.equal(group2.previewEditor.matches(g2_input2), true);
-		assert.equal(group1.label, 'group1');
-		assert.equal(group2.label, 'group2');
 
 		assert.equal(group1.getEditors(true)[0].matches(g1_input2), true);
 		assert.equal(group1.getEditors(true)[1].matches(g1_input1), true);
@@ -1483,38 +1464,38 @@ suite('Editor Stacks Model', () => {
 		assert.equal(previous, null);
 
 		previous = model.previous(true /* jump groups */);
-		assert.equal(previous.group, group2);
+		assert.equal(previous.group, group2.id);
 		assert.equal(previous.editor, input6);
 
-		model.setActive(<EditorGroup>previous.group);
-		(<EditorGroup>previous.group).setActive(<EditorInput>previous.editor);
+		model.setActive(model.getGroup(previous.group));
+		model.getGroup(previous.group).setActive(<EditorInput>previous.editor);
 
 		let next = model.next(true, false /* jump groups, do NOT cycle at end */);
 		assert.equal(next, null);
 
 		next = model.next(true /* jump groups */);
-		assert.equal(next.group, group1);
+		assert.equal(next.group, group1.id);
 		assert.equal(next.editor, input1);
 
 		model.setActive(group1);
 		group1.setActive(input3);
 
 		next = model.next(true /* jump groups */);
-		assert.equal(next.group, group2);
+		assert.equal(next.group, group2.id);
 		assert.equal(next.editor, input4);
 
-		model.setActive(<EditorGroup>next.group);
-		(<EditorGroup>next.group).setActive(<EditorInput>next.editor);
+		model.setActive(model.getGroup(next.group));
+		model.getGroup(next.group).setActive(<EditorInput>next.editor);
 
 		previous = model.previous(true /* jump groups */);
-		assert.equal(previous.group, group1);
+		assert.equal(previous.group, group1.id);
 		assert.equal(previous.editor, input3);
 
-		model.setActive(<EditorGroup>previous.group);
-		(<EditorGroup>next.group).setActive(<EditorInput>previous.editor);
+		model.setActive(model.getGroup(previous.group));
+		model.getGroup(next.group).setActive(<EditorInput>previous.editor);
 
 		const last = model.last();
-		assert.equal(last.group, group1);
+		assert.equal(last.group, group1.id);
 		assert.equal(last.editor, input3);
 	});
 
@@ -1547,31 +1528,31 @@ suite('Editor Stacks Model', () => {
 		assert.equal(previous, null);
 
 		previous = model.previous(false /* do NOT jump groups */);
-		assert.equal(previous.group, group1);
+		assert.equal(previous.group, group1.id);
 		assert.equal(previous.editor, input3);
 
-		model.setActive(<EditorGroup>previous.group);
-		(<EditorGroup>previous.group).setActive(<EditorInput>previous.editor);
+		model.setActive(model.getGroup(previous.group));
+		(model.getGroup(previous.group)).setActive(<EditorInput>previous.editor);
 
 		let next = model.next(false, false /* do NOT jump groups, do NOT cycle at end */);
 		assert.equal(next, null);
 
 		next = model.next(false /* do NOT jump groups */);
-		assert.equal(next.group, group1);
+		assert.equal(next.group, group1.id);
 		assert.equal(next.editor, input1);
 
 		model.setActive(group1);
 		group1.setActive(input3);
 
 		next = model.next(false /* do NOT jump groups */);
-		assert.equal(next.group, group1);
+		assert.equal(next.group, group1.id);
 		assert.equal(next.editor, input1);
 
-		model.setActive(<EditorGroup>next.group);
-		(<EditorGroup>next.group).setActive(<EditorInput>next.editor);
+		model.setActive(model.getGroup(next.group));
+		(model.getGroup(next.group)).setActive(<EditorInput>next.editor);
 
 		previous = model.previous(false /* do NOT jump groups */);
-		assert.equal(previous.group, group1);
+		assert.equal(previous.group, group1.id);
 		assert.equal(previous.editor, input3);
 	});
 
@@ -1718,7 +1699,7 @@ suite('Editor Stacks Model', () => {
 
 		assert.equal(events.editorWillClose.length, 1);
 		assert.equal(events.editorWillClose[0].editor, input3);
-		assert.equal(events.editorWillClose[0].group, group1);
+		assert.equal(events.editorWillClose[0].group, group1.id);
 
 		assert.equal(input3.isDisposed(), true);
 
@@ -1733,7 +1714,7 @@ suite('Editor Stacks Model', () => {
 
 		assert.equal(events.editorWillClose.length, 2);
 		assert.equal(events.editorWillClose[1].editor, input2);
-		assert.equal(events.editorWillClose[1].group, group1);
+		assert.equal(events.editorWillClose[1].group, group1.id);
 
 		assert.equal(input2.isDisposed(), false);
 
@@ -1744,7 +1725,7 @@ suite('Editor Stacks Model', () => {
 
 		assert.equal(events.editorWillClose.length, 3);
 		assert.equal(events.editorWillClose[2].editor, input2);
-		assert.equal(events.editorWillClose[2].group, group2);
+		assert.equal(events.editorWillClose[2].group, group2.id);
 
 		assert.equal(input2.isDisposed(), true);
 

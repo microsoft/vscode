@@ -126,7 +126,7 @@ export class ExplorerItem {
 	}
 
 	public get isRoot(): boolean {
-		return this.resource.toString() === this.root.resource.toString();
+		return this === this.root;
 	}
 
 	public static create(raw: IFileStat, root: ExplorerItem, resolveTo?: URI[]): ExplorerItem {
@@ -451,19 +451,23 @@ export class OpenEditor implements IEditorIdentifier {
 	}
 
 	public get editorIndex() {
-		return this._group.indexOf(this.editor);
+		return this.legacyGroup.indexOf(this.editor);
 	}
 
 	public get group() {
+		return this._group.id;
+	}
+
+	public get legacyGroup() {
 		return this._group;
 	}
 
 	public getId(): string {
-		return `openeditor:${this.group.id}:${this.group.indexOf(this.editor)}:${this.editor.getName()}:${this.editor.getDescription()}`;
+		return `openeditor:${this.group}:${this.legacyGroup.indexOf(this.editor)}:${this.editor.getName()}:${this.editor.getDescription()}`;
 	}
 
 	public isPreview(): boolean {
-		return this.group.isPreview(this.editor);
+		return this.legacyGroup.isPreview(this.editor);
 	}
 
 	public isUntitled(): boolean {

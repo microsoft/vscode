@@ -58,7 +58,7 @@ export class BaseQuickOpenNavigateAction extends Action {
 		const quickNavigate = this.quickNavigate ? { keybindings: keys } : void 0;
 
 		this.quickOpenService.navigate(this.next, quickNavigate);
-		this.quickInputService.navigate(this.next);
+		this.quickInputService.navigate(this.next, quickNavigate);
 
 		return TPromise.as(true);
 	}
@@ -74,7 +74,7 @@ export function getQuickNavigateHandler(id: string, next?: boolean): ICommandHan
 		const quickNavigate = { keybindings: keys };
 
 		quickOpenService.navigate(next, quickNavigate);
-		quickInputService.navigate(next);
+		quickInputService.navigate(next, quickNavigate);
 	};
 }
 

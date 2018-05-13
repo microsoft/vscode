@@ -13,7 +13,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as types from 'vs/base/common/types';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 import { TextEditorOptions, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
@@ -27,7 +27,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IWorkbenchEditorService, DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -38,6 +38,9 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import URI from 'vs/base/common/uri';
 import { getCodeOrDiffEditor } from 'vs/editor/browser/services/codeEditorService';
 import { once } from 'vs/base/common/event';
+import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/nextEditorService';
+import { INextEditorGroup, INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -61,9 +64,10 @@ export class TextDiffEditor extends BaseTextEditor {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@ITextFileService textFileService: ITextFileService
+		@ITextFileService textFileService: ITextFileService,
+		@INextEditorGroupsService nextEditorGroupService: INextEditorGroupsService
 	) {
-		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService);
+		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService, nextEditorGroupService);
 
 		this.diffNavigatorDisposables = [];
 		this.toUnbind.push(this._actualConfigurationService.onDidChangeConfiguration((e) => {
@@ -81,7 +85,7 @@ export class TextDiffEditor extends BaseTextEditor {
 		return nls.localize('textDiffEditor', "Text Diff Editor");
 	}
 
-	public createEditorControl(parent: HTMLElement, configuration: IEditorOptions): IDiffEditor {
+	public createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IDiffEditor {
 
 		// Actions
 		this.nextDiffAction = new NavigateAction(this, true);
@@ -91,10 +95,10 @@ export class TextDiffEditor extends BaseTextEditor {
 
 		// Support navigation within the diff editor by overriding the editor service within
 		const delegatingEditorService = this.instantiationService.createInstance(DelegatingWorkbenchEditorService);
-		delegatingEditorService.setEditorOpenHandler((input: EditorInput, options?: EditorOptions, arg3?: any) => {
+		delegatingEditorService.setEditorOpenHandler((group: INextEditorGroup, input: EditorInput, options?: EditorOptions) => {
 
-			// Check if arg4 is a position argument that differs from this editors position
-			if (types.isUndefinedOrNull(arg3) || arg3 === false || arg3 === this.position) {
+			// Check if target group is same as this editor ones
+			if (group.id === this.group) {
 				const activeDiffInput = <DiffEditorInput>this.input;
 				if (input && options && activeDiffInput) {
 
@@ -119,7 +123,7 @@ export class TextDiffEditor extends BaseTextEditor {
 		});
 
 		// Create a special child of instantiator that will delegate all calls to openEditor() to the same diff editor if the input matches with the modified one
-		const diffEditorInstantiator = this.instantiationService.createChild(new ServiceCollection([IWorkbenchEditorService, delegatingEditorService]));
+		const diffEditorInstantiator = this.instantiationService.createChild(new ServiceCollection([INextEditorService, delegatingEditorService]));
 
 		return diffEditorInstantiator.createInstance(DiffEditorWidget, parent, configuration);
 	}
@@ -243,7 +247,7 @@ export class TextDiffEditor extends BaseTextEditor {
 				modifiedInput.setForceOpenAsBinary();
 			}
 
-			this.editorService.openEditor(binaryDiffInput, options, this.position).done(null, onUnexpectedError);
+			this.editorService.openEditor(binaryDiffInput, options, this.group).done(null, onUnexpectedError);
 
 			return true;
 		}
@@ -251,7 +255,7 @@ export class TextDiffEditor extends BaseTextEditor {
 		return false;
 	}
 
-	protected computeConfiguration(configuration: IEditorConfiguration): IEditorOptions {
+	protected computeConfiguration(configuration: IEditorConfiguration): ICodeEditorOptions {
 		const editorConfiguration = super.computeConfiguration(configuration);
 
 		// Handle diff editor specially by merging in diffEditor configuration
@@ -262,7 +266,7 @@ export class TextDiffEditor extends BaseTextEditor {
 		return editorConfiguration;
 	}
 
-	protected getConfigurationOverrides(): IEditorOptions {
+	protected getConfigurationOverrides(): ICodeEditorOptions {
 		const options: IDiffEditorOptions = super.getConfigurationOverrides();
 
 		options.readOnly = this.isReadOnly();

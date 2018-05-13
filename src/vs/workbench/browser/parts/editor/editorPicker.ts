@@ -139,7 +139,7 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 			let lastGroup: IEditorGroup;
 			entries.forEach(e => {
 				if (!lastGroup || lastGroup !== e.group) {
-					e.setGroupLabel(nls.localize('groupLabel', "Group: {0}", e.group.label));
+					e.setGroupLabel(nls.localize('groupLabel', "Group: {0}", e.group.id));
 					e.setShowBorder(!!lastGroup);
 					lastGroup = e.group;
 				}

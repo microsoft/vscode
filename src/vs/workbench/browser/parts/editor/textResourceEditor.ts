@@ -23,6 +23,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { once } from 'vs/base/common/event';
 import { ScrollType } from 'vs/editor/common/editorCommon';
+import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 /**
  * An editor implementation that is capable of showing the contents of resource inputs. Uses
@@ -38,9 +39,10 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@ITextFileService textFileService: ITextFileService
+		@ITextFileService textFileService: ITextFileService,
+		@INextEditorGroupsService nextEditorGroupService: INextEditorGroupsService
 	) {
-		super(id, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService);
+		super(id, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService, nextEditorGroupService);
 	}
 
 	public getTitle(): string {
@@ -207,8 +209,9 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@ITextFileService textFileService: ITextFileService
+		@ITextFileService textFileService: ITextFileService,
+		@INextEditorGroupsService nextEditorGroupService: INextEditorGroupsService
 	) {
-		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorGroupService, textFileService);
+		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorGroupService, textFileService, nextEditorGroupService);
 	}
 }

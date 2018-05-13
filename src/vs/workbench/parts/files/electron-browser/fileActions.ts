@@ -1104,13 +1104,13 @@ export class GlobalCompareResourcesAction extends Action {
 
 			// Compare with next editor that opens
 			const unbind = once(this.editorGroupService.onEditorOpening)(e => {
-				const resource = e.input.getResource();
+				const resource = e.editor.getResource();
 				if (resource) {
 					e.prevent(() => {
 						return this.editorService.openEditor({
 							leftResource: activeResource,
 							rightResource: resource
-						});
+						}).then(() => void 0);
 					});
 				}
 			});
@@ -1492,7 +1492,6 @@ export function getWellFormedFileName(filename: string): string {
 
 	// Remove trailing dots, slashes, and spaces
 	filename = strings.rtrim(filename, '.');
-	filename = strings.rtrim(filename, ' ');
 	filename = strings.rtrim(filename, '/');
 	filename = strings.rtrim(filename, '\\');
 

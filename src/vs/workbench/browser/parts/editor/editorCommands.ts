@@ -8,9 +8,9 @@ import * as types from 'vs/base/common/types';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands, TextCompareEditorVisibleContext, EditorInput, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext } from 'vs/workbench/common/editor';
+import { TextCompareEditorVisibleContext, EditorInput, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditor, Position, POSITIONS, Direction, IEditorInput } from 'vs/platform/editor/common/editor';
+import { IEditor, Position, POSITIONS, IEditorInput } from 'vs/platform/editor/common/editor';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import { EditorStacksModel, EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
@@ -24,6 +24,30 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { distinct } from 'vs/base/common/arrays';
 import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+
+export const ActiveEditorMovePositioning = {
+	FIRST: 'first',
+	LAST: 'last',
+	LEFT: 'left',
+	RIGHT: 'right',
+	CENTER: 'center',
+	POSITION: 'position',
+};
+
+export const ActiveEditorMovePositioningBy = {
+	TAB: 'tab',
+	GROUP: 'group'
+};
+
+export interface ActiveEditorMoveArguments {
+	to?: string;
+	by?: string;
+	value?: number;
+}
+
+export const EditorCommands = {
+	MoveActiveEditor: 'moveActiveEditor'
+};
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -107,7 +131,7 @@ function moveActiveEditor(args: ActiveEditorMoveArguments = {}, accessor: Servic
 
 function moveActiveTab(args: ActiveEditorMoveArguments, activeEditor: IEditor, accessor: ServicesAccessor): void {
 	const editorGroupsService: IEditorGroupService = accessor.get(IEditorGroupService);
-	const editorGroup = editorGroupsService.getStacksModel().groupAt(activeEditor.position);
+	const editorGroup = editorGroupsService.getStacksModel().groupAt(activeEditor.group);
 	let index = editorGroup.indexOf(activeEditor.input);
 	switch (args.to) {
 		case ActiveEditorMovePositioning.FIRST:
@@ -135,7 +159,7 @@ function moveActiveTab(args: ActiveEditorMoveArguments, activeEditor: IEditor, a
 }
 
 function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, activeEditor: IEditor, accessor: ServicesAccessor): void {
-	let newPosition = activeEditor.position;
+	let newPosition = activeEditor.group;
 	switch (args.to) {
 		case ActiveEditorMovePositioning.LEFT:
 			newPosition = newPosition - 1;
@@ -157,8 +181,8 @@ function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, activeEditor: 
 			break;
 	}
 
-	newPosition = POSITIONS.indexOf(newPosition) !== -1 ? newPosition : activeEditor.position;
-	accessor.get(IEditorGroupService).moveEditor(activeEditor.input, activeEditor.position, newPosition);
+	newPosition = POSITIONS.indexOf(newPosition) !== -1 ? newPosition : activeEditor.group;
+	accessor.get(IEditorGroupService).moveEditor(activeEditor.input, activeEditor.group, newPosition);
 }
 
 function registerDiffEditorCommands(): void {
@@ -234,7 +258,7 @@ function registerOpenEditorAtIndexCommands(): void {
 
 				const active = editorService.getActiveEditor();
 				if (active) {
-					const group = editorGroupService.getStacksModel().groupAt(active.position);
+					const group = editorGroupService.getStacksModel().groupAt(active.group);
 					const editor = group.getEditor(editorIndex);
 
 					if (editor) {
@@ -276,7 +300,7 @@ function registerEditorCommands() {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const model = editorGroupService.getStacksModel();
 			const editorService = accessor.get(IWorkbenchEditorService);
-			const contexts = getMultiSelectedEditorContexts(context, accessor.get(IListService));
+			const contexts = getMultiSelectedEditorContexts(context, accessor.get(IListService), accessor.get(IEditorGroupService));
 			if (contexts.length === 0 && model.activeGroup) {
 				// If command is triggered from the command palette use the active group
 				contexts.push({ groupId: model.activeGroup.id });
@@ -305,7 +329,7 @@ function registerEditorCommands() {
 		handler: (accessor, resource: URI | object, context: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
-			const contexts = getMultiSelectedEditorContexts(context, accessor.get(IListService));
+			const contexts = getMultiSelectedEditorContexts(context, accessor.get(IListService), accessor.get(IEditorGroupService));
 			const distinctGroupIds = distinct(contexts.map(c => c.groupId));
 			const model = editorGroupService.getStacksModel();
 
@@ -314,7 +338,7 @@ function registerEditorCommands() {
 			}
 			const activeEditor = editorService.getActiveEditor();
 			if (activeEditor) {
-				return editorService.closeEditors(activeEditor.position);
+				return editorService.closeEditors(activeEditor.group);
 			}
 
 			return TPromise.as(false);
@@ -332,7 +356,7 @@ function registerEditorCommands() {
 			const editorService = accessor.get(IWorkbenchEditorService);
 			const nextEditorGroupService = accessor.get(INextEditorGroupsService);
 
-			const contexts = getMultiSelectedEditorContexts(context, accessor.get(IListService));
+			const contexts = getMultiSelectedEditorContexts(context, accessor.get(IListService), accessor.get(IEditorGroupService));
 			const groupIds = distinct(contexts.map(context => context.groupId));
 			const model = editorGroupService.getStacksModel();
 
@@ -391,7 +415,7 @@ function registerEditorCommands() {
 		handler: (accessor, resource: URI | object, context: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
-			const contexts = getMultiSelectedEditorContexts(context, accessor.get(IListService));
+			const contexts = getMultiSelectedEditorContexts(context, accessor.get(IListService), accessor.get(IEditorGroupService));
 			const model = editorGroupService.getStacksModel();
 
 			if (contexts.length === 0) {
@@ -439,7 +463,7 @@ function registerEditorCommands() {
 			const { position, input } = positionAndInput(editorGroupService, editorService, context);
 
 			if (typeof position === 'number' && input) {
-				return editorService.closeEditors(position, { except: input, direction: Direction.RIGHT });
+				return editorService.closeEditors(position, { except: input, direction: CloseDirection.RIGHT });
 			}
 
 			return TPromise.as(false);
@@ -526,19 +550,20 @@ function positionAndInput(editorGroupService: IEditorGroupService, editorService
 	// If position or input are not passed in take the position and input of the active editor.
 	const active = editorService.getActiveEditor();
 	if (active) {
-		position = typeof position === 'number' ? position : active.position;
+		position = typeof position === 'number' ? position : active.group;
 		input = input ? input : <EditorInput>active.input;
 	}
 
 	return { position, input };
 }
 
-export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsContext, listService: IListService): IEditorCommandsContext[] {
+export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsContext, listService: IListService, editorGroupService: IEditorGroupService): IEditorCommandsContext[] {
+	const stacks = editorGroupService.getStacksModel();
 	// First check for a focused list to return the selected items from
 	const list = listService.lastFocusedList;
 	if (list instanceof List && list.isDOMFocused()) {
 		const elementToContext = (element: IEditorIdentifier | EditorGroup) =>
-			element instanceof EditorGroup ? { groupId: element.id, editorIndex: undefined } : { groupId: element.group.id, editorIndex: element.group.indexOf(element.editor) };
+			element instanceof EditorGroup ? { groupId: element.id, editorIndex: undefined } : { groupId: element.group, editorIndex: stacks.getGroup(element.group).indexOf(element.editor) };
 		const onlyEditorGroupAndEditor = (e: IEditorIdentifier | EditorGroup) => e instanceof EditorGroup || ('editor' in e && 'group' in e);
 
 		const focusedElements: (IEditorIdentifier | EditorGroup)[] = list.getFocusedElements().filter(onlyEditorGroupAndEditor);
@@ -548,7 +573,7 @@ export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsCon
 		if (focus) {
 			const selection: (IEditorIdentifier | EditorGroup)[] = list.getSelectedElements().filter(onlyEditorGroupAndEditor);
 			// Only respect selection if it contains focused element
-			if (selection && selection.some(s => s instanceof EditorGroup ? s.id === focus.groupId : s.group.id === focus.groupId && s.group.indexOf(s.editor) === focus.editorIndex)) {
+			if (selection && selection.some(s => s instanceof EditorGroup ? s.id === focus.groupId : s.group === focus.groupId && stacks.getGroup(s.group).indexOf(s.editor) === focus.editorIndex)) {
 				return selection.map(elementToContext);
 			}
 

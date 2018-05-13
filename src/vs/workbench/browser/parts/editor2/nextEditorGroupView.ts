@@ -8,7 +8,7 @@
 import 'vs/css!./media/nextEditorGroupView';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorGroup, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
-import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, IEditorOpeningEvent, EditorOpeningEvent } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, IEditorOpeningEvent, CloseDirection } from 'vs/workbench/common/editor';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor } from 'vs/base/browser/dom';
@@ -19,7 +19,7 @@ import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_ACTIVE_EMPTY_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND } from 'vs/workbench/common/theme';
-import { IMoveEditorOptions, ICopyEditorOptions } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { IMoveEditorOptions, ICopyEditorOptions, ICloseEditorsFilter } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { NextTabsTitleControl } from 'vs/workbench/browser/parts/editor2/nextTabsTitleControl';
 import { NextEditorControl } from 'vs/workbench/browser/parts/editor2/nextEditorControl';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -27,7 +27,6 @@ import { ProgressService } from 'vs/workbench/services/progress/browser/progress
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { localize } from 'vs/nls';
 import { isPromiseCanceledError, isErrorWithActions, IErrorWithActions } from 'vs/base/common/errors';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { dispose } from 'vs/base/common/lifecycle';
 import { Severity, INotificationService, INotificationActions } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -39,6 +38,10 @@ import { INextEditorGroupsAccessor, INextEditorGroupView, INextEditorPartOptions
 import { NextNoTabsTitleControl } from './nextNoTabsTitleControl';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { join } from 'vs/base/common/paths';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { RemoveActiveEditorGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { ActionRunner, IAction } from 'vs/base/common/actions';
 
 export class NextEditorGroupView extends Themable implements INextEditorGroupView {
 
@@ -86,8 +89,10 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	private _group: EditorGroup;
 
 	private active: boolean;
-	private _dimension: Dimension;
+	private dimension: Dimension;
+
 	private _whenRestored: Thenable<void>;
+	private isRestored: boolean;
 
 	private scopedInstantiationService: IInstantiationService;
 
@@ -108,10 +113,10 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
-		@IPartService private partService: IPartService,
 		@INotificationService private notificationService: INotificationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super(themeService);
 
@@ -120,15 +125,15 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		} else if (isSerializedEditorGroup(from)) {
 			this._group = this._register(instantiationService.createInstance(EditorGroup, from));
 		} else {
-			this._group = this._register(instantiationService.createInstance(EditorGroup, ''));
+			this._group = this._register(instantiationService.createInstance(EditorGroup, void 0));
 		}
-
-		this._group.label = `Group <${this._group.id}>`; // TODO@grid find a way to have a proper label
 
 		this.disposedEditorsWorker = this._register(new RunOnceWorker(editors => this.handleDisposedEditors(editors), 0));
 
 		this.create();
+
 		this._whenRestored = this.restoreEditors(from);
+		this._whenRestored.then(() => this.isRestored = true);
 
 		this.registerListeners();
 	}
@@ -138,14 +143,11 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		// Container
 		addClasses(this.element, 'editor-group-container');
 
-		// Open new file via doubleclick on container
-		this._register(addDisposableListener(this.element, EventType.DBLCLICK, e => {
-			if (e.target === this.element) {
-				EventHelper.stop(e);
+		// Container listeners
+		this.registerContainerListeners();
 
-				this.openEditor(this.untitledEditorService.createOrGet(), EditorOptions.create({ pinned: true }));
-			}
-		}));
+		// Container toolbar
+		this.createContainerToolbar();
 
 		// Progress bar
 		this.progressBar = this._register(new ProgressBar(this.element));
@@ -185,6 +187,41 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		this.updateStyles();
 	}
 
+	private registerContainerListeners(): void {
+
+		// Open new file via doubleclick on container
+		this._register(addDisposableListener(this.element, EventType.DBLCLICK, e => {
+			if (e.target === this.element) {
+				EventHelper.stop(e);
+
+				this.openEditor(this.untitledEditorService.createOrGet(), EditorOptions.create({ pinned: true }));
+			}
+		}));
+	}
+
+	private createContainerToolbar(): void {
+
+		// Toolbar Container
+		const toolbarContainer = document.createElement('div');
+		addClass(toolbarContainer, 'editor-group-container-toolbar');
+		this.element.appendChild(toolbarContainer);
+
+		// Toolbar
+		const groupId = this._group.id;
+		const containerToolbar = new ActionBar(toolbarContainer, {
+			ariaLabel: localize('araLabelGroupActions', "Editor group actions"), actionRunner: this._register(new class extends ActionRunner {
+				run(action: IAction) {
+					return action.run(groupId);
+				}
+			})
+		});
+
+		// Toolbar actions
+		const removeGroupAction = this._register(this.instantiationService.createInstance(RemoveActiveEditorGroupAction, RemoveActiveEditorGroupAction.ID, localize('removeGroupAction', "Remove Editor Group")));
+		const keybinding = this.keybindingService.lookupKeybinding(removeGroupAction.id);
+		containerToolbar.push(removeGroupAction, { icon: true, label: false, keybinding: keybinding ? keybinding.getLabel() : void 0 });
+	}
+
 	private doTrackFocus(): void {
 
 		// Container
@@ -212,12 +249,13 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 				return; // not when clicking on actions
 			}
 
-			EventHelper.stop(e);
-
-			this.focus();
+			// timeout to keep focus in editor after mouse up
+			setTimeout(() => {
+				this.focus();
+			});
 		};
 
-		this._register(addDisposableListener(this.titleContainer, EventType.MOUSE_UP, e => handleTitleClickOrTouch(e)));
+		this._register(addDisposableListener(this.titleContainer, EventType.MOUSE_DOWN, e => handleTitleClickOrTouch(e)));
 		this._register(addDisposableListener(this.titleContainer, TouchEventType.Tap, e => handleTitleClickOrTouch(e)));
 
 		// Editor Container
@@ -229,7 +267,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	private updateContainer(): void {
 
-		// Empty Container: allow to focus
+		// Empty Container: add some empty container attributes
 		if (this.isEmpty()) {
 			addClass(this.element, 'empty');
 			this.element.tabIndex = 0;
@@ -443,10 +481,6 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		return this._group;
 	}
 
-	get dimension(): Dimension {
-		return this._dimension;
-	}
-
 	get whenRestored(): Thenable<void> {
 		return this._whenRestored;
 	}
@@ -493,6 +527,10 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	get activeEditor(): EditorInput {
 		return this._group.activeEditor;
+	}
+
+	get previewEditor(): EditorInput {
+		return this._group.previewEditor;
 	}
 
 	isPinned(editor: EditorInput): boolean {
@@ -545,11 +583,11 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	openEditor(editor: EditorInput, options?: EditorOptions): Thenable<void> {
 
 		// Editor opening event allows for prevention
-		const event = new EditorOpeningEvent(editor, options, this._group.id); // TODO@grid position => group ID
+		const event = new EditorOpeningEvent(this._group.id, editor, options);
 		this._onWillOpenEditor.fire(event);
 		const prevented = event.isPrevented();
 		if (prevented) {
-			return prevented().then(() => void 0); // TODO@grid do we need the BaseEditor return type still in the event?
+			return prevented();
 		}
 
 		// Proceed with opening
@@ -609,7 +647,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 		// Report error only if this was not us restoring previous error state or
 		// we are told to ignore errors that occur from opening an editor
-		if (this.partService.isCreated() && !isPromiseCanceledError(error) && !this.ignoreOpenEditorErrors) {
+		if (this.isRestored && !isPromiseCanceledError(error) && !this.ignoreOpenEditorErrors) {
 			const actions: INotificationActions = { primary: [] };
 			if (isErrorWithActions(error)) {
 				actions.primary = (error as IErrorWithActions).actions;
@@ -762,6 +800,9 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		else {
 			this.doCloseInactiveEditor(editor);
 		}
+
+		// Forward to title control
+		this.titleAreaControl.closeEditor(editor);
 	}
 
 	private doCloseActiveEditor(focusNext = this.accessor.activeGroup === this, fromError?: boolean): void {
@@ -769,10 +810,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		const editorHasFocus = isAncestor(document.activeElement, this.element);
 
 		// Update model
-		const index = this._group.closeEditor(editorToClose);
-
-		// Forward to title control
-		this.titleAreaControl.closeEditor(editorToClose, index);
+		this._group.closeEditor(editorToClose);
 
 		// Open next active if there are more to show
 		const nextActiveEditor = this._group.activeEditor;
@@ -811,13 +849,10 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		}
 	}
 
-	private doCloseInactiveEditor(editor: EditorInput): void {
+	private doCloseInactiveEditor(editor: EditorInput) {
 
 		// Update model
-		const index = this._group.closeEditor(editor);
-
-		// Forward to title control
-		this.titleAreaControl.closeEditor(editor, index); // TODO@grid avoid calling this for many editors to avoid perf issues
+		this._group.closeEditor(editor);
 	}
 
 	private handleDirty(editors: EditorInput[], ignoreIfOpenedInOtherGroup?: boolean): Thenable<boolean /* veto */> {
@@ -887,6 +922,185 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	//#endregion
 
+	//#region closeEditors()
+
+	closeEditors(args: EditorInput[] | ICloseEditorsFilter): Thenable<void> {
+		if (this.isEmpty()) {
+			return TPromise.as(void 0);
+		}
+
+		const editors = this.getEditorsToClose(args);
+
+		// Check for dirty and veto
+		return this.handleDirty(editors, true /* ignore if opened in other group */).then(veto => {
+			if (veto) {
+				return;
+			}
+
+			// Do close
+			this.doCloseEditors(editors);
+		});
+	}
+
+	private getEditorsToClose(editors: EditorInput[] | ICloseEditorsFilter): EditorInput[] {
+		if (Array.isArray(editors)) {
+			return editors;
+		}
+
+		const filter = editors;
+		const hasDirection = typeof filter.direction === 'number';
+
+		let editorsToClose = this._group.getEditors(!hasDirection /* in MRU order only if direction is not specified */);
+
+		// Filter: saved only
+		if (filter.savedOnly) {
+			editorsToClose = editorsToClose.filter(e => !e.isDirty());
+		}
+
+		// Filter: direction (left / right)
+		else if (hasDirection) {
+			editorsToClose = (filter.direction === CloseDirection.LEFT) ?
+				editorsToClose.slice(0, this._group.indexOf(filter.except as EditorInput)) :
+				editorsToClose.slice(this._group.indexOf(filter.except as EditorInput) + 1);
+		}
+
+		// Filter: except
+		else if (filter.except) {
+			editorsToClose = editorsToClose.filter(e => !e.matches(filter.except));
+		}
+
+		return editorsToClose;
+	}
+
+	private doCloseEditors(editors: EditorInput[]): void {
+		const activeEditor = this.activeEditor;
+
+		// Close all inactive editors first
+		let closeActiveEditor = false;
+		editors.forEach(editor => {
+			if (editor !== activeEditor) {
+				this.doCloseInactiveEditor(editor);
+			} else {
+				closeActiveEditor = true;
+			}
+		});
+
+		// Close active editor last if contained in editors list to close
+		if (closeActiveEditor) {
+			this.doCloseActiveEditor();
+		}
+
+		// Forward to title control
+		this.titleAreaControl.closeEditors(editors);
+	}
+
+	//#endregion
+
+	//#region closeAllEditors()
+
+	closeAllEditors(): Thenable<void> {
+		if (this.isEmpty()) {
+			return TPromise.as(void 0);
+		}
+
+		// Check for dirty and veto
+		const editors = this._group.getEditors(true);
+		return this.handleDirty(editors, true /* ignore if opened in other group */).then(veto => {
+			if (veto) {
+				return;
+			}
+
+			// Do close
+			this.doCloseAllEditors();
+		});
+	}
+
+	private doCloseAllEditors(): void {
+		const activeEditor = this.activeEditor;
+
+		// Close all inactive editors first
+		this.editors.forEach(editor => {
+			if (editor !== activeEditor) {
+				this.doCloseInactiveEditor(editor);
+			}
+		});
+
+		// Close active editor last
+		this.doCloseActiveEditor();
+
+		// Forward to title control
+		this.titleAreaControl.closeAllEditors();
+	}
+
+	//#endregion
+
+	//#region replaceEditors()
+
+	replaceEditors(editors: EditorReplacement[]): Thenable<void> {
+
+		// Extract active vs. inactive replacements
+		let activeReplacement: EditorReplacement;
+		const inactiveReplacements: EditorReplacement[] = [];
+		editors.forEach(({ editor, replacement, options }) => {
+			if (editor.isDirty()) {
+				return; // we do not handle dirty in this method, so ignore all dirty
+			}
+
+			const index = this.getIndexOfEditor(editor);
+			if (index >= 0) {
+				const isActiveEditor = this.isActive(editor);
+
+				// make sure we respect the index of the editor to replace
+				if (options) {
+					options.index = index;
+				} else {
+					options = EditorOptions.create({ index });
+				}
+
+				options.inactive = !isActiveEditor;
+				options.pinned = true;
+
+				const editorToReplace = { editor, replacement, options };
+				if (isActiveEditor) {
+					activeReplacement = editorToReplace;
+				} else {
+					inactiveReplacements.push(editorToReplace);
+				}
+			}
+		});
+
+		// Handle inactive first
+		inactiveReplacements.forEach(({ editor, replacement, options }) => {
+
+			// Open inactive editor
+			this.doOpenEditor(replacement, options);
+
+			// Close replaced inactive edior
+			this.doCloseInactiveEditor(editor);
+
+			// Forward to title control
+			this.titleAreaControl.closeEditor(editor);
+		});
+
+		// Handle active last
+		if (activeReplacement) {
+
+			// Open replacement as active editor
+			return this.doOpenEditor(activeReplacement.replacement, activeReplacement.options).then(() => {
+
+				// Close previous active editor
+				this.doCloseInactiveEditor(activeReplacement.editor);
+
+				// Forward to title control
+				this.titleAreaControl.closeEditor(activeReplacement.editor);
+			});
+		}
+
+		return TPromise.as(void 0);
+	}
+
+	//#endregion
+
 	//#endregion
 
 	//#region Themable
@@ -927,11 +1141,11 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	get onDidChange() { return Event.None; } // only needed if minimum sizes ever change
 
 	layout(width: number, height: number): void {
-		this._dimension = new Dimension(width, height);
+		this.dimension = new Dimension(width, height);
 
 		// Forward to controls
-		this.titleAreaControl.layout(new Dimension(this._dimension.width, EDITOR_TITLE_HEIGHT));
-		this.editorControl.layout(new Dimension(this._dimension.width, this._dimension.height - EDITOR_TITLE_HEIGHT));
+		this.titleAreaControl.layout(new Dimension(this.dimension.width, EDITOR_TITLE_HEIGHT));
+		this.editorControl.layout(new Dimension(this.dimension.width, this.dimension.height - EDITOR_TITLE_HEIGHT));
 	}
 
 	toJSON(): ISerializedEditorGroup {
@@ -951,6 +1165,43 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 		super.dispose();
 	}
+}
+
+export class EditorOpeningEvent implements IEditorOpeningEvent {
+	private override: () => Thenable<any>;
+
+	constructor(
+		private _group: GroupIdentifier,
+		private _editor: EditorInput,
+		private _options: EditorOptions
+	) {
+	}
+
+	get group(): GroupIdentifier {
+		return this._group;
+	}
+
+	get editor(): EditorInput {
+		return this._editor;
+	}
+
+	get options(): EditorOptions {
+		return this._options;
+	}
+
+	prevent(callback: () => Thenable<any>): void {
+		this.override = callback;
+	}
+
+	isPrevented(): () => Thenable<any> {
+		return this.override;
+	}
+}
+
+export interface EditorReplacement {
+	editor: EditorInput;
+	replacement: EditorInput;
+	options?: EditorOptions;
 }
 
 registerThemingParticipant((theme, collector, environment) => {

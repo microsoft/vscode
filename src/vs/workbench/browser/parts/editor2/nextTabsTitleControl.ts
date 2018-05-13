@@ -11,7 +11,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IEditorInput, Verbosity } from 'vs/platform/editor/common/editor';
-import { IEditorGroup, toResource, GroupIdentifier } from 'vs/workbench/common/editor';
+import { toResource, GroupIdentifier } from 'vs/workbench/common/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -30,9 +30,9 @@ import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElemen
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { getOrSet } from 'vs/base/common/map';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
+import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP } from 'vs/workbench/common/theme';
 import { activeContrastBorder, contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { ResourcesDropHandler, fillResourceDataTransfers, LocalSelectionTransfer, DraggedEditorIdentifier, DragCounter } from 'vs/workbench/browser/dnd';
+import { ResourcesDropHandler, fillResourceDataTransfers, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, DragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -65,8 +65,6 @@ export class NextTabsTitleControl extends NextTitleControl {
 	private layoutScheduled: IDisposable;
 	private blockRevealActiveTab: boolean;
 
-	private transfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
-
 	constructor(
 		parent: HTMLElement,
 		accessor: INextEditorGroupsAccessor,
@@ -92,33 +90,25 @@ export class NextTabsTitleControl extends NextTitleControl {
 		// Tabs Container
 		this.tabsContainer = document.createElement('div');
 		this.tabsContainer.setAttribute('role', 'tablist');
+		this.tabsContainer.draggable = true;
 		addClass(this.tabsContainer, 'tabs-container');
 
-		// Forward scrolling inside the container to our custom scrollbar
-		this._register(addDisposableListener(this.tabsContainer, EventType.SCROLL, e => {
-			if (hasClass(this.tabsContainer, 'scroll')) {
-				this.scrollbar.setScrollPosition({
-					scrollLeft: this.tabsContainer.scrollLeft // during DND the  container gets scrolled so we need to update the custom scrollbar
-				});
-			}
-		}));
+		// Tabs Container listeners
+		this.registerContainerListeners();
 
-		// New file when double clicking on tabs container (but not tabs)
-		this._register(addDisposableListener(this.tabsContainer, EventType.DBLCLICK, e => {
-			const target = e.target;
-			if (target instanceof HTMLElement && target.className.indexOf('tabs-container') === 0) {
-				EventHelper.stop(e);
+		// Scrollbar
+		this.createScrollbar();
 
-				this.group.openEditor(this.untitledEditorService.createOrGet(), { pinned: true /* untitled is always pinned */, index: this.group.count /* always at the end */ });
-			}
-		}));
+		// Editor Toolbar Container
+		this.editorToolbarContainer = document.createElement('div');
+		addClass(this.editorToolbarContainer, 'editor-actions');
+		this.titleContainer.appendChild(this.editorToolbarContainer);
 
-		// Prevent auto-scrolling (https://github.com/Microsoft/vscode/issues/16690)
-		this._register(addDisposableListener(this.tabsContainer, EventType.MOUSE_DOWN, (e: MouseEvent) => {
-			if (e.button === 1) {
-				e.preventDefault();
-			}
-		}));
+		// Editor Actions Toolbar
+		this.createEditorActionsToolBar(this.editorToolbarContainer);
+	}
+
+	private createScrollbar(): void {
 
 		// Custom Scrollbar
 		this.scrollbar = new ScrollableElement(this.tabsContainer, {
@@ -134,65 +124,97 @@ export class NextTabsTitleControl extends NextTitleControl {
 		});
 
 		this.titleContainer.appendChild(this.scrollbar.getDomNode());
+	}
 
-		// Drag over
-		this._register(addDisposableListener(this.tabsContainer, EventType.DRAG_OVER, (e: DragEvent) => {
-			const draggedEditor = this.transfer.hasData(DraggedEditorIdentifier.prototype) ? this.transfer.getData(DraggedEditorIdentifier.prototype)[0].identifier : void 0;
+	private registerContainerListeners(): void {
 
-			// update the dropEffect, otherwise it would look like a "move" operation. but only if we are
-			// not dragging a tab actually because there we support both moving as well as copying
-			if (!draggedEditor) {
-				e.dataTransfer.dropEffect = 'copy';
+		// Group dragging
+		this.enableGroupDragging(this.tabsContainer);
+
+		// Forward scrolling inside the container to our custom scrollbar
+		this._register(addDisposableListener(this.tabsContainer, EventType.SCROLL, () => {
+			if (hasClass(this.tabsContainer, 'scroll')) {
+				this.scrollbar.setScrollPosition({
+					scrollLeft: this.tabsContainer.scrollLeft // during DND the  container gets scrolled so we need to update the custom scrollbar
+				});
 			}
+		}));
 
-			addClass(this.tabsContainer, 'scroll'); // enable support to scroll while dragging
+		// New file when double clicking on tabs container (but not tabs)
+		this._register(addDisposableListener(this.tabsContainer, EventType.DBLCLICK, e => {
+			if (e.target === this.tabsContainer) {
+				EventHelper.stop(e);
 
-			const target = e.target;
-			if (target instanceof HTMLElement && target.className.indexOf('tabs-container') === 0) {
+				this.group.openEditor(this.untitledEditorService.createOrGet(), { pinned: true /* untitled is always pinned */, index: this.group.count /* always at the end */ });
+			}
+		}));
 
-				// Find out if the currently dragged editor is the last tab of this group and in that
-				// case we do not want to show any drop feedback because the drop would be a no-op
-				let draggedEditorIsLastTab = false;
-				if (draggedEditor && this.group.id === draggedEditor.group.id && this.group.getIndexOfEditor(draggedEditor.editor) === this.group.count - 1) {
-					draggedEditorIsLastTab = true;
+		// Prevent auto-scrolling (https://github.com/Microsoft/vscode/issues/16690)
+		this._register(addDisposableListener(this.tabsContainer, EventType.MOUSE_DOWN, (e: MouseEvent) => {
+			if (e.button === 1) {
+				e.preventDefault();
+			}
+		}));
+
+
+		// Drop support
+		this._register(new DragAndDropObserver(this.tabsContainer, {
+			onDragEnter: e => {
+
+				// Always enable support to scroll while dragging
+				addClass(this.tabsContainer, 'scroll');
+
+				// Return if the target is not on the tabs container
+				if (e.target !== this.tabsContainer) {
+					return;
 				}
 
-				if (!draggedEditorIsLastTab) {
-					this.updateDropFeedback(this.tabsContainer, true);
+				// Return if transfer is unsupported
+				if (!this.isSupportedDropTransfer(e)) {
+					e.dataTransfer.dropEffect = 'none';
+					return;
+				}
+
+				// Return if dragged editor is last tab because then this is a no-op
+				let isLocalDragAndDrop = false;
+				if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
+					isLocalDragAndDrop = true;
+
+					const localDraggedEditor = this.editorTransfer.getData(DraggedEditorIdentifier.prototype)[0].identifier;
+					if (this.group.id === localDraggedEditor.group && this.group.getIndexOfEditor(localDraggedEditor.editor) === this.group.count - 1) {
+						e.dataTransfer.dropEffect = 'none';
+						return;
+					}
+				}
+
+				// Update the dropEffect to "copy" if there is no local data to be dragged because
+				// in that case we can only copy the data into and not move it from its source
+				if (!isLocalDragAndDrop) {
+					e.dataTransfer.dropEffect = 'copy';
+				}
+
+				this.updateDropFeedback(this.tabsContainer, true);
+			},
+
+			onDragLeave: e => {
+				this.updateDropFeedback(this.tabsContainer, false);
+				removeClass(this.tabsContainer, 'scroll');
+			},
+
+			onDragEnd: e => {
+				this.updateDropFeedback(this.tabsContainer, false);
+				removeClass(this.tabsContainer, 'scroll');
+			},
+
+			onDrop: e => {
+				this.updateDropFeedback(this.tabsContainer, false);
+				removeClass(this.tabsContainer, 'scroll');
+
+				if (e.target === this.tabsContainer) {
+					this.onDrop(e, this.group.count);
 				}
 			}
 		}));
-
-		// Drag leave
-		this._register(addDisposableListener(this.tabsContainer, EventType.DRAG_LEAVE, (e: DragEvent) => {
-			this.updateDropFeedback(this.tabsContainer, false);
-			removeClass(this.tabsContainer, 'scroll');
-		}));
-
-		// Drag end
-		this._register(addDisposableListener(this.tabsContainer, EventType.DRAG_END, (e: DragEvent) => {
-			this.updateDropFeedback(this.tabsContainer, false);
-			removeClass(this.tabsContainer, 'scroll');
-		}));
-
-		// Drop onto tabs container
-		this._register(addDisposableListener(this.tabsContainer, EventType.DROP, (e: DragEvent) => {
-			this.updateDropFeedback(this.tabsContainer, false);
-			removeClass(this.tabsContainer, 'scroll');
-
-			const target = e.target;
-			if (target instanceof HTMLElement && target.className.indexOf('tabs-container') === 0) {
-				this.onDrop(e, this.group.count);
-			}
-		}));
-
-		// Editor Toolbar Container
-		this.editorToolbarContainer = document.createElement('div');
-		addClass(this.editorToolbarContainer, 'editor-actions');
-		this.titleContainer.appendChild(this.editorToolbarContainer);
-
-		// Editor Actions Toolbar
-		this.createEditorActionsToolBar(this.editorToolbarContainer);
 	}
 
 	protected updateEditorActionsToolbar(): void {
@@ -217,7 +239,19 @@ export class NextTabsTitleControl extends NextTitleControl {
 		this.redraw();
 	}
 
-	closeEditor(editor: IEditorInput, index: number): void {
+	closeEditor(editor: IEditorInput): void {
+		this.handleClosedEditors();
+	}
+
+	closeEditors(editors: IEditorInput[]): void {
+		this.handleClosedEditors();
+	}
+
+	closeAllEditors(): void {
+		this.handleClosedEditors();
+	}
+
+	private handleClosedEditors(): void {
 
 		// There are tabs to show
 		if (this.group.activeEditor) {
@@ -350,26 +384,26 @@ export class NextTabsTitleControl extends NextTitleControl {
 		const editorLabel = this.instantiationService.createInstance(ResourceLabel, tabContainer, void 0);
 		this.tabLabelWidgets.push(editorLabel);
 
-		// Tab Close
+		// Tab Close Button
 		const tabCloseContainer = document.createElement('div');
 		addClass(tabCloseContainer, 'tab-close');
 		tabContainer.appendChild(tabCloseContainer);
 
-		const actionRunner = new TabActionRunner(() => this.group.id, index);
+		const tabActionRunner = new TabActionRunner(() => this.group.id, index);
 
-		const actionBar = new ActionBar(tabCloseContainer, { ariaLabel: localize('araLabelTabActions', "Tab actions"), actionRunner });
-		actionBar.push(this.closeOneEditorAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.closeOneEditorAction) });
-		actionBar.onDidBeforeRun(() => this.blockRevealActiveTabOnce());
+		const tabActionBar = new ActionBar(tabCloseContainer, { ariaLabel: localize('araLabelTabActions', "Tab actions"), actionRunner: tabActionRunner });
+		tabActionBar.push(this.closeOneEditorAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.closeOneEditorAction) });
+		tabActionBar.onDidBeforeRun(() => this.blockRevealActiveTabOnce());
 
 		// Eventing
-		const eventsDisposable = this.hookTabListeners(tabContainer, index);
+		const eventsDisposable = this.registerTabListeners(tabContainer, index);
 
-		this.tabDisposeables.push(combinedDisposable([eventsDisposable, actionBar, actionRunner, editorLabel]));
+		this.tabDisposeables.push(combinedDisposable([eventsDisposable, tabActionBar, tabActionRunner, editorLabel]));
 
 		return tabContainer;
 	}
 
-	private hookTabListeners(tab: HTMLElement, index: number): IDisposable {
+	private registerTabListeners(tab: HTMLElement, index: number): IDisposable {
 		const disposables: IDisposable[] = [];
 
 		const handleClickOrTouch = (e: MouseEvent | GestureEvent): void => {
@@ -383,9 +417,12 @@ export class NextTabsTitleControl extends NextTitleControl {
 				return void 0; // only for left mouse click
 			}
 
-			if (!this.originatesFromTabActionBar(e)) {
-				setTimeout(() => this.group.openEditor(this.group.getEditor(index))); // timeout to keep focus in editor after mouse up
+			if (this.originatesFromTabActionBar(e)) {
+				return; // not when clicking on actions
 			}
+
+			// Open tabs editor
+			this.group.openEditor(this.group.getEditor(index));
 
 			return void 0;
 		};
@@ -486,10 +523,10 @@ export class NextTabsTitleControl extends NextTitleControl {
 			this.onContextMenu(this.group.getEditor(index), e, tab);
 		}, true /* use capture to fix https://github.com/Microsoft/vscode/issues/19145 */));
 
-		// Drag start
+		// Drag support
 		disposables.push(addDisposableListener(tab, EventType.DRAG_START, (e: DragEvent) => {
 			const editor = this.group.getEditor(index);
-			this.transfer.setData([new DraggedEditorIdentifier({ editor, group: (<any>this.group /* TODO@grid should be GroupIdentifier or INextEditorGroup */).group })], DraggedEditorIdentifier.prototype);
+			this.editorTransfer.setData([new DraggedEditorIdentifier({ editor, group: this.group.id })], DraggedEditorIdentifier.prototype);
 
 			e.dataTransfer.effectAllowed = 'copyMove';
 
@@ -504,64 +541,77 @@ export class NextTabsTitleControl extends NextTitleControl {
 			scheduleAtNextAnimationFrame(() => removeClass(tab, 'dragged'));
 		}));
 
-		// We need to keep track of DRAG_ENTER and DRAG_LEAVE events because a tab is not just a div without children,
-		// it contains a label and a close button. HTML gives us DRAG_ENTER and DRAG_LEAVE events when hovering over
-		// these children and this can cause flicker of the drop feedback. The workaround is to count the events and only
-		// remove the drop feedback when the counter is 0 (see https://github.com/Microsoft/vscode/issues/14470)
-		const counter = new DragCounter();
+		// Drop support
+		disposables.push(new DragAndDropObserver(tab, {
+			onDragEnter: e => {
 
-		// Drag over
-		disposables.push(addDisposableListener(tab, EventType.DRAG_ENTER, (e: DragEvent) => {
-			counter.increment();
+				// Update class to signal drag operation
+				addClass(tab, 'dragged-over');
 
-			// Find out if the currently dragged editor is this tab and in that
-			// case we do not want to show any drop feedback
-			let draggedEditorIsTab = false;
-			const draggedEditor = this.transfer.hasData(DraggedEditorIdentifier.prototype) ? this.transfer.getData(DraggedEditorIdentifier.prototype)[0].identifier : void 0;
-			if (draggedEditor) {
-				if (draggedEditor.editor === this.group.getEditor(index) && draggedEditor.group.id === this.group.id) {
-					draggedEditorIsTab = true;
+				// Return if transfer is unsupported
+				if (!this.isSupportedDropTransfer(e)) {
+					e.dataTransfer.dropEffect = 'none';
+					return;
 				}
-			}
 
-			addClass(tab, 'dragged-over');
+				// Return if dragged editor is the current tab dragged over
+				let isLocalDragAndDrop = false;
+				if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
+					isLocalDragAndDrop = true;
 
-			if (!draggedEditorIsTab) {
+					const localDraggedEditor = this.editorTransfer.getData(DraggedEditorIdentifier.prototype)[0].identifier;
+					if (localDraggedEditor.editor === this.group.getEditor(index) && localDraggedEditor.group === this.group.id) {
+						e.dataTransfer.dropEffect = 'none';
+						return;
+					}
+				}
+
+				// Update the dropEffect to "copy" if there is no local data to be dragged because
+				// in that case we can only copy the data into and not move it from its source
+				if (!isLocalDragAndDrop) {
+					e.dataTransfer.dropEffect = 'copy';
+				}
+
 				this.updateDropFeedback(tab, true, index);
-			}
-		}));
+			},
 
-		// Drag leave
-		disposables.push(addDisposableListener(tab, EventType.DRAG_LEAVE, (e: DragEvent) => {
-			counter.decrement();
-
-			if (!counter.value) {
+			onDragLeave: e => {
 				removeClass(tab, 'dragged-over');
 				this.updateDropFeedback(tab, false, index);
+			},
+
+			onDragEnd: e => {
+				removeClass(tab, 'dragged-over');
+				this.updateDropFeedback(tab, false, index);
+
+				this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
+			},
+
+			onDrop: e => {
+				removeClass(tab, 'dragged-over');
+				this.updateDropFeedback(tab, false, index);
+
+				this.onDrop(e, index);
 			}
-		}));
-
-		// Drag end
-		disposables.push(addDisposableListener(tab, EventType.DRAG_END, (e: DragEvent) => {
-			counter.reset();
-
-			removeClass(tab, 'dragged-over');
-			this.updateDropFeedback(tab, false, index);
-
-			this.transfer.clearData();
-		}));
-
-		// Drop
-		disposables.push(addDisposableListener(tab, EventType.DROP, (e: DragEvent) => {
-			counter.reset();
-
-			removeClass(tab, 'dragged-over');
-			this.updateDropFeedback(tab, false, index);
-
-			this.onDrop(e, index);
 		}));
 
 		return combinedDisposable(disposables);
+	}
+
+	private isSupportedDropTransfer(e: DragEvent): boolean {
+		if (this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) {
+			return false; // groups cannot be dropped on title area
+		}
+
+		if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
+			return true; // (local) editors can always be dropped
+		}
+
+		if (e.dataTransfer.types.length > 0) {
+			return true; // optimistically allow external data (// see https://github.com/Microsoft/vscode/issues/25789)
+		}
+
+		return false;
 	}
 
 	private updateDropFeedback(element: HTMLElement, isDND: boolean, index?: number): void {
@@ -772,11 +822,14 @@ export class NextTabsTitleControl extends NextTitleControl {
 			tabContainer.style.backgroundColor = this.getColor(TAB_ACTIVE_BACKGROUND);
 
 			const activeTabBorderColor = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
+			const activeTabBorderColorTop = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER_TOP : TAB_UNFOCUSED_ACTIVE_BORDER_TOP);
 			if (activeTabBorderColor) {
 				// Use boxShadow for the active tab border because if we also have a editor group header
 				// color, the two colors would collide and the tab border never shows up.
 				// see https://github.com/Microsoft/vscode/issues/33111
 				tabContainer.style.boxShadow = `${activeTabBorderColor} 0 -1px inset`;
+			} else if (activeTabBorderColorTop) {
+				tabContainer.style.boxShadow = `${activeTabBorderColorTop} 0 1px inset`;
 			} else {
 				tabContainer.style.boxShadow = null;
 			}
@@ -894,12 +947,12 @@ export class NextTabsTitleControl extends NextTitleControl {
 		this.blockRevealActiveTab = true;
 	}
 
-	private originatesFromTabActionBar(event: MouseEvent | GestureEvent): boolean {
+	private originatesFromTabActionBar(e: MouseEvent | GestureEvent): boolean {
 		let element: HTMLElement;
-		if (event instanceof MouseEvent) {
-			element = (event.target || event.srcElement) as HTMLElement;
+		if (e instanceof MouseEvent) {
+			element = (e.target || e.srcElement) as HTMLElement;
 		} else {
-			element = (event as GestureEvent).initialTarget as HTMLElement;
+			element = (e as GestureEvent).initialTarget as HTMLElement;
 		}
 
 		return !!findParentWithClass(element, 'monaco-action-bar', 'tab');
@@ -912,9 +965,9 @@ export class NextTabsTitleControl extends NextTitleControl {
 		removeClass(this.tabsContainer, 'scroll');
 
 		// Local DND
-		const draggedEditor = this.transfer.hasData(DraggedEditorIdentifier.prototype) ? this.transfer.getData(DraggedEditorIdentifier.prototype)[0].identifier : void 0;
+		const draggedEditor = this.editorTransfer.hasData(DraggedEditorIdentifier.prototype) ? this.editorTransfer.getData(DraggedEditorIdentifier.prototype)[0].identifier : void 0;
 		if (draggedEditor) {
-			const sourceGroup = this.accessor.getGroup(draggedEditor.group.id) as INextEditorGroup;
+			const sourceGroup = this.accessor.getGroup(draggedEditor.group);
 
 			// Move editor to target position and index
 			if (this.isMoveOperation(e, draggedEditor.group)) {
@@ -926,20 +979,21 @@ export class NextTabsTitleControl extends NextTitleControl {
 				sourceGroup.copyEditor(draggedEditor.editor, this.group, { index: targetIndex });
 			}
 
-			this.transfer.clearData();
+			this.accessor.focusGroup(this.group.id);
+			this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
 		}
 
 		// External DND
 		else {
 			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: false /* open workspace file as file if dropped */ });
-			dropHandler.handleDrop(e, () => this.group.focus(), () => this.group.id, targetIndex);
+			dropHandler.handleDrop(e, () => this.accessor.focusGroup(this.group.id), () => this.group.id, targetIndex);
 		}
 	}
 
-	private isMoveOperation(e: DragEvent, source: IEditorGroup) {
+	private isMoveOperation(e: DragEvent, source: GroupIdentifier) {
 		const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
 
-		return !isCopy || source.id === this.group.id;
+		return !isCopy || source === this.group.id;
 	}
 
 	dispose(): void {

@@ -28,15 +28,18 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IMenuService, MenuId, IMenu, ExecuteCommandAction } from 'vs/platform/actions/common/actions';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { Themable } from 'vs/workbench/common/theme';
 import { isDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Dimension } from 'vs/base/browser/dom';
+import { Dimension, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { INextEditorGroupsAccessor, INextEditorPartOptions } from 'vs/workbench/browser/parts/editor2/editor2';
+import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { LocalSelectionTransfer, DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
+import { applyDragImage } from 'vs/base/browser/dnd';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -46,6 +49,9 @@ export interface IToolbarActions {
 export abstract class NextTitleControl extends Themable {
 
 	protected closeOneEditorAction: CloseOneEditorAction;
+
+	protected readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
+	protected readonly editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 
 	private currentPrimaryEditorActionIds: string[] = [];
 	private currentSecondaryEditorActionIds: string[] = [];
@@ -227,6 +233,41 @@ export abstract class NextTitleControl extends Themable {
 		this.currentSecondaryEditorActionIds = [];
 	}
 
+	protected enableGroupDragging(element: HTMLElement): void {
+
+		// Drag start
+		this._register(addDisposableListener(element, EventType.DRAG_START, (e: DragEvent) => {
+			if (e.target !== element) {
+				return; // only if originating from tabs container
+			}
+
+			// Set editor group as transfer
+			this.groupTransfer.setData([new DraggedEditorGroupIdentifier(this.group.id)], DraggedEditorGroupIdentifier.prototype);
+			e.dataTransfer.effectAllowed = 'copyMove';
+
+			// If tabs are disabled, treat dragging as if an editor tab was dragged
+			if (!this.accessor.partOptions.showTabs) {
+				const resource = toResource(this.group.activeEditor, { supportSideBySide: true });
+				if (resource) {
+					this.instantiationService.invokeFunction(fillResourceDataTransfers, [resource], e);
+				}
+			}
+
+			// Drag Image
+			let label = this.group.activeEditor.getName();
+			if (this.accessor.partOptions.showTabs && this.group.count > 1) {
+				label = localize('draggedEditorGroup', "{0} (+{1})", label, this.group.count - 1);
+			}
+
+			applyDragImage(e, label, 'monaco-editor-group-drag-image');
+		}));
+
+		// Drag end
+		this._register(addDisposableListener(element, EventType.DRAG_END, () => {
+			this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
+		}));
+	}
+
 	protected onContextMenu(editor: IEditorInput, e: Event, node: HTMLElement): void {
 
 		// Update the resource context
@@ -250,7 +291,7 @@ export abstract class NextTitleControl extends Themable {
 			getActions: () => TPromise.as(actions),
 			getActionsContext: () => ({ groupId: this.group.id, editorIndex: this.group.getIndexOfEditor(editor) } as IEditorCommandsContext),
 			getKeyBinding: (action) => this.getKeybinding(action),
-			onHide: (cancel) => {
+			onHide: () => {
 
 				// restore previous context
 				this.resourceContext.set(currentContext);
@@ -275,7 +316,11 @@ export abstract class NextTitleControl extends Themable {
 
 	abstract openEditor(editor: IEditorInput): void;
 
-	abstract closeEditor(editor: IEditorInput, index: number): void;
+	abstract closeEditor(editor: IEditorInput): void;
+
+	abstract closeEditors(editors: IEditorInput[]): void;
+
+	abstract closeAllEditors(): void;
 
 	abstract moveEditor(editor: IEditorInput, fromIndex: number, targetIndex: number): void;
 
@@ -303,3 +348,16 @@ export abstract class NextTitleControl extends Themable {
 
 	//#endregion
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+
+	// Drag Feedback
+	const dragImageBackground = theme.getColor(listActiveSelectionBackground);
+	const dragImageForeground = theme.getColor(listActiveSelectionForeground);
+	collector.addRule(`
+		.monaco-editor-group-drag-image {
+			background: ${dragImageBackground};
+			color: ${dragImageForeground};
+		}
+	`);
+});

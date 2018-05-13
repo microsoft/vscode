@@ -75,10 +75,12 @@ export class NextEditorControl extends Disposable {
 		show(control.getContainer());
 
 		// Indicate to editor that it is now visible
-		control.setVisible(true, this.groupId /* TODO@grid use group id instead of position */);
+		control.setVisible(true, this.groupId);
 
 		// Layout
-		control.layout(this.dimension);
+		if (this.dimension) {
+			control.layout(this.dimension);
+		}
 
 		return control;
 	}
@@ -157,7 +159,7 @@ export class NextEditorControl extends Disposable {
 
 		// Indicate to editor control
 		this._activeControl.clearInput();
-		this._activeControl.setVisible(false);
+		this._activeControl.setVisible(false, this.groupId);
 
 		// Clear active control
 		this._activeControl = null;
@@ -172,7 +174,7 @@ export class NextEditorControl extends Disposable {
 	layout(dimension: Dimension): void {
 		this.dimension = dimension;
 
-		if (this._activeControl) {
+		if (this._activeControl && this.dimension) {
 			this._activeControl.layout(this.dimension);
 		}
 	}
