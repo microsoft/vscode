@@ -293,19 +293,6 @@ suite('Editor Stacks Model', () => {
 		assert.equal(events.moved.length, 2);
 	});
 
-	test('Groups - Move Groups', function () {
-		const model = create();
-		const events = modelListener(model);
-
-		model.openGroup('first');
-		const group2 = model.openGroup('second');
-
-		model.renameGroup(group2, 'renamed');
-
-		assert.equal(group2.label, 'renamed');
-		assert.equal(group2, events.renamed[0]);
-	});
-
 	test('Groups - Position of Group', function () {
 		const model = create();
 
@@ -1222,7 +1209,6 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.count, 1);
 		assert.equal(group.activeEditor.matches(input1), true);
 		assert.equal(group.previewEditor.matches(input1), true);
-		assert.equal(group.label, 'group');
 		assert.equal(group.isActive(input1), true);
 
 		lifecycle.fireShutdown();
@@ -1237,7 +1223,6 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.count, 1);
 		assert.equal(group.activeEditor.matches(input1), true);
 		assert.equal(group.previewEditor.matches(input1), true);
-		assert.equal(group.label, 'group');
 		assert.equal(group.isActive(input1), true);
 	});
 
@@ -1286,8 +1271,6 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group2.activeEditor.matches(g2_input1), true);
 		assert.equal(group1.previewEditor.matches(g1_input2), true);
 		assert.equal(group2.previewEditor.matches(g2_input2), true);
-		assert.equal(group1.label, 'group1');
-		assert.equal(group2.label, 'group2');
 
 		assert.equal(group1.getEditors(true)[0].matches(g1_input2), true);
 		assert.equal(group1.getEditors(true)[1].matches(g1_input1), true);
@@ -1312,8 +1295,6 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group2.activeEditor.matches(g2_input1), true);
 		assert.equal(group1.previewEditor.matches(g1_input2), true);
 		assert.equal(group2.previewEditor.matches(g2_input2), true);
-		assert.equal(group1.label, 'group1');
-		assert.equal(group2.label, 'group2');
 
 		assert.equal(group1.getEditors(true)[0].matches(g1_input2), true);
 		assert.equal(group1.getEditors(true)[1].matches(g1_input1), true);

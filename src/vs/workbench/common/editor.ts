@@ -786,9 +786,7 @@ export interface IEditorStacksModel {
 }
 
 export interface IEditorGroup {
-
 	id: GroupIdentifier;
-	label: string;
 	count: number;
 	activeEditor: IEditorInput;
 	previewEditor: IEditorInput;

@@ -126,10 +126,8 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		} else if (isSerializedEditorGroup(from)) {
 			this._group = this._register(instantiationService.createInstance(EditorGroup, from));
 		} else {
-			this._group = this._register(instantiationService.createInstance(EditorGroup, ''));
+			this._group = this._register(instantiationService.createInstance(EditorGroup, void 0));
 		}
-
-		this._group.label = `Group <${this._group.id}>`; // TODO@grid find a way to have a proper label
 
 		this.disposedEditorsWorker = this._register(new RunOnceWorker(editors => this.handleDisposedEditors(editors), 0));
 

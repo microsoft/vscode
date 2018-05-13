@@ -39,7 +39,6 @@ export interface ISerializedEditorInput {
 
 export interface ISerializedEditorGroup {
 	id: number;
-	label: string;
 	editors: ISerializedEditorInput[];
 	mru: number[];
 	preview: number;
@@ -87,7 +86,6 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 	//#endregion
 
 	private _id: GroupIdentifier;
-	private _label: string;
 
 	private editors: EditorInput[] = [];
 	private mru: EditorInput[] = [];
@@ -99,7 +97,7 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 	private editorOpenPositioning: 'left' | 'right' | 'first' | 'last';
 
 	constructor(
-		labelOrSerializedGroup: string | ISerializedEditorGroup,
+		labelOrSerializedGroup: ISerializedEditorGroup,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
@@ -109,7 +107,6 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 			this.deserialize(labelOrSerializedGroup);
 		} else {
 			this._id = EditorGroup.IDS++;
-			this._label = labelOrSerializedGroup;
 		}
 
 		this.onConfigurationUpdated();
@@ -126,14 +123,6 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 
 	get id(): GroupIdentifier {
 		return this._id;
-	}
-
-	get label(): string {
-		return this._label;
-	}
-
-	set label(label: string) {
-		this._label = label;
 	}
 
 	get count(): number {
@@ -604,7 +593,7 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 	}
 
 	clone(): EditorGroup {
-		const group = this.instantiationService.createInstance(EditorGroup, '');
+		const group = this.instantiationService.createInstance(EditorGroup, void 0);
 		group.editors = this.editors.slice(0);
 		group.mru = this.mru.slice(0);
 		group.mapResourceToEditorCount = this.mapResourceToEditorCount.clone();
@@ -643,7 +632,6 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 
 		return {
 			id: this.id,
-			label: this.label,
 			editors: serializedEditors,
 			mru: serializableMru,
 			preview: serializablePreviewIndex,
@@ -661,7 +649,6 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 			this._id = EditorGroup.IDS++; // backwards compatibility
 		}
 
-		this._label = data.label;
 		this.editors = data.editors.map(e => {
 			const factory = registry.getEditorInputFactory(e.id);
 			if (factory) {
@@ -858,10 +845,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 	renameGroup(group: EditorGroup, label: string): void {
 		this.ensureLoaded();
 
-		if (group.label !== label) {
-			group.label = label;
-			this.fireEvent(this._onGroupRenamed, group, false);
-		}
+		this.fireEvent(this._onGroupRenamed, group, false);
 	}
 
 	closeGroup(group: EditorGroup): void {
@@ -1166,10 +1150,6 @@ export class EditorStacksModel implements IEditorStacksModel {
 			return 6; // Invalid preview editor
 		}
 
-		if (serialized.groups.some(g => !g.label)) {
-			return 7; // Group without label
-		}
-
 		return 0;
 	}
 
@@ -1259,14 +1239,6 @@ export class EditorStacksModel implements IEditorStacksModel {
 		}
 
 		this.groups.forEach(g => {
-			let label = `Group: ${g.label}`;
-
-			if (this._activeGroup === g) {
-				label = `${label} [active]`;
-			}
-
-			lines.push(label);
-
 			g.getEditors().forEach(e => {
 				let label = `\t${e.getName()}`;
 
