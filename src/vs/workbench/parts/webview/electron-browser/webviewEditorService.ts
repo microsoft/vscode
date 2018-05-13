@@ -102,10 +102,10 @@ export class WebviewEditorService implements IWebviewEditorService {
 		column: Position | null,
 		preserveFocus: boolean
 	): void {
-		if (!column || webview.position === column) {
-			this._editorService.openEditor(webview, { preserveFocus }, column || webview.position);
+		if (!column || webview.group === column) { // TODO@grid [EXTENSIONS] adopt group identifier
+			this._editorService.openEditor(webview, { preserveFocus }, column || webview.group);
 		} else {
-			this._editorGroupService.moveEditor(webview, webview.position, column, { preserveFocus });
+			this._editorGroupService.moveEditor(webview, webview.group, column, { preserveFocus });
 		}
 	}
 

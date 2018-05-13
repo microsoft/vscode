@@ -6,16 +6,17 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Panel } from 'vs/workbench/browser/panel';
-import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
-import { IEditor, Position } from 'vs/platform/editor/common/editor';
+import { EditorInput, EditorOptions, GroupIdentifier } from 'vs/workbench/common/editor';
+import { IEditor } from 'vs/platform/editor/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
- * Editors are layed out in the editor part of the workbench. Only one editor can be open at a time.
- * Each editor has a minimized representation that is good enough to provide some information about the
- * state of the editor data.
+ * Editors are layed out in the editor part of the workbench in editor groups. Multiple editors can be
+ * open at the same time. Each editor has a minimized representation that is good enough to provide some
+ * information about the state of the editor data.
+ *
  * The workbench will keep an editor alive after it has been created and show/hide it based on
  * user interaction. The lifecycle of a editor goes in the order create(), setVisible(true|false),
  * layout(), setInput(), focus(), dispose(). During use of the workbench, a editor will often receive a
@@ -24,20 +25,30 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
  * This class is only intended to be subclassed and not instantiated.
  */
 export abstract class BaseEditor extends Panel implements IEditor {
-	protected _input: EditorInput;
-	private _options: EditorOptions;
-	private _position: Position; // TODO@grid change to GroupIdentifier and revisit if methods make sense (changePosition, setVisible, etc.)
 
-	constructor(id: string, telemetryService: ITelemetryService, themeService: IThemeService) {
+	protected _input: EditorInput;
+
+	private _options: EditorOptions;
+	private _group: GroupIdentifier;
+
+	constructor(
+		id: string,
+		telemetryService: ITelemetryService,
+		themeService: IThemeService
+	) {
 		super(id, telemetryService, themeService);
 	}
 
-	public get input(): EditorInput {
+	get input(): EditorInput {
 		return this._input;
 	}
 
-	public get options(): EditorOptions {
+	get options(): EditorOptions {
 		return this._options;
+	}
+
+	get group(): GroupIdentifier {
+		return this._group;
 	}
 
 	/**
@@ -47,7 +58,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	 * Sets the given input with the options to the part. An editor has to deal with the
 	 * situation that the same input is being set with different options.
 	 */
-	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
+	setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
 		this._input = input;
 		this._options = options;
 
@@ -55,17 +66,17 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	}
 
 	/**
-	 * Called to indicate to the editor that the input should be cleared and resources associated with the
-	 * input should be freed.
+	 * Called to indicate to the editor that the input should be cleared and
+	 * resources associated with the input should be freed.
 	 */
-	public clearInput(): void {
+	clearInput(): void {
 		this._input = null;
 		this._options = null;
 	}
 
-	public create(parent: HTMLElement): void; // create is sync for editors
-	public create(parent: HTMLElement): TPromise<void>;
-	public create(parent: HTMLElement): TPromise<void> {
+	create(parent: HTMLElement): void; // create is sync for editors
+	create(parent: HTMLElement): TPromise<void>;
+	create(parent: HTMLElement): TPromise<void> {
 		const res = super.create(parent);
 
 		// Create Editor
@@ -79,46 +90,37 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	 */
 	protected abstract createEditor(parent: HTMLElement): void;
 
-	/**
-	 * Subclasses can set this to false if it does not make sense to center editor input.
-	 */
-	public supportsCenteredLayout(): boolean {
-		return true;
-	}
-
-	/**
-	 * Overload this function to allow for passing in a position argument.
-	 */
-	public setVisible(visible: boolean, position?: Position): void; // setVisible is sync for editors
-	public setVisible(visible: boolean, position?: Position): TPromise<void>;
-	public setVisible(visible: boolean, position: Position = null): TPromise<void> {
+	setVisible(visible: boolean, group?: GroupIdentifier): void; // setVisible is sync for editors
+	setVisible(visible: boolean, group?: GroupIdentifier): TPromise<void>;
+	setVisible(visible: boolean, group?: GroupIdentifier): TPromise<void> {
 		const promise = super.setVisible(visible);
 
 		// Propagate to Editor
-		this.setEditorVisible(visible, position);
+		this.setEditorVisible(visible, group);
 
 		return promise;
 	}
 
-	protected setEditorVisible(visible: boolean, position: Position = null): void {
-		this._position = position;
+	/**
+	 * Indicates that the editor control got visible or hidden in a specific group. A
+	 * editor instance will only ever be visible in one editor group.
+	 *
+	 * @param visible the state of visibility of this editor
+	 * @param group the identifier of the editor group this editor is currently
+	 * positioned.
+	 */
+	protected setEditorVisible(visible: boolean, group: GroupIdentifier): void {
+		this._group = group;
 	}
 
 	/**
-	 * Called when the position of the editor changes while it is visible.
+	 * Subclasses can set this to false if it does not make sense to center editor input.
 	 */
-	public changePosition(position: Position): void {
-		this._position = position;
+	supportsCenteredLayout(): boolean {
+		return true;
 	}
 
-	/**
-	 * The position this editor is showing in or null if none.
-	 */
-	public get position(): Position {
-		return this._position;
-	}
-
-	public dispose(): void {
+	dispose(): void {
 		this._input = null;
 		this._options = null;
 

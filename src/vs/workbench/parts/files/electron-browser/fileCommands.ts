@@ -148,7 +148,7 @@ function save(resource: URI, isSaveAs: boolean, editorService: IWorkbenchEditorS
 		const editor = editorService.getActiveEditor();
 		const activeEditorResource = editor && editor.input && editor.input.getResource();
 		if (activeEditorResource && activeEditorResource.toString() === resource.toString()) {
-			editorGroupService.pinEditor(editor.position, editor.input);
+			editorGroupService.pinEditor(editor.group, editor.input);
 		}
 
 		// Just save

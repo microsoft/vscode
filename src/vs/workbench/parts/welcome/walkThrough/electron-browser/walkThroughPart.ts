@@ -474,7 +474,7 @@ export class WalkThroughPart extends BaseEditor {
 	private saveTextEditorViewState(input: WalkThroughInput): void {
 		const scrollPosition = this.scrollbar.getScrollPosition();
 
-		this.editorViewStateMemento.saveState(input, this.position, {
+		this.editorViewStateMemento.saveState(input, this.group, {
 			viewState: {
 				scrollTop: scrollPosition.scrollTop,
 				scrollLeft: scrollPosition.scrollLeft
@@ -483,7 +483,7 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	private loadTextEditorViewState(input: WalkThroughInput) {
-		const state = this.editorViewStateMemento.loadState(input, this.position);
+		const state = this.editorViewStateMemento.loadState(input, this.group);
 		if (state) {
 			this.scrollbar.setScrollPosition(state.viewState);
 		}

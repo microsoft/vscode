@@ -511,7 +511,7 @@ export class ElectronWindow extends Themable {
 			return this.editorService.openEditors(resources.map((r, index) => {
 				return {
 					input: r,
-					position: activeEditor ? activeEditor.position : Position.ONE
+					position: activeEditor ? activeEditor.group : Position.ONE
 				};
 			}));
 		});

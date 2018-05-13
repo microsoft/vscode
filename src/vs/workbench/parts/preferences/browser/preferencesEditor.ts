@@ -14,10 +14,10 @@ import * as arrays from 'vs/base/common/arrays';
 import { ArrayNavigator } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
+import { EditorOptions, EditorInput, GroupIdentifier } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
-import { IEditorControl, Position } from 'vs/platform/editor/common/editor';
+import { IEditorControl } from 'vs/platform/editor/common/editor';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -193,14 +193,9 @@ export class PreferencesEditor extends BaseEditor {
 		return false;
 	}
 
-	protected setEditorVisible(visible: boolean, position: Position): void {
-		this.sideBySidePreferencesWidget.setEditorVisible(visible, position);
-		super.setEditorVisible(visible, position);
-	}
-
-	public changePosition(position: Position): void {
-		this.sideBySidePreferencesWidget.changePosition(position);
-		super.changePosition(position);
+	protected setEditorVisible(visible: boolean, group: GroupIdentifier): void {
+		this.sideBySidePreferencesWidget.setEditorVisible(visible, group);
+		super.setEditorVisible(visible, group);
 	}
 
 	private updateInput(oldInput: PreferencesEditorInput, newInput: PreferencesEditorInput, options?: EditorOptions): TPromise<void> {
@@ -858,15 +853,9 @@ class SideBySidePreferencesWidget extends Widget {
 		}
 	}
 
-	public setEditorVisible(visible: boolean, position: Position): void {
+	public setEditorVisible(visible: boolean, group: GroupIdentifier): void {
 		if (this.editablePreferencesEditor) {
-			this.editablePreferencesEditor.setVisible(visible, position);
-		}
-	}
-
-	public changePosition(position: Position): void {
-		if (this.editablePreferencesEditor) {
-			this.editablePreferencesEditor.changePosition(position);
+			this.editablePreferencesEditor.setVisible(visible, group);
 		}
 	}
 

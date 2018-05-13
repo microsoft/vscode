@@ -9,11 +9,10 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Position } from 'vs/platform/editor/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { EditorOptions } from 'vs/workbench/common/editor';
+import { EditorOptions, GroupIdentifier } from 'vs/workbench/common/editor';
 import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInput';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -99,7 +98,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 		return this._onDidFocusWebview.event;
 	}
 
-	protected setEditorVisible(visible: boolean, position?: Position): void {
+	protected setEditorVisible(visible: boolean, group: GroupIdentifier): void {
 		if (this.input && this.input instanceof WebviewEditorInput) {
 			if (visible) {
 				this.input.claimWebview(this);
@@ -119,7 +118,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 			}
 		}
 
-		super.setEditorVisible(visible, position);
+		super.setEditorVisible(visible, group);
 	}
 
 	public clearInput() {
@@ -146,7 +145,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 		await super.setInput(input, options);
 
 		await input.resolve();
-		await input.updatePosition(this.position);
+		await input.updateGroup(this.group);
 		this.updateWebview(input);
 	}
 

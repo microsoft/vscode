@@ -24,6 +24,9 @@ export interface IEditorService {
 
 export interface IEditorModel {
 
+	/**
+	 * Emitted when the model is disposed.
+	 */
 	onDispose: Event<void>;
 
 	/**
@@ -122,9 +125,12 @@ export interface IResourceSideBySideInput extends IBaseResourceInput {
 	detailResource: URI;
 }
 
-export interface IEditorControl {
+/**
+ * Marker interface for the editor control
+ */
+export interface IEditorControl { }
 
-}
+export type GroupIdentifier = number;
 
 export interface IEditor {
 
@@ -139,9 +145,9 @@ export interface IEditor {
 	options: IEditorOptions;
 
 	/**
-	 * The assigned position of this editor.
+	 * The assigned group this editor is showing in.
 	 */
-	position: Position;
+	group: GroupIdentifier;
 
 	/**
 	 * Returns the unique identifier of this editor.

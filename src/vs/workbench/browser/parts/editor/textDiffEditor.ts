@@ -96,7 +96,7 @@ export class TextDiffEditor extends BaseTextEditor {
 		delegatingEditorService.setEditorOpenHandler((group: INextEditorGroup, input: EditorInput, options?: EditorOptions) => {
 
 			// Check if target group is same as this editor ones
-			if (group.id === this.position) {
+			if (group.id === this.group) {
 				const activeDiffInput = <DiffEditorInput>this.input;
 				if (input && options && activeDiffInput) {
 
@@ -245,7 +245,7 @@ export class TextDiffEditor extends BaseTextEditor {
 				modifiedInput.setForceOpenAsBinary();
 			}
 
-			this.editorService.openEditor(binaryDiffInput, options, this.position).done(null, onUnexpectedError);
+			this.editorService.openEditor(binaryDiffInput, options, this.group).done(null, onUnexpectedError);
 
 			return true;
 		}

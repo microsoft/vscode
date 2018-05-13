@@ -319,7 +319,7 @@ export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 
 	const editor = editorService.getActiveEditor();
 	const input = editor.input;
-	const position = editor.position;
+	const position = editor.group;
 
 	resolverService.createModelReference(resource).then(reference => {
 		const model = reference.object as ITextFileEditorModel;
@@ -355,7 +355,7 @@ export const revertLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 
 	const editor = editorService.getActiveEditor();
 	const input = editor.input;
-	const position = editor.position;
+	const position = editor.group;
 
 	resolverService.createModelReference(resource).then(reference => {
 		const model = reference.object as ITextFileEditorModel;

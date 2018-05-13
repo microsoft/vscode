@@ -46,7 +46,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 	private openInternal(input: EditorInput, options: EditorOptions): void {
 		if (input instanceof FileEditorInput) {
 			input.setForceOpenAsText();
-			this.editorService.openEditor(input, options, this.position).done(null, onUnexpectedError);
+			this.editorService.openEditor(input, options, this.group).done(null, onUnexpectedError);
 		}
 	}
 

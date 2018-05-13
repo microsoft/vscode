@@ -8,7 +8,6 @@
 import 'vs/css!./media/gotoSymbolHandler';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
-import * as errors from 'vs/base/common/errors';
 import * as types from 'vs/base/common/types';
 import * as strings from 'vs/base/common/strings';
 import { IEntryRunContext, Mode, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
@@ -17,15 +16,15 @@ import { QuickOpenHandler, EditorQuickOpenEntryGroup, QuickOpenAction } from 'vs
 import * as filters from 'vs/base/common/filters';
 import { IEditor, IDiffEditorModel, IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { Position, IEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/quickOpen';
 import { DocumentSymbolProviderRegistry, SymbolInformation, symbolKindToCssClass } from 'vs/editor/common/modes';
-import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { IRange } from 'vs/editor/common/core/range';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
+import { GroupIdentifier } from 'vs/workbench/common/editor';
+import { INextEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
 
 export const GOTO_SYMBOL_PREFIX = '@';
 export const SCOPE_PREFIX = ':';
@@ -239,7 +238,7 @@ class OutlineModel extends QuickOpenModel {
 }
 
 class SymbolEntry extends EditorQuickOpenEntryGroup {
-	private editorService: IWorkbenchEditorService;
+	private editorService: INextEditorService;
 	private index: number;
 	private name: string;
 	private type: string;
@@ -248,7 +247,7 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 	private range: IRange;
 	private handler: GotoSymbolHandler;
 
-	constructor(index: number, name: string, type: string, description: string, icon: string, range: IRange, highlights: IHighlight[], editorService: IWorkbenchEditorService, handler: GotoSymbolHandler) {
+	constructor(index: number, name: string, type: string, description: string, icon: string, range: IRange, highlights: IHighlight[], editorService: INextEditorService, handler: GotoSymbolHandler) {
 		super();
 
 		this.index = index;
@@ -291,7 +290,7 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 	}
 
 	public getInput(): IEditorInput {
-		return this.editorService.getActiveEditorInput();
+		return this.editorService.activeEditor;
 	}
 
 	public getOptions(pinned?: boolean): ITextEditorOptions {
@@ -314,17 +313,16 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 		// Check for sideBySide use
 		const sideBySide = context.keymods.ctrlCmd;
 		if (sideBySide) {
-			this.editorService.openEditor(this.getInput(), this.getOptions(context.keymods.alt), true).done(null, errors.onUnexpectedError);
+			this.editorService.openEditor(this.getInput(), this.getOptions(context.keymods.alt), SIDE_GROUP);
 		}
 
 		// Apply selection and focus
 		else {
 			const range = this.toSelection();
-			const activeEditor = this.editorService.getActiveEditor();
-			if (activeEditor) {
-				const editor = <IEditor>activeEditor.getControl();
-				editor.setSelection(range);
-				editor.revealRangeInCenter(range, ScrollType.Smooth);
+			const codeEditor = this.editorService.activeTextEditorControl;
+			if (codeEditor) {
+				codeEditor.setSelection(range);
+				codeEditor.revealRangeInCenter(range, ScrollType.Smooth);
 			}
 		}
 
@@ -335,14 +333,13 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 
 		// Select Outline Position
 		const range = this.toSelection();
-		const activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor) {
-			const editorControl = <IEditor>activeEditor.getControl();
+		const editorControl = this.editorService.activeTextEditorControl;
+		if (editorControl) {
 			editorControl.revealRangeInCenter(range, ScrollType.Smooth);
 
 			// Decorate if possible
 			if (types.isFunction(editorControl.changeDecorations)) {
-				this.handler.decorateOutline(this.range, range, editorControl, activeEditor.position);
+				this.handler.decorateOutline(this.range, range, editorControl, this.editorService.activeControl.group);
 			}
 		}
 
@@ -364,9 +361,9 @@ interface Outline {
 }
 
 interface IEditorLineDecoration {
+	group: GroupIdentifier;
 	rangeHighlightId: string;
 	lineDecorationId: string;
-	position: Position;
 }
 
 export class GotoSymbolHandler extends QuickOpenHandler {
@@ -379,7 +376,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 	private activeOutlineRequest: TPromise<OutlineModel>;
 
 	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@INextEditorService private editorService: INextEditorService
 	) {
 		super();
 
@@ -391,8 +388,8 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 		// Remember view state to be able to restore on cancel
 		if (!this.lastKnownEditorViewState) {
-			const editor = this.editorService.getActiveEditor();
-			this.lastKnownEditorViewState = (<IEditor>editor.getControl()).saveViewState();
+			const editor = this.editorService.activeTextEditorControl;
+			this.lastKnownEditorViewState = editor.saveViewState();
 		}
 
 		// Resolve Outline Model
@@ -420,7 +417,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 	public canRun(): boolean | string {
 		let canRun = false;
 
-		const editorControl: IEditor = getCodeEditor(this.editorService.getActiveEditor());
+		const editorControl = this.editorService.activeTextEditorControl;
 		if (editorControl) {
 			let model = editorControl.getModel();
 			if (model && (<IDiffEditorModel>model).modified && (<IDiffEditorModel>model).original) {
@@ -479,7 +476,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 	}
 
 	private doGetActiveOutline(): TPromise<OutlineModel> {
-		const editorControl: IEditor = getCodeEditor(this.editorService.getActiveEditor());
+		const editorControl = this.editorService.activeTextEditorControl;
 		if (editorControl) {
 			let model = editorControl.getModel();
 			if (model && (<IDiffEditorModel>model).modified && (<IDiffEditorModel>model).original) {
@@ -509,7 +506,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		return TPromise.wrap<OutlineModel>(null);
 	}
 
-	public decorateOutline(fullRange: IRange, startRange: IRange, editor: IEditor, position: Position): void {
+	public decorateOutline(fullRange: IRange, startRange: IRange, editor: IEditor, group: GroupIdentifier): void {
 		editor.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
 			const deleteDecorations: string[] = [];
 
@@ -549,17 +546,17 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			const lineDecorationId = decorations[1];
 
 			this.rangeHighlightDecorationId = {
+				group,
 				rangeHighlightId: rangeHighlightId,
 				lineDecorationId: lineDecorationId,
-				position: position
 			};
 		});
 	}
 
 	public clearDecorations(): void {
 		if (this.rangeHighlightDecorationId) {
-			this.editorService.getVisibleEditors().forEach(editor => {
-				if (editor.position === this.rangeHighlightDecorationId.position) {
+			this.editorService.visibleControls.forEach(editor => {
+				if (editor.group === this.rangeHighlightDecorationId.group) {
 					const editorControl = <IEditor>editor.getControl();
 					editorControl.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
 						changeAccessor.deltaDecorations([
@@ -584,10 +581,9 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 		// Restore selection if canceled
 		if (canceled && this.lastKnownEditorViewState) {
-			const activeEditor = this.editorService.getActiveEditor();
-			if (activeEditor) {
-				const editor = <IEditor>activeEditor.getControl();
-				editor.restoreViewState(this.lastKnownEditorViewState);
+			const codeEditor = this.editorService.activeTextEditorControl;
+			if (codeEditor) {
+				codeEditor.restoreViewState(this.lastKnownEditorViewState);
 			}
 		}
 

@@ -38,7 +38,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { Position } from 'vs/platform/editor/common/editor';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
@@ -378,11 +377,6 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.editorLoadComplete = true;
 		return super.setInput(input, options);
-	}
-
-	changePosition(position: Position): void {
-		this.navbar.update();
-		super.changePosition(position);
 	}
 
 	showFind(): void {

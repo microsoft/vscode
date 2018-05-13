@@ -99,7 +99,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		for (let workbenchEditor of this._workbenchEditorService.getVisibleEditors()) {
 			const id = this._documentsAndEditors.findTextEditorIdFor(workbenchEditor);
 			if (id) {
-				result[id] = workbenchEditor.position;
+				result[id] = workbenchEditor.group; // TODO@grid [EXTENSIONS] adopt in extension host
 			}
 		}
 		return result;
@@ -147,7 +147,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			let editors = this._workbenchEditorService.getVisibleEditors();
 			for (let editor of editors) {
 				if (mainThreadEditor.matches(editor)) {
-					return this._workbenchEditorService.closeEditor(editor.position, editor.input).then(() => { return; });
+					return this._workbenchEditorService.closeEditor(editor.group, editor.input).then(() => { return; });
 				}
 			}
 		}

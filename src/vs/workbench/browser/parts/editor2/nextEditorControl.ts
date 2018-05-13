@@ -75,7 +75,7 @@ export class NextEditorControl extends Disposable {
 		show(control.getContainer());
 
 		// Indicate to editor that it is now visible
-		control.setVisible(true, this.groupId /* TODO@grid use group id instead of position */);
+		control.setVisible(true, this.groupId);
 
 		// Layout
 		if (this.dimension) {
@@ -159,7 +159,7 @@ export class NextEditorControl extends Disposable {
 
 		// Indicate to editor control
 		this._activeControl.clearInput();
-		this._activeControl.setVisible(false);
+		this._activeControl.setVisible(false, this.groupId);
 
 		// Clear active control
 		this._activeControl = null;

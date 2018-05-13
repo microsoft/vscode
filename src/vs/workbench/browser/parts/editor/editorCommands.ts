@@ -107,7 +107,7 @@ function moveActiveEditor(args: ActiveEditorMoveArguments = {}, accessor: Servic
 
 function moveActiveTab(args: ActiveEditorMoveArguments, activeEditor: IEditor, accessor: ServicesAccessor): void {
 	const editorGroupsService: IEditorGroupService = accessor.get(IEditorGroupService);
-	const editorGroup = editorGroupsService.getStacksModel().groupAt(activeEditor.position);
+	const editorGroup = editorGroupsService.getStacksModel().groupAt(activeEditor.group);
 	let index = editorGroup.indexOf(activeEditor.input);
 	switch (args.to) {
 		case ActiveEditorMovePositioning.FIRST:
@@ -135,7 +135,7 @@ function moveActiveTab(args: ActiveEditorMoveArguments, activeEditor: IEditor, a
 }
 
 function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, activeEditor: IEditor, accessor: ServicesAccessor): void {
-	let newPosition = activeEditor.position;
+	let newPosition = activeEditor.group;
 	switch (args.to) {
 		case ActiveEditorMovePositioning.LEFT:
 			newPosition = newPosition - 1;
@@ -157,8 +157,8 @@ function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, activeEditor: 
 			break;
 	}
 
-	newPosition = POSITIONS.indexOf(newPosition) !== -1 ? newPosition : activeEditor.position;
-	accessor.get(IEditorGroupService).moveEditor(activeEditor.input, activeEditor.position, newPosition);
+	newPosition = POSITIONS.indexOf(newPosition) !== -1 ? newPosition : activeEditor.group;
+	accessor.get(IEditorGroupService).moveEditor(activeEditor.input, activeEditor.group, newPosition);
 }
 
 function registerDiffEditorCommands(): void {
@@ -234,7 +234,7 @@ function registerOpenEditorAtIndexCommands(): void {
 
 				const active = editorService.getActiveEditor();
 				if (active) {
-					const group = editorGroupService.getStacksModel().groupAt(active.position);
+					const group = editorGroupService.getStacksModel().groupAt(active.group);
 					const editor = group.getEditor(editorIndex);
 
 					if (editor) {
@@ -314,7 +314,7 @@ function registerEditorCommands() {
 			}
 			const activeEditor = editorService.getActiveEditor();
 			if (activeEditor) {
-				return editorService.closeEditors(activeEditor.position);
+				return editorService.closeEditors(activeEditor.group);
 			}
 
 			return TPromise.as(false);
@@ -526,7 +526,7 @@ function positionAndInput(editorGroupService: IEditorGroupService, editorService
 	// If position or input are not passed in take the position and input of the active editor.
 	const active = editorService.getActiveEditor();
 	if (active) {
-		position = typeof position === 'number' ? position : active.position;
+		position = typeof position === 'number' ? position : active.group;
 		input = input ? input : <EditorInput>active.input;
 	}
 

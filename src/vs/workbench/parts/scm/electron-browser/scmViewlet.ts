@@ -964,7 +964,7 @@ export class RepositoryPanel extends ViewletPanel {
 			return;
 		}
 
-		this.editorGroupService.pinEditor(activeEditor.position, activeEditorInput);
+		this.editorGroupService.pinEditor(activeEditor.group, activeEditorInput);
 		activeEditor.focus();
 	}
 

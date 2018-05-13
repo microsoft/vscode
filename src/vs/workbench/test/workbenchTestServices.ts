@@ -649,7 +649,7 @@ export class TestEditorService implements IWorkbenchEditorService {
 		return {
 			input: null,
 			options: null,
-			position: null,
+			group: null,
 			getId: () => { return null; },
 			getControl: () => {
 				return {

@@ -685,7 +685,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 		// Inform editor
 		const editor = this.visibleEditors[from];
-		editor.changePosition(to);
+		// editor.changePosition(to);
 
 		// Change data structures
 		const listeners = this.visibleEditorFocusTrackerDisposable[from];
@@ -718,8 +718,8 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			containerTo.appendTo(this.silos[from]);
 
 			// Inform Editors
-			this.visibleEditors[from].changePosition(to);
-			this.visibleEditors[to].changePosition(from);
+			// this.visibleEditors[from].changePosition(to);
+			// this.visibleEditors[to].changePosition(from);
 
 			// Update last active position accordingly
 			if (this.lastActivePosition === from) {
@@ -758,9 +758,9 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			containerPos3.appendTo(this.silos[newPositionThree]);
 
 			// Inform Editors
-			this.visibleEditors[Position.ONE].changePosition(newPositionOne);
-			this.visibleEditors[Position.TWO].changePosition(newPositionTwo);
-			this.visibleEditors[Position.THREE].changePosition(newPositionThree);
+			// this.visibleEditors[Position.ONE].changePosition(newPositionOne);
+			// this.visibleEditors[Position.TWO].changePosition(newPositionTwo);
+			// this.visibleEditors[Position.THREE].changePosition(newPositionThree);
 
 			// Update last active position accordingly
 			if (this.lastActivePosition === Position.ONE) {
@@ -1135,7 +1135,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			let options = EditorOptions.create({ pinned: true });
 			const activeEditor = $this.editorService.getActiveEditor();
 			const editor = getCodeEditor(activeEditor);
-			if (editor && activeEditor.position === stacks.positionOfGroup(identifier.group) && identifier.editor.matches(activeEditor.input)) {
+			if (editor && activeEditor.group === stacks.positionOfGroup(identifier.group) && identifier.editor.matches(activeEditor.input)) {
 				options = TextEditorOptions.fromEditor(editor, { pinned: true });
 			}
 

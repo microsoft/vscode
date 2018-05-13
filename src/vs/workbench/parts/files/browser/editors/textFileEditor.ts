@@ -71,7 +71,7 @@ export class TextFileEditor extends BaseTextEditor {
 	}
 
 	private onWillCloseEditor(e: IEditorCloseEvent): void {
-		if (e.editor === this.input && this.position === this.editorGroupService.getStacksModel().positionOfGroup(e.group)) {
+		if (e.editor === this.input && this.group === this.editorGroupService.getStacksModel().positionOfGroup(e.group)) {
 			this.doSaveTextEditorViewState(this.input);
 		}
 	}
@@ -201,13 +201,13 @@ export class TextFileEditor extends BaseTextEditor {
 
 	private openAsBinary(input: FileEditorInput, options: EditorOptions): void {
 		input.setForceOpenAsBinary();
-		this.editorService.openEditor(input, options, this.position).done(null, errors.onUnexpectedError);
+		this.editorService.openEditor(input, options, this.group).done(null, errors.onUnexpectedError);
 	}
 
 	private openAsFolder(input: FileEditorInput): boolean {
 
 		// Since we cannot open a folder, we have to restore the previous input if any and close the editor
-		this.editorService.closeEditor(this.position, this.input).done(() => {
+		this.editorService.closeEditor(this.group, this.input).done(() => {
 
 			// Best we can do is to reveal the folder in the explorer
 			if (this.contextService.isInsideWorkspace(input.getResource())) {

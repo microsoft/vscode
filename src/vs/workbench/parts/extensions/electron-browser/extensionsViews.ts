@@ -489,7 +489,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		const activeEditor = this.editorService.getActiveEditor();
 		const activeEditorInput = this.editorService.getActiveEditorInput();
 
-		this.editorInputService.pinEditor(activeEditor.position, activeEditorInput);
+		this.editorInputService.pinEditor(activeEditor.group, activeEditorInput);
 		activeEditor.focus();
 	}
 

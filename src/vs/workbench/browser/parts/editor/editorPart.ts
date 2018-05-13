@@ -639,7 +639,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				return activeEditorControl.invokeWithinContext(fn);
 			}
 
-			return this.editorGroupsControl.getInstantiationService(activeEditor.position).invokeFunction(fn);
+			return this.editorGroupsControl.getInstantiationService(activeEditor.group).invokeFunction(fn);
 		}
 
 		return this.instantiationService.invokeFunction(fn);
@@ -759,7 +759,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		let options = EditorOptions.create({ pinned: true, index, inactive, preserveFocus });
 		const activeEditor = this.getActiveEditor();
 		const codeEditor = getCodeEditor(activeEditor);
-		if (codeEditor && activeEditor.position === this.stacks.positionOfGroup(fromGroup) && input.matches(activeEditor.input)) {
+		if (codeEditor && activeEditor.group === this.stacks.positionOfGroup(fromGroup) && input.matches(activeEditor.input)) {
 			options = TextEditorOptions.fromEditor(codeEditor, { pinned: true, index, inactive, preserveFocus });
 		}
 
@@ -1612,7 +1612,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Position is sideBySide: Find position relative to active editor
 		if (arg1 === true) {
-			switch (activeEditor.position) {
+			switch (activeEditor.group) {
 				case Position.ONE:
 					return Position.TWO;
 				case Position.TWO:
