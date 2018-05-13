@@ -39,6 +39,7 @@ import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { deepClone } from 'vs/base/common/objects';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension, size } from 'vs/base/browser/dom';
+import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -76,11 +77,12 @@ export class WalkThroughPart extends BaseEditor {
 		@IStorageService storageService: IStorageService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@INotificationService private notificationService: INotificationService
+		@INotificationService private notificationService: INotificationService,
+		@INextEditorGroupsService nextEditorGroupService: INextEditorGroupsService
 	) {
 		super(WalkThroughPart.ID, telemetryService, themeService);
 		this.editorFocus = WALK_THROUGH_FOCUS.bindTo(this.contextKeyService);
-		this.editorViewStateMemento = new EditorViewStateMemento<IWalkThroughEditorViewState>(this.getMemento(storageService, Scope.WORKSPACE), WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY);
+		this.editorViewStateMemento = new EditorViewStateMemento<IWalkThroughEditorViewState>(nextEditorGroupService, this.getMemento(storageService, Scope.WORKSPACE), WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 	}
 
 	createEditor(container: HTMLElement): void {
@@ -474,7 +476,7 @@ export class WalkThroughPart extends BaseEditor {
 	private saveTextEditorViewState(input: WalkThroughInput): void {
 		const scrollPosition = this.scrollbar.getScrollPosition();
 
-		this.editorViewStateMemento.saveState(input, this.group, {
+		this.editorViewStateMemento.saveState(this.group, input, {
 			viewState: {
 				scrollTop: scrollPosition.scrollTop,
 				scrollLeft: scrollPosition.scrollLeft
@@ -483,7 +485,7 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	private loadTextEditorViewState(input: WalkThroughInput) {
-		const state = this.editorViewStateMemento.loadState(input, this.group);
+		const state = this.editorViewStateMemento.loadState(this.group, input);
 		if (state) {
 			this.scrollbar.setScrollPosition(state.viewState);
 		}

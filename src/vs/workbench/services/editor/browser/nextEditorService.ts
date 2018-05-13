@@ -268,7 +268,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	}
 
 	private createSideBySideGroup(): INextEditorGroup {
-		return this.nextEditorGroupsService.addGroup(this.nextEditorGroupsService.activeGroup, GroupDirection.RIGHT);
+		return this.nextEditorGroupsService.addGroup(this.nextEditorGroupsService.activeGroup, GroupDirection.RIGHT); // TODO@grid this should use an existing side group if there is one
 	}
 
 	private toOptions(options?: IEditorOptions | EditorOptions): EditorOptions {

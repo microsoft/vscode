@@ -14,7 +14,7 @@ import URI from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
-import { IEditorGroup, ConfirmResult, IEditorOpeningEvent } from 'vs/workbench/common/editor';
+import { IEditorGroup, ConfirmResult, IEditorOpeningEvent, IEditorInputWithOptions } from 'vs/workbench/common/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -23,7 +23,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IPartService, Parts, Position as PartPosition, IDimension } from 'vs/workbench/services/part/common/partService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IEditorInput, IEditorOptions, Position, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IEditorOptions, Position, IEditor, IResourceInput, Direction } from 'vs/platform/editor/common/editor';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -42,7 +42,7 @@ import { EnvironmentService } from 'vs/platform/environment/node/environmentServ
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWorkbenchEditorService, ICloseEditorsFilter } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IWindowsService, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
@@ -70,6 +70,7 @@ import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensi
 import { IKeybindingService } from '../../platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { INextEditorGroupsService, INextEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IMoveEditorOptions, ICopyEditorOptions, IEditorReplacement } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -274,6 +275,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(IThemeService, new TestThemeService());
 	instantiationService.stub(IHashService, new TestHashService());
+	instantiationService.stub(INextEditorGroupsService, new TestNextEditorGroupsService([new TestNextEditorGroup(0)]));
 
 	return instantiationService;
 }
@@ -692,6 +694,149 @@ export class TestEditorService implements IWorkbenchEditorService {
 
 	public createInput(input: IResourceInput): IEditorInput {
 		return null;
+	}
+}
+
+export class TestNextEditorGroupsService implements INextEditorGroupsService {
+	_serviceBrand: ServiceIdentifier<any>;
+
+	constructor(public groups: TestNextEditorGroup[] = []) { }
+
+	onDidActiveGroupChange: Event<INextEditorGroup> = Event.None;
+	onDidAddGroup: Event<INextEditorGroup> = Event.None;
+	onDidRemoveGroup: Event<INextEditorGroup> = Event.None;
+	onDidMoveGroup: Event<INextEditorGroup> = Event.None;
+
+	orientation: any;
+
+	get activeGroup(): INextEditorGroup {
+		return this.groups[0];
+	}
+
+	get count(): number {
+		return this.groups.length;
+	}
+
+	getGroups(order?: GroupsOrder): ReadonlyArray<INextEditorGroup> {
+		return this.groups;
+	}
+
+	getGroup(identifier: number): INextEditorGroup {
+		for (let i = 0; i < this.groups.length; i++) {
+			if (this.groups[i].id === identifier) {
+				return this.groups[i];
+			}
+		}
+
+		return void 0;
+	}
+
+	focusGroup(group: number | INextEditorGroup): INextEditorGroup {
+		return null;
+	}
+
+	activateGroup(group: number | INextEditorGroup): INextEditorGroup {
+		return null;
+	}
+
+	resizeGroup(group: number | INextEditorGroup, sizeDelta: number): INextEditorGroup {
+		return null;
+	}
+
+	arrangeGroups(arrangement: GroupsArrangement): void { }
+
+	setGroupOrientation(orientation: any): void { }
+
+	addGroup(location: number | INextEditorGroup, direction: GroupDirection, options?: IAddGroupOptions): INextEditorGroup {
+		return null;
+	}
+
+	removeGroup(group: number | INextEditorGroup): void { }
+
+	moveGroup(group: number | INextEditorGroup, location: number | INextEditorGroup, direction: GroupDirection): INextEditorGroup {
+		return null;
+	}
+
+	mergeGroup(group: number | INextEditorGroup, target: number | INextEditorGroup, options?: IMergeGroupOptions): INextEditorGroup {
+		return null;
+	}
+
+	copyGroup(group: number | INextEditorGroup, location: number | INextEditorGroup, direction: GroupDirection): INextEditorGroup {
+		return null;
+	}
+}
+
+export class TestNextEditorGroup implements INextEditorGroup {
+
+	constructor(public id: number) { }
+
+	activeControl: IEditor;
+	activeEditor: IEditorInput;
+	previewEditor: IEditorInput;
+	count: number;
+	editors: ReadonlyArray<IEditorInput>;
+
+	onWillDispose: Event<void> = Event.None;
+	onDidActiveEditorChange: Event<void> = Event.None;
+	onWillCloseEditor: Event<IEditorInput> = Event.None;
+	onDidCloseEditor: Event<IEditorInput> = Event.None;
+	onWillOpenEditor: Event<IEditorOpeningEvent> = Event.None;
+	onDidOpenEditorFail: Event<IEditorInput> = Event.None;
+
+	getEditor(index: number): IEditorInput {
+		return null;
+	}
+
+	getIndexOfEditor(editor: IEditorInput): number {
+		return -1;
+	}
+
+	openEditor(editor: IEditorInput, options?: IEditorOptions): Thenable<void> {
+		return TPromise.as(void 0);
+	}
+
+	openEditors(editors: IEditorInputWithOptions[]): Thenable<void> {
+		return TPromise.as(void 0);
+	}
+
+	isOpened(editor: IEditorInput): boolean {
+		return false;
+	}
+
+	isPinned(editor: IEditorInput): boolean {
+		return false;
+	}
+
+	isActive(editor: IEditorInput): boolean {
+		return false;
+	}
+
+	moveEditor(editor: IEditorInput, target: INextEditorGroup, options?: IMoveEditorOptions): void { }
+
+	copyEditor(editor: IEditorInput, target: INextEditorGroup, options?: ICopyEditorOptions): void { }
+
+	closeEditor(editor?: IEditorInput): Thenable<void> {
+		return TPromise.as(void 0);
+	}
+
+	closeEditors(editors: IEditorInput[] | { except?: IEditorInput; direction?: Direction; savedOnly?: boolean; }): Thenable<void> {
+		return TPromise.as(void 0);
+	}
+
+	closeAllEditors(): Thenable<void> {
+		return TPromise.as(void 0);
+	}
+
+	replaceEditors(editors: IEditorReplacement[]): Thenable<void> {
+		return TPromise.as(void 0);
+	}
+
+	pinEditor(editor?: IEditorInput): void { }
+
+	focus(): void { }
+
+	invokeWithinContext<T>(fn: (accessor: ServicesAccessor) => T): T {
+		return fn(null);
 	}
 }
 

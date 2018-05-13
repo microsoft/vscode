@@ -62,6 +62,7 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ILogService } from 'vs/platform/log/common/log';
 import { PreferencesEditorInput, DefaultPreferencesEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { PREFERENCES_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
+import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 export class PreferencesEditor extends BaseEditor {
 
@@ -949,9 +950,10 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@ITextFileService textFileService: ITextFileService,
-		@IEditorGroupService editorGroupService: IEditorGroupService
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@INextEditorGroupsService nextEditorGroupService: INextEditorGroupsService
 	) {
-		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService);
+		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService, nextEditorGroupService);
 	}
 
 	private static _getContributions(): IEditorContributionCtor[] {

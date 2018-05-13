@@ -39,7 +39,7 @@ import URI from 'vs/base/common/uri';
 import { getCodeOrDiffEditor } from 'vs/editor/browser/services/codeEditorService';
 import { once } from 'vs/base/common/event';
 import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/nextEditorService';
-import { INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroup, INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -63,9 +63,10 @@ export class TextDiffEditor extends BaseTextEditor {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@ITextFileService textFileService: ITextFileService
+		@ITextFileService textFileService: ITextFileService,
+		@INextEditorGroupsService nextEditorGroupService: INextEditorGroupsService
 	) {
-		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService);
+		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService, nextEditorGroupService);
 
 		this.diffNavigatorDisposables = [];
 		this.toUnbind.push(this._actualConfigurationService.onDidChangeConfiguration((e) => {

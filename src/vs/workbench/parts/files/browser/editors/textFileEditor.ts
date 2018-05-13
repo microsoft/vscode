@@ -32,6 +32,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 /**
  * An implementation of editor for file system resources.
@@ -54,9 +55,10 @@ export class TextFileEditor extends BaseTextEditor {
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@ITextFileService textFileService: ITextFileService,
 		@IWindowsService private windowsService: IWindowsService,
-		@IPreferencesService private preferencesService: IPreferencesService
+		@IPreferencesService private preferencesService: IPreferencesService,
+		@INextEditorGroupsService nextEditorGroupService: INextEditorGroupsService
 	) {
-		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService);
+		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService, nextEditorGroupService);
 
 		// Clear view state for deleted files
 		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFilesChanged(e)));

@@ -25,6 +25,7 @@ import { Dimension } from 'vs/base/browser/dom';
 import { BaseWebviewEditor } from 'vs/workbench/parts/webview/electron-browser/baseWebviewEditor';
 import { WebviewElement, WebviewOptions } from 'vs/workbench/parts/webview/electron-browser/webviewElement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 export interface HtmlPreviewEditorViewState {
 	scrollYPercentage: number;
@@ -59,10 +60,11 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 		@IStorageService readonly _storageService: IStorageService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@INextEditorGroupsService nextEditorGroupService: INextEditorGroupsService
 	) {
 		super(HtmlPreviewPart.ID, telemetryService, themeService, contextKeyService);
 
-		this.editorViewStateMemento = new EditorViewStateMemento<HtmlPreviewEditorViewState>(this.getMemento(_storageService, Scope.WORKSPACE), this.viewStateStorageKey);
+		this.editorViewStateMemento = new EditorViewStateMemento<HtmlPreviewEditorViewState>(nextEditorGroupService, this.getMemento(_storageService, Scope.WORKSPACE), this.viewStateStorageKey);
 	}
 
 	dispose(): void {
@@ -242,11 +244,11 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 	}
 
 	private saveHTMLPreviewViewState(input: HtmlInput, editorViewState: HtmlPreviewEditorViewState): void {
-		this.editorViewStateMemento.saveState(input, this.group, editorViewState);
+		this.editorViewStateMemento.saveState(this.group, input, editorViewState);
 	}
 
 	private loadHTMLPreviewViewState(input: HtmlInput): HtmlPreviewEditorViewState {
-		return this.editorViewStateMemento.loadState(input, this.group);
+		return this.editorViewStateMemento.loadState(this.group, input);
 	}
 
 	protected saveMemento(): void {

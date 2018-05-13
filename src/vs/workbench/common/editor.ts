@@ -932,35 +932,34 @@ export function toResource(editor: IEditorInput, options?: IResourceOptions): UR
 	return null;
 }
 
-export interface IEditorViewStates<T> {
-	[Position.ONE]?: T;
-	[Position.TWO]?: T;
-	[Position.THREE]?: T;
+interface MapGroupToViewStates<T> {
+	[group: number]: T;
 }
 
 export class EditorViewStateMemento<T> {
-	private cache: LRUCache<string, IEditorViewStates<T>>;
+	private cache: LRUCache<string, MapGroupToViewStates<T>>;
 
-	constructor(private memento: object, private key: string, private limit: number = 10) { }
+	constructor(
+		private editorGroupService: INextEditorGroupsService,
+		private memento: object,
+		private key: string,
+		private limit: number = 10
+	) { }
 
-	public saveState(resource: URI, position: Position, state: T): void;
-	public saveState(editor: EditorInput, position: Position, state: T): void;
-	public saveState(resourceOrEditor: URI | EditorInput, position: Position, state: T): void {
-		if (typeof position !== 'number') {
-			return; // we need a position at least
-		}
-
+	public saveState(group: GroupIdentifier, resource: URI, state: T): void;
+	public saveState(group: GroupIdentifier, editor: EditorInput, state: T): void;
+	public saveState(group: GroupIdentifier, resourceOrEditor: URI | EditorInput, state: T): void {
 		const resource = this.doGetResource(resourceOrEditor);
 		if (resource) {
 			const cache = this.doLoad();
 
 			let viewStates = cache.get(resource.toString());
 			if (!viewStates) {
-				viewStates = Object.create(null) as IEditorViewStates<T>;
+				viewStates = Object.create(null) as MapGroupToViewStates<T>;
 				cache.set(resource.toString(), viewStates);
 			}
 
-			viewStates[position] = state;
+			viewStates[group] = state;
 
 			// Automatically clear when editor input gets disposed if any
 			if (resourceOrEditor instanceof EditorInput) {
@@ -971,20 +970,16 @@ export class EditorViewStateMemento<T> {
 		}
 	}
 
-	public loadState(resource: URI, position: Position): T;
-	public loadState(editor: EditorInput, position: Position): T;
-	public loadState(resourceOrEditor: URI | EditorInput, position: Position): T {
-		if (typeof position !== 'number') {
-			return void 0; // we need a position at least
-		}
-
+	public loadState(group: GroupIdentifier, resource: URI): T;
+	public loadState(group: GroupIdentifier, editor: EditorInput): T;
+	public loadState(group: GroupIdentifier, resourceOrEditor: URI | EditorInput): T {
 		const resource = this.doGetResource(resourceOrEditor);
 		if (resource) {
 			const cache = this.doLoad();
 
 			const viewStates = cache.get(resource.toString());
 			if (viewStates) {
-				return viewStates[position];
+				return viewStates[group];
 			}
 		}
 
@@ -1009,24 +1004,14 @@ export class EditorViewStateMemento<T> {
 		return resourceOrEditor;
 	}
 
-	private doLoad(): LRUCache<string, IEditorViewStates<T>> {
+	private doLoad(): LRUCache<string, MapGroupToViewStates<T>> {
 		if (!this.cache) {
-			this.cache = new LRUCache<string, T>(this.limit);
+			this.cache = new LRUCache<string, MapGroupToViewStates<T>>(this.limit);
 
 			// Restore from serialized map state
 			const rawViewState = this.memento[this.key];
 			if (Array.isArray(rawViewState)) {
 				this.cache.fromJSON(rawViewState);
-			}
-
-			// Migration from old object state
-			else if (rawViewState) {
-				const keys = Object.keys(rawViewState);
-				keys.forEach((key, index) => {
-					if (index < this.limit) {
-						this.cache.set(key, rawViewState[key]);
-					}
-				});
 			}
 		}
 
@@ -1035,6 +1020,20 @@ export class EditorViewStateMemento<T> {
 
 	public save(): void {
 		const cache = this.doLoad();
+
+		// Remove groups from states that no longer exist
+		cache.forEach((mapGroupToViewStates, resource) => {
+			Object.keys(mapGroupToViewStates).forEach(group => {
+				const groupId: GroupIdentifier = Number(group);
+				if (!this.editorGroupService.getGroup(groupId)) {
+					delete mapGroupToViewStates[groupId];
+
+					if (types.isEmptyObject(mapGroupToViewStates)) {
+						cache.delete(resource);
+					}
+				}
+			});
+		});
 
 		this.memento[this.key] = cache.toJSON();
 	}

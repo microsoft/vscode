@@ -19,6 +19,7 @@ import URI from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { LOG_SCHEME } from 'vs/workbench/parts/output/common/output';
+import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 
 export class LogViewerInput extends ResourceEditorInput {
@@ -53,9 +54,10 @@ export class LogViewer extends AbstractTextResourceEditor {
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@ITextFileService textFileService: ITextFileService
+		@ITextFileService textFileService: ITextFileService,
+		@INextEditorGroupsService nextEditorGroupService: INextEditorGroupsService
 	) {
-		super(LogViewer.LOG_VIEWER_EDITOR_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService);
+		super(LogViewer.LOG_VIEWER_EDITOR_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService, nextEditorGroupService);
 	}
 
 	protected getConfigurationOverrides(): IEditorOptions {
