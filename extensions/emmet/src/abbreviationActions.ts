@@ -116,9 +116,9 @@ function doWrapping(individualLines: boolean, args: any) {
 	}
 
 	function applyPreview(expandAbbrList: ExpandAbbreviationInput[]): Thenable<boolean> {
-		let lastOldPreviewRange: vscode.Range;
+		let lastOldPreviewRange = new vscode.Range(0, 0, 0, 0);
+		let lastNewPreviewRange = new vscode.Range(0, 0, 0, 0);
 		let totalLinesInserted = 0;
-		let charactersInLine = { line: -1, count: 0 };
 
 		return editor.edit(builder => {
 			for (let i = 0; i < rangesToReplace.length; i++) {
@@ -147,16 +147,16 @@ function doWrapping(individualLines: boolean, args: any) {
 				let newPreviewStart = oldPreviewRange.start.character;
 				const newPreviewLineEnd = oldPreviewRange.end.line + totalLinesInserted + newLinesInserted;
 				let newPreviewEnd = expandedTextLines[expandedTextLines.length - 1].length;
-				if (newPreviewLineEnd === charactersInLine.line) {
+				if (i > 0 && newPreviewLineEnd === lastNewPreviewRange.end.line) {
 					// If newPreviewLineEnd is equal to the previous expandedText lineEnd,
 					// set newPreviewStart to the length of the previous expandedText in that line
 					// plus the number of characters between both selections.
-					newPreviewStart = charactersInLine.count + (oldPreviewRange.start.character - lastOldPreviewRange.end.character);
+					newPreviewStart = lastNewPreviewRange.end.character + (oldPreviewRange.start.character - lastOldPreviewRange.end.character);
 					newPreviewEnd += newPreviewStart;
 				}
-				else if (newPreviewLineStart === charactersInLine.line) {
+				else if (i > 0 && newPreviewLineStart === lastNewPreviewRange.end.line) {
 					// Same as above but expandedTextLines.length > 1 so newPreviewEnd keeps its value.
-					newPreviewStart = charactersInLine.count + (oldPreviewRange.start.character - lastOldPreviewRange.end.character);
+					newPreviewStart = lastNewPreviewRange.end.character + (oldPreviewRange.start.character - lastOldPreviewRange.end.character);
 				}
 				else if (expandedTextLines.length === 1) {
 					// If the expandedText is single line, add the length of preceeding text as it will not be included in line length.
@@ -164,11 +164,9 @@ function doWrapping(individualLines: boolean, args: any) {
 				}
 
 				lastOldPreviewRange = rangesToReplace[i].previewRange;
-				rangesToReplace[i].previewRange = new vscode.Range(newPreviewLineStart, newPreviewStart, newPreviewLineEnd, newPreviewEnd);
+				rangesToReplace[i].previewRange = lastNewPreviewRange = new vscode.Range(newPreviewLineStart, newPreviewStart, newPreviewLineEnd, newPreviewEnd);
 
 				totalLinesInserted += newLinesInserted;
-				charactersInLine.count = newPreviewEnd;
-				charactersInLine.line = newPreviewLineEnd;
 			}
 		}, { undoStopBefore: false, undoStopAfter: false });
 	}
