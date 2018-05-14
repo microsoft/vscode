@@ -318,7 +318,26 @@ export class ReindentLinesAction extends EditorAction {
 		if (!model) {
 			return;
 		}
-		let edits = getReindentEditOperations(model, 1, model.getLineCount());
+
+		let edits: IIdentifiedSingleEditOperation[] = [];
+		let selections: Selection[] = [];
+
+		for (let selection of editor.getSelections()) {
+			if (selection.isEmpty()) { continue; }
+			selections.push(selection);
+		}
+
+		if (selections.length > 0) {
+			for (let selection of selections) {
+				let editOperations = getReindentEditOperations(model, selection.startLineNumber, selection.endLineNumber) || [];
+				for (let editOp of editOperations) {
+					edits.push(editOp);
+				}
+			}
+		} else {
+			edits = getReindentEditOperations(model, 1, model.getLineCount());
+		}
+
 		if (edits) {
 			editor.pushUndoStop();
 			editor.executeEdits(this.id, edits);
