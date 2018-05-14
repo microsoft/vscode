@@ -5,11 +5,16 @@
 'use strict';
 
 import * as dom from 'vs/base/browser/dom';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Action, IAction, RadioGroup } from 'vs/base/common/actions';
+import { Emitter } from 'vs/base/common/event';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { LRUCache } from 'vs/base/common/map';
+import { escape } from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
@@ -20,27 +25,22 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
+import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent';
-import { KeyCode } from '../../../../base/common/keyCodes';
-import { LRUCache } from '../../../../base/common/map';
-import { escape } from '../../../../base/common/strings';
-import LanguageFeatureRegistry from '../../../../editor/common/modes/languageFeatureRegistry';
-import { OutlineModel, OutlineElement } from './outlineModel';
+import { OutlineElement, OutlineModel } from './outlineModel';
 import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from './outlineTree';
-import { CollapseAction } from 'vs/workbench/browser/viewlet';
-import { Emitter } from '../../../../base/common/event';
-import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage';
 
 class RequestOracle {
 

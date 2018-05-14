@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { localize } from 'vs/nls';
-import { ViewsRegistry, ViewLocation, IViewsService } from 'vs/workbench/common/views';
+import { IViewsService, ViewLocation, ViewsRegistry } from 'vs/workbench/common/views';
 import { OutlinePanel } from './outlinePanel';
-import { CommandsRegistry } from '../../../../platform/commands/common/commands';
 
 const _outlineDesc = {
 	id: 'code.outline',

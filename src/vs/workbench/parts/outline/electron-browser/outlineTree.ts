@@ -6,18 +6,18 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { size, values } from 'vs/base/common/collections';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { values, size } from 'vs/base/common/collections';
+import { createMatches } from 'vs/base/common/filters';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IFilter, IRenderer, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
 import { DefaultController, ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
 import 'vs/css!./media/symbol-icons';
 import { Range } from 'vs/editor/common/core/range';
 import { symbolKindToCssClass } from 'vs/editor/common/modes';
-import { HighlightedLabel } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel';
-import { createMatches } from '../../../../base/common/filters';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from './outlineModel';
-import { IExtensionService } from '../../../services/extensions/common/extensions';
 
 export enum OutlineItemCompareType {
 	ByPosition,

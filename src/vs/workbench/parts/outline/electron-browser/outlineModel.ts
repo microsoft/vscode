@@ -5,10 +5,10 @@
 'use strict';
 
 import { DocumentSymbolProviderRegistry, SymbolInformation, DocumentSymbolProvider } from 'vs/editor/common/modes';
-import { ITextModel } from '../../../../editor/common/model';
-import { asWinJsPromise } from '../../../../base/common/async';
+import { ITextModel } from 'vs/editor/common/model';
+import { asWinJsPromise } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { fuzzyScore } from '../../../../base/common/filters';
+import { fuzzyScore } from 'vs/base/common/filters';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 
