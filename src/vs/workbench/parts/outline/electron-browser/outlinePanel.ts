@@ -39,6 +39,8 @@ import LanguageFeatureRegistry from '../../../../editor/common/modes/languageFea
 import { OutlineItem, OutlineItemGroup, OutlineModel, getOutline } from './outlineModel';
 import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from './outlineTree';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
+import { Emitter } from '../../../../base/common/event';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage';
 
 class RequestOracle {
 
@@ -102,11 +104,62 @@ class SimpleToggleAction extends Action {
 	}
 }
 
+class OutlineState {
+
+	private _followCursor = false;
+	private _sortBy = OutlineItemCompareType.ByKind;
+
+	private _onDidChange = new Emitter<{ followCursor?: boolean, sortBy?: boolean }>();
+	readonly onDidChange = this._onDidChange.event;
+
+	set followCursor(value: boolean) {
+		if (value !== this._followCursor) {
+			this._followCursor = value;
+			this._onDidChange.fire({ followCursor: true });
+		}
+	}
+
+	get followCursor(): boolean {
+		return this._followCursor;
+	}
+
+	set sortBy(value: OutlineItemCompareType) {
+		if (value !== this._sortBy) {
+			this._sortBy = value;
+			this._onDidChange.fire({ sortBy: true });
+		}
+	}
+
+	get sortBy(): OutlineItemCompareType {
+		return this._sortBy;
+	}
+
+	persist(storageService: IStorageService): void {
+		storageService.store('outline/state', JSON.stringify({ followCursor: this.followCursor, sortBy: this.sortBy }), StorageScope.WORKSPACE);
+	}
+
+	restore(storageService: IStorageService): void {
+		let raw = storageService.get('outline/state', StorageScope.WORKSPACE);
+		if (!raw) {
+			return;
+		}
+		let data: any;
+		try {
+			data = JSON.parse(raw);
+		} catch (e) {
+			return;
+		}
+		this.followCursor = data.followCursor;
+		this.sortBy = data.sortBy;
+	}
+}
+
 export class OutlinePanel extends ViewsViewletPanel {
 
 	private _disposables = new Array<IDisposable>();
 
 	private _editorDisposables = new Array<IDisposable>();
+	private _outlineViewState = new OutlineState();
 	private _requestOracle: RequestOracle;
 	private _domNode: HTMLElement;
 	private _message: HTMLDivElement;
@@ -116,18 +169,18 @@ export class OutlinePanel extends ViewsViewletPanel {
 	private _treeComparator: OutlineItemComparator;
 	private _treeStates = new LRUCache<string, OutlineTreeState>(10);
 
-	// todo@joh have memento object
-	private _followCursor = false;
-
 	constructor(
 		options: IViewOptions,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
+		@IStorageService private readonly _storageService: IStorageService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService);
+
+		this._outlineViewState.restore(this._storageService);
 	}
 
 	dispose(): void {
@@ -178,11 +231,13 @@ export class OutlinePanel extends ViewsViewletPanel {
 		};
 		const dataSource = new OutlineDataSource();
 		const renderer = new OutlineRenderer();
-		this._treeComparator = new OutlineItemComparator();
+		this._treeComparator = new OutlineItemComparator(this._outlineViewState.sortBy);
 		this._treeFilter = new OutlineItemFilter();
 		this._tree = this._instantiationService.createInstance(WorkbenchTree, treeContainer, { controller, dataSource, renderer, sorter: this._treeComparator, filter: this._treeFilter }, {});
 
 		this._disposables.push(this._tree, this._input);
+
+		this._disposables.push(this._outlineViewState.onDidChange(this._onDidChangeUserState, this));
 	}
 
 	protected layoutBody(height: number): void {
@@ -210,12 +265,12 @@ export class OutlinePanel extends ViewsViewletPanel {
 
 	getSecondaryActions(): IAction[] {
 		let group = new RadioGroup([
-			new SimpleToggleAction(localize('sortByPosition', "Sort By: Position"), true, _ => this._onSortTypeChanged(OutlineItemCompareType.ByPosition)),
-			new SimpleToggleAction(localize('sortByName', "Sort By: Name"), false, _ => this._onSortTypeChanged(OutlineItemCompareType.ByName)),
-			new SimpleToggleAction(localize('sortByKind', "Sort By: Type"), false, _ => this._onSortTypeChanged(OutlineItemCompareType.ByKind)),
+			new SimpleToggleAction(localize('sortByPosition', "Sort By: Position"), this._outlineViewState.sortBy === OutlineItemCompareType.ByPosition, _ => this._outlineViewState.sortBy = OutlineItemCompareType.ByPosition),
+			new SimpleToggleAction(localize('sortByName', "Sort By: Name"), this._outlineViewState.sortBy === OutlineItemCompareType.ByName, _ => this._outlineViewState.sortBy = OutlineItemCompareType.ByName),
+			new SimpleToggleAction(localize('sortByKind', "Sort By: Type"), this._outlineViewState.sortBy === OutlineItemCompareType.ByKind, _ => this._outlineViewState.sortBy = OutlineItemCompareType.ByKind),
 		]);
 		let result = [
-			new SimpleToggleAction(localize('live', "Follow Cursor"), false, action => this._followCursor = action.checked),
+			new SimpleToggleAction(localize('live', "Follow Cursor"), this._outlineViewState.followCursor, action => this._outlineViewState.followCursor = action.checked),
 			new Separator(),
 			...group.actions,
 		];
@@ -225,9 +280,13 @@ export class OutlinePanel extends ViewsViewletPanel {
 		return result;
 	}
 
-	private _onSortTypeChanged(type: OutlineItemCompareType) {
-		if (this._treeComparator.type !== type) {
-			this._treeComparator.type = type;
+	private _onDidChangeUserState(e: { followCursor?: boolean, sortBy?: boolean }) {
+		this._outlineViewState.persist(this._storageService);
+		if (e.followCursor) {
+			// todo@joh update immediately
+		}
+		if (e.sortBy) {
+			this._treeComparator.type = this._outlineViewState.sortBy;
 			this._tree.refresh(undefined, true);
 		}
 	}
@@ -320,7 +379,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 	}
 
 	private async _revealEditorSelection(group: OutlineItemGroup, selection: Selection): TPromise<void> {
-		if (!this._followCursor) {
+		if (!this._outlineViewState.followCursor) {
 			return;
 		}
 		let item = group.getItemEnclosingPosition({

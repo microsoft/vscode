@@ -26,7 +26,9 @@ export enum OutlineItemCompareType {
 
 export class OutlineItemComparator implements ISorter {
 
-	type: OutlineItemCompareType = OutlineItemCompareType.ByPosition;
+	constructor(
+		public type: OutlineItemCompareType = OutlineItemCompareType.ByPosition
+	) { }
 
 	compare(tree: ITree, a: OutlineItem, b: OutlineItem): number {
 		switch (this.type) {
