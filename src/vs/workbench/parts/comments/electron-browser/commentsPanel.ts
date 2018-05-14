@@ -133,10 +133,11 @@ export class CommentsPanel extends Panel {
 		let currentActiveResource = activeInput ? activeInput.getResource() : void 0;
 		if (currentActiveResource && currentActiveResource.toString() === element.resource.toString()) {
 			const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
+			const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment.commentId : element.comment.commentId;
 			const control = this.editorService.getActiveEditor().getControl();
 			if (threadToReveal && isCodeEditor(control)) {
 				const controller = ReviewController.get(control);
-				controller.revealCommentThread(threadToReveal);
+				controller.revealCommentThread(threadToReveal, commentToReveal);
 			}
 
 			return true;
@@ -160,10 +161,11 @@ export class CommentsPanel extends Panel {
 		}, sideBySide), setCommentsForFile]).then(vals => {
 			let editor = vals[0];
 			const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
+			const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment.commentId : element.comment.commentId;
 			const control = editor.getControl();
 			if (threadToReveal && isCodeEditor(control)) {
 				const controller = ReviewController.get(control);
-				controller.revealCommentThread(threadToReveal);
+				controller.revealCommentThread(threadToReveal, commentToReveal);
 			}
 			setCommentsForFile = null;
 		});

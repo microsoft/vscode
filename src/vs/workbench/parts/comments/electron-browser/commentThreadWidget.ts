@@ -81,6 +81,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _commentEditor: ICodeEditor;
 	private _commentsElement: HTMLElement;
 	private _commentElements: CommentNode[];
+	private _focusedCommentElement: CommentNode;
 	private _resizeObserver: any;
 	private _onDidClose = new Emitter<ReviewZoneWidget>();
 	private _isCollapsed;
@@ -127,7 +128,11 @@ export class ReviewZoneWidget extends ZoneWidget {
 		return this._onDidClose.event;
 	}
 
-	public reveal() {
+	protected revealLine(lineNumber: number) {
+		// we don't do anything here as we always do the reveal ourselves.
+	}
+
+	public reveal(commentId?: string) {
 		if (this._isCollapsed) {
 			this._isCollapsed = false;
 
@@ -136,6 +141,20 @@ export class ReviewZoneWidget extends ZoneWidget {
 				this.show(range, 2);
 			} else {
 				this.show({ lineNumber: this._commentThread.range.startLineNumber, column: 1 }, 2);
+			}
+		}
+
+
+		if (commentId) {
+			let height = this.editor.getLayoutInfo().height;
+			let matchedNode = this._commentElements.filter(commentNode => commentNode.comment.commentId === commentId);
+			if (matchedNode && matchedNode.length) {
+				const commentThreadCoords = dom.getDomNodePagePosition(this._commentElements[0].domNode);
+				const commentCoords = dom.getDomNodePagePosition(matchedNode[0].domNode);
+				this._focusedCommentElement = matchedNode[0];
+
+				this.editor.setScrollTop(this.editor.getTopForLineNumber(this._commentThread.range.startLineNumber) - height / 2 + commentCoords.top - commentThreadCoords.top);
+				return;
 			}
 		}
 
@@ -255,7 +274,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 	}
 
 	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
-		console.log('dolayout');
 		this._commentEditor.layout({ height: (this._commentEditor.isFocused() ? 5 : 1) * 18, width: widthInPixel - 20 /* margin */ });
 	}
 
@@ -274,6 +292,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		this._commentsElement = $('div.comments-container').appendTo(this._bodyElement).getHTMLElement();
 		this._commentElements = [];
+		this._focusedCommentElement = null;
 		for (let i = 0; i < this._commentThread.comments.length; i++) {
 			let newCommentNode = new CommentNode(this._commentThread.comments[i]);
 			this._commentElements.push(newCommentNode);
@@ -353,7 +372,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 				const frameThickness = Math.round(lineHeight / 9) * 2;
 
 				const computedLinesNumber = Math.ceil((headHeight + entries[0].contentRect.height + arrowHeight + frameThickness) / lineHeight);
-				console.log(entries[0].contentRect.height);
 				this._relayout(computedLinesNumber);
 			}
 		});

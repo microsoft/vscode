@@ -141,10 +141,10 @@ export class ReviewController implements IEditorContribution {
 		return editor.getContribution<ReviewController>(ID);
 	}
 
-	public revealCommentThread(threadId: string): void {
+	public revealCommentThread(threadId: string, commentId?: string): void {
 		const commentThreadWidget = this._commentWidgets.filter(widget => widget.commentThread.threadId === threadId);
 		if (commentThreadWidget.length === 1) {
-			commentThreadWidget[0].reveal();
+			commentThreadWidget[0].reveal(commentId);
 		}
 	}
 

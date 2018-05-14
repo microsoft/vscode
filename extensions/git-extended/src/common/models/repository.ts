@@ -377,7 +377,13 @@ export class GitHubRepository {
 				owner: this.remote.owner,
 				repo: this.remote.name,
 			});
-			let ret = result.data.map(item => new PullRequestModel(this.octokit, this.remote, item));
+			let ret = result.data.map(item => {
+				if (!item.head.repo) {
+					console.log('The remote branch for this PR was already deleted.');
+					return null;
+				}
+				return new PullRequestModel(this.octokit, this.remote, item);
+			}).filter(item => item !== null);
 			return ret;
 		} else {
 
@@ -399,7 +405,13 @@ export class GitHubRepository {
 			});
 
 			return Promise.all(promises).then(values => {
-				return values.map(item => new PullRequestModel(this.octokit, this.remote, item.data));
+				return values.map(item => {
+					if (!item.head.repo) {
+						console.log('The remote branch for this PR was already deleted.');
+						return null;
+					}
+					return new PullRequestModel(this.octokit, this.remote, item.data);
+				}).filter(item => item !== null);
 			});
 		}
 	}
@@ -410,6 +422,11 @@ export class GitHubRepository {
 			repo: this.remote.name,
 			number: id
 		});
+		if (!data.head.repo) {
+			console.log('The remote branch for this PR was already deleted.');
+			return null;
+		}
+
 		let ret = new PullRequestModel(this.octokit, this.remote, data);
 		return ret;
 	}

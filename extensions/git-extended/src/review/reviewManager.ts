@@ -147,6 +147,10 @@ export class ReviewManager implements vscode.DecorationProvider {
 		}
 
 		const pr = await githubRepo.getPullRequest(this._prNumber);
+		if (!pr) {
+			console.log('This PR is no longer valid');
+			return;
+		}
 		this._pr = pr;
 		if (!this._lastCommitSha) {
 			this._lastCommitSha = pr.head.sha;
@@ -220,6 +224,11 @@ export class ReviewManager implements vscode.DecorationProvider {
 		if (!githubRepo) { return; }
 
 		const pr = await githubRepo.getPullRequest(this._prNumber);
+		if (!pr) {
+			console.log('This PR is no longer valid');
+			return;
+		}
+
 		if (pr.prItem.head.sha !== this._lastCommitSha) {
 			await vscode.window.showInformationMessage('There are updates available for this branch.');
 			// TODO: Have 'Pull' option that will fetch latest from ref branch and apply to read only branch

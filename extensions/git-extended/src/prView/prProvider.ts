@@ -264,7 +264,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 			});
 
 			return Promise.all(promises).then(values => {
-				return _.flatten(values);
+				return _.flatten(values).filter(value => value !== null);
 			});
 		}
 
