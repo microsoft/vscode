@@ -299,21 +299,9 @@ declare module 'vscode' {
 	//#region Matt: WebView Serializer
 
 	/**
-	 * Save and restore webview panels that have been persisted when vscode shuts down.
+	 * Restore webview panels that have been persisted when vscode shuts down.
 	 */
 	interface WebviewPanelSerializer {
-		/**
-		 * Save a webview panel's `state`.
-		 *
-		 * Called before shutdown. Extensions have a 250ms timeframe to return a state. If serialization
-		 * takes longer than 250ms, the panel will not be serialized.
-		 *
-		 * @param webviewPanel webview Panel to serialize. May or may not be visible.
-		 *
-		 * @returns JSON serializable state blob.
-		 */
-		serializeWebviewPanel(webviewPanel: WebviewPanel): Thenable<any>;
-
 		/**
 		 * Restore a webview panel from its seriailzed `state`.
 		 *

@@ -15,7 +15,7 @@ import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
 
 suite('ExtHostWebview', function () {
 
-	test('Cannot register multiple serializer for the same view type', async () => {
+	test('Cannot register multiple serializers for the same view type', async () => {
 		const viewType = 'view.type';
 
 		const shape = createNoopMainThreadWebviews();
@@ -24,9 +24,7 @@ suite('ExtHostWebview', function () {
 		let lastInvokedDeserializer: vscode.WebviewPanelSerializer | undefined = undefined;
 
 		class NoopSerializer implements vscode.WebviewPanelSerializer {
-			async serializeWebviewPanel(webview: vscode.WebviewPanel): Promise<any> { /* noop */ }
-
-			async deserializeWebviewPanel(webview: vscode.WebviewPanel, state: any): Promise<void> {
+			async deserializeWebviewPanel(_webview: vscode.WebviewPanel, _state: any): Promise<void> {
 				lastInvokedDeserializer = this;
 			}
 		}
