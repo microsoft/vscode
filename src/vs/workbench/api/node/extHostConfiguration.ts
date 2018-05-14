@@ -121,17 +121,17 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 									}
 									return result;
 								},
-								set: (target: any, property: string, value: any) => {
+								set: (_target: any, property: string, value: any) => {
 									cloneTarget();
 									clonedTarget[property] = value;
 									return true;
 								},
-								deleteProperty: (target: any, property: string) => {
+								deleteProperty: (_target: any, property: string) => {
 									cloneTarget();
 									delete clonedTarget[property];
 									return true;
 								},
-								defineProperty: (target: any, property: string, descriptor: any) => {
+								defineProperty: (_target: any, property: string, descriptor: any) => {
 									cloneTarget();
 									Object.defineProperty(clonedTarget, property, descriptor);
 									return true;
@@ -179,10 +179,10 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 			return isObject(target) ?
 				new Proxy(target, {
 					get: (target: any, property: string) => readonlyProxy(target[property]),
-					set: (target: any, property: string, value: any) => { throw new Error(`TypeError: Cannot assign to read only property '${property}' of object`); },
-					deleteProperty: (target: any, property: string) => { throw new Error(`TypeError: Cannot delete read only property '${property}' of object`); },
-					defineProperty: (target: any, property: string) => { throw new Error(`TypeError: Cannot define property '${property}' for a readonly object`); },
-					setPrototypeOf: (target: any) => { throw new Error(`TypeError: Cannot set prototype for a readonly object`); },
+					set: (_target: any, property: string, _value: any) => { throw new Error(`TypeError: Cannot assign to read only property '${property}' of object`); },
+					deleteProperty: (_target: any, property: string) => { throw new Error(`TypeError: Cannot delete read only property '${property}' of object`); },
+					defineProperty: (_target: any, property: string) => { throw new Error(`TypeError: Cannot define property '${property}' for a readonly object`); },
+					setPrototypeOf: (_target: any) => { throw new Error(`TypeError: Cannot set prototype for a readonly object`); },
 					isExtensible: () => false,
 					preventExtensions: () => true
 				}) : target;

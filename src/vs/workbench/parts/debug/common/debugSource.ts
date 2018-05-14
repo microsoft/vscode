@@ -53,7 +53,7 @@ export class Source {
 	}
 
 	public get name() {
-		return this.raw.name;
+		return this.raw.name || resources.basenameOrAuthority(this.uri);
 	}
 
 	public get origin() {

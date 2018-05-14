@@ -38,7 +38,6 @@ import { IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel } fr
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IPreferencesSearchService, ISearchProvider } from '../common/preferences';
-import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 const SETTINGS_ENTRY_TEMPLATE_ID = 'settings.entry.template';
@@ -85,9 +84,9 @@ enum SearchResultIdx {
 const $ = DOM.$;
 
 export const configuredItemForeground = registerColor('settings.configuredItemForeground', {
-	light: '#a76e12',
-	dark: '#E2C08D',
-	hc: '#E2C08D'
+	light: '#019001',
+	dark: '#73C991',
+	hc: '#73C991'
 }, localize('configuredItemForeground', "The foreground color for a configured setting."));
 
 export class SettingsEditor2 extends BaseEditor {
@@ -633,12 +632,12 @@ class SettingItemDelegate implements IDelegate<IListEntry> {
 
 	getHeight(entry: IListEntry) {
 		if (entry.templateId === SETTINGS_GROUP_ENTRY_TEMPLATE_ID) {
-			return 60;
+			return 42;
 		}
 
 		if (entry.templateId === SETTINGS_ENTRY_TEMPLATE_ID) {
 			// TODO dynamic height
-			return 75;
+			return 68;
 		}
 
 		if (entry.templateId === BUTTON_ROW_ENTRY_TEMPLATE) {
@@ -709,8 +708,6 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 		const rightElement = DOM.append(itemContainer, $('.setting-item-right'));
 
 		const titleElement = DOM.append(leftElement, $('.setting-item-title'));
-		const isConfiguredIndicatorElement = DOM.append(titleElement, $('span.setting-item-is-configured-indicator'));
-		new OcticonLabel(isConfiguredIndicatorElement).text = '$(primitive-dot)';
 		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
 		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
 		const overridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
@@ -851,7 +848,7 @@ class GroupTitleRenderer implements IRenderer<IGroupTitleEntry, IGroupTitleTempl
 	renderTemplate(parent: HTMLElement): IGroupTitleTemplate {
 		DOM.addClass(parent, 'group-title');
 
-		const labelElement = DOM.append(parent, $('h2.settings-group-title-label'));
+		const labelElement = DOM.append(parent, $('h3.settings-group-title-label'));
 
 		const toDispose = [];
 		const template: IGroupTitleTemplate = {

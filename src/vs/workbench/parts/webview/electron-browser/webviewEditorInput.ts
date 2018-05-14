@@ -66,10 +66,10 @@ export class WebviewEditorInput extends EditorInput {
 			this._container = undefined;
 		}
 
-		if (this._events) {
+		if (this._events && this._events.onDispose) {
 			this._events.onDispose();
-			this._events = undefined;
 		}
+		this._events = undefined;
 
 		super.dispose();
 	}

@@ -76,7 +76,7 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 		this._themeChangeSubscription.dispose();
 		this._modelChangeSubscription.dispose();
 
-		// dipose model ref
+		// dispose model ref
 		dispose(this._modelRef);
 		super.dispose();
 	}

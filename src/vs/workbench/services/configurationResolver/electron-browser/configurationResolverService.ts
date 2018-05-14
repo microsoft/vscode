@@ -20,6 +20,8 @@ import { IProcessEnvironment } from 'vs/base/common/platform';
 import { VariableResolver } from 'vs/workbench/services/configurationResolver/node/variableResolver';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { isUndefinedOrNull } from 'vs/base/common/types';
+import { localize } from 'vs/nls';
 
 
 export class ConfigurationResolverService implements IConfigurationResolverService {
@@ -146,10 +148,12 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 				}
 
 				return this.commandService.executeCommand<string>(commandId, configuration).then(result => {
-					if (result) {
+					if (typeof result === 'string') {
 						commandValueMapping[interactiveVariable] = result;
-					} else {
+					} else if (isUndefinedOrNull(result)) {
 						cancelled = true;
+					} else {
+						throw new Error(localize('stringsOnlySupported', "Command {0} did not return a string result. Only strings are supported as results for commands used for variable substitution.", commandId));
 					}
 				});
 			};

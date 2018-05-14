@@ -23,7 +23,7 @@ import * as typeConverters from './utils/typeConverters';
 import { CommandManager } from './utils/commandManager';
 import { LanguageDescription } from './utils/languageDescription';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
-import { disposeAll } from './utils/dipose';
+import { disposeAll } from './utils/dispose';
 import { DiagnosticKind } from './features/diagnostics';
 
 // Style check diagnostics that can be reported as warnings
@@ -146,8 +146,9 @@ export default class TypeScriptServiceClientHost {
 	}
 
 	private configurationChanged(): void {
-		const config = workspace.getConfiguration('typescript');
-		this.reportStyleCheckAsWarnings = config.get('reportStyleChecksAsWarnings', true);
+		const typescriptConfig = workspace.getConfiguration('typescript');
+
+		this.reportStyleCheckAsWarnings = typescriptConfig.get('reportStyleChecksAsWarnings', true);
 	}
 
 	private async findLanguage(resource: Uri): Promise<LanguageProvider | undefined> {
@@ -239,11 +240,14 @@ export default class TypeScriptServiceClientHost {
 		});
 	}
 
-	private createMarkerDatas(diagnostics: Proto.Diagnostic[], source: string): Diagnostic[] {
+	private createMarkerDatas(
+		diagnostics: Proto.Diagnostic[],
+		source: string
+	): (Diagnostic & { reportUnnecessary: any })[] {
 		return diagnostics.map(tsDiag => this.tsDiagnosticToVsDiagnostic(tsDiag, source));
 	}
 
-	private tsDiagnosticToVsDiagnostic(diagnostic: Proto.Diagnostic, source: string) {
+	private tsDiagnosticToVsDiagnostic(diagnostic: Proto.Diagnostic, source: string): Diagnostic & { reportUnnecessary: any } {
 		const { start, end, text } = diagnostic;
 		const range = new Range(typeConverters.Position.fromLocation(start), typeConverters.Position.fromLocation(end));
 		const converted = new Diagnostic(range, text);
@@ -252,7 +256,8 @@ export default class TypeScriptServiceClientHost {
 		if (diagnostic.code) {
 			converted.code = diagnostic.code;
 		}
-		return converted;
+		(converted as Diagnostic & { reportUnnecessary: any }).reportUnnecessary = diagnostic.reportsUnnecessary;
+		return converted as Diagnostic & { reportUnnecessary: any };
 	}
 
 	private getDiagnosticSeverity(diagnostic: Proto.Diagnostic): DiagnosticSeverity {
