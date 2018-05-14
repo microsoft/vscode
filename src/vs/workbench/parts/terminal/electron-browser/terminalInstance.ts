@@ -537,7 +537,7 @@ export class TerminalInstance implements ITerminalInstance {
 			// background since scrollTop changes take no effect but the terminal's position does
 			// change since the number of visible rows decreases.
 			this._xterm.emit('scroll', this._xterm.buffer.ydisp);
-			if (this._container) {
+			if (this._container && this._container.parentElement) {
 				// Force a layout when the instance becomes invisible. This is particularly important
 				// for ensuring that terminals that are created in the background by an extension will
 				// correctly get correct character measurements in order to render to the screen (see
