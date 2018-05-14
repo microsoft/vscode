@@ -359,7 +359,7 @@ export class SettingsEditor2 extends BaseEditor {
 		};
 
 		/* __GDPR__
-			"settingEditor.settingModified" : {
+			"settingsEditor.settingModified" : {
 				"key" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"query" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
 				"groupId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -370,7 +370,7 @@ export class SettingsEditor2 extends BaseEditor {
 				"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
-		this.telemetryService.publicLog('settingEditor.settingModified', data);
+		this.telemetryService.publicLog('settingsEditor.settingModified', data);
 	}
 
 	private render(): TPromise<any> {
@@ -442,7 +442,7 @@ export class SettingsEditor2 extends BaseEditor {
 				"requestCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
-		this.telemetryService.publicLog('defaultSettings.filter', data);
+		this.telemetryService.publicLog('settingsEditor.filter', data);
 	}
 
 	private localFilterPreferences(query: string): TPromise<void> {
@@ -473,7 +473,7 @@ export class SettingsEditor2 extends BaseEditor {
 					return TPromise.wrapError(err);
 				} else {
 					/* __GDPR__
-						"defaultSettings.searchError" : {
+						"settingsEditor.searchError" : {
 							"message": { "classification": "CallstackOrException", "purpose": "FeatureInsight" },
 							"filter": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 						}
@@ -481,7 +481,7 @@ export class SettingsEditor2 extends BaseEditor {
 					const message = getErrorMessage(err).trim();
 					if (message && message !== 'Error') {
 						// "Error" = any generic network error
-						this.telemetryService.publicLog('defaultSettings.searchError', { message, filter });
+						this.telemetryService.publicLog('settingsEditor.searchError', { message, filter });
 						this.logService.info('Setting search error: ' + message);
 					}
 					return null;
