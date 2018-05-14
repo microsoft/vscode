@@ -134,7 +134,14 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			this._webviews.set(handle, webview);
 			webview._events = this.createWebviewEventDelegate(handle);
 
-			return this._proxy.$deserializeWebviewPanel(handle, webview.state.viewType, webview.getTitle(), JSON.parse(webview.state.state), webview.position, webview.options)
+			let state;
+			try {
+				state = JSON.parse(webview.state.state);
+			} catch {
+				state = {};
+			}
+
+			return this._proxy.$deserializeWebviewPanel(handle, webview.state.viewType, webview.getTitle(), state, webview.position, webview.options)
 				.then(undefined, () => {
 					webview.html = MainThreadWebviews.getDeserializationFailedContents(viewType);
 				});
@@ -146,7 +153,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			return false;
 		}
 
-		return this._revivers.has(webview.viewType) || webview.reviver !== null;
+		return (this._revivers.has(webview.viewType) || webview.reviver !== null) && webview.state.state;
 	}
 
 	private _onWillShutdown(): TPromise<boolean> {
