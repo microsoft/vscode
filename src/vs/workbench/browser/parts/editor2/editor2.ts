@@ -19,7 +19,7 @@ import { IEditorInput } from 'vs/platform/editor/common/editor';
 
 export const EDITOR_TITLE_HEIGHT = 35;
 
-export const EDITOR_MIN_DIMENSIONS = new Dimension(170, 70);
+export const EDITOR_MIN_DIMENSIONS = new Dimension(220, 70);
 export const EDITOR_MAX_DIMENSIONS = new Dimension(Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY);
 
 export interface INextEditorPartOptions extends IWorkbenchEditorPartConfiguration {

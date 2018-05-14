@@ -586,23 +586,18 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 	//#region Part
 
 	get minSize(): Dimension { // TODO@grid this needs better support from the GridWidget to be correct for complex layouts
+		let horizontalViews = 0;
+		let verticalViews = 0;
 
-		const countViews = (orientation: Orientation) => {
-			let count = 0;
-			this.groupViews.forEach(groupView => {
-				if (this.gridWidget.getOrientation(groupView) === orientation) {
-					count++;
-				}
-			});
+		this.groupViews.forEach(groupView => {
+			if (this.gridWidget.getOrientation(groupView) === Orientation.HORIZONTAL) {
+				horizontalViews++;
+			} else {
+				verticalViews++;
+			}
+		});
 
-			return count;
-		};
-
-		if (this.orientation === GroupOrientation.HORIZONTAL) {
-			return new Dimension(countViews(Orientation.HORIZONTAL) * EDITOR_MIN_DIMENSIONS.width, EDITOR_MIN_DIMENSIONS.height);
-		}
-
-		return new Dimension(EDITOR_MIN_DIMENSIONS.width, countViews(Orientation.HORIZONTAL) * EDITOR_MIN_DIMENSIONS.height);
+		return new Dimension(Math.max(horizontalViews, 1) * EDITOR_MIN_DIMENSIONS.width, Math.max(verticalViews) * EDITOR_MIN_DIMENSIONS.height);
 	}
 
 	protected updateStyles(): void {
