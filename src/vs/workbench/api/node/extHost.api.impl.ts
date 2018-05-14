@@ -386,13 +386,16 @@ export function createApiFactory(
 				return extHostMessageService.showMessage(extension, Severity.Error, message, first, rest);
 			},
 			showQuickPick(items: any, options: vscode.QuickPickOptions, token?: vscode.CancellationToken): any {
-				return extHostQuickOpen.showQuickPick(items, options, token);
+				return extHostQuickOpen.showQuickPick(undefined, items, options, token);
 			},
 			showWorkspaceFolderPick(options: vscode.WorkspaceFolderPickOptions) {
 				return extHostQuickOpen.showWorkspaceFolderPick(options);
 			},
 			showInputBox(options?: vscode.InputBoxOptions, token?: vscode.CancellationToken) {
-				return extHostQuickOpen.showInput(options, token);
+				return extHostQuickOpen.showInput(undefined, options, token);
+			},
+			multiStepInput<T>(handler: (input: vscode.QuickInput, token: vscode.CancellationToken) => Thenable<T>, token?: vscode.CancellationToken): Thenable<T> {
+				return extHostQuickOpen.multiStepInput(handler, token);
 			},
 			showOpenDialog(options) {
 				return extHostDialogs.showOpenDialog(options);

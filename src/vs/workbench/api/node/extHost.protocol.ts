@@ -332,10 +332,11 @@ export interface MyQuickPickItems extends IPickOpenEntry {
 	handle: number;
 }
 export interface MainThreadQuickOpenShape extends IDisposable {
-	$show(options: IPickOptions): TPromise<number | number[]>;
+	$show(multiStepHandle: number | undefined, options: IPickOptions): TPromise<number | number[]>;
 	$setItems(items: MyQuickPickItems[]): TPromise<any>;
 	$setError(error: Error): TPromise<any>;
-	$input(options: vscode.InputBoxOptions, validateInput: boolean): TPromise<string>;
+	$input(multiStepHandle: number | undefined, options: vscode.InputBoxOptions, validateInput: boolean): TPromise<string>;
+	$multiStep(handle: number): TPromise<never>;
 }
 
 export interface MainThreadStatusBarShape extends IDisposable {
