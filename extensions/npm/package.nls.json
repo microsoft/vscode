@@ -6,6 +6,7 @@
 	"config.npm.packageManager": "The package manager used to run scripts.",
 	"config.npm.exclude": "Configure glob patterns for folders that should be excluded from automatic script detection.",
 	"config.npm.enableScriptExplorer": "Enable an explorer view for npm scripts.",
+	"config.npm.filterPrePostScripts": "Filter pre- and postscripts. Default is true.",
 	"npm.parseError": "Npm task detection: failed to parse the file {0}",
 	"taskdef.script": "The npm script to customize.",
 	"taskdef.path": "The path to the folder of the package.json file that provides the script. Can be omitted.",
