@@ -236,11 +236,11 @@
 				max-height: 100%;
 			}
 
-			body a {
+			a {
 				color: var(--vscode-textLink-foreground);
 			}
 
-			body a:hover {
+			a:hover {
 				color: var(--vscode-textLink-activeForeground);
 			}
 
@@ -251,6 +251,16 @@
 				outline: 1px solid -webkit-focus-ring-color;
 				outline-offset: -1px;
 			}
+
+			code {
+				color: var(--vscode-textPreformat-foreground);
+			}
+
+			blockquote {
+				background: var(--vscode-textBlockQuote-background);
+				border-color: var(vscode-textBlockQuote-border);
+			}
+
 			::-webkit-scrollbar {
 				width: 10px;
 				height: 10px;
