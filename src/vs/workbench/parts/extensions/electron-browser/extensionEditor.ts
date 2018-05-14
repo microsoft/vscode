@@ -99,9 +99,13 @@ class NavBar {
 		this.actionbar = new ActionBar(element, { animated: false });
 	}
 
-	push(id: string, label: string): void {
+	push(id: string, label: string, tooltip: string): void {
 		const run = () => this._update(id);
 		const action = new Action(id, label, null, true, run);
+
+		if (!action.tooltip) {
+			action.tooltip = tooltip;
+		}
 
 		this.actions.push(action);
 		this.actionbar.push(action);
@@ -371,10 +375,10 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.navbar.clear();
 		this.navbar.onChange(this.onNavbarChange.bind(this, extension), this, this.transientDisposables);
-		this.navbar.push(NavbarSection.Readme, localize('details', "Details"));
-		this.navbar.push(NavbarSection.Contributions, localize('contributions', "Contributions"));
-		this.navbar.push(NavbarSection.Changelog, localize('changelog', "Changelog"));
-		this.navbar.push(NavbarSection.Dependencies, localize('dependencies', "Dependencies"));
+		this.navbar.push(NavbarSection.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details"));
+		this.navbar.push(NavbarSection.Contributions, localize('contributions', "Contributions"), localize('contributionstooltip', "Extension contributions to VS Code editor"));
+		this.navbar.push(NavbarSection.Changelog, localize('changelog', "Changelog"), localize('changelogtooltip', "Extension changelog"));
+		this.navbar.push(NavbarSection.Dependencies, localize('dependencies', "Dependencies"), localize('dependenciestooltip', "Extension dependencies"));
 
 		this.editorLoadComplete = true;
 		return super.setInput(input, options);
