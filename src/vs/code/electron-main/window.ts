@@ -494,7 +494,7 @@ export class CodeWindow implements ICodeWindow {
 		});
 	}
 
-	public load(config: IWindowConfiguration, isReload?: boolean, temporaryArgs?: ParsedArgs): void {
+	public load(config: IWindowConfiguration, isReload?: boolean, disableExtensions?: boolean): void {
 
 		// If this is the first time the window is loaded, we associate the paths
 		// directly with the window because we assume the loading will just work
@@ -511,11 +511,11 @@ export class CodeWindow implements ICodeWindow {
 			this._readyState = ReadyState.NAVIGATING;
 		}
 
-		// Add args to the config, but do not preserve them on currentConfig or
-		// pendingLoadConfig so that they are applied only on this load
+		// Add disable-extensions to the config, but do not preserve it on currentConfig or
+		// pendingLoadConfig so that it is applied only on this load
 		const configuration = objects.assign({}, config);
-		if (temporaryArgs) {
-			configuration['disable-extensions'] = temporaryArgs['disable-extensions'];
+		if (disableExtensions !== undefined) {
+			configuration['disable-extensions'] = disableExtensions['disable-extensions'];
 		}
 
 		// Clear Document Edited if needed
@@ -577,7 +577,8 @@ export class CodeWindow implements ICodeWindow {
 		configuration.isInitialStartup = false; // since this is a reload
 
 		// Load config
-		this.load(configuration, true, cli);
+		const disableExtensions = cli ? cli['disable-extensions'] : undefined;
+		this.load(configuration, true, disableExtensions);
 	}
 
 	private getUrl(windowConfiguration: IWindowConfiguration): string {
