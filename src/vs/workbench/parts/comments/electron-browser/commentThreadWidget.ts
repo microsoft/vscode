@@ -125,6 +125,8 @@ export class ReviewZoneWidget extends ZoneWidget {
 				this.show({ lineNumber: this._commentThread.range.startLineNumber, column: 1 }, 2);
 			}
 		}
+
+		this.editor.revealRangeInCenter(this._commentThread.range);
 	}
 
 	protected _fillContainer(container: HTMLElement): void {
