@@ -182,6 +182,12 @@ export class ReviewController implements IEditorContribution {
 		this._commentWidgets = [];
 
 		this.localToDispose.push(this.editor.onMouseMove(e => this.onEditorMouseMove(e)));
+		this.localToDispose.push(this.editor.onDidChangeModelContent(() => {
+			if (this._newCommentGlyph) {
+				this.editor.removeContentWidget(this._newCommentGlyph);
+				this._newCommentGlyph = null;
+			}
+		}));
 		this.localToDispose.push(this.commentService.onDidUpdateCommentThreads(e => {
 			const editorURI = this.editor && this.editor.getModel() && this.editor.getModel().uri;
 			if (!editorURI) {

@@ -33,6 +33,10 @@ export class CommentGlyphWidget implements IContentWidget {
 		return this._id;
 	}
 
+	setLineNumber(lineNumber: number): void {
+		this._lineNumber = lineNumber;
+	}
+
 	getPosition(): IContentWidgetPosition {
 		return {
 			position: {

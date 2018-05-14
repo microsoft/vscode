@@ -296,7 +296,12 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		this._localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this._localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
-
+		this._localToDispose.push(this.editor.onDidChangeModelContent(() => {
+			if (this._commentGlyph.getPosition().position.lineNumber !== this.position.lineNumber) {
+				this._commentGlyph.setLineNumber(this.position.lineNumber);
+				this.editor.layoutContentWidget(this._commentGlyph);
+			}
+		}));
 		var headHeight = Math.ceil(this.editor.getConfiguration().lineHeight * 1.2);
 		this._headElement.style.height = `${headHeight}px`;
 		this._headElement.style.lineHeight = this._headElement.style.height;
