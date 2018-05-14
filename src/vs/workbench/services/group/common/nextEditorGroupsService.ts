@@ -129,6 +129,11 @@ export interface INextEditorGroupsService {
 	readonly orientation: GroupOrientation;
 
 	/**
+	 * A promise that resolves when groups have been restored.
+	 */
+	readonly whenRestored: Thenable<void>;
+
+	/**
 	 * Get all groups that are currently visible in the editor area optionally
 	 * sorted by being most recent active or grid order.
 	 */

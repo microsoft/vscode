@@ -71,6 +71,9 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 	private _onDidGroupLabelChange: Emitter<INextEditorGroupView> = this._register(new Emitter<INextEditorGroupView>());
 	get onDidGroupLabelChange(): Event<INextEditorGroupView> { return this._onDidGroupLabelChange.event; }
 
+	private _onDidGroupOrientationChange: Emitter<void> = this._register(new Emitter<void>());
+	get onDidGroupOrientationChange(): Event<void> { return this._onDidGroupOrientationChange.event; }
+
 	//#endregion
 
 	private memento: object;
@@ -177,6 +180,10 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		}
 
 		return this.gridWidget.orientation === Orientation.VERTICAL ? GroupOrientation.VERTICAL : GroupOrientation.HORIZONTAL;
+	}
+
+	get whenRestored(): Thenable<void> {
+		return this._whenRestored;
 	}
 
 	getGroups(order?: GroupsOrder): INextEditorGroupView[] {
@@ -296,7 +303,13 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 			return; // we have not been created yet
 		}
 
-		this.gridWidget.orientation = (orientation === GroupOrientation.HORIZONTAL) ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+		const newOrientation = (orientation === GroupOrientation.HORIZONTAL) ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+		if (this.gridWidget.orientation !== newOrientation) {
+			this.gridWidget.orientation = newOrientation;
+
+			// Event
+			this._onDidGroupOrientationChange.fire();
+		}
 	}
 
 	addGroup(location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): INextEditorGroupView {
@@ -327,6 +340,9 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 		// Update container
 		this.updateContainer();
+
+		// Event
+		this._onDidAddGroup.fire(newGroupView);
 
 		return newGroupView;
 	}
@@ -363,9 +379,6 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 			this.groupViews.delete(groupView.id);
 			this.doUpdateMostRecentActive(groupView);
 		});
-
-		// Event
-		this._onDidAddGroup.fire(groupView);
 
 		return groupView;
 	}
@@ -572,8 +585,24 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 	//#region Part
 
-	get whenRestored(): Thenable<void> {
-		return this._whenRestored;
+	get minSize(): Dimension { // TODO@grid this needs better support from the GridWidget to be correct for complex layouts
+
+		const countViews = (orientation: Orientation) => {
+			let count = 0;
+			this.groupViews.forEach(groupView => {
+				if (this.gridWidget.getOrientation(groupView) === orientation) {
+					count++;
+				}
+			});
+
+			return count;
+		};
+
+		if (this.orientation === GroupOrientation.HORIZONTAL) {
+			return new Dimension(countViews(Orientation.HORIZONTAL) * EDITOR_MIN_DIMENSIONS.width, EDITOR_MIN_DIMENSIONS.height);
+		}
+
+		return new Dimension(EDITOR_MIN_DIMENSIONS.width, countViews(Orientation.HORIZONTAL) * EDITOR_MIN_DIMENSIONS.height);
 	}
 
 	protected updateStyles(): void {

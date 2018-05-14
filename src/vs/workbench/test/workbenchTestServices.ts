@@ -709,6 +709,7 @@ export class TestNextEditorGroupsService implements INextEditorGroupsService {
 	onDidGroupLabelChange: Event<INextEditorGroup> = Event.None;
 
 	orientation: any;
+	whenRestored: Thenable<void> = TPromise.as(void 0);
 
 	get activeGroup(): INextEditorGroup {
 		return this.groups[0];

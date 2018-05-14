@@ -80,15 +80,13 @@ export class NextEditorService extends Disposable implements INextEditorService 
 
 		this.fileInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getFileInputFactory();
 
-		// Listen to changes for each initial group we already have
-		this.nextEditorGroupsService.groups.forEach(group => this.onDidAddGroup(group));
-
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
+		this.nextEditorGroupsService.whenRestored.then(() => this.nextEditorGroupsService.groups.forEach(group => this.registerGroupListeners(group)));
 		this.nextEditorGroupsService.onDidActiveGroupChange(group => this.handleActiveEditorChange(group));
-		this.nextEditorGroupsService.onDidAddGroup(group => this.onDidAddGroup(group));
+		this.nextEditorGroupsService.onDidAddGroup(group => this.registerGroupListeners(group));
 	}
 
 	private handleActiveEditorChange(group: INextEditorGroup): void {
@@ -105,7 +103,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		this._onDidActiveEditorChange.fire();
 	}
 
-	private onDidAddGroup(group: INextEditorGroup): void {
+	private registerGroupListeners(group: INextEditorGroup): void {
 		const groupDisposeables: IDisposable[] = [];
 
 		groupDisposeables.push(group.onDidActiveEditorChange(() => {
