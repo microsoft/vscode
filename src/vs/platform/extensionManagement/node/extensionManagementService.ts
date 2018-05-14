@@ -102,6 +102,11 @@ interface InstallableExtension {
 	metadata?: IGalleryMetadata;
 }
 
+enum Operation {
+	Install = 1,
+	Update
+}
+
 export class ExtensionManagementService extends Disposable implements IExtensionManagementService {
 
 	_serviceBrand: any;
@@ -227,19 +232,21 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	installFromGallery(extension: IGalleryExtension): TPromise<ILocalExtension> {
 		this.onInstallExtensions([extension]);
-		return this.collectExtensionsToInstall(extension)
-			.then(
-				extensionsToInstall => {
-					if (extensionsToInstall.length > 1) {
-						this.onInstallExtensions(extensionsToInstall.slice(1));
-					}
-					return this.downloadAndInstallExtensions(extensionsToInstall)
-						.then(
-							locals => this.onDidInstallExtensions(extensionsToInstall, locals, [])
-								.then(() => locals.filter(l => areSameExtensions({ id: getGalleryExtensionIdFromLocal(l), uuid: l.identifier.uuid }, extension.identifier)[0])),
-							errors => this.onDidInstallExtensions(extensionsToInstall, [], errors));
-				},
-				error => this.onDidInstallExtensions([extension], [], [error]));
+		return this.getInstalled(LocalExtensionType.User)
+			.then(installed => this.collectExtensionsToInstall(extension)
+				.then(
+					extensionsToInstall => {
+						if (extensionsToInstall.length > 1) {
+							this.onInstallExtensions(extensionsToInstall.slice(1));
+						}
+						const operataions: Operation[] = extensionsToInstall.map(e => this.getOperation(e, installed));
+						return this.downloadAndInstallExtensions(extensionsToInstall)
+							.then(
+								locals => this.onDidInstallExtensions(extensionsToInstall, locals, operataions, [])
+									.then(() => locals.filter(l => areSameExtensions({ id: getGalleryExtensionIdFromLocal(l), uuid: l.identifier.uuid }, extension.identifier)[0])),
+								errors => this.onDidInstallExtensions(extensionsToInstall, [], operataions, errors));
+					},
+					error => this.onDidInstallExtensions([extension], [], [this.getOperation(extension, installed)], [error])));
 	}
 
 	reinstallFromGallery(extension: ILocalExtension): TPromise<ILocalExtension> {
@@ -257,6 +264,10 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				}
 				return TPromise.wrapError(new Error(nls.localize('Not a Marketplace extension', "Only Marketplace Extensions can be reinstalled")));
 			});
+	}
+
+	private getOperation(extensionToInstall: IGalleryExtension, installed: ILocalExtension[]): Operation {
+		return installed.some(i => areSameExtensions({ id: getGalleryExtensionIdFromLocal(i), uuid: i.identifier.uuid }, extensionToInstall.identifier)) ? Operation.Update : Operation.Install;
 	}
 
 	private collectExtensionsToInstall(extension: IGalleryExtension): TPromise<IGalleryExtension[]> {
@@ -340,7 +351,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		}
 	}
 
-	private onDidInstallExtensions(extensions: IGalleryExtension[], locals: ILocalExtension[], errors: Error[]): TPromise<any> {
+	private onDidInstallExtensions(extensions: IGalleryExtension[], locals: ILocalExtension[], operations: Operation[], errors: Error[]): TPromise<any> {
 		extensions.forEach((gallery, index) => {
 			const identifier = { id: getLocalExtensionIdFromGallery(gallery, gallery.version), uuid: gallery.identifier.uuid };
 			const local = locals[index];
@@ -354,7 +365,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				this._onDidInstallExtension.fire({ identifier, gallery, error: errorCode });
 			}
 			const startTime = this.installationStartTime.get(gallery.identifier.id);
-			this.reportTelemetry('extensionGallery:install', getGalleryExtensionTelemetryData(gallery), startTime ? new Date().getTime() - startTime : void 0, error);
+			this.reportTelemetry(operations[index] === Operation.Install ? 'extensionGallery:install' : 'extensionGallery:update', getGalleryExtensionTelemetryData(gallery), startTime ? new Date().getTime() - startTime : void 0, error);
 			this.installationStartTime.delete(gallery.identifier.id);
 		});
 		return errors.length ? TPromise.wrapError(this.joinErrors(errors)) : TPromise.as(null);
@@ -884,6 +895,16 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		*/
 		/* __GDPR__
 			"extensionGallery:uninstall" : {
+				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+				"${include}": [
+					"${GalleryExtensionTelemetryData}"
+				]
+			}
+		*/
+		/* __GDPR__
+			"extensionGallery:update" : {
 				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },

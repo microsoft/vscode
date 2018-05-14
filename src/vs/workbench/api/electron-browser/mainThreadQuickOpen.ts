@@ -6,8 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { IQuickOpenService, IPickOptions, IInputOptions } from 'vs/platform/quickOpen/common/quickOpen';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IPickOptions, IInputOptions, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { InputBoxOptions } from 'vscode';
 import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPickItems, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
@@ -16,7 +15,6 @@ import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostC
 export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 	private _proxy: ExtHostQuickOpenShape;
-	private _quickOpenService: IQuickOpenService;
 	private _quickInputService: IQuickInputService;
 	private _doSetItems: (items: MyQuickPickItems[]) => any;
 	private _doSetError: (error: Error) => any;
@@ -25,11 +23,9 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IQuickInputService quickInputService: IQuickInputService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostQuickOpen);
-		this._quickOpenService = quickOpenService;
 		this._quickInputService = quickInputService;
 	}
 
@@ -55,7 +51,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 		});
 
 		if (options.canPickMany) {
-			return asWinJsPromise(token => this._quickInputService.pick(this._contents, options, token)).then(items => {
+			return asWinJsPromise(token => this._quickInputService.pick(this._contents, options as { canPickMany: true }, token)).then(items => {
 				if (items) {
 					return items.map(item => item.handle);
 				}
@@ -66,7 +62,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 				}
 			});
 		} else {
-			return asWinJsPromise(token => this._quickOpenService.pick(this._contents, options, token)).then(item => {
+			return asWinJsPromise(token => this._quickInputService.pick(this._contents, options, token)).then(item => {
 				if (item) {
 					return item.handle;
 				}

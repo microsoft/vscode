@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Workbench } from './areas/workbench/workbench';
-import * as fs from 'fs';
 import * as cp from 'child_process';
 import { Code, spawn, SpawnOptions } from './vscode/code';
 import { Logger } from './logger';
@@ -26,7 +25,6 @@ export class Application {
 
 	private _code: Code | undefined;
 	private _workbench: Workbench;
-	private keybindings: any[];
 
 	constructor(private options: ApplicationOptions) { }
 
@@ -75,7 +73,6 @@ export class Application {
 	}
 
 	private async _start(workspaceOrFolder = this.options.workspacePath, extraArgs: string[] = []): Promise<any> {
-		await this.retrieveKeybindings();
 		cp.execSync('git checkout .', { cwd: this.options.workspacePath });
 		await this.startApplication(workspaceOrFolder, extraArgs);
 		await this.checkWindowReady();
@@ -112,7 +109,7 @@ export class Application {
 			extraArgs,
 		});
 
-		this._workbench = new Workbench(this._code, this.keybindings, this.userDataPath);
+		this._workbench = new Workbench(this._code, this.userDataPath);
 	}
 
 	private async checkWindowReady(): Promise<any> {
@@ -127,21 +124,5 @@ export class Application {
 		// wait a bit, since focus might be stolen off widgets
 		// as soon as they open (eg quick open)
 		await new Promise(c => setTimeout(c, 500));
-	}
-
-	private retrieveKeybindings(): Promise<void> {
-		return new Promise((c, e) => {
-			fs.readFile(process.env.VSCODE_KEYBINDINGS_PATH as string, 'utf8', (err, data) => {
-				if (err) {
-					throw err;
-				}
-				try {
-					this.keybindings = JSON.parse(data);
-					c();
-				} catch (e) {
-					throw new Error(`Error parsing keybindings JSON: ${e}`);
-				}
-			});
-		});
 	}
 }

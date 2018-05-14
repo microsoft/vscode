@@ -42,7 +42,6 @@ import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { normalizeGitHubIssuesUrl } from 'vs/code/electron-browser/issue/issueReporterUtil';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { Color } from 'vs/base/common/color';
 
 const MAX_URL_LENGTH = platform.isWindows ? 2081 : 5400;
 
@@ -90,11 +89,7 @@ export class IssueReporter extends Disposable {
 			extensionsDisabled: this.environmentService.disableExtensions,
 		});
 
-		this.previewButton = new Button(document.getElementById('issue-reporter'), {
-			buttonBackground: Color.fromHex(configuration.data.styles.buttonBackground),
-			buttonForeground: Color.fromHex(configuration.data.styles.buttonForeground),
-			buttonHoverBackground: Color.fromHex(configuration.data.styles.buttonHoverBackground)
-		});
+		this.previewButton = new Button(document.getElementById('issue-reporter'));
 
 		ipcRenderer.on('issuePerformanceInfoResponse', (event, info) => {
 			this.logService.trace('issueReporter: Received performance data');
@@ -185,6 +180,10 @@ export class IssueReporter extends Disposable {
 			content.push(`a { color: ${styles.textLinkColor}; }`);
 		}
 
+		if (styles.textLinkActiveForeground) {
+			content.push(`a:hover, .workbenchCommand:hover { color: ${styles.textLinkActiveForeground}; }`);
+		}
+
 		if (styles.sliderBackgroundColor) {
 			content.push(`::-webkit-scrollbar-thumb { background-color: ${styles.sliderBackgroundColor}; }`);
 		}
@@ -195,6 +194,18 @@ export class IssueReporter extends Disposable {
 
 		if (styles.sliderHoverColor) {
 			content.push(`::--webkit-scrollbar-thumb:hover { background-color: ${styles.sliderHoverColor}; }`);
+		}
+
+		if (styles.buttonBackground) {
+			content.push(`.monaco-text-button { background-color: ${styles.buttonBackground} !important; }`);
+		}
+
+		if (styles.buttonForeground) {
+			content.push(`.monaco-text-button { color: ${styles.buttonForeground} !important; }`);
+		}
+
+		if (styles.buttonHoverBackground) {
+			content.push(`.monaco-text-button:hover, monaco-text-button:focus { background-color: ${styles.buttonHoverBackground} !important; }`);
 		}
 
 		styleTag.innerHTML = content.join('\n');

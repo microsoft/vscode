@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ReferenceProvider, Location, TextDocument, Position, CancellationToken } from 'vscode';
+import * as vscode from 'vscode';
 
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from '../utils/typeConverters';
 
-export default class TypeScriptReferenceSupport implements ReferenceProvider {
+export default class TypeScriptReferenceSupport implements vscode.ReferenceProvider {
 	public constructor(
 		private readonly client: ITypeScriptServiceClient) { }
 
 	public async provideReferences(
-		document: TextDocument,
-		position: Position,
-		options: { includeDeclaration: boolean },
-		token: CancellationToken
-	): Promise<Location[]> {
+		document: vscode.TextDocument,
+		position: vscode.Position,
+		options: vscode.ReferenceContext,
+		token: vscode.CancellationToken
+	): Promise<vscode.Location[]> {
 		const filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
 			return [];
@@ -29,7 +29,7 @@ export default class TypeScriptReferenceSupport implements ReferenceProvider {
 			if (!msg.body) {
 				return [];
 			}
-			const result: Location[] = [];
+			const result: vscode.Location[] = [];
 			const has203Features = this.client.apiVersion.has203Features();
 			for (const ref of msg.body.refs) {
 				if (!options.includeDeclaration && has203Features && ref.isDefinition) {

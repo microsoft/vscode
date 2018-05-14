@@ -151,32 +151,41 @@ nav#
 		});
 	});
 
-	test('Allow hex color when typing property values when there is a property in the next line (CSS)', () => {
+	test('Allow hex color or !important when typing property values when there is a property in the next line (CSS)', () => {
 		const testContent = `
 .foo {
-	margin: #12
+	margin: #12 !
 	margin: 10px;
 }
 		`;
 
 		return withRandomFileEditor(testContent, 'css', (editor, doc) => {
-			editor.selection = new Selection(2, 12, 2, 12);
-			return expandEmmetAbbreviation(null).then(() => {
-				assert.equal(editor.document.getText(), testContent.replace('#12', '#121212'));
-				const cancelSrc = new CancellationTokenSource();
-				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(2, 12), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-				if (!completionPromise) {
-					assert.fail('Completion promise wasnt returned');
-					return Promise.resolve();
-				}
-				completionPromise.then(result => {
-					if (!result || !result.items || !result.items.length) {
-						assert.fail('Completion promise came back empty');
-						return Promise.resolve();
-					}
-					assert.equal(result.items[0].label, '#121212');
-				});
+			const cancelSrc = new CancellationTokenSource();
+			const completionPromise1 = completionProvider.provideCompletionItems(editor.document, new Position(2, 12), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			const completionPromise2 = completionProvider.provideCompletionItems(editor.document, new Position(2, 14), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+
+			if (!completionPromise1 || !completionPromise2) {
+				assert.equal(1, 2, `Completion promise wasnt returned`);
 				return Promise.resolve();
+			}
+
+			const callBack = (completionList: CompletionList, expandedText: string) => {
+				if (!completionList.items || !completionList.items.length) {
+					assert.equal(1, 2, `Empty Completions`);
+					return;
+				}
+				const emmetCompletionItem = completionList.items[0];
+				assert.equal(emmetCompletionItem.label, expandedText, `Label of completion item doesnt match.`);
+				assert.equal((<string>emmetCompletionItem.documentation || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
+			};
+
+			return Promise.all<CompletionList>([completionPromise1, completionPromise2]).then(([result1, result2]) => {
+				callBack(result1, '#121212');
+				callBack(result2, '!important');
+				editor.selections = [new Selection(2, 12, 2, 12), new Selection(2, 14, 2, 14)];
+				return expandEmmetAbbreviation(null).then(() => {
+					assert.equal(editor.document.getText(), testContent.replace('#12', '#121212').replace('!', '!important'));
+				});
 			});
 		});
 	});
@@ -203,32 +212,41 @@ nav#
 		});
 	});
 
-	test('Allow hex color when typing property values when there is a property in the previous line (CSS)', () => {
+	test('Allow hex color or !important when typing property values when there is a property in the previous line (CSS)', () => {
 		const testContent = `
 .foo {
 	margin: 10px;
-	margin: #12
+	margin: #12 !
 }
 		`;
 
 		return withRandomFileEditor(testContent, 'css', (editor, doc) => {
-			editor.selection = new Selection(3, 12, 3, 12);
-			return expandEmmetAbbreviation(null).then(() => {
-				assert.equal(editor.document.getText(), testContent.replace('#12', '#121212'));
-				const cancelSrc = new CancellationTokenSource();
-				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(3, 12), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-				if (!completionPromise) {
-					assert.fail('Completion promise wasnt returned');
-					return Promise.resolve();
-				}
-				completionPromise.then(result => {
-					if (!result || !result.items || !result.items.length) {
-						assert.fail('Completion promise came back empty');
-						return Promise.resolve();
-					}
-					assert.equal(result.items[0].label, '#121212');
-				});
+			const cancelSrc = new CancellationTokenSource();
+			const completionPromise1 = completionProvider.provideCompletionItems(editor.document, new Position(3, 12), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			const completionPromise2 = completionProvider.provideCompletionItems(editor.document, new Position(3, 14), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+
+			if (!completionPromise1 || !completionPromise2) {
+				assert.equal(1, 2, `Completion promise wasnt returned`);
 				return Promise.resolve();
+			}
+
+			const callBack = (completionList: CompletionList, expandedText: string) => {
+				if (!completionList.items || !completionList.items.length) {
+					assert.equal(1, 2, `Empty Completions`);
+					return;
+				}
+				const emmetCompletionItem = completionList.items[0];
+				assert.equal(emmetCompletionItem.label, expandedText, `Label of completion item doesnt match.`);
+				assert.equal((<string>emmetCompletionItem.documentation || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
+			};
+
+			return Promise.all<CompletionList>([completionPromise1, completionPromise2]).then(([result1, result2]) => {
+				callBack(result1, '#121212');
+				callBack(result2, '!important');
+				editor.selections = [new Selection(3, 12, 3, 12), new Selection(3, 14, 3, 14)];
+				return expandEmmetAbbreviation(null).then(() => {
+					assert.equal(editor.document.getText(), testContent.replace('#12', '#121212').replace('!', '!important'));
+				});
 			});
 		});
 	});
@@ -254,31 +272,40 @@ nav#
 		});
 	});
 
-	test('Allow hex colors when typing property values when it is the only property in the rule (CSS)', () => {
+	test('Allow hex colors or !important when typing property values when it is the only property in the rule (CSS)', () => {
 		const testContent = `
 .foo {
-	margin: #12
+	margin: #12 !
 }
 		`;
 
 		return withRandomFileEditor(testContent, 'css', (editor, doc) => {
-			editor.selection = new Selection(2, 12, 2, 12);
-			return expandEmmetAbbreviation(null).then(() => {
-				assert.equal(editor.document.getText(), testContent.replace('#12', '#121212'));
-				const cancelSrc = new CancellationTokenSource();
-				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(2, 12), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-				if (!completionPromise) {
-					assert.fail('Completion promise wasnt returned');
-					return Promise.resolve();
-				}
-				completionPromise.then(result => {
-					if (!result || !result.items || !result.items.length) {
-						assert.fail('Completion promise came back empty');
-						return Promise.resolve();
-					}
-					assert.equal(result.items[0].label, '#121212');
-				});
+			const cancelSrc = new CancellationTokenSource();
+			const completionPromise1 = completionProvider.provideCompletionItems(editor.document, new Position(2, 12), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			const completionPromise2 = completionProvider.provideCompletionItems(editor.document, new Position(2, 14), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+
+			if (!completionPromise1 || !completionPromise2) {
+				assert.equal(1, 2, `Completion promise wasnt returned`);
 				return Promise.resolve();
+			}
+
+			const callBack = (completionList: CompletionList, expandedText: string) => {
+				if (!completionList.items || !completionList.items.length) {
+					assert.equal(1, 2, `Empty Completions`);
+					return;
+				}
+				const emmetCompletionItem = completionList.items[0];
+				assert.equal(emmetCompletionItem.label, expandedText, `Label of completion item doesnt match.`);
+				assert.equal((<string>emmetCompletionItem.documentation || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
+			};
+
+			return Promise.all<CompletionList>([completionPromise1, completionPromise2]).then(([result1, result2]) => {
+				callBack(result1, '#121212');
+				callBack(result2, '!important');
+				editor.selections = [new Selection(2, 12, 2, 12), new Selection(2, 14, 2, 14)];
+				return expandEmmetAbbreviation(null).then(() => {
+					assert.equal(editor.document.getText(), testContent.replace('#12', '#121212').replace('!', '!important'));
+				});
 			});
 		});
 	});

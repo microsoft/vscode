@@ -9,6 +9,7 @@ import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { Command, CommandManager } from '../utils/commandManager';
 import * as typeconverts from '../utils/typeConverters';
+import FileConfigurationManager from './fileConfigurationManager';
 
 const localize = nls.loadMessageBundle();
 
@@ -48,7 +49,8 @@ class OrganizeImportsCommand implements Command {
 export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvider {
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
-		commandManager: CommandManager
+		commandManager: CommandManager,
+		private readonly fileConfigManager: FileConfigurationManager,
 	) {
 		commandManager.register(new OrganizeImportsCommand(client));
 	}
@@ -61,7 +63,7 @@ export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvi
 		document: vscode.TextDocument,
 		_range: vscode.Range,
 		_context: vscode.CodeActionContext,
-		_token: vscode.CancellationToken
+		token: vscode.CancellationToken
 	): vscode.CodeAction[] {
 		if (!this.client.apiVersion.has280Features()) {
 			return [];
@@ -71,6 +73,8 @@ export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvi
 		if (!file) {
 			return [];
 		}
+
+		this.fileConfigManager.ensureConfigurationForDocument(document, token);
 
 		const action = new vscode.CodeAction(
 			localize('oraganizeImportsAction.title', "Organize Imports"),

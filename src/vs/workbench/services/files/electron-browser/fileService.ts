@@ -18,7 +18,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as objects from 'vs/base/common/objects';
 import * as extfs from 'vs/base/node/extfs';
-import { nfcall, ThrottledDelayer, asWinJsPromise } from 'vs/base/common/async';
+import { nfcall, ThrottledDelayer, asWinJSImport } from 'vs/base/common/async';
 import uri from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
@@ -374,7 +374,7 @@ export class FileService implements IFileService {
 			return onStatError(err);
 		});
 
-		let completePromise: Thenable<any>;
+		let completePromise: TPromise<void>;
 
 		// await the stat iff we already have an etag so that we compare the
 		// etag from the stat before we actually read the file again.
@@ -387,24 +387,45 @@ export class FileService implements IFileService {
 		// a fresh load without a previous etag which means we can resolve the file stat
 		// and the content at the same time, avoiding the waterfall.
 		else {
-			completePromise = Promise.all([statsPromise, this.fillInContents(result, resource, options, contentResolverTokenSource.token)]);
+			completePromise = TPromise.join([statsPromise, this.fillInContents(result, resource, options, contentResolverTokenSource.token)]).then(() => void 0, error => {
+				// Joining promises via TPromise will execute both and return errors
+				// as array-like object for each. Since each can return a FileOperationError
+				// we want to prefer that one if possible. Otherwise we just return with the
+				// first error we get.
+				const firstError = error[0];
+				const secondError = error[1];
+
+				if (FileOperationError.isFileOperationError(firstError)) {
+					return TPromise.wrapError(firstError);
+				}
+
+				if (FileOperationError.isFileOperationError(secondError)) {
+					return TPromise.wrapError(secondError);
+				}
+
+				return TPromise.wrapError(firstError || secondError);
+			});
 		}
 
-		return TPromise.wrap(completePromise).then(() => {
+		return completePromise.then(() => {
 			contentResolverTokenSource.dispose();
 
 			return result;
+		}, error => {
+			contentResolverTokenSource.dispose();
+
+			return TPromise.wrapError(error);
 		});
 	}
 
-	private fillInContents(content: IStreamContent, resource: uri, options: IResolveContentOptions, token: CancellationToken): Thenable<any> {
+	private fillInContents(content: IStreamContent, resource: uri, options: IResolveContentOptions, token: CancellationToken): TPromise<void> {
 		return this.resolveFileData(resource, options, token).then(data => {
 			content.encoding = data.encoding;
 			content.value = data.stream;
 		});
 	}
 
-	private resolveFileData(resource: uri, options: IResolveContentOptions, token: CancellationToken): Thenable<IContentData> {
+	private resolveFileData(resource: uri, options: IResolveContentOptions, token: CancellationToken): TPromise<IContentData> {
 
 		const chunkBuffer = BufferPool._64K.acquire();
 
@@ -413,7 +434,7 @@ export class FileService implements IFileService {
 			stream: void 0
 		};
 
-		return new Promise<IContentData>((resolve, reject) => {
+		return new TPromise<IContentData>((resolve, reject) => {
 			fs.open(this.toAbsolutePath(resource), 'r', (err, fd) => {
 				if (err) {
 					if (err.code === 'ENOENT') {
@@ -668,7 +689,7 @@ export class FileService implements IFileService {
 			return this.updateContent(uri.file(tmpPath), value, writeOptions).then(() => {
 
 				// 3.) invoke our CLI as super user
-				return (import('sudo-prompt')).then(sudoPrompt => {
+				return asWinJSImport(import('sudo-prompt')).then(sudoPrompt => {
 					return new TPromise<void>((c, e) => {
 						const promptOptions = {
 							name: this.environmentService.appNameLong.replace('-', ''),
@@ -905,24 +926,24 @@ export class FileService implements IFileService {
 
 	public del(resource: uri, useTrash?: boolean): TPromise<void> {
 		if (useTrash) {
-			return asWinJsPromise(() => this.doMoveItemToTrash(resource));
+			return this.doMoveItemToTrash(resource);
 		}
 
 		return this.doDelete(resource);
 	}
 
-	private doMoveItemToTrash(resource: uri): Promise<void> {
+	private doMoveItemToTrash(resource: uri): TPromise<void> {
 		const absolutePath = resource.fsPath;
 
-		return (import('electron')).then(electron => { // workaround for https://github.com/Microsoft/vscode/issues/48205
+		return asWinJSImport(import('electron')).then(electron => {
 			const result = electron.shell.moveItemToTrash(absolutePath);
 			if (!result) {
-				return TPromise.wrapError<void>(new Error(isWindows ? nls.localize('binFailed', "Failed to move '{0}' to the recycle bin", paths.basename(absolutePath)) : nls.localize('trashFailed', "Failed to move '{0}' to the trash", paths.basename(absolutePath))));
+				return TPromise.wrapError(new Error(isWindows ? nls.localize('binFailed', "Failed to move '{0}' to the recycle bin", paths.basename(absolutePath)) : nls.localize('trashFailed', "Failed to move '{0}' to the trash", paths.basename(absolutePath))));
 			}
 
 			this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
 
-			return TPromise.wrap(null);
+			return void 0;
 		});
 	}
 

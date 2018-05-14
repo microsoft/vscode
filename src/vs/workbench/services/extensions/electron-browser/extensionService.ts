@@ -97,11 +97,7 @@ class ExtraBuiltInExtensionResolver implements IExtensionResolver {
 // Enable to see detailed message communication between window and extension host
 const logExtensionHostCommunication = false;
 
-function messageWithSource(msg: IMessage): string {
-	return messageWithSource2(msg.source, msg.message);
-}
-
-function messageWithSource2(source: string, message: string): string {
+function messageWithSource(source: string, message: string): string {
 	if (source) {
 		return `[${source}]: ${message}`;
 	}
@@ -502,7 +498,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 	private _getRuntimeExtensions(): TPromise<IExtensionDescription[]> {
 		const log = new Logger((severity, source, message) => {
-			this._logOrShowMessage(severity, this._isDev ? messageWithSource2(source, message) : message);
+			this._logOrShowMessage(severity, this._isDev ? messageWithSource(source, message) : message);
 		});
 
 		return ExtensionService._scanInstalledExtensions(this._windowService, this._notificationService, this._environmentService, log)
@@ -521,7 +517,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 						user.forEach((userExtension) => {
 							if (result.hasOwnProperty(userExtension.id)) {
-								log.warn(userExtension.extensionFolderPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[userExtension.id].extensionFolderPath, userExtension.extensionFolderPath));
+								log.warn(userExtension.extensionLocation.fsPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[userExtension.id].extensionLocation.fsPath, userExtension.extensionLocation.fsPath));
 							}
 							if (disabledExtensions.every(disabled => !areSameExtensions(disabled, userExtension))) {
 								// Check if the extension is changed to system extension
@@ -535,9 +531,9 @@ export class ExtensionService extends Disposable implements IExtensionService {
 						});
 
 						development.forEach(developedExtension => {
-							log.info('', nls.localize('extensionUnderDevelopment', "Loading development extension at {0}", developedExtension.extensionFolderPath));
+							log.info('', nls.localize('extensionUnderDevelopment', "Loading development extension at {0}", developedExtension.extensionLocation.fsPath));
 							if (result.hasOwnProperty(developedExtension.id)) {
-								log.warn(developedExtension.extensionFolderPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[developedExtension.id].extensionFolderPath, developedExtension.extensionFolderPath));
+								log.warn(developedExtension.extensionLocation.fsPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[developedExtension.id].extensionLocation.fsPath, developedExtension.extensionLocation.fsPath));
 							}
 							// Do not disable extensions under development
 							result[developedExtension.id] = developedExtension;
@@ -598,16 +594,18 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 	private _handleExtensionPointMessage(msg: IMessage) {
 
-		if (!this._extensionsMessages[msg.source]) {
-			this._extensionsMessages[msg.source] = [];
+		if (!this._extensionsMessages[msg.extensionId]) {
+			this._extensionsMessages[msg.extensionId] = [];
 		}
-		this._extensionsMessages[msg.source].push(msg);
+		this._extensionsMessages[msg.extensionId].push(msg);
 
-		if (msg.source === this._environmentService.extensionDevelopmentPath) {
+		const extension = this._registry.getExtensionDescription(msg.extensionId);
+		const strMsg = `[${msg.extensionId}]: ${msg.message}`;
+		if (extension && extension.isUnderDevelopment) {
 			// This message is about the extension currently being developed
-			this._showMessageToUser(msg.type, messageWithSource(msg));
+			this._showMessageToUser(msg.type, strMsg);
 		} else {
-			this._logMessageInConsole(msg.type, messageWithSource(msg));
+			this._logMessageInConsole(msg.type, strMsg);
 		}
 
 		if (!this._isDev && msg.extensionId) {
@@ -793,8 +791,8 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 					let resultArr = Object.keys(resultMap).map((id) => resultMap[id]);
 					resultArr.sort((a, b) => {
-						const aLastSegment = path.basename(a.extensionFolderPath);
-						const bLastSegment = path.basename(b.extensionFolderPath);
+						const aLastSegment = path.basename(a.extensionLocation.fsPath);
+						const bLastSegment = path.basename(b.extensionLocation.fsPath);
 						if (aLastSegment < bLastSegment) {
 							return -1;
 						}
@@ -907,7 +905,6 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		this._extensionsMessages[extensionId].push({
 			type: severity,
 			message: message,
-			source: null,
 			extensionId: null,
 			extensionPointId: null
 		});

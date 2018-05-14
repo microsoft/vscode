@@ -88,10 +88,10 @@ export default class FileConfigurationManager {
 			return;
 		}
 
-		const args = {
+		const args: Proto.ConfigureRequestArguments = {
 			file,
 			...currentOptions
-		} as Proto.ConfigureRequestArguments;
+		};
 		await this.client.execute('configure', args, token);
 		this.formatOptions[key] = currentOptions;
 	}

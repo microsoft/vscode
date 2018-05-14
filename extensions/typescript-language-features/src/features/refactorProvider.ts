@@ -102,7 +102,7 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 
 	public async provideCodeActions(
 		document: vscode.TextDocument,
-		_range: vscode.Range,
+		rangeOrSelection: vscode.Range | vscode.Selection,
 		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): Promise<vscode.CodeAction[]> {
@@ -114,22 +114,16 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 			return [];
 		}
 
-		if (!vscode.window.activeTextEditor) {
+		if (!(rangeOrSelection instanceof vscode.Selection) || rangeOrSelection.isEmpty) {
 			return [];
 		}
 
-		const editor = vscode.window.activeTextEditor;
 		const file = this.client.normalizePath(document.uri);
-		if (!file || editor.document.uri.fsPath !== document.uri.fsPath) {
+		if (!file) {
 			return [];
 		}
 
-		if (editor.selection.isEmpty) {
-			return [];
-		}
-
-		const range = editor.selection;
-		const args: Proto.GetApplicableRefactorsRequestArgs = typeConverters.Range.toFileRangeRequestArgs(file, range);
+		const args: Proto.GetApplicableRefactorsRequestArgs = typeConverters.Range.toFileRangeRequestArgs(file, rangeOrSelection);
 		try {
 			const response = await this.client.execute('getApplicableRefactors', args, token);
 			if (!response || !response.body) {
@@ -143,7 +137,7 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 					codeAction.command = {
 						title: info.description,
 						command: SelectRefactorCommand.ID,
-						arguments: [document, file, info, range]
+						arguments: [document, file, info, rangeOrSelection]
 					};
 					actions.push(codeAction);
 				} else {
@@ -152,7 +146,7 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 						codeAction.command = {
 							title: action.description,
 							command: ApplyRefactoringCommand.ID,
-							arguments: [document, file, info.name, action.name, range]
+							arguments: [document, file, info.name, action.name, rangeOrSelection]
 						};
 						actions.push(codeAction);
 					}

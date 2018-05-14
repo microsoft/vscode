@@ -193,6 +193,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'hideActionBar' }, "Controls if the floating debug action bar should be hidden"),
 			default: false
 		},
+		'debug.toolbar': {
+			enum: ['float', 'dock', 'hide'],
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'toolbar' }, "Controls the debug toolbar. Should it be floating, docked in the debug view or hidden."),
+			default: 'float'
+		},
 		'debug.showInStatusBar': {
 			enum: ['never', 'always', 'onFirstSessionStart'],
 			enumDescriptions: [nls.localize('never', "Never show debug in status bar"), nls.localize('always', "Always show debug in status bar"), nls.localize('onFirstSessionStart', "Show debug in status bar only after debug was started for the first time")],

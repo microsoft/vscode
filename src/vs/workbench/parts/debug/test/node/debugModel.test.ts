@@ -9,6 +9,7 @@ import severity from 'vs/base/common/severity';
 import { SimpleReplElement, Model, Session, Expression, RawObjectReplElement, StackFrame, Thread } from 'vs/workbench/parts/debug/common/debugModel';
 import * as sinon from 'sinon';
 import { MockSession } from 'vs/workbench/parts/debug/test/common/mockDebug';
+import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
 suite('Debug - Model', () => {
 	let model: Model;
@@ -116,7 +117,7 @@ suite('Debug - Model', () => {
 		const threadId = 1;
 		const threadName = 'firstThread';
 
-		model.addSession({ name: 'mockSession', type: 'node', request: 'launch' }, rawSession);
+		model.addSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, rawSession);
 		assert.equal(model.getSessions().length, 1);
 		model.rawUpdate({
 			sessionId: rawSession.getId(),
@@ -147,7 +148,7 @@ suite('Debug - Model', () => {
 		const stoppedReason = 'breakpoint';
 
 		// Add the threads
-		model.addSession({ name: 'mockSession', type: 'node', request: 'launch' }, rawSession);
+		model.addSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, rawSession);
 		model.rawUpdate({
 			sessionId: rawSession.getId(),
 			threadId: threadId1,
@@ -237,7 +238,7 @@ suite('Debug - Model', () => {
 		const runningThreadId = 2;
 		const runningThreadName = 'runningThread';
 		const stoppedReason = 'breakpoint';
-		model.addSession({ name: 'mockSession', type: 'node', request: 'launch' }, rawSession);
+		model.addSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, rawSession);
 		// Add the threads
 		model.rawUpdate({
 			sessionId: rawSession.getId(),
@@ -348,7 +349,7 @@ suite('Debug - Model', () => {
 
 	test('repl expressions', () => {
 		assert.equal(model.getReplElements().length, 0);
-		const session = new Session({ name: 'mockSession', type: 'node', request: 'launch' }, rawSession);
+		const session = new Session({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, rawSession);
 		const thread = new Thread(session, 'mockthread', 1);
 		const stackFrame = new StackFrame(thread, 1, null, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
 		model.addReplExpression(session, stackFrame, 'myVariable').done();
@@ -364,6 +365,33 @@ suite('Debug - Model', () => {
 
 		model.removeReplExpressions();
 		assert.equal(model.getReplElements().length, 0);
+	});
+
+	test('stack frame get specific source name', () => {
+		const session = new Session({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, rawSession);
+		let firstStackFrame: StackFrame;
+		let secondStackFrame: StackFrame;
+		const thread = new class extends Thread {
+			public getCallStack(): StackFrame[] {
+				return [firstStackFrame, secondStackFrame];
+			}
+		}(session, 'mockthread', 1);
+
+		const firstSource = new Source({
+			name: 'internalModule.js',
+			path: 'a/b/c/d/internalModule.js',
+			sourceReference: 10,
+		}, 'aDebugSessionId');
+		const secondSource = new Source({
+			name: 'internalModule.js',
+			path: 'z/x/c/d/internalModule.js',
+			sourceReference: 11,
+		}, 'aDebugSessionId');
+		firstStackFrame = new StackFrame(thread, 1, firstSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
+		secondStackFrame = new StackFrame(thread, 1, secondSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
+
+		assert.equal(firstStackFrame.getSpecificSourceName(), '.../b/c/d/internalModule.js');
+		assert.equal(secondStackFrame.getSpecificSourceName(), '.../x/c/d/internalModule.js');
 	});
 
 	// Repl output

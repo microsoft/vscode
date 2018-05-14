@@ -24,7 +24,7 @@ suite('Debug - View Model', () => {
 		assert.equal(model.focusedStackFrame, null);
 		assert.equal(model.focusedThread, null);
 		const mockSession = new MockSession();
-		const session = new Session({ name: 'mockSession', type: 'node', request: 'launch' }, mockSession);
+		const session = new Session({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, mockSession);
 		const thread = new Thread(session, 'myThread', 1);
 		const frame = new StackFrame(thread, 1, null, 'app.js', 'normal', { startColumn: 1, startLineNumber: 1, endColumn: undefined, endLineNumber: undefined }, 0);
 		model.setFocus(frame, thread, session, false);

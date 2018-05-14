@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import * as cp from 'child_process';
 import * as stream from 'stream';
 import * as nls from 'vs/nls';
+import * as net from 'net';
 import * as paths from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
@@ -212,6 +213,39 @@ export abstract class StreamDebugAdapter extends AbstractDebugAdapter {
 			}
 			break;
 		}
+	}
+}
+
+/**
+ * An implementation that connects to a debug adapter via a socket.
+*/
+export class SocketDebugAdapter extends StreamDebugAdapter {
+
+	private socket: net.Socket;
+
+	constructor(private port: number, private host = '127.0.0.1') {
+		super();
+	}
+
+	startSession(): TPromise<void> {
+		return new TPromise<void>((c, e) => {
+			this.socket = net.createConnection(this.port, this.host, () => {
+				this.connect(this.socket, <any>this.socket);
+				c(null);
+			});
+			this.socket.on('error', (err: any) => {
+				e(err);
+			});
+			this.socket.on('close', () => this._onExit.fire(0));
+		});
+	}
+
+	stopSession(): TPromise<void> {
+		if (this.socket !== null) {
+			this.socket.end();
+			this.socket = undefined;
+		}
+		return void 0;
 	}
 }
 

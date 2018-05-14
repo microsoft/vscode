@@ -146,7 +146,7 @@ export function createApiFactory(
 		// We only inform once, it is not a warning because we just want to raise awareness and because
 		// we cannot say if the extension is doing it right or wrong...
 		let checkSelector = (function () {
-			let done = initData.environment.extensionDevelopmentPath !== extension.extensionFolderPath;
+			let done = (!extension.isUnderDevelopment);
 			function informOnce(selector: vscode.DocumentSelector) {
 				if (!done) {
 					console.info(`Extension '${extension.id}' uses a document selector without scheme. Learn more about this: https://go.microsoft.com/fwlink/?linkid=872305`);
@@ -760,7 +760,7 @@ function defineAPI(factory: IExtensionApiFactory, extensionPaths: TernarySearchT
 		}
 
 		// get extension id from filename and api for extension
-		const ext = extensionPaths.findSubstr(parent.filename);
+		const ext = extensionPaths.findSubstr(URI.file(parent.filename).fsPath);
 		if (ext) {
 			let apiImpl = extApiImpl.get(ext.id);
 			if (!apiImpl) {
@@ -772,6 +772,7 @@ function defineAPI(factory: IExtensionApiFactory, extensionPaths: TernarySearchT
 
 		// fall back to a default implementation
 		if (!defaultApiImpl) {
+			console.warn(`Could not identify extension for 'vscode' require call from ${parent.filename}`);
 			defaultApiImpl = factory(nullExtensionDescription);
 		}
 		return defaultApiImpl;
@@ -787,7 +788,6 @@ const nullExtensionDescription: IExtensionDescription = {
 	enableProposedApi: false,
 	engines: undefined,
 	extensionDependencies: undefined,
-	extensionFolderPath: undefined,
 	extensionLocation: undefined,
 	isBuiltin: false,
 	isUnderDevelopment: false,

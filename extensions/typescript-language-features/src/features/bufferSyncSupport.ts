@@ -8,7 +8,7 @@ import { CancellationTokenSource, Disposable, TextDocument, TextDocumentChangeEv
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { Delayer } from '../utils/async';
-import { disposeAll } from '../utils/dipose';
+import { disposeAll } from '../utils/dispose';
 import * as languageModeIds from '../utils/languageModeIds';
 
 
@@ -310,7 +310,7 @@ export default class BufferSyncSupport {
 			const token = new CancellationTokenSource();
 
 			const getErr = this.pendingGetErr = {
-				request: this.client.execute('geterr', args, token.token)
+				request: this.client.executeAsync('geterr', args, token.token)
 					.then(undefined, () => { })
 					.then(() => {
 						if (this.pendingGetErr === getErr) {

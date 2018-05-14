@@ -307,7 +307,6 @@ export interface IRelaxedExtensionDescription {
 	publisher: string;
 	isBuiltin: boolean;
 	isUnderDevelopment: boolean;
-	extensionFolderPath: string;
 	extensionLocation: URI;
 	engines: {
 		vscode: string;
@@ -343,7 +342,6 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 			extensionDescription.main = join(this._absoluteFolderPath, extensionDescription.main);
 		}
 
-		extensionDescription.extensionFolderPath = this._absoluteFolderPath;
 		extensionDescription.extensionLocation = URI.file(this._absoluteFolderPath);
 
 		return extensionDescription;
@@ -580,7 +578,7 @@ export class ExtensionScanner {
 			}
 
 			extensionDescriptions.sort((a, b) => {
-				if (a.extensionFolderPath < b.extensionFolderPath) {
+				if (a.extensionLocation.fsPath < b.extensionLocation.fsPath) {
 					return -1;
 				}
 				return 1;

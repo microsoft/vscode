@@ -412,20 +412,20 @@
         },
         "typescript.experimental.syntaxFolding": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "description": "%typescript.experimental.syntaxFolding%"
         },
         "javascript.suggestionActions.enabled": {
           "type": "boolean",
           "default": true,
           "description": "%javascript.suggestionActions.enabled%",
-          "scope": "window"
+          "scope": "resource"
         },
         "typescript.suggestionActions.enabled": {
           "type": "boolean",
           "default": true,
           "description": "%typescript.suggestionActions.enabled%",
-          "scope": "window"
+          "scope": "resource"
         },
         "javascript.preferences.quoteStyle": {
           "type": "string",
@@ -469,6 +469,18 @@
           ],
           "default": "auto",
           "description": "%typescript.preferences.importModuleSpecifier%",
+          "scope": "resource"
+        },
+        "javascript.showUnused.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.showUnused.enabled%",
+          "scope": "resource"
+        },
+        "typescript.showUnused.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.showUnused.enabled%",
           "scope": "resource"
         }
       }
