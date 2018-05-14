@@ -41,6 +41,7 @@ export class CommentNode {
 	private _domNode: HTMLElement;
 	private _body: HTMLElement;
 	private _md: HTMLElement;
+	private _clearTimeout: any;
 	public get domNode(): HTMLElement {
 		return this._domNode;
 	}
@@ -57,6 +58,8 @@ export class CommentNode {
 		this._body = $('comment-body').appendTo(commentDetailsContainer).getHTMLElement();
 		this._md = renderMarkdown(comment.body);
 		this._body.appendChild(this._md);
+
+		this._clearTimeout = null;
 	}
 
 	update(newComment: modes.Comment) {
@@ -67,6 +70,15 @@ export class CommentNode {
 		}
 
 		this.comment = newComment;
+	}
+
+	focus() {
+		if (!this._clearTimeout) {
+			dom.addClass(this.domNode, 'focus');
+			this._clearTimeout = setTimeout(() => {
+				dom.removeClass(this.domNode, 'focus');
+			}, 3000);
+		}
 	}
 }
 
@@ -81,7 +93,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _commentEditor: ICodeEditor;
 	private _commentsElement: HTMLElement;
 	private _commentElements: CommentNode[];
-	private _focusedCommentElement: CommentNode;
 	private _resizeObserver: any;
 	private _onDidClose = new Emitter<ReviewZoneWidget>();
 	private _isCollapsed;
@@ -151,9 +162,9 @@ export class ReviewZoneWidget extends ZoneWidget {
 			if (matchedNode && matchedNode.length) {
 				const commentThreadCoords = dom.getDomNodePagePosition(this._commentElements[0].domNode);
 				const commentCoords = dom.getDomNodePagePosition(matchedNode[0].domNode);
-				this._focusedCommentElement = matchedNode[0];
 
 				this.editor.setScrollTop(this.editor.getTopForLineNumber(this._commentThread.range.startLineNumber) - height / 2 + commentCoords.top - commentThreadCoords.top);
+				matchedNode[0].focus();
 				return;
 			}
 		}
@@ -292,7 +303,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		this._commentsElement = $('div.comments-container').appendTo(this._bodyElement).getHTMLElement();
 		this._commentElements = [];
-		this._focusedCommentElement = null;
 		for (let i = 0; i < this._commentThread.comments.length; i++) {
 			let newCommentNode = new CommentNode(this._commentThread.comments[i]);
 			this._commentElements.push(newCommentNode);

@@ -16,7 +16,7 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import * as modes from 'vs/editor/common/modes';
-import { peekViewEditorBackground, peekViewResultsBackground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
+import { peekViewEditorBackground, peekViewResultsBackground, peekViewResultsSelectionBackground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -440,6 +440,20 @@ registerThemingParticipant((theme, collector) => {
 			`}` +
 			`.monaco-editor .review-widget .body .comment-form .review-thread-reply-button {` +
 			`	color: ${monacoEditorForeground}` +
+			`}`
+		);
+	}
+
+	let selectionBackground = theme.getColor(peekViewResultsSelectionBackground);
+
+	if (selectionBackground) {
+		collector.addRule(
+			`@keyframes monaco-review-widget-focus {` +
+			`	0% { background: ${selectionBackground}; }` +
+			`	100% { background: transparent; }` +
+			`}` +
+			`.monaco-editor .review-widget .body .review-comment.focus {` +
+			`	animation: monaco-review-widget-focus 3s ease 0s;` +
 			`}`
 		);
 	}
