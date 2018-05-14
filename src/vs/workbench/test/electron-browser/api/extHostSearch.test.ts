@@ -77,7 +77,7 @@ suite('ExtHostSearch', () => {
 		mockMainThreadSearch = new MockMainThreadSearch();
 
 		rpcProtocol.set(MainContext.MainThreadSearch, mockMainThreadSearch);
-		extHostSearch = new ExtHostSearch(rpcProtocol);
+		extHostSearch = new ExtHostSearch(rpcProtocol, null);
 	});
 
 	teardown(() => {
