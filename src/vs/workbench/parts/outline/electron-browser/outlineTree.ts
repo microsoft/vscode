@@ -7,7 +7,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { values } from 'vs/base/common/collections';
+import { values, size } from 'vs/base/common/collections';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IFilter, IRenderer, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
 import { DefaultController, ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
@@ -31,22 +31,31 @@ export class OutlineItemComparator implements ISorter {
 		public type: OutlineItemCompareType = OutlineItemCompareType.ByPosition
 	) { }
 
-	compare(tree: ITree, a: OutlineElement, b: OutlineElement): number {
-		switch (this.type) {
-			case OutlineItemCompareType.ByKind:
-				return a.symbol.kind - b.symbol.kind;
-			case OutlineItemCompareType.ByName:
-				return a.symbol.name.localeCompare(b.symbol.name);
-			case OutlineItemCompareType.ByPosition:
-			default:
-				return Range.compareRangesUsingStarts(a.symbol.location.range, b.symbol.location.range);
+	compare(tree: ITree, a: OutlineGroup | OutlineElement, b: OutlineGroup | OutlineElement): number {
+
+		if (a instanceof OutlineGroup && b instanceof OutlineGroup) {
+			return a.providerIndex - b.providerIndex;
 		}
+
+		if (a instanceof OutlineElement && b instanceof OutlineElement) {
+			switch (this.type) {
+				case OutlineItemCompareType.ByKind:
+					return a.symbol.kind - b.symbol.kind;
+				case OutlineItemCompareType.ByName:
+					return a.symbol.name.localeCompare(b.symbol.name);
+				case OutlineItemCompareType.ByPosition:
+				default:
+					return Range.compareRangesUsingStarts(a.symbol.location.range, b.symbol.location.range);
+			}
+		}
+
+		return 0;
 	}
 }
 
 export class OutlineItemFilter implements IFilter {
 
-	isVisible(tree: ITree, element: OutlineElement): boolean {
+	isVisible(tree: ITree, element: OutlineElement | any): boolean {
 		return !(element instanceof OutlineElement) || Boolean(element.score);
 	}
 }
@@ -71,17 +80,24 @@ export class OutlineDataSource implements IDataSource {
 	}
 
 	async getChildren(tree: ITree, element: TreeElement): TPromise<TreeElement[]> {
-		if (element instanceof OutlineGroup) {
-
+		if (!(element instanceof OutlineModel)) {
+			return values(element.children);
 		}
-		if (element instanceof OutlineModel) {
-			await element.request;
+		// don't show OutlineGroup when there is just one
+		await element.request;
+		let result = values(element.children);
+		if (result.length === 1) {
+			return values(result[0].children);
 		}
-		return values(element.children);
+		return result;
 	}
 
 	async getParent(tree: ITree, element: TreeElement | any): TPromise<TreeElement> {
-		return element.parent;
+		let result = element.parent;
+		if (result instanceof OutlineGroup && size(result.parent.children) === 1) {
+			result = result.parent;
+		}
+		return result;
 	}
 
 	shouldAutoexpand(tree: ITree, element: TreeElement): boolean {

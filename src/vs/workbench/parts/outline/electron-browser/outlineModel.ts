@@ -64,7 +64,8 @@ export class OutlineGroup extends TreeElement {
 	constructor(
 		readonly id: string,
 		readonly parent: OutlineModel,
-		readonly provider: DocumentSymbolProvider
+		readonly provider: DocumentSymbolProvider,
+		readonly providerIndex: number,
 	) {
 		super();
 	}
@@ -135,7 +136,7 @@ export class OutlineModel extends TreeElement {
 		let promises = DocumentSymbolProviderRegistry.ordered(this.textModel).map((provider, index) => {
 
 			let id = TreeElement.findId(`provider_${index}`, this);
-			let group = new OutlineGroup(id, this, provider);
+			let group = new OutlineGroup(id, this, provider, index);
 
 			return asWinJsPromise(token => provider.provideDocumentSymbols(this.textModel, token)).then(result => {
 				for (const info of result) {
