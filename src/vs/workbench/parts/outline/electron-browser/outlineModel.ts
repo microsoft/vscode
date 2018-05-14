@@ -11,174 +11,177 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { fuzzyScore } from '../../../../base/common/filters';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { values } from 'vs/base/common/map';
 
-export function getOutline(model: ITextModel): TPromise<OutlineItemGroup>[] {
-	return DocumentSymbolProviderRegistry.ordered(model).map(provider => {
-		return asWinJsPromise(token => provider.provideDocumentSymbols(model, token)).then(result => {
-			let group = new OutlineItemGroup(provider.extensionId);
-			for (const info of result) {
-				let child = asOutlineItem(info, group);
-				group.children.set(child.id, child);
-			}
-			return group;
-		}, err => {
-			//todo@joh capture error in group
-			return new OutlineItemGroup(provider.extensionId);
-		});
-	});
-}
+export type FuzzyScore = [number, number[]];
 
-function asOutlineItem(info: SymbolInformation, container: OutlineItem | OutlineItemGroup): OutlineItem {
+export abstract class TreeElement {
+	abstract id: string;
+	abstract children: { [id: string]: TreeElement };
+	abstract parent: TreeElement | any;
 
-	// complex id-computation which contains the origin/extension,
-	// the parent path, and some dedupe logic when names collide
-	let id = container.id + info.name;
-	for (let i = 1; container.children.has(id); i++) {
-		id = container.id + info.name + i;
-	}
-
-	// build item and recurse
-	let res = new OutlineItem(id, info, container instanceof OutlineItem ? container : undefined);
-	if (info.children) {
-		for (const child of info.children) {
-			let item = asOutlineItem(child, res);
-			res.children.set(item.id, item);
+	static findId(candidate: string, container: TreeElement): string {
+		// complex id-computation which contains the origin/extension,
+		// the parent path, and some dedupe logic when names collide
+		let id = container.id + candidate;
+		for (let i = 1; container.children[id] !== void 0; i++) {
+			id = container.id + candidate + i;
 		}
-	}
-	return res;
-}
-
-export class OutlineItem {
-
-	children: Map<string, OutlineItem> = new Map();
-	matches: [number, number[]] = [0, []];
-
-	constructor(
-		readonly id: string,
-		readonly symbol: SymbolInformation,
-		readonly parent: OutlineItem
-	) {
-		//
-	}
-}
-
-export class OutlineItemGroup {
-
-	children: Map<string, OutlineItem> = new Map();
-
-	constructor(
-		readonly id: string,
-	) {
-		//
+		return id;
 	}
 
-	updateMatches(pattern: string): OutlineItem {
-		let topMatch: OutlineItem;
-		this.children.forEach(child => {
-			let candidate = this._updateMatches(pattern, child);
-			if (candidate && (!topMatch || topMatch.matches[0] < candidate.matches[0])) {
-				topMatch = candidate;
-			}
-		});
-		return topMatch;
-	}
-
-	private _updateMatches(pattern: string, item: OutlineItem): OutlineItem {
-		let topMatch: OutlineItem;
-		item.matches = fuzzyScore(pattern, item.symbol.name);
-		if (item.matches) {
-			topMatch = item;
+	static getElementById(id: string, element: TreeElement): TreeElement {
+		if (element.id === id) {
+			return element;
 		}
-		item.children.forEach(child => {
-			let candidate = this._updateMatches(pattern, child);
-			if (!item.matches && child.matches) {
-				// don't filter parents with unfiltered children
-				item.matches = [0, []];
-			}
-			if (!topMatch || (candidate && candidate.matches && topMatch.matches[0] < candidate.matches[0])) {
-				topMatch = candidate;
-			}
-		});
-		return topMatch;
-	}
-
-	getItemEnclosingPosition(position: IPosition): OutlineItem {
-		for (const child of values(this.children)) {
-			let candidate = this._getItemEnclosingPosition(position, child);
+		for (const key in element.children) {
+			let candidate = TreeElement.getElementById(id, element.children[key]);
 			if (candidate) {
 				return candidate;
 			}
 		}
 		return undefined;
 	}
+}
 
-	private _getItemEnclosingPosition(position: IPosition, item: OutlineItem): OutlineItem {
-		if (!Range.containsPosition(item.symbol.definingRange, position)) {
-			return undefined;
-		}
-		for (const child of values(item.children)) {
-			let candidate = this._getItemEnclosingPosition(position, child);
-			if (candidate) {
-				return candidate;
-			}
-		}
-		return item;
-	}
+export class OutlineElement extends TreeElement {
 
-	getItemById(id: string): OutlineItem {
-		return this._getItemById(id, this.children);
-	}
+	children: { [id: string]: OutlineElement; } = Object.create(null);
+	score: FuzzyScore = [0, []];
 
-	private _getItemById(id: string, items: Map<string, OutlineItem>): OutlineItem {
-		let result: OutlineItem;
-		items.forEach(item => {
-			if (result) {
-				// break!
-			} else if (item.id === id) {
-				result = item;
-			} else {
-				result = this._getItemById(id, item.children);
-			}
-		});
-		return result;
+	constructor(
+		readonly id: string,
+		readonly parent: OutlineGroup | OutlineElement,
+		readonly symbol: SymbolInformation
+	) {
+		super();
 	}
 }
 
-export class OutlineModel {
+export class OutlineGroup extends TreeElement {
+
+	children: { [id: string]: OutlineElement; } = Object.create(null);
 
 	constructor(
-		readonly buffer: ITextModel,
-		private _requests: TPromise<OutlineItemGroup>[]
+		readonly id: string,
+		readonly parent: OutlineModel
 	) {
-		//
+		super();
+	}
+
+	updateMatches(pattern: string, topMatch: OutlineElement): OutlineElement {
+		for (const key in this.children) {
+			topMatch = this._updateMatches(pattern, this.children[key], topMatch);
+		}
+		return topMatch;
+	}
+
+	private _updateMatches(pattern: string, item: OutlineElement, topMatch: OutlineElement): OutlineElement {
+		item.score = fuzzyScore(pattern, item.symbol.name);
+		if (item.score && (!topMatch || item.score[0] > topMatch.score[0])) {
+			topMatch = item;
+		}
+		for (const key in item.children) {
+			let child = item.children[key];
+			topMatch = this._updateMatches(pattern, child, topMatch);
+			if (!item.score && child.score) {
+				// don't filter parents with unfiltered children
+				item.score = [0, []];
+			}
+		}
+		return topMatch;
+	}
+
+	getItemEnclosingPosition(position: IPosition): OutlineElement {
+		return this._getItemEnclosingPosition(position, this.children);
+	}
+
+	private _getItemEnclosingPosition(position: IPosition, children: { [id: string]: OutlineElement }): OutlineElement {
+		for (let key in children) {
+			let item = children[key];
+			if (!Range.containsPosition(item.symbol.definingRange, position)) {
+				continue;
+			}
+			return this._getItemEnclosingPosition(position, item.children) || item;
+		}
+		return undefined;
+	}
+}
+
+export class OutlineModel extends TreeElement {
+
+	readonly id = 'root';
+	readonly parent = undefined;
+
+	children: { [id: string]: OutlineGroup; } = Object.create(null);
+	request: TPromise<any>;
+
+	constructor(readonly textModel: ITextModel) {
+		super();
+		this._makeRequest();
 	}
 
 	dispose(): void {
-		this._cancelRequests();
+		this.request.cancel();
 	}
 
-	private _cancelRequests() {
-		for (const req of this._requests) {
-			req.cancel();
+	refresh(): void {
+		this.request.cancel();
+		this.children = Object.create(null);
+		this._makeRequest();
+	}
+
+	private _makeRequest(): void {
+		let promises = DocumentSymbolProviderRegistry.ordered(this.textModel).map((provider, index) => {
+
+			let id = TreeElement.findId(provider.extensionId || `provider_${index}`, this);
+			let group = new OutlineGroup(id, this);
+
+			return asWinJsPromise(token => provider.provideDocumentSymbols(this.textModel, token)).then(result => {
+				for (const info of result) {
+					OutlineModel._makeOutlineElement(info, group);
+				}
+				return group;
+			}, err => {
+				//todo@joh capture error in group
+				return group;
+			}).then(group => {
+				this.children[id] = group;
+			});
+		});
+
+		this.request = TPromise.join(promises);
+	}
+
+	private static _makeOutlineElement(info: SymbolInformation, container: OutlineGroup | OutlineElement): void {
+		let id = TreeElement.findId(info.name, container);
+		let res = new OutlineElement(id, container, info);
+		if (info.children) {
+			for (const childInfo of info.children) {
+				OutlineModel._makeOutlineElement(childInfo, res);
+			}
 		}
+		container.children[res.id] = res;
 	}
 
-	all(): TPromise<OutlineItemGroup>[] {
-		return this._requests;
-	}
-
-	selected(): TPromise<OutlineItemGroup> {
-		// todo@joh allow to 'select' results from different providers
-		return this._requests[0];
-	}
-
-	merge(other: OutlineModel): boolean {
-		if (this.buffer.uri.toString() !== other.buffer.uri.toString()) {
-			return false;
+	updateMatches(pattern: string): OutlineElement {
+		let topMatch: OutlineElement;
+		for (const key in this.children) {
+			this.children[key].updateMatches(pattern, topMatch);
 		}
-		this._cancelRequests();
-		this._requests = other._requests;
-		return true;
+		return topMatch;
+	}
+
+	getItemEnclosingPosition(position: IPosition): OutlineElement {
+		for (const key in this.children) {
+			let result = this.children[key].getItemEnclosingPosition(position);
+			if (result) {
+				return result;
+			}
+		}
+		return undefined;
+	}
+
+	getItemById(id: string): TreeElement {
+		return TreeElement.getElementById(id, this);
 	}
 }

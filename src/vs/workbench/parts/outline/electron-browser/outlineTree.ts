@@ -7,7 +7,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { values } from 'vs/base/common/map';
+import { values } from 'vs/base/common/collections';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IFilter, IRenderer, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
 import { DefaultController, ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
@@ -16,7 +16,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { symbolKindToCssClass } from 'vs/editor/common/modes';
 import { HighlightedLabel } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel';
 import { createMatches } from '../../../../base/common/filters';
-import { OutlineItem, OutlineModel } from './outlineModel';
+import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from './outlineModel';
 
 export enum OutlineItemCompareType {
 	ByPosition,
@@ -30,7 +30,7 @@ export class OutlineItemComparator implements ISorter {
 		public type: OutlineItemCompareType = OutlineItemCompareType.ByPosition
 	) { }
 
-	compare(tree: ITree, a: OutlineItem, b: OutlineItem): number {
+	compare(tree: ITree, a: OutlineElement, b: OutlineElement): number {
 		switch (this.type) {
 			case OutlineItemCompareType.ByKind:
 				return a.symbol.kind - b.symbol.kind;
@@ -45,82 +45,97 @@ export class OutlineItemComparator implements ISorter {
 
 export class OutlineItemFilter implements IFilter {
 
-	isVisible(tree: ITree, element: OutlineItem): boolean {
-		return Boolean(element.matches);
+	isVisible(tree: ITree, element: OutlineElement): boolean {
+		return !(element instanceof OutlineElement) || Boolean(element.score);
 	}
 }
 
 export class OutlineDataSource implements IDataSource {
 
-	getId(tree: ITree, element: OutlineItem | any): string {
-		if (element instanceof OutlineItem) {
-			return element.id;
-		} else {
-			return 'root';
-		}
+	getId(tree: ITree, element: TreeElement): string {
+		return element.id;
 	}
 
-	hasChildren(tree: ITree, element: OutlineModel | OutlineItem): boolean {
+	hasChildren(tree: ITree, element: TreeElement): boolean {
 		if (element instanceof OutlineModel) {
-			return element.all().length > 0;
-		} else {
-			if (element.children.size === 0) {
-				return false;
-			} else {
-				let res: boolean;
-				element.children.forEach(child => res = res || Boolean(child.matches));
-				return res;
-			}
+			return true;
 		}
+		if (element instanceof OutlineElement && !element.score) {
+			return false;
+		}
+		for (const _ in element.children) {
+			return true;
+		}
+		return false;
 	}
 
-	async getChildren(tree: ITree, element: OutlineModel | OutlineItem): TPromise<OutlineItem[]> {
+	async getChildren(tree: ITree, element: TreeElement): TPromise<TreeElement[]> {
+		if (element instanceof OutlineGroup) {
+
+		}
 		if (element instanceof OutlineModel) {
-			return values((await element.selected()).children);
-		} else {
-			return values(element.children);
+			await element.request;
 		}
+		return values(element.children);
 	}
 
-	async getParent(tree: ITree, element: OutlineItem | any): TPromise<OutlineItem> {
-		return element instanceof OutlineItem ? element.parent : undefined;
+	async getParent(tree: ITree, element: TreeElement | any): TPromise<TreeElement> {
+		return element.parent;
 	}
 
-	shouldAutoexpand(tree: ITree, element: OutlineItem): boolean {
-		return !Boolean(element.parent);
+	shouldAutoexpand(tree: ITree, element: TreeElement): boolean {
+		return element instanceof OutlineModel || element instanceof OutlineGroup || element.parent instanceof OutlineGroup;
 	}
 }
 
-export interface OutlineItemTemplate {
+export interface OutlineGroupTemplate {
+	label: HTMLDivElement;
+}
+
+export interface OutlineElementTemplate {
 	icon: HTMLSpanElement;
 	label: HighlightedLabel;
 }
 
 export class OutlineRenderer implements IRenderer {
 
-	getHeight(tree: ITree, element: OutlineItem): number {
+	getHeight(tree: ITree, element: any): number {
 		return 22;
 	}
 
-	getTemplateId(tree: ITree, element: OutlineItem): string {
-		return 'outline.element';
+	getTemplateId(tree: ITree, element: OutlineGroup | OutlineElement): string {
+		return element instanceof OutlineGroup ? 'outline-group' : 'outline-element';
 	}
 
-	renderTemplate(tree: ITree, templateId: string, container: HTMLElement): OutlineItemTemplate {
-		const icon = dom.$('.outline-element-icon symbol-icon');
-		const labelContainer = dom.$('.outline-element-label');
-		dom.addClass(container, 'outline-element');
-		dom.append(container, icon, labelContainer);
-		return { icon, label: new HighlightedLabel(labelContainer) };
+	renderTemplate(tree: ITree, templateId: string, container: HTMLElement): any {
+		if (templateId === 'outline-element') {
+			const icon = dom.$('.outline-element-icon symbol-icon');
+			const labelContainer = dom.$('.outline-element-label');
+			dom.addClass(container, 'outline-element');
+			dom.append(container, icon, labelContainer);
+			return { icon, label: new HighlightedLabel(labelContainer) };
+		}
+		if (templateId === 'outline-group') {
+			const label = dom.$('.outline-group');
+			dom.append(container, label);
+			return { label };
+		}
 	}
 
-	renderElement(tree: ITree, element: OutlineItem, templateId: string, template: OutlineItemTemplate): void {
-		template.icon.className = `outline-element-icon symbol-icon ${symbolKindToCssClass(element.symbol.kind)}`;
-		template.label.set(element.symbol.name, element.matches ? createMatches(element.matches[1]) : []);
+	renderElement(tree: ITree, element: OutlineGroup | OutlineElement, templateId: string, template: any): void {
+		if (element instanceof OutlineElement) {
+			template.icon.className = `outline-element-icon symbol-icon ${symbolKindToCssClass(element.symbol.kind)}`;
+			template.label.set(element.symbol.name, element.score ? createMatches(element.score[1]) : []);
+		}
+		if (element instanceof OutlineGroup) {
+			template.label.innerHTML = element.id;
+		}
 	}
 
-	disposeTemplate(tree: ITree, templateId: string, template: OutlineItemTemplate): void {
-		template.label.dispose();
+	disposeTemplate(tree: ITree, templateId: string, template: OutlineElementTemplate | OutlineGroupTemplate): void {
+		if (template.label instanceof HighlightedLabel) {
+			template.label.dispose();
+		}
 	}
 }
 
@@ -134,14 +149,14 @@ export class OutlineTreeState {
 		// selection
 		let selected: string;
 		let element = tree.getSelection()[0];
-		if (element instanceof OutlineItem) {
+		if (element instanceof TreeElement) {
 			selected = element.id;
 		}
 
 		// focus
 		let focused: string;
 		element = tree.getFocus(true);
-		if (element instanceof OutlineItem) {
+		if (element instanceof TreeElement) {
 			focused = element.id;
 		}
 
@@ -150,7 +165,7 @@ export class OutlineTreeState {
 		let nav = tree.getNavigator();
 		while (nav.next()) {
 			let element = nav.current();
-			if (element instanceof OutlineItem) {
+			if (element instanceof TreeElement) {
 				if (tree.isExpanded(element)) {
 					expanded.push(element.id);
 				}
@@ -164,12 +179,13 @@ export class OutlineTreeState {
 		if (!state || !(model instanceof OutlineModel)) {
 			return TPromise.as(undefined);
 		}
-		let group = await model.selected();
+
+		await model.request;
 
 		// expansion
-		let items: OutlineItem[] = [];
+		let items: TreeElement[] = [];
 		for (const id of state.expanded) {
-			let item = group.getItemById(id);
+			let item = model.getItemById(id);
 			if (item) {
 				items.push(item);
 			}
@@ -178,8 +194,8 @@ export class OutlineTreeState {
 		await tree.expandAll(items);
 
 		// selection & focus
-		let selected = group.getItemById(state.selected);
-		let focused = group.getItemById(state.focused);
+		let selected = model.getItemById(state.selected);
+		let focused = model.getItemById(state.focused);
 		tree.setSelection([selected]);
 		tree.setFocus(focused);
 	}
@@ -188,7 +204,7 @@ export class OutlineTreeState {
 export class OutlineController extends DefaultController {
 
 	protected onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {
-		let undoExpansion = !this.isClickOnTwistie(<IMouseEvent>eventish);
+		let undoExpansion = element instanceof OutlineElement && !this.isClickOnTwistie(<IMouseEvent>eventish);
 		let result = super.onLeftClick(tree, element, eventish, origin);
 		if (undoExpansion) {
 			tree.toggleExpansion(element, false).then(undefined, onUnexpectedError);

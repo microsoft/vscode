@@ -36,7 +36,7 @@ import { KeyCode } from '../../../../base/common/keyCodes';
 import { LRUCache } from '../../../../base/common/map';
 import { escape } from '../../../../base/common/strings';
 import LanguageFeatureRegistry from '../../../../editor/common/modes/languageFeatureRegistry';
-import { OutlineItem, OutlineItemGroup, OutlineModel, getOutline } from './outlineModel';
+import { OutlineModel, OutlineElement } from './outlineModel';
 import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from './outlineTree';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { Emitter } from '../../../../base/common/event';
@@ -307,27 +307,30 @@ export class OutlinePanel extends ViewsViewletPanel {
 		}
 
 		dom.removeClass(this._domNode, 'message');
-		let buffer = editor.getModel();
-		let oldModel = <OutlineModel>this._tree.getInput();
-		let model = new OutlineModel(buffer, getOutline(buffer));
 
-		if (oldModel && oldModel.merge(model)) {
-			model = oldModel;
+		let model: OutlineModel;
+		let textModel = editor.getModel();
+		let oldModel = <OutlineModel>this._tree.getInput();
+
+		if (oldModel && oldModel.textModel.uri.toString() === textModel.uri.toString()) {
+			oldModel.refresh();
 			this._tree.refresh(undefined, true);
+			model = oldModel;
 
 		} else {
 			// persist state
 			if (oldModel) {
 				let state = OutlineTreeState.capture(this._tree);
-				this._treeStates.set(oldModel.buffer.uri.toString(), state);
+				this._treeStates.set(oldModel.textModel.uri.toString(), state);
 			}
+			model = new OutlineModel(textModel);
 			await this._tree.setInput(model);
-			let state = this._treeStates.get(model.buffer.uri.toString());
+			let state = this._treeStates.get(model.textModel.uri.toString());
 			OutlineTreeState.restore(this._tree, state);
 		}
 
 		// wait for the actual model to work with...
-		let group = await model.selected();
+		await model.request;
 
 		this._input.enable();
 
@@ -340,7 +343,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 			if (!beforePatternState) {
 				beforePatternState = OutlineTreeState.capture(this._tree);
 			}
-			let item = group.updateMatches(pattern);
+			let item = model.updateMatches(pattern);
 			await this._tree.refresh(undefined, true);
 			if (item) {
 				await this._tree.reveal(item);
@@ -363,7 +366,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 			}
 			let [first] = e.selection;
 			let keyboard = e.payload && e.payload.origin === 'keyboard';
-			if (first instanceof OutlineItem) {
+			if (first instanceof OutlineElement) {
 				let { range } = first.symbol.location;
 				editor.revealRangeInCenterIfOutsideViewport(range, ScrollType.Smooth);
 				editor.setSelection(Range.collapseToStart(range));
@@ -374,15 +377,15 @@ export class OutlinePanel extends ViewsViewletPanel {
 		}));
 
 		// feature: reveal editor selection in outline
-		this._editorDisposables.push(editor.onDidChangeCursorSelection(e => e.reason === CursorChangeReason.Explicit && this._revealEditorSelection(group, e.selection)));
-		this._revealEditorSelection(group, editor.getSelection());
+		this._editorDisposables.push(editor.onDidChangeCursorSelection(e => e.reason === CursorChangeReason.Explicit && this._revealEditorSelection(model, e.selection)));
+		this._revealEditorSelection(model, editor.getSelection());
 	}
 
-	private async _revealEditorSelection(group: OutlineItemGroup, selection: Selection): TPromise<void> {
+	private async _revealEditorSelection(model: OutlineModel, selection: Selection): TPromise<void> {
 		if (!this._outlineViewState.followCursor) {
 			return;
 		}
-		let item = group.getItemEnclosingPosition({
+		let item = model.getItemEnclosingPosition({
 			lineNumber: selection.selectionStartLineNumber,
 			column: selection.selectionStartColumn
 		});
