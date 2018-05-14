@@ -41,7 +41,6 @@ export class SearchService implements ISearchService {
 		@ILogService private logService: ILogService
 	) {
 		this.diskSearch = new DiskSearch(!environmentService.isBuilt || environmentService.verbose, /*timeout=*/undefined, environmentService.debugSearch);
-		this.registerSearchResultProvider(this.diskSearch);
 	}
 
 	public registerSearchResultProvider(provider: ISearchResultProvider): IDisposable {
@@ -92,7 +91,8 @@ export class SearchService implements ISearchService {
 			process.nextTick(() => localResults.values().filter((res) => !!res).forEach(onProgress));
 
 			this.logService.trace('SearchService#search', JSON.stringify(query));
-			const providerPromises = this.searchProvider.map(provider => TPromise.wrap(provider.search(query)).then(e => e,
+
+			const searchWithProvider = (provider: ISearchResultProvider) => TPromise.wrap(provider.search(query)).then(e => e,
 				err => {
 					// TODO@joh
 					// single provider fail. fail all?
@@ -112,8 +112,12 @@ export class SearchService implements ISearchService {
 					if (progress.message) {
 						this.logService.debug('SearchService#search', progress.message);
 					}
-				}
-			));
+				});
+
+			const enableSearchProviders = this.configurationService.getValue<ISearchConfiguration>().search.enableSearchProviders;
+			const providerPromises = enableSearchProviders ?
+				this.searchProvider.map(searchWithProvider) :
+				[searchWithProvider(this.diskSearch)];
 
 			combinedPromise = TPromise.join(providerPromises).then(values => {
 

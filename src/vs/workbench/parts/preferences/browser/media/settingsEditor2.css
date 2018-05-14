@@ -126,24 +126,11 @@
 	margin-left: 10px;
 }
 
-.settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-is-configured-indicator {
-	position: absolute;
-	left: -15px;
-	top: 4px;
-	visibility: hidden;
-}
-
-.settings-editor > .settings-body > .settings-list-container .monaco-list-row.is-configured .setting-item-is-configured-indicator {
-	visibility: visible;
-}
-
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-label {
-	font-size: 15px;
 	font-weight: bold;
 }
 
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-category {
-	font-size: 15px;
 	font-weight: bold;
 	opacity: 0.7;
 }
@@ -185,7 +172,6 @@
 }
 
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-value-checkbox {
-	margin-left: auto;
 	position: relative;
 }
 
@@ -237,7 +223,7 @@
 	- Make up for that space with a negative margin on the settings-body
 
 	This is risky, consider a different approach
-	 */
+*/
 .settings-editor .settings-list-container .monaco-list-row {
 	overflow: visible;
 }
@@ -251,6 +237,38 @@
 	margin-left: -15px;
 }
 
-/* .settings-editor .settings-list-container .monaco-scrollable-element > .shadow.top {
-	width: calc(100% - 3px);
-} */
+.settings-editor > .settings-body > .settings-list-container .settings-group-title-expanded,
+.settings-editor > .settings-body > .settings-list-container .settings-group-title-collapsed {
+	cursor: pointer;
+}
+
+.vs-dark .settings-editor > .settings-body > .settings-list-container .settings-group-title-collapsed::before {
+	background-image: url(collapsed-dark.svg);
+}
+
+.settings-editor > .settings-body > .settings-list-container .settings-group-title-collapsed::before {
+	display: inline-block;
+	background-image: url(collapsed.svg);
+}
+
+.vs-dark .settings-editor > .settings-body > .settings-list-container .settings-group-title-expanded::before {
+	background-image: url(expanded-dark.svg);
+}
+
+.settings-editor > .settings-body > .settings-list-container .settings-group-title-expanded::before {
+	display: inline-block;
+	background-image: url(expanded.svg);
+}
+
+.settings-editor > .settings-body > .settings-list-container .settings-group-title-collapsed::before,
+.settings-editor > .settings-body > .settings-list-container .settings-group-title-expanded::before {
+	background-size: 16px;
+	background-position: 50% 50%;
+	background-repeat: no-repeat;
+	width: 16px;
+	height: 22px;
+	position: absolute;
+	content: ' ';
+	left: -19px;
+	top: 14px;
+}

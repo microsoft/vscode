@@ -18,6 +18,7 @@ import { Color } from 'vs/base/common/color';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import * as model from 'vs/editor/common/model';
 import { isObject } from 'vs/base/common/types';
+import { Selection } from 'vs/editor/common/core/selection';
 
 /**
  * Open ended enum at runtime
@@ -363,7 +364,7 @@ export interface CodeActionProvider {
 	/**
 	 * Provide commands for the given document and range.
 	 */
-	provideCodeActions(model: model.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): CodeAction[] | Thenable<CodeAction[]>;
+	provideCodeActions(model: model.ITextModel, range: Range | Selection, context: CodeActionContext, token: CancellationToken): CodeAction[] | Thenable<CodeAction[]>;
 
 	/**
 	 * Optional list of of CodeActionKinds that this provider returns.

@@ -9,6 +9,7 @@ import severity from 'vs/base/common/severity';
 import { SimpleReplElement, Model, Session, Expression, RawObjectReplElement, StackFrame, Thread } from 'vs/workbench/parts/debug/common/debugModel';
 import * as sinon from 'sinon';
 import { MockSession } from 'vs/workbench/parts/debug/test/common/mockDebug';
+import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
 suite('Debug - Model', () => {
 	let model: Model;
@@ -364,6 +365,33 @@ suite('Debug - Model', () => {
 
 		model.removeReplExpressions();
 		assert.equal(model.getReplElements().length, 0);
+	});
+
+	test('stack frame get specific source name', () => {
+		const session = new Session({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, rawSession);
+		let firstStackFrame: StackFrame;
+		let secondStackFrame: StackFrame;
+		const thread = new class extends Thread {
+			public getCallStack(): StackFrame[] {
+				return [firstStackFrame, secondStackFrame];
+			}
+		}(session, 'mockthread', 1);
+
+		const firstSource = new Source({
+			name: 'internalModule.js',
+			path: 'a/b/c/d/internalModule.js',
+			sourceReference: 10,
+		}, 'aDebugSessionId');
+		const secondSource = new Source({
+			name: 'internalModule.js',
+			path: 'z/x/c/d/internalModule.js',
+			sourceReference: 11,
+		}, 'aDebugSessionId');
+		firstStackFrame = new StackFrame(thread, 1, firstSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
+		secondStackFrame = new StackFrame(thread, 1, secondSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
+
+		assert.equal(firstStackFrame.getSpecificSourceName(), '.../b/c/d/internalModule.js');
+		assert.equal(secondStackFrame.getSpecificSourceName(), '.../x/c/d/internalModule.js');
 	});
 
 	// Repl output

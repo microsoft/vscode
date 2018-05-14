@@ -1492,7 +1492,6 @@ export function getWellFormedFileName(filename: string): string {
 
 	// Remove trailing dots, slashes, and spaces
 	filename = strings.rtrim(filename, '.');
-	filename = strings.rtrim(filename, ' ');
 	filename = strings.rtrim(filename, '/');
 	filename = strings.rtrim(filename, '\\');
 

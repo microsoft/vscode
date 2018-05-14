@@ -146,7 +146,7 @@ export function createApiFactory(
 		// We only inform once, it is not a warning because we just want to raise awareness and because
 		// we cannot say if the extension is doing it right or wrong...
 		let checkSelector = (function () {
-			let done = initData.environment.extensionDevelopmentPath !== extension.extensionFolderPath;
+			let done = (!extension.isUnderDevelopment);
 			function informOnce(selector: vscode.DocumentSelector) {
 				if (!done) {
 					console.info(`Extension '${extension.id}' uses a document selector without scheme. Learn more about this: https://go.microsoft.com/fwlink/?linkid=872305`);
@@ -788,7 +788,6 @@ const nullExtensionDescription: IExtensionDescription = {
 	enableProposedApi: false,
 	engines: undefined,
 	extensionDependencies: undefined,
-	extensionFolderPath: undefined,
 	extensionLocation: undefined,
 	isBuiltin: false,
 	isUnderDevelopment: false,

@@ -185,7 +185,7 @@ export class TerminalInstance implements ITerminalInstance {
 		// order to be precise. font.charWidth/charHeight alone as insufficient
 		// when window.devicePixelRatio changes.
 		const scaledWidthAvailable = dimension.width * window.devicePixelRatio;
-		const scaledCharWidth = Math.floor(font.charWidth * window.devicePixelRatio);
+		const scaledCharWidth = Math.floor(font.charWidth * window.devicePixelRatio) + font.letterSpacing;
 		this._cols = Math.max(Math.floor(scaledWidthAvailable / scaledCharWidth), 1);
 
 		const scaledHeightAvailable = dimension.height * window.devicePixelRatio;
@@ -256,6 +256,7 @@ export class TerminalInstance implements ITerminalInstance {
 			fontWeight: this._configHelper.config.fontWeight,
 			fontWeightBold: this._configHelper.config.fontWeightBold,
 			fontSize: font.fontSize,
+			letterSpacing: font.letterSpacing,
 			lineHeight: font.lineHeight,
 			bellStyle: this._configHelper.config.enableBell ? 'sound' : 'none',
 			screenReaderMode: accessibilitySupport === 'on',
@@ -848,6 +849,9 @@ export class TerminalInstance implements ITerminalInstance {
 			// Only apply these settings when the terminal is visible so that
 			// the characters are measured correctly.
 			if (this._isVisible) {
+				if (this._xterm.getOption('letterSpacing') !== font.letterSpacing) {
+					this._xterm.setOption('letterSpacing', font.letterSpacing);
+				}
 				if (this._xterm.getOption('lineHeight') !== font.lineHeight) {
 					this._xterm.setOption('lineHeight', font.lineHeight);
 				}

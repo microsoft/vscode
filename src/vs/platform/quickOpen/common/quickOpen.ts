@@ -33,7 +33,6 @@ export interface IPickOpenEntry {
 	run?: (context: IEntryRunContext) => void;
 	action?: IAction;
 	payload?: any;
-	picked?: boolean;
 }
 
 export interface IPickOpenItem {
@@ -85,46 +84,6 @@ export interface IPickOptions {
 	 * a context key to set when this picker is active
 	 */
 	contextKey?: string;
-
-	/**
-	 * an optional flag to make this picker multi-select (honoured by extension API)
-	 */
-	canPickMany?: boolean;
-}
-
-export interface IInputOptions {
-
-	/**
-	 * the value to prefill in the input box
-	 */
-	value?: string;
-
-	/**
-	 * the selection of value, default to the whole word
-	 */
-	valueSelection?: [number, number];
-
-	/**
-	 * the text to display underneath the input box
-	 */
-	prompt?: string;
-
-	/**
-	 * an optional string to show as place holder in the input box to guide the user what to type
-	 */
-	placeHolder?: string;
-
-	/**
-	 * set to true to show a password prompt that will not show the typed value
-	 */
-	password?: boolean;
-
-	ignoreFocusLost?: boolean;
-
-	/**
-	 * an optional function that is used to validate user input.
-	 */
-	validateInput?: (input: string) => TPromise<string>;
 }
 
 export interface IShowOptions {

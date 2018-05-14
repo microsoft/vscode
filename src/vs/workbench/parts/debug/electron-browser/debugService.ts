@@ -1083,7 +1083,9 @@ export class DebugService implements debug.IDebugService {
 	public restartSession(session: debug.ISession, restartData?: any): TPromise<any> {
 		return this.textFileService.saveAll().then(() => {
 			if (session.raw.capabilities.supportsRestartRequest) {
-				return <TPromise>session.raw.custom('restart', null);
+				return this.runTask(session.getId(), session.raw.root, session.configuration.postDebugTask)
+					.then(() => this.runTask(session.getId(), session.raw.root, session.configuration.preLaunchTask))
+					.then(() => <TPromise>session.raw.custom('restart', null));
 			}
 			const focusedSession = this.viewModel.focusedSession;
 			const preserveFocus = focusedSession && session.getId() === focusedSession.getId();

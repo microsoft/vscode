@@ -27,6 +27,12 @@ export function activate(context: vscode.ExtensionContext): void {
 	//extensions suggestions
 	context.subscriptions.push(...registerExtensionsCompletions());
 
+	// launch.json variable suggestions
+	context.subscriptions.push(registerVariableCompletions('**/launch.json'));
+
+	// task.json variable suggestions
+	context.subscriptions.push(registerVariableCompletions('**/tasks.json'));
+
 	// launch.json decorations
 	context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(editor => updateLaunchJsonDecorations(editor), null, context.subscriptions));
 	context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(event => {
@@ -104,6 +110,27 @@ function registerSettingsCompletions(): vscode.Disposable {
 	return vscode.languages.registerCompletionItemProvider({ language: 'jsonc', pattern: '**/settings.json' }, {
 		provideCompletionItems(document, position, token) {
 			return new SettingsDocument(document).provideCompletionItems(position, token);
+		}
+	});
+}
+
+function registerVariableCompletions(pattern: string): vscode.Disposable {
+	return vscode.languages.registerCompletionItemProvider({ language: 'jsonc', pattern }, {
+		provideCompletionItems(document, position, token) {
+			const location = getLocation(document.getText(), document.offsetAt(position));
+			if (!location.isAtPropertyKey && location.previousNode && location.previousNode.type === 'string') {
+				return [{ label: 'workspaceFolder', detail: localize('workspaceFolder', "The path of the folder opened in VS Code") }, { label: 'workspaceFolderBasename', detail: localize('workspaceFolderBasename', "The name of the folder opened in VS Code without any slashes (/)") },
+				{ label: 'relativeFile', detail: localize('relativeFile', "The current opened file relative to ${workspaceFolder}") }, { label: 'file', detail: localize('file', "The current opened file") }, { label: 'cwd', detail: localize('cwd', "The task runner's current working directory on startup") },
+				{ label: 'lineNumber', detail: localize('lineNumber', "The current selected line number in the active file") }, { label: 'selectedText', detail: localize('selectedText', "The current selected text in the active file") },
+				{ label: 'fileDirname', detail: localize('fileDirname', "The current opened file's dirname") }, { label: 'fileExtname', detail: localize('fileExtname', "The current opened file's extension") }, { label: 'fileBasename', detail: localize('fileBasename', "The current opened file's basename") },
+				{ label: 'fileBasenameNoExtension', detail: localize('fileBasenameNoExtension', "The current opened file's basename with no file extension") }].map(variable => ({
+					label: '${' + variable.label + '}',
+					range: new vscode.Range(position, position),
+					detail: variable.detail
+				}));
+			}
+
+			return [];
 		}
 	});
 }

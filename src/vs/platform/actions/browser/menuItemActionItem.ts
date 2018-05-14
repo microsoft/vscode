@@ -26,6 +26,7 @@ class AlternativeKeyEmitter extends Emitter<boolean> {
 	private _subscriptions: IDisposable[] = [];
 	private _isPressed: boolean;
 	private static instance: AlternativeKeyEmitter;
+	private _suppressAltKeyUp: boolean = false;
 
 	private constructor(contextMenuService: IContextMenuService) {
 		super();
@@ -33,7 +34,16 @@ class AlternativeKeyEmitter extends Emitter<boolean> {
 		this._subscriptions.push(domEvent(document.body, 'keydown')(e => {
 			this.isPressed = e.altKey || ((isWindows || isLinux) && e.shiftKey);
 		}));
-		this._subscriptions.push(domEvent(document.body, 'keyup')(e => this.isPressed = false));
+		this._subscriptions.push(domEvent(document.body, 'keyup')(e => {
+			if (this.isPressed) {
+				if (this._suppressAltKeyUp) {
+					e.preventDefault();
+				}
+			}
+
+			this._suppressAltKeyUp = false;
+			this.isPressed = false;
+		}));
 		this._subscriptions.push(domEvent(document.body, 'mouseleave')(e => this.isPressed = false));
 		this._subscriptions.push(domEvent(document.body, 'blur')(e => this.isPressed = false));
 		// Workaround since we do not get any events while a context menu is shown
@@ -47,6 +57,12 @@ class AlternativeKeyEmitter extends Emitter<boolean> {
 	set isPressed(value: boolean) {
 		this._isPressed = value;
 		this.fire(this._isPressed);
+	}
+
+	suppressAltKeyUp() {
+		// Sometimes the native alt behavior needs to be suppresed since the alt was already used as an alternative key
+		// Example: windows behavior to toggle tha top level menu #44396
+		this._suppressAltKeyUp = true;
 	}
 
 	static getInstance(contextMenuService: IContextMenuService) {
@@ -148,6 +164,11 @@ export class MenuItemActionItem extends ActionItem {
 	onClick(event: MouseEvent): void {
 		event.preventDefault();
 		event.stopPropagation();
+
+		const altKey = AlternativeKeyEmitter.getInstance(this._contextMenuService);
+		if (altKey.isPressed) {
+			altKey.suppressAltKeyUp();
+		}
 
 		this.actionRunner.run(this._commandAction)
 			.done(undefined, err => this._notificationService.error(err));

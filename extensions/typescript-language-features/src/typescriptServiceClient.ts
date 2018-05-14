@@ -28,7 +28,7 @@ import { TypeScriptVersionPicker } from './utils/versionPicker';
 import * as fileSchemes from './utils/fileSchemes';
 import { inferredProjectConfig } from './utils/tsconfig';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
-import { disposeAll } from './utils/dipose';
+import { disposeAll } from './utils/dispose';
 import { DiagnosticKind } from './features/diagnostics';
 import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
 

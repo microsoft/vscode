@@ -50,7 +50,8 @@ export class VariableResolver {
 		} else if (types.isObject(value)) {
 			let result: IStringDictionary<string | IStringDictionary<string> | string[]> = Object.create(null);
 			Object.keys(value).forEach(key => {
-				result[key] = this.resolveAny(folderUri, value[key], commandValueMapping);
+				const resolvedKey = this.resolve(folderUri, key, commandValueMapping);
+				result[resolvedKey] = this.resolveAny(folderUri, value[key], commandValueMapping);
 			});
 			return result;
 		}

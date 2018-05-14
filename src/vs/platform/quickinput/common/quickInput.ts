@@ -6,8 +6,83 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IPickOptions, IPickOpenEntry, IInputOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+
+export interface IPickOpenEntry {
+	id?: string;
+	label: string;
+	description?: string;
+	detail?: string;
+	picked?: boolean;
+}
+
+export interface IQuickNavigateConfiguration {
+	keybindings: ResolvedKeybinding[];
+}
+
+export interface IPickOptions {
+
+	/**
+	 * an optional string to show as place holder in the input box to guide the user what she picks on
+	 */
+	placeHolder?: string;
+
+	/**
+	 * an optional flag to include the description when filtering the picks
+	 */
+	matchOnDescription?: boolean;
+
+	/**
+	 * an optional flag to include the detail when filtering the picks
+	 */
+	matchOnDetail?: boolean;
+
+	/**
+	 * an optional flag to not close the picker on focus lost
+	 */
+	ignoreFocusLost?: boolean;
+
+	/**
+	 * an optional flag to make this picker multi-select
+	 */
+	canPickMany?: boolean;
+}
+
+export interface IInputOptions {
+
+	/**
+	 * the value to prefill in the input box
+	 */
+	value?: string;
+
+	/**
+	 * the selection of value, default to the whole word
+	 */
+	valueSelection?: [number, number];
+
+	/**
+	 * the text to display underneath the input box
+	 */
+	prompt?: string;
+
+	/**
+	 * an optional string to show as place holder in the input box to guide the user what to type
+	 */
+	placeHolder?: string;
+
+	/**
+	 * set to true to show a password prompt that will not show the typed value
+	 */
+	password?: boolean;
+
+	ignoreFocusLost?: boolean;
+
+	/**
+	 * an optional function that is used to validate user input.
+	 */
+	validateInput?: (input: string) => TPromise<string>;
+}
 
 export const IQuickInputService = createDecorator<IQuickInputService>('quickInputService');
 
@@ -29,7 +104,7 @@ export interface IQuickInputService {
 
 	toggle(): void;
 
-	navigate(next: boolean): void;
+	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration): void;
 
 	accept(): TPromise<void>;
 

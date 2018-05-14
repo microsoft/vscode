@@ -78,7 +78,6 @@ export class ActivitybarPart extends Part {
 
 		this.globalActivityIdToActions = Object.create(null);
 
-		this.placeholderComposites = JSON.parse(this.storageService.get(ActivitybarPart.PLACEHOLDER_VIEWLETS, StorageScope.GLOBAL, '[]'));
 		this.compositeActions = Object.create(null);
 		this.compositeBar = this.instantiationService.createInstance(CompositeBar, {
 			icon: true,
@@ -95,6 +94,8 @@ export class ActivitybarPart extends Part {
 			colors: ActivitybarPart.COLORS,
 			overflowActionSize: ActivitybarPart.ACTION_HEIGHT
 		});
+		const previousState = this.storageService.get(ActivitybarPart.PLACEHOLDER_VIEWLETS, StorageScope.GLOBAL, void 0);
+		this.placeholderComposites = previousState ? JSON.parse(previousState) : this.compositeBar.getCompositesFromStorage().map(id => (<IPlaceholderComposite>{ id, iconUrl: void 0 }));
 
 		this.registerListeners();
 		this.updateCompositebar();
@@ -350,7 +351,6 @@ export class ActivitybarPart extends Part {
 	public shutdown(): void {
 		const state = this.viewletService.getViewlets().filter(viewlet => this.hasRegisteredViews(viewlet)).map(viewlet => ({ id: viewlet.id, iconUrl: viewlet.iconUrl }));
 		this.storageService.store(ActivitybarPart.PLACEHOLDER_VIEWLETS, JSON.stringify(state), StorageScope.GLOBAL);
-		this.compositeBar.shutdown();
 		super.shutdown();
 	}
 
@@ -380,7 +380,7 @@ class PlaceHolderViewletActivityAction extends ViewletActivityAction {
 		super({ id, name: id, cssClass: `extensionViewlet-placeholder-${id.replace(/\./g, '-')}` }, viewletService, partService, telemetryService);
 		// Generate Placeholder CSS to show the icon in the activity bar
 		const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${this.class}`;
-		createCSSRule(iconClass, `-webkit-mask: url('${iconUrl}') no-repeat 50% 50%`);
+		createCSSRule(iconClass, `-webkit-mask: url('${iconUrl || ''}') no-repeat 50% 50%`);
 		this.enabled = false;
 	}
 
