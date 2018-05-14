@@ -40,8 +40,16 @@ function isTestTask(name: string): boolean {
 	return false;
 }
 
+function scriptsVisibility(script: string): boolean {
+	return isShowPrePostScripts() || isNotPreOrPostScript(script);
+}
+
 function isNotPreOrPostScript(script: string): boolean {
 	return !(script.startsWith('pre') || script.startsWith('post'));
+}
+
+function isShowPrePostScripts(): boolean {
+	return workspace.getConfiguration('npm', null).get<boolean>('showPrePostScripts') === true;
 }
 
 export function isWorkspaceFolder(value: any): value is WorkspaceFolder {
@@ -140,7 +148,7 @@ async function provideNpmScriptsForFolder(packageJsonUri: Uri): Promise<Task[]> 
 	}
 
 	const result: Task[] = [];
-	Object.keys(scripts).filter(isNotPreOrPostScript).forEach(each => {
+	Object.keys(scripts).filter(scriptsVisibility).forEach(each => {
 		const task = createTask(each, `run ${each}`, folder!, packageJsonUri);
 		const lowerCaseTaskName = each.toLowerCase();
 		if (isBuildTask(lowerCaseTaskName)) {
