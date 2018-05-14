@@ -120,7 +120,7 @@ export class Debug extends Viewlet {
 	}
 
 	async focusStackFrame(name: string, message: string): Promise<any> {
-		await this.code.waitAndClick(SPECIFIC_STACK_FRAME(name));
+		await this.code.waitAndClick(SPECIFIC_STACK_FRAME(name), 0, 0);
 		await this.editors.waitForTab(name);
 	}
 
