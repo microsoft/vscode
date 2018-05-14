@@ -242,11 +242,17 @@ export interface IReportedExtension {
 	malicious: boolean;
 }
 
+export enum DownloadOperation {
+	None,
+	Install,
+	Update
+}
+
 export interface IExtensionGalleryService {
 	_serviceBrand: any;
 	isEnabled(): boolean;
 	query(options?: IQueryOptions): TPromise<IPager<IGalleryExtension>>;
-	download(extension: IGalleryExtension): TPromise<string>;
+	download(extension: IGalleryExtension, operation: DownloadOperation): TPromise<string>;
 	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): TPromise<void>;
 	getReadme(extension: IGalleryExtension): TPromise<string>;
 	getManifest(extension: IGalleryExtension): TPromise<IExtensionManifest>;
