@@ -168,7 +168,7 @@ export class OutlineModel extends TreeElement {
 	updateMatches(pattern: string): OutlineElement {
 		let topMatch: OutlineElement;
 		for (const key in this.children) {
-			this.children[key].updateMatches(pattern, topMatch);
+			topMatch = this.children[key].updateMatches(pattern, topMatch);
 		}
 		return topMatch;
 	}
