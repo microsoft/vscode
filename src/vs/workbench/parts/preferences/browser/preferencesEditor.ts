@@ -63,6 +63,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { PreferencesEditorInput, DefaultPreferencesEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { PREFERENCES_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class PreferencesEditor extends BaseEditor {
 
@@ -146,10 +147,9 @@ export class PreferencesEditor extends BaseEditor {
 		this.preferencesRenderers.editFocusedPreference();
 	}
 
-	public setInput(newInput: PreferencesEditorInput, options?: EditorOptions): TPromise<void> {
+	public setInput(newInput: PreferencesEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 		this.defaultSettingsEditorContextKey.set(true);
-		const oldInput = <PreferencesEditorInput>this.input;
-		return super.setInput(newInput, options).then(() => this.updateInput(oldInput, newInput, options));
+		return super.setInput(newInput, options, token).then(() => this.updateInput(newInput, options, token));
 	}
 
 	public layout(dimension: DOM.Dimension): void {
@@ -199,8 +199,12 @@ export class PreferencesEditor extends BaseEditor {
 		super.setEditorVisible(visible, group);
 	}
 
-	private updateInput(oldInput: PreferencesEditorInput, newInput: PreferencesEditorInput, options?: EditorOptions): TPromise<void> {
-		return this.sideBySidePreferencesWidget.setInput(<DefaultPreferencesEditorInput>newInput.details, <EditorInput>newInput.master, options).then(({ defaultPreferencesRenderer, editablePreferencesRenderer }) => {
+	private updateInput(newInput: PreferencesEditorInput, options: EditorOptions, token: CancellationToken): TPromise<void> {
+		return this.sideBySidePreferencesWidget.setInput(<DefaultPreferencesEditorInput>newInput.details, <EditorInput>newInput.master, options, token).then(({ defaultPreferencesRenderer, editablePreferencesRenderer }) => {
+			if (token.isCancellationRequested) {
+				return void 0;
+			}
+
 			this.preferencesRenderers.defaultPreferencesRenderer = defaultPreferencesRenderer;
 			this.preferencesRenderers.editablePreferencesRenderer = editablePreferencesRenderer;
 			this.onInputChanged();
@@ -802,13 +806,19 @@ class SideBySidePreferencesWidget extends Widget {
 		this._register(focusTracker.onDidFocus(() => this._onFocus.fire()));
 	}
 
-	public setInput(defaultPreferencesEditorInput: DefaultPreferencesEditorInput, editablePreferencesEditorInput: EditorInput, options?: EditorOptions): TPromise<{ defaultPreferencesRenderer: IPreferencesRenderer<ISetting>, editablePreferencesRenderer: IPreferencesRenderer<ISetting> }> {
+	public setInput(defaultPreferencesEditorInput: DefaultPreferencesEditorInput, editablePreferencesEditorInput: EditorInput, options: EditorOptions, token: CancellationToken): TPromise<{ defaultPreferencesRenderer: IPreferencesRenderer<ISetting>, editablePreferencesRenderer: IPreferencesRenderer<ISetting> }> {
 		this.getOrCreateEditablePreferencesEditor(editablePreferencesEditorInput);
 		this.settingsTargetsWidget.settingsTarget = this.getSettingsTarget(editablePreferencesEditorInput.getResource());
 		this.dolayout(this.sash.getVerticalSashLeft());
-		return TPromise.join([this.updateInput(this.defaultPreferencesEditor, defaultPreferencesEditorInput, DefaultSettingsEditorContribution.ID, editablePreferencesEditorInput.getResource(), options),
-		this.updateInput(this.editablePreferencesEditor, editablePreferencesEditorInput, SettingsEditorContribution.ID, defaultPreferencesEditorInput.getResource(), options)])
+		return TPromise.join([
+			this.updateInput(this.defaultPreferencesEditor, defaultPreferencesEditorInput, DefaultSettingsEditorContribution.ID, editablePreferencesEditorInput.getResource(), options, token),
+			this.updateInput(this.editablePreferencesEditor, editablePreferencesEditorInput, SettingsEditorContribution.ID, defaultPreferencesEditorInput.getResource(), options, token)
+		])
 			.then(([defaultPreferencesRenderer, editablePreferencesRenderer]) => {
+				if (token.isCancellationRequested) {
+					return void 0;
+				}
+
 				this.defaultPreferencesHeader.textContent = defaultPreferencesRenderer && this.getDefaultPreferencesHeaderText((<DefaultSettingsEditorModel>defaultPreferencesRenderer.preferencesModel).target);
 				return { defaultPreferencesRenderer, editablePreferencesRenderer };
 			});
@@ -875,9 +885,15 @@ class SideBySidePreferencesWidget extends Widget {
 		return editor;
 	}
 
-	private updateInput(editor: BaseEditor, input: EditorInput, editorContributionId: string, associatedPreferencesModelUri: URI, options: EditorOptions): TPromise<IPreferencesRenderer<ISetting>> {
-		return editor.setInput(input, options)
-			.then(() => (<CodeEditorWidget>editor.getControl()).getContribution<ISettingsEditorContribution>(editorContributionId).updatePreferencesRenderer(associatedPreferencesModelUri));
+	private updateInput(editor: BaseEditor, input: EditorInput, editorContributionId: string, associatedPreferencesModelUri: URI, options: EditorOptions, token: CancellationToken): Thenable<IPreferencesRenderer<ISetting>> {
+		return editor.setInput(input, options, token)
+			.then(() => {
+				if (token.isCancellationRequested) {
+					return void 0;
+				}
+
+				return (<CodeEditorWidget>editor.getControl()).getContribution<ISettingsEditorContribution>(editorContributionId).updatePreferencesRenderer(associatedPreferencesModelUri);
+			});
 	}
 
 	private createSash(parentElement: HTMLElement): void {
@@ -1000,11 +1016,23 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		return options;
 	}
 
-	setInput(input: DefaultPreferencesEditorInput, options: EditorOptions): TPromise<void> {
-		return super.setInput(input, options)
+	setInput(input: DefaultPreferencesEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+		return super.setInput(input, options, token)
 			.then(() => this.input.resolve()
-				.then(editorModel => editorModel.load())
-				.then(editorModel => this.getControl().setModel((<ResourceEditorModel>editorModel).textEditorModel)));
+				.then(editorModel => {
+					if (token.isCancellationRequested) {
+						return void 0;
+					}
+
+					return editorModel.load();
+				})
+				.then(editorModel => {
+					if (token.isCancellationRequested) {
+						return void 0;
+					}
+
+					this.getControl().setModel((<ResourceEditorModel>editorModel).textEditorModel);
+				}));
 	}
 
 	public clearInput(): void {

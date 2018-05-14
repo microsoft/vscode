@@ -39,6 +39,7 @@ import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/p
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IPreferencesSearchService, ISearchProvider } from '../common/preferences';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const SETTINGS_ENTRY_TEMPLATE_ID = 'settings.entry.template';
 const SETTINGS_GROUP_ENTRY_TEMPLATE_ID = 'settings.group.template';
@@ -149,13 +150,10 @@ export class SettingsEditor2 extends BaseEditor {
 		this.createBody(prefsEditorElement);
 	}
 
-	setInput(input: SettingsEditor2Input, options: EditorOptions): TPromise<void> {
-		const oldInput = this.input;
-		return super.setInput(input)
+	setInput(input: SettingsEditor2Input, options: EditorOptions, token: CancellationToken): Thenable<void> {
+		return super.setInput(input, options, token)
 			.then(() => {
-				if (!input.matches(oldInput)) {
-					this.render();
-				}
+				this.render(token);
 			});
 	}
 
@@ -168,7 +166,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.searchWidget.layout(dimension);
 
 		this.layoutSettingsList();
-		this.render();
+		this.render(CancellationToken.None);
 	}
 
 	focus(): void {
@@ -286,12 +284,12 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private onShowAllSettingsClicked(): void {
 		this.showAllSettings = !this.showAllSettings;
-		this.render();
+		this.render(CancellationToken.None);
 	}
 
 	private onShowConfiguredOnlyClicked(): void {
 		this.showConfiguredSettingsOnly = this.showConfiguredSettingsOnlyCheckbox.checked;
-		this.render();
+		this.render(CancellationToken.None);
 	}
 
 	private onDidChangeSetting(key: string, value: any): void {
@@ -374,11 +372,18 @@ export class SettingsEditor2 extends BaseEditor {
 		this.telemetryService.publicLog('settingEditor.settingModified', data);
 	}
 
-	private render(): TPromise<any> {
+	private render(token: CancellationToken): TPromise<any> {
 		if (this.input) {
 			return this.input.resolve()
-				.then((model: DefaultSettingsEditorModel) => this.defaultSettingsEditorModel = model)
-				.then(() => this.renderEntries());
+				.then((model: DefaultSettingsEditorModel) => {
+					if (token.isCancellationRequested) {
+						return void 0;
+					}
+
+					this.defaultSettingsEditorModel = model;
+
+					this.renderEntries();
+				});
 		}
 		return TPromise.as(null);
 	}
@@ -462,7 +467,7 @@ export class SettingsEditor2 extends BaseEditor {
 		return TPromise.join(filterPs).then(results => {
 			const [result] = results;
 			this.searchResultModel.setResult(type, result);
-			return this.render();
+			return this.render(CancellationToken.None);
 		});
 	}
 

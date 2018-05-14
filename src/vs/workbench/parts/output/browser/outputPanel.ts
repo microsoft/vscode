@@ -24,6 +24,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class OutputPanel extends AbstractTextResourceEditor {
 	private actions: IAction[];
@@ -106,7 +107,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		return channel ? nls.localize('outputPanelWithInputAriaLabel', "{0}, Output panel", channel.label) : nls.localize('outputPanelAriaLabel', "Output panel");
 	}
 
-	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
+	public setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 		if (input.matches(this.input)) {
 			return TPromise.as(null);
 		}
@@ -115,7 +116,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 			// Dispose previous input (Output panel is not a workbench editor)
 			this.input.dispose();
 		}
-		return super.setInput(input, options).then(() => this.revealLastLine());
+		return super.setInput(input, options, token).then(() => this.revealLastLine());
 	}
 
 	public clearInput(): void {

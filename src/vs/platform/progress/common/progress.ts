@@ -6,6 +6,8 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 
 export const IProgressService = createDecorator<IProgressService>('progressService');
 
@@ -99,11 +101,13 @@ export interface IProgressService2 {
 export interface IOperation {
 	id: number;
 	isCurrent: () => boolean;
+	token: CancellationToken;
 	stop(): void;
 }
 
 export class LongRunningOperation {
 	private currentOperationId = 0;
+	private currentOperationDisposables: IDisposable[] = [];
 	private currentProgressRunner: IProgressRunner;
 	private currentProgressTimeout: number;
 
@@ -113,33 +117,39 @@ export class LongRunningOperation {
 
 	start(progressDelay: number): IOperation {
 
-		// Clear previous
-		if (this.currentProgressTimeout) {
-			clearTimeout(this.currentProgressTimeout);
-		}
+		// Stop any previous operation
+		this.stop();
 
 		// Start new
 		const newOperationId = ++this.currentOperationId;
+		const newOperationToken = new CancellationTokenSource();
 		this.currentProgressTimeout = setTimeout(() => {
 			if (newOperationId === this.currentOperationId) {
 				this.currentProgressRunner = this.progressService.show(true);
 			}
 		}, progressDelay);
 
+		this.currentOperationDisposables.push(
+			toDisposable(() => clearTimeout(this.currentProgressTimeout)),
+			toDisposable(() => newOperationToken.cancel()),
+			toDisposable(() => this.currentProgressRunner ? this.currentProgressRunner.done() : void 0)
+		);
+
 		return {
 			id: newOperationId,
-			stop: () => this.stop(newOperationId),
+			token: newOperationToken.token,
+			stop: () => this.doStop(newOperationId),
 			isCurrent: () => this.currentOperationId === newOperationId
 		};
 	}
 
-	private stop(operationId: number): void {
-		if (this.currentOperationId === operationId) {
-			clearTimeout(this.currentProgressTimeout);
+	stop(): void {
+		this.doStop(this.currentOperationId);
+	}
 
-			if (this.currentProgressRunner) {
-				this.currentProgressRunner.done();
-			}
+	private doStop(operationId: number): void {
+		if (this.currentOperationId === operationId) {
+			this.currentOperationDisposables = dispose(this.currentOperationDisposables);
 		}
 	}
 }

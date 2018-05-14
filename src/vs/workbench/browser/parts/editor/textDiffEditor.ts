@@ -41,6 +41,7 @@ import { once } from 'vs/base/common/event';
 import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/nextEditorService';
 import { INextEditorGroup, INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -104,7 +105,7 @@ export class TextDiffEditor extends BaseTextEditor {
 
 					// Input matches modified side of the diff editor: perform the action on modified side
 					if (input.matches(activeDiffInput.modifiedInput)) {
-						return this.setInput(this.input, options).then(() => this);
+						return this.setInput(this.input, options, CancellationToken.None).then(() => this);
 					}
 
 					// Input matches original side of the diff editor: perform the action on original side
@@ -128,20 +129,7 @@ export class TextDiffEditor extends BaseTextEditor {
 		return diffEditorInstantiator.createInstance(DiffEditorWidget, parent, configuration);
 	}
 
-	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
-
-		// Return early for same input unless we force to open
-		const forceOpen = options && options.forceOpen;
-		if (!forceOpen && input.matches(this.input)) {
-
-			// Still apply options if any (avoiding instanceof here for a reason, do not change!)
-			const textOptions = <TextEditorOptions>options;
-			if (textOptions && types.isFunction(textOptions.apply)) {
-				textOptions.apply(<IDiffEditor>this.getControl(), ScrollType.Smooth);
-			}
-
-			return TPromise.wrap<void>(null);
-		}
+	public setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 
 		// Dispose previous diff navigator
 		this.diffNavigatorDisposables = dispose(this.diffNavigatorDisposables);
@@ -150,17 +138,17 @@ export class TextDiffEditor extends BaseTextEditor {
 		this.saveTextDiffEditorViewState(this.input);
 
 		// Set input and resolve
-		return super.setInput(input, options).then(() => {
+		return super.setInput(input, options, token).then(() => {
 			return input.resolve(true).then(resolvedModel => {
+
+				// Check for cancellation
+				if (token.isCancellationRequested) {
+					return void 0;
+				}
 
 				// Assert Model Instance
 				if (!(resolvedModel instanceof TextDiffEditorModel) && this.openAsBinary(input, options)) {
-					return null;
-				}
-
-				// Assert that the current input is still the one we expect. This prevents a race condition when loading a diff takes long and another input was set meanwhile
-				if (!this.input || this.input !== input) {
-					return null;
+					return void 0;
 				}
 
 				// Set Editor Model
@@ -201,6 +189,13 @@ export class TextDiffEditor extends BaseTextEditor {
 				return TPromise.wrapError(error);
 			});
 		});
+	}
+
+	public setOptions(options: EditorOptions): void {
+		const textOptions = <TextEditorOptions>options;
+		if (textOptions && types.isFunction(textOptions.apply)) {
+			textOptions.apply(<IDiffEditor>this.getControl(), ScrollType.Smooth);
+		}
 	}
 
 	public supportsCenteredLayout(): boolean {

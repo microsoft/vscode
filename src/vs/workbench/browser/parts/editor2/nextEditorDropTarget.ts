@@ -100,7 +100,7 @@ class DropOverlay extends Themable {
 				}
 
 				// Find out if operation is valid
-				const isCopy = isDraggingGroup ? this.isCopyOperation(e) : this.isCopyOperation(e, this.editorTransfer.getData(DraggedEditorIdentifier.prototype)[0].identifier);
+				const isCopy = isDraggingGroup ? this.isCopyOperation(e) : isDraggingEditor ? this.isCopyOperation(e, this.editorTransfer.getData(DraggedEditorIdentifier.prototype)[0].identifier) : true;
 				if (!isCopy) {
 					const sourceGroupView = this.findSourceGroupView();
 					if (sourceGroupView === this.groupView) {

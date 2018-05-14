@@ -118,16 +118,23 @@ export class NextEditorControl extends Disposable {
 
 	private doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions): Thenable<boolean> {
 
+		// If the input did not change, return early and only apply the options
+		// unless the options instruct us to force open it even if it is the same
+		const forceOpen = options && options.forceOpen;
+		const inputMatches = control.input && control.input.matches(editor);
+		if (inputMatches && !forceOpen) {
+			control.setOptions(options);
+
+			return TPromise.as(false);
+		}
+
 		// Show progress while setting input after a certain timeout. If the workbench is opening
 		// be more relaxed about progress showing by increasing the delay a little bit to reduce flicker.
 		const operation = this.editorOperation.start(this.partService.isCreated() ? 800 : 3200);
 
 		// Call into editor control
-		const editorWillChange = (!control.input || !control.input.matches(editor) || (options && options.forceOpen));
-		return control.setInput(editor, options).then(() => {
-
-			// Operation done
-			operation.stop();
+		const editorWillChange = !inputMatches || forceOpen;
+		return control.setInput(editor, options, operation.token).then(() => {
 
 			// Focus (unless prevented or another operation is running)
 			if (operation.isCurrent()) {
@@ -136,6 +143,9 @@ export class NextEditorControl extends Disposable {
 					control.focus();
 				}
 			}
+
+			// Operation done
+			operation.stop();
 
 			return editorWillChange;
 		}, e => {
@@ -151,6 +161,9 @@ export class NextEditorControl extends Disposable {
 		if (!this._activeControl) {
 			return;
 		}
+
+		// Stop any running operation
+		this.editorOperation.stop();
 
 		// Remove control from parent and hide
 		const controlInstanceContainer = this._activeControl.getContainer();

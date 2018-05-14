@@ -6,7 +6,6 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import * as objects from 'vs/base/common/objects';
 import * as types from 'vs/base/common/types';
@@ -28,6 +27,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { isDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 
@@ -109,7 +109,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 		// Apply group information to help identify in which group we are
 		if (ariaLabel && typeof this.group === 'number') {
-			ariaLabel = nls.localize('editorLabelWithGroup', "{0}, Group {1}.", ariaLabel, this.group + 1);
+			ariaLabel = nls.localize('editorLabelWithGroup', "{0}, Group {1}.", ariaLabel, this.group + 1); // TODO@grid do not use group ID in ARIA labels
 		}
 
 		return ariaLabel;
@@ -186,8 +186,8 @@ export abstract class BaseTextEditor extends BaseEditor {
 		return this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, {});
 	}
 
-	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
-		return super.setInput(input, options).then(() => {
+	public setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+		return super.setInput(input, options, token).then(() => {
 
 			// Update editor options after having set the input. We do this because there can be
 			// editor input specific options (e.g. an ARIA label depending on the input showing)

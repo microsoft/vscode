@@ -19,6 +19,7 @@ import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorIn
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import URI from 'vs/base/common/uri';
 import { IEditorRegistry, Extensions, EditorDescriptor } from 'vs/workbench/browser/editor';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const NullThemeService = new TestThemeService();
 
@@ -109,7 +110,7 @@ suite('Workbench BaseEditor', () => {
 		assert(!e.isVisible());
 		assert(!e.input);
 		assert(!e.options);
-		return e.setInput(input, options).then(() => {
+		return e.setInput(input, options, CancellationToken.None).then(() => {
 			assert.strictEqual(input, e.input);
 			assert.strictEqual(options, e.options);
 

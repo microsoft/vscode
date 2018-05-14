@@ -18,6 +18,7 @@ import { IPartService, Parts } from 'vs/workbench/services/part/common/partServi
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { BaseWebviewEditor, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from './baseWebviewEditor';
 import { WebviewElement } from './webviewElement';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class WebviewEditor extends BaseWebviewEditor {
 
@@ -132,20 +133,21 @@ export class WebviewEditor extends BaseWebviewEditor {
 		super.clearInput();
 	}
 
-	async setInput(input: WebviewEditorInput, options: EditorOptions): TPromise<void> {
-		if (this.input && this.input.matches(input)) {
-			return undefined;
-		}
-
+	async setInput(input: WebviewEditorInput, options: EditorOptions, token: CancellationToken): TPromise<void> {
 		if (this.input) {
 			(this.input as WebviewEditorInput).releaseWebview(this);
 			this._webview = undefined;
 			this.webviewContent = undefined;
 		}
-		await super.setInput(input, options);
+		await super.setInput(input, options, token);
 
 		await input.resolve();
-		await input.updateGroup(this.group);
+
+		if (token.isCancellationRequested) {
+			return;
+		}
+
+		input.updateGroup(this.group);
 		this.updateWebview(input);
 	}
 

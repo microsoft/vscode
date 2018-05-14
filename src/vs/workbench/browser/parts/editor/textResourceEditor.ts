@@ -24,6 +24,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { once } from 'vs/base/common/event';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 /**
  * An editor implementation that is capable of showing the contents of resource inputs. Uses
@@ -53,36 +54,23 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		return nls.localize('textEditor', "Text Editor");
 	}
 
-	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
-
-		// Return early for same input unless we force to open
-		const forceOpen = options && options.forceOpen;
-		if (!forceOpen && input.matches(this.input)) {
-
-			// Still apply options if any (avoiding instanceof here for a reason, do not change!)
-			const textOptions = <TextEditorOptions>options;
-			if (textOptions && types.isFunction(textOptions.apply)) {
-				textOptions.apply(this.getControl(), ScrollType.Smooth);
-			}
-
-			return TPromise.wrap<void>(null);
-		}
+	public setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 
 		// Remember view settings if input changes
 		this.saveTextResourceEditorViewState(this.input);
 
 		// Set input and resolve
-		return super.setInput(input, options).then(() => {
+		return super.setInput(input, options, token).then(() => {
 			return input.resolve(true).then((resolvedModel: EditorModel) => {
+
+				// Check for cancellation
+				if (token.isCancellationRequested) {
+					return void 0;
+				}
 
 				// Assert Model instance
 				if (!(resolvedModel instanceof BaseTextEditorModel)) {
 					return TPromise.wrapError<void>(new Error('Unable to open file as text'));
-				}
-
-				// Assert that the current input is still the one we expect. This prevents a race condition when loading takes long and another input was set meanwhile
-				if (!this.input || this.input !== input) {
-					return null;
 				}
 
 				// Set Editor Model
@@ -113,6 +101,13 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 			if (viewState) {
 				this.getControl().restoreViewState(viewState);
 			}
+		}
+	}
+
+	public setOptions(options: EditorOptions): void {
+		const textOptions = <TextEditorOptions>options;
+		if (textOptions && types.isFunction(textOptions.apply)) {
+			textOptions.apply(this.getControl(), ScrollType.Smooth);
 		}
 	}
 

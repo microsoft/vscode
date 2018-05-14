@@ -15,6 +15,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class SideBySideEditor extends BaseEditor {
 
@@ -43,10 +44,16 @@ export class SideBySideEditor extends BaseEditor {
 		this.createSash(parent);
 	}
 
-	public setInput(newInput: SideBySideEditorInput, options?: EditorOptions): TPromise<void> {
+	public setInput(newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 		const oldInput = <SideBySideEditorInput>this.input;
-		return super.setInput(newInput, options)
-			.then(() => this.updateInput(oldInput, newInput, options));
+		return super.setInput(newInput, options, token)
+			.then(() => this.updateInput(oldInput, newInput, options, token));
+	}
+
+	public setOptions(options: EditorOptions): void {
+		if (this.masterEditor) {
+			this.masterEditor.setOptions(options);
+		}
 	}
 
 	protected setEditorVisible(visible: boolean, group: GroupIdentifier): void {
@@ -100,27 +107,27 @@ export class SideBySideEditor extends BaseEditor {
 		return false;
 	}
 
-	private updateInput(oldInput: SideBySideEditorInput, newInput: SideBySideEditorInput, options?: EditorOptions): void {
+	private updateInput(oldInput: SideBySideEditorInput, newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): void {
 		if (!newInput.matches(oldInput)) {
 			if (oldInput) {
 				this.disposeEditors();
 			}
 			this.createEditorContainers();
 
-			return this.setNewInput(newInput, options);
+			return this.setNewInput(newInput, options, token);
 		} else {
-			this.detailsEditor.setInput(newInput.details);
-			this.masterEditor.setInput(newInput.master, options);
+			this.detailsEditor.setInput(newInput.details, null, token);
+			this.masterEditor.setInput(newInput.master, options, token);
 
 			return void 0;
 		}
 	}
 
-	private setNewInput(newInput: SideBySideEditorInput, options?: EditorOptions): void {
+	private setNewInput(newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): void {
 		const detailsEditor = this._createEditor(<EditorInput>newInput.details, this.detailsEditorContainer);
 		const masterEditor = this._createEditor(<EditorInput>newInput.master, this.masterEditorContainer);
 
-		this.onEditorsCreated(detailsEditor, masterEditor, newInput.details, newInput.master, options);
+		this.onEditorsCreated(detailsEditor, masterEditor, newInput.details, newInput.master, options, token);
 	}
 
 	private _createEditor(editorInput: EditorInput, container: HTMLElement): BaseEditor {
@@ -133,11 +140,11 @@ export class SideBySideEditor extends BaseEditor {
 		return editor;
 	}
 
-	private onEditorsCreated(details: BaseEditor, master: BaseEditor, detailsInput: EditorInput, masterInput: EditorInput, options: EditorOptions): TPromise<void> {
+	private onEditorsCreated(details: BaseEditor, master: BaseEditor, detailsInput: EditorInput, masterInput: EditorInput, options: EditorOptions, token: CancellationToken): TPromise<void> {
 		this.detailsEditor = details;
 		this.masterEditor = master;
 		this.dolayout(this.sash.getVerticalSashLeft());
-		return TPromise.join([this.detailsEditor.setInput(detailsInput), this.masterEditor.setInput(masterInput, options)]).then(() => this.focus());
+		return TPromise.join([this.detailsEditor.setInput(detailsInput, null, token), this.masterEditor.setInput(masterInput, options, token)]).then(() => this.focus());
 	}
 
 	private createEditorContainers(): void {

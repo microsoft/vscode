@@ -49,6 +49,7 @@ import { Color } from 'vs/base/common/color';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { assign } from 'vs/base/common/objects';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 /**  A context key that is set when an extension editor webview has focus. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS = new RawContextKey<boolean>('extensionEditorWebviewFocus', undefined);
@@ -262,7 +263,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.content = append(body, $('.content'));
 	}
 
-	setInput(input: ExtensionsInput, options: EditorOptions): TPromise<void> {
+	setInput(input: ExtensionsInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 		this.editorLoadComplete = false;
 		const extension = input.extension;
 
@@ -376,7 +377,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.navbar.push(NavbarSection.Dependencies, localize('dependencies', "Dependencies"));
 
 		this.editorLoadComplete = true;
-		return super.setInput(input, options);
+		return super.setInput(input, options, token);
 	}
 
 	showFind(): void {

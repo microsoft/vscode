@@ -1167,7 +1167,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		const inputChanged = (!previousInput || !previousInput.matches(input) || (options && options.forceOpen));
 
 		// Call into Editor
-		return editor.setInput(input, options).then(() => {
+		return editor.setInput(input, options, null).then(() => {
 
 			// Stop loading promise if any
 			monitor.cancel();
@@ -1197,7 +1197,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}, e => {
 			this.doHandleSetInputError(e, group, editor, input, options, monitor);
 			return null;
-		});
+		}) as TPromise;
 	}
 
 	private doHandleSetInputError(error: Error, group: EditorGroup, editor: BaseEditor, input: EditorInput, options: EditorOptions, monitor: ProgressMonitor): void {

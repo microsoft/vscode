@@ -10,6 +10,7 @@ import { EditorInput, EditorOptions, GroupIdentifier } from 'vs/workbench/common
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
@@ -55,10 +56,14 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	 * Note: Clients should not call this method, the workbench calls this
 	 * method. Calling it otherwise may result in unexpected behavior.
 	 *
-	 * Sets the given input with the options to the part. An editor has to deal with the
-	 * situation that the same input is being set with different options.
+	 * Sets the given input with the options to the editor. The input is guaranteed
+	 * to be different from the previous input that was set using the input.matches()
+	 * method.
+	 *
+	 * The provided cancellation token should be used to test if the operation
+	 * was cancelled.
 	 */
-	setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
+	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 		this._input = input;
 		this._options = options;
 
@@ -72,6 +77,17 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	clearInput(): void {
 		this._input = null;
 		this._options = null;
+	}
+
+	/**
+	 * Note: Clients should not call this method, the workbench calls this
+	 * method. Calling it otherwise may result in unexpected behavior.
+	 *
+	 * Sets the given options to the editor. Clients should apply the options
+	 * to the current input.
+	 */
+	setOptions(options: EditorOptions): void {
+		this._options = options;
 	}
 
 	create(parent: HTMLElement): void; // create is sync for editors

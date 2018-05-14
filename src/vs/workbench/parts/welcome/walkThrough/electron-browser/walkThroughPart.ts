@@ -10,7 +10,6 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { EditorOptions, EditorViewStateMemento } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -40,6 +39,7 @@ import { deepClone } from 'vs/base/common/objects';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension, size } from 'vs/base/browser/dom';
 import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -250,11 +250,7 @@ export class WalkThroughPart extends BaseEditor {
 		this.scrollbar.setScrollPosition({ scrollTop: scrollPosition.scrollTop + scrollDimensions.height });
 	}
 
-	setInput(input: WalkThroughInput, options: EditorOptions): TPromise<void> {
-		if (this.input instanceof WalkThroughInput && this.input.matches(input)) {
-			return TPromise.as(undefined);
-		}
-
+	setInput(input: WalkThroughInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 		if (this.input instanceof WalkThroughInput) {
 			this.saveTextEditorViewState(this.input);
 		}
@@ -262,11 +258,15 @@ export class WalkThroughPart extends BaseEditor {
 		this.contentDisposables = dispose(this.contentDisposables);
 		this.content.innerHTML = '';
 
-		return super.setInput(input, options)
+		return super.setInput(input, options, token)
 			.then(() => {
 				return input.resolve(true);
 			})
 			.then(model => {
+				if (token.isCancellationRequested) {
+					return;
+				}
+
 				const content = model.main.textEditorModel.getLinesContent().join('\n');
 				if (!strings.endsWith(input.getResource().path, '.md')) {
 					this.content.innerHTML = content;

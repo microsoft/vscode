@@ -26,13 +26,13 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 /**
  * An implementation of editor for file system resources.
@@ -49,8 +49,7 @@ export class TextFileEditor extends BaseTextEditor {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@INextEditorService nextEditorService: INextEditorService,
+		@INextEditorService private editorService: INextEditorService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@ITextFileService textFileService: ITextFileService,
@@ -64,7 +63,7 @@ export class TextFileEditor extends BaseTextEditor {
 		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
 
 		// React to editors closing to preserve view state
-		this.toUnbind.push(nextEditorService.onWillCloseEditor(e => this.onWillCloseEditor(e)));
+		this.toUnbind.push(editorService.onWillCloseEditor(e => this.onWillCloseEditor(e)));
 	}
 
 	private onFilesChanged(e: FileChangesEvent): void {
@@ -88,26 +87,26 @@ export class TextFileEditor extends BaseTextEditor {
 		return this._input as FileEditorInput;
 	}
 
-	public setInput(input: FileEditorInput, options?: EditorOptions): TPromise<void> {
-
-		// Return early for same input unless we force to open
-		const forceOpen = options && options.forceOpen;
-		if (!forceOpen && input.matches(this.input)) {
-
-			// Still apply options if any (avoiding instanceof here for a reason, do not change!)
-			if (options && types.isFunction((<TextEditorOptions>options).apply)) {
-				(<TextEditorOptions>options).apply(this.getControl(), ScrollType.Smooth);
-			}
-
-			return TPromise.wrap<void>(null);
+	public setOptions(options: EditorOptions): void {
+		const textOptions = <TextEditorOptions>options;
+		if (textOptions && types.isFunction(textOptions.apply)) {
+			textOptions.apply(this.getControl(), ScrollType.Smooth);
 		}
+	}
+
+	public setInput(input: FileEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 
 		// Remember view settings if input changes
 		this.doSaveTextEditorViewState(this.input);
 
 		// Set input and resolve
-		return super.setInput(input, options).then(() => {
+		return super.setInput(input, options, token).then(() => {
 			return input.resolve(true).then(resolvedModel => {
+
+				// Check for cancellation
+				if (token.isCancellationRequested) {
+					return void 0;
+				}
 
 				// There is a special case where the text editor has to handle binary file editor input: if a binary file
 				// has been resolved and cached before, it maybe an actual instance of BinaryEditorModel. In this case our text
@@ -127,7 +126,7 @@ export class TextFileEditor extends BaseTextEditor {
 					modelDisposed || 	// input got disposed meanwhile
 					inputChanged 		// a different input was set meanwhile
 				) {
-					return null;
+					return void 0;
 				}
 
 				// Editor
@@ -205,13 +204,13 @@ export class TextFileEditor extends BaseTextEditor {
 
 	private openAsBinary(input: FileEditorInput, options: EditorOptions): void {
 		input.setForceOpenAsBinary();
-		this.editorService.openEditor(input, options, this.group).done(null, errors.onUnexpectedError);
+		this.editorService.openEditor(input, options, this.group);
 	}
 
 	private openAsFolder(input: FileEditorInput): boolean {
 
 		// Since we cannot open a folder, we have to restore the previous input if any and close the editor
-		this.editorService.closeEditor(this.group, this.input).done(() => {
+		this.editorService.closeEditor(this.input, this.group).then(() => {
 
 			// Best we can do is to reveal the folder in the explorer
 			if (this.contextService.isInsideWorkspace(input.getResource())) {
@@ -219,7 +218,7 @@ export class TextFileEditor extends BaseTextEditor {
 					return (viewlet as IExplorerViewlet).getExplorerView().select(input.getResource(), true);
 				}, errors.onUnexpectedError);
 			}
-		}, errors.onUnexpectedError);
+		});
 
 		return true; // in any case we handled it
 	}

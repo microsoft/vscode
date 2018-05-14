@@ -44,6 +44,7 @@ import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 let $ = DOM.$;
 
@@ -88,7 +89,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	) {
 		super(KeybindingsEditor.ID, telemetryService, themeService);
 		this.delayedFiltering = new Delayer<void>(300);
-		this._register(keybindingsService.onDidUpdateKeybindings(() => this.render()));
+		this._register(keybindingsService.onDidUpdateKeybindings(() => this.render(false, CancellationToken.None)));
 
 		this.keybindingsEditorContextKey = CONTEXT_KEYBINDINGS_EDITOR.bindTo(this.contextKeyService);
 		this.searchFocusContextKey = CONTEXT_KEYBINDINGS_SEARCH_FOCUS.bindTo(this.contextKeyService);
@@ -108,13 +109,10 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this._register(focusTracker.onDidBlur(() => this.keybindingsEditorContextKey.reset()));
 	}
 
-	setInput(input: KeybindingsEditorInput, options: EditorOptions): TPromise<void> {
-		const oldInput = this.input;
-		return super.setInput(input)
+	setInput(input: KeybindingsEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+		return super.setInput(input, options, token)
 			.then(() => {
-				if (!input.matches(oldInput)) {
-					this.render(options && options.preserveFocus);
-				}
+				this.render(options && options.preserveFocus, token);
 			});
 	}
 
@@ -356,18 +354,30 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		}));
 	}
 
-	private render(preserveFocus?: boolean): TPromise<any> {
+	private render(preserveFocus: boolean, token: CancellationToken): TPromise<any> {
 		if (this.input) {
 			return this.input.resolve()
-				.then((keybindingsModel: KeybindingsEditorModel) => this.keybindingsEditorModel = keybindingsModel)
-				.then(() => {
+				.then((keybindingsModel: KeybindingsEditorModel) => {
+					if (token.isCancellationRequested) {
+						return void 0;
+					}
+
+					this.keybindingsEditorModel = keybindingsModel;
+
 					const editorActionsLabels: { [id: string]: string; } = EditorExtensionsRegistry.getEditorActions().reduce((editorActions, editorAction) => {
 						editorActions[editorAction.id] = editorAction.label;
 						return editorActions;
 					}, {});
+
 					return this.keybindingsEditorModel.resolve(editorActionsLabels);
 				})
-				.then(() => this.renderKeybindingsEntries(false, preserveFocus));
+				.then(() => {
+					if (token.isCancellationRequested) {
+						return void 0;
+					}
+
+					this.renderKeybindingsEntries(false, preserveFocus);
+				});
 		}
 		return TPromise.as(null);
 	}

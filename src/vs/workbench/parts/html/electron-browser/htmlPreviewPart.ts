@@ -26,6 +26,7 @@ import { BaseWebviewEditor } from 'vs/workbench/parts/webview/electron-browser/b
 import { WebviewElement, WebviewOptions } from 'vs/workbench/parts/webview/electron-browser/webviewElement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface HtmlPreviewEditorViewState {
 	scrollYPercentage: number;
@@ -180,7 +181,7 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 		this.webview.sendMessage(data);
 	}
 
-	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
+	public setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 
 		if (this.input && this.input.matches(input) && this._hasValidModel() && this.input instanceof HtmlInput && input instanceof HtmlInput && areHtmlInputOptionsEqual(this.input.options, input.options)) {
 			return TPromise.as(undefined);
@@ -204,11 +205,14 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 			return TPromise.wrapError<void>(new Error('Invalid input'));
 		}
 
-		return super.setInput(input, options).then(() => {
+		return super.setInput(input, options, token).then(() => {
 			const resourceUri = input.getResource();
 			return this._textModelResolverService.createModelReference(resourceUri).then(ref => {
-				const model = ref.object;
+				if (token.isCancellationRequested) {
+					return undefined;
+				}
 
+				const model = ref.object;
 				if (model instanceof BaseTextEditorModel) {
 					this._modelRef = ref;
 				}
