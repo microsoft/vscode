@@ -25,7 +25,7 @@ import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Scope } from 'vs/workbench/common/memento';
-import { ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
+import { ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { TValueCallback, TPromise } from 'vs/base/common/winjs.base';
 import { always } from 'vs/base/common/async';
 import { GroupOrientation as LegacyGroupOrientation } from 'vs/workbench/services/group/common/groupService';

@@ -24,7 +24,7 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { CloseAllEditorsAction, CloseEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/toggleEditorLayout';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
+import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';

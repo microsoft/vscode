@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/nextEditorGroupView';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { EditorGroup, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
+import { EditorGroup, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, IEditorOpeningEvent, CloseDirection } from 'vs/workbench/common/editor';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';

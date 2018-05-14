@@ -13,7 +13,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IEditor, Position, POSITIONS, IEditorInput } from 'vs/platform/editor/common/editor';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
-import { EditorStacksModel, EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
+import { EditorStacksModel, EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';

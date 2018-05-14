@@ -6,7 +6,7 @@
 'use strict';
 
 import { GroupIdentifier, IWorkbenchEditorConfiguration, IWorkbenchEditorPartConfiguration, EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
-import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
+import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { INextEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Dimension } from 'vs/base/browser/dom';

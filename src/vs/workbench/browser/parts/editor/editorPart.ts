@@ -33,7 +33,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { EditorStacksModel, EditorGroup, EditorIdentifier, EditorCloseEvent } from 'vs/workbench/common/editor/editorStacksModel';
+import { EditorStacksModel, EditorGroup, EditorIdentifier, EditorCloseEvent } from 'vs/workbench/common/editor/editorGroup';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';

@@ -29,9 +29,9 @@ import { Registry } from 'vs/platform/registry/common/platform';
 
 export class TestEditorControl extends BaseEditor {
 
-	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyTestFileEditorForNextEditorService', NullTelemetryService, new TestThemeService()); }
+	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyTestEditorForNextEditorService', NullTelemetryService, new TestThemeService()); }
 
-	getId(): string { return 'myTestFileEditorForNextEditorService'; }
+	getId(): string { return 'myTestEditorForNextEditorService'; }
 	layout(): void { }
 	createEditor(): any { }
 }
@@ -40,7 +40,7 @@ export class TestEditorInput extends EditorInput implements IFileEditorInput {
 
 	constructor(private resource: URI) { super(); }
 
-	getTypeId() { return 'testFileEditorInputForNextEditorService'; }
+	getTypeId() { return 'testEditorInputForNextEditorService'; }
 	resolve(): TPromise<IEditorModel> { return null; }
 	matches(other: TestEditorInput): boolean { return other && this.resource.toString() === other.resource.toString() && other instanceof TestEditorInput; }
 	setEncoding(encoding: string) { }
@@ -51,6 +51,12 @@ export class TestEditorInput extends EditorInput implements IFileEditorInput {
 }
 
 suite('NextEditorService editor2', () => {
+
+	function registerTestEditorInput(): void {
+		Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(new EditorDescriptor(TestEditorControl, 'MyTestEditorForNextEditorService', 'My Test Editor For Next Editor Service'), new SyncDescriptor(TestEditorInput));
+	}
+
+	registerTestEditorInput();
 
 	test('basics', function () {
 		const partInstantiator = workbenchInstantiationService();
@@ -64,6 +70,7 @@ suite('NextEditorService editor2', () => {
 		const service: INextEditorService = testInstantiationService.createInstance(NextEditorService);
 
 		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource'));
+		const otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2'));
 
 		let willOpenEditorEventCounter = 0;
 		const willOpenEditorListener = service.onWillOpenEditor(() => {
@@ -91,7 +98,7 @@ suite('NextEditorService editor2', () => {
 		});
 
 		// Open EditorInput
-		return service.openEditor(input).then(editor => {
+		return service.openEditor(input, { pinned: true }).then(editor => {
 			assert.ok(editor instanceof TestEditorControl);
 			assert.equal(editor, service.activeControl);
 			assert.equal(input, service.activeEditor);
@@ -107,12 +114,25 @@ suite('NextEditorService editor2', () => {
 			service.closeEditor(input, editor.group);
 			assert.equal(willCloseEditorListenerCounter, 1);
 			assert.equal(didCloseEditorListenerCounter, 1);
+			assert.equal(activeEditorChangeEventCounter, 2);
+			assert.equal(visibleEditorChangeEventCounter, 2);
 
-			activeEditorChangeListener.dispose();
-			visibleEditorChangeListener.dispose();
-			willCloseEditorListener.dispose();
-			didCloseEditorListener.dispose();
-			willOpenEditorListener.dispose();
+			return service.openEditor(input, { pinned: true }).then(editor => {
+				return service.openEditor(otherInput, { pinned: true }).then(editor => {
+					assert.equal(service.visibleControls.length, 1);
+					assert.equal(service.isOpen(input), true);
+					assert.equal(service.isOpen(otherInput), true);
+
+					assert.equal(activeEditorChangeEventCounter, 4);
+					assert.equal(visibleEditorChangeEventCounter, 4);
+
+					activeEditorChangeListener.dispose();
+					visibleEditorChangeListener.dispose();
+					willCloseEditorListener.dispose();
+					didCloseEditorListener.dispose();
+					willOpenEditorListener.dispose();
+				});
+			});
 		});
 	});
 
@@ -178,13 +198,9 @@ suite('NextEditorService editor2', () => {
 				return 'myEditor';
 			}
 
-			public layout(): void {
+			layout(): void { }
 
-			}
-
-			public createEditor(): any {
-
-			}
+			createEditor(): any { }
 		}
 
 		const ed = instantiationService.createInstance(MyEditor, 'my.editor');
@@ -210,5 +226,3 @@ function toResource(path: string) {
 function toFileResource(self: any, path: string) {
 	return URI.file(paths.join('C:\\', Buffer.from(self.test.fullTitle()).toString('base64'), path));
 }
-
-Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(new EditorDescriptor(TestEditorControl, 'MyTestFileEditorForNextEditorService', 'My Test File Editor For Next Editor Service'), new SyncDescriptor(TestEditorInput));

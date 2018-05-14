@@ -26,9 +26,9 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 export class TestEditorControl extends BaseEditor {
 
-	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyTestFileEditorForNextEditorGroupService', NullTelemetryService, new TestThemeService()); }
+	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyFileEditorForNextEditorGroupService', NullTelemetryService, new TestThemeService()); }
 
-	getId(): string { return 'myTestFileEditorForNextEditorGroupService'; }
+	getId(): string { return 'myTestEditorForNextEditorGroupService'; }
 	layout(): void { }
 	createEditor(): any { }
 }
@@ -37,7 +37,7 @@ export class TestEditorInput extends EditorInput implements IFileEditorInput {
 
 	constructor(private resource: URI) { super(); }
 
-	getTypeId() { return 'testFileEditorInputForNextEditorGroupService'; }
+	getTypeId() { return 'testEditorInputForNextEditorGroupService'; }
 	resolve(): TPromise<IEditorModel> { return null; }
 	matches(other: TestEditorInput): boolean { return other && this.resource.toString() === other.resource.toString() && other instanceof TestEditorInput; }
 	setEncoding(encoding: string) { }
@@ -49,19 +49,19 @@ export class TestEditorInput extends EditorInput implements IFileEditorInput {
 
 suite('Next editor2 part tests', () => {
 
-	function registerTestFileEditorInput(): void {
+	function registerTestEditorInput(): void {
 
-		interface ISerializedTestFileEditorInput {
+		interface ISerializedTestEditorInput {
 			resource: string;
 		}
 
-		class TestFileEditorInputFactory implements IEditorInputFactory {
+		class TestEditorInputFactory implements IEditorInputFactory {
 
 			constructor() { }
 
 			serialize(editorInput: EditorInput): string {
 				const testEditorInput = <TestEditorInput>editorInput;
-				const testInput: ISerializedTestFileEditorInput = {
+				const testInput: ISerializedTestEditorInput = {
 					resource: testEditorInput.getResource().toString()
 				};
 
@@ -69,17 +69,17 @@ suite('Next editor2 part tests', () => {
 			}
 
 			deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
-				const testInput: ISerializedTestFileEditorInput = JSON.parse(serializedEditorInput);
+				const testInput: ISerializedTestEditorInput = JSON.parse(serializedEditorInput);
 
 				return new TestEditorInput(URI.parse(testInput.resource));
 			}
 		}
 
-		(Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories)).registerEditorInputFactory('testFileEditorInput', TestFileEditorInputFactory);
-		(Registry.as<IEditorRegistry>(Extensions.Editors)).registerEditor(new EditorDescriptor(TestEditorControl, 'MyTestFileEditor', 'My Test File Editor'), new SyncDescriptor(TestEditorInput));
+		(Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories)).registerEditorInputFactory('testEditorInputForGroupsService', TestEditorInputFactory);
+		(Registry.as<IEditorRegistry>(Extensions.Editors)).registerEditor(new EditorDescriptor(TestEditorControl, 'MyTestEditorForGroupsService', 'My Test File Editor'), new SyncDescriptor(TestEditorInput));
 	}
 
-	registerTestFileEditorInput();
+	registerTestEditorInput();
 
 	function createPart(): NextEditorPart {
 		const instantiationService = workbenchInstantiationService();

@@ -14,7 +14,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { workbenchInstantiationService, TestTextFileService, TestFileService } from 'vs/workbench/test/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
+import { EditorStacksModel } from 'vs/workbench/common/editor/editorGroup';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperation, FileOperationEvent, FileChangesEvent, FileChangeType, IFileService, snapshotToString } from 'vs/platform/files/common/files';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
