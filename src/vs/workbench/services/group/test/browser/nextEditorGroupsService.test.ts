@@ -24,22 +24,22 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
-export class TestFileEditor extends BaseEditor {
+export class TestEditorControl extends BaseEditor {
 
-	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyTestFileEditor', NullTelemetryService, new TestThemeService()); }
+	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyTestFileEditorForNextEditorGroupService', NullTelemetryService, new TestThemeService()); }
 
-	getId(): string { return 'myTestFileEditor'; }
+	getId(): string { return 'myTestFileEditorForNextEditorGroupService'; }
 	layout(): void { }
 	createEditor(): any { }
 }
 
-export class TestFileEditorInput extends EditorInput implements IFileEditorInput {
+export class TestEditorInput extends EditorInput implements IFileEditorInput {
 
 	constructor(private resource: URI) { super(); }
 
-	getTypeId() { return 'testFileEditorInput'; }
+	getTypeId() { return 'testFileEditorInputForNextEditorGroupService'; }
 	resolve(): TPromise<IEditorModel> { return null; }
-	matches(other: TestFileEditorInput): boolean { return other && this.resource.toString() === other.resource.toString() && other instanceof TestFileEditorInput; }
+	matches(other: TestEditorInput): boolean { return other && this.resource.toString() === other.resource.toString() && other instanceof TestEditorInput; }
 	setEncoding(encoding: string) { }
 	getEncoding(): string { return null; }
 	setPreferredEncoding(encoding: string) { }
@@ -60,7 +60,7 @@ suite('Next editor2 part tests', () => {
 			constructor() { }
 
 			serialize(editorInput: EditorInput): string {
-				const testEditorInput = <TestFileEditorInput>editorInput;
+				const testEditorInput = <TestEditorInput>editorInput;
 				const testInput: ISerializedTestFileEditorInput = {
 					resource: testEditorInput.getResource().toString()
 				};
@@ -71,12 +71,12 @@ suite('Next editor2 part tests', () => {
 			deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
 				const testInput: ISerializedTestFileEditorInput = JSON.parse(serializedEditorInput);
 
-				return new TestFileEditorInput(URI.parse(testInput.resource));
+				return new TestEditorInput(URI.parse(testInput.resource));
 			}
 		}
 
 		(Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories)).registerEditorInputFactory('testFileEditorInput', TestFileEditorInputFactory);
-		(Registry.as<IEditorRegistry>(Extensions.Editors)).registerEditor(new EditorDescriptor(TestFileEditor, 'MyTestFileEditor', 'My Test File Editor'), new SyncDescriptor(TestFileEditorInput));
+		(Registry.as<IEditorRegistry>(Extensions.Editors)).registerEditor(new EditorDescriptor(TestEditorControl, 'MyTestFileEditor', 'My Test File Editor'), new SyncDescriptor(TestEditorInput));
 	}
 
 	registerTestFileEditorInput();
@@ -280,8 +280,8 @@ suite('Next editor2 part tests', () => {
 			editorCloseCounter++;
 		});
 
-		const input = new TestFileEditorInput(URI.file('foo/bar'));
-		const inputInactive = new TestFileEditorInput(URI.file('foo/bar/inactive'));
+		const input = new TestEditorInput(URI.file('foo/bar'));
+		const inputInactive = new TestEditorInput(URI.file('foo/bar/inactive'));
 
 		return group.openEditor(input, EditorOptions.create({ pinned: true })).then(() => {
 			return group.openEditor(inputInactive, EditorOptions.create({ inactive: true })).then(() => {
@@ -289,7 +289,7 @@ suite('Next editor2 part tests', () => {
 				assert.equal(activeEditorChangeCounter, 1);
 
 				assert.equal(group.activeEditor, input);
-				assert.ok(group.activeControl instanceof TestFileEditor);
+				assert.ok(group.activeControl instanceof TestEditorControl);
 				assert.equal(group.editors.length, 2);
 
 				return group.openEditor(inputInactive).then(() => {
