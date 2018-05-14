@@ -33,7 +33,6 @@ export class CommentGlyphWidget implements IContentWidget {
 		return this._id;
 	}
 
-
 	getPosition(): IContentWidgetPosition {
 		return {
 			position: {
