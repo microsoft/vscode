@@ -142,7 +142,7 @@ export class OutlineItemGroup {
 				result = this._getItemById(id, item.children);
 			}
 		});
-		return undefined;
+		return result;
 	}
 }
 
