@@ -17,33 +17,30 @@ export function getOutline(model: ITextModel): TPromise<OutlineItemGroup>[] {
 	return DocumentSymbolProviderRegistry.ordered(model).map((provider, i) => {
 		let source = `provider${i}`;
 		return asWinJsPromise(token => provider.provideDocumentSymbols(model, token)).then(result => {
-			let items = result.map(info => asOutlineItem(info, source));
-			return new OutlineItemGroup(source, items);
+			let group = new OutlineItemGroup(source);
+			for (const info of result) {
+				let child = asOutlineItem(info, group);
+				group.children.set(child.id, child);
+			}
+			return group;
 		}, err => {
 			//todo@joh capture error in group
-			return new OutlineItemGroup(source, []);
+			return new OutlineItemGroup(source);
 		});
 	});
 }
 
-function asOutlineItem(info: SymbolInformation, parentOrExtensionId: OutlineItem | string): OutlineItem {
+function asOutlineItem(info: SymbolInformation, container: OutlineItem | OutlineItemGroup): OutlineItem {
 
 	// complex id-computation which contains the origin/extension,
 	// the parent path, and some dedupe logic when names collide
-	let parent: OutlineItem;
-	let id = info.name;
-	if (typeof parentOrExtensionId === 'string') {
-		id = parentOrExtensionId + id;
-	} else if (parentOrExtensionId) {
-		parent = parentOrExtensionId;
-		id = parentOrExtensionId.id + info.name;
-		for (let i = 1; parentOrExtensionId.children.has(id); i++) {
-			id = parentOrExtensionId.id + info.name + i;
-		}
+	let id = container.id + info.name;
+	for (let i = 1; container.children.has(id); i++) {
+		id = container.id + info.name + i;
 	}
 
 	// build item and recurse
-	let res = new OutlineItem(id, info, parent);
+	let res = new OutlineItem(id, info, container instanceof OutlineItem ? container : undefined);
 	if (info.children) {
 		for (const child of info.children) {
 			let item = asOutlineItem(child, res);
@@ -69,21 +66,22 @@ export class OutlineItem {
 
 export class OutlineItemGroup {
 
+	children: Map<string, OutlineItem> = new Map();
+
 	constructor(
-		readonly source: string,
-		readonly children: OutlineItem[]
+		readonly id: string,
 	) {
 		//
 	}
 
 	updateMatches(pattern: string): OutlineItem {
 		let topMatch: OutlineItem;
-		for (const child of this.children) {
+		this.children.forEach(child => {
 			let candidate = this._updateMatches(pattern, child);
 			if (candidate && (!topMatch || topMatch.matches[0] < candidate.matches[0])) {
 				topMatch = candidate;
 			}
-		}
+		});
 		return topMatch;
 	}
 
@@ -107,7 +105,7 @@ export class OutlineItemGroup {
 	}
 
 	getItemEnclosingPosition(position: IPosition): OutlineItem {
-		for (const child of this.children) {
+		for (const child of values(this.children)) {
 			let candidate = this._getItemEnclosingPosition(position, child);
 			if (candidate) {
 				return candidate;
@@ -133,16 +131,17 @@ export class OutlineItemGroup {
 		return this._getItemById(id, this.children);
 	}
 
-	private _getItemById(id: string, items: OutlineItem[]): OutlineItem {
-		for (const item of items) {
-			if (item.id === id) {
-				return item;
+	private _getItemById(id: string, items: Map<string, OutlineItem>): OutlineItem {
+		let result: OutlineItem;
+		items.forEach(item => {
+			if (result) {
+				// break!
+			} else if (item.id === id) {
+				result = item;
+			} else {
+				result = this._getItemById(id, item.children);
 			}
-			let candidate = this._getItemById(id, values(item.children));
-			if (candidate) {
-				return candidate;
-			}
-		}
+		});
 		return undefined;
 	}
 }

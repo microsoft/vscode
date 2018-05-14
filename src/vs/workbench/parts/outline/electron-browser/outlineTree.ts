@@ -74,7 +74,7 @@ export class OutlineDataSource implements IDataSource {
 
 	async getChildren(tree: ITree, element: OutlineModel | OutlineItem): TPromise<OutlineItem[]> {
 		if (element instanceof OutlineModel) {
-			return (await element.selected()).children;
+			return values((await element.selected()).children);
 		} else {
 			return values(element.children);
 		}
