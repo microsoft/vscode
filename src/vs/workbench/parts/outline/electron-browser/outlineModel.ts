@@ -100,7 +100,7 @@ export class OutlineGroup extends TreeElement {
 	private _getItemEnclosingPosition(position: IPosition, children: { [id: string]: OutlineElement }): OutlineElement {
 		for (let key in children) {
 			let item = children[key];
-			if (!Range.containsPosition(item.symbol.definingRange, position)) {
+			if (!Range.containsPosition(item.symbol.definingRange || item.symbol.location.range, position)) {
 				continue;
 			}
 			return this._getItemEnclosingPosition(position, item.children) || item;
