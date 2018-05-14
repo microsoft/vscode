@@ -16,6 +16,7 @@ const SHELL_EXECUTABLES = [
 	'bash.exe',
 	'wsl.exe',
 	'ubuntu.exe',
+	'ubuntu1804.exe',
 	'kali.exe',
 	'debian.exe',
 	'opensuse-42.exe',
