@@ -77,17 +77,17 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _toggleAction: Action;
 	private _commentThread: modes.CommentThread;
 	private _commentGlyph: CommentGlyphWidget;
-	public get commentThread(): modes.CommentThread {
-		return this._commentThread;
-	}
 	private _replyCommand: modes.Command;
 	private _owner: number;
+	private _decorationIDs: string[];
+	private _localToDispose: IDisposable[];
+
 	public get owner(): number {
 		return this._owner;
 	}
-
-	private _decorationIDs: string[];
-	private _localToDispose: IDisposable[];
+	public get commentThread(): modes.CommentThread {
+		return this._commentThread;
+	}
 
 	constructor(
 		editor: ICodeEditor,

@@ -143,6 +143,11 @@
 	cursor: text;
 }
 
+.monaco-editor .review-widget .body .comment-form .review-thread-reply-button:focus {
+	outline-style: solid;
+	outline-width: 1px;
+}
+
 .monaco-editor .review-widget .body .comment-form textarea {
 	display: none;
 	width: 100%;

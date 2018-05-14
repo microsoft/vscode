@@ -71,6 +71,7 @@ export class ReviewController implements IEditorContribution {
 	private _commentInfos: modes.CommentInfo[];
 	private _reviewModel: ReviewModel;
 	private _newCommentGlyph: CommentGlyphWidget;
+	private _hasSetComments: boolean;
 
 	constructor(
 		editor: ICodeEditor,
@@ -90,6 +91,7 @@ export class ReviewController implements IEditorContribution {
 		this._commentWidgets = [];
 		this._newCommentWidget = null;
 		this._newCommentGlyph = null;
+		this._hasSetComments = false;
 
 		this._reviewPanelVisible = ctxReviewPanelVisible.bindTo(contextKeyService);
 		this._reviewModel = new ReviewModel();
@@ -159,6 +161,11 @@ export class ReviewController implements IEditorContribution {
 			// todo store view state.
 			this._newCommentWidget.dispose();
 			this._newCommentWidget = null;
+		}
+
+		if (this._newCommentGlyph) {
+			this.editor.removeContentWidget(this._newCommentGlyph);
+			this._newCommentGlyph = null;
 		}
 
 		this._commentWidgets.forEach(zone => {
@@ -231,7 +238,12 @@ export class ReviewController implements IEditorContribution {
 	}
 
 	private onEditorMouseMove(e: IEditorMouseEvent): void {
-		if (e.target.position && e.target.position.lineNumber !== undefined) {
+		if (!this._hasSetComments) {
+			return;
+		}
+
+		const hasCommentingRanges = this._commentInfos.length && this._commentInfos.some(info => !!info.commentingRanges.length);
+		if (hasCommentingRanges && e.target.position && e.target.position.lineNumber !== undefined) {
 			if (this._newCommentGlyph && e.target.element.className !== 'comment-hint') {
 				this.editor.removeContentWidget(this._newCommentGlyph);
 			}
@@ -251,7 +263,7 @@ export class ReviewController implements IEditorContribution {
 		}
 	}
 
-	getNewCommentAction(line: number): { replyCommand: modes.Command, ownerId: number } {
+	private getNewCommentAction(line: number): { replyCommand: modes.Command, ownerId: number } {
 		for (let i = 0; i < this._commentInfos.length; i++) {
 			const commentInfo = this._commentInfos[i];
 			const lineWithinRange = commentInfo.commentingRanges.some(range =>
@@ -291,6 +303,7 @@ export class ReviewController implements IEditorContribution {
 
 	setComments(commentInfos: modes.CommentInfo[]): void {
 		this._commentInfos = commentInfos;
+		this._hasSetComments = true;
 
 		this.editor.changeDecorations(accessor => {
 			this.commentingRangeDecorationMap.forEach((val, index) => {
