@@ -202,9 +202,15 @@ export class OutlinePanel extends ViewsViewletPanel {
 		this._input.disable();
 
 		this.disposables.push(attachInputBoxStyler(this._input, this._themeService));
-		this.disposables.push(dom.addStandardDisposableListener(this._input.inputElement, 'keyup', event => {
+		this.disposables.push(dom.addStandardDisposableListener(this._input.inputElement, 'keydown', event => {
 			// todo@joh make those keybindings configurable?
 			if (event.keyCode === KeyCode.DownArrow) {
+				this._tree.focusNext();
+				this._tree.domFocus();
+			} else if (event.keyCode === KeyCode.UpArrow) {
+				this._tree.focusPrevious();
+				this._tree.domFocus();
+			} else if (event.keyCode === KeyCode.Enter) {
 				this._tree.domFocus();
 			} else if (event.keyCode === KeyCode.Escape) {
 				this._input.value = '';
