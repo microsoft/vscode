@@ -40,5 +40,8 @@
 	"typescript.tsdk": "node_modules/typescript/lib",
 	"npm.exclude": "**/extensions/**",
 	"emmet.excludeLanguages": [],
-	"typescript.preferences.importModuleSpecifier": "non-relative"
+	"typescript.preferences.importModuleSpecifier": "non-relative",
+
+	// Self-host search in EH
+	"search.enableSearchProviders": true
 }
