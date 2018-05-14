@@ -70,6 +70,7 @@ export class CommentNode {
 	}
 }
 
+let INMEM_MODEL_ID = 0;
 export class ReviewZoneWidget extends ZoneWidget {
 	private _headElement: HTMLElement;
 	protected _primaryHeading: HTMLElement;
@@ -280,16 +281,17 @@ export class ReviewZoneWidget extends ZoneWidget {
 		}
 
 		if (this._commentThread.reply) {
+			const hasExistingComments = this._commentThread.comments.length > 0;
 			const commentForm = $('.comment-form').appendTo(this._bodyElement).getHTMLElement();
 			this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, commentForm, SimpleCommentEditor.getEditorOptions());
-			const resource = URI.parse(`${COMMENT_SCHEME}:commentinput-${this._commentThread.threadId}.md`);
+			const modeId = hasExistingComments ? this._commentThread.threadId : ++INMEM_MODEL_ID;
+			const resource = URI.parse(`${COMMENT_SCHEME}:commentinput-${modeId}.md`);
 			const model = this.modelService.createModel('', this.modeService.getOrCreateModeByFilenameOrFirstLine(resource.path), resource, true);
 			this._localToDispose.push(model);
 			this._commentEditor.setModel(model);
 			this._localToDispose.push(this._commentEditor);
 			this._localToDispose.push(this._commentEditor.getModel().onDidChangeContent(() => this.setCommentEditorDecorations()));
 			this.setCommentEditorDecorations();
-			const hasExistingComments = this._commentThread.comments.length > 0;
 
 			// Only add the additional step of clicking a reply button to expand the textarea when there are existing comments
 			if (hasExistingComments) {
@@ -314,7 +316,8 @@ export class ReviewZoneWidget extends ZoneWidget {
 			}
 
 			this._localToDispose.push(this._commentEditor.onKeyDown((ev: IKeyboardEvent) => {
-				if (this._commentEditor.getModel().getValueLength() === 0 && ev.keyCode === KeyCode.Escape) {
+				const hasExistingComments = this._commentThread.comments.length > 0;
+				if (this._commentEditor.getModel().getValueLength() === 0 && ev.keyCode === KeyCode.Escape && hasExistingComments) {
 					if (dom.hasClass(commentForm, 'expand')) {
 						dom.removeClass(commentForm, 'expand');
 					}
