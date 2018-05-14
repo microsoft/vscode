@@ -17,6 +17,7 @@ import { symbolKindToCssClass } from 'vs/editor/common/modes';
 import { HighlightedLabel } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel';
 import { createMatches } from '../../../../base/common/filters';
 import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from './outlineModel';
+import { IExtensionService } from '../../../services/extensions/common/extensions';
 
 export enum OutlineItemCompareType {
 	ByPosition,
@@ -99,6 +100,10 @@ export interface OutlineElementTemplate {
 
 export class OutlineRenderer implements IRenderer {
 
+	constructor(@IExtensionService readonly _extensionService: IExtensionService) {
+		//
+	}
+
 	getHeight(tree: ITree, element: any): number {
 		return 22;
 	}
@@ -128,7 +133,18 @@ export class OutlineRenderer implements IRenderer {
 			template.label.set(element.symbol.name, element.score ? createMatches(element.score[1]) : []);
 		}
 		if (element instanceof OutlineGroup) {
-			template.label.innerHTML = element.id;
+			this._extensionService.getExtensions().then(all => {
+				let found = false;
+				for (let i = 0; !found && i < all.length; i++) {
+					const extension = all[i];
+					if (extension.id === element.provider.extensionId) {
+						template.label.innerHTML = extension.displayName;
+						break;
+					}
+				}
+			}, err => {
+				template.label.innerHTML = element.provider.extensionId;
+			});
 		}
 	}
 

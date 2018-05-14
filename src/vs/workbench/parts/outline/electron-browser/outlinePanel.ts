@@ -230,7 +230,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 			}
 		};
 		const dataSource = new OutlineDataSource();
-		const renderer = new OutlineRenderer();
+		const renderer = this._instantiationService.createInstance(OutlineRenderer);
 		this._treeComparator = new OutlineItemComparator(this._outlineViewState.sortBy);
 		this._treeFilter = new OutlineItemFilter();
 		this._tree = this._instantiationService.createInstance(WorkbenchTree, treeContainer, { controller, dataSource, renderer, sorter: this._treeComparator, filter: this._treeFilter }, {});

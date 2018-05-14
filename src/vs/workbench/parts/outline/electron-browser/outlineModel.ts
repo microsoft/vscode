@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { DocumentSymbolProviderRegistry, SymbolInformation } from 'vs/editor/common/modes';
+import { DocumentSymbolProviderRegistry, SymbolInformation, DocumentSymbolProvider } from 'vs/editor/common/modes';
 import { ITextModel } from '../../../../editor/common/model';
 import { asWinJsPromise } from '../../../../base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -63,7 +63,8 @@ export class OutlineGroup extends TreeElement {
 
 	constructor(
 		readonly id: string,
-		readonly parent: OutlineModel
+		readonly parent: OutlineModel,
+		readonly provider: DocumentSymbolProvider
 	) {
 		super();
 	}
@@ -133,8 +134,8 @@ export class OutlineModel extends TreeElement {
 	private _makeRequest(): void {
 		let promises = DocumentSymbolProviderRegistry.ordered(this.textModel).map((provider, index) => {
 
-			let id = TreeElement.findId(provider.extensionId || `provider_${index}`, this);
-			let group = new OutlineGroup(id, this);
+			let id = TreeElement.findId(`provider_${index}`, this);
+			let group = new OutlineGroup(id, this, provider);
 
 			return asWinJsPromise(token => provider.provideDocumentSymbols(this.textModel, token)).then(result => {
 				for (const info of result) {
