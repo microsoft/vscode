@@ -11,6 +11,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 class WindowManager {
 
 	public static readonly INSTANCE = new WindowManager();
+	public static readonly MAX_ZOOM_LEVEL = 9;
+	public static readonly MIN_ZOOM_LEVEL = -8;
 
 	// --- Zoom Level
 	private _zoomLevel: number = 0;
@@ -25,7 +27,7 @@ class WindowManager {
 		return Date.now() - this._lastZoomLevelChangeTime;
 	}
 	public setZoomLevel(zoomLevel: number, isTrusted: boolean): void {
-		if (this._zoomLevel === zoomLevel) {
+		if (this._zoomLevel === zoomLevel || !WindowManager.isZoomLevelValid(zoomLevel)) {
 			return;
 		}
 
@@ -35,6 +37,10 @@ class WindowManager {
 		this._onDidChangeZoomLevel.fire(this._zoomLevel);
 	}
 
+	public static isZoomLevelValid(zoomLevel: number): boolean {
+		return zoomLevel <= WindowManager.MAX_ZOOM_LEVEL &&
+			zoomLevel >= WindowManager.MIN_ZOOM_LEVEL;
+	}
 
 	// --- Zoom Factor
 	private _zoomFactor: number = 0;
@@ -103,6 +109,11 @@ export function setZoomLevel(zoomLevel: number, isTrusted: boolean): void {
 export function getZoomLevel(): number {
 	return WindowManager.INSTANCE.getZoomLevel();
 }
+
+export function isZoomLevelValid(zoomLevel: number) {
+	return WindowManager.isZoomLevelValid(zoomLevel);
+}
+
 /** Returns the time (in ms) since the zoom level was changed */
 export function getTimeSinceLastZoomLevelChanged(): number {
 	return WindowManager.INSTANCE.getTimeSinceLastZoomLevelChanged();
@@ -129,6 +140,7 @@ export function setFullscreen(fullscreen: boolean): void {
 export function isFullscreen(): boolean {
 	return WindowManager.INSTANCE.isFullscreen();
 }
+
 export function onDidChangeFullscreen(callback: () => void): IDisposable {
 	return WindowManager.INSTANCE.onDidChangeFullscreen(callback);
 }

@@ -188,6 +188,9 @@ export abstract class BaseZoomAction extends Action {
 
 	protected setConfiguredZoomLevel(level: number): void {
 		level = Math.round(level); // when reaching smallest zoom, prevent fractional zoom levels
+		if (!browser.isZoomLevelValid(level)) {
+			return;
+		}
 
 		const applyZoom = () => {
 			webFrame.setZoomLevel(level);
