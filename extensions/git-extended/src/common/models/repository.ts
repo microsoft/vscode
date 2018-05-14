@@ -406,7 +406,7 @@ export class GitHubRepository {
 
 			return Promise.all(promises).then(values => {
 				return values.map(item => {
-					if (!item.head.repo) {
+					if (!item.data.head.repo) {
 						console.log('The remote branch for this PR was already deleted.');
 						return null;
 					}
