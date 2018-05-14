@@ -124,9 +124,26 @@ export class OutlineRenderer implements IRenderer {
 
 export class OutlineTreeState {
 
+	readonly selected: string;
+	readonly focused: string;
 	readonly expanded: string[];
 
 	static capture(tree: ITree): OutlineTreeState {
+		// selection
+		let selected: string;
+		let element = tree.getSelection()[0];
+		if (element instanceof OutlineItem) {
+			selected = element.id;
+		}
+
+		// focus
+		let focused: string;
+		element = tree.getFocus(true);
+		if (element instanceof OutlineItem) {
+			focused = element.id;
+		}
+
+		// expansion
 		let expanded = new Array<string>();
 		let nav = tree.getNavigator();
 		while (nav.next()) {
@@ -137,7 +154,7 @@ export class OutlineTreeState {
 				}
 			}
 		}
-		return { expanded };
+		return { selected, focused, expanded };
 	}
 
 	static async restore(tree: ITree, state: OutlineTreeState): TPromise<void> {
@@ -146,6 +163,8 @@ export class OutlineTreeState {
 			return TPromise.as(undefined);
 		}
 		let group = await model.selected();
+
+		// expansion
 		let items: OutlineItem[] = [];
 		for (const id of state.expanded) {
 			let item = group.getItemById(id);
@@ -155,6 +174,12 @@ export class OutlineTreeState {
 		}
 		await tree.collapseAll(undefined);
 		await tree.expandAll(items);
+
+		// selection & focus
+		let selected = group.getItemById(state.selected);
+		let focused = group.getItemById(state.focused);
+		tree.setSelection([selected]);
+		tree.setFocus(focused);
 	}
 }
 

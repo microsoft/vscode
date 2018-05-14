@@ -162,13 +162,17 @@ export class OutlinePanel extends ViewsViewletPanel {
 		const controller = new class extends OutlineController {
 			onKeyDown(tree: ITree, event: IKeyboardEvent) {
 				let handled = super.onKeyDown(tree, event);
-				if (!handled && event.keyCode >= KeyCode.KEY_0 && event.keyCode <= KeyCode.KEY_Z) {
+				if (handled) {
+					return true;
+				}
+				if (!this.upKeyBindingDispatcher.has(event.keyCode)) {
 					// crazy -> during keydown focus moves to the input box
 					// and because of that the keyup event is handled by the
 					// input field
 					$this._input.focus();
+					return true;
 				}
-				return handled;
+				return false;
 			}
 		};
 		const dataSource = new OutlineDataSource();
