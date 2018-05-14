@@ -51,11 +51,14 @@ interface IListEntry {
 }
 
 interface ISettingItemEntry extends IListEntry {
+	templateId: typeof SETTINGS_ENTRY_TEMPLATE_ID;
 	key: string;
 	value: any;
 	isConfigured: boolean;
 	description: string;
 	overriddenScopeList: string[];
+	isExpanded: boolean;
+	isExpandable?: boolean;
 	type?: string | string[];
 	enum?: string[];
 }
@@ -67,13 +70,17 @@ enum ExpandState {
 }
 
 interface IGroupTitleEntry extends IListEntry {
+	templateId: typeof SETTINGS_GROUP_ENTRY_TEMPLATE_ID;
 	title: string;
 	expandState: ExpandState;
 }
 
 interface IButtonRowEntry extends IListEntry {
+	templateId: typeof BUTTON_ROW_ENTRY_TEMPLATE;
 	label: string;
 }
+
+type ListEntry = ISettingItemEntry | IGroupTitleEntry | IButtonRowEntry;
 
 enum SearchResultIdx {
 	Local = 0,
@@ -103,7 +110,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private showConfiguredSettingsOnlyCheckbox: HTMLInputElement;
 
 	private settingsListContainer: HTMLElement;
-	private settingsList: List<IListEntry>;
+	private settingsList: List<ListEntry>;
 
 	private dimension: DOM.Dimension;
 	private searchFocusContextKey: IContextKey<boolean>;
@@ -120,6 +127,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private pendingSettingModifiedReport: { key: string, value: any };
 
 	private groupExpanded = new Map<string, boolean>();
+	private itemExpanded = new Map<string, boolean>();
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -251,9 +259,13 @@ export class SettingsEditor2 extends BaseEditor {
 	private createList(parent: HTMLElement): void {
 		this.settingsListContainer = DOM.append(parent, $('.settings-list-container'));
 
-		const settingItemRenderer = this.instantiationService.createInstance(SettingItemRenderer);
+		const settingItemRenderer = this.instantiationService.createInstance(SettingItemRenderer, this.settingsListContainer);
 		this._register(settingItemRenderer.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value)));
 		this._register(settingItemRenderer.onDidOpenSettings(() => this.openSettingsFile()));
+		this._register(settingItemRenderer.onDidToggleExpandSetting(e => {
+			this.itemExpanded.set(e.key, e.expandState === ExpandState.Expanded);
+			this.renderEntries();
+		}));
 
 		const buttonItemRenderer = new ButtonRowRenderer();
 		this._register(buttonItemRenderer.onDidClick(e => this.onShowAllSettingsClicked()));
@@ -268,7 +280,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.settingsList = this._register(this.instantiationService.createInstance(
 			WorkbenchList,
 			this.settingsListContainer,
-			new SettingItemDelegate(),
+			new SettingItemDelegate(this.settingsListContainer),
 			[settingItemRenderer, groupTitleRenderer, buttonItemRenderer],
 			{
 				identityProvider: e => e.id,
@@ -278,7 +290,7 @@ export class SettingsEditor2 extends BaseEditor {
 				keyboardSupport: false,
 				mouseSupport: false
 			})
-		) as WorkbenchList<IListEntry>;
+		) as WorkbenchList<ListEntry>;
 
 		this.settingsList.style({ listHoverBackground: Color.transparent, listFocusOutline: Color.transparent });
 	}
@@ -489,7 +501,7 @@ export class SettingsEditor2 extends BaseEditor {
 			});
 	}
 
-	private getEntriesFromSearch(searchResults: ISearchResult[]): IListEntry[] {
+	private getEntriesFromSearch(searchResults: ISearchResult[]): ListEntry[] {
 		const entries: ISettingItemEntry[] = [];
 		const seenSettings = new Set<string>();
 
@@ -537,8 +549,8 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	private getEntriesFromModel(): IListEntry[] {
-		const entries: IListEntry[] = [];
+	private getEntriesFromModel(): ListEntry[] {
+		const entries: ListEntry[] = [];
 		for (let groupIdx = 0; groupIdx < this.defaultSettingsEditorModel.settingsGroups.length; groupIdx++) {
 			if (groupIdx > 0 && !this.showAllSettings && !this.showConfiguredSettingsOnly) {
 				break;
@@ -552,6 +564,7 @@ export class SettingsEditor2 extends BaseEditor {
 				for (const section of group.sections) {
 					for (const setting of section.settings) {
 						const entry = this.settingToEntry(setting);
+
 						if (!this.showConfiguredSettingsOnly || entry.isConfigured) {
 							groupEntries.push(entry);
 						}
@@ -603,6 +616,8 @@ export class SettingsEditor2 extends BaseEditor {
 			overriddenScopeList.push('User');
 		}
 
+		const isExpanded = !!this.itemExpanded.get(s.key);
+
 		return <ISettingItemEntry>{
 			id: s.key,
 			key: s.key,
@@ -612,7 +627,8 @@ export class SettingsEditor2 extends BaseEditor {
 			description: s.description.join('\n'),
 			enum: s.enum,
 			type: s.type,
-			templateId: SETTINGS_ENTRY_TEMPLATE_ID
+			templateId: SETTINGS_ENTRY_TEMPLATE_ID,
+			isExpanded
 		};
 	}
 
@@ -623,16 +639,23 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 }
 
-class SettingItemDelegate implements IDelegate<IListEntry> {
+class SettingItemDelegate implements IDelegate<ListEntry> {
 
-	getHeight(entry: IListEntry) {
+	constructor(private measureContainer: HTMLElement) {
+
+	}
+
+	getHeight(entry: ListEntry) {
 		if (entry.templateId === SETTINGS_GROUP_ENTRY_TEMPLATE_ID) {
 			return 42;
 		}
 
 		if (entry.templateId === SETTINGS_ENTRY_TEMPLATE_ID) {
-			// TODO dynamic height
-			return 68;
+			if (entry.isExpanded) {
+				return this.getDynamicHeight(entry);
+			} else {
+				return 68;
+			}
 		}
 
 		if (entry.templateId === BUTTON_ROW_ENTRY_TEMPLATE) {
@@ -642,9 +665,24 @@ class SettingItemDelegate implements IDelegate<IListEntry> {
 		return 0;
 	}
 
-	getTemplateId(element: IListEntry) {
+	getTemplateId(element: ListEntry) {
 		return element.templateId;
 	}
+
+	private getDynamicHeight(entry: ISettingItemEntry): number {
+		return measureSettingItemEntry(entry, this.measureContainer);
+	}
+}
+
+function measureSettingItemEntry(entry: ISettingItemEntry, measureContainer: HTMLElement): number {
+	const measureHelper = DOM.append(measureContainer, $('.setting-item-measure-helper.monaco-list-row'));
+
+	const template = SettingItemRenderer.renderTemplate(measureHelper);
+	SettingItemRenderer.renderElement(entry, 0, template);
+
+	const height = measureHelper.offsetHeight;
+	measureContainer.removeChild(measureHelper);
+	return height;
 }
 
 interface IDisposableTemplate {
@@ -654,6 +692,7 @@ interface IDisposableTemplate {
 interface ISettingItemTemplate extends IDisposableTemplate {
 	parent: HTMLElement;
 
+	context?: ISettingItemEntry;
 	containerElement: HTMLElement;
 	categoryElement: HTMLElement;
 	labelElement: HTMLElement;
@@ -680,6 +719,11 @@ interface ISettingChangeEvent {
 	value: any; // undefined => reset unconfigure
 }
 
+interface ISettingExpandEvent {
+	key: string;
+	expandState: ExpandState;
+}
+
 class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTemplate> {
 
 	private readonly _onDidChangeSetting: Emitter<ISettingChangeEvent> = new Emitter<ISettingChangeEvent>();
@@ -688,14 +732,22 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 	private readonly _onDidOpenSettings: Emitter<void> = new Emitter<void>();
 	public readonly onDidOpenSettings: Event<void> = this._onDidOpenSettings.event;
 
+	private readonly _onDidToggleExpandSetting: Emitter<ISettingExpandEvent> = new Emitter<ISettingExpandEvent>();
+	public readonly onDidToggleExpandSetting: Event<ISettingExpandEvent> = this._onDidToggleExpandSetting.event;
+
 	get templateId(): string { return SETTINGS_ENTRY_TEMPLATE_ID; }
 
 	constructor(
+		private measureContainer: HTMLElement,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IThemeService private themeService: IThemeService
 	) { }
 
 	renderTemplate(parent: HTMLElement): ISettingItemTemplate {
+		return SettingItemRenderer.renderTemplate(parent, this);
+	}
+
+	static renderTemplate(parent: HTMLElement, that?: SettingItemRenderer): ISettingItemTemplate {
 		DOM.addClass(parent, 'setting-item');
 
 		const itemContainer = DOM.append(parent, $('.setting-item-container'));
@@ -710,9 +762,10 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 
 		const valueElement = DOM.append(rightElement, $('.setting-item-value'));
 
-		return {
+		const toDispose = [];
+		const template: ISettingItemTemplate = {
 			parent: parent,
-			toDispose: [],
+			toDispose,
 
 			containerElement: itemContainer,
 			categoryElement,
@@ -721,10 +774,29 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 			valueElement,
 			overridesElement
 		};
+
+		if (that) {
+			toDispose.push(DOM.addDisposableListener(descriptionElement, 'click', () => {
+				const entry = template.context;
+				if (entry && entry.isExpandable) {
+					const newState = entry.isExpanded ? ExpandState.Collapsed : ExpandState.Expanded;
+					that._onDidToggleExpandSetting.fire({ key: entry.key, expandState: newState });
+				}
+			}));
+		}
+
+		return template;
 	}
 
 	renderElement(entry: ISettingItemEntry, index: number, template: ISettingItemTemplate): void {
+		return SettingItemRenderer.renderElement(entry, index, template, this);
+	}
+
+	static renderElement(entry: ISettingItemEntry, index: number, template: ISettingItemTemplate, that?: SettingItemRenderer): void {
+		template.context = entry;
 		DOM.toggleClass(template.parent, 'odd', index % 2 === 1);
+		DOM.toggleClass(template.parent, 'is-configured', entry.isConfigured);
+		DOM.toggleClass(template.parent, 'is-expanded', entry.isExpanded);
 
 		let titleTooltip = entry.key;
 		if (entry.isConfigured) {
@@ -740,19 +812,32 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 		template.descriptionElement.textContent = entry.description;
 		template.descriptionElement.title = entry.description;
 
-		DOM.toggleClass(template.parent, 'is-configured', entry.isConfigured);
-		this.renderValue(entry, template);
+		if (that) {
+			const expandedHeight = measureSettingItemEntry(entry, that.measureContainer);
+			entry.isExpandable = expandedHeight > 68;
+			DOM.toggleClass(template.parent, 'is-expandable', entry.isExpandable);
+		}
+
+		if (that) {
+			that.renderValue(entry, template);
+		}
 
 		const resetButton = new Button(template.valueElement);
 		resetButton.element.title = localize('resetButtonTitle', "Reset");
 		resetButton.element.classList.add('setting-reset-button');
-		attachButtonStyler(resetButton, this.themeService, {
-			buttonBackground: Color.transparent.toString(),
-			buttonHoverBackground: Color.transparent.toString()
-		});
-		template.toDispose.push(resetButton.onDidClick(e => {
-			this._onDidChangeSetting.fire({ key: entry.key, value: undefined });
-		}));
+
+		if (that) {
+			attachButtonStyler(resetButton, that.themeService, {
+				buttonBackground: Color.transparent.toString(),
+				buttonHoverBackground: Color.transparent.toString()
+			});
+		}
+
+		if (that) {
+			template.toDispose.push(resetButton.onDidClick(e => {
+				that._onDidChangeSetting.fire({ key: entry.key, value: undefined });
+			}));
+		}
 		template.toDispose.push(resetButton);
 
 		const alsoConfiguredInLabel = localize('alsoConfiguredIn', "Also configured in:");
