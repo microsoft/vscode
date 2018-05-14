@@ -5,17 +5,21 @@
 'use strict';
 
 import { localize } from 'vs/nls';
-import { ViewsRegistry, ViewLocation } from 'vs/workbench/common/views';
+import { ViewsRegistry, ViewLocation, IViewsService } from 'vs/workbench/common/views';
 import { OutlinePanel } from './outlinePanel';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands';
 
-// get outline tree (per extension...)
-
-// sorting by range, name, type
-
-ViewsRegistry.registerViews([{
+const _outlineDesc = {
 	id: 'code.outline',
 	name: localize('name', "Outline"),
 	ctor: OutlinePanel,
 	location: ViewLocation.Explorer,
 	canToggleVisibility: true
-}]);
+};
+
+ViewsRegistry.registerViews([_outlineDesc]);
+
+CommandsRegistry.registerCommand('outline.focus', accessor => {
+	let viewsService = accessor.get(IViewsService);
+	return viewsService.openView(_outlineDesc.id, true);
+});
