@@ -64,7 +64,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 				label: (currentBranchIsForThisPR ? ' * ' : '') + element.title,
 				tooltip: (currentBranchIsForThisPR ? 'Current Branch * ' : '') + element.title,
 				collapsibleState: 1,
-				contextValue: 'pullrequest',
+				contextValue: 'pullrequest' + (currentBranchIsForThisPR ? ':active' : ':nonactive'),
 				iconPath: Resource.getGravatarUri(element)
 			};
 		} else {

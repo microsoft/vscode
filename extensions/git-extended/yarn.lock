@@ -157,14 +157,14 @@ delayed-stream@~1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/delayed-stream/-/delayed-stream-1.0.0.tgz#df3ae199acadfb7d440aaae0b29e2272b24ec619"
 
-dugite@^1.28.0:
-  version "1.61.0"
-  resolved "https://registry.yarnpkg.com/dugite/-/dugite-1.61.0.tgz#d5dad047af478c1312f8b791eb56d9935e6fc47d"
+dugite@^1.63.0:
+  version "1.63.0"
+  resolved "https://registry.yarnpkg.com/dugite/-/dugite-1.63.0.tgz#6c3915629d70068277d29cd2ea6165e0bd7e1f05"
   dependencies:
     checksum "^0.1.1"
     mkdirp "^0.5.1"
     progress "^2.0.0"
-    request "^2.83.0"
+    request "^2.85.0"
     rimraf "^2.5.4"
     tar "^4.0.2"
 
@@ -479,7 +479,7 @@ qs@~6.5.1:
   version "6.5.1"
   resolved "https://registry.yarnpkg.com/qs/-/qs-6.5.1.tgz#349cdf6eef89ec45c12d7d5eb3fc0c870343a6d8"
 
-request@^2.83.0:
+request@^2.85.0:
   version "2.85.0"
   resolved "https://registry.yarnpkg.com/request/-/request-2.85.0.tgz#5a03615a47c61420b3eb99b7dba204f83603e1fa"
   dependencies:

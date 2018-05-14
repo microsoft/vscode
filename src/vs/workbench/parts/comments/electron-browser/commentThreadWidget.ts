@@ -23,9 +23,18 @@ import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
 import { CommentGlyphWidget } from 'vs/workbench/parts/comments/electron-browser/commentGlyphWidget';
-
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { SimpleCommentEditor } from './simpleCommentEditor';
+import URI from 'vs/base/common/uri';
+import { transparent, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from '../../../../base/common/keyCodes';
+export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const EXPAND_ACTION_CLASS = 'expand-review-action octicon octicon-chevron-down';
 const COLLAPSE_ACTION_CLASS = 'expand-review-action octicon octicon-chevron-up';
+const COMMENT_SCHEME = 'comment';
 
 declare var ResizeObserver: any;
 export class CommentNode {
@@ -68,7 +77,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	protected _metaHeading: HTMLElement;
 	protected _actionbarWidget: ActionBar;
 	private _bodyElement: HTMLElement;
-	private _textArea: HTMLTextAreaElement;
+	private _commentEditor: ICodeEditor;
 	private _commentsElement: HTMLElement;
 	private _commentElements: CommentNode[];
 	private _resizeObserver: any;
@@ -90,6 +99,9 @@ export class ReviewZoneWidget extends ZoneWidget {
 	}
 
 	constructor(
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IModeService private modeService: IModeService,
+		@IModelService private modelService: IModelService,
 		editor: ICodeEditor,
 		owner: number,
 		commentThread: modes.CommentThread,
@@ -241,6 +253,11 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._commentElements = newCommentNodeList;
 	}
 
+	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
+		console.log('dolayout');
+		this._commentEditor.layout({ height: (this._commentEditor.isFocused() ? 5 : 1) * 18, width: widthInPixel - 20 /* margin */ });
+	}
+
 	display(lineNumber: number) {
 		this._commentGlyph = new CommentGlyphWidget(`review_${lineNumber}`, this.editor, lineNumber, false, () => {
 			this.toggleExpand();
@@ -264,9 +281,15 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		if (this._commentThread.reply) {
 			const commentForm = $('.comment-form').appendTo(this._bodyElement).getHTMLElement();
-			this._textArea = <HTMLTextAreaElement>$('textarea').appendTo(commentForm).getHTMLElement();
+			this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, commentForm, SimpleCommentEditor.getEditorOptions());
+			const resource = URI.parse(`${COMMENT_SCHEME}:commentinput-${this._commentThread.threadId}.md`);
+			const model = this.modelService.createModel('', this.modeService.getOrCreateModeByFilenameOrFirstLine(resource.path), resource, true);
+			this._localToDispose.push(model);
+			this._commentEditor.setModel(model);
+			this._localToDispose.push(this._commentEditor);
+			this._localToDispose.push(this._commentEditor.getModel().onDidChangeContent(() => this.setCommentEditorDecorations()));
+			this.setCommentEditorDecorations();
 			const hasExistingComments = this._commentThread.comments.length > 0;
-			this._textArea.placeholder = hasExistingComments ? 'Reply...' : 'Type a new comment';
 
 			// Only add the additional step of clicking a reply button to expand the textarea when there are existing comments
 			if (hasExistingComments) {
@@ -277,12 +300,12 @@ export class ReviewZoneWidget extends ZoneWidget {
 				reviewThreadReplyButton.onclick = () => {
 					if (!dom.hasClass(commentForm, 'expand')) {
 						dom.addClass(commentForm, 'expand');
-						this._textArea.focus();
+						this._commentEditor.focus();
 					}
 				};
 
-				dom.addDisposableListener(this._textArea, 'blur', () => {
-					if (this._textArea.value === '' && dom.hasClass(commentForm, 'expand')) {
+				this._commentEditor.onDidBlurEditor(() => {
+					if (this._commentEditor.getModel().getValueLength() === 0 && dom.hasClass(commentForm, 'expand')) {
 						dom.removeClass(commentForm, 'expand');
 					}
 				});
@@ -290,13 +313,13 @@ export class ReviewZoneWidget extends ZoneWidget {
 				dom.addClass(commentForm, 'expand');
 			}
 
-			dom.addDisposableListener(this._textArea, 'keydown', (ev: KeyboardEvent) => {
-				if (this._textArea.value === '' && ev.keyCode === 27) {
+			this._localToDispose.push(this._commentEditor.onKeyDown((ev: IKeyboardEvent) => {
+				if (this._commentEditor.getModel().getValueLength() === 0 && ev.keyCode === KeyCode.Escape) {
 					if (dom.hasClass(commentForm, 'expand')) {
 						dom.removeClass(commentForm, 'expand');
 					}
 				}
-			});
+			}));
 
 			const formActions = $('.form-actions').appendTo(commentForm).getHTMLElement();
 
@@ -307,9 +330,9 @@ export class ReviewZoneWidget extends ZoneWidget {
 				let newComment = await this.commandService.executeCommand(this._replyCommand.id, this.editor.getModel().uri, {
 					start: { line: lineNumber, column: 1 },
 					end: { line: lineNumber, column: 1 }
-				}, this._commentThread, this._textArea.value);
+				}, this._commentThread, this._commentEditor.getValue());
 				if (newComment) {
-					this._textArea.value = '';
+					this._commentEditor.setValue('');
 					this._commentThread.comments.push(newComment);
 					let newCommentNode = new CommentNode(newComment);
 					this._commentElements.push(newCommentNode);
@@ -324,7 +347,10 @@ export class ReviewZoneWidget extends ZoneWidget {
 			if (entries[0].target === this._bodyElement && !this._isCollapsed) {
 				const lineHeight = this.editor.getConfiguration().lineHeight;
 				const arrowHeight = Math.round(lineHeight / 3);
-				const computedLinesNumber = Math.ceil((headHeight + entries[0].contentRect.height + arrowHeight) / lineHeight);
+				const frameThickness = Math.round(lineHeight / 9) * 2;
+
+				const computedLinesNumber = Math.ceil((headHeight + entries[0].contentRect.height + arrowHeight + frameThickness) / lineHeight);
+				console.log(entries[0].contentRect.height);
 				this._relayout(computedLinesNumber);
 			}
 		});
@@ -337,8 +363,31 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		// If there are no existing comments, place focus on the text area. This must be done after show, which also moves focus.
 		if (this._commentThread.reply && !this._commentThread.comments.length) {
-			this._textArea.focus();
+			this._commentEditor.focus();
 		}
+	}
+
+	private setCommentEditorDecorations() {
+		let model = this._commentEditor.getModel();
+		let valueLength = model.getValueLength();
+		const hasExistingComments = this._commentThread.comments.length > 0;
+		let placeholder = valueLength > 0 ? '' : (hasExistingComments ? 'Reply...' : 'Type a new comment');
+		const decorations = [{
+			range: {
+				startLineNumber: 0,
+				endLineNumber: 0,
+				startColumn: 0,
+				endColumn: 1
+			},
+			renderOptions: {
+				after: {
+					contentText: placeholder,
+					color: transparent(editorForeground, 0.4)(this.themeService.getTheme()).toString()
+				}
+			}
+		}];
+
+		this._commentEditor.setDecorations(COMMENTEDITOR_DECORATION_KEY, decorations);
 	}
 
 	private mouseDownInfo: { lineNumber: number, iconClicked: boolean };

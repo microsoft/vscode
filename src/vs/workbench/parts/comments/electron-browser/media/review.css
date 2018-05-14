@@ -122,7 +122,7 @@
 	display: none;
 }
 
-.monaco-editor .review-widget .body .comment-form.expand textarea,
+.monaco-editor .review-widget .body .comment-form.expand .monaco-editor,
 .monaco-editor .review-widget .body .comment-form.expand .form-actions {
 	display: block;
 	box-sizing: border-box;
@@ -148,15 +148,13 @@
 	outline-width: 1px;
 }
 
-.monaco-editor .review-widget .body .comment-form textarea {
+.monaco-editor .review-widget .body .comment-form .monaco-editor {
 	display: none;
 	width: 100%;
 	min-height: 100px;
 	max-height: 500px;
-	resize: vertical;
 	border-radius: 3px;
 	border: 0px;
-	padding: 6px 12px;
 }
 
 .monaco-editor .review-widget .body .comment-form .form-actions {
