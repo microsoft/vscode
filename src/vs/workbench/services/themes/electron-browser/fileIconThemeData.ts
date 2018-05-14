@@ -160,7 +160,7 @@ function _loadIconThemeDocument(fileSetPath: string): TPromise<IconThemeDocument
 	return pfs.readFile(fileSetPath).then(content => {
 		let errors: Json.ParseError[] = [];
 		let contentValue = Json.parse(content.toString(), errors);
-		if (errors.length > 0) {
+		if (errors.length > 0 || !contentValue) {
 			return TPromise.wrapError(new Error(nls.localize('error.cannotparseicontheme', "Problems parsing file icons file: {0}", errors.map(e => getParseErrorMessage(e.error)).join(', '))));
 		}
 		return TPromise.as(contentValue);
