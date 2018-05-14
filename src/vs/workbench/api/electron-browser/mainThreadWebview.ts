@@ -153,7 +153,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			return false;
 		}
 
-		return (this._revivers.has(webview.viewType) || webview.reviver !== null) && webview.state.state;
+		return (this._revivers.has(webview.viewType) || webview.reviver !== null);
 	}
 
 	private _onWillShutdown(): TPromise<boolean> {
