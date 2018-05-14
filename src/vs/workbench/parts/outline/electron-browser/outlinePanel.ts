@@ -38,6 +38,7 @@ import { escape } from '../../../../base/common/strings';
 import LanguageFeatureRegistry from '../../../../editor/common/modes/languageFeatureRegistry';
 import { OutlineItem, OutlineItemGroup, OutlineModel, getOutline } from './outlineModel';
 import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from './outlineTree';
+import { CollapseAction } from 'vs/workbench/browser/viewlet';
 
 class RequestOracle {
 
@@ -197,6 +198,14 @@ export class OutlinePanel extends ViewsViewletPanel {
 			this._onEditor(undefined);
 		}
 		return super.setVisible(visible);
+	}
+
+	getActions(): IAction[] {
+		return [
+			new Action('collapse', localize('collapse', "Collapse All"), 'explorer-action collapse-explorer', true, () => {
+				return new CollapseAction(this._tree, true, undefined).run();
+			})
+		];
 	}
 
 	getSecondaryActions(): IAction[] {
