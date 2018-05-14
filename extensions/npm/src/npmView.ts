@@ -65,20 +65,38 @@ class PackageJSON extends TreeItem {
 	}
 }
 
+type NpmActions = 'open' | 'run' | 'debug';
+
 class NpmScript extends TreeItem {
 	task: Task;
 	package: PackageJSON;
 
 	constructor(context: ExtensionContext, packageJson: PackageJSON, task: Task) {
 		super(task.name, TreeItemCollapsibleState.None);
+		const config = workspace.getConfiguration();
+		const action: NpmActions = config.get('npm.scriptExplorerAction') || 'open';
+		const commandList = {
+			'open': {
+				title: 'Configure Script',
+				command: 'npm.openScript',
+				arguments: [this]
+			},
+			'run': {
+				title: 'Run Script',
+				command: 'npm.runScript',
+				arguments: [this]
+			},
+			'debug': {
+				title: 'Debug Script',
+				command: 'npm.debugScript',
+				arguments: [this]
+			}
+		};
+
 		this.contextValue = 'script';
 		this.package = packageJson;
 		this.task = task;
-		this.command = {
-			title: 'Run Script',
-			command: 'npm.openScript',
-			arguments: [this]
-		};
+		this.command = commandList[action];
 		this.iconPath = {
 			light: context.asAbsolutePath(path.join('resources', 'light', 'script.svg')),
 			dark: context.asAbsolutePath(path.join('resources', 'dark', 'script.svg'))

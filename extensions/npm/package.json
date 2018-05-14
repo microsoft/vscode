@@ -151,7 +151,18 @@
           "default": false,
           "scope": "resource",
           "description": "%config.npm.enableScriptExplorer%"
-        }
+        },
+				"npm.scriptExplorerAction": {
+					"type": "string",
+					"enum": [
+						"open",
+						"run",
+						"debug"
+					],
+					"description": "%config.npm.scriptExplorerAction%",
+					"scope": "resource",
+					"default": "open"
+				}
       }
     },
     "jsonValidation": [
