@@ -104,6 +104,11 @@ export interface INextEditorGroupsService {
 	readonly onDidMoveGroup: Event<INextEditorGroup>;
 
 	/**
+	 * An event for when the label of a group changes.
+	 */
+	readonly onDidGroupLabelChange: Event<INextEditorGroup>;
+
+	/**
 	 * An active group is the default location for new editors to open.
 	 */
 	readonly activeGroup: INextEditorGroup;
@@ -133,6 +138,11 @@ export interface INextEditorGroupsService {
 	 * Allows to convert a group identifier to a group.
 	 */
 	getGroup(identifier: GroupIdentifier): INextEditorGroup;
+
+	/**
+	 * A human readable label for a group.
+	 */
+	getLabel(identifier: GroupIdentifier): string;
 
 	/**
 	 * Move keyboard focus into the provided group.

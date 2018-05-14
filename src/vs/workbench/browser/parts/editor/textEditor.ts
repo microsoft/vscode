@@ -26,7 +26,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { isDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 const TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
@@ -56,13 +56,14 @@ export abstract class BaseTextEditor extends BaseEditor {
 		@IThemeService protected themeService: IThemeService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IEditorGroupService protected editorGroupService: IEditorGroupService,
-		@INextEditorGroupsService nextEditorGroupService: INextEditorGroupsService
+		@INextEditorGroupsService private nextEditorGroupService: INextEditorGroupsService
 	) {
 		super(id, telemetryService, themeService);
 
 		this.editorViewStateMemento = new EditorViewStateMemento<IEditorViewState>(nextEditorGroupService, this.getMemento(storageService, Scope.WORKSPACE), TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY, 100);
 
 		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.handleConfigurationChangeEvent(this.configurationService.getValue<IEditorConfiguration>(this.getResource()))));
+		this.toUnbind.push(this.nextEditorGroupService.onDidGroupLabelChange(group => this.handleGroupLabelChange(group)));
 	}
 
 	protected get instantiationService(): IInstantiationService {
@@ -75,6 +76,12 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 	protected get textFileService(): ITextFileService {
 		return this._textFileService;
+	}
+
+	private handleGroupLabelChange(group: INextEditorGroup): void {
+		if (group.id === this.group && this.isVisible() && this.editorControl) {
+			this.editorControl.updateOptions({ ariaLabel: this.computeAriaLabel() }); // Make sure to update ARIA label if group label of this editor changed
+		}
 	}
 
 	private handleConfigurationChangeEvent(configuration?: IEditorConfiguration): void {
@@ -108,8 +115,11 @@ export abstract class BaseTextEditor extends BaseEditor {
 		let ariaLabel = this.getAriaLabel();
 
 		// Apply group information to help identify in which group we are
-		if (ariaLabel && typeof this.group === 'number') {
-			ariaLabel = nls.localize('editorLabelWithGroup', "{0}, Group {1}.", ariaLabel, this.group + 1); // TODO@grid do not use group ID in ARIA labels
+		if (ariaLabel) {
+			const groupLabel = this.nextEditorGroupService.getLabel(this.group);
+			if (groupLabel) {
+				ariaLabel = nls.localize('editorLabelWithGroup', "{0}, {1}.", ariaLabel, groupLabel);
+			}
 		}
 
 		return ariaLabel;

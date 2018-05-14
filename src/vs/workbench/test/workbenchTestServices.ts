@@ -706,6 +706,7 @@ export class TestNextEditorGroupsService implements INextEditorGroupsService {
 	onDidAddGroup: Event<INextEditorGroup> = Event.None;
 	onDidRemoveGroup: Event<INextEditorGroup> = Event.None;
 	onDidMoveGroup: Event<INextEditorGroup> = Event.None;
+	onDidGroupLabelChange: Event<INextEditorGroup> = Event.None;
 
 	orientation: any;
 
@@ -729,6 +730,10 @@ export class TestNextEditorGroupsService implements INextEditorGroupsService {
 		}
 
 		return void 0;
+	}
+
+	getLabel(identifier: number): string {
+		return 'Group 1';
 	}
 
 	focusGroup(group: number | INextEditorGroup): INextEditorGroup {

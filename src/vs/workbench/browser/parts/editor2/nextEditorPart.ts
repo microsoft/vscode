@@ -33,8 +33,11 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { NextEditorDropTarget } from 'vs/workbench/browser/parts/editor2/nextEditorDropTarget';
+import { localize } from 'vs/nls';
 
 // TODO@grid enable minimized/maximized groups in one dimension
+// - doCreateGroupView(): needs listener if the view gets minimized, the previous active group should become active
+// - doSetGroupActive():  needs a listener if the group is minimized, it should now restore to be maximized
 
 interface INextEditorPartUIState {
 	serializedGrid: ISerializedGrid;
@@ -65,6 +68,9 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 	private _onDidMoveGroup: Emitter<INextEditorGroupView> = this._register(new Emitter<INextEditorGroupView>());
 	get onDidMoveGroup(): Event<INextEditorGroupView> { return this._onDidMoveGroup.event; }
 
+	private _onDidGroupLabelChange: Emitter<INextEditorGroupView> = this._register(new Emitter<INextEditorGroupView>());
+	get onDidGroupLabelChange(): Event<INextEditorGroupView> { return this._onDidGroupLabelChange.event; }
+
 	//#endregion
 
 	private memento: object;
@@ -74,6 +80,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 	private _activeGroup: INextEditorGroupView;
 	private groupViews: Map<GroupIdentifier, INextEditorGroupView> = new Map<GroupIdentifier, INextEditorGroupView>();
 	private mostRecentActiveGroups: GroupIdentifier[] = [];
+	private mapGroupViewToLabel: Map<GroupIdentifier, string> = new Map<GroupIdentifier, string>();
 
 	private container: HTMLElement;
 	private gridWidget: SerializableGrid<INextEditorGroupView>;
@@ -165,6 +172,10 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 	}
 
 	get orientation(): GroupOrientation {
+		if (!this.gridWidget) {
+			return void 0; // we have not been created yet
+		}
+
 		return this.gridWidget.orientation === Orientation.VERTICAL ? GroupOrientation.VERTICAL : GroupOrientation.HORIZONTAL;
 	}
 
@@ -179,7 +190,9 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 			case GroupsOrder.GRID_ORDER:
 				const views: INextEditorGroupView[] = [];
-				this.fillGridNodes(views, this.gridWidget.getViews());
+				if (this.gridWidget) {
+					this.fillGridNodes(views, this.gridWidget.getViews());
+				}
 
 				return views;
 
@@ -198,6 +211,25 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 	getGroup(identifier: GroupIdentifier): INextEditorGroupView {
 		return this.groupViews.get(identifier);
+	}
+
+	getLabel(identifier: GroupIdentifier): string {
+		return this.mapGroupViewToLabel.get(identifier);
+	}
+
+	private updateLabels(): void {
+
+		// Assign labels by iterating over groups in grid order and using the index
+		this.getGroups(GroupsOrder.GRID_ORDER).forEach((group, index) => {
+			const currentLabel = this.mapGroupViewToLabel.get(group.id);
+			const newLabel = localize('groupLabel', "Group {0}", index + 1);
+
+			this.mapGroupViewToLabel.set(group.id, newLabel);
+
+			if (newLabel !== currentLabel) {
+				this._onDidGroupLabelChange.fire(group);
+			}
+		});
 	}
 
 	activateGroup(group: INextEditorGroupView | GroupIdentifier): INextEditorGroupView {
@@ -231,6 +263,10 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 			return; // require at least 2 groups to show
 		}
 
+		if (!this.gridWidget) {
+			return; // we have not been created yet
+		}
+
 		// Even all group sizes
 		if (arrangement === GroupsArrangement.EVEN) {
 			this.groups.forEach(group => {
@@ -256,6 +292,10 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 	}
 
 	setGroupOrientation(orientation: GroupOrientation): void {
+		if (!this.gridWidget) {
+			return; // we have not been created yet
+		}
+
 		this.gridWidget.orientation = (orientation === GroupOrientation.HORIZONTAL) ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 	}
 
@@ -281,6 +321,9 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 			locationView,
 			this.toGridViewDirection(direction),
 		);
+
+		// Update labels
+		this.updateLabels();
 
 		// Update container
 		this.updateContainer();
@@ -324,8 +367,6 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		// Event
 		this._onDidAddGroup.fire(groupView);
 
-		// TODO@grid if the view gets minimized, the previous active group should become active
-
 		return groupView;
 	}
 
@@ -350,8 +391,6 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 		// Event
 		this._onDidActiveGroupChange.fire(group);
-
-		// TODO@grid if the group is minimized, it should now restore to be maximized
 	}
 
 	private doUpdateMostRecentActive(group: INextEditorGroupView, makeMostRecentlyActive?: boolean): void {
@@ -427,6 +466,9 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 			this.focusGroup(this._activeGroup);
 		}
 
+		// Update labels
+		this.updateLabels();
+
 		// Update container
 		this.updateContainer();
 
@@ -460,6 +502,9 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		if (groupHasFocus) {
 			this.focusGroup(targetView);
 		}
+
+		// Update labels
+		this.updateLabels();
 
 		// Event
 		this._onDidMoveGroup.fire(groupView);
@@ -584,6 +629,9 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 		// Signal restored
 		always(TPromise.join(this.groups.map(group => group.whenRestored)), () => this.whenRestoredComplete(void 0));
+
+		// Update labels
+		this.updateLabels();
 
 		// Update container
 		this.updateContainer();
@@ -768,16 +816,18 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 	shutdown(): void {
 
 		// Persist grid UI state
-		const uiState: INextEditorPartUIState = {
-			serializedGrid: this.gridWidget.serialize(),
-			activeGroup: this._activeGroup.id,
-			mostRecentActiveGroups: this.mostRecentActiveGroups
-		};
+		if (this.gridWidget) {
+			const uiState: INextEditorPartUIState = {
+				serializedGrid: this.gridWidget.serialize(),
+				activeGroup: this._activeGroup.id,
+				mostRecentActiveGroups: this.mostRecentActiveGroups
+			};
 
-		if (this.isEmpty()) {
-			delete this.memento[NextEditorPart.NEXT_EDITOR_PART_UI_STATE_STORAGE_KEY];
-		} else {
-			this.memento[NextEditorPart.NEXT_EDITOR_PART_UI_STATE_STORAGE_KEY] = uiState;
+			if (this.isEmpty()) {
+				delete this.memento[NextEditorPart.NEXT_EDITOR_PART_UI_STATE_STORAGE_KEY];
+			} else {
+				this.memento[NextEditorPart.NEXT_EDITOR_PART_UI_STATE_STORAGE_KEY] = uiState;
+			}
 		}
 
 		// Forward to all groups
