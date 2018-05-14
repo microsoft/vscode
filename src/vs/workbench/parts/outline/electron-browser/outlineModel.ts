@@ -14,10 +14,9 @@ import { Range } from 'vs/editor/common/core/range';
 import { values } from 'vs/base/common/map';
 
 export function getOutline(model: ITextModel): TPromise<OutlineItemGroup>[] {
-	return DocumentSymbolProviderRegistry.ordered(model).map((provider, i) => {
-		let source = `provider${i}`;
+	return DocumentSymbolProviderRegistry.ordered(model).map(provider => {
 		return asWinJsPromise(token => provider.provideDocumentSymbols(model, token)).then(result => {
-			let group = new OutlineItemGroup(source);
+			let group = new OutlineItemGroup(provider.extensionId);
 			for (const info of result) {
 				let child = asOutlineItem(info, group);
 				group.children.set(child.id, child);
@@ -25,7 +24,7 @@ export function getOutline(model: ITextModel): TPromise<OutlineItemGroup>[] {
 			return group;
 		}, err => {
 			//todo@joh capture error in group
-			return new OutlineItemGroup(source);
+			return new OutlineItemGroup(provider.extensionId);
 		});
 	});
 }
