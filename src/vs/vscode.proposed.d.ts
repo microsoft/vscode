@@ -335,6 +335,40 @@ declare module 'vscode' {
 	//#region Tasks
 
 	/**
+	 * An event signaling the start of a process execution
+	 * triggered through a task
+	 */
+	export interface TaskProcessStartEvent {
+
+		/**
+		 * The task execution for which the process got started.
+		 */
+		execution: TaskExecution;
+
+		/**
+		 * The underlying process id.
+		 */
+		processId: number;
+	}
+
+	/**
+	 * An event signaling the end of a process execution
+	 * triggered through a task
+	 */
+	export interface TaskProcessEndEvent {
+
+		/**
+		 * The task execution for which the process got started.
+		 */
+		execution: TaskExecution;
+
+		/**
+		 * The process's exit code.
+		 */
+		exitCode: number;
+	}
+
+	/**
 	 * An object representing an executed Task. It can be used
 	 * to terminate a task.
 	 *
@@ -345,6 +379,20 @@ declare module 'vscode' {
 		 * The task that got started.
 		 */
 		task: Task;
+
+		/**
+		 * Fires when the underlying process has been started.
+		 * This event might not fire for tasks that don't
+		 * execute an underlying process.
+		 */
+		onDidStartProcess: Event<TaskProcessStartEvent>;
+
+		/**
+		 * Fires when the underlying process has ended.
+		 * This event might not fire for tasks that don't
+		 * execute an underlying process.
+		 */
+		onDidEndProcess: Event<TaskProcessEndEvent>;
 
 		/**
 		 * Terminates the task execution.
@@ -392,7 +440,7 @@ declare module 'vscode' {
 	export namespace workspace {
 
 		/**
-		 * Fetches all task available in the systems. Thisweweb includes tasks
+		 * Fetches all tasks available in the systems. This includes tasks
 		 * from `tasks.json` files as well as tasks from task providers
 		 * contributed through extensions.
 		 *

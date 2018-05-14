@@ -48,7 +48,7 @@ import { CommentRule, CharacterPair, EnterAction } from 'vs/editor/common/modes/
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import { IPatternInfo, IRawSearchQuery, IRawFileMatch2 } from 'vs/platform/search/common/search';
 import { LogLevel } from 'vs/platform/log/common/log';
-import { TaskExecutionDTO, TaskDTO, TaskHandleDTO, TaskFilterDTO } from 'vs/workbench/api/shared/tasks';
+import { TaskExecutionDTO, TaskDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO } from 'vs/workbench/api/shared/tasks';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -773,8 +773,10 @@ export interface ExtHostSCMShape {
 
 export interface ExtHostTaskShape {
 	$provideTasks(handle: number): TPromise<TaskSet>;
-	$taskStarted(execution: TaskExecutionDTO): void;
-	$taskEnded(execution: TaskExecutionDTO): void;
+	$onDidStartTask(execution: TaskExecutionDTO): void;
+	$onDidStartTaskProcess(value: TaskProcessStartedDTO): void;
+	$onDidEndTaskProcess(value: TaskProcessEndedDTO): void;
+	$OnDidEndTask(execution: TaskExecutionDTO): void;
 }
 
 export interface IBreakpointDto {
