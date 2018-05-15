@@ -245,12 +245,6 @@ suite('Files - View Model', () => {
 		assert(validateFileName(wsFolder, 'theres/one/different\\slash') === null);
 		assert(validateFileName(wsFolder, '/slashAtBeginning') !== null);
 
-		// validation should detect if user tries to add a child to a file
-		const fileInRoot = createStat('/fileInRoot', 'fileInRoot', false, false, 8096, d);
-		wsFolder.addChild(fileInRoot);
-		assert(validateFileName(wsFolder, 'fileInRoot/aChild') !== null);
-		wsFolder.removeChild(fileInRoot);
-
 		// attempting to add a child to a deeply nested file
 		const s1 = createStat('/path', 'path', true, false, 8096, d);
 		const s2 = createStat('/path/to', 'to', true, false, 8096, d);
