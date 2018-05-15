@@ -1146,8 +1146,8 @@ export class CommandCenter {
 
 		const config = workspace.getConfiguration('git');
 		const checkoutType = config.get<string>('checkoutType') || 'all';
-		const includeTags = checkoutType === 'all' || checkoutType === 'tags';
-		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
+		const includeTags = checkoutType !== 'commits' && (checkoutType === 'all' || checkoutType === 'tags');
+		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote' || checkoutType === 'commits';
 
 		const createBranch = new CreateBranchItem(this);
 
