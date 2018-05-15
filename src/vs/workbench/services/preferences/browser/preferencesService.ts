@@ -177,7 +177,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return toWinJsPromise(this.editorService.openEditor({ resource: this.defaultSettingsRawResource }, EditorPosition.ONE));
 	}
 
-	openRawUserSettings(): TPromise<void> {
+	openRawUserSettings(): TPromise<IEditor> {
 		return this.editorService.openEditor({ resource: this.userSettingsResource }) as TPromise<any>;
 	}
 
