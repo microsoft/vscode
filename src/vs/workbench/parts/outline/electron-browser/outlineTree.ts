@@ -18,6 +18,10 @@ import { Range } from 'vs/editor/common/core/range';
 import { symbolKindToCssClass } from 'vs/editor/common/modes';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from './outlineModel';
+import { getPathLabel } from 'vs/base/common/labels';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { localize } from 'vs/nls';
 
 export enum OutlineItemCompareType {
 	ByPosition,
@@ -108,7 +112,11 @@ export interface OutlineElementTemplate {
 
 export class OutlineRenderer implements IRenderer {
 
-	constructor(@IExtensionService readonly _extensionService: IExtensionService) {
+	constructor(
+		@IExtensionService readonly _extensionService: IExtensionService,
+		@IEnvironmentService readonly _environmentService: IEnvironmentService,
+		@IWorkspaceContextService readonly _contextService: IWorkspaceContextService
+	) {
 		//
 	}
 
@@ -129,16 +137,17 @@ export class OutlineRenderer implements IRenderer {
 			return { icon, label: new HighlightedLabel(labelContainer) };
 		}
 		if (templateId === 'outline-group') {
-			const label = dom.$('.outline-group');
-			dom.append(container, label);
-			return { label };
+			const labelContainer = dom.$('.outline-element-label');
+			dom.addClass(container, 'outline-element');
+			dom.append(container, labelContainer);
+			return { label: new HighlightedLabel(labelContainer) };
 		}
 	}
 
 	renderElement(tree: ITree, element: OutlineGroup | OutlineElement, templateId: string, template: any): void {
 		if (element instanceof OutlineElement) {
 			template.icon.className = `outline-element-icon symbol-icon ${symbolKindToCssClass(element.symbol.kind)}`;
-			template.label.set(element.symbol.name, element.score ? createMatches(element.score[1]) : []);
+			template.label.set(element.symbol.name, element.score ? createMatches(element.score[1]) : undefined, localize('outline.title', "line {0} in {1}", element.symbol.location.range.startLineNumber, getPathLabel(element.symbol.location.uri, this._contextService, this._environmentService)));
 		}
 		if (element instanceof OutlineGroup) {
 			this._extensionService.getExtensions().then(all => {
@@ -146,12 +155,12 @@ export class OutlineRenderer implements IRenderer {
 				for (let i = 0; !found && i < all.length; i++) {
 					const extension = all[i];
 					if (extension.id === element.provider.extensionId) {
-						template.label.innerHTML = extension.displayName;
+						template.label.set(extension.displayName);
 						break;
 					}
 				}
 			}, _err => {
-				template.label.innerHTML = element.provider.extensionId;
+				template.label.set(element.provider.extensionId);
 			});
 		}
 	}
