@@ -190,6 +190,12 @@ export class OutlinePanel extends ViewsViewletPanel {
 		super.dispose();
 	}
 
+	focus(): void {
+		if (this._tree) {
+			this._tree.domFocus();
+		}
+	}
+
 	protected renderBody(container: HTMLElement): void {
 		this._domNode = container;
 		dom.addClass(container, 'outline-panel');
