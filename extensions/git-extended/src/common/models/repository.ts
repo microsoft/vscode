@@ -60,12 +60,6 @@ export class Repository {
 		return this._remotes;
 	}
 
-	// todo
-	private _cloneUrl: Protocol;
-	get cloneUrl(): Protocol {
-		return this._cloneUrl;
-	}
-
 	private statusTimeout: any;
 	private disposables: vscode.Disposable[] = [];
 
@@ -112,14 +106,6 @@ export class Repository {
 		this._HEAD = HEAD;
 		this._refs = refs;
 		this._remotes = remotes;
-
-		if (this._HEAD.upstream && this._HEAD.upstream.remote) {
-			let currentRemote = this._remotes.filter(remote => remote.remoteName === this._HEAD.upstream.remote);
-			if (currentRemote && currentRemote.length) {
-				this._cloneUrl = new Protocol(currentRemote[0].url);
-			}
-		}
-
 		this._onDidRunGitStatus.fire();
 	}
 

@@ -18,11 +18,7 @@ export class PullRequestGitHelper {
 
 		let existing = await repository.getBranch(localBranchName);
 		if (existing) {
-			// already exist
-			await repository.checkout(localBranchName);
-		} else if (repository.cloneUrl.equals(pullRequest.head.repositoryCloneUrl)) {
-			// branch from the same repository
-			await repository.fetch('origin', localBranchName);
+			// already exist but the metadata is missing.
 			await repository.checkout(localBranchName);
 		} else {
 			// the branch is from a fork
@@ -36,8 +32,8 @@ export class PullRequestGitHelper {
 			await repository.setTrackingBranch(localBranchName, `refs/remotes/${remoteName}/${pullRequest.head.ref}`);
 		}
 
-		let prConfigKey = `branch.${localBranchName}.${PullRequestMetadataKey}`;
-		await repository.setConfig(prConfigKey, PullRequestGitHelper.buildPullRequestMetadata(pullRequest));
+		let prBranchMetadataKey = `branch.${localBranchName}.${PullRequestMetadataKey}`;
+		await repository.setConfig(prBranchMetadataKey, PullRequestGitHelper.buildPullRequestMetadata(pullRequest));
 	}
 
 	static async checkout(repository: Repository, remote: Remote, branchName: string, pullRequest: PullRequestModel): Promise<void> {

@@ -331,7 +331,7 @@ export function mapCommentsToHead(prPatch: string, localDiff: string, comments: 
 	for (let i = 0; i < comments.length; i++) {
 		let comment = comments[i];
 
-		let diffLine = getDiffLineByPosition(prPatch, comment.position);
+		let diffLine = getDiffLineByPosition(prPatch, comment.position | comment.original_position);
 		let positionInPr = diffLine.newLineNumber;
 		let newPosition = mapOldPositionToNew(localDiff, positionInPr);
 		comment.absolutePosition = newPosition;

@@ -33,12 +33,6 @@ export class Protocol {
 		return this.owner ? `${this.owner}/${this.repositoryName}` : this.repositoryName;
 	}
 
-	public isFileUri: boolean;
-
-	public isScpUri: boolean;
-
-	public isValidUri: boolean;
-
 	public readonly url: vscode.Uri;
 	constructor(
 		uriString: string
@@ -116,7 +110,7 @@ export class Protocol {
 			return null;
 		}
 
-		if (this.isFileUri) {
+		if (this.type === ProtocolType.Local) {
 			return this.url;
 		}
 
