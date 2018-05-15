@@ -42,19 +42,40 @@ import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineIte
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 
+class RequestState {
+
+	constructor(
+		private _editorId: string,
+		private _modelId: string,
+		private _modelVersion: number,
+		private _providerCount: number
+	) {
+		//
+	}
+
+	equals(other: RequestState): boolean {
+		return other
+			&& this._editorId === other._editorId
+			&& this._modelId === other._modelId
+			&& this._modelVersion === other._modelVersion
+			&& this._providerCount === other._providerCount;
+	}
+}
+
 class RequestOracle {
 
 	private _disposables = new Array<IDisposable>();
 	private _sessionDisposable: IDisposable;
+	private _lastState: RequestState;
 
 	constructor(
 		private readonly _callback: (editor: ICodeEditor) => any,
-		featureRegistry: LanguageFeatureRegistry<any>,
+		private readonly _featureRegistry: LanguageFeatureRegistry<any>,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService private readonly _workbenchEditorService: IWorkbenchEditorService,
 	) {
 		editorGroupService.onEditorsChanged(this._update, this, this._disposables);
-		featureRegistry.onDidChange(this._update, this, this._disposables);
+		_featureRegistry.onDidChange(this._update, this, this._disposables);
 		this._update();
 	}
 
@@ -75,20 +96,35 @@ class RequestOracle {
 			codeEditor = control.getModifiedEditor();
 		}
 
+		if (!codeEditor || !codeEditor.getModel()) {
+			this._callback(undefined);
+			return;
+		}
+
+		let thisState = new RequestState(
+			codeEditor.getId(),
+			codeEditor.getModel().id,
+			codeEditor.getModel().getVersionId(),
+			this._featureRegistry.all(codeEditor.getModel()).length
+		);
+
+		if (thisState.equals(this._lastState)) {
+			// prevent unneccesary changes...
+			return;
+		}
+		this._lastState = thisState;
 		this._callback(codeEditor);
 
-		if (codeEditor) {
-			let handle: number;
-			let listener = codeEditor.onDidChangeModelContent(_ => {
-				handle = setTimeout(() => this._callback(codeEditor), 50);
-			});
-			this._sessionDisposable = {
-				dispose() {
-					listener.dispose();
-					clearTimeout(handle);
-				}
-			};
-		}
+		let handle: number;
+		let listener = codeEditor.onDidChangeModelContent(_ => {
+			handle = setTimeout(() => this._callback(codeEditor), 50);
+		});
+		this._sessionDisposable = {
+			dispose() {
+				listener.dispose();
+				clearTimeout(handle);
+			}
+		};
 	}
 }
 
@@ -266,7 +302,6 @@ export class OutlinePanel extends ViewsViewletPanel {
 		this._tree = this._instantiationService.createInstance(WorkbenchTree, treeContainer, { controller, dataSource, renderer, sorter: this._treeComparator, filter: this._treeFilter }, {});
 
 		this._disposables.push(this._tree, this._input);
-
 		this._disposables.push(this._outlineViewState.onDidChange(this._onDidChangeUserState, this));
 	}
 
@@ -331,6 +366,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 
 		this._editorDisposables = new Array();
 		this._input.disable();
+		this._input.value = '';
 
 		if (!editor || !DocumentSymbolProviderRegistry.has(editor.getModel())) {
 			return this._showMessage(localize('no-editor', "There are no editors open that can provide outline information."));
@@ -423,10 +459,6 @@ export class OutlinePanel extends ViewsViewletPanel {
 		let { range, uri } = element.symbol.location;
 		let input = this._editorService.createInput({ resource: uri });
 		await this._editorService.openEditor(input, { preserveFocus: !focus, selection: Range.collapseToStart(range), revealInCenterIfOutsideViewport: true, forceOpen: true }, aside);
-		if (focus) {
-			// reset the search field when going into the editor
-			this._input.value = '';
-		}
 	}
 
 	private async _revealEditorSelection(model: OutlineModel, selection: Selection): TPromise<void> {
