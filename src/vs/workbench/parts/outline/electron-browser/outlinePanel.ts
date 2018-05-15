@@ -162,6 +162,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 	private _requestOracle: RequestOracle;
 	private _domNode: HTMLElement;
 	private _message: HTMLDivElement;
+	private _inputContainer: HTMLDivElement;
 	private _input: InputBox;
 	private _tree: WorkbenchTree;
 	private _treeFilter: OutlineItemFilter;
@@ -194,11 +195,11 @@ export class OutlinePanel extends ViewsViewletPanel {
 		dom.addClass(container, 'outline-panel');
 
 		this._message = dom.$('.outline-message');
-		let inputContainer = dom.$('.outline-input');
+		this._inputContainer = dom.$('.outline-input');
 		let treeContainer = dom.$('.outline-tree');
-		dom.append(container, this._message, inputContainer, treeContainer);
+		dom.append(container, this._message, this._inputContainer, treeContainer);
 
-		this._input = new InputBox(inputContainer, null, { placeholder: localize('filter', "Filter") });
+		this._input = new InputBox(this._inputContainer, null, { placeholder: localize('filter', "Filter") });
 		this._input.disable();
 
 		this.disposables.push(attachInputBoxStyler(this._input, this._themeService));
@@ -251,7 +252,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 	}
 
 	protected layoutBody(height: number): void {
-		this._tree.layout(height - this._input.height);
+		this._tree.layout(height - dom.getTotalHeight(this._inputContainer));
 	}
 
 	setVisible(visible: boolean): TPromise<void> {
@@ -356,10 +357,10 @@ export class OutlinePanel extends ViewsViewletPanel {
 			let item = model.updateMatches(pattern);
 			await this._tree.refresh(undefined, true);
 			if (item) {
+				await this._tree.expandAll(undefined /*all*/);
 				await this._tree.reveal(item);
 				this._tree.setFocus(item, this);
 				this._tree.setSelection([item], this);
-				this._tree.expandAll(undefined /*all*/);
 			}
 
 			if (!pattern && beforePatternState) {
