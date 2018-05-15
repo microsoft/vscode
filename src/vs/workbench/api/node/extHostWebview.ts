@@ -288,22 +288,6 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		return serializer.deserializeWebviewPanel(revivedPanel, state);
 	}
 
-	$serializeWebviewPanel(
-		webviewHandle: WebviewPanelHandle
-	): Thenable<any> {
-		const panel = this.getWebviewPanel(webviewHandle);
-		if (!panel) {
-			return TPromise.as(undefined);
-		}
-
-		const serialzer = this._serializers.get(panel.viewType);
-		if (!serialzer) {
-			return TPromise.as(undefined);
-		}
-
-		return serialzer.serializeWebviewPanel(panel);
-	}
-
 	private getWebviewPanel(handle: WebviewPanelHandle): ExtHostWebviewPanel | undefined {
 		return this._webviewPanels.get(handle);
 	}

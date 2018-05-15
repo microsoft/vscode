@@ -84,6 +84,7 @@
 	flex: 1;
 	border-spacing: 0;
 	border-collapse: separate;
+	position: relative;
 }
 
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row {
@@ -148,6 +149,16 @@
 	margin-top: 5px;
 	height: 36px;
 	overflow: hidden;
+	white-space: pre-wrap;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row.is-expanded .setting-item-description,
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row.setting-item-measure-helper .setting-item-description {
+	height: initial;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row.is-expandable .setting-item-description {
+	cursor: pointer;
 }
 
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-value {

@@ -263,7 +263,7 @@ export default class LanguageProvider {
 	}
 
 	public diagnosticsReceived(diagnosticsKind: DiagnosticKind, file: Uri, diagnostics: (Diagnostic & { reportUnnecessary: any })[]): void {
-		const config = workspace.getConfiguration(this.id);
+		const config = workspace.getConfiguration(this.id, file);
 		const reportUnnecessary = config.get<boolean>('showUnused.enabled', true);
 		if (diagnosticsKind === DiagnosticKind.Suggestion) {
 			this.ununsedHighlighter.diagnosticsReceived(file, diagnostics.filter(diag => diag.reportUnnecessary));

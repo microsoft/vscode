@@ -22,22 +22,35 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 type OneOrMore<T> = T | T[];
 
+export interface ISchemeTransformer {
+	transformOutgoing(scheme: string): string;
+}
+
 export class ExtHostSearch implements ExtHostSearchShape {
 
+	private readonly _schemeTransformer: ISchemeTransformer;
 	private readonly _proxy: MainThreadSearchShape;
 	private readonly _searchProvider = new Map<number, vscode.SearchProvider>();
 	private _handlePool: number = 0;
 
 	private _fileSearchManager = new FileSearchManager();
 
-	constructor(mainContext: IMainContext) {
+	constructor(mainContext: IMainContext, schemeTransformer: ISchemeTransformer) {
+		this._schemeTransformer = schemeTransformer;
 		this._proxy = mainContext.getProxy(MainContext.MainThreadSearch);
+	}
+
+	private _transformScheme(scheme: string): string {
+		if (this._schemeTransformer) {
+			return this._schemeTransformer.transformOutgoing(scheme);
+		}
+		return scheme;
 	}
 
 	registerSearchProvider(scheme: string, provider: vscode.SearchProvider) {
 		const handle = this._handlePool++;
 		this._searchProvider.set(handle, provider);
-		this._proxy.$registerSearchProvider(handle, scheme);
+		this._proxy.$registerSearchProvider(handle, this._transformScheme(scheme));
 		return {
 			dispose: () => {
 				this._searchProvider.delete(handle);
@@ -175,7 +188,9 @@ class TextSearchResultsCollector {
 	}
 
 	private pushToCollector(): void {
-		const size = this._currentFileMatch.lineMatches.reduce((acc, match) => acc + match.offsetAndLengths.length, 0);
+		const size = this._currentFileMatch ?
+			this._currentFileMatch.lineMatches.reduce((acc, match) => acc + match.offsetAndLengths.length, 0) :
+			0;
 		this._batchedCollector.addItem(this._currentFileMatch, size);
 	}
 

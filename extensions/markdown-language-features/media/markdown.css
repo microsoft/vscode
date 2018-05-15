@@ -98,8 +98,11 @@ img {
 }
 
 a {
-	color: #4080D0;
 	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
 }
 
 a:focus,
@@ -135,11 +138,6 @@ h5 code,
 h6 code {
 	font-size: inherit;
 	line-height: auto;
-}
-
-a:hover {
-	color: #4080D0;
-	text-decoration: underline;
 }
 
 table {
@@ -192,28 +190,10 @@ pre.hljs code > div {
 
 /** Theming */
 
-.vscode-light,
-.vscode-light pre code {
-	color: rgb(30, 30, 30);
+pre code {
+	color: var(--vscode-editor-foreground);
 }
 
-.vscode-dark,
-.vscode-dark pre code {
-	color: #DDD;
-}
-
-.vscode-high-contrast,
-.vscode-high-contrast pre code {
-	color: white;
-}
-
-.vscode-light code {
-	color: #A31515;
-}
-
-.vscode-dark code {
-	color: #D7BA7D;
-}
 
 .vscode-light pre:not(.hljs),
 .vscode-light code > div {
@@ -252,15 +232,4 @@ pre.hljs code > div {
 .vscode-dark hr,
 .vscode-dark table > tbody > tr + tr > td {
 	border-color: rgba(255, 255, 255, 0.18);
-}
-
-.vscode-light blockquote,
-.vscode-dark blockquote {
-	background: rgba(127, 127, 127, 0.1);
-	border-color: rgba(0, 122, 204, 0.5);
-}
-
-.vscode-high-contrast blockquote {
-	background: transparent;
-	border-color: #fff;
 }

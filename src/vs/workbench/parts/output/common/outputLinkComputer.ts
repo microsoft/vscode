@@ -182,3 +182,7 @@ export class OutputLinkComputer {
 		return links;
 	}
 }
+
+export function create(ctx: IWorkerContext, createData: ICreateData): OutputLinkComputer {
+	return new OutputLinkComputer(ctx, createData);
+}

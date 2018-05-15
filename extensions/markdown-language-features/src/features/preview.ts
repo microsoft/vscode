@@ -325,7 +325,7 @@ export class MarkdownPreview {
 		this.forceUpdate = false;
 
 		this.currentVersion = { resource, version: document.version };
-		const content = await this._contentProvider.provideTextDocumentContent(document, this._previewConfigurations, this.line);
+		const content = await this._contentProvider.provideTextDocumentContent(document, this._previewConfigurations, this.line, this.state);
 		if (this._resource === resource) {
 			this.editor.title = MarkdownPreview.getPreviewTitle(this._resource, this._locked);
 			this.editor.webview.html = content;
