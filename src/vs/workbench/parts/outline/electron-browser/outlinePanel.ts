@@ -17,7 +17,6 @@ import { LRUCache } from 'vs/base/common/map';
 import { escape } from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
-import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import 'vs/css!./outlinePanel';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
@@ -40,6 +39,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { OutlineElement, OutlineModel } from './outlineModel';
 import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from './outlineTree';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 class RequestOracle {
 
@@ -163,7 +163,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 	private _domNode: HTMLElement;
 	private _message: HTMLDivElement;
 	private _input: InputBox;
-	private _tree: Tree;
+	private _tree: WorkbenchTree;
 	private _treeFilter: OutlineItemFilter;
 	private _treeComparator: OutlineItemComparator;
 	private _treeStates = new LRUCache<string, OutlineTreeState>(10);
@@ -375,10 +375,23 @@ export class OutlinePanel extends ViewsViewletPanel {
 				return;
 			}
 			let [first] = e.selection;
-			let keyboard = e.payload && e.payload.origin === 'keyboard';
-			if (first instanceof OutlineElement) {
-				this._revealTreeSelection(first, keyboard, false);
+			if (!(first instanceof OutlineElement)) {
+				return;
 			}
+
+			let focus = false;
+			let aside = false;
+			if (e.payload) {
+				if (e.payload.origin === 'keyboard') {
+					focus = true;
+
+				} else if (e.payload.origin === 'mouse' && e.payload.originalEvent instanceof StandardMouseEvent) {
+					let event = <StandardMouseEvent>e.payload.originalEvent;
+					focus = event.detail === 2;
+					aside = !this._tree.useAltAsMultipleSelectionModifier && event.altKey || this._tree.useAltAsMultipleSelectionModifier && (event.ctrlKey || event.metaKey);
+				}
+			}
+			this._revealTreeSelection(first, focus, aside);
 		}));
 
 		// feature: reveal editor selection in outline
