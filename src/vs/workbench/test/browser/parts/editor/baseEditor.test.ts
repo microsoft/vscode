@@ -99,14 +99,15 @@ suite('Workbench base editor', () => {
 			assert.strictEqual(input, e.input);
 			assert.strictEqual(options, e.options);
 
-			e.setVisible(true);
+			e.setVisible(true, 1);
 			assert(e.isVisible());
+			assert.equal(e.group, 1);
 			input.onDispose(() => {
 				assert(false);
 			});
 			e.dispose();
 			e.clearInput();
-			e.setVisible(false);
+			e.setVisible(false, 1);
 			assert(!e.isVisible());
 			assert(!e.input);
 			assert(!e.options);

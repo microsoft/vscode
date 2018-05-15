@@ -781,7 +781,6 @@ class SideBySidePreferencesWidget extends Widget {
 
 		this.defaultPreferencesEditor = this._register(this.instantiationService.createInstance(DefaultPreferencesEditor));
 		this.defaultPreferencesEditor.create(this.defaultPreferencesEditorContainer);
-		this.defaultPreferencesEditor.setVisible(true);
 		(<CodeEditorWidget>this.defaultPreferencesEditor.getControl()).onDidFocusEditorWidget(() => this.lastFocusedEditor = this.defaultPreferencesEditor);
 
 		this.editablePreferencesEditorContainer = DOM.append(parentElement, DOM.$('.editable-preferences-editor-container'));
@@ -865,6 +864,9 @@ class SideBySidePreferencesWidget extends Widget {
 	}
 
 	public setEditorVisible(visible: boolean, group: GroupIdentifier): void {
+		if (this.defaultPreferencesEditor) {
+			this.defaultPreferencesEditor.setVisible(visible, group);
+		}
 		if (this.editablePreferencesEditor) {
 			this.editablePreferencesEditor.setVisible(visible, group);
 		}
@@ -878,7 +880,6 @@ class SideBySidePreferencesWidget extends Widget {
 		const editor = descriptor.instantiate(this.instantiationService);
 		this.editablePreferencesEditor = editor;
 		this.editablePreferencesEditor.create(this.editablePreferencesEditorContainer);
-		this.editablePreferencesEditor.setVisible(true);
 		(<CodeEditorWidget>this.editablePreferencesEditor.getControl()).onDidFocusEditorWidget(() => this.lastFocusedEditor = this.editablePreferencesEditor);
 		this.lastFocusedEditor = this.editablePreferencesEditor;
 
