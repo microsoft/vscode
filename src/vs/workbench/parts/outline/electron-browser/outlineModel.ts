@@ -11,6 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { fuzzyScore } from 'vs/base/common/filters';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { size, first } from 'vs/base/common/collections';
 
 export type FuzzyScore = [number, number[]];
 
@@ -50,7 +51,7 @@ export class OutlineElement extends TreeElement {
 
 	constructor(
 		readonly id: string,
-		readonly parent: OutlineGroup | OutlineElement,
+		public parent: OutlineModel | OutlineGroup | OutlineElement,
 		readonly symbol: SymbolInformation
 	) {
 		super();
@@ -63,7 +64,7 @@ export class OutlineGroup extends TreeElement {
 
 	constructor(
 		readonly id: string,
-		readonly parent: OutlineModel,
+		public parent: OutlineModel,
 		readonly provider: DocumentSymbolProvider,
 		readonly providerIndex: number,
 	) {
@@ -114,7 +115,8 @@ export class OutlineModel extends TreeElement {
 	readonly id = 'root';
 	readonly parent = undefined;
 
-	children: { [id: string]: OutlineGroup; } = Object.create(null);
+	private _groups: { [id: string]: OutlineGroup; } = Object.create(null);
+	children: { [id: string]: OutlineGroup | OutlineElement; } = Object.create(null);
 	request: TPromise<any>;
 
 	constructor(readonly textModel: ITextModel) {
@@ -128,6 +130,7 @@ export class OutlineModel extends TreeElement {
 
 	refresh(): void {
 		this.request.cancel();
+		this._groups = Object.create(null);
 		this.children = Object.create(null);
 		this._makeRequest();
 	}
@@ -147,11 +150,24 @@ export class OutlineModel extends TreeElement {
 				//todo@joh capture error in group
 				return group;
 			}).then(group => {
-				this.children[id] = group;
+				this._groups[id] = group;
 			});
 		});
 
-		this.request = TPromise.join(promises);
+		this.request = TPromise.join(promises).then(() => {
+			if (size(this._groups) !== 1) {
+				this.children = this._groups;
+				return;
+			}
+
+			// adopt all elements of the first group
+			let group = first(this._groups);
+			for (let key in group.children) {
+				let child = group.children[key];
+				child.parent = this;
+				this.children[child.id] = child;
+			}
+		});
 	}
 
 	private static _makeOutlineElement(info: SymbolInformation, container: OutlineGroup | OutlineElement): void {
@@ -167,15 +183,15 @@ export class OutlineModel extends TreeElement {
 
 	updateMatches(pattern: string): OutlineElement {
 		let topMatch: OutlineElement;
-		for (const key in this.children) {
-			topMatch = this.children[key].updateMatches(pattern, topMatch);
+		for (const key in this._groups) {
+			topMatch = this._groups[key].updateMatches(pattern, topMatch);
 		}
 		return topMatch;
 	}
 
 	getItemEnclosingPosition(position: IPosition): OutlineElement {
-		for (const key in this.children) {
-			let result = this.children[key].getItemEnclosingPosition(position);
+		for (const key in this._groups) {
+			let result = this._groups[key].getItemEnclosingPosition(position);
 			if (result) {
 				return result;
 			}

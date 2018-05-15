@@ -7,7 +7,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { size, values } from 'vs/base/common/collections';
+import { values } from 'vs/base/common/collections';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { createMatches } from 'vs/base/common/filters';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -80,24 +80,16 @@ export class OutlineDataSource implements IDataSource {
 	}
 
 	async getChildren(tree: ITree, element: TreeElement): TPromise<TreeElement[]> {
-		if (!(element instanceof OutlineModel)) {
-			return values(element.children);
+		if (element instanceof OutlineModel) {
+			await element.request;
 		}
-		// don't show OutlineGroup when there is just one
-		await element.request;
-		let result = values(element.children);
-		if (result.length === 1) {
-			return values(result[0].children);
-		}
-		return result;
+		let res = values(element.children);
+		// console.log(element.id + ' with children ' + res.length);
+		return res;
 	}
 
 	async getParent(tree: ITree, element: TreeElement | any): TPromise<TreeElement> {
-		let result = element.parent;
-		if (result instanceof OutlineGroup && size(result.parent.children) === 1) {
-			result = result.parent;
-		}
-		return result;
+		return element.parent;
 	}
 
 	shouldAutoexpand(tree: ITree, element: TreeElement): boolean {
@@ -158,7 +150,7 @@ export class OutlineRenderer implements IRenderer {
 						break;
 					}
 				}
-			}, err => {
+			}, _err => {
 				template.label.innerHTML = element.provider.extensionId;
 			});
 		}
