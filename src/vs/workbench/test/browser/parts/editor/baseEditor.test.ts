@@ -32,17 +32,9 @@ export class MyEditor extends BaseEditor {
 		super('MyEditor', NullTelemetryService, NullThemeService);
 	}
 
-	getId(): string {
-		return 'myEditor';
-	}
-
-	public layout(): void {
-
-	}
-
-	public createEditor(): any {
-
-	}
+	getId(): string { return 'myEditor'; }
+	layout(): void { }
+	createEditor(): any { }
 }
 
 export class MyOtherEditor extends BaseEditor {
@@ -51,17 +43,10 @@ export class MyOtherEditor extends BaseEditor {
 		super('myOtherEditor', NullTelemetryService, NullThemeService);
 	}
 
-	getId(): string {
-		return 'myOtherEditor';
-	}
+	getId(): string { return 'myOtherEditor'; }
 
-	public layout(): void {
-
-	}
-
-	public createEditor(): any {
-
-	}
+	layout(): void { }
+	createEditor(): any { }
 }
 
 class MyInputFactory implements IEditorInputFactory {
@@ -80,27 +65,27 @@ class MyInput extends EditorInput {
 		return ids[1];
 	}
 
-	public getTypeId(): string {
+	getTypeId(): string {
 		return '';
 	}
 
-	public resolve(refresh?: boolean): any {
+	resolve(refresh?: boolean): any {
 		return null;
 	}
 }
 
 class MyOtherInput extends EditorInput {
-	public getTypeId(): string {
+	getTypeId(): string {
 		return '';
 	}
 
-	public resolve(refresh?: boolean): any {
+	resolve(refresh?: boolean): any {
 		return null;
 	}
 }
 class MyResourceInput extends ResourceEditorInput { }
 
-suite('Workbench BaseEditor', () => {
+suite('Workbench base editor', () => {
 
 	test('BaseEditor API', function () {
 		let e = new MyEditor(NullTelemetryService);

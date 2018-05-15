@@ -58,7 +58,7 @@ import { ICommandAction, IMenuService, MenuId, IMenu } from 'vs/platform/actions
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference } from 'vs/editor/common/model';
+import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference, IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -70,6 +70,9 @@ import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDeco
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { INextEditorGroupsService, INextEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IMoveEditorOptions, ICopyEditorOptions, IEditorReplacement } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -276,6 +279,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IHashService, new TestHashService());
 	instantiationService.stub(INextEditorGroupsService, new TestNextEditorGroupsService([new TestNextEditorGroup(0)]));
 	instantiationService.stub(INextEditorService, new TestNextEditorService());
+	instantiationService.stub(ICodeEditorService, new TestCodeEditorService());
 
 	return instantiationService;
 }
@@ -1099,6 +1103,28 @@ export class TestBackupFileService implements IBackupFileService {
 	public discardAllWorkspaceBackups(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+}
+
+export class TestCodeEditorService implements ICodeEditorService {
+	_serviceBrand: any;
+
+	onCodeEditorAdd: Event<ICodeEditor> = Event.None;
+	onCodeEditorRemove: Event<ICodeEditor> = Event.None;
+	onDiffEditorAdd: Event<IDiffEditor> = Event.None;
+	onDiffEditorRemove: Event<IDiffEditor> = Event.None;
+
+	addCodeEditor(editor: ICodeEditor): void { }
+	removeCodeEditor(editor: ICodeEditor): void { }
+	listCodeEditors(): ICodeEditor[] { return []; }
+	addDiffEditor(editor: IDiffEditor): void { }
+	removeDiffEditor(editor: IDiffEditor): void { }
+	listDiffEditors(): IDiffEditor[] { return []; }
+	getFocusedCodeEditor(): ICodeEditor { return null; }
+	registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void { }
+	removeDecorationType(key: string): void { }
+	resolveDecorationOptions(typeKey: string, writable: boolean): IModelDecorationOptions { return Object.create(null); }
+	setTransientModelProperty(model: ITextModel, key: string, value: any): void { }
+	getTransientModelProperty(model: ITextModel, key: string) { }
 }
 
 export class TestWindowService implements IWindowService {

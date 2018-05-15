@@ -48,7 +48,6 @@ export interface ICopyEditorOptions extends IMoveEditorOptions { }
 
 export interface IAddGroupOptions {
 	activate?: boolean;
-	copyGroup?: boolean;
 }
 
 export enum MergeGroupMode {

@@ -8,11 +8,11 @@
 import * as assert from 'assert';
 import { NextEditorPart } from 'vs/workbench/browser/parts/editor2/nextEditorPart';
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
-import { GroupDirection, GroupsOrder } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { GroupDirection, GroupsOrder, MergeGroupMode } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { Dimension } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INextEditorPartOptions } from 'vs/workbench/browser/parts/editor2/editor2';
-import { EditorInput, IFileEditorInput, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorOptions } from 'vs/workbench/common/editor';
+import { EditorInput, IFileEditorInput, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorOptions, CloseDirection } from 'vs/workbench/common/editor';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import URI from 'vs/base/common/uri';
@@ -47,7 +47,7 @@ export class TestEditorInput extends EditorInput implements IFileEditorInput {
 	setForceOpenAsBinary(): void { }
 }
 
-suite('Next editor2 part tests', () => {
+suite('Editor groups service (editor2)', () => {
 
 	function registerTestEditorInput(): void {
 
@@ -236,6 +236,54 @@ suite('Next editor2 part tests', () => {
 		part.dispose();
 	});
 
+	test('copy/merge groups', function () {
+		const part = createPart();
+
+		let groupAddedCounter = 0;
+		const groupAddedListener = part.onDidAddGroup(() => {
+			groupAddedCounter++;
+		});
+
+		let groupRemovedCounter = 0;
+		const groupRemovedListener = part.onDidRemoveGroup(() => {
+			groupRemovedCounter++;
+		});
+
+		const rootGroup = part.groups[0];
+		let rootGroupDisposed = false;
+		const disposeListener = rootGroup.onWillDispose(() => {
+			rootGroupDisposed = true;
+		});
+
+		const input = new TestEditorInput(URI.file('foo/bar'));
+
+		return rootGroup.openEditor(input, EditorOptions.create({ pinned: true })).then(() => {
+			const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT, { activate: true });
+			const downGroup = part.copyGroup(rootGroup, rightGroup, GroupDirection.DOWN);
+
+			assert.equal(groupAddedCounter, 2);
+			assert.equal(downGroup.count, 1);
+			assert.ok(downGroup.activeEditor instanceof TestEditorInput);
+
+			part.mergeGroup(rootGroup, rightGroup, { mode: MergeGroupMode.COPY_EDITORS });
+			assert.equal(rightGroup.count, 1);
+			assert.ok(rightGroup.activeEditor instanceof TestEditorInput);
+
+			part.mergeGroup(rootGroup, rightGroup, { mode: MergeGroupMode.MOVE_EDITORS_KEEP_GROUP });
+			assert.equal(rootGroup.count, 0);
+
+			part.mergeGroup(rootGroup, downGroup);
+			assert.equal(groupRemovedCounter, 1);
+			assert.equal(rootGroupDisposed, true);
+
+			groupAddedListener.dispose();
+			groupRemovedListener.dispose();
+			disposeListener.dispose();
+
+			part.dispose();
+		});
+	});
+
 	test('whenRestored', function () {
 		const part = createPart();
 
@@ -269,6 +317,7 @@ suite('Next editor2 part tests', () => {
 	test('editor basics', function () {
 		const part = createPart();
 		const group = part.activeGroup;
+		assert.equal(group.isEmpty(), true);
 
 		let activeEditorChangeCounter = 0;
 		const activeEditorChangeListener = group.onDidActiveEditorChange(() => {
@@ -280,13 +329,38 @@ suite('Next editor2 part tests', () => {
 			editorCloseCounter++;
 		});
 
+		let editorWillCloseCounter = 0;
+		const editorWillCloseListener = group.onWillCloseEditor(() => {
+			editorWillCloseCounter++;
+		});
+		let editorWillOpenCounter = 0;
+		const editorWillOpenListener = group.onWillOpenEditor(() => {
+			editorWillOpenCounter++;
+		});
+
 		const input = new TestEditorInput(URI.file('foo/bar'));
 		const inputInactive = new TestEditorInput(URI.file('foo/bar/inactive'));
 
 		return group.openEditor(input, EditorOptions.create({ pinned: true })).then(() => {
 			return group.openEditor(inputInactive, EditorOptions.create({ inactive: true })).then(() => {
+				assert.equal(group.isActive(input), true);
+				assert.equal(group.isActive(inputInactive), false);
+				assert.equal(group.isOpened(input), true);
+				assert.equal(group.isOpened(inputInactive), true);
+				assert.equal(group.isEmpty(), false);
 				assert.equal(group.count, 2);
+				assert.equal(editorWillOpenCounter, 2);
 				assert.equal(activeEditorChangeCounter, 1);
+				assert.equal(group.getEditor(0), input);
+				assert.equal(group.getEditor(1), inputInactive);
+				assert.equal(group.getIndexOfEditor(input), 0);
+				assert.equal(group.getIndexOfEditor(inputInactive), 1);
+
+				assert.equal(group.previewEditor, inputInactive);
+				assert.equal(group.isPinned(inputInactive), false);
+				group.pinEditor(inputInactive);
+				assert.equal(group.isPinned(inputInactive), true);
+				assert.ok(!group.previewEditor);
 
 				assert.equal(group.activeEditor, input);
 				assert.ok(group.activeControl instanceof TestEditorControl);
@@ -299,14 +373,231 @@ suite('Next editor2 part tests', () => {
 					return group.closeEditor(inputInactive).then(() => {
 						assert.equal(activeEditorChangeCounter, 3);
 						assert.equal(editorCloseCounter, 1);
+						assert.equal(editorWillCloseCounter, 1);
 
 						assert.equal(group.activeEditor, input);
 
 						activeEditorChangeListener.dispose();
 						editorCloseListener.dispose();
+						editorWillCloseListener.dispose();
+						editorWillOpenListener.dispose();
 						part.dispose();
 					});
 				});
+			});
+		});
+	});
+
+	test('openEditors / closeEditors', function () {
+		const part = createPart();
+		const group = part.activeGroup;
+		assert.equal(group.isEmpty(), true);
+
+		const input = new TestEditorInput(URI.file('foo/bar'));
+		const inputInactive = new TestEditorInput(URI.file('foo/bar/inactive'));
+
+		return group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]).then(() => {
+			assert.equal(group.count, 2);
+			assert.equal(group.getEditor(0), input);
+			assert.equal(group.getEditor(1), inputInactive);
+
+			return group.closeEditors([input, inputInactive]).then(() => {
+				assert.equal(group.isEmpty(), true);
+			});
+		});
+	});
+
+	test('closeEditors (except one)', function () {
+		const part = createPart();
+		const group = part.activeGroup;
+		assert.equal(group.isEmpty(), true);
+
+		const input1 = new TestEditorInput(URI.file('foo/bar1'));
+		const input2 = new TestEditorInput(URI.file('foo/bar2'));
+		const input3 = new TestEditorInput(URI.file('foo/bar3'));
+
+		return group.openEditors([{ editor: input1, options: { pinned: true } }, { editor: input2, options: { pinned: true } }, { editor: input3 }]).then(() => {
+			assert.equal(group.count, 3);
+			assert.equal(group.getEditor(0), input1);
+			assert.equal(group.getEditor(1), input2);
+			assert.equal(group.getEditor(2), input3);
+
+			return group.closeEditors({ except: input2 }).then(() => {
+				assert.equal(group.count, 1);
+				assert.equal(group.getEditor(0), input2);
+			});
+		});
+	});
+
+	test('closeEditors (saved only)', function () {
+		const part = createPart();
+		const group = part.activeGroup;
+		assert.equal(group.isEmpty(), true);
+
+		const input1 = new TestEditorInput(URI.file('foo/bar1'));
+		const input2 = new TestEditorInput(URI.file('foo/bar2'));
+		const input3 = new TestEditorInput(URI.file('foo/bar3'));
+
+		return group.openEditors([{ editor: input1, options: { pinned: true } }, { editor: input2, options: { pinned: true } }, { editor: input3 }]).then(() => {
+			assert.equal(group.count, 3);
+			assert.equal(group.getEditor(0), input1);
+			assert.equal(group.getEditor(1), input2);
+			assert.equal(group.getEditor(2), input3);
+
+			return group.closeEditors({ savedOnly: true }).then(() => {
+				assert.equal(group.count, 0);
+			});
+		});
+	});
+
+	test('closeEditors (direction: right)', function () {
+		const part = createPart();
+		const group = part.activeGroup;
+		assert.equal(group.isEmpty(), true);
+
+		const input1 = new TestEditorInput(URI.file('foo/bar1'));
+		const input2 = new TestEditorInput(URI.file('foo/bar2'));
+		const input3 = new TestEditorInput(URI.file('foo/bar3'));
+
+		return group.openEditors([{ editor: input1, options: { pinned: true } }, { editor: input2, options: { pinned: true } }, { editor: input3 }]).then(() => {
+			assert.equal(group.count, 3);
+			assert.equal(group.getEditor(0), input1);
+			assert.equal(group.getEditor(1), input2);
+			assert.equal(group.getEditor(2), input3);
+
+			return group.closeEditors({ direction: CloseDirection.RIGHT, except: input2 }).then(() => {
+				assert.equal(group.count, 2);
+				assert.equal(group.getEditor(0), input1);
+				assert.equal(group.getEditor(1), input2);
+			});
+		});
+	});
+
+	test('closeEditors (direction: left)', function () {
+		const part = createPart();
+		const group = part.activeGroup;
+		assert.equal(group.isEmpty(), true);
+
+		const input1 = new TestEditorInput(URI.file('foo/bar1'));
+		const input2 = new TestEditorInput(URI.file('foo/bar2'));
+		const input3 = new TestEditorInput(URI.file('foo/bar3'));
+
+		return group.openEditors([{ editor: input1, options: { pinned: true } }, { editor: input2, options: { pinned: true } }, { editor: input3 }]).then(() => {
+			assert.equal(group.count, 3);
+			assert.equal(group.getEditor(0), input1);
+			assert.equal(group.getEditor(1), input2);
+			assert.equal(group.getEditor(2), input3);
+
+			return group.closeEditors({ direction: CloseDirection.LEFT, except: input2 }).then(() => {
+				assert.equal(group.count, 2);
+				assert.equal(group.getEditor(0), input2);
+				assert.equal(group.getEditor(1), input3);
+			});
+		});
+	});
+
+	test('closeAllEditors', function () {
+		const part = createPart();
+		const group = part.activeGroup;
+		assert.equal(group.isEmpty(), true);
+
+		const input = new TestEditorInput(URI.file('foo/bar'));
+		const inputInactive = new TestEditorInput(URI.file('foo/bar/inactive'));
+
+		return group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]).then(() => {
+			assert.equal(group.count, 2);
+			assert.equal(group.getEditor(0), input);
+			assert.equal(group.getEditor(1), inputInactive);
+
+			return group.closeAllEditors().then(() => {
+				assert.equal(group.isEmpty(), true);
+			});
+		});
+	});
+
+	test('moveEditor (same group)', function () {
+		const part = createPart();
+		const group = part.activeGroup;
+		assert.equal(group.isEmpty(), true);
+
+		const input = new TestEditorInput(URI.file('foo/bar'));
+		const inputInactive = new TestEditorInput(URI.file('foo/bar/inactive'));
+
+		return group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]).then(() => {
+			assert.equal(group.count, 2);
+			assert.equal(group.getEditor(0), input);
+			assert.equal(group.getEditor(1), inputInactive);
+
+			group.moveEditor(inputInactive, group, { index: 0 });
+			assert.equal(group.getEditor(0), inputInactive);
+			assert.equal(group.getEditor(1), input);
+		});
+	});
+
+	test('moveEditor (across groups)', function () {
+		const part = createPart();
+		const group = part.activeGroup;
+		assert.equal(group.isEmpty(), true);
+
+		const rightGroup = part.addGroup(group, GroupDirection.RIGHT);
+
+		const input = new TestEditorInput(URI.file('foo/bar'));
+		const inputInactive = new TestEditorInput(URI.file('foo/bar/inactive'));
+
+		return group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]).then(() => {
+			assert.equal(group.count, 2);
+			assert.equal(group.getEditor(0), input);
+			assert.equal(group.getEditor(1), inputInactive);
+
+			group.moveEditor(inputInactive, rightGroup, { index: 0 });
+			assert.equal(group.count, 1);
+			assert.equal(group.getEditor(0), input);
+
+			assert.equal(rightGroup.count, 1);
+			assert.equal(rightGroup.getEditor(0), inputInactive);
+		});
+	});
+
+	test('copyEditor (across groups)', function () {
+		const part = createPart();
+		const group = part.activeGroup;
+		assert.equal(group.isEmpty(), true);
+
+		const rightGroup = part.addGroup(group, GroupDirection.RIGHT);
+
+		const input = new TestEditorInput(URI.file('foo/bar'));
+		const inputInactive = new TestEditorInput(URI.file('foo/bar/inactive'));
+
+		return group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]).then(() => {
+			assert.equal(group.count, 2);
+			assert.equal(group.getEditor(0), input);
+			assert.equal(group.getEditor(1), inputInactive);
+
+			group.copyEditor(inputInactive, rightGroup, { index: 0 });
+			assert.equal(group.count, 2);
+			assert.equal(group.getEditor(0), input);
+			assert.equal(group.getEditor(1), inputInactive);
+
+			assert.equal(rightGroup.count, 1);
+			assert.equal(rightGroup.getEditor(0), inputInactive);
+		});
+	});
+
+	test('replaceEditors', function () {
+		const part = createPart();
+		const group = part.activeGroup;
+		assert.equal(group.isEmpty(), true);
+
+		const input = new TestEditorInput(URI.file('foo/bar'));
+		const inputInactive = new TestEditorInput(URI.file('foo/bar/inactive'));
+
+		return group.openEditor(input).then(() => {
+			assert.equal(group.count, 1);
+			assert.equal(group.getEditor(0), input);
+
+			return group.replaceEditors([{ editor: input, replacement: inputInactive }]).then(() => {
+				assert.equal(group.count, 1);
+				assert.equal(group.getEditor(0), inputInactive);
 			});
 		});
 	});

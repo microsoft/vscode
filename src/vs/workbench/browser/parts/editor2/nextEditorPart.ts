@@ -315,7 +315,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 	addGroup(location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): INextEditorGroupView {
 		const locationView = this.assertGroupView(location);
 
-		const group = this.doAddGroup(locationView, direction, options && options.copyGroup ? locationView : void 0);
+		const group = this.doAddGroup(locationView, direction);
 
 		if (options && options.activate) {
 			this.doSetGroupActive(group);

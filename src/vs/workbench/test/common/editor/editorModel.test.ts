@@ -26,7 +26,7 @@ class MyTextEditorModel extends BaseTextEditorModel {
 	}
 }
 
-suite('Workbench - EditorModel', () => {
+suite('Workbench editor model', () => {
 
 	let instantiationService: TestInstantiationService;
 	let modeService: IModeService;

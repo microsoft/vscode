@@ -932,7 +932,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		const editors = this.getEditorsToClose(args);
 
 		// Check for dirty and veto
-		return this.handleDirty(editors, true /* ignore if opened in other group */).then(veto => {
+		return this.handleDirty(editors.slice(0), true /* ignore if opened in other group */).then(veto => {
 			if (veto) {
 				return;
 			}
@@ -1005,7 +1005,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 		// Check for dirty and veto
 		const editors = this._group.getEditors(true);
-		return this.handleDirty(editors, true /* ignore if opened in other group */).then(veto => {
+		return this.handleDirty(editors.slice(0), true /* ignore if opened in other group */).then(veto => {
 			if (veto) {
 				return;
 			}
