@@ -708,7 +708,6 @@ export class TestNextEditorGroupsService implements INextEditorGroupsService {
 	onDidAddGroup: Event<INextEditorGroup> = Event.None;
 	onDidRemoveGroup: Event<INextEditorGroup> = Event.None;
 	onDidMoveGroup: Event<INextEditorGroup> = Event.None;
-	onDidGroupLabelChange: Event<INextEditorGroup> = Event.None;
 
 	orientation: any;
 	whenRestored: Thenable<void> = TPromise.as(void 0);
@@ -787,8 +786,10 @@ export class TestNextEditorGroup implements INextEditorGroup {
 	previewEditor: IEditorInput;
 	count: number;
 	editors: ReadonlyArray<IEditorInput>;
+	label: string;
 
 	onWillDispose: Event<void> = Event.None;
+	onDidLabelChange: Event<void> = Event.None;
 	onDidActiveEditorChange: Event<void> = Event.None;
 	onWillCloseEditor: Event<IEditorInput> = Event.None;
 	onDidCloseEditor: Event<IEditorInput> = Event.None;

@@ -68,9 +68,6 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 	private _onDidMoveGroup: Emitter<INextEditorGroupView> = this._register(new Emitter<INextEditorGroupView>());
 	get onDidMoveGroup(): Event<INextEditorGroupView> { return this._onDidMoveGroup.event; }
 
-	private _onDidGroupLabelChange: Emitter<INextEditorGroupView> = this._register(new Emitter<INextEditorGroupView>());
-	get onDidGroupLabelChange(): Event<INextEditorGroupView> { return this._onDidGroupLabelChange.event; }
-
 	private _onDidPreferredSizeChange: Emitter<void> = this._register(new Emitter<void>());
 	get onDidPreferredSizeChange(): Event<void> { return this._onDidPreferredSizeChange.event; }
 
@@ -85,7 +82,6 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 	private _activeGroup: INextEditorGroupView;
 	private groupViews: Map<GroupIdentifier, INextEditorGroupView> = new Map<GroupIdentifier, INextEditorGroupView>();
 	private mostRecentActiveGroups: GroupIdentifier[] = [];
-	private mapGroupViewToLabel: Map<GroupIdentifier, string> = new Map<GroupIdentifier, string>();
 
 	private container: HTMLElement;
 	private gridWidget: SerializableGrid<INextEditorGroupView>;
@@ -188,8 +184,11 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		return this._whenRestored;
 	}
 
-	getGroups(order?: GroupsOrder): INextEditorGroupView[] {
+	getGroups(order = GroupsOrder.CREATION_TIME): INextEditorGroupView[] {
 		switch (order) {
+			case GroupsOrder.CREATION_TIME:
+				return this.groups;
+
 			case GroupsOrder.MOST_RECENTLY_ACTIVE:
 				const mostRecentActive = this.mostRecentActiveGroups.map(groupId => this.getGroup(groupId));
 
@@ -197,16 +196,13 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 				// make sure to ust append them at the end so that all groups are returned properly
 				return distinct([...mostRecentActive, ...this.groups]);
 
-			case GroupsOrder.GRID_ORDER:
+			case GroupsOrder.GRID_APPEARANCE:
 				const views: INextEditorGroupView[] = [];
 				if (this.gridWidget) {
 					this.fillGridNodes(views, this.gridWidget.getViews());
 				}
 
 				return views;
-
-			default:
-				return this.groups;
 		}
 	}
 
@@ -224,7 +220,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 	findNeighbourGroup(location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection): INextEditorGroupView { // TODO@grid finding neighbour needs gridwidget support
 		const locationGroupView = this.assertGroupView(location);
-		const groups = this.getGroups(GroupsOrder.GRID_ORDER);
+		const groups = this.getGroups(GroupsOrder.GRID_APPEARANCE);
 		const index = groups.indexOf(locationGroupView);
 
 		const neighbourGroupView = groups[direction === GroupDirection.RIGHT || direction === GroupDirection.DOWN ? index + 1 : index - 1];
@@ -233,25 +229,6 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		}
 
 		return void 0;
-	}
-
-	getLabel(identifier: GroupIdentifier): string {
-		return this.mapGroupViewToLabel.get(identifier);
-	}
-
-	private updateLabels(): void {
-
-		// Assign labels by iterating over groups in grid order and using the index
-		this.getGroups(GroupsOrder.GRID_ORDER).forEach((group, index) => {
-			const currentLabel = this.mapGroupViewToLabel.get(group.id);
-			const newLabel = localize('groupLabel', "Group {0}", index + 1);
-
-			this.mapGroupViewToLabel.set(group.id, newLabel);
-
-			if (newLabel !== currentLabel) {
-				this._onDidGroupLabelChange.fire(group);
-			}
-		});
 	}
 
 	activateGroup(group: INextEditorGroupView | GroupIdentifier): INextEditorGroupView {
@@ -350,9 +327,6 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 			this.toGridViewDirection(direction),
 		);
 
-		// Update labels
-		this.updateLabels();
-
 		// Update container
 		this.updateContainer();
 
@@ -367,14 +341,17 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 	private doCreateGroupView(from?: INextEditorGroupView | ISerializedEditorGroup): INextEditorGroupView {
 
+		// Label: just use the number of existing groups as label
+		const label = this.getGroupLabel(this.count + 1);
+
 		// Create group view
 		let groupView: INextEditorGroupView;
 		if (from instanceof NextEditorGroupView) {
-			groupView = NextEditorGroupView.createCopy(from, this, this.instantiationService);
+			groupView = NextEditorGroupView.createCopy(from, this, label, this.instantiationService);
 		} else if (isSerializedEditorGroup(from)) {
-			groupView = NextEditorGroupView.createFromSerialized(from, this, this.instantiationService);
+			groupView = NextEditorGroupView.createFromSerialized(from, this, label, this.instantiationService);
 		} else {
-			groupView = NextEditorGroupView.createNew(this, this.instantiationService);
+			groupView = NextEditorGroupView.createNew(this, label, this.instantiationService);
 		}
 
 		// Keep in map
@@ -497,8 +474,12 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 			this.focusGroup(this._activeGroup);
 		}
 
-		// Update labels
-		this.updateLabels();
+		// Update labels: since our labels are created using the index of the
+		// group, removing a group might produce gaps. So we iterate over all
+		// groups and reassign the label based on the index.
+		this.getGroups(GroupsOrder.CREATION_TIME).forEach((group, index) => {
+			group.setLabel(this.getGroupLabel(index + 1));
+		});
 
 		// Update container
 		this.updateContainer();
@@ -508,6 +489,10 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 		// Event
 		this._onDidRemoveGroup.fire(groupView);
+	}
+
+	private getGroupLabel(index: number): string {
+		return localize('groupLabel', "Group {0}", index);
 	}
 
 	moveGroup(group: INextEditorGroupView | GroupIdentifier, location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection): INextEditorGroupView {
@@ -536,9 +521,6 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		if (groupHasFocus) {
 			this.focusGroup(targetView);
 		}
-
-		// Update labels
-		this.updateLabels();
 
 		// Event
 		this._onDidMoveGroup.fire(groupView);
@@ -688,9 +670,6 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 		// Signal restored
 		always(TPromise.join(this.groups.map(group => group.whenRestored)), () => this.whenRestoredComplete(void 0));
-
-		// Update labels
-		this.updateLabels();
 
 		// Update container
 		this.updateContainer();

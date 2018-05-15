@@ -47,16 +47,16 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	//#region factory
 
-	static createNew(accessor: INextEditorGroupsAccessor, instantiationService: IInstantiationService): INextEditorGroupView {
-		return instantiationService.createInstance(NextEditorGroupView, accessor, null);
+	static createNew(accessor: INextEditorGroupsAccessor, label: string, instantiationService: IInstantiationService): INextEditorGroupView {
+		return instantiationService.createInstance(NextEditorGroupView, accessor, null, label);
 	}
 
-	static createFromSerialized(serialized: ISerializedEditorGroup, accessor: INextEditorGroupsAccessor, instantiationService: IInstantiationService): INextEditorGroupView {
-		return instantiationService.createInstance(NextEditorGroupView, accessor, serialized);
+	static createFromSerialized(serialized: ISerializedEditorGroup, accessor: INextEditorGroupsAccessor, label: string, instantiationService: IInstantiationService): INextEditorGroupView {
+		return instantiationService.createInstance(NextEditorGroupView, accessor, serialized, label);
 	}
 
-	static createCopy(copyFrom: INextEditorGroupView, accessor: INextEditorGroupsAccessor, instantiationService: IInstantiationService): INextEditorGroupView {
-		return instantiationService.createInstance(NextEditorGroupView, accessor, copyFrom);
+	static createCopy(copyFrom: INextEditorGroupView, accessor: INextEditorGroupsAccessor, label: string, instantiationService: IInstantiationService): INextEditorGroupView {
+		return instantiationService.createInstance(NextEditorGroupView, accessor, copyFrom, label);
 	}
 
 	//#endregion
@@ -68,6 +68,9 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	private _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
 	get onWillDispose(): Event<void> { return this._onWillDispose.event; }
+
+	private _onDidLabelChange: Emitter<void> = this._register(new Emitter<void>());
+	get onDidLabelChange(): Event<void> { return this._onDidLabelChange.event; }
 
 	private _onDidActiveEditorChange: Emitter<void> = this._register(new Emitter<void>());
 	get onDidActiveEditorChange(): Event<void> { return this._onDidActiveEditorChange.event; }
@@ -110,6 +113,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	constructor(
 		private accessor: INextEditorGroupsAccessor,
 		from: INextEditorGroupView | ISerializedEditorGroup,
+		private _label: string,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
@@ -271,7 +275,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		if (this.isEmpty()) {
 			addClass(this.element, 'empty');
 			this.element.tabIndex = 0;
-			this.element.setAttribute('aria-label', localize('emptyEditorGroup', "Empty Editor Group"));
+			this.element.setAttribute('aria-label', localize('emptyEditorGroup', "{0} (empty)", this.label));
 		}
 
 		// Non-Empty Container: revert empty container attributes
@@ -479,6 +483,17 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	get group(): EditorGroup {
 		return this._group;
+	}
+
+	get label(): string {
+		return this._label;
+	}
+
+	setLabel(label: string): void {
+		if (this._label !== label) {
+			this._label = label;
+			this._onDidLabelChange.fire();
+		}
 	}
 
 	get whenRestored(): Thenable<void> {

@@ -114,11 +114,6 @@ suite('Editor groups service (editor2)', () => {
 			groupMovedCounter++;
 		});
 
-		let groupLabelChangeCounter = 0;
-		const groupLabelChangeListener = part.onDidGroupLabelChange(() => {
-			groupLabelChangeCounter++;
-		});
-
 		let preferredSizeChangeCounter = 0;
 		const preferredSizeChangeListener = part.onDidPreferredSizeChange(() => {
 			preferredSizeChangeCounter++;
@@ -130,8 +125,7 @@ suite('Editor groups service (editor2)', () => {
 		assert.equal(part.count, 1);
 		assert.equal(rootGroup, part.getGroup(rootGroup.id));
 		assert.ok(part.activeGroup === rootGroup);
-		assert.equal(groupLabelChangeCounter, 0);
-		assert.equal(part.getLabel(rootGroup.id), 'Group 1');
+		assert.equal(rootGroup.label, 'Group 1');
 
 		let mru = part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 		assert.equal(mru.length, 1);
@@ -143,10 +137,9 @@ suite('Editor groups service (editor2)', () => {
 		assert.equal(part.groups.length, 2);
 		assert.equal(part.count, 2);
 		assert.ok(part.activeGroup === rootGroup);
-		assert.equal(groupLabelChangeCounter, 1);
 		assert.equal(preferredSizeChangeCounter, 1);
-		assert.equal(part.getLabel(rootGroup.id), 'Group 1');
-		assert.equal(part.getLabel(rightGroup.id), 'Group 2');
+		assert.equal(rootGroup.label, 'Group 1');
+		assert.equal(rightGroup.label, 'Group 2');
 
 		mru = part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 		assert.equal(mru.length, 2);
@@ -173,11 +166,10 @@ suite('Editor groups service (editor2)', () => {
 		assert.equal(part.groups.length, 3);
 		assert.ok(part.activeGroup === rightGroup);
 		assert.ok(!downGroup.activeControl);
-		assert.equal(groupLabelChangeCounter, 2);
 		assert.equal(preferredSizeChangeCounter, 2);
-		assert.equal(part.getLabel(rootGroup.id), 'Group 1');
-		assert.equal(part.getLabel(rightGroup.id), 'Group 2');
-		assert.equal(part.getLabel(downGroup.id), 'Group 3');
+		assert.equal(rootGroup.label, 'Group 1');
+		assert.equal(rightGroup.label, 'Group 2');
+		assert.equal(downGroup.label, 'Group 3');
 
 		mru = part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 		assert.equal(mru.length, 3);
@@ -185,7 +177,7 @@ suite('Editor groups service (editor2)', () => {
 		assert.equal(mru[1], rootGroup);
 		assert.equal(mru[2], downGroup);
 
-		const gridOrder = part.getGroups(GroupsOrder.GRID_ORDER);
+		const gridOrder = part.getGroups(GroupsOrder.GRID_APPEARANCE);
 		assert.equal(gridOrder.length, 3);
 		assert.equal(gridOrder[0], rootGroup);
 		assert.equal(gridOrder[1], rightGroup);
@@ -202,6 +194,8 @@ suite('Editor groups service (editor2)', () => {
 		assert.equal(preferredSizeChangeCounter, 3);
 		assert.equal(part.groups.length, 2);
 		assert.ok(part.activeGroup === rightGroup);
+		assert.equal(rootGroup.label, 'Group 1');
+		assert.equal(rightGroup.label, 'Group 2');
 
 		mru = part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 		assert.equal(mru.length, 2);
@@ -243,8 +237,33 @@ suite('Editor groups service (editor2)', () => {
 		groupAddedListener.dispose();
 		groupRemovedListener.dispose();
 		groupMovedListener.dispose();
-		groupLabelChangeListener.dispose();
 		preferredSizeChangeListener.dispose();
+
+		part.dispose();
+	});
+
+	test('groups labels', function () {
+		const part = createPart();
+
+		const rootGroup = part.groups[0];
+		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+		const downGroup = part.addGroup(rightGroup, GroupDirection.DOWN);
+
+		let labelChangeCounter = 0;
+		const labelChangeListener = downGroup.onDidLabelChange(() => {
+			labelChangeCounter++;
+		});
+
+		assert.equal(rootGroup.label, 'Group 1');
+		assert.equal(rightGroup.label, 'Group 2');
+		assert.equal(downGroup.label, 'Group 3');
+
+		part.removeGroup(rightGroup);
+		assert.equal(rootGroup.label, 'Group 1');
+		assert.equal(downGroup.label, 'Group 2');
+		assert.equal(labelChangeCounter, 1);
+
+		labelChangeListener.dispose();
 
 		part.dispose();
 	});

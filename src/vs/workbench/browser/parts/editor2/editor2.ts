@@ -92,6 +92,7 @@ export interface INextEditorGroupView extends IDisposable, ISerializableView, IN
 
 	isEmpty(): boolean;
 	setActive(isActive: boolean): void;
+	setLabel(label: string): void;
 
 	shutdown(): void;
 }

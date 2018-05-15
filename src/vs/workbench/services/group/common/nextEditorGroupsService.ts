@@ -73,8 +73,21 @@ export interface IEditorReplacement {
 }
 
 export enum GroupsOrder {
+
+	/**
+	 * Groups sorted by creation order (oldest one first)
+	 */
+	CREATION_TIME,
+
+	/**
+	 * Groups sorted by most recent activity (most recent active first)
+	 */
 	MOST_RECENTLY_ACTIVE,
-	GRID_ORDER
+
+	/**
+	 * Groups sorted by strict grid order
+	 */
+	GRID_APPEARANCE
 }
 
 export interface INextEditorGroupsService {
@@ -103,17 +116,13 @@ export interface INextEditorGroupsService {
 	readonly onDidMoveGroup: Event<INextEditorGroup>;
 
 	/**
-	 * An event for when the label of a group changes.
-	 */
-	readonly onDidGroupLabelChange: Event<INextEditorGroup>;
-
-	/**
 	 * An active group is the default location for new editors to open.
 	 */
 	readonly activeGroup: INextEditorGroup;
 
 	/**
-	 * All groups that are currently visible in the editor area.
+	 * All groups that are currently visible in the editor area in the
+	 * order of their creation (oldest first).
 	 */
 	readonly groups: ReadonlyArray<INextEditorGroup>;
 
@@ -134,7 +143,8 @@ export interface INextEditorGroupsService {
 
 	/**
 	 * Get all groups that are currently visible in the editor area optionally
-	 * sorted by being most recent active or grid order.
+	 * sorted by being most recent active or grid order. Will sort by creation
+	 * time by default (oldest group first).
 	 */
 	getGroups(order?: GroupsOrder): ReadonlyArray<INextEditorGroup>;
 
@@ -142,11 +152,6 @@ export interface INextEditorGroupsService {
 	 * Allows to convert a group identifier to a group.
 	 */
 	getGroup(identifier: GroupIdentifier): INextEditorGroup;
-
-	/**
-	 * A human readable label for a group.
-	 */
-	getLabel(identifier: GroupIdentifier): string;
 
 	/**
 	 * Move keyboard focus into the provided group.
@@ -239,6 +244,13 @@ export interface INextEditorGroup {
 	readonly id: GroupIdentifier;
 
 	/**
+	 * A human readable label for the group. This label can change depending
+	 * on the layout of all editor groups. Clients should listen on the
+	 * `onDidLabelChange` event to react to that.
+	 */
+	readonly label: string;
+
+	/**
 	 * The active control is the currently visible control of the group.
 	 */
 	readonly activeControl: IEditor;
@@ -298,6 +310,11 @@ export interface INextEditorGroup {
 	 * Emitted when an editor failed to open.
 	 */
 	readonly onDidOpenEditorFail: Event<IEditorInput>;
+
+	/**
+	 * An event for when the label of the group changes.
+	 */
+	readonly onDidLabelChange: Event<void>;
 
 	/**
 	 * Returns the editor at a specific index of the group.
