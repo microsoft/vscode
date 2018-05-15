@@ -151,7 +151,7 @@
 .monaco-editor .review-widget .body .comment-form .monaco-editor {
 	display: none;
 	width: 100%;
-	min-height: 100px;
+	min-height: 90px;
 	max-height: 500px;
 	border-radius: 3px;
 	border: 0px;

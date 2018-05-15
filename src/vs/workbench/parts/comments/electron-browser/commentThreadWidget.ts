@@ -47,6 +47,7 @@ export class CommentNode {
 	}
 	constructor(public comment: modes.Comment, ) {
 		this._domNode = $('div.review-comment').getHTMLElement();
+		this._domNode.tabIndex = 0;
 		let avatar = $('div.avatar-container').appendTo(this._domNode).getHTMLElement();
 		let img = <HTMLImageElement>$('img.avatar').appendTo(avatar).getHTMLElement();
 		img.src = comment.gravatar;
@@ -59,6 +60,9 @@ export class CommentNode {
 		this._md = renderMarkdown(comment.body);
 		this._body.appendChild(this._md);
 
+		this._domNode.setAttribute('aria-label', `${comment.userName}, ${comment.body.value}`);
+		this._domNode.setAttribute('role', 'treeitem');
+		this._domNode.title = `${comment.userName}, ${comment.body.value}`;
 		this._clearTimeout = null;
 	}
 
@@ -73,6 +77,7 @@ export class CommentNode {
 	}
 
 	focus() {
+		this.domNode.focus();
 		if (!this._clearTimeout) {
 			dom.addClass(this.domNode, 'focus');
 			this._clearTimeout = setTimeout(() => {
@@ -155,6 +160,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 			}
 		}
 
+		this._bodyElement.focus();
 
 		if (commentId) {
 			let height = this.editor.getLayoutInfo().height;
@@ -197,6 +203,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		let secondaryHeading = this._commentThread.comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
 		$(this._secondaryHeading).safeInnerHtml(secondaryHeading);
+		this._secondaryHeading.setAttribute('aria-label', secondaryHeading);
 
 		const actionsContainer = $('.review-actions').appendTo(this._headElement);
 		this._actionbarWidget = new ActionBar(actionsContainer.getHTMLElement(), {});
@@ -307,6 +314,8 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._headElement.style.lineHeight = this._headElement.style.height;
 
 		this._commentsElement = $('div.comments-container').appendTo(this._bodyElement).getHTMLElement();
+		this._commentsElement.setAttribute('role', 'presentation');
+
 		this._commentElements = [];
 		for (let i = 0; i < this._commentThread.comments.length; i++) {
 			let newCommentNode = new CommentNode(this._commentThread.comments[i]);
