@@ -285,7 +285,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 	async getComments(element: PullRequestModel): Promise<Comment[]> {
 		const reviewData = await element.otcokit.pullRequests.getComments({
 			owner: element.remote.owner,
-			repo: element.remote.name,
+			repo: element.remote.repositoryName,
 			number: element.prItem.number,
 			per_page: 100,
 		});

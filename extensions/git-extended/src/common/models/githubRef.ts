@@ -3,9 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Repository } from './repository';
-export class Model {
-	constructor(repository: Repository) {
+import { Protocol } from './protocol';
 
+export class GitHubRef {
+	public repositoryCloneUrl: Protocol;
+	constructor(
+		public ref: string,
+		public label: string,
+		public sha: string,
+		repositoryCloneUrl: string
+	) {
+		this.repositoryCloneUrl = new Protocol(repositoryCloneUrl);
 	}
 }

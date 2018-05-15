@@ -1,6 +1,3 @@
-# Git Extended
+# VSCode Pull Request Support for GitHub
 
 Experimental enhanced Git/Review/PR experience.
-
-## Notices
-Uses code from github desktop: https://github.com/desktop/desktop

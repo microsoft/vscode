@@ -7,11 +7,11 @@ import * as vscode from 'vscode';
 import { Remote } from './remote';
 import { GitProcess } from 'dugite';
 import { uniqBy, anyEvent, filterEvent, isDescendant } from '../util';
-import { parseRemote } from '../remote';
 import { CredentialStore } from '../../credentials';
 import { PullRequestModel, PRType } from './pullRequestModel';
-import { UriString } from './uriString';
+import { Protocol } from './protocol';
 import { GitError, GitErrorCodes } from './gitError';
+import { PullRequestGitHelper } from '../pullRequestGitHelper';
 
 export enum RefType {
 	Head,
@@ -43,7 +43,7 @@ export class Repository {
 	private _onDidRunGitStatus = new vscode.EventEmitter<void>();
 	readonly onDidRunGitStatus: vscode.Event<void> = this._onDidRunGitStatus.event;
 
-	public githubRepositories?: GitHubRepository[];
+	public githubRepositories?: GitHubRepository[] = [];
 
 	private _HEAD: Branch | undefined;
 	get HEAD(): Branch | undefined {
@@ -61,8 +61,8 @@ export class Repository {
 	}
 
 	// todo
-	private _cloneUrl: UriString;
-	get cloneUrl(): UriString {
+	private _cloneUrl: Protocol;
+	get cloneUrl(): Protocol {
 		return this._cloneUrl;
 	}
 
@@ -116,7 +116,7 @@ export class Repository {
 		if (this._HEAD.upstream && this._HEAD.upstream.remote) {
 			let currentRemote = this._remotes.filter(remote => remote.remoteName === this._HEAD.upstream.remote);
 			if (currentRemote && currentRemote.length) {
-				this._cloneUrl = new UriString(currentRemote[0].url);
+				this._cloneUrl = new Protocol(currentRemote[0].url);
 			}
 		}
 
@@ -126,7 +126,13 @@ export class Repository {
 	async connectGitHub(credentialStore: CredentialStore) {
 		let ret: GitHubRepository[] = [];
 		await Promise.all(this.remotes.map(async remote => {
+			let isRemoteForPR = await PullRequestGitHelper.isRemoteCreatedForPullRequest(this, remote.remoteName);
+			if (isRemoteForPR) {
+				return;
+			}
+
 			let octo = await credentialStore.getOctokit(remote);
+
 			if (octo) {
 				ret.push(new GitHubRepository(remote, octo));
 			}
@@ -135,12 +141,12 @@ export class Repository {
 		this.githubRepositories = ret;
 	}
 
-	async fetch(remoteName: string, branch: string) {
+	async fetch(remoteName: string, branch?: string) {
 		const result = await GitProcess.exec(
 			[
 				'fetch',
 				remoteName,
-				branch
+				branch ? branch : ''
 			],
 			this.path
 		);
@@ -375,7 +381,7 @@ export class GitHubRepository {
 		if (prType === PRType.All) {
 			let result = await this.octokit.pullRequests.getAll({
 				owner: this.remote.owner,
-				repo: this.remote.name,
+				repo: this.remote.repositoryName,
 			});
 			let ret = result.data.map(item => {
 				if (!item.head.repo) {
@@ -389,7 +395,7 @@ export class GitHubRepository {
 
 			const user = await this.octokit.users.get();
 			const { data } = await this.octokit.search.issues({
-				q: this.getPRFetchQuery(this.remote.owner, this.remote.name, user.data.login, prType)
+				q: this.getPRFetchQuery(this.remote.owner, this.remote.repositoryName, user.data.login, prType)
 			});
 			let promises = [];
 
@@ -397,7 +403,7 @@ export class GitHubRepository {
 				promises.push(new Promise(async (resolve, reject) => {
 					let prData = await this.octokit.pullRequests.get({
 						owner: this.remote.owner,
-						repo: this.remote.name,
+						repo: this.remote.repositoryName,
 						number: item.number
 					});
 					resolve(prData);
@@ -419,7 +425,7 @@ export class GitHubRepository {
 	async getPullRequest(id: number) {
 		let { data } = await this.octokit.pullRequests.get({
 			owner: this.remote.owner,
-			repo: this.remote.name,
+			repo: this.remote.repositoryName,
 			number: id
 		});
 		if (!data.head.repo) {
@@ -453,4 +459,14 @@ export class GitHubRepository {
 
 		return `is:open ${filter} type:pr repo:${owner}/${repo}`;
 	}
+}
+
+function parseRemote(remoteName: string, url: string): Remote | null {
+	let gitProtocol = new Protocol(url);
+
+	if (gitProtocol.host) {
+		return new Remote(remoteName, url, gitProtocol);
+	}
+
+	return null;
 }

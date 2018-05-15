@@ -7,7 +7,7 @@ import { Remote } from './remote';
 import { parseComments } from '../comment';
 import { Comment } from './comment';
 import { IAccount } from './account';
-import { GitReferenceModel } from './gitReferenceModel';
+import { GitHubRef } from './githubRef';
 
 export enum PRType {
 	RequestReview = 0,
@@ -43,8 +43,8 @@ export class PullRequestModel {
 		return this.state === PullRequestStateEnum.Merged;
 	}
 
-	public head: GitReferenceModel;
-	public base: GitReferenceModel;
+	public head: GitHubRef;
+	public base: GitHubRef;
 
 	constructor(public readonly otcokit: any, public readonly remote: Remote, public prItem: any) {
 		this.prNumber = prItem.number;
@@ -81,14 +81,14 @@ export class PullRequestModel {
 		this.commentCount = prItem.comments;
 		this.commitCount = prItem.commits;
 
-		this.head = new GitReferenceModel(prItem.head.ref, prItem.head.label, prItem.head.sha, prItem.head.repo.clone_url);
-		this.base = new GitReferenceModel(prItem.base.ref, prItem.base.label, prItem.base.sha, prItem.base.repo.clone_url);
+		this.head = new GitHubRef(prItem.head.ref, prItem.head.label, prItem.head.sha, prItem.head.repo.clone_url);
+		this.base = new GitHubRef(prItem.base.ref, prItem.base.label, prItem.base.sha, prItem.base.repo.clone_url);
 	}
 
 	async getFiles() {
 		const { data } = await this.otcokit.pullRequests.getFiles({
 			owner: this.remote.owner,
-			repo: this.remote.name,
+			repo: this.remote.repositoryName,
 			number: this.prItem.number
 		});
 
@@ -100,7 +100,7 @@ export class PullRequestModel {
 			// this one is from search results, which is not complete.
 			const { data } = await this.otcokit.pullRequests.get({
 				owner: this.remote.owner,
-				repo: this.remote.name,
+				repo: this.remote.repositoryName,
 				number: this.prItem.number
 			});
 			this.prItem = data;
@@ -112,7 +112,7 @@ export class PullRequestModel {
 	async getComments(): Promise<Comment[]> {
 		const reviewData = await this.otcokit.pullRequests.getComments({
 			owner: this.remote.owner,
-			repo: this.remote.name,
+			repo: this.remote.repositoryName,
 			number: this.prItem.number,
 			per_page: 100
 		});
@@ -123,7 +123,7 @@ export class PullRequestModel {
 	async createCommentReply(body: string, reply_to: string) {
 		let ret = await this.otcokit.pullRequests.createCommentReply({
 			owner: this.remote.owner,
-			repo: this.remote.name,
+			repo: this.remote.repositoryName,
 			number: this.prItem.number,
 			body: body,
 			in_reply_to: reply_to
@@ -135,7 +135,7 @@ export class PullRequestModel {
 	async createComment(body: string, path: string, position: number) {
 		let ret = await this.otcokit.pullRequests.createComment({
 			owner: this.remote.owner,
-			repo: this.remote.name,
+			repo: this.remote.repositoryName,
 			number: this.prItem.number,
 			body: body,
 			commit_id: this.prItem.head.sha,

@@ -21,7 +21,7 @@ export class CredentialStore {
 			return this.octokits[remote.url];
 		}
 
-		if (this.configuration.host === remote.hostname && this.configuration.accessToken) {
+		if (this.configuration.host === remote.host && this.configuration.accessToken) {
 			this.octokits[remote.url] = Octokit({});
 			this.octokits[remote.url].authenticate({
 				type: 'token',

@@ -113,14 +113,14 @@ export class ReviewManager implements vscode.DecorationProvider {
 	}
 
 	private async validateState() {
-		let localInfo = await PullRequestGitHelper.getPullRequestForCurrentBranch(this._repository);
+		let matchingPullRequestMetadata = await PullRequestGitHelper.getMatchingPullRequestMetadataForBranch(this._repository, this._repository.HEAD.name);
 
-		if (!localInfo) {
+		if (!matchingPullRequestMetadata) {
 			this.clear(true);
 			return;
 		}
 
-		if (this._prNumber === localInfo.prNumber) {
+		if (this._prNumber === matchingPullRequestMetadata.prNumber) {
 			return;
 		}
 
@@ -138,9 +138,11 @@ export class ReviewManager implements vscode.DecorationProvider {
 
 		// we switch to another PR, let's clean up first.
 		this.clear(false);
-		this._prNumber = localInfo.prNumber;
+		this._prNumber = matchingPullRequestMetadata.prNumber;
 		this._lastCommitSha = null;
-		let githubRepo = this._repository.githubRepositories.find(repo => repo.remote.owner.toLocaleLowerCase() === localInfo.owner.toLocaleLowerCase());
+		let githubRepo = this._repository.githubRepositories.find(repo =>
+			repo.remote.owner.toLocaleLowerCase() === matchingPullRequestMetadata.owner.toLocaleLowerCase()
+		);
 
 		if (!githubRepo) {
 			return; // todo, should show warning
@@ -487,14 +489,12 @@ export class ReviewManager implements vscode.DecorationProvider {
 		this.statusBarItem.show();
 
 		try {
-			// todo, check if HEAD is dirty
-			let localBranches = await PullRequestGitHelper.getLocalBranchesForPullRequest(this._repository, pr);
+			let localBranchInfo = await PullRequestGitHelper.getBranchForPullRequestFromExistingRemotes(this._repository, pr);
 
-			if (localBranches.length > 0) {
-				await PullRequestGitHelper.switchToBranch(this._repository, pr);
+			if (localBranchInfo) {
+				await PullRequestGitHelper.checkout(this._repository, localBranchInfo.remote, localBranchInfo.branch, pr);
 			} else {
-				let branchName = await PullRequestGitHelper.getDefaultLocalBranchName(this._repository, pr.prNumber, pr.title);
-				await PullRequestGitHelper.checkout(this._repository, pr, branchName);
+				await PullRequestGitHelper.createAndCheckout(this._repository, pr);
 			}
 		} catch (e) {
 			if (e.gitErrorCode) {
