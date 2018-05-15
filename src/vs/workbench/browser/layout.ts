@@ -117,24 +117,23 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 
 	private registerListeners(): void {
 		this._register(this.themeService.onThemeChange(_ => this.layout()));
-		this._register(this.parts.editor.onDidGroupOrientationChange(() => this.layout()));
-		this._register(this.nextEditorGroupsService.onDidAddGroup(() => this.onGroupAdded()));
+		this._register(this.parts.editor.onDidPreferredSizeChange(() => this.onDidPreferredSizeChange()));
 
 		this.registerSashListeners();
 	}
 
-	private onGroupAdded(): void {
+	private onDidPreferredSizeChange(): void {
 		if (this.workbenchSize && (this.sidebarWidth || this.panelHeight)) {
 			if (this.nextEditorGroupsService.count > 1) {
-				const minEditorPartSize = this.parts.editor.minSize;
+				const preferredEditorPartSize = this.parts.editor.preferredSize;
 
-				const sidebarOverflow = this.workbenchSize.width - this.sidebarWidth < minEditorPartSize.width;
+				const sidebarOverflow = this.workbenchSize.width - this.sidebarWidth < preferredEditorPartSize.width;
 
 				let panelOverflow = false;
 				if (this.partService.getPanelPosition() === Position.RIGHT) {
-					panelOverflow = this.workbenchSize.width - this.panelWidth - this.sidebarWidth < minEditorPartSize.width;
+					panelOverflow = this.workbenchSize.width - this.panelWidth - this.sidebarWidth < preferredEditorPartSize.width;
 				} else {
-					panelOverflow = this.workbenchSize.height - this.panelHeight < minEditorPartSize.height;
+					panelOverflow = this.workbenchSize.height - this.panelHeight < preferredEditorPartSize.height;
 				}
 
 				// Trigger a layout if we detect that either sidebar or panel overflow
@@ -182,13 +181,13 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 
 	private computeMaxPanelWidth(): number {
 		const minSidebarSize = this.partService.isVisible(Parts.SIDEBAR_PART) ? (this.partService.getSideBarPosition() === Position.LEFT ? this.partLayoutInfo.sidebar.minWidth : this.sidebarWidth) : 0;
-		const minEditorPartSize = this.parts.editor.minSize;
-		return Math.max(this.partLayoutInfo.panel.minWidth, this.workbenchSize.width - minEditorPartSize.width - minSidebarSize - this.activitybarWidth);
+		const preferredEditorPartSize = this.parts.editor.preferredSize;
+		return Math.max(this.partLayoutInfo.panel.minWidth, this.workbenchSize.width - preferredEditorPartSize.width - minSidebarSize - this.activitybarWidth);
 	}
 
 	private computeMaxPanelHeight(): number {
-		const minEditorPartSize = this.parts.editor.minSize;
-		return Math.max(this.partLayoutInfo.panel.minHeight, this.sidebarHeight - minEditorPartSize.height);
+		const preferredEditorPartSize = this.parts.editor.preferredSize;
+		return Math.max(this.partLayoutInfo.panel.minHeight, this.sidebarHeight - preferredEditorPartSize.height);
 	}
 
 	private get sidebarWidth(): number {
@@ -200,9 +199,9 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 	}
 
 	private set sidebarWidth(value: number) {
-		const minEditorPartSize = this.parts.editor.minSize;
+		const preferredEditorPartSize = this.parts.editor.preferredSize;
 		const panelMinWidth = this.partService.getPanelPosition() === Position.RIGHT && this.partService.isVisible(Parts.PANEL_PART) ? this.partLayoutInfo.panel.minWidth : 0;
-		const maxSidebarWidth = this.workbenchSize.width - this.activitybarWidth - minEditorPartSize.width - panelMinWidth;
+		const maxSidebarWidth = this.workbenchSize.width - this.activitybarWidth - preferredEditorPartSize.width - panelMinWidth;
 
 		this._sidebarWidth = Math.max(this.partLayoutInfo.sidebar.minWidth, Math.min(maxSidebarWidth, value));
 	}
@@ -481,12 +480,12 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		editorSize.height = sidebarSize.height - (panelPosition === Position.BOTTOM ? panelDimension.height : 0);
 
 		// Assert Sidebar and Editor Size to not overflow
-		const minEditorPartSize = this.parts.editor.minSize;
-		if (editorSize.width < minEditorPartSize.width) {
-			let diff = minEditorPartSize.width - editorSize.width;
-			editorSize.width = minEditorPartSize.width;
+		const preferredEditorPartSize = this.parts.editor.preferredSize;
+		if (editorSize.width < preferredEditorPartSize.width) {
+			let diff = preferredEditorPartSize.width - editorSize.width;
+			editorSize.width = preferredEditorPartSize.width;
 			if (panelPosition === Position.BOTTOM) {
-				panelDimension.width = minEditorPartSize.width;
+				panelDimension.width = preferredEditorPartSize.width;
 			} else if (panelDimension.width >= diff && (!options || options.source !== Parts.PANEL_PART)) {
 				const oldWidth = panelDimension.width;
 				panelDimension.width = Math.max(this.partLayoutInfo.panel.minWidth, panelDimension.width - diff);
@@ -499,9 +498,9 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 			}
 		}
 
-		if (editorSize.height < minEditorPartSize.height && panelPosition === Position.BOTTOM) {
-			let diff = minEditorPartSize.height - editorSize.height;
-			editorSize.height = minEditorPartSize.height;
+		if (editorSize.height < preferredEditorPartSize.height && panelPosition === Position.BOTTOM) {
+			let diff = preferredEditorPartSize.height - editorSize.height;
+			editorSize.height = preferredEditorPartSize.height;
 
 			panelDimension.height -= diff;
 			panelDimension.height = Math.max(this.partLayoutInfo.panel.minHeight, panelDimension.height);
@@ -695,9 +694,9 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 			case Parts.SIDEBAR_PART:
 				this.sidebarWidth = this.sidebarWidth + sizeChangePxWidth; // Sidebar can not become smaller than MIN_PART_WIDTH
 
-				const minEditorPartSize = this.parts.editor.minSize;
-				if (this.workbenchSize.width - this.sidebarWidth < minEditorPartSize.width) {
-					this.sidebarWidth = this.workbenchSize.width - minEditorPartSize.width;
+				const preferredEditorPartSize = this.parts.editor.preferredSize;
+				if (this.workbenchSize.width - this.sidebarWidth < preferredEditorPartSize.width) {
+					this.sidebarWidth = this.workbenchSize.width - preferredEditorPartSize.width;
 				}
 
 				doLayout = true;

@@ -71,13 +71,15 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 	private _onDidGroupLabelChange: Emitter<INextEditorGroupView> = this._register(new Emitter<INextEditorGroupView>());
 	get onDidGroupLabelChange(): Event<INextEditorGroupView> { return this._onDidGroupLabelChange.event; }
 
-	private _onDidGroupOrientationChange: Emitter<void> = this._register(new Emitter<void>());
-	get onDidGroupOrientationChange(): Event<void> { return this._onDidGroupOrientationChange.event; }
+	private _onDidPreferredSizeChange: Emitter<void> = this._register(new Emitter<void>());
+	get onDidPreferredSizeChange(): Event<void> { return this._onDidPreferredSizeChange.event; }
 
 	//#endregion
 
-	private memento: object;
 	private dimension: Dimension;
+	private _preferredSize: Dimension;
+
+	private memento: object;
 	private _partOptions: INextEditorPartOptions;
 
 	private _activeGroup: INextEditorGroupView;
@@ -307,8 +309,8 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		if (this.gridWidget.orientation !== newOrientation) {
 			this.gridWidget.orientation = newOrientation;
 
-			// Event
-			this._onDidGroupOrientationChange.fire();
+			// Mark preferred size as changed
+			this.resetPreferredSize();
 		}
 	}
 
@@ -340,6 +342,9 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 		// Update container
 		this.updateContainer();
+
+		// Mark preferred size as changed
+		this.resetPreferredSize();
 
 		// Event
 		this._onDidAddGroup.fire(newGroupView);
@@ -485,6 +490,9 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		// Update container
 		this.updateContainer();
 
+		// Mark preferred size as changed
+		this.resetPreferredSize();
+
 		// Event
 		this._onDidRemoveGroup.fire(groupView);
 	}
@@ -585,19 +593,33 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 	//#region Part
 
-	get minSize(): Dimension { // TODO@grid this needs better support from the GridWidget to be correct for complex layouts
-		let horizontalViews = 0;
-		let verticalViews = 0;
+	get preferredSize(): Dimension {
+		if (!this._preferredSize) {
+			let horizontalViews = 0;
+			let verticalViews = 0;
 
-		this.groupViews.forEach(groupView => {
-			if (this.gridWidget.getOrientation(groupView) === Orientation.HORIZONTAL) {
-				horizontalViews++;
-			} else {
-				verticalViews++;
-			}
-		});
+			// TODO@grid this needs better support from the GridWidget to be correct for more complex layouts
+			this.groupViews.forEach(groupView => {
+				if (this.gridWidget.getOrientation(groupView) === Orientation.HORIZONTAL) {
+					horizontalViews++;
+				} else {
+					verticalViews++;
+				}
+			});
 
-		return new Dimension(Math.max(horizontalViews, 1) * EDITOR_MIN_DIMENSIONS.width, Math.max(verticalViews) * EDITOR_MIN_DIMENSIONS.height);
+			this._preferredSize = new Dimension(Math.max(horizontalViews, 1) * EDITOR_MIN_DIMENSIONS.width, Math.max(verticalViews) * EDITOR_MIN_DIMENSIONS.height);
+		}
+
+		return this._preferredSize;
+	}
+
+	private resetPreferredSize(): void {
+
+		// Reset (will be computed upon next access)
+		this._preferredSize = void 0;
+
+		// Event
+		this._onDidPreferredSizeChange.fire();
 	}
 
 	protected updateStyles(): void {
