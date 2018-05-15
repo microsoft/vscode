@@ -206,7 +206,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'debug.internalConsoleOptions': INTERNAL_CONSOLE_OPTIONS_SCHEMA,
 		'debug.openDebug': {
-			enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart'],
+			enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart', 'openOnDebugBreak'],
 			default: 'openOnFirstSessionStart',
 			description: nls.localize('openDebug', "Controls whether debug view should be open on debugging session start.")
 		},

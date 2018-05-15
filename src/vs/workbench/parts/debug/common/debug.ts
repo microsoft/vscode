@@ -347,7 +347,7 @@ export enum State {
 
 export interface IDebugConfiguration {
 	allowBreakpointsEverywhere: boolean;
-	openDebug: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
+	openDebug: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart' | 'openOnDebugBreak';
 	openExplorerOnEnd: boolean;
 	inlineValues: boolean;
 	hideActionBar: boolean;
