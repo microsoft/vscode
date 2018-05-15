@@ -222,6 +222,19 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		return this.groupViews.get(identifier);
 	}
 
+	findNeighbourGroup(location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection): INextEditorGroupView { // TODO@grid finding neighbour needs gridwidget support
+		const locationGroupView = this.assertGroupView(location);
+		const groups = this.getGroups(GroupsOrder.GRID_ORDER);
+		const index = groups.indexOf(locationGroupView);
+
+		const neighbourGroupView = groups[direction === GroupDirection.RIGHT || direction === GroupDirection.DOWN ? index + 1 : index - 1];
+		if (neighbourGroupView && this.gridWidget.getOrientation(neighbourGroupView) === this.gridWidget.getOrientation(locationGroupView)) {
+			return neighbourGroupView;
+		}
+
+		return void 0;
+	}
+
 	getLabel(identifier: GroupIdentifier): string {
 		return this.mapGroupViewToLabel.get(identifier);
 	}

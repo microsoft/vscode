@@ -743,6 +743,10 @@ export class TestNextEditorGroupsService implements INextEditorGroupsService {
 		return null;
 	}
 
+	findNeighbourGroup(location: number | INextEditorGroup, direction: GroupDirection): INextEditorGroup {
+		return null;
+	}
+
 	activateGroup(group: number | INextEditorGroup): INextEditorGroup {
 		return null;
 	}

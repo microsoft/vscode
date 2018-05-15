@@ -614,4 +614,22 @@ suite('Editor groups service (editor2)', () => {
 			});
 		});
 	});
+
+	test('findNeighbour (left/right)', function () {
+		const part = createPart();
+		const rootGroup = part.activeGroup;
+		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+
+		assert.equal(rightGroup, part.findNeighbourGroup(rootGroup, GroupDirection.RIGHT));
+		assert.equal(rootGroup, part.findNeighbourGroup(rightGroup, GroupDirection.LEFT));
+	});
+
+	test('findNeighbour (up/down)', function () {
+		const part = createPart();
+		const rootGroup = part.activeGroup;
+		const downGroup = part.addGroup(rootGroup, GroupDirection.DOWN);
+
+		assert.equal(downGroup, part.findNeighbourGroup(rootGroup, GroupDirection.DOWN));
+		assert.equal(rootGroup, part.findNeighbourGroup(downGroup, GroupDirection.UP));
+	});
 });

@@ -20,7 +20,7 @@ import { INextEditorGroup, INextEditorGroupsService, GroupDirection } from 'vs/w
 import { NextEditorPart } from 'vs/workbench/browser/parts/editor2/nextEditorPart';
 import { Dimension } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IEditorRegistry, EditorDescriptor, Extensions } from 'vs/workbench/browser/editor';
@@ -265,7 +265,6 @@ suite('Editor service (editor2)', () => {
 		part.create(document.createElement('div'));
 		part.layout(new Dimension(400, 300));
 
-
 		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([INextEditorGroupsService, part]));
 
 		const service: INextEditorService = testInstantiationService.createInstance(NextEditorService);
@@ -297,7 +296,6 @@ suite('Editor service (editor2)', () => {
 		const part = partInstantiator.createInstance(NextEditorPart, 'id', false);
 		part.create(document.createElement('div'));
 		part.layout(new Dimension(400, 300));
-
 
 		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([INextEditorGroupsService, part]));
 
@@ -381,6 +379,38 @@ suite('Editor service (editor2)', () => {
 					assert.equal(diffInput.isDisposed(), true);
 					assert.equal(otherInput.isDisposed(), true);
 					assert.equal(input.isDisposed(), false);
+				});
+			});
+		});
+	});
+
+	test('open to the side', function () {
+		const partInstantiator = workbenchInstantiationService();
+
+		const part = partInstantiator.createInstance(NextEditorPart, 'id', false);
+		part.create(document.createElement('div'));
+		part.layout(new Dimension(400, 300));
+
+		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([INextEditorGroupsService, part]));
+
+		const service: INextEditorService = testInstantiationService.createInstance(NextEditorService);
+
+		const input1 = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource1'));
+		const input2 = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2'));
+
+		const rootGroup = part.activeGroup;
+
+		return service.openEditor(input1, { pinned: true }, rootGroup).then(editor => {
+			return service.openEditor(input1, { pinned: true, preserveFocus: true }, SIDE_GROUP).then(editor => {
+				assert.equal(part.activeGroup, rootGroup);
+				assert.equal(part.count, 2);
+				assert.equal(editor.group, part.groups[1].id);
+
+				// Open to the side uses existing neighbour group if any
+				return service.openEditor(input2, { pinned: true, preserveFocus: true }, SIDE_GROUP).then(editor => {
+					assert.equal(part.activeGroup, rootGroup);
+					assert.equal(part.count, 2);
+					assert.equal(editor.group, part.groups[1].id);
 				});
 			});
 		});

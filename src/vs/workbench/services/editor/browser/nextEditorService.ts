@@ -223,7 +223,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 
 		// Group: Side by Side
 		else if (group === SIDE_GROUP) {
-			targetGroup = this.createSideBySideGroup();
+			targetGroup = this.findSideBySideGroup();
 		}
 
 		// Group: Specific Group
@@ -266,7 +266,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		return targetGroup;
 	}
 
-	private createSideBySideGroup(): INextEditorGroup {
+	private findSideBySideGroup(): INextEditorGroup {
 		const direction = this.configurationService.getValue<'left' | 'right' | 'up' | 'down'>('workbench.editor.openSideBySideDirection');
 
 		let groupDirection: GroupDirection;
@@ -278,7 +278,12 @@ export class NextEditorService extends Disposable implements INextEditorService 
 			default: groupDirection = GroupDirection.RIGHT;
 		}
 
-		return this.nextEditorGroupsService.addGroup(this.nextEditorGroupsService.activeGroup, groupDirection); // TODO@grid this should use an existing side group if there is one
+		let neighbourGroup = this.nextEditorGroupsService.findNeighbourGroup(this.nextEditorGroupsService.activeGroup, groupDirection);
+		if (!neighbourGroup) {
+			neighbourGroup = this.nextEditorGroupsService.addGroup(this.nextEditorGroupsService.activeGroup, groupDirection);
+		}
+
+		return neighbourGroup;
 	}
 
 	private toOptions(options?: IEditorOptions | EditorOptions): EditorOptions {
@@ -315,7 +320,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		// Find target groups to open
 		const mapGroupToEditors = new Map<INextEditorGroup, IEditorInputWithOptions[]>();
 		if (group === SIDE_GROUP) {
-			mapGroupToEditors.set(this.createSideBySideGroup(), typedEditors);
+			mapGroupToEditors.set(this.findSideBySideGroup(), typedEditors);
 		} else {
 			typedEditors.forEach(typedEditor => {
 				const targetGroup = this.findTargetGroup(typedEditor.editor, typedEditor.options, group);
