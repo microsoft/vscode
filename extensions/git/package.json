@@ -916,7 +916,8 @@
             "all",
             "local",
             "tags",
-            "remote"
+            "remote",
+            "commits"
           ],
           "description": "%config.checkoutType%",
           "default": "all"
