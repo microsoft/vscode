@@ -263,7 +263,7 @@ export interface ISerializedDocumentFilter {
 
 export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$unregister(handle: number): void;
-	$registerOutlineSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerOutlineSupport(handle: number, selector: ISerializedDocumentFilter[], extensionId: string): void;
 	$registerCodeLensSupport(handle: number, selector: ISerializedDocumentFilter[], eventHandle: number): void;
 	$emitCodeLensEvent(eventHandle: number, event?: any): void;
 	$registerDeclaractionSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
@@ -666,6 +666,8 @@ export interface SymbolInformationDto extends IdObject {
 	containerName?: string;
 	kind: modes.SymbolKind;
 	location: LocationDto;
+	definingRange: IRange;
+	children?: SymbolInformationDto[];
 }
 
 export interface WorkspaceSymbolsDto extends IdObject {
