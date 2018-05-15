@@ -305,6 +305,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 				if (error || !terminal) {
 					return;
 				}
+				let processStartedSignaled: boolean = false;
+				terminal.processReady.done(() => {
+					processStartedSignaled = true;
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId));
+				}, (_error) => {
+					// The process never got ready. Need to think how to handle this.
+				});
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
 				const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
 				const onData = terminal.onLineData((line) => {
@@ -339,6 +346,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 					watchingProblemMatcher.done();
 					watchingProblemMatcher.dispose();
 					registeredLinkMatchers.forEach(handle => terminal.deregisterLinkMatcher(handle));
+					if (processStartedSignaled) {
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode));
+					}
 					toUnbind = dispose(toUnbind);
 					toUnbind = null;
 					for (let i = 0; i < eventCounter; i++) {
@@ -356,6 +366,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 				if (error || !terminal) {
 					return;
 				}
+				let processStartedSignaled: boolean = false;
+				terminal.processReady.done(() => {
+					processStartedSignaled = true;
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId));
+				}, (_error) => {
+					// The process never got ready. Need to think how to handle this.
+				});
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
 				let problemMatchers = this.resolveMatchers(task, task.problemMatchers);
@@ -386,6 +403,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 					startStopProblemMatcher.done();
 					startStopProblemMatcher.dispose();
 					registeredLinkMatchers.forEach(handle => terminal.deregisterLinkMatcher(handle));
+					if (processStartedSignaled) {
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode));
+					}
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Inactive, task));
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
 					resolve({ exitCode });

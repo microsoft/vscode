@@ -299,21 +299,9 @@ declare module 'vscode' {
 	//#region Matt: WebView Serializer
 
 	/**
-	 * Save and restore webview panels that have been persisted when vscode shuts down.
+	 * Restore webview panels that have been persisted when vscode shuts down.
 	 */
 	interface WebviewPanelSerializer {
-		/**
-		 * Save a webview panel's `state`.
-		 *
-		 * Called before shutdown. Extensions have a 250ms timeframe to return a state. If serialization
-		 * takes longer than 250ms, the panel will not be serialized.
-		 *
-		 * @param webviewPanel webview Panel to serialize. May or may not be visible.
-		 *
-		 * @returns JSON serializable state blob.
-		 */
-		serializeWebviewPanel(webviewPanel: WebviewPanel): Thenable<any>;
-
 		/**
 		 * Restore a webview panel from its seriailzed `state`.
 		 *
@@ -347,6 +335,40 @@ declare module 'vscode' {
 	//#region Tasks
 
 	/**
+	 * An event signaling the start of a process execution
+	 * triggered through a task
+	 */
+	export interface TaskProcessStartEvent {
+
+		/**
+		 * The task execution for which the process got started.
+		 */
+		execution: TaskExecution;
+
+		/**
+		 * The underlying process id.
+		 */
+		processId: number;
+	}
+
+	/**
+	 * An event signaling the end of a process execution
+	 * triggered through a task
+	 */
+	export interface TaskProcessEndEvent {
+
+		/**
+		 * The task execution for which the process got started.
+		 */
+		execution: TaskExecution;
+
+		/**
+		 * The process's exit code.
+		 */
+		exitCode: number;
+	}
+
+	/**
 	 * An object representing an executed Task. It can be used
 	 * to terminate a task.
 	 *
@@ -357,6 +379,20 @@ declare module 'vscode' {
 		 * The task that got started.
 		 */
 		task: Task;
+
+		/**
+		 * Fires when the underlying process has been started.
+		 * This event might not fire for tasks that don't
+		 * execute an underlying process.
+		 */
+		onDidStartProcess: Event<TaskProcessStartEvent>;
+
+		/**
+		 * Fires when the underlying process has ended.
+		 * This event might not fire for tasks that don't
+		 * execute an underlying process.
+		 */
+		onDidEndProcess: Event<TaskProcessEndEvent>;
 
 		/**
 		 * Terminates the task execution.
@@ -404,7 +440,7 @@ declare module 'vscode' {
 	export namespace workspace {
 
 		/**
-		 * Fetches all task available in the systems. Thisweweb includes tasks
+		 * Fetches all tasks available in the systems. This includes tasks
 		 * from `tasks.json` files as well as tasks from task providers
 		 * contributed through extensions.
 		 *
@@ -507,6 +543,30 @@ declare module 'vscode' {
 
 	export interface DocumentFilter {
 		exclusive?: boolean;
+	}
+
+	//#endregion
+
+	//#region Multi-step input
+
+	export namespace window {
+
+		/**
+		 * Collect multiple inputs from the user. The provided handler will be called with a
+		 * [`QuickInput`](#QuickInput) that should be used to control the UI.
+		 *
+		 * @param handler The callback that will collect the inputs.
+		 */
+		export function multiStepInput<T>(handler: (input: QuickInput, token: CancellationToken) => Thenable<T>, token?: CancellationToken): Thenable<T>;
+	}
+
+	/**
+	 * Controls the UI within a multi-step input session. The handler passed to [`window.multiStepInput`](#window.multiStepInput)
+	 * should use the instance of this interface passed to it to collect all inputs.
+	 */
+	export interface QuickInput {
+		showQuickPick: typeof window.showQuickPick;
+		showInputBox: typeof window.showInputBox;
 	}
 
 	//#endregion

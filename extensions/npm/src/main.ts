@@ -9,37 +9,37 @@ import * as vscode from 'vscode';
 
 import { addJSONProviders } from './features/jsonContributions';
 import { NpmScriptsTreeDataProvider } from './npmView';
-import { provideNpmScripts } from './tasks';
+import { provideNpmScripts, invalidateScriptsCache } from './tasks';
 
 let taskProvider: vscode.Disposable | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	taskProvider = registerTaskProvider(context);
-	registerExplorer(context);
+	let treeDataProvider = registerExplorer(context);
 	configureHttpRequest();
-	vscode.workspace.onDidChangeConfiguration(() => {
+	vscode.workspace.onDidChangeConfiguration((e) => {
 		configureHttpRequest();
+		if (e.affectsConfiguration('npm.filterPrePostScripts')) {
+			invalidateScriptsCache();
+			if (treeDataProvider) {
+				treeDataProvider.refresh();
+			}
+		}
 	});
 	context.subscriptions.push(addJSONProviders(httpRequest.xhr));
 }
 
 function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposable | undefined {
 	if (vscode.workspace.workspaceFolders) {
-		let cachedTasks: vscode.Task[] | undefined = undefined;
-
-		let flushCache = () => cachedTasks = undefined;
 		let watcher = vscode.workspace.createFileSystemWatcher('**/package.json');
-		watcher.onDidChange((_e) => flushCache());
-		watcher.onDidDelete((_e) => flushCache());
-		watcher.onDidCreate((_e) => flushCache());
+		watcher.onDidChange((_e) => invalidateScriptsCache());
+		watcher.onDidDelete((_e) => invalidateScriptsCache());
+		watcher.onDidCreate((_e) => invalidateScriptsCache());
 		context.subscriptions.push(watcher);
 
 		let provider: vscode.TaskProvider = {
 			provideTasks: async () => {
-				if (!cachedTasks) {
-					cachedTasks = await provideNpmScripts();
-				}
-				return cachedTasks;
+				return provideNpmScripts();
 			},
 			resolveTask(_task: vscode.Task): vscode.Task | undefined {
 				return undefined;
@@ -50,11 +50,14 @@ function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposab
 	return undefined;
 }
 
-async function registerExplorer(context: vscode.ExtensionContext) {
+function registerExplorer(context: vscode.ExtensionContext): NpmScriptsTreeDataProvider | undefined {
 	if (vscode.workspace.workspaceFolders) {
-		let treeDataProvider = vscode.window.registerTreeDataProvider('npm', new NpmScriptsTreeDataProvider(context));
-		context.subscriptions.push(treeDataProvider);
+		let treeDataProvider = new NpmScriptsTreeDataProvider(context);
+		let disposable = vscode.window.registerTreeDataProvider('npm', treeDataProvider);
+		context.subscriptions.push(disposable);
+		return treeDataProvider;
 	}
+	return undefined;
 }
 
 function configureHttpRequest() {

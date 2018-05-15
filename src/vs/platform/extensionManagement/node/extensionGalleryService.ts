@@ -9,7 +9,7 @@ import * as path from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { distinct } from 'vs/base/common/arrays';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
-import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionManifest, IExtensionIdentifier, IReportedExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionManifest, IExtensionIdentifier, IReportedExtension, DownloadOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId, getGalleryExtensionTelemetryData, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/node/request';
@@ -242,8 +242,8 @@ function getVersionAsset(version: IRawGalleryExtensionVersion, type: string): IG
 
 	if (type === AssetType.VSIX) {
 		return {
-			uri: `${version.fallbackAssetUri}/${type}?redirect=true&install=true`,
-			fallbackUri: `${version.fallbackAssetUri}/${type}?install=true`
+			uri: `${version.fallbackAssetUri}/${type}?redirect=true`,
+			fallbackUri: `${version.fallbackAssetUri}/${type}`
 		};
 	}
 
@@ -473,7 +473,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		});
 	}
 
-	download(extension: IGalleryExtension): TPromise<string> {
+	download(extension: IGalleryExtension, operation: DownloadOperation): TPromise<string> {
 		return this.loadCompatibleVersion(extension)
 			.then(extension => {
 				if (!extension) {
@@ -492,7 +492,13 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 				*/
 				const log = (duration: number) => this.telemetryService.publicLog('galleryService:downloadVSIX', assign(data, { duration }));
 
-				return this.getAsset(extension.assets.download)
+				const operationParam = operation === DownloadOperation.Install ? 'install' : operation === DownloadOperation.Update ? 'update' : '';
+				const downloadAsset = operationParam ? {
+					uri: `${extension.assets.download.uri}&${operationParam}=true`,
+					fallbackUri: `${extension.assets.download.fallbackUri}?${operationParam}=true`
+				} : extension.assets.download;
+
+				return this.getAsset(downloadAsset)
 					.then(context => download(zipPath, context))
 					.then(() => log(new Date().getTime() - startTime))
 					.then(() => zipPath);

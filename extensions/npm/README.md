@@ -15,3 +15,4 @@ For more information about auto detection of Tasks pls see the [documentation](h
 - `npm.packageManager` the package manager used to run the scripts: `npm` or `yarn`, the default is `npm`.
 - `npm.exclude` glob patterns for folders that should be excluded from automatic script detection. The pattern is matched against the **absolute path** of the package.json. For example, to exclude all test folders use '&ast;&ast;/test/&ast;&ast;'.
 - `npm.enableScriptExplorer` enable an explorer view for npm scripts.
+- `npm.filterPrePostScripts` filter pre or post scripts, the default is `true`.

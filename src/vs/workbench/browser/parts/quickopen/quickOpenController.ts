@@ -96,7 +96,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	private promisesToCompleteOnHide: ValueCallback[];
 	private previousActiveHandlerDescriptor: QuickOpenHandlerDescriptor;
 	private actionProvider = new ContributableActionProvider();
-	private visibilityChangeTimeoutHandle: number;
 	private closeOnFocusLost: boolean;
 	private editorHistoryHandler: EditorHistoryHandler;
 
@@ -439,19 +438,11 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	}
 
 	private emitQuickOpenVisibilityChange(isVisible: boolean): void {
-		if (this.visibilityChangeTimeoutHandle) {
-			window.clearTimeout(this.visibilityChangeTimeoutHandle);
+		if (isVisible) {
+			this._onShow.fire();
+		} else {
+			this._onHide.fire();
 		}
-
-		this.visibilityChangeTimeoutHandle = setTimeout(() => {
-			if (isVisible) {
-				this._onShow.fire();
-			} else {
-				this._onHide.fire();
-			}
-
-			this.visibilityChangeTimeoutHandle = void 0;
-		}, 100 /* to prevent flashing, we accumulate visibility changes over a timeout of 100ms */);
 	}
 
 	public show(prefix?: string, options?: IShowOptions): TPromise<void> {

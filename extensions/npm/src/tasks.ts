@@ -20,6 +20,12 @@ export interface NpmTaskDefinition extends TaskDefinition {
 
 type AutoDetect = 'on' | 'off';
 
+let cachedTasks: Task[] | undefined = undefined;
+
+export function invalidateScriptsCache() {
+	cachedTasks = undefined;
+}
+
 const buildNames: string[] = ['build', 'compile', 'watch'];
 function isBuildTask(name: string): boolean {
 	for (let buildName of buildNames) {
@@ -40,8 +46,24 @@ function isTestTask(name: string): boolean {
 	return false;
 }
 
-function isNotPreOrPostScript(script: string): boolean {
-	return !(script.startsWith('pre') || script.startsWith('post'));
+function getPrePostScripts(scripts: any): Set<string> {
+	const prePostScripts: Set<string> = new Set([
+		'preuninstall', 'postuninstall', 'prepack', 'postpack', 'preinstall', 'postinstall',
+		'prepack', 'postpack', 'prepublish', 'postpublish', 'preversion', 'postversion',
+		'prestop', 'poststop', 'prerestart', 'postrestart', 'preshrinkwrap', 'postshrinkwrap',
+		'pretest', 'postest', 'prepublishOnly'
+	]);
+	let keys = Object.keys(scripts);
+	for (let i = 0; i < keys.length; i++) {
+		const script = keys[i];
+		const prepost = ['pre' + script, 'post' + script];
+		prepost.forEach(each => {
+			if (scripts[each]) {
+				prePostScripts.add(each);
+			}
+		});
+	}
+	return prePostScripts;
 }
 
 export function isWorkspaceFolder(value: any): value is WorkspaceFolder {
@@ -74,7 +96,8 @@ export async function hasNpmScripts(): Promise<boolean> {
 	}
 }
 
-export async function provideNpmScripts(): Promise<Task[]> {
+async function detectNpmScripts(): Promise<Task[]> {
+
 	let emptyTasks: Task[] = [];
 	let allTasks: Task[] = [];
 
@@ -100,6 +123,13 @@ export async function provideNpmScripts(): Promise<Task[]> {
 	} catch (error) {
 		return Promise.reject(error);
 	}
+}
+
+export async function provideNpmScripts(): Promise<Task[]> {
+	if (!cachedTasks) {
+		cachedTasks = await detectNpmScripts();
+	}
+	return cachedTasks;
 }
 
 function isAutoDetectionEnabled(folder: WorkspaceFolder): boolean {
@@ -140,7 +170,10 @@ async function provideNpmScriptsForFolder(packageJsonUri: Uri): Promise<Task[]> 
 	}
 
 	const result: Task[] = [];
-	Object.keys(scripts).filter(isNotPreOrPostScript).forEach(each => {
+
+	const filterPrePost = workspace.getConfiguration('npm', folder.uri).get<boolean>('filterPrePostScripts');
+	const prePostScripts = filterPrePost ? getPrePostScripts(scripts) : new Set<String>();
+	Object.keys(scripts).filter(each => !prePostScripts.has(each)).forEach(each => {
 		const task = createTask(each, `run ${each}`, folder!, packageJsonUri);
 		const lowerCaseTaskName = each.toLowerCase();
 		if (isBuildTask(lowerCaseTaskName)) {

@@ -97,7 +97,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 				return this.hide();
 			}
 
-			const actions = DebugActionsWidget.getActions(this.allActions, this.toUnbind, this.debugService, this.keybindingService, this.instantiationService);
+			const actions = DebugActionsWidget.getActions(this.allActions, this.toUnbind, false, this.debugService, this.keybindingService, this.instantiationService);
 			if (!arrays.equals(actions, this.activeActions, (first, second) => first.id === second.id)) {
 				this.actionBar.clear();
 				this.actionBar.push(actions, { icon: true, label: false });
@@ -242,7 +242,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		this.$el.hide();
 	}
 
-	public static getActions(allActions: AbstractDebugAction[], toUnbind: IDisposable[], debugService: IDebugService, keybindingService: IKeybindingService, instantiationService: IInstantiationService): AbstractDebugAction[] {
+	public static getActions(allActions: AbstractDebugAction[], toUnbind: IDisposable[], ignoreFocusSessionAction: boolean, debugService: IDebugService, keybindingService: IKeybindingService, instantiationService: IInstantiationService): AbstractDebugAction[] {
 		if (allActions.length === 0) {
 			allActions.push(new ContinueAction(ContinueAction.ID, ContinueAction.LABEL, debugService, keybindingService));
 			allActions.push(new PauseAction(PauseAction.ID, PauseAction.LABEL, debugService, keybindingService));
@@ -254,7 +254,9 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 			allActions.push(instantiationService.createInstance(RestartAction, RestartAction.ID, RestartAction.LABEL));
 			allActions.push(new StepBackAction(StepBackAction.ID, StepBackAction.LABEL, debugService, keybindingService));
 			allActions.push(new ReverseContinueAction(ReverseContinueAction.ID, ReverseContinueAction.LABEL, debugService, keybindingService));
-			allActions.push(instantiationService.createInstance(FocusSessionAction, FocusSessionAction.ID, FocusSessionAction.LABEL));
+			if (!ignoreFocusSessionAction) {
+				allActions.push(instantiationService.createInstance(FocusSessionAction, FocusSessionAction.ID, FocusSessionAction.LABEL));
+			}
 			allActions.forEach(a => {
 				toUnbind.push(a);
 			});

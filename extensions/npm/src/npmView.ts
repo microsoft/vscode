@@ -251,7 +251,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		await window.showTextDocument(document, { selection: new Selection(position, position) });
 	}
 
-	private refresh() {
+	public refresh() {
 		this.taskTree = null;
 		this._onDidChangeTreeData.fire();
 	}

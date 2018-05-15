@@ -107,7 +107,7 @@ export class DebugViewlet extends PersistentViewsViewlet {
 			return [this.startAction, this.configureAction, this.toggleReplAction];
 		}
 
-		return DebugActionsWidget.getActions(this.allActions, this.toUnbind, this.debugService, this.keybindingService, this.instantiationService);
+		return DebugActionsWidget.getActions(this.allActions, this.toUnbind, true, this.debugService, this.keybindingService, this.instantiationService);
 	}
 
 	public get showInitialDebugActions(): boolean {

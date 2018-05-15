@@ -84,11 +84,7 @@ export interface IInputOptions {
 	validateInput?: (input: string) => TPromise<string>;
 }
 
-export const IQuickInputService = createDecorator<IQuickInputService>('quickInputService');
-
-export interface IQuickInputService {
-
-	_serviceBrand: any;
+export interface IQuickInput {
 
 	/**
 	 * Opens the quick input box for selecting items and returns a promise with the user selected item(s) if any.
@@ -99,6 +95,15 @@ export interface IQuickInputService {
 	 * Opens the quick input box for text input and returns a promise with the user typed value if any.
 	 */
 	input(options?: IInputOptions, token?: CancellationToken): TPromise<string>;
+}
+
+export const IQuickInputService = createDecorator<IQuickInputService>('quickInputService');
+
+export interface IQuickInputService extends IQuickInput {
+
+	_serviceBrand: any;
+
+	multiStepInput<T>(handler: (input: IQuickInput, token: CancellationToken) => Thenable<T>, token?: CancellationToken): Thenable<T>;
 
 	focus(): void;
 

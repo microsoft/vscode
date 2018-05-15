@@ -33,7 +33,7 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 		input: WebviewEditorInput
 	): string {
 		// Has no state, don't revive
-		if (!input.state) {
+		if (!input.state || !input.webviewState) {
 			return null;
 		}
 
