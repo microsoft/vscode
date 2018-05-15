@@ -12,7 +12,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { createMatches } from 'vs/base/common/filters';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IFilter, IRenderer, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
-import { DefaultController, ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
+import { DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
 import 'vs/css!./media/symbol-icons';
 import { Range } from 'vs/editor/common/core/range';
 import { symbolKindToCssClass } from 'vs/editor/common/modes';
@@ -236,12 +236,34 @@ export class OutlineTreeState {
 
 export class OutlineController extends DefaultController {
 
-	protected onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {
-		let undoExpansion = element instanceof OutlineElement && !this.isClickOnTwistie(<IMouseEvent>eventish);
-		let result = super.onLeftClick(tree, element, eventish, origin);
-		if (undoExpansion) {
-			tree.toggleExpansion(element, false).then(undefined, onUnexpectedError);
+	protected onLeftClick(tree: ITree, element: any, event: IMouseEvent, origin: string = 'mouse'): boolean {
+
+		const payload = { origin: origin, originalEvent: event };
+
+		if (tree.getInput() === element) {
+			tree.clearFocus(payload);
+			tree.clearSelection(payload);
+		} else {
+			const isMouseDown = event && event.browserEvent && event.browserEvent.type === 'mousedown';
+			if (!isMouseDown) {
+				event.preventDefault(); // we cannot preventDefault onMouseDown because this would break DND otherwise
+			}
+			event.stopPropagation();
+
+			tree.domFocus();
+			tree.setSelection([element], payload);
+			tree.setFocus(element, payload);
+
+			const didClickElement = element instanceof OutlineElement && !this.isClickOnTwistie(event);
+
+			if (!didClickElement) {
+				if (tree.isExpanded(element)) {
+					tree.collapse(element).then(null, onUnexpectedError);
+				} else {
+					tree.expand(element).then(null, onUnexpectedError);
+				}
+			}
 		}
-		return result;
+		return true;
 	}
 }
