@@ -23,7 +23,6 @@ import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/edito
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ScrollType } from 'vs/editor/common/editorCommon';
 import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import { localize } from 'vs/nls';
@@ -174,6 +173,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService
@@ -202,7 +202,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 		this._input.disable();
 
 		this.disposables.push(attachInputBoxStyler(this._input, this._themeService));
-		this.disposables.push(dom.addStandardDisposableListener(this._input.inputElement, 'keydown', event => {
+		this.disposables.push(dom.addStandardDisposableListener(this._input.inputElement, 'keyup', event => {
 			// todo@joh make those keybindings configurable?
 			if (event.keyCode === KeyCode.DownArrow) {
 				this._tree.focusNext();
@@ -211,7 +211,8 @@ export class OutlinePanel extends ViewsViewletPanel {
 				this._tree.focusPrevious();
 				this._tree.domFocus();
 			} else if (event.keyCode === KeyCode.Enter) {
-				this._tree.domFocus();
+				let element = this._tree.getFocus();
+				this._revealTreeSelection(element, true, false);
 			} else if (event.keyCode === KeyCode.Escape) {
 				this._input.value = '';
 				this._tree.domFocus();
@@ -220,12 +221,15 @@ export class OutlinePanel extends ViewsViewletPanel {
 
 		const $this = this;
 		const controller = new class extends OutlineController {
+
+			private readonly _ignored = { [KeyCode.Shift]: true, [KeyCode.Ctrl]: true, [KeyCode.Alt]: true, [KeyCode.Meta]: true };
+
 			onKeyDown(tree: ITree, event: IKeyboardEvent) {
 				let handled = super.onKeyDown(tree, event);
 				if (handled) {
 					return true;
 				}
-				if (!this.upKeyBindingDispatcher.has(event.keyCode)) {
+				if (!this.upKeyBindingDispatcher.has(event.keyCode) && !this._ignored[event.keyCode]) {
 					// crazy -> during keydown focus moves to the input box
 					// and because of that the keyup event is handled by the
 					// input field
@@ -373,18 +377,23 @@ export class OutlinePanel extends ViewsViewletPanel {
 			let [first] = e.selection;
 			let keyboard = e.payload && e.payload.origin === 'keyboard';
 			if (first instanceof OutlineElement) {
-				let { range } = first.symbol.location;
-				editor.revealRangeInCenterIfOutsideViewport(range, ScrollType.Smooth);
-				editor.setSelection(Range.collapseToStart(range));
-				if (keyboard) {
-					editor.focus();
-				}
+				this._revealTreeSelection(first, keyboard, false);
 			}
 		}));
 
 		// feature: reveal editor selection in outline
 		this._editorDisposables.push(editor.onDidChangeCursorSelection(e => e.reason === CursorChangeReason.Explicit && this._revealEditorSelection(model, e.selection)));
 		this._revealEditorSelection(model, editor.getSelection());
+	}
+
+	private async _revealTreeSelection(element: OutlineElement, focus: boolean, aside: boolean): TPromise<void> {
+		let { range, uri } = element.symbol.location;
+		let input = this._editorService.createInput({ resource: uri });
+		await this._editorService.openEditor(input, { preserveFocus: !focus, selection: Range.collapseToStart(range), revealInCenterIfOutsideViewport: true, forceOpen: true }, aside);
+		if (focus) {
+			// reset the search field when going into the editor
+			this._input.value = '';
+		}
 	}
 
 	private async _revealEditorSelection(model: OutlineModel, selection: Selection): TPromise<void> {
