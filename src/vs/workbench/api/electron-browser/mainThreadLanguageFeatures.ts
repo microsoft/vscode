@@ -82,6 +82,9 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			return <modes.SymbolInformation[]>data;
 		} else {
 			data.location = MainThreadLanguageFeatures._reviveLocationDto(data.location);
+			if (data.children) {
+				data.children.forEach(MainThreadLanguageFeatures._reviveSymbolInformationDto);
+			}
 			return <modes.SymbolInformation>data;
 		}
 	}

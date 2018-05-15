@@ -664,6 +664,8 @@ export interface SymbolInformationDto extends IdObject {
 	containerName?: string;
 	kind: modes.SymbolKind;
 	location: LocationDto;
+	definingRange: IRange;
+	children?: SymbolInformationDto[];
 }
 
 export interface WorkspaceSymbolsDto extends IdObject {
