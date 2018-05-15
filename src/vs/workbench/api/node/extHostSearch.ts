@@ -188,7 +188,9 @@ class TextSearchResultsCollector {
 	}
 
 	private pushToCollector(): void {
-		const size = this._currentFileMatch.lineMatches.reduce((acc, match) => acc + match.offsetAndLengths.length, 0);
+		const size = this._currentFileMatch ?
+			this._currentFileMatch.lineMatches.reduce((acc, match) => acc + match.offsetAndLengths.length, 0) :
+			0;
 		this._batchedCollector.addItem(this._currentFileMatch, size);
 	}
 
