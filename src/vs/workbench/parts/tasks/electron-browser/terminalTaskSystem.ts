@@ -305,6 +305,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 				if (error || !terminal) {
 					return;
 				}
+				let processStartedSignaled: boolean = false;
+				terminal.processReady.done(() => {
+					processStartedSignaled = true;
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId));
+				}, (_error) => {
+					// The process never got ready. Need to think how to handle this.
+				});
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
 				const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
 				const onData = terminal.onLineData((line) => {
@@ -339,6 +346,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 					watchingProblemMatcher.done();
 					watchingProblemMatcher.dispose();
 					registeredLinkMatchers.forEach(handle => terminal.deregisterLinkMatcher(handle));
+					if (processStartedSignaled) {
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode));
+					}
 					toUnbind = dispose(toUnbind);
 					toUnbind = null;
 					for (let i = 0; i < eventCounter; i++) {
@@ -356,6 +366,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 				if (error || !terminal) {
 					return;
 				}
+				let processStartedSignaled: boolean = false;
+				terminal.processReady.done(() => {
+					processStartedSignaled = true;
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId));
+				}, (_error) => {
+					// The process never got ready. Need to think how to handle this.
+				});
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
 				let problemMatchers = this.resolveMatchers(task, task.problemMatchers);
@@ -386,6 +403,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 					startStopProblemMatcher.done();
 					startStopProblemMatcher.dispose();
 					registeredLinkMatchers.forEach(handle => terminal.deregisterLinkMatcher(handle));
+					if (processStartedSignaled) {
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode));
+					}
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Inactive, task));
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
 					resolve({ exitCode });
@@ -485,6 +505,15 @@ export class TerminalTaskSystem implements ITaskSystem {
 			let commandLine = this.buildShellCommandLine(shellLaunchConfig.executable, shellOptions, command, args);
 			let windowsShellArgs: boolean = false;
 			if (Platform.isWindows) {
+				// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
+				// safe to assume that this was used by accident as Sysnative does not
+				// exist and will break the terminal in non-WoW64 environments.
+				if (!process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432')) {
+					const sysnativePath = path.join(process.env.windir, 'Sysnative').toLowerCase();
+					if (shellLaunchConfig.executable.toLowerCase().indexOf(sysnativePath) === 0) {
+						shellLaunchConfig.executable = path.join(process.env.windir, 'System32', shellLaunchConfig.executable.substr(sysnativePath.length));
+					}
+				}
 				windowsShellArgs = true;
 				let basename = path.basename(shellLaunchConfig.executable).toLowerCase();
 				if (basename === 'cmd.exe' && ((options.cwd && TPath.isUNC(options.cwd)) || (!options.cwd && TPath.isUNC(process.cwd())))) {

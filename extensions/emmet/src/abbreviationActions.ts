@@ -116,6 +116,8 @@ function doWrapping(individualLines: boolean, args: any) {
 	}
 
 	function applyPreview(expandAbbrList: ExpandAbbreviationInput[]): Thenable<boolean> {
+		let lastOldPreviewRange = new vscode.Range(0, 0, 0, 0);
+		let lastNewPreviewRange = new vscode.Range(0, 0, 0, 0);
 		let totalLinesInserted = 0;
 
 		return editor.edit(builder => {
@@ -141,13 +143,29 @@ function doWrapping(individualLines: boolean, args: any) {
 				const oldPreviewLines = oldPreviewRange.end.line - oldPreviewRange.start.line + 1;
 				const newLinesInserted = expandedTextLines.length - oldPreviewLines;
 
-				let lastLineEnd = expandedTextLines[expandedTextLines.length - 1].length;
-				if (expandedTextLines.length === 1) {
-					// If the expandedText is single line, add the length of preceeding whitespace as it will not be included in line length.
-					lastLineEnd += oldPreviewRange.start.character;
+				let newPreviewLineStart = oldPreviewRange.start.line + totalLinesInserted;
+				let newPreviewStart = oldPreviewRange.start.character;
+				const newPreviewLineEnd = oldPreviewRange.end.line + totalLinesInserted + newLinesInserted;
+				let newPreviewEnd = expandedTextLines[expandedTextLines.length - 1].length;
+				if (i > 0 && newPreviewLineEnd === lastNewPreviewRange.end.line) {
+					// If newPreviewLineEnd is equal to the previous expandedText lineEnd,
+					// set newPreviewStart to the length of the previous expandedText in that line
+					// plus the number of characters between both selections.
+					newPreviewStart = lastNewPreviewRange.end.character + (oldPreviewRange.start.character - lastOldPreviewRange.end.character);
+					newPreviewEnd += newPreviewStart;
+				}
+				else if (i > 0 && newPreviewLineStart === lastNewPreviewRange.end.line) {
+					// Same as above but expandedTextLines.length > 1 so newPreviewEnd keeps its value.
+					newPreviewStart = lastNewPreviewRange.end.character + (oldPreviewRange.start.character - lastOldPreviewRange.end.character);
+				}
+				else if (expandedTextLines.length === 1) {
+					// If the expandedText is single line, add the length of preceeding text as it will not be included in line length.
+					newPreviewEnd += oldPreviewRange.start.character;
 				}
 
-				rangesToReplace[i].previewRange = new vscode.Range(oldPreviewRange.start.line + totalLinesInserted, oldPreviewRange.start.character, oldPreviewRange.end.line + totalLinesInserted + newLinesInserted, lastLineEnd);
+				lastOldPreviewRange = rangesToReplace[i].previewRange;
+				rangesToReplace[i].previewRange = lastNewPreviewRange = new vscode.Range(newPreviewLineStart, newPreviewStart, newPreviewLineEnd, newPreviewEnd);
+
 				totalLinesInserted += newLinesInserted;
 			}
 		}, { undoStopBefore: false, undoStopAfter: false });
@@ -376,13 +394,13 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 				&& position.isAfterOrEqual(propertyNode.separatorToken.end)
 				&& position.isBeforeOrEqual(propertyNode.terminatorToken.start)
 				&& abbreviation.indexOf(':') === -1) {
-				return hexColorRegex.test(abbreviation);
+				return hexColorRegex.test(abbreviation) || abbreviation === '!';
 			}
 			if (!propertyNode.terminatorToken
 				&& propertyNode.separator
 				&& position.isAfterOrEqual(propertyNode.separatorToken.end)
 				&& abbreviation.indexOf(':') === -1) {
-				return hexColorRegex.test(abbreviation);
+				return hexColorRegex.test(abbreviation) || abbreviation === '!';
 			}
 		}
 
@@ -487,7 +505,11 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 			continue;
 		}
 		if (char === endAngle) {
-			break;
+			if (i >= 0 && textToBackTrack[i] === '=') {
+				continue; // False alarm of cases like =>
+			} else {
+				break;
+			}
 		}
 		if (char === startAngle) {
 			valid = !foundSpace;

@@ -36,7 +36,6 @@ export class ExtensionMessageCollector {
 		this._messageHandler({
 			type: type,
 			message: message,
-			source: this._extension.extensionFolderPath,
 			extensionId: this._extension.id,
 			extensionPointId: this._extensionPointId
 		});

@@ -156,7 +156,7 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 		let lineText: string;
 		let wordRangesIdx = 0;
 		let wordRanges: IWordRange[] = [];
-		let next = () => {
+		let next = (): { done: boolean; value: string } => {
 
 			if (wordRangesIdx < wordRanges.length) {
 				obj.done = false;
@@ -303,7 +303,7 @@ export interface IForeignModuleFactory {
 	(ctx: IWorkerContext, createData: any): any;
 }
 
-declare var require;
+declare var require: any;
 
 /**
  * @internal

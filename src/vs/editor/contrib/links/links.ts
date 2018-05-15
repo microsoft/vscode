@@ -21,7 +21,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { Position } from 'vs/editor/common/core/position';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'vs/editor/contrib/goToDeclaration/clickLinkGesture';
+import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'vs/editor/contrib/goToDefinition/clickLinkGesture';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -281,7 +281,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		const useMetaKey = (this.editor.getConfiguration().multiCursorModifier === 'altKey');
 		if (this.isEnabled(mouseEvent, withKey)) {
 			this.cleanUpActiveLinkDecoration(); // always remove previous link decoration as their can only be one
-			var occurrence = this.getLinkOccurrence(mouseEvent.target.position);
+			const occurrence = this.getLinkOccurrence(mouseEvent.target.position);
 			if (occurrence) {
 				this.editor.changeDecorations((changeAccessor) => {
 					occurrence.activate(changeAccessor, useMetaKey);
@@ -296,7 +296,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	private cleanUpActiveLinkDecoration(): void {
 		const useMetaKey = (this.editor.getConfiguration().multiCursorModifier === 'altKey');
 		if (this.activeLinkDecorationId) {
-			var occurrence = this.currentOccurrences[this.activeLinkDecorationId];
+			const occurrence = this.currentOccurrences[this.activeLinkDecorationId];
 			if (occurrence) {
 				this.editor.changeDecorations((changeAccessor) => {
 					occurrence.deactivate(changeAccessor, useMetaKey);
@@ -311,7 +311,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		if (!this.isEnabled(mouseEvent)) {
 			return;
 		}
-		var occurrence = this.getLinkOccurrence(mouseEvent.target.position);
+		const occurrence = this.getLinkOccurrence(mouseEvent.target.position);
 		if (!occurrence) {
 			return;
 		}
@@ -343,16 +343,16 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 
 	public getLinkOccurrence(position: Position): LinkOccurrence {
-		var decorations = this.editor.getModel().getDecorationsInRange({
+		const decorations = this.editor.getModel().getDecorationsInRange({
 			startLineNumber: position.lineNumber,
 			startColumn: position.column,
 			endLineNumber: position.lineNumber,
 			endColumn: position.column
 		}, 0, true);
 
-		for (var i = 0; i < decorations.length; i++) {
-			var decoration = decorations[i];
-			var currentOccurrence = this.currentOccurrences[decoration.id];
+		for (let i = 0; i < decorations.length; i++) {
+			const decoration = decorations[i];
+			const currentOccurrence = this.currentOccurrences[decoration.id];
 			if (currentOccurrence) {
 				return currentOccurrence;
 			}

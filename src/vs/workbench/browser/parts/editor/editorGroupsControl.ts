@@ -40,7 +40,6 @@ import { ResourcesDropHandler, LocalSelectionTransfer, DraggedEditorIdentifier }
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 
-
 export enum Rochade {
 	NONE,
 	TWO_TO_ONE,
@@ -1062,7 +1061,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			this.centeredEditorLeftMarginRatio = 0.5;
 
 			// Restore centered layout position and size
-			const centeredLayoutDataString = this.storageService.get(EditorGroupsControl.CENTERED_EDITOR_LAYOUT_DATA_STORAGE_KEY, StorageScope.GLOBAL);
+			const centeredLayoutDataString = this.storageService.get(EditorGroupsControl.CENTERED_EDITOR_LAYOUT_DATA_STORAGE_KEY, StorageScope.WORKSPACE);
 			if (centeredLayoutDataString) {
 				const centeredLayout = <CenteredEditorLayoutData>JSON.parse(centeredLayoutDataString);
 				this.centeredEditorLeftMarginRatio = centeredLayout.leftMarginRatio;
@@ -1974,7 +1973,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			leftMarginRatio: this.centeredEditorLeftMarginRatio,
 			size: this.centeredEditorSize
 		};
-		this.storageService.store(EditorGroupsControl.CENTERED_EDITOR_LAYOUT_DATA_STORAGE_KEY, JSON.stringify(data), StorageScope.GLOBAL);
+		this.storageService.store(EditorGroupsControl.CENTERED_EDITOR_LAYOUT_DATA_STORAGE_KEY, JSON.stringify(data), StorageScope.WORKSPACE);
 	}
 
 	public getVerticalSashTop(sash: Sash): number {
@@ -2219,7 +2218,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		if (layout) {
 			this.layoutContainers();
 		}
-		this.storageService.remove(EditorGroupsControl.CENTERED_EDITOR_LAYOUT_DATA_STORAGE_KEY, StorageScope.GLOBAL);
+		this.storageService.remove(EditorGroupsControl.CENTERED_EDITOR_LAYOUT_DATA_STORAGE_KEY, StorageScope.WORKSPACE);
 	}
 
 	public getInstantiationService(position: Position): IInstantiationService {

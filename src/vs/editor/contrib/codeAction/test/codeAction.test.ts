@@ -12,7 +12,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
-import { MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { MarkerSeverity, IMarkerData } from 'vs/platform/markers/common/markers';
 
 suite('CodeAction', () => {
 
@@ -56,7 +56,7 @@ suite('CodeAction', () => {
 		},
 		spelling: {
 			bcd: {
-				diagnostics: [],
+				diagnostics: <IMarkerData[]>[],
 				edit: new class implements WorkspaceEdit {
 					edits: ResourceTextEdit[];
 				},
@@ -66,13 +66,13 @@ suite('CodeAction', () => {
 		tsLint: {
 			abc: {
 				$ident: 57,
-				arguments: [],
+				arguments: <IMarkerData[]>[],
 				id: '_internal_command_delegation',
 				title: 'abc'
 			},
 			bcd: {
 				$ident: 47,
-				arguments: [],
+				arguments: <IMarkerData[]>[],
 				id: '_internal_command_delegation',
 				title: 'bcd'
 			}

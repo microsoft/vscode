@@ -10,13 +10,11 @@ import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/ed
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLaunchConfig, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, TERMINAL_CONFIG_SECTION } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLaunchConfig, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, TERMINAL_CONFIG_SECTION, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING } from 'vs/workbench/parts/terminal/common/terminal';
 import Severity from 'vs/base/common/severity';
 import { isFedora } from 'vs/workbench/parts/terminal/node/terminal';
 import { Terminal as XTermTerminal } from 'vscode-xterm';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-
-const DEFAULT_LINE_HEIGHT = 1.0;
 
 const MINIMUM_FONT_SIZE = 6;
 const MAXIMUM_FONT_SIZE = 25;
@@ -50,7 +48,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		this.config = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
 	}
 
-	private _measureFont(fontFamily: string, fontSize: number, lineHeight: number): ITerminalFont {
+	private _measureFont(fontFamily: string, fontSize: number, letterSpacing: number, lineHeight: number): ITerminalFont {
 		// Create charMeasureElement if it hasn't been created or if it was orphaned by its parent
 		if (!this._charMeasureElement || !this._charMeasureElement.parentElement) {
 			this._charMeasureElement = document.createElement('div');
@@ -74,6 +72,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		this._lastFontMeasurement = {
 			fontFamily,
 			fontSize,
+			letterSpacing,
 			lineHeight,
 			charWidth: rect.width,
 			charHeight: Math.ceil(rect.height)
@@ -98,12 +97,14 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		}
 
 		let fontSize = this._toInteger(this.config.fontSize, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
+		const letterSpacing = this.config.letterSpacing ? Math.max(Math.floor(this.config.letterSpacing), MINIMUM_LETTER_SPACING) : DEFAULT_LETTER_SPACING;
 		const lineHeight = this.config.lineHeight ? Math.max(this.config.lineHeight, 1) : DEFAULT_LINE_HEIGHT;
 
 		if (excludeDimensions) {
 			return {
 				fontFamily,
 				fontSize,
+				letterSpacing,
 				lineHeight
 			};
 		}
@@ -114,6 +115,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 				return {
 					fontFamily,
 					fontSize,
+					letterSpacing,
 					lineHeight,
 					charHeight: xterm.charMeasure.height,
 					charWidth: xterm.charMeasure.width
@@ -122,7 +124,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		}
 
 		// Fall back to measuring the font ourselves
-		return this._measureFont(fontFamily, fontSize, lineHeight);
+		return this._measureFont(fontFamily, fontSize, letterSpacing, lineHeight);
 	}
 
 	public setWorkspaceShellAllowed(isAllowed: boolean): void {

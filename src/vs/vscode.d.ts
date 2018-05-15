@@ -2033,8 +2033,8 @@ declare module 'vscode' {
 		/**
 		 * Creates a new code action.
 		 *
-		 * A code action must have at least a [title](#CodeAction.title) and either [edits](#CodeAction.edit)
-		 * or a [command](#CodeAction.command).
+		 * A code action must have at least a [title](#CodeAction.title) and [edits](#CodeAction.edit)
+		 * and/or a [command](#CodeAction.command).
 		 *
 		 * @param title The title of the code action.
 		 * @param kind The kind of the code action.
@@ -2053,13 +2053,14 @@ declare module 'vscode' {
 		 * Provide commands for the given document and range.
 		 *
 		 * @param document The document in which the command was invoked.
-		 * @param range The range for which the command was invoked.
+		 * @param range The selector or range for which the command was invoked. This will always be a selection if
+		 * there is a currently active editor.
 		 * @param context Context carrying additional information.
 		 * @param token A cancellation token.
 		 * @return An array of commands, quick fixes, or refactorings or a thenable of such. The lack of a result can be
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideCodeActions(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | CodeAction)[]>;
+		provideCodeActions(document: TextDocument, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | CodeAction)[]>;
 	}
 
 	/**
@@ -3395,15 +3396,21 @@ declare module 'vscode' {
 		provideColorPresentations(color: Color, context: { document: TextDocument, range: Range }, token: CancellationToken): ProviderResult<ColorPresentation[]>;
 	}
 
+	/**
+	 * A line based folding range. To be valid, start and end line must a zero or larger and smaller than the number of lines in the document.
+	 * Invalid ranges will be ignored.
+	 */
 	export class FoldingRange {
 
 		/**
 		 * The zero-based start line of the range to fold. The folded area starts after the line's last character.
+		 * To be valid, the end must be zero or larger and smaller than the number of lines in the document.
 		 */
 		start: number;
 
 		/**
 		 * The zero-based end line of the range to fold. The folded area ends with the line's last character.
+		 * To be valid, the end must be zero or larger and smaller than the number of lines in the document.
 		 */
 		end: number;
 
@@ -3411,7 +3418,7 @@ declare module 'vscode' {
 		 * Describes the [Kind](#FoldingRangeKind) of the folding range such as [Comment](#FoldingRangeKind.Comment) or
 		 * [Region](#FoldingRangeKind.Region). The kind is used to categorize folding ranges and used by commands
 		 * like 'Fold all comments'. See
-		 * [FoldingRangeKind](#FoldingRangeKind) for an enumeration of standardized kinds.
+		 * [FoldingRangeKind](#FoldingRangeKind) for an enumeration of all kinds.
 		 */
 		kind?: FoldingRangeKind;
 
@@ -3425,30 +3432,22 @@ declare module 'vscode' {
 		constructor(start: number, end: number, kind?: FoldingRangeKind);
 	}
 
-	export class FoldingRangeKind {
+	/**
+	 * An enumeration of all folding range kinds. The kind is used to categorize folding ranges.
+	 */
+	export enum FoldingRangeKind {
 		/**
-		 * Kind for folding range representing a comment. The value of the kind is 'comment'.
+		 * Kind for folding range representing a comment.
 		 */
-		static readonly Comment: FoldingRangeKind;
+		Comment = 1,
 		/**
-		 * Kind for folding range representing a import. The value of the kind is 'imports'.
+		 * Kind for folding range representing a import.
 		 */
-		static readonly Imports: FoldingRangeKind;
+		Imports = 2,
 		/**
 		 * Kind for folding range representing regions (for example a folding range marked by `#region` and `#endregion`).
-		 * The value of the kind is 'region'.
 		 */
-		static readonly Region: FoldingRangeKind;
-		/**
-		 * String value of the kind, e.g. `comment`.
-		 */
-		readonly value: string;
-		/**
-		 * Creates a new [FoldingRangeKind](#FoldingRangeKind).
-		 *
-		 * @param value of the kind.
-		 */
-		public constructor(value: string);
+		Region = 3
 	}
 
 	/**
@@ -3457,6 +3456,10 @@ declare module 'vscode' {
 	export interface FoldingContext {
 	}
 
+	/**
+	 * The folding range provider interface defines the contract between extensions and
+	 * [Folding](https://code.visualstudio.com/docs/editor/codebasics#_folding) in the editor.
+	 */
 	export interface FoldingRangeProvider {
 		/**
 		 * Returns a list of folding ranges or null and undefined if the provider
@@ -4819,7 +4822,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Enumeration of file types.
+	 * Enumeration of file types. The types `File` and `Directory` can also be
+	 * a symbolic links, in that use `FileType.File | FileType.SymbolicLink` and
+	 * `FileType.Directory | FileType.SymbolicLink`.
 	 */
 	export enum FileType {
 		/**
@@ -4841,7 +4846,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The `FileStat`-type represents metadata about a file.
+	 * The `FileStat`-type represents metadata about a file
 	 */
 	export interface FileStat {
 		/**
@@ -4901,6 +4906,13 @@ declare module 'vscode' {
 		 * @param messageOrUri Message or uri.
 		 */
 		static NoPermissions(messageOrUri?: string | Uri): FileSystemError;
+
+		/**
+		 * Create an error to signal that the file system is unavailable or too busy to
+		 * complete a request.
+		 * @param messageOrUri Message or uri.
+		 */
+		static Unavailable(messageOrUri?: string | Uri): FileSystemError;
 
 		/**
 		 * Creates a new filesystem error.
@@ -4983,6 +4995,10 @@ declare module 'vscode' {
 
 		/**
 		 * Retrieve metadata about a file.
+		 *
+		 * Note that the metadata for symbolic links should be the metadata of the file they refer to.
+		 * Still, the [SymbolicLink](#FileType.SymbolicLink)-type must be used in addition to the actual type, e.g.
+		 * `FileType.SymbolicLink | FileType.Directory`.
 		 *
 		 * @param uri The uri of the file to retrieve metadata about.
 		 * @return The file metadata about the file.
@@ -6908,13 +6924,16 @@ declare module 'vscode' {
 		/**
 		 * Register a folding range provider.
 		 *
-		 * Multiple folding can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the best-matching provider is used. Failure
-		 * of the selected provider will cause a failure of the whole operation.
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged.
+		 * If multiple folding ranges start at the same position, only the range of the first registered provider is used.
+		 * If a folding range overlaps with an other range that has a smaller position, it is also ignored.
+		 *
+		 * A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A folding range provider.
-		 * @param metadata Metadata about the kind of code actions the provider providers.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerFoldingRangeProvider(selector: DocumentSelector, provider: FoldingRangeProvider): Disposable;

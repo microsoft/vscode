@@ -14,7 +14,7 @@ import { IEditorService } from 'vs/platform/editor/common/editor';
 import { Range } from 'vs/editor/common/core/range';
 import { registerEditorAction, IActionOptions, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { Location } from 'vs/editor/common/modes';
-import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from './goToDeclaration';
+import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from './goToDefinition';
 import { ReferencesController } from 'vs/editor/contrib/referenceSearch/referencesController';
 import { ReferencesModel } from 'vs/editor/contrib/referenceSearch/referencesModel';
 import { PeekContext } from 'vs/editor/contrib/referenceSearch/peekViewWidget';
@@ -319,13 +319,13 @@ export class TypeDefinitionAction extends DefinitionAction {
 	}
 }
 
-export class GoToTypeDefintionAction extends TypeDefinitionAction {
+export class GoToTypeDefinitionAction extends TypeDefinitionAction {
 
 	public static readonly ID = 'editor.action.goToTypeDefinition';
 
 	constructor() {
 		super(new DefinitionActionConfig(), {
-			id: GoToTypeDefintionAction.ID,
+			id: GoToTypeDefinitionAction.ID,
 			label: nls.localize('actions.goToTypeDefinition.label', "Go to Type Definition"),
 			alias: 'Go to Type Definition',
 			precondition: ContextKeyExpr.and(
@@ -368,5 +368,5 @@ registerEditorAction(OpenDefinitionToSideAction);
 registerEditorAction(PeekDefinitionAction);
 registerEditorAction(GoToImplementationAction);
 registerEditorAction(PeekImplementationAction);
-registerEditorAction(GoToTypeDefintionAction);
+registerEditorAction(GoToTypeDefinitionAction);
 registerEditorAction(PeekTypeDefinitionAction);

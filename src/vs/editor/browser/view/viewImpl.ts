@@ -10,7 +10,7 @@ import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { Range } from 'vs/editor/common/core/range';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
-import { Configuration } from 'vs/editor/browser/config/configuration';
+import { IConfiguration } from 'vs/editor/common/editorCommon';
 import { TextAreaHandler, ITextAreaHandlerHelper } from 'vs/editor/browser/controller/textAreaHandler';
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
@@ -93,7 +93,7 @@ export class View extends ViewEventHandler {
 
 	constructor(
 		commandDelegate: ICommandDelegate,
-		configuration: Configuration,
+		configuration: IConfiguration,
 		themeService: IThemeService,
 		model: IViewModel,
 		cursor: Cursor,

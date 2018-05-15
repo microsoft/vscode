@@ -11,15 +11,18 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { CodeAction, CodeActionProviderRegistry } from 'vs/editor/common/modes';
+import { CodeAction, CodeActionProviderRegistry, CodeActionContext } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CodeActionFilter, CodeActionKind } from './codeActionTrigger';
+import { Selection } from 'vs/editor/common/core/selection';
 
-export function getCodeActions(model: ITextModel, range: Range, filter?: CodeActionFilter): TPromise<CodeAction[]> {
-	const codeActionContext = { only: filter && filter.kind ? filter.kind.value : undefined };
+export function getCodeActions(model: ITextModel, rangeOrSelection: Range | Selection, filter?: CodeActionFilter): TPromise<CodeAction[]> {
+	const codeActionContext: CodeActionContext = {
+		only: filter && filter.kind ? filter.kind.value : undefined,
+	};
 
 	const promises = CodeActionProviderRegistry.all(model).map(support => {
-		return asWinJsPromise(token => support.provideCodeActions(model, range, codeActionContext, token)).then(providedCodeActions => {
+		return asWinJsPromise(token => support.provideCodeActions(model, rangeOrSelection, codeActionContext, token)).then(providedCodeActions => {
 			if (!Array.isArray(providedCodeActions)) {
 				return [];
 			}
@@ -80,5 +83,5 @@ registerLanguageCommand('_executeCodeActionProvider', function (accessor, args) 
 		throw illegalArgument();
 	}
 
-	return getCodeActions(model, model.validateRange(range));
+	return getCodeActions(model, model.validateRange(range), undefined);
 });

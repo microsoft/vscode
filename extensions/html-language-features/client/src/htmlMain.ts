@@ -14,7 +14,7 @@ import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
-import { FoldingRangeRequest, FoldingRangeRequestParam, FoldingRangeClientCapabilities } from 'vscode-languageserver-protocol-foldingprovider';
+import { FoldingRangeRequest, FoldingRangeRequestParam, FoldingRangeClientCapabilities, FoldingRangeKind as LSFoldingRangeKind } from 'vscode-languageserver-protocol-foldingprovider';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
@@ -47,14 +47,7 @@ export function activate(context: ExtensionContext) {
 		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
 	};
 
-	let documentSelector = [
-		{ language: 'html', scheme: 'file' },
-		{ language: 'html', scheme: 'untitled' },
-		{ language: 'handlebars', scheme: 'file' },
-		{ language: 'handlebars', scheme: 'untitled' },
-		{ language: 'razor', scheme: 'file' },
-		{ language: 'razor', scheme: 'untitled' }
-	];
+	let documentSelector = ['html', 'handlebars', 'razor'];
 	let embeddedLanguages = { css: true, javascript: true };
 
 	// Options to control the language client
@@ -181,17 +174,18 @@ export function activate(context: ExtensionContext) {
 	});
 
 	function initFoldingProvider(): Disposable {
-		const kinds: { [value: string]: FoldingRangeKind } = Object.create(null);
-		function getKind(value: string | undefined) {
-			if (!value) {
-				return void 0;
+		function getKind(kind: string | undefined): FoldingRangeKind | undefined {
+			if (kind) {
+				switch (kind) {
+					case LSFoldingRangeKind.Comment:
+						return FoldingRangeKind.Comment;
+					case LSFoldingRangeKind.Imports:
+						return FoldingRangeKind.Imports;
+					case LSFoldingRangeKind.Region:
+						return FoldingRangeKind.Region;
+				}
 			}
-			let kind = kinds[value];
-			if (!kind) {
-				kind = new FoldingRangeKind(value);
-				kinds[value] = kind;
-			}
-			return kind;
+			return void 0;
 		}
 		return languages.registerFoldingRangeProvider(documentSelector, {
 			provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken) {

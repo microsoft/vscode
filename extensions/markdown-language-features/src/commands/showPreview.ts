@@ -80,7 +80,7 @@ export class ShowPreviewCommand implements Command {
 	) { }
 
 	public execute(mainUri?: vscode.Uri, allUris?: vscode.Uri[], previewSettings?: PreviewSettings) {
-		for (const uri of (allUris || [mainUri])) {
+		for (const uri of Array.isArray(allUris) ? allUris : [mainUri]) {
 			showPreview(this.webviewManager, this.telemetryReporter, uri, {
 				sideBySide: false,
 				locked: previewSettings && previewSettings.locked

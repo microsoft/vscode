@@ -10,6 +10,11 @@
 	"configNotFound": "'{0}' puede no resolverse porque la configuración '{1}' no fué encontrada. ",
 	"configNoString": "'{0}' puede no resolverse porque '{1}' es un valor estructurado.",
 	"missingConfigName": "'{0}' no puede resolverse porque no tiene asignado un nombre de configuración . ",
+	"noValueForCommand": "{0} ' no se puede resolver porque el comando no tiene ningún valor.",
+	"canNotFindFolder": "' {0} ' no se puede resolver. No existe la carpeta ' {1} '.",
 	"canNotResolveWorkspaceFolderMultiRoot": "'{0}' no puede ser resuelto en un espacio de trabajo multicarpeta. Defina el alcance de esta variable utilizando ':' y un nombre de carpeta del espacio de trabajo. ",
-	"canNotResolveWorkspaceFolder": "'{0}' no puede ser resuelto. Por favor, abra una carpeta."
+	"canNotResolveWorkspaceFolder": "'{0}' no puede ser resuelto. Por favor, abra una carpeta.",
+	"canNotResolveFile": "'{0}' no puede resolver. Por favor, abra un editor.",
+	"canNotResolveLineNumber": "' {0} ' no se puede resolver. Asegúrese de tener una línea seleccionada en el editor activo.",
+	"canNotResolveSelectedText": "' {0} ' no se puede resolver. Asegúrese de tener un texto seleccionado en el editor activo."
 }

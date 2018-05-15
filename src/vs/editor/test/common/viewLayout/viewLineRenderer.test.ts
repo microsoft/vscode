@@ -30,6 +30,7 @@ suite('viewLineRenderer.renderLine', () => {
 		let _actual = renderViewLine(new RenderLineInput(
 			false,
 			lineContent,
+			false,
 			strings.isBasicASCII(lineContent),
 			false,
 			0,
@@ -77,6 +78,7 @@ suite('viewLineRenderer.renderLine', () => {
 		let _actual = renderViewLine(new RenderLineInput(
 			false,
 			lineContent,
+			false,
 			true,
 			false,
 			0,
@@ -114,6 +116,7 @@ suite('viewLineRenderer.renderLine', () => {
 		let _actual = renderViewLine(new RenderLineInput(
 			false,
 			'Hello world!',
+			false,
 			true,
 			false,
 			0,
@@ -216,6 +219,7 @@ suite('viewLineRenderer.renderLine', () => {
 		let _actual = renderViewLine(new RenderLineInput(
 			false,
 			lineText,
+			false,
 			true,
 			false,
 			0,
@@ -276,6 +280,7 @@ suite('viewLineRenderer.renderLine', () => {
 		let _actual = renderViewLine(new RenderLineInput(
 			false,
 			lineText,
+			false,
 			true,
 			false,
 			0,
@@ -336,6 +341,7 @@ suite('viewLineRenderer.renderLine', () => {
 		let _actual = renderViewLine(new RenderLineInput(
 			false,
 			lineText,
+			false,
 			true,
 			false,
 			0,
@@ -374,6 +380,7 @@ suite('viewLineRenderer.renderLine', () => {
 			false,
 			lineText,
 			false,
+			false,
 			true,
 			0,
 			lineParts,
@@ -401,6 +408,7 @@ suite('viewLineRenderer.renderLine', () => {
 			let actual = renderViewLine(new RenderLineInput(
 				false,
 				lineText,
+				false,
 				true,
 				false,
 				0,
@@ -499,6 +507,7 @@ suite('viewLineRenderer.renderLine', () => {
 			let actual = renderViewLine(new RenderLineInput(
 				false,
 				lineText,
+				false,
 				true,
 				false,
 				0,
@@ -535,6 +544,7 @@ suite('viewLineRenderer.renderLine', () => {
 			lineText,
 			false,
 			false,
+			false,
 			0,
 			lineParts,
 			[],
@@ -560,6 +570,7 @@ suite('viewLineRenderer.renderLine', () => {
 		let actual = renderViewLine(new RenderLineInput(
 			false,
 			lineText,
+			false,
 			false,
 			true,
 			0,
@@ -604,6 +615,7 @@ suite('viewLineRenderer.renderLine', () => {
 		let _actual = renderViewLine(new RenderLineInput(
 			true,
 			lineText,
+			false,
 			true,
 			false,
 			4,
@@ -685,6 +697,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		let actual = renderViewLine(new RenderLineInput(
 			fontIsMonospace,
 			lineContent,
+			false,
 			true,
 			false,
 			fauxIndentLength,
@@ -708,6 +721,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		let actual = renderViewLine(new RenderLineInput(
 			false,
 			lineContent,
+			false,
 			true,
 			false,
 			0,
@@ -737,6 +751,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		let actual = renderViewLine(new RenderLineInput(
 			true,
 			lineContent,
+			false,
 			true,
 			false,
 			0,
@@ -891,9 +906,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 				'<span class="vs-whitespace" style="width:20px">\u00b7\u00b7</span>',
 				'<span class="mtk2">He</span>',
 				'<span class="mtk3">llo\u00a0world!</span>',
-				'<span class="vs-whitespace" style="width:20px">\u00b7\u2192</span>',
+				'<span class="vs-whitespace" style="width:20px">\u00b7\uffeb</span>',
 				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\u2192\u00a0</span>',
-				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\u00b7\u2192</span>',
+				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\u00b7\uffeb</span>',
 				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
 				'</span>',
 			].join('')
@@ -917,9 +932,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 				'<span class="vs-whitespace" style="width:20px">\u00b7\u00b7</span>',
 				'<span class="mtk2">He</span>',
 				'<span class="mtk3">llo\u00a0world!</span>',
-				'<span class="vs-whitespace" style="width:20px">\u00b7\u2192</span>',
+				'<span class="vs-whitespace" style="width:20px">\u00b7\uffeb</span>',
 				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\u2192\u00a0</span>',
-				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\u00b7\u2192</span>',
+				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\u00b7\uffeb</span>',
 				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
 				'</span>',
 			].join('')
@@ -943,7 +958,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 				'<span class="vs-whitespace">\u00b7\u00b7</span>',
 				'<span class="mtk2">He</span>',
 				'<span class="mtk3">llo\u00a0world!</span>',
-				'<span class="vs-whitespace">\u00b7\u2192\u00b7\u00b7\u2192\u00a0\u00b7\u00b7\u00b7\u2192\u00b7\u00b7\u00b7\u00b7</span>',
+				'<span class="vs-whitespace">\u00b7\uffeb\u00b7\u00b7\u2192\u00a0\u00b7\u00b7\u00b7\uffeb\u00b7\u00b7\u00b7\u00b7</span>',
 				'</span>',
 			].join('')
 		);
@@ -1002,6 +1017,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		let actual = renderViewLine(new RenderLineInput(
 			false,
 			'Hello world',
+			false,
 			true,
 			false,
 			0,
@@ -1044,6 +1060,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		let actual = renderViewLine(new RenderLineInput(
 			false,
 			lineContent,
+			false,
 			true,
 			false,
 			0,
@@ -1074,6 +1091,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		let actual = renderViewLine(new RenderLineInput(
 			false,
 			lineContent,
+			false,
 			true,
 			false,
 			0,
@@ -1105,6 +1123,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		let actual = renderViewLine(new RenderLineInput(
 			false,
 			lineContent,
+			false,
 			true,
 			false,
 			0,
@@ -1134,6 +1153,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'  1. 🙏',
 			false,
 			false,
+			false,
 			0,
 			createViewLineTokens([createPart(7, 3)]),
 			[new LineDecoration(7, 8, 'inline-folded', InlineDecorationType.After)],
@@ -1160,6 +1180,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		let actual = renderViewLine(new RenderLineInput(
 			true,
 			'',
+			false,
 			true,
 			false,
 			0,
@@ -1190,6 +1211,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		let actual = renderViewLine(new RenderLineInput(
 			true,
 			'\t}',
+			false,
 			true,
 			false,
 			0,
@@ -1223,6 +1245,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'asd = "擦"\t\t#asd',
 			false,
 			false,
+			false,
 			0,
 			createViewLineTokens([createPart(15, 3)]),
 			[],
@@ -1248,6 +1271,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		let actual = renderViewLine(new RenderLineInput(
 			true,
 			'asd = "擦"\t\t#asd',
+			false,
 			false,
 			false,
 			0,
@@ -1283,6 +1307,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'12345689012345678901234568901234567890123456890abába',
 			false,
 			false,
+			false,
 			0,
 			createViewLineTokens([createPart(53, 3)]),
 			[],
@@ -1308,6 +1333,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		let actual = renderViewLine(new RenderLineInput(
 			true,
 			' JoyShareல் பின்தொடர்ந்து, விடீயோ, ஜோக்குகள், அனிமேசன், நகைச்சுவை படங்கள் மற்றும் செய்திகளை பெறுவீர்',
+			false,
 			false,
 			false,
 			0,
@@ -1341,6 +1367,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			' वो ऐसा क्या है जो हमारे अंदर भी है और बाहर भी है। जिसकी वजह से हम सब हैं। जिसने इस सृष्टि की रचना की है।',
 			false,
 			false,
+			false,
 			0,
 			createViewLineTokens([createPart(105, 3)]),
 			[],
@@ -1361,10 +1388,38 @@ suite('viewLineRenderer.renderLine 2', () => {
 		assert.deepEqual(actual.html, expected);
 	});
 
+	test('issue #38123: editor.renderWhitespace: "boundary" renders whitespace at line wrap point when line is wrapped', () => {
+		let actual = renderViewLine(new RenderLineInput(
+			true,
+			'This is a long line which never uses more than two spaces. ',
+			true,
+			true,
+			false,
+			0,
+			createViewLineTokens([createPart(59, 3)]),
+			[],
+			4,
+			10,
+			10000,
+			'boundary',
+			false,
+			false
+		));
+
+		let expected = [
+			'<span>',
+			'<span class="mtk3">This\u00a0is\u00a0a\u00a0long\u00a0line\u00a0which\u00a0never\u00a0uses\u00a0more\u00a0than\u00a0two</span><span class="mtk3">\u00a0spaces.</span><span class="mtk3">\u00a0</span>',
+			'</span>'
+		].join('');
+
+		assert.deepEqual(actual.html, expected);
+	});
+
 	function createTestGetColumnOfLinePartOffset(lineContent: string, tabSize: number, parts: ViewLineToken[], expectedPartLengths: number[]): (partIndex: number, partLength: number, offset: number, expected: number) => void {
 		let renderLineOutput = renderViewLine(new RenderLineInput(
 			false,
 			lineContent,
+			false,
 			true,
 			false,
 			0,

@@ -10,6 +10,7 @@
 	"copyMatchLabel": "Másolás",
 	"copyPathLabel": "Elérési út másolása",
 	"copyAllLabel": "Összes másolása",
+	"clearSearchHistoryLabel": "Keresési előzmények törlése",
 	"toggleSearchViewPositionLabel": "Keresőnézet helyzetének váltása",
 	"findInFolder": "Keresés mappában...",
 	"findInWorkspace": "Keresés a munkaterületen...",

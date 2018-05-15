@@ -11,7 +11,7 @@ import * as dom from 'vs/base/browser/dom';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
+import { IPickOpenEntry } from 'vs/platform/quickinput/common/quickInput';
 import { IMatch } from 'vs/base/common/filters';
 import { matchesFuzzyOcticonAware, parseOcticons } from 'vs/base/common/octicon';
 import { compareAnything } from 'vs/base/common/comparers';
@@ -24,23 +24,25 @@ import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlighte
 import { memoize } from 'vs/base/common/decorators';
 import { range } from 'vs/base/common/arrays';
 import * as platform from 'vs/base/common/platform';
+import { listFocusBackground } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 const $ = dom.$;
 
-interface ICheckableElement {
+interface IListElement {
 	index: number;
 	item: IPickOpenEntry;
-	checked: boolean;
+	checked?: boolean;
 }
 
-class CheckableElement implements ICheckableElement {
+class ListElement implements IListElement {
 	index: number;
 	item: IPickOpenEntry;
 	shouldAlwaysShow = false;
 	hidden = false;
 	private _onChecked = new Emitter<boolean>();
 	onChecked = this._onChecked.event;
-	_checked: boolean;
+	_checked?: boolean;
 	get checked() {
 		return this._checked;
 	}
@@ -54,62 +56,68 @@ class CheckableElement implements ICheckableElement {
 	descriptionHighlights?: IMatch[];
 	detailHighlights?: IMatch[];
 
-	constructor(init: ICheckableElement) {
+	constructor(init: IListElement) {
 		assign(this, init);
 	}
 }
 
-interface ICheckableElementTemplateData {
+interface IListElementTemplateData {
 	checkbox: HTMLInputElement;
 	label: IconLabel;
 	detail: HighlightedLabel;
-	element: CheckableElement;
+	element: ListElement;
 	toDisposeElement: IDisposable[];
 	toDisposeTemplate: IDisposable[];
 }
 
-class CheckableElementRenderer implements IRenderer<CheckableElement, ICheckableElementTemplateData> {
+class ListElementRenderer implements IRenderer<ListElement, IListElementTemplateData> {
 
-	static readonly ID = 'checkableelement';
+	static readonly ID = 'listelement';
 
 	get templateId() {
-		return CheckableElementRenderer.ID;
+		return ListElementRenderer.ID;
 	}
 
-	renderTemplate(container: HTMLElement): ICheckableElementTemplateData {
-		const data: ICheckableElementTemplateData = Object.create(null);
-
-		const entry = dom.append(container, $('.quick-input-checkbox-list-entry'));
-		const label = dom.append(entry, $('label.quick-input-checkbox-list-label'));
-
-		// Entry
-		data.checkbox = <HTMLInputElement>dom.append(label, $('input.quick-input-checkbox-list-checkbox'));
-		data.checkbox.type = 'checkbox';
+	renderTemplate(container: HTMLElement): IListElementTemplateData {
+		const data: IListElementTemplateData = Object.create(null);
 		data.toDisposeElement = [];
 		data.toDisposeTemplate = [];
+
+		const entry = dom.append(container, $('.quick-input-list-entry'));
+
+		// Checkbox
+		const label = dom.append(entry, $('label.quick-input-list-label'));
+		data.checkbox = <HTMLInputElement>dom.append(label, $('input.quick-input-list-checkbox'));
+		data.checkbox.type = 'checkbox';
 		data.toDisposeTemplate.push(dom.addStandardDisposableListener(data.checkbox, dom.EventType.CHANGE, e => {
 			data.element.checked = data.checkbox.checked;
 		}));
 
-		const rows = dom.append(label, $('.quick-input-checkbox-list-rows'));
-		const row1 = dom.append(rows, $('.quick-input-checkbox-list-row'));
-		const row2 = dom.append(rows, $('.quick-input-checkbox-list-row'));
+		// Rows
+		const rows = dom.append(label, $('.quick-input-list-rows'));
+		const row1 = dom.append(rows, $('.quick-input-list-row'));
+		const row2 = dom.append(rows, $('.quick-input-list-row'));
 
 		// Label
 		data.label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true });
 
 		// Detail
-		const detailContainer = dom.append(row2, $('.quick-input-checkbox-list-label-meta'));
+		const detailContainer = dom.append(row2, $('.quick-input-list-label-meta'));
 		data.detail = new HighlightedLabel(detailContainer);
 
 		return data;
 	}
 
-	renderElement(element: CheckableElement, index: number, data: ICheckableElementTemplateData): void {
+	renderElement(element: ListElement, index: number, data: IListElementTemplateData): void {
 		data.toDisposeElement = dispose(data.toDisposeElement);
 		data.element = element;
-		data.checkbox.checked = element.checked;
-		data.toDisposeElement.push(element.onChecked(checked => data.checkbox.checked = checked));
+		if (element.checked === undefined) {
+			data.checkbox.style.display = 'none';
+		} else {
+			data.checkbox.style.display = '';
+			data.checkbox.checked = element.checked;
+			data.toDisposeElement.push(element.onChecked(checked => data.checkbox.checked = checked));
+		}
 
 		const { labelHighlights, descriptionHighlights, detailHighlights } = element;
 
@@ -124,28 +132,28 @@ class CheckableElementRenderer implements IRenderer<CheckableElement, ICheckable
 		data.detail.set(element.item.detail, detailHighlights);
 	}
 
-	disposeTemplate(data: ICheckableElementTemplateData): void {
+	disposeTemplate(data: IListElementTemplateData): void {
 		data.toDisposeElement = dispose(data.toDisposeElement);
 		data.toDisposeTemplate = dispose(data.toDisposeTemplate);
 	}
 }
 
-class CheckableElementDelegate implements IDelegate<CheckableElement> {
+class ListElementDelegate implements IDelegate<ListElement> {
 
-	getHeight(element: CheckableElement): number {
+	getHeight(element: ListElement): number {
 		return element.item.detail ? 44 : 22;
 	}
 
-	getTemplateId(element: CheckableElement): string {
-		return CheckableElementRenderer.ID;
+	getTemplateId(element: ListElement): string {
+		return ListElementRenderer.ID;
 	}
 }
 
-export class QuickInputCheckboxList {
+export class QuickInputList {
 
 	private container: HTMLElement;
-	private list: WorkbenchList<CheckableElement>;
-	private elements: CheckableElement[] = [];
+	private list: WorkbenchList<ListElement>;
+	private elements: ListElement[] = [];
 	matchOnDescription = false;
 	matchOnDetail = false;
 	private _onAllVisibleCheckedChanged = new Emitter<boolean>(); // TODO: Debounce
@@ -162,12 +170,12 @@ export class QuickInputCheckboxList {
 		private parent: HTMLElement,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		this.container = dom.append(this.parent, $('.quick-input-checkbox-list'));
-		const delegate = new CheckableElementDelegate();
-		this.list = this.instantiationService.createInstance(WorkbenchList, this.container, delegate, [new CheckableElementRenderer()], {
+		this.container = dom.append(this.parent, $('.quick-input-list'));
+		const delegate = new ListElementDelegate();
+		this.list = this.instantiationService.createInstance(WorkbenchList, this.container, delegate, [new ListElementRenderer()], {
 			identityProvider: element => element.label,
 			multipleSelectionSupport: false
-		}) as WorkbenchList<CheckableElement>;
+		}) as WorkbenchList<ListElement>;
 		this.disposables.push(this.list);
 		this.disposables.push(this.list.onKeyDown(e => {
 			const event = new StandardKeyboardEvent(e);
@@ -211,11 +219,16 @@ export class QuickInputCheckboxList {
 		return mapEvent(this.list.onFocusChange, e => e.elements.map(e => e.item));
 	}
 
+	@memoize
+	get onSelectionChange() {
+		return mapEvent(this.list.onSelectionChange, e => e.elements.map(e => e.item));
+	}
+
 	getAllVisibleChecked() {
 		return this.allVisibleChecked(this.elements, false);
 	}
 
-	private allVisibleChecked(elements: CheckableElement[], whenNoneVisible = true) {
+	private allVisibleChecked(elements: ListElement[], whenNoneVisible = true) {
 		for (let i = 0, n = elements.length; i < n; i++) {
 			const element = elements[i];
 			if (!element.hidden) {
@@ -254,14 +267,16 @@ export class QuickInputCheckboxList {
 		}
 	}
 
-	setElements(elements: IPickOpenEntry[]): void {
+	setElements(elements: IPickOpenEntry[], canCheck = false): void {
 		this.elementDisposables = dispose(this.elementDisposables);
-		this.elements = elements.map((item, index) => new CheckableElement({
+		this.elements = elements.map((item, index) => new ListElement({
 			index,
 			item,
-			checked: !!item.picked
+			checked: canCheck ? !!item.picked : undefined
 		}));
-		this.elementDisposables.push(...this.elements.map(element => element.onChecked(() => this.fireCheckedEvents())));
+		if (canCheck) {
+			this.elementDisposables.push(...this.elements.map(element => element.onChecked(() => this.fireCheckedEvents())));
+		}
 		this.list.splice(0, this.list.length, this.elements);
 		this.list.setFocus([]);
 	}
@@ -271,7 +286,23 @@ export class QuickInputCheckboxList {
 			.map(e => e.item);
 	}
 
+	getFocusedElements() {
+		return this.list.getFocusedElements()
+			.map(e => e.item);
+	}
+
 	focus(what: 'First' | 'Last' | 'Next' | 'Previous' | 'NextPage' | 'PreviousPage'): void {
+		if (!this.list.length) {
+			return;
+		}
+
+		if (what === 'Next' && this.list.getFocus()[0] === this.list.length - 1) {
+			what = 'First';
+		}
+		if (what === 'Previous' && this.list.getFocus()[0] === 0) {
+			what = 'Last';
+		}
+
 		this.list['focus' + what]();
 		this.list.reveal(this.list.getFocus()[0]);
 	}
@@ -322,16 +353,18 @@ export class QuickInputCheckboxList {
 			});
 		}
 
+		const shownElements = this.elements.filter(element => !element.hidden);
+
 		// Sort by value
 		const normalizedSearchValue = query.toLowerCase();
-		this.elements.sort((a, b) => {
+		shownElements.sort((a, b) => {
 			if (!query) {
 				return a.index - b.index; // restore natural order
 			}
 			return compareEntries(a, b, normalizedSearchValue);
 		});
 
-		this.list.splice(0, this.list.length, this.elements.filter(element => !element.hidden));
+		this.list.splice(0, this.list.length, shownElements);
 		this.list.setFocus([]);
 		this.list.layout();
 
@@ -353,7 +386,7 @@ export class QuickInputCheckboxList {
 	}
 
 	display(display: boolean) {
-		this.container.style.display = display ? null : 'none';
+		this.container.style.display = display ? '' : 'none';
 	}
 
 	isDisplayed() {
@@ -373,7 +406,7 @@ export class QuickInputCheckboxList {
 	}
 }
 
-function compareEntries(elementA: CheckableElement, elementB: CheckableElement, lookFor: string): number {
+function compareEntries(elementA: ListElement, elementB: ListElement, lookFor: string): number {
 
 	const labelHighlightsA = elementA.labelHighlights || [];
 	const labelHighlightsB = elementB.labelHighlights || [];
@@ -387,3 +420,12 @@ function compareEntries(elementA: CheckableElement, elementB: CheckableElement, 
 
 	return compareAnything(elementA.item.label, elementB.item.label, lookFor);
 }
+
+registerThemingParticipant((theme, collector) => {
+	// Override inactive focus background with active focus background for single-pick case.
+	const listInactiveFocusBackground = theme.getColor(listFocusBackground);
+	if (listInactiveFocusBackground) {
+		collector.addRule(`.quick-input-list .monaco-list .monaco-list-row.focused { background-color:  ${listInactiveFocusBackground}; }`);
+		collector.addRule(`.quick-input-list .monaco-list .monaco-list-row.focused:hover { background-color:  ${listInactiveFocusBackground}; }`);
+	}
+});

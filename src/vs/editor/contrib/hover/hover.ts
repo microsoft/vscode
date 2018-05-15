@@ -90,7 +90,7 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 	private _onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
 		this._isMouseDown = true;
 
-		var targetType = mouseEvent.target.type;
+		const targetType = mouseEvent.target.type;
 
 		if (targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ModesContentHoverWidget.ID) {
 			this._hoverClicked = true;
@@ -116,18 +116,18 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
 		let targetType = mouseEvent.target.type;
-		let stopKey = platform.isMacintosh ? 'metaKey' : 'ctrlKey';
+		const hasStopKey = (platform.isMacintosh ? mouseEvent.event.metaKey : mouseEvent.event.ctrlKey);
 
 		if (this._isMouseDown && this._hoverClicked && this.contentWidget.isColorPickerVisible()) {
 			return;
 		}
 
-		if (targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ModesContentHoverWidget.ID && !mouseEvent.event[stopKey]) {
+		if (targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ModesContentHoverWidget.ID && !hasStopKey) {
 			// mouse moved on top of content hover widget
 			return;
 		}
 
-		if (targetType === MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail === ModesGlyphHoverWidget.ID && !mouseEvent.event[stopKey]) {
+		if (targetType === MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail === ModesGlyphHoverWidget.ID && !hasStopKey) {
 			// mouse moved on top of overlay hover widget
 			return;
 		}

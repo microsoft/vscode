@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./goToDeclarationMouse';
+import 'vs/css!./goToDefinitionMouse';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import * as browser from 'vs/base/browser/browser';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';

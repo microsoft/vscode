@@ -36,6 +36,8 @@
 	"view location": "Dove",
 	"localizations": "Localizzazioni ({0})",
 	"localizations language id": "ID lingua",
+	"localizations language name": "Nome della lingua",
+	"localizations localized language name": "Nome della lingua (localizzato)",
 	"colorThemes": "Temi colore ({0})",
 	"iconThemes": "Temi icona ({0})",
 	"colors": "Colori ({0})",

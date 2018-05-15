@@ -338,7 +338,7 @@ export function uniqueFilter<T>(keyFn: (t: T) => string): (t: T) => boolean {
 	};
 }
 
-export function firstIndex<T>(array: T[], fn: (item: T) => boolean): number {
+export function firstIndex<T>(array: T[] | ReadonlyArray<T>, fn: (item: T) => boolean): number {
 	for (let i = 0; i < array.length; i++) {
 		const element = array[i];
 
@@ -350,7 +350,7 @@ export function firstIndex<T>(array: T[], fn: (item: T) => boolean): number {
 	return -1;
 }
 
-export function first<T>(array: T[], fn: (item: T) => boolean, notFoundValue: T = null): T {
+export function first<T>(array: T[] | ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T = null): T {
 	const index = firstIndex(array, fn);
 	return index < 0 ? notFoundValue : array[index];
 }

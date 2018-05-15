@@ -35,7 +35,7 @@ export class ExtensionHostProfiler {
 	private distill(profile: Profile, extensions: IExtensionDescription[]): IExtensionHostProfile {
 		let searchTree = TernarySearchTree.forPaths<IExtensionDescription>();
 		for (let extension of extensions) {
-			searchTree.set(realpathSync(extension.extensionFolderPath), extension);
+			searchTree.set(realpathSync(extension.extensionLocation.fsPath), extension);
 		}
 
 		let nodes = profile.nodes;
@@ -82,7 +82,7 @@ export class ExtensionHostProfiler {
 		let distilledIds: ProfileSegmentId[] = [];
 
 		let currSegmentTime = 0;
-		let currSegmentId = void 0;
+		let currSegmentId: string = void 0;
 		for (let i = 0; i < samples.length; i++) {
 			let id = samples[i];
 			let segmentId = idsToSegmentId.get(id);

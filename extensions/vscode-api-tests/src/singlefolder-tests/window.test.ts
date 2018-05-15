@@ -119,6 +119,20 @@ suite('window namespace tests', () => {
 		});
 	});
 
+	test('active editor not always correct... #49125', async function () {
+		const [docA, docB] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+		]);
+		for (let c = 0; c < 4; c++) {
+			let editorA = await window.showTextDocument(docA, ViewColumn.One);
+			assert(window.activeTextEditor === editorA);
+
+			let editorB = await window.showTextDocument(docB, ViewColumn.Two);
+			assert(window.activeTextEditor === editorB);
+		}
+	});
+
 	test('issue #25801 - default column when opening a file', async () => {
 		const [docA, docB, docC] = await Promise.all([
 			workspace.openTextDocument(await createRandomFile()),
@@ -284,6 +298,44 @@ suite('window namespace tests', () => {
 	});
 
 
+	test('showQuickPick, accept first', async function () {
+		const pick = window.showQuickPick(['eins', 'zwei', 'drei']);
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		assert.equal(await pick, 'eins');
+	});
+
+	test('showQuickPick, accept second', async function () {
+		const resolves: ((value: string) => void)[] = [];
+		const first = new Promise(resolve => resolves.push(resolve));
+		const pick = window.showQuickPick(['eins', 'zwei', 'drei'], {
+			onDidSelectItem: item => resolves.shift()!(item as string)
+		});
+		assert.equal(await first, 'eins');
+		const second = new Promise(resolve => resolves.push(resolve));
+		await commands.executeCommand('workbench.action.quickOpenSelectNext');
+		assert.equal(await second, 'zwei');
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		assert.equal(await pick, 'zwei');
+	});
+
+	test('showQuickPick, select first two', async function () {
+		const resolves: ((value: string) => void)[] = [];
+		const picks = window.showQuickPick(['eins', 'zwei', 'drei'], {
+			onDidSelectItem: item => resolves.shift()!(item as string),
+			canPickMany: true
+		});
+		const first = new Promise(resolve => resolves.push(resolve));
+		await commands.executeCommand('workbench.action.quickOpenSelectNext');
+		assert.equal(await first, 'eins');
+		await commands.executeCommand('workbench.action.quickPickManyToggle');
+		const second = new Promise(resolve => resolves.push(resolve));
+		await commands.executeCommand('workbench.action.quickOpenSelectNext');
+		assert.equal(await second, 'zwei');
+		await commands.executeCommand('workbench.action.quickPickManyToggle');
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		assert.deepStrictEqual(await picks, ['eins', 'zwei']);
+	});
+
 	test('showQuickPick, undefined on cancel', function () {
 		const source = new CancellationTokenSource();
 		const p = window.showQuickPick(['eins', 'zwei', 'drei'], undefined, source.token);
@@ -351,6 +403,84 @@ suite('window namespace tests', () => {
 		});
 		const b = commands.executeCommand('workbench.action.closeQuickOpen');
 		return Promise.all([a, b]);
+	});
+
+	test('multiStepInput, two steps', async function () {
+		const picks = window.multiStepInput(async (input, token) => {
+			const pick1 = input.showQuickPick(['eins', 'zwei', 'drei']);
+			await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+			assert.equal(await pick1, 'eins');
+
+			const pick2 = input.showQuickPick(['vier', 'fünf', 'sechs']);
+			await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+			assert.equal(await pick2, 'vier');
+
+			return [ await pick1, await pick2 ];
+		});
+		assert.deepEqual(await picks, ['eins', 'vier']);
+	});
+
+	test('multiStepInput, interrupted by showQuickPick', async function () {
+		const picks = window.multiStepInput(async (input, token) => {
+			const pick1 = input.showQuickPick(['eins', 'zwei', 'drei']);
+			await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+			assert.equal(await pick1, 'eins');
+
+			assert.ok(!token.isCancellationRequested);
+			const otherPick = window.showQuickPick(['sieben', 'acht', 'neun']);
+			await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+			assert.equal(await otherPick, 'sieben');
+			assert.ok(token.isCancellationRequested);
+
+			const pick2 = input.showQuickPick(['vier', 'fünf', 'sechs']);
+			await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+			assert.equal(await pick2, undefined);
+
+			return [ await pick1, await pick2 ];
+		});
+		assert.deepEqual(await picks, ['eins', undefined]);
+	});
+
+	test('multiStepInput, interrupted by multiStepInput', async function () {
+		const picks = window.multiStepInput(async (input, token) => {
+			const pick1 = input.showQuickPick(['eins', 'zwei', 'drei']);
+			await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+			assert.equal(await pick1, 'eins');
+
+			assert.ok(!token.isCancellationRequested);
+			const otherPick = window.multiStepInput(async (input, token) => {
+				const otherPick = window.showQuickPick(['sieben', 'acht', 'neun']);
+				await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+				assert.equal(await otherPick, 'sieben');
+
+				return otherPick;
+			});
+			assert.equal(await otherPick, 'sieben');
+			assert.ok(token.isCancellationRequested);
+
+			const pick2 = input.showQuickPick(['vier', 'fünf', 'sechs']);
+			await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+			assert.equal(await pick2, undefined);
+
+			return [ await pick1, await pick2 ];
+		});
+		assert.deepEqual(await picks, ['eins', undefined]);
+	});
+
+	test('multiStepInput, interrupted by error', async function () {
+		try {
+			const picks = window.multiStepInput(async (input, token) => {
+				const pick1 = input.showQuickPick(['eins', 'zwei', 'drei']);
+				await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+				assert.equal(await pick1, 'eins');
+
+				throw new Error('because');
+			});
+			await picks;
+			assert.ok(false);
+		} catch (error) {
+			assert.equal(error.message, 'because');
+		}
 	});
 
 	test('showWorkspaceFolderPick', function () {

@@ -23,7 +23,7 @@ export interface IWebviewEditorService {
 		title: string,
 		showOptions: { viewColumn: Position, preserveFocus: boolean },
 		options: WebviewInputOptions,
-		extensionFolderPath: string,
+		extensionLocation: URI,
 		events: WebviewEvents
 	): WebviewEditorInput;
 
@@ -32,7 +32,7 @@ export interface IWebviewEditorService {
 		title: string,
 		state: any,
 		options: WebviewInputOptions,
-		extensionFolderPath: string
+		extensionLocation: URI
 	): WebviewEditorInput;
 
 	revealWebview(
@@ -75,7 +75,7 @@ export interface WebviewInputOptions extends vscode.WebviewOptions, vscode.Webvi
 export class WebviewEditorService implements IWebviewEditorService {
 	_serviceBrand: any;
 
-	private readonly _revivers = new Map<string, WebviewReviver>();
+	private readonly _revivers = new Map<string, WebviewReviver[]>();
 	private _awaitingRevival: { input: WebviewEditorInput, resolve: (x: any) => void }[] = [];
 
 	constructor(
@@ -89,10 +89,10 @@ export class WebviewEditorService implements IWebviewEditorService {
 		title: string,
 		showOptions: { viewColumn: Position, preserveFocus: boolean },
 		options: vscode.WebviewOptions,
-		extensionFolderPath: string,
+		extensionLocation: URI,
 		events: WebviewEvents
 	): WebviewEditorInput {
-		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, viewType, title, options, {}, events, extensionFolderPath, undefined);
+		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, viewType, title, options, {}, events, extensionLocation, undefined);
 		this._editorService.openEditor(webviewInput, { pinned: true, preserveFocus: showOptions.preserveFocus }, showOptions.viewColumn);
 		return webviewInput;
 	}
@@ -114,9 +114,9 @@ export class WebviewEditorService implements IWebviewEditorService {
 		title: string,
 		state: any,
 		options: WebviewInputOptions,
-		extensionFolderPath: string
+		extensionLocation: URI
 	): WebviewEditorInput {
-		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, viewType, title, options, state, {}, extensionFolderPath, {
+		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, viewType, title, options, state, {}, extensionLocation, {
 			canRevive: (webview) => {
 				return true;
 			},
@@ -141,10 +141,11 @@ export class WebviewEditorService implements IWebviewEditorService {
 		reviver: WebviewReviver
 	): IDisposable {
 		if (this._revivers.has(viewType)) {
-			throw new Error(`Reviver for '${viewType}' already registered`);
+			this._revivers.get(viewType).push(reviver);
+		} else {
+			this._revivers.set(viewType, [reviver]);
 		}
 
-		this._revivers.set(viewType, reviver);
 
 		// Resolve any pending views
 		const toRevive = this._awaitingRevival.filter(x => x.input.viewType === viewType);
@@ -163,18 +164,23 @@ export class WebviewEditorService implements IWebviewEditorService {
 		webview: WebviewEditorInput
 	): boolean {
 		const viewType = webview.viewType;
-		return this._revivers.has(viewType) && this._revivers.get(viewType).canRevive(webview);
+		return this._revivers.has(viewType) && this._revivers.get(viewType).some(reviver => reviver.canRevive(webview));
 	}
 
 	private async tryRevive(
 		webview: WebviewEditorInput
 	): TPromise<boolean> {
-		const reviver = this._revivers.get(webview.viewType);
-		if (!reviver) {
+		const revivers = this._revivers.get(webview.viewType);
+		if (!revivers) {
 			return false;
 		}
 
-		await reviver.reviveWebview(webview);
-		return true;
+		for (const reviver of revivers) {
+			if (reviver.canRevive(webview)) {
+				await reviver.reviveWebview(webview);
+				return true;
+			}
+		}
+		return false;
 	}
 }

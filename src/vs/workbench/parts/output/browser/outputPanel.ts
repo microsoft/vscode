@@ -49,6 +49,10 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		return OUTPUT_PANEL_ID;
 	}
 
+	public getTitle(): string {
+		return nls.localize('output', "Output");
+	}
+
 	public getActions(): IAction[] {
 		if (!this.actions) {
 			this.actions = [
@@ -109,7 +113,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 			// Dispose previous input (Output panel is not a workbench editor)
 			this.input.dispose();
 		}
-		return super.setInput(input, options).then(() => this.revealLastLine());
+		return super.setInput(input, options).then(() => this.revealLastLine(false));
 	}
 
 	public clearInput(): void {

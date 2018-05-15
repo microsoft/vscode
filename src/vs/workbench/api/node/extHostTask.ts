@@ -21,7 +21,7 @@ import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import * as vscode from 'vscode';
 import {
 	TaskDefinitionDTO, TaskExecutionDTO, TaskPresentationOptionsDTO, ProcessExecutionOptionsDTO, ProcessExecutionDTO,
-	ShellExecutionOptionsDTO, ShellExecutionDTO, TaskDTO, TaskHandleDTO, TaskFilterDTO
+	ShellExecutionOptionsDTO, ShellExecutionDTO, TaskDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO
 } from '../shared/tasks';
 
 export { TaskExecutionDTO };
@@ -689,21 +689,47 @@ namespace TaskFilterDTO {
 }
 
 class TaskExecutionImpl implements vscode.TaskExecution {
-	constructor(readonly _id: string, private readonly _task: vscode.Task, private readonly _tasks: ExtHostTask) {
+
+	private readonly _onDidTaskProcessStarted: Emitter<vscode.TaskProcessStartEvent> = new Emitter<vscode.TaskProcessStartEvent>();
+	private readonly _onDidTaskProcessEnded: Emitter<vscode.TaskProcessEndEvent> = new Emitter<vscode.TaskProcessEndEvent>();
+
+	constructor(private readonly _tasks: ExtHostTask, readonly _id: string, private readonly _task: vscode.Task) {
 	}
 
-	get task(): vscode.Task {
+	public get task(): vscode.Task {
 		return this._task;
 	}
 
 	public terminate(): void {
 		this._tasks.terminateTask(this);
 	}
+
+	public get onDidStartProcess(): Event<vscode.TaskProcessStartEvent> {
+		return this._onDidTaskProcessStarted.event;
+	}
+
+	public fireDidStartProcess(value: TaskProcessStartedDTO): void {
+		this._onDidTaskProcessStarted.fire({
+			execution: this,
+			processId: value.processId
+		});
+	}
+
+	public get onDidEndProcess(): Event<vscode.TaskProcessEndEvent> {
+		return this._onDidTaskProcessEnded.event;
+	}
+
+	public fireDidEndProcess(value: TaskProcessEndedDTO): void {
+		this._onDidTaskProcessEnded.fire({
+			execution: this,
+			exitCode: value.exitCode
+		});
+	}
 }
 
 namespace TaskExecutionDTO {
 	export function to(value: TaskExecutionDTO, tasks: ExtHostTask): vscode.TaskExecution {
-		return new TaskExecutionImpl(value.id, TaskDTO.to(value.task, tasks.extHostWorkspace), tasks);
+		return new TaskExecutionImpl(tasks, value.id, TaskDTO.to(value.task, tasks.extHostWorkspace));
 	}
 	export function from(value: vscode.TaskExecution): TaskExecutionDTO {
 		return {
@@ -781,10 +807,24 @@ export class ExtHostTask implements ExtHostTaskShape {
 		}
 	}
 
-	public $taskStarted(execution: TaskExecutionDTO): void {
+	public $onDidStartTask(execution: TaskExecutionDTO): void {
 		this._onDidExecuteTask.fire({
 			execution: this.getTaskExecution(execution)
 		});
+	}
+
+	public $onDidStartTaskProcess(value: TaskProcessStartedDTO): void {
+		const execution = this.getTaskExecution(value.id);
+		if (execution) {
+			execution.fireDidStartProcess(value);
+		}
+	}
+
+	public $onDidEndTaskProcess(value: TaskProcessEndedDTO): void {
+		const execution = this.getTaskExecution(value.id);
+		if (execution) {
+			execution.fireDidEndProcess(value);
+		}
 	}
 
 	get taskExecutions(): vscode.TaskExecution[] {
@@ -804,7 +844,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 		return this._proxy.$terminateTask((execution as TaskExecutionImpl)._id);
 	}
 
-	public $taskEnded(execution: TaskExecutionDTO): void {
+	public $OnDidEndTask(execution: TaskExecutionDTO): void {
 		const _execution = this.getTaskExecution(execution);
 		this._taskExecutions.delete(execution.id);
 		this._onDidTerminateTask.fire({
@@ -834,12 +874,16 @@ export class ExtHostTask implements ExtHostTaskShape {
 		return this._handleCounter++;
 	}
 
-	private getTaskExecution(execution: TaskExecutionDTO, task?: vscode.Task): TaskExecutionImpl {
+	private getTaskExecution(execution: TaskExecutionDTO | string, task?: vscode.Task): TaskExecutionImpl {
+		if (typeof execution === 'string') {
+			return this._taskExecutions.get(execution);
+		}
+
 		let result: TaskExecutionImpl = this._taskExecutions.get(execution.id);
 		if (result) {
 			return result;
 		}
-		result = new TaskExecutionImpl(execution.id, task ? task : TaskDTO.to(execution.task, this._extHostWorkspace), this);
+		result = new TaskExecutionImpl(this, execution.id, task ? task : TaskDTO.to(execution.task, this._extHostWorkspace));
 		this._taskExecutions.set(execution.id, result);
 		return result;
 	}

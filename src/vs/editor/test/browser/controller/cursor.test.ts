@@ -1214,6 +1214,25 @@ suite('Editor Controller - Regression tests', () => {
 		model.dispose();
 	});
 
+	test('issue #23539: Setting model EOL isn\'t undoable', () => {
+		usingCursor({
+			text: [
+				'Hello',
+				'world'
+			]
+		}, (model, cursor) => {
+			assertCursor(cursor, new Position(1, 1));
+			model.setEOL(EndOfLineSequence.LF);
+			assert.equal(model.getValue(), 'Hello\nworld');
+
+			model.pushEOL(EndOfLineSequence.CRLF);
+			assert.equal(model.getValue(), 'Hello\r\nworld');
+
+			cursorCommand(cursor, H.Undo);
+			assert.equal(model.getValue(), 'Hello\nworld');
+		});
+	});
+
 	test('issue #47733: Undo mangles unicode characters', () => {
 		const languageId = new LanguageIdentifier('myMode', 3);
 		class MyMode extends MockMode {
@@ -2480,6 +2499,45 @@ suite('Editor Controller - Cursor Configuration', () => {
 			assert.equal(model.getLineContent(3), '    ');
 			assert.equal(model.getLineContent(4), '');
 			assert.equal(model.getLineContent(5), '');
+		});
+
+		model.dispose();
+	});
+
+	test('issue #15118: remove auto whitespace when pasting entire line', () => {
+		let model = createTextModel(
+			[
+				'    function f() {',
+				'        // I\'m gonna copy this line',
+				'        return 3;',
+				'    }',
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+
+			moveTo(cursor, 3, model.getLineMaxColumn(3));
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+
+			assert.equal(model.getValue(), [
+				'    function f() {',
+				'        // I\'m gonna copy this line',
+				'        return 3;',
+				'        ',
+				'    }',
+			].join('\n'));
+			assertCursor(cursor, new Position(4, model.getLineMaxColumn(4)));
+
+			cursorCommand(cursor, H.Paste, { text: '        // I\'m gonna copy this line\n', pasteOnNewLine: true });
+			assert.equal(model.getValue(), [
+				'    function f() {',
+				'        // I\'m gonna copy this line',
+				'        return 3;',
+				'        // I\'m gonna copy this line',
+				'',
+				'    }',
+			].join('\n'));
+			assertCursor(cursor, new Position(5, 1));
 		});
 
 		model.dispose();

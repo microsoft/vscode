@@ -8,7 +8,7 @@ import { Schemas } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationData } from 'vs/platform/configuration/common/configuration';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { ICommandService, ICommand, ICommandEvent, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -36,12 +36,17 @@ import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/
 import { ResolvedKeybinding, Keybinding, createKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { OS } from 'vs/base/common/platform';
-import { IRange } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { INotificationService, INotification, INotificationHandle, NoOpNotification, IPromptChoice } from 'vs/platform/notification/common/notification';
 import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IPosition, Position as Pos } from 'vs/editor/common/core/position';
 import { isEditorConfigurationKey, isDiffEditorConfigurationKey } from 'vs/editor/common/config/commonEditorConfig';
+import { IBulkEditService, IBulkEditOptions, IBulkEditResult } from 'vs/editor/browser/services/bulkEditService';
+import { WorkspaceEdit, isResourceTextEdit, TextEdit } from 'vs/editor/common/modes';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { localize } from 'vs/nls';
 
 export class SimpleEditor implements IEditor {
 
@@ -522,7 +527,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 		return TPromise.as(null);
 	}
 
-	public getConfigurationData() {
+	public getConfigurationData(): IConfigurationData {
 		return null;
 	}
 }
@@ -642,4 +647,45 @@ export function applyConfigurationValues(configurationService: IConfigurationSer
 			configurationService.updateValue(`diffEditor.${key}`, source[key]);
 		}
 	});
+}
+
+export class SimpleBulkEditService implements IBulkEditService {
+	_serviceBrand: any;
+
+	constructor(private readonly _modelService: IModelService) {
+		//
+	}
+
+	apply(workspaceEdit: WorkspaceEdit, options: IBulkEditOptions): TPromise<IBulkEditResult> {
+
+		let edits = new Map<ITextModel, TextEdit[]>();
+
+		for (let edit of workspaceEdit.edits) {
+			if (!isResourceTextEdit(edit)) {
+				return TPromise.wrapError(new Error('bad edit - only text edits are supported'));
+			}
+			let model = this._modelService.getModel(edit.resource);
+			if (!model) {
+				return TPromise.wrapError(new Error('bad edit - model not found'));
+			}
+			let array = edits.get(model);
+			if (!array) {
+				array = [];
+			}
+			edits.set(model, array.concat(edit.edits));
+		}
+
+		let totalEdits = 0;
+		let totalFiles = 0;
+		edits.forEach((edits, model) => {
+			model.applyEdits(edits.map(edit => EditOperation.replaceMove(Range.lift(edit.range), edit.text)));
+			totalFiles += 1;
+			totalEdits += edits.length;
+		});
+
+		return TPromise.as({
+			selection: undefined,
+			ariaSummary: localize('summary', 'Made {0} edits in {1} files', totalEdits, totalFiles)
+		});
+	}
 }

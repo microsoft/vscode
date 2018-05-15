@@ -118,7 +118,7 @@ console.log(`This is the manufacturer [${cars[i]}])`);
 
 
 ### Code Folding
-In a large file it can often be useful to collapse sections of code to increase readability.  To do this you can simply press kb(editor.fold) to fold the code, press kb(editor.unfold) to unfold.  Folding can also be done with the +/- icons in the left gutter.  To fold all sections use kb(editor.foldAll) or to unfold all use kb(editor.unfoldAll).
+In a large file it can often be useful to collapse sections of code to increase readability.  To do this, you can simply press kb(editor.fold) to fold or press kb(editor.unfold) to unfold the ranges at the current cursor position.  Folding can also be done with the +/- icons in the left gutter.  To fold all sections use kb(editor.foldAll) or to unfold all use kb(editor.unfoldAll).
 
 ```html
 <div>

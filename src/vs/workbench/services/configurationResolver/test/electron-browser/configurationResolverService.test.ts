@@ -82,6 +82,18 @@ suite('Configuration Resolver Service', () => {
 		}
 	});
 
+	test('substitute keys and values in object', () => {
+		const myObject = {
+			'${workspaceRootFolderName}': '${lineNumber}',
+			'hey ${env:key1} ': '${workspaceRootFolderName}'
+		};
+		assert.deepEqual(configurationResolverService.resolve(workspace, myObject), {
+			'workspaceLocation': `${editorService.mockLineNumber}`,
+			'hey Value for key1 ': 'workspaceLocation'
+		});
+	});
+
+
 	test('substitute one env variable using platform case sensitivity', () => {
 		if (platform.isWindows) {
 			assert.strictEqual(configurationResolverService.resolve(workspace, '${env:key1} - ${env:Key1}'), 'Value for key1 - Value for key1');

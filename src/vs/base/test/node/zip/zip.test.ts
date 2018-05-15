@@ -12,7 +12,7 @@ import URI from 'vs/base/common/uri';
 import { extract } from 'vs/base/node/zip';
 import { generateUuid } from 'vs/base/common/uuid';
 import { rimraf, exists } from 'vs/base/node/pfs';
-import { NullLogService } from '../../../../platform/log/common/log';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 const fixtures = URI.parse(require.toUrl('./fixtures')).fsPath;
 

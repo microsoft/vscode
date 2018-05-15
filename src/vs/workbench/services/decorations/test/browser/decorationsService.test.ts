@@ -183,7 +183,7 @@ suite('DecorationsService', function () {
 
 			label: string = 'foo';
 
-			provideDecorations(uri): TPromise<IDecorationData> {
+			provideDecorations(uri: URI): TPromise<IDecorationData> {
 				return new TPromise(resolve => {
 					callCount += 1;
 					setTimeout(() => {

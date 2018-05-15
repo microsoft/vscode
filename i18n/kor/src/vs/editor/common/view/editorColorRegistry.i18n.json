@@ -14,6 +14,7 @@
 	"editorCursorBackground": "편집기 커서의 배경색입니다. 블록 커서와 겹치는 글자의 색상을 사용자 정의할 수 있습니다.",
 	"editorWhitespaces": "편집기의 공백 문자 색입니다.",
 	"editorIndentGuides": "편집기 들여쓰기 안내선 색입니다.",
+	"editorActiveIndentGuide": "활성 편집기 들여쓰기 안내선 색입니다.",
 	"editorLineNumbers": "편집기 줄 번호 색입니다.",
 	"editorActiveLineNumber": "편집기 활성 영역 줄번호 색상",
 	"deprecatedEditorActiveLineNumber": "Id는 사용 되지 않습니다. 대신 'editorLineNumber.activeForeground'를 사용 합니다.",

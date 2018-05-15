@@ -75,6 +75,12 @@ export class IssueService implements IIssueService {
 	}
 
 	openProcessExplorer(data: ProcessExplorerData): TPromise<void> {
+		ipcMain.on('windowsInfoRequest', event => {
+			this.launchService.getMainProcessInfo().then(info => {
+				event.sender.send('windowsInfoResponse', info.windows);
+			});
+		});
+
 		// Create as singleton
 		if (!this._processExplorerWindow) {
 			const position = this.getWindowPosition(BrowserWindow.getFocusedWindow(), 800, 300);

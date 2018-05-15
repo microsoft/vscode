@@ -25,5 +25,6 @@
 	"peekViewEditorBackground": "Hintergrundfarbe des Peek-Editors.",
 	"peekViewEditorGutterBackground": "Hintergrundfarbe der Leiste im Peek-Editor.",
 	"peekViewResultsMatchHighlight": "Farbe für Übereinstimmungsmarkierungen in der Ergebnisliste der Peek-Ansicht.",
-	"peekViewEditorMatchHighlight": "Farbe für Übereinstimmungsmarkierungen im Peek-Editor."
+	"peekViewEditorMatchHighlight": "Farbe für Übereinstimmungsmarkierungen im Peek-Editor.",
+	"peekViewEditorMatchHighlightBorder": "Rahmen für Übereinstimmungsmarkierungen im Peek-Editor."
 }

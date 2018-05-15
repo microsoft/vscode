@@ -7,7 +7,7 @@
 
 import { Event, filterEvent, mapEvent, anyEvent } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IWindowConfiguration, IDevToolsOptions } from 'vs/platform/windows/common/windows';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
@@ -65,8 +65,8 @@ export class WindowService implements IWindowService {
 		return this.windowsService.reloadWindow(this.windowId, args);
 	}
 
-	openDevTools(): TPromise<void> {
-		return this.windowsService.openDevTools(this.windowId);
+	openDevTools(options?: IDevToolsOptions): TPromise<void> {
+		return this.windowsService.openDevTools(this.windowId, options);
 	}
 
 	toggleDevTools(): TPromise<void> {

@@ -26,7 +26,7 @@ import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostC
 import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext, IExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
 import {
 	TaskDefinitionDTO, TaskExecutionDTO, ProcessExecutionOptionsDTO, TaskPresentationOptionsDTO,
-	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO
+	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO
 } from 'vs/workbench/api/shared/tasks';
 
 export { TaskDTO, TaskHandleDTO, TaskExecutionDTO, TaskFilterDTO };
@@ -42,6 +42,24 @@ namespace TaskExecutionDTO {
 		return {
 			id: value.id,
 			task: TaskDTO.to(value.task, workspace)
+		};
+	}
+}
+
+namespace TaskProcessStartedDTO {
+	export function from(value: TaskExecution, processId: number): TaskProcessStartedDTO {
+		return {
+			id: value.id,
+			processId
+		};
+	}
+}
+
+namespace TaskProcessEndedDTO {
+	export function from(value: TaskExecution, exitCode: number): TaskProcessEndedDTO {
+		return {
+			id: value.id,
+			exitCode
 		};
 	}
 }
@@ -352,9 +370,13 @@ export class MainThreadTask implements MainThreadTaskShape {
 		this._taskService.onDidStateChange((event: TaskEvent) => {
 			let task = event.__task;
 			if (event.kind === TaskEventKind.Start) {
-				this._proxy.$taskStarted(TaskExecutionDTO.from(Task.getTaskExecution(task)));
+				this._proxy.$onDidStartTask(TaskExecutionDTO.from(Task.getTaskExecution(task)));
+			} else if (event.kind === TaskEventKind.ProcessStarted) {
+				this._proxy.$onDidStartTaskProcess(TaskProcessStartedDTO.from(Task.getTaskExecution(task), event.processId));
+			} else if (event.kind === TaskEventKind.ProcessEnded) {
+				this._proxy.$onDidEndTaskProcess(TaskProcessEndedDTO.from(Task.getTaskExecution(task), event.exitCode));
 			} else if (event.kind === TaskEventKind.End) {
-				this._proxy.$taskEnded(TaskExecutionDTO.from(Task.getTaskExecution(task)));
+				this._proxy.$OnDidEndTask(TaskExecutionDTO.from(Task.getTaskExecution(task)));
 			}
 		});
 	}
@@ -417,7 +439,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 						task: TaskDTO.from(task)
 					};
 					resolve(result);
-				}, (error) => {
+				}, (_error) => {
 					reject(new Error('Task not found'));
 				});
 			} else {

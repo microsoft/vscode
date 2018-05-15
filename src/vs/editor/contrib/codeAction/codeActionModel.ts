@@ -40,11 +40,8 @@ export class CodeActionOracle {
 	}
 
 	trigger(trigger: CodeActionTrigger) {
-		let rangeOrSelection = this._getRangeOfMarker() || this._getRangeOfSelectionUnlessWhitespaceEnclosed();
-		if (!rangeOrSelection && trigger.type === 'manual') {
-			rangeOrSelection = this._editor.getSelection();
-		}
-		return this._createEventAndSignalChange(trigger, rangeOrSelection);
+		const selection = this._getRangeOfSelectionUnlessWhitespaceEnclosed(trigger);
+		return this._createEventAndSignalChange(trigger, selection);
 	}
 
 	private _onMarkerChanges(resources: URI[]): void {
@@ -61,8 +58,7 @@ export class CodeActionOracle {
 		this.trigger({ type: 'auto' });
 	}
 
-	private _getRangeOfMarker(): Range {
-		const selection = this._editor.getSelection();
+	private _getRangeOfMarker(selection: Selection): Range {
 		const model = this._editor.getModel();
 		for (const marker of this._markerService.read({ resource: model.uri })) {
 			if (Range.intersectRanges(marker, selection)) {
@@ -72,10 +68,10 @@ export class CodeActionOracle {
 		return undefined;
 	}
 
-	private _getRangeOfSelectionUnlessWhitespaceEnclosed(): Selection {
+	private _getRangeOfSelectionUnlessWhitespaceEnclosed(trigger: CodeActionTrigger): Selection | undefined {
 		const model = this._editor.getModel();
 		const selection = this._editor.getSelection();
-		if (selection.isEmpty()) {
+		if (selection.isEmpty() && !(trigger.filter && trigger.filter.includeSourceActions)) {
 			const { lineNumber, column } = selection.getPosition();
 			const line = model.getLineContent(lineNumber);
 			if (line.length === 0) {
@@ -101,26 +97,25 @@ export class CodeActionOracle {
 		return selection;
 	}
 
-	private _createEventAndSignalChange(trigger: CodeActionTrigger, rangeOrSelection: Range | Selection): TPromise<CodeAction[] | undefined> {
-		if (!rangeOrSelection) {
+	private _createEventAndSignalChange(trigger: CodeActionTrigger, selection: Selection | undefined): TPromise<CodeAction[] | undefined> {
+		if (!selection) {
 			// cancel
 			this._signalChange({
 				trigger,
-				range: undefined,
+				rangeOrSelection: undefined,
 				position: undefined,
 				actions: undefined,
 			});
 			return TPromise.as(undefined);
 		} else {
-			// actual
 			const model = this._editor.getModel();
-			const range = model.validateRange(rangeOrSelection);
-			const position = rangeOrSelection instanceof Selection ? rangeOrSelection.getPosition() : rangeOrSelection.getStartPosition();
-			const actions = getCodeActions(model, range, trigger && trigger.filter);
+			const markerRange = this._getRangeOfMarker(selection);
+			const position = markerRange ? markerRange.getStartPosition() : selection.getStartPosition();
+			const actions = getCodeActions(model, selection, trigger && trigger.filter);
 
 			this._signalChange({
 				trigger,
-				range,
+				rangeOrSelection: selection,
 				position,
 				actions
 			});
@@ -131,7 +126,7 @@ export class CodeActionOracle {
 
 export interface CodeActionsComputeEvent {
 	trigger: CodeActionTrigger;
-	range: Range;
+	rangeOrSelection: Range | Selection;
 	position: Position;
 	actions: TPromise<CodeAction[]>;
 }

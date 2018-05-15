@@ -79,6 +79,7 @@ export abstract class AbstractProcess<TProgressData> {
 
 	private childProcess: cp.ChildProcess;
 	protected childProcessPromise: TPromise<cp.ChildProcess>;
+	private pidResolve: TValueCallback<number>;
 	protected terminateRequested: boolean;
 
 	private static WellKnowCommands: IStringDictionary<boolean> = {
@@ -241,6 +242,10 @@ export abstract class AbstractProcess<TProgressData> {
 									return;
 								}
 								this.childProcess = childProcess;
+								if (this.pidResolve) {
+									this.pidResolve(Types.isNumber(childProcess.pid) ? childProcess.pid : -1);
+									this.pidResolve = undefined;
+								}
 								this.childProcess.on('close', closeHandler);
 								this.handleSpawn(childProcess, cc, pp, ee, false);
 								c(childProcess);
@@ -251,6 +256,10 @@ export abstract class AbstractProcess<TProgressData> {
 				if (childProcess) {
 					this.childProcess = childProcess;
 					this.childProcessPromise = TPromise.as(childProcess);
+					if (this.pidResolve) {
+						this.pidResolve(Types.isNumber(childProcess.pid) ? childProcess.pid : -1);
+						this.pidResolve = undefined;
+					}
 					childProcess.on('error', (error: Error) => {
 						this.childProcess = null;
 						ee({ terminated: this.terminateRequested, error: error });
@@ -288,7 +297,13 @@ export abstract class AbstractProcess<TProgressData> {
 	}
 
 	public get pid(): TPromise<number> {
-		return this.childProcessPromise.then(childProcess => childProcess.pid, err => -1);
+		if (this.childProcessPromise) {
+			return this.childProcessPromise.then(childProcess => childProcess.pid, err => -1);
+		} else {
+			return new TPromise<number>((resolve) => {
+				this.pidResolve = resolve;
+			});
+		}
 	}
 
 	public terminate(): TPromise<TerminateResponse> {

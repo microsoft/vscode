@@ -275,7 +275,7 @@ export abstract class BaseRenameAction extends BaseFileAction {
 			return null;
 		}
 
-		return validateFileName(parent, name, false);
+		return validateFileName(parent, name);
 	}
 
 	public abstract runAction(newName: string): TPromise<any>;
@@ -498,7 +498,7 @@ export abstract class BaseCreateAction extends BaseRenameAction {
 
 	public validateFileName(parent: ExplorerItem, name: string): string {
 		if (this.element instanceof NewStatPlaceholder) {
-			return validateFileName(parent, name, false);
+			return validateFileName(parent, name);
 		}
 
 		return super.validateFileName(parent, name);
@@ -1400,8 +1400,7 @@ export class CopyPathAction extends Action {
 	}
 }
 
-
-export function validateFileName(parent: ExplorerItem, name: string, allowOverwriting: boolean = false): string {
+export function validateFileName(parent: ExplorerItem, name: string): string {
 
 	// Produce a well formed file name
 	name = getWellFormedFileName(name);
@@ -1417,16 +1416,11 @@ export function validateFileName(parent: ExplorerItem, name: string, allowOverwr
 	}
 
 	const names: string[] = name.split(/[\\/]/).filter(part => !!part);
-	const analyzedPath = analyzePath(parent, names);
 
 	// Do not allow to overwrite existing file
-	if (!allowOverwriting && analyzedPath.fullPathAlreadyExists) {
+	const childExists = !!parent.getChild(name);
+	if (childExists) {
 		return nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name);
-	}
-
-	// A file must always be a leaf
-	if (analyzedPath.lastExistingPathSegment.isFile) {
-		return nls.localize('fileUsedAsFolderError', "**{0}** is a file and cannot have any descendants.", analyzedPath.lastExistingPathSegment.name);
 	}
 
 	// Invalid File name
@@ -1443,35 +1437,6 @@ export function validateFileName(parent: ExplorerItem, name: string, allowOverwr
 	}
 
 	return null;
-}
-
-function analyzePath(parent: ExplorerItem, pathNames: string[]): { fullPathAlreadyExists: boolean; lastExistingPathSegment: { isFile: boolean; name: string; } } {
-	let lastExistingPathSegment = { isFile: false, name: '' };
-
-	for (const name of pathNames) {
-		const { exists, child } = alreadyExists(parent, name);
-
-		if (exists) {
-			lastExistingPathSegment = { isFile: !child.isDirectory, name };
-			parent = child;
-		} else {
-			return { fullPathAlreadyExists: false, lastExistingPathSegment };
-		}
-	}
-
-	return { fullPathAlreadyExists: true, lastExistingPathSegment };
-}
-
-
-function alreadyExists(parent: ExplorerItem, name: string): { exists: boolean, child: ExplorerItem | undefined } {
-	let duplicateChild: ExplorerItem;
-
-	if (parent && parent.isDirectory) {
-		duplicateChild = parent.getChild(name);
-		return { exists: !!duplicateChild, child: duplicateChild };
-	}
-
-	return { exists: false, child: undefined };
 }
 
 function trimLongName(name: string): string {
@@ -1492,7 +1457,6 @@ export function getWellFormedFileName(filename: string): string {
 
 	// Remove trailing dots, slashes, and spaces
 	filename = strings.rtrim(filename, '.');
-	filename = strings.rtrim(filename, ' ');
 	filename = strings.rtrim(filename, '/');
 	filename = strings.rtrim(filename, '\\');
 

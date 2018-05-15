@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import * as vscode from 'vscode';
 import { basename } from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
-import { debounceEvent } from 'vs/base/common/event';
+import { debounceEvent, Emitter, Event } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol';
@@ -67,6 +67,22 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		return treeView.getChildren(treeItemHandle);
 	}
 
+	$setExpanded(treeViewId: string, treeItemHandle: string, expanded: boolean): void {
+		const treeView = this.treeViews.get(treeViewId);
+		if (!treeView) {
+			throw new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
+		}
+		treeView.setExpanded(treeItemHandle, expanded);
+	}
+
+	$setSelection(treeViewId: string, treeItemHandles: string[]): void {
+		const treeView = this.treeViews.get(treeViewId);
+		if (!treeView) {
+			throw new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
+		}
+		treeView.setSelection(treeItemHandles);
+	}
+
 	private createExtHostTreeViewer<T>(id: string, dataProvider: vscode.TreeDataProvider<T>): ExtHostTreeView<T> {
 		const treeView = new ExtHostTreeView<T>(id, dataProvider, this._proxy, this.commands.converter);
 		this.treeViews.set(id, treeView);
@@ -93,6 +109,15 @@ class ExtHostTreeView<T> extends Disposable {
 	private roots: TreeNode[] = null;
 	private elements: Map<TreeItemHandle, T> = new Map<TreeItemHandle, T>();
 	private nodes: Map<T, TreeNode> = new Map<T, TreeNode>();
+
+	private _selectedElements: T[] = [];
+	get selectedElements(): T[] { return this._selectedElements; }
+
+	private _onDidExpandElement: Emitter<T> = this._register(new Emitter<T>());
+	readonly onDidExpandElement: Event<T> = this._onDidExpandElement.event;
+
+	private _onDidCollapseElement: Emitter<T> = this._register(new Emitter<T>());
+	readonly onDidCollapseElement: Event<T> = this._onDidCollapseElement.event;
 
 	constructor(private viewId: string, private dataProvider: vscode.TreeDataProvider<T>, private proxy: MainThreadTreeViewsShape, private commands: CommandsConverter) {
 		super();
@@ -125,6 +150,21 @@ class ExtHostTreeView<T> extends Disposable {
 		return this.resolveUnknownParentChain(element)
 			.then(parentChain => this.resolveTreeNode(element, parentChain[parentChain.length - 1])
 				.then(treeNode => this.proxy.$reveal(this.viewId, treeNode.item, parentChain.map(p => p.item), options)));
+	}
+
+	setExpanded(treeItemHandle: TreeItemHandle, expanded: boolean): void {
+		const element = this.getExtensionElement(treeItemHandle);
+		if (element) {
+			if (expanded) {
+				this._onDidExpandElement.fire(element);
+			} else {
+				this._onDidCollapseElement.fire(element);
+			}
+		}
+	}
+
+	setSelection(treeItemHandles: TreeItemHandle[]): void {
+		this._selectedElements = treeItemHandles.map(handle => this.getExtensionElement(handle)).filter(element => !isUndefinedOrNull(element));
 	}
 
 	private resolveUnknownParentChain(element: T): TPromise<TreeNode[]> {

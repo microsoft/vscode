@@ -29,7 +29,7 @@ function makeRandomHexString(length: number): string {
 }
 
 function generatePipeName(): string {
-	let randomName = 'vscode-' + makeRandomHexString(40);
+	let randomName = 'vscode-std-' + makeRandomHexString(40);
 	if (process.platform === 'win32') {
 		return '\\\\.\\pipe\\' + randomName + '-sock';
 	}

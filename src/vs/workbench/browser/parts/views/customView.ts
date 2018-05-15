@@ -32,6 +32,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { FileIconThemableWorkbenchTree } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { isUndefinedOrNull } from 'vs/base/common/types';
+import { Emitter, Event } from 'vs/base/common/event';
 
 export class CustomViewsService extends Disposable implements IViewsService {
 
@@ -111,6 +112,15 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 
 	private _dataProvider: ITreeViewDataProvider;
 	private dataProviderDisposables: IDisposable[] = [];
+
+	private _onDidExpandItem: Emitter<ITreeItem> = this._register(new Emitter<ITreeItem>());
+	readonly onDidExpandItem: Event<ITreeItem> = this._onDidExpandItem.event;
+
+	private _onDidCollapseItem: Emitter<ITreeItem> = this._register(new Emitter<ITreeItem>());
+	readonly onDidCollapseItem: Event<ITreeItem> = this._onDidCollapseItem.event;
+
+	private _onDidChangeSelection: Emitter<ITreeItem[]> = this._register(new Emitter<ITreeItem[]>());
+	readonly onDidChangeSelection: Event<ITreeItem[]> = this._onDidChangeSelection.event;
 
 	constructor(
 		private id: string,
@@ -224,6 +234,9 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 		this.tree.contextKeyService.createKey<boolean>(this.id, true);
 		this._register(this.tree);
 		this._register(this.tree.onDidChangeSelection(e => this.onSelection(e)));
+		this._register(this.tree.onDidExpandItem(e => this._onDidExpandItem.fire(e.item.getElement())));
+		this._register(this.tree.onDidCollapseItem(e => this._onDidCollapseItem.fire(e.item.getElement())));
+		this._register(this.tree.onDidChangeSelection(e => this._onDidChangeSelection.fire(e.selection)));
 		this.tree.setInput(this.root);
 	}
 

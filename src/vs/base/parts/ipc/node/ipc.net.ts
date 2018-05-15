@@ -16,10 +16,10 @@ import { generateUuid } from 'vs/base/common/uuid';
 export function generateRandomPipeName(): string {
 	const randomSuffix = generateUuid();
 	if (process.platform === 'win32') {
-		return `\\\\.\\pipe\\vscode-${randomSuffix}-sock`;
+		return `\\\\.\\pipe\\vscode-ipc-${randomSuffix}-sock`;
 	} else {
 		// Mac/Unix: use socket file
-		return join(tmpdir(), `vscode-${randomSuffix}.sock`);
+		return join(tmpdir(), `vscode-ipc-${randomSuffix}.sock`);
 	}
 }
 

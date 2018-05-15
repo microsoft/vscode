@@ -1122,7 +1122,7 @@ export class ChangeEOLAction extends Action {
 				const editorWidget = getEditorWidget(activeEditor);
 				if (editorWidget && isWritableCodeEditor(editorWidget)) {
 					const textModel = editorWidget.getModel();
-					textModel.setEOL(eol.eol);
+					textModel.pushEOL(eol.eol);
 				}
 			}
 		});
