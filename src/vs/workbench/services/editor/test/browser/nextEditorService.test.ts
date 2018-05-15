@@ -37,7 +37,7 @@ export class TestEditorControl extends BaseEditor {
 }
 
 export class TestEditorInput extends EditorInput implements IFileEditorInput {
-
+	public gotDisposed: boolean;
 	constructor(private resource: URI) { super(); }
 
 	getTypeId() { return 'testEditorInputForNextEditorService'; }
@@ -48,6 +48,10 @@ export class TestEditorInput extends EditorInput implements IFileEditorInput {
 	setPreferredEncoding(encoding: string) { }
 	getResource(): URI { return this.resource; }
 	setForceOpenAsBinary(): void { }
+	dispose(): void {
+		super.dispose();
+		this.gotDisposed = true;
+	}
 }
 
 suite('NextEditorService editor2', () => {
@@ -97,7 +101,7 @@ suite('NextEditorService editor2', () => {
 			willCloseEditorListenerCounter++;
 		});
 
-		// Open EditorInput
+		// Open input
 		return service.openEditor(input, { pinned: true }).then(editor => {
 			assert.ok(editor instanceof TestEditorControl);
 			assert.equal(editor, service.activeControl);
@@ -111,12 +115,15 @@ suite('NextEditorService editor2', () => {
 			assert.equal(visibleEditorChangeEventCounter, 1);
 			assert.equal(willOpenEditorEventCounter, 1);
 
+			// Close input
 			service.closeEditor(input, editor.group);
 			assert.equal(willCloseEditorListenerCounter, 1);
 			assert.equal(didCloseEditorListenerCounter, 1);
 			assert.equal(activeEditorChangeEventCounter, 2);
 			assert.equal(visibleEditorChangeEventCounter, 2);
+			assert.ok(input.gotDisposed);
 
+			// Open again 2 inputs
 			return service.openEditor(input, { pinned: true }).then(editor => {
 				return service.openEditor(otherInput, { pinned: true }).then(editor => {
 					assert.equal(service.visibleControls.length, 1);

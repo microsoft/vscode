@@ -27,9 +27,7 @@ import { IEditorInput, IEditorOptions, Position, IEditor, IResourceInput, IUntit
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { EditorStacksModel } from 'vs/workbench/common/editor/editorGroup';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEditorGroupService, GroupArrangement, GroupOrientation, IEditorTabOptions, IMoveOptions } from 'vs/workbench/services/group/common/groupService';
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
 import { FileOperationEvent, IFileService, IResolveContentOptions, FileOperationError, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, IContent, IUpdateContentOptions, IStreamContent, ICreateFileOptions, ITextSnapshot, IResourceEncodings } from 'vs/platform/files/common/files';
@@ -40,7 +38,7 @@ import { IRawTextContent, ITextFileService } from 'vs/workbench/services/textfil
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IWorkbenchEditorService, ICloseEditorsFilter } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkbenchEditorService, ICloseEditorsFilter, NoOpEditorStacksModel } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService, ServicesAccessor, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -497,7 +495,7 @@ export class TestStorageService implements IStorageService {
 export class TestEditorGroupService implements IEditorGroupService {
 	public _serviceBrand: any;
 
-	private stacksModel: EditorStacksModel;
+	private stacksModel;
 
 	private readonly _onEditorsChanged: Emitter<void>;
 	private readonly _onEditorOpening: Emitter<IEditorOpeningEvent>;
@@ -523,9 +521,7 @@ export class TestEditorGroupService implements IEditorGroupService {
 		services.set(ILifecycleService, lifecycle);
 		services.set(ITelemetryService, NullTelemetryService);
 
-		let inst = new InstantiationService(services);
-
-		this.stacksModel = inst.createInstance(EditorStacksModel, true);
+		this.stacksModel = new NoOpEditorStacksModel();
 	}
 
 	public fireChange(): void {
@@ -600,7 +596,7 @@ export class TestEditorGroupService implements IEditorGroupService {
 	public moveEditor(input: IEditorInput, from: any, to: any, moveOptions?: IMoveOptions): void {
 	}
 
-	public getStacksModel(): EditorStacksModel {
+	public getStacksModel() {
 		return this.stacksModel;
 	}
 

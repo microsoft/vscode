@@ -230,7 +230,7 @@ export class NoOpEditorPart implements IEditorPart, IEditorGroupService {
 	}
 }
 
-class NoOpEditorStacksModel implements IEditorStacksModel {
+export class NoOpEditorStacksModel implements IEditorStacksModel {
 
 	onModelChanged: Event<IStacksModelChangeEvent> = new Emitter<IStacksModelChangeEvent>().event;
 	onWillCloseEditor: Event<IEditorCloseEvent> = new Emitter<IEditorCloseEvent>().event;

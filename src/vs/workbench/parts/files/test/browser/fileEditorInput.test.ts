@@ -9,7 +9,7 @@ import URI from 'vs/base/common/uri';
 import { join } from 'vs/base/common/paths';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { workbenchInstantiationService, TestTextFileService, TestEditorGroupService, createFileInput } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestTextFileService, TestEditorGroupService } from 'vs/workbench/test/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -183,29 +183,6 @@ suite('Files - FileEditorInput', () => {
 			assert.ok(resolved);
 
 			resolved.dispose();
-		});
-	});
-
-	test('disposes model when not open anymore', function () {
-		const resource = toResource(this, '/path/index.txt');
-
-		const input = createFileInput(instantiationService, resource);
-
-		return input.resolve().then((model: TextFileEditorModel) => {
-			const stacks = accessor.editorGroupService.getStacksModel();
-			const group = stacks.openGroup('group', true);
-			group.openEditor(input);
-
-			accessor.editorGroupService.fireChange();
-
-			assert.ok(!model.isDisposed());
-
-			group.closeEditor(input);
-			accessor.editorGroupService.fireChange();
-			assert.ok(model.isDisposed());
-
-			model.dispose();
-			assert.ok(!accessor.modelService.getModel(model.getResource()));
 		});
 	});
 });

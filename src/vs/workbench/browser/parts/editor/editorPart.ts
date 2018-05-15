@@ -33,7 +33,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { EditorStacksModel, EditorGroup, EditorIdentifier, EditorCloseEvent } from 'vs/workbench/common/editor/editorGroup';
+import { EditorGroup, EditorIdentifier, EditorCloseEvent } from 'vs/workbench/common/editor/editorGroup';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -70,7 +70,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private dimension: Dimension;
 	private editorGroupsControl: IEditorGroupsControl;
 	private memento: object;
-	private stacks: EditorStacksModel;
+	private stacks: any;
 	private tabOptions: IEditorTabOptions;
 	private forceHideTabs: boolean;
 	private revealIfOpen: boolean;
@@ -132,7 +132,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.pendingEditorInputsToClose = [];
 		this.pendingEditorInputCloseTimeout = null;
 
-		this.stacks = this.instantiationService.createInstance(EditorStacksModel, restoreFromStorage);
+		this.stacks = Object.create(null);
 
 		this.textCompareEditorVisible = TextCompareEditorVisibleContext.bindTo(contextKeyService);
 
@@ -1403,7 +1403,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		return this.visibleEditors ? this.visibleEditors.filter(editor => !!editor) : [];
 	}
 
-	public getStacksModel(): EditorStacksModel {
+	public getStacksModel() {
 		return this.stacks;
 	}
 

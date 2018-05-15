@@ -22,6 +22,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 
 function inst(): IInstantiationService {
 	let inst = new TestInstantiationService();
@@ -136,7 +137,7 @@ class NonSerializableTestEditorInput extends EditorInput {
 	getTypeId() { return 'testEditorInputForGroups-nonSerializable'; }
 	resolve(): TPromise<IEditorModel> { return null; }
 
-	matches(other: TestEditorInput): boolean {
+	matches(other: NonSerializableTestEditorInput): boolean {
 		return other && this.id === other.id && other instanceof NonSerializableTestEditorInput;
 	}
 }
@@ -149,7 +150,7 @@ class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 	getTypeId() { return 'testFileEditorInputForGroups'; }
 	resolve(): TPromise<IEditorModel> { return null; }
 
-	matches(other: TestEditorInput): boolean {
+	matches(other: TestFileEditorInput): boolean {
 		return other && this.id === other.id && other instanceof TestFileEditorInput;
 	}
 
@@ -206,7 +207,7 @@ class TestEditorInputFactory implements IEditorInputFactory {
 suite('Editor Groups editor2', () => {
 
 	function registerEditorInputFactory() {
-		Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputFactory('testEditorInputForEditorGroups', TestEditorInputFactory);
+		Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputFactory('testEditorInputForGroups', TestEditorInputFactory);
 	}
 
 	registerEditorInputFactory();
@@ -236,44 +237,42 @@ suite('Editor Groups editor2', () => {
 		assert.equal(clone.isActive(input3), true);
 	});
 
-	// test('Stack - contains() with diff editor support', function () {
-	// 	const model = create();
+	test('Stack - contains() with diff editor support', function () {
+		const group = createGroup();
 
-	// 	const group1 = model.openGroup('group1');
+		const input1 = input();
+		const input2 = input();
 
-	// 	const input1 = input();
-	// 	const input2 = input();
+		const diffInput = new DiffEditorInput('name', 'description', input1, input2);
 
-	// 	const diffInput = new DiffEditorInput('name', 'description', input1, input2);
+		group.openEditor(input2, { pinned: true, active: true });
 
-	// 	group1.openEditor(input2, { pinned: true, active: true });
+		assert.equal(group.contains(input2), true);
+		assert.equal(group.contains(diffInput), false);
+		assert.equal(group.contains(diffInput, true), true);
+	});
 
-	// 	assert.equal(group1.contains(input2), true);
-	// 	assert.equal(group1.contains(diffInput), false);
-	// 	assert.equal(group1.contains(diffInput, true), true);
-	// });
+	test('Stack - group serialization', function () {
+		Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).setInstantiationService(inst());
+		const group = createGroup();
 
-	// test('Stack - group serialization', function () {
-	// 	const model = create();
-	// 	const group = model.openGroup('group');
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
 
-	// 	const input1 = input();
-	// 	const input2 = input();
-	// 	const input3 = input();
+		// Pinned and Active
+		group.openEditor(input1, { pinned: true, active: true });
+		group.openEditor(input2, { pinned: true, active: true });
+		group.openEditor(input3, { pinned: false, active: true });
 
-	// 	// Pinned and Active
-	// 	group.openEditor(input1, { pinned: true, active: true });
-	// 	group.openEditor(input2, { pinned: true, active: true });
-	// 	group.openEditor(input3, { pinned: false, active: true });
-
-	// 	const deserialized = createGroup(group.serialize());
-	// 	assert.equal(group.id, deserialized.id);
-	// 	assert.equal(deserialized.count, 3);
-	// 	assert.equal(deserialized.isPinned(input1), true);
-	// 	assert.equal(deserialized.isPinned(input2), true);
-	// 	assert.equal(deserialized.isPinned(input3), false);
-	// 	assert.equal(deserialized.isActive(input3), true);
-	// });
+		const deserialized = createGroup(group.serialize());
+		assert.equal(group.id, deserialized.id);
+		assert.equal(deserialized.count, 3);
+		assert.equal(deserialized.isPinned(input1), true);
+		assert.equal(deserialized.isPinned(input2), true);
+		assert.equal(deserialized.isPinned(input3), false);
+		assert.equal(deserialized.isActive(input3), true);
+	});
 
 	// test('Groups - Basic', function () {
 	// 	const model = create();
