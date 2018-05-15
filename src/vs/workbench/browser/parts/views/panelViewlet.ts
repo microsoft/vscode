@@ -100,6 +100,7 @@ export abstract class ViewletPanel extends Panel {
 	}
 
 	focus(): void {
+		this.element.focus();
 		this._onDidFocus.fire();
 	}
 
