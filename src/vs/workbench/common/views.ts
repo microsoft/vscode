@@ -161,6 +161,10 @@ export interface ITreeViewer extends IDisposable {
 
 	dataProvider: ITreeViewDataProvider;
 
+	readonly onDidExpandItem: Event<ITreeItem>;
+
+	readonly onDidCollapseItem: Event<ITreeItem>;
+
 	refresh(treeItems?: ITreeItem[]): TPromise<void>;
 
 	setVisibility(visible: boolean): void;
