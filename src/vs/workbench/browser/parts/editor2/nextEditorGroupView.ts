@@ -307,7 +307,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	}
 
 	private restoreEditors(from: INextEditorGroupView | ISerializedEditorGroup): Thenable<void> {
-		if (this.group.count === 0) {
+		if (this._group.count === 0) {
 			return TPromise.as(void 0); // nothing to show
 		}
 
@@ -319,9 +319,9 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 			options = new EditorOptions();
 		}
 
-		const activeEditor = this.group.activeEditor;
-		options.pinned = this.group.isPinned(activeEditor);	// preserve pinned state
-		options.preserveFocus = true;						// handle focus after editor is opened
+		const activeEditor = this._group.activeEditor;
+		options.pinned = this._group.isPinned(activeEditor);	// preserve pinned state
+		options.preserveFocus = true;							// handle focus after editor is opened
 
 		// Show active editor
 		return this.doShowEditor(activeEditor, true, options).then(() => {
@@ -439,8 +439,8 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		if (event.oldPartOptions.showTabs !== event.newPartOptions.showTabs) {
 			this.createTitleAreaControl();
 
-			if (this.group.activeEditor) {
-				this.titleAreaControl.openEditor(this.group.activeEditor);
+			if (this._group.activeEditor) {
+				this.titleAreaControl.openEditor(this._group.activeEditor);
 			}
 		}
 
@@ -792,7 +792,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	private doCloseEditor(editor: EditorInput, focusNext = this.accessor.activeGroup === this): void {
 
 		// Closing the active editor of the group is a bit more work
-		if (this.group.isActive(editor)) {
+		if (this._group.isActive(editor)) {
 			this.doCloseActiveEditor(focusNext);
 		}
 
@@ -1167,7 +1167,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	}
 }
 
-export class EditorOpeningEvent implements IEditorOpeningEvent {
+class EditorOpeningEvent implements IEditorOpeningEvent {
 	private override: () => Thenable<any>;
 
 	constructor(

@@ -46,7 +46,6 @@ import { ThrottledEmitter } from 'vs/base/common/async';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService, Severity, INotificationActions } from 'vs/platform/notification/common/notification';
 import { dispose } from 'vs/base/common/lifecycle';
-import { EditorOpeningEvent } from 'vs/workbench/browser/parts/editor2/nextEditorGroupView';
 
 /**
  * The editor part is the container for editors in the workbench. Based on the editor input being opened, it asks the registered
@@ -948,12 +947,12 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// Editor opening event (can be prevented and overridden)
-		const event = new EditorOpeningEvent(null, input, options);
-		this._onEditorOpening.fire(event);
-		const prevented = event.isPrevented();
-		if (prevented) {
-			return prevented() as any;
-		}
+		// const event = new EditorOpeningEvent(null, input, options);
+		// this._onEditorOpening.fire(event);
+		// const prevented = event.isPrevented();
+		// if (prevented) {
+		// 	return prevented() as any;
+		// }
 
 		// Open through UI
 		return this.doOpenEditor(position, input, options, ratio);
