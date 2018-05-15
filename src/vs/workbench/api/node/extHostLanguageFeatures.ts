@@ -44,12 +44,43 @@ class OutlineAdapter {
 				return undefined;
 			}
 			let [probe] = value;
-			if (probe instanceof HierarchicalSymbolInformation) {
-				return (<HierarchicalSymbolInformation[]>value).map(typeConvert.HierarchicalSymbolInformation.from);
-			} else {
-				return (<SymbolInformation[]>value).map(typeConvert.SymbolInformation.from);
+			if (!(probe instanceof HierarchicalSymbolInformation)) {
+				value = OutlineAdapter._asSymbolTree(<SymbolInformation[]>value);
 			}
+			return (<HierarchicalSymbolInformation[]>value).map(typeConvert.HierarchicalSymbolInformation.from);
 		});
+	}
+
+	private static _asSymbolTree(info: SymbolInformation[]): vscode.HierarchicalSymbolInformation[] {
+		// first sort by start (and end) and then loop over all elements
+		// and build a tree based on containment.
+		info = info.slice(0).sort((a, b) => {
+			let res = a.location.range.start.compareTo(b.location.range.start);
+			if (res === 0) {
+				res = b.location.range.end.compareTo(a.location.range.end);
+			}
+			return res;
+		});
+		let res: HierarchicalSymbolInformation[] = [];
+		let parentStack: HierarchicalSymbolInformation[] = [];
+		for (let i = 0; i < info.length; i++) {
+			let element = new HierarchicalSymbolInformation(info[i].name, '', info[i].kind, info[i].location, info[i].location.range);
+			while (true) {
+				if (parentStack.length === 0) {
+					parentStack.push(element);
+					res.push(element);
+					break;
+				}
+				let parent = parentStack[parentStack.length - 1];
+				if (parent.range.contains(element.range)) {
+					parent.children.push(element);
+					parentStack.push(element);
+					break;
+				}
+				parentStack.pop();
+			}
+		}
+		return res;
 	}
 }
 
