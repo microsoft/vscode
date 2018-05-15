@@ -28,16 +28,15 @@ export interface ISchemeTransformer {
 
 export class ExtHostSearch implements ExtHostSearchShape {
 
-	private readonly _schemeTransformer: ISchemeTransformer;
 	private readonly _proxy: MainThreadSearchShape;
 	private readonly _searchProvider = new Map<number, vscode.SearchProvider>();
 	private _handlePool: number = 0;
 
-	private _fileSearchManager = new FileSearchManager();
+	private _fileSearchManager: FileSearchManager;
 
-	constructor(mainContext: IMainContext, schemeTransformer: ISchemeTransformer) {
-		this._schemeTransformer = schemeTransformer;
+	constructor(mainContext: IMainContext, private _schemeTransformer: ISchemeTransformer, private _pfs = pfs) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadSearch);
+		this._fileSearchManager = new FileSearchManager(this._pfs);
 	}
 
 	private _transformScheme(scheme: string): string {
@@ -328,7 +327,7 @@ class FileSearchEngine {
 	private folderExcludePatterns: Map<string, AbsoluteAndRelativeParsedExpression>;
 	private globalExcludePattern: glob.ParsedExpression;
 
-	constructor(private config: ISearchQuery, private provider: vscode.SearchProvider) {
+	constructor(private config: ISearchQuery, private provider: vscode.SearchProvider, private _pfs: typeof pfs) {
 		this.filePattern = config.filePattern;
 		this.includePattern = config.includePattern && glob.parse(config.includePattern);
 		this.maxResults = config.maxResults || null;
@@ -623,7 +622,7 @@ class FileSearchEngine {
 			return TPromise.wrap({ exists: false });
 		}
 
-		return pfs.stat(this.filePattern)
+		return this._pfs.stat(this.filePattern)
 			.then(stat => {
 				return {
 					exists: !stat.isDirectory(),
@@ -642,7 +641,7 @@ class FileSearchEngine {
 		}
 
 		const absolutePath = path.join(basePath, this.filePattern);
-		return pfs.stat(absolutePath).then(stat => {
+		return this._pfs.stat(absolutePath).then(stat => {
 			return {
 				exists: !stat.isDirectory(),
 				size: stat.size
@@ -761,6 +760,9 @@ class FileSearchManager {
 
 	private caches: { [cacheKey: string]: Cache; } = Object.create(null);
 
+	constructor(private _pfs: typeof pfs) {
+	}
+
 	public fileSearch(config: ISearchQuery, provider: vscode.SearchProvider): PPromise<ISearchComplete, OneOrMore<IFileMatch>> {
 		if (config.sortByScore) {
 			let sortedSearch = this.trySortedSearchFromCache(config);
@@ -772,7 +774,7 @@ class FileSearchManager {
 					} :
 					config;
 
-				const engine = new FileSearchEngine(engineConfig, provider);
+				const engine = new FileSearchEngine(engineConfig, provider, this._pfs);
 				sortedSearch = this.doSortedSearch(engine, provider, config);
 			}
 
@@ -791,7 +793,7 @@ class FileSearchManager {
 
 		let searchPromise: PPromise<void, OneOrMore<IInternalFileMatch>>;
 		return new PPromise<ISearchComplete, OneOrMore<IFileMatch>>((c, e, p) => {
-			const engine = new FileSearchEngine(config, provider);
+			const engine = new FileSearchEngine(config, provider, this._pfs);
 			searchPromise = this.doSearch(engine, provider, FileSearchManager.BATCH_SIZE)
 				.then(c, e, progress => {
 					if (Array.isArray(progress)) {
