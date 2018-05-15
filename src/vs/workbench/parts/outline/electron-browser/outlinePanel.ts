@@ -176,9 +176,9 @@ export class OutlinePanel extends ViewsViewletPanel {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService);
 
@@ -231,7 +231,10 @@ export class OutlinePanel extends ViewsViewletPanel {
 		const controller = new class extends OutlineController {
 
 			private readonly _mapper = KeyboardMapperFactory.INSTANCE;
-			// private readonly _ignored = { [KeyCode.Shift]: true,/*  [KeyCode.Ctrl]: true, [KeyCode.Alt]: true, [KeyCode.Meta]: true  */ };
+
+			constructor() {
+				super({}, $this.configurationService);
+			}
 
 			onKeyDown(tree: ITree, event: IKeyboardEvent) {
 				let handled = super.onKeyDown(tree, event);
@@ -248,11 +251,12 @@ export class OutlinePanel extends ViewsViewletPanel {
 				if (!mapping) {
 					return false;
 				}
-				const value = mapping[event.code];
-				if (value.value) {
+				const keyInfo = mapping[event.code];
+				if (keyInfo.value) {
 					$this._input.focus();
+					return true;
 				}
-				return true;
+				return false;
 			}
 		};
 		const dataSource = new OutlineDataSource();

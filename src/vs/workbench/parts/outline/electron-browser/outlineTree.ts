@@ -12,7 +12,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { createMatches } from 'vs/base/common/filters';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IFilter, IRenderer, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
-import { DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
 import 'vs/css!./media/symbol-icons';
 import { Range } from 'vs/editor/common/core/range';
 import { symbolKindToCssClass } from 'vs/editor/common/modes';
@@ -22,6 +21,7 @@ import { getPathLabel } from 'vs/base/common/labels';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { localize } from 'vs/nls';
+import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 
 export enum OutlineItemCompareType {
 	ByPosition,
@@ -234,7 +234,7 @@ export class OutlineTreeState {
 	}
 }
 
-export class OutlineController extends DefaultController {
+export class OutlineController extends WorkbenchTreeController {
 
 	protected onLeftClick(tree: ITree, element: any, event: IMouseEvent, origin: string = 'mouse'): boolean {
 
