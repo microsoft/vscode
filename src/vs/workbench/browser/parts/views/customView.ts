@@ -119,6 +119,9 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 	private _onDidCollapseItem: Emitter<ITreeItem> = this._register(new Emitter<ITreeItem>());
 	readonly onDidCollapseItem: Event<ITreeItem> = this._onDidCollapseItem.event;
 
+	private _onDidChangeSelection: Emitter<ITreeItem[]> = this._register(new Emitter<ITreeItem[]>());
+	readonly onDidChangeSelection: Event<ITreeItem[]> = this._onDidChangeSelection.event;
+
 	constructor(
 		private id: string,
 		private location: ViewLocation,
@@ -233,6 +236,7 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 		this._register(this.tree.onDidChangeSelection(e => this.onSelection(e)));
 		this._register(this.tree.onDidExpandItem(e => this._onDidExpandItem.fire(e.item.getElement())));
 		this._register(this.tree.onDidCollapseItem(e => this._onDidCollapseItem.fire(e.item.getElement())));
+		this._register(this.tree.onDidChangeSelection(e => this._onDidChangeSelection.fire(e.selection)));
 		this.tree.setInput(this.root);
 	}
 

@@ -58,6 +58,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 	private registerListeners(treeViewId: string, treeViewer: ITreeViewer): void {
 		this._register(treeViewer.onDidExpandItem(item => this._proxy.$setExpanded(treeViewId, item.handle, true)));
 		this._register(treeViewer.onDidCollapseItem(item => this._proxy.$setExpanded(treeViewId, item.handle, false)));
+		this._register(treeViewer.onDidChangeSelection(items => this._proxy.$setSelection(treeViewId, items.map(({ handle }) => handle))));
 	}
 
 	dispose(): void {

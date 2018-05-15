@@ -69,10 +69,18 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 
 	$setExpanded(treeViewId: string, treeItemHandle: string, expanded: boolean): void {
 		const treeView = this.treeViews.get(treeViewId);
-		if (treeView) {
-			treeView.setExpanded(treeItemHandle, expanded);
+		if (!treeView) {
+			throw new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
 		}
-		TPromise.wrapError<ITreeItem[]>(new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId)));
+		treeView.setExpanded(treeItemHandle, expanded);
+	}
+
+	$setSelection(treeViewId: string, treeItemHandles: string[]): void {
+		const treeView = this.treeViews.get(treeViewId);
+		if (!treeView) {
+			throw new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
+		}
+		treeView.setSelection(treeItemHandles);
 	}
 
 	private createExtHostTreeViewer<T>(id: string, dataProvider: vscode.TreeDataProvider<T>): ExtHostTreeView<T> {
@@ -101,6 +109,9 @@ class ExtHostTreeView<T> extends Disposable {
 	private roots: TreeNode[] = null;
 	private elements: Map<TreeItemHandle, T> = new Map<TreeItemHandle, T>();
 	private nodes: Map<T, TreeNode> = new Map<T, TreeNode>();
+
+	private _selectedElements: T[] = [];
+	get selectedElements(): T[] { return this._selectedElements; }
 
 	private _onDidExpandElement: Emitter<T> = this._register(new Emitter<T>());
 	readonly onDidExpandElement: Event<T> = this._onDidExpandElement.event;
@@ -150,6 +161,10 @@ class ExtHostTreeView<T> extends Disposable {
 				this._onDidCollapseElement.fire(element);
 			}
 		}
+	}
+
+	setSelection(treeItemHandles: TreeItemHandle[]): void {
+		this._selectedElements = treeItemHandles.map(handle => this.getExtensionElement(handle)).filter(element => !isUndefinedOrNull(element));
 	}
 
 	private resolveUnknownParentChain(element: T): TPromise<TreeNode[]> {
