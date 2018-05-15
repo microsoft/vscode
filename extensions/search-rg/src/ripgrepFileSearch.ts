@@ -22,11 +22,18 @@ export class RipgrepFileSearchEngine {
 	private rgProc: cp.ChildProcess;
 	private killRgProcFn: (code?: number) => void;
 
-	constructor() {
+	constructor(private outputChannel: vscode.OutputChannel) {
 		this.killRgProcFn = () => this.rgProc && this.rgProc.kill();
 	}
 
 	provideFileSearchResults(options: vscode.SearchOptions, progress: vscode.Progress<vscode.Uri>, token: vscode.CancellationToken): Thenable<void> {
+		this.outputChannel.appendLine(`provideFileSearchResults ${JSON.stringify({
+			...options,
+			...{
+				folder: options.folder.toString()
+			}
+		})}`);
+
 		return new Promise((resolve, reject) => {
 			let isDone = false;
 			const cancel = () => {
@@ -39,11 +46,10 @@ export class RipgrepFileSearchEngine {
 
 			const cwd = options.folder.fsPath;
 
-			// TODO logging
-			// const escapedArgs = rgArgs
-			// 	.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
-			// 	.join(' ');
-			// let rgCmd = `rg ${escapedArgs}\n - cwd: ${cwd}`;
+			const escapedArgs = rgArgs
+				.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
+				.join(' ');
+			this.outputChannel.appendLine(`rg ${escapedArgs}\n - cwd: ${cwd}\n`);
 
 			this.rgProc = cp.spawn(rgDiskPath, rgArgs, { cwd });
 			process.once('exit', this.killRgProcFn);
