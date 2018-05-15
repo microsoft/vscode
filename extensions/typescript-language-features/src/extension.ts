@@ -19,6 +19,7 @@ import ManagedFileContextManager from './utils/managedFileContext';
 import { lazy, Lazy } from './utils/lazy';
 import * as fileSchemes from './utils/fileSchemes';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
+import { RenameFileAndUpdatePathsCommand } from './features/updatePathsOnRename';
 
 export function activate(
 	context: vscode.ExtensionContext
@@ -74,6 +75,7 @@ function createLazyClientHost(
 		context.subscriptions.push(clientHost);
 
 		clientHost.serviceClient.onReady(() => {
+			commandManager.register(new RenameFileAndUpdatePathsCommand(clientHost.serviceClient));
 			context.subscriptions.push(
 				ProjectStatus.create(
 					clientHost.serviceClient,
