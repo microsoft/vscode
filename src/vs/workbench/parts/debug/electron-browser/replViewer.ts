@@ -316,6 +316,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 
 					currentPos++;
 
+					// Look for a known sequence terminating character.
 					if (char.match(/^[ABCDHIJKfhmpsu]$/)) {
 						sequenceFound = true;
 						break;
@@ -350,14 +351,13 @@ export class ReplExpressionsRenderer implements IRenderer {
 							} else if ((code >= 30 && code <= 37) || (code >= 90 && code <= 97)) {
 								styleNames.push('code-fg-' + code);
 							} else if (code === 39) {
+								// Remove all foreground colour codes
 								styleNames = styleNames.filter(style => !style.match(/^code-fg-\d+$/));
 							}
 						}
 
-					} else if (ansiSequence.match(/^.*[ABCDHIJKfhmpsu]$/)) {
-						// Unsupported sequence so simply hide it.
 					} else {
-						sequenceFound = false;
+						// Unsupported sequence so simply hide it.
 					}
 
 				}
@@ -397,7 +397,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 			return;
 		}
 
-		const content: string | HTMLElement = this.linkDetector.handleLinks(stringContent);
+		const content = this.linkDetector.handleLinks(stringContent);
 		let container: HTMLElement;
 
 		if (typeof content === 'string') {
