@@ -57,6 +57,8 @@ export interface IViewDescriptor {
 	readonly collapsed?: boolean;
 
 	readonly canToggleVisibility?: boolean;
+
+	readonly hideByDefault?: boolean;
 }
 
 export interface IViewsRegistry {
