@@ -97,7 +97,7 @@ export class OutlineDataSource implements IDataSource {
 	}
 
 	shouldAutoexpand(tree: ITree, element: TreeElement): boolean {
-		return element instanceof OutlineModel || element instanceof OutlineGroup || element.parent instanceof OutlineGroup;
+		return element instanceof OutlineModel || element.parent instanceof OutlineModel || element instanceof OutlineGroup || element.parent instanceof OutlineGroup;
 	}
 }
 
