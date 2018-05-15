@@ -12,6 +12,7 @@ import { fuzzyScore } from 'vs/base/common/filters';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { size, first } from 'vs/base/common/collections';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 
 export type FuzzyScore = [number, number[]];
 
@@ -142,8 +143,10 @@ export class OutlineModel extends TreeElement {
 			let group = new OutlineGroup(id, this, provider, index);
 
 			return asWinJsPromise(token => provider.provideDocumentSymbols(this.textModel, token)).then(result => {
-				for (const info of result) {
-					OutlineModel._makeOutlineElement(info, group);
+				if (!isFalsyOrEmpty(result)) {
+					for (const info of result) {
+						OutlineModel._makeOutlineElement(info, group);
+					}
 				}
 				return group;
 			}, err => {
