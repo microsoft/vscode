@@ -40,6 +40,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { OutlineElement, OutlineModel } from './outlineModel';
 import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from './outlineTree';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 
 class RequestOracle {
 
@@ -229,21 +230,29 @@ export class OutlinePanel extends ViewsViewletPanel {
 		const $this = this;
 		const controller = new class extends OutlineController {
 
-			private readonly _ignored = { [KeyCode.Shift]: true, [KeyCode.Ctrl]: true, [KeyCode.Alt]: true, [KeyCode.Meta]: true };
+			private readonly _mapper = KeyboardMapperFactory.INSTANCE;
+			// private readonly _ignored = { [KeyCode.Shift]: true,/*  [KeyCode.Ctrl]: true, [KeyCode.Alt]: true, [KeyCode.Meta]: true  */ };
 
 			onKeyDown(tree: ITree, event: IKeyboardEvent) {
 				let handled = super.onKeyDown(tree, event);
 				if (handled) {
 					return true;
 				}
-				if (!this.upKeyBindingDispatcher.has(event.keyCode) && !this._ignored[event.keyCode]) {
-					// crazy -> during keydown focus moves to the input box
-					// and because of that the keyup event is handled by the
-					// input field
-					$this._input.focus();
-					return true;
+				if (this.upKeyBindingDispatcher.has(event.keyCode)) {
+					return false;
 				}
-				return false;
+				// crazy -> during keydown focus moves to the input box
+				// and because of that the keyup event is handled by the
+				// input field
+				const mapping = this._mapper.getRawKeyboardMapping();
+				if (!mapping) {
+					return false;
+				}
+				const value = mapping[event.code];
+				if (value.value) {
+					$this._input.focus();
+				}
+				return true;
 			}
 		};
 		const dataSource = new OutlineDataSource();
