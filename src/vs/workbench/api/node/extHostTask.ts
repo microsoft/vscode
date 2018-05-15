@@ -690,9 +690,6 @@ namespace TaskFilterDTO {
 
 class TaskExecutionImpl implements vscode.TaskExecution {
 
-	private readonly _onDidTaskProcessStarted: Emitter<vscode.TaskProcessStartEvent> = new Emitter<vscode.TaskProcessStartEvent>();
-	private readonly _onDidTaskProcessEnded: Emitter<vscode.TaskProcessEndEvent> = new Emitter<vscode.TaskProcessEndEvent>();
-
 	constructor(private readonly _tasks: ExtHostTask, readonly _id: string, private readonly _task: vscode.Task) {
 	}
 
@@ -704,26 +701,10 @@ class TaskExecutionImpl implements vscode.TaskExecution {
 		this._tasks.terminateTask(this);
 	}
 
-	public get onDidStartProcess(): Event<vscode.TaskProcessStartEvent> {
-		return this._onDidTaskProcessStarted.event;
-	}
-
 	public fireDidStartProcess(value: TaskProcessStartedDTO): void {
-		this._onDidTaskProcessStarted.fire({
-			execution: this,
-			processId: value.processId
-		});
-	}
-
-	public get onDidEndProcess(): Event<vscode.TaskProcessEndEvent> {
-		return this._onDidTaskProcessEnded.event;
 	}
 
 	public fireDidEndProcess(value: TaskProcessEndedDTO): void {
-		this._onDidTaskProcessEnded.fire({
-			execution: this,
-			exitCode: value.exitCode
-		});
 	}
 }
 
@@ -754,6 +735,9 @@ export class ExtHostTask implements ExtHostTaskShape {
 
 	private readonly _onDidExecuteTask: Emitter<vscode.TaskStartEvent> = new Emitter<vscode.TaskStartEvent>();
 	private readonly _onDidTerminateTask: Emitter<vscode.TaskEndEvent> = new Emitter<vscode.TaskEndEvent>();
+
+	private readonly _onDidTaskProcessStarted: Emitter<vscode.TaskProcessStartEvent> = new Emitter<vscode.TaskProcessStartEvent>();
+	private readonly _onDidTaskProcessEnded: Emitter<vscode.TaskProcessEndEvent> = new Emitter<vscode.TaskProcessEndEvent>();
 
 	constructor(mainContext: IMainContext, extHostWorkspace: ExtHostWorkspace) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTask);
@@ -807,34 +791,10 @@ export class ExtHostTask implements ExtHostTaskShape {
 		}
 	}
 
-	public $onDidStartTask(execution: TaskExecutionDTO): void {
-		this._onDidExecuteTask.fire({
-			execution: this.getTaskExecution(execution)
-		});
-	}
-
-	public $onDidStartTaskProcess(value: TaskProcessStartedDTO): void {
-		const execution = this.getTaskExecution(value.id);
-		if (execution) {
-			execution.fireDidStartProcess(value);
-		}
-	}
-
-	public $onDidEndTaskProcess(value: TaskProcessEndedDTO): void {
-		const execution = this.getTaskExecution(value.id);
-		if (execution) {
-			execution.fireDidEndProcess(value);
-		}
-	}
-
-	get taskExecutions(): vscode.TaskExecution[] {
+	public get taskExecutions(): vscode.TaskExecution[] {
 		let result: vscode.TaskExecution[] = [];
 		this._taskExecutions.forEach(value => result.push(value));
 		return result;
-	}
-
-	get onDidStartTask(): Event<vscode.TaskStartEvent> {
-		return this._onDidExecuteTask.event;
 	}
 
 	public terminateTask(execution: vscode.TaskExecution): TPromise<void> {
@@ -842,6 +802,20 @@ export class ExtHostTask implements ExtHostTaskShape {
 			throw new Error('No valid task execution provided');
 		}
 		return this._proxy.$terminateTask((execution as TaskExecutionImpl)._id);
+	}
+
+	public get onDidStartTask(): Event<vscode.TaskStartEvent> {
+		return this._onDidExecuteTask.event;
+	}
+
+	public $onDidStartTask(execution: TaskExecutionDTO): void {
+		this._onDidExecuteTask.fire({
+			execution: this.getTaskExecution(execution)
+		});
+	}
+
+	public get onDidEndTask(): Event<vscode.TaskEndEvent> {
+		return this._onDidTerminateTask.event;
 	}
 
 	public $OnDidEndTask(execution: TaskExecutionDTO): void {
@@ -852,8 +826,32 @@ export class ExtHostTask implements ExtHostTaskShape {
 		});
 	}
 
-	get onDidEndTask(): Event<vscode.TaskEndEvent> {
-		return this._onDidTerminateTask.event;
+	public get onDidStartTaskProcess(): Event<vscode.TaskProcessStartEvent> {
+		return this._onDidTaskProcessStarted.event;
+	}
+
+	public $onDidStartTaskProcess(value: TaskProcessStartedDTO): void {
+		const execution = this.getTaskExecution(value.id);
+		if (execution) {
+			this._onDidTaskProcessStarted.fire({
+				execution: execution,
+				processId: value.processId
+			});
+		}
+	}
+
+	public get onDidEndTaskProcess(): Event<vscode.TaskProcessEndEvent> {
+		return this._onDidTaskProcessEnded.event;
+	}
+
+	public $onDidEndTaskProcess(value: TaskProcessEndedDTO): void {
+		const execution = this.getTaskExecution(value.id);
+		if (execution) {
+			this._onDidTaskProcessEnded.fire({
+				execution: execution,
+				exitCode: value.exitCode
+			});
+		}
 	}
 
 	public $provideTasks(handle: number): TPromise<TaskSystem.TaskSet> {
