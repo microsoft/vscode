@@ -5883,7 +5883,7 @@ declare module 'vscode' {
 		/**
 		 * Currently selected elements.
 		 */
-		readonly selectedElements: T[];
+		readonly selectedElements: ReadonlyArray<T>;
 
 		/**
 		 * Reveal an element. By default revealed element is selected.
