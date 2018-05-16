@@ -86,7 +86,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 	private container: HTMLElement;
 	private gridWidget: SerializableGrid<INextEditorGroupView>;
 
-	private _whenRestored: Thenable<void>;
+	private _whenRestored: TPromise<void>;
 	private whenRestoredComplete: TValueCallback<void>;
 
 	constructor(
@@ -180,7 +180,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		return this.gridWidget.orientation === Orientation.VERTICAL ? GroupOrientation.VERTICAL : GroupOrientation.HORIZONTAL;
 	}
 
-	get whenRestored(): Thenable<void> {
+	get whenRestored(): TPromise<void> {
 		return this._whenRestored;
 	}
 

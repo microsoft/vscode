@@ -15,6 +15,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
+import { toWinJsPromise } from 'vs/base/common/async';
 
 export interface IOpenEditorResult {
 	readonly control: BaseEditor;
@@ -44,7 +45,7 @@ export class NextEditorControl extends Disposable {
 		return this._activeControl;
 	}
 
-	openEditor(editor: EditorInput, options?: EditorOptions): Thenable<IOpenEditorResult> {
+	openEditor(editor: EditorInput, options?: EditorOptions): TPromise<IOpenEditorResult> {
 
 		// Editor control
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editor);
@@ -116,7 +117,7 @@ export class NextEditorControl extends Disposable {
 		return control;
 	}
 
-	private doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions): Thenable<boolean> {
+	private doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions): TPromise<boolean> {
 
 		// If the input did not change, return early and only apply the options
 		// unless the options instruct us to force open it even if it is the same
@@ -142,7 +143,7 @@ export class NextEditorControl extends Disposable {
 
 		// Call into editor control
 		const editorWillChange = !inputMatches || forceOpen;
-		return control.setInput(editor, options, operation.token).then(() => {
+		return toWinJsPromise(control.setInput(editor, options, operation.token)).then(() => {
 
 			// Focus (unless prevented or another operation is running)
 			if (operation.isCurrent()) {

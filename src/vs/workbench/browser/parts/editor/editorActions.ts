@@ -25,7 +25,6 @@ import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { CLOSE_EDITOR_COMMAND_ID, NAVIGATE_IN_GROUP_ONE_PREFIX, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, NAVIGATE_IN_GROUP_THREE_PREFIX, NAVIGATE_IN_GROUP_TWO_PREFIX, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { INextEditorGroupsService, GroupDirection as SplitDirection, INextEditorGroup, GroupsArrangement } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
-import { toWinJsPromise } from 'vs/base/common/async';
 
 // TODo@grid this action should be removed in favour of the split vertical/horizontal actions
 export class SplitEditorAction extends Action {
@@ -679,13 +678,13 @@ export class CloseOneEditorAction extends Action {
 		if (typeof editorIndex === 'number') {
 			const editorAtIndex = group.getEditor(editorIndex);
 			if (editorAtIndex) {
-				return toWinJsPromise(group.closeEditor(editorAtIndex));
+				return group.closeEditor(editorAtIndex);
 			}
 		}
 
 		// Otherwise close active editor in group
 		if (group.activeEditor) {
-			return toWinJsPromise(group.closeEditor(group.activeEditor));
+			return group.closeEditor(group.activeEditor);
 		}
 
 		return TPromise.as(false);

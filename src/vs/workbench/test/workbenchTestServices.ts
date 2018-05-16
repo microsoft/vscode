@@ -713,7 +713,7 @@ export class TestNextEditorGroupsService implements INextEditorGroupsService {
 	onDidMoveGroup: Event<INextEditorGroup> = Event.None;
 
 	orientation: any;
-	whenRestored: Thenable<void> = TPromise.as(void 0);
+	whenRestored: TPromise<void> = TPromise.as(void 0);
 
 	get activeGroup(): INextEditorGroup {
 		return this.groups[0];
@@ -807,11 +807,11 @@ export class TestNextEditorGroup implements INextEditorGroup {
 		return -1;
 	}
 
-	openEditor(editor: IEditorInput, options?: IEditorOptions): Thenable<void> {
+	openEditor(editor: IEditorInput, options?: IEditorOptions): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	openEditors(editors: IEditorInputWithOptions[]): Thenable<void> {
+	openEditors(editors: IEditorInputWithOptions[]): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
@@ -831,19 +831,19 @@ export class TestNextEditorGroup implements INextEditorGroup {
 
 	copyEditor(editor: IEditorInput, target: INextEditorGroup, options?: ICopyEditorOptions): void { }
 
-	closeEditor(editor?: IEditorInput): Thenable<void> {
+	closeEditor(editor?: IEditorInput): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	closeEditors(editors: IEditorInput[] | { except?: IEditorInput; direction?: CloseDirection; savedOnly?: boolean; }): Thenable<void> {
+	closeEditors(editors: IEditorInput[] | { except?: IEditorInput; direction?: CloseDirection; savedOnly?: boolean; }): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	closeAllEditors(): Thenable<void> {
+	closeAllEditors(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	replaceEditors(editors: IEditorReplacement[]): Thenable<void> {
+	replaceEditors(editors: IEditorReplacement[]): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
@@ -886,7 +886,7 @@ export class TestNextEditorService implements INextEditorService {
 		return false;
 	}
 
-	closeEditor(editor: IEditorInput, group: number | INextEditorGroup): Thenable<void> {
+	closeEditor(editor: IEditorInput, group: number | INextEditorGroup): TPromise<void> {
 		return TPromise.as(null);
 	}
 
@@ -1252,7 +1252,7 @@ export class TestLifecycleService implements ILifecycleService {
 	private _onWillShutdown = new Emitter<ShutdownEvent>();
 	private _onShutdown = new Emitter<ShutdownReason>();
 
-	when(): Thenable<void> {
+	when(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 

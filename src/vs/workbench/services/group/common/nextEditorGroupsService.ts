@@ -9,6 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInput, IEditor, GroupIdentifier, IEditorOpeningEvent, IEditorInputWithOptions, CloseDirection } from 'vs/workbench/common/editor';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export const INextEditorGroupsService = createDecorator<INextEditorGroupsService>('nextEditorGroupsService');
 
@@ -138,7 +139,7 @@ export interface INextEditorGroupsService {
 	/**
 	 * A promise that resolves when groups have been restored.
 	 */
-	readonly whenRestored: Thenable<void>;
+	readonly whenRestored: TPromise<void>;
 
 	/**
 	 * Get all groups that are currently visible in the editor area optionally
@@ -331,7 +332,7 @@ export interface INextEditorGroup {
 	 * @returns a promise that is resolved when the active editor (if any)
 	 * has finished loading
 	 */
-	openEditor(editor: IEditorInput, options?: IEditorOptions): Thenable<void>;
+	openEditor(editor: IEditorInput, options?: IEditorOptions): TPromise<void>;
 
 	/**
 	 * Opens editors in this group.
@@ -339,7 +340,7 @@ export interface INextEditorGroup {
 	 * @returns a promise that is resolved when the active editor (if any)
 	 * has finished loading
 	 */
-	openEditors(editors: IEditorInputWithOptions[]): Thenable<void>;
+	openEditors(editors: IEditorInputWithOptions[]): TPromise<void>;
 
 	/**
 	 * Find out if the provided editor is opened in the group.
@@ -379,7 +380,7 @@ export interface INextEditorGroup {
 	 *
 	 * @returns a promise when the editor is closed.
 	 */
-	closeEditor(editor?: IEditorInput): Thenable<void>;
+	closeEditor(editor?: IEditorInput): TPromise<void>;
 
 	/**
 	 * Closes specific editors in this group. This may trigger a confirmation dialog if
@@ -387,7 +388,7 @@ export interface INextEditorGroup {
 	 *
 	 * @returns a promise when all editors are closed.
 	 */
-	closeEditors(editors: IEditorInput[] | ICloseEditorsFilter): Thenable<void>;
+	closeEditors(editors: IEditorInput[] | ICloseEditorsFilter): TPromise<void>;
 
 	/**
 	 * Closes all editors from the group. This may trigger a confirmation dialog if
@@ -395,7 +396,7 @@ export interface INextEditorGroup {
 	 *
 	 * @returns a promise when all editors are closed.
 	 */
-	closeAllEditors(): Thenable<void>;
+	closeAllEditors(): TPromise<void>;
 
 	/**
 	 * Replaces editors in this group with the provided replacement.
@@ -405,7 +406,7 @@ export interface INextEditorGroup {
 	 * @returns a promise that is resolved when the replaced active
 	 * editor (if any) has finished loading.
 	 */
-	replaceEditors(editors: IEditorReplacement[]): Thenable<void>;
+	replaceEditors(editors: IEditorReplacement[]): TPromise<void>;
 
 	/**
 	 * Set an editor to be pinned. A pinned editor is not replaced

@@ -9,7 +9,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextEditorService } from 'vs/editor/browser/services/textEditorService';
-import { toWinJsPromise } from 'vs/base/common/async';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -210,7 +209,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		this._ignoreModelChangeEvent = true;
 		const range = Range.lift(ref.range).collapseToStart();
 
-		return toWinJsPromise(this._editorService.openTextEditor({
+		return this._editorService.openTextEditor({
 			resource: ref.uri,
 			options: { selection: range }
 		}).then(openedEditor => {
@@ -234,7 +233,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		}, (err) => {
 			this._ignoreModelChangeEvent = false;
 			onUnexpectedError(err);
-		}));
+		});
 	}
 
 	public openReference(ref: Location, sideBySide: boolean): void {

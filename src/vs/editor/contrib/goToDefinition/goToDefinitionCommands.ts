@@ -11,7 +11,6 @@ import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextEditorService } from 'vs/editor/browser/services/textEditorService';
-import { toWinJsPromise } from 'vs/base/common/async';
 import { Range } from 'vs/editor/common/core/range';
 import { registerEditorAction, IActionOptions, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { Location } from 'vs/editor/common/modes';
@@ -147,14 +146,14 @@ export class DefinitionAction extends EditorAction {
 
 	private _openReference(editorService: ITextEditorService, reference: Location, sideBySide: boolean): TPromise<ICodeEditor> {
 		let { uri, range } = reference;
-		return toWinJsPromise(editorService.openTextEditor({
+		return editorService.openTextEditor({
 			resource: uri,
 			options: {
 				selection: Range.collapseToStart(range),
 				revealIfVisible: true,
 				revealInCenterIfOutsideViewport: true
 			}
-		}, sideBySide));
+		}, sideBySide);
 	}
 
 	private _openInPeek(editorService: ITextEditorService, target: ICodeEditor, model: ReferencesModel) {

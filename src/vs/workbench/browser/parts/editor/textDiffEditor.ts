@@ -7,6 +7,7 @@
 
 import 'vs/css!./media/textdiffeditor';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { toWinJsPromise } from 'vs/base/common/async';
 import * as nls from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import { Action, IAction } from 'vs/base/common/actions';
@@ -105,7 +106,7 @@ export class TextDiffEditor extends BaseTextEditor {
 
 					// Input matches modified side of the diff editor: perform the action on modified side
 					if (input.matches(activeDiffInput.modifiedInput)) {
-						return this.setInput(this.input, options, CancellationToken.None).then(() => this);
+						return toWinJsPromise(this.setInput(this.input, options, CancellationToken.None)).then(() => this);
 					}
 
 					// Input matches original side of the diff editor: perform the action on original side

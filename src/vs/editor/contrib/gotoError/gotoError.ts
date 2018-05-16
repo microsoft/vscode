@@ -24,7 +24,6 @@ import { MarkerNavigationWidget } from './gotoErrorWidget';
 import { compare } from 'vs/base/common/strings';
 import { binarySearch } from 'vs/base/common/arrays';
 import { ITextEditorService } from 'vs/editor/browser/services/textEditorService';
-import { toWinJsPromise } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
@@ -348,7 +347,7 @@ class MarkerNavigationAction extends EditorAction {
 		// for the next marker and re-start marker navigation in there
 		controller.closeMarkersNavigation();
 
-		return toWinJsPromise(editorService.openTextEditor({
+		return editorService.openTextEditor({
 			resource: newMarker.resource,
 			options: { pinned: false, revealIfOpened: true, revealInCenterIfOutsideViewport: true, selection: newMarker }
 		}).then(editor => {
@@ -356,7 +355,7 @@ class MarkerNavigationAction extends EditorAction {
 				return undefined;
 			}
 			return editor.getAction(this.id).run();
-		}));
+		});
 	}
 
 	static compareMarker(a: IMarker, b: IMarker): number {

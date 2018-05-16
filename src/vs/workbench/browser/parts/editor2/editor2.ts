@@ -5,6 +5,7 @@
 
 'use strict';
 
+import { TPromise } from 'vs/base/common/winjs.base';
 import { GroupIdentifier, IWorkbenchEditorConfiguration, IWorkbenchEditorPartConfiguration, EditorOptions, TextEditorOptions, IEditorInput } from 'vs/workbench/common/editor';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { INextEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions } from 'vs/workbench/services/group/common/nextEditorGroupsService';
@@ -86,7 +87,7 @@ export interface INextEditorGroupsAccessor {
 
 export interface INextEditorGroupView extends IDisposable, ISerializableView, INextEditorGroup {
 	readonly group: EditorGroup;
-	readonly whenRestored: Thenable<void>;
+	readonly whenRestored: TPromise<void>;
 	readonly disposed: boolean;
 
 	readonly onDidFocus: Event<void>;

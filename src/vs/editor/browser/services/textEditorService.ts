@@ -9,6 +9,7 @@ import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditor } from 'vs/editor/common/editorCommon';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export const ITextEditorService = createDecorator<ITextEditorService>('textEditorService');
 
@@ -24,5 +25,5 @@ export interface ITextEditorService {
 	/**
 	 * Open a text editor.
 	 */
-	openTextEditor(editor: IResourceInput, sideBySide?: boolean): Thenable<ICodeEditor>;
+	openTextEditor(editor: IResourceInput, sideBySide?: boolean): TPromise<ICodeEditor>;
 }

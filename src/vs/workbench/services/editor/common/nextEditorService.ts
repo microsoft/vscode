@@ -11,6 +11,7 @@ import { IEditorInput, IEditor, GroupIdentifier, IEditorOpeningEvent, IEditorInp
 import { Event } from 'vs/base/common/event';
 import { IEditor as ITextEditor } from 'vs/editor/common/editorCommon';
 import { INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export const INextEditorService = createDecorator<INextEditorService>('nextEditorService');
 
@@ -100,7 +101,7 @@ export interface INextEditorService {
 	 * active group. Use `SIDE_GROUP_TYPE` to open the editor in a new editor group to the side
 	 * of the currently active group.
 	 */
-	openEditor(editor: IEditorInput, options?: IEditorOptions, group?: INextEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Thenable<IEditor>;
+	openEditor(editor: IEditorInput, options?: IEditorOptions, group?: INextEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<IEditor>;
 
 	/**
 	 * Open an editor in an editor group.
@@ -110,7 +111,7 @@ export interface INextEditorService {
 	 * active group. Use `SIDE_GROUP_TYPE` to open the editor in a new editor group to the side
 	 * of the currently active group.
 	 */
-	openEditor(editor: IResourceEditor, group?: INextEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Thenable<IEditor>;
+	openEditor(editor: IResourceEditor, group?: INextEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<IEditor>;
 
 	/**
 	 * Open editors in an editor group.
@@ -120,8 +121,8 @@ export interface INextEditorService {
 	 * active group. Use `SIDE_GROUP_TYPE` to open the editor in a new editor group to the side
 	 * of the currently active group.
 	 */
-	openEditors(editors: IEditorInputWithOptions[], group?: INextEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Thenable<ReadonlyArray<IEditor>>;
-	openEditors(editors: IResourceEditor[], group?: INextEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Thenable<ReadonlyArray<IEditor>>;
+	openEditors(editors: IEditorInputWithOptions[], group?: INextEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<ReadonlyArray<IEditor>>;
+	openEditors(editors: IResourceEditor[], group?: INextEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<ReadonlyArray<IEditor>>;
 
 	/**
 	 * Find out if the provided editor (or resource of an editor) is opened in any group.
@@ -136,7 +137,7 @@ export interface INextEditorService {
 	 * @param editor the editor to close
 	 * @param group the target group of the editor
 	 */
-	closeEditor(editor: IEditorInput, group: INextEditorGroup | GroupIdentifier): Thenable<void>;
+	closeEditor(editor: IEditorInput, group: INextEditorGroup | GroupIdentifier): TPromise<void>;
 
 	/**
 	 * Invoke a function in the context of the services of the active editor.
