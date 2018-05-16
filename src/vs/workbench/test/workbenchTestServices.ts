@@ -788,7 +788,7 @@ export class TestNextEditorGroup implements INextEditorGroup {
 	activeEditor: IEditorInput;
 	previewEditor: IEditorInput;
 	count: number;
-	editors: ReadonlyArray<IEditorInput>;
+	editors: ReadonlyArray<IEditorInput> = [];
 	label: string;
 
 	onWillDispose: Event<void> = Event.None;
@@ -870,9 +870,9 @@ export class TestNextEditorService implements INextEditorService {
 	activeControl: IEditor;
 	activeTextEditorControl: any;
 	activeEditor: IEditorInput;
-	visibleControls: ReadonlyArray<IEditor>;
+	visibleControls: ReadonlyArray<IEditor> = [];
 	visibleTextEditorControls = [];
-	visibleEditors: ReadonlyArray<IEditorInput>;
+	visibleEditors: ReadonlyArray<IEditorInput> = [];
 
 	openEditor(editor: any, options?: any, group?: any) {
 		return TPromise.as(null);
