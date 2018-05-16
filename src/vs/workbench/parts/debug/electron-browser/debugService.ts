@@ -85,7 +85,6 @@ export class DebugService implements debug.IDebugService {
 	private skipRunningTask: boolean;
 	private previousState: debug.State;
 	private fetchThreadsSchedulers: Map<string, RunOnceScheduler>;
-	private openDebugOptions: "neverOpen" | "openOnSessionStart" | "openOnFirstSessionStart" | "openOnDebugBreak";
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -273,8 +272,8 @@ export class DebugService implements debug.IDebugService {
 
 		this.focusStackFrame(stackFrameToFocus);
 		if (thread.stoppedDetails) {
-			if (this.openDebugOptions === 'openOnDebugBreak') {
-				this.viewletService.openViewlet(debug.VIEWLET_ID);
+			if (this.configurationService.getValue<debug.IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak') {
+				this.viewletService.openViewlet(debug.VIEWLET_ID).done(undefined, errors.onUnexpectedError);
 			}
 			this.windowService.focusWindow();
 			aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", thread.stoppedDetails.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.range.startLineNumber));
@@ -940,9 +939,9 @@ export class DebugService implements debug.IDebugService {
 						this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
 					}
 
-					this.openDebugOptions = this.configurationService.getValue<debug.IDebugConfiguration>('debug').openDebug;
+					const openDebug = this.configurationService.getValue<debug.IDebugConfiguration>('debug').openDebug;
 					// Open debug viewlet based on the visibility of the side bar and openDebug setting
-					if (this.openDebugOptions === 'openOnSessionStart' || (this.openDebugOptions === 'openOnFirstSessionStart' && this.firstSessionStart)) {
+					if (openDebug === 'openOnSessionStart' || (openDebug === 'openOnFirstSessionStart' && this.firstSessionStart)) {
 						this.viewletService.openViewlet(debug.VIEWLET_ID);
 					}
 					this.firstSessionStart = false;
