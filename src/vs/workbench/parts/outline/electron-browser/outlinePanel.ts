@@ -86,7 +86,6 @@ class RequestOracle {
 	}
 
 	private _update(): void {
-		dispose(this._sessionDisposable);
 
 		let editor = this._workbenchEditorService.getActiveEditor();
 		let control = editor && editor.getControl();
@@ -113,6 +112,7 @@ class RequestOracle {
 			// prevent unneccesary changes...
 			return;
 		}
+		dispose(this._sessionDisposable);
 		this._lastState = thisState;
 		this._callback(codeEditor);
 
