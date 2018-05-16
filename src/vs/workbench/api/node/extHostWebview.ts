@@ -10,6 +10,7 @@ import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { Position } from 'vs/platform/editor/common/editor';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from './extHostTypes';
+import URI from 'vs/base/common/uri';
 
 export class ExtHostWebview implements vscode.Webview {
 	private readonly _handle: WebviewPanelHandle;
@@ -204,7 +205,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		title: string,
 		showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn, preserveFocus?: boolean },
 		options: (vscode.WebviewPanelOptions & vscode.WebviewOptions) | undefined,
-		extensionFolderPath: string
+		extensionLocation: URI
 	): vscode.WebviewPanel {
 		options = options || {};
 
@@ -215,7 +216,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		};
 
 		const handle = ExtHostWebviews.webviewHandlePool++ + '';
-		this._proxy.$createWebviewPanel(handle, viewType, title, webviewShowOptions, options, extensionFolderPath);
+		this._proxy.$createWebviewPanel(handle, viewType, title, webviewShowOptions, options, extensionLocation);
 
 		const webview = new ExtHostWebview(handle, this._proxy, options);
 		const panel = new ExtHostWebviewPanel(handle, this._proxy, viewType, title, viewColumn, options, webview);
@@ -285,22 +286,6 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		const revivedPanel = new ExtHostWebviewPanel(webviewHandle, this._proxy, viewType, title, typeConverters.ViewColumn.to(position), options, webview);
 		this._webviewPanels.set(webviewHandle, revivedPanel);
 		return serializer.deserializeWebviewPanel(revivedPanel, state);
-	}
-
-	$serializeWebviewPanel(
-		webviewHandle: WebviewPanelHandle
-	): Thenable<any> {
-		const panel = this.getWebviewPanel(webviewHandle);
-		if (!panel) {
-			return TPromise.as(undefined);
-		}
-
-		const serialzer = this._serializers.get(panel.viewType);
-		if (!serialzer) {
-			return TPromise.as(undefined);
-		}
-
-		return serialzer.serializeWebviewPanel(panel);
 	}
 
 	private getWebviewPanel(handle: WebviewPanelHandle): ExtHostWebviewPanel | undefined {

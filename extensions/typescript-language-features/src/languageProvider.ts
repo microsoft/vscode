@@ -19,8 +19,9 @@ import { LanguageDescription } from './utils/languageDescription';
 import * as fileSchemes from './utils/fileSchemes';
 import { CachedNavTreeResponse } from './features/baseCodeLensProvider';
 import { memoize } from './utils/memoize';
-import { disposeAll } from './utils/dipose';
+import { disposeAll } from './utils/dispose';
 import TelemetryReporter from './utils/telemetry';
+import { UnusedHighlighter } from './features/unusedHighlighter';
 
 const validateSetting = 'validate.enable';
 const suggestionSetting = 'suggestionActions.enabled';
@@ -29,6 +30,7 @@ const foldingSetting = 'typescript.experimental.syntaxFolding';
 export default class LanguageProvider {
 	private readonly diagnosticsManager: DiagnosticsManager;
 	private readonly bufferSyncSupport: BufferSyncSupport;
+	private readonly ununsedHighlighter: UnusedHighlighter;
 	private readonly fileConfigurationManager: FileConfigurationManager;
 
 	private readonly toUpdateOnConfigurationChanged: ({ updateConfiguration: () => void })[] = [];
@@ -56,6 +58,7 @@ export default class LanguageProvider {
 		}, this._validate);
 
 		this.diagnosticsManager = new DiagnosticsManager(description.diagnosticOwner);
+		this.ununsedHighlighter = new UnusedHighlighter();
 
 		workspace.onDidChangeConfiguration(this.configurationChanged, this, this.disposables);
 		this.configurationChanged();
@@ -170,7 +173,7 @@ export default class LanguageProvider {
 	}
 
 	private configurationChanged(): void {
-		const config = workspace.getConfiguration(this.id);
+		const config = workspace.getConfiguration(this.id, null);
 		this.updateValidate(config.get(validateSetting, true));
 		this.updateSuggestionDiagnostics(config.get(suggestionSetting, true));
 
@@ -226,6 +229,7 @@ export default class LanguageProvider {
 
 	public reInitialize(): void {
 		this.diagnosticsManager.reInitialize();
+		this.ununsedHighlighter.reInitialize();
 		this.bufferSyncSupport.reOpenDocuments();
 		this.bufferSyncSupport.requestAllDiagnostics();
 		this.fileConfigurationManager.reset();
@@ -249,7 +253,7 @@ export default class LanguageProvider {
 		}
 
 		if (this.client.apiVersion.has280Features()) {
-			const organizeImportsProvider = new (await import('./features/organizeImports')).OrganizeImportsCodeActionProvider(this.client, this.commandManager);
+			const organizeImportsProvider = new (await import('./features/organizeImports')).OrganizeImportsCodeActionProvider(this.client, this.commandManager, this.fileConfigurationManager);
 			this.versionDependentDisposables.push(languages.registerCodeActionsProvider(selector, organizeImportsProvider, organizeImportsProvider.metadata));
 		}
 	}
@@ -258,8 +262,13 @@ export default class LanguageProvider {
 		this.bufferSyncSupport.requestAllDiagnostics();
 	}
 
-	public diagnosticsReceived(diagnosticsKind: DiagnosticKind, file: Uri, syntaxDiagnostics: Diagnostic[]): void {
-		this.diagnosticsManager.diagnosticsReceived(diagnosticsKind, file, syntaxDiagnostics);
+	public diagnosticsReceived(diagnosticsKind: DiagnosticKind, file: Uri, diagnostics: (Diagnostic & { reportUnnecessary: any })[]): void {
+		const config = workspace.getConfiguration(this.id, file);
+		const reportUnnecessary = config.get<boolean>('showUnused.enabled', true);
+		if (diagnosticsKind === DiagnosticKind.Suggestion) {
+			this.ununsedHighlighter.diagnosticsReceived(file, diagnostics.filter(diag => diag.reportUnnecessary));
+		}
+		this.diagnosticsManager.diagnosticsReceived(diagnosticsKind, file, diagnostics.filter(diag => diag.reportUnnecessary ? reportUnnecessary : true));
 	}
 
 	public configFileDiagnosticsReceived(file: Uri, diagnostics: Diagnostic[]): void {

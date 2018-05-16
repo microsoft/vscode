@@ -260,10 +260,12 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 	private fillProperty(data: ProblemData, property: keyof ProblemData, pattern: ProblemPattern, matches: RegExpExecArray, trim: boolean = false): void {
 		if (Types.isUndefined(data[property]) && !Types.isUndefined(pattern[property]) && pattern[property] < matches.length) {
 			let value = matches[pattern[property]];
-			if (trim) {
-				value = Strings.trim(value);
+			if (value !== void 0) {
+				if (trim) {
+					value = Strings.trim(value);
+				}
+				data[property] = value;
 			}
-			data[property] = value;
 		}
 	}
 
@@ -1191,7 +1193,7 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 				file: 1
 			},
 			{
-				regexp: /^\s+(\d+):(\d+)\s+(error|warning|info)\s+(.+?)\s\s+(.*)$/,
+				regexp: /^\s+(\d+):(\d+)\s+(error|warning|info)\s+(.+?)(?:\s\s+(.*))?$/,
 				line: 1,
 				character: 2,
 				severity: 3,

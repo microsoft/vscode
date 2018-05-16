@@ -6,6 +6,7 @@
 import { Explorer } from '../explorer/explorer';
 import { ActivityBar } from '../activitybar/activityBar';
 import { QuickOpen } from '../quickopen/quickopen';
+import { QuickInput } from '../quickinput/quickinput';
 import { Extensions } from '../extensions/extensions';
 import { Search } from '../search/search';
 import { Editor } from '../editor/editor';
@@ -23,9 +24,10 @@ export interface Commands {
 	runCommand(command: string): Promise<any>;
 }
 
-export class Workbench implements Commands {
+export class Workbench {
 
 	readonly quickopen: QuickOpen;
+	readonly quickinput: QuickInput;
 	readonly editors: Editors;
 	readonly explorer: Explorer;
 	readonly activitybar: ActivityBar;
@@ -40,35 +42,22 @@ export class Workbench implements Commands {
 	readonly keybindingsEditor: KeybindingsEditor;
 	readonly terminal: Terminal;
 
-	constructor(private code: Code, private keybindings: any[], userDataPath: string) {
-		this.editors = new Editors(code, this);
-		this.quickopen = new QuickOpen(code, this, this.editors);
-		this.explorer = new Explorer(code, this.quickopen, this.editors);
+	constructor(code: Code, userDataPath: string) {
+		this.editors = new Editors(code);
+		this.quickopen = new QuickOpen(code, this.editors);
+		this.quickinput = new QuickInput(code);
+		this.explorer = new Explorer(code, this.editors);
 		this.activitybar = new ActivityBar(code);
-		this.search = new Search(code, this);
-		this.extensions = new Extensions(code, this);
-		this.editor = new Editor(code, this);
-		this.scm = new SCM(code, this);
-		this.debug = new Debug(code, this, this.editors, this.editor);
+		this.search = new Search(code);
+		this.extensions = new Extensions(code);
+		this.editor = new Editor(code, this.quickopen);
+		this.scm = new SCM(code);
+		this.debug = new Debug(code, this.quickopen, this.editors, this.editor);
 		this.statusbar = new StatusBar(code);
-		this.problems = new Problems(code, this);
-		this.settingsEditor = new SettingsEditor(code, userDataPath, this, this.editors, this.editor);
-		this.keybindingsEditor = new KeybindingsEditor(code, this);
-		this.terminal = new Terminal(code, this);
-	}
-
-	/**
-	 * Retrieves the command from keybindings file and executes it with WebdriverIO client API
-	 * @param command command (e.g. 'workbench.action.files.newUntitledFile')
-	 */
-	async runCommand(command: string): Promise<void> {
-		const binding = this.keybindings.find(x => x['command'] === command);
-
-		if (binding) {
-			await this.code.dispatchKeybinding(binding.key);
-		} else {
-			await this.quickopen.runCommand(command);
-		}
+		this.problems = new Problems(code);
+		this.settingsEditor = new SettingsEditor(code, userDataPath, this.editors, this.editor);
+		this.keybindingsEditor = new KeybindingsEditor(code);
+		this.terminal = new Terminal(code);
 	}
 }
 

@@ -26,10 +26,11 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { registerColor, contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 const DEBUG_ACTIONS_WIDGET_POSITION_KEY = 'debug.actionswidgetposition';
 
@@ -49,7 +50,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 	private $el: Builder;
 	private dragArea: Builder;
 	private actionBar: ActionBar;
-	private allActions: AbstractDebugAction[];
+	private allActions: AbstractDebugAction[] = [];
 	private activeActions: AbstractDebugAction[];
 	private updateScheduler: RunOnceScheduler;
 
@@ -65,8 +66,8 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IContextViewService contextViewService: IContextViewService
+		@IContextViewService contextViewService: IContextViewService,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(themeService);
 
@@ -91,11 +92,12 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 
 		this.updateScheduler = new RunOnceScheduler(() => {
 			const state = this.debugService.state;
-			if (state === State.Inactive || state === State.Initializing || this.configurationService.getValue<IDebugConfiguration>('debug').hideActionBar) {
+			if (state === State.Inactive || state === State.Initializing || this.configurationService.getValue<IDebugConfiguration>('debug').hideActionBar
+				|| this.configurationService.getValue<IDebugConfiguration>('debug').toolbar !== 'float') {
 				return this.hide();
 			}
 
-			const actions = this.getActions();
+			const actions = DebugActionsWidget.getActions(this.allActions, this.toUnbind, false, this.debugService, this.keybindingService, this.instantiationService);
 			if (!arrays.equals(actions, this.activeActions, (first, second) => first.id === second.id)) {
 				this.actionBar.clear();
 				this.actionBar.push(actions, { icon: true, label: false });
@@ -216,7 +218,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 	}
 
 	private onDidConfigurationChange(event: IConfigurationChangeEvent): void {
-		if (event.affectsConfiguration('debug.hideActionBar')) {
+		if (event.affectsConfiguration('debug.hideActionBar') || event.affectsConfiguration('debug.toolbar')) {
 			this.updateScheduler.schedule();
 		}
 	}
@@ -240,30 +242,31 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		this.$el.hide();
 	}
 
-	private getActions(): AbstractDebugAction[] {
-		if (!this.allActions) {
-			this.allActions = [];
-			this.allActions.push(new ContinueAction(ContinueAction.ID, ContinueAction.LABEL, this.debugService, this.keybindingService));
-			this.allActions.push(new PauseAction(PauseAction.ID, PauseAction.LABEL, this.debugService, this.keybindingService));
-			this.allActions.push(new StopAction(StopAction.ID, StopAction.LABEL, this.debugService, this.keybindingService));
-			this.allActions.push(new DisconnectAction(DisconnectAction.ID, DisconnectAction.LABEL, this.debugService, this.keybindingService));
-			this.allActions.push(new StepOverAction(StepOverAction.ID, StepOverAction.LABEL, this.debugService, this.keybindingService));
-			this.allActions.push(new StepIntoAction(StepIntoAction.ID, StepIntoAction.LABEL, this.debugService, this.keybindingService));
-			this.allActions.push(new StepOutAction(StepOutAction.ID, StepOutAction.LABEL, this.debugService, this.keybindingService));
-			this.allActions.push(new RestartAction(RestartAction.ID, RestartAction.LABEL, this.debugService, this.keybindingService));
-			this.allActions.push(new StepBackAction(StepBackAction.ID, StepBackAction.LABEL, this.debugService, this.keybindingService));
-			this.allActions.push(new ReverseContinueAction(ReverseContinueAction.ID, ReverseContinueAction.LABEL, this.debugService, this.keybindingService));
-			this.allActions.push(new FocusSessionAction(FocusSessionAction.ID, FocusSessionAction.LABEL, this.debugService, this.keybindingService, this.editorService));
-			this.allActions.forEach(a => {
-				this.toUnbind.push(a);
+	public static getActions(allActions: AbstractDebugAction[], toUnbind: IDisposable[], ignoreFocusSessionAction: boolean, debugService: IDebugService, keybindingService: IKeybindingService, instantiationService: IInstantiationService): AbstractDebugAction[] {
+		if (allActions.length === 0) {
+			allActions.push(new ContinueAction(ContinueAction.ID, ContinueAction.LABEL, debugService, keybindingService));
+			allActions.push(new PauseAction(PauseAction.ID, PauseAction.LABEL, debugService, keybindingService));
+			allActions.push(new StopAction(StopAction.ID, StopAction.LABEL, debugService, keybindingService));
+			allActions.push(new DisconnectAction(DisconnectAction.ID, DisconnectAction.LABEL, debugService, keybindingService));
+			allActions.push(new StepOverAction(StepOverAction.ID, StepOverAction.LABEL, debugService, keybindingService));
+			allActions.push(new StepIntoAction(StepIntoAction.ID, StepIntoAction.LABEL, debugService, keybindingService));
+			allActions.push(new StepOutAction(StepOutAction.ID, StepOutAction.LABEL, debugService, keybindingService));
+			allActions.push(instantiationService.createInstance(RestartAction, RestartAction.ID, RestartAction.LABEL));
+			allActions.push(new StepBackAction(StepBackAction.ID, StepBackAction.LABEL, debugService, keybindingService));
+			allActions.push(new ReverseContinueAction(ReverseContinueAction.ID, ReverseContinueAction.LABEL, debugService, keybindingService));
+			if (!ignoreFocusSessionAction) {
+				allActions.push(instantiationService.createInstance(FocusSessionAction, FocusSessionAction.ID, FocusSessionAction.LABEL));
+			}
+			allActions.forEach(a => {
+				toUnbind.push(a);
 			});
 		}
 
-		const state = this.debugService.state;
-		const session = this.debugService.getViewModel().focusedSession;
+		const state = debugService.state;
+		const session = debugService.getViewModel().focusedSession;
 		const attached = session && session.configuration.request === 'attach' && session.configuration.type && !strings.equalsIgnoreCase(session.configuration.type, 'extensionHost');
 
-		return this.allActions.filter(a => {
+		return allActions.filter(a => {
 			if (a.id === ContinueAction.ID) {
 				return state !== State.Running;
 			}
@@ -283,7 +286,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 				return !attached;
 			}
 			if (a.id === FocusSessionAction.ID) {
-				return this.debugService.getViewModel().isMultiSessionView();
+				return debugService.getViewModel().isMultiSessionView();
 			}
 
 			return true;

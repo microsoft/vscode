@@ -50,7 +50,7 @@ const viewsContainerSchema: IJSONSchema = {
 			type: 'string'
 		},
 		icon: {
-			description: localize('vscode.extension.contributes.views.containers.icon', "Path to the container icon. Icons are 24x24 centered on a 50x40 square and have a fill color of 'rgb(215, 218, 224)' or '#d7dae0'. It is recommended that icons be in SVG, though any image file type is accepted."),
+			description: localize('vscode.extension.contributes.views.containers.icon', "Path to the container icon. Icons are 24x24 centered on a 50x40 block and have a fill color of 'rgb(215, 218, 224)' or '#d7dae0'. It is recommended that icons be in SVG, though any image file type is accepted."),
 			type: 'string'
 		}
 	}
@@ -137,7 +137,8 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 	private registerCustomViewContainers(containers: IUserFriendlyViewsContainerDescriptor[], extension: IExtensionDescription) {
 		containers.forEach((descriptor, index) => {
 			const cssClass = `extensionViewlet-${descriptor.id}`;
-			const icon = join(extension.extensionFolderPath, descriptor.icon);
+			// TODO@extensionLocation
+			const icon = join(extension.extensionLocation.fsPath, descriptor.icon);
 			this.registerCustomViewlet({ id: descriptor.id, title: descriptor.title, icon }, TEST_VIEW_CONTAINER_ORDER + index + 1, cssClass);
 		});
 	}
@@ -172,7 +173,8 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 				id,
 				descriptor.title,
 				cssClass,
-				order
+				order,
+				descriptor.icon
 			);
 
 			viewletRegistry.registerViewlet(viewletDescriptor);

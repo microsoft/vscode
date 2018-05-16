@@ -209,6 +209,47 @@ export class ShowPreviousSearchTermAction extends Action {
 		return TPromise.as(null);
 	}
 }
+export class ShowNextReplaceTermAction extends Action {
+
+	public static readonly ID = 'search.replaceHistory.showNext';
+	public static readonly LABEL = nls.localize('nextReplaceTerm', "Show Next Search Replace Term");
+
+	constructor(id: string, label: string,
+		@IViewletService private viewletService: IViewletService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IPanelService private panelService: IPanelService
+	) {
+		super(id, label);
+		this.enabled = this.contextKeyService.contextMatchesRules(Constants.SearchViewVisibleKey);
+	}
+
+	public run(): TPromise<any> {
+		const searchView = getSearchView(this.viewletService, this.panelService);
+		searchView.searchAndReplaceWidget.showNextReplaceTerm();
+		return TPromise.as(null);
+	}
+}
+
+export class ShowPreviousReplaceTermAction extends Action {
+
+	public static readonly ID = 'search.replaceHistory.showPrevious';
+	public static readonly LABEL = nls.localize('previousReplaceTerm', "Show Previous Search Replace Term");
+
+	constructor(id: string, label: string,
+		@IViewletService private viewletService: IViewletService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IPanelService private panelService: IPanelService
+	) {
+		super(id, label);
+		this.enabled = this.contextKeyService.contextMatchesRules(Constants.SearchViewVisibleKey);
+	}
+
+	public run(): TPromise<any> {
+		const searchView = getSearchView(this.viewletService, this.panelService);
+		searchView.searchAndReplaceWidget.showPreviousReplaceTerm();
+		return TPromise.as(null);
+	}
+}
 
 export class FocusNextInputAction extends Action {
 

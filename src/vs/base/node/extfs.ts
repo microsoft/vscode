@@ -620,7 +620,7 @@ function normalizePath(path: string): string {
 	return strings.rtrim(paths.normalize(path), paths.sep);
 }
 
-export function watch(path: string, onChange: (type: string, path: string) => void, onError: (error: string) => void): fs.FSWatcher {
+export function watch(path: string, onChange: (type: string, path?: string) => void, onError: (error: string) => void): fs.FSWatcher {
 	try {
 		const watcher = fs.watch(path);
 

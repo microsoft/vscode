@@ -380,8 +380,8 @@ export namespace HierarchicalSymbolInformation {
 	export function to(info: modes.SymbolInformation): types.HierarchicalSymbolInformation {
 		let result = new types.HierarchicalSymbolInformation(
 			info.name,
-			SymbolKind.to(info.kind),
 			info.detail,
+			SymbolKind.to(info.kind),
 			location.to(info.location),
 			Range.to(info.definingRange)
 		);

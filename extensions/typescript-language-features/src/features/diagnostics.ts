@@ -5,7 +5,7 @@
 
 import *  as vscode from 'vscode';
 
-class DiagnosticSet {
+export class DiagnosticSet {
 	private _map: ObjectMap<vscode.Diagnostic[]> = Object.create(null);
 
 	public set(
@@ -90,11 +90,11 @@ export class DiagnosticsManager {
 	public diagnosticsReceived(
 		kind: DiagnosticKind,
 		file: vscode.Uri,
-		syntaxDiagnostics: vscode.Diagnostic[]
+		diagnostics: vscode.Diagnostic[]
 	): void {
-		const diagnostics = this._diagnostics.get(kind);
-		if (diagnostics) {
-			diagnostics.set(file, syntaxDiagnostics);
+		const collection = this._diagnostics.get(kind);
+		if (collection) {
+			collection.set(file, diagnostics);
 			this.updateCurrentDiagnostics(file);
 		}
 	}
@@ -112,13 +112,20 @@ export class DiagnosticsManager {
 			return;
 		}
 
-		const allDiagnostics: vscode.Diagnostic[] = [];
-		allDiagnostics.push(...this._diagnostics.get(DiagnosticKind.Syntax)!.get(file));
-		allDiagnostics.push(...this._diagnostics.get(DiagnosticKind.Semantic)!.get(file));
-		if (this._enableSuggestions) {
-			allDiagnostics.push(...this._diagnostics.get(DiagnosticKind.Suggestion)!.get(file));
-		}
+		const allDiagnostics = [
+			...this._diagnostics.get(DiagnosticKind.Syntax)!.get(file),
+			...this._diagnostics.get(DiagnosticKind.Semantic)!.get(file),
+			...this.getSuggestionDiagnostics(file),
+		];
 		this._currentDiagnostics.set(file, allDiagnostics);
+	}
+
+	private getSuggestionDiagnostics(file: vscode.Uri) {
+		if (!this._enableSuggestions) {
+			return [];
+		}
+
+		return this._diagnostics.get(DiagnosticKind.Suggestion)!.get(file);
 	}
 
 	public getDiagnostics(file: vscode.Uri): vscode.Diagnostic[] {

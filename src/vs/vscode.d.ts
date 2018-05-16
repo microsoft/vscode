@@ -2053,13 +2053,14 @@ declare module 'vscode' {
 		 * Provide commands for the given document and range.
 		 *
 		 * @param document The document in which the command was invoked.
-		 * @param range The range for which the command was invoked.
+		 * @param range The selector or range for which the command was invoked. This will always be a selection if
+		 * there is a currently active editor.
 		 * @param context Context carrying additional information.
 		 * @param token A cancellation token.
 		 * @return An array of commands, quick fixes, or refactorings or a thenable of such. The lack of a result can be
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideCodeActions(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | CodeAction)[]>;
+		provideCodeActions(document: TextDocument, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | CodeAction)[]>;
 	}
 
 	/**

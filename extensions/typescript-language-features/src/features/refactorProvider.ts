@@ -6,6 +6,7 @@
 'use strict';
 
 import * as vscode from 'vscode';
+import * as fs from 'fs';
 
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
@@ -18,8 +19,7 @@ class ApplyRefactoringCommand implements Command {
 	public readonly id = ApplyRefactoringCommand.ID;
 
 	constructor(
-		private readonly client: ITypeScriptServiceClient,
-		private readonly formattingOptionsManager: FormattingOptionsManager
+		private readonly client: ITypeScriptServiceClient
 	) { }
 
 	public async execute(
@@ -29,8 +29,6 @@ class ApplyRefactoringCommand implements Command {
 		action: string,
 		range: vscode.Range
 	): Promise<boolean> {
-		await this.formattingOptionsManager.ensureConfigurationForDocument(document, undefined);
-
 		const args: Proto.GetEditsForRefactorRequestArgs = {
 			...typeConverters.Range.toFileRangeRequestArgs(file, range),
 			refactor,
@@ -39,6 +37,20 @@ class ApplyRefactoringCommand implements Command {
 		const response = await this.client.execute('getEditsForRefactor', args);
 		if (!response || !response.body || !response.body.edits.length) {
 			return false;
+		}
+
+		for (const edit of response.body.edits) {
+			try {
+				await vscode.workspace.openTextDocument(edit.fileName);
+			} catch {
+				try {
+					if (!fs.existsSync(edit.fileName)) {
+						fs.writeFileSync(edit.fileName, '');
+					}
+				} catch {
+					// noop
+				}
+			}
 		}
 
 		const edit = typeConverters.WorkspaceEdit.fromFromFileCodeEdits(this.client, response.body.edits);
@@ -89,10 +101,10 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
-		formattingOptionsManager: FormattingOptionsManager,
+		private readonly formattingOptionsManager: FormattingOptionsManager,
 		commandManager: CommandManager
 	) {
-		const doRefactoringCommand = commandManager.register(new ApplyRefactoringCommand(this.client, formattingOptionsManager));
+		const doRefactoringCommand = commandManager.register(new ApplyRefactoringCommand(this.client));
 		commandManager.register(new SelectRefactorCommand(doRefactoringCommand));
 	}
 
@@ -102,7 +114,7 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 
 	public async provideCodeActions(
 		document: vscode.TextDocument,
-		_range: vscode.Range,
+		rangeOrSelection: vscode.Range | vscode.Selection,
 		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): Promise<vscode.CodeAction[]> {
@@ -114,22 +126,18 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 			return [];
 		}
 
-		if (!vscode.window.activeTextEditor) {
+		if (!(rangeOrSelection instanceof vscode.Selection) || rangeOrSelection.isEmpty) {
 			return [];
 		}
 
-		const editor = vscode.window.activeTextEditor;
 		const file = this.client.normalizePath(document.uri);
-		if (!file || editor.document.uri.fsPath !== document.uri.fsPath) {
+		if (!file) {
 			return [];
 		}
 
-		if (editor.selection.isEmpty) {
-			return [];
-		}
+		await this.formattingOptionsManager.ensureConfigurationForDocument(document, undefined);
 
-		const range = editor.selection;
-		const args: Proto.GetApplicableRefactorsRequestArgs = typeConverters.Range.toFileRangeRequestArgs(file, range);
+		const args: Proto.GetApplicableRefactorsRequestArgs = typeConverters.Range.toFileRangeRequestArgs(file, rangeOrSelection);
 		try {
 			const response = await this.client.execute('getApplicableRefactors', args, token);
 			if (!response || !response.body) {
@@ -143,7 +151,7 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 					codeAction.command = {
 						title: info.description,
 						command: SelectRefactorCommand.ID,
-						arguments: [document, file, info, range]
+						arguments: [document, file, info, rangeOrSelection]
 					};
 					actions.push(codeAction);
 				} else {
@@ -152,7 +160,7 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 						codeAction.command = {
 							title: action.description,
 							command: ApplyRefactoringCommand.ID,
-							arguments: [document, file, info.name, action.name, range]
+							arguments: [document, file, info.name, action.name, rangeOrSelection]
 						};
 						actions.push(codeAction);
 					}

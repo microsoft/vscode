@@ -88,10 +88,10 @@ export default class FileConfigurationManager {
 			return;
 		}
 
-		const args = {
+		const args: Proto.ConfigureRequestArguments = {
 			file,
-			...currentOptions
-		} as Proto.ConfigureRequestArguments;
+			...currentOptions,
+		};
 		await this.client.execute('configure', args, token);
 		this.formatOptions[key] = currentOptions;
 	}
@@ -152,7 +152,7 @@ export default class FileConfigurationManager {
 			isTypeScriptDocument(document) ? 'typescript' : 'javascript',
 			document.uri);
 
-		const preferences = config.workspace.getConfiguration(
+		const preferences = workspace.getConfiguration(
 			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
 			document.uri);
 
@@ -160,7 +160,8 @@ export default class FileConfigurationManager {
 			quotePreference: getQuoteStylePreference(preferences),
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferences),
 			disableSuggestions: disableSuggestionsPreference(config),
-		};
+			allowTextChangesInNewFiles: document.uri.scheme === 'file'
+		} as any; // TODO: waiting for offical TS d.ts with allowTextChangesInNewFiles
 	}
 }
 

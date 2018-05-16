@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import * as cp from 'child_process';
 import * as stream from 'stream';
 import * as nls from 'vs/nls';
+import * as net from 'net';
 import * as paths from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
@@ -216,6 +217,39 @@ export abstract class StreamDebugAdapter extends AbstractDebugAdapter {
 }
 
 /**
+ * An implementation that connects to a debug adapter via a socket.
+*/
+export class SocketDebugAdapter extends StreamDebugAdapter {
+
+	private socket: net.Socket;
+
+	constructor(private port: number, private host = '127.0.0.1') {
+		super();
+	}
+
+	startSession(): TPromise<void> {
+		return new TPromise<void>((c, e) => {
+			this.socket = net.createConnection(this.port, this.host, () => {
+				this.connect(this.socket, <any>this.socket);
+				c(null);
+			});
+			this.socket.on('error', (err: any) => {
+				e(err);
+			});
+			this.socket.on('close', () => this._onExit.fire(0));
+		});
+	}
+
+	stopSession(): TPromise<void> {
+		if (this.socket !== null) {
+			this.socket.end();
+			this.socket = undefined;
+		}
+		return void 0;
+	}
+}
+
+/**
  * An implementation that launches the debug adapter as a separate process and communicates via stdin/stdout.
 */
 export class DebugAdapter extends StreamDebugAdapter {
@@ -365,7 +399,8 @@ export class DebugAdapter extends StreamDebugAdapter {
 				if (debuggers && debuggers.length > 0) {
 					debuggers.filter(dbg => strings.equalsIgnoreCase(dbg.type, debugType)).forEach(dbg => {
 						// extract relevant attributes and make then absolute where needed
-						const extractedDbg = DebugAdapter.extract(dbg, ed.extensionFolderPath);
+						// TODO@extensionLocation
+						const extractedDbg = DebugAdapter.extract(dbg, ed.extensionLocation.fsPath);
 
 						// merge
 						objects.mixin(result, extractedDbg, ed.isBuiltin);

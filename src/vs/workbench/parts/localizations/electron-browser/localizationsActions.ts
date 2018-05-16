@@ -18,7 +18,7 @@ import { language } from 'vs/base/common/platform';
 
 export class ConfigureLocaleAction extends Action {
 	public static readonly ID = 'workbench.action.configureLocale';
-	public static readonly LABEL = localize('configureLocale', "Configure Language");
+	public static readonly LABEL = localize('configureLocale', "Configure Display Language");
 
 	private static DEFAULT_CONTENT: string = [
 		'{',

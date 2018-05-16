@@ -57,7 +57,11 @@ class ExcludeHintItem {
 		this._item.color = '#A5DF3B';
 		this._item.show();
 		/* __GDPR__
-			"js.hintProjectExcludes" : {}
+			"js.hintProjectExcludes" : {
+				"${include}": [
+					"${TypeScriptCommonProperties}"
+				]
+			}
 		*/
 		this.telemetryReporter.logTelemetry('js.hintProjectExcludes');
 	}

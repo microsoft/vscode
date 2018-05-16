@@ -23,7 +23,8 @@ import { CodeActionAutoApply, CodeActionFilter, CodeActionKind } from './codeAct
 import { CodeActionContextMenu } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { IBulkEditService } from '../../browser/services/bulkEditService';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(
@@ -45,16 +46,19 @@ export class QuickFixController implements IEditorContribution {
 	private _lightBulbWidget: LightBulbWidget;
 	private _disposables: IDisposable[] = [];
 
+	private _activeRequest: TPromise<CodeAction[]> | undefined;
+
 	constructor(editor: ICodeEditor,
 		@IMarkerService markerService: IMarkerService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICommandService private readonly _commandService: ICommandService,
+		@IProgressService progressService: IProgressService,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IBulkEditService private readonly _bulkEditService: IBulkEditService
+		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 	) {
 		this._editor = editor;
-		this._model = new CodeActionModel(this._editor, markerService, contextKeyService);
+		this._model = new CodeActionModel(this._editor, markerService, contextKeyService, progressService);
 		this._codeActionContextMenu = new CodeActionContextMenu(editor, contextMenuService, action => this._onApplyCodeAction(action));
 		this._lightBulbWidget = new LightBulbWidget(editor);
 
@@ -74,6 +78,15 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	private _onCodeActionsEvent(e: CodeActionsComputeEvent): void {
+		if (this._activeRequest) {
+			this._activeRequest.cancel();
+			this._activeRequest = undefined;
+		}
+
+		if (e && e.actions) {
+			this._activeRequest = e.actions;
+		}
+
 		if (e && e.trigger.filter && e.trigger.filter.kind) {
 			// Triggered for specific scope
 			// Apply if we only have one action or requested autoApply, otherwise show menu
@@ -135,7 +148,7 @@ export async function applyCodeAction(
 	action: CodeAction,
 	bulkEditService: IBulkEditService,
 	commandService: ICommandService,
-	editor: ICodeEditor,
+	editor?: ICodeEditor,
 ) {
 	if (action.edit) {
 		await bulkEditService.apply(action.edit, { editor });

@@ -31,7 +31,7 @@ import { ExtHostTerminalService } from 'vs/workbench/api/node/extHostTerminalSer
 import { ExtHostMessageService } from 'vs/workbench/api/node/extHostMessageService';
 import { ExtHostEditors } from 'vs/workbench/api/node/extHostTextEditors';
 import { ExtHostLanguages } from 'vs/workbench/api/node/extHostLanguages';
-import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
+import { ExtHostLanguageFeatures, ISchemeTransformer } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { ExtHostApiCommands } from 'vs/workbench/api/node/extHostApiCommands';
 import { ExtHostTask } from 'vs/workbench/api/node/extHostTask';
 import { ExtHostDebugService } from 'vs/workbench/api/node/extHostDebugService';
@@ -95,6 +95,8 @@ export function createApiFactory(
 	extHostLogService: ExtHostLogService
 ): IExtensionApiFactory {
 
+	let schemeTransformer: ISchemeTransformer = null;
+
 	// Addressable instances
 	rpcProtocol.set(ExtHostContext.ExtHostLogService, extHostLogService);
 	const extHostHeapService = rpcProtocol.set(ExtHostContext.ExtHostHeapService, new ExtHostHeapService());
@@ -112,13 +114,13 @@ export function createApiFactory(
 	const extHostDebugService = rpcProtocol.set(ExtHostContext.ExtHostDebugService, new ExtHostDebugService(rpcProtocol, extHostWorkspace, extensionService, extHostDocumentsAndEditors, extHostConfiguration));
 	rpcProtocol.set(ExtHostContext.ExtHostConfiguration, extHostConfiguration);
 	const extHostDiagnostics = rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, new ExtHostDiagnostics(rpcProtocol));
-	const extHostLanguageFeatures = rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, new ExtHostLanguageFeatures(rpcProtocol, null, extHostDocuments, extHostCommands, extHostHeapService, extHostDiagnostics));
+	const extHostLanguageFeatures = rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, new ExtHostLanguageFeatures(rpcProtocol, schemeTransformer, extHostDocuments, extHostCommands, extHostHeapService, extHostDiagnostics));
 	const extHostFileSystem = rpcProtocol.set(ExtHostContext.ExtHostFileSystem, new ExtHostFileSystem(rpcProtocol, extHostLanguageFeatures));
 	const extHostFileSystemEvent = rpcProtocol.set(ExtHostContext.ExtHostFileSystemEventService, new ExtHostFileSystemEventService());
 	const extHostQuickOpen = rpcProtocol.set(ExtHostContext.ExtHostQuickOpen, new ExtHostQuickOpen(rpcProtocol, extHostWorkspace, extHostCommands));
 	const extHostTerminalService = rpcProtocol.set(ExtHostContext.ExtHostTerminalService, new ExtHostTerminalService(rpcProtocol, extHostConfiguration, extHostLogService));
 	const extHostSCM = rpcProtocol.set(ExtHostContext.ExtHostSCM, new ExtHostSCM(rpcProtocol, extHostCommands, extHostLogService));
-	const extHostSearch = rpcProtocol.set(ExtHostContext.ExtHostSearch, new ExtHostSearch(rpcProtocol));
+	const extHostSearch = rpcProtocol.set(ExtHostContext.ExtHostSearch, new ExtHostSearch(rpcProtocol, schemeTransformer));
 	const extHostTask = rpcProtocol.set(ExtHostContext.ExtHostTask, new ExtHostTask(rpcProtocol, extHostWorkspace));
 	const extHostWindow = rpcProtocol.set(ExtHostContext.ExtHostWindow, new ExtHostWindow(rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostExtensionService, extensionService);
@@ -146,7 +148,7 @@ export function createApiFactory(
 		// We only inform once, it is not a warning because we just want to raise awareness and because
 		// we cannot say if the extension is doing it right or wrong...
 		let checkSelector = (function () {
-			let done = initData.environment.extensionDevelopmentPath !== extension.extensionFolderPath;
+			let done = (!extension.isUnderDevelopment);
 			function informOnce(selector: vscode.DocumentSelector) {
 				if (!done) {
 					console.info(`Extension '${extension.id}' uses a document selector without scheme. Learn more about this: https://go.microsoft.com/fwlink/?linkid=872305`);
@@ -285,7 +287,7 @@ export function createApiFactory(
 				return extHostLanguageFeatures.registerRenameProvider(checkSelector(selector), provider);
 			},
 			registerDocumentSymbolProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerDocumentSymbolProvider(checkSelector(selector), provider);
+				return extHostLanguageFeatures.registerDocumentSymbolProvider(checkSelector(selector), provider, extension.id);
 			},
 			registerWorkspaceSymbolProvider(provider: vscode.WorkspaceSymbolProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerWorkspaceSymbolProvider(provider);
@@ -384,13 +386,16 @@ export function createApiFactory(
 				return extHostMessageService.showMessage(extension, Severity.Error, message, first, rest);
 			},
 			showQuickPick(items: any, options: vscode.QuickPickOptions, token?: vscode.CancellationToken): any {
-				return extHostQuickOpen.showQuickPick(items, options, token);
+				return extHostQuickOpen.showQuickPick(undefined, items, options, token);
 			},
 			showWorkspaceFolderPick(options: vscode.WorkspaceFolderPickOptions) {
 				return extHostQuickOpen.showWorkspaceFolderPick(options);
 			},
 			showInputBox(options?: vscode.InputBoxOptions, token?: vscode.CancellationToken) {
-				return extHostQuickOpen.showInput(options, token);
+				return extHostQuickOpen.showInput(undefined, options, token);
+			},
+			multiStepInput<T>(handler: (input: vscode.QuickInput, token: vscode.CancellationToken) => Thenable<T>, token?: vscode.CancellationToken): Thenable<T> {
+				return extHostQuickOpen.multiStepInput(handler, token);
 			},
 			showOpenDialog(options) {
 				return extHostDialogs.showOpenDialog(options);
@@ -415,7 +420,7 @@ export function createApiFactory(
 				return extHostOutputService.createOutputChannel(name);
 			},
 			createWebviewPanel(viewType: string, title: string, showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn, preserveFocus?: boolean }, options: vscode.WebviewPanelOptions & vscode.WebviewOptions): vscode.WebviewPanel {
-				return extHostWebviews.createWebview(viewType, title, showOptions, options, extension.extensionFolderPath);
+				return extHostWebviews.createWebview(viewType, title, showOptions, options, extension.extensionLocation);
 			},
 			createTerminal(nameOrOptions: vscode.TerminalOptions | string, shellPath?: string, shellArgs?: string[]): vscode.Terminal {
 				if (typeof nameOrOptions === 'object') {
@@ -616,6 +621,32 @@ export function createApiFactory(
 			}
 		};
 
+		const tasks: typeof vscode.tasks = {
+			registerTaskProvider: (type: string, provider: vscode.TaskProvider) => {
+				return extHostTask.registerTaskProvider(extension, provider);
+			},
+			fetchTasks: proposedApiFunction(extension, (filter?: vscode.TaskFilter): Thenable<vscode.Task[]> => {
+				return extHostTask.fetchTasks(filter);
+			}),
+			executeTask: proposedApiFunction(extension, (task: vscode.Task): Thenable<vscode.TaskExecution> => {
+				return extHostTask.executeTask(extension, task);
+			}),
+			get taskExecutions(): vscode.TaskExecution[] {
+				return extHostTask.taskExecutions;
+			},
+			onDidStartTask: (listeners, thisArgs?, disposables?) => {
+				return extHostTask.onDidStartTask(listeners, thisArgs, disposables);
+			},
+			onDidEndTask: (listeners, thisArgs?, disposables?) => {
+				return extHostTask.onDidEndTask(listeners, thisArgs, disposables);
+			},
+			onDidStartTaskProcess: (listeners, thisArgs?, disposables?) => {
+				return extHostTask.onDidStartTaskProcess(listeners, thisArgs, disposables);
+			},
+			onDidEndTaskProcess: (listeners, thisArgs?, disposables?) => {
+				return extHostTask.onDidEndTaskProcess(listeners, thisArgs, disposables);
+			}
+		};
 
 		return <typeof vscode>{
 			version: pkg.version,
@@ -628,6 +659,7 @@ export function createApiFactory(
 			workspace,
 			scm,
 			debug,
+			tasks,
 			// types
 			Breakpoint: extHostTypes.Breakpoint,
 			CancellationTokenSource: CancellationTokenSource,
@@ -669,9 +701,9 @@ export function createApiFactory(
 			StatusBarAlignment: extHostTypes.StatusBarAlignment,
 			SymbolInformation: extHostTypes.SymbolInformation,
 			HierarchicalSymbolInformation: class extends extHostTypes.HierarchicalSymbolInformation {
-				constructor(name, kind, detail, keyof, range) {
+				constructor(name, detail, kind, keyof, range) {
 					checkProposedApiEnabled(extension);
-					super(name, kind, detail, keyof, range);
+					super(name, detail, kind, keyof, range);
 				}
 			},
 			SymbolKind: extHostTypes.SymbolKind,
@@ -725,7 +757,7 @@ class Extension<T> implements vscode.Extension<T> {
 	constructor(extensionService: ExtHostExtensionService, description: IExtensionDescription) {
 		this._extensionService = extensionService;
 		this.id = description.id;
-		this.extensionPath = paths.normalize(description.extensionFolderPath, true);
+		this.extensionPath = paths.normalize(description.extensionLocation.fsPath, true);
 		this.packageJSON = description;
 	}
 
@@ -760,7 +792,7 @@ function defineAPI(factory: IExtensionApiFactory, extensionPaths: TernarySearchT
 		}
 
 		// get extension id from filename and api for extension
-		const ext = extensionPaths.findSubstr(parent.filename);
+		const ext = extensionPaths.findSubstr(URI.file(parent.filename).fsPath);
 		if (ext) {
 			let apiImpl = extApiImpl.get(ext.id);
 			if (!apiImpl) {
@@ -772,6 +804,7 @@ function defineAPI(factory: IExtensionApiFactory, extensionPaths: TernarySearchT
 
 		// fall back to a default implementation
 		if (!defaultApiImpl) {
+			console.warn(`Could not identify extension for 'vscode' require call from ${parent.filename}`);
 			defaultApiImpl = factory(nullExtensionDescription);
 		}
 		return defaultApiImpl;
@@ -787,8 +820,9 @@ const nullExtensionDescription: IExtensionDescription = {
 	enableProposedApi: false,
 	engines: undefined,
 	extensionDependencies: undefined,
-	extensionFolderPath: undefined,
+	extensionLocation: undefined,
 	isBuiltin: false,
+	isUnderDevelopment: false,
 	main: undefined,
 	version: undefined
 };

@@ -171,8 +171,8 @@ export class WebviewEditor extends BaseWebviewEditor {
 
 	private getDefaultLocalResourceRoots(): URI[] {
 		const rootPaths = this._contextService.getWorkspace().folders.map(x => x.uri);
-		if ((this.input as WebviewEditorInput).extensionFolderPath) {
-			rootPaths.push((this.input as WebviewEditorInput).extensionFolderPath);
+		if ((this.input as WebviewEditorInput).extensionLocation) {
+			rootPaths.push((this.input as WebviewEditorInput).extensionLocation);
 		}
 		return rootPaths;
 	}

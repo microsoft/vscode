@@ -24,6 +24,7 @@ import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { first } from 'vs/base/common/arrays';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { memoize } from 'vs/base/common/decorators';
 
 export abstract class AbstractDebugAction extends Action {
 
@@ -32,7 +33,7 @@ export abstract class AbstractDebugAction extends Action {
 	constructor(
 		id: string, label: string, cssClass: string,
 		@IDebugService protected debugService: IDebugService,
-		@IKeybindingService private keybindingService: IKeybindingService,
+		@IKeybindingService protected keybindingService: IKeybindingService,
 		public weight?: number
 	) {
 		super(id, label, cssClass, false);
@@ -215,21 +216,20 @@ export class RestartAction extends AbstractDebugAction {
 	static LABEL = nls.localize('restartDebug', "Restart");
 	static RECONNECT_LABEL = nls.localize('reconnectDebug', "Reconnect");
 
-	private startAction: StartAction;
-
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IWorkspaceContextService private contextService?: IWorkspaceContextService,
-		@IHistoryService historyService?: IHistoryService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IHistoryService private historyService: IHistoryService
 	) {
 		super(id, label, 'debug-action restart', debugService, keybindingService, 70);
 		this.setLabel(this.debugService.getViewModel().focusedSession);
 		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => this.setLabel(this.debugService.getViewModel().focusedSession)));
+	}
 
-		if (contextService !== undefined && historyService !== undefined) {
-			this.startAction = new StartAction(id, label, debugService, keybindingService, contextService, historyService);
-		}
+	@memoize
+	private get startAction(): StartAction {
+		return new StartAction(StartAction.ID, StartAction.LABEL, this.debugService, this.keybindingService, this.contextService, this.historyService);
 	}
 
 	private setLabel(session: ISession): void {

@@ -25,6 +25,8 @@ import {
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { mixin } from 'vs/base/common/objects';
+import { commonSuffixLength } from 'vs/base/common/strings';
+import { sep } from 'vs/base/common/paths';
 
 const MAX_REPL_LENGTH = 10000;
 
@@ -186,16 +188,16 @@ export class ExpressionContainer implements IExpressionContainer {
 	}
 
 	private fetchVariables(start: number, count: number, filter: 'indexed' | 'named'): TPromise<Variable[]> {
-		return this.session.state !== SessionState.INACTIVE ? this.session.raw.variables({
+		return this.session.raw.variables({
 			variablesReference: this.reference,
 			start,
 			count,
 			filter
 		}).then(response => {
-			return response && response.body && response.body.variables ? distinct(response.body.variables.filter(v => !!v && v.name), v => v.name).map(
+			return response && response.body && response.body.variables ? distinct(response.body.variables.filter(v => !!v && isString(v.name)), v => v.name).map(
 				v => new Variable(this.session, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.presentationHint, v.type)
 			) : [];
-		}, (e: Error) => [new Variable(this.session, this, 0, null, e.message, '', 0, 0, { kind: 'virtual' }, null, false)]) : TPromise.as([]);
+		}, (e: Error) => [new Variable(this.session, this, 0, null, e.message, '', 0, 0, { kind: 'virtual' }, null, false)]);
 	}
 
 	// The adapter explicitly sents the children count of an expression only if there are lots of children which should be chunked.
@@ -358,6 +360,22 @@ export class StackFrame implements IStackFrame {
 		}
 
 		return this.scopes;
+	}
+
+	public getSpecificSourceName(): string {
+		const otherSources = this.thread.getCallStack().map(sf => sf.source).filter(s => s !== this.source);
+		let suffixLength = 0;
+		otherSources.forEach(s => {
+			if (s.name === this.source.name) {
+				suffixLength = Math.max(suffixLength, commonSuffixLength(this.source.uri.path, s.uri.path));
+			}
+		});
+		if (suffixLength === 0) {
+			return this.source.name;
+		}
+
+		const from = Math.max(0, this.source.uri.path.lastIndexOf(sep, this.source.uri.path.length - suffixLength - 1));
+		return (from > 0 ? '...' : '') + this.source.uri.path.substr(from);
 	}
 
 	public getMostSpecificScopes(range: IRange): TPromise<IScope[]> {
@@ -539,20 +557,25 @@ export class Session implements ISession {
 	private sources: Map<string, Source>;
 	private threads: Map<number, Thread>;
 
-	public inactive = true;
-
-	constructor(public configuration: IConfig, private _session: IRawSession & ITreeElement) {
+	constructor(private _configuration: { resolved: IConfig, unresolved: IConfig }, private session: IRawSession & ITreeElement) {
 		this.threads = new Map<number, Thread>();
 		this.sources = new Map<string, Source>();
-		this._session.onDidInitialize(() => this.inactive = false);
+	}
+
+	public get configuration(): IConfig {
+		return this._configuration.resolved;
+	}
+
+	public get unresolvedConfiguration(): IConfig {
+		return this._configuration.unresolved;
 	}
 
 	public get raw(): IRawSession & ITreeElement {
-		return this._session;
+		return this.session;
 	}
 
 	public set raw(value: IRawSession & ITreeElement) {
-		this._session = value;
+		this.session = value;
 	}
 
 	public getName(includeRoot: boolean): string {
@@ -560,10 +583,6 @@ export class Session implements ISession {
 	}
 
 	public get state(): SessionState {
-		if (this.inactive) {
-			return SessionState.INACTIVE;
-		}
-
 		return this.configuration.type === 'attach' ? SessionState.ATTACH : SessionState.LAUNCH;
 	}
 
@@ -598,7 +617,7 @@ export class Session implements ISession {
 	}
 
 	public getId(): string {
-		return this._session.getId();
+		return this.session.getId();
 	}
 
 	public rawUpdate(data: IRawModelUpdate): void {
@@ -683,7 +702,7 @@ export class Session implements ISession {
 			}
 
 			return result;
-		}, err => []);
+		}, () => []);
 	}
 
 	setNotAvailable(modelUri: uri) {
@@ -809,7 +828,7 @@ export class Model implements IModel {
 		return this.sessions;
 	}
 
-	public addSession(configuration: IConfig, raw: IRawSession & ITreeElement): Session {
+	public addSession(configuration: { resolved: IConfig, unresolved: IConfig }, raw: IRawSession & ITreeElement): Session {
 		const session = new Session(configuration, raw);
 		this.sessions.push(session);
 

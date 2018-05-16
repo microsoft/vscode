@@ -30,7 +30,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
-import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ICssStyleCollector, ITheme } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
@@ -51,22 +51,36 @@ interface IListEntry {
 }
 
 interface ISettingItemEntry extends IListEntry {
+	templateId: typeof SETTINGS_ENTRY_TEMPLATE_ID;
 	key: string;
 	value: any;
 	isConfigured: boolean;
 	description: string;
 	overriddenScopeList: string[];
+	isExpanded: boolean;
+	isExpandable?: boolean;
 	type?: string | string[];
 	enum?: string[];
 }
 
+enum ExpandState {
+	Expanded,
+	Collapsed,
+	NA
+}
+
 interface IGroupTitleEntry extends IListEntry {
+	templateId: typeof SETTINGS_GROUP_ENTRY_TEMPLATE_ID;
 	title: string;
+	expandState: ExpandState;
 }
 
 interface IButtonRowEntry extends IListEntry {
+	templateId: typeof BUTTON_ROW_ENTRY_TEMPLATE;
 	label: string;
 }
+
+type ListEntry = ISettingItemEntry | IGroupTitleEntry | IButtonRowEntry;
 
 enum SearchResultIdx {
 	Local = 0,
@@ -75,18 +89,11 @@ enum SearchResultIdx {
 
 const $ = DOM.$;
 
-
-export const configuredItemBackground = registerColor('settings.configuredItemBackground', {
-	dark: '#0d466c',
-	light: '#c5e6ff',
-	hc: '#0d466c'
-}, localize('configuredItemBackground', "The background color for a configured setting."));
-
-export const configuredItemForeground = registerColor('settings.configuredItemForeground', {
-	dark: '#dddddd',
-	light: '#6c6c6c',
-	hc: '#dddddd'
-}, localize('configuredItemForeground', "The foreground color for a configured setting."));
+export const modifiedItemForeground = registerColor('settings.modifiedItemForeground', {
+	light: '#019001',
+	dark: '#73C991',
+	hc: '#73C991'
+}, localize('modifiedItemForeground', "The foreground color for a modified setting."));
 
 export class SettingsEditor2 extends BaseEditor {
 
@@ -103,7 +110,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private showConfiguredSettingsOnlyCheckbox: HTMLInputElement;
 
 	private settingsListContainer: HTMLElement;
-	private settingsList: List<IListEntry>;
+	private settingsList: List<ListEntry>;
 
 	private dimension: DOM.Dimension;
 	private searchFocusContextKey: IContextKey<boolean>;
@@ -118,6 +125,9 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private searchResultModel: SearchResultModel;
 	private pendingSettingModifiedReport: { key: string, value: any };
+
+	private groupExpanded = new Map<string, boolean>();
+	private itemExpanded = new Map<string, boolean>();
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -211,12 +221,17 @@ export class SettingsEditor2 extends BaseEditor {
 		this.showConfiguredSettingsOnlyCheckbox = DOM.append(headerControlsContainerRight, $('input#configured-only-checkbox'));
 		this.showConfiguredSettingsOnlyCheckbox.type = 'checkbox';
 		const showConfiguredSettingsOnlyLabel = <HTMLLabelElement>DOM.append(headerControlsContainerRight, $('label.configured-only-label'));
-		showConfiguredSettingsOnlyLabel.textContent = localize('showOverriddenOnly', "Show overridden only");
+		showConfiguredSettingsOnlyLabel.textContent = localize('showOverriddenOnly', "Show modified only");
 		showConfiguredSettingsOnlyLabel.htmlFor = 'configured-only-checkbox';
 
 		this._register(DOM.addDisposableListener(this.showConfiguredSettingsOnlyCheckbox, 'change', e => this.onShowConfiguredOnlyClicked()));
 
 		const openSettingsButton = this._register(new Button(headerControlsContainerRight, { title: true, buttonBackground: null, buttonHoverBackground: null }));
+		this._register(attachButtonStyler(openSettingsButton, this.themeService, {
+			buttonBackground: Color.transparent.toString(),
+			buttonHoverBackground: Color.transparent.toString(),
+			buttonForeground: 'foreground'
+		}));
 		openSettingsButton.label = localize('openSettingsLabel', "Open settings.json");
 		openSettingsButton.element.classList.add('open-settings-button');
 
@@ -244,18 +259,29 @@ export class SettingsEditor2 extends BaseEditor {
 	private createList(parent: HTMLElement): void {
 		this.settingsListContainer = DOM.append(parent, $('.settings-list-container'));
 
-		const settingItemRenderer = this.instantiationService.createInstance(SettingItemRenderer);
+		const settingItemRenderer = this.instantiationService.createInstance(SettingItemRenderer, this.settingsListContainer);
 		this._register(settingItemRenderer.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value)));
 		this._register(settingItemRenderer.onDidOpenSettings(() => this.openSettingsFile()));
+		this._register(settingItemRenderer.onDidToggleExpandSetting(e => {
+			this.itemExpanded.set(e.key, e.expandState === ExpandState.Expanded);
+			this.renderEntries();
+		}));
 
 		const buttonItemRenderer = new ButtonRowRenderer();
 		this._register(buttonItemRenderer.onDidClick(e => this.onShowAllSettingsClicked()));
 
+		const groupTitleRenderer = new GroupTitleRenderer();
+		this._register(groupTitleRenderer.onDidClickGroup(e => {
+			const isExpanded = !!this.groupExpanded.get(e);
+			this.groupExpanded.set(e, !isExpanded);
+			this.renderEntries();
+		}));
+
 		this.settingsList = this._register(this.instantiationService.createInstance(
 			WorkbenchList,
 			this.settingsListContainer,
-			new SettingItemDelegate(),
-			[settingItemRenderer, new GroupTitleRenderer(), buttonItemRenderer],
+			new SettingItemDelegate(this.settingsListContainer),
+			[settingItemRenderer, groupTitleRenderer, buttonItemRenderer],
 			{
 				identityProvider: e => e.id,
 				ariaLabel: localize('settingsListLabel', "Settings"),
@@ -264,7 +290,7 @@ export class SettingsEditor2 extends BaseEditor {
 				keyboardSupport: false,
 				mouseSupport: false
 			})
-		) as WorkbenchList<IListEntry>;
+		) as WorkbenchList<ListEntry>;
 
 		this.settingsList.style({ listHoverBackground: Color.transparent, listFocusOutline: Color.transparent });
 	}
@@ -345,7 +371,7 @@ export class SettingsEditor2 extends BaseEditor {
 		};
 
 		/* __GDPR__
-			"settingEditor.settingModified" : {
+			"settingsEditor.settingModified" : {
 				"key" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"query" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
 				"groupId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -356,7 +382,7 @@ export class SettingsEditor2 extends BaseEditor {
 				"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
-		this.telemetryService.publicLog('settingEditor.settingModified', data);
+		this.telemetryService.publicLog('settingsEditor.settingModified', data);
 	}
 
 	private render(): TPromise<any> {
@@ -428,7 +454,7 @@ export class SettingsEditor2 extends BaseEditor {
 				"requestCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
-		this.telemetryService.publicLog('defaultSettings.filter', data);
+		this.telemetryService.publicLog('settingsEditor.filter', data);
 	}
 
 	private localFilterPreferences(query: string): TPromise<void> {
@@ -459,7 +485,7 @@ export class SettingsEditor2 extends BaseEditor {
 					return TPromise.wrapError(err);
 				} else {
 					/* __GDPR__
-						"defaultSettings.searchError" : {
+						"settingsEditor.searchError" : {
 							"message": { "classification": "CallstackOrException", "purpose": "FeatureInsight" },
 							"filter": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 						}
@@ -467,7 +493,7 @@ export class SettingsEditor2 extends BaseEditor {
 					const message = getErrorMessage(err).trim();
 					if (message && message !== 'Error') {
 						// "Error" = any generic network error
-						this.telemetryService.publicLog('defaultSettings.searchError', { message, filter });
+						this.telemetryService.publicLog('settingsEditor.searchError', { message, filter });
 						this.logService.info('Setting search error: ' + message);
 					}
 					return null;
@@ -475,7 +501,7 @@ export class SettingsEditor2 extends BaseEditor {
 			});
 	}
 
-	private getEntriesFromSearch(searchResults: ISearchResult[]): IListEntry[] {
+	private getEntriesFromSearch(searchResults: ISearchResult[]): ListEntry[] {
 		const entries: ISettingItemEntry[] = [];
 		const seenSettings = new Set<string>();
 
@@ -523,35 +549,45 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	private getEntriesFromModel(): IListEntry[] {
-		const entries: IListEntry[] = [];
+	private getEntriesFromModel(): ListEntry[] {
+		const entries: ListEntry[] = [];
 		for (let groupIdx = 0; groupIdx < this.defaultSettingsEditorModel.settingsGroups.length; groupIdx++) {
-			if (groupIdx > 0 && !(this.showAllSettings)) {
+			if (groupIdx > 0 && !this.showAllSettings && !this.showConfiguredSettingsOnly) {
 				break;
 			}
 
 			const group = this.defaultSettingsEditorModel.settingsGroups[groupIdx];
+			const isExpanded = groupIdx === 0 || this.groupExpanded.get(group.id);
+
 			const groupEntries = [];
-			for (const section of group.sections) {
-				for (const setting of section.settings) {
-					const entry = this.settingToEntry(setting);
-					if (!this.showConfiguredSettingsOnly || entry.isConfigured) {
-						groupEntries.push(entry);
+			if (isExpanded) {
+				for (const section of group.sections) {
+					for (const setting of section.settings) {
+						const entry = this.settingToEntry(setting);
+
+						if (!this.showConfiguredSettingsOnly || entry.isConfigured) {
+							groupEntries.push(entry);
+						}
 					}
 				}
 			}
 
-			if (groupEntries.length) {
+			if (!isExpanded || groupEntries.length) {
+				const expandState = groupIdx === 0 ? ExpandState.NA :
+					isExpanded ? ExpandState.Expanded :
+						ExpandState.Collapsed;
+
 				entries.push(<IGroupTitleEntry>{
 					id: group.id,
 					templateId: SETTINGS_GROUP_ENTRY_TEMPLATE_ID,
-					title: group.title
+					title: group.title,
+					expandState
 				});
 
 				entries.push(...groupEntries);
 			}
 
-			if (groupIdx === 0) {
+			if (groupIdx === 0 && !this.showConfiguredSettingsOnly) {
 				const showAllSettingsLabel = this.showAllSettings ?
 					localize('showFewerSettingsLabel', "Show Fewer Settings") :
 					localize('showAllSettingsLabel', "Show All Settings");
@@ -580,6 +616,8 @@ export class SettingsEditor2 extends BaseEditor {
 			overriddenScopeList.push('User');
 		}
 
+		const isExpanded = !!this.itemExpanded.get(s.key);
+
 		return <ISettingItemEntry>{
 			id: s.key,
 			key: s.key,
@@ -589,7 +627,8 @@ export class SettingsEditor2 extends BaseEditor {
 			description: s.description.join('\n'),
 			enum: s.enum,
 			type: s.type,
-			templateId: SETTINGS_ENTRY_TEMPLATE_ID
+			templateId: SETTINGS_ENTRY_TEMPLATE_ID,
+			isExpanded
 		};
 	}
 
@@ -600,16 +639,23 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 }
 
-class SettingItemDelegate implements IDelegate<IListEntry> {
+class SettingItemDelegate implements IDelegate<ListEntry> {
 
-	getHeight(entry: IListEntry) {
+	constructor(private measureContainer: HTMLElement) {
+
+	}
+
+	getHeight(entry: ListEntry) {
 		if (entry.templateId === SETTINGS_GROUP_ENTRY_TEMPLATE_ID) {
-			return 60;
+			return 42;
 		}
 
 		if (entry.templateId === SETTINGS_ENTRY_TEMPLATE_ID) {
-			// TODO dynamic height
-			return 75;
+			if (entry.isExpanded) {
+				return this.getDynamicHeight(entry);
+			} else {
+				return 68;
+			}
 		}
 
 		if (entry.templateId === BUTTON_ROW_ENTRY_TEMPLATE) {
@@ -619,30 +665,50 @@ class SettingItemDelegate implements IDelegate<IListEntry> {
 		return 0;
 	}
 
-	getTemplateId(element: IListEntry) {
+	getTemplateId(element: ListEntry) {
 		return element.templateId;
+	}
+
+	private getDynamicHeight(entry: ISettingItemEntry): number {
+		return measureSettingItemEntry(entry, this.measureContainer);
 	}
 }
 
-interface ISettingItemTemplate {
-	parent: HTMLElement;
-	toDispose: IDisposable[];
+function measureSettingItemEntry(entry: ISettingItemEntry, measureContainer: HTMLElement): number {
+	const measureHelper = DOM.append(measureContainer, $('.setting-item-measure-helper.monaco-list-row'));
 
+	const template = SettingItemRenderer.renderTemplate(measureHelper);
+	SettingItemRenderer.renderElement(entry, 0, template);
+
+	const height = measureHelper.offsetHeight;
+	measureContainer.removeChild(measureHelper);
+	return height;
+}
+
+interface IDisposableTemplate {
+	toDispose: IDisposable[];
+}
+
+interface ISettingItemTemplate extends IDisposableTemplate {
+	parent: HTMLElement;
+
+	context?: ISettingItemEntry;
 	containerElement: HTMLElement;
+	categoryElement: HTMLElement;
 	labelElement: HTMLElement;
 	descriptionElement: HTMLElement;
 	valueElement: HTMLElement;
 	overridesElement: HTMLElement;
 }
 
-interface IGroupTitleTemplate {
+interface IGroupTitleTemplate extends IDisposableTemplate {
+	context?: IGroupTitleEntry;
 	parent: HTMLElement;
 	labelElement: HTMLElement;
 }
 
-interface IButtonRowTemplate {
+interface IButtonRowTemplate extends IDisposableTemplate {
 	parent: HTMLElement;
-	toDispose: IDisposable[];
 
 	button: Button;
 	entry?: IButtonRowEntry;
@@ -653,6 +719,11 @@ interface ISettingChangeEvent {
 	value: any; // undefined => reset unconfigure
 }
 
+interface ISettingExpandEvent {
+	key: string;
+	expandState: ExpandState;
+}
+
 class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTemplate> {
 
 	private readonly _onDidChangeSetting: Emitter<ISettingChangeEvent> = new Emitter<ISettingChangeEvent>();
@@ -661,14 +732,22 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 	private readonly _onDidOpenSettings: Emitter<void> = new Emitter<void>();
 	public readonly onDidOpenSettings: Event<void> = this._onDidOpenSettings.event;
 
+	private readonly _onDidToggleExpandSetting: Emitter<ISettingExpandEvent> = new Emitter<ISettingExpandEvent>();
+	public readonly onDidToggleExpandSetting: Event<ISettingExpandEvent> = this._onDidToggleExpandSetting.event;
+
 	get templateId(): string { return SETTINGS_ENTRY_TEMPLATE_ID; }
 
 	constructor(
+		private measureContainer: HTMLElement,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IThemeService private themeService: IThemeService
 	) { }
 
 	renderTemplate(parent: HTMLElement): ISettingItemTemplate {
+		return SettingItemRenderer.renderTemplate(parent, this);
+	}
+
+	static renderTemplate(parent: HTMLElement, that?: SettingItemRenderer): ISettingItemTemplate {
 		DOM.addClass(parent, 'setting-item');
 
 		const itemContainer = DOM.append(parent, $('.setting-item-container'));
@@ -676,46 +755,92 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 		const rightElement = DOM.append(itemContainer, $('.setting-item-right'));
 
 		const titleElement = DOM.append(leftElement, $('.setting-item-title'));
+		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
 		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
 		const overridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
 		const descriptionElement = DOM.append(leftElement, $('.setting-item-description'));
 
 		const valueElement = DOM.append(rightElement, $('.setting-item-value'));
 
-		return {
+		const toDispose = [];
+		const template: ISettingItemTemplate = {
 			parent: parent,
-			toDispose: [],
+			toDispose,
 
 			containerElement: itemContainer,
+			categoryElement,
 			labelElement,
 			descriptionElement,
 			valueElement,
 			overridesElement
 		};
+
+		if (that) {
+			toDispose.push(DOM.addDisposableListener(descriptionElement, 'click', () => {
+				const entry = template.context;
+				if (entry && entry.isExpandable) {
+					const newState = entry.isExpanded ? ExpandState.Collapsed : ExpandState.Expanded;
+					that._onDidToggleExpandSetting.fire({ key: entry.key, expandState: newState });
+				}
+			}));
+		}
+
+		return template;
 	}
 
 	renderElement(entry: ISettingItemEntry, index: number, template: ISettingItemTemplate): void {
+		return SettingItemRenderer.renderElement(entry, index, template, this);
+	}
+
+	static renderElement(entry: ISettingItemEntry, index: number, template: ISettingItemTemplate, that?: SettingItemRenderer): void {
+		template.context = entry;
 		DOM.toggleClass(template.parent, 'odd', index % 2 === 1);
-
-		template.labelElement.textContent = settingKeyToLabel(entry.key);
-		template.labelElement.title = entry.key;
-		template.descriptionElement.textContent = entry.description;
-
 		DOM.toggleClass(template.parent, 'is-configured', entry.isConfigured);
-		this.renderValue(entry, template);
+		DOM.toggleClass(template.parent, 'is-expanded', entry.isExpanded);
+
+		let titleTooltip = entry.key;
+		if (entry.isConfigured) {
+			titleTooltip += ' - ' + localize('configuredTitleToolip', "This setting is configured");
+		}
+
+		const settingKeyDisplay = settingKeyToDisplayFormat(entry.key);
+		template.categoryElement.textContent = settingKeyDisplay.category + ': ';
+		template.categoryElement.title = titleTooltip;
+
+		template.labelElement.textContent = settingKeyDisplay.label;
+		template.labelElement.title = titleTooltip;
+		template.descriptionElement.textContent = entry.description;
+		template.descriptionElement.title = entry.description;
+
+		if (that) {
+			const expandedHeight = measureSettingItemEntry(entry, that.measureContainer);
+			entry.isExpandable = expandedHeight > 68;
+			DOM.toggleClass(template.parent, 'is-expandable', entry.isExpandable);
+		}
+
+		if (that) {
+			that.renderValue(entry, template);
+		}
 
 		const resetButton = new Button(template.valueElement);
+		resetButton.element.title = localize('resetButtonTitle', "Reset");
 		resetButton.element.classList.add('setting-reset-button');
-		attachButtonStyler(resetButton, this.themeService, {
-			buttonBackground: Color.transparent.toString(),
-			buttonHoverBackground: Color.transparent.toString()
-		});
-		template.toDispose.push(resetButton.onDidClick(e => {
-			this._onDidChangeSetting.fire({ key: entry.key, value: undefined });
-		}));
+
+		if (that) {
+			attachButtonStyler(resetButton, that.themeService, {
+				buttonBackground: Color.transparent.toString(),
+				buttonHoverBackground: Color.transparent.toString()
+			});
+		}
+
+		if (that) {
+			template.toDispose.push(resetButton.onDidClick(e => {
+				that._onDidChangeSetting.fire({ key: entry.key, value: undefined });
+			}));
+		}
 		template.toDispose.push(resetButton);
 
-		const alsoConfiguredInLabel = localize('alsoConfiguredIn', "Also configured in:");
+		const alsoConfiguredInLabel = localize('alsoConfiguredIn', "Also modified in:");
 		template.overridesElement.textContent = entry.overriddenScopeList.length ? `(${alsoConfiguredInLabel} ${entry.overriddenScopeList.join(', ')})` :
 			'';
 	}
@@ -748,10 +873,7 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 		const idx = entry.enum.indexOf(entry.value);
 		const selectBox = new SelectBox(entry.enum, idx, this.contextViewService);
 		template.toDispose.push(selectBox);
-		template.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService, {
-			selectBackground: entry.isConfigured ? configuredItemBackground : undefined,
-			selectForeground: entry.isConfigured ? configuredItemForeground : undefined
-		}));
+		template.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService));
 		selectBox.render(template.valueElement);
 
 		template.toDispose.push(
@@ -760,10 +882,7 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 
 	private renderText(entry: ISettingItemEntry, template: ISettingItemTemplate, onChange: (value: string) => void): void {
 		const inputBox = new InputBox(template.valueElement, this.contextViewService);
-		template.toDispose.push(attachInputBoxStyler(inputBox, this.themeService, {
-			inputBackground: entry.isConfigured ? configuredItemBackground : undefined,
-			inputForeground: entry.isConfigured ? configuredItemForeground : undefined
-		}));
+		template.toDispose.push(attachInputBoxStyler(inputBox, this.themeService));
 		template.toDispose.push(inputBox);
 		inputBox.value = entry.value;
 
@@ -777,6 +896,11 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 		openSettingsButton.label = localize('editInSettingsJson', "Edit in settings.json");
 		openSettingsButton.element.classList.add('edit-in-settings-button');
 		template.toDispose.push(openSettingsButton);
+		template.toDispose.push(attachButtonStyler(openSettingsButton, this.themeService, {
+			buttonBackground: Color.transparent.toString(),
+			buttonHoverBackground: Color.transparent.toString(),
+			buttonForeground: 'foreground'
+		}));
 	}
 
 	disposeTemplate(template: ISettingItemTemplate): void {
@@ -784,25 +908,60 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 	}
 }
 
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	const modifiedItemForegroundColor = theme.getColor(modifiedItemForeground);
+	if (modifiedItemForegroundColor) {
+		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .monaco-list-row.is-configured .setting-item-title { color: ${modifiedItemForegroundColor}; }`);
+	}
+});
+
 class GroupTitleRenderer implements IRenderer<IGroupTitleEntry, IGroupTitleTemplate> {
+
+	private static readonly EXPANDED_CLASS = 'settings-group-title-expanded';
+	private static readonly COLLAPSED_CLASS = 'settings-group-title-collapsed';
+
+	private readonly _onDidClickGroup: Emitter<string> = new Emitter<string>();
+	public readonly onDidClickGroup: Event<string> = this._onDidClickGroup.event;
 
 	get templateId(): string { return SETTINGS_GROUP_ENTRY_TEMPLATE_ID; }
 
 	renderTemplate(parent: HTMLElement): IGroupTitleTemplate {
 		DOM.addClass(parent, 'group-title');
 
-		const labelElement = DOM.append(parent, $('h2.group-title-label'));
-		return {
+		const labelElement = DOM.append(parent, $('h3.settings-group-title-label'));
+
+		const toDispose = [];
+		const template: IGroupTitleTemplate = {
 			parent: parent,
-			labelElement
+			labelElement,
+			toDispose
 		};
+
+		toDispose.push(DOM.addDisposableListener(labelElement, 'click', () => {
+			if (template.context) {
+				this._onDidClickGroup.fire(template.context.id);
+			}
+		}));
+
+		return template;
 	}
 
 	renderElement(entry: IGroupTitleEntry, index: number, template: IGroupTitleTemplate): void {
+		template.context = entry;
 		template.labelElement.textContent = entry.title;
+
+		template.labelElement.classList.remove(GroupTitleRenderer.EXPANDED_CLASS);
+		template.labelElement.classList.remove(GroupTitleRenderer.COLLAPSED_CLASS);
+
+		if (entry.expandState === ExpandState.Expanded) {
+			template.labelElement.classList.add(GroupTitleRenderer.EXPANDED_CLASS);
+		} else if (entry.expandState === ExpandState.Collapsed) {
+			template.labelElement.classList.add(GroupTitleRenderer.COLLAPSED_CLASS);
+		}
 	}
 
 	disposeTemplate(template: IGroupTitleTemplate): void {
+		dispose(template.toDispose);
 	}
 }
 
@@ -842,25 +1001,21 @@ class ButtonRowRenderer implements IRenderer<IButtonRowEntry, IButtonRowTemplate
 	}
 }
 
-function settingKeyToLabel(key: string): string {
-	const lastDotIdx = key.lastIndexOf('.');
-	if (lastDotIdx >= 0) {
-		key = key.substr(0, lastDotIdx) + ': ' + key.substr(lastDotIdx + 1);
-	}
-
-	return key
-		.replace(/\.([a-z])/, (match, p1) => `.${p1.toUpperCase()}`)
+export function settingKeyToDisplayFormat(key: string): { category: string, label: string } {
+	let label = key
+		.replace(/\.([a-z])/g, (match, p1) => `.${p1.toUpperCase()}`)
 		.replace(/([a-z])([A-Z])/g, '$1 $2') // fooBar => foo Bar
-		.replace(/^[a-z]/g, match => match.toUpperCase()) // foo => Foo
-		.replace(/ [a-z]/g, match => match.toUpperCase()); // Foo bar => Foo Bar
-}
+		.replace(/^[a-z]/g, match => match.toUpperCase()); // foo => Foo
 
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-	const configuredItemBackgroundColor = theme.getColor(configuredItemBackground);
-	if (configuredItemBackgroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .monaco-list-row.is-configured .setting-value-checkbox::after { background-color: ${configuredItemBackgroundColor}; }`);
+	const lastDotIdx = label.lastIndexOf('.');
+	let category = '';
+	if (lastDotIdx >= 0) {
+		category = label.substr(0, lastDotIdx);
+		label = label.substr(lastDotIdx + 1);
 	}
-});
+
+	return { category, label };
+}
 
 class SearchResultModel {
 	private rawSearchResults: ISearchResult[];

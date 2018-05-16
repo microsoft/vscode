@@ -331,13 +331,15 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		let isWholeWords = this.viewletSettings['query.wholeWords'] === true;
 		let isCaseSensitive = this.viewletSettings['query.caseSensitive'] === true;
 		let searchHistory = this.viewletSettings['query.searchHistory'] || [];
+		let replaceHistory = this.viewletSettings['query.replaceHistory'] || [];
 
 		this.searchWidget = this.instantiationService.createInstance(SearchWidget, builder, <ISearchWidgetOptions>{
 			value: contentPattern,
 			isRegex: isRegex,
 			isCaseSensitive: isCaseSensitive,
 			isWholeWords: isWholeWords,
-			history: searchHistory,
+			searchHistory: searchHistory,
+			replaceHistory: replaceHistory,
 			historyLimit: SearchView.MAX_HISTORY_ITEMS
 		});
 
@@ -1519,13 +1521,15 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		const patternExcludes = this.inputPatternExcludes.getValue().trim();
 		const patternIncludes = this.inputPatternIncludes.getValue().trim();
 		const useExcludesAndIgnoreFiles = this.inputPatternExcludes.useExcludesAndIgnoreFiles();
-		const searchHistory = this.searchWidget.getHistory();
+		const searchHistory = this.searchWidget.getSearchHistory();
+		const replaceHistory = this.searchWidget.getReplaceHistory();
 		const patternExcludesHistory = this.inputPatternExcludes.getHistory();
 		const patternIncludesHistory = this.inputPatternIncludes.getHistory();
 
 		// store memento
 		this.viewletSettings['query.contentPattern'] = contentPattern;
 		this.viewletSettings['query.searchHistory'] = searchHistory;
+		this.viewletSettings['query.replaceHistory'] = replaceHistory;
 		this.viewletSettings['query.regex'] = isRegex;
 		this.viewletSettings['query.wholeWords'] = isWholeWords;
 		this.viewletSettings['query.caseSensitive'] = isCaseSensitive;

@@ -136,6 +136,8 @@ class MyCompletionItem extends vscode.CompletionItem {
 				return vscode.CompletionItemKind.File;
 			case PConst.Kind.directory:
 				return vscode.CompletionItemKind.Folder;
+			case PConst.Kind.string:
+				return vscode.CompletionItemKind.Constant;
 		}
 		return vscode.CompletionItemKind.Property;
 	}
@@ -290,7 +292,7 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 			...typeConverters.Position.toFileLocationRequestArgs(file, position),
 			includeExternalModuleExports: completionConfiguration.autoImportSuggestions,
 			includeInsertTextCompletions: true,
-			triggerCharacter: context.triggerCharacter ? (context.triggerCharacter === '.' ? undefined : context.triggerCharacter) : undefined
+			triggerCharacter: context.triggerCharacter as Proto.CompletionsTriggerCharacter
 		};
 
 		let msg: Proto.CompletionEntry[] | undefined = undefined;
@@ -469,7 +471,7 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 			}
 		}
 
-		if (context.triggerCharacter === '@') {
+		if (context.triggerCharacter === '@' && !this.client.apiVersion.has290Features()) {
 			// make sure we are in something that looks like the start of a jsdoc comment
 			const pre = line.text.slice(0, position.character);
 			if (!pre.match(/^\s*\*[ ]?@/) && !pre.match(/\/\*\*+[ ]?@/)) {
