@@ -26,6 +26,6 @@
 	"always": "遠用在狀態列中顯示偵錯",
 	"onFirstSessionStart": "只有第一次啟動偵錯後才在狀態列中顯示偵錯",
 	"showInStatusBar": "控制何時應該顯示偵錯狀態列",
-	"openDebug": "控制偵錯 viewlet 是否在 debugging session 啟動時開啟。",
+	"openDebug": "控制是否應於偵錯工作階段開始時開啟偵錯檢視。",
 	"launch": "全域偵錯啟動組態。應當做在工作區之間共用的 'launch.json' 替代方案使用"
 }

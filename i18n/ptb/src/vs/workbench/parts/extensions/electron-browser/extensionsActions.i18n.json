@@ -10,6 +10,6 @@
 	"installVSIX": "Instalar do VSIX...",
 	"installFromVSIX": "Instalar a partir do VSIX",
 	"installButton": "&&Instalar",
-	"InstallVSIXAction.success": "A extensão foi instalada com sucesso. Reinicie para habilitá-la.",
+	"InstallVSIXAction.success": "A extensão foi instalada com sucesso. Recarregue para ativá-la.",
 	"InstallVSIXAction.reloadNow": "Recarregar Agora"
 }

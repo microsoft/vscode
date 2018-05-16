@@ -35,7 +35,7 @@
 	"useUniqueNames": "Por favor utilice nombres de configuración exclusivos.",
 	"app.launch.json.compound.folder": "Nombre de la carpeta en la que se encuentra el compuesto.",
 	"app.launch.json.compounds.configurations": "Nombres de las configuraciones que se iniciarán como parte de este elemento compuesto.",
-	"debugNoType": "El valor \"type\" del adaptador de depuración no se puede omitir y debe ser de tipo \"string\".",
+	"debugNoType": "El 'tipo' de depurador no se puede omitir y debe ser de tipo 'cadena'. ",
 	"selectDebug": "Seleccionar entorno",
 	"DebugConfig.failed": "No se puede crear el archivo \"launch.json\" dentro de la carpeta \".vscode\" ({0}).",
 	"workspace": "espacio de trabajo",

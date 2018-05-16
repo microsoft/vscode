@@ -32,9 +32,9 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { SearchModel } from 'vs/workbench/parts/search/common/searchModel';
 import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
 
-import Event, * as event from 'vs/base/common/event';
+import * as event from 'vs/base/common/event';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { ILogService, NullLogService } from '../../../platform/log/common/log';
+import { NullLogService, ILogService } from 'vs/platform/log/common/log';
 
 declare var __dirname: string;
 
@@ -150,7 +150,7 @@ class TestTelemetryService implements ITelemetryService {
 
 	private emitter = new event.Emitter<any>();
 
-	public get eventLogged(): Event<any> {
+	public get eventLogged(): event.Event<any> {
 		return this.emitter.event;
 	}
 

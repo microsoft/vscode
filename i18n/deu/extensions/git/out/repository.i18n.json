@@ -30,7 +30,6 @@
 	"changes": "Änderungen",
 	"commitMessageCountdown": "{0} Zeichen in der aktuellen Zeile verbleibend",
 	"commitMessageWarning": "{0} Zeichen über {1} in der aktuellen Zeile",
-	"ok": "OK",
 	"neveragain": "Nicht mehr anzeigen",
 	"huge": "Das Git-Repository unter {0} umfasst zu viele aktive Änderungen. Nur ein Teil der Git-Features wird aktiviert."
 }

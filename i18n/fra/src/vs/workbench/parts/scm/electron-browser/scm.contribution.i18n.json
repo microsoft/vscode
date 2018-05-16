@@ -12,5 +12,6 @@
 	"view": "Afficher",
 	"scmConfigurationTitle": "SCM",
 	"alwaysShowProviders": "S'il faut toujours afficher la section Fournisseur de contrôle de code source.",
-	"diffDecorations": "Contrôle les décorations diff dans l'éditeur"
+	"diffDecorations": "Contrôle les décorations diff dans l'éditeur",
+	"diffGutterWidth": "Contrôle la largeur (px) des décorations diff dans la gouttière (ajoutées et modifiées)"
 }

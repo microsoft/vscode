@@ -26,8 +26,9 @@ import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { IMouseEvent, DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { DefaultDragAndDrop, OpenMode, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
-import { IVariableTemplateData, renderVariable, renderRenameBox, renderExpressionValue, BaseDebugController, twistiePixels, renderViewTree } from 'vs/workbench/parts/debug/electron-browser/baseDebugView';
+import { IVariableTemplateData, renderVariable, renderRenameBox, renderExpressionValue, BaseDebugController, twistiePixels, renderViewTree } from 'vs/workbench/parts/debug/browser/baseDebugView';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const $ = dom.$;
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
@@ -45,9 +46,10 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('expressionsSection', "Expressions Section") }, keybindingService, contextMenuService);
+		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('expressionsSection', "Expressions Section") }, keybindingService, contextMenuService, configurationService);
 		this.settings = options.viewletSettings;
 
 		this.onWatchExpressionsUpdatedScheduler = new RunOnceScheduler(() => {
@@ -212,7 +214,7 @@ class WatchExpressionsDataSource implements IDataSource {
 		if (element instanceof Model) {
 			const viewModel = this.debugService.getViewModel();
 			return TPromise.join(element.getWatchExpressions().map(we =>
-				we.name ? we.evaluate(viewModel.focusedProcess, viewModel.focusedStackFrame, 'watch').then(() => we) : TPromise.as(we)));
+				we.name ? we.evaluate(viewModel.focusedSession, viewModel.focusedStackFrame, 'watch').then(() => we) : TPromise.as(we)));
 		}
 
 		let expression = <Expression>element;
@@ -282,7 +284,7 @@ class WatchExpressionsRenderer implements IRenderer {
 		if (templateId === WatchExpressionsRenderer.WATCH_EXPRESSION_TEMPLATE_ID) {
 			this.renderWatchExpression(tree, element, templateData);
 		} else {
-			renderVariable(tree, element, templateData, true);
+			renderVariable(element, templateData, true);
 		}
 	}
 

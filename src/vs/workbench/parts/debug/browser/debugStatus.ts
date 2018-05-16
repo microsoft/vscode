@@ -13,6 +13,7 @@ import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IDebugService, State, IDebugConfiguration } from 'vs/workbench/parts/debug/common/debug';
 import { Themable, STATUS_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { STATUS_BAR_DEBUGGING_FOREGROUND, isStatusbarInDebugMode } from 'vs/workbench/parts/debug/browser/statusbarColorProvider';
 
 const $ = dom.$;
 
@@ -61,7 +62,11 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 	protected updateStyles(): void {
 		super.updateStyles();
 		if (this.icon) {
-			this.icon.style.backgroundColor = this.getColor(STATUS_BAR_FOREGROUND);
+			if (isStatusbarInDebugMode(this.debugService)) {
+				this.icon.style.backgroundColor = this.getColor(STATUS_BAR_DEBUGGING_FOREGROUND);
+			} else {
+				this.icon.style.backgroundColor = this.getColor(STATUS_BAR_FOREGROUND);
+			}
 		}
 	}
 
@@ -85,15 +90,16 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 			this.icon = dom.append(a, $('.icon'));
 			this.label = dom.append(a, $('span.label'));
 			this.setLabel();
-			this.updateStyles();
 		}
+
+		this.updateStyles();
 	}
 
 	private setLabel(): void {
 		if (this.label && this.statusBarItem) {
 			const manager = this.debugService.getConfigurationManager();
 			const name = manager.selectedConfiguration.name;
-			if (name) {
+			if (name && manager.selectedConfiguration.launch) {
 				this.statusBarItem.style.display = 'block';
 				this.label.textContent = manager.getLaunches().length > 1 ? `${name} (${manager.selectedConfiguration.launch.name})` : name;
 			} else {

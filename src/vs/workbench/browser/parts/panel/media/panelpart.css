@@ -30,10 +30,6 @@
 	border-left-style: solid;
 }
 
-.monaco-workbench > .part.panel > .composite.title > .title-actions {
-	flex-grow: 0;
-}
-
 .monaco-workbench > .part.panel > .title > .title-actions .monaco-action-bar .action-item .action-label {
 	outline-offset: -2px;
 }
@@ -90,7 +86,7 @@
 	cursor: default;
 }
 
-.monaco-workbench .panel .monaco-action-bar .action-item .select-box {
+.monaco-workbench .panel .monaco-action-bar .action-item .monaco-select-box {
 	cursor: pointer;
 	min-width: 110px;
 }

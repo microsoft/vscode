@@ -12,5 +12,6 @@
 	"view": "Ver",
 	"scmConfigurationTitle": "SCM",
 	"alwaysShowProviders": "Si desea mostrar siempre la sección proveedor de control de código fuente.",
-	"diffDecorations": "Controla las decoraciones de diff en el editor."
+	"diffDecorations": "Controla las decoraciones de diff en el editor.",
+	"diffGutterWidth": "Controla el ancho (px) de las decoraciones de diferencias en el medianil (agregadas y modificadas)."
 }

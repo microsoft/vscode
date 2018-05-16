@@ -10,6 +10,8 @@
 	"change": "{0}. módosítás (összesen: {1})",
 	"show previous change": "Előző módosítás megjelenítése",
 	"show next change": "Következő módosítás megjelenítése",
+	"move to previous change": "Ugrás az előző módosításra",
+	"move to next change": "Ugrás az következő módosításra",
 	"editorGutterModifiedBackground": "A szerkesztőablak margójának háttérszíne a módosított soroknál.",
 	"editorGutterAddedBackground": "A szerkesztőablak margójának háttérszíne a hozzáadott soroknál.",
 	"editorGutterDeletedBackground": "A szerkesztőablak margójának háttérszíne a törölt soroknál.",

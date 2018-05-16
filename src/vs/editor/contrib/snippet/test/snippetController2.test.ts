@@ -37,7 +37,7 @@ suite('SnippetController2', function () {
 	setup(function () {
 		contextKeys = new MockContextKeyService();
 		model = TextModel.createFromString('if\n    $state\nfi');
-		editor = createTestCodeEditor(model);
+		editor = createTestCodeEditor({ model: model });
 		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5)]);
 		assert.equal(model.getEOL(), '\n');
 	});

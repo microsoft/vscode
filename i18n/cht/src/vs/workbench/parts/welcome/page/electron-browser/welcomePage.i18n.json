@@ -34,7 +34,6 @@
 	"welcomePage.installedExtensionPack": "已安裝 {0} 支援",
 	"ok": "確定",
 	"details": "詳細資料",
-	"cancel": "取消",
 	"welcomePage.buttonBackground": "起始頁面按鈕的背景色彩.",
 	"welcomePage.buttonHoverBackground": "起始頁面暫留於按鈕的背景色彩"
 }

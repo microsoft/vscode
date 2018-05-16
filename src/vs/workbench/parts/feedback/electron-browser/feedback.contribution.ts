@@ -14,7 +14,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 Registry.as<IStatusbarRegistry>(Extensions.Statusbar).registerStatusbarItem(new StatusbarItemDescriptor(
 	FeedbackStatusbarItem,
 	StatusbarAlignment.RIGHT,
-	-100 /* Low Priority */
+	-100 /* towards the end of the right hand side */
 ));
 
 // Configuration: Workbench

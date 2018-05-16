@@ -12,6 +12,7 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/wor
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { RemoveFromEditorHistoryAction } from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import { QuickOpenSelectNextAction, QuickOpenSelectPreviousAction, inQuickOpenContext, getQuickNavigateHandler, QuickOpenNavigateNextAction, QuickOpenNavigatePreviousAction, defaultQuickOpenContext, QUICKOPEN_ACTION_ID, QUICKOPEN_ACION_LABEL } from 'vs/workbench/browser/parts/quickopen/quickopen';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.closeQuickOpen',
@@ -21,6 +22,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: accessor => {
 		const quickOpenService = accessor.get(IQuickOpenService);
 		quickOpenService.close();
+		const quickInputService = accessor.get(IQuickInputService);
+		return quickInputService.cancel();
 	}
 });
 
@@ -32,6 +35,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: accessor => {
 		const quickOpenService = accessor.get(IQuickOpenService);
 		quickOpenService.accept();
+		const quickInputService = accessor.get(IQuickInputService);
+		return quickInputService.accept();
 	}
 });
 
@@ -43,10 +48,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: accessor => {
 		const quickOpenService = accessor.get(IQuickOpenService);
 		quickOpenService.focus();
+		const quickInputService = accessor.get(IQuickInputService);
+		quickInputService.focus();
 	}
 });
 
-const registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
+const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 
 const globalQuickOpenKeybinding = { primary: KeyMod.CtrlCmd | KeyCode.KEY_P, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_E], mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_P, secondary: null } };
 

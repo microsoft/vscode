@@ -29,7 +29,7 @@
 	"compareSelected": "選択項目の比較",
 	"close": "閉じる",
 	"closeOthers": "その他を閉じる",
-	"closeUnmodified": "未変更を閉じる",
+	"closeSaved": "保存済みを閉じる",
 	"closeAll": "すべて閉じる",
 	"deleteFile": "完全に削除"
 }

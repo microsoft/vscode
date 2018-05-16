@@ -7,205 +7,95 @@
 
 declare module 'vscode' {
 
-	// export enum FileErrorCodes {
-	// 	/**
-	// 	 * Not owner.
-	// 	 */
-	// 	EPERM = 1,
-	// 	/**
-	// 	 * No such file or directory.
-	// 	 */
-	// 	ENOENT = 2,
-	// 	/**
-	// 	 * I/O error.
-	// 	 */
-	// 	EIO = 5,
-	// 	/**
-	// 	 * Permission denied.
-	// 	 */
-	// 	EACCES = 13,
-	// 	/**
-	// 	 * File exists.
-	// 	 */
-	// 	EEXIST = 17,
-	// 	/**
-	// 	 * Not a directory.
-	// 	 */
-	// 	ENOTDIR = 20,
-	// 	/**
-	// 	 * Is a directory.
-	// 	 */
-	// 	EISDIR = 21,
-	// 	/**
-	// 	 *  File too large.
-	// 	 */
-	// 	EFBIG = 27,
-	// 	/**
-	// 	 * No space left on device.
-	// 	 */
-	// 	ENOSPC = 28,
-	// 	/**
-	// 	 * Directory is not empty.
-	// 	 */
-	// 	ENOTEMPTY = 66,
-	// 	/**
-	// 	 * Invalid file handle.
-	// 	 */
-	// 	ESTALE = 70,
-	// 	/**
-	// 	 * Illegal NFS file handle.
-	// 	 */
-	// 	EBADHANDLE = 10001,
-	// }
+	export namespace window {
+		export function sampleFunction(): Thenable<any>;
+	}
 
-	export enum FileChangeType {
+	//#region Joh: file system provider (OLD)
+
+	export enum DeprecatedFileChangeType {
 		Updated = 0,
 		Added = 1,
 		Deleted = 2
 	}
-
-	export interface FileChange {
-		type: FileChangeType;
+	export interface DeprecatedFileChange {
+		type: DeprecatedFileChangeType;
 		resource: Uri;
 	}
-
-	export enum FileType {
+	export enum DeprecatedFileType {
 		File = 0,
 		Dir = 1,
 		Symlink = 2
 	}
-
-	export interface FileStat {
+	export interface DeprecatedFileStat {
 		id: number | string;
 		mtime: number;
-		// atime: number;
 		size: number;
-		type: FileType;
+		type: DeprecatedFileType;
 	}
+	export interface DeprecatedFileSystemProvider {
+		readonly onDidChange?: Event<DeprecatedFileChange[]>;
+		utimes(resource: Uri, mtime: number, atime: number): Thenable<DeprecatedFileStat>;
+		stat(resource: Uri): Thenable<DeprecatedFileStat>;
+		read(resource: Uri, offset: number, length: number, progress: Progress<Uint8Array>): Thenable<number>;
+		write(resource: Uri, content: Uint8Array): Thenable<void>;
+		move(resource: Uri, target: Uri): Thenable<DeprecatedFileStat>;
+		mkdir(resource: Uri): Thenable<DeprecatedFileStat>;
+		readdir(resource: Uri): Thenable<[Uri, DeprecatedFileStat][]>;
+		rmdir(resource: Uri): Thenable<void>;
+		unlink(resource: Uri): Thenable<void>;
+	}
+	export namespace workspace {
+		export function registerDeprecatedFileSystemProvider(scheme: string, provider: DeprecatedFileSystemProvider): Disposable;
+	}
+
+	//#endregion
+
+	//#region Joh: remote, search provider
 
 	export interface TextSearchQuery {
 		pattern: string;
-		isRegex?: boolean;
+		isRegExp?: boolean;
 		isCaseSensitive?: boolean;
 		isWordMatch?: boolean;
 	}
 
-	export interface TextSearchOptions {
-		includes: GlobPattern[];
-		excludes: GlobPattern[];
+	export interface SearchOptions {
+		folder: Uri;
+		includes: string[]; // paths relative to folder
+		excludes: string[];
+		useIgnoreFiles?: boolean;
+		followSymlinks?: boolean;
+		previewOptions?: any; // total length? # of context lines? leading and trailing # of chars?
 	}
+
+	export interface TextSearchOptions extends SearchOptions {
+		maxFileSize?: number;
+		encoding?: string;
+	}
+
+	export interface FileSearchOptions extends SearchOptions { }
 
 	export interface TextSearchResult {
 		uri: Uri;
 		range: Range;
-		preview: { leading: string, matching: string, trailing: string };
+
+		// For now, preview must be a single line of text
+		preview: { text: string, match: Range };
 	}
 
-	// todo@joh discover files etc
-	// todo@joh CancellationToken everywhere
-	// todo@joh add open/close calls?
-	export interface FileSystemProvider {
-
-		readonly onDidChange?: Event<FileChange[]>;
-
-		// todo@joh - remove this
-		readonly root?: Uri;
-
-		// more...
-		//
-		utimes(resource: Uri, mtime: number, atime: number): Thenable<FileStat>;
-
-		stat(resource: Uri): Thenable<FileStat>;
-
-		read(resource: Uri, offset: number, length: number, progress: Progress<Uint8Array>): Thenable<number>;
-
-		// todo@joh - have an option to create iff not exist
-		// todo@remote
-		// offset - byte offset to start
-		// count - number of bytes to write
-		// Thenable<number> - number of bytes actually written
-		write(resource: Uri, content: Uint8Array): Thenable<void>;
-
-		// todo@remote
-		// Thenable<FileStat>
-		move(resource: Uri, target: Uri): Thenable<FileStat>;
-
-		// todo@remote
-		// helps with performance bigly
-		// copy?(from: Uri, to: Uri): Thenable<void>;
-
-		// todo@remote
-		// Thenable<FileStat>
-		mkdir(resource: Uri): Thenable<FileStat>;
-
-		readdir(resource: Uri): Thenable<[Uri, FileStat][]>;
-
-		// todo@remote
-		// ? merge both
-		// ? recursive del
-		rmdir(resource: Uri): Thenable<void>;
-		unlink(resource: Uri): Thenable<void>;
-
-		// todo@remote
-		// create(resource: Uri): Thenable<FileStat>;
-
-		// find files by names
-		// todo@joh, move into its own provider
-		findFiles?(query: string, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
+	export interface SearchProvider {
+		provideFileSearchResults?(options: FileSearchOptions, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
 		provideTextSearchResults?(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
 	}
 
 	export namespace workspace {
-		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider): Disposable;
-
-		/**
-		 * This method replaces `deleteCount` [workspace folders](#workspace.workspaceFolders) starting at index `start`
-		 * by an optional set of `workspaceFoldersToAdd` on the `vscode.workspace.workspaceFolders` array. This "splice"
-		 * behavior can be used to add, remove and change workspace folders in a single operation.
-		 *
-		 * If the first workspace folder is added, removed or changed, the currently executing extensions (including the
-		 * one that called this method) will be terminated and restarted so that the (deprecated) `rootPath` property is
-		 * updated to point to the first workspace folder.
-		 *
-		 * Use the [`onDidChangeWorkspaceFolders()`](#onDidChangeWorkspaceFolders) event to get notified when the
-		 * workspace folders have been updated.
-		 *
-		 * **Example:** adding a new workspace folder at the end of workspace folders
-		 * ```typescript
-		 * workspace.updateWorkspaceFolders(workspace.workspaceFolders ? workspace.workspaceFolders.length : 0, null, { uri: ...});
-		 * ```
-		 *
-		 * **Example:** removing the first workspace folder
-		 * ```typescript
-		 * workspace.updateWorkspaceFolders(0, 1);
-		 * ```
-		 *
-		 * **Example:** replacing an existing workspace folder with a new one
-		 * ```typescript
-		 * workspace.updateWorkspaceFolders(0, 1, { uri: ...});
-		 * ```
-		 *
-		 * It is valid to remove an existing workspace folder and add it again with a different name
-		 * to rename that folder.
-		 *
-		 * **Note:** it is not valid to call [updateWorkspaceFolders()](#updateWorkspaceFolders) multiple times
-		 * without waiting for the [`onDidChangeWorkspaceFolders()`](#onDidChangeWorkspaceFolders) to fire.
-		 *
-		 * @param start the zero-based location in the list of currently opened [workspace folders](#WorkspaceFolder)
-		 * from which to start deleting workspace folders.
-		 * @param deleteCount the optional number of workspace folders to remove.
-		 * @param workspaceFoldersToAdd the optional variable set of workspace folders to add in place of the deleted ones.
-		 * Each workspace is identified with a mandatory URI and an optional name.
-		 * @return true if the operation was successfully started and false otherwise if arguments were used that would result
-		 * in invalid workspace folder state (e.g. 2 folders with the same URI).
-		 */
-		export function updateWorkspaceFolders(start: number, deleteCount: number, ...workspaceFoldersToAdd: { uri: Uri, name?: string }[]): boolean;
+		export function registerSearchProvider(scheme: string, provider: SearchProvider): Disposable;
 	}
 
-	export namespace window {
+	//#endregion
 
-		export function sampleFunction(): Thenable<any>;
-	}
+	//#region Joao: diff command
 
 	/**
 	 * The contiguous set of modified lines in a diff.
@@ -236,7 +126,9 @@ declare module 'vscode' {
 		export function registerDiffInformationCommand(command: string, callback: (diff: LineChange[], ...args: any[]) => any, thisArg?: any): Disposable;
 	}
 
-	//#region decorations
+	//#endregion
+
+	//#region Joh: decorations
 
 	//todo@joh -> make class
 	export interface DecorationData {
@@ -265,102 +157,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	export namespace debug {
-
-		/**
-		 * List of breakpoints.
-		 *
-		 * @readonly
-		 */
-		export let breakpoints: Breakpoint[];
-
-		/**
-		 * An event that is emitted when a breakpoint is added, removed, or changed.
-		 */
-		export const onDidChangeBreakpoints: Event<BreakpointsChangeEvent>;
-
-		/**
-		 * Add breakpoints.
-		 * @param breakpoints The breakpoints to add.
-		*/
-		export function addBreakpoints(breakpoints: Breakpoint[]): void;
-
-		/**
-		 * Remove breakpoints.
-		 * @param breakpoints The breakpoints to remove.
-		 */
-		export function removeBreakpoints(breakpoints: Breakpoint[]): void;
-	}
-
-	/**
-	 * An event describing a change to the set of [breakpoints](#debug.Breakpoint).
-	 */
-	export interface BreakpointsChangeEvent {
-		/**
-		 * Added breakpoints.
-		 */
-		readonly added: Breakpoint[];
-
-		/**
-		 * Removed breakpoints.
-		 */
-		readonly removed: Breakpoint[];
-
-		/**
-		 * Changed breakpoints.
-		 */
-		readonly changed: Breakpoint[];
-	}
-
-	/**
-	 * The base class of all breakpoint types.
-	 */
-	export class Breakpoint {
-		/**
-		 * Is breakpoint enabled.
-		 */
-		readonly enabled: boolean;
-		/**
-		 * An optional expression for conditional breakpoints.
-		 */
-		readonly condition?: string;
-		/**
-		 * An optional expression that controls how many hits of the breakpoint are ignored.
-		 */
-		readonly hitCondition?: string;
-
-		protected constructor(enabled?: boolean, condition?: string, hitCondition?: string);
-	}
-
-	/**
-	 * A breakpoint specified by a source location.
-	 */
-	export class SourceBreakpoint extends Breakpoint {
-		/**
-		 * The source and line position of this breakpoint.
-		 */
-		readonly location: Location;
-
-		/**
-		 * Create a new breakpoint for a source location.
-		 */
-		constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string);
-	}
-
-	/**
-	 * A breakpoint specified by a function name.
-	 */
-	export class FunctionBreakpoint extends Breakpoint {
-		/**
-		 * The name of the function to which this breakpoint is attached.
-		 */
-		readonly functionName: string;
-
-		/**
-		 * Create a new function breakpoint.
-		 */
-		constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string);
-	}
+	//#region André: debug
 
 	/**
 	 * Represents a debug adapter executable and optional arguments passed to it.
@@ -395,6 +192,10 @@ declare module 'vscode' {
 		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
 	}
 
+	//#endregion
+
+	//#region Rob, Matt: logging
+
 	/**
 	 * The severity level of a log message
 	 */
@@ -412,10 +213,6 @@ declare module 'vscode' {
 	 * A logger for writing to an extension's log file, and accessing its dedicated log directory.
 	 */
 	export interface Logger {
-		readonly onDidChangeLogLevel: Event<LogLevel>;
-		readonly currentLevel: LogLevel;
-		readonly logDirectory: Thenable<string>;
-
 		trace(message: string, ...args: any[]): void;
 		debug(message: string, ...args: any[]): void;
 		info(message: string, ...args: any[]): void;
@@ -429,19 +226,27 @@ declare module 'vscode' {
 		 * This extension's logger
 		 */
 		logger: Logger;
+
+		/**
+		 * Path where an extension can write log files.
+		 *
+		 * Extensions must create this directory before writing to it. The parent directory will always exist.
+		 */
+		readonly logDirectory: string;
 	}
 
-	export interface RenameInitialValue {
-		range: Range;
-		text?: string;
+	export namespace env {
+		/**
+		 * Current logging level.
+		 *
+		 * @readonly
+		 */
+		export const logLevel: LogLevel;
 	}
 
-	export namespace languages {
+	//#endregion
 
-		export interface RenameProvider2 extends RenameProvider {
-			resolveInitialRenameValue?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<RenameInitialValue>;
-		}
-	}
+	//#region Joao: SCM validation
 
 	/**
 	 * Represents the validation type of the Source Control input.
@@ -488,4 +293,330 @@ declare module 'vscode' {
 		 */
 		validateInput?(value: string, cursorPosition: number): ProviderResult<SourceControlInputBoxValidation | undefined | null>;
 	}
+
+	//#endregion
+
+	//#region Matt: WebView Serializer
+
+	/**
+	 * Restore webview panels that have been persisted when vscode shuts down.
+	 */
+	interface WebviewPanelSerializer {
+		/**
+		 * Restore a webview panel from its seriailzed `state`.
+		 *
+		 * Called when a serialized webview first becomes visible.
+		 *
+		 * @param webviewPanel Webview panel to restore. The serializer should take ownership of this panel.
+		 * @param state Persisted state.
+		 *
+		 * @return Thanble indicating that the webview has been fully restored.
+		 */
+		deserializeWebviewPanel(webviewPanel: WebviewPanel, state: any): Thenable<void>;
+	}
+
+	namespace window {
+		/**
+		 * Registers a webview panel serializer.
+		 *
+		 * Extensions that support reviving should have an `"onView:viewType"` activation method and
+		 * make sure that [registerWebviewPanelSerializer](#registerWebviewPanelSerializer) is called during activation.
+		 *
+		 * Only a single serializer may be registered at a time for a given `viewType`.
+		 *
+		 * @param viewType Type of the webview panel that can be serialized.
+		 * @param reviver Webview serializer.
+		 */
+		export function registerWebviewPanelSerializer(viewType: string, reviver: WebviewPanelSerializer): Disposable;
+	}
+
+	//#endregion
+
+	//#region Tasks
+
+	/**
+	 * An object representing an executed Task. It can be used
+	 * to terminate a task.
+	 *
+	 * This interface is not intended to be implemented.
+	 */
+	export interface TaskExecution {
+		/**
+		 * The task that got started.
+		 */
+		task: Task;
+
+		/**
+		 * Terminates the task execution.
+		 */
+		terminate(): void;
+	}
+
+	/**
+	 * An event signaling the start of a task execution.
+	 *
+	 * This interface is not intended to be implemented.
+	 */
+	interface TaskStartEvent {
+		/**
+		 * The task item representing the task that got started.
+		 */
+		execution: TaskExecution;
+	}
+
+	/**
+	 * An event signaling the end of an executed task.
+	 *
+	 * This interface is not intended to be implemented.
+	 */
+	interface TaskEndEvent {
+		/**
+		 * The task item representing the task that finished.
+		 */
+		execution: TaskExecution;
+	}
+
+	/**
+	 * An event signaling the start of a process execution
+	 * triggered through a task
+	 */
+	export interface TaskProcessStartEvent {
+
+		/**
+		 * The task execution for which the process got started.
+		 */
+		execution: TaskExecution;
+
+		/**
+		 * The underlying process id.
+		 */
+		processId: number;
+	}
+
+	/**
+	 * An event signaling the end of a process execution
+	 * triggered through a task
+	 */
+	export interface TaskProcessEndEvent {
+
+		/**
+		 * The task execution for which the process got started.
+		 */
+		execution: TaskExecution;
+
+		/**
+		 * The process's exit code.
+		 */
+		exitCode: number;
+	}
+
+	export interface TaskFilter {
+		/**
+		 * The task version as used in the tasks.json file.
+		 * The string support the package.json semver notation.
+		 */
+		version?: string;
+
+		/**
+		 * The task type to return;
+		 */
+		type?: string;
+	}
+
+	export namespace workspace {
+
+		/**
+		 * Fetches all tasks available in the systems. This includes tasks
+		 * from `tasks.json` files as well as tasks from task providers
+		 * contributed through extensions.
+		 *
+		 * @param filter a filter to filter the return tasks.
+		 */
+		export function fetchTasks(filter?: TaskFilter): Thenable<Task[]>;
+
+		/**
+		 * Executes a task that is managed by VS Code. The returned
+		 * task execution can be used to terminate the task.
+		 *
+		 * @param task the task to execute
+		 */
+		export function executeTask(task: Task): Thenable<TaskExecution>;
+
+		/**
+		 * The currently active task executions or an empty array.
+		 *
+		 * @readonly
+		 */
+		export let taskExecutions: ReadonlyArray<TaskExecution>;
+
+		/**
+		 * Fires when a task starts.
+		 */
+		export const onDidStartTask: Event<TaskStartEvent>;
+
+		/**
+		 * Fires when a task ends.
+		 */
+		export const onDidEndTask: Event<TaskEndEvent>;
+	}
+
+	/**
+	 * Namespace for tasks functionality.
+	 */
+	export namespace tasks {
+
+		/**
+		 * Register a task provider.
+		 *
+		 * @param type The task kind type this provider is registered for.
+		 * @param provider A task provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerTaskProvider(type: string, provider: TaskProvider): Disposable;
+
+		/**
+		 * Fetches all tasks available in the systems. This includes tasks
+		 * from `tasks.json` files as well as tasks from task providers
+		 * contributed through extensions.
+		 *
+		 * @param filter a filter to filter the return tasks.
+		 */
+		export function fetchTasks(filter?: TaskFilter): Thenable<Task[]>;
+
+		/**
+		 * Executes a task that is managed by VS Code. The returned
+		 * task execution can be used to terminate the task.
+		 *
+		 * @param task the task to execute
+		 */
+		export function executeTask(task: Task): Thenable<TaskExecution>;
+
+		/**
+		 * The currently active task executions or an empty array.
+		 *
+		 * @readonly
+		 */
+		export let taskExecutions: ReadonlyArray<TaskExecution>;
+
+		/**
+		 * Fires when a task starts.
+		 */
+		export const onDidStartTask: Event<TaskStartEvent>;
+
+		/**
+		 * Fires when a task ends.
+		 */
+		export const onDidEndTask: Event<TaskEndEvent>;
+
+		/**
+		 * Fires when the underlying process has been started.
+		 * This event will not fire for tasks that don't
+		 * execute an underlying process.
+		 */
+		export const onDidStartTaskProcess: Event<TaskProcessStartEvent>;
+
+		/**
+		 * Fires when the underlying process has ended.
+		 * This event will not fire for tasks that don't
+		 * execute an underlying process.
+		 */
+		export const onDidEndTaskProcess: Event<TaskProcessEndEvent>;
+	}
+
+	//#endregion
+
+	//#region Terminal
+
+	export interface Terminal {
+		/**
+		 * Fires when the terminal's pty slave pseudo-device is written to. In other words, this
+		 * provides access to the raw data stream from the process running within the terminal,
+		 * including ANSI sequences.
+		 */
+		onData: Event<string>;
+	}
+
+	export namespace window {
+		/**
+		 * The currently active terminals or an empty array.
+		 *
+		 * @readonly
+		 */
+		export let terminals: Terminal[];
+
+		/**
+		 * An [event](#Event) which fires when a terminal has been created, either through the
+		 * [createTerminal](#window.createTerminal) API or commands.
+		 */
+		export const onDidOpenTerminal: Event<Terminal>;
+	}
+
+	//#endregion
+
+	//#region URLs
+
+	export interface ProtocolHandler {
+		handleUri(uri: Uri): void;
+	}
+
+	export namespace window {
+
+		/**
+		 * Registers a protocol handler capable of handling system-wide URIs.
+		 */
+		export function registerProtocolHandler(handler: ProtocolHandler): Disposable;
+	}
+
+	//#endregion
+
+	//#region Joh: hierarchical document symbols, https://github.com/Microsoft/vscode/issues/34968
+
+	export class HierarchicalSymbolInformation {
+		name: string;
+		kind: SymbolKind;
+		detail: string;
+		location: Location;
+		range: Range;
+		children: HierarchicalSymbolInformation[];
+
+		constructor(name: string, detail: string, kind: SymbolKind, location: Location, range: Range);
+	}
+
+	export interface DocumentSymbolProvider {
+		provideDocumentSymbols(document: TextDocument, token: CancellationToken): ProviderResult<HierarchicalSymbolInformation[] | SymbolInformation[]>;
+	}
+
+	//#endregion
+
+	//#region Joh -> exclusive document filters
+
+	export interface DocumentFilter {
+		exclusive?: boolean;
+	}
+
+	//#endregion
+
+	//#region Multi-step input
+
+	export namespace window {
+
+		/**
+		 * Collect multiple inputs from the user. The provided handler will be called with a
+		 * [`QuickInput`](#QuickInput) that should be used to control the UI.
+		 *
+		 * @param handler The callback that will collect the inputs.
+		 */
+		export function multiStepInput<T>(handler: (input: QuickInput, token: CancellationToken) => Thenable<T>, token?: CancellationToken): Thenable<T>;
+	}
+
+	/**
+	 * Controls the UI within a multi-step input session. The handler passed to [`window.multiStepInput`](#window.multiStepInput)
+	 * should use the instance of this interface passed to it to collect all inputs.
+	 */
+	export interface QuickInput {
+		showQuickPick: typeof window.showQuickPick;
+		showInputBox: typeof window.showInputBox;
+	}
+
+	//#endregion
 }

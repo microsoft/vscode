@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
+import * as assert from 'assert';
 import { formatOptions } from 'vs/platform/environment/node/argv';
 
 suite('formatOptions', () => {

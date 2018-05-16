@@ -15,7 +15,7 @@
 	"mainProcess": "Elsődleges",
 	"selectProcess": "Válasszon folyamatnaplót!",
 	"openLogFile": "Naplófájl megnyitása...",
-	"setLogLevel": "Naplózási szint beállítása",
+	"setLogLevel": "Naplózási szint beállítása...",
 	"trace": "Nyomkövetés",
 	"debug": "Hibakeresés",
 	"info": "Információ",

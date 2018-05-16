@@ -11,11 +11,12 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 // --- other interested parties
-import { JSONValidationExtensionPoint } from 'vs/platform/jsonschemas/common/jsonValidationExtensionPoint';
-import { ColorExtensionPoint } from 'vs/platform/theme/common/colorExtensionPoint';
+import { JSONValidationExtensionPoint } from 'vs/workbench/services/jsonschemas/common/jsonValidationExtensionPoint';
+import { ColorExtensionPoint } from 'vs/workbench/services/themes/common/colorExtensionPoint';
 import { LanguageConfigurationFileHandler } from 'vs/workbench/parts/codeEditor/electron-browser/languageConfiguration/languageConfigurationExtensionPoint';
 
 // --- mainThread participants
+import 'vs/workbench/api/node/apiCommands';
 import './mainThreadCommands';
 import './mainThreadConfiguration';
 import './mainThreadDebugService';
@@ -39,6 +40,7 @@ import './mainThreadOutputService';
 import './mainThreadProgress';
 import './mainThreadQuickOpen';
 import './mainThreadSCM';
+import './mainThreadSearch';
 import './mainThreadSaveParticipant';
 import './mainThreadStatusBar';
 import './mainThreadStorage';
@@ -47,6 +49,8 @@ import './mainThreadTelemetry';
 import './mainThreadTerminalService';
 import './mainThreadTreeViews';
 import './mainThreadLogService';
+import './mainThreadWebview';
+import './mainThreadUrls';
 import './mainThreadWindow';
 import './mainThreadWorkspace';
 

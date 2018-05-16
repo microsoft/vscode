@@ -91,6 +91,13 @@ const keys: Key[] = [
 		label: localize('welcomeOverlay.commandPalette', "Find and run all commands"),
 		command: ShowAllCommandsAction.ID
 	},
+	{
+		id: 'notifications',
+		arrow: '&cudarrr;',
+		arrowLast: true,
+		label: localize('welcomeOverlay.notifications', "Show notifications"),
+		command: 'notifications.showList'
+	}
 ];
 
 const OVERLAY_VISIBLE = new RawContextKey<boolean>('interfaceOverviewVisible', false);
@@ -149,7 +156,7 @@ class WelcomeOverlay {
 		@IPartService private partService: IPartService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@ICommandService private commandService: ICommandService,
-		@IContextKeyService private _contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		this._overlayVisible = OVERLAY_VISIBLE.bindTo(this._contextKeyService);

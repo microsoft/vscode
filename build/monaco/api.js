@@ -171,9 +171,7 @@ function format(text) {
     function getRuleProvider(options) {
         // Share this between multiple formatters using the same options.
         // This represents the bulk of the space the formatter uses.
-        var ruleProvider = new ts.formatting.RulesProvider();
-        ruleProvider.ensureUpToDate(options);
-        return ruleProvider;
+        return ts.formatting.getFormatContext(options);
     }
     function applyEdits(text, edits) {
         // Apply edits in reverse on the existing text
@@ -210,7 +208,8 @@ function createReplacer(data) {
     };
 }
 function generateDeclarationFile(out, inputFiles, recipe) {
-    var lines = recipe.split(/\r\n|\n|\r/);
+    var endl = /\r\n/.test(recipe) ? '\r\n' : '\n';
+    var lines = recipe.split(endl);
     var result = [];
     lines.forEach(function (line) {
         var m1 = line.match(/^\s*#include\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
@@ -278,12 +277,11 @@ function generateDeclarationFile(out, inputFiles, recipe) {
         }
         result.push(line);
     });
-    var resultTxt = result.join('\n');
+    var resultTxt = result.join(endl);
     resultTxt = resultTxt.replace(/\bURI\b/g, 'Uri');
     resultTxt = resultTxt.replace(/\bEvent</g, 'IEvent<');
     resultTxt = resultTxt.replace(/\bTPromise</g, 'Promise<');
     resultTxt = format(resultTxt);
-    resultTxt = resultTxt.replace(/\r\n/g, '\n');
     return resultTxt;
 }
 function getFilesToWatch(out) {
@@ -314,10 +312,13 @@ function run(out, inputFiles) {
     var result = generateDeclarationFile(out, inputFiles, recipe);
     var currentContent = fs.readFileSync(DECLARATION_PATH).toString();
     log('Finished monaco.d.ts generation');
+    var one = currentContent.replace(/\r\n/gm, '\n');
+    var other = result.replace(/\r\n/gm, '\n');
+    var isTheSame = one === other;
     return {
         content: result,
         filePath: DECLARATION_PATH,
-        isTheSame: currentContent === result
+        isTheSame: isTheSame
     };
 }
 exports.run = run;

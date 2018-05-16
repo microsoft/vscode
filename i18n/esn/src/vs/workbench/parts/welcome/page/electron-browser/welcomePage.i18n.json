@@ -34,7 +34,6 @@
 	"welcomePage.installedExtensionPack": "La compatibilidad con {0} ya está instalada",
 	"ok": "Aceptar",
 	"details": "Detalles",
-	"cancel": "Cancelar",
 	"welcomePage.buttonBackground": "Color de fondo de los botones en la página principal.",
 	"welcomePage.buttonHoverBackground": "Color de fondo al mantener el mouse en los botones de la página principal."
 }

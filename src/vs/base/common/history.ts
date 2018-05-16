@@ -65,6 +65,11 @@ export class HistoryNavigator<T> implements INavigator<T> {
 		return this._navigator.last();
 	}
 
+	public clear(): void {
+		this._initialize([]);
+		this._onChange();
+	}
+
 	private _onChange() {
 		this._reduceToLimit();
 		this._navigator = new ArrayNavigator(this._elements);

@@ -1,9 +1,11 @@
 {
 	"name": "vscode-theme-seti",
 	"private": true,
-	"version": "0.1.0",
-    "description": "A file icon theme made out of the Seti UI file icons",
+	"version": "1.0.0",
+	"displayName": "%displayName%",
+	"description": "%description%",
 	"publisher": "vscode",
+	"icon": "icons/seti-circular-128x128.png",
 	"scripts": {
 		"update": "node ./build/update-icon-theme.js"
 	},

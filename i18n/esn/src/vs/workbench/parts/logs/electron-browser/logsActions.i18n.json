@@ -15,7 +15,7 @@
 	"mainProcess": "Principal",
 	"selectProcess": "Seleccionar un registro para procesar",
 	"openLogFile": "Abrir archivo de log...",
-	"setLogLevel": "Establecer nivel de registro",
+	"setLogLevel": "Establecer nivel de registro...",
 	"trace": "Seguimiento",
 	"debug": "Depurar",
 	"info": "Información",

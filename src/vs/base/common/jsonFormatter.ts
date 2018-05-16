@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Json = require('./json');
+import * as Json from './json';
 
 export interface FormattingOptions {
 	/**

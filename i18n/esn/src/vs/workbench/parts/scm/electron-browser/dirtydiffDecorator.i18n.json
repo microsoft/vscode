@@ -10,6 +10,8 @@
 	"change": "{0} de {1} cambio",
 	"show previous change": "Mostrar el cambio anterior",
 	"show next change": "Mostrar el cambio siguiente",
+	"move to previous change": "Moverse al cambio anterior",
+	"move to next change": "Moverse al cambio siguiente",
 	"editorGutterModifiedBackground": "Color de fondo del medianil del editor para las líneas modificadas.",
 	"editorGutterAddedBackground": "Color de fondo del medianil del editor para las líneas agregadas.",
 	"editorGutterDeletedBackground": "Color de fondo del medianil del editor para las líneas eliminadas.",

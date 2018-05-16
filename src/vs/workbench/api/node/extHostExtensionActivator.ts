@@ -9,7 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtHostLogger } from 'vs/workbench/api/node/extHostLogService';
 
 const hasOwnProperty = Object.hasOwnProperty;
@@ -28,6 +28,7 @@ export interface IExtensionContext {
 	storagePath: string;
 	asAbsolutePath(relativePath: string): string;
 	logger: ExtHostLogger;
+	readonly logDirectory: string;
 }
 
 /**
@@ -126,6 +127,7 @@ export class ExtensionActivationTimesBuilder {
 export class ActivatedExtension {
 
 	public readonly activationFailed: boolean;
+	public readonly activationFailedError: Error;
 	public readonly activationTimes: ExtensionActivationTimes;
 	public readonly module: IExtensionModule;
 	public readonly exports: IExtensionAPI;
@@ -133,12 +135,14 @@ export class ActivatedExtension {
 
 	constructor(
 		activationFailed: boolean,
+		activationFailedError: Error,
 		activationTimes: ExtensionActivationTimes,
 		module: IExtensionModule,
 		exports: IExtensionAPI,
 		subscriptions: IDisposable[]
 	) {
 		this.activationFailed = activationFailed;
+		this.activationFailedError = activationFailedError;
 		this.activationTimes = activationTimes;
 		this.module = module;
 		this.exports = exports;
@@ -148,13 +152,13 @@ export class ActivatedExtension {
 
 export class EmptyExtension extends ActivatedExtension {
 	constructor(activationTimes: ExtensionActivationTimes) {
-		super(false, activationTimes, { activate: undefined, deactivate: undefined }, undefined, []);
+		super(false, null, activationTimes, { activate: undefined, deactivate: undefined }, undefined, []);
 	}
 }
 
 export class FailedExtension extends ActivatedExtension {
-	constructor(activationTimes: ExtensionActivationTimes) {
-		super(true, activationTimes, { activate: undefined, deactivate: undefined }, undefined, []);
+	constructor(activationError: Error) {
+		super(true, activationError, ExtensionActivationTimes.NONE, { activate: undefined, deactivate: undefined }, undefined, []);
 	}
 }
 
@@ -242,8 +246,9 @@ export class ExtensionsActivator {
 
 			if (!depDesc) {
 				// Error condition 1: unknown dependency
-				this._host.showMessage(Severity.Error, nls.localize('unknownDep', "Extension `{1}` failed to activate. Reason: unknown dependency `{0}`.", depId, currentExtension.id));
-				this._activatedExtensions[currentExtension.id] = new FailedExtension(ExtensionActivationTimes.NONE);
+				this._host.showMessage(Severity.Error, nls.localize('unknownDep', "Extension '{1}' failed to activate. Reason: unknown dependency '{0}'.", depId, currentExtension.id));
+				const error = new Error(`Unknown dependency '${depId}'`);
+				this._activatedExtensions[currentExtension.id] = new FailedExtension(error);
 				return;
 			}
 
@@ -251,8 +256,10 @@ export class ExtensionsActivator {
 				let dep = this._activatedExtensions[depId];
 				if (dep.activationFailed) {
 					// Error condition 2: a dependency has already failed activation
-					this._host.showMessage(Severity.Error, nls.localize('failedDep1', "Extension `{1}` failed to activate. Reason: dependency `{0}` failed to activate.", depId, currentExtension.id));
-					this._activatedExtensions[currentExtension.id] = new FailedExtension(ExtensionActivationTimes.NONE);
+					this._host.showMessage(Severity.Error, nls.localize('failedDep1', "Extension '{1}' failed to activate. Reason: dependency '{0}' failed to activate.", depId, currentExtension.id));
+					const error = new Error(`Dependency ${depId} failed to activate`);
+					(<any>error).detail = dep.activationFailedError;
+					this._activatedExtensions[currentExtension.id] = new FailedExtension(error);
 					return;
 				}
 			} else {
@@ -284,8 +291,9 @@ export class ExtensionsActivator {
 			// More than 10 dependencies deep => most likely a dependency loop
 			for (let i = 0, len = extensionDescriptions.length; i < len; i++) {
 				// Error condition 3: dependency loop
-				this._host.showMessage(Severity.Error, nls.localize('failedDep2', "Extension `{0}` failed to activate. Reason: more than 10 levels of dependencies (most likely a dependency loop).", extensionDescriptions[i].id));
-				this._activatedExtensions[extensionDescriptions[i].id] = new FailedExtension(ExtensionActivationTimes.NONE);
+				this._host.showMessage(Severity.Error, nls.localize('failedDep2', "Extension '{0}' failed to activate. Reason: more than 10 levels of dependencies (most likely a dependency loop).", extensionDescriptions[i].id));
+				const error = new Error('More than 10 levels of dependencies (most likely a dependency loop)');
+				this._activatedExtensions[extensionDescriptions[i].id] = new FailedExtension(error);
 			}
 			return TPromise.as(void 0);
 		}
@@ -329,11 +337,11 @@ export class ExtensionsActivator {
 		}
 
 		this._activatingExtensions[extensionDescription.id] = this._host.actualActivateExtension(extensionDescription, reason).then(null, (err) => {
-			this._host.showMessage(Severity.Error, nls.localize('activationError', "Activating extension `{0}` failed: {1}.", extensionDescription.id, err.message));
+			this._host.showMessage(Severity.Error, nls.localize('activationError', "Activating extension '{0}' failed: {1}.", extensionDescription.id, err.message));
 			console.error('Activating extension `' + extensionDescription.id + '` failed: ', err.message);
 			console.log('Here is the error stack: ', err.stack);
 			// Treat the extension as being empty
-			return new FailedExtension(ExtensionActivationTimes.NONE);
+			return new FailedExtension(err);
 		}).then((x: ActivatedExtension) => {
 			this._activatedExtensions[extensionDescription.id] = x;
 			delete this._activatingExtensions[extensionDescription.id];

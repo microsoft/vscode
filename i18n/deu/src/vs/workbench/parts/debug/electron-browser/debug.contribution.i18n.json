@@ -26,6 +26,6 @@
 	"always": "Debuggen immer in Statusleiste anzeigen",
 	"onFirstSessionStart": "Debuggen nur in Statusleiste anzeigen, nachdem das Debuggen erstmals gestartet wurde",
 	"showInStatusBar": "Steuert, wann die Debug-Statusleiste angezeigt werden soll",
-	"openDebug": "Steuert, ob das Debug-Viewlet beim Start der Debugsitzung offen ist.",
+	"openDebug": "Steuert, ob das Debug-Menü beim Start der Debugsitzung offen ist.",
 	"launch": "Startkonfiguration für globales Debuggen. Sollte als Alternative zu \"launch.json\" verwendet werden, das übergreifend von mehreren Arbeitsbereichen genutzt wird"
 }

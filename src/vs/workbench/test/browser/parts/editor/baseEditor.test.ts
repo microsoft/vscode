@@ -27,7 +27,7 @@ let EditorInputRegistry: IEditorInputFactoryRegistry = Platform.Registry.as(Edit
 
 export class MyEditor extends BaseEditor {
 
-	constructor( @ITelemetryService telemetryService: ITelemetryService) {
+	constructor(@ITelemetryService telemetryService: ITelemetryService) {
 		super('MyEditor', NullTelemetryService, NullThemeService);
 	}
 
@@ -46,7 +46,7 @@ export class MyEditor extends BaseEditor {
 
 export class MyOtherEditor extends BaseEditor {
 
-	constructor( @ITelemetryService telemetryService: ITelemetryService) {
+	constructor(@ITelemetryService telemetryService: ITelemetryService) {
 		super('myOtherEditor', NullTelemetryService, NullThemeService);
 	}
 
@@ -101,7 +101,7 @@ class MyResourceInput extends ResourceEditorInput { }
 
 suite('Workbench BaseEditor', () => {
 
-	test('BaseEditor API', function (done) {
+	test('BaseEditor API', function () {
 		let e = new MyEditor(NullTelemetryService);
 		let input = new MyOtherInput();
 		let options = new EditorOptions();
@@ -109,7 +109,7 @@ suite('Workbench BaseEditor', () => {
 		assert(!e.isVisible());
 		assert(!e.input);
 		assert(!e.options);
-		e.setInput(input, options).then(() => {
+		return e.setInput(input, options).then(() => {
 			assert.strictEqual(input, e.input);
 			assert.strictEqual(options, e.options);
 
@@ -125,7 +125,7 @@ suite('Workbench BaseEditor', () => {
 			assert(!e.input);
 			assert(!e.options);
 			assert(!e.getControl());
-		}).done(() => done());
+		});
 	});
 
 	test('EditorDescriptor', function () {

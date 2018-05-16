@@ -37,12 +37,16 @@ function download(url, redirectCount) {
 			response.on('data', function (data) {
 				content += data.toString();
 			}).on('end', function () {
+				if (response.statusCode === 403 && response.headers['x-ratelimit-remaining'] === '0') {
+					e('GitHub API rate exceeded. Set GITHUB_TOKEN environment variable to increase rate limit.');
+					return;
+				}
 				let count = redirectCount || 0;
 				if (count < 5 && response.statusCode >= 300 && response.statusCode <= 303 || response.statusCode === 307) {
 					let location = response.headers['location'];
 					if (location) {
 						console.log("Redirected " + url + " to " + location);
-						download(location, count+1).then(c, e);
+						download(location, count + 1).then(c, e);
 						return;
 					}
 				}
@@ -64,12 +68,8 @@ function getCommitSha(repoId, repoPath) {
 				commitDate: lastCommit.commit.author.date
 			});
 		} catch (e) {
-			console.error("Failed extracting the SHA: " + content);
-			return Promise.resolve(null);
+			return Promise.reject(new Error("Failed extracting the SHA: " + content));
 		}
-	}, function () {
-		console.error('Failed loading ' + commitInfo);
-		return Promise.resolve(null);
 	});
 }
 
@@ -86,8 +86,7 @@ exports.update = function (repoId, repoPath, dest, modifyGrammar, version = 'mas
 		} else if (ext === '.json') {
 			grammar = JSON.parse(content);
 		} else {
-			console.error('Unknown file extension: ' + ext);
-			return;
+			return Promise.reject(new Error('Unknown file extension: ' + ext));
 		}
 		if (modifyGrammar) {
 			modifyGrammar(grammar);
@@ -104,8 +103,10 @@ exports.update = function (repoId, repoPath, dest, modifyGrammar, version = 'mas
 			if (info) {
 				result.version = 'https://github.com/' + repoId + '/commit/' + info.commitSha;
 			}
-			for (let key in grammar) {
-				if (!result.hasOwnProperty(key)) {
+
+			let keys = ['name', 'scopeName', 'comment', 'injections', 'patterns', 'repository'];
+			for (let key of keys) {
+				if (grammar.hasOwnProperty(key)) {
 					result[key] = grammar[key];
 				}
 			}
@@ -118,11 +119,14 @@ exports.update = function (repoId, repoPath, dest, modifyGrammar, version = 'mas
 					console.log('Updated ' + path.basename(dest));
 				}
 			} catch (e) {
-				console.error(e);
+				return Promise.reject(e);
 			}
 		});
 
-	}, console.error);
+	}, console.error).catch(e => {
+		console.error(e);
+		process.exit(1);
+	});
 };
 
 if (path.basename(process.argv[1]) === 'update-grammar.js') {

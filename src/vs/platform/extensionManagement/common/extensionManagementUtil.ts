@@ -18,11 +18,11 @@ export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifi
 }
 
 export function getGalleryExtensionId(publisher: string, name: string): string {
-	return `${publisher}.${name.toLocaleLowerCase()}`;
+	return `${publisher.toLocaleLowerCase()}.${name.toLocaleLowerCase()}`;
 }
 
 export function getGalleryExtensionIdFromLocal(local: ILocalExtension): string {
-	return getGalleryExtensionId(local.manifest.publisher, local.manifest.name);
+	return local.manifest ? getGalleryExtensionId(local.manifest.publisher, local.manifest.name) : local.identifier.id;
 }
 
 export const LOCAL_EXTENSION_ID_REGEX = /^([^.]+\..+)-(\d+\.\d+\.\d+(-.*)?)$/;
@@ -82,10 +82,10 @@ export function getLocalExtensionTelemetryData(extension: ILocalExtension): any 
 		"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"name": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"galleryId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"publisherId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-		"publisherName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-		"publisherDisplayName": { "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
-		"dependencies": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"publisherId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"publisherName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"publisherDisplayName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"dependencies": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 		"${include}": [
 			"${GalleryExtensionTelemetryData2}"
 		]

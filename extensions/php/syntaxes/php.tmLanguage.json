@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-php/commit/11b2057dbf32355019621ee3769f5c8ef577f524",
+	"version": "https://github.com/atom/language-php/commit/b054176835218c446d22b3c1b9dcfdcf8cacf49f",
 	"scopeName": "source.php",
 	"patterns": [
 		{
@@ -230,7 +230,7 @@
 			]
 		},
 		{
-			"begin": "(?i)^\\s*(?:(abstract|final)\\s+)?(class)\\s+([a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*)",
+			"begin": "(?i)(?:^|(?<=}))\\s*(?:(abstract|final)\\s+)?(class)\\s+([a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*)",
 			"beginCaptures": {
 				"1": {
 					"name": "storage.modifier.${1:/downcase}.php"
@@ -355,7 +355,15 @@
 			"include": "#switch_statement"
 		},
 		{
-			"match": "(?x)\n\\s*\n\\b(\n  break|case|continue|declare|default|die|do|\n  else(if)?|end(declare|for(each)?|if|switch|while)|exit|\n  for(each)?|if|return|switch|use|while|yield\n)\\b",
+			"match": "\\s*\\b(yield\\s+from)\\b",
+			"captures": {
+				"1": {
+					"name": "keyword.control.yield-from.php"
+				}
+			}
+		},
+		{
+			"match": "(?x)\n\\s* # FIXME: Removing this causes specs to fail. Investigate.\n\\b(\n  break|case|continue|declare|default|die|do|\n  else(if)?|end(declare|for(each)?|if|switch|while)|exit|\n  for(each)?|if|return|switch|use|while|yield\n)\\b",
 			"captures": {
 				"1": {
 					"name": "keyword.control.${1:/downcase}.php"
@@ -521,7 +529,7 @@
 				}
 			},
 			"contentName": "meta.function.parameters.php",
-			"end": "(\\))(?:\\s*(:)\\s*([a-zA-Z_\\x{7f}-\\x{7fffffff}][a-zA-Z0-9_\\x{7f}-\\x{7fffffff}]*))?",
+			"end": "(\\))(?:\\s*(:)\\s*(\\?)?\\s*([a-zA-Z_\\x{7f}-\\x{7fffffff}][a-zA-Z0-9_\\x{7f}-\\x{7fffffff}]*))?",
 			"endCaptures": {
 				"1": {
 					"name": "punctuation.definition.parameters.end.bracket.round.php"
@@ -530,6 +538,9 @@
 					"name": "keyword.operator.return-value.php"
 				},
 				"3": {
+					"name": "keyword.operator.nullable-type.php"
+				},
+				"4": {
 					"name": "storage.type.php"
 				}
 			},
@@ -989,27 +1000,30 @@
 					"name": "punctuation.separator.delimiter.php"
 				},
 				{
-					"begin": "(?xi)\n(array)                                                            # Typehint\n\\s+((&)?\\s*(\\$+)[a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*) # Variable name with possible reference\n\\s*(=)\\s*(array)\\s*(\\()                                        # Default value",
+					"begin": "(?xi)\n(?:(\\?)\\s*)?(array)                                              # Typehint\n\\s+((&)?\\s*(\\$+)[a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*) # Variable name with possible reference\n\\s*(=)\\s*(array)\\s*(\\()                                        # Default value",
 					"beginCaptures": {
 						"1": {
-							"name": "storage.type.php"
+							"name": "keyword.operator.nullable-type.php"
 						},
 						"2": {
-							"name": "variable.other.php"
+							"name": "storage.type.php"
 						},
 						"3": {
-							"name": "storage.modifier.reference.php"
+							"name": "variable.other.php"
 						},
 						"4": {
-							"name": "punctuation.definition.variable.php"
+							"name": "storage.modifier.reference.php"
 						},
 						"5": {
-							"name": "keyword.operator.assignment.php"
+							"name": "punctuation.definition.variable.php"
 						},
 						"6": {
-							"name": "support.function.construct.php"
+							"name": "keyword.operator.assignment.php"
 						},
 						"7": {
+							"name": "support.function.construct.php"
+						},
+						"8": {
 							"name": "punctuation.definition.array.begin.bracket.round.php"
 						}
 					},
@@ -1034,49 +1048,55 @@
 					]
 				},
 				{
-					"match": "(?xi)\n(array|callable)                                                   # Typehint\n\\s+((&)?\\s*(\\$+)[a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*) # Variable name with possible reference\n(?:                                                                # Optional default value\n  \\s*(=)\\s*\n  (?:\n    (null)\n    |\n    (\\[)((?>[^\\[\\]]+|\\[\\g<8>\\])*)(\\])\n    |((?:\\S*?\\(\\))|(?:\\S*?))\n  )\n)?\n\\s*(?=,|\\)|/[/*]|\\#|$) # A closing parentheses (end of argument list) or a comma or a comment",
+					"match": "(?xi)\n(?:(\\?)\\s*)?(array|callable)                                     # Typehint\n\\s+((&)?\\s*(\\$+)[a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*) # Variable name with possible reference\n(?:                                                                # Optional default value\n  \\s*(=)\\s*\n  (?:\n    (null)\n    |\n    (\\[)((?>[^\\[\\]]+|\\[\\g<8>\\])*)(\\])\n    |((?:\\S*?\\(\\))|(?:\\S*?))\n  )\n)?\n\\s*(?=,|\\)|/[/*]|\\#|$) # A closing parentheses (end of argument list) or a comma or a comment",
 					"name": "meta.function.parameter.array.php",
 					"captures": {
 						"1": {
-							"name": "storage.type.php"
+							"name": "keyword.operator.nullable-type.php"
 						},
 						"2": {
-							"name": "variable.other.php"
+							"name": "storage.type.php"
 						},
 						"3": {
-							"name": "storage.modifier.reference.php"
+							"name": "variable.other.php"
 						},
 						"4": {
-							"name": "punctuation.definition.variable.php"
+							"name": "storage.modifier.reference.php"
 						},
 						"5": {
-							"name": "keyword.operator.assignment.php"
+							"name": "punctuation.definition.variable.php"
 						},
 						"6": {
-							"name": "constant.language.php"
+							"name": "keyword.operator.assignment.php"
 						},
 						"7": {
-							"name": "punctuation.section.array.begin.php"
+							"name": "constant.language.php"
 						},
 						"8": {
+							"name": "punctuation.section.array.begin.php"
+						},
+						"9": {
 							"patterns": [
 								{
 									"include": "#parameter-default-types"
 								}
 							]
 						},
-						"9": {
+						"10": {
 							"name": "punctuation.section.array.end.php"
 						},
-						"10": {
+						"11": {
 							"name": "invalid.illegal.non-null-typehinted.php"
 						}
 					}
 				},
 				{
-					"begin": "(?xi)\n(\\\\?(?:[a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*\\\\)*)                 # Optional namespace\n([a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*)                               # Typehinted class name\n\\s+((&)?\\s*(\\.\\.\\.)?(\\$+)[a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*) # Variable name with possible reference",
+					"begin": "(?xi)\n(?:(\\?)\\s*)?\n(\\\\?(?:[a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*\\\\)*)                 # Optional namespace\n([a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*)                               # Typehinted class name\n\\s+((&)?\\s*(\\.\\.\\.)?(\\$+)[a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*) # Variable name with possible reference",
 					"beginCaptures": {
 						"1": {
+							"name": "keyword.operator.nullable-type.php"
+						},
+						"2": {
 							"name": "support.other.namespace.php",
 							"patterns": [
 								{
@@ -1089,19 +1109,19 @@
 								}
 							]
 						},
-						"2": {
+						"3": {
 							"name": "storage.type.php"
 						},
-						"3": {
+						"4": {
 							"name": "variable.other.php"
 						},
-						"4": {
+						"5": {
 							"name": "storage.modifier.reference.php"
 						},
-						"5": {
+						"6": {
 							"name": "keyword.operator.variadic.php"
 						},
-						"6": {
+						"7": {
 							"name": "punctuation.definition.variable.php"
 						}
 					},
@@ -2430,7 +2450,7 @@
 		"scope-resolution": {
 			"patterns": [
 				{
-					"match": "([A-Za-z_\\x{7f}-\\x{7fffffff}\\\\][A_Za-z0-9_\\x{7f}-\\x{7fffffff}\\\\]*)(?=\\s*::)",
+					"match": "([A-Za-z_\\x{7f}-\\x{7fffffff}\\\\][A-Za-z0-9_\\x{7f}-\\x{7fffffff}\\\\]*)(?=\\s*::)",
 					"captures": {
 						"1": {
 							"patterns": [

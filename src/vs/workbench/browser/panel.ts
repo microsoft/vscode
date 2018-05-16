@@ -95,7 +95,7 @@ export abstract class TogglePanelAction extends Action {
 		const activePanel = this.panelService.getActivePanel();
 		const activeElement = document.activeElement;
 
-		return activePanel && activeElement && DOM.isAncestor(activeElement, (<Panel>activePanel).getContainer().getHTMLElement());
+		return activePanel && activeElement && DOM.isAncestor(activeElement, (<Panel>activePanel).getContainer());
 	}
 }
 

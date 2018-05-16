@@ -5,7 +5,16 @@
 
 'use strict';
 
-import net = require('net');
+import * as net from 'net';
+
+/**
+ * @returns Returns a random port between 1025 and 65535.
+ */
+export function randomPort(): number {
+	let min = 1025;
+	let max = 65535;
+	return min + Math.floor((max - min) * Math.random());
+}
 
 /**
  * Given a start point and a max number of retries, will find a port that

@@ -8,6 +8,6 @@
 	],
 	"no result": "Kein Ergebnis.",
 	"aria": "\"{0}\" erfolgreich in \"{1}\" umbenannt. Zusammenfassung: {2}",
-	"rename.failed": "Fehler bei der Ausführung der Umbenennung.",
+	"rename.failed": "Fehler beim Ausführen der Umbenennung.",
 	"rename.label": "Symbol umbenennen"
 }

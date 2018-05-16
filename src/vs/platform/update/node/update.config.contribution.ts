@@ -6,11 +6,10 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import product from 'vs/platform/node/product';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 
-const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
 	'id': 'update',
 	'order': 15,
@@ -21,11 +20,13 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': ['none', 'default'],
 			'default': 'default',
+			'scope': ConfigurationScope.APPLICATION,
 			'description': nls.localize('updateChannel', "Configure whether you receive automatic updates from an update channel. Requires a restart after change.")
 		},
 		'update.enableWindowsBackgroundUpdates': {
 			'type': 'boolean',
-			'default': product.quality === 'insider',
+			'default': true,
+			'scope': ConfigurationScope.APPLICATION,
 			'description': nls.localize('enableWindowsBackgroundUpdates', "Enables Windows background updates.")
 		}
 	}

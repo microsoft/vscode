@@ -8,6 +8,7 @@
 	],
 	"vscode.extension.contributes.configuration.title": "設定の概要です。このラベルは、設定ファイルでコメントの区切り文字として使用します。",
 	"vscode.extension.contributes.configuration.properties": "構成のプロパティの説明です。",
+	"scope.application.description": "ユーザー設定でのみ構成できるアプリケーション固有の構成。",
 	"scope.window.description": "ウィンドウ固有の構成。ユーザーまたはワークスペースの設定で構成できます。",
 	"scope.resource.description": "リソース固有の構成。ユーザー、ワークスペース、またはフォルダーの設定で構成できます。",
 	"scope.description": "構成が適用される範囲。 使用可能なスコープは `window` と ` resource` です。",

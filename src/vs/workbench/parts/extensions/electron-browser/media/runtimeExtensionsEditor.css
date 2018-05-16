@@ -70,7 +70,6 @@
 .hc-black .monaco-action-bar .extension-host-profile-stop {
 	background: url('profile-stop-inverse.svg') center center no-repeat;
 	animation:fade 1000ms infinite;
-	-webkit-animation:fade 1000ms infinite;
 }
 
 .monaco-action-bar .save-extension-host-profile {
@@ -101,16 +100,9 @@
 	height: 16px;
 	vertical-align: middle;
 	animation:fade 1000ms infinite;
-	-webkit-animation:fade 1000ms infinite;
 }
 
 @keyframes fade {
-	from { opacity: 1.0; }
-	50% { opacity: 0.5; }
-	to { opacity: 1.0; }
-}
-
-@-webkit-keyframes fade {
 	from { opacity: 1.0; }
 	50% { opacity: 0.5; }
 	to { opacity: 1.0; }

@@ -78,7 +78,7 @@ function _throttle<T>(fn: Function, key: string): Function {
 
 export const throttle = decorate(_throttle);
 
-function _sequentialize<T>(fn: Function, key: string): Function {
+function _sequentialize(fn: Function, key: string): Function {
 	const currentKey = `__$sequence$${key}`;
 
 	return function (this: any, ...args: any[]) {

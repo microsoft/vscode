@@ -8,16 +8,16 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { suggestFilename } from 'vs/base/common/mime';
 import { memoize } from 'vs/base/common/decorators';
-import labels = require('vs/base/common/labels');
+import * as labels from 'vs/base/common/labels';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import paths = require('vs/base/common/paths');
-import resources = require('vs/base/common/resources');
+import * as paths from 'vs/base/common/paths';
+import * as resources from 'vs/base/common/resources';
 import { EditorInput, IEncodingSupport, EncodingMode, ConfirmResult } from 'vs/workbench/common/editor';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -29,14 +29,14 @@ import { IHashService } from 'vs/workbench/services/hash/common/hashService';
  */
 export class UntitledEditorInput extends EditorInput implements IEncodingSupport {
 
-	public static ID: string = 'workbench.editors.untitledEditorInput';
+	public static readonly ID: string = 'workbench.editors.untitledEditorInput';
 
 	private _hasAssociatedFilePath: boolean;
 	private cachedModel: UntitledEditorModel;
 	private modelResolve: TPromise<UntitledEditorModel>;
 
-	private _onDidModelChangeContent: Emitter<void>;
-	private _onDidModelChangeEncoding: Emitter<void>;
+	private readonly _onDidModelChangeContent: Emitter<void>;
+	private readonly _onDidModelChangeEncoding: Emitter<void>;
 
 	private toUnbind: IDisposable[];
 

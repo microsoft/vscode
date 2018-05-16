@@ -4,31 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI, { UriComponents } from 'vs/base/common/uri';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { disposed } from 'vs/base/common/errors';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IDecorationRenderOptions, IDecorationOptions, ILineChange } from 'vs/editor/common/editorCommon';
-import { ISingleEditOperation } from 'vs/editor/common/model';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { Position as EditorPosition, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { MainThreadTextEditor } from './mainThreadEditor';
-import { ITextEditorConfigurationUpdate, TextEditorRevealType, IApplyEditsOptions, IUndoStopOptions, WorkspaceEditDto, reviveWorkspaceEditDto } from 'vs/workbench/api/node/extHost.protocol';
-import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { equals as objectEquals } from 'vs/base/common/objects';
-import { ExtHostContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData, IExtHostContext } from '../node/extHost.protocol';
+import URI, { UriComponents } from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { BulkEdit } from 'vs/editor/browser/services/bulkEdit';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { isCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { isResourceFileEdit } from 'vs/editor/common/modes';
+import { IDecorationOptions, IDecorationRenderOptions, ILineChange } from 'vs/editor/common/editorCommon';
+import { ISingleEditOperation } from 'vs/editor/common/model';
+import { ITextEditorOptions, Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { IApplyEditsOptions, ITextEditorConfigurationUpdate, IUndoStopOptions, TextEditorRevealType, WorkspaceEditDto, reviveWorkspaceEditDto } from 'vs/workbench/api/node/extHost.protocol';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { ExtHostContext, ExtHostEditorsShape, IExtHostContext, ITextDocumentShowOptions, ITextEditorPositionData, MainThreadTextEditorsShape } from '../node/extHost.protocol';
+import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
+import { MainThreadTextEditor } from './mainThreadEditor';
 
-export class MainThreadEditors implements MainThreadEditorsShape {
+export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 	private _proxy: ExtHostEditorsShape;
 	private _documentsAndEditors: MainThreadDocumentsAndEditors;
@@ -41,12 +36,10 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 	constructor(
 		documentsAndEditors: MainThreadDocumentsAndEditors,
 		extHostContext: IExtHostContext,
-		@ICodeEditorService private _codeEditorService: ICodeEditorService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@IWorkbenchEditorService workbenchEditorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@ITextModelService private readonly _textModelResolverService: ITextModelService,
-		@IFileService private readonly _fileService: IFileService,
-		@IModelService private readonly _modelService: IModelService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditors);
 		this._documentsAndEditors = documentsAndEditors;
@@ -79,11 +72,8 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 	private _onTextEditorAdd(textEditor: MainThreadTextEditor): void {
 		let id = textEditor.getId();
 		let toDispose: IDisposable[] = [];
-		toDispose.push(textEditor.onConfigurationChanged((opts) => {
-			this._proxy.$acceptOptionsChanged(id, opts);
-		}));
-		toDispose.push(textEditor.onSelectionChanged((event) => {
-			this._proxy.$acceptSelectionsChanged(id, event);
+		toDispose.push(textEditor.onPropertiesChanged((data) => {
+			this._proxy.$acceptEditorPropertiesChanged(id, data);
 		}));
 
 		this._textEditorsListenersMap[id] = toDispose;
@@ -212,31 +202,8 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 	}
 
 	$tryApplyWorkspaceEdit(dto: WorkspaceEditDto): TPromise<boolean> {
-
 		const { edits } = reviveWorkspaceEditDto(dto);
-
-		// First check if loaded models were not changed in the meantime
-		for (let i = 0, len = edits.length; i < len; i++) {
-			const edit = edits[i];
-			if (!isResourceFileEdit(edit) && edit.modelVersionId) {
-				let model = this._modelService.getModel(edit.resource);
-				if (model && model.getVersionId() !== edit.modelVersionId) {
-					// model changed in the meantime
-					return TPromise.as(false);
-				}
-			}
-		}
-
-		let codeEditor: ICodeEditor;
-		let editor = this._workbenchEditorService.getActiveEditor();
-		if (editor) {
-			let candidate = editor.getControl();
-			if (isCodeEditor(candidate)) {
-				codeEditor = candidate;
-			}
-		}
-
-		return BulkEdit.perform(edits, this._textModelResolverService, this._fileService, codeEditor).then(() => true);
+		return this._bulkEditService.apply({ edits }, undefined).then(() => true, err => false);
 	}
 
 	$tryInsertSnippet(id: string, template: string, ranges: IRange[], opts: IUndoStopOptions): TPromise<boolean> {

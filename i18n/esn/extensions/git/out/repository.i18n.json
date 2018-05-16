@@ -30,7 +30,6 @@
 	"changes": "Cambios",
 	"commitMessageCountdown": "quedan {0} caracteres en la línea actual",
 	"commitMessageWarning": "{0} caracteres sobre {1} en la línea actual",
-	"ok": "Aceptar",
 	"neveragain": "No volver a mostrar",
 	"huge": "El repositorio Git '{0}' contiene muchos cambios activos, solamente un subconjunto de las características de Git serán habilitadas."
 }

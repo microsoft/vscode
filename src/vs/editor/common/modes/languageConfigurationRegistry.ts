@@ -9,7 +9,7 @@ import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/comm
 import { IOnEnterSupportOptions, OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
 import { IndentRulesSupport, IndentConsts } from 'vs/editor/common/modes/supports/indentRules';
 import { RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { ITextModel } from 'vs/editor/common/model';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
@@ -177,8 +177,8 @@ export class LanguageConfigurationRegistryImpl {
 
 	private _entries: RichEditSupport[];
 
-	private _onDidChange: Emitter<LanguageConfigurationChangeEvent> = new Emitter<LanguageConfigurationChangeEvent>();
-	public onDidChange: Event<LanguageConfigurationChangeEvent> = this._onDidChange.event;
+	private readonly _onDidChange: Emitter<LanguageConfigurationChangeEvent> = new Emitter<LanguageConfigurationChangeEvent>();
+	public readonly onDidChange: Event<LanguageConfigurationChangeEvent> = this._onDidChange.event;
 
 	constructor() {
 		this._entries = [];

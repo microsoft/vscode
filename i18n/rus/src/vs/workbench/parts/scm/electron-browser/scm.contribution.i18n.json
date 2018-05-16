@@ -12,5 +12,6 @@
 	"view": "Просмотреть",
 	"scmConfigurationTitle": "SCM",
 	"alwaysShowProviders": "Всегда отображать хранилище исходного кода",
-	"diffDecorations": "Управляет декораторами diff в редакторе."
+	"diffDecorations": "Управляет декораторами diff в редакторе.",
+	"diffGutterWidth": "Управляет шириной (в пикселах) декораторов diff в поле (добавление и изменение)."
 }

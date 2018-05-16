@@ -8,6 +8,6 @@
 	],
 	"no result": "无结果。",
 	"aria": "成功将“{0}”重命名为“{1}”。摘要：{2}",
-	"rename.failed": "抱歉，重命名无法执行。",
+	"rename.failed": "无法进行重命名。",
 	"rename.label": "重命名符号"
 }

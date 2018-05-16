@@ -15,5 +15,6 @@
 	"developer": "Fejlesztői",
 	"extensionsConfigurationTitle": "Kiegészítők",
 	"extensionsAutoUpdate": "Kiegészítők automatikus frissítése",
-	"extensionsIgnoreRecommendations": "Ha az értéke true, nem jelenik meg több kiegészítőajánlást tartalmazó értesítés."
+	"extensionsIgnoreRecommendations": "Ha az értéke true, nem jelenik meg több kiegészítőajánlást tartalmazó értesítés.",
+	"extensionsShowRecommendationsOnlyOnDemand": "Ha az értéke true, az ajánlatok csak akkor lesznek lekérve és megjelenítve, ha a felhasználó konkrétan kéri őket."
 }

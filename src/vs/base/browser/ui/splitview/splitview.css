@@ -10,15 +10,20 @@
 	height: 100%;
 }
 
-.monaco-split-view2 > .split-view-view {
+.monaco-split-view2 > .split-view-container {
+	width: 100%;
+	height: 100%;
+}
+
+.monaco-split-view2 > .split-view-container > .split-view-view {
 	overflow: hidden;
 }
 
-.monaco-split-view2.vertical > .split-view-view {
+.monaco-split-view2.vertical > .split-view-container > .split-view-view {
 	width: 100%;
 }
 
-.monaco-split-view2.horizontal > .split-view-view {
+.monaco-split-view2.horizontal > .split-view-container > .split-view-view {
 	height: 100%;
 	display: inline-block;
 }

@@ -62,7 +62,7 @@ export function register(what: string, fn: Function): (...args: any[]) => void {
 				const thisArguments = allArgs.shift();
 				fn.apply(fn, thisArguments);
 				if (allArgs.length > 0) {
-					Platform.setTimeout(doIt, 500);
+					setTimeout(doIt, 500);
 				}
 			};
 			doIt();

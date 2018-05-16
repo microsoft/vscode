@@ -29,7 +29,7 @@
 	"compareSelected": "Kiválasztottak összehasonlítása",
 	"close": "Bezárás",
 	"closeOthers": "Többi bezárása",
-	"closeUnmodified": "Nem módosultak bezárása",
+	"closeSaved": "Mentettek bezárása",
 	"closeAll": "Összes bezárása",
 	"deleteFile": "Végleges törlés"
 }

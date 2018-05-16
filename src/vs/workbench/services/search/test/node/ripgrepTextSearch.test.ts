@@ -5,11 +5,11 @@
 
 'use strict';
 
-import path = require('path');
-import assert = require('assert');
+import * as path from 'path';
+import * as assert from 'assert';
 
 import * as arrays from 'vs/base/common/arrays';
-import platform = require('vs/base/common/platform');
+import * as platform from 'vs/base/common/platform';
 
 import { RipgrepParser, getAbsoluteGlob, fixDriveC } from 'vs/workbench/services/search/node/ripgrepTextSearch';
 import { ISerializedFileMatch } from 'vs/workbench/services/search/node/search';
@@ -35,7 +35,7 @@ suite('RipgrepParser', () => {
 	}
 
 	function parseInputStrings(inputChunks: string[]): ISerializedFileMatch[] {
-		return parseInput(inputChunks.map(chunk => new Buffer(chunk)));
+		return parseInput(inputChunks.map(chunk => Buffer.from(chunk)));
 	}
 
 	function parseInput(inputChunks: Buffer[]): ISerializedFileMatch[] {

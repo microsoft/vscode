@@ -5,21 +5,8 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/Microsoft/vscode-JSON.tmLanguage/commit/9bd83f1c252b375e957203f21793316203f61f70",
-	"fileTypes": [
-		"json",
-		"sublime-settings",
-		"sublime-menu",
-		"sublime-keymap",
-		"sublime-mousemap",
-		"sublime-theme",
-		"sublime-build",
-		"sublime-project",
-		"sublime-completions"
-	],
-	"foldingStartMarker": "(?x)       # turn on extended mode\n  ^        # a line beginning with\n  \\s*      # some optional space\n  [{\\[]    # the start of an object or array\n  (?!      # but not followed by\n    .*     # whatever\n    [}\\]]  # and the close of an object or array\n    ,?     # an optional comma\n    \\s*    # some optional space\n    $      # at the end of the line\n  )\n  |        # ...or...\n  [{\\[]    # the start of an object or array\n  \\s*      # some optional space\n  $        # at the end of the line",
-	"foldingStopMarker": "(?x)     # turn on extended mode\n  ^      # a line beginning with\n  \\s*    # some optional space\n  [}\\]]  # and the close of an object or array",
-	"keyEquivalent": "^~J",
 	"name": "JSON (Javascript Next)",
+	"scopeName": "source.json",
 	"patterns": [
 		{
 			"include": "#value"
@@ -222,7 +209,5 @@
 				}
 			]
 		}
-	},
-	"scopeName": "source.json",
-	"uuid": "8f97457b-516e-48ce-83c7-08ae12fb327a"
+	}
 }

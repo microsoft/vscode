@@ -7,7 +7,7 @@
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 import * as vscode from 'vscode';
-import { getLocation, visit, parse, ParseError, ParseErrorCode } from 'jsonc-parser';
+import { getLocation, visit, parse, ParseErrorCode } from 'jsonc-parser';
 import * as path from 'path';
 import { SettingsDocument } from './settingsDocumentHelper';
 
@@ -18,7 +18,6 @@ const decoration = vscode.window.createTextEditorDecorationType({
 let pendingLaunchJsonDecoration: NodeJS.Timer;
 
 export function activate(context: vscode.ExtensionContext): void {
-
 	//keybindings.json command-suggestions
 	context.subscriptions.push(registerKeybindingsCompletions());
 
@@ -27,6 +26,12 @@ export function activate(context: vscode.ExtensionContext): void {
 
 	//extensions suggestions
 	context.subscriptions.push(...registerExtensionsCompletions());
+
+	// launch.json variable suggestions
+	context.subscriptions.push(registerVariableCompletions('**/launch.json'));
+
+	// task.json variable suggestions
+	context.subscriptions.push(registerVariableCompletions('**/tasks.json'));
 
 	// launch.json decorations
 	context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(editor => updateLaunchJsonDecorations(editor), null, context.subscriptions));
@@ -70,10 +75,13 @@ function autoFixSettingsJSON(willSaveEvent: vscode.TextDocumentWillSaveEvent): v
 
 		onError(error: ParseErrorCode, offset: number, length: number): void {
 			if (error === ParseErrorCode.CommaExpected && lastEndOfSomething > -1) {
-				const errorPosition = document.positionAt(offset);
-
 				const fixPosition = document.positionAt(lastEndOfSomething);
-				edit.insert(document.uri, fixPosition, ',');
+
+				// Don't insert a comma immediately before a : or ' :'
+				const colonRange = document.getWordRangeAtPosition(fixPosition, / *:/);
+				if (!colonRange) {
+					edit.insert(document.uri, fixPosition, ',');
+				}
 			}
 		}
 	});
@@ -106,29 +114,26 @@ function registerSettingsCompletions(): vscode.Disposable {
 	});
 }
 
-function provideContributedLocalesProposals(range: vscode.Range): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList> {
-	const contributedLocales: string[] = [];
-	for (const extension of vscode.extensions.all) {
-		if (extension.packageJSON && extension.packageJSON['contributes'] && extension.packageJSON['contributes']['localizations'] && extension.packageJSON['contributes']['localizations'].length) {
-			const localizations: { languageId: string }[] = extension.packageJSON['contributes']['localizations'];
-			for (const localization of localizations) {
-				if (contributedLocales.indexOf(localization.languageId) === -1) {
-					contributedLocales.push(localization.languageId);
-				}
+function registerVariableCompletions(pattern: string): vscode.Disposable {
+	return vscode.languages.registerCompletionItemProvider({ language: 'jsonc', pattern }, {
+		provideCompletionItems(document, position, token) {
+			const location = getLocation(document.getText(), document.offsetAt(position));
+			if (!location.isAtPropertyKey && location.previousNode && location.previousNode.type === 'string') {
+				return [{ label: 'workspaceFolder', detail: localize('workspaceFolder', "The path of the folder opened in VS Code") }, { label: 'workspaceFolderBasename', detail: localize('workspaceFolderBasename', "The name of the folder opened in VS Code without any slashes (/)") },
+				{ label: 'relativeFile', detail: localize('relativeFile', "The current opened file relative to ${workspaceFolder}") }, { label: 'file', detail: localize('file', "The current opened file") }, { label: 'cwd', detail: localize('cwd', "The task runner's current working directory on startup") },
+				{ label: 'lineNumber', detail: localize('lineNumber', "The current selected line number in the active file") }, { label: 'selectedText', detail: localize('selectedText', "The current selected text in the active file") },
+				{ label: 'fileDirname', detail: localize('fileDirname', "The current opened file's dirname") }, { label: 'fileExtname', detail: localize('fileExtname', "The current opened file's extension") }, { label: 'fileBasename', detail: localize('fileBasename', "The current opened file's basename") },
+				{ label: 'fileBasenameNoExtension', detail: localize('fileBasenameNoExtension', "The current opened file's basename with no file extension") }].map(variable => ({
+					label: '${' + variable.label + '}',
+					range: new vscode.Range(position, position),
+					detail: variable.detail
+				}));
 			}
+
+			return [];
 		}
-	}
-	return contributedLocales.map(locale => {
-		const text = `"${locale}"`;
-		const item = new vscode.CompletionItem(text);
-		item.kind = vscode.CompletionItemKind.Value;
-		item.insertText = text;
-		item.range = range;
-		item.filterText = text;
-		return item;
 	});
 }
-
 
 interface IExtensionsContent {
 	recommendations: string[];

@@ -13,10 +13,10 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Limiter } from 'vs/base/common/async';
 import { areSameExtensions, getGalleryExtensionIdFromLocal, getIdFromLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILogService } from 'vs/platform/log/common/log';
-import { isValidLocalization, ILocalizationsService } from 'vs/platform/localizations/common/localizations';
+import { isValidLocalization, ILocalizationsService, LanguageType } from 'vs/platform/localizations/common/localizations';
 import product from 'vs/platform/node/product';
 import { distinct, equals } from 'vs/base/common/arrays';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 interface ILanguagePack {
 	hash: string;
@@ -27,7 +27,7 @@ interface ILanguagePack {
 	translations: { [id: string]: string };
 }
 
-const systemLanguages: string[] = ['de', 'en', 'en-US', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'zh-CN', 'zh-TW'];
+const systemLanguages: string[] = ['de', 'en', 'en-US', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'zh-CN', 'zh-Hans', 'zh-TW', 'zh-Hant'];
 if (product.quality !== 'stable') {
 	systemLanguages.push('hu');
 }
@@ -55,10 +55,13 @@ export class LocalizationsService extends Disposable implements ILocalizationsSe
 		this.extensionManagementService.getInstalled().then(installed => this.cache.update(installed));
 	}
 
-	getLanguageIds(): TPromise<string[]> {
+	getLanguageIds(type: LanguageType): TPromise<string[]> {
+		if (type === LanguageType.Core) {
+			return TPromise.as([...systemLanguages]);
+		}
 		return this.cache.getLanguagePacks()
 			.then(languagePacks => {
-				const languages = [...systemLanguages, ...Object.keys(languagePacks)];
+				const languages = type === LanguageType.Contributed ? Object.keys(languagePacks) : [...systemLanguages, ...Object.keys(languagePacks)];
 				return TPromise.as(distinct(languages));
 			});
 	}

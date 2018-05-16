@@ -5,8 +5,8 @@
 
 'use strict';
 
-import path = require('path');
-import assert = require('assert');
+import * as path from 'path';
+import * as assert from 'assert';
 
 import * as glob from 'vs/base/common/glob';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -87,128 +87,127 @@ function doRipgrepSearchTest(config: IRawSearch, expectedResultCount: number | F
 	});
 }
 
-function doSearchTest(config: IRawSearch, expectedResultCount: number, done) {
+function doSearchTest(config: IRawSearch, expectedResultCount: number) {
 	return doLegacySearchTest(config, expectedResultCount)
-		.then(() => doRipgrepSearchTest(config, expectedResultCount))
-		.then(done, done);
+		.then(() => doRipgrepSearchTest(config, expectedResultCount));
 }
 
 suite('Search-integration', function () {
 	this.timeout(1000 * 60); // increase timeout for this suite
 
-	test('Text: GameOfLife', function (done: () => void) {
+	test('Text: GameOfLife', () => {
 		const config = {
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'GameOfLife' },
 		};
 
-		doSearchTest(config, 4, done);
+		return doSearchTest(config, 4);
 	});
 
-	test('Text: GameOfLife (RegExp)', function (done: () => void) {
+	test('Text: GameOfLife (RegExp)', () => {
 		const config = {
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'Game.?fL\\w?fe', isRegExp: true }
 		};
 
-		doSearchTest(config, 4, done);
+		return doSearchTest(config, 4);
 	});
 
-	test('Text: GameOfLife (RegExp to EOL)', function (done: () => void) {
+	test('Text: GameOfLife (RegExp to EOL)', () => {
 		const config = {
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'GameOfLife.*', isRegExp: true }
 		};
 
-		doSearchTest(config, 4, done);
+		return doSearchTest(config, 4);
 	});
 
-	test('Text: GameOfLife (Word Match, Case Sensitive)', function (done: () => void) {
+	test('Text: GameOfLife (Word Match, Case Sensitive)', () => {
 		const config = {
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'GameOfLife', isWordMatch: true, isCaseSensitive: true }
 		};
 
-		doSearchTest(config, 4, done);
+		return doSearchTest(config, 4);
 	});
 
-	test('Text: GameOfLife (Word Match, Spaces)', function (done: () => void) {
+	test('Text: GameOfLife (Word Match, Spaces)', () => {
 		const config = {
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: ' GameOfLife ', isWordMatch: true }
 		};
 
-		doSearchTest(config, 1, done);
+		return doSearchTest(config, 1);
 	});
 
-	test('Text: GameOfLife (Word Match, Punctuation and Spaces)', function (done: () => void) {
+	test('Text: GameOfLife (Word Match, Punctuation and Spaces)', () => {
 		const config = {
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: ', as =', isWordMatch: true }
 		};
 
-		doSearchTest(config, 1, done);
+		return doSearchTest(config, 1);
 	});
 
-	test('Text: Helvetica (UTF 16)', function (done: () => void) {
+	test('Text: Helvetica (UTF 16)', () => {
 		const config = {
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'Helvetica' }
 		};
 
-		doSearchTest(config, 3, done);
+		return doSearchTest(config, 3);
 	});
 
-	test('Text: e', function (done: () => void) {
+	test('Text: e', () => {
 		const config = {
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'e' }
 		};
 
-		doSearchTest(config, 776, done);
+		return doSearchTest(config, 776);
 	});
 
-	test('Text: e (with excludes)', function (done: () => void) {
+	test('Text: e (with excludes)', () => {
 		const config: any = {
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'e' },
 			excludePattern: { '**/examples': true }
 		};
 
-		doSearchTest(config, 394, done);
+		return doSearchTest(config, 394);
 	});
 
-	test('Text: e (with includes)', function (done: () => void) {
+	test('Text: e (with includes)', () => {
 		const config: any = {
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'e' },
 			includePattern: { '**/examples/**': true }
 		};
 
-		doSearchTest(config, 382, done);
+		return doSearchTest(config, 382);
 	});
 
-	test('Text: e (with absolute path excludes)', function (done: () => void) {
+	test('Text: e (with absolute path excludes)', () => {
 		const config: any = {
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'e' },
 			excludePattern: makeExpression(path.join(TEST_FIXTURES, '**/examples'))
 		};
 
-		doSearchTest(config, 394, done);
+		return doSearchTest(config, 394);
 	});
 
-	test('Text: e (with mixed absolute/relative path excludes)', function (done: () => void) {
+	test('Text: e (with mixed absolute/relative path excludes)', () => {
 		const config: any = {
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'e' },
 			excludePattern: makeExpression(path.join(TEST_FIXTURES, '**/examples'), '*.css')
 		};
 
-		doSearchTest(config, 310, done);
+		return doSearchTest(config, 310);
 	});
 
-	test('Text: sibling exclude', function (done: () => void) {
+	test('Text: sibling exclude', () => {
 		const config: any = {
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'm' },
@@ -216,10 +215,10 @@ suite('Search-integration', function () {
 			excludePattern: { '*.css': { when: '$(basename).less' } }
 		};
 
-		doSearchTest(config, 1, done);
+		return doSearchTest(config, 1);
 	});
 
-	test('Text: e (with includes and exclude)', function (done: () => void) {
+	test('Text: e (with includes and exclude)', () => {
 		const config: any = {
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'e' },
@@ -227,10 +226,10 @@ suite('Search-integration', function () {
 			excludePattern: { '**/examples/small.js': true }
 		};
 
-		doSearchTest(config, 361, done);
+		return doSearchTest(config, 361);
 	});
 
-	test('Text: a (capped)', function (done: () => void) {
+	test('Text: a (capped)', () => {
 		const maxResults = 520;
 		const config = {
 			folderQueries: ROOT_FOLDER_QUERY,
@@ -241,58 +240,57 @@ suite('Search-integration', function () {
 		// (Legacy) search can go over the maxResults because it doesn't trim the results from its worker processes to the exact max size.
 		// But the worst-case scenario should be 2*max-1
 		return doLegacySearchTest(config, count => count < maxResults * 2)
-			.then(() => doRipgrepSearchTest(config, maxResults))
-			.then(done, done);
+			.then(() => doRipgrepSearchTest(config, maxResults));
 	});
 
-	test('Text: a (no results)', function (done: () => void) {
+	test('Text: a (no results)', () => {
 		const config = {
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'ahsogehtdas' }
 		};
 
-		doSearchTest(config, 0, done);
+		return doSearchTest(config, 0);
 	});
 
-	test('Text: -size', function (done: () => void) {
+	test('Text: -size', () => {
 		const config = {
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: '-size' }
 		};
 
-		doSearchTest(config, 9, done);
+		return doSearchTest(config, 9);
 	});
 
-	test('Multiroot: Conway', function (done: () => void) {
+	test('Multiroot: Conway', () => {
 		const config: IRawSearch = {
 			folderQueries: MULTIROOT_QUERIES,
 			contentPattern: { pattern: 'conway' }
 		};
 
-		doSearchTest(config, 8, done);
+		return doSearchTest(config, 8);
 	});
 
-	test('Multiroot: e with partial global exclude', function (done: () => void) {
+	test('Multiroot: e with partial global exclude', () => {
 		const config: IRawSearch = {
 			folderQueries: MULTIROOT_QUERIES,
 			contentPattern: { pattern: 'e' },
 			excludePattern: makeExpression('**/*.txt')
 		};
 
-		doSearchTest(config, 382, done);
+		return doSearchTest(config, 382);
 	});
 
-	test('Multiroot: e with global excludes', function (done: () => void) {
+	test('Multiroot: e with global excludes', () => {
 		const config: IRawSearch = {
 			folderQueries: MULTIROOT_QUERIES,
 			contentPattern: { pattern: 'e' },
 			excludePattern: makeExpression('**/*.txt', '**/*.js')
 		};
 
-		doSearchTest(config, 0, done);
+		return doSearchTest(config, 0);
 	});
 
-	test('Multiroot: e with folder exclude', function (done: () => void) {
+	test('Multiroot: e with folder exclude', () => {
 		const config: IRawSearch = {
 			folderQueries: [
 				{ folder: EXAMPLES_FIXTURES, excludePattern: makeExpression('**/e*.js') },
@@ -301,7 +299,7 @@ suite('Search-integration', function () {
 			contentPattern: { pattern: 'e' }
 		};
 
-		doSearchTest(config, 286, done);
+		return doSearchTest(config, 286);
 	});
 });
 

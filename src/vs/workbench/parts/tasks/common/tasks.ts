@@ -4,24 +4,85 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { UriComponents } from 'vs/base/common/uri';
 import * as Types from 'vs/base/common/types';
 import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import * as Objects from 'vs/base/common/objects';
+import { UriComponents } from 'vs/base/common/uri';
 
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { ProblemMatcher } from 'vs/workbench/parts/tasks/common/problemMatcher';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+
+export enum ShellQuoting {
+	/**
+	 * Default is character escaping.
+	 */
+	Escape = 1,
+
+	/**
+	 * Default is strong quoting
+	 */
+	Strong = 2,
+
+	/**
+	 * Default is weak quoting.
+	 */
+	Weak = 3
+}
+
+export namespace ShellQuoting {
+	export function from(this: void, value: string): ShellQuoting {
+		if (!value) {
+			return ShellQuoting.Strong;
+		}
+		switch (value.toLowerCase()) {
+			case 'escape':
+				return ShellQuoting.Escape;
+			case 'strong':
+				return ShellQuoting.Strong;
+			case 'weak':
+				return ShellQuoting.Weak;
+			default:
+				return ShellQuoting.Strong;
+		}
+	}
+}
+
+export interface ShellQuotingOptions {
+	/**
+	 * The character used to do character escaping.
+	 */
+	escape?: string | {
+		escapeChar: string;
+		charsToEscape: string;
+	};
+
+	/**
+	 * The character used for string quoting.
+	 */
+	strong?: string;
+
+	/**
+	 * The character used for weak quoting.
+	 */
+	weak?: string;
+}
 
 export interface ShellConfiguration {
 	/**
 	 * The shell executable.
 	 */
 	executable: string;
+
 	/**
 	 * The arguments to be passed to the shell executable.
 	 */
 	args?: string[];
+
+	/**
+	 * Which kind of quotes the shell supports.
+	 */
+	quoting?: ShellQuotingOptions;
 }
 
 export interface CommandOptions {
@@ -63,7 +124,7 @@ export enum RevealKind {
 }
 
 export namespace RevealKind {
-	export function fromString(value: string): RevealKind {
+	export function fromString(this: void, value: string): RevealKind {
 		switch (value.toLowerCase()) {
 			case 'always':
 				return RevealKind.Always;
@@ -155,6 +216,23 @@ export namespace RuntimeType {
 	}
 }
 
+export interface QuotedString {
+	value: string;
+	quoting: ShellQuoting;
+}
+
+export type CommandString = string | QuotedString;
+
+export namespace CommandString {
+	export function value(value: CommandString): string {
+		if (Types.isString(value)) {
+			return value;
+		} else {
+			return value.value;
+		}
+	}
+}
+
 export interface CommandConfiguration {
 
 	/**
@@ -165,7 +243,7 @@ export interface CommandConfiguration {
 	/**
 	 * The command to execute
 	 */
-	name: string;
+	name: CommandString;
 
 	/**
 	 * Additional command options.
@@ -175,7 +253,7 @@ export interface CommandConfiguration {
 	/**
 	 * Command arguments.
 	 */
-	args?: string[];
+	args?: CommandString[];
 
 	/**
 	 * The task selector if needed.
@@ -259,6 +337,7 @@ export type TaskSource = WorkspaceTaskSource | ExtensionTaskSource | InMemoryTas
 export interface TaskIdentifier {
 	_key: string;
 	type: string;
+	[name: string]: any;
 }
 
 export interface TaskDependency {
@@ -297,6 +376,11 @@ export interface ConfigurationProperties {
 	 * The presentation options
 	 */
 	presentation?: PresentationOptions;
+
+	/**
+	 * The command options;
+	 */
+	options?: CommandOptions;
 
 	/**
 	 * Whether the task is a background task or not.
@@ -357,6 +441,20 @@ export namespace CustomTask {
 	export function is(value: any): value is CustomTask {
 		let candidate: CustomTask = value;
 		return candidate && candidate.type === 'custom';
+	}
+	export function getDefinition(task: CustomTask): TaskIdentifier {
+		let type: string;
+		if (task.command !== void 0) {
+			type = task.command.runtime === RuntimeType.Shell ? 'shell' : 'process';
+		} else {
+			type = '$composite';
+		}
+		let result: TaskIdentifier = {
+			type,
+			_key: task._id,
+			id: task._id
+		};
+		return result;
 	}
 }
 
@@ -499,8 +597,8 @@ export namespace Task {
 		}
 	}
 
-	export function matches(task: Task, alias: string): boolean {
-		return alias === task._label || alias === task.identifier;
+	export function matches(task: Task, alias: string, compareId: boolean = false): boolean {
+		return alias === task._label || alias === task.identifier || (compareId && alias === task._id);
 	}
 
 	export function getQualifiedLabel(task: Task): string {
@@ -511,8 +609,30 @@ export namespace Task {
 			return task._label;
 		}
 	}
+
+	export function getTaskDefinition(task: Task): TaskIdentifier {
+		if (ContributedTask.is(task)) {
+			return task.defines;
+		} else if (CustomTask.is(task)) {
+			return CustomTask.getDefinition(task);
+		} else {
+			return undefined;
+		}
+	}
+
+	export function getTaskExecution(task: Task): TaskExecution {
+		let result: TaskExecution = {
+			id: task._id,
+			task: task
+		};
+		return result;
+	}
 }
 
+export interface TaskExecution {
+	id: string;
+	task: Task;
+}
 
 export enum ExecutionEngine {
 	Process = 1,
@@ -574,10 +694,14 @@ export class TaskSorter {
 }
 
 export enum TaskEventKind {
+	Start = 'start',
+	ProcessStarted = 'processStarted',
 	Active = 'active',
 	Inactive = 'inactive',
-	Terminated = 'terminated',
 	Changed = 'changed',
+	Terminated = 'terminated',
+	ProcessEnded = 'processEnded',
+	End = 'end'
 }
 
 
@@ -592,22 +716,34 @@ export interface TaskEvent {
 	taskName?: string;
 	runType?: TaskRunType;
 	group?: string;
+	processId?: number;
+	exitCode?: number;
 	__task?: Task;
 }
 
 export namespace TaskEvent {
-	export function create(kind: TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated, task: Task);
-	export function create(kind: TaskEventKind.Changed);
-	export function create(kind: TaskEventKind, task?: Task): TaskEvent {
+	export function create(kind: TaskEventKind.ProcessStarted, task: Task, processId: number): TaskEvent;
+	export function create(kind: TaskEventKind.ProcessEnded, task: Task, exitCode: number): TaskEvent;
+	export function create(kind: TaskEventKind.Start | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated | TaskEventKind.End, task: Task): TaskEvent;
+	export function create(kind: TaskEventKind.Changed): TaskEvent;
+	export function create(kind: TaskEventKind, task?: Task, processIdOrExitCode?: number): TaskEvent {
 		if (task) {
-			return Object.freeze({
+			let result = {
 				kind: kind,
 				taskId: task._id,
 				taskName: task.name,
 				runType: task.isBackground ? TaskRunType.Background : TaskRunType.SingleRun,
 				group: task.group,
+				processId: undefined,
+				exitCode: undefined,
 				__task: task,
-			});
+			};
+			if (kind === TaskEventKind.ProcessStarted) {
+				result.processId = processIdOrExitCode;
+			} else if (kind === TaskEventKind.ProcessEnded) {
+				result.exitCode = processIdOrExitCode;
+			}
+			return Object.freeze(result);
 		} else {
 			return Object.freeze({ kind: TaskEventKind.Changed });
 		}

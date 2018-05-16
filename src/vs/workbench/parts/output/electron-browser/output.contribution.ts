@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -12,8 +12,8 @@ import { KeybindingsRegistry, IKeybindings } from 'vs/platform/keybinding/common
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { OutputService, LogContentProvider } from 'vs/workbench/parts/output/electron-browser/outputServices';
-import { ToggleOutputAction, ClearOutputAction } from 'vs/workbench/parts/output/browser/outputActions';
-import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_SCHEME, COMMAND_OPEN_LOG_VIEWER } from 'vs/workbench/parts/output/common/output';
+import { ToggleOutputAction, ClearOutputAction, OpenLogOutputFile } from 'vs/workbench/parts/output/browser/outputActions';
+import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_SCHEME, COMMAND_OPEN_LOG_VIEWER, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_LOG_OUTPUT } from 'vs/workbench/parts/output/common/output';
 import { PanelRegistry, Extensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -37,6 +37,14 @@ ModesRegistry.registerLanguage({
 	extensions: [],
 	aliases: [null],
 	mimetypes: [OUTPUT_MIME]
+});
+
+// Register Log Output Mode
+ModesRegistry.registerLanguage({
+	id: LOG_MODE_ID,
+	extensions: [],
+	aliases: [null],
+	mimetypes: [LOG_MIME]
 });
 
 // Register Output Panel
@@ -157,6 +165,18 @@ registerAction({
 	},
 	handler(accessor) {
 		accessor.get(IOutputService).getActiveChannel().clear();
+	}
+});
+
+registerAction({
+	id: 'workbench.action.openActiveLogOutputFile',
+	title: nls.localize('openActiveLogOutputFile', "View: Open Active Log Output File"),
+	menu: {
+		menuId: MenuId.CommandPalette,
+		when: CONTEXT_ACTIVE_LOG_OUTPUT
+	},
+	handler(accessor) {
+		accessor.get(IInstantiationService).createInstance(OpenLogOutputFile).run();
 	}
 });
 

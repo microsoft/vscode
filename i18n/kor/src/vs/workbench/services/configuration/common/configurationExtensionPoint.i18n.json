@@ -8,6 +8,7 @@
 	],
 	"vscode.extension.contributes.configuration.title": "설정을 요약합니다. 이 레이블은 설정 파일에서 구분 주석으로 사용됩니다.",
 	"vscode.extension.contributes.configuration.properties": "구성 속성에 대한 설명입니다.",
+	"scope.application.description": "[사용자] 설정에서만 구성할 수 있는 응용 프로그램 관련 구성입니다.",
 	"scope.window.description": "[사용자] 설정 또는 [작업 영역] 설정에서 구성할 수 있는 창 특정 구성입니다.",
 	"scope.resource.description": "사용자, 작업 영역 또는 폴더 설정에서 구성할 수 있는 리소스 특정 구성",
 	"scope.description": "구성이 적용되는 범위입니다. 사용 가능 범위는 '창'과 '리소스'입니다.",

@@ -5,6 +5,7 @@
 
 'use strict';
 
+import product from 'vs/platform/node/product';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IRequestService } from 'vs/platform/request/node/request';
@@ -39,12 +40,12 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		return true;
 	}
 
-	protected doCheckForUpdates(explicit: boolean): void {
+	protected doCheckForUpdates(context: any): void {
 		if (!this.url) {
 			return;
 		}
 
-		this.setState(State.CheckingForUpdates(explicit));
+		this.setState(State.CheckingForUpdates(context));
 
 		this.requestService.request({ url: this.url })
 			.then<IUpdate>(asJson)
@@ -52,10 +53,10 @@ export class LinuxUpdateService extends AbstractUpdateService {
 				if (!update || !update.url || !update.version || !update.productVersion) {
 					/* __GDPR__
 							"update:notAvailable" : {
-								"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+								"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 							}
 						*/
-					this.telemetryService.publicLog('update:notAvailable', { explicit });
+					this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
 
 					this.setState(State.Idle);
 				} else {
@@ -67,16 +68,22 @@ export class LinuxUpdateService extends AbstractUpdateService {
 
 				/* __GDPR__
 					"update:notAvailable" : {
-					"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 					}
 					*/
-				this.telemetryService.publicLog('update:notAvailable', { explicit });
+				this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
 				this.setState(State.Idle);
 			});
 	}
 
 	protected doDownloadUpdate(state: AvailableForDownload): TPromise<void> {
-		shell.openExternal(state.update.url);
+		// Use the download URL if available as we don't currently detect the package type that was
+		// installed and the website download page is more useful than the tarball generally.
+		if (product.downloadUrl && product.downloadUrl.length > 0) {
+			shell.openExternal(product.downloadUrl);
+		} else {
+			shell.openExternal(state.update.url);
+		}
 		this.setState(State.Idle);
 
 		return TPromise.as(null);

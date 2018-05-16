@@ -15,7 +15,7 @@
 	"mainProcess": "主要",
 	"selectProcess": "選取程序的記錄",
 	"openLogFile": "開啟紀錄檔案...",
-	"setLogLevel": "設定記錄層級",
+	"setLogLevel": "設定紀錄層級",
 	"trace": "追蹤",
 	"debug": "偵錯",
 	"info": "資訊",

@@ -7,6 +7,11 @@
 	display: none; /* hide sashes while dragging editors around */
 }
 
+.monaco-workbench > .editor .one-editor-silo.centered .editor-container {
+	border-style: none solid;
+	border-width: 0px 1px;
+}
+
 #monaco-workbench-editor-move-overlay,
 #monaco-workbench-editor-drop-overlay {
 	position: absolute;

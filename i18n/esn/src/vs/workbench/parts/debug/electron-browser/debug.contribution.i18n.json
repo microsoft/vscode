@@ -26,6 +26,6 @@
 	"always": "Siempre mostrar debug en la barra de estado",
 	"onFirstSessionStart": "Mostrar debug en la barra de estado solamente después del primero uso de debug",
 	"showInStatusBar": "Controla cuando se debe mostrar la barra de estado de depuración",
-	"openDebug": "Controla si el viewlet de depuración debería abrirse al inicio de la sesión de depuración.",
+	"openDebug": "Controla si debe abrirse la vista de depuración al iniciar una sesión de depuración.",
 	"launch": "Configuración de lanzamiento para depuración global. Debe utilizarse como una alternativa a “launch.json” en espacios de trabajo compartidos."
 }

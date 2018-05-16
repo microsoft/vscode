@@ -7,12 +7,12 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IUpdateService, State } from './update';
 
 export interface IUpdateChannel extends IChannel {
-	call(command: 'checkForUpdates', arg: boolean): TPromise<void>;
+	call(command: 'checkForUpdates', arg: any): TPromise<void>;
 	call(command: 'downloadUpdate'): TPromise<void>;
 	call(command: 'applyUpdate'): TPromise<void>;
 	call(command: 'quitAndInstall'): TPromise<void>;
@@ -62,8 +62,8 @@ export class UpdateChannelClient implements IUpdateService {
 		}, onUnexpectedError);
 	}
 
-	checkForUpdates(explicit: boolean): TPromise<void> {
-		return this.channel.call('checkForUpdates', explicit);
+	checkForUpdates(context: any): TPromise<void> {
+		return this.channel.call('checkForUpdates', context);
 	}
 
 	downloadUpdate(): TPromise<void> {

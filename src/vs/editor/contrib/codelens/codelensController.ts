@@ -10,7 +10,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IMessageService } from 'vs/platform/message/common/message';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CodeLensProviderRegistry, ICodeLensSymbol } from 'vs/editor/common/modes';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
@@ -19,10 +18,12 @@ import { ICodeLensData, getCodeLensData } from './codelens';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { CodeLens, CodeLensHelper } from 'vs/editor/contrib/codelens/codelensWidget';
 import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
 
 export class CodeLensContribution implements editorCommon.IEditorContribution {
 
-	private static ID: string = 'css.editor.codeLens';
+	private static readonly ID: string = 'css.editor.codeLens';
 
 	private _isEnabled: boolean;
 
@@ -36,8 +37,8 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 	constructor(
 		private _editor: editorBrowser.ICodeEditor,
-		@ICommandService private _commandService: ICommandService,
-		@IMessageService private _messageService: IMessageService
+		@ICommandService private readonly _commandService: ICommandService,
+		@INotificationService private readonly _notificationService: INotificationService
 	) {
 		this._isEnabled = this._editor.getConfiguration().contribInfo.codeLens;
 
@@ -170,11 +171,13 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		this._localToDispose.push({
 			dispose: () => {
 				if (this._editor.getModel()) {
+					const scrollState = StableEditorScrollState.capture(this._editor);
 					this._editor.changeDecorations((changeAccessor) => {
 						this._editor.changeViewZones((accessor) => {
 							this._disposeAllLenses(changeAccessor, accessor);
 						});
 					});
+					scrollState.restore(this._editor);
 				} else {
 					// No accessors available
 					this._disposeAllLenses(null, null);
@@ -218,8 +221,8 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			}
 		}
 
-		const centeredRange = this._editor.getCenteredRangeInViewport();
-		const shouldRestoreCenteredRange = centeredRange && (groups.length !== this._lenses.length && this._editor.getScrollTop() !== 0);
+		const scrollState = StableEditorScrollState.capture(this._editor);
+
 		this._editor.changeDecorations((changeAccessor) => {
 			this._editor.changeViewZones((accessor) => {
 
@@ -238,7 +241,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 						groupsIndex++;
 						codeLensIndex++;
 					} else {
-						this._lenses.splice(codeLensIndex, 0, new CodeLens(groups[groupsIndex], this._editor, helper, accessor, this._commandService, this._messageService, () => this._detectVisibleLenses.schedule()));
+						this._lenses.splice(codeLensIndex, 0, new CodeLens(groups[groupsIndex], this._editor, helper, accessor, this._commandService, this._notificationService, () => this._detectVisibleLenses.schedule()));
 						codeLensIndex++;
 						groupsIndex++;
 					}
@@ -252,16 +255,15 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 				// Create extra symbols
 				while (groupsIndex < groups.length) {
-					this._lenses.push(new CodeLens(groups[groupsIndex], this._editor, helper, accessor, this._commandService, this._messageService, () => this._detectVisibleLenses.schedule()));
+					this._lenses.push(new CodeLens(groups[groupsIndex], this._editor, helper, accessor, this._commandService, this._notificationService, () => this._detectVisibleLenses.schedule()));
 					groupsIndex++;
 				}
 
 				helper.commit(changeAccessor);
 			});
 		});
-		if (shouldRestoreCenteredRange) {
-			this._editor.revealRangeInCenter(centeredRange, editorCommon.ScrollType.Immediate);
-		}
+
+		scrollState.restore(this._editor);
 	}
 
 	private _onViewportChanged(): void {
@@ -293,11 +295,15 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 			const resolvedSymbols = new Array<ICodeLensSymbol>(request.length);
 			const promises = request.map((request, i) => {
-				return asWinJsPromise((token) => {
-					return request.provider.resolveCodeLens(model, request.symbol, token);
-				}).then(symbol => {
-					resolvedSymbols[i] = symbol;
-				});
+				if (typeof request.provider.resolveCodeLens === 'function') {
+					return asWinJsPromise((token) => {
+						return request.provider.resolveCodeLens(model, request.symbol, token);
+					}).then(symbol => {
+						resolvedSymbols[i] = symbol;
+					});
+				}
+				resolvedSymbols[i] = request.symbol;
+				return TPromise.as(void 0);
 			});
 
 			return TPromise.join(promises).then(() => {

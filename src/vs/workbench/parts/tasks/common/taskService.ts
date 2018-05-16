@@ -6,7 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { LinkedMap } from 'vs/base/common/map';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -32,6 +32,11 @@ export interface CustomizationProperties {
 	isBackground?: boolean;
 }
 
+export interface TaskFilter {
+	version?: string;
+	type?: string;
+}
+
 export interface ITaskService {
 	_serviceBrand: any;
 	onDidStateChange: Event<TaskEvent>;
@@ -45,11 +50,11 @@ export interface ITaskService {
 	restart(task: Task): void;
 	terminate(task: Task): TPromise<TaskTerminateResponse>;
 	terminateAll(): TPromise<TaskTerminateResponse[]>;
-	tasks(): TPromise<Task[]>;
+	tasks(filter?: TaskFilter): TPromise<Task[]>;
 	/**
-	 * @param identifier The task's name, label or defined identifier.
+	 * @param alias The task's name, label or defined identifier.
 	 */
-	getTask(workspaceFolder: IWorkspaceFolder | string, identifier: string): TPromise<Task>;
+	getTask(workspaceFolder: IWorkspaceFolder | string, alias: string, compareId?: boolean): TPromise<Task>;
 	getTasksForGroup(group: string): TPromise<Task[]>;
 	getRecentlyUsedTasks(): LinkedMap<string, string>;
 	createSorter(): TaskSorter;

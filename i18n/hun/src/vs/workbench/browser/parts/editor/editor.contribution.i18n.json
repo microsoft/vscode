@@ -19,14 +19,14 @@
 	"close": "Bezárás",
 	"closeOthers": "Többi bezárása",
 	"closeRight": "Jobbra lévők bezárása",
-	"closeAllUnmodified": "Nem módosultak bezárása",
+	"closeAllSaved": "Mentettek bezárása",
 	"closeAll": "Összes bezárása",
 	"keepOpen": "Maradjon nyitva",
 	"toggleInlineView": "Sorok közötti nézet be- és kikapcsolása",
 	"showOpenedEditors": "Megnyitott szerkesztőablak megjelenítése",
 	"keepEditor": "Szerkesztőablak nyitva tartása",
 	"closeEditorsInGroup": "A csoportban lévő összes szerkesztőablak bezárása",
-	"closeUnmodifiedEditors": "Nem módosult szerkesztőablakok bezárása a csoportban",
+	"closeSavedEditors": "A csoportban lévő mentett szerkesztőablakok bezárása",
 	"closeOtherEditors": "Többi szerkesztőablak bezárása",
 	"closeRightEditors": "Jobbra lévő szerkesztőablakok bezárása"
 }

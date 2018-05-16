@@ -6,11 +6,11 @@
 
 import URI from 'vs/base/common/uri';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import arrays = require('vs/base/common/arrays');
+import * as arrays from 'vs/base/common/arrays';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import Event, { Emitter, once } from 'vs/base/common/event';
+import { Event, Emitter, once } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
@@ -18,13 +18,12 @@ import { Schemas } from 'vs/base/common/network';
 
 export const IUntitledEditorService = createDecorator<IUntitledEditorService>('untitledEditorService');
 
-export const UNTITLED_SCHEMA = 'untitled';
-
 export interface IModelLoadOrCreateOptions {
 	resource?: URI;
 	modeId?: string;
 	initialValue?: string;
 	encoding?: string;
+	useResourcePath?: boolean;
 }
 
 export interface IUntitledEditorService {
@@ -112,10 +111,10 @@ export class UntitledEditorService implements IUntitledEditorService {
 	private mapResourceToInput = new ResourceMap<UntitledEditorInput>();
 	private mapResourceToAssociatedFilePath = new ResourceMap<boolean>();
 
-	private _onDidChangeContent: Emitter<URI>;
-	private _onDidChangeDirty: Emitter<URI>;
-	private _onDidChangeEncoding: Emitter<URI>;
-	private _onDidDisposeModel: Emitter<URI>;
+	private readonly _onDidChangeContent: Emitter<URI>;
+	private readonly _onDidChangeDirty: Emitter<URI>;
+	private readonly _onDidChangeEncoding: Emitter<URI>;
+	private readonly _onDidDisposeModel: Emitter<URI>;
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -195,16 +194,17 @@ export class UntitledEditorService implements IUntitledEditorService {
 	}
 
 	public loadOrCreate(options: IModelLoadOrCreateOptions = Object.create(null)): TPromise<UntitledEditorModel> {
-		return this.createOrGet(options.resource, options.modeId, options.initialValue, options.encoding).resolve();
+		return this.createOrGet(options.resource, options.modeId, options.initialValue, options.encoding, options.useResourcePath).resolve();
 	}
 
-	public createOrGet(resource?: URI, modeId?: string, initialValue?: string, encoding?: string): UntitledEditorInput {
+	public createOrGet(resource?: URI, modeId?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath: boolean = false): UntitledEditorInput {
 
-		// Massage resource if it comes with a file:// scheme
-		let hasAssociatedFilePath = false;
 		if (resource) {
-			hasAssociatedFilePath = (resource.scheme === Schemas.file);
-			resource = resource.with({ scheme: UNTITLED_SCHEMA }); // ensure we have the right scheme
+			// Massage resource if it comes with a file:// scheme
+			if (resource.scheme === Schemas.file) {
+				hasAssociatedFilePath = true;
+				resource = resource.with({ scheme: Schemas.untitled }); // ensure we have the right scheme
+			}
 
 			if (hasAssociatedFilePath) {
 				this.mapResourceToAssociatedFilePath.set(resource, true); // remember for future lookups
@@ -226,7 +226,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 			// Create new taking a resource URI that is not already taken
 			let counter = this.mapResourceToInput.size + 1;
 			do {
-				resource = URI.from({ scheme: UNTITLED_SCHEMA, path: `Untitled-${counter}` });
+				resource = URI.from({ scheme: Schemas.untitled, path: `Untitled-${counter}` });
 				counter++;
 			} while (this.mapResourceToInput.has(resource));
 		}

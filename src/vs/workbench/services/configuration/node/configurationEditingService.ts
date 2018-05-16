@@ -27,10 +27,10 @@ import { FOLDER_SETTINGS_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIG
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { OVERRIDE_PROPERTY_PATTERN, IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { IChoiceService, IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextModel } from 'vs/editor/common/model';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 
 export enum ConfigurationEditingErrorCode {
 
@@ -38,6 +38,11 @@ export enum ConfigurationEditingErrorCode {
 	 * Error when trying to write a configuration key that is not registered.
 	 */
 	ERROR_UNKNOWN_KEY,
+
+	/**
+	 * Error when trying to write an application setting into workspace settings.
+	 */
+	ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION,
 
 	/**
 	 * Error when trying to write an invalid folder configuration key to folder settings.
@@ -126,8 +131,7 @@ export class ConfigurationEditingService {
 		@IFileService private fileService: IFileService,
 		@ITextModelService private textModelResolverService: ITextModelService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IChoiceService private choiceService: IChoiceService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@ICommandService private commandService: ICommandService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
@@ -138,12 +142,12 @@ export class ConfigurationEditingService {
 		const operation = this.getConfigurationEditOperation(target, value, options.scopes || {});
 		return this.queue.queue(() => this.doWriteConfiguration(operation, options) // queue up writes to prevent race conditions
 			.then(() => null,
-			error => {
-				if (!options.donotNotifyError) {
-					this.onError(error, operation, options.scopes);
-				}
-				return TPromise.wrapError(error);
-			}));
+				error => {
+					if (!options.donotNotifyError) {
+						this.onError(error, operation, options.scopes);
+					}
+					return TPromise.wrapError(error);
+				}));
 	}
 
 	private doWriteConfiguration(operation: IConfigurationEditOperation, options: ConfigurationEditingOptions): TPromise<void> {
@@ -184,7 +188,7 @@ export class ConfigurationEditingService {
 				this.onConfigurationFileDirtyError(error, operation, scopes);
 				break;
 			default:
-				this.messageService.show(Severity.Error, error.message);
+				this.notificationService.error(error.message);
 		}
 	}
 
@@ -193,23 +197,19 @@ export class ConfigurationEditingService {
 			: operation.workspaceStandAloneConfigurationKey === LAUNCH_CONFIGURATION_KEY ? nls.localize('openLaunchConfiguration', "Open Launch Configuration")
 				: null;
 		if (openStandAloneConfigurationActionLabel) {
-			this.choiceService.choose(Severity.Error, error.message, [openStandAloneConfigurationActionLabel, nls.localize('close', "Close")], 1)
-				.then(option => {
-					switch (option) {
-						case 0:
-							this.openFile(operation.resource);
-							break;
-					}
-				});
+			this.notificationService.prompt(Severity.Error, error.message,
+				[{
+					label: openStandAloneConfigurationActionLabel,
+					run: () => this.openFile(operation.resource)
+				}]
+			);
 		} else {
-			this.choiceService.choose(Severity.Error, error.message, [nls.localize('open', "Open Settings"), nls.localize('close', "Close")], 1)
-				.then(option => {
-					switch (option) {
-						case 0:
-							this.openSettings(operation);
-							break;
-					}
-				});
+			this.notificationService.prompt(Severity.Error, error.message,
+				[{
+					label: nls.localize('open', "Open Settings"),
+					run: () => this.openSettings(operation)
+				}]
+			);
 		}
 	}
 
@@ -218,30 +218,30 @@ export class ConfigurationEditingService {
 			: operation.workspaceStandAloneConfigurationKey === LAUNCH_CONFIGURATION_KEY ? nls.localize('openLaunchConfiguration', "Open Launch Configuration")
 				: null;
 		if (openStandAloneConfigurationActionLabel) {
-			this.choiceService.choose(Severity.Error, error.message, [nls.localize('saveAndRetry', "Save and Retry"), openStandAloneConfigurationActionLabel, nls.localize('close', "Close")], 2)
-				.then(option => {
-					switch (option) {
-						case 0:
-							const key = operation.key ? `${operation.workspaceStandAloneConfigurationKey}.${operation.key}` : operation.workspaceStandAloneConfigurationKey;
-							this.writeConfiguration(operation.target, { key, value: operation.value }, <ConfigurationEditingOptions>{ force: true, scopes });
-							break;
-						case 1:
-							this.openFile(operation.resource);
-							break;
+			this.notificationService.prompt(Severity.Error, error.message,
+				[{
+					label: nls.localize('saveAndRetry', "Save and Retry"),
+					run: () => {
+						const key = operation.key ? `${operation.workspaceStandAloneConfigurationKey}.${operation.key}` : operation.workspaceStandAloneConfigurationKey;
+						this.writeConfiguration(operation.target, { key, value: operation.value }, <ConfigurationEditingOptions>{ force: true, scopes });
 					}
-				});
+				},
+				{
+					label: openStandAloneConfigurationActionLabel,
+					run: () => this.openFile(operation.resource)
+				}]
+			);
 		} else {
-			this.choiceService.choose(Severity.Error, error.message, [nls.localize('saveAndRetry', "Save and Retry"), nls.localize('open', "Open Settings"), nls.localize('close', "Close")], 2)
-				.then(option => {
-					switch (option) {
-						case 0:
-							this.writeConfiguration(operation.target, { key: operation.key, value: operation.value }, <ConfigurationEditingOptions>{ force: true, scopes });
-							break;
-						case 1:
-							this.openSettings(operation);
-							break;
-					}
-				});
+			this.notificationService.prompt(Severity.Error, error.message,
+				[{
+					label: nls.localize('saveAndRetry', "Save and Retry"),
+					run: () => this.writeConfiguration(operation.target, { key: operation.key, value: operation.value }, <ConfigurationEditingOptions>{ force: true, scopes })
+				},
+				{
+					label: nls.localize('open', "Open Settings"),
+					run: () => this.openSettings(operation)
+				}]
+			);
 		}
 	}
 
@@ -279,6 +279,7 @@ export class ConfigurationEditingService {
 
 			// API constraints
 			case ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY: return nls.localize('errorUnknownKey', "Unable to write to {0} because {1} is not a registered configuration.", this.stringifyTarget(target), operation.key);
+			case ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION: return nls.localize('errorInvalidWorkspaceConfigurationApplication', "Unable to write {0} to Workspace Settings. This setting can be written only into User settings.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_FOLDER_CONFIGURATION: return nls.localize('errorInvalidFolderConfiguration', "Unable to write to Folder Settings because {0} does not support the folder resource scope.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_USER_TARGET: return nls.localize('errorInvalidUserTarget', "Unable to write to User Settings because {0} does not support for global scope.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_TARGET: return nls.localize('errorInvalidWorkspaceTarget', "Unable to write to Workspace Settings because {0} does not support for workspace scope in a multi folder workspace.", operation.key);
@@ -288,37 +289,37 @@ export class ConfigurationEditingService {
 			// User issues
 			case ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION: {
 				if (operation.workspaceStandAloneConfigurationKey === TASKS_CONFIGURATION_KEY) {
-					return nls.localize('errorInvalidTaskConfiguration', "Unable to write into tasks file. Please open **Tasks** file to correct errors/warnings in it and try again.");
+					return nls.localize('errorInvalidTaskConfiguration', "Unable to write into the tasks configuration file. Please open it to correct errors/warnings in it and try again.");
 				}
 				if (operation.workspaceStandAloneConfigurationKey === LAUNCH_CONFIGURATION_KEY) {
-					return nls.localize('errorInvalidLaunchConfiguration', "Unable to write into launch file. Please open **Launch** file to correct errors/warnings in it and try again.");
+					return nls.localize('errorInvalidLaunchConfiguration', "Unable to write into the launch configuration file. Please open it to correct errors/warnings in it and try again.");
 				}
 				switch (target) {
 					case ConfigurationTarget.USER:
-						return nls.localize('errorInvalidConfiguration', "Unable to write into user settings. Please open **User Settings** file to correct errors/warnings in it and try again.");
+						return nls.localize('errorInvalidConfiguration', "Unable to write into user settings. Please open the user settings to correct errors/warnings in it and try again.");
 					case ConfigurationTarget.WORKSPACE:
-						return nls.localize('errorInvalidConfigurationWorkspace', "Unable to write into workspace settings. Please open **Workspace Settings** file to correct errors/warnings in the file and try again.");
+						return nls.localize('errorInvalidConfigurationWorkspace', "Unable to write into workspace settings. Please open the workspace settings to correct errors/warnings in the file and try again.");
 					case ConfigurationTarget.WORKSPACE_FOLDER:
 						const workspaceFolderName = this.contextService.getWorkspaceFolder(operation.resource).name;
-						return nls.localize('errorInvalidConfigurationFolder', "Unable to write into folder settings. Please open **Folder Settings** file under **{0}** folder to correct errors/warnings in it and try again.", workspaceFolderName);
+						return nls.localize('errorInvalidConfigurationFolder', "Unable to write into folder settings. Please open the '{0}' folder settings to correct errors/warnings in it and try again.", workspaceFolderName);
 				}
 				return '';
 			}
 			case ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY: {
 				if (operation.workspaceStandAloneConfigurationKey === TASKS_CONFIGURATION_KEY) {
-					return nls.localize('errorTasksConfigurationFileDirty', "Unable to write into tasks file because the file is dirty. Please save the **Tasks Configuration** file and try again.");
+					return nls.localize('errorTasksConfigurationFileDirty', "Unable to write into tasks configuration file because the file is dirty. Please save it first and then try again.");
 				}
 				if (operation.workspaceStandAloneConfigurationKey === LAUNCH_CONFIGURATION_KEY) {
-					return nls.localize('errorLaunchConfigurationFileDirty', "Unable to write into launch file because the file is dirty. Please save the **Launch Configuration** file and try again.");
+					return nls.localize('errorLaunchConfigurationFileDirty', "Unable to write into launch configuration file because the file is dirty. Please save it first and then try again.");
 				}
 				switch (target) {
 					case ConfigurationTarget.USER:
-						return nls.localize('errorConfigurationFileDirty', "Unable to write into user settings because the file is dirty. Please save the **User Settings** file and try again.");
+						return nls.localize('errorConfigurationFileDirty', "Unable to write into user settings because the file is dirty. Please save the user settings file first and then try again.");
 					case ConfigurationTarget.WORKSPACE:
-						return nls.localize('errorConfigurationFileDirtyWorkspace', "Unable to write into workspace settings because the file is dirty. Please save the **Workspace Settings** file and try again.");
+						return nls.localize('errorConfigurationFileDirtyWorkspace', "Unable to write into workspace settings because the file is dirty. Please save the workspace settings file first and then try again.");
 					case ConfigurationTarget.WORKSPACE_FOLDER:
 						const workspaceFolderName = this.contextService.getWorkspaceFolder(operation.resource).name;
-						return nls.localize('errorConfigurationFileDirtyFolder', "Unable to write into folder settings because the file is dirty. Please save the **Folder Settings** file under **{0}** folder and try again.", workspaceFolderName);
+						return nls.localize('errorConfigurationFileDirtyFolder', "Unable to write into folder settings because the file is dirty. Please save the '{0}' folder settings file first and then try again.", workspaceFolderName);
 				}
 				return '';
 			}
@@ -399,6 +400,15 @@ export class ConfigurationEditingService {
 		// Target cannot be workspace or folder if no workspace opened
 		if ((target === ConfigurationTarget.WORKSPACE || target === ConfigurationTarget.WORKSPACE_FOLDER) && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			return this.wrapError(ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED, target, operation);
+		}
+
+		if (target === ConfigurationTarget.WORKSPACE) {
+			if (!operation.workspaceStandAloneConfigurationKey) {
+				const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
+				if (configurationProperties[operation.key].scope === ConfigurationScope.APPLICATION) {
+					return this.wrapError(ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION, target, operation);
+				}
+			}
 		}
 
 		if (target === ConfigurationTarget.WORKSPACE_FOLDER) {

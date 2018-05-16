@@ -11,5 +11,6 @@
 	"installAdditionalSCMProviders": "추가 SCM 공급자 설치...",
 	"no open repo": "활성 소스 제어 공급자가 없습니다.",
 	"source control": "소스 제어",
-	"viewletTitle": "{0}: {1}"
+	"viewletTitle": "{0}: {1}",
+	"hideView": "숨기기"
 }

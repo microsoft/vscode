@@ -37,10 +37,10 @@ abstract class AbstractCopyLinesAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 
-		var commands: ICommand[] = [];
-		var selections = editor.getSelections();
+		let commands: ICommand[] = [];
+		let selections = editor.getSelections();
 
-		for (var i = 0; i < selections.length; i++) {
+		for (let i = 0; i < selections.length; i++) {
 			commands.push(new CopyLinesCommand(selections[i], this.down));
 		}
 
@@ -58,7 +58,7 @@ class CopyLinesUpAction extends AbstractCopyLinesAction {
 			alias: 'Copy Line Up',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow,
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow }
 			}
@@ -74,7 +74,7 @@ class CopyLinesDownAction extends AbstractCopyLinesAction {
 			alias: 'Copy Line Down',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow,
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow }
 			}
@@ -95,11 +95,11 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 
-		var commands: ICommand[] = [];
-		var selections = editor.getSelections();
-		var autoIndent = editor.getConfiguration().autoIndent;
+		let commands: ICommand[] = [];
+		let selections = editor.getSelections();
+		let autoIndent = editor.getConfiguration().autoIndent;
 
-		for (var i = 0; i < selections.length; i++) {
+		for (let i = 0; i < selections.length; i++) {
 			commands.push(new MoveLinesCommand(selections[i], this.down, autoIndent));
 		}
 
@@ -117,7 +117,7 @@ class MoveLinesUpAction extends AbstractMoveLinesAction {
 			alias: 'Move Line Up',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Alt | KeyCode.UpArrow,
 				linux: { primary: KeyMod.Alt | KeyCode.UpArrow }
 			}
@@ -133,7 +133,7 @@ class MoveLinesDownAction extends AbstractMoveLinesAction {
 			alias: 'Move Line Down',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Alt | KeyCode.DownArrow,
 				linux: { primary: KeyMod.Alt | KeyCode.DownArrow }
 			}
@@ -203,7 +203,7 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 			alias: 'Trim Trailing Whitespace',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_X)
 			}
 		});
@@ -219,7 +219,7 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 			cursors = editor.getSelections().map(s => new Position(s.positionLineNumber, s.positionColumn));
 		}
 
-		var command = new TrimTrailingWhitespaceCommand(editor.getSelection(), cursors);
+		let command = new TrimTrailingWhitespaceCommand(editor.getSelection(), cursors);
 
 		editor.pushUndoStop();
 		editor.executeCommands(this.id, [command]);
@@ -238,9 +238,9 @@ interface IDeleteLinesOperation {
 abstract class AbstractRemoveLinesAction extends EditorAction {
 	_getLinesToRemove(editor: ICodeEditor): IDeleteLinesOperation[] {
 		// Construct delete operations
-		var operations: IDeleteLinesOperation[] = editor.getSelections().map((s) => {
+		let operations: IDeleteLinesOperation[] = editor.getSelections().map((s) => {
 
-			var endLineNumber = s.endLineNumber;
+			let endLineNumber = s.endLineNumber;
 			if (s.startLineNumber < s.endLineNumber && s.endColumn === 1) {
 				endLineNumber -= 1;
 			}
@@ -258,9 +258,9 @@ abstract class AbstractRemoveLinesAction extends EditorAction {
 		});
 
 		// Merge delete operations on consecutive lines
-		var mergedOperations: IDeleteLinesOperation[] = [];
-		var previousOperation = operations[0];
-		for (var i = 1; i < operations.length; i++) {
+		let mergedOperations: IDeleteLinesOperation[] = [];
+		let previousOperation = operations[0];
+		for (let i = 1; i < operations.length; i++) {
 			if (previousOperation.endLineNumber + 1 === operations[i].startLineNumber) {
 				// Merge current operations into the previous one
 				previousOperation.endLineNumber = operations[i].endLineNumber;
@@ -286,7 +286,7 @@ class DeleteLinesAction extends AbstractRemoveLinesAction {
 			alias: 'Delete Line',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_K
 			}
 		});
@@ -294,10 +294,10 @@ class DeleteLinesAction extends AbstractRemoveLinesAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 
-		var ops = this._getLinesToRemove(editor);
+		let ops = this._getLinesToRemove(editor);
 
 		// Finally, construct the delete lines commands
-		var commands: ICommand[] = ops.map((op) => {
+		let commands: ICommand[] = ops.map((op) => {
 			return new DeleteLinesCommand(op.startLineNumber, op.endLineNumber, op.positionColumn);
 		});
 
@@ -315,7 +315,7 @@ export class IndentLinesAction extends EditorAction {
 			alias: 'Indent Line',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET
 			}
 		});
@@ -336,7 +336,7 @@ class OutdentLinesAction extends EditorAction {
 			alias: 'Outdent Line',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET
 			}
 		});
@@ -355,7 +355,7 @@ export class InsertLineBeforeAction extends EditorAction {
 			alias: 'Insert Line Above',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter
 			}
 		});
@@ -375,7 +375,7 @@ export class InsertLineAfterAction extends EditorAction {
 			alias: 'Insert Line Below',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.Enter
 			}
 		});
@@ -434,7 +434,7 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 			alias: 'Delete All Left',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.textInputFocus,
 				primary: null,
 				mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace }
 			}
@@ -487,7 +487,7 @@ export class DeleteAllRightAction extends AbstractDeleteAllToBoundaryAction {
 			alias: 'Delete All Right',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.textInputFocus,
 				primary: null,
 				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_K, secondary: [KeyMod.CtrlCmd | KeyCode.Delete] }
 			}
@@ -544,7 +544,7 @@ export class JoinLinesAction extends EditorAction {
 			alias: 'Join Lines',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: 0,
 				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_J }
 			}

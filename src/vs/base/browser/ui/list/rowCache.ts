@@ -82,7 +82,7 @@ export class RowCache<T> implements IDisposable {
 
 		this.cache.forEach((cachedRows, templateId) => {
 			for (const cachedRow of cachedRows) {
-				const renderer = this.renderers[templateId];
+				const renderer = this.renderers.get(templateId);
 				renderer.disposeTemplate(cachedRow.templateData);
 				cachedRow.domNode = null;
 				cachedRow.templateData = null;

@@ -26,6 +26,6 @@
 	"always": "Hata ayıklamayı durum çubuğunda her zaman göster",
 	"onFirstSessionStart": "Hata ayıklamayı sadece ilk kez başladıktan sonra durum çubuğunda göster",
 	"showInStatusBar": "Hata ayıklama durum çubuğunun ne zaman görünür olacağını denetler",
-	"openDebug": "Hata ayıklama viewlet'ının, hata ayıklama oturumu başlangıcında açılıp açılmayacağını denetler.",
+	"openDebug": "Hata ayıklama görünümünün, hata ayıklama oturumu başlangıcında açılıp açılmayacağını denetler.",
 	"launch": "Global hata ayıklama başlatma yapılandırması. Çalışma alanlarında paylaşılan 'launch.json'a alternatif olarak kullanılmalıdır"
 }

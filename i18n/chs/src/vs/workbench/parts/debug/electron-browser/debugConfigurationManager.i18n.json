@@ -35,7 +35,7 @@
 	"useUniqueNames": "配置名称必须唯一。",
 	"app.launch.json.compound.folder": "复合项所在的文件夹的名称。",
 	"app.launch.json.compounds.configurations": "将作为此复合的一部分启动的配置名称。",
-	"debugNoType": "不可省略调试适配器“类型”，其类型必须是“字符串”。",
+	"debugNoType": "不可省略调试器的 \"type\" 属性，且其类型必须是 \"string\" 。",
 	"selectDebug": "选择环境",
 	"DebugConfig.failed": "无法在 \".vscode\" 文件夹({0})内创建 \"launch.json\" 文件。",
 	"workspace": "工作区",

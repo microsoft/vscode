@@ -21,22 +21,21 @@ import { VIEWLET_ID, IExtensionsWorkbenchService } from '../common/extensions';
 import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
 import {
 	OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowPopularExtensionsAction,
-	ShowEnabledExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction, UpdateAllAction,
-	EnableAllAction, EnableAllWorkpsaceAction, DisableAllAction, DisableAllWorkpsaceAction, CheckForUpdatesAction, ShowLanguageExtensionsAction, ShowAzureExtensionsAction, EnableAutoUpdateAction, DisableAutoUpdateAction, ConfigureRecommendedExtensionsCommandsContributor
+	ShowEnabledExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction, ShowBuiltInExtensionsAction, UpdateAllAction,
+	EnableAllAction, EnableAllWorkpsaceAction, DisableAllAction, DisableAllWorkpsaceAction, CheckForUpdatesAction, ShowLanguageExtensionsAction, ShowAzureExtensionsAction, EnableAutoUpdateAction, DisableAutoUpdateAction, ConfigureRecommendedExtensionsCommandsContributor, OpenExtensionsFolderAction, InstallVSIXAction, ReinstallAction
 } from 'vs/workbench/parts/extensions/browser/extensionsActions';
-import { OpenExtensionsFolderAction, InstallVSIXAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
-import { ExtensionEditor } from 'vs/workbench/parts/extensions/browser/extensionEditor';
-import { StatusUpdater, ExtensionsViewlet, MaliciousExtensionChecker } from 'vs/workbench/parts/extensions/electron-browser/extensionsViewlet';
+import { ExtensionEditor } from 'vs/workbench/parts/extensions/electron-browser/extensionEditor';
+import { StatusUpdater, ExtensionsViewlet, MaliciousExtensionChecker, ExtensionsViewletViewsContribution } from 'vs/workbench/parts/extensions/electron-browser/extensionsViewlet';
 import { IQuickOpenRegistry, Extensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from 'vs/workbench/parts/extensions/common/extensionsFileTemplate';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeymapExtensions, BetterMergeDisabled } from 'vs/workbench/parts/extensions/electron-browser/extensionsUtils';
-import { adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { KeymapExtensions } from 'vs/workbench/parts/extensions/electron-browser/extensionsUtils';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { GalleryExtensionsHandler, ExtensionsHandler } from 'vs/workbench/parts/extensions/browser/extensionsQuickOpen';
 import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -55,7 +54,7 @@ workbenchRegistry.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Ru
 workbenchRegistry.registerWorkbenchContribution(MaliciousExtensionChecker, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(ConfigureRecommendedExtensionsCommandsContributor, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(KeymapExtensions, LifecyclePhase.Running);
-workbenchRegistry.registerWorkbenchContribution(BetterMergeDisabled, LifecyclePhase.Running);
+workbenchRegistry.registerWorkbenchContribution(ExtensionsViewletViewsContribution, LifecyclePhase.Starting);
 
 Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)
 	.registerChannel(ExtensionsChannelId, ExtensionsLabel);
@@ -122,7 +121,7 @@ const viewletDescriptor = new ViewletDescriptor(
 	VIEWLET_ID,
 	localize('extensions', "Extensions"),
 	'extensions',
-	100
+	4
 );
 
 Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets)
@@ -164,6 +163,9 @@ actionRegistry.registerWorkbenchAction(installedActionDescriptor, 'Extensions: S
 const disabledActionDescriptor = new SyncActionDescriptor(ShowDisabledExtensionsAction, ShowDisabledExtensionsAction.ID, ShowDisabledExtensionsAction.LABEL);
 actionRegistry.registerWorkbenchAction(disabledActionDescriptor, 'Extensions: Show Disabled Extensions', ExtensionsLabel);
 
+const builtinActionDescriptor = new SyncActionDescriptor(ShowBuiltInExtensionsAction, ShowBuiltInExtensionsAction.ID, ShowBuiltInExtensionsAction.LABEL);
+actionRegistry.registerWorkbenchAction(builtinActionDescriptor, 'Extensions: Show Show Built-in Extensions', ExtensionsLabel);
+
 const updateAllActionDescriptor = new SyncActionDescriptor(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL);
 actionRegistry.registerWorkbenchAction(updateAllActionDescriptor, 'Extensions: Update All Extensions', ExtensionsLabel);
 
@@ -191,6 +193,7 @@ actionRegistry.registerWorkbenchAction(checkForUpdatesAction, `Extensions: Check
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(EnableAutoUpdateAction, EnableAutoUpdateAction.ID, EnableAutoUpdateAction.LABEL), `Extensions: Enable Auto Updating Extensions`, ExtensionsLabel);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(DisableAutoUpdateAction, DisableAutoUpdateAction.ID, DisableAutoUpdateAction.LABEL), `Extensions: Disable Auto Updating Extensions`, ExtensionsLabel);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowRuntimeExtensionsAction, ShowRuntimeExtensionsAction.ID, ShowRuntimeExtensionsAction.LABEL), 'Show Running Extensions', localize('developer', "Developer"));
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReinstallAction, ReinstallAction.ID, ReinstallAction.LABEL), 'Reinstall Extension...', localize('developer', "Developer"));
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
@@ -202,11 +205,17 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			'extensions.autoUpdate': {
 				type: 'boolean',
 				description: localize('extensionsAutoUpdate', "Automatically update extensions"),
-				default: true
+				default: true,
+				scope: ConfigurationScope.APPLICATION
 			},
 			'extensions.ignoreRecommendations': {
 				type: 'boolean',
 				description: localize('extensionsIgnoreRecommendations', "If set to true, the notifications for extension recommendations will stop showing up."),
+				default: false
+			},
+			'extensions.showRecommendationsOnlyOnDemand': {
+				type: 'boolean',
+				description: localize('extensionsShowRecommendationsOnlyOnDemand', "If set to true, recommendations will not be fetched or shown unless specifically requested by the user."),
 				default: false
 			}
 		}
@@ -218,8 +227,7 @@ jsonRegistry.registerSchema(ExtensionsConfigurationSchemaId, ExtensionsConfigura
 // Register Commands
 CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccessor, extensionId: string) => {
 	const extensionService = accessor.get(IExtensionsWorkbenchService);
-	extensionId = adoptToGalleryExtensionId(extensionId);
-	const extension = extensionService.local.filter(e => e.id === extensionId);
+	const extension = extensionService.local.filter(e => areSameExtensions(e, { id: extensionId }));
 	if (extension.length === 1) {
 		extensionService.open(extension[0]).done(null, errors.onUnexpectedError);
 	}

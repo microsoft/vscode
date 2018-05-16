@@ -11,8 +11,8 @@ import { StringDecoder, NodeStringDecoder } from 'string_decoder';
 import * as cp from 'child_process';
 import { rgPath } from 'vscode-ripgrep';
 
-import objects = require('vs/base/common/objects');
-import platform = require('vs/base/common/platform');
+import * as objects from 'vs/base/common/objects';
+import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import * as paths from 'vs/base/common/paths';
 import * as extfs from 'vs/base/node/extfs';
@@ -29,7 +29,7 @@ const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.u
 export class RipgrepEngine {
 	private isDone = false;
 	private rgProc: cp.ChildProcess;
-	private killRgProcFn: Function;
+	private killRgProcFn: (code?: number) => void;
 	private postProcessExclusions: glob.ParsedExpression;
 
 	private ripgrepParser: RipgrepParser;

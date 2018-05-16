@@ -1,6 +1,8 @@
 {
 	"name": "ruby",
-	"version": "0.2.1",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "1.0.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
 	"scripts": {

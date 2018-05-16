@@ -53,9 +53,12 @@ export interface ParsedArgs {
 	'disable-updates'?: string;
 	'disable-crash-reporter'?: string;
 	'skip-add-to-recently-opened'?: boolean;
+	'max-memory'?: number;
 	'file-write'?: boolean;
 	'file-chmod'?: boolean;
 	'upload-logs'?: string;
+	'driver'?: string;
+	'driver-verbose'?: boolean;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
@@ -129,4 +132,7 @@ export interface IEnvironmentService {
 	installSourcePath: string;
 	disableUpdates: boolean;
 	disableCrashReporter: boolean;
+
+	driverHandle: string;
+	driverVerbose: boolean;
 }

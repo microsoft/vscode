@@ -29,7 +29,7 @@
 	"compareSelected": "Сравнить выбранное",
 	"close": "Закрыть",
 	"closeOthers": "Закрыть другие",
-	"closeUnmodified": "Закрыть без изменений",
+	"closeSaved": "Закрыть сохраненное",
 	"closeAll": "Закрыть все",
 	"deleteFile": "Удалить навсегда"
 }

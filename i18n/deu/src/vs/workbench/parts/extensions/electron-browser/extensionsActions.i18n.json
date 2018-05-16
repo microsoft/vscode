@@ -10,6 +10,5 @@
 	"installVSIX": "Aus VSIX installieren...",
 	"installFromVSIX": "Aus VSIX installieren",
 	"installButton": "&&Installieren",
-	"InstallVSIXAction.success": "Die Erweiterung wurde erfolgreich installiert. Führen Sie einen Neustart aus, um sie zu aktivieren.",
 	"InstallVSIXAction.reloadNow": "Jetzt erneut laden"
 }

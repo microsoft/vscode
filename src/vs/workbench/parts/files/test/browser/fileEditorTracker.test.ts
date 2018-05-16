@@ -28,7 +28,7 @@ class TestFileEditorTracker extends FileEditorTracker {
 }
 
 function toResource(self: any, path: string) {
-	return URI.file(join('C:\\', new Buffer(self.test.fullTitle()).toString('base64'), path));
+	return URI.file(join('C:\\', Buffer.from(self.test.fullTitle()).toString('base64'), path));
 }
 
 class ServiceAccessor {
@@ -184,16 +184,16 @@ suite('Files - FileEditorTracker', () => {
 		tracker.dispose();
 	});
 
-	test('file change event updates model', function (done) {
+	test('file change event updates model', function () {
 		const tracker = instantiationService.createInstance(FileEditorTracker);
 
 		const resource = toResource(this, '/path/index.txt');
 
-		accessor.textFileService.models.loadOrCreate(resource).then((model: TextFileEditorModel) => {
+		return accessor.textFileService.models.loadOrCreate(resource).then((model: TextFileEditorModel) => {
 			model.textEditorModel.setValue('Super Good');
 			assert.equal(snapshotToString(model.createSnapshot()), 'Super Good');
 
-			model.save().then(() => {
+			return model.save().then(() => {
 
 				// change event (watcher)
 				accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.UPDATED }]));
@@ -201,8 +201,6 @@ suite('Files - FileEditorTracker', () => {
 				assert.equal(snapshotToString(model.createSnapshot()), 'Hello Html');
 
 				tracker.dispose();
-
-				done();
 			});
 		});
 	});

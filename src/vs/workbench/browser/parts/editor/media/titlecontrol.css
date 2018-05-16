@@ -11,6 +11,11 @@
 	flex: 1;
 }
 
+.monaco-workbench > .part.editor > .content > .one-editor-silo.centered > .container > .title .title-label {
+	flex-direction: row;
+	justify-content: center;
+}
+
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-label a,
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .tab-label a {
 	text-decoration: none;

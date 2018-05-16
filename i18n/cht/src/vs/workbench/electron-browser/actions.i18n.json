@@ -18,6 +18,7 @@
 	"zoomReset": "重設縮放",
 	"appPerf": "啟動效能",
 	"reloadWindow": "重新載入視窗",
+	"reloadWindowWithExntesionsDisabled": "停用延伸模組並重新載入視窗",
 	"switchWindowPlaceHolder": "選取要切換的視窗",
 	"current": "目前視窗",
 	"close": "關閉視窗",
@@ -30,8 +31,8 @@
 	"remove": "從最近開啟的檔案中移除",
 	"openRecent": "開啟最近使用的檔案...",
 	"quickOpenRecent": "快速開啟最近使用的檔案...",
-	"closeMessages": "關閉通知訊息",
 	"reportIssueInEnglish": "回報問題",
+	"openProcessExplorer": "開啟處理序總管",
 	"reportPerformanceIssue": "回報效能問題",
 	"keybindingsReference": "鍵盤快速鍵參考",
 	"openDocumentationUrl": "文件",
@@ -49,9 +50,6 @@
 	"moveWindowTabToNewWindow": "將視窗索引標籤移至新的視窗",
 	"mergeAllWindowTabs": "合併所有視窗",
 	"toggleWindowTabsBar": "切換視窗索引標籤列",
-	"configureLocale": "設定語言",
-	"displayLanguage": "定義 VSCode 的顯示語言。",
-	"doc": "如需支援的語言清單，請參閱 {0}。",
-	"restart": "改變設定值後需要重新啟動 VSCode.",
-	"fail.createSettings": "無法建立 '{0}' ({1})。"
+	"about": "關於 {0}",
+	"inspect context keys": "檢查功能表內容"
 }

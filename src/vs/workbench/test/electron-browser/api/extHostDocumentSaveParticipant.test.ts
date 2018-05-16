@@ -10,20 +10,21 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { TextDocumentSaveReason, TextEdit, Position, EndOfLine } from 'vs/workbench/api/node/extHostTypes';
-import { MainThreadEditorsShape, WorkspaceEditDto } from 'vs/workbench/api/node/extHost.protocol';
+import { MainThreadTextEditorsShape, WorkspaceEditDto } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/node/extHostDocumentSaveParticipant';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as vscode from 'vscode';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { isResourceTextEdit, ResourceTextEdit } from 'vs/editor/common/modes';
+import { timeout } from 'vs/base/common/async';
 
 suite('ExtHostDocumentSaveParticipant', () => {
 
 	let resource = URI.parse('foo:bar');
-	let mainThreadEditors = new class extends mock<MainThreadEditorsShape>() { };
+	let mainThreadEditors = new class extends mock<MainThreadTextEditorsShape>() { };
 	let documents: ExtHostDocuments;
 	let nullLogService = new NullLogService();
 	let nullExtensionDescription: IExtensionDescription = {
@@ -32,8 +33,9 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		publisher: 'vscode',
 		enableProposedApi: false,
 		engines: undefined,
-		extensionFolderPath: undefined,
+		extensionLocation: undefined,
 		isBuiltin: false,
+		isUnderDevelopment: false,
 		version: undefined
 	};
 
@@ -86,7 +88,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			sub.dispose();
 
 			assert.ok(event);
-			assert.throws(() => event.document = null);
+			assert.throws(() => { event.document = null; });
 		});
 	});
 
@@ -166,12 +168,12 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		let callCount = 0;
 		let sub1 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
 			callCount += 1;
-			event.waitUntil(TPromise.timeout(17));
+			event.waitUntil(timeout(17));
 		});
 
 		let sub2 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
 			callCount += 1;
-			event.waitUntil(TPromise.timeout(17));
+			event.waitUntil(timeout(17));
 		});
 
 		let sub3 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
@@ -193,9 +195,9 @@ suite('ExtHostDocumentSaveParticipant', () => {
 
 		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
 
-			event.waitUntil(TPromise.timeout(10));
-			event.waitUntil(TPromise.timeout(10));
-			event.waitUntil(TPromise.timeout(10));
+			event.waitUntil(timeout(10));
+			event.waitUntil(timeout(10));
+			event.waitUntil(timeout(10));
 		});
 
 		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(() => {
@@ -212,7 +214,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			event.waitUntil(new TPromise((resolve, reject) => {
 				setTimeout(() => {
 					try {
-						assert.throws(() => event.waitUntil(TPromise.timeout(10)));
+						assert.throws(() => event.waitUntil(timeout(10)));
 						resolve(void 0);
 					} catch (e) {
 						reject(e);
@@ -231,7 +233,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadEditors, { timeout: 5, errors: 3 });
 
 		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
-			event.waitUntil(TPromise.timeout(15));
+			event.waitUntil(timeout(15));
 		});
 
 		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(values => {
@@ -264,7 +266,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	test('event delivery, pushEdits sync', () => {
 
 		let dto: WorkspaceEditDto;
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, new class extends mock<MainThreadEditorsShape>() {
+		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, new class extends mock<MainThreadTextEditorsShape>() {
 			$tryApplyWorkspaceEdit(_edits: WorkspaceEditDto) {
 				dto = _edits;
 				return TPromise.as(true);
@@ -288,7 +290,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	test('event delivery, concurrent change', () => {
 
 		let edits: WorkspaceEditDto;
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, new class extends mock<MainThreadEditorsShape>() {
+		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, new class extends mock<MainThreadTextEditorsShape>() {
 			$tryApplyWorkspaceEdit(_edits: WorkspaceEditDto) {
 				edits = _edits;
 				return TPromise.as(true);
@@ -301,6 +303,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			documents.$acceptModelChanged(resource, {
 				changes: [{
 					range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+					rangeOffset: undefined,
 					rangeLength: undefined,
 					text: 'bar'
 				}],
@@ -322,7 +325,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 
 	test('event delivery, two listeners -> two document states', () => {
 
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, new class extends mock<MainThreadEditorsShape>() {
+		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, new class extends mock<MainThreadTextEditorsShape>() {
 			$tryApplyWorkspaceEdit(dto: WorkspaceEditDto) {
 
 				for (const edit of dto.edits) {
@@ -336,6 +339,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 							changes: [{
 								range,
 								text,
+								rangeOffset: undefined,
 								rangeLength: undefined,
 							}],
 							eol: undefined,

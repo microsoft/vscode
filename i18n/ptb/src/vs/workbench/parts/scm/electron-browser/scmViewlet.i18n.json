@@ -9,7 +9,8 @@
 	"scm providers": "Provedores de Controle de Código Fonte",
 	"hideRepository": "Ocultar",
 	"installAdditionalSCMProviders": "Instalar provedores de SCM adicionais...",
-	"no open repo": "Não existem provedores controle de código fonte ativos.",
+	"no open repo": "Não existem provedores de controle de código fonte ativos.",
 	"source control": "Controle de código-fonte",
-	"viewletTitle": "{0}: {1}"
+	"viewletTitle": "{0}: {1}",
+	"hideView": "Ocultar"
 }

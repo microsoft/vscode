@@ -8,6 +8,5 @@
 	],
 	"errorInvalidTaskConfiguration": "ワークスペース構成ファイルに書き込めません。ファイルを開いて、ファイル内のエラー/警告を修正してからもう一度お試しください。",
 	"errorWorkspaceConfigurationFileDirty": "ファイルが変更されているため、ワークスペース構成ファイルに書き込めません。ファイルを保存してから、もう一度お試しください。",
-	"openWorkspaceConfigurationFile": "ワークスペースの構成ファイルを開く",
-	"close": "閉じる"
+	"openWorkspaceConfigurationFile": "ワークスペースの構成を開く"
 }

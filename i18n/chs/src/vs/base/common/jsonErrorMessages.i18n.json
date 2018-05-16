@@ -14,5 +14,5 @@
 	"error.commaExpected": "需要逗号",
 	"error.closeBraceExpected": "需要右大括号",
 	"error.closeBracketExpected": "需要右括号",
-	"error.endOfFileExpected": "需要文件结尾(EOF)"
+	"error.endOfFileExpected": "需要文件结尾标识(EOF)"
 }

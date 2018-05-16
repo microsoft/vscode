@@ -27,12 +27,13 @@ import { Emitter } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TestContextService, TestWindowService } from 'vs/workbench/test/workbenchTestServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { URLService } from 'vs/platform/url/common/urlService';
 
 suite('ExtensionsActions Test', () => {
 
@@ -51,7 +52,6 @@ suite('ExtensionsActions Test', () => {
 		didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
 
 		instantiationService = new TestInstantiationService();
-		instantiationService.stub(IURLService, { onOpenURL: new Emitter().event });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(ILogService, NullLogService);
 		instantiationService.stub(IWindowService, TestWindowService);
@@ -71,6 +71,7 @@ suite('ExtensionsActions Test', () => {
 
 		instantiationService.stub(IExtensionTipsService, ExtensionTipsService);
 		instantiationService.stub(IExtensionTipsService, 'getKeymapRecommendations', () => []);
+		instantiationService.stub(IURLService, URLService);
 	});
 
 	setup(() => {
@@ -467,8 +468,8 @@ suite('ExtensionsActions Test', () => {
 		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 			.then(extensions => {
 				testObject.extension = extensions[0];
-				assert.ok(!testObject.enabled);
-				assert.equal('extension-action manage hide', testObject.class);
+				assert.ok(testObject.enabled);
+				assert.equal('extension-action manage', testObject.class);
 				assert.equal('', testObject.tooltip);
 			});
 	});

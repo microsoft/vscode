@@ -8,7 +8,7 @@ import URI from 'vs/base/common/uri';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { IFilesConfiguration, FileChangeType, IFileService } from 'vs/platform/files/common/files';
-import { FileStat, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
+import { ExplorerItem, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -59,9 +59,9 @@ export const FilesExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has
 export const ExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(explorerViewletFocusId), ContextKeyExpr.not(InputFocusedContextKey));
 
 /**
- * File editor input id.
+ * Preferences editor id.
  */
-export const FILE_EDITOR_INPUT_ID = 'workbench.editors.files.fileEditorInput';
+export const PREFERENCES_EDITOR_ID = 'workbench.editor.preferencesEditor';
 
 /**
  * Text file editor id.
@@ -69,9 +69,15 @@ export const FILE_EDITOR_INPUT_ID = 'workbench.editors.files.fileEditorInput';
 export const TEXT_FILE_EDITOR_ID = 'workbench.editors.files.textFileEditor';
 
 /**
+ * File editor input id.
+ */
+export const FILE_EDITOR_INPUT_ID = 'workbench.editors.files.fileEditorInput';
+
+/**
  * Binary file editor id.
  */
 export const BINARY_FILE_EDITOR_ID = 'workbench.editors.files.binaryFileEditor';
+
 
 export interface IFilesConfiguration extends IFilesConfiguration, IWorkbenchEditorConfiguration {
 	explorer: {
@@ -98,9 +104,9 @@ export interface IFileResource {
 /**
  * Helper to get an explorer item from an object.
  */
-export function explorerItemToFileResource(obj: FileStat | OpenEditor): IFileResource {
-	if (obj instanceof FileStat) {
-		const stat = obj as FileStat;
+export function explorerItemToFileResource(obj: ExplorerItem | OpenEditor): IFileResource {
+	if (obj instanceof ExplorerItem) {
+		const stat = obj as ExplorerItem;
 
 		return {
 			resource: stat.resource,
@@ -151,7 +157,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 			// Make sure to keep contents on disk up to date when it changes
 			if (!this.fileWatcher) {
 				this.fileWatcher = this.fileService.onFileChanges(changes => {
-					if (changes.contains(fileOnDiskResource, FileChangeType.UPDATED)) { //
+					if (changes.contains(fileOnDiskResource, FileChangeType.UPDATED)) {
 						this.resolveEditorModel(resource, false /* do not create if missing */).done(null, onUnexpectedError); // update model when resource changes
 					}
 				});

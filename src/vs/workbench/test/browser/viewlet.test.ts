@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import * as Platform from 'vs/platform/registry/common/platform';
-import { ViewletDescriptor, Extensions, Viewlet } from 'vs/workbench/browser/viewlet';
+import { ViewletDescriptor, Extensions, Viewlet, ViewletRegistry } from 'vs/workbench/browser/viewlet';
 import * as Types from 'vs/base/common/types';
 
 suite('Workbench Viewlet', () => {
@@ -15,7 +15,7 @@ suite('Workbench Viewlet', () => {
 	class TestViewlet extends Viewlet {
 
 		constructor() {
-			super('id', null, null);
+			super('id', null, null, null);
 		}
 
 		public layout(dimension: any): void {
@@ -42,15 +42,15 @@ suite('Workbench Viewlet', () => {
 	});
 
 	test('Viewlet extension point and registration', function () {
-		assert(Types.isFunction(Platform.Registry.as(Extensions.Viewlets).registerViewlet));
-		assert(Types.isFunction(Platform.Registry.as(Extensions.Viewlets).getViewlet));
-		assert(Types.isFunction(Platform.Registry.as(Extensions.Viewlets).getViewlets));
+		assert(Types.isFunction(Platform.Registry.as<ViewletRegistry>(Extensions.Viewlets).registerViewlet));
+		assert(Types.isFunction(Platform.Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlet));
+		assert(Types.isFunction(Platform.Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlets));
 
-		let oldCount = Platform.Registry.as(Extensions.Viewlets).getViewlets().length;
+		let oldCount = Platform.Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlets().length;
 		let d = new ViewletDescriptor(TestViewlet, 'reg-test-id', 'name');
-		Platform.Registry.as(Extensions.Viewlets).registerViewlet(d);
+		Platform.Registry.as<ViewletRegistry>(Extensions.Viewlets).registerViewlet(d);
 
-		assert(d === Platform.Registry.as(Extensions.Viewlets).getViewlet('reg-test-id'));
-		assert.equal(oldCount + 1, Platform.Registry.as(Extensions.Viewlets).getViewlets().length);
+		assert(d === Platform.Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlet('reg-test-id'));
+		assert.equal(oldCount + 1, Platform.Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlets().length);
 	});
 });

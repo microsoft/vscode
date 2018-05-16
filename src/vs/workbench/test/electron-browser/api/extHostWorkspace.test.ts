@@ -12,7 +12,9 @@ import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { TestRPCProtocol } from './testRPCProtocol';
 import { normalize } from 'vs/base/common/paths';
 import { IWorkspaceFolderData } from 'vs/platform/workspace/common/workspace';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { IMainContext } from 'vs/workbench/api/node/extHost.protocol';
 
 suite('ExtHostWorkspace', function () {
 
@@ -22,8 +24,9 @@ suite('ExtHostWorkspace', function () {
 		publisher: 'vscode',
 		enableProposedApi: false,
 		engines: undefined,
-		extensionFolderPath: undefined,
+		extensionLocation: undefined,
 		isBuiltin: false,
+		isUnderDevelopment: false,
 		version: undefined
 	};
 
@@ -38,7 +41,7 @@ suite('ExtHostWorkspace', function () {
 
 	test('asRelativePath', function () {
 
-		const ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', folders: [aWorkspaceFolderData(URI.file('/Coding/Applications/NewsWoWBot'), 0)], name: 'Test' });
+		const ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', folders: [aWorkspaceFolderData(URI.file('/Coding/Applications/NewsWoWBot'), 0)], name: 'Test' }, new NullLogService());
 
 		assertAsRelativePath(ws, '/Coding/Applications/NewsWoWBot/bernd/das/brot', 'bernd/das/brot');
 		assertAsRelativePath(ws, '/Apps/DartPubCache/hosted/pub.dartlang.org/convert-2.0.1/lib/src/hex.dart',
@@ -52,7 +55,7 @@ suite('ExtHostWorkspace', function () {
 	test('asRelativePath, same paths, #11402', function () {
 		const root = '/home/aeschli/workspaces/samples/docker';
 		const input = '/home/aeschli/workspaces/samples/docker';
-		const ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' });
+		const ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
 
 		assertAsRelativePath(ws, (input), input);
 
@@ -61,20 +64,20 @@ suite('ExtHostWorkspace', function () {
 	});
 
 	test('asRelativePath, no workspace', function () {
-		const ws = new ExtHostWorkspace(new TestRPCProtocol(), null);
+		const ws = new ExtHostWorkspace(new TestRPCProtocol(), null, new NullLogService());
 		assertAsRelativePath(ws, (''), '');
 		assertAsRelativePath(ws, ('/foo/bar'), '/foo/bar');
 	});
 
 	test('asRelativePath, multiple folders', function () {
-		const ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', folders: [aWorkspaceFolderData(URI.file('/Coding/One'), 0), aWorkspaceFolderData(URI.file('/Coding/Two'), 1)], name: 'Test' });
+		const ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', folders: [aWorkspaceFolderData(URI.file('/Coding/One'), 0), aWorkspaceFolderData(URI.file('/Coding/Two'), 1)], name: 'Test' }, new NullLogService());
 		assertAsRelativePath(ws, '/Coding/One/file.txt', 'One/file.txt');
 		assertAsRelativePath(ws, '/Coding/Two/files/out.txt', 'Two/files/out.txt');
 		assertAsRelativePath(ws, '/Coding/Two2/files/out.txt', '/Coding/Two2/files/out.txt');
 	});
 
 	test('slightly inconsistent behaviour of asRelativePath and getWorkspaceFolder, #31553', function () {
-		const mrws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', folders: [aWorkspaceFolderData(URI.file('/Coding/One'), 0), aWorkspaceFolderData(URI.file('/Coding/Two'), 1)], name: 'Test' });
+		const mrws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', folders: [aWorkspaceFolderData(URI.file('/Coding/One'), 0), aWorkspaceFolderData(URI.file('/Coding/Two'), 1)], name: 'Test' }, new NullLogService());
 
 		assertAsRelativePath(mrws, '/Coding/One/file.txt', 'One/file.txt');
 		assertAsRelativePath(mrws, '/Coding/One/file.txt', 'One/file.txt', true);
@@ -86,7 +89,7 @@ suite('ExtHostWorkspace', function () {
 		assertAsRelativePath(mrws, '/Coding/Two2/files/out.txt', '/Coding/Two2/files/out.txt', true);
 		assertAsRelativePath(mrws, '/Coding/Two2/files/out.txt', '/Coding/Two2/files/out.txt', false);
 
-		const srws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', folders: [aWorkspaceFolderData(URI.file('/Coding/One'), 0)], name: 'Test' });
+		const srws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', folders: [aWorkspaceFolderData(URI.file('/Coding/One'), 0)], name: 'Test' }, new NullLogService());
 		assertAsRelativePath(srws, '/Coding/One/file.txt', 'file.txt');
 		assertAsRelativePath(srws, '/Coding/One/file.txt', 'file.txt', false);
 		assertAsRelativePath(srws, '/Coding/One/file.txt', 'One/file.txt', true);
@@ -96,24 +99,24 @@ suite('ExtHostWorkspace', function () {
 	});
 
 	test('getPath, legacy', function () {
-		let ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [] });
+		let ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [] }, new NullLogService());
 		assert.equal(ws.getPath(), undefined);
 
-		ws = new ExtHostWorkspace(new TestRPCProtocol(), null);
+		ws = new ExtHostWorkspace(new TestRPCProtocol(), null, new NullLogService());
 		assert.equal(ws.getPath(), undefined);
 
-		ws = new ExtHostWorkspace(new TestRPCProtocol(), undefined);
+		ws = new ExtHostWorkspace(new TestRPCProtocol(), undefined, new NullLogService());
 		assert.equal(ws.getPath(), undefined);
 
-		ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.file('Folder'), 0), aWorkspaceFolderData(URI.file('Another/Folder'), 1)] });
+		ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.file('Folder'), 0), aWorkspaceFolderData(URI.file('Another/Folder'), 1)] }, new NullLogService());
 		assert.equal(ws.getPath().replace(/\\/g, '/'), '/Folder');
 
-		ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.file('/Folder'), 0)] });
+		ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.file('/Folder'), 0)] }, new NullLogService());
 		assert.equal(ws.getPath().replace(/\\/g, '/'), '/Folder');
 	});
 
 	test('WorkspaceFolder has name and index', function () {
-		const ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', folders: [aWorkspaceFolderData(URI.file('/Coding/One'), 0), aWorkspaceFolderData(URI.file('/Coding/Two'), 1)], name: 'Test' });
+		const ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', folders: [aWorkspaceFolderData(URI.file('/Coding/One'), 0), aWorkspaceFolderData(URI.file('/Coding/Two'), 1)], name: 'Test' }, new NullLogService());
 
 		const [one, two] = ws.getWorkspaceFolders();
 
@@ -132,7 +135,7 @@ suite('ExtHostWorkspace', function () {
 				aWorkspaceFolderData(URI.file('/Coding/Two'), 1),
 				aWorkspaceFolderData(URI.file('/Coding/Two/Nested'), 2)
 			]
-		});
+		}, new NullLogService());
 
 		let folder = ws.getWorkspaceFolder(URI.file('/foo/bar'));
 		assert.equal(folder, undefined);
@@ -172,10 +175,10 @@ suite('ExtHostWorkspace', function () {
 	});
 
 	test('Multiroot change event should have a delta, #29641', function (done) {
-		let ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [] });
+		let ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [] }, new NullLogService());
 
 		let finished = false;
-		const finish = (error?) => {
+		const finish = (error?: any) => {
 			if (!finished) {
 				finished = true;
 				done(error);
@@ -235,7 +238,7 @@ suite('ExtHostWorkspace', function () {
 	});
 
 	test('Multiroot change keeps existing workspaces live', function () {
-		let ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0)] });
+		let ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0)] }, new NullLogService());
 
 		let firstFolder = ws.getWorkspaceFolders()[0];
 		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar2'), 0), aWorkspaceFolderData(URI.parse('foo:bar'), 1, 'renamed')] });
@@ -255,7 +258,7 @@ suite('ExtHostWorkspace', function () {
 	});
 
 	test('updateWorkspaceFolders - invalid arguments', function () {
-		let ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [] });
+		let ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [] }, new NullLogService());
 
 		assert.equal(false, ws.updateWorkspaceFolders(extensionDescriptor, null, null));
 		assert.equal(false, ws.updateWorkspaceFolders(extensionDescriptor, 0, 0));
@@ -264,7 +267,7 @@ suite('ExtHostWorkspace', function () {
 		assert.equal(false, ws.updateWorkspaceFolders(extensionDescriptor, -1, 0));
 		assert.equal(false, ws.updateWorkspaceFolders(extensionDescriptor, -1, -1));
 
-		ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0)] });
+		ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0)] }, new NullLogService());
 
 		assert.equal(false, ws.updateWorkspaceFolders(extensionDescriptor, 1, 1));
 		assert.equal(false, ws.updateWorkspaceFolders(extensionDescriptor, 0, 2));
@@ -273,20 +276,20 @@ suite('ExtHostWorkspace', function () {
 
 	test('updateWorkspaceFolders - valid arguments', function (done) {
 		let finished = false;
-		const finish = (error?) => {
+		const finish = (error?: any) => {
 			if (!finished) {
 				finished = true;
 				done(error);
 			}
 		};
 
-		const protocol = {
+		const protocol: IMainContext = {
 			getProxy: () => { return undefined; },
 			set: undefined,
 			assertRegistered: undefined
 		};
 
-		const ws = new ExtHostWorkspace(protocol, { id: 'foo', name: 'Test', folders: [] });
+		const ws = new ExtHostWorkspace(protocol, { id: 'foo', name: 'Test', folders: [] }, new NullLogService());
 
 		//
 		// Add one folder
@@ -512,14 +515,14 @@ suite('ExtHostWorkspace', function () {
 
 	test('Multiroot change event is immutable', function (done) {
 		let finished = false;
-		const finish = (error?) => {
+		const finish = (error?: any) => {
 			if (!finished) {
 				finished = true;
 				done(error);
 			}
 		};
 
-		let ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [] });
+		let ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [] }, new NullLogService());
 		let sub = ws.onDidChangeWorkspace(e => {
 			try {
 				assert.throws(() => {
@@ -542,7 +545,7 @@ suite('ExtHostWorkspace', function () {
 			id: 'foo', name: 'Test', folders: [
 				aWorkspaceFolderData(URI.file('c:/Users/marek/Desktop/vsc_test/'), 0)
 			]
-		});
+		}, new NullLogService());
 
 		assert.ok(ws.getWorkspaceFolder(URI.file('c:/Users/marek/Desktop/vsc_test/a.txt')));
 		assert.ok(ws.getWorkspaceFolder(URI.file('C:/Users/marek/Desktop/vsc_test/b.txt')));

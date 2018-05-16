@@ -7,8 +7,8 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
-import Event, { buffer } from 'vs/base/common/event';
-import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
+import { Event, buffer } from 'vs/base/common/event';
+import { ILocalizationsService, LanguageType } from 'vs/platform/localizations/common/localizations';
 
 export interface ILocalizationsChannel extends IChannel {
 	call(command: 'event:onDidLanguagesChange'): TPromise<void>;
@@ -27,7 +27,7 @@ export class LocalizationsChannel implements ILocalizationsChannel {
 	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
 			case 'event:onDidLanguagesChange': return eventToCall(this.onDidLanguagesChange);
-			case 'getLanguageIds': return this.service.getLanguageIds();
+			case 'getLanguageIds': return this.service.getLanguageIds(arg);
 		}
 		return undefined;
 	}
@@ -42,7 +42,7 @@ export class LocalizationsChannelClient implements ILocalizationsService {
 	private _onDidLanguagesChange = eventFromCall<void>(this.channel, 'event:onDidLanguagesChange');
 	get onDidLanguagesChange(): Event<void> { return this._onDidLanguagesChange; }
 
-	getLanguageIds(): TPromise<string[]> {
-		return this.channel.call('getLanguageIds');
+	getLanguageIds(type?: LanguageType): TPromise<string[]> {
+		return this.channel.call('getLanguageIds', type);
 	}
 }

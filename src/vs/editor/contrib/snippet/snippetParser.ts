@@ -568,7 +568,7 @@ export class SnippetParser {
 			if (marker instanceof Placeholder) {
 				placeholderCount += 1;
 				if (marker.isFinalTabstop) {
-					placeholderDefaultValues.set(0);
+					placeholderDefaultValues.set(0, undefined);
 				} else if (!placeholderDefaultValues.has(marker.index) && marker.children.length > 0) {
 					placeholderDefaultValues.set(marker.index, marker.children);
 				} else {

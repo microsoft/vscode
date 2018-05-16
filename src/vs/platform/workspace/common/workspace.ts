@@ -9,7 +9,7 @@ import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TernarySearchTree } from 'vs/base/common/map';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, IStoredWorkspaceFolder, isRawFileWorkspaceFolder, isRawUriWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { coalesce, distinct } from 'vs/base/common/arrays';
 import { isLinux } from 'vs/base/common/platform';
@@ -238,6 +238,10 @@ function parseWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], rela
 		} else if (isRawUriWorkspaceFolder(configuredFolder)) {
 			try {
 				uri = URI.parse(configuredFolder.uri);
+				// this makes sure all workspace folder are absolute
+				if (uri.path[0] !== '/') {
+					uri = uri.with({ path: '/' + uri.path });
+				}
 			} catch (e) {
 				console.warn(e);
 				// ignore

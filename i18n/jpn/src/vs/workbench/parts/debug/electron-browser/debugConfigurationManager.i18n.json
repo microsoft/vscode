@@ -35,7 +35,7 @@
 	"useUniqueNames": "一意の構成名を使用してください。",
 	"app.launch.json.compound.folder": "複合があるフォルダーの名前。",
 	"app.launch.json.compounds.configurations": "この複合の一部として開始される構成の名前。",
-	"debugNoType": "デバッグ アダプター 'type' は省略不可で、'string' 型でなければなりません。",
+	"debugNoType": "デバッガー 'type' は省略不可で、'string' 型でなければなりません。",
 	"selectDebug": "環境の選択",
 	"DebugConfig.failed": "'launch.json' ファイルを '.vscode' フォルダー ({0}) 内に作成できません。",
 	"workspace": "ワークスペース",

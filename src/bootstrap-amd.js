@@ -18,8 +18,8 @@ function uriFromPath(_path) {
 }
 
 function readFile(file) {
-	return new Promise(function(resolve, reject) {
-		fs.readFile(file, 'utf8', function(err, data) {
+	return new Promise(function (resolve, reject) {
+		fs.readFile(file, 'utf8', function (err, data) {
 			if (err) {
 				reject(err);
 				return;
@@ -35,7 +35,7 @@ var nlsConfig = rawNlsConfig ? JSON.parse(rawNlsConfig) : { availableLanguages: 
 // We have a special location of the nls files. They come from a language pack
 if (nlsConfig._resolvedLanguagePackCoreLocation) {
 	let bundles = Object.create(null);
-	nlsConfig.loadBundle = function(bundle, language, cb) {
+	nlsConfig.loadBundle = function (bundle, language, cb) {
 		let result = bundles[bundle];
 		if (result) {
 			cb(undefined, result);
@@ -47,7 +47,7 @@ if (nlsConfig._resolvedLanguagePackCoreLocation) {
 			bundles[bundle] = json;
 			cb(undefined, json);
 		})
-		.catch(cb);
+			.catch(cb);
 	};
 }
 
@@ -66,10 +66,13 @@ if (nlsConfig.pseudo) {
 	});
 }
 
-exports.bootstrap = function (entrypoint) {
+exports.bootstrap = function (entrypoint, onLoad, onError) {
 	if (!entrypoint) {
 		return;
 	}
 
-	loader([entrypoint], function () { }, function (err) { console.error(err); });
+	onLoad = onLoad || function () { };
+	onError = onError || function (err) { console.error(err); };
+
+	loader([entrypoint], onLoad, onError);
 };

@@ -30,7 +30,6 @@
 	"changes": "變更",
 	"commitMessageCountdown": "在目前行數剩餘 {0} 個字元",
 	"commitMessageWarning": "在目前行數有 {0} 個字元已超過 {1} 個",
-	"ok": "確定",
 	"neveragain": "不要再顯示",
 	"huge": "位於 '{0}' 的 Git 儲存庫有過多使用中的變更，只有部份 Git 功能會被啟用。"
 }

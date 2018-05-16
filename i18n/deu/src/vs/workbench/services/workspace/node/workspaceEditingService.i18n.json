@@ -8,6 +8,5 @@
 	],
 	"errorInvalidTaskConfiguration": "In die Konfigurationsdatei des Arbeitsbereichs kann nicht geschrieben werden. Öffnen Sie die Datei, um Fehler/Warnungen darin zu beheben, und versuchen Sie es noch mal.",
 	"errorWorkspaceConfigurationFileDirty": "In die Konfigurationsdatei des Arbeitsbereichs kann nicht geschrieben werden, weil sie geändert wurde. Speichern Sie die Datei, und versuchen Sie es noch mal.",
-	"openWorkspaceConfigurationFile": "Konfigurationsdatei des Arbeitsbereichs öffnen",
-	"close": "Schließen"
+	"openWorkspaceConfigurationFile": "Konfiguration des Arbeitsbereichs öffnen"
 }

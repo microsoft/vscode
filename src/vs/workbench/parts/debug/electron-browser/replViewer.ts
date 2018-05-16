@@ -9,7 +9,7 @@ import { IAction } from 'vs/base/common/actions';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import * as errors from 'vs/base/common/errors';
 import { isFullWidthCharacter, removeAnsiEscapeCodes, endsWith } from 'vs/base/common/strings';
-import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as dom from 'vs/base/browser/dom';
 import severity from 'vs/base/common/severity';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -17,8 +17,8 @@ import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer
 import { ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IExpressionContainer, IExpression, IReplElementSource } from 'vs/workbench/parts/debug/common/debug';
 import { Model, RawObjectReplElement, Expression, SimpleReplElement, Variable } from 'vs/workbench/parts/debug/common/debugModel';
-import { renderVariable, renderExpressionValue, IVariableTemplateData, BaseDebugController } from 'vs/workbench/parts/debug/electron-browser/baseDebugView';
-import { ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { renderVariable, renderExpressionValue, IVariableTemplateData, BaseDebugController } from 'vs/workbench/parts/debug/browser/baseDebugView';
+import { ClearReplAction, ReplCollapseAllAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyAction, CopyAllAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -107,11 +107,16 @@ export class ReplExpressionsRenderer implements IRenderer {
 			return 2 * ReplExpressionsRenderer.LINE_HEIGHT_PX;
 		}
 
-		return this.getHeightForString(element.value) + (element instanceof Expression ? this.getHeightForString(element.name) : 0);
+		let availableWidth = this.width;
+		if (element instanceof SimpleReplElement && element.sourceData) {
+			availableWidth -= `${element.sourceData.source.name}:${element.sourceData.lineNumber}`.length * this.characterWidth;
+		}
+
+		return this.getHeightForString(element.value, availableWidth) + (element instanceof Expression ? this.getHeightForString(element.name, availableWidth) : 0);
 	}
 
-	private getHeightForString(s: string): number {
-		if (!s || !s.length || !this.width || this.width <= 0 || !this.characterWidth || this.characterWidth <= 0) {
+	private getHeightForString(s: string, availableWidth: number): number {
+		if (!s || !s.length || !availableWidth || availableWidth <= 0 || !this.characterWidth || this.characterWidth <= 0) {
 			return ReplExpressionsRenderer.LINE_HEIGHT_PX;
 		}
 
@@ -126,7 +131,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 				lineLength += isFullWidthCharacter(line.charCodeAt(i)) ? 2 : 1;
 			}
 
-			return lineCount + Math.floor(lineLength * this.characterWidth / this.width);
+			return lineCount + Math.floor(lineLength * this.characterWidth / availableWidth);
 		}, lines.length);
 
 		return ReplExpressionsRenderer.LINE_HEIGHT_PX * numLines;
@@ -218,7 +223,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 
 	public renderElement(tree: ITree, element: any, templateId: string, templateData: any): void {
 		if (templateId === ReplExpressionsRenderer.VARIABLE_TEMPLATE_ID) {
-			renderVariable(tree, element, templateData, false);
+			renderVariable(element, templateData, false);
 		} else if (templateId === ReplExpressionsRenderer.EXPRESSION_TEMPLATE_ID) {
 			this.renderExpression(tree, element, templateData);
 		} else if (templateId === ReplExpressionsRenderer.SIMPLE_REPL_ELEMENT_TEMPLATE_ID) {
@@ -337,6 +342,8 @@ export class ReplExpressionsRenderer implements IRenderer {
 								token.className += 'code' + parsedMode;
 							} else if (parsedMode === 1) {
 								token.className += 'code-bold';
+							} else if (parsedMode === 4) {
+								token.className += 'code-underline';
 							}
 						}
 
@@ -352,7 +359,13 @@ export class ReplExpressionsRenderer implements IRenderer {
 						}
 
 						currentToken = token;
-						tokensContainer.appendChild(token);
+
+						// get child until deepest nested node is found
+						let childPointer: Node = tokensContainer;
+						while (childPointer.hasChildNodes() && childPointer.firstChild.nodeName !== '#text') {
+							childPointer = childPointer.firstChild;
+						}
+						childPointer.appendChild(token);
 
 						i = index;
 					}
@@ -417,7 +430,7 @@ export class ReplExpressionsAccessibilityProvider implements IAccessibilityProvi
 
 export class ReplExpressionsActionProvider implements IActionProvider {
 
-	constructor(private instantiationService: IInstantiationService) {
+	constructor(private instantiationService: IInstantiationService, private toFocus: { focus(): void }) {
 		// noop
 	}
 
@@ -437,6 +450,8 @@ export class ReplExpressionsActionProvider implements IActionProvider {
 		const actions: IAction[] = [];
 		actions.push(new CopyAction(CopyAction.ID, CopyAction.LABEL));
 		actions.push(new CopyAllAction(CopyAllAction.ID, CopyAllAction.LABEL, tree));
+		actions.push(new ReplCollapseAllAction(tree, this.toFocus));
+		actions.push(new Separator());
 		actions.push(this.instantiationService.createInstance(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL));
 
 		return TPromise.as(actions);

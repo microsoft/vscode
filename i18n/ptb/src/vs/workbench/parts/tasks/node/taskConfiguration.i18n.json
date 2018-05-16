@@ -17,7 +17,6 @@
 	"ConfigurationParser.missingRequiredProperty": "Erro: a configuração de tarefa '{0}' não possui a propriedade obrigatória '{1}'. A configuração de tarefa será ignorada.",
 	"ConfigurationParser.notCustom": "Erro: tarefas não está declarada como uma tarefa personalizada. A configuração será ignorada.\n{0}\n",
 	"ConfigurationParser.noTaskName": "Erro: uma tarefa deve fornecer uma propriedade de rótulo. A tarefa será ignorada.\n{0}\n",
-	"taskConfiguration.shellArgs": "Aviso: a tarefa '{0}' é um comando shell e um dos seus argumentos pode ter espaços sem escape. Para garantir a citação da linha de comando correta por favor mesclar args ao comando.",
 	"taskConfiguration.noCommandOrDependsOn": "Erro: a tarefa '{0}' não especifica nem um comando nem uma propriedade dependsOn. A tarefa será ignorada. Sua definição é: \n{1}",
 	"taskConfiguration.noCommand": "Erro: a tarefa '{0}' não define um comando. A tarefa será ignorada. Sua definição é: {1}",
 	"TaskParse.noOsSpecificGlobalTasks": "Tarefa versão 2.0.0 não oferece suporte a tarefas globais específicas do sistema operacional. Converta-as em uma tarefa com um comando específico do sistema operacional. Tarefas afetadas:\n{0}"

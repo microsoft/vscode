@@ -1,0 +1,108 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { DocumentSymbolProvider, SymbolInformation, SymbolKind, TextDocument, CancellationToken, Uri, HierarchicalSymbolInformation } from 'vscode';
+
+import * as Proto from '../protocol';
+import * as PConst from '../protocol.const';
+import { ITypeScriptServiceClient } from '../typescriptService';
+import * as typeConverters from '../utils/typeConverters';
+
+const outlineTypeTable: { [kind: string]: SymbolKind } = Object.create(null);
+outlineTypeTable[PConst.Kind.module] = SymbolKind.Module;
+outlineTypeTable[PConst.Kind.class] = SymbolKind.Class;
+outlineTypeTable[PConst.Kind.enum] = SymbolKind.Enum;
+outlineTypeTable[PConst.Kind.interface] = SymbolKind.Interface;
+outlineTypeTable[PConst.Kind.memberFunction] = SymbolKind.Method;
+outlineTypeTable[PConst.Kind.memberVariable] = SymbolKind.Property;
+outlineTypeTable[PConst.Kind.memberGetAccessor] = SymbolKind.Property;
+outlineTypeTable[PConst.Kind.memberSetAccessor] = SymbolKind.Property;
+outlineTypeTable[PConst.Kind.variable] = SymbolKind.Variable;
+outlineTypeTable[PConst.Kind.const] = SymbolKind.Variable;
+outlineTypeTable[PConst.Kind.localVariable] = SymbolKind.Variable;
+outlineTypeTable[PConst.Kind.variable] = SymbolKind.Variable;
+outlineTypeTable[PConst.Kind.function] = SymbolKind.Function;
+outlineTypeTable[PConst.Kind.localFunction] = SymbolKind.Function;
+
+
+export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolProvider {
+	public constructor(
+		private readonly client: ITypeScriptServiceClient) { }
+
+	public async provideDocumentSymbols(resource: TextDocument, token: CancellationToken): Promise<any[]> { // todo@joh `any[]` temporary hack to make typescript happy...
+		const filepath = this.client.normalizePath(resource.uri);
+		if (!filepath) {
+			return [];
+		}
+		const args: Proto.FileRequestArgs = {
+			file: filepath
+		};
+
+		try {
+			const result: SymbolInformation[] | HierarchicalSymbolInformation[] = [];
+			if (this.client.apiVersion.has206Features()) {
+				const response = await this.client.execute('navtree', args, token);
+				if (response.body) {
+					// The root represents the file. Ignore this when showing in the UI
+					let tree = response.body;
+					if (tree.childItems) {
+						tree.childItems.forEach(item => TypeScriptDocumentSymbolProvider.convertNavTree(resource.uri, result as HierarchicalSymbolInformation[], item));
+					}
+				}
+			} else {
+				const response = await this.client.execute('navbar', args, token);
+				if (response.body) {
+					let foldingMap: ObjectMap<SymbolInformation> = Object.create(null);
+					response.body.forEach(item => TypeScriptDocumentSymbolProvider.convertNavBar(resource.uri, 0, foldingMap, result as SymbolInformation[], item));
+				}
+			}
+			return result;
+		} catch (e) {
+			return [];
+		}
+	}
+
+	private static convertNavBar(resource: Uri, indent: number, foldingMap: ObjectMap<SymbolInformation>, bucket: SymbolInformation[], item: Proto.NavigationBarItem, containerLabel?: string): void {
+		let realIndent = indent + item.indent;
+		let key = `${realIndent}|${item.text}`;
+		if (realIndent !== 0 && !foldingMap[key] && TypeScriptDocumentSymbolProvider.shouldInclueEntry(item.text)) {
+			let result = new SymbolInformation(item.text,
+				outlineTypeTable[item.kind as string] || SymbolKind.Variable,
+				containerLabel ? containerLabel : '',
+				typeConverters.Location.fromTextSpan(resource, item.spans[0]));
+			foldingMap[key] = result;
+			bucket.push(result);
+		}
+		if (item.childItems && item.childItems.length > 0) {
+			for (const child of item.childItems) {
+				TypeScriptDocumentSymbolProvider.convertNavBar(resource, realIndent + 1, foldingMap, bucket, child, item.text);
+			}
+		}
+	}
+
+	private static convertNavTree(resource: Uri, bucket: HierarchicalSymbolInformation[], item: Proto.NavigationTree): void {
+		const result = new HierarchicalSymbolInformation(
+			item.text,
+			'', // detail, e.g. signature etc
+			outlineTypeTable[item.kind as string] || SymbolKind.Variable,
+			typeConverters.Location.fromTextSpan(resource, item.spans[0]),
+			typeConverters.Range.fromTextSpan(item.spans[0])
+		);
+		if (item.childItems && item.childItems.length > 0) {
+			result.children = [];
+			for (const child of item.childItems) {
+				TypeScriptDocumentSymbolProvider.convertNavTree(resource, result.children, child);
+			}
+		}
+
+		if (TypeScriptDocumentSymbolProvider.shouldInclueEntry(result.name)) {
+			bucket.push(result);
+		}
+	}
+
+	private static shouldInclueEntry(name: string): boolean {
+		return !!(name && name !== '<function>' && name !== '<class>');
+	}
+}

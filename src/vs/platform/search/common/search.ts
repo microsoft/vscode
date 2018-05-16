@@ -5,7 +5,7 @@
 'use strict';
 
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
-import uri from 'vs/base/common/uri';
+import uri, { UriComponents } from 'vs/base/common/uri';
 import * as objects from 'vs/base/common/objects';
 import * as paths from 'vs/base/common/paths';
 import * as glob from 'vs/base/common/glob';
@@ -14,6 +14,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const ID = 'searchService';
+export const VIEW_ID = 'workbench.view.search';
 
 export const ISearchService = createDecorator<ISearchService>(ID);
 
@@ -32,16 +33,16 @@ export interface ISearchResultProvider {
 	search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem>;
 }
 
-export interface IFolderQuery {
-	folder: uri;
+export interface IFolderQuery<U extends UriComponents=uri> {
+	folder: U;
 	excludePattern?: glob.IExpression;
 	includePattern?: glob.IExpression;
 	fileEncoding?: string;
 	disregardIgnoreFiles?: boolean;
 }
 
-export interface ICommonQueryOptions {
-	extraFileResources?: uri[];
+export interface ICommonQueryOptions<U> {
+	extraFileResources?: U[];
 	filePattern?: string; // file search only
 	fileEncoding?: string;
 	maxResults?: number;
@@ -57,22 +58,26 @@ export interface ICommonQueryOptions {
 	disregardIgnoreFiles?: boolean;
 	disregardExcludeSettings?: boolean;
 	ignoreSymlinks?: boolean;
+	maxFileSize?: number;
 }
 
-export interface IQueryOptions extends ICommonQueryOptions {
+export interface IQueryOptions extends ICommonQueryOptions<uri> {
 	excludePattern?: string;
 	includePattern?: string;
 }
 
-export interface ISearchQuery extends ICommonQueryOptions {
+export interface ISearchQueryProps<U extends UriComponents> extends ICommonQueryOptions<U> {
 	type: QueryType;
 
 	excludePattern?: glob.IExpression;
 	includePattern?: glob.IExpression;
 	contentPattern?: IPatternInfo;
-	folderQueries?: IFolderQuery[];
+	folderQueries?: IFolderQuery<U>[];
 	usingSearchPaths?: boolean;
 }
+
+export type ISearchQuery = ISearchQueryProps<uri>;
+export type IRawSearchQuery = ISearchQueryProps<UriComponents>;
 
 export enum QueryType {
 	File = 1,
@@ -81,11 +86,12 @@ export enum QueryType {
 /* __GDPR__FRAGMENT__
 	"IPatternInfo" : {
 		"pattern" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
-		"isRegExp": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"isWordMatch": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"isRegExp": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+		"isWordMatch": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 		"wordSeparators": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"isMultiline": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"isCaseSensitive": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		"isMultiline": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+		"isCaseSensitive": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+		"isSmartCase": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 	}
 */
 export interface IPatternInfo {
@@ -98,10 +104,12 @@ export interface IPatternInfo {
 	isSmartCase?: boolean;
 }
 
-export interface IFileMatch {
-	resource?: uri;
+export interface IFileMatch<U extends UriComponents = uri> {
+	resource?: U;
 	lineMatches?: ILineMatch[];
 }
+
+export type IRawFileMatch2 = IFileMatch<UriComponents>;
 
 export interface ILineMatch {
 	preview: string;
@@ -178,6 +186,8 @@ export interface ISearchConfigurationProperties {
 	followSymlinks: boolean;
 	smartCase: boolean;
 	globalFindClipboard: boolean;
+	location: 'sidebar' | 'panel';
+	enableSearchProviders: boolean;
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {

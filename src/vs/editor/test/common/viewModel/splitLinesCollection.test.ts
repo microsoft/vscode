@@ -17,13 +17,14 @@ import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
+import { EndOfLinePreference } from 'vs/editor/common/model';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
 	test('SplitLine', () => {
-		var model1 = createModel('My First LineMy Second LineAnd another one');
-		var line1 = createSplitLine([13, 14, 15], '');
+		let model1 = createModel('My First LineMy Second LineAnd another one');
+		let line1 = createSplitLine([13, 14, 15], '');
 
 		assert.equal(line1.getViewLineCount(), 3);
 		assert.equal(line1.getViewLineContent(model1, 1, 0), 'My First Line');
@@ -228,12 +229,12 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 					if (viewLineNumber < 1) {
 						viewLineNumber = 1;
 					}
-					var lineCount = linesCollection.getViewLineCount();
+					let lineCount = linesCollection.getViewLineCount();
 					if (viewLineNumber > lineCount) {
 						viewLineNumber = lineCount;
 					}
-					var viewMinColumn = linesCollection.getViewLineMinColumn(viewLineNumber);
-					var viewMaxColumn = linesCollection.getViewLineMaxColumn(viewLineNumber);
+					let viewMinColumn = linesCollection.getViewLineMinColumn(viewLineNumber);
+					let viewMaxColumn = linesCollection.getViewLineMaxColumn(viewLineNumber);
 					if (viewColumn < viewMinColumn) {
 						viewColumn = viewMinColumn;
 					}
@@ -779,11 +780,17 @@ function createModel(text: string): ISimpleModel {
 		getLineContent: (lineNumber: number) => {
 			return text;
 		},
+		getLineLength: (lineNumber: number) => {
+			return text.length;
+		},
 		getLineMinColumn: (lineNumber: number) => {
 			return 1;
 		},
 		getLineMaxColumn: (lineNumber: number) => {
 			return text.length + 1;
+		},
+		getValueInRange: (range: IRange, eol?: EndOfLinePreference) => {
+			return text.substring(range.startColumn - 1, range.endColumn - 1);
 		}
 	};
 }

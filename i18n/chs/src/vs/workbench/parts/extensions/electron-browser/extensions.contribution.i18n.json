@@ -15,5 +15,6 @@
 	"developer": "开发者",
 	"extensionsConfigurationTitle": "扩展",
 	"extensionsAutoUpdate": "自动更新扩展",
-	"extensionsIgnoreRecommendations": "如果设置为 \"true\"，将不再显示扩展建议的通知。"
+	"extensionsIgnoreRecommendations": "如果设置为 \"true\"，将不再显示扩展建议的通知。",
+	"extensionsShowRecommendationsOnlyOnDemand": "若设置为 \"true\"，除非由用户进行请求，我们不会获取或显示推荐。"
 }

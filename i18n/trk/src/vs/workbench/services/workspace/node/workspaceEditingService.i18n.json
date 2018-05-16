@@ -8,6 +8,5 @@
 	],
 	"errorInvalidTaskConfiguration": "Çalışma alanı yapılandırma dosyasına yazılamıyor. Lütfen dosyadaki hata/uyarıları düzeltmek için dosyayı açın ve tekrar deneyin.",
 	"errorWorkspaceConfigurationFileDirty": "Kaydedilmemiş değişiklikler içerdiği için çalışma alanı yapılandırma dosyasına yazılamıyor. Lütfen dosyayı kaydedin ve tekrar deneyin.",
-	"openWorkspaceConfigurationFile": "Çalışma Alanı Yapılandırma Dosyasını Aç",
-	"close": "Kapat"
+	"openWorkspaceConfigurationFile": "Çalışma Alanı Yapılandırmasını Aç"
 }

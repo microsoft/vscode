@@ -8,8 +8,7 @@
 	],
 	"terminal.integrated.chooseWindowsShellInfo": "Para cambiar el shell de terminal predeterminado, seleccione el botón Personalizar.",
 	"customize": "Personalizar",
-	"cancel": "Cancelar",
-	"never again": "No volver a mostrar ",
+	"never again": "No volver a mostrar",
 	"terminal.integrated.chooseWindowsShell": "Seleccione el shell de terminal que desee, puede cambiarlo más adelante en la configuración",
 	"terminalService.terminalCloseConfirmationSingular": "Hay una sesión de terminal activa, ¿quiere terminarla?",
 	"terminalService.terminalCloseConfirmationPlural": "Hay {0} sesiones de terminal activas, ¿quiere terminarlas?"

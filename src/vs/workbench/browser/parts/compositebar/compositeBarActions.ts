@@ -5,7 +5,7 @@
 
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
@@ -21,7 +21,7 @@ import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IActivity } from 'vs/workbench/common/activity';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 export interface ICompositeActivity {
 	badge: IBadge;
@@ -193,7 +193,7 @@ export class ActivityActionItem extends BaseActionItem {
 			this.$label.text(this.getAction().label);
 		}
 
-		this.$badge = this.builder.clone().div({ 'class': 'badge' }, (badge: Builder) => {
+		this.$badge = this.builder.clone().div({ 'class': 'badge' }, badge => {
 			this.$badgeContent = badge.div({ 'class': 'badge-content' });
 		});
 
@@ -207,6 +207,10 @@ export class ActivityActionItem extends BaseActionItem {
 	}
 
 	protected updateBadge(badge: IBadge, clazz?: string): void {
+		if (!this.$badge || !this.$badgeContent) {
+			return;
+		}
+
 		this.badgeDisposable.dispose();
 		this.badgeDisposable = empty;
 
@@ -441,6 +445,9 @@ export class CompositeActionItem extends ActivityActionItem {
 	public render(container: HTMLElement): void {
 		super.render(container);
 
+		this._updateChecked();
+		this._updateEnabled();
+
 		this.$container.on('contextmenu', e => {
 			dom.EventHelper.stop(e, true);
 
@@ -560,11 +567,13 @@ export class CompositeActionItem extends ActivityActionItem {
 
 	protected _updateClass(): void {
 		if (this.cssClass) {
-			this.$badge.removeClass(this.cssClass);
+			this.$label.removeClass(this.cssClass);
 		}
 
 		this.cssClass = this.getAction().class;
-		this.$badge.addClass(this.cssClass);
+		if (this.cssClass) {
+			this.$label.addClass(this.cssClass);
+		}
 	}
 
 	protected _updateChecked(): void {

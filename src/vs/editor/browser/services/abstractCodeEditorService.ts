@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -14,12 +14,12 @@ export abstract class AbstractCodeEditorService implements ICodeEditorService {
 
 	_serviceBrand: any;
 
-	private _onCodeEditorAdd: Emitter<ICodeEditor>;
-	private _onCodeEditorRemove: Emitter<ICodeEditor>;
+	private readonly _onCodeEditorAdd: Emitter<ICodeEditor>;
+	private readonly _onCodeEditorRemove: Emitter<ICodeEditor>;
 	private _codeEditors: { [editorId: string]: ICodeEditor; };
 
-	private _onDiffEditorAdd: Emitter<IDiffEditor>;
-	private _onDiffEditorRemove: Emitter<IDiffEditor>;
+	private readonly _onDiffEditorAdd: Emitter<IDiffEditor>;
+	private readonly _onDiffEditorRemove: Emitter<IDiffEditor>;
 	private _diffEditors: { [editorId: string]: IDiffEditor; };
 
 	constructor() {
@@ -84,7 +84,7 @@ export abstract class AbstractCodeEditorService implements ICodeEditorService {
 		for (let i = 0; i < editors.length; i++) {
 			let editor = editors[i];
 
-			if (editor.isFocused()) {
+			if (editor.hasTextFocus()) {
 				// bingo!
 				return editor;
 			}

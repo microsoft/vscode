@@ -17,17 +17,18 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { twistiePixels, renderViewTree, IVariableTemplateData, BaseDebugController, renderRenameBox, renderVariable } from 'vs/workbench/parts/debug/electron-browser/baseDebugView';
+import { twistiePixels, renderViewTree, IVariableTemplateData, BaseDebugController, renderRenameBox, renderVariable } from 'vs/workbench/parts/debug/browser/baseDebugView';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, IActionItem } from 'vs/base/common/actions';
 import { SetValueAction, AddToWatchExpressionsAction } from 'vs/workbench/parts/debug/browser/debugActions';
-import { CopyValueAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
+import { CopyValueAction, CopyEvaluatePathAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
-import { OpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
+import { OpenMode, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const $ = dom.$;
 
@@ -45,9 +46,10 @@ export class VariablesView extends TreeViewsViewletPanel {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('variablesSection', "Variables Section") }, keybindingService, contextMenuService);
+		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('variablesSection', "Variables Section") }, keybindingService, contextMenuService, configurationService);
 
 		this.settings = options.viewletSettings;
 		this.expandedElements = [];
@@ -86,7 +88,7 @@ export class VariablesView extends TreeViewsViewletPanel {
 			dataSource: new VariablesDataSource(),
 			renderer: this.instantiationService.createInstance(VariablesRenderer),
 			accessibilityProvider: new VariablesAccessibilityProvider(),
-			controller: this.instantiationService.createInstance(VariablesController, new VariablesActionProvider(this.debugService, this.keybindingService), MenuId.DebugVariablesContext, { openMode: OpenMode.SINGLE_CLICK })
+			controller: this.instantiationService.createInstance(VariablesController, new VariablesActionProvider(this.debugService, this.keybindingService), MenuId.DebugVariablesContext, { openMode: OpenMode.SINGLE_CLICK, clickBehavior: ClickBehavior.ON_MOUSE_UP })
 		}, {
 				ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
 				twistiePixels
@@ -178,6 +180,7 @@ class VariablesActionProvider implements IActionProvider {
 		const variable = <Variable>element;
 		actions.push(new SetValueAction(SetValueAction.ID, SetValueAction.LABEL, variable, this.debugService, this.keybindingService));
 		actions.push(new CopyValueAction(CopyValueAction.ID, CopyValueAction.LABEL, variable, this.debugService));
+		actions.push(new CopyEvaluatePathAction(CopyEvaluatePathAction.ID, CopyEvaluatePathAction.LABEL, variable));
 		actions.push(new Separator());
 		actions.push(new AddToWatchExpressionsAction(AddToWatchExpressionsAction.ID, AddToWatchExpressionsAction.LABEL, variable, this.debugService, this.keybindingService));
 
@@ -281,7 +284,7 @@ export class VariablesRenderer implements IRenderer {
 					}
 				});
 			} else {
-				renderVariable(tree, variable, templateData, true);
+				renderVariable(variable, templateData, true);
 			}
 		}
 	}
@@ -313,8 +316,8 @@ class VariablesController extends BaseDebugController {
 
 	protected onLeftClick(tree: ITree, element: any, event: IMouseEvent): boolean {
 		// double click on primitive value: open input box to be able to set the value
-		const process = this.debugService.getViewModel().focusedProcess;
-		if (element instanceof Variable && event.detail === 2 && process && process.session.capabilities.supportsSetVariable) {
+		const session = this.debugService.getViewModel().focusedSession;
+		if (element instanceof Variable && event.detail === 2 && session && session.raw.capabilities.supportsSetVariable) {
 			const expression = <IExpression>element;
 			this.debugService.getViewModel().setSelectedExpression(expression);
 			return true;

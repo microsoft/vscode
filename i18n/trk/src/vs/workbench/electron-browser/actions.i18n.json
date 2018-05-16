@@ -18,6 +18,7 @@
 	"zoomReset": "Yakınlaştırmayı Sıfırla",
 	"appPerf": "Başlangıç Performansı",
 	"reloadWindow": "Pencereyi Yeniden Yükle",
+	"reloadWindowWithExntesionsDisabled": "Pencereyi Eklentiler Devre Dışı Olarak Yeniden Başlat",
 	"switchWindowPlaceHolder": "Geçilecek pencereyi seçin",
 	"current": "Geçerli Pencere",
 	"close": "Pencereyi Kapat",
@@ -30,8 +31,8 @@
 	"remove": "Son Açılanlardan Kaldır",
 	"openRecent": "Son Kullanılanları Aç...",
 	"quickOpenRecent": "Son Kullanılanları Hızlı Aç...",
-	"closeMessages": "Bildirim İletilerini Kapat",
 	"reportIssueInEnglish": "Sorun Bildir",
+	"openProcessExplorer": "İşlem Yöneticisini Aç",
 	"reportPerformanceIssue": "Performans Sorunu Bildir",
 	"keybindingsReference": "Klavye Kısayolları Başvurusu",
 	"openDocumentationUrl": "Belgeler",
@@ -49,9 +50,6 @@
 	"moveWindowTabToNewWindow": "Pencere Sekmesini Yeni Pencereye Taşı",
 	"mergeAllWindowTabs": "Tüm Pencereleri Birleştir",
 	"toggleWindowTabsBar": "Pencere Sekmeleri Çubuğunu Gizle/Göster",
-	"configureLocale": "Dili Yapılandır",
-	"displayLanguage": "VSCode'un görüntüleme dilini tanımlar.",
-	"doc": "Desteklenen dillerin listesi için göz atın: {0}",
-	"restart": "Değeri değiştirirseniz VSCode'u yeniden başlatmanız gerekir.",
-	"fail.createSettings": " '{0}' oluşturulamadı ({1})."
+	"about": "{0} Hakkında",
+	"inspect context keys": "Bağlam Anahtarlarını Denetle"
 }

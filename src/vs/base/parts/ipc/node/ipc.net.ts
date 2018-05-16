@@ -7,7 +7,7 @@
 
 import { Socket, Server as NetServer, createConnection, createServer } from 'net';
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event, { Emitter, once, mapEvent, fromNodeEventEmitter } from 'vs/base/common/event';
+import { Event, Emitter, once, mapEvent, fromNodeEventEmitter } from 'vs/base/common/event';
 import { IMessagePassingProtocol, ClientConnectionEvent, IPCServer, IPCClient } from 'vs/base/parts/ipc/common/ipc';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -16,10 +16,10 @@ import { generateUuid } from 'vs/base/common/uuid';
 export function generateRandomPipeName(): string {
 	const randomSuffix = generateUuid();
 	if (process.platform === 'win32') {
-		return `\\\\.\\pipe\\vscode-${randomSuffix}-sock`;
+		return `\\\\.\\pipe\\vscode-ipc-${randomSuffix}-sock`;
 	} else {
 		// Mac/Unix: use socket file
-		return join(tmpdir(), `vscode-${randomSuffix}.sock`);
+		return join(tmpdir(), `vscode-ipc-${randomSuffix}.sock`);
 	}
 }
 

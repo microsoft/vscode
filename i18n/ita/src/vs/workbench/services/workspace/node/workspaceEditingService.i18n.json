@@ -8,6 +8,5 @@
 	],
 	"errorInvalidTaskConfiguration": "Impossibile scrivere nel file di configurazione dell'area di lavoro. Si prega di aprire il file per correggere eventuali errori/avvisi e riprovare.",
 	"errorWorkspaceConfigurationFileDirty": "Impossibile scrivere nel file di configurazione dell'area di lavoro, perché il file è sporco. Si prega di salvarlo e riprovare.",
-	"openWorkspaceConfigurationFile": "Apri file di configurazione dell'area di lavoro",
-	"close": "Chiudi"
+	"openWorkspaceConfigurationFile": "Apri configurazione dell'area di lavoro"
 }

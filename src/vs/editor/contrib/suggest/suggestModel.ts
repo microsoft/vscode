@@ -4,37 +4,39 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
-import Event, { Emitter } from 'vs/base/common/event';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { values } from 'vs/base/common/map';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
-import { ISuggestSupport, SuggestRegistry, StandardTokenType, SuggestTriggerKind, SuggestContext } from 'vs/editor/common/modes';
-import { Position } from 'vs/editor/common/core/position';
-import { provideSuggestionItems, getSuggestionComparator, ISuggestionItem } from './suggest';
-import { CompletionModel } from './completionModel';
-import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { Position } from 'vs/editor/common/core/position';
+import { Selection } from 'vs/editor/common/core/selection';
+import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
+import { ISuggestSupport, StandardTokenType, SuggestContext, SuggestRegistry, SuggestTriggerKind } from 'vs/editor/common/modes';
+import { CompletionModel } from './completionModel';
+import { ISuggestionItem, getSuggestionComparator, provideSuggestionItems } from './suggest';
 
 export interface ICancelEvent {
-	retrigger: boolean;
+	readonly retrigger: boolean;
 }
 
 export interface ITriggerEvent {
-	auto: boolean;
+	readonly auto: boolean;
 }
 
 export interface ISuggestEvent {
-	completionModel: CompletionModel;
-	isFrozen: boolean;
-	auto: boolean;
+	readonly completionModel: CompletionModel;
+	readonly isFrozen: boolean;
+	readonly auto: boolean;
 }
 
 export interface SuggestTriggerContext {
-	auto: boolean;
-	triggerCharacter?: string;
+	readonly auto: boolean;
+	readonly triggerCharacter?: string;
 }
 
 export class LineContext {
@@ -46,6 +48,7 @@ export class LineContext {
 		}
 		const pos = editor.getPosition();
 		model.tokenizeIfCheap(pos.lineNumber);
+
 		const word = model.getWordAtPosition(pos);
 		if (!word) {
 			return false;
@@ -92,12 +95,12 @@ export class SuggestModel implements IDisposable {
 
 	private _requestPromise: TPromise<void>;
 	private _context: LineContext;
-	private _currentPosition: Position;
+	private _currentSelection: Selection;
 
 	private _completionModel: CompletionModel;
-	private _onDidCancel: Emitter<ICancelEvent> = new Emitter<ICancelEvent>();
-	private _onDidTrigger: Emitter<ITriggerEvent> = new Emitter<ITriggerEvent>();
-	private _onDidSuggest: Emitter<ISuggestEvent> = new Emitter<ISuggestEvent>();
+	private readonly _onDidCancel: Emitter<ICancelEvent> = new Emitter<ICancelEvent>();
+	private readonly _onDidTrigger: Emitter<ITriggerEvent> = new Emitter<ITriggerEvent>();
+	private readonly _onDidSuggest: Emitter<ISuggestEvent> = new Emitter<ISuggestEvent>();
 
 	readonly onDidCancel: Event<ICancelEvent> = this._onDidCancel.event;
 	readonly onDidTrigger: Event<ITriggerEvent> = this._onDidTrigger.event;
@@ -110,7 +113,7 @@ export class SuggestModel implements IDisposable {
 		this._requestPromise = null;
 		this._completionModel = null;
 		this._context = null;
-		this._currentPosition = this._editor.getPosition() || new Position(1, 1);
+		this._currentSelection = this._editor.getSelection() || new Selection(1, 1, 1, 1);
 
 		// wire up various listeners
 		this._toDispose.push(this._editor.onDidChangeModel(() => {
@@ -168,18 +171,17 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		const supportsByTriggerCharacter: { [ch: string]: ISuggestSupport[] } = Object.create(null);
+		const supportsByTriggerCharacter: { [ch: string]: Set<ISuggestSupport> } = Object.create(null);
 		for (const support of SuggestRegistry.all(this._editor.getModel())) {
 			if (isFalsyOrEmpty(support.triggerCharacters)) {
 				continue;
 			}
 			for (const ch of support.triggerCharacters) {
-				const array = supportsByTriggerCharacter[ch];
-				if (!array) {
-					supportsByTriggerCharacter[ch] = [support];
-				} else {
-					array.push(support);
+				let set = supportsByTriggerCharacter[ch];
+				if (!set) {
+					set = supportsByTriggerCharacter[ch] = new Set();
 				}
+				set.add(support);
 			}
 		}
 
@@ -190,15 +192,8 @@ export class SuggestModel implements IDisposable {
 			if (supports) {
 				// keep existing items that where not computed by the
 				// supports/providers that want to trigger now
-				const items: ISuggestionItem[] = [];
-				if (this._completionModel) {
-					for (const item of this._completionModel.items) {
-						if (supports.indexOf(item.support) < 0) {
-							items.push(item);
-						}
-					}
-				}
-				this.trigger({ auto: true, triggerCharacter: lastChar }, Boolean(this._completionModel), supports, items);
+				const items: ISuggestionItem[] = this._completionModel ? this._completionModel.adopt(supports) : undefined;
+				this.trigger({ auto: true, triggerCharacter: lastChar }, Boolean(this._completionModel), values(supports), items);
 			}
 		});
 	}
@@ -243,8 +238,8 @@ export class SuggestModel implements IDisposable {
 
 	private _onCursorChange(e: ICursorSelectionChangedEvent): void {
 
-		const prevPosition = this._currentPosition;
-		this._currentPosition = this._editor.getPosition();
+		const prevSelection = this._currentSelection;
+		this._currentSelection = this._editor.getSelection();
 
 		if (!e.selection.isEmpty()
 			|| e.reason !== CursorChangeReason.NotSet
@@ -272,9 +267,9 @@ export class SuggestModel implements IDisposable {
 			// trigger 24x7 IntelliSense when idle, enabled, when cursor
 			// moved RIGHT, and when at a good position
 			if (this._editor.getConfiguration().contribInfo.quickSuggestions !== false
-				&& prevPosition.isBefore(this._currentPosition)
+				&& (prevSelection.containsRange(this._currentSelection)
+					|| prevSelection.getEndPosition().isBeforeOrEqual(this._currentSelection.getPosition()))
 			) {
-
 				this.cancel();
 
 				this._triggerAutoSuggestPromise = TPromise.timeout(this._quickSuggestDelay);
@@ -404,6 +399,12 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
+		if (ctx.leadingWord.startColumn < this._context.leadingWord.startColumn) {
+			// happens when the current word gets outdented
+			this.cancel();
+			return;
+		}
+
 		if (ctx.column < this._context.column) {
 			// typed -> moved cursor LEFT -> retrigger if still on a word
 			if (ctx.leadingWord.word) {
@@ -419,10 +420,11 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		if (ctx.column > this._context.column && this._completionModel.incomplete && ctx.leadingWord.word.length !== 0) {
+		if (ctx.column > this._context.column && this._completionModel.incomplete.size > 0 && ctx.leadingWord.word.length !== 0) {
 			// typed -> moved cursor RIGHT & incomple model & still on a word -> retrigger
-			const { complete, incomplete } = this._completionModel.resolveIncompleteInfo();
-			this.trigger({ auto: this._state === State.Auto }, true, incomplete, complete);
+			const { incomplete } = this._completionModel;
+			const adopted = this._completionModel.adopt(incomplete);
+			this.trigger({ auto: this._state === State.Auto }, true, values(incomplete), adopted);
 
 		} else {
 			// typed -> moved cursor RIGHT -> update UI

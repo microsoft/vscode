@@ -10,7 +10,6 @@ import { wireCancellationToken } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import { IAction } from 'vs/base/common/actions';
-import { Dimension, Builder } from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
 import { isMacintosh } from 'vs/base/common/platform';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -19,7 +18,6 @@ import { ITree, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { ITextModel } from 'vs/editor/common/model';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Position } from 'vs/editor/common/core/position';
 import * as modes from 'vs/editor/common/modes';
 import { registerEditorAction, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
@@ -31,20 +29,21 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ReplExpressionsRenderer, ReplExpressionsController, ReplExpressionsDataSource, ReplExpressionsActionProvider, ReplExpressionsAccessibilityProvider } from 'vs/workbench/parts/debug/electron-browser/replViewer';
-import { ReplInputEditor } from 'vs/workbench/parts/debug/electron-browser/replEditor';
-import * as debug from 'vs/workbench/parts/debug/common/debug';
+import { SimpleDebugEditor } from 'vs/workbench/parts/debug/electron-browser/simpleDebugEditor';
 import { ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { ReplHistory } from 'vs/workbench/parts/debug/common/replHistory';
 import { Panel } from 'vs/workbench/browser/panel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { clipboard } from 'electron';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { memoize } from 'vs/base/common/decorators';
 import { dispose } from 'vs/base/common/lifecycle';
-import { OpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
+import { OpenMode, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { IDebugService, REPL_ID, DEBUG_SCHEME, CONTEXT_ON_FIRST_DEBUG_REPL_LINE, CONTEXT_IN_DEBUG_REPL, CONTEXT_ON_LAST_DEBUG_REPL_LINE } from 'vs/workbench/parts/debug/common/debug';
 
 const $ = dom.$;
 
@@ -77,16 +76,16 @@ export class Repl extends Panel implements IPrivateReplService {
 	private renderer: ReplExpressionsRenderer;
 	private container: HTMLElement;
 	private treeContainer: HTMLElement;
-	private replInput: ReplInputEditor;
+	private replInput: CodeEditorWidget;
 	private replInputContainer: HTMLElement;
 	private refreshTimeoutHandle: number;
 	private actions: IAction[];
-	private dimension: Dimension;
+	private dimension: dom.Dimension;
 	private replInputHeight: number;
 	private model: ITextModel;
 
 	constructor(
-		@debug.IDebugService private debugService: debug.IDebugService,
+		@IDebugService private debugService: IDebugService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService,
@@ -95,7 +94,7 @@ export class Repl extends Panel implements IPrivateReplService {
 		@IModelService private modelService: IModelService,
 		@IContextKeyService private contextKeyService: IContextKeyService
 	) {
-		super(debug.REPL_ID, telemetryService, themeService);
+		super(REPL_ID, telemetryService, themeService);
 
 		this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
 		this.registerListeners();
@@ -128,14 +127,14 @@ export class Repl extends Panel implements IPrivateReplService {
 		}
 	}
 
-	public create(parent: Builder): TPromise<void> {
+	public create(parent: HTMLElement): TPromise<void> {
 		super.create(parent);
-		this.container = dom.append(parent.getHTMLElement(), $('.repl'));
+		this.container = dom.append(parent, $('.repl'));
 		this.treeContainer = dom.append(this.container, $('.repl-tree'));
 		this.createReplInput(this.container);
 
 		this.renderer = this.instantiationService.createInstance(ReplExpressionsRenderer);
-		const controller = this.instantiationService.createInstance(ReplExpressionsController, new ReplExpressionsActionProvider(this.instantiationService), MenuId.DebugConsoleContext, { openMode: OpenMode.SINGLE_CLICK });
+		const controller = this.instantiationService.createInstance(ReplExpressionsController, new ReplExpressionsActionProvider(this.instantiationService, this.replInput), MenuId.DebugConsoleContext, { openMode: OpenMode.SINGLE_CLICK, clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change, to preserve focus behaviour in input field */ });
 		controller.toFocusOnClick = this.replInput;
 
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
@@ -156,7 +155,7 @@ export class Repl extends Panel implements IPrivateReplService {
 		if (!visible) {
 			dispose(this.model);
 		} else {
-			this.model = this.modelService.createModel('', null, uri.parse(`${debug.DEBUG_SCHEME}:input`));
+			this.model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:input`), true);
 			this.replInput.setModel(this.model);
 		}
 
@@ -168,17 +167,17 @@ export class Repl extends Panel implements IPrivateReplService {
 
 		const scopedContextKeyService = this.contextKeyService.createScoped(this.replInputContainer);
 		this.toUnbind.push(scopedContextKeyService);
-		debug.CONTEXT_IN_DEBUG_REPL.bindTo(scopedContextKeyService).set(true);
-		const onFirstReplLine = debug.CONTEXT_ON_FIRST_DEBUG_REPL_LINE.bindTo(scopedContextKeyService);
+		CONTEXT_IN_DEBUG_REPL.bindTo(scopedContextKeyService).set(true);
+		const onFirstReplLine = CONTEXT_ON_FIRST_DEBUG_REPL_LINE.bindTo(scopedContextKeyService);
 		onFirstReplLine.set(true);
-		const onLastReplLine = debug.CONTEXT_ON_LAST_DEBUG_REPL_LINE.bindTo(scopedContextKeyService);
+		const onLastReplLine = CONTEXT_ON_LAST_DEBUG_REPL_LINE.bindTo(scopedContextKeyService);
 		onLastReplLine.set(true);
 
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
-		this.replInput = scopedInstantiationService.createInstance(ReplInputEditor, this.replInputContainer, this.getReplInputOptions());
+		this.replInput = scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, SimpleDebugEditor.getEditorOptions(), SimpleDebugEditor.getCodeEditorWidgetOptions());
 
-		modes.SuggestRegistry.register({ scheme: debug.DEBUG_SCHEME }, {
+		modes.SuggestRegistry.register({ scheme: DEBUG_SCHEME, hasAccessToAllModels: true }, {
 			triggerCharacters: ['.'],
 			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
 				const word = this.replInput.getModel().getWordAtPosition(position);
@@ -186,8 +185,8 @@ export class Repl extends Panel implements IPrivateReplService {
 				const text = this.replInput.getModel().getLineContent(position.lineNumber);
 				const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
 				const frameId = focusedStackFrame ? focusedStackFrame.frameId : undefined;
-				const focusedProcess = this.debugService.getViewModel().focusedProcess;
-				const completions = focusedProcess ? focusedProcess.completions(frameId, text, position, overwriteBefore) : TPromise.as([]);
+				const focusedSession = this.debugService.getViewModel().focusedSession;
+				const completions = focusedSession ? focusedSession.completions(frameId, text, position, overwriteBefore) : TPromise.as([]);
 				return wireCancellationToken(token, completions.then(suggestions => ({
 					suggestions
 				})));
@@ -243,7 +242,7 @@ export class Repl extends Panel implements IPrivateReplService {
 		return text;
 	}
 
-	public layout(dimension: Dimension): void {
+	public layout(dimension: dom.Dimension): void {
 		this.dimension = dimension;
 		if (this.tree) {
 			this.renderer.setWidth(dimension.width - 25, this.characterWidth);
@@ -295,29 +294,6 @@ export class Repl extends Panel implements IPrivateReplService {
 		}
 	}
 
-	private getReplInputOptions(): IEditorOptions {
-		return {
-			wordWrap: 'on',
-			overviewRulerLanes: 0,
-			glyphMargin: false,
-			lineNumbers: 'off',
-			folding: false,
-			selectOnLineNumbers: false,
-			selectionHighlight: false,
-			scrollbar: {
-				horizontal: 'hidden'
-			},
-			lineDecorationsWidth: 0,
-			scrollBeyondLastLine: false,
-			renderLineHighlight: 'none',
-			fixedOverflowWidgets: true,
-			acceptSuggestionOnEnter: 'smart',
-			minimap: {
-				enabled: false
-			}
-		};
-	}
-
 	public dispose(): void {
 		this.replInput.dispose();
 		super.dispose();
@@ -331,9 +307,9 @@ class ReplHistoryPreviousAction extends EditorAction {
 			id: 'repl.action.historyPrevious',
 			label: nls.localize('actions.repl.historyPrevious', "History Previous"),
 			alias: 'History Previous',
-			precondition: debug.CONTEXT_IN_DEBUG_REPL,
+			precondition: CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.textFocus, debug.CONTEXT_ON_FIRST_DEBUG_REPL_LINE),
+				kbExpr: CONTEXT_ON_FIRST_DEBUG_REPL_LINE,
 				primary: KeyCode.UpArrow,
 				weight: 50
 			},
@@ -355,9 +331,9 @@ class ReplHistoryNextAction extends EditorAction {
 			id: 'repl.action.historyNext',
 			label: nls.localize('actions.repl.historyNext', "History Next"),
 			alias: 'History Next',
-			precondition: debug.CONTEXT_IN_DEBUG_REPL,
+			precondition: CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.textFocus, debug.CONTEXT_ON_LAST_DEBUG_REPL_LINE),
+				kbExpr: CONTEXT_ON_LAST_DEBUG_REPL_LINE,
 				primary: KeyCode.DownArrow,
 				weight: 50
 			},
@@ -379,9 +355,9 @@ class AcceptReplInputAction extends EditorAction {
 			id: 'repl.action.acceptInput',
 			label: nls.localize({ key: 'actions.repl.acceptInput', comment: ['Apply input from the debug console input box'] }, "REPL Accept Input"),
 			alias: 'REPL Accept Input',
-			precondition: debug.CONTEXT_IN_DEBUG_REPL,
+			precondition: CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyCode.Enter
 			}
 		});
@@ -400,7 +376,7 @@ export class ReplCopyAllAction extends EditorAction {
 			id: 'repl.action.copyAll',
 			label: nls.localize('actions.repl.copyAll', "Debug: Console Copy All"),
 			alias: 'Debug Console Copy All',
-			precondition: debug.CONTEXT_IN_DEBUG_REPL,
+			precondition: CONTEXT_IN_DEBUG_REPL,
 		});
 	}
 
@@ -417,11 +393,11 @@ registerEditorAction(ReplCopyAllAction);
 const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(SuggestController.get);
 registerEditorCommand(new SuggestCommand({
 	id: 'repl.action.acceptSuggestion',
-	precondition: ContextKeyExpr.and(debug.CONTEXT_IN_DEBUG_REPL, SuggestContext.Visible),
+	precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_REPL, SuggestContext.Visible),
 	handler: x => x.acceptSelectedSuggestion(),
 	kbOpts: {
 		weight: 50,
-		kbExpr: EditorContextKeys.textFocus,
+		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyCode.RightArrow
 	}
 }));

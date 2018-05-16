@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from './extHostTypes';
 import { parse, IRelativePattern } from 'vs/base/common/glob';
 import { Uri, FileSystemWatcher as _FileSystemWatcher } from 'vscode';

@@ -6,7 +6,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import errors = require('vs/base/common/errors');
+import * as errors from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput, ITextEditorSelection, Position as GroupPosition } from 'vs/platform/editor/common/editor';
@@ -30,6 +30,7 @@ import { IExpression } from 'vs/base/common/glob';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceGlobMatcher } from 'vs/workbench/electron-browser/resources';
+import { Schemas } from 'vs/base/common/network';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -808,12 +809,12 @@ export class HistoryService implements IHistoryService {
 
 			const input = history[i];
 			if (input instanceof EditorInput) {
-				resource = toResource(input, { filter: 'file' });
+				resource = toResource(input, { filter: Schemas.file });
 			} else {
 				resource = (input as IResourceInput).resource;
 			}
 
-			if (resource && resource.scheme === 'file') {
+			if (resource && resource.scheme === Schemas.file) {
 				return resource;
 			}
 		}

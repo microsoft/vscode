@@ -5,7 +5,7 @@
 'use strict';
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 
 export enum ContextKeyExprType {
@@ -112,8 +112,9 @@ export abstract class ContextKeyExpr {
 		}
 
 		let value = serializedValue.slice(start + 1, end);
+		let caseIgnoreFlag = serializedValue[end + 1] === 'i' ? 'i' : '';
 		try {
-			return new RegExp(value);
+			return new RegExp(value, caseIgnoreFlag);
 		} catch (e) {
 			console.warn(`bad regexp-value '${serializedValue}', parse error: ${e}`);
 			return null;
@@ -400,7 +401,7 @@ export class ContextKeyRegexExpr implements ContextKeyExpr {
 	}
 
 	public serialize(): string {
-		return `${this.key} =~ /${this.regexp ? this.regexp.source : '<invalid>'}/`;
+		return `${this.key} =~ /${this.regexp ? this.regexp.source : '<invalid>'}/${this.regexp.ignoreCase ? 'i' : ''}`;
 	}
 
 	public keys(): string[] {
@@ -553,8 +554,12 @@ export interface IContextKeyServiceTarget {
 
 export const IContextKeyService = createDecorator<IContextKeyService>('contextKeyService');
 
+export interface IReadableSet<T> {
+	has(value: T): boolean;
+}
+
 export interface IContextKeyChangeEvent {
-	affectsSome(keys: Set<string>): boolean;
+	affectsSome(keys: IReadableSet<string>): boolean;
 }
 
 export interface IContextKeyService {

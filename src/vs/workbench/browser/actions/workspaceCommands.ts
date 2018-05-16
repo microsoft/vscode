@@ -6,7 +6,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
@@ -150,7 +150,9 @@ CommandsRegistry.registerCommand({
 				}
 
 				// Add and show Files Explorer viewlet
-				return workspaceEditingService.addFolders(folders.map(folder => ({ uri: URI.file(folder) }))).then(() => viewletService.openViewlet(viewletService.getDefaultViewletId(), true));
+				return workspaceEditingService.addFolders(folders.map(folder => ({ uri: URI.file(folder) })))
+					.then(() => viewletService.openViewlet(viewletService.getDefaultViewletId(), true))
+					.then(() => void 0);
 			});
 	}
 });

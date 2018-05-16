@@ -12,5 +12,6 @@
 	"view": "表示",
 	"scmConfigurationTitle": "SCM",
 	"alwaysShowProviders": "ソース管理プロバイダーのセクションを常に表示するかどうか。",
-	"diffDecorations": "エディターの差分デコレーターを制御します。"
+	"diffDecorations": "エディターの差分デコレーターを制御します。",
+	"diffGutterWidth": "(追加や修正を示す) ガター内の差分デコレーター幅 (px) を制御します。"
 }

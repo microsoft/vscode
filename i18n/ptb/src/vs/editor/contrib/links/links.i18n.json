@@ -12,7 +12,7 @@
 	"links.command": "Ctrl + clique para executar o comando",
 	"links.navigate.al": "Alt + clique para seguir o link",
 	"links.command.al": "Alt + clique para executar o comando",
-	"invalid.url": "Desculpe, falha ao abrir este link porque ele não está bem formatado: {0}",
-	"missing.url": "Desculpe, falha ao abrir este link porque seu destino está faltando.",
+	"invalid.url": "Falha ao abrir este link porque ele não está bem formatado: {0}",
+	"missing.url": "Falha ao abrir este link porque seu destino está faltando.",
 	"label": "Abrir link"
 }

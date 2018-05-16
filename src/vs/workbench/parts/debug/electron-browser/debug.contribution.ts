@@ -17,7 +17,7 @@ import { ToggleViewletAction, Extensions as ViewletExtensions, ViewletRegistry, 
 import { TogglePanelAction, Extensions as PanelExtensions, PanelRegistry, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { StatusbarItemDescriptor, StatusbarAlignment, IStatusbarRegistry, Extensions as StatusExtensions } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { VariablesView } from 'vs/workbench/parts/debug/electron-browser/variablesView';
-import { BreakpointsView } from 'vs/workbench/parts/debug/electron-browser/breakpointsView';
+import { BreakpointsView } from 'vs/workbench/parts/debug/browser/breakpointsView';
 import { WatchExpressionsView } from 'vs/workbench/parts/debug/electron-browser/watchExpressionsView';
 import { CallStackView } from 'vs/workbench/parts/debug/electron-browser/callStackView';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
@@ -30,7 +30,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { DebugEditorModelManager } from 'vs/workbench/parts/debug/browser/debugEditorModelManager';
 import {
 	StepOverAction, ClearReplAction, FocusReplAction, StepIntoAction, StepOutAction, StartAction, RestartAction, ContinueAction, StopAction, DisconnectAction, PauseAction, AddFunctionBreakpointAction,
-	ConfigureAction, DisableAllBreakpointsAction, EnableAllBreakpointsAction, RemoveAllBreakpointsAction, RunAction, ReapplyBreakpointsAction, SelectAndStartAction
+	ConfigureAction, DisableAllBreakpointsAction, EnableAllBreakpointsAction, RemoveAllBreakpointsAction, RunAction, ReapplyBreakpointsAction, SelectAndStartAction, TerminateThreadAction
 } from 'vs/workbench/parts/debug/browser/debugActions';
 import { DebugActionsWidget } from 'vs/workbench/parts/debug/browser/debugActionsWidget';
 import * as service from 'vs/workbench/parts/debug/electron-browser/debugService';
@@ -38,9 +38,9 @@ import { DebugContentProvider } from 'vs/workbench/parts/debug/browser/debugCont
 import 'vs/workbench/parts/debug/electron-browser/debugEditorContribution';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import * as debugCommands from 'vs/workbench/parts/debug/electron-browser/debugCommands';
+import { registerCommands } from 'vs/workbench/parts/debug/browser/debugCommands';
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
-import { StatusBarColorProvider } from 'vs/workbench/parts/debug/electron-browser/statusbarColorProvider';
+import { StatusBarColorProvider } from 'vs/workbench/parts/debug/browser/statusbarColorProvider';
 import { ViewLocation, ViewsRegistry } from 'vs/workbench/common/views';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -50,6 +50,7 @@ import { Repl } from 'vs/workbench/parts/debug/electron-browser/repl';
 import { DebugQuickOpenHandler } from 'vs/workbench/parts/debug/browser/debugQuickOpen';
 import { DebugStatus } from 'vs/workbench/parts/debug/browser/debugStatus';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 
 class OpenDebugViewletAction extends ToggleViewletAction {
 	public static readonly ID = VIEWLET_ID;
@@ -85,7 +86,7 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new Vie
 	VIEWLET_ID,
 	nls.localize('debug', "Debug"),
 	'debug',
-	40
+	3
 ));
 
 const openViewletKb: IKeybindings = {
@@ -133,6 +134,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(StopAction, StopAction
 registry.registerWorkbenchAction(new SyncActionDescriptor(DisconnectAction, DisconnectAction.ID, DisconnectAction.LABEL), 'Debug: Disconnect', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ContinueAction, ContinueAction.ID, ContinueAction.LABEL, { primary: KeyCode.F5 }, CONTEXT_IN_DEBUG_MODE), 'Debug: Continue', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(PauseAction, PauseAction.ID, PauseAction.LABEL, { primary: KeyCode.F6 }, CONTEXT_IN_DEBUG_MODE), 'Debug: Pause', debugCategory);
+registry.registerWorkbenchAction(new SyncActionDescriptor(TerminateThreadAction, TerminateThreadAction.ID, TerminateThreadAction.LABEL, undefined, CONTEXT_IN_DEBUG_MODE), 'Debug: Terminate Thread', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureAction, ConfigureAction.ID, ConfigureAction.LABEL), 'Debug: Open launch.json', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(AddFunctionBreakpointAction, AddFunctionBreakpointAction.ID, AddFunctionBreakpointAction.LABEL), 'Debug: Add Function Breakpoint', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ReapplyBreakpointsAction, ReapplyBreakpointsAction.ID, ReapplyBreakpointsAction.LABEL), 'Debug: Reapply All Breakpoints', debugCategory);
@@ -150,7 +152,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(FocusBreakpointsViewAc
 
 
 // Register Quick Open
-(<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
+(Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
 		DebugQuickOpenHandler,
 		DebugQuickOpenHandler.ID,
@@ -191,6 +193,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'hideActionBar' }, "Controls if the floating debug action bar should be hidden"),
 			default: false
 		},
+		'debug.toolbar': {
+			enum: ['float', 'dock', 'hide'],
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'toolbar' }, "Controls the debug toolbar. Should it be floating, docked in the debug view or hidden."),
+			default: 'float'
+		},
 		'debug.showInStatusBar': {
 			enum: ['never', 'always', 'onFirstSessionStart'],
 			enumDescriptions: [nls.localize('never', "Never show debug in status bar"), nls.localize('always', "Always show debug in status bar"), nls.localize('onFirstSessionStart', "Show debug in status bar only after debug was started for the first time")],
@@ -199,19 +206,30 @@ configurationRegistry.registerConfiguration({
 		},
 		'debug.internalConsoleOptions': INTERNAL_CONSOLE_OPTIONS_SCHEMA,
 		'debug.openDebug': {
-			enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart'],
+			enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart', 'openOnDebugBreak'],
 			default: 'openOnFirstSessionStart',
-			description: nls.localize('openDebug', "Controls whether debug viewlet should be open on debugging session start.")
+			description: nls.localize('openDebug', "Controls whether debug view should be open on debugging session start.")
+		},
+		'debug.enableAllHovers': {
+			type: 'boolean',
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'enableAllHovers' }, "Controls if the non debug hovers should be enabled while debugging. If true the hover providers will be called to provide a hover. Regular hovers will not be shown even if this setting is true."),
+			default: false
+		},
+		'debug.logLevel': {
+			enum: ['off', 'trace', 'debug', 'info', 'warning', 'error', 'critical'],
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'logLevel' }, "Controls what diagnostic output should the debug session produce."),
+			default: 'info'
 		},
 		'launch': {
 			type: 'object',
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'launch' }, "Global debug launch configuration. Should be used as an alternative to 'launch.json' that is shared across workspaces"),
-			default: {}
+			default: { configurations: [], compounds: [] },
+			$ref: launchSchemaId
 		}
 	}
 });
 
-debugCommands.registerCommands();
+registerCommands();
 
 // Register Debug Status
 const statusBar = Registry.as<IStatusbarRegistry>(StatusExtensions.Statusbar);

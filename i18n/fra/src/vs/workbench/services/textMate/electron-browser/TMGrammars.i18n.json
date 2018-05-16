@@ -11,5 +11,6 @@
 	"vscode.extension.contributes.grammars.scopeName": "Nom de portée TextMate utilisé par le fichier tmLanguage.",
 	"vscode.extension.contributes.grammars.path": "Chemin du fichier tmLanguage. Le chemin est relatif au dossier d'extensions et commence généralement par './syntaxes/'.",
 	"vscode.extension.contributes.grammars.embeddedLanguages": "Mappage du nom de portée à l'ID de langage si cette grammaire contient des langages incorporés.",
+	"vscode.extension.contributes.grammars.tokenTypes": "Un mappage entre un nom d'étendue et des types de token.",
 	"vscode.extension.contributes.grammars.injectTo": "Liste de noms des portées de langage auxquelles cette grammaire est injectée."
 }

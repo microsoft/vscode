@@ -29,3 +29,12 @@
 .hc-black .monaco-workbench .output-action.output-scroll-unlock {
 	background: url('output_unlock_inverse.svg') center center no-repeat;
 }
+
+.monaco-workbench .output-action.open-log-file {
+	background: url('open_log_file.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .output-action.open-log-file,
+.hc-black .monaco-workbench .output-action.open-log-file {
+	background: url('open_log_file_inverse.svg') center center no-repeat;
+}

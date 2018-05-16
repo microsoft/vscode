@@ -7,18 +7,15 @@
 import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ReferencesModel } from './referencesModel';
 import { ReferenceWidget, LayoutData } from './referencesWidget';
 import { Range } from 'vs/editor/common/core/range';
@@ -27,6 +24,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Location } from 'vs/editor/common/modes';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false);
 
@@ -35,7 +33,7 @@ export interface RequestOptions {
 	onGoto?: (reference: Location) => TPromise<any>;
 }
 
-export class ReferencesController implements editorCommon.IEditorContribution {
+export abstract class ReferencesController implements editorCommon.IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.referencesController';
 
@@ -53,16 +51,17 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 	}
 
 	public constructor(
+		private _defaultTreeKeyboardSupport: boolean,
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEditorService private _editorService: IEditorService,
-		@ITextModelService private _textModelResolverService: ITextModelService,
-		@IMessageService private _messageService: IMessageService,
-		@IInstantiationService private _instantiationService: IInstantiationService,
-		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
-		@IStorageService private _storageService: IStorageService,
-		@IThemeService private _themeService: IThemeService,
-		@IConfigurationService private _configurationService: IConfigurationService,
+		@IEditorService private readonly _editorService: IEditorService,
+		@ITextModelService private readonly _textModelResolverService: ITextModelService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@IThemeService private readonly _themeService: IThemeService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@optional(IEnvironmentService) private _environmentService: IEnvironmentService
 	) {
 		this._editor = editor;
@@ -104,7 +103,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		}));
 		const storageKey = 'peekViewLayout';
 		const data = <LayoutData>JSON.parse(this._storageService.get(storageKey, undefined, '{}'));
-		this._widget = new ReferenceWidget(this._editor, data, this._textModelResolverService, this._contextService, this._themeService, this._instantiationService, this._environmentService);
+		this._widget = new ReferenceWidget(this._editor, this._defaultTreeKeyboardSupport, data, this._textModelResolverService, this._contextService, this._themeService, this._instantiationService, this._environmentService);
 		this._widget.setTitle(nls.localize('labelLoading', "Loading..."));
 		this._widget.show(range);
 		this._disposables.push(this._widget.onDidClose(() => {
@@ -156,23 +155,37 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 
 			// show widget
 			return this._widget.setModel(this._model).then(() => {
+				if (this._widget) { // might have been closed
+					// set title
+					this._widget.setMetaTitle(options.getMetaTitle(this._model));
 
-				// set title
-				this._widget.setMetaTitle(options.getMetaTitle(this._model));
-
-				// set 'best' selection
-				let uri = this._editor.getModel().uri;
-				let pos = new Position(range.startLineNumber, range.startColumn);
-				let selection = this._model.nearestReference(uri, pos);
-				if (selection) {
-					return this._widget.setSelection(selection);
+					// set 'best' selection
+					let uri = this._editor.getModel().uri;
+					let pos = new Position(range.startLineNumber, range.startColumn);
+					let selection = this._model.nearestReference(uri, pos);
+					if (selection) {
+						return this._widget.setSelection(selection);
+					}
 				}
 				return undefined;
 			});
 
 		}, error => {
-			this._messageService.show(Severity.Error, error);
+			this._notificationService.error(error);
 		});
+	}
+
+	public async goToNextOrPreviousReference(fwd: boolean) {
+		if (this._model) { // can be called while still resolving...
+			let source = this._model.nearestReference(this._editor.getModel().uri, this._widget.position);
+			let target = this._model.nextOrPreviousReference(source, fwd);
+			let editorFocus = this._editor.hasTextFocus();
+			await this._widget.setSelection(target);
+			await this._gotoReference(target);
+			if (editorFocus) {
+				this._editor.focus();
+			}
+		}
 	}
 
 	public closeWidget(): void {
@@ -190,16 +203,16 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		this._requestIdPool += 1; // Cancel pending requests
 	}
 
-	private _gotoReference(ref: Location): void {
+	private _gotoReference(ref: Location): TPromise<any> {
 		this._widget.hide();
 
 		this._ignoreModelChangeEvent = true;
-		const { uri, range } = ref;
+		const range = Range.lift(ref.range).collapseToStart();
 
-		this._editorService.openEditor({
-			resource: uri,
+		return this._editorService.openEditor({
+			resource: ref.uri,
 			options: { selection: range }
-		}).done(openedEditor => {
+		}).then(openedEditor => {
 			this._ignoreModelChangeEvent = false;
 
 			if (!openedEditor || openedEditor.getControl() !== this._editor) {
@@ -236,5 +249,3 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		}
 	}
 }
-
-registerEditorContribution(ReferencesController);

@@ -6,11 +6,10 @@
 'use strict';
 
 import * as errors from 'vs/base/common/errors';
-import * as platform from 'vs/base/common/platform';
 import { Promise, TPromise, ValueCallback, ErrorCallback, ProgressCallback } from 'vs/base/common/winjs.base';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 
 export function isThenable<T>(obj: any): obj is Thenable<T> {
@@ -30,15 +29,32 @@ export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | TP
 	return new TPromise<T>((resolve, reject, progress) => {
 		let item = callback(source.token);
 		if (item instanceof TPromise) {
-			item.then(resolve, reject, progress);
+			item.then(result => {
+				source.dispose();
+				resolve(result);
+			}, err => {
+				source.dispose();
+				reject(err);
+			}, progress);
 		} else if (isThenable<T>(item)) {
-			item.then(resolve, reject);
+			item.then(result => {
+				source.dispose();
+				resolve(result);
+			}, err => {
+				source.dispose();
+				reject(err);
+			});
 		} else {
+			source.dispose();
 			resolve(item);
 		}
 	}, () => {
 		source.cancel();
 	});
+}
+
+export function asWinJSImport<T>(importPromise: Thenable<T>): TPromise<T> {
+	return new TPromise((resolve, reject) => importPromise.then(resolve, reject)); // workaround for https://github.com/Microsoft/vscode/issues/48205
 }
 
 /**
@@ -181,7 +197,7 @@ export class Delayer<T> {
 	private timeout: number;
 	private completionPromise: Promise;
 	private onSuccess: ValueCallback;
-	private task: ITask<T>;
+	private task: ITask<T | TPromise<T>>;
 
 	constructor(public defaultDelay: number) {
 		this.timeout = null;
@@ -190,7 +206,7 @@ export class Delayer<T> {
 		this.task = null;
 	}
 
-	trigger(task: ITask<T>, delay: number = this.defaultDelay): TPromise<T> {
+	trigger(task: ITask<T | TPromise<T>>, delay: number = this.defaultDelay): TPromise<T> {
 		this.task = task;
 		this.cancelTimeout();
 
@@ -321,6 +337,10 @@ export function timeout(n: number): Promise<void> {
 	return new Promise(resolve => setTimeout(resolve, n));
 }
 
+function isWinJSPromise(candidate: any): candidate is TPromise {
+	return TPromise.is(candidate) && typeof (<TPromise>candidate).done === 'function';
+}
+
 /**
  * Returns a new promise that joins the provided promise. Upon completion of
  * the provided promise the provided function will always be called. This
@@ -328,28 +348,37 @@ export function timeout(n: number): Promise<void> {
  * @param promise a promise
  * @param f a function that will be call in the success and error case.
  */
-export function always<T>(promise: TPromise<T>, f: Function): TPromise<T> {
-	return new TPromise<T>((c, e, p) => {
-		promise.done((result) => {
-			try {
-				f(result);
-			} catch (e1) {
-				errors.onUnexpectedError(e1);
-			}
-			c(result);
-		}, (err) => {
-			try {
-				f(err);
-			} catch (e1) {
-				errors.onUnexpectedError(e1);
-			}
-			e(err);
-		}, (progress) => {
-			p(progress);
+export function always<T>(thenable: TPromise<T>, f: Function): TPromise<T>;
+export function always<T>(promise: Thenable<T>, f: Function): Thenable<T>;
+export function always<T>(winjsPromiseOrThenable: Thenable<T> | TPromise<T>, f: Function): TPromise<T> | Thenable<T> {
+	if (isWinJSPromise(winjsPromiseOrThenable)) {
+		return new TPromise<T>((c, e, p) => {
+			winjsPromiseOrThenable.done((result) => {
+				try {
+					f(result);
+				} catch (e1) {
+					errors.onUnexpectedError(e1);
+				}
+				c(result);
+			}, (err) => {
+				try {
+					f(err);
+				} catch (e1) {
+					errors.onUnexpectedError(e1);
+				}
+				e(err);
+			}, (progress) => {
+				p(progress);
+			});
+		}, () => {
+			winjsPromiseOrThenable.cancel();
 		});
-	}, () => {
-		promise.cancel();
-	});
+
+	} else {
+		// simple
+		winjsPromiseOrThenable.then(_ => f(), _ => f());
+		return winjsPromiseOrThenable;
+	}
 }
 
 /**
@@ -425,7 +454,7 @@ export class Limiter<T> {
 	private runningPromises: number;
 	private maxDegreeOfParalellism: number;
 	private outstandingPromises: ILimitedTaskFactory[];
-	private _onFinished: Emitter<void>;
+	private readonly _onFinished: Emitter<void>;
 
 	constructor(maxDegreeOfParalellism: number) {
 		this.maxDegreeOfParalellism = maxDegreeOfParalellism;
@@ -525,7 +554,7 @@ export function setDisposableTimeout(handler: Function, timeout: number, ...args
 }
 
 export class TimeoutTimer extends Disposable {
-	private _token: platform.TimeoutToken;
+	private _token: number;
 
 	constructor() {
 		super();
@@ -539,14 +568,14 @@ export class TimeoutTimer extends Disposable {
 
 	cancel(): void {
 		if (this._token !== -1) {
-			platform.clearTimeout(this._token);
+			clearTimeout(this._token);
 			this._token = -1;
 		}
 	}
 
 	cancelAndSet(runner: () => void, timeout: number): void {
 		this.cancel();
-		this._token = platform.setTimeout(() => {
+		this._token = setTimeout(() => {
 			this._token = -1;
 			runner();
 		}, timeout);
@@ -557,7 +586,7 @@ export class TimeoutTimer extends Disposable {
 			// timer is already set
 			return;
 		}
-		this._token = platform.setTimeout(() => {
+		this._token = setTimeout(() => {
 			this._token = -1;
 			runner();
 		}, timeout);
@@ -566,7 +595,7 @@ export class TimeoutTimer extends Disposable {
 
 export class IntervalTimer extends Disposable {
 
-	private _token: platform.IntervalToken;
+	private _token: number;
 
 	constructor() {
 		super();
@@ -580,14 +609,14 @@ export class IntervalTimer extends Disposable {
 
 	cancel(): void {
 		if (this._token !== -1) {
-			platform.clearInterval(this._token);
+			clearInterval(this._token);
 			this._token = -1;
 		}
 	}
 
 	cancelAndSet(runner: () => void, interval: number): void {
 		this.cancel();
-		this._token = platform.setInterval(() => {
+		this._token = setInterval(() => {
 			runner();
 		}, interval);
 	}
@@ -595,7 +624,7 @@ export class IntervalTimer extends Disposable {
 
 export class RunOnceScheduler {
 
-	private timeoutToken: platform.TimeoutToken;
+	private timeoutToken: number;
 	private runner: () => void;
 	private timeout: number;
 	private timeoutHandler: () => void;
@@ -620,7 +649,7 @@ export class RunOnceScheduler {
 	 */
 	cancel(): void {
 		if (this.isScheduled()) {
-			platform.clearTimeout(this.timeoutToken);
+			clearTimeout(this.timeoutToken);
 			this.timeoutToken = -1;
 		}
 	}
@@ -630,7 +659,7 @@ export class RunOnceScheduler {
 	 */
 	schedule(delay = this.timeout): void {
 		this.cancel();
-		this.timeoutToken = platform.setTimeout(this.timeoutHandler, delay);
+		this.timeoutToken = setTimeout(this.timeoutHandler, delay);
 	}
 
 	/**

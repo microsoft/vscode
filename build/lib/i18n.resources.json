@@ -131,7 +131,15 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/parts/url",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/parts/watermark",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/webview",
 			"project": "vscode-workbench"
 		},
 		{
@@ -139,11 +147,31 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/parts/outline",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/actions",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/bulkEdit",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/configuration",
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/configurationResolver",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/crashReporter",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/dialogs",
 			"project": "vscode-workbench"
 		},
 		{
@@ -155,15 +183,15 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/jsonschemas",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/files",
 			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/keybinding",
-			"project": "vscode-workbench"
-		},
-		{
-			"name": "vs/workbench/services/message",
 			"project": "vscode-workbench"
 		},
 		{
@@ -193,6 +221,10 @@
 		{
 			"name": "vs/workbench/services/decorations",
 			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/preferences",
+			"project": "vscode-preferences"
 		}
 	]
 }

@@ -4,9 +4,9 @@ set -e
 # setup nvm
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	export NVM_DIR=~/.nvm
-	source $(brew --prefix nvm)/nvm.sh
+	source $(brew --prefix nvm)/nvm.sh --no-use
 else
-	source $NVM_DIR/nvm.sh
+	source $NVM_DIR/nvm.sh --no-use
 fi
 
 # install node

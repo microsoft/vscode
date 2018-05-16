@@ -16,6 +16,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 
 export class FileWatcher {
 	private static readonly MAX_RESTARTS = 5;
@@ -58,7 +59,7 @@ export class FileWatcher {
 		const channel = getNextTickChannel(client.getChannel<IWatcherChannel>('watcher'));
 		this.service = new WatcherChannelClient(channel);
 		this.service.initialize(this.verboseLogging).then(null, err => {
-			if (!this.isDisposed && !(err instanceof Error && err.name === 'Canceled' && err.message === 'Canceled')) {
+			if (!this.isDisposed && !isPromiseCanceledError(err)) {
 				return TPromise.wrapError(err); // the service lib uses the promise cancel error to indicate the process died, we do not want to bubble this up
 			}
 			return void 0;

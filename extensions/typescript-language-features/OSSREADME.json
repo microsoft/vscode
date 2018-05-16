@@ -1,0 +1,7 @@
+[{
+	"name": "TypeScript-TmLanguage",
+	"version": "0.1.8",
+	"license": "MIT",
+	"repositoryURL": "https://github.com/Microsoft/TypeScript-TmLanguage",
+	"description": "The files syntaxes/TypeScript.tmLanguage.json and syntaxes/TypeScriptReact.tmLanguage.json were derived from TypeScript.tmLanguage and TypeScriptReact.tmLanguage in https://github.com/Microsoft/TypeScript-TmLanguage."
+}]

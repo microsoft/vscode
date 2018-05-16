@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as Types from 'vs/base/common/types';
 import * as Objects from 'vs/base/common/objects';
 
-import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
 import * as Tasks from 'vs/workbench/parts/tasks/common/tasks';
 
@@ -22,7 +22,7 @@ const taskDefinitionSchema: IJSONSchema = {
 	properties: {
 		type: {
 			type: 'string',
-			description: nls.localize('TaskDefinition.description', 'The actual task type')
+			description: nls.localize('TaskDefinition.description', 'The actual task type. Please note that types starting with a \'$\' are reserved for internal usage.')
 		},
 		required: {
 			type: 'array',
@@ -105,7 +105,7 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 				}
 				resolve(undefined);
 			});
-		});
+		}, () => { });
 	}
 
 	public onReady(): TPromise<void> {

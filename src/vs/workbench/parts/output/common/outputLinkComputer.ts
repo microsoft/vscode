@@ -8,9 +8,9 @@ import { IMirrorModel, IWorkerContext } from 'vs/editor/common/services/editorSi
 import { ILink } from 'vs/editor/common/modes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import paths = require('vs/base/common/paths');
-import strings = require('vs/base/common/strings');
-import arrays = require('vs/base/common/arrays');
+import * as paths from 'vs/base/common/paths';
+import * as strings from 'vs/base/common/strings';
+import * as arrays from 'vs/base/common/arrays';
 import { Range } from 'vs/editor/common/core/range';
 
 export interface ICreateData {
@@ -23,11 +23,11 @@ export interface IResourceCreator {
 
 export class OutputLinkComputer {
 	private ctx: IWorkerContext;
-	private patterns: Map<string /* folder fsPath */, RegExp[]>;
+	private patterns: Map<URI /* folder uri */, RegExp[]>;
 
 	constructor(ctx: IWorkerContext, createData: ICreateData) {
 		this.ctx = ctx;
-		this.patterns = new Map<string, RegExp[]>();
+		this.patterns = new Map<URI, RegExp[]>();
 
 		this.computePatterns(createData);
 	}
@@ -40,7 +40,7 @@ export class OutputLinkComputer {
 		const workspaceFolders = createData.workspaceFolders.map(r => URI.parse(r));
 		workspaceFolders.forEach(workspaceFolder => {
 			const patterns = OutputLinkComputer.createPatterns(workspaceFolder);
-			this.patterns.set(workspaceFolder.fsPath, patterns);
+			this.patterns.set(workspaceFolder, patterns);
 		});
 	}
 
@@ -66,11 +66,11 @@ export class OutputLinkComputer {
 		const lines = model.getValue().split(/\r\n|\r|\n/);
 
 		// For each workspace root patterns
-		this.patterns.forEach((folderPatterns, folderPath) => {
+		this.patterns.forEach((folderPatterns, folderUri) => {
 			const resourceCreator: IResourceCreator = {
 				toResource: (folderRelativePath: string): URI => {
 					if (typeof folderRelativePath === 'string') {
-						return URI.file(paths.join(folderPath, folderRelativePath));
+						return folderUri.with({ path: paths.join(folderUri.path, folderRelativePath) });
 					}
 
 					return null;
@@ -88,29 +88,35 @@ export class OutputLinkComputer {
 	public static createPatterns(workspaceFolder: URI): RegExp[] {
 		const patterns: RegExp[] = [];
 
+		const workspaceFolderPath = workspaceFolder.scheme === 'file' ? workspaceFolder.fsPath : workspaceFolder.path;
 		const workspaceFolderVariants = arrays.distinct([
-			paths.normalize(workspaceFolder.fsPath, true),
-			paths.normalize(workspaceFolder.fsPath, false)
+			paths.normalize(workspaceFolderPath, true),
+			paths.normalize(workspaceFolderPath, false)
 		]);
 
 		workspaceFolderVariants.forEach(workspaceFolderVariant => {
+			const validPathCharacterPattern = '[^\\s\\(\\):<>"]';
+			const validPathCharacterOrSpacePattern = `(?:${validPathCharacterPattern}| ${validPathCharacterPattern})`;
+			const pathPattern = `${validPathCharacterOrSpacePattern}+\\.${validPathCharacterPattern}+`;
+			const strictPathPattern = `${validPathCharacterPattern}+`;
 
 			// Example: /workspaces/express/server.js on line 8, column 13
-			patterns.push(new RegExp(strings.escapeRegExpCharacters(workspaceFolderVariant) + '(\\S*) on line ((\\d+)(, column (\\d+))?)', 'gi'));
+			patterns.push(new RegExp(strings.escapeRegExpCharacters(workspaceFolderVariant) + `(${pathPattern}) on line ((\\d+)(, column (\\d+))?)`, 'gi'));
 
 			// Example: /workspaces/express/server.js:line 8, column 13
-			patterns.push(new RegExp(strings.escapeRegExpCharacters(workspaceFolderVariant) + '(\\S*):line ((\\d+)(, column (\\d+))?)', 'gi'));
+			patterns.push(new RegExp(strings.escapeRegExpCharacters(workspaceFolderVariant) + `(${pathPattern}):line ((\\d+)(, column (\\d+))?)`, 'gi'));
 
 			// Example: /workspaces/mankala/Features.ts(45): error
 			// Example: /workspaces/mankala/Features.ts (45): error
 			// Example: /workspaces/mankala/Features.ts(45,18): error
 			// Example: /workspaces/mankala/Features.ts (45,18): error
-			patterns.push(new RegExp(strings.escapeRegExpCharacters(workspaceFolderVariant) + '([^\\s\\(\\)]*)(\\s?\\((\\d+)(,(\\d+))?)\\)', 'gi'));
+			// Example: /workspaces/mankala/Features Special.ts (45,18): error
+			patterns.push(new RegExp(strings.escapeRegExpCharacters(workspaceFolderVariant) + `(${pathPattern})(\\s?\\((\\d+)(,(\\d+))?)\\)`, 'gi'));
 
 			// Example: at /workspaces/mankala/Game.ts
 			// Example: at /workspaces/mankala/Game.ts:336
 			// Example: at /workspaces/mankala/Game.ts:336:9
-			patterns.push(new RegExp(strings.escapeRegExpCharacters(workspaceFolderVariant) + '([^:\\s\\(\\)<>\'\"\\[\\]]*)(:(\\d+))?(:(\\d+))?', 'gi'));
+			patterns.push(new RegExp(strings.escapeRegExpCharacters(workspaceFolderVariant) + `(${strictPathPattern})(:(\\d+))?(:(\\d+))?`, 'gi'));
 		});
 
 		return patterns;

@@ -3,17 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import * as DOM from 'vs/base/browser/dom';
-import { $, Dimension, Builder } from 'vs/base/browser/builder';
 import { Scope } from 'vs/workbench/common/memento';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
-import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { firstIndex } from 'vs/base/common/arrays';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ViewsRegistry, ViewLocation, IViewDescriptor, IViewsViewlet } from 'vs/workbench/common/views';
@@ -25,12 +23,15 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IContextKeyService, IContextKeyChangeEvent } from 'vs/platform/contextkey/common/contextkey';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { PanelViewlet, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
-import { IPanelOptions } from 'vs/base/browser/ui/splitview/panelview';
+import { IPanelOptions, DefaultPanelDndController } from 'vs/base/browser/ui/splitview/panelview';
 import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { localize } from 'vs/nls';
+import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 
 export interface IViewOptions extends IPanelOptions {
 	id: string;
@@ -48,9 +49,10 @@ export abstract class ViewsViewletPanel extends ViewletPanel {
 	constructor(
 		options: IViewOptions,
 		protected keybindingService: IKeybindingService,
-		protected contextMenuService: IContextMenuService
+		protected contextMenuService: IContextMenuService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(options.name, options, keybindingService, contextMenuService);
+		super(options.name, options, keybindingService, contextMenuService, configurationService);
 
 		this.id = options.id;
 		this.name = options.name;
@@ -135,9 +137,9 @@ export abstract class TreeViewsViewletPanel extends ViewsViewletPanel {
 		}
 
 		if (isVisible) {
-			$(tree.getHTMLElement()).show();
+			DOM.show(tree.getHTMLElement());
 		} else {
-			$(tree.getHTMLElement()).hide(); // make sure the tree goes out of the tabindex world by hiding it
+			DOM.hide(tree.getHTMLElement()); // make sure the tree goes out of the tabindex world by hiding it
 		}
 
 		if (isVisible) {
@@ -159,7 +161,7 @@ export abstract class TreeViewsViewletPanel extends ViewsViewletPanel {
 		}
 
 		// Pass Focus to Viewer
-		this.tree.DOMFocus();
+		this.tree.domFocus();
 	}
 
 	dispose(): void {
@@ -188,17 +190,18 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 	private readonly viewsContextKeys: Set<string> = new Set<string>();
 	private viewsViewletPanels: ViewsViewletPanel[] = [];
 	private didLayout = false;
-	private dimension: Dimension;
+	private dimension: DOM.Dimension;
 	protected viewsStates: Map<string, IViewState> = new Map<string, IViewState>();
 	private areExtensionsReady: boolean = false;
 
-	private _onDidChangeViewVisibilityState: Emitter<string> = new Emitter<string>();
+	private readonly _onDidChangeViewVisibilityState: Emitter<string> = new Emitter<string>();
 	readonly onDidChangeViewVisibilityState: Event<string> = this._onDidChangeViewVisibilityState.event;
 
 	constructor(
 		id: string,
 		private location: ViewLocation,
 		private showHeaderInTitleWhenSingleView: boolean,
+		@IPartService partService: IPartService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService protected storageService: IStorageService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
@@ -207,12 +210,12 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IExtensionService protected extensionService: IExtensionService
 	) {
-		super(id, { showHeaderInTitleWhenSingleView, dnd: true }, telemetryService, themeService);
+		super(id, { showHeaderInTitleWhenSingleView, dnd: new DefaultPanelDndController() }, partService, contextMenuService, telemetryService, themeService);
 
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 	}
 
-	async create(parent: Builder): TPromise<void> {
+	async create(parent: HTMLElement): TPromise<void> {
 		await super.create(parent);
 
 		this._register(this.onDidSashChange(() => this.snapshotViewsStates()));
@@ -231,15 +234,23 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 	}
 
 	getContextMenuActions(): IAction[] {
-		return this.getViewDescriptorsFromRegistry(true)
-			.filter(viewDescriptor => viewDescriptor.canToggleVisibility && this.contextKeyService.contextMatchesRules(viewDescriptor.when))
+		const result: IAction[] = [];
+		const viewToggleActions = this.getViewDescriptorsFromRegistry()
+			.filter(viewDescriptor => this.contextKeyService.contextMatchesRules(viewDescriptor.when))
 			.map(viewDescriptor => (<IAction>{
 				id: `${viewDescriptor.id}.toggleVisibility`,
 				label: viewDescriptor.name,
 				checked: this.isCurrentlyVisible(viewDescriptor),
-				enabled: true,
+				enabled: viewDescriptor.canToggleVisibility,
 				run: () => this.toggleViewVisibility(viewDescriptor.id)
 			}));
+		result.push(...viewToggleActions);
+		const parentActions = super.getContextMenuActions();
+		if (viewToggleActions.length && parentActions.length) {
+			result.push(new Separator());
+		}
+		result.push(...parentActions);
+		return result;
 	}
 
 	setVisible(visible: boolean): TPromise<void> {
@@ -249,18 +260,23 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 			.then(() => void 0);
 	}
 
-	openView(id: string): void {
-		this.focus();
+	openView(id: string, focus?: boolean): TPromise<void> {
+		if (focus) {
+			this.focus();
+		}
 		const view = this.getView(id);
 		if (view) {
 			view.setExpanded(true);
-			view.focus();
+			if (focus) {
+				view.focus();
+			}
+			return TPromise.as(null);
 		} else {
-			this.toggleViewVisibility(id);
+			return this.toggleViewVisibility(id, focus);
 		}
 	}
 
-	layout(dimension: Dimension): void {
+	layout(dimension: DOM.Dimension): void {
 		super.layout(dimension);
 		this.dimension = dimension;
 		if (this.didLayout) {
@@ -283,19 +299,33 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 		super.shutdown();
 	}
 
-	toggleViewVisibility(id: string): void {
-		let viewState = this.viewsStates.get(id);
-		if (!viewState) {
-			return;
+	private toggleViewVisibility(id: string, focus?: boolean): TPromise<void> {
+		const viewDescriptor = this.getViewDescriptorsFromRegistry().filter(v => v.id === id)[0];
+		const viewState = this.viewsStates.get(id);
+
+		if (!viewDescriptor || !viewState) {
+			return TPromise.as(null);
 		}
 
-		viewState.isHidden = !!this.getView(id);
-		this.updateViews()
+		if (!viewDescriptor.canToggleVisibility) {
+			return TPromise.wrapError(new Error(localize('cannot toggle', "Visibility cannot be toggled for this view {0}", id)));
+		}
+
+		if (viewState.isHidden && !this.contextKeyService.contextMatchesRules(viewDescriptor.when)) {
+			return TPromise.wrapError(new Error(localize('cannot show', "This view {0} cannot be shown because it is hidden by its 'when' condition", id)));
+		}
+
+		viewState.isHidden = !viewState.isHidden;
+		return this.updateViews()
 			.then(() => {
 				this._onDidChangeViewVisibilityState.fire(id);
-				if (!viewState.isHidden) {
-					this.openView(id);
-				} else {
+				const view = this.getView(id);
+				if (view) {
+					view.setExpanded(true);
+					if (focus) {
+						view.focus();
+					}
+				} else if (focus) {
 					this.focus();
 				}
 			});
@@ -309,6 +339,13 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 					this.viewsContextKeys.add(key);
 				}
 			}
+
+			// Update view state
+			const viewState = this.viewsStates.get(viewDescriptor.id) || { collapsed: void 0, isHidden: void 0, order: void 0, size: void 0 };
+			viewState.collapsed = isUndefined(viewState.collapsed) ? viewDescriptor.collapsed : viewState.collapsed;
+			viewState.isHidden = isUndefined(viewState.isHidden) ? !!viewDescriptor.hideByDefault : viewState.isHidden;
+			viewState.order = isUndefined(viewState.order) ? viewDescriptor.order : viewState.order;
+			this.viewsStates.set(viewDescriptor.id, viewState);
 		}
 
 		this.updateViews();
@@ -355,17 +392,19 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 			this.snapshotViewsStates();
 
 			if (toRemove.length) {
-				for (const viewDescriptor of toRemove) {
-					let view = this.getView(viewDescriptor.id);
-					this.removePanel(view);
-					this.viewsViewletPanels.splice(this.viewsViewletPanels.indexOf(view), 1);
+				const panelsToRemove: ViewsViewletPanel[] = toRemove.map(viewDescriptor => this.getView(viewDescriptor.id));
+				this.removePanels(panelsToRemove);
+				for (const panel of panelsToRemove) {
+					this.viewsViewletPanels.splice(this.viewsViewletPanels.indexOf(panel), 1);
+					panel.dispose();
 				}
 			}
 
+			const panelsToAdd: { panel: ViewsViewletPanel, size: number, index: number }[] = [];
 			for (const viewDescriptor of toAdd) {
 				let viewState = this.viewsStates.get(viewDescriptor.id);
 				let index = visible.indexOf(viewDescriptor);
-				const view = this.createView(viewDescriptor,
+				const panel = this.createView(viewDescriptor,
 					{
 						id: viewDescriptor.id,
 						name: viewDescriptor.name,
@@ -373,11 +412,17 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 						expanded: !(viewState ? viewState.collapsed : viewDescriptor.collapsed),
 						viewletSettings: this.viewletSettings
 					});
-				toCreate.push(view);
+				panel.render();
+				toCreate.push(panel);
 
 				const size = (viewState && viewState.size) || 200;
-				this.addPanel(view, size, index);
-				this.viewsViewletPanels.splice(index, 0, view);
+				panelsToAdd.push({ panel, size, index });
+			}
+
+			this.addPanels(panelsToAdd);
+
+			for (const { panel, index } of panelsToAdd) {
+				this.viewsViewletPanels.splice(index, 0, panel);
 			}
 
 			return TPromise.join(toCreate.map(view => view.create()))
@@ -462,11 +507,16 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 	}
 
 	private canBeVisible(viewDescriptor: IViewDescriptor): boolean {
-		const viewstate = this.viewsStates.get(viewDescriptor.id);
-		if (viewDescriptor.canToggleVisibility && viewstate && viewstate.isHidden) {
+		if (!this.contextKeyService.contextMatchesRules(viewDescriptor.when)) {
 			return false;
 		}
-		return this.contextKeyService.contextMatchesRules(viewDescriptor.when);
+
+		const viewstate = this.viewsStates.get(viewDescriptor.id);
+		if (viewstate && viewDescriptor.canToggleVisibility) {
+			return !viewstate.isHidden;
+		}
+
+		return true;
 	}
 
 	private onViewsUpdated(): TPromise<void> {
@@ -479,9 +529,7 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 				this.viewHeaderContextMenuListeners.push(DOM.addDisposableListener(view.draggableElement, DOM.EventType.CONTEXT_MENU, e => {
 					e.stopPropagation();
 					e.preventDefault();
-					if (viewDescriptor.canToggleVisibility) {
-						this.onContextMenu(new StandardMouseEvent(e), view);
-					}
+					this.onContextMenu(new StandardMouseEvent(e), viewDescriptor);
 				}));
 			}
 		}
@@ -496,19 +544,26 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 		}
 	}
 
-	private onContextMenu(event: StandardMouseEvent, view: ViewsViewletPanel): void {
+	private onContextMenu(event: StandardMouseEvent, viewDescriptor: IViewDescriptor): void {
 		event.stopPropagation();
 		event.preventDefault();
+
+		const actions: IAction[] = [];
+		actions.push(<IAction>{
+			id: `${viewDescriptor.id}.removeView`,
+			label: localize('hideView', "Hide"),
+			enabled: viewDescriptor.canToggleVisibility,
+			run: () => this.toggleViewVisibility(viewDescriptor.id)
+		});
+		const otherActions = this.getContextMenuActions();
+		if (otherActions.length) {
+			actions.push(...[new Separator(), ...otherActions]);
+		}
 
 		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => TPromise.as([<IAction>{
-				id: `${view.id}.removeView`,
-				label: nls.localize('hideView', "Hide"),
-				enabled: true,
-				run: () => this.toggleViewVisibility(view.id)
-			}]),
+			getActions: () => TPromise.as(actions)
 		});
 	}
 
@@ -523,36 +578,34 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 			return false;
 		}
 
-		if (ViewLocation.getContributedViewLocation(this.location.id)) {
-			let visibleViewsCount = 0;
-			if (this.areExtensionsReady) {
-				visibleViewsCount = this.getViewDescriptorsFromRegistry().reduce((visibleViewsCount, v) => visibleViewsCount + (this.canBeVisible(v) ? 1 : 0), 0);
-			} else {
+		if (ViewLocation.get(this.location.id)) {
+			if (!this.areExtensionsReady) {
+				let visibleViewsCount = 0;
 				// Check in cache so that view do not jump. See #29609
 				this.viewsStates.forEach((viewState, id) => {
 					if (!viewState.isHidden) {
 						visibleViewsCount++;
 					}
 				});
+				return visibleViewsCount === 1;
 			}
-			return visibleViewsCount === 1;
 		}
 
 		return super.isSingleView();
 	}
 
-	protected getViewDescriptorsFromRegistry(defaultOrder: boolean = false): IViewDescriptor[] {
+	protected getViewDescriptorsFromRegistry(): IViewDescriptor[] {
 		return ViewsRegistry.getViews(this.location)
 			.sort((a, b) => {
 				const viewStateA = this.viewsStates.get(a.id);
 				const viewStateB = this.viewsStates.get(b.id);
-				const orderA = !defaultOrder && viewStateA ? viewStateA.order : a.order;
-				const orderB = !defaultOrder && viewStateB ? viewStateB.order : b.order;
+				const orderA = viewStateA ? viewStateA.order : a.order;
+				const orderB = viewStateB ? viewStateB.order : b.order;
 
-				if (orderB === void 0 || orderB === null) {
+				if (isUndefinedOrNull(orderB)) {
 					return -1;
 				}
-				if (orderA === void 0 || orderA === null) {
+				if (isUndefinedOrNull(orderA)) {
 					return 1;
 				}
 
@@ -561,7 +614,7 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 	}
 
 	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewsViewletPanel {
-		return this.instantiationService.createInstance(viewDescriptor.ctor, options);
+		return this.instantiationService.createInstance(viewDescriptor.ctor, options) as ViewsViewletPanel;
 	}
 
 	protected get views(): ViewsViewletPanel[] {
@@ -581,18 +634,17 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 			}
 
 			const collapsed = !view.isExpanded();
-			const order = this.viewsViewletPanels.indexOf(view);
 			const panelSize = this.getPanelSize(view);
+			// Do not save order because views can come late.
 			if (currentState) {
 				currentState.collapsed = collapsed;
 				currentState.size = collapsed ? currentState.size : panelSize;
-				currentState.order = order;
 			} else {
 				this.viewsStates.set(view.id, {
 					collapsed,
 					size: this.didLayout ? panelSize : void 0,
 					isHidden: false,
-					order,
+					order: void 0
 				});
 			}
 		}
@@ -608,6 +660,7 @@ export class PersistentViewsViewlet extends ViewsViewlet {
 		location: ViewLocation,
 		private readonly viewletStateStorageId: string,
 		showHeaderInTitleWhenSingleView: boolean,
+		@IPartService partService: IPartService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -617,12 +670,12 @@ export class PersistentViewsViewlet extends ViewsViewlet {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(id, location, showHeaderInTitleWhenSingleView, telemetryService, storageService, instantiationService, themeService, contextKeyService, contextMenuService, extensionService);
+		super(id, location, showHeaderInTitleWhenSingleView, partService, telemetryService, storageService, instantiationService, themeService, contextKeyService, contextMenuService, extensionService);
 		this.hiddenViewsStorageId = `${this.viewletStateStorageId}.hidden`;
-		this._register(this.onDidChangeViewVisibilityState(id => this.onViewVisibilityChanged(id)));
+		this._register(this.onDidChangeViewVisibilityState(id => this.saveViewsStates()));
 	}
 
-	create(parent: Builder): TPromise<void> {
+	create(parent: HTMLElement): TPromise<void> {
 		this.loadViewsStates();
 		return super.create(parent);
 	}
@@ -632,53 +685,52 @@ export class PersistentViewsViewlet extends ViewsViewlet {
 		super.shutdown();
 	}
 
-	protected saveViewsStates(): void {
-		const viewsStates = {};
-		const registeredViewDescriptors = this.getViewDescriptorsFromRegistry();
-		this.viewsStates.forEach((viewState, id) => {
-			const view = this.getView(id);
-
-			if (view) {
-				viewsStates[id] = {
-					collapsed: !view.isExpanded(),
-					size: this.getPanelSize(view),
-					isHidden: false,
-					order: viewState.order
-				};
-			} else {
-				const viewDescriptor = registeredViewDescriptors.filter(v => v.id === id)[0];
-				if (viewDescriptor) {
-					viewsStates[id] = viewState;
+	private saveViewsStates(): void {
+		const storedViewsStates: { [id: string]: { collapsed: boolean, size: number, order: number } } = {};
+		const storedViewsVisibilityStates: { id: string, isHidden: boolean }[] = [];
+		for (const viewDescriptor of this.getViewDescriptorsFromRegistry()) {
+			const viewState = this.viewsStates.get(viewDescriptor.id);
+			if (viewState) {
+				const view = this.getView(viewDescriptor.id);
+				storedViewsVisibilityStates.push({ id: viewDescriptor.id, isHidden: viewState ? viewState.isHidden : void 0 });
+				if (view) {
+					storedViewsStates[viewDescriptor.id] = {
+						collapsed: !view.isExpanded(),
+						size: this.getPanelSize(view),
+						order: viewState.order
+					};
+				} else {
+					storedViewsStates[viewDescriptor.id] = { collapsed: viewState.collapsed, size: viewState.size, order: viewState.order };
 				}
 			}
-		});
-
-		this.storageService.store(this.viewletStateStorageId, JSON.stringify(viewsStates), this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL);
+		}
+		this.storageService.store(this.viewletStateStorageId, JSON.stringify(storedViewsStates), this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL);
+		this.storageService.store(this.hiddenViewsStorageId, JSON.stringify(storedViewsVisibilityStates), StorageScope.GLOBAL);
 	}
 
 	protected loadViewsStates(): void {
 		const viewsStates = JSON.parse(this.storageService.get(this.viewletStateStorageId, this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL, '{}'));
-		const hiddenViews = this.loadHiddenViews();
-		Object.keys(viewsStates).forEach(id => this.viewsStates.set(id, <IViewState>{ ...viewsStates[id], ...{ isHidden: hiddenViews.indexOf(id) !== -1 } }));
-	}
-
-	private onViewVisibilityChanged(id: string) {
-		const hiddenViews = this.loadHiddenViews();
-		const index = hiddenViews.indexOf(id);
-		if (this.getView(id) && index !== -1) {
-			hiddenViews.splice(index, 1);
-		} else if (index === -1) {
-			hiddenViews.push(id);
+		const viewsVisibilityStates = this.loadViewsVisibilityStates();
+		for (const { id, isHidden } of viewsVisibilityStates) {
+			const viewState = viewsStates[id];
+			// View state should exist always. Add a check if in case does not exist.
+			if (viewState) {
+				this.viewsStates.set(id, <IViewState>{ ...viewState, ...{ isHidden } });
+			}
 		}
-		this.storeHiddenViews(hiddenViews);
+
+		// Migration: Update those not existing in visibility states
+		for (const id of Object.keys(viewsStates)) {
+			if (!this.viewsStates.has(id)) {
+				this.viewsStates.set(id, <IViewState>{ ...viewsStates[id], ...{ isHidden: false } });
+			}
+		}
 	}
 
-	private storeHiddenViews(hiddenViews: string[]): void {
-		this.storageService.store(this.hiddenViewsStorageId, JSON.stringify(hiddenViews), StorageScope.GLOBAL);
-	}
-
-	private loadHiddenViews(): string[] {
-		return JSON.parse(this.storageService.get(this.hiddenViewsStorageId, StorageScope.GLOBAL, '[]'));
+	private loadViewsVisibilityStates(): { id: string, isHidden: boolean }[] {
+		const storedStates = <Array<string | { id: string, isHidden: boolean }>>JSON.parse(this.storageService.get(this.hiddenViewsStorageId, StorageScope.GLOBAL, '[]'));
+		return <{ id: string, isHidden: boolean }[]>storedStates.map(c =>
+			typeof c === 'string' /* migration */ ? { id: c, isHidden: true } : c);
 	}
 }
 

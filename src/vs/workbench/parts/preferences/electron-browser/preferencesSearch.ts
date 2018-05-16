@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ISettingsEditorModel, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration, IFilterMetadata, IPreferencesSearchService, ISearchResult, ISearchProvider, IGroupFilter, ISettingMatcher, IScoredResults, ISettingMatch, IRemoteSetting, IExtensionSetting } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsEditorModel, ISetting, ISettingsGroup, IFilterMetadata, ISearchResult, IGroupFilter, ISettingMatcher, IScoredResults, ISettingMatch, IRemoteSetting, IExtensionSetting } from 'vs/workbench/services/preferences/common/preferences';
 import { IRange } from 'vs/editor/common/core/range';
 import { distinct, top } from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
@@ -20,6 +20,7 @@ import { asJson } from 'vs/base/node/request';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IExtensionManagementService, LocalExtensionType, ILocalExtension, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IPreferencesSearchService, ISearchProvider, IWorkbenchSettingsConfiguration } from 'vs/workbench/parts/preferences/common/preferences';
 
 export interface IEndpointDetails {
 	urlBase: string;
@@ -42,8 +43,11 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 
 		// This request goes to the shared process but results won't change during a window's lifetime, so cache the results.
 		this._installedExtensions = this.extensionManagementService.getInstalled(LocalExtensionType.User).then(exts => {
-			// Filter to enabled extensions
-			return exts.filter(ext => this.extensionEnablementService.isEnabled(ext.identifier));
+			// Filter to enabled extensions that have settings
+			return exts
+				.filter(ext => this.extensionEnablementService.isEnabled(ext))
+				.filter(ext => ext.manifest && ext.manifest.contributes && ext.manifest.contributes.configuration)
+				.filter(ext => !!ext.identifier.uuid);
 		});
 	}
 
@@ -86,10 +90,13 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 }
 
 export class LocalSearchProvider implements ISearchProvider {
-	private _filter: string;
-
-	constructor(filter: string) {
-		this._filter = filter;
+	constructor(private _filter: string) {
+		// Remove " and : which are likely to be copypasted as part of a setting name.
+		// Leave other special characters which the user might want to search for.
+		this._filter = this._filter
+			.replace(/[":]/g, ' ')
+			.replace(/  /g, ' ')
+			.trim();
 	}
 
 	searchModel(preferencesModel: ISettingsEditorModel): TPromise<ISearchResult> {
@@ -132,6 +139,7 @@ interface IBingRequestDetails {
 	url: string;
 	body?: string;
 	hasMoreFilters?: boolean;
+	extensions?: ILocalExtension[];
 }
 
 class RemoteSearchProvider implements ISearchProvider {
@@ -280,7 +288,8 @@ class RemoteSearchProvider implements ISearchProvider {
 				duration,
 				timestamp,
 				scoredResults,
-				context: result['@odata.context']
+				context: result['@odata.context'],
+				extensions: details.extensions
 			};
 		});
 	}
@@ -315,9 +324,10 @@ class RemoteSearchProvider implements ISearchProvider {
 			url += `${API_VERSION}&${QUERY_TYPE}`;
 		}
 
+		const extensions = await this.installedExtensions;
 		const filters = this.options.newExtensionsOnly ?
 			[`diminish eq 'latest'`] :
-			await this.getVersionFilters(this.environmentService.settingsSearchBuildId);
+			this.getVersionFilters(extensions, this.environmentService.settingsSearchBuildId);
 
 		const filterStr = filters
 			.slice(filterPage * RemoteSearchProvider.MAX_REQUEST_FILTERS, (filterPage + 1) * RemoteSearchProvider.MAX_REQUEST_FILTERS)
@@ -333,23 +343,22 @@ class RemoteSearchProvider implements ISearchProvider {
 		return {
 			url,
 			body,
-			hasMoreFilters
+			hasMoreFilters,
+			extensions
 		};
 	}
 
-	private getVersionFilters(buildNumber?: number): TPromise<string[]> {
-		return this.installedExtensions.then(exts => {
-			// Only search extensions that contribute settings
-			const filters = exts
-				.filter(ext => ext.manifest.contributes && ext.manifest.contributes.configuration)
-				.map(ext => this.getExtensionFilter(ext));
+	private getVersionFilters(exts: ILocalExtension[], buildNumber?: number): string[] {
+		// Only search extensions that contribute settings
+		const filters = exts
+			.filter(ext => ext.manifest.contributes && ext.manifest.contributes.configuration)
+			.map(ext => this.getExtensionFilter(ext));
 
-			if (buildNumber) {
-				filters.push(`(packageid eq 'core' and startbuildno le '${buildNumber}' and endbuildno ge '${buildNumber}')`);
-			}
+		if (buildNumber) {
+			filters.push(`(packageid eq 'core' and startbuildno le '${buildNumber}' and endbuildno ge '${buildNumber}')`);
+		}
 
-			return filters;
-		});
+		return filters;
 	}
 
 	private getExtensionFilter(ext: ILocalExtension): string {

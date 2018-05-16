@@ -61,7 +61,7 @@ suite('Folding Model', () => {
 
 	function assertFoldedRanges(foldingModel: FoldingModel, expectedRegions: ExpectedRegion[], message?: string) {
 		let actualRanges = [];
-		let actual = foldingModel.ranges;
+		let actual = foldingModel.regions;
 		for (let i = 0; i < actual.length; i++) {
 			if (actual.isCollapsed(i)) {
 				actualRanges.push(r(actual.getStartLineNumber(i), actual.getEndLineNumber(i)));
@@ -72,7 +72,7 @@ suite('Folding Model', () => {
 
 	function assertRanges(foldingModel: FoldingModel, expectedRegions: ExpectedRegion[], message?: string) {
 		let actualRanges = [];
-		let actual = foldingModel.ranges;
+		let actual = foldingModel.regions;
 		for (let i = 0; i < actual.length; i++) {
 			actualRanges.push(r(actual.getStartLineNumber(i), actual.getEndLineNumber(i), actual.isCollapsed(i)));
 		}

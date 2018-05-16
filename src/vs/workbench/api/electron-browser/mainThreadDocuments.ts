@@ -6,7 +6,7 @@
 
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService, shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
 import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { TextFileModelChangeEvent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -18,6 +18,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
 import { ITextEditorModel } from 'vs/workbench/common/editor';
 import { ITextModel } from 'vs/editor/common/model';
+import { Schemas } from 'vs/base/common/network';
 
 export class BoundModelReferenceCollection {
 
@@ -131,12 +132,12 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 
 	private _shouldHandleFileEvent(e: TextFileModelChangeEvent): boolean {
 		const model = this._modelService.getModel(e.resource);
-		return model && !model.isTooLargeForHavingARichMode();
+		return model && shouldSynchronizeModel(model);
 	}
 
 	private _onModelAdded(model: ITextModel): void {
 		// Same filter as in mainThreadEditorsTracker
-		if (model.isTooLargeForHavingARichMode()) {
+		if (!shouldSynchronizeModel(model)) {
 			// don't synchronize too large models
 			return null;
 		}
@@ -180,10 +181,10 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 
 		let promise: TPromise<boolean>;
 		switch (uri.scheme) {
-			case 'untitled':
+			case Schemas.untitled:
 				promise = this._handleUnititledScheme(uri);
 				break;
-			case 'file':
+			case Schemas.file:
 			default:
 				promise = this._handleAsResourceInput(uri);
 				break;
@@ -192,8 +193,11 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		return promise.then(success => {
 			if (!success) {
 				return TPromise.wrapError(new Error('cannot open ' + uri.toString()));
+			} else if (!this._modelIsSynced[uri.toString()]) {
+				return TPromise.wrapError(new Error('cannot open ' + uri.toString() + '. Detail: Files above 50MB cannot be synchronized with extensions.'));
+			} else {
+				return undefined;
 			}
-			return undefined;
 		}, err => {
 			return TPromise.wrapError(new Error('cannot open ' + uri.toString() + '. Detail: ' + toErrorMessage(err)));
 		});
@@ -212,15 +216,22 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 	}
 
 	private _handleUnititledScheme(uri: URI): TPromise<boolean> {
-		let asFileUri = uri.with({ scheme: 'file' });
+		let asFileUri = uri.with({ scheme: Schemas.file });
 		return this._fileService.resolveFile(asFileUri).then(stats => {
 			// don't create a new file ontop of an existing file
 			return TPromise.wrapError<boolean>(new Error('file already exists on disk'));
-		}, err => this._doCreateUntitled(asFileUri).then(resource => !!resource));
+		}, err => {
+			return this._doCreateUntitled(uri).then(resource => !!resource);
+		});
 	}
 
 	private _doCreateUntitled(resource?: URI, modeId?: string, initialValue?: string): TPromise<URI> {
-		return this._untitledEditorService.loadOrCreate({ resource, modeId, initialValue }).then(model => {
+		return this._untitledEditorService.loadOrCreate({
+			resource,
+			modeId,
+			initialValue,
+			useResourcePath: Boolean(resource && resource.path)
+		}).then(model => {
 			const resource = model.getResource();
 
 			if (!this._modelIsSynced[resource.toString()]) {

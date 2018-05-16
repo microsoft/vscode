@@ -10,6 +10,5 @@
 	"installVSIX": "Installa da VSIX...",
 	"installFromVSIX": "Installare da VSIX",
 	"installButton": "&&Installa",
-	"InstallVSIXAction.success": "L'estensione è stata installata. Riavviare per abilitarla.",
 	"InstallVSIXAction.reloadNow": "Ricarica ora"
 }

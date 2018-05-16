@@ -82,10 +82,10 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 
 	constructor(
 		editor: ICodeEditor,
-		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@IKeybindingService private _keybindingService: IKeybindingService,
-		@IConfigurationService private _configurationService: IConfigurationService,
-		@IOpenerService private _openerService: IOpenerService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IOpenerService private readonly _openerService: IOpenerService
 	) {
 		super();
 

@@ -50,7 +50,9 @@ export class OneSnippet {
 
 	dispose(): void {
 		if (this._placeholderDecorations) {
-			this._editor.changeDecorations(accessor => this._placeholderDecorations.forEach(handle => accessor.removeDecoration(handle)));
+			let toRemove: string[] = [];
+			this._placeholderDecorations.forEach(handle => toRemove.push(handle));
+			this._editor.deltaDecorations(toRemove, []);
 		}
 		this._placeholderGroups.length = 0;
 	}
@@ -224,6 +226,20 @@ export class OneSnippet {
 			this._placeholderGroups = groupBy(this._snippet.placeholders, Placeholder.compareByIndex);
 		});
 	}
+
+	public getEnclosingRange(): Range {
+		let result: Range;
+		const model = this._editor.getModel();
+		this._placeholderDecorations.forEach((decorationId) => {
+			const placeholderRange = model.getDecorationRange(decorationId);
+			if (!result) {
+				result = placeholderRange;
+			} else {
+				result = result.plusRange(placeholderRange);
+			}
+		});
+		return result;
+	}
 }
 
 export class SnippetSession {
@@ -365,13 +381,15 @@ export class SnippetSession {
 		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, this._template, this._overwriteBefore, this._overwriteAfter, false);
 		this._snippets = snippets;
 
-		this._editor.setSelections(model.pushEditOperations(this._editor.getSelections(), edits, undoEdits => {
+		const selections = model.pushEditOperations(this._editor.getSelections(), edits, undoEdits => {
 			if (this._snippets[0].hasPlaceholder) {
 				return this._move(true);
 			} else {
 				return undoEdits.map(edit => Selection.fromPositions(edit.range.getEndPosition()));
 			}
-		}));
+		});
+		this._editor.setSelections(selections);
+		this._editor.revealRange(selections[0]);
 	}
 
 	merge(template: string, overwriteBefore: number = 0, overwriteAfter: number = 0): void {
@@ -505,5 +523,18 @@ export class SnippetSession {
 		// that don't match with the current selection. if we don't
 		// have any left, we don't have a selection anymore
 		return allPossibleSelections.size > 0;
+	}
+
+	public getEnclosingRange(): Range {
+		let result: Range;
+		for (const snippet of this._snippets) {
+			const snippetRange = snippet.getEnclosingRange();
+			if (!result) {
+				result = snippetRange;
+			} else {
+				result = result.plusRange(snippetRange);
+			}
+		}
+		return result;
 	}
 }

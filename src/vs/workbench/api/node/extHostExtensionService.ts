@@ -10,7 +10,7 @@ import { mkdirp, dirExists, realpath, writeFile } from 'vs/base/node/pfs';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
 import { createApiFactory, initializeExtensionApi, checkProposedApiEnabled } from 'vs/workbench/api/node/extHost.api.impl';
 import { MainContext, MainThreadExtensionServiceShape, IWorkspaceData, IEnvironment, IInitData, ExtHostExtensionServiceShape, MainThreadTelemetryShape, IExtHostContext } from './extHost.protocol';
@@ -20,7 +20,6 @@ import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { Barrier } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import URI from 'vs/base/common/uri';
 
@@ -140,8 +139,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		extHostContext: IExtHostContext,
 		extHostWorkspace: ExtHostWorkspace,
 		extHostConfiguration: ExtHostConfiguration,
-		extHostLogService: ExtHostLogService,
-		environmentService: IEnvironmentService
+		extHostLogService: ExtHostLogService
 	) {
 		this._barrier = new Barrier();
 		this._registry = new ExtensionDescriptionRegistry(initData.extensions);
@@ -210,6 +208,17 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		}
 	}
 
+	public activateByIdWithErrors(extensionId: string, reason: ExtensionActivationReason): TPromise<void> {
+		return this.activateById(extensionId, reason).then(() => {
+			const extension = this._activator.getActivatedExtension(extensionId);
+			if (extension.activationFailed) {
+				// activation failed => bubble up the error as the promise result
+				return TPromise.wrapError(extension.activationFailedError);
+			}
+			return void 0;
+		});
+	}
+
 	public getAllExtensionDescriptions(): IExtensionDescription[] {
 		return this._registry.getAllExtensionDescriptions();
 	}
@@ -234,8 +243,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				if (!ext.main) {
 					return undefined;
 				}
-				return realpath(ext.extensionFolderPath).then(value => tree.set(value, ext));
-
+				return realpath(ext.extensionLocation.fsPath).then(value => tree.set(value, ext));
 			});
 			this._extensionPathIndex = TPromise.join(extensions).then(() => tree);
 		}
@@ -350,12 +358,16 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				globalState,
 				workspaceState,
 				subscriptions: [],
-				get extensionPath() { return extensionDescription.extensionFolderPath; },
+				get extensionPath() { return extensionDescription.extensionLocation.fsPath; },
 				storagePath: this._storagePath.value(extensionDescription),
-				asAbsolutePath: (relativePath: string) => { return join(extensionDescription.extensionFolderPath, relativePath); },
+				asAbsolutePath: (relativePath: string) => { return join(extensionDescription.extensionLocation.fsPath, relativePath); },
 				get logger() {
 					checkProposedApiEnabled(extensionDescription);
 					return that._extHostLogService.getExtLogger(extensionDescription.id);
+				},
+				get logDirectory() {
+					checkProposedApiEnabled(extensionDescription);
+					return that._extHostLogService.getLogDirectory(extensionDescription.id);
 				}
 			});
 		});
@@ -369,7 +381,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		};
 
 		return this._callActivateOptional(logService, extensionId, extensionModule, context, activationTimesBuilder).then((extensionExports) => {
-			return new ActivatedExtension(false, activationTimesBuilder.build(), extensionModule, extensionExports, context.subscriptions);
+			return new ActivatedExtension(false, null, activationTimesBuilder.build(), extensionModule, extensionExports, context.subscriptions);
 		});
 	}
 
@@ -421,7 +433,7 @@ function getTelemetryActivationEvent(extensionDescription: IExtensionDescription
 		"TelemetryActivationEvent" : {
 			"id": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 			"name": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-			"publisherDisplayName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+			"publisherDisplayName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"activationEvents": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		}

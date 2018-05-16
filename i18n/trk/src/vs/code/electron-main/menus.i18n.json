@@ -93,6 +93,7 @@
 	"miOpenView": "&&Görünümü Aç...",
 	"miToggleFullScreen": "Tam Ekra&&nı Aç/Kapat",
 	"miToggleZenMode": "Zen Modunu Aç/Kapat",
+	"miToggleCenteredLayout": "Ortalanmış Düzeni Aç/Kapat",
 	"miToggleMenuBar": "&&Menü Çubuğunu Gizle/Göster",
 	"miSplitEditor": "Düzenleyiciyi &&Böl",
 	"miToggleEditorLayout": "Dü&&zenleyici Grubu Düzenini Değiştir",
@@ -145,6 +146,7 @@
 	"miConditionalBreakpoint": "&&Koşullu Kesme Noktası...",
 	"miColumnBreakpoint": "&&Sütun Kesme Noktası",
 	"miFunctionBreakpoint": "&&Fonksiyon Kesme Noktası",
+	"miLogPoint": "&&Günlük Noktası...",
 	"miNewBreakpoint": "&&Yeni Kesme Noktası",
 	"miEnableAllBreakpoints": "Tüm Kesme Noktalarını Etkinleştir",
 	"miDisableAllBreakpoints": "&&Tüm Kesme Noktalarını Devre Dışı Bırak",
@@ -160,6 +162,7 @@
 	"mMergeAllWindows": "Tüm Pencereleri Birleştir",
 	"miToggleDevTools": "&&Geliştirici Araçlarını Aç/Kapat",
 	"miAccessibilityOptions": "&&Erişilebilirlik Seçenekleri",
+	"miOpenProcessExplorerer": "İşlem &&Yöneticisini Aç",
 	"miReportIssue": "&&Sorun Bildir",
 	"miWelcome": "&&Hoş Geldiniz",
 	"miInteractivePlayground": "&&İnteraktif Oyun Alanı",
@@ -187,8 +190,5 @@
 	"miDownloadingUpdate": "Güncelleştirme İndiriliyor...",
 	"miInstallUpdate": "Güncelleştirmeyi Yükle...",
 	"miInstallingUpdate": "Güncelleştirme Yükleniyor...",
-	"miRestartToUpdate": "Güncelleştirmek için Yeniden Başlat...",
-	"aboutDetail": "Sürüm {0}\nCommit {1}\nTarih {2}\nKabuk {3}\nRender Alan {4}\nNode {5}\nMimari {6}",
-	"okButton": "Tamam",
-	"copy": "K&&opyala"
+	"miRestartToUpdate": "Güncelleştirmek için Yeniden Başlat..."
 }

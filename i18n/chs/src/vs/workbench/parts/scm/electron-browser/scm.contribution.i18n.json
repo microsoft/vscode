@@ -12,5 +12,6 @@
 	"view": "查看",
 	"scmConfigurationTitle": "源代码管理",
 	"alwaysShowProviders": "是否总是显示源代码管理提供程序部分。",
-	"diffDecorations": "控制编辑器中差异的显示效果。"
+	"diffDecorations": "控制编辑器中差异的显示效果。",
+	"diffGutterWidth": "控制导航线上已添加和已修改差异图标的宽度 (px)。"
 }

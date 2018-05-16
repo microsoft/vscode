@@ -14,19 +14,17 @@ import { EditorInput } from 'vs/workbench/common/editor';
 import pkg from 'vs/platform/node/package';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action, IAction } from 'vs/base/common/actions';
-import { Builder, Dimension } from 'vs/base/browser/builder';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IExtensionService, IExtensionDescription, IExtensionsStatus, IExtensionHostProfile } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService, IExtensionDescription, IExtensionsStatus, IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { append, $, addClass, toggleClass } from 'vs/base/browser/dom';
+import { append, $, addClass, toggleClass, Dimension } from 'vs/base/browser/dom';
 import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { clipboard } from 'electron';
@@ -37,8 +35,9 @@ import { writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { memoize } from 'vs/base/common/decorators';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { DisableForWorkspaceAction, DisableGloballyAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 
@@ -88,7 +87,7 @@ interface IRuntimeExtension {
 
 export class RuntimeExtensionsEditor extends BaseEditor {
 
-	static ID: string = 'workbench.editor.runtimeExtensions';
+	static readonly ID: string = 'workbench.editor.runtimeExtensions';
 
 	private _list: WorkbenchList<IRuntimeExtension>;
 	private _profileInfo: IExtensionHostProfile;
@@ -102,7 +101,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		@IThemeService themeService: IThemeService,
 		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IMessageService private readonly _messageService: IMessageService,
+		@INotificationService private readonly _notificationService: INotificationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
@@ -212,10 +211,8 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		return result;
 	}
 
-	protected createEditor(parent: Builder): void {
-		const container = parent.getHTMLElement();
-
-		addClass(container, 'runtime-extensions-editor');
+	protected createEditor(parent: HTMLElement): void {
+		addClass(parent, 'runtime-extensions-editor');
 
 		const TEMPLATE_ID = 'runtimeExtensionElementTemplate';
 
@@ -267,7 +264,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				const actionbar = new ActionBar(element, {
 					animated: false
 				});
-				actionbar.onDidRun(({ error }) => error && this._messageService.show(Severity.Error, error));
+				actionbar.onDidRun(({ error }) => error && this._notificationService.error(error));
 				actionbar.push(new ReportExtensionIssueAction(), { icon: true, label: true });
 
 				const disposables = [actionbar];
@@ -299,7 +296,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				let syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
 				data.activationTime.textContent = activationTimes.startup ? `Startup Activation: ${syncTime}ms` : `Activation: ${syncTime}ms`;
 				data.actionbar.context = element;
-				toggleClass(data.actionbar.getContainer().getHTMLElement(), 'hidden', element.marketplaceInfo && element.marketplaceInfo.type === LocalExtensionType.User && (!element.description.repository || !element.description.repository.url));
+				toggleClass(data.actionbar.getContainer(), 'hidden', element.marketplaceInfo && element.marketplaceInfo.type === LocalExtensionType.User && (!element.description.repository || !element.description.repository.url));
 
 				let title: string;
 				if (activationTimes.activationEvent === '*') {
@@ -307,15 +304,30 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				} else if (/^workspaceContains:/.test(activationTimes.activationEvent)) {
 					let fileNameOrGlob = activationTimes.activationEvent.substr('workspaceContains:'.length);
 					if (fileNameOrGlob.indexOf('*') >= 0 || fileNameOrGlob.indexOf('?') >= 0) {
-						title = nls.localize('workspaceContainsGlobActivation', "Activated because a file matching {0} exists in your workspace", fileNameOrGlob);
+						title = nls.localize({
+							key: 'workspaceContainsGlobActivation',
+							comment: [
+								'{0} will be a glob pattern'
+							]
+						}, "Activated because a file matching {0} exists in your workspace", fileNameOrGlob);
 					} else {
-						title = nls.localize('workspaceContainsFileActivation', "Activated because file {0} exists in your workspace", fileNameOrGlob);
+						title = nls.localize({
+							key: 'workspaceContainsFileActivation',
+							comment: [
+								'{0} will be a file name'
+							]
+						}, "Activated because file {0} exists in your workspace", fileNameOrGlob);
 					}
 				} else if (/^onLanguage:/.test(activationTimes.activationEvent)) {
 					let language = activationTimes.activationEvent.substr('onLanguage:'.length);
 					title = nls.localize('languageActivation', "Activated because you opened a {0} file", language);
 				} else {
-					title = nls.localize('workspaceGenericActivation', "Activated on {0}", activationTimes.activationEvent);
+					title = nls.localize({
+						key: 'workspaceGenericActivation',
+						comment: [
+							'The {0} placeholder will be an activation event, like e.g. \'language:typescript\', \'debug\', etc.'
+						]
+					}, "Activated on {0}", activationTimes.activationEvent);
 				}
 				data.activationTime.title = title;
 				if (!isFalsyOrEmpty(element.status.runtimeErrors)) {
@@ -362,7 +374,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			}
 		};
 
-		this._list = this._instantiationService.createInstance(WorkbenchList, container, delegate, [renderer], {
+		this._list = this._instantiationService.createInstance(WorkbenchList, parent, delegate, [renderer], {
 			multipleSelectionSupport: false
 		}) as WorkbenchList<IRuntimeExtension>;
 

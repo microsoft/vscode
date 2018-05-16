@@ -12,5 +12,6 @@
 	"view": "Anzeigen",
 	"scmConfigurationTitle": "SCM",
 	"alwaysShowProviders": "Ob der Quellcodeverwaltungsanbieter-Abschnitt immer angezeigt wird.",
-	"diffDecorations": "Steuert die Diff-Dekorationen im Editor."
+	"diffDecorations": "Steuert die Diff-Dekorationen im Editor.",
+	"diffGutterWidth": "Steuert die Breite (px) der Diff-Dekorationen in der Liste (hinzugefügt und verändert)."
 }

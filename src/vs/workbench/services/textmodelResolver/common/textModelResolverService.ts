@@ -13,10 +13,11 @@ import { IDisposable, toDisposable, IReference, ReferenceCollection, ImmortalRef
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import network = require('vs/base/common/network');
+import * as network from 'vs/base/common/network';
 import { ITextModelService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IUntitledEditorService, UNTITLED_SCHEMA } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
+import { IFileService } from 'vs/platform/files/common/files';
 
 class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorModel>> {
 
@@ -24,19 +25,15 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextFileService private textFileService: ITextFileService
+		@ITextFileService private textFileService: ITextFileService,
+		@IFileService private fileService: IFileService
 	) {
 		super();
 	}
 
 	public createReferencedObject(key: string): TPromise<ITextEditorModel> {
 		const resource = URI.parse(key);
-
-		if (resource.scheme === network.Schemas.file) {
-			return this.textFileService.models.loadOrCreate(resource);
-		}
-		if (!this.providers[resource.scheme]) {
-			// TODO@remote
+		if (this.fileService.canHandleResource(resource)) {
 			return this.textFileService.models.loadOrCreate(resource);
 		}
 		return this.resolveTextModelContent(key).then(() => this.instantiationService.createInstance(ResourceEditorModel, resource));
@@ -119,7 +116,7 @@ export class TextModelResolverService implements ITextModelService {
 
 		// Untitled Schema: go through cached input
 		// TODO ImmortalReference is a hack
-		if (resource.scheme === UNTITLED_SCHEMA) {
+		if (resource.scheme === network.Schemas.untitled) {
 			return this.untitledEditorService.loadOrCreate({ resource }).then(model => new ImmortalReference(model));
 		}
 

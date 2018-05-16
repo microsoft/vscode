@@ -28,15 +28,14 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 
 	let mapper: WindowsKeyboardMapper;
 
-	suiteSetup((done) => {
-		createKeyboardMapper(false, 'win_de_ch').then((_mapper) => {
+	suiteSetup(() => {
+		return createKeyboardMapper(false, 'win_de_ch').then((_mapper) => {
 			mapper = _mapper;
-			done();
-		}, done);
+		});
 	});
 
-	test('mapping', (done) => {
-		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'win_de_ch.txt', done);
+	test('mapping', () => {
+		return assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'win_de_ch.txt');
 	});
 
 	test('resolveKeybinding Ctrl+A', () => {
@@ -321,15 +320,14 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 
 	let mapper: WindowsKeyboardMapper;
 
-	suiteSetup((done) => {
-		createKeyboardMapper(true, 'win_en_us').then((_mapper) => {
+	suiteSetup(() => {
+		return createKeyboardMapper(true, 'win_en_us').then((_mapper) => {
 			mapper = _mapper;
-			done();
-		}, done);
+		});
 	});
 
-	test('mapping', (done) => {
-		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'win_en_us.txt', done);
+	test('mapping', () => {
+		return assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'win_en_us.txt');
 	});
 
 	test('resolveKeybinding Ctrl+K Ctrl+\\', () => {
@@ -410,15 +408,14 @@ suite('keyboardMapper - WINDOWS por_ptb', () => {
 
 	let mapper: WindowsKeyboardMapper;
 
-	suiteSetup((done) => {
-		createKeyboardMapper(false, 'win_por_ptb').then((_mapper) => {
+	suiteSetup(() => {
+		return createKeyboardMapper(false, 'win_por_ptb').then((_mapper) => {
 			mapper = _mapper;
-			done();
-		}, done);
+		});
 	});
 
-	test('mapping', (done) => {
-		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'win_por_ptb.txt', done);
+	test('mapping', () => {
+		return assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'win_por_ptb.txt');
 	});
 
 	test('resolveKeyboardEvent Ctrl+[IntlRo]', () => {
@@ -472,15 +469,14 @@ suite('keyboardMapper - WINDOWS ru', () => {
 
 	let mapper: WindowsKeyboardMapper;
 
-	suiteSetup((done) => {
-		createKeyboardMapper(false, 'win_ru').then((_mapper) => {
+	suiteSetup(() => {
+		return createKeyboardMapper(false, 'win_ru').then((_mapper) => {
 			mapper = _mapper;
-			done();
-		}, done);
+		});
 	});
 
-	test('mapping', (done) => {
-		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'win_ru.txt', done);
+	test('mapping', () => {
+		return assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'win_ru.txt');
 	});
 
 	test('issue ##24361: resolveKeybinding Ctrl+K Ctrl+K', () => {

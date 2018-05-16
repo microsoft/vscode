@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import arrays = require('vs/base/common/arrays');
+import * as arrays from 'vs/base/common/arrays';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import DomUtils = require('vs/base/browser/dom');
+import * as DomUtils from 'vs/base/browser/dom';
 import { memoize } from 'vs/base/common/decorators';
 
 export namespace EventType {
