@@ -115,7 +115,7 @@ export class CodeActionOracle {
 			const position = markerRange ? markerRange.getStartPosition() : selection.getStartPosition();
 			const actions = getCodeActions(model, selection, trigger && trigger.filter);
 
-			if (this._progressService) {
+			if (this._progressService && trigger.type === 'manual') {
 				this._progressService.showWhile(actions, 250);
 			}
 
