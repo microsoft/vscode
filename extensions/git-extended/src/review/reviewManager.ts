@@ -405,8 +405,8 @@ export class ReviewManager implements vscode.DecorationProvider {
 			onDidChangeCommentThreads: this._onDidChangeCommentThreads.event,
 			provideDocumentComments: async (document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.CommentInfo> => {
 				let ranges: vscode.Range[] = [];
-
 				let matchingComments: Comment[];
+
 				if (document.uri.scheme === 'review') {
 					// from scm viewlet
 					matchingComments = this._commentsCache.get(document.uri.toString());
@@ -434,12 +434,24 @@ export class ReviewManager implements vscode.DecorationProvider {
 					}
 				} else if (document.uri.scheme === 'file') {
 					// local file
-					let fileName = document.uri.path;
-					let matchedFiles = this._localFileChanges.filter(fileChange => path.resolve(this._repository.path, fileChange.fileName) === fileName);
+					const fileName = document.uri.path;
+					const matchedFiles = this._localFileChanges.filter(fileChange => path.resolve(this._repository.path, fileChange.fileName) === fileName);
 					if (matchedFiles && matchedFiles.length) {
-						let matchedFile = matchedFiles[0];
-						// git diff sha -- fileName
-						let contentDiff = await this._repository.diff(matchedFile.fileName, this._lastCommitSha);
+						const matchedFile = matchedFiles[0];
+
+						let contentDiff: string;
+						if (document.isDirty) {
+							const documentText = document.getText();
+							const idAtLastCommit = await this._repository.getFileObjectId(this._lastCommitSha, matchedFile.fileName);
+							const idOfCurrentText = await this._repository.hashObject(documentText);
+
+							// git diff <blobid> <blobid>
+							contentDiff = await this._repository.diffHashed(idAtLastCommit, idOfCurrentText);
+						} else {
+							// git diff sha -- fileName
+							contentDiff = await this._repository.diff(matchedFile.fileName, this._lastCommitSha);
+						}
+
 						matchingComments = this._comments.filter(comment => path.resolve(this._repository.path, comment.path) === fileName);
 						matchingComments = mapCommentsToHead(matchedFile.patch, contentDiff, matchingComments);
 

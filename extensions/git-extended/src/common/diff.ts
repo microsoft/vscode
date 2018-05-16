@@ -185,6 +185,7 @@ export function mapOldPositionToNew(patch: string, line: number): number {
 		} else if (diffHunk.oldLineNumber + diffHunk.oldLength - 1 < line) {
 			delta += diffHunk.newLength - diffHunk.oldLength;
 		} else {
+			delta += diffHunk.newLength - diffHunk.oldLength;
 			return line + delta;
 		}
 

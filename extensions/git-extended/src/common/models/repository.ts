@@ -291,6 +291,41 @@ export class Repository {
 		}
 	}
 
+	async getFileObjectId(commit: string, path: string): Promise<string> {
+		try {
+			const args = ['rev-parse', `${commit}:${path}`];
+
+			const result = await GitProcess.exec(args, this.path);
+			return result.stdout.trim();
+		} catch (e) {
+			return '';
+		}
+	}
+
+	async hashObject(text: string): Promise<string> {
+		try {
+
+			const args = ['hash-object', '-w', '--stdin'];
+
+			const result = await GitProcess.exec(args, this.path, {
+				stdin: text
+			});
+			return result.stdout.trim();
+		} catch (e) {
+			return '';
+		}
+	}
+
+	async diffHashed(hash0: string, hash1: string) {
+		try {
+			const args = ['diff', hash0, hash1];
+			const result = await GitProcess.exec(args, this.path);
+			return result.stdout.trim();
+		} catch (e) {
+			return '';
+		}
+	}
+
 	async diff(filePath: string, compareWithCommit: string): Promise<string> {
 		try {
 			let args = ['diff', filePath];
