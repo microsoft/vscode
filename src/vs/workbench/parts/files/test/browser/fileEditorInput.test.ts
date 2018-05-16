@@ -9,14 +9,14 @@ import URI from 'vs/base/common/uri';
 import { join } from 'vs/base/common/paths';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { workbenchInstantiationService, TestTextFileService, TestEditorGroupService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestTextFileService } from 'vs/workbench/test/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EncodingMode, Verbosity } from 'vs/workbench/common/editor';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 function toResource(self, path) {
 	return URI.file(join('C:\\', Buffer.from(self.test.fullTitle()).toString('base64'), path));
@@ -27,7 +27,7 @@ class ServiceAccessor {
 		@IWorkbenchEditorService public editorService: IWorkbenchEditorService,
 		@ITextFileService public textFileService: TestTextFileService,
 		@IModelService public modelService: IModelService,
-		@IEditorGroupService public editorGroupService: TestEditorGroupService
+		@INextEditorGroupsService public editorGroupService: INextEditorGroupsService
 	) {
 	}
 }

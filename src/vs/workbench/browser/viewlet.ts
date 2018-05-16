@@ -10,7 +10,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Action, IAction } from 'vs/base/common/actions';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { Composite, CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
 import { IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
@@ -18,6 +17,7 @@ import { ToggleSidebarVisibilityAction } from 'vs/workbench/browser/actions/togg
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 
 export abstract class Viewlet extends Composite implements IViewlet {
 
@@ -120,7 +120,7 @@ export class ToggleViewletAction extends Action {
 		name: string,
 		viewletId: string,
 		@IViewletService protected viewletService: IViewletService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@INextEditorService private editorService: INextEditorService
 	) {
 		super(id, name);
 
@@ -136,7 +136,7 @@ export class ToggleViewletAction extends Action {
 		}
 
 		// Otherwise pass focus to editor if possible
-		const editor = this.editorService.getActiveEditor();
+		const editor = this.editorService.activeControl;
 		if (editor) {
 			editor.focus();
 		}

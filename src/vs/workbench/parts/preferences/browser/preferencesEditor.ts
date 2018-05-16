@@ -42,7 +42,6 @@ import { VSash } from 'vs/base/browser/ui/sash/sash';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IPreferencesRenderer, DefaultSettingsRenderer, UserSettingsRenderer, WorkspaceSettingsRenderer, FolderSettingsRenderer } from 'vs/workbench/parts/preferences/browser/preferencesRenderers';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { FoldingController } from 'vs/editor/contrib/folding/folding';
 import { FindController } from 'vs/editor/contrib/find/findController';
@@ -63,6 +62,7 @@ import { PreferencesEditorInput, DefaultPreferencesEditorInput } from 'vs/workbe
 import { PREFERENCES_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 
 export class PreferencesEditor extends BaseEditor {
 
@@ -966,10 +966,10 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@ITextFileService textFileService: ITextFileService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@INextEditorGroupsService nextEditorGroupService: INextEditorGroupsService
+		@INextEditorGroupsService editorGroupService: INextEditorGroupsService,
+		@INextEditorService editorService: INextEditorService
 	) {
-		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService, nextEditorGroupService);
+		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService);
 	}
 
 	private static _getContributions(): IEditorContributionCtor[] {

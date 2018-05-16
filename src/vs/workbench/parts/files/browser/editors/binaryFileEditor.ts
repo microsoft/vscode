@@ -9,13 +9,13 @@ import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/bina
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import URI from 'vs/base/common/uri';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { IFileService } from 'vs/platform/files/common/files';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 
 /**
  * An implementation of editor for binary files like images.
@@ -29,7 +29,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 		@IThemeService themeService: IThemeService,
 		@IFileService fileService: IFileService,
 		@IWindowsService private windowsService: IWindowsService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@INextEditorService private editorService: INextEditorService
 	) {
 		super(
 			BinaryFileEditor.ID,
@@ -46,7 +46,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 	private openInternal(input: EditorInput, options: EditorOptions): void {
 		if (input instanceof FileEditorInput) {
 			input.setForceOpenAsText();
-			this.editorService.openEditor(input, options, this.group).done(null, onUnexpectedError);
+			this.editorService.openEditor(input, options, this.group).then(undefined, onUnexpectedError);
 		}
 	}
 

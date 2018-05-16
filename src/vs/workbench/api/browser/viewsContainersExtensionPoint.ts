@@ -17,7 +17,6 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -29,6 +28,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { forEach } from 'vs/base/common/collections';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 
 
 export interface IUserFriendlyViewsContainerDescriptor {
@@ -158,7 +158,7 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 					@ITelemetryService telemetryService: ITelemetryService,
 					@IWorkspaceContextService contextService: IWorkspaceContextService,
 					@IStorageService storageService: IStorageService,
-					@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+					@INextEditorService editorService: INextEditorService,
 					@IInstantiationService instantiationService: IInstantiationService,
 					@IContextKeyService contextKeyService: IContextKeyService,
 					@IThemeService themeService: IThemeService,
@@ -184,7 +184,7 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 				constructor(
 					id: string, label: string,
 					@IViewletService viewletService: IViewletService,
-					@IWorkbenchEditorService editorService: IWorkbenchEditorService
+					@INextEditorService editorService: INextEditorService
 				) {
 					super(id, label, id, viewletService, editorService);
 				}

@@ -30,7 +30,6 @@ import { DesktopDragAndDropData, ExternalElementsDragAndDropData } from 'vs/base
 import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import { ExplorerItem, NewStatPlaceholder, Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { DragMouseEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -57,6 +56,7 @@ import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/work
 import { rtrim } from 'vs/base/common/strings';
 import { IDialogService, IConfirmationResult, IConfirmation, getConfirmMessage } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INextEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -395,7 +395,7 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 	private previousSelectionRangeStop: ExplorerItem;
 
 	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@INextEditorService private editorService: INextEditorService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IMenuService private menuService: IMenuService,
@@ -551,7 +551,7 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 			*/
 			this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
 
-			this.editorService.openEditor({ resource: stat.resource, options }, options.sideBySide).done(null, errors.onUnexpectedError);
+			this.editorService.openEditor({ resource: stat.resource, options }, SIDE_GROUP).then(null, errors.onUnexpectedError);
 		}
 	}
 

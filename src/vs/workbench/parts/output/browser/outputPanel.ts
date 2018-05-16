@@ -20,11 +20,11 @@ import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/te
 import { OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT } from 'vs/workbench/parts/output/common/output';
 import { SwitchOutputAction, SwitchOutputActionItem, ClearOutputAction, ToggleOutputScrollLockAction, OpenLogOutputFile } from 'vs/workbench/parts/output/browser/outputActions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 
 export class OutputPanel extends AbstractTextResourceEditor {
 	private actions: IAction[];
@@ -39,11 +39,11 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		@IThemeService themeService: IThemeService,
 		@IOutputService private outputService: IOutputService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@INextEditorGroupsService editorGroupService: INextEditorGroupsService,
 		@ITextFileService textFileService: ITextFileService,
-		@INextEditorGroupsService nextEditorGroupService: INextEditorGroupsService
+		@INextEditorService editorService: INextEditorService
 	) {
-		super(OUTPUT_PANEL_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService, nextEditorGroupService);
+		super(OUTPUT_PANEL_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService, editorService);
 
 		this.scopedInstantiationService = instantiationService;
 	}

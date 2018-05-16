@@ -13,10 +13,10 @@ import { join } from 'vs/base/common/paths';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { workbenchInstantiationService, TestTextFileService, TestFileService } from 'vs/workbench/test/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { /*FileOperation, FileOperationEvent,*/ FileChangesEvent, FileChangeType, IFileService, snapshotToString } from 'vs/platform/files/common/files';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
+import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 // import { once } from 'vs/base/common/event';
 
 // class TestFileEditorTracker extends FileEditorTracker {
@@ -33,7 +33,7 @@ function toResource(self: any, path: string) {
 class ServiceAccessor {
 	constructor(
 		@IWorkbenchEditorService public editorService: IWorkbenchEditorService,
-		@IEditorGroupService public editorGroupService: IEditorGroupService,
+		@INextEditorGroupsService public editorGroupService: INextEditorGroupsService,
 		@ITextFileService public textFileService: TestTextFileService,
 		@IFileService public fileService: TestFileService
 	) {

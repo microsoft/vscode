@@ -23,11 +23,11 @@ import { Scope } from 'vs/workbench/common/memento';
 import { getCodeEditor, getCodeOrDiffEditor } from 'vs/editor/browser/services/codeEditorService';
 import { ITextFileService, SaveReason, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { isDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 
 const TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 
@@ -55,12 +55,12 @@ export abstract class BaseTextEditor extends BaseEditor {
 		@ITextResourceConfigurationService private readonly _configurationService: ITextResourceConfigurationService,
 		@IThemeService protected themeService: IThemeService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IEditorGroupService protected editorGroupService: IEditorGroupService,
-		@INextEditorGroupsService private nextEditorGroupService: INextEditorGroupsService
+		@INextEditorService protected editorService: INextEditorService,
+		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService,
 	) {
 		super(id, telemetryService, themeService);
 
-		this.editorViewStateMemento = new EditorViewStateMemento<IEditorViewState>(nextEditorGroupService, this.getMemento(storageService, Scope.WORKSPACE), TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY, 100);
+		this.editorViewStateMemento = new EditorViewStateMemento<IEditorViewState>(editorGroupService, this.getMemento(storageService, Scope.WORKSPACE), TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY, 100);
 
 		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.handleConfigurationChangeEvent(this.configurationService.getValue<IEditorConfiguration>(this.getResource()))));
 	}
@@ -109,7 +109,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 		// Apply group information to help identify in which group we are
 		if (ariaLabel) {
-			const group = this.nextEditorGroupService.getGroup(this.group);
+			const group = this.editorGroupService.getGroup(this.group);
 			if (group) {
 				ariaLabel = nls.localize('editorLabelWithGroup', "{0}, {1}.", ariaLabel, group.label);
 			}
@@ -150,7 +150,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 			this.toUnbind.push(this.editorControl.getModifiedEditor().onDidBlurEditorWidget(() => this.onEditorFocusLost()));
 		}
 
-		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorFocusLost()));
+		this.toUnbind.push(this.editorService.onDidActiveEditorChange(() => this.onEditorFocusLost()));
 		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => this.onWindowFocusLost()));
 	}
 

@@ -25,7 +25,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import { DirtyFilesTracker } from 'vs/workbench/parts/files/common/dirtyFilesTracker';
@@ -33,6 +32,7 @@ import { ExplorerViewlet, ExplorerViewletViewsContribution } from 'vs/workbench/
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ToggleViewletAction {
@@ -43,7 +43,7 @@ export class OpenExplorerViewletAction extends ToggleViewletAction {
 		id: string,
 		label: string,
 		@IViewletService viewletService: IViewletService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+		@INextEditorService editorService: INextEditorService
 	) {
 		super(id, label, VIEWLET_ID, viewletService, editorService);
 	}
@@ -136,7 +136,7 @@ class FileEditorInputFactory implements IEditorInputFactory {
 			const resource = !!fileInput.resourceJSON ? URI.revive(fileInput.resourceJSON) : URI.parse(fileInput.resource);
 			const encoding = fileInput.encoding;
 
-			return accessor.get(IWorkbenchEditorService).createInput({ resource, encoding }) as FileEditorInput;
+			return accessor.get(INextEditorService).createInput({ resource, encoding }) as FileEditorInput;
 		});
 	}
 }

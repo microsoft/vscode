@@ -27,7 +27,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
@@ -49,15 +48,14 @@ export class TextFileEditor extends BaseTextEditor {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
-		@INextEditorService private editorService: INextEditorService,
+		@INextEditorService editorService: INextEditorService,
 		@IThemeService themeService: IThemeService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@INextEditorGroupsService editorGroupService: INextEditorGroupsService,
 		@ITextFileService textFileService: ITextFileService,
 		@IWindowsService private windowsService: IWindowsService,
-		@IPreferencesService private preferencesService: IPreferencesService,
-		@INextEditorGroupsService nextEditorGroupService: INextEditorGroupsService
+		@IPreferencesService private preferencesService: IPreferencesService
 	) {
-		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService, nextEditorGroupService);
+		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService);
 
 		// Clear view state for deleted files
 		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFilesChanged(e)));

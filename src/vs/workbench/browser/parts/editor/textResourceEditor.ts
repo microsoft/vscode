@@ -19,12 +19,12 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { once } from 'vs/base/common/event';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 
 /**
  * An editor implementation that is capable of showing the contents of resource inputs. Uses
@@ -39,11 +39,11 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@INextEditorGroupsService editorGroupService: INextEditorGroupsService,
 		@ITextFileService textFileService: ITextFileService,
-		@INextEditorGroupsService nextEditorGroupService: INextEditorGroupsService
+		@INextEditorService editorService: INextEditorService
 	) {
-		super(id, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService, nextEditorGroupService);
+		super(id, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService);
 	}
 
 	public getTitle(): string {
@@ -208,10 +208,10 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@ITextFileService textFileService: ITextFileService,
-		@INextEditorGroupsService nextEditorGroupService: INextEditorGroupsService
+		@INextEditorService editorService: INextEditorService,
+		@INextEditorGroupsService editorGroupService: INextEditorGroupsService
 	) {
-		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorGroupService, textFileService, nextEditorGroupService);
+		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorGroupService, textFileService, editorService);
 	}
 }

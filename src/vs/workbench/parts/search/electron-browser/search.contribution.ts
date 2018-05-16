@@ -46,7 +46,6 @@ import URI from 'vs/base/common/uri';
 import { relative } from 'path';
 import { dirname } from 'vs/base/common/resources';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { distinct } from 'vs/base/common/arrays';
 import { getMultiSelectedResources } from 'vs/workbench/parts/files/browser/files';
@@ -59,6 +58,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { SearchViewLocationUpdater } from 'vs/workbench/parts/search/browser/searchViewLocationUpdater';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService);
 replaceContributions();
@@ -337,7 +337,7 @@ CommandsRegistry.registerCommand({
 		const viewletService = accessor.get(IViewletService);
 		const panelService = accessor.get(IPanelService);
 		const fileService = accessor.get(IFileService);
-		const resources = getMultiSelectedResources(resource, listService, accessor.get(IWorkbenchEditorService));
+		const resources = getMultiSelectedResources(resource, listService, accessor.get(INextEditorService));
 
 		return openSearchView(viewletService, panelService, true).then(searchView => {
 			if (resources && resources.length) {

@@ -22,7 +22,6 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Query } from 'vs/workbench/parts/extensions/common/extensionQuery';
 import { IFileService, IContent } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -47,6 +46,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 
 const promptDownloadManually = (extension: IExtension, message: string, instantiationService: IInstantiationService, notificationService: INotificationService, openerService: IOpenerService) => {
 	notificationService.prompt(Severity.Error, message, [{
@@ -957,7 +957,7 @@ export class OpenExtensionsViewletAction extends ToggleViewletAction {
 		id: string,
 		label: string,
 		@IViewletService viewletService: IViewletService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+		@INextEditorService editorService: INextEditorService
 	) {
 		super(id, label, VIEWLET_ID, viewletService, editorService);
 	}
@@ -1486,7 +1486,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 		label: string,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IFileService private fileService: IFileService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@INextEditorService private editorService: INextEditorService,
 		@IJSONEditingService private jsonEditingService: IJSONEditingService,
 		@ITextModelService private textModelResolverService: ITextModelService
 	) {
@@ -1577,7 +1577,7 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends AbstractConfi
 		label: string,
 		@IFileService fileService: IFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@INextEditorService editorService: INextEditorService,
 		@IJSONEditingService jsonEditingService: IJSONEditingService,
 		@ITextModelService textModelResolverService: ITextModelService
 	) {
@@ -1618,7 +1618,7 @@ export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends Abstrac
 		label: string,
 		@IFileService fileService: IFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@INextEditorService editorService: INextEditorService,
 		@IJSONEditingService jsonEditingService: IJSONEditingService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@ICommandService private commandService: ICommandService

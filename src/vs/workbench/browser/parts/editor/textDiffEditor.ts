@@ -28,9 +28,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ScrollType, IDiffEditorViewState, IDiffEditorModel } from 'vs/editor/common/editorCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -63,13 +61,12 @@ export class TextDiffEditor extends BaseTextEditor {
 		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IConfigurationService private readonly _actualConfigurationService: IConfigurationService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@INextEditorService editorService: INextEditorService,
 		@IThemeService themeService: IThemeService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@INextEditorGroupsService editorGroupService: INextEditorGroupsService,
 		@ITextFileService textFileService: ITextFileService,
-		@INextEditorGroupsService nextEditorGroupService: INextEditorGroupsService
 	) {
-		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService, nextEditorGroupService);
+		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService);
 
 		this.diffNavigatorDisposables = [];
 		this.toUnbind.push(this._actualConfigurationService.onDidChangeConfiguration((e) => {
