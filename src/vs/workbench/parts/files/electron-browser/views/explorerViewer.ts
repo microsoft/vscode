@@ -56,7 +56,7 @@ import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/work
 import { rtrim } from 'vs/base/common/strings';
 import { IDialogService, IConfirmationResult, IConfirmation, getConfirmMessage } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { INextEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -551,7 +551,7 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 			*/
 			this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
 
-			this.editorService.openEditor({ resource: stat.resource, options }, options.sideBySide ? SIDE_GROUP : undefined).then(null, errors.onUnexpectedError);
+			this.editorService.openEditor({ resource: stat.resource, options }, options.sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(null, errors.onUnexpectedError);
 		}
 	}
 
