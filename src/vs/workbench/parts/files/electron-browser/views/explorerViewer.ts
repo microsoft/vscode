@@ -512,7 +512,7 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 		tree.setFocus(stat);
 
 		// update dynamic contexts
-		this.fileCopiedContextKey.set(this.clipboardService.hasFiles());
+		this.fileCopiedContextKey.set(this.clipboardService.hasResources());
 
 		if (!this.contributedContextMenu) {
 			this.contributedContextMenu = this.menuService.createMenu(MenuId.ExplorerContext, tree.contextKeyService);
