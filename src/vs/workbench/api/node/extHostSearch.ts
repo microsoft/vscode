@@ -379,7 +379,12 @@ class FileSearchEngine {
 	public search(): PPromise<{ isLimitHit: boolean }, IInternalFileMatch> {
 		const folderQueries = this.config.folderQueries;
 
-		return new PPromise<{ isLimitHit: boolean }, IInternalFileMatch>((resolve, reject, onResult) => {
+		return new PPromise<{ isLimitHit: boolean }, IInternalFileMatch>((resolve, reject, _onResult) => {
+			const onResult = (match: IInternalFileMatch) => {
+				this.resultCount++;
+				_onResult(match);
+			};
+
 			// Support that the file pattern is a full path to a file that exists
 			this.checkFilePatternAbsoluteMatch().then(({ exists, size }) => {
 				if (this.isCanceled) {
@@ -388,7 +393,6 @@ class FileSearchEngine {
 
 				// Report result from file pattern if matching
 				if (exists) {
-					this.resultCount++;
 					onResult({
 						relativePath: this.filePattern,
 						basename: path.basename(this.filePattern),
@@ -487,7 +491,6 @@ class FileSearchEngine {
 							// If the limit was hit, check whether filePattern is an exact relative match because it must be included
 							return this.checkFilePatternRelativeMatch(folderStr).then(({ exists, size }) => {
 								if (exists) {
-									this.resultCount++;
 									onResult({
 										base: folderStr,
 										relativePath: this.filePattern,
@@ -655,10 +658,9 @@ class FileSearchEngine {
 
 	private matchFile(onResult: (result: IInternalFileMatch) => void, candidate: IInternalFileMatch): void {
 		if (this.isFilePatternMatch(candidate.relativePath) && (!this.includePattern || this.includePattern(candidate.relativePath, candidate.basename))) {
-			this.resultCount++;
-
-			if (this.exists || (this.maxResults && this.resultCount > this.maxResults)) {
+			if (this.exists || (this.maxResults && this.resultCount >= this.maxResults)) {
 				this.isLimitHit = true;
+				this.cancel();
 			}
 
 			if (!this.isLimitHit) {
@@ -1020,14 +1022,14 @@ class FileSearchManager {
 	private doSearch(engine: FileSearchEngine, provider: vscode.SearchProvider, batchSize?: number): PPromise<ISearchComplete, OneOrMore<IInternalFileMatch>> {
 		return new PPromise<ISearchComplete, OneOrMore<IInternalFileMatch>>((c, e, p) => {
 			let batch: IInternalFileMatch[] = [];
-			engine.search().then(() => {
+			engine.search().then(result => {
 				if (batch.length) {
 					p(batch);
 				}
 
 				c({
-					limitHit: false,
-					stats: engine.getStats()
+					limitHit: result.isLimitHit,
+					stats: engine.getStats() // TODO@roblou
 				});
 			}, error => {
 				if (batch.length) {
