@@ -81,6 +81,8 @@ export interface INextEditorGroupsAccessor {
 
 	moveGroup(group: INextEditorGroupView | GroupIdentifier, location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection): INextEditorGroupView;
 	copyGroup(group: INextEditorGroupView | GroupIdentifier, location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection): INextEditorGroupView;
+
+	removeGroup(group: INextEditorGroupView | GroupIdentifier): void;
 }
 
 export interface INextEditorGroupView extends IDisposable, ISerializableView, INextEditorGroup {

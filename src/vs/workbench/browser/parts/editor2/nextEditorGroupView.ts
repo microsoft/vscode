@@ -860,7 +860,11 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 			// Editor Change Event
 			this._onDidActiveEditorChange.fire();
 
-			// TODO@grid introduce and support a setting to close the group when the last editor closes
+			// Check if group gets closed now
+			const closeGroup = this.isEmpty() && this.accessor.partOptions.closeEmptyGroups;
+			if (closeGroup) {
+				this.accessor.removeGroup(this);
+			}
 		}
 	}
 

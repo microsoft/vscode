@@ -222,6 +222,11 @@ configurationRegistry.registerConfiguration({
 			'default': 'right',
 			'description': nls.localize('sideBySideDirection', "Controls the default direction of editors that are opened side by side (e.g. from the explorer). By default, editors will open on the rigth hand side of the currently active one.")
 		},
+		'workbench.editor.closeEmptyGroups': {
+			'type': 'boolean',
+			'description': nls.localize('closeEmptyGroups', "Controls the behavior of empty editor groups when the last tab in the group is closed. When enabled, empty groups will automatically close. When disabled, empty groups will remain part of the grid."),
+			'default': true
+		},
 		'workbench.editor.revealIfOpen': {
 			'type': 'boolean',
 			'description': nls.localize('revealIfOpen', "Controls if an editor is revealed in any of the visible groups if opened. If disabled, an editor will prefer to open in the currently active editor group. If enabled, an already opened editor will be revealed instead of opened again in the currently active editor group. Note that there are some cases where this setting is ignored, e.g. when forcing an editor to open in a specific group or to the side of the currently active group."),

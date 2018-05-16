@@ -123,7 +123,15 @@ export class NextEditorControl extends Disposable {
 		const forceOpen = options && options.forceOpen;
 		const inputMatches = control.input && control.input.matches(editor);
 		if (inputMatches && !forceOpen) {
+
+			// Forward options
 			control.setOptions(options);
+
+			// Still focus as needed
+			const focus = !options || !options.preserveFocus;
+			if (focus) {
+				control.focus();
+			}
 
 			return TPromise.as(false);
 		}
