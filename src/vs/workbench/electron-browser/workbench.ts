@@ -31,6 +31,7 @@ import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { StatusbarPart } from 'vs/workbench/browser/parts/statusbar/statusbarPart';
 import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
+import { MenubarPart } from 'vs/workbench/browser/parts/menubar/menubarPart';
 import { WorkbenchLayout } from 'vs/workbench/browser/layout';
 import { IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';
 import { PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
@@ -149,7 +150,8 @@ const Identifiers = {
 	SIDEBAR_PART: 'workbench.parts.sidebar',
 	PANEL_PART: 'workbench.parts.panel',
 	EDITOR_PART: 'workbench.parts.editor',
-	STATUSBAR_PART: 'workbench.parts.statusbar'
+	STATUSBAR_PART: 'workbench.parts.statusbar',
+	MENUBAR_PART: 'workbench.parts.menubar'
 };
 
 function getWorkbenchStateString(state: WorkbenchState): string {
@@ -200,6 +202,7 @@ export class Workbench implements IPartService {
 	private backupFileService: IBackupFileService;
 	private fileService: IFileService;
 	private titlebarPart: TitlebarPart;
+	private menubarPart: MenubarPart;
 	private activitybarPart: ActivitybarPart;
 	private sidebarPart: SidebarPart;
 	private panelPart: PanelPart;
@@ -601,6 +604,10 @@ export class Workbench implements IPartService {
 		this.toUnbind.push({ dispose: () => this.titlebarPart.shutdown() });
 		serviceCollection.set(ITitleService, this.titlebarPart);
 
+		// Menubar
+		this.menubarPart = this.instantiationService.createInstance(MenubarPart, Identifiers.MENUBAR_PART);
+		this.toUnbind.push({ dispose: () => { } });
+
 		// History
 		serviceCollection.set(IHistoryService, new SyncDescriptor(HistoryService));
 
@@ -758,6 +765,9 @@ export class Workbench implements IPartService {
 				break;
 			case Parts.STATUSBAR_PART:
 				container = this.statusbarPart.getContainer();
+				break;
+			case Parts.MENUBAR_PART:
+				container = this.menubarPart.getContainer();
 				break;
 		}
 
@@ -1222,6 +1232,7 @@ export class Workbench implements IPartService {
 
 		// Create Parts
 		this.createTitlebarPart();
+		this.createMenubarPart();
 		this.createActivityBarPart();
 		this.createSidebarPart();
 		this.createEditorPart();
@@ -1243,6 +1254,11 @@ export class Workbench implements IPartService {
 		});
 
 		this.titlebarPart.create(titlebarContainer.getHTMLElement());
+	}
+
+	private createMenubarPart(): void {
+		const menubarContainer = this.titlebarPart.getMenubarContainer();
+		this.menubarPart.create(menubarContainer.getHTMLElement());
 	}
 
 	private createActivityBarPart(): void {

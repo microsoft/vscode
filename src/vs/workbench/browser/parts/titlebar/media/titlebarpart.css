@@ -8,7 +8,7 @@
 	width: 100%;
 	font-size: 12px;
 	padding: 0 70px;
-	overflow: hidden;
+	/* overflow: hidden; */
 	flex-shrink: 0;
 	align-items: center;
 	justify-content: center;
@@ -105,39 +105,4 @@
 .monaco-workbench > .part.titlebar.titlebar > .window-controls-container > .window-close:hover {
 	background-color: rgba(232, 17, 35, 0.9);
 	color: rgba(255, 255, 255, 1);
-}
-
-.monaco-workbench > .part.titlebar > .menubar-container {
-	display: flex;
-	position: relative;
-	z-index: 100;
-	-webkit-app-region: no-drag;
-	order: 3;
-}
-
-.monaco-workbench > .part.titlebar > .menubar-container > .menubar-menu-button {
-	display: block;
-	min-width: 0;
-	padding: 5px;
-	position: relative;
-	z-index: 900;
-	cursor: pointer;
-}
-
-.monaco-workbench > .part.titlebar > .menubar-container > .menubar-menu-button:hover {
-	background-color: rgba(255, 255, 255, 0.1);
-}
-
-.monaco-workbench > .part.titlebar.light > .menubar-container > .menubar-menu-button:hover {
-	background-color: rgba(0, 0, 0, 0.1);
-}
-
-.menubar-menu-items-holder {
-	display: none;
-	position: absolute;
-}
-
-.menubar-menu-items-holder-open {
-	display: flex;
-	flex-direction: column;
 }

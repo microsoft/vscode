@@ -7,7 +7,6 @@
 
 import * as path from 'path';
 import 'vs/css!./media/titlebarpart';
-import 'vs/workbench/browser/parts/menubar/menubar.contribution';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, $ } from 'vs/base/browser/builder';
 import * as paths from 'vs/base/common/paths';
@@ -37,17 +36,6 @@ import { Color } from 'vs/base/common/color';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { trim } from 'vs/base/common/strings';
 import { addDisposableListener, EventType, EventHelper, Dimension } from 'vs/base/browser/dom';
-import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-
-interface Menu {
-	title: string;
-	element: Builder;
-	menuItemsElement: Builder;
-	actions?: IAction[];
-}
-
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -71,12 +59,6 @@ export class TitlebarPart extends Part implements ITitleService {
 	private properties: ITitleProperties;
 	private activeEditorListeners: IDisposable[];
 
-	private menus: {
-		[title: string]: Menu;
-	} = {};
-
-
-
 	constructor(
 		id: string,
 		@IContextMenuService private contextMenuService: IContextMenuService,
@@ -88,9 +70,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IThemeService themeService: IThemeService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IMenuService private menuService: IMenuService,
-		@IContextKeyService private contextKeyService: IContextKeyService
+		@ILifecycleService private lifecycleService: ILifecycleService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
@@ -248,74 +228,6 @@ export class TitlebarPart extends Part implements ITitleService {
 		});
 	}
 
-
-	private addMenu(menuTitle: string, menuId: MenuId): void {
-		if (this.menus[menuTitle]) {
-			throw new Error(`Menu ${menuTitle} already exists.`);
-		}
-
-		const menu: IMenu = this.menuService.createMenu(menuId, this.contextKeyService);
-
-		console.log(menu);
-
-		let menuElement = $(this.menubarContainer).div({ class: 'menubar-menu-button' });
-		$(menuElement).div({ class: 'menubar-menu-title' }).text(menuTitle);
-		let menuItemsHolder = $(menuElement).div({ class: 'menubar-menu-items-holder' });
-
-		this.menus[menuTitle] = {
-			title: menuTitle,
-			element: menuElement,
-			menuItemsElement: menuItemsHolder
-		};
-
-		const updateActions = () => {
-			this.menus[menuTitle].actions = [];
-			let groups = menu.getActions();
-			for (let group of groups) {
-				const [, actions] = group;
-				this.menus[menuTitle].actions.push(...actions);
-				this.menus[menuTitle].actions.push(new Separator());
-			}
-
-			this.menus[menuTitle].actions.pop();
-
-			this.menus[menuTitle].actions.forEach((action: IAction) => {
-				this.addMenuItem(action.label, menuTitle, action);
-			});
-		};
-
-		menu.onDidChange(updateActions, null);
-		updateActions();
-
-		this.menus[menuTitle].element.on(EventType.CLICK, () => {
-			console.log('element clicked');
-			this.showMenu(menuTitle);
-		});
-	}
-
-	private showMenu(title: string): void {
-		this.menus[title].menuItemsElement.addClass('menubar-menu-items-holder-open');
-
-		let boundingRect = this.menus[title].element.getHTMLElement().getBoundingClientRect();
-		console.log(this.menus[title].actions);
-
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => ({ x: boundingRect.left, y: boundingRect.bottom }),
-			getActions: () => TPromise.as(
-				this.menus[title].actions
-			)
-		});
-	}
-
-	private addMenuItem(title: string, parent: string, action: IAction): void {
-		if (!this.menus[parent]) {
-			throw new Error(`Menu ${parent} does not exist.`);
-		}
-
-		let menuitem = $(this.menus[parent].menuItemsElement).div({ class: 'menubar-menu-item' });
-		menuitem.text(title);
-	}
-
 	public createContentArea(parent: HTMLElement): HTMLElement {
 		const SVGNS = 'http://www.w3.org/2000/svg';
 		this.titleContainer = $(parent);
@@ -328,7 +240,9 @@ export class TitlebarPart extends Part implements ITitleService {
 				EventHelper.stop(e, true);
 				this.windowService.closeWindow().then(null, errors.onUnexpectedError);
 			});
+		}
 
+		if (isWindows) {
 			this.menubarContainer = $(this.titleContainer).div({ class: 'menubar-container' });
 		}
 
@@ -407,40 +321,6 @@ export class TitlebarPart extends Part implements ITitleService {
 
 			this.windowService.isMaximized().then((max) => this.onDidChangeMaximized(max), errors.onUnexpectedError);
 			this.windowService.onDidChangeMaximize(this.onDidChangeMaximized, this);
-		}
-
-		// Build the menubar
-		if (this.menubarContainer) {
-
-			// let menuTitles = ['File', 'Edit'];
-			// let menuIds = [ MenuId.MenubarFileMenu, MenuId.MenubarEditMenu ];
-
-			// let menuTitles = ['File', 'Edit', 'Selection', 'View', 'Go', 'Debug', 'Tasks', 'Help'];
-			// menuTitles.forEach(menuTitle => {
-			// 	this.addMenu(menuTitle);
-			// });
-
-			this.addMenu('File', MenuId.MenubarFileMenu);
-			this.addMenu('Edit', MenuId.MenubarEditMenu);
-
-			/**
-			 * File
-			 */
-
-			// this.addMenuItem('New File', 'File');
-			// this.addMenuItem('New Window', 'File');
-			// this.addMenuItem('Open File...', 'File');
-			// this.addMenuItem('Exit', 'File');
-
-			/**
-			 * Edit
-			 */
-
-			// this.addMenuItem('Undo', 'Edit');
-			// this.addMenuItem('Redo', 'Edit');
-			// this.addMenuItem('Cut', 'Edit');
-			// this.addMenuItem('Copy', 'Edit');
-			// this.addMenuItem('Paste', 'Edit');
 		}
 
 		// Since the title area is used to drag the window, we do not want to steal focus from the
@@ -564,6 +444,10 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.titleContainer.style({ fontSize: `${this.initialTitleFontSize / getZoomFactor()}px` });
 
 		return super.layout(dimension);
+	}
+
+	public getMenubarContainer(): Builder {
+		return this.menubarContainer;
 	}
 }
 
