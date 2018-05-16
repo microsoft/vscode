@@ -88,7 +88,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		hoverProvider: true,
 		documentSymbolProvider: true,
 		documentRangeFormattingProvider: false,
-		colorProvider: true,
+		colorProvider: {},
 		foldingRangeProvider: true
 	};
 

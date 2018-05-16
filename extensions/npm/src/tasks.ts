@@ -171,15 +171,17 @@ async function provideNpmScriptsForFolder(packageJsonUri: Uri): Promise<Task[]> 
 
 	const result: Task[] = [];
 
-	const filterPrePost = workspace.getConfiguration('npm', folder.uri).get<boolean>('filterPrePostScripts');
-	const prePostScripts = filterPrePost ? getPrePostScripts(scripts) : new Set<String>();
-	Object.keys(scripts).filter(each => !prePostScripts.has(each)).forEach(each => {
+	const prePostScripts = getPrePostScripts(scripts);
+	Object.keys(scripts).forEach(each => {
 		const task = createTask(each, `run ${each}`, folder!, packageJsonUri);
 		const lowerCaseTaskName = each.toLowerCase();
 		if (isBuildTask(lowerCaseTaskName)) {
 			task.group = TaskGroup.Build;
 		} else if (isTestTask(lowerCaseTaskName)) {
 			task.group = TaskGroup.Test;
+		}
+		if (prePostScripts.has(each)) {
+			task.group = TaskGroup.Clean; // hack: use Clean group to tag pre/post scripts
 		}
 		result.push(task);
 	});

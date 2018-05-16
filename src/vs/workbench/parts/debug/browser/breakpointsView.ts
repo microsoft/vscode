@@ -109,10 +109,10 @@ export class BreakpointsView extends ViewsViewletPanel {
 	}
 
 	public focus(): void {
+		super.focus();
 		if (this.list) {
 			this.list.domFocus();
 		}
-		super.focus();
 	}
 
 	protected layoutBody(size: number): void {

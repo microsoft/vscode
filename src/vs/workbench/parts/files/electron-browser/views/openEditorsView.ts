@@ -234,8 +234,8 @@ export class OpenEditorsView extends ViewsViewletPanel {
 	}
 
 	public focus(): void {
-		this.list.domFocus();
 		super.focus();
+		this.list.domFocus();
 	}
 
 	public getList(): WorkbenchList<OpenEditor | IEditorGroup> {

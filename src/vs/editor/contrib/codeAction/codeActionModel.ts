@@ -16,6 +16,7 @@ import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/cont
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { getCodeActions } from './codeAction';
 import { CodeActionTrigger } from './codeActionTrigger';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 
 export const SUPPORTED_CODE_ACTIONS = new RawContextKey<string>('supportedCodeAction', '');
 
@@ -25,9 +26,10 @@ export class CodeActionOracle {
 
 	constructor(
 		private _editor: ICodeEditor,
-		private _markerService: IMarkerService,
+		private readonly _markerService: IMarkerService,
 		private _signalChange: (e: CodeActionsComputeEvent) => any,
-		delay: number = 250
+		delay: number = 250,
+		private readonly _progressService?: IProgressService,
 	) {
 		this._disposables.push(
 			debounceEvent(this._markerService.onMarkerChanged, (last, cur) => last ? last.concat(cur) : cur, delay / 2)(e => this._onMarkerChanges(e)),
@@ -113,6 +115,10 @@ export class CodeActionOracle {
 			const position = markerRange ? markerRange.getStartPosition() : selection.getStartPosition();
 			const actions = getCodeActions(model, selection, trigger && trigger.filter);
 
+			if (this._progressService && trigger.type === 'manual') {
+				this._progressService.showWhile(actions, 250);
+			}
+
 			this._signalChange({
 				trigger,
 				rangeOrSelection: selection,
@@ -140,7 +146,7 @@ export class CodeActionModel {
 	private _disposables: IDisposable[] = [];
 	private readonly _supportedCodeActions: IContextKey<string>;
 
-	constructor(editor: ICodeEditor, markerService: IMarkerService, contextKeyService: IContextKeyService) {
+	constructor(editor: ICodeEditor, markerService: IMarkerService, contextKeyService: IContextKeyService, private readonly _progressService: IProgressService) {
 		this._editor = editor;
 		this._markerService = markerService;
 
@@ -183,7 +189,7 @@ export class CodeActionModel {
 
 			this._supportedCodeActions.set(supportedActions.join(' '));
 
-			this._codeActionOracle = new CodeActionOracle(this._editor, this._markerService, p => this._onDidChangeFixes.fire(p));
+			this._codeActionOracle = new CodeActionOracle(this._editor, this._markerService, p => this._onDidChangeFixes.fire(p), undefined, this._progressService);
 			this._codeActionOracle.trigger({ type: 'auto' });
 		} else {
 			this._supportedCodeActions.reset();

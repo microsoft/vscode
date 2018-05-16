@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/542a4e220e58813ea67cdd91b3a454e6e4491aab",
+	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/925295380addea5b27f419a423c708f421347c5c",
 	"name": "C#",
 	"scopeName": "source.cs",
 	"patterns": [
@@ -116,13 +116,13 @@
 					"include": "#type-declarations"
 				},
 				{
+					"include": "#property-declaration"
+				},
+				{
 					"include": "#field-declaration"
 				},
 				{
 					"include": "#event-declaration"
-				},
-				{
-					"include": "#property-declaration"
 				},
 				{
 					"include": "#indexer-declaration"
@@ -162,10 +162,10 @@
 					"include": "#comment"
 				},
 				{
-					"include": "#event-declaration"
+					"include": "#property-declaration"
 				},
 				{
-					"include": "#property-declaration"
+					"include": "#event-declaration"
 				},
 				{
 					"include": "#indexer-declaration"
@@ -1001,7 +1001,7 @@
 			]
 		},
 		"property-declaration": {
-			"begin": "(?x)\n(?!.*\\b(?:class|interface|struct|enum|event)\\b)\\s*\n(?<return-type>\n  (?<type-name>\n    (?:\n      (?:ref\\s+(?:readonly\\s+)?)?   # ref return\n      (?:\n        (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name-and-type-args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type-args>\\s*<(?:[^<>]|\\g<type-args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name-and-type-args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s*\\[(?:\\s*,\\s*)*\\]\\s*)* # array suffix?\n    )\n  )\\s+\n)\n(?<interface-name>\\g<type-name>\\s*\\.\\s*)?\n(?<property-name>\\g<identifier>)\\s*\n(?=\\{|=>|$)",
+			"begin": "(?x)\n\n# The negative lookahead below ensures that we don't match nested types\n# or other declarations as properties.\n(?![[:word:][:space:]]*\\b(?:class|interface|struct|enum|event)\\b)\n\n(?<return-type>\n  (?<type-name>\n    (?:\n      (?:ref\\s+(?:readonly\\s+)?)?   # ref return\n      (?:\n        (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name-and-type-args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type-args>\\s*<(?:[^<>]|\\g<type-args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name-and-type-args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s*\\[(?:\\s*,\\s*)*\\]\\s*)* # array suffix?\n    )\n  )\\s+\n)\n(?<interface-name>\\g<type-name>\\s*\\.\\s*)?\n(?<property-name>\\g<identifier>)\\s*\n(?=\\{|=>|$)",
 			"beginCaptures": {
 				"1": {
 					"patterns": [

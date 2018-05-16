@@ -15,16 +15,10 @@ let taskProvider: vscode.Disposable | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	taskProvider = registerTaskProvider(context);
-	let treeDataProvider = registerExplorer(context);
+	registerExplorer(context);
 	configureHttpRequest();
-	vscode.workspace.onDidChangeConfiguration((e) => {
+	vscode.workspace.onDidChangeConfiguration(() => {
 		configureHttpRequest();
-		if (e.affectsConfiguration('npm.filterPrePostScripts')) {
-			invalidateScriptsCache();
-			if (treeDataProvider) {
-				treeDataProvider.refresh();
-			}
-		}
 	});
 	context.subscriptions.push(addJSONProviders(httpRequest.xhr));
 }
