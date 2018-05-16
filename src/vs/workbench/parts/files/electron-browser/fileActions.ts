@@ -1065,6 +1065,11 @@ function incrementFileName(name: string, isFolder: boolean): string {
 		return name.replace(/(.*\.)(\d+)(\..*)$/, (match, g1?, g2?, g3?) => { return g1 + (parseInt(g2) + 1) + g3; });
 	}
 
+	// 1.file.txt=>2.file.txt
+	if (!isFolder && name.match(/(\d+)(\..*)(\..*)$/)) {
+		return name.replace(/(\d+)(\..*)(\..*)$/, (match, g1?, g2?, g3?) => { return (parseInt(g1) + 1) + g2 + g3; });
+	}
+
 	// file.txt=>file.1.txt
 	const lastIndexOfDot = name.lastIndexOf('.');
 	if (!isFolder && lastIndexOfDot >= 0) {
