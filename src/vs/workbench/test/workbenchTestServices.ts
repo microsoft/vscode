@@ -890,6 +890,10 @@ export class TestNextEditorService implements INextEditorService {
 		return TPromise.as(null);
 	}
 
+	replaceEditors(editors: any, group: any) {
+		return TPromise.as(void 0);
+	}
+
 	invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T {
 		return fn(null);
 	}

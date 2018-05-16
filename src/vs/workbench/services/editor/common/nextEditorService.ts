@@ -10,12 +10,17 @@ import { IResourceInput, IEditorOptions } from 'vs/platform/editor/common/editor
 import { IEditorInput, IEditor, GroupIdentifier, IEditorOpeningEvent, IEditorInputWithOptions, IEditorIdentifier, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
 import { IEditor as ITextEditor } from 'vs/editor/common/editorCommon';
-import { INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroup, IEditorReplacement } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 export const INextEditorService = createDecorator<INextEditorService>('nextEditorService');
 
 export type IResourceEditor = IResourceInput | IUntitledResourceInput | IResourceDiffInput | IResourceSideBySideInput;
+
+export interface IResourceEditorReplacement {
+	editor: IResourceEditor;
+	replacement: IResourceEditor;
+}
 
 export const ACTIVE_GROUP = -1;
 export type ACTIVE_GROUP_TYPE = typeof ACTIVE_GROUP;
@@ -123,6 +128,17 @@ export interface INextEditorService {
 	 */
 	openEditors(editors: IEditorInputWithOptions[], group?: INextEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<ReadonlyArray<IEditor>>;
 	openEditors(editors: IResourceEditor[], group?: INextEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<ReadonlyArray<IEditor>>;
+
+	/**
+	 * Replaces editors in an editor group with the provided replacement.
+	 *
+	 * @param editors the editors to replace
+	 *
+	 * @returns a promise that is resolved when the replaced active
+	 * editor (if any) has finished loading.
+	 */
+	replaceEditors(editors: IResourceEditorReplacement[], group: INextEditorGroup | GroupIdentifier): TPromise<void>;
+	replaceEditors(editors: IEditorReplacement[], group: INextEditorGroup | GroupIdentifier): TPromise<void>;
 
 	/**
 	 * Find out if the provided editor (or resource of an editor) is opened in any group.

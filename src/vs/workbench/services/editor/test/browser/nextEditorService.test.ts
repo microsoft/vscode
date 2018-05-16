@@ -146,6 +146,32 @@ suite('Editor service (editor2)', () => {
 		});
 	});
 
+	test('openEditors() / replaceEditors()', function () {
+		const partInstantiator = workbenchInstantiationService();
+
+		const part = partInstantiator.createInstance(NextEditorPart, 'id', false);
+		part.create(document.createElement('div'));
+		part.layout(new Dimension(400, 300));
+
+		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([INextEditorGroupsService, part]));
+
+		const service: INextEditorService = testInstantiationService.createInstance(NextEditorService);
+
+		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource'));
+		const otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2'));
+		const replaceInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource3'));
+
+		// Open editors
+		return service.openEditors([{ editor: input }, { editor: otherInput }]).then(() => {
+			assert.equal(part.activeGroup.count, 2);
+
+			return service.replaceEditors([{ editor: input, replacement: replaceInput }], part.activeGroup).then(() => {
+				assert.equal(part.activeGroup.count, 2);
+				assert.equal(part.activeGroup.getIndexOfEditor(replaceInput), 0);
+			});
+		});
+	});
+
 	test('caching', function () {
 		const instantiationService = workbenchInstantiationService();
 		const service: NextEditorService = <any>instantiationService.createInstance(NextEditorService);

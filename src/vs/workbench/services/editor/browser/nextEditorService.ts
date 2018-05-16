@@ -24,8 +24,8 @@ import { basename } from 'vs/base/common/paths';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { INextEditorGroupsService, INextEditorGroup, GroupDirection, GroupsOrder } from 'vs/workbench/services/group/common/nextEditorGroupsService';
-import { INextEditorService, IResourceEditor, ACTIVE_GROUP_TYPE, SIDE_GROUP_TYPE, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorGroupsService, INextEditorGroup, GroupDirection, GroupsOrder, IEditorReplacement } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorService, IResourceEditor, ACTIVE_GROUP_TYPE, SIDE_GROUP_TYPE, SIDE_GROUP, ACTIVE_GROUP, IResourceEditorReplacement } from 'vs/workbench/services/editor/common/nextEditorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
@@ -386,6 +386,35 @@ export class NextEditorService extends Disposable implements INextEditorService,
 				return resource && resource.toString() === resourceInput.resource.toString();
 			});
 		});
+	}
+
+	//#endregion
+
+	//#region replaceEditors()
+
+	replaceEditors(editors: IResourceEditorReplacement[], group: INextEditorGroup | GroupIdentifier): TPromise<void>;
+	replaceEditors(editors: IEditorReplacement[], group: INextEditorGroup | GroupIdentifier): TPromise<void>;
+	replaceEditors(editors: (IEditorReplacement | IResourceEditorReplacement)[], group: INextEditorGroup | GroupIdentifier): TPromise<void> {
+		const typedEditors: IEditorReplacement[] = [];
+
+		editors.forEach(replaceEditorArg => {
+			if (replaceEditorArg.editor instanceof EditorInput) {
+				typedEditors.push(replaceEditorArg as IEditorReplacement);
+			} else {
+				const editor = replaceEditorArg.editor as IResourceEditor;
+				const typedEditor = this.createInput(editor);
+				const replacementEditor = this.createInput(replaceEditorArg.replacement as IResourceEditor);
+
+				typedEditors.push({
+					editor: typedEditor,
+					replacement: replacementEditor,
+					options: this.toOptions(editor.options)
+				});
+			}
+		});
+
+		const targetGroup = typeof group === 'number' ? this.nextEditorGroupsService.getGroup(group) : group;
+		return targetGroup.replaceEditors(typedEditors);
 	}
 
 	//#endregion
