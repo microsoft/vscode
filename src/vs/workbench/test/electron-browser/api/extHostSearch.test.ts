@@ -8,13 +8,14 @@ import * as assert from 'assert';
 import * as path from 'path';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IRawFileMatch2, IRawSearchQuery, QueryType, ISearchQuery } from 'vs/platform/search/common/search';
+import { IRawFileMatch2, IRawSearchQuery, QueryType, ISearchQuery, IPatternInfo, IFileMatch } from 'vs/platform/search/common/search';
 import { MainContext, MainThreadSearchShape } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostSearch } from 'vs/workbench/api/node/extHostSearch';
 import { TestRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';
 import * as vscode from 'vscode';
 import { dispose } from 'vs/base/common/lifecycle';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { Range } from 'vs/workbench/api/node/extHostTypes';
 
 let rpcProtocol: TestRPCProtocol;
 let extHostSearch: ExtHostSearch;
@@ -71,6 +72,31 @@ suite('ExtHostSearch', () => {
 		return (<UriComponents[]>mockMainThreadSearch.results).map(r => URI.revive(r));
 	}
 
+	async function runTextSearch(pattern: IPatternInfo, query: IRawSearchQuery, cancel = false): TPromise<IFileMatch[]> {
+		try {
+			const p = extHostSearch.$provideTextSearchResults(mockMainThreadSearch.lastHandle, 0, pattern, query);
+			if (cancel) {
+				await new TPromise(resolve => process.nextTick(resolve));
+				p.cancel();
+			}
+
+			await p;
+		} catch (err) {
+			if (!isPromiseCanceledError(err)) {
+				await rpcProtocol.sync();
+				throw err;
+			}
+		}
+
+		await rpcProtocol.sync();
+		return (<IRawFileMatch2[]>mockMainThreadSearch.results).map(r => ({
+			...r,
+			...{
+				resource: URI.revive(r.resource)
+			}
+		}));
+	}
+
 	setup(() => {
 		rpcProtocol = new TestRPCProtocol();
 
@@ -85,10 +111,16 @@ suite('ExtHostSearch', () => {
 		return rpcProtocol.sync();
 	});
 
+	const rootFolderA = URI.file('/foo/bar');
+	const rootFolderB = URI.file('/foo/bar2');
+	// const rootFolderC = URI.file('/foo/bar3');
+
+	function makeAbsoluteURI(root: URI, relativePath: string): URI {
+		return URI.file(
+			path.join(root.fsPath, relativePath));
+	}
+
 	suite('File:', () => {
-		const rootFolderA = URI.file('/foo/bar');
-		const rootFolderB = URI.file('/foo/bar2');
-		// const rootFolderC = URI.file('/foo/bar3');
 
 		function getSimpleQuery(filePattern = ''): ISearchQuery {
 			return {
@@ -99,11 +131,6 @@ suite('ExtHostSearch', () => {
 					{ folder: rootFolderA }
 				]
 			};
-		}
-
-		function makeFileResult(root: URI, relativePath: string): URI {
-			return URI.file(
-				path.join(root.fsPath, relativePath));
 		}
 
 		function compareURIs(actual: URI[], expected: URI[]) {
@@ -127,9 +154,9 @@ suite('ExtHostSearch', () => {
 
 		test('simple results', async () => {
 			const reportedResults = [
-				makeFileResult(rootFolderA, 'file1.ts'),
-				makeFileResult(rootFolderA, 'file2.ts'),
-				makeFileResult(rootFolderA, 'file3.ts'),
+				makeAbsoluteURI(rootFolderA, 'file1.ts'),
+				makeAbsoluteURI(rootFolderA, 'file2.ts'),
+				makeAbsoluteURI(rootFolderA, 'file3.ts'),
 			];
 
 			await registerTestSearchProvider({
@@ -158,7 +185,7 @@ suite('ExtHostSearch', () => {
 					return new TPromise((resolve, reject) => {
 						token.onCancellationRequested(() => {
 							cancelRequested = true;
-							progress.report(makeFileResult(rootFolderA, 'file1.ts'));
+							progress.report(makeAbsoluteURI(rootFolderA, 'file1.ts'));
 
 							resolve(null); // or reject or nothing?
 						});
@@ -173,9 +200,9 @@ suite('ExtHostSearch', () => {
 
 		test('provider fail', async () => {
 			const reportedResults = [
-				makeFileResult(rootFolderA, 'file1.ts'),
-				makeFileResult(rootFolderA, 'file2.ts'),
-				makeFileResult(rootFolderA, 'file3.ts'),
+				makeAbsoluteURI(rootFolderA, 'file1.ts'),
+				makeAbsoluteURI(rootFolderA, 'file2.ts'),
+				makeAbsoluteURI(rootFolderA, 'file3.ts'),
 			];
 
 			await registerTestSearchProvider({
@@ -319,8 +346,8 @@ suite('ExtHostSearch', () => {
 
 		test('basic sibling exclude clause', async () => {
 			const reportedResults = [
-				makeFileResult(rootFolderA, 'file1.ts'),
-				makeFileResult(rootFolderA, 'file1.js'),
+				makeAbsoluteURI(rootFolderA, 'file1.ts'),
+				makeAbsoluteURI(rootFolderA, 'file1.js'),
 			];
 
 			await registerTestSearchProvider({
@@ -348,7 +375,7 @@ suite('ExtHostSearch', () => {
 			compareURIs(
 				results,
 				[
-					makeFileResult(rootFolderA, 'file1.ts')
+					makeAbsoluteURI(rootFolderA, 'file1.ts')
 				]);
 		});
 
@@ -359,15 +386,15 @@ suite('ExtHostSearch', () => {
 					let reportedResults;
 					if (options.folder.fsPath === rootFolderA.fsPath) {
 						reportedResults = [
-							makeFileResult(rootFolderA, 'folder/fileA.scss'),
-							makeFileResult(rootFolderA, 'folder/fileA.css'),
-							makeFileResult(rootFolderA, 'folder/file2.css')
+							makeAbsoluteURI(rootFolderA, 'folder/fileA.scss'),
+							makeAbsoluteURI(rootFolderA, 'folder/fileA.css'),
+							makeAbsoluteURI(rootFolderA, 'folder/file2.css')
 						];
 					} else {
 						reportedResults = [
-							makeFileResult(rootFolderB, 'fileB.ts'),
-							makeFileResult(rootFolderB, 'fileB.js'),
-							makeFileResult(rootFolderB, 'file3.js')
+							makeAbsoluteURI(rootFolderB, 'fileB.ts'),
+							makeAbsoluteURI(rootFolderB, 'fileB.js'),
+							makeAbsoluteURI(rootFolderB, 'file3.js')
 						];
 					}
 
@@ -408,12 +435,12 @@ suite('ExtHostSearch', () => {
 			compareURIs(
 				results,
 				[
-					makeFileResult(rootFolderA, 'folder/fileA.scss'),
-					makeFileResult(rootFolderA, 'folder/file2.css'),
+					makeAbsoluteURI(rootFolderA, 'folder/fileA.scss'),
+					makeAbsoluteURI(rootFolderA, 'folder/file2.css'),
 
-					makeFileResult(rootFolderB, 'fileB.ts'),
-					makeFileResult(rootFolderB, 'fileB.js'),
-					makeFileResult(rootFolderB, 'file3.js'),
+					makeAbsoluteURI(rootFolderB, 'fileB.ts'),
+					makeAbsoluteURI(rootFolderB, 'fileB.js'),
+					makeAbsoluteURI(rootFolderB, 'file3.js'),
 				]);
 		});
 
@@ -438,5 +465,102 @@ suite('ExtHostSearch', () => {
 		// 	assert.equal(results.length, 1);
 		// 	compareURIs(results, [queriedFile]);
 		// });
+	});
+
+	suite('Text:', () => {
+
+		function makePreview(text: string): vscode.TextSearchResult['preview'] {
+			return {
+				match: new Range(0, 0, 0, text.length),
+				text
+			};
+		}
+
+		function getSimpleQuery(): ISearchQuery {
+			return {
+				type: QueryType.Text,
+
+				folderQueries: [
+					{ folder: rootFolderA }
+				]
+			};
+		}
+
+		function getPattern(queryText: string): IPatternInfo {
+			return {
+				pattern: queryText
+			};
+		}
+
+		function assertResults(actual: IFileMatch[], expected: vscode.TextSearchResult[]) {
+			const actualTextSearchResults: vscode.TextSearchResult[] = [];
+			for (let fileMatch of actual) {
+				for (let lineMatch of fileMatch.lineMatches) {
+					for (let [offset, length] of lineMatch.offsetAndLengths) {
+						actualTextSearchResults.push({
+							preview: { text: lineMatch.preview, match: null },
+							range: new Range(lineMatch.lineNumber, offset, lineMatch.lineNumber, length + offset),
+							uri: fileMatch.resource
+						});
+					}
+				}
+			}
+
+			const rangeToString = (r: vscode.Range) => `(${r.start.line}, ${r.start.character}), (${r.end.line}, ${r.end.character})`;
+
+			const makeComparable = (results: vscode.TextSearchResult[]) => results
+				.sort((a, b) => b.preview.text.localeCompare(a.preview.text))
+				.map(r => ({
+					...r,
+					...{
+						uri: r.uri.toString(),
+						range: rangeToString(r.range),
+						preview: {
+							text: r.preview.text,
+							match: null // Don't care about this right now
+						}
+					}
+				}));
+
+			return assert.deepEqual(
+				makeComparable(actualTextSearchResults),
+				makeComparable(expected));
+		}
+
+		test('no results', async () => {
+			await registerTestSearchProvider({
+				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
+					return TPromise.wrap(null);
+				}
+			});
+
+			const results = await runTextSearch(getPattern('foo'), getSimpleQuery());
+			assert(!results.length);
+		});
+
+		test('basic results', async () => {
+			const providedResults: vscode.TextSearchResult[] = [
+				{
+					preview: makePreview('foo'),
+					range: new Range(0, 0, 0, 3),
+					uri: makeAbsoluteURI(rootFolderA, 'file1.ts')
+				},
+				{
+					preview: makePreview('bar'),
+					range: new Range(1, 0, 1, 3),
+					uri: makeAbsoluteURI(rootFolderA, 'file2.ts')
+				}
+			];
+
+			await registerTestSearchProvider({
+				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
+					providedResults.forEach(r => progress.report(r));
+					return TPromise.wrap(null);
+				}
+			});
+
+			const results = await runTextSearch(getPattern('foo'), getSimpleQuery());
+			assertResults(results, providedResults);
+		});
 	});
 });
