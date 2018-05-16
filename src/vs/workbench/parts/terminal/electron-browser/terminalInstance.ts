@@ -487,7 +487,7 @@ export class TerminalInstance implements ITerminalInstance {
 		if (this._xterm) {
 			const buffer = (<any>this._xterm.buffer);
 			this._sendLineData(buffer, buffer.ybase + buffer.y);
-			this._xterm.destroy();
+			this._xterm.dispose();
 			this._xterm = null;
 		}
 		if (this._processManager) {
