@@ -31,12 +31,14 @@ export function equals<T>(one: T[], other: T[], itemEquals: (a: T, b: T) => bool
 }
 
 export function binarySearch<T>(array: T[], key: T, comparator: (op1: T, op2: T) => number): number {
-	let low = 0,
-		high = array.length - 1;
+
+	let low = 0;
+	let high = array.length - 1;
+	let mid = (low + high) / 2;
+	let comp = 0;
 
 	while (low <= high) {
-		let mid = ((low + high) / 2) | 0;
-		let comp = comparator(array[mid], key);
+		comp = comparator(array[mid], key);
 		if (comp < 0) {
 			low = mid + 1;
 		} else if (comp > 0) {
@@ -54,12 +56,15 @@ export function binarySearch<T>(array: T[], key: T, comparator: (op1: T, op2: T)
  * @returns the least x for which p(x) is true or array.length if no element fullfills the given function.
  */
 export function findFirstInSorted<T>(array: T[], p: (x: T) => boolean): number {
+
 	let low = 0, high = array.length;
+	let mid = 0;
+
 	if (high === 0) {
 		return 0; // no children
 	}
 	while (low < high) {
-		let mid = Math.floor((low + high) / 2);
+		mid = Math.floor((low + high) / 2);
 		if (p(array[mid])) {
 			high = mid;
 		} else {
@@ -93,6 +98,7 @@ function _divideAndMerge<T>(data: T[], compare: (a: T, b: T) => number): void {
 	let leftIdx = 0;
 	let rightIdx = 0;
 	let i = 0;
+
 	while (leftIdx < left.length && rightIdx < right.length) {
 		let ret = compare(left[leftIdx], right[rightIdx]);
 		if (ret <= 0) {

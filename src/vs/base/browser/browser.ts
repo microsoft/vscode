@@ -24,15 +24,19 @@ class WindowManager {
 	public getTimeSinceLastZoomLevelChanged(): number {
 		return Date.now() - this._lastZoomLevelChangeTime;
 	}
+
 	public setZoomLevel(zoomLevel: number, isTrusted: boolean): void {
-		if (this._zoomLevel === zoomLevel) {
-			return;
+
+		//If the previous zoomLevel is different from what we set, change it and trigger an event
+
+		if (this._zoomLevel !== zoomLevel) {
+
+			this._zoomLevel = zoomLevel;
+			// See https://github.com/Microsoft/vscode/issues/26151
+			this._lastZoomLevelChangeTime = isTrusted ? 0 : Date.now();
+			this._onDidChangeZoomLevel.fire(this._zoomLevel);
 		}
 
-		this._zoomLevel = zoomLevel;
-		// See https://github.com/Microsoft/vscode/issues/26151
-		this._lastZoomLevelChangeTime = isTrusted ? 0 : Date.now();
-		this._onDidChangeZoomLevel.fire(this._zoomLevel);
 	}
 
 
@@ -42,8 +46,14 @@ class WindowManager {
 	public getZoomFactor(): number {
 		return this._zoomFactor;
 	}
+
 	public setZoomFactor(zoomFactor: number): void {
-		this._zoomFactor = zoomFactor;
+
+		//Set zoom factor when value changed
+		if(this._zoomFactor !== zoomFactor){
+			this._zoomFactor = zoomFactor;
+		}
+
 	}
 
 
@@ -64,14 +74,17 @@ class WindowManager {
 	private readonly _onDidChangeFullscreen: Emitter<void> = new Emitter<void>();
 
 	public readonly onDidChangeFullscreen: Event<void> = this._onDidChangeFullscreen.event;
+
 	public setFullscreen(fullscreen: boolean): void {
-		if (this._fullscreen === fullscreen) {
-			return;
+
+		//If fullscreen is changed, just set and trigger an event
+		if (this._fullscreen !== fullscreen) {
+			this._fullscreen = fullscreen;
+			this._onDidChangeFullscreen.fire();
 		}
 
-		this._fullscreen = fullscreen;
-		this._onDidChangeFullscreen.fire();
 	}
+
 	public isFullscreen(): boolean {
 		return this._fullscreen;
 	}
@@ -81,14 +94,16 @@ class WindowManager {
 	private readonly _onDidChangeAccessibilitySupport: Emitter<void> = new Emitter<void>();
 
 	public readonly onDidChangeAccessibilitySupport: Event<void> = this._onDidChangeAccessibilitySupport.event;
-	public setAccessibilitySupport(accessibilitySupport: Platform.AccessibilitySupport): void {
-		if (this._accessibilitySupport === accessibilitySupport) {
-			return;
-		}
 
-		this._accessibilitySupport = accessibilitySupport;
-		this._onDidChangeAccessibilitySupport.fire();
+	public setAccessibilitySupport(accessibilitySupport: Platform.AccessibilitySupport): void {
+
+		//If values are not the same, change it and trigger an event
+		if (this._accessibilitySupport !== accessibilitySupport) {
+			this._accessibilitySupport = accessibilitySupport;
+			this._onDidChangeAccessibilitySupport.fire();
+		}
 	}
+
 	public getAccessibilitySupport(): Platform.AccessibilitySupport {
 		return this._accessibilitySupport;
 	}
