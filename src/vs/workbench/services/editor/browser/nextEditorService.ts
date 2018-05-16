@@ -112,11 +112,11 @@ export class NextEditorService extends Disposable implements INextEditorService,
 		}));
 
 		groupDisposeables.push(group.onWillCloseEditor(editor => {
-			this._onWillCloseEditor.fire({ editor, group: group.id });
+			this._onWillCloseEditor.fire({ editor, groupId: group.id });
 		}));
 
 		groupDisposeables.push(group.onDidCloseEditor(editor => {
-			this._onDidCloseEditor.fire({ editor, group: group.id });
+			this._onDidCloseEditor.fire({ editor, groupId: group.id });
 		}));
 
 		groupDisposeables.push(group.onWillOpenEditor(editor => {
@@ -124,7 +124,7 @@ export class NextEditorService extends Disposable implements INextEditorService,
 		}));
 
 		groupDisposeables.push(group.onDidOpenEditorFail(editor => {
-			this._onDidOpenEditorFail.fire({ editor, group: group.id });
+			this._onDidOpenEditorFail.fire({ editor, groupId: group.id });
 		}));
 
 		once(group.onWillDispose)(() => {

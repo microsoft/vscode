@@ -12,11 +12,12 @@ import { ResourceMap } from 'vs/base/common/map';
 import { isLinux } from 'vs/base/common/platform';
 import { IFileStat } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IEditorGroup, toResource, IEditorIdentifier, IEditorInput } from 'vs/workbench/common/editor';
+import { toResource, IEditorIdentifier, IEditorInput } from 'vs/workbench/common/editor';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { getPathLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
 import { startsWith, startsWithIgnoreCase, rtrim } from 'vs/base/common/strings';
+import { INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 export class Model {
 
@@ -451,7 +452,7 @@ export class NewStatPlaceholder extends ExplorerItem {
 
 export class OpenEditor implements IEditorIdentifier {
 
-	constructor(private _editor: IEditorInput, private _group: IEditorGroup) {
+	constructor(private _editor: IEditorInput, private _group: INextEditorGroup) {
 		// noop
 	}
 
@@ -460,23 +461,23 @@ export class OpenEditor implements IEditorIdentifier {
 	}
 
 	public get editorIndex() {
-		return this.legacyGroup.indexOf(this.editor);
+		return this._group.getIndexOfEditor(this.editor);
 	}
 
 	public get group() {
-		return this._group.id;
-	}
-
-	public get legacyGroup() {
 		return this._group;
 	}
 
+	public get groupId() {
+		return this._group.id;
+	}
+
 	public getId(): string {
-		return `openeditor:${this.group}:${this.legacyGroup.indexOf(this.editor)}:${this.editor.getName()}:${this.editor.getDescription()}`;
+		return `openeditor:${this.groupId}:${this.editorIndex}:${this.editor.getName()}:${this.editor.getDescription()}`;
 	}
 
 	public isPreview(): boolean {
-		return this.legacyGroup.isPreview(this.editor);
+		return this._group.previewEditor === this.editor;
 	}
 
 	public isUntitled(): boolean {

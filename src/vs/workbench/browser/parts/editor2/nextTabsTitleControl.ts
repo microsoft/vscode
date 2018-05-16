@@ -180,7 +180,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 					isLocalDragAndDrop = true;
 
 					const localDraggedEditor = this.editorTransfer.getData(DraggedEditorIdentifier.prototype)[0].identifier;
-					if (this.group.id === localDraggedEditor.group && this.group.getIndexOfEditor(localDraggedEditor.editor) === this.group.count - 1) {
+					if (this.group.id === localDraggedEditor.groupId && this.group.getIndexOfEditor(localDraggedEditor.editor) === this.group.count - 1) {
 						e.dataTransfer.dropEffect = 'none';
 						return;
 					}
@@ -525,7 +525,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 		// Drag support
 		disposables.push(addDisposableListener(tab, EventType.DRAG_START, (e: DragEvent) => {
 			const editor = this.group.getEditor(index);
-			this.editorTransfer.setData([new DraggedEditorIdentifier({ editor, group: this.group.id })], DraggedEditorIdentifier.prototype);
+			this.editorTransfer.setData([new DraggedEditorIdentifier({ editor, groupId: this.group.id })], DraggedEditorIdentifier.prototype);
 
 			e.dataTransfer.effectAllowed = 'copyMove';
 
@@ -559,7 +559,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 					isLocalDragAndDrop = true;
 
 					const localDraggedEditor = this.editorTransfer.getData(DraggedEditorIdentifier.prototype)[0].identifier;
-					if (localDraggedEditor.editor === this.group.getEditor(index) && localDraggedEditor.group === this.group.id) {
+					if (localDraggedEditor.editor === this.group.getEditor(index) && localDraggedEditor.groupId === this.group.id) {
 						e.dataTransfer.dropEffect = 'none';
 						return;
 					}
@@ -966,10 +966,10 @@ export class NextTabsTitleControl extends NextTitleControl {
 		// Local DND
 		const draggedEditor = this.editorTransfer.hasData(DraggedEditorIdentifier.prototype) ? this.editorTransfer.getData(DraggedEditorIdentifier.prototype)[0].identifier : void 0;
 		if (draggedEditor) {
-			const sourceGroup = this.accessor.getGroup(draggedEditor.group);
+			const sourceGroup = this.accessor.getGroup(draggedEditor.groupId);
 
 			// Move editor to target position and index
-			if (this.isMoveOperation(e, draggedEditor.group)) {
+			if (this.isMoveOperation(e, draggedEditor.groupId)) {
 				sourceGroup.moveEditor(draggedEditor.editor, this.group, { index: targetIndex });
 			}
 

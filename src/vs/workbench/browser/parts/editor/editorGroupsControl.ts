@@ -1135,7 +1135,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			let options = EditorOptions.create({ pinned: true });
 			const activeEditor = $this.editorService.getActiveEditor();
 			const editor = getCodeEditor(activeEditor);
-			if (editor && activeEditor.group === stacks.positionOfGroup(stacks.getGroup(identifier.group)) && identifier.editor.matches(activeEditor.input)) {
+			if (editor && activeEditor.group === stacks.positionOfGroup(stacks.getGroup(identifier.groupId)) && identifier.editor.matches(activeEditor.input)) {
 				options = TextEditorOptions.fromEditor(editor, { pinned: true });
 			}
 
@@ -1181,7 +1181,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 				// Move editor to new location
 				else {
-					const draggedGroup = stacks.getGroup(draggedEditor.group);
+					const draggedGroup = stacks.getGroup(draggedEditor.groupId);
 					const sourcePosition = stacks.positionOfGroup(draggedGroup);
 					if (splitEditor) {
 						if (draggedGroup.count === 1) {
@@ -1229,7 +1229,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 			let splitTarget: Position;
 
-			const draggedGroup = stacks.getGroup(draggedEditor.group);
+			const draggedGroup = stacks.getGroup(draggedEditor.groupId);
 
 			// No splitting if we reached maximum group count
 			if (groups === POSITIONS.length) {

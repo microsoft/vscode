@@ -10,11 +10,10 @@ import { IAction } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { INextEditorGroupsService, INextEditorGroup, GroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Position } from 'vs/platform/editor/common/editor';
-import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup, IEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput } from 'vs/workbench/common/editor';
 import { SaveAllAction, SaveAllInGroupAction } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { IViewletViewOptions, IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { OpenEditorsFocusedContext, ExplorerFocusedContext, IFilesConfiguration } from 'vs/workbench/parts/files/common/files';
@@ -24,7 +23,6 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { CloseAllEditorsAction, CloseEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/toggleEditorLayout';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -34,7 +32,7 @@ import { EditorLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
@@ -50,11 +48,10 @@ export class OpenEditorsView extends ViewsViewletPanel {
 	static readonly ID = 'workbench.explorer.openEditorsView';
 	static NAME = nls.localize({ key: 'openEditors', comment: ['Open is an adjective'] }, "Open Editors");
 
-	private model: IEditorStacksModel;
 	private dirtyCountElement: HTMLElement;
 	private listRefreshScheduler: RunOnceScheduler;
 	private structuralRefreshDelay: number;
-	private list: WorkbenchList<OpenEditor | IEditorGroup>;
+	private list: WorkbenchList<OpenEditor | INextEditorGroup>;
 	private contributedContextMenu: IMenu;
 	private needsRefresh: boolean;
 	private resourceContext: ResourceContextKey;
@@ -66,8 +63,8 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@INextEditorService private editorService: INextEditorService,
+		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
@@ -81,8 +78,6 @@ export class OpenEditorsView extends ViewsViewletPanel {
 			ariaHeaderLabel: nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"),
 		}, keybindingService, contextMenuService, configurationService);
 
-		this.model = editorGroupService.getStacksModel();
-
 		this.structuralRefreshDelay = 0;
 		this.listRefreshScheduler = new RunOnceScheduler(() => {
 			const previousLength = this.list.length;
@@ -95,7 +90,8 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		}, this.structuralRefreshDelay);
 
 		// update on model changes
-		this.disposables.push(this.model.onModelChanged(e => this.onEditorStacksModelChanged(e)));
+		// TODO@Isidor handle model change events
+		// this.disposables.push(this.model.onModelChanged(e => this.onEditorStacksModelChanged(e)));
 
 		// Also handle configuration updates
 		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(e)));
@@ -149,9 +145,9 @@ export class OpenEditorsView extends ViewsViewletPanel {
 			new EditorGroupRenderer(this.keybindingService, this.instantiationService, this.editorGroupService),
 			new OpenEditorRenderer(getSelectedElements, this.instantiationService, this.keybindingService, this.configurationService, this.editorGroupService)
 		], {
-				identityProvider: (element: OpenEditor | EditorGroup) => element instanceof OpenEditor ? element.getId() : element.id.toString(),
+				identityProvider: (element: OpenEditor | INextEditorGroup) => element instanceof OpenEditor ? element.getId() : element.id.toString(),
 				selectOnMouseDown: false /* disabled to better support DND */
-			}) as WorkbenchList<OpenEditor | IEditorGroup>;
+			}) as WorkbenchList<OpenEditor | INextEditorGroup>;
 
 		this.contributedContextMenu = this.menuService.createMenu(MenuId.OpenEditorsContext, this.list.contextKeyService);
 		this.disposables.push(this.contributedContextMenu);
@@ -199,8 +195,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 			const element = focused.length ? focused[0] : undefined;
 			if (element instanceof OpenEditor) {
 				if (isMiddleClick) {
-					const position = this.model.positionOfGroup(element.legacyGroup);
-					this.editorService.closeEditor(position, element.editor).done(null, errors.onUnexpectedError);
+					this.editorService.closeEditor(element.editor, element.groupId).done(null, errors.onUnexpectedError);
 				} else {
 					this.openEditor(element, { preserveFocus: isSingleClick, pinned: isDoubleClick, sideBySide: openToSide });
 				}
@@ -238,7 +233,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		this.list.domFocus();
 	}
 
-	public getList(): WorkbenchList<OpenEditor | IEditorGroup> {
+	public getList(): WorkbenchList<OpenEditor | INextEditorGroup> {
 		return this.list;
 	}
 
@@ -249,28 +244,28 @@ export class OpenEditorsView extends ViewsViewletPanel {
 	}
 
 	private get showGroups(): boolean {
-		return this.model.groups.length > 1;
+		return this.editorGroupService.groups.length > 1;
 	}
 
-	private get elements(): (IEditorGroup | OpenEditor)[] {
-		const result: (IEditorGroup | OpenEditor)[] = [];
-		this.model.groups.forEach(g => {
+	private get elements(): (INextEditorGroup | OpenEditor)[] {
+		const result: (INextEditorGroup | OpenEditor)[] = [];
+		this.editorGroupService.groups.forEach(g => {
 			if (this.showGroups) {
 				result.push(g);
 			}
-			result.push(...g.getEditors().map(ei => new OpenEditor(ei, g)));
+			result.push(...g.editors.map(ei => new OpenEditor(ei, g)));
 		});
 
 		return result;
 	}
 
-	private getIndex(group: IEditorGroup, editor: IEditorInput): number {
-		let index = editor ? group.indexOf(editor) : 0;
+	private getIndex(group: INextEditorGroup, editor: IEditorInput): number {
+		let index = editor ? group.getIndexOfEditor(editor) : 0;
 		if (!this.showGroups) {
 			return index;
 		}
 
-		for (let g of this.model.groups) {
+		for (let g of this.editorGroupService.groups) {
 			if (g.id === group.id) {
 				return index + (!!editor ? 1 : 0);
 			} else {
@@ -291,24 +286,20 @@ export class OpenEditorsView extends ViewsViewletPanel {
 			*/
 			this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'openEditors' });
 
-			let position = this.model.positionOfGroup(element.legacyGroup);
-			if (options.sideBySide && position !== Position.THREE) {
-				position++;
-			}
-
+			const groupWhereToOpen = options.sideBySide ? this.editorGroupService.findNeighbourGroup(element.groupId, GroupDirection.RIGHT) : element.groupId;
 			const preserveActivateGroup = options.sideBySide && options.preserveFocus; // needed for https://github.com/Microsoft/vscode/issues/42399
 			if (!preserveActivateGroup) {
-				this.editorGroupService.activateGroup(this.model.groupAt(position)); // needed for https://github.com/Microsoft/vscode/issues/6672
+				this.editorGroupService.activateGroup(element.groupId); // needed for https://github.com/Microsoft/vscode/issues/6672
 			}
-			this.editorService.openEditor(element.editor, options, position).done(() => {
+			this.editorService.openEditor(element.editor, options, groupWhereToOpen).done(() => {
 				if (!preserveActivateGroup) {
-					this.editorGroupService.activateGroup(this.model.groupAt(position));
+					this.editorGroupService.activateGroup(groupWhereToOpen);
 				}
 			}, errors.onUnexpectedError);
 		}
 	}
 
-	private onListContextMenu(e: IListContextMenuEvent<OpenEditor | IEditorGroup>): void {
+	private onListContextMenu(e: IListContextMenuEvent<OpenEditor | INextEditorGroup>): void {
 		const element = e.element;
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
@@ -317,38 +308,38 @@ export class OpenEditorsView extends ViewsViewletPanel {
 				fillInActions(this.contributedContextMenu, { shouldForwardArgs: true, arg: element instanceof OpenEditor ? element.editor.getResource() : {} }, actions, this.contextMenuService);
 				return TPromise.as(actions);
 			},
-			getActionsContext: () => element instanceof OpenEditor ? { groupId: element.group, editorIndex: element.editorIndex } : { groupId: element.id }
+			getActionsContext: () => element instanceof OpenEditor ? { groupId: element.groupId, editorIndex: element.editorIndex } : { groupId: element.id }
 		});
 	}
 
-	private onEditorStacksModelChanged(e: IStacksModelChangeEvent): void {
-		if (!this.isVisible() || !this.list || !this.isExpanded()) {
-			this.needsRefresh = true;
-			return;
-		}
+	// private onEditorStacksModelChanged(e: IStacksModelChangeEvent): void {
+	// 	if (!this.isVisible() || !this.list || !this.isExpanded()) {
+	// 		this.needsRefresh = true;
+	// 		return;
+	// 	}
 
-		// Do a minimal list update based on if the change is structural or not #6670
-		if (e.structural) {
-			this.listRefreshScheduler.schedule(this.structuralRefreshDelay);
-		} else if (!this.listRefreshScheduler.isScheduled()) {
+	// 	// Do a minimal list update based on if the change is structural or not #6670
+	// 	if (e.structural) {
+	// 		this.listRefreshScheduler.schedule(this.structuralRefreshDelay);
+	// 	} else if (!this.listRefreshScheduler.isScheduled()) {
 
-			const newElement = e.editor ? new OpenEditor(e.editor, e.group) : this.showGroups ? e.group : undefined;
-			if (newElement) {
-				const index = this.getIndex(e.group, e.editor);
-				const previousLength = this.list.length;
-				this.list.splice(index, 1, [newElement]);
+	// 		const newElement = e.editor ? new OpenEditor(e.editor, e.group) : this.showGroups ? e.group : undefined;
+	// 		if (newElement) {
+	// 			const index = this.getIndex(e.group, e.editor);
+	// 			const previousLength = this.list.length;
+	// 			this.list.splice(index, 1, [newElement]);
 
-				if (previousLength !== this.list.length) {
-					this.updateSize();
-				}
-				this.focusActiveEditor();
-			}
-		}
-	}
+	// 			if (previousLength !== this.list.length) {
+	// 				this.updateSize();
+	// 			}
+	// 			this.focusActiveEditor();
+	// 		}
+	// 	}
+	// }
 
 	private focusActiveEditor(): void {
-		if (this.model.activeGroup && this.model.activeGroup.activeEditor /* could be empty */) {
-			const index = this.getIndex(this.model.activeGroup, this.model.activeGroup.activeEditor);
+		if (this.editorGroupService.activeGroup && this.editorGroupService.activeGroup.activeEditor /* could be empty */) {
+			const index = this.getIndex(this.editorGroupService.activeGroup, this.editorGroupService.activeGroup.activeEditor);
 			this.list.setFocus([index]);
 			this.list.setSelection([index]);
 			this.list.reveal(index);
@@ -384,8 +375,8 @@ export class OpenEditorsView extends ViewsViewletPanel {
 	}
 
 	private get elementCount(): number {
-		return this.model.groups.map(g => g.count)
-			.reduce((first, second) => first + second, this.showGroups ? this.model.groups.length : 0);
+		return this.editorGroupService.groups.map(g => g.count)
+			.reduce((first, second) => first + second, this.showGroups ? this.editorGroupService.groups.length : 0);
 	}
 
 	private getMaxExpandedBodySize(): number {
@@ -430,28 +421,28 @@ interface IEditorGroupTemplateData {
 	root: HTMLElement;
 	name: HTMLSpanElement;
 	actionBar: ActionBar;
-	editorGroup: IEditorGroup;
+	editorGroup: INextEditorGroup;
 	toDispose: IDisposable[];
 }
 
-class OpenEditorsDelegate implements IDelegate<OpenEditor | IEditorGroup> {
+class OpenEditorsDelegate implements IDelegate<OpenEditor | INextEditorGroup> {
 
 	public static readonly ITEM_HEIGHT = 22;
 
-	getHeight(element: OpenEditor | IEditorGroup): number {
+	getHeight(element: OpenEditor | INextEditorGroup): number {
 		return OpenEditorsDelegate.ITEM_HEIGHT;
 	}
 
-	getTemplateId(element: OpenEditor | IEditorGroup): string {
-		if (element instanceof EditorGroup) {
-			return EditorGroupRenderer.ID;
+	getTemplateId(element: OpenEditor | INextEditorGroup): string {
+		if (element instanceof OpenEditor) {
+			return OpenEditorRenderer.ID;
 		}
 
-		return OpenEditorRenderer.ID;
+		return EditorGroupRenderer.ID;
 	}
 }
 
-class EditorGroupRenderer implements IRenderer<IEditorGroup, IEditorGroupTemplateData> {
+class EditorGroupRenderer implements IRenderer<INextEditorGroup, IEditorGroupTemplateData> {
 	static readonly ID = 'editorgroup';
 
 	private transfer = LocalSelectionTransfer.getInstance<OpenEditor>();
@@ -459,7 +450,7 @@ class EditorGroupRenderer implements IRenderer<IEditorGroup, IEditorGroupTemplat
 	constructor(
 		private keybindingService: IKeybindingService,
 		private instantiationService: IInstantiationService,
-		private editorGroupService: IEditorGroupService
+		private editorGroupService: INextEditorGroupsService
 	) {
 		// noop
 	}
@@ -488,23 +479,21 @@ class EditorGroupRenderer implements IRenderer<IEditorGroup, IEditorGroupTemplat
 		editorGroupTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DROP, e => {
 			dom.removeClass(container, 'focused');
 
-			const model = this.editorGroupService.getStacksModel();
-			const positionOfTargetGroup = model.positionOfGroup(editorGroupTemplate.editorGroup);
 
 			if (this.transfer.hasData(OpenEditor.prototype)) {
 				this.transfer.getData(OpenEditor.prototype).forEach(oe =>
-					this.editorGroupService.moveEditor(oe.editor, model.positionOfGroup(oe.legacyGroup), positionOfTargetGroup, { preserveFocus: true }));
-				this.editorGroupService.activateGroup(positionOfTargetGroup);
+					oe.group.moveEditor(oe.editor, editorGroupTemplate.editorGroup, { preserveFocus: true }));
+				this.editorGroupService.activateGroup(editorGroupTemplate.editorGroup);
 			} else {
 				const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: false });
-				dropHandler.handleDrop(e, () => this.editorGroupService.activateGroup(positionOfTargetGroup), () => positionOfTargetGroup);
+				dropHandler.handleDrop(e, () => this.editorGroupService.activateGroup(editorGroupTemplate.editorGroup), () => editorGroupTemplate.editorGroup.id);
 			}
 		}));
 
 		return editorGroupTemplate;
 	}
 
-	renderElement(editorGroup: IEditorGroup, index: number, templateData: IEditorGroupTemplateData): void {
+	renderElement(editorGroup: INextEditorGroup, index: number, templateData: IEditorGroupTemplateData): void {
 		templateData.editorGroup = editorGroup;
 		templateData.name.textContent = `Group <${editorGroup.id}>`;
 		templateData.actionBar.context = { groupId: editorGroup.id };
@@ -522,11 +511,11 @@ class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateDat
 	private transfer = LocalSelectionTransfer.getInstance<OpenEditor>();
 
 	constructor(
-		private getSelectedElements: () => (OpenEditor | IEditorGroup)[],
+		private getSelectedElements: () => (OpenEditor | INextEditorGroup)[],
 		private instantiationService: IInstantiationService,
 		private keybindingService: IKeybindingService,
 		private configurationService: IConfigurationService,
-		private editorGroupService: IEditorGroupService
+		private editorGroupService: INextEditorGroupsService
 	) {
 		// noop
 	}
@@ -574,17 +563,15 @@ class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateDat
 		}));
 		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DROP, (e: DragEvent) => {
 			dom.removeClass(container, 'focused');
-			const model = this.editorGroupService.getStacksModel();
-			const positionOfTargetGroup = model.positionOfGroup(editorTemplate.openEditor.legacyGroup);
-			const index = editorTemplate.openEditor.legacyGroup.indexOf(editorTemplate.openEditor.editor);
+			const index = editorTemplate.openEditor.group.getIndexOfEditor(editorTemplate.openEditor.editor);
 
 			if (this.transfer.hasData(OpenEditor.prototype)) {
 				this.transfer.getData(OpenEditor.prototype).forEach((oe, offset) =>
-					this.editorGroupService.moveEditor(oe.editor, model.positionOfGroup(oe.legacyGroup), positionOfTargetGroup, { index: index + offset, preserveFocus: true }));
-				this.editorGroupService.activateGroup(positionOfTargetGroup);
+					oe.group.moveEditor(oe.editor, editorTemplate.openEditor.group, { index: index + offset, preserveFocus: true }));
+				this.editorGroupService.activateGroup(editorTemplate.openEditor.group);
 			} else {
 				const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: false });
-				dropHandler.handleDrop(e, () => this.editorGroupService.activateGroup(positionOfTargetGroup), () => positionOfTargetGroup, index);
+				dropHandler.handleDrop(e, () => this.editorGroupService.activateGroup(editorTemplate.openEditor.group), () => editorTemplate.openEditor.group.id, index);
 			}
 		}));
 		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_END, () => {
@@ -602,7 +589,7 @@ class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateDat
 			extraClasses: ['open-editor'],
 			fileDecorations: this.configurationService.getValue<IFilesConfiguration>().explorer.decorations
 		});
-		templateData.actionBar.context = { groupId: editor.group, editorIndex: editor.editorIndex };
+		templateData.actionBar.context = { groupId: editor.groupId, editorIndex: editor.editorIndex };
 	}
 
 	disposeTemplate(templateData: IOpenEditorTemplateData): void {

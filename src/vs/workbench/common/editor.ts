@@ -890,7 +890,7 @@ export class TextEditorOptions extends EditorOptions {
 }
 
 export interface IEditorIdentifier {
-	group: GroupIdentifier;
+	groupId: GroupIdentifier;
 	editor: IEditorInput;
 }
 

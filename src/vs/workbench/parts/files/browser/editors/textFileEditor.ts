@@ -72,7 +72,7 @@ export class TextFileEditor extends BaseTextEditor {
 	}
 
 	private onWillCloseEditor(e: IEditorIdentifier): void {
-		if (e.editor === this.input && this.group === e.group) {
+		if (e.editor === this.input && this.group === e.groupId) {
 			this.doSaveTextEditorViewState(this.input);
 		}
 	}

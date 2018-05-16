@@ -28,7 +28,7 @@ export interface EditorCloseEvent extends IEditorCloseEvent {
 }
 
 export interface EditorIdentifier extends IEditorIdentifier {
-	group: GroupIdentifier;
+	groupId: GroupIdentifier;
 	editor: EditorInput;
 }
 
@@ -354,7 +354,7 @@ export class EditorGroup extends Disposable implements IEditorGroup {
 		this.splice(index, true);
 
 		// Event
-		return { editor, replaced, index, group: this.id };
+		return { editor, replaced, index, groupId: this.id };
 	}
 
 	closeEditors(except: EditorInput, direction?: CloseDirection): void {

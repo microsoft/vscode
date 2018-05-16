@@ -552,7 +552,7 @@ export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsCon
 	const list = listService.lastFocusedList;
 	if (list instanceof List && list.isDOMFocused()) {
 		const elementToContext = (element: IEditorIdentifier | EditorGroup) =>
-			element instanceof EditorGroup ? { groupId: element.id, editorIndex: undefined } : { groupId: element.group, editorIndex: editorGroupService.getGroup(element.group).getIndexOfEditor(element.editor) };
+			element instanceof EditorGroup ? { groupId: element.id, editorIndex: undefined } : { groupId: element.groupId, editorIndex: editorGroupService.getGroup(element.groupId).getIndexOfEditor(element.editor) };
 		const onlyEditorGroupAndEditor = (e: IEditorIdentifier | EditorGroup) => e instanceof EditorGroup || ('editor' in e && 'group' in e);
 
 		const focusedElements: (IEditorIdentifier | EditorGroup)[] = list.getFocusedElements().filter(onlyEditorGroupAndEditor);
@@ -562,7 +562,7 @@ export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsCon
 		if (focus) {
 			const selection: (IEditorIdentifier | EditorGroup)[] = list.getSelectedElements().filter(onlyEditorGroupAndEditor);
 			// Only respect selection if it contains focused element
-			if (selection && selection.some(s => s instanceof EditorGroup ? s.id === focus.groupId : s.group === focus.groupId && editorGroupService.getGroup(s.group).getIndexOfEditor(s.editor) === focus.editorIndex)) {
+			if (selection && selection.some(s => s instanceof EditorGroup ? s.id === focus.groupId : s.groupId === focus.groupId && editorGroupService.getGroup(s.groupId).getIndexOfEditor(s.editor) === focus.editorIndex)) {
 				return selection.map(elementToContext);
 			}
 

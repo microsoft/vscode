@@ -1203,7 +1203,7 @@ class EditorOpeningEvent implements IEditorOpeningEvent {
 	) {
 	}
 
-	get group(): GroupIdentifier {
+	get groupId(): GroupIdentifier {
 		return this._group;
 	}
 

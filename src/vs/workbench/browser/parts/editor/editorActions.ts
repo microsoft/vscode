@@ -124,8 +124,8 @@ export class BaseSplitEditorGroupAction extends Action {
 
 	public run(context?: IEditorIdentifier): TPromise<any> {
 		let group: INextEditorGroup;
-		if (context && context.group) {
-			group = this.nextEditorGroupsService.getGroup(context.group);
+		if (context && context.groupId) {
+			group = this.nextEditorGroupsService.getGroup(context.groupId);
 		}
 
 		if (!group) {
@@ -237,7 +237,7 @@ export class JoinTwoGroupsAction extends Action {
 
 		// Joining group is from context, or the active group
 		if (context) {
-			fromPosition = editorStacksModel.positionOfGroup(editorStacksModel.getGroup(context.group));
+			fromPosition = editorStacksModel.positionOfGroup(editorStacksModel.getGroup(context.groupId));
 		} else {
 			fromPosition = editorStacksModel.positionOfGroup(editorStacksModel.activeGroup);
 		}
@@ -808,7 +808,7 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 	}
 
 	public run(context?: IEditorIdentifier): TPromise<any> {
-		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(this.editorGroupService.getStacksModel().getGroup(context.group)) : null;
+		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(this.editorGroupService.getStacksModel().getGroup(context.groupId)) : null;
 		if (typeof position !== 'number') {
 			const activeEditor = this.editorService.getActiveEditor();
 			if (activeEditor) {
@@ -839,7 +839,7 @@ export class MoveGroupLeftAction extends Action {
 	}
 
 	public run(context?: IEditorIdentifier): TPromise<any> {
-		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(this.editorGroupService.getStacksModel().getGroup(context.group)) : null;
+		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(this.editorGroupService.getStacksModel().getGroup(context.groupId)) : null;
 		if (typeof position !== 'number') {
 			const activeEditor = this.editorService.getActiveEditor();
 			if (activeEditor && (activeEditor.group === Position.TWO || activeEditor.group === Position.THREE)) {
@@ -873,7 +873,7 @@ export class MoveGroupRightAction extends Action {
 	}
 
 	public run(context?: IEditorIdentifier): TPromise<any> {
-		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(this.editorGroupService.getStacksModel().getGroup(context.group)) : null;
+		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(this.editorGroupService.getStacksModel().getGroup(context.groupId)) : null;
 		if (typeof position !== 'number') {
 			const activeEditor = this.editorService.getActiveEditor();
 			const editors = this.editorService.getVisibleEditors();
@@ -954,7 +954,7 @@ export class MaximizeGroupAction extends Action {
 
 function getTarget(editorService: IWorkbenchEditorService, editorGroupService: IEditorGroupService, context?: IEditorIdentifier): { input: IEditorInput, position: Position } {
 	if (context) {
-		return { input: context.editor, position: editorGroupService.getStacksModel().positionOfGroup(editorGroupService.getStacksModel().getGroup(context.group)) };
+		return { input: context.editor, position: editorGroupService.getStacksModel().positionOfGroup(editorGroupService.getStacksModel().getGroup(context.groupId)) };
 	}
 
 	const activeEditor = editorService.getActiveEditor();
@@ -980,7 +980,7 @@ export abstract class BaseNavigateEditorAction extends Action {
 		const model = this.editorGroupService.getStacksModel();
 		const result = this.navigate();
 		if (result) {
-			return this.editorService.openEditor(result.editor, null, model.positionOfGroup(this.editorGroupService.getStacksModel().getGroup(result.group)));
+			return this.editorService.openEditor(result.editor, null, model.positionOfGroup(this.editorGroupService.getStacksModel().getGroup(result.groupId)));
 		}
 
 		return TPromise.as(false);

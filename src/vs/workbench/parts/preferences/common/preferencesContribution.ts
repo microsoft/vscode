@@ -74,7 +74,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		// If the file resource was already opened before in the group, do not prevent
 		// the opening of that resource. Otherwise we would have the same settings
 		// opened twice (https://github.com/Microsoft/vscode/issues/36447)
-		const group = this.nextEditorGroupService.getGroup(event.group);
+		const group = this.nextEditorGroupService.getGroup(event.groupId);
 		if (group.isOpened(event.editor)) {
 			return;
 		}

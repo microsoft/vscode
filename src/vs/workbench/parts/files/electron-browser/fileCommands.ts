@@ -128,7 +128,7 @@ function save(resource: URI, isSaveAs: boolean, editorService: INextEditorServic
 					return void 0; // save canceled or same resource used
 				}
 
-				const replaceWith: IResourceInput = {
+				const replacement: IResourceInput = {
 					resource: target,
 					encoding: encodingOfSource,
 					options: {
@@ -136,13 +136,12 @@ function save(resource: URI, isSaveAs: boolean, editorService: INextEditorServic
 						viewState: viewStateOfSource
 					}
 				};
-				console.log(replaceWith);
 
-				// TODO@Isidor
-				// return editorService.replaceEditors([{
-				// 	toReplace: { resource: resource },
-				// 	replaceWith
-				// }]).then(() => true);
+				// TODO@isidor
+				return editorService.replaceEditors([{
+					editor: { resource },
+					replacement
+				}], undefined).then(() => true);
 			});
 		}
 

@@ -175,7 +175,7 @@ export class HistoryService implements IHistoryService {
 		}
 
 		// Remember as last active editor (can be undefined if none opened)
-		this.lastActiveEditor = activeEditor ? { editor: activeEditor.input, group: activeEditor.group } : void 0;
+		this.lastActiveEditor = activeEditor ? { editor: activeEditor.input, groupId: activeEditor.group } : void 0;
 
 		// Dispose old listeners
 		dispose(this.activeEditorListeners);
@@ -202,7 +202,7 @@ export class HistoryService implements IHistoryService {
 			return false;
 		}
 
-		if (identifier.group !== editor.group) {
+		if (identifier.groupId !== editor.group) {
 			return false;
 		}
 
