@@ -1,103 +1,102 @@
-# Contributing to VS Code
+# Berkontribusi pada VS Code
 
-Welcome, and thank you for your interest in contributing to VS Code!
+Selamat datang, dan terima kasih atas minat Anda untuk berkontribusi pada VS Code!
 
-There are many ways that you can contribute, beyond writing code. The goal of this document is to provide a high-level overview of how you can get involved.
+Ada banyak cara yang dapat Anda kontribusikan, selain menulis kode. Tujuan dari dokumen ini adalah untuk memberikan gambaran tingkat tinggi tentang bagaimana Anda bisa terlibat.
 
-## Asking Questions
+## Menanyakan pertanyaan
 
-Have a question? Rather than opening an issue, please ask away on [Stack Overflow](https://stackoverflow.com/questions/tagged/vscode) using the tag `vscode`.
+Punya pertanyaan? Alih-alih membuka sebuah masalah, mohon tanyakan pada [Stack Overflow] (https://stackoverflow.com/questions/tagged/vscode) dengan menggunakan tag `vscode`.
 
-The active community will be eager to assist you. Your well-worded question will serve as a resource to others searching for help.
+Komunitas yang aktif akan sangat ingin membantu Anda. Pertanyaan baik Anda akan menjadi sumber bagi orang lain yang mencari pertolongan.
 
-## Providing Feedback
+## Memberikan Masukan
 
-Your comments and feedback are welcome, and the development team is available via handful of different channels.
+Komentar dan masukan Anda dipersilahkan, dan tim pengembang tersedia melalui beberapa saluran yang berbeda.
 
-See the [Feedback Channels](https://github.com/Microsoft/vscode/wiki/Feedback-Channels) wiki page for details about how to share your thoughts.
+Lihat halaman wiki [Feedback Channels] (https://github.com/Microsoft/vscode/wiki/Feedback-Channels) untuk rincian tentang bagaimana membagikan pemikiran Anda.
 
-## Reporting Issues
+## Masalah Pelaporan
 
-Have you identified a reproducible problem in VS Code? Have a feature request? We want to hear about it! Here's how you can make reporting your issue as effective as possible.
+Sudahkah Anda mengidentifikasi masalah yang bisa diulang di VS Code? Punya permintaan fitur? Kami ingin mendengarnya! Inilah bagaimana Anda dapat melaporkan masalah Anda seefektif mungkin.
 
-### Identify Where to Report
+### Identifikasi Dimana Melaporkan
 
-The VS Code project is distributed across multiple repositories. Try to file the issue against the correct repository. Check the list of [Related Projects](https://github.com/Microsoft/vscode/wiki/Related-Projects) if you aren't sure which repo is correct.
+Proyek VS Code didistribusikan ke beberapa repositori. Cobalah untuk mengajukan masalah terhadap repositori yang benar. Periksa daftar [Proyek Terkait] (https://github.com/Microsoft/vscode/wiki/Related-Projects) jika Anda tidak yakin repo mana yang benar.
 
-Can you recreate the issue even after [disabling all extensions](https://code.visualstudio.com/docs/editor/extension-gallery#_disable-an-extension)? If you find the issue is caused by an extension you have installed, please file an issue on the extension's repo directly.
+Dapatkah Anda menciptakan masalah ini bahkan setelah [menonaktifkan semua ekstensi] (https://code.visualstudio.com/docs/editor/extension-gallery#_disable-an-extension)? Jika Anda mendapati masalahnya disebabkan oleh ekstensi yang telah Anda pasang, ajukan masalah pada repo ekstensi secara langsung.
 
-### Look For an Existing Issue
+### Carilah Isu yang Ada
 
-Before you create a new issue, please do a search in [open issues](https://github.com/Microsoft/vscode/issues) to see if the issue or feature request has already been filed.
+Sebelum membuat masalah baru, lakukan pencarian di [masalah terbuka] (https://github.com/Microsoft/vscode/issues) untuk melihat apakah permintaan masalah atau fitur telah diajukan.
 
-Be sure to scan through the [most popular](https://github.com/Microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc) feature requests.
+Pastikan untuk memindai melalui [paling populer] (https://github.com/Microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc) permintaan fitur.
 
-If you find your issue already exists, make relevant comments and add your [reaction](https://github.com/blog/2119-add-reactions-to-pull-requests-issues-and-comments). Use a reaction in place of a "+1" comment:
+Jika Anda menemukan masalah Anda sudah ada, buat komentar yang relevan dan tambahkan reaksi Anda (https://github.com/blog/2119-add-reactions-to-pull-requests-issues-and-comments). Gunakan reaksi menggantikan komentar "+1":
 
 * 👍 - upvote
 * 👎 - downvote
 
 
-If you cannot find an existing issue that describes your bug or feature, create a new issue using the guidelines below.
+Jika Anda tidak dapat menemukan masalah yang ada yang menjelaskan tentang bug atau fitur Anda, buat masalah baru menggunakan panduan di bawah ini.
 
-### Writing Good Bug Reports and Feature Requests
+### Menulis Laporan Bug dan Permintaan Fitur yang Baik
 
-File a single issue per problem and feature request. Do not enumerate multiple bugs or feature requests in the same issue.
+Ajukan satu masalah per masalah dan permintaan fitur. Jangan menghitung beberapa bug atau permintaan fitur dalam edisi yang sama.
 
-Do not add your issue as a comment to an existing issue unless it's for the identical input. Many issues look similar, but have different causes.
+Jangan tambahkan masalah Anda sebagai komentar atas masalah yang ada kecuali untuk masukan yang sama. Banyak masalah terlihat serupa, namun memiliki penyebab yang berbeda.
 
-The more information you can provide, the more likely someone will be successful reproducing the issue and finding a fix.
+Semakin banyak informasi yang dapat Anda berikan, semakin besar kemungkinan seseorang akan berhasil mereproduksi masalah ini dan menemukan masalahnya.
 
-Please include the following with each issue:
+Sertakan yang berikut dengan setiap terbitan:
 
-* Version of VS Code
+* Versi VS Code
 
-* List of extensions that you have installed.
-  * **Tip:** You can easily add the list of extensions by creating the issue using `Report Issues` from VS Code's Help menu
+* Daftar ekstensi yang telah Anda instal.
+  * **Tip:** Anda dapat dengan mudah menambahkan daftar ekstensi dengan membuat masalah menggunakan `Report Issues` dari menu Bantuan Kode VS
 
-* Reproducible steps (1... 2... 3...) that cause the issue
+Langkah direproduksi (1... 2... 3...) yang menyebabkan masalah
 
-* What you expected to see, versus what you actually saw
+* Apa yang Anda harapkan untuk dilihat, dibandingkan dengan apa yang sebenarnya Anda lihat
 
-* Images, animations, or a link to a video showing the issue occuring
+* Gambar, animasi, atau tautan ke video yang menunjukkan masalah yang terjadi
 
-* A code snippet that demonstrates the issue or a link to a code repository the developers can easily pull down to recreate the issue locally
+* Cuplikan kode yang menunjukkan masalah atau tautan ke repositori kode sehingga pengembang dapat dengan mudah menariknya ke bawah untuk menciptakan masalah secara lokal
 
-  * **Note:** Because the developers need to copy and paste the code snippet, including a code snippet as a media file (i.e. .gif) is not sufficient.
+  * **Catatan:** Karena pengembang perlu menyalin dan menempelkan cuplikan kode, termasuk cuplikan kode sebagai file media (mis., Gif) tidak mencukupi.
 
-* Errors from the Dev Tools Console (open from the menu: Help > Toggle Developer Tools)
+* Kesalahan dari Dev Tools Console (buka dari menu: Help> Toggle Developer Tools)
 
-### Final Checklist
+### Daftar Periksa Final
 
-Please remember to do the following:
+Harap diingat untuk melakukan hal berikut:
 
-* [ ] Search the issue repository to ensure your report is a new issue
+* [ ] Cari repositori masalah untuk memastikan laporan Anda merupakan masalah baru
 
-* [ ] Recreate the issue after disabling all extensions
+* [ ] Buat kembali masalah setelah menonaktifkan semua ekstensi
 
-* [ ] Simplify your code around the issue to better isolate the problem
+* [ ] Sederhanakan kode Anda seputar masalah ini untuk lebih mengisolasi masalahnya
 
-Don't feel bad if the developers can't reproduce the issue right away. They will simply ask for more information!
+Jangan merasa buruk jika pengembang tidak bisa mereproduksi masalah dengan segera. Mereka hanya akan meminta informasi lebih lanjut!
 
-### Follow Your Issue
+### Ikuti Isu Anda
 
-Once submitted, your report will go into the [issue tracking](https://github.com/Microsoft/vscode/wiki/Issue-Tracking) work flow. Be sure to understand what will happen next, so you know what to expect, and how to continue to assist throughout the process.
+Setelah diserahkan, laporan Anda akan masuk ke alur kerja [issue tracking] (https://github.com/Microsoft/vscode/wiki/Issue-Tracking). Pastikan untuk memahami apa yang akan terjadi selanjutnya, jadi Anda tahu apa yang diharapkan, dan bagaimana untuk terus membantu selama proses berlangsung.
 
 ## Automated Issue Management
 
-We use a bot to help us manage issues. This bot currently:
+Kami menggunakan bot untuk membantu kami mengelola masalah. Bot ini saat ini:
 
-* Automatically closes any issue marked `needs-more-info` if there has been no response in past 7 days.
-* Automatically locks 45 days after they are closed.
+* Secara otomatis menutup masalah yang ditandai `need-more-info` jika belum ada tanggapan dalam 7 hari terakhir.
+* Secara otomatis mengunci 45 hari setelah ditutup.
 
-If you believe the bot got something wrong, please open a new issue and let us know.
+Jika Anda yakin bot itu salah, buka masalah baru dan beri tahu kami.
 
-## Contributing Fixes
+## Perbaikan Berkontribusi
 
-If you are interested in writing code to fix issues,
-please see [How to Contribute](https://github.com/Microsoft/vscode/wiki/How-to-Contribute) in the wiki.
+Jika Anda tertarik untuk menulis kode untuk memperbaiki masalah,
+silakan lihat [Cara Berkontribusi] (https://github.com/Microsoft/vscode/wiki/How-to-Contribute) di wiki.
 
-# Thank You!
+# Terima kasih!
 
-Your contributions to open source, large or small, make great projects like this possible. Thank you for taking the time to contribute.
-
+Kontribusi Anda untuk open source, besar atau kecil, membuat proyek hebat seperti ini mungkin. Terima kasih telah meluangkan waktu untuk berkontribusi.
