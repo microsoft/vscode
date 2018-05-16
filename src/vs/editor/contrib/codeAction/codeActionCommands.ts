@@ -24,6 +24,7 @@ import { CodeActionContextMenu } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(
@@ -48,13 +49,14 @@ export class QuickFixController implements IEditorContribution {
 	constructor(editor: ICodeEditor,
 		@IMarkerService markerService: IMarkerService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICommandService private readonly _commandService: ICommandService,
+		@IProgressService progressService: IProgressService,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IBulkEditService private readonly _bulkEditService: IBulkEditService
+		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 	) {
 		this._editor = editor;
-		this._model = new CodeActionModel(this._editor, markerService, contextKeyService);
+		this._model = new CodeActionModel(this._editor, markerService, contextKeyService, progressService);
 		this._codeActionContextMenu = new CodeActionContextMenu(editor, contextMenuService, action => this._onApplyCodeAction(action));
 		this._lightBulbWidget = new LightBulbWidget(editor);
 
