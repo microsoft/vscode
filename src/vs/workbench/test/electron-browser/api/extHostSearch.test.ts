@@ -516,6 +516,37 @@ suite('ExtHostSearch', () => {
 			assert(wasCanceled, 'Expected to be canceled when hitting limit');
 		});
 
+		test('respects filePattern', async () => {
+			const reportedResults = [
+				makeAbsoluteURI(rootFolderA, 'file1.ts'),
+				makeAbsoluteURI(rootFolderA, 'file2.ts'),
+				makeAbsoluteURI(rootFolderA, 'file3.ts'),
+			];
+
+			await registerTestSearchProvider({
+				provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<vscode.Uri>, token: vscode.CancellationToken): Thenable<void> {
+					reportedResults.forEach(r => progress.report(r));
+					return TPromise.wrap(null);
+				}
+			});
+
+			const query: ISearchQuery = {
+				type: QueryType.File,
+
+				filePattern: 'file3',
+
+				folderQueries: [
+					{
+						folder: rootFolderA
+					}
+				]
+			};
+
+			const results = await runFileSearch(query);
+			assert.equal(results.length, 1);
+			compareURIs(results, reportedResults.slice(2));
+		});
+
 		// Mock fs?
 		// test('Returns result for absolute path', async () => {
 		// 	const queriedFile = makeFileResult(rootFolderA, 'file2.ts');
