@@ -1173,7 +1173,6 @@ export class DebugService implements debug.IDebugService {
 
 		this.model.removeSession(raw.getId());
 		if (session) {
-			session.inactive = true;
 			this._onDidEndSession.fire(session);
 			if (session.configuration.postDebugTask) {
 				this.runTask(session.getId(), session.raw.root, session.configuration.postDebugTask).done(undefined, err =>

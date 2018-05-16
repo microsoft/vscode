@@ -134,7 +134,6 @@ export interface IRawSession {
 }
 
 export enum SessionState {
-	INACTIVE,
 	ATTACH,
 	LAUNCH
 }
