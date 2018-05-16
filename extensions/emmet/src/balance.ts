@@ -7,6 +7,10 @@ import * as vscode from 'vscode';
 import { HtmlNode } from 'EmmetNode';
 import { getNode, parseDocument, validate } from './util';
 
+let balanceStack: Array<vscode.Selection[]> = [];
+let beforeEmmetSelection: vscode.Selection[];
+let lastOut = false;
+
 export function balanceOut() {
 	balance(true);
 }
@@ -25,15 +29,28 @@ function balance(out: boolean) {
 		return;
 	}
 
-	let getRangeFunction = out ? getRangeToBalanceOut : getRangeToBalanceIn;
-	let newSelections: vscode.Selection[] = [];
-	editor.selections.forEach(selection => {
-		let range = getRangeFunction(editor.document, selection, rootNode);
-		newSelections.push(range);
-	});
+	if(out) {
+		if(balanceStack.length === 0) {
+			beforeEmmetSelection = editor.selections;
+		}
 
-	editor.selection = newSelections[0];
-	editor.selections = newSelections;
+		let newSelections: vscode.Selection[] = [];
+		editor.selections.forEach(selection => {
+			let range = getRangeToBalanceOut(editor.document, selection, rootNode);
+			newSelections.push(range);
+		});
+
+		editor.selections = newSelections;
+		balanceStack.push(newSelections);
+		lastOut = true;
+	} else {
+		if(lastOut) {
+			balanceStack.pop();
+			lastOut = false;
+		}
+		let oldSelections = balanceStack.pop() || beforeEmmetSelection;
+		editor.selections = oldSelections;
+	}
 }
 
 function getRangeToBalanceOut(document: vscode.TextDocument, selection: vscode.Selection, rootNode: HtmlNode): vscode.Selection {
@@ -56,30 +73,3 @@ function getRangeToBalanceOut(document: vscode.TextDocument, selection: vscode.S
 	}
 	return selection;
 }
-
-function getRangeToBalanceIn(document: vscode.TextDocument, selection: vscode.Selection, rootNode: HtmlNode): vscode.Selection {
-	let nodeToBalance = <HtmlNode>getNode(rootNode, selection.start, true);
-	if (!nodeToBalance) {
-		return selection;
-	}
-
-	if (selection.start.isEqual(nodeToBalance.start)
-		&& selection.end.isEqual(nodeToBalance.end)
-		&& nodeToBalance.close) {
-		return new vscode.Selection(nodeToBalance.open.end, nodeToBalance.close.start);
-	}
-
-	if (!nodeToBalance.firstChild) {
-		return selection;
-	}
-
-	if (selection.start.isEqual(nodeToBalance.firstChild.start)
-		&& selection.end.isEqual(nodeToBalance.firstChild.end)
-		&& nodeToBalance.firstChild.close) {
-		return new vscode.Selection(nodeToBalance.firstChild.open.end, nodeToBalance.firstChild.close.start);
-	}
-
-	return new vscode.Selection(nodeToBalance.firstChild.start, nodeToBalance.firstChild.end);
-
-}
-
